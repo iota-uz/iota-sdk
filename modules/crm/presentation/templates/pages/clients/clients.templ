@@ -6,12 +6,14 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/export"
+	"github.com/iota-uz/iota-sdk/components/listcolumns"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"net/url"
 	"strconv"
 )
@@ -22,10 +24,30 @@ type IndexPageProps struct {
 	PerPage int
 	HasMore bool
 	NewURL  string
+	// Extensions are the columns extension packages contribute to the list;
+	// nil when there are none.
+	Extensions *listext.View
+	// Query is the request query, kept by the infinite-scroll links.
+	Query url.Values
+}
+
+// extColumnCount is the number of columns added by extension packages.
+func (p *IndexPageProps) extColumnCount() int {
+	if p.Extensions == nil {
+		return 0
+	}
+	return len(p.Extensions.Columns)
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	params := url.Values{}
+	// Keep the active filters and ordering while scrolling.
+	for key, values := range props.Query {
+		if key == "page" || key == "limit" {
+			continue
+		}
+		params[key] = append([]string(nil), values...)
+	}
 	params.Set("page", strconv.Itoa(props.Page+1))
 	params.Set("limit", strconv.Itoa(props.PerPage))
 
@@ -74,6 +96,7 @@ templ ClientRow(client *viewmodels.Client, rowProps *base.TableRowProps) {
 				<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
 			</div>
 		}
+		@listcolumns.Cells(client.Extensions)
 	}
 }
 
@@ -85,7 +108,7 @@ templ ClientCreatedEvent(client *viewmodels.Client, rowProps *base.TableRowProps
 
 templ ClientRows(props *IndexPageProps) {
 	<tr class="hidden">
-		<td colspan="3">
+		<td colspan={ strconv.Itoa(3 + props.extColumnCount()) }>
 			@loaders.Spinner(loaders.SpinnerProps{
 				ContainerClass: templ.Classes(
 					"flex justify-center items-center py-4",
@@ -110,18 +133,18 @@ templ ClientRows(props *IndexPageProps) {
 templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@base.Table(base.TableProps{
-		Columns: []*base.TableColumn{
+		Columns: append([]*base.TableColumn{
 			{Label: pageCtx.T("Clients.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Clients.List.Phone"), Key: "phone"},
 			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-		},
+		}, listcolumns.Headers(props.Extensions)...),
 		TBodyAttrs: templ.Attributes{
 			"id": "clients-table-body",
 		},
 	}) {
 		if len(props.Clients) == 0 {
 			<tr>
-				<td colspan="3">
+				<td colspan={ strconv.Itoa(3 + props.extColumnCount()) }>
 					@base.TableEmptyState(base.TableEmptyStateProps{
 						Title:       pageCtx.T("Clients.List.NoData.Title"),
 						Description: pageCtx.T("Clients.List.NoData._Description"),
@@ -154,6 +177,7 @@ templ ClientsContent(props *IndexPageProps) {
 			})
 			@filters.PageSize()
 			@filters.CreatedAt()
+			@listcolumns.Controls(props.Extensions)
 			@export.ExportDropdown(export.ExportDropdownProps{
 				Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
 				ExportURL: "/crm/clients/export",

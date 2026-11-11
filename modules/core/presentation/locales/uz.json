@@ -682,6 +682,7 @@
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
+  "SortBy": "Saralash",
   "PermissionSets": {
     "Core": {
       "UserView": {

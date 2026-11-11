@@ -90,7 +90,7 @@ func validate(t Type, raw json.RawMessage, path []string) error {
 		return nil
 	case KindRef:
 		var r RefValue
-		if err := json.Unmarshal(raw, &r); err != nil || r.Key == "" {
+		if err := json.Unmarshal(raw, &r); err != nil || r.Key == "" || r.Entity == "" {
 			return fail(path, "expected ref {entity,key}")
 		}
 		if t.Entity != "" && r.Entity != t.Entity {
@@ -156,8 +156,8 @@ func validateString(t Type, s string, path []string) error {
 			return fail(path, "expected RFC3339 datetime with offset")
 		}
 	case KindUUID:
-		if _, err := uuid.Parse(s); err != nil {
-			return fail(path, "expected uuid")
+		if _, err := uuid.Parse(s); err != nil || len(s) != 36 {
+			return fail(path, "expected canonical uuid")
 		}
 	case KindEnum:
 		for _, v := range t.Values {

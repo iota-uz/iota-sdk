@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "baseUrl": ".",
+    "paths": {
+      "@iota-uz/sdk/client-host": ["../../../client-host/src/solid-index.ts"],
+      "solid-js": ["../../../client-host/node_modules/solid-js"],
+      "solid-js/web": ["../../../client-host/node_modules/solid-js/web"]
+    }
+  },
+  "include": ["."],
+  "exclude": ["**/*.test.ts", "browser/*.spec.ts", "browser/*.config.ts"]
+}
