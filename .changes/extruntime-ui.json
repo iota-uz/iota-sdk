@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add the extension runtime UI slice: contributed columns for native lists and exports (pkg/listext, wired into CRM clients), a dynamic page host with immutable asset route and browser RPC, navigation projection, screen and whole-shell replacement through bindings, and the browser runtime host (web/runtime client-host)."}

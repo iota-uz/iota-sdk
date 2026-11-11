@@ -682,6 +682,7 @@
   },
   "No": "Нет",
   "PerPage": "На странице",
+  "SortBy": "Сортировка",
   "PermissionSets": {
     "Core": {
       "UserView": {

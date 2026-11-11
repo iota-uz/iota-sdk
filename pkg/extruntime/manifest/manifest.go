@@ -135,11 +135,12 @@ type Access struct {
 }
 
 type Nav struct {
-	Label  Label  `json:"label"`
-	Group  string `json:"group,omitempty"`
-	Parent string `json:"parent,omitempty"`
-	Icon   string `json:"icon,omitempty"`
-	Order  int    `json:"order,omitempty"`
+	Label     Label  `json:"label"`
+	Group     string `json:"group,omitempty"`
+	Workspace string `json:"workspace,omitempty"`
+	Parent    string `json:"parent,omitempty"`
+	Icon      string `json:"icon,omitempty"`
+	Order     int    `json:"order,omitempty"`
 }
 
 type NavPatch struct {
@@ -151,10 +152,11 @@ type NavPatch struct {
 }
 
 type NavGroup struct {
-	ID    string `json:"id"`
-	Label Label  `json:"label"`
-	Icon  string `json:"icon,omitempty"`
-	Order int    `json:"order,omitempty"`
+	ID        string `json:"id"`
+	Label     Label  `json:"label"`
+	Workspace string `json:"workspace,omitempty"`
+	Icon      string `json:"icon,omitempty"`
+	Order     int    `json:"order,omitempty"`
 }
 
 type Workspace struct {
@@ -198,7 +200,9 @@ type Resource struct {
 	Subject string          `json:"subject,omitempty"`
 	Signals map[string]Type `json:"signals,omitempty"`
 
-	// permission gate for commands/queries/pages
+	// Permission gates commands/queries/pages: an RBAC permission name
+	// compared with spi.Subject.Permissions; enforced by the host for every
+	// trigger (UI, MCP, endpoint), not only by the UI.
 	Permission string `json:"permission,omitempty"`
 
 	// route / page
@@ -206,7 +210,8 @@ type Resource struct {
 	Route string `json:"route,omitempty"`
 	Nav   *Nav   `json:"nav,omitempty"`
 	Chunk string `json:"chunk,omitempty"`
-	// export name inside the client bundle (page/slot/cell/shell)
+	// Chunk/Export locate the client module of page, slot, cell, shell and
+	// column (optional cell renderer) resources inside the client artifact.
 	Export string `json:"export,omitempty"`
 
 	// column

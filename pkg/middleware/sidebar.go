@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 	pkgsidebar "github.com/iota-uz/iota-sdk/pkg/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -181,6 +182,11 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					})
 				}
 				items = navItemsDecorator(r.Context(), r, items)
+				workspaces := app.NavWorkspaces()
+				if contributor, ok := shellext.NavigationFrom(r.Context()); ok {
+					items = contributor.Items(r.Context(), items)
+					workspaces = contributor.Workspaces(r.Context(), workspaces)
+				}
 				filtered := filterItems(items, u)
 				if len(user.EffectivePermissions(u)) == 0 {
 					filtered = []types.NavigationItem{}
@@ -192,7 +198,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				// Build sidebar props with configurable tab groups
 				tabGroups := normalizeTabGroups(pkgsidebar.BuildTabGroupsWithWorkspaces(
 					enabledNavItems,
-					app.NavWorkspaces(),
+					workspaces,
 					localizer,
 				))
 
