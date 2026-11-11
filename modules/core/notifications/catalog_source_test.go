@@ -145,5 +145,17 @@ func TestCatalogReservesKeysAcrossDeactivationAndPinsSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "a", event.SnapshotRef)
 	catalog.Deactivate("ts")
-	require.Error(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "b")}}))
+	changed := runtimeDefinition(key, "b")
+	changed.PayloadFields = []PayloadField{{Key: "amount", Required: true}}
+	require.Error(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{changed}}),
+		"a changed meaning needs a new key version")
+	other := runtimeDefinition(key, "c")
+	other.Source = "other"
+	require.Error(t, catalog.RegisterSource(context.Background(), staticSource{name: "other", definitions: []Definition{other}}),
+		"another source cannot take the key")
+	require.NoError(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "b")}}),
+		"the same source may publish a new snapshot of an unchanged meaning (a new package version)")
+	pinned, ok := catalog.For(Event{Key: key, SnapshotRef: "a"})
+	require.True(t, ok, "queued events keep resolving the snapshot they were validated against")
+	require.Equal(t, "a", pinned.SnapshotRef)
 }

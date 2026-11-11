@@ -187,8 +187,12 @@ extension activated from an immutable snapshot) implement
 - Every definition carries `Source` (the source name) and a non-empty
   `SnapshotRef`. Registration is atomic: one invalid or duplicate definition
   rejects the whole source.
-- Keys stay versioned (`...v1`). Registering an existing key fails, so an update
-  is published as a new version (`...v2`), never as a silent overwrite.
+- Keys stay versioned (`...v1`) and stay reserved after deactivation: a changed
+  meaning (module, default level, payload fields, recipient keys) is published as
+  a new version (`...v2`), never as a silent overwrite, and another source can
+  never take the key. The same source may register a new snapshot of an
+  unchanged meaning — a new package version with new templates, or the
+  re-activation of a known version.
 - Events produced from a runtime definition set `Event.SnapshotRef`. It is part
   of the queued dispatch job's event JSON, so no schema change is needed, and
   `Catalog.For(event)` resolves exactly that snapshot.
