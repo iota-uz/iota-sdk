@@ -3,7 +3,7 @@
 export { collectManifest, ManifestError } from './manifest.ts'
 export type { CollectInput } from './manifest.ts'
 export { EPOCH, OVERLAY_OF, fixture, overlayFixture } from './fixtures.ts'
-export type { Fixture } from './fixtures.ts'
+export type { Fixture, FixtureValues } from './fixtures.ts'
 export { assert, AssertionError } from './assert.ts'
 export type { Assert, ErrorMatcher } from './assert.ts'
 export { UnmatchedRequestError, fakeEffects } from './fakes.ts'

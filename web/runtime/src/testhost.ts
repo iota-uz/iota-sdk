@@ -11,14 +11,16 @@
 //   * with `templates`, a committed notice is rendered and delivered per recipient and channel to the fake
 //     sms/email/push/inApp channels (`host.deliveries` records every outcome); address recipients are used
 //     as given, record recipients go through `contacts` or a bound contactResolver, user recipients read
-//     their `core.user` fixture;
+//     their `core.user` fixture; before a record recipient's message is sent, the `deliveryPolicy`
+//     implementations bound to the recipient's entity decide per target (a denial is a skipped delivery
+//     `policy_denied:<reason>`, the first denial wins, a failing policy fails the delivery instead of sending it);
 //   * `q.query` / `tx.query` / `ctx.query` run the bound query in the same snapshot (transaction state inside a
 //     transaction, the committed state the call started from otherwise) with the caller's rights;
 //   * precheck / guard / write-rule handlers get a read-only context (no write members), like the worker;
 //   * rows carry their typed `ref`; handlers may be synchronous;
 //   * workflow primitives are journaled by (name, n) and driven by the test: a task/signal/sleep that is
 //     not satisfied suspends the run, exactly like the replay engine.
-import type { Command, Callable, ContactResolver, ContactTargets, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
+import type { Command, Callable, ContactResolver, ContactTargets, DeliveryPolicy, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
 import { compileFilter } from './entity.ts'
 import type { AnyEntity, AnyOverlay } from './entity.ts'
 import { type FakeEffects, fakeEffects } from './fakes.ts'
@@ -26,7 +28,7 @@ import { EPOCH, OVERLAY_OF, type Fixture } from './fixtures.ts'
 import type { Channel, ConditionJSON, FilterJSON, ISODateTime, Json, ReadRuleJSON, TypeJSON } from './model.ts'
 import type { AnySchema, Infer, Ref } from './schema.ts'
 import type {
-  Awaitable, CommandContext, Duration, FindQuery, GuardContext, Implementation, Implementable, InvocationInfo, Logger, OperationGuard,
+  Awaitable, CommandContext, DeliveryDecision, DeliveryRequest, Duration, FindQuery, GuardContext, Implementation, Implementable, InvocationInfo, Logger, OperationGuard,
   Principal, PrecheckGuard, QueryContext, ReadContext, Reader, Recipient, SignalPayload, SignalResult, StepContext, Subscription, SubscriptionEvent,
   TaskResult, TaskSpec, AnyTemplates, TriggerKind, Tx, WorkflowContext, WorkflowInstance, WriteRule,
 } from './server.ts'
@@ -129,6 +131,19 @@ export interface Delivery {
   readonly content?: Json
 }
 
+
+const POLICY_REASON = /^[a-z0-9_.-]{1,64}$/
+const VERSION_SEGMENT = /^v[1-9][0-9]*$/
+
+/** The notification catalog key of a notice ID, like the platform: snake_case segments and a trailing `.vN`. */
+function noticeKey(id: string): { key: string; version: number } {
+  const snake = (s: string): string => s.replace(/(?<=[^A-Z_])([A-Z])/g, '_$1').toLowerCase()
+  const segments = id.split('.').map(snake)
+  const last = segments[segments.length - 1] ?? ''
+  if (!VERSION_SEGMENT.test(last)) segments.push('v1')
+  return { key: segments.join('.'), version: Number((segments[segments.length - 1] ?? 'v1').slice(1)) }
+}
+
 type AnyWorkflow = Workflow<string, AnySchema, AnySchema | undefined, Readonly<Record<string, AnySchema>>>
 
 /**
@@ -168,6 +183,11 @@ export interface TestHostOptions {
   /** Start of the host clock. */
   now?: ISODateTime
   trigger?: TriggerKind
+  /**
+   * The `package@version` snapshot the platform pins on a notice, passed to delivery policies as `notice.snapshot`.
+   * Defaults to `<owner>.<module>@0.0.0`, taken from the notice ID.
+   */
+  snapshot?: string
 }
 
 export type PendingWork =
@@ -903,6 +923,46 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     return list.length > 0 ? { targets: [...list] } : { targets: [], reason: `the contact data of ${record.entity} "${record.key}" has no ${channel} target` }
   }
 
+  /** The platform's composite policy for one target: bound `deliveryPolicy` implementations of the record's entity, first denial wins. */
+  const evaluatePolicies = async (
+    sent: SentNotice,
+    recipient: Recipient,
+    channel: 'sms' | 'email' | 'push',
+    address: string,
+  ): Promise<{ allow: true } | { allow: false; reason: string; failed: boolean }> => {
+    if (recipient.kind !== 'record') return { allow: true }
+    const bound = [...impls.values()]
+      .filter((i) => i.contract.kind === 'deliveryPolicy' && (i.contract as DeliveryPolicy).entity.id === recipient.record.entity)
+      .sort((a, b) => (a.contract.id < b.contract.id ? -1 : a.contract.id > b.contract.id ? 1 : 0))
+    if (bound.length === 0) return { allow: true }
+    const { key, version } = noticeKey(sent.notice)
+    const owner = sent.notice.split('.').slice(0, 2).join('.')
+    const request: DeliveryRequest<AnyEntity> = {
+      notice: { key, version, snapshot: options.snapshot ?? `${owner}@0.0.0` },
+      subject: sent.subject === undefined ? null : { entity: sent.subject.entity, key: sent.subject.key },
+      recipient: { kind: 'record', ref: recipient.record as Ref<AnyEntity>, address: null },
+      channel,
+      target: { address, deviceId: null },
+    }
+    for (const impl of bound) {
+      let decision: DeliveryDecision
+      try {
+        decision = await (impl.handler as unknown as (q: QueryContext, r: DeliveryRequest<AnyEntity>) => Awaitable<DeliveryDecision>)(queryContext(), json(request) as unknown as DeliveryRequest<AnyEntity>)
+      } catch (e) {
+        return { allow: false, failed: true, reason: `delivery policy ${impl.contract.id} failed: ${e instanceof Error ? e.message : String(e)}` }
+      }
+      const verdict = decision as { allow?: unknown; reason?: unknown } | null
+      if (typeof verdict !== 'object' || verdict === null || typeof verdict.allow !== 'boolean') {
+        return { allow: false, failed: true, reason: `delivery policy ${impl.contract.id} must return {allow: boolean, reason?: string}` }
+      }
+      if (!verdict.allow) {
+        const reason = typeof verdict.reason === 'string' && POLICY_REASON.test(verdict.reason) ? verdict.reason : ''
+        return { allow: false, failed: false, reason: reason === '' ? 'policy_denied' : `policy_denied:${reason}` }
+      }
+    }
+    return { allow: true }
+  }
+
   const deliverNotice = async ({ sent, schema, seq }: PendingNotice): Promise<void> => {
     const set = templateSets.get(sent.notice)
     const renderers = (set?.renderers ?? {}) as Partial<Record<Channel, (args: { payload: unknown; subject: unknown; locale: string }) => unknown>>
@@ -922,6 +982,13 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
           if (render === undefined) {
             record({ target, status: 'skipped', reason: `the templates of ${sent.notice} have no ${channel} renderer` })
             continue
+          }
+          if (channel !== 'inApp') {
+            const verdict = await evaluatePolicies(sent, recipient, channel, target)
+            if (!verdict.allow) {
+              record({ target, status: verdict.failed ? 'failed' : 'skipped', reason: verdict.reason })
+              continue
+            }
           }
           let content: Json
           const idempotencyKey = `${seq}:${channel}:${target}`

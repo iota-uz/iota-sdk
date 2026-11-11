@@ -24,7 +24,9 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
 
 * `check` / `build` — package.json (`iota.namespace|contracts|server|client|capabilities`) →
   TypeScript typecheck (`ts.<code>`, SDK typings and kit modules mounted at
-  `node_modules/@iota-uz/sdk/runtime`, `node_modules/@iota-kit/*`) → three esbuild graphs →
+  `node_modules/@iota-uz/sdk/runtime`, `node_modules/@iota-kit/*`: virtual paths, the request payload is the only source of the
+  kit, so where the CLI keeps it on disk (`.iota/kit`) is not the worker's concern; an `@iota-kit/*` import the payload lacks is
+  one `graph.unknownKit` diagnostic naming the kit commands, and the TS errors that follow from it are dropped) → three esbuild graphs →
   manifest extraction (`manifest.*`) → artifacts below `<outDir>/artifacts`:
   `contracts.mjs`, `server.mjs`, `client/index-<hash>.js`, `client/chunk-<hash>.js`,
   `client/manifest.json`. `check` runs the same pipeline and writes nothing.

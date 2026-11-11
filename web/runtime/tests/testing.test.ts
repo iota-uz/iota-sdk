@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { fakeEffects, fixture, overlayFixture, UnmatchedRequestError } from '../src/testing.ts'
-import { WireError } from '../src/index.ts'
+import { EPOCH, fakeEffects, fixture, overlayFixture, UnmatchedRequestError } from '../src/testing.ts'
+
+import { nativeEntity } from '../src/kit.ts'
+import { field, WireError } from '../src/index.ts'
 import * as kit from '../typetests/kit.ts'
 import * as c from '../typetests/acme/contracts.ts'
 
@@ -26,6 +28,22 @@ describe('fixture', () => {
     expect(() => fixture(c.Customer, { name: 5 as never })).toThrow(WireError)
     expect(() => fixture(kit.Client, { name: 'x' })).toThrow(/explicit key/)
     expect(fixture(kit.Client, { name: 'x' }, { key: '3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1' }).ref.key).toBe('3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1')
+  })
+
+  it('defaults createdAt and updatedAt to EPOCH on every entity, declared as fields or not', () => {
+    // core.User declares them as required fields, crm.Client as optional ones, other natives not at all.
+    const required = nativeEntity('core.user2', { name: field.text(), createdAt: field.datetime(), updatedAt: field.datetime() }, { key: 'int64' })
+    const optional = nativeEntity('crm.client2', { name: field.text(), createdAt: field.datetime().optional(), updatedAt: field.datetime().optional() }, { key: 'uuid' })
+    const none = nativeEntity('crm.client3', { name: field.text() }, { key: 'uuid' })
+    for (const fx of [fixture(required, { name: 'x' }, { key: '1' }), fixture(optional, { name: 'x' }, { key: 'k' }), fixture(none, { name: 'x' }, { key: 'k' })]) {
+      expect(fx.record.createdAt).toBe(EPOCH)
+      expect(fx.record.updatedAt).toBe(EPOCH)
+    }
+    expect(fixture(c.Customer, { name: 'x' }).record.createdAt).toBe(EPOCH)
+    // Explicit values win, wherever the column is declared.
+    const later = '2026-06-01T00:00:00Z' as typeof EPOCH
+    expect(fixture(required, { name: 'x', createdAt: later }, { key: '1' }).record).toMatchObject({ createdAt: later, updatedAt: EPOCH })
+    expect(fixture(optional, { name: 'x', updatedAt: later }, { key: 'k' }).record).toMatchObject({ createdAt: EPOCH, updatedAt: later })
   })
 
   it('builds overlay rows with defaults', () => {

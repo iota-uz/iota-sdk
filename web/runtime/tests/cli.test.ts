@@ -68,12 +68,20 @@ describe('iota-ext init → check → build → test', () => {
     expect(init.status).toBe(0)
     const pkg = join(dir, 'pkg')
     expect(init.out).toContain('kit generated: @iota-kit/core, @iota-kit/crm')
-    for (const f of ['package.json', 'tsconfig.json', 'src/contracts.ts', 'src/server.ts', 'src/client.tsx', 'src/server.test.ts', 'node_modules/@iota-kit/core/index.d.ts']) {
+    for (const f of ['package.json', 'tsconfig.json', 'src/contracts.ts', 'src/server.ts', 'src/client.tsx', 'src/server.test.ts', '.iota/kit/core/index.d.ts', '.iota/kit/kit.json']) {
       expect(existsSync(join(pkg, f)), f).toBe(true)
     }
-    expect(JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')).iota).toMatchObject({ namespace: 'acme.loyalty', contracts: './src/contracts.ts' })
+    const written = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')) as { iota: unknown; dependencies: Record<string, string> }
+    expect(written.iota).toMatchObject({ namespace: 'acme.loyalty', contracts: './src/contracts.ts' })
+    // The SDK dependency is the exact version of the CLI that ran init, never a range.
+    const sdkVersion = (JSON.parse(readFileSync(join(sandbox, 'sdk', 'package.json'), 'utf8')) as { version: string }).version
+    expect(written.dependencies['@iota-uz/sdk']).toBe(sdkVersion)
+    // The kit sits outside node_modules and the editor finds it through tsconfig paths.
+    expect(existsSync(join(pkg, 'node_modules/@iota-kit'))).toBe(false)
+    expect(JSON.parse(readFileSync(join(pkg, 'tsconfig.json'), 'utf8')).compilerOptions.paths).toEqual({ '@iota-kit/*': ['./.iota/kit/*'] })
+    expect(readFileSync(join(pkg, '.gitignore'), 'utf8')).toBe('node_modules\n.iota/build\n')
     // The native keys are typed from the snapshot, not guessed.
-    expect(readFileSync(join(pkg, 'node_modules/@iota-kit/crm/index.js'), 'utf8')).toContain('{ key: "int64" }')
+    expect(readFileSync(join(pkg, '.iota/kit/crm/index.js'), 'utf8')).toContain('{ key: "int64" }')
 
     const check = iota(pkg, 'check')
     expect(check.err).toBe('')
@@ -216,6 +224,155 @@ test("a thrown error", () => {
     expect(r.err).toContain('no developer kit is installed')
     expect(r.err).toContain('iota-ext kit generate')
   })
+
+  it('reports an unknown kit module once, naming the kit command, without knock-on type errors', () => {
+    const parent = project('unknownkit')
+    expect(iota(parent, 'init', 'pkg', '--namespace', 'acme.unknownkit', '--no-client').status).toBe(0)
+    const pkg = join(parent, 'pkg')
+    writeFileSync(
+      join(pkg, 'src', 'uses.ts'),
+      `import { implement } from "@iota-uz/sdk/runtime/server"
+import * as billing from "@iota-kit/billing"
+import * as c from "./contracts"
+export const a = implement(billing.Pay, async (tx, input) => {
+  const row = await tx.insert(billing.Invoice, { number: input.number })
+  return { invoice: row.ref, total: row.total.toFixed(2), note: c.AddNote.id }
+})
+export const b = implement(billing.Void, (_tx, input) => input.reason.length)
+`,
+    )
+    for (const command of ['check', 'test'] as const) {
+      const r = iota(pkg, command)
+      expect(r.status).toBe(1)
+      expect(r.err).toContain('src/uses.ts:2:')
+      expect(r.err).toContain('graph.unknownKit kit module "@iota-kit/billing" is not part of the developer kit this package builds against (installed: @iota-kit/core, @iota-kit/crm)')
+      expect(r.err).toContain('iota-ext kit pull --server')
+      expect(r.err.match(/@iota-kit\/billing" is not part/g)).toHaveLength(1)
+      expect(r.err).not.toMatch(/ts\.(2307|7006|7031|2339)/)
+      expect(r.err).toMatch(/follow-on type errors?/)
+    }
+    const json = JSON.parse(iota(pkg, 'check', '--json').out) as { diagnostics: { code: string; severity: string }[] }
+    expect(json.diagnostics.filter((d) => d.severity === 'error').map((d) => d.code)).toEqual(['graph.unknownKit'])
+  })
+})
+
+describe('the kit outside node_modules', () => {
+  /** What a package manager does to node_modules: everything it did not install goes, the SDK it did install stays. */
+  function npmInstall(pkg: string): void {
+    for (const entry of readdirSync(join(pkg, 'node_modules'))) if (entry !== '@iota-uz') rmSync(join(pkg, 'node_modules', entry), { recursive: true, force: true })
+  }
+
+  it('survives a reinstall: check, test and the editor typecheck still resolve @iota-kit', () => {
+    const parent = project('npm')
+    expect(iota(parent, 'init', 'pkg', '--namespace', 'acme.npm', '--no-client').status).toBe(0)
+    const pkg = join(parent, 'pkg')
+    writeFileSync(join(pkg, 'src', 'uses.ts'), `import * as crm from "@iota-kit/crm"\nexport const x = crm.Client\n`)
+    // The package's own node_modules: the installed SDK and node typings, plus a kit that an old CLI generated into it.
+    mkdirSync(join(pkg, 'node_modules', '@iota-uz'), { recursive: true })
+    symlinkSync(join(sandbox, 'sdk'), join(pkg, 'node_modules', '@iota-uz', 'sdk'), 'dir')
+    mkdirSync(join(pkg, 'node_modules', '@iota-kit', 'core'), { recursive: true })
+    writeFileSync(join(pkg, 'node_modules', '@iota-kit', 'core', 'index.js'), 'export const stale = true\n')
+    npmInstall(pkg)
+    expect(existsSync(join(pkg, 'node_modules', '@iota-kit'))).toBe(false)
+    const check = iota(pkg, 'check')
+    expect(check.err).toBe('')
+    expect(check.status).toBe(0)
+    expect(iota(pkg, 'test').status).toBe(0)
+    expect(iota(pkg, 'kit', 'status').out).toMatch(/ok {2}@iota-kit\/core/)
+
+    // The author's own tsc resolves the kit through tsconfig paths (types from the same dist the package installs).
+    mkdirSync(join(pkg, 'node_modules', '@types'), { recursive: true })
+    symlinkSync(join(runtimeRoot, 'node_modules', '@types', 'node'), join(pkg, 'node_modules', '@types', 'node'), 'dir')
+    const tsc = spawnSync(process.execPath, [join(runtimeRoot, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', 'tsconfig.json', '--noEmit'], { cwd: pkg, encoding: 'utf8' })
+    expect(tsc.stdout + tsc.stderr).toBe('')
+    expect(tsc.status).toBe(0)
+  }, 120_000)
+
+  it('moves a kit left in node_modules/@iota-kit and adds the tsconfig paths entry', () => {
+    const parent = project('legacy')
+    expect(iota(parent, 'init', 'pkg', '--namespace', 'acme.legacy', '--no-client').status).toBe(0)
+    const pkg = join(parent, 'pkg')
+    // The layout of earlier versions: kit and record in node_modules, no paths entry, no kit.json.
+    mkdirSync(join(pkg, 'node_modules', '@iota-kit'), { recursive: true })
+    cpSync(join(pkg, '.iota', 'kit', 'core'), join(pkg, 'node_modules', '@iota-kit', 'core'), { recursive: true })
+    cpSync(join(pkg, '.iota', 'kit', 'crm'), join(pkg, 'node_modules', '@iota-kit', 'crm'), { recursive: true })
+    const record = JSON.parse(readFileSync(join(pkg, '.iota', 'kit', 'kit.json'), 'utf8')) as { hash: string }
+    writeFileSync(join(pkg, 'node_modules', '.iota-kit.json'), JSON.stringify({ hash: record.hash, source: { kind: 'catalog', files: ['sdk'] }, modules: ['@iota-kit/core', '@iota-kit/crm'] }))
+    rmSync(join(pkg, '.iota', 'kit'), { recursive: true })
+    const tsconfig = JSON.parse(readFileSync(join(pkg, 'tsconfig.json'), 'utf8')) as { compilerOptions: { paths?: unknown } }
+    delete tsconfig.compilerOptions.paths
+    writeFileSync(join(pkg, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2))
+
+    const before = iota(pkg, 'check')
+    expect(before.status, before.err).toBe(0)
+    expect(before.err).toContain('npm install')
+    expect(before.err).toContain('iota-ext kit generate')
+    const status = iota(pkg, 'kit', 'status')
+    expect(status.out).toContain('node_modules/@iota-kit')
+    expect(status.out).toContain('tsconfig.json has no @iota-kit/* path')
+
+    const moved = iota(pkg, 'kit', 'generate')
+    expect(moved.status, moved.err).toBe(0)
+    expect(moved.out).toContain('updated tsconfig.json')
+    expect(existsSync(join(pkg, 'node_modules', '@iota-kit'))).toBe(false)
+    expect(existsSync(join(pkg, 'node_modules', '.iota-kit.json'))).toBe(false)
+    expect(existsSync(join(pkg, '.iota', 'kit', 'core', 'index.js'))).toBe(true)
+    expect(JSON.parse(readFileSync(join(pkg, 'tsconfig.json'), 'utf8')).compilerOptions.paths).toEqual({ '@iota-kit/*': ['./.iota/kit/*'] })
+    const after = iota(pkg, 'check')
+    expect(after.err).toBe('')
+    expect(after.status).toBe(0)
+  }, 120_000)
+
+  describe('status verifies the files, not just the record', () => {
+    const fresh = (name: string): string => {
+      const parent = project(name)
+      expect(iota(parent, 'init', 'pkg', '--namespace', `acme.${name}`, '--no-client').status).toBe(0)
+      return join(parent, 'pkg')
+    }
+
+    it('is ok for an intact kit and reports no kit when none is installed', () => {
+      const pkg = fresh('stok')
+      const status = iota(pkg, 'kit', 'status')
+      expect(status.status).toBe(0)
+      expect(status.out).toMatch(/ok {2}@iota-kit\/core/)
+      expect(JSON.parse(iota(pkg, 'kit', 'status', '--json').out)).toMatchObject({ ok: true, installed: true, location: 'kit', editor: 'present', modules: [{ name: '@iota-kit/core', state: 'ok' }, { name: '@iota-kit/crm', state: 'ok' }] })
+      rmSync(join(pkg, '.iota'), { recursive: true })
+      const none = iota(pkg, 'kit', 'status')
+      expect(none.status).toBe(0)
+      expect(none.out).toContain('no developer kit installed')
+    })
+
+    it('reports a module whose files are gone, and a missing file, with exit 1', () => {
+      const pkg = fresh('stgone')
+      rmSync(join(pkg, '.iota', 'kit', 'crm'), { recursive: true })
+      rmSync(join(pkg, '.iota', 'kit', 'core', 'index.d.ts'))
+      const status = iota(pkg, 'kit', 'status')
+      expect(status.status).toBe(1)
+      expect(status.out).toMatch(/missing {2}@iota-kit\/crm: .*index\.js is missing/)
+      expect(status.out).toMatch(/missing {2}@iota-kit\/core: index\.d\.ts is missing/)
+      expect(status.out).toContain('the kit is damaged')
+      const json = JSON.parse(iota(pkg, 'kit', 'status', '--json').out) as { ok: boolean; modules: { name: string; state: string }[] }
+      expect(json.ok).toBe(false)
+      expect(json.modules.map((m) => m.state)).toEqual(['missing', 'missing'])
+      // check says so too, instead of only complaining about the imports.
+      writeFileSync(join(pkg, 'src', 'uses.ts'), `import * as crm from "@iota-kit/crm"\nexport const x = crm.Client\n`)
+      const check = iota(pkg, 'check')
+      expect(check.status).toBe(1)
+      expect(check.err).toContain('the kit does not match its record')
+      expect(check.err).toContain('@iota-kit/crm')
+      // Regenerating restores it.
+      expect(iota(pkg, 'kit', 'generate').status).toBe(0)
+      expect(iota(pkg, 'kit', 'status').status).toBe(0)
+    })
+
+    it('reports an edited file as modified', () => {
+      const pkg = fresh('stmod')
+      writeFileSync(join(pkg, '.iota', 'kit', 'core', 'index.js'), 'export const User = 1\n')
+      const status = iota(pkg, 'kit', 'status')
+      expect(status.status).toBe(1)
+      expect(status.out).toMatch(/modified {2}@iota-kit\/core: index\.js differs from the recorded snapshot/)
+    })
+  })
 })
 
 describe('kit', () => {
@@ -234,7 +391,7 @@ describe('kit', () => {
     writeFileSync(join(dir, 'app.json'), JSON.stringify(snapshot))
     const r = iota(dir, 'kit', 'generate', '--catalog', 'app.json')
     expect(r.status, r.err).toBe(0)
-    const js = readFileSync(join(dir, 'node_modules/@iota-kit/billing/index.js'), 'utf8')
+    const js = readFileSync(join(dir, '.iota/kit/billing/index.js'), 'utf8')
     expect(js).toContain('nativeEntity("billing.invoice"')
     expect(js).toContain('{ key: "uuid" }')
     expect(iota(dir, 'kit', 'status', '--json').out).toContain('billing')
@@ -298,14 +455,15 @@ describe('kit', () => {
     })
     afterAll(() => void server.close())
 
-    it('downloads the modules into node_modules/@iota-kit and records the snapshot hash', async () => {
+    it('downloads the modules into .iota/kit and records the snapshot hash', async () => {
       const dir = project('pull')
       writeFileSync(join(dir, 'package.json'), '{"name":"x","iota":{"namespace":"acme.p","server":"./s.ts"}}')
       const r = await iotaAsync(dir, { IOTA_TOKEN: 's3cret' }, 'kit', 'pull', '--server', base, '--token-env', 'IOTA_TOKEN')
       expect(r.status, r.err).toBe(0)
       expect(sawAuth).toBe('Bearer s3cret')
-      expect(readFileSync(join(dir, 'node_modules/@iota-kit/granite/index.js'), 'utf8')).toBe('export const Deal = 1\n')
-      expect(JSON.parse(readFileSync(join(dir, 'node_modules/.iota-kit.json'), 'utf8'))).toMatchObject({ hash: 'abc123', modules: ['@iota-kit/granite'], source: { kind: 'server' } })
+      expect(readFileSync(join(dir, '.iota/kit/granite/index.js'), 'utf8')).toBe('export const Deal = 1\n')
+      expect(JSON.parse(readFileSync(join(dir, '.iota/kit/kit.json'), 'utf8'))).toMatchObject({ hash: 'abc123', modules: ['@iota-kit/granite'], source: { kind: 'server' } })
+      expect(existsSync(join(dir, 'node_modules/@iota-kit'))).toBe(false)
     })
 
     it('reports an authentication failure as an environment error (3), never taking the token from argv', async () => {

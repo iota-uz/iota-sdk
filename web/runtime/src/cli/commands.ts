@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 
 import type { BuildResponse, Diagnostic, KitResponse, KitSourcePayload, TestResponse } from '../build/protocol.ts'
 import { UsageError, parseArgs } from './args.ts'
-import { installKit, loadKit, readRecord } from './kitfs.ts'
+import { KIT_DIR, KIT_PATHS_KEY, KIT_PATHS_VALUE, editorPaths, ensureEditorPaths, inspectKit, installKit, loadKit, type KitReport } from './kitfs.ts'
 import { formatDiagnostics, formatTests, plural, style, type Style } from './report.ts'
 import { EnvironmentError, locateDistribution, runWorker, type Distribution } from './runtime.ts'
 import { defaultPackageName, scaffold, validateNamespace } from './scaffold.ts'
@@ -35,23 +35,44 @@ function packageDir(ctx: Context, dir: string | undefined): string {
   return abs
 }
 
-function kitHint(ctx: Context, dir: string, diagnostics: readonly Diagnostic[]): string | undefined {
+const KIT_COMMANDS = '`iota-ext kit generate` (the SDK natives core and crm, offline), `iota-ext kit generate --catalog <file>` or `iota-ext kit pull --server <url>`'
+
+/** What is wrong with the installed kit, one sentence; undefined when it is intact. */
+function kitDamage(report: KitReport): string | undefined {
+  const broken = report.modules.filter((m) => m.state !== 'ok')
+  if (broken.length === 0) return undefined
+  const detail = broken.map((m) => `${m.name} (${m.problems.join('; ')})`).join(', ')
+  return `the kit does not match its record: ${detail}. Restore it with ${KIT_COMMANDS}; \`iota-ext kit status\` lists the details.`
+}
+
+function kitHint(dir: string, diagnostics: readonly Diagnostic[]): string | undefined {
   if (!diagnostics.some((d) => /@iota-kit\//.test(d.message) || d.code === 'graph.unknownKit')) return undefined
   const kit = loadKit(dir)
-  return kit.installed
-    ? `kit modules installed: ${Object.keys(kit.modules).join(', ')}. A module missing here comes from another package or an application: iota-ext kit pull --server <url>, or iota-ext kit generate --catalog <file>.`
-    : 'no developer kit is installed. Run `iota-ext kit generate` (the SDK natives core and crm, offline) or `iota-ext kit pull --server <url>`.'
+  const damage = kitDamage(inspectKit(dir))
+  if (damage !== undefined) return damage
+  if (kit.installed) {
+    return `kit modules installed (${KIT_DIR}): ${Object.keys(kit.modules).join(', ')}. A module missing here comes from another package or an application: use \`iota-ext kit pull --server <url>\` or \`iota-ext kit generate --catalog <file>\`.`
+  }
+  return `no developer kit is installed: run ${KIT_COMMANDS}. The kit lives in ${KIT_DIR} (package managers never touch it).`
+}
+
+/** Said whenever a command reads a kit from the old node_modules location, where a package manager deletes it. */
+function legacyNote(ctx: Context, dir: string): void {
+  if (loadKit(dir).location === 'legacy') {
+    ctx.io.err(`${ctx.s.dim('note:')} the kit is installed under node_modules/@iota-kit, which \`npm install\` deletes. Run \`iota-ext kit generate\` (or \`kit pull\`) once to move it to ${KIT_DIR}.`)
+  }
 }
 
 function printDiagnostics(ctx: Context, dir: string, diagnostics: readonly Diagnostic[]): void {
   if (diagnostics.length > 0) ctx.io.err(formatDiagnostics(diagnostics, ctx.s))
-  const hint = kitHint(ctx, dir, diagnostics)
+  const hint = kitHint(dir, diagnostics)
   if (hint !== undefined) ctx.io.err(`${ctx.s.dim('hint:')} ${hint}`)
 }
 
 // ---------------------------------------------------------------- check | build
 
 async function runPackageOp(ctx: Context, op: 'check' | 'build', dir: string, outDir: string): Promise<BuildResponse> {
+  legacyNote(ctx, dir)
   const kit = loadKit(dir)
   return runWorker<BuildResponse>(ctx.dist, { op, dir, outDir, kit: { hash: kit.hash, modules: kit.modules } }, ctx.io.env)
 }
@@ -114,6 +135,7 @@ async function build(ctx: Context, argv: readonly string[]): Promise<number> {
 async function test(ctx: Context, argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv, { values: ['dir'], booleans: ['json'] })
   const dir = packageDir(ctx, args.value('dir'))
+  legacyNote(ctx, dir)
   const kit = loadKit(dir)
   const res = await withScratch((scratch) =>
     runWorker<TestResponse>(ctx.dist, { op: 'test', dir, outDir: scratch, kit: { hash: kit.hash, modules: kit.modules }, typecheck: true, filter: args.positionals }, ctx.io.env),
@@ -168,6 +190,16 @@ function readCatalog(ctx: Context, spec: string): { label: string; sources: KitS
   }
 }
 
+function pathsSnippet(): string {
+  return `"compilerOptions": { "paths": { "${KIT_PATHS_KEY}": ["${KIT_PATHS_VALUE}"] } }`
+}
+
+/** The editor (tsc, the language server) resolves the kit through tsconfig `paths`; say when that is not set up. */
+function reportEditor(ctx: Context, editor: ReturnType<typeof ensureEditorPaths>): void {
+  if (editor === 'added') ctx.io.out(`updated tsconfig.json: ${pathsSnippet()} (the editor resolves ${KIT_PATHS_KEY} there)`)
+  else if (editor === 'manual') ctx.io.err(`${ctx.s.dim('note:')} add ${pathsSnippet()} to tsconfig.json so the editor resolves ${KIT_PATHS_KEY} (iota-ext itself does not need it)`)
+}
+
 async function kitGenerate(ctx: Context, argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv, { values: ['dir'], lists: ['catalog'], booleans: ['json'] })
   const dir = packageDir(ctx, args.value('dir'))
@@ -192,8 +224,12 @@ async function kitGenerate(ctx: Context, argv: readonly string[]): Promise<numbe
     return 1
   }
   const record = installKit(dir, res.hash, res.modules, { kind: 'catalog', files: [...specs] })
-  if (args.flag('json')) json(ctx.io, { ok: true, hash: record.hash, modules: record.modules })
-  else ctx.io.out(`${ctx.s.green('kit generated')}: ${record.modules.join(', ')} (snapshot ${record.hash.slice(0, 12)})`)
+  const editor = ensureEditorPaths(dir)
+  if (args.flag('json')) json(ctx.io, { ok: true, hash: record.hash, modules: record.modules, dir: KIT_DIR, editor })
+  else {
+    ctx.io.out(`${ctx.s.green('kit generated')}: ${record.modules.join(', ')} (snapshot ${record.hash.slice(0, 12)}, in ${KIT_DIR})`)
+    reportEditor(ctx, editor)
+  }
   return 0
 }
 
@@ -248,23 +284,52 @@ async function kitPull(ctx: Context, argv: readonly string[]): Promise<number> {
     modules[name] = Object.fromEntries(untar(archive).map((e) => [e.path, e.data]))
   }
   const record = installKit(dir, index.hash, modules, { kind: 'server', url: server })
-  if (args.flag('json')) json(ctx.io, { ok: true, hash: record.hash, modules: record.modules })
-  else ctx.io.out(`${ctx.s.green('kit pulled')}: ${record.modules.join(', ')} (snapshot ${record.hash.slice(0, 12)})`)
+  const editor = ensureEditorPaths(dir)
+  if (args.flag('json')) json(ctx.io, { ok: true, hash: record.hash, modules: record.modules, dir: KIT_DIR, editor })
+  else {
+    ctx.io.out(`${ctx.s.green('kit pulled')}: ${record.modules.join(', ')} (snapshot ${record.hash.slice(0, 12)}, in ${KIT_DIR})`)
+    reportEditor(ctx, editor)
+  }
   return 0
+}
+
+function kitStatus(ctx: Context, argv: readonly string[]): number {
+  const args = parseArgs(argv, { values: ['dir'], booleans: ['json'] })
+  const dir = packageDir(ctx, args.value('dir'))
+  const report = inspectKit(dir)
+  const editor = editorPaths(dir)
+  const record = report.record
+  const damaged = report.location !== 'none' && !report.ok
+  if (args.flag('json')) {
+    json(ctx.io, {
+      ok: !damaged,
+      installed: report.location !== 'none',
+      dir: KIT_DIR,
+      location: report.location,
+      hash: record?.hash ?? null,
+      source: record?.source ?? null,
+      modules: report.modules,
+      editor,
+    })
+    return damaged ? 1 : 0
+  }
+  if (report.location === 'none') {
+    ctx.io.out(`no developer kit installed: run ${KIT_COMMANDS}`)
+    return 0
+  }
+  ctx.io.out(`snapshot ${record?.hash ?? 'unknown'} (${report.location === 'legacy' ? 'node_modules/@iota-kit' : KIT_DIR})`)
+  for (const m of report.modules) ctx.io.out(`  ${m.state === 'ok' ? ctx.s.green('ok') : ctx.s.red(m.state)}  ${m.name}${m.problems.length > 0 ? `: ${m.problems.join('; ')}` : ''}`)
+  if (report.location === 'legacy') ctx.io.out(`the kit is under node_modules, where \`npm install\` deletes it: run \`iota-ext kit generate\` (or \`kit pull\`) to move it to ${KIT_DIR}`)
+  else if (damaged) ctx.io.out(`the kit is damaged: restore it with ${KIT_COMMANDS}`)
+  if (editor === 'manual') ctx.io.out(`tsconfig.json has no ${KIT_PATHS_KEY} path, so the editor cannot resolve the kit: add ${pathsSnippet()}`)
+  return damaged ? 1 : 0
 }
 
 async function kit(ctx: Context, argv: readonly string[]): Promise<number> {
   const [sub, ...rest] = argv
   if (sub === 'generate') return kitGenerate(ctx, rest)
   if (sub === 'pull') return kitPull(ctx, rest)
-  if (sub === 'status') {
-    const args = parseArgs(rest, { values: ['dir'], booleans: ['json'] })
-    const dir = packageDir(ctx, args.value('dir'))
-    const record = readRecord(dir)
-    if (args.flag('json')) json(ctx.io, record ?? null)
-    else ctx.io.out(record === undefined ? 'no developer kit installed' : `snapshot ${record.hash}\n${record.modules.join('\n')}`)
-    return 0
-  }
+  if (sub === 'status') return kitStatus(ctx, rest)
   throw new UsageError('usage: iota-ext kit <generate|pull|status>')
 }
 
@@ -297,7 +362,7 @@ async function init(ctx: Context, argv: readonly string[]): Promise<number> {
       '',
       'next:',
       ...(here === '' ? [] : [`  cd ${here}`]),
-      '  npm install        # editor support (typescript, @types/node, solid-js) and the lockfile publishing needs',
+      '  npm install        # editor support (typescript, @types/node, solid-js) and the lockfile publishing needs; the kit in .iota/kit is untouched by it',
       '  npx iota-ext check',
       '  npx iota-ext test',
     ].join('\n'),
@@ -314,10 +379,10 @@ Usage: iota-ext <command> [options]
   init <dir> --namespace <owner.module> [--name <npm>] [--no-client] [--no-kit] [--force]
                           scaffold a package (contracts, server, client, a passing test) and its offline kit
   kit generate [--catalog <file|sdk>]...
-                          render @iota-kit/* from catalog snapshots, offline (default: the SDK natives core, crm)
+                          render @iota-kit/* into .iota/kit from catalog snapshots, offline (default: the SDK natives core, crm)
   kit pull --server <url> [--token-env VAR] [--cookie-env VAR]
-                          download the live developer kit from the application's /_ext/manage API
-  kit status              show the installed kit snapshot
+                          download the live developer kit into .iota/kit from the application's /_ext/manage API
+  kit status              verify the installed kit (modules, files, hashes, tsconfig paths); exit 1 when it is damaged
   check                   typecheck, validate the graphs and the manifest (writes nothing)
   build [--out <dir>]     check, then write artifacts and manifest.json (default .iota/build)
   test [filter...]        typecheck, then run *.test.ts with the synthetic test host

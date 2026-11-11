@@ -163,6 +163,7 @@ export const resultTemplates = templates(c.RedemptionResult, {
     html: `<p lang="${locale}">${payload.reward}</p>`,
     text: payload.reward,
   }),
+  inApp: ({ payload }) => ({ title: "Redemption", body: payload.approved ? `${payload.reward}: approved` : `${payload.reward}: declined` }),
 })
 
 export const reminderTemplates = templates(c.PointsReminder, {
