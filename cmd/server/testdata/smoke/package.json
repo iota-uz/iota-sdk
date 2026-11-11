@@ -1,0 +1,7 @@
+{
+  "name": "@smoke/greeter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "smoke.greeter", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}
