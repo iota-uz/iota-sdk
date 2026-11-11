@@ -1,0 +1,14 @@
+package ui
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+)
+
+// pageView renders a runtime page inside the same authenticated layout as
+// legacy pages. bootstrap is the canonical client host fragment: mount element,
+// route context and the host entry module.
+templ pageView(title string, bootstrap templ.Component) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: title}}) {
+		@bootstrap
+	}
+}
