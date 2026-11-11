@@ -177,7 +177,7 @@ func TestBuildAcmePackage(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res.Artifacts["client/manifest.json"], &clientManifest))
 	require.Equal(t, page.Chunk, clientManifest.Entry)
 	require.GreaterOrEqual(t, len(clientManifest.Chunks), 2, "lazy(() => import()) screens are separate chunks")
-	require.ElementsMatch(t, []string{"@iota-uz/sdk/runtime/client", "solid-js", "solid-js/web"}, clientManifest.Shared)
+	require.ElementsMatch(t, []string{"@iota-uz/sdk/runtime/client", "solid-js", "solid-js/store", "solid-js/web"}, clientManifest.Shared)
 	require.Contains(t, clientManifest.Exports, "policies")
 
 	// No handler stripping and no server code in the browser graph.
@@ -189,6 +189,7 @@ func TestBuildAcmePackage(t *testing.T) {
 			// Solid and the runtime client come from the host's registry, never from a bundled copy.
 			require.NotContains(t, string(content), "function createRoot", name)
 			require.NotContains(t, string(content), `from "solid-js`, name)
+			require.NotContains(t, string(content), "function createStore", name)
 			require.NotContains(t, string(content), `from "@iota-uz/sdk/runtime/client"`, name)
 		}
 	}
@@ -221,11 +222,13 @@ func TestBuildAcmePackage(t *testing.T) {
 		// The runtime client is the SDK's real module; Solid is stubbed (nothing renders at load time).
 		clientModule := filepath.Join(filepath.Dir(filepath.Dir(buildtest.Config(t).WorkerScript)), "host", "sdk", "client.mjs")
 		script := `const stub = new Proxy({}, { get: (_, name) => (...a) => (name === "lazy" ? () => null : {}) });
-globalThis[Symbol.for("iota.runtime.shared")] = { "solid-js": stub, "solid-js/web": stub, "@iota-uz/sdk/runtime/client": await import(process.argv[3]) };
+globalThis[Symbol.for("iota.runtime.shared")] = { "solid-js": stub, "solid-js/web": stub, "solid-js/store": stub, "@iota-uz/sdk/runtime/client": await import(process.argv[3]) };
 const m = await import(process.argv[1]);
 const p = m[process.argv[2]];
 console.log(JSON.stringify({ id: p.id, kind: p.kind, path: p.resource.path, component: typeof p.component }));`
-		cmd := exec.Command("node", "--no-warnings", "--input-type=module", "-e", script, "file://"+filepath.Join(dir, filepath.FromSlash(page.Chunk)), page.Export, "file://"+clientModule)
+		// The runtime client reads Solid, which the host loader resolves from the worker's vendored copy.
+		register := filepath.Join(filepath.Dir(filepath.Dir(clientModule)), "register.mjs")
+		cmd := exec.Command("node", "--no-warnings", "--import", "file://"+register, "--input-type=module", "-e", script, "file://"+filepath.Join(dir, filepath.FromSlash(page.Chunk)), page.Export, "file://"+clientModule)
 		out, err := cmd.CombinedOutput()
 		require.NoError(t, err, string(out))
 		require.JSONEq(t, `{"id":"acme.insurance.policies","kind":"page","path":"/insurance/policies","component":"function"}`, strings.TrimSpace(string(out)))
@@ -249,11 +252,11 @@ console.log(JSON.stringify({ id: p.id, kind: p.kind, path: p.resource.path, comp
 			calls = append(calls, method)
 			switch method {
 			case "tx.update":
-				return json.RawMessage(`{"key":"k1"}`), nil
+				return json.RawMessage(`{"key":"3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1"}`), nil
 			case "tx.start":
 				return json.RawMessage(`{"instance":"wf-1"}`), nil
 			case "q.find":
-				return json.RawMessage(`[{"key":"k1","number":"P-1"}]`), nil
+				return json.RawMessage(`[{"key":"3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1","number":"P-1"}]`), nil
 			}
 			t.Fatalf("unexpected host call %s %s", method, args)
 			return nil, nil
@@ -262,7 +265,7 @@ console.log(JSON.stringify({ id: p.id, kind: p.kind, path: p.resource.path, comp
 
 		out, err := p.Invoke(ctx, pool.Invocation{
 			Artifact: art, Kind: pool.KindAtomic, Export: "activate", Resource: "acme.insurance.activatePolicy",
-			Input: json.RawMessage(`{"policy":{"entity":"acme.insurance.policy","key":"k1"}}`),
+			Input: json.RawMessage(`{"policy":{"entity":"acme.insurance.policy","key":"3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1"}}`),
 			Ctx:   pool.InvokeContext{Tenant: "t-1", Trigger: "ui", User: user, Tx: "tx-1"},
 			Calls: host,
 		})
@@ -277,7 +280,7 @@ console.log(JSON.stringify({ id: p.id, kind: p.kind, path: p.resource.path, comp
 			Calls: host,
 		})
 		require.NoError(t, err)
-		require.JSONEq(t, `[{"policy":{"entity":"acme.insurance.policy","key":"k1"},"number":"P-1"}]`, string(out))
+		require.JSONEq(t, `[{"policy":{"entity":"acme.insurance.policy","key":"3f1b6a54-0a5e-4a52-9d8a-7ee1a3a3d8b1"},"number":"P-1"}]`, string(out))
 	})
 }
 

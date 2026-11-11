@@ -10,5 +10,5 @@ export type {
 } from './fakes.ts'
 export { TestHostError, createTestHost, describe, test } from './testhost.ts'
 export type {
-  EmittedEvent, PendingWork, SentNotice, StartedWorkflow, TestHost, TestHostOptions, WorkflowOutcome, WorkflowRun,
+  AnyWriteRule, DeliveredSignal, EmittedEvent, PendingWork, SentNotice, StartedWorkflow, TestGuard, TestHost, TestHostOptions, WorkflowOutcome, WorkflowRun,
 } from './testhost.ts'

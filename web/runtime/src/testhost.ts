@@ -6,10 +6,15 @@
 //   * ordinary commands get a CommandContext (ctx.transaction opens one transaction, never nested),
 //     operations/atomic commands/subscriptions get a Tx; `tx.call` accepts only operations and atomic
 //     commands; native entities reject generic writes;
-//   * emit/notify/start are recorded on commit and discarded on rollback;
+//   * emit/notify/start/signal are recorded on commit and discarded on rollback; signals reach the in-memory
+//     workflow run of the instance (or wait in its inbox until the test creates the run);
+//   * `q.query` / `tx.query` / `ctx.query` run the bound query in the same snapshot (transaction state inside a
+//     transaction, the committed state the call started from otherwise) with the caller's rights;
+//   * precheck / guard / write-rule handlers get a read-only context (no write members), like the worker;
+//   * rows carry their typed `ref`; handlers may be synchronous;
 //   * workflow primitives are journaled by (name, n) and driven by the test: a task/signal/sleep that is
 //     not satisfied suspends the run, exactly like the replay engine.
-import type { Command, Callable, Event, OrdinaryCommand, Workflow } from './contracts.ts'
+import type { Command, Callable, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
 import { compileFilter } from './entity.ts'
 import type { AnyEntity, AnyOverlay } from './entity.ts'
 import { type FakeEffects, fakeEffects } from './fakes.ts'
@@ -17,9 +22,9 @@ import { EPOCH, OVERLAY_OF, type Fixture } from './fixtures.ts'
 import type { ConditionJSON, FilterJSON, ISODateTime, Json, ReadRuleJSON, TypeJSON } from './model.ts'
 import type { AnySchema, Infer, Ref } from './schema.ts'
 import type {
-  CommandContext, Duration, FindQuery, Implementation, Implementable, InvocationInfo, Logger, Principal, QueryContext, Reader,
-  SignalResult, StepContext, Subscription, SubscriptionEvent, TaskResult, TaskSpec, TriggerKind, Tx, WorkflowContext, WorkflowHandle,
-  AnyGuard,
+  Awaitable, CommandContext, Duration, FindQuery, GuardContext, Implementation, Implementable, InvocationInfo, Logger, OperationGuard,
+  Principal, PrecheckGuard, QueryContext, ReadContext, Reader, SignalPayload, SignalResult, StepContext, Subscription, SubscriptionEvent,
+  TaskResult, TaskSpec, TriggerKind, Tx, WorkflowContext, WorkflowInstance, WriteRule,
 } from './server.ts'
 import { decode, encode, validate } from './wire.ts'
 
@@ -86,12 +91,30 @@ export interface SentNotice {
   readonly to: readonly object[]
   readonly channels: readonly string[]
 }
+/** A signal delivered by `tx.signal` (on commit) or `ctx.signal`, in delivery order. */
+export interface DeliveredSignal {
+  readonly workflow: string
+  readonly instance: string
+  readonly name: string
+  readonly payload: Json
+}
 export interface StartedWorkflow {
   readonly workflow: string
   readonly instance: string
   readonly key: string | undefined
   readonly input: Json
 }
+
+type AnyWorkflow = Workflow<string, AnySchema, AnySchema | undefined, Readonly<Record<string, AnySchema>>>
+
+/**
+ * A write rule of any entity. `AnyGuard`'s `WriteRule<AnyEntity>` rejects `WriteRule<SomeEntity>` (the handler's
+ * `change` parameter is invariant), so the host accepts the rule with its change type erased.
+ */
+export type AnyWriteRule = Omit<WriteRule, 'handler'> & { readonly handler: (ctx: GuardContext, change: never) => Awaitable<void> }
+
+/** Operation/atomic-command guards, ordinary-command prechecks and entity write rules. */
+export type TestGuard = PrecheckGuard | OperationGuard | AnyWriteRule
 
 export interface TestHostOptions {
   /** Entity records (`fixture(...)`) and overlay rows (`overlayFixture(...)`) the tables start with. */
@@ -101,8 +124,7 @@ export interface TestHostOptions {
   fakes?: FakeEffects
   /** Handlers `tx.call`, `ctx.call` and `wf.call` dispatch to, by contract ID. */
   implementations?: readonly Implementation[]
-  /** Operation/atomic-command guards, ordinary-command prechecks and entity write rules. */
-  guards?: readonly AnyGuard[]
+  guards?: readonly TestGuard[]
   user?: { id?: string; permissions?: readonly string[]; locale?: string; kind?: 'initiator' | 'owner' }
   secrets?: Readonly<Record<string, string>>
   /** Start of the host clock. */
@@ -129,13 +151,13 @@ export interface OpenTask {
 }
 
 /** One workflow instance: repeated `run()` calls replay the journal, like the real engine. */
-export interface WorkflowRun<Out = unknown> {
+export interface WorkflowRun<W extends AnyWorkflow = AnyWorkflow> {
   readonly instance: string
-  run(): Promise<WorkflowOutcome<Out>>
+  run(): Promise<WorkflowOutcome<W['output'] extends AnySchema ? Infer<W['output']> : void>>
   /** Decides the open task `name` (validated against its decision schema). */
   decide(name: string, decision: unknown, options?: { by?: string; n?: number }): void
-  /** Delivers a signal; `signal` is `Workflow.signals.<name>` or the signal name. */
-  signal(signal: { readonly name: string } | string, payload: unknown): void
+  /** Delivers a signal; `signal` is `Workflow.signals.<name>` or the signal name. The payload is validated against its schema. */
+  signal<N extends keyof W['signals'] & string>(signal: W['signals'][N] | N, payload: SignalPayload<W, N>): void
   readonly tasks: readonly OpenTask[]
   /** Completed occurrences, in order, as `name#n`. */
   readonly journal: readonly string[]
@@ -149,21 +171,29 @@ export interface TestHost {
   readonly emitted: readonly EmittedEvent[]
   readonly notices: readonly SentNotice[]
   readonly started: readonly StartedWorkflow[]
+  /** Committed signals, in delivery order. */
+  readonly signals: readonly DeliveredSignal[]
   readonly logs: readonly { readonly level: string; readonly message: string }[]
-  /** Read-only snapshot context (a query). */
+  /** Read-only snapshot context (a query); `query.query(Q, input)` runs a bound query. */
   query(): QueryContext
   /** Ordinary-command context: `ctx.transaction` opens one transaction. */
   command(): CommandContext
-  /** Runs `callback` in one transaction (operation / atomic command / guard context): commit, or rollback on throw. */
-  transaction<T>(callback: (tx: Tx) => Promise<T>): Promise<T>
+  /**
+   * Runs `callback` in one transaction (operation / atomic command context): commit, or rollback on throw.
+   * The callback may return directly, so `host.transaction((tx) => impl.handler(tx, input))` works for sync handlers.
+   */
+  transaction<T>(callback: (tx: Tx) => Awaitable<T>): Promise<T>
   /** Delivers an event to a subscription in its own transaction. */
   deliver<Ev extends Event>(subscription: Subscription<Ev>, event: { subject?: Ref; payload: Json; initiator?: string }): Promise<void>
-  /** Starts a workflow instance driven by the test. */
-  workflow<C extends Workflow & Implementable>(
+  /**
+   * Starts a workflow instance driven by the test. Pass `instance` (e.g. of `host.started`) to drive an instance
+   * started with `tx.start`: signals sent to it so far are in its inbox.
+   */
+  workflow<C extends AnyWorkflow & Implementable>(
     implementation: Implementation<C>,
     input: Infer<C['input']>,
     options?: { instance?: string },
-  ): WorkflowRun<C['output'] extends AnySchema ? Infer<C['output']> : void>
+  ): WorkflowRun<C>
   /** Committed rows of an entity, in insertion order. */
   table<E extends AnyEntity>(entity: E): readonly Readonly<Record<string, unknown>>[]
   /** The committed overlay row of a base record, or null. */
@@ -281,6 +311,7 @@ interface Pending {
   emitted: EmittedEvent[]
   notices: SentNotice[]
   started: StartedWorkflow[]
+  signals: DeliveredSignal[]
 }
 
 // ---------------------------------------------------------------- the host
@@ -303,12 +334,16 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
 
   let store = new Store()
   const defs = new Map<string, Def>()
-  const committed: Pending = { emitted: [], notices: [], started: [] }
+  const committed: Pending = { emitted: [], notices: [], started: [], signals: [] }
   const logs: { level: string; message: string }[] = []
   const impls = new Map<string, Implementation>()
-  const writeRules = new Map<string, Extract<AnyGuard, { phase: 'write' }>[]>()
-  const opGuards = new Map<string, Extract<AnyGuard, { phase: 'operation' }>[]>()
-  const prechecks = new Map<string, Extract<AnyGuard, { phase: 'input' }>[]>()
+  const writeRules = new Map<string, AnyWriteRule[]>()
+  const opGuards = new Map<string, OperationGuard[]>()
+  const prechecks = new Map<string, PrecheckGuard[]>()
+  const workflowDefs = new Map<string, AnyWorkflow>()
+  /** Runs the test drives, by instance, and signals that arrived before a run exists for the instance. */
+  const runs = new Map<string, { readonly workflow: AnyWorkflow; push(name: string, payload: unknown): void }>()
+  const inboxes = new Map<string, { name: string; payload: unknown }[]>()
   let clockMs = Date.parse(options.now ?? EPOCH)
   let counter = 0
   const nextId = (p: string): string => `${p}-${++counter}`
@@ -335,7 +370,10 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       store.overlay(overlayId).set(String(row.baseKey), structuredClone({ ...row }))
     } else {
       const fx = f as Fixture<AnyEntity>
-      store.table(fx.ref.entity).set(fx.ref.key, structuredClone({ ...fx.record }))
+      // `ref` is derived on read (like the worker); the table holds the stored columns only.
+      const record: Row = structuredClone({ ...fx.record })
+      delete record.ref
+      store.table(fx.ref.entity).set(fx.ref.key, record)
     }
   }
 
@@ -444,10 +482,13 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     return false
   }
 
+  /** Entity rows carry a typed `ref` to themselves (`Row<E>.ref`); overlay rows (keyed by `baseKey`) have none. */
+  const withRef = (def: Def, row: Row): Row => (isOverlay(def) ? row : { ...row, ref: { entity: def.id, key: String(row.key) } })
+
   const project = (def: Def, row: Row): Row => {
     const out: Row = {}
     for (const [k, v] of Object.entries(row)) if (!(k in def.fields) || !hiddenField(def, k)) out[k] = structuredClone(v)
-    return out
+    return withRef(def, out)
   }
 
   const makeReader = (s: () => Store): Reader => {
@@ -521,6 +562,69 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     ...(parentId === undefined ? {} : { parentId }),
   })
 
+  const secrets = {
+    get: async (name: string): Promise<string> => options.secrets?.[name] ?? fail('runtime.secretUndeclared', `secret "${name}" is not provided to this test host`),
+  }
+
+  /**
+   * Read-only data access over `s()` plus `query`, which runs a bound query on the store the call sees (the
+   * transaction's working state inside a transaction, the committed state it started from otherwise).
+   * `open` rejects use after the owning transaction ended.
+   */
+  const readContext = (s: () => Store, info: InvocationInfo, open: () => void = () => undefined): ReadContext => {
+    const reader = makeReader(s)
+    return {
+      user,
+      invocation: info,
+      log: logger(),
+      get: (async (...a: Parameters<Reader['get']>) => (open(), reader.get(...a))) as Reader['get'],
+      find: (async (...a: Parameters<Reader['find']>) => (open(), reader.find(...a))) as Reader['find'],
+      count: (async (...a: Parameters<Reader['count']>) => (open(), reader.count(...a))) as Reader['count'],
+      query: (async (q: Query, input: unknown) => {
+        open()
+        return runQuery(s(), q, input, info.id)
+      }) as ReadContext['query'],
+    }
+  }
+
+  /** Context of precheck / guard / write-rule handlers: reads, identity and log. It has no write members. */
+  const guardContext = (ctx: ReadContext): GuardContext =>
+    Object.freeze({ user: ctx.user, invocation: ctx.invocation, log: ctx.log, get: ctx.get, find: ctx.find, count: ctx.count, query: ctx.query })
+
+  /** Runs a bound query against `snapshot` with the caller's rights. */
+  const runQuery = async (snapshot: Store, q: Query, input: unknown, parent: string): Promise<unknown> => {
+    if (q.kind !== 'query') return fail('runtime.invalidInput', `"${q.id}" is a ${q.kind}, not a query`)
+    const valid = validateInput(q, input)
+    const handler = implementationOf(q.id).handler as unknown as (ctx: QueryContext, input: unknown) => Awaitable<unknown>
+    const out = await handler(readContext(() => snapshot, invocation(parent)), valid)
+    return decode(q.output, encode(q.output, out as never))
+  }
+
+  // ---- signals
+
+  /** Validates a signal to a started instance (or a run) and returns what is delivered. */
+  const checkSignal = (target: { readonly workflow: string; readonly instance: string }, name: string, payload: unknown, starting: readonly StartedWorkflow[]): DeliveredSignal => {
+    const run = runs.get(target.instance)
+    const workflowId = run?.workflow.id ?? [...committed.started, ...starting].find((x) => x.instance === target.instance)?.workflow
+    if (workflowId === undefined || workflowId !== target.workflow) {
+      return fail('workflow.unknownInstance', `no started instance "${target.instance}" of workflow "${target.workflow}"`)
+    }
+    const schema = (run?.workflow ?? workflowDefs.get(workflowId))?.signals[name]?.schema
+    if (schema === undefined) return fail('workflow.unknownSignal', `workflow "${workflowId}" declares no signal "${name}"`)
+    try {
+      return { workflow: workflowId, instance: target.instance, name, payload: json(encode(schema, payload as never)) }
+    } catch (e) {
+      return fail('workflow.invalidSignal', `signal "${name}" of "${workflowId}": ${(e as Error).message}`)
+    }
+  }
+
+  const deliverSignal = (signal: DeliveredSignal): void => {
+    committed.signals.push(signal)
+    const run = runs.get(signal.instance)
+    if (run !== undefined) run.push(signal.name, signal.payload)
+    else inboxes.set(signal.instance, [...(inboxes.get(signal.instance) ?? []), { name: signal.name, payload: signal.payload }])
+  }
+
   interface Scope {
     store: Store
     pending: Pending
@@ -543,19 +647,25 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     return impl
   }
 
-  const writeRuleHooks = async (scope: Scope, tx: Tx, def: AnyEntity, op: 'insert' | 'update' | 'delete', existing: Row | null, proposed: Row | null): Promise<void> => {
+  /** Entity write rules run in the writing transaction, before the row is written, with a read-only context. */
+  const writeRuleHooks = async (tx: Tx, def: AnyEntity, op: 'insert' | 'update' | 'delete', existing: Row | null, proposed: Row | null): Promise<void> => {
     const rules = writeRules.get(def.id) ?? []
     if (rules.length === 0) return
     const changed = Object.keys(def.fields).filter((k) => JSON.stringify(existing?.[k] ?? null) !== JSON.stringify(proposed?.[k] ?? null))
-    for (const rule of rules) await rule.handler(tx, { op, existing: existing as never, proposed: proposed as never, changed } as never)
-    void scope
+    const change = {
+      op,
+      existing: existing === null ? null : withRef(def, structuredClone(existing)),
+      proposed: proposed === null ? null : withRef(def, structuredClone(proposed)),
+      changed,
+    }
+    for (const rule of rules) await rule.handler(guardContext(tx), change as never)
   }
 
-  /** Runs an operation / atomic command in the caller's transaction, guards first. */
-  const callCallable = async (scope: Scope, tx: Tx, callable: Callable, input: unknown): Promise<unknown> => {
+  /** Runs an operation / atomic command in the caller's transaction, guards first (read-only context). */
+  const callCallable = async (tx: Tx, callable: Callable, input: unknown): Promise<unknown> => {
     const valid = validateInput(callable, input)
-    for (const g of opGuards.get(callable.id) ?? []) await g.handler(tx, valid as never)
-    const out = await (implementationOf(callable.id).handler as unknown as (tx: Tx, input: unknown) => Promise<unknown>)(tx, valid)
+    for (const g of opGuards.get(callable.id) ?? []) await g.handler(guardContext(tx), valid as never)
+    const out = await (implementationOf(callable.id).handler as unknown as (tx: Tx, input: unknown) => Awaitable<unknown>)(tx, valid)
     return callable.output === undefined ? undefined : decode(callable.output as AnySchema, encode(callable.output as AnySchema, out as never))
   }
 
@@ -563,7 +673,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     const guard = (): void => {
       if (!scope.open) fail('runtime.txClosed', 'transaction is closed')
     }
-    const reader = makeReader(() => scope.store)
+    const reads = readContext(() => scope.store, scope.info, guard)
     const own = (def: AnyEntity, op: string): void => {
       register(def)
       if (def.entityKind === 'native') fail('data.nativeWrite', `${op} on native entity "${def.id}": native entities are read-only through generic data calls`)
@@ -585,12 +695,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       return { type: { kind: 'object', properties } } as unknown as AnySchema
     }
     const tx = {
-      user,
-      invocation: scope.info,
-      ...reader,
-      get: (async (...a: Parameters<Reader['get']>) => (guard(), reader.get(...a))) as Reader['get'],
-      find: (async (...a: Parameters<Reader['find']>) => (guard(), reader.find(...a))) as Reader['find'],
-      count: (async (...a: Parameters<Reader['count']>) => (guard(), reader.count(...a))) as Reader['count'],
+      ...reads,
       insert: async (def: AnyEntity, values: Row) => {
         guard()
         own(def, 'insert')
@@ -604,7 +709,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         }
         checkUnique(def, row, undefined)
         const full: Row = { key: nextKey(), createdAt: nowIso(), updatedAt: nowIso(), rowVersion: 1, ...structuredClone(row) }
-        await writeRuleHooks(scope, tx as unknown as Tx, def, 'insert', null, full)
+        await writeRuleHooks(tx as unknown as Tx, def, 'insert', null, full)
         scope.store.table(def.id).set(String(full.key), full)
         return project(def, full)
       },
@@ -626,7 +731,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         checkUnique(def, next, ref.key)
         next.updatedAt = nowIso()
         next.rowVersion = Number(existing.rowVersion) + 1
-        await writeRuleHooks(scope, tx as unknown as Tx, def, 'update', existing, next)
+        await writeRuleHooks(tx as unknown as Tx, def, 'update', existing, next)
         scope.store.table(def.id).set(ref.key, next)
         return project(def, next)
       },
@@ -635,7 +740,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         own(def, 'delete')
         const existing = scope.store.table(def.id).get(ref.key)
         if (existing === undefined || !visible(scope.store, def, existing)) return fail('data.notFound', `${def.id} ${ref.key}`)
-        await writeRuleHooks(scope, tx as unknown as Tx, def, 'delete', existing, null)
+        await writeRuleHooks(tx as unknown as Tx, def, 'delete', existing, null)
         scope.store.table(def.id).delete(ref.key)
       },
       put: async (overlay: AnyOverlay, base: Ref, values: Row) => {
@@ -664,7 +769,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         if (!(c.kind === 'operation' || (c.kind === 'command' && c.atomic === true))) {
           fail('runtime.callNotAtomic', `tx.call accepts only operations and atomic commands, not ${c.kind === 'command' ? 'ordinary command ' : c.kind + ' '}"${c.id}"`)
         }
-        return callCallable(scope, tx as unknown as Tx, callable, input)
+        return callCallable(tx as unknown as Tx, callable, input)
       },
       emit: async (event: { id: string; subject?: AnyEntity; payload: AnySchema }, args: { subject?: Ref; payload: unknown }) => {
         guard()
@@ -684,7 +789,12 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         if (known !== undefined) return { workflow: wf.id, instance: known.instance }
         const instance = nextId('wf')
         scope.pending.started.push({ workflow: wf.id, instance, key: opts?.key, input: encode(wf.input, validateInput(wf, input) as never) })
+        workflowDefs.set(wf.id, wf as AnyWorkflow)
         return { workflow: wf.id, instance }
+      },
+      signal: async (target: WorkflowInstance, name: string, payload: unknown) => {
+        guard()
+        scope.pending.signals.push(checkSignal(target, name, payload, scope.pending.started))
       },
     }
     return tx as unknown as Tx<'plain'> & Tx<'derived'>
@@ -694,14 +804,15 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     committed.emitted.push(...pending.emitted)
     committed.notices.push(...pending.notices)
     committed.started.push(...pending.started)
+    for (const signal of pending.signals) deliverSignal(signal)
   }
 
   /** Runs `body` in a transaction on a working copy: adopted on success, discarded on throw. */
-  const inTransaction = async <T>(body: (tx: Tx<'plain'> & Tx<'derived'>, scope: Scope) => Promise<T>, derived: boolean, info = invocation()): Promise<T> => {
-    const scope: Scope = { store: store.clone(), pending: { emitted: [], notices: [], started: [] }, open: true, derived, info }
+  const inTransaction = async <T>(body: (tx: Tx<'plain'> & Tx<'derived'>) => Promise<T>, derived: boolean, info = invocation()): Promise<T> => {
+    const scope: Scope = { store: store.clone(), pending: { emitted: [], notices: [], started: [], signals: [] }, open: true, derived, info }
     const tx = makeTx(scope)
     try {
-      const result = await body(tx, scope)
+      const result = await body(tx)
       scope.open = false
       store = scope.store
       flush(scope.pending)
@@ -712,18 +823,18 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     }
   }
 
-  const queryContext = (info = invocation()): QueryContext => ({ user, invocation: info, log: logger(), ...makeReader(() => store) })
+  const queryContext = (info = invocation()): QueryContext => readContext(() => store, info)
 
   const commandContext = (info = invocation()): CommandContext => {
     let inTx = false
+    const snapshot = queryContext(info)
     const ctx: CommandContext = {
       user,
       invocation: info,
       log: logger(),
-      secrets: {
-        get: async (name) => options.secrets?.[name] ?? fail('runtime.secretUndeclared', `secret "${name}" is not provided to this test host`),
-      },
-      query: queryContext(info),
+      secrets,
+      // Callable like the worker's `ctx.query`: it is the read-only snapshot context and runs a query.
+      query: Object.assign((q: Query, input: unknown) => snapshot.query(q, input), snapshot) as unknown as CommandContext['query'],
       async transaction<T>(callback: (tx: Tx) => Promise<T>): Promise<T> {
         if (inTx) fail('runtime.nestedTransaction', 'ctx.transaction cannot be nested')
         inTx = true
@@ -734,6 +845,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         }
       },
       call: (async (command: OrdinaryCommand | Command<string, AnySchema, AnySchema | undefined, true>, input: unknown) => invokeCommand(command, input, info.id)) as CommandContext['call'],
+      signal: (async (target: WorkflowInstance, name: string, payload: unknown) => deliverSignal(checkSignal(target, name, payload, []))) as CommandContext['signal'],
     }
     return ctx
   }
@@ -744,10 +856,10 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     const info = invocation(parent)
     const finish = (out: unknown): unknown => (command.output === undefined ? undefined : decode(command.output, encode(command.output, out as never)))
     if (command.atomic) {
-      return finish(await inTransaction((tx, scope) => callCallable(scope, tx as unknown as Tx, command as never, valid), false, info))
+      return finish(await inTransaction((tx) => callCallable(tx as unknown as Tx, command as never, valid), false, info))
     }
-    for (const g of prechecks.get(command.id) ?? []) await g.handler(queryContext(info), valid as never)
-    return finish(await (implementationOf(command.id).handler as unknown as (ctx: CommandContext, input: unknown) => Promise<unknown>)(commandContext(info), valid))
+    for (const g of prechecks.get(command.id) ?? []) await g.handler(guardContext(queryContext(info)), valid as never)
+    return finish(await (implementationOf(command.id).handler as unknown as (ctx: CommandContext, input: unknown) => Awaitable<unknown>)(commandContext(info), valid))
   }
 
   // ---- workflows
@@ -776,13 +888,22 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     mutableStatus: 'open' | 'decided' | 'expired'
   }
 
-  const createWorkflow = (impl: Implementation<Workflow & Implementable>, input: unknown, instanceId?: string): WorkflowRun => {
+  const createWorkflow = (impl: Implementation<AnyWorkflow & Implementable>, input: unknown, instanceId?: string): WorkflowRun => {
     const instance = instanceId ?? nextId('wf')
-    const workflow = impl.contract as Workflow
+    const workflow = impl.contract as AnyWorkflow
     const validInput = validateInput(workflow, input)
+    const startedAs = committed.started.find((x) => x.instance === instance)
+    if (startedAs !== undefined && startedAs.workflow !== workflow.id) {
+      fail('workflow.unknownInstance', `instance "${instance}" was started as "${startedAs.workflow}", not "${workflow.id}"`)
+    }
+    if (runs.has(instance)) fail('test.duplicateRun', `instance "${instance}" already has a run in this test host`)
     const journal = new Map<string, Occurrence>()
     const tasks: TaskState[] = []
-    const signals: { name: string; payload: unknown; consumed: boolean }[] = []
+    // Signals that reached the instance before the test created its run are consumed in arrival order.
+    const signals: { name: string; payload: unknown; consumed: boolean }[] = (inboxes.get(instance) ?? []).map((x) => ({ ...x, consumed: false }))
+    inboxes.delete(instance)
+    workflowDefs.set(workflow.id, workflow)
+    runs.set(instance, { workflow, push: (name, payload) => void signals.push({ name, payload, consumed: false }) })
 
     const run = async (): Promise<WorkflowOutcome<unknown>> => {
       const counters = new Map<string, number>()
@@ -801,13 +922,18 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         user,
         instance: { id: instance },
         log: logger(),
+        secrets,
         transaction: (async (name: string, body: unknown, txInput?: unknown) => {
           const { key, occ } = occurrence(name, 'transaction')
           if (occ?.status === 'completed') return occ.result
+          // Overloads: (name, callback) | (name, { output }, callback) | (name, callable, input).
+          const callback = typeof body === 'function' ? body : typeof txInput === 'function' ? txInput : undefined
+          const schema = callback !== undefined && isRecord(body) ? (body.output as AnySchema | undefined) : undefined
           const result =
-            typeof body === 'function'
-              ? await inTransaction((tx) => (body as (tx: Tx<'derived'>) => Promise<unknown>)(tx), true)
-              : await inTransaction((tx, scope) => callCallable(scope, tx as unknown as Tx, body as Callable, txInput), true)
+            callback !== undefined
+              ? await inTransaction(async (tx) => (callback as (tx: Tx<'derived'>) => Awaitable<unknown>)(tx), true)
+              : await inTransaction((tx) => callCallable(tx as unknown as Tx, body as Callable, txInput), true)
+          if (schema !== undefined) encode(schema, result as never)
           done(key, 'transaction', result)
           return result
         }) as WorkflowContext['transaction'],
@@ -883,8 +1009,9 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         }) as WorkflowContext['call'],
         start: (async (name: string, child: Workflow, childInput: unknown) => {
           const { key, n, occ } = occurrence(name, 'start')
-          if (occ?.status === 'completed') return occ.result as WorkflowHandle
+          if (occ?.status === 'completed') return occ.result as WorkflowInstance
           const childInstance = nextId('wf')
+          workflowDefs.set(child.id, child as AnyWorkflow)
           committed.started.push({ workflow: child.id, instance: childInstance, key: `${instance}:${name}:${n}`, input: encode(child.input, validateInput(child, childInput) as never) })
           const handle = { workflow: child.id, instance: childInstance }
           done(key, 'start', handle)
@@ -906,7 +1033,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         },
       }
       try {
-        const value = await (impl.handler as (wf: WorkflowContext, input: unknown) => Promise<unknown>)(wf, validInput)
+        const value = await (impl.handler as (wf: WorkflowContext, input: unknown) => Awaitable<unknown>)(wf, validInput)
         return { status: 'completed', value }
       } catch (e) {
         if (e instanceof Suspend) return { status: 'suspended', on: e.on }
@@ -914,10 +1041,10 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       }
     }
 
-    return {
+    const driver = {
       instance,
       run,
-      decide(name, decision, opts = {}) {
+      decide(name: string, decision: unknown, opts: { by?: string; n?: number } = {}) {
         const task = tasks.find((t) => t.name === name && t.mutableStatus === 'open' && (opts.n === undefined || t.n === opts.n))
         if (task === undefined) return fail('workflow.noOpenTask', `no open task "${name}" in ${instance}`)
         try {
@@ -929,12 +1056,9 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         task.by = opts.by ?? user.userId
         task.mutableStatus = 'decided'
       },
-      signal(signal, payload) {
+      signal(signal: { readonly name: string } | string, payload: unknown) {
         const name = typeof signal === 'string' ? signal : signal.name
-        const schema = (workflow.signals as Record<string, { schema: AnySchema } | undefined>)[name]?.schema
-        if (schema === undefined) fail('workflow.unknownSignal', `workflow "${workflow.id}" declares no signal "${name}"`)
-        else encode(schema, payload as never)
-        signals.push({ name, payload: json(payload), consumed: false })
+        deliverSignal(checkSignal({ workflow: workflow.id, instance }, name, payload, []))
       },
       get tasks() {
         return tasks.map((t) => ({ name: t.name, n: t.n, subject: t.subject, assignee: t.assignee, status: t.mutableStatus }))
@@ -943,6 +1067,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         return [...journal].filter(([, o]) => o.status === 'completed').map(([k]) => k)
       },
     }
+    return driver as unknown as WorkflowRun
   }
 
   // ---- public surface
@@ -963,12 +1088,15 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     get started() {
       return committed.started
     },
+    get signals() {
+      return committed.signals
+    },
     get logs() {
       return logs
     },
     query: () => queryContext(),
     command: () => commandContext(),
-    transaction: (callback) => inTransaction((tx) => callback(tx), false),
+    transaction: (callback) => inTransaction(async (tx) => callback(tx), false),
     deliver: (async (subscription: Subscription, event: { subject?: Ref; payload: Json; initiator?: string }) => {
       const payload = decode(subscription.event.payload, event.payload)
       const delivered: SubscriptionEvent = {
@@ -979,9 +1107,11 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         payload,
         initiator: (event.initiator ?? user.userId) as never,
       }
-      await inTransaction((tx) => subscription.handler(tx, delivered as never), true)
+      await inTransaction(async (tx) => {
+        await subscription.handler(tx, delivered as never)
+      }, true)
     }) as TestHost['deliver'],
-    workflow: ((impl: Implementation<Workflow & Implementable>, input: unknown, opts?: { instance?: string }) =>
+    workflow: ((impl: Implementation<AnyWorkflow & Implementable>, input: unknown, opts?: { instance?: string }) =>
       createWorkflow(impl, input, opts?.instance)) as TestHost['workflow'],
     table: ((entity: AnyEntity) => {
       register(entity)

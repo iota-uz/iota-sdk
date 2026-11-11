@@ -198,7 +198,7 @@ describe('bootRuntime', () => {
     legacyDocument(null)
     const boot = bootRuntime(window)
     const shared = (window as unknown as Record<symbol, Record<string, Record<string, unknown>>>)[SHARED_MODULES]!
-    expect(Object.keys(shared)).toEqual(['solid-js', 'solid-js/web', '@iota-uz/sdk/runtime/client'])
+    expect(Object.keys(shared)).toEqual(['solid-js', 'solid-js/web', 'solid-js/store', '@iota-uz/sdk/runtime/client'])
     expect(shared['@iota-uz/sdk/runtime/client']!.useQuery).toBe(hooks.useQuery) // the very instance the pages are rendered with
     expect(typeof shared['@iota-uz/sdk/runtime/client']!.page).toBe('function')
     expect(typeof shared['solid-js']!.createSignal).toBe('function')
