@@ -10,12 +10,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 )
@@ -192,6 +194,16 @@ func (a *API) Handler() http.Handler {
 	r.HandleFunc("/kit", a.wrap(a.kit)).Methods(http.MethodGet)
 	r.HandleFunc("/kit/modules/{module:.+}", a.wrap(a.kitModule)).Methods(http.MethodGet)
 	r.HandleFunc("/audit", a.wrap(a.audit)).Methods(http.MethodGet)
+
+	r.HandleFunc("/workflows", a.wrap(a.listWorkflows)).Methods(http.MethodGet)
+	r.HandleFunc("/workflows/{id}", a.wrap(a.getWorkflow)).Methods(http.MethodGet)
+	r.HandleFunc("/workflows/{id}/signal", a.wrap(a.signalWorkflow)).Methods(http.MethodPost)
+	r.HandleFunc("/workflows/{id}/terminate", a.wrap(a.terminateWorkflow)).Methods(http.MethodPost)
+	r.HandleFunc("/workflows/{id}/start-v2", a.wrap(a.startWorkflowV2)).Methods(http.MethodPost)
+	r.HandleFunc("/workflows/{id}/resolve", a.wrap(a.resolveOccurrence)).Methods(http.MethodPost)
+	r.HandleFunc("/workflows/{id}/retry", a.wrap(a.retryOccurrence)).Methods(http.MethodPost)
+	r.HandleFunc("/workflows/{id}/resume", a.wrap(a.resumeWorkflow)).Methods(http.MethodPost)
+	r.HandleFunc("/tasks/{id}/decide", a.wrap(a.decideTask)).Methods(http.MethodPost)
 	return root
 }
 
@@ -455,4 +467,132 @@ func (a *API) audit(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (
 	}
 	out, err := a.svc.ListAudit(r.Context(), actor, f)
 	return http.StatusOK, out, err
+}
+
+func uuidVar(r *http.Request, name string) (uuid.UUID, error) {
+	id, err := uuid.Parse(vars(r, name))
+	if err != nil {
+		return uuid.Nil, serrors.New(serrors.Invalid, "invalid "+name)
+	}
+	return id, nil
+}
+
+func (a *API) listWorkflows(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	q := r.URL.Query()
+	f := workflow.ListFilter{Status: q.Get("status"), Workflow: q.Get("workflow")}
+	var err error
+	if v := q.Get("limit"); v != "" {
+		if f.Limit, err = strconv.Atoi(v); err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid limit")
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if f.Offset, err = strconv.Atoi(v); err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid offset")
+		}
+	}
+	out, err := a.svc.ListWorkflows(r.Context(), actor, f)
+	return http.StatusOK, out, err
+}
+
+func (a *API) getWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.GetWorkflow(r.Context(), actor, id)
+	return http.StatusOK, out, err
+}
+
+func (a *API) signalWorkflow(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in struct {
+		Name    string          `json:"name"`
+		Payload json.RawMessage `json:"payload"`
+		Key     string          `json:"key"`
+	}
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.SignalWorkflow(r.Context(), actor, id, in.Name, in.Payload, in.Key)
+}
+
+func (a *API) terminateWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.TerminateWorkflow(r.Context(), actor, id)
+}
+
+func (a *API) startWorkflowV2(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in struct {
+		Version string `json:"version"`
+	}
+	if r.ContentLength != 0 {
+		if err := decode(r, w, &in); err != nil {
+			return 0, nil, err
+		}
+	}
+	out, err := a.svc.StartWorkflowV2(r.Context(), actor, id, in.Version)
+	return http.StatusCreated, map[string]string{"instance": out.String()}, err
+}
+
+type occurrenceBody struct {
+	Name   string          `json:"name"`
+	N      int             `json:"n"`
+	Result json.RawMessage `json:"result"`
+}
+
+func (a *API) resolveOccurrence(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in occurrenceBody
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.ResolveWorkflowOccurrence(r.Context(), actor, id, in.Name, in.N, in.Result)
+}
+
+func (a *API) retryOccurrence(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in occurrenceBody
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.RetryWorkflowOccurrence(r.Context(), actor, id, in.Name, in.N)
+}
+
+func (a *API) resumeWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.ResumeWorkflow(r.Context(), actor, id)
+}
+
+func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in struct {
+		Decision json.RawMessage `json:"decision"`
+	}
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.DecideTask(r.Context(), actor, id, in.Decision)
 }

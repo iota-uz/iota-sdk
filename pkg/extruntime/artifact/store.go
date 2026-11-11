@@ -185,6 +185,15 @@ func (s *Store) Dir(ctx context.Context, hash string) (string, error) {
 
 // OpenContext opens one file of a build artifact.
 func (s *Store) OpenContext(ctx context.Context, hash, p string) (io.ReadCloser, error) {
+	f, err := s.OpenFile(ctx, hash, p)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// OpenFile opens one file of a build artifact as a seekable file.
+func (s *Store) OpenFile(ctx context.Context, hash, p string) (*os.File, error) {
 	clean, err := CleanPath(p)
 	if err != nil {
 		return nil, serrors.Wrap(opOpen, err)
