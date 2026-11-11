@@ -1,0 +1,84 @@
+package notification_settings
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
+)
+
+// UserChannelRow is one person with the channels they opted out of.
+type UserChannelRow struct {
+	Recipient Recipient
+	Disabled  []notifications.Channel
+}
+
+type UserChannelsProps struct {
+	Rows       []UserChannelRow
+	Channels   []notifications.Channel
+	Search     string
+	CanManage  bool
+	MessageKey string
+}
+
+func channelEnabled(row UserChannelRow, channel notifications.Channel) bool {
+	for _, c := range row.Disabled {
+		if c == channel {
+			return false
+		}
+	}
+	return true
+}
+
+templ UserChannels(props *UserChannelsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: pageCtx.T("NotificationSettings.UserChannels")}}) {
+		@UserChannelsContent(props)
+	}
+}
+
+templ UserChannelsContent(props *UserChannelsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<main id="notification-user-channels" class="p-4 md:p-8 max-w-4xl mx-auto">
+		<a href="/settings/notifications" class="text-sm text-200 hover:text-100">{ pageCtx.T("NotificationSettings.Title") }</a>
+		<header class="mb-4 mt-2">
+			<h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.UserChannels") }</h1>
+			<p class="text-sm text-200 mt-1">{ pageCtx.T("NotificationSettings.UserChannelsIntro") }</p>
+			if props.MessageKey != "" {
+				<p role="status" class="text-sm text-200 mt-2">{ pageCtx.T("NotificationSettings."+props.MessageKey) }</p>
+			}
+		</header>
+		<form method="get" action="/settings/notifications/users" class="mb-4 flex gap-2">
+			<input type="search" name="q" value={ props.Search } maxlength="100" placeholder={ pageCtx.T("NotificationSettings.SearchPeople") } class="block w-full rounded-lg border border-secondary bg-surface-300 p-2"/>
+			@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
+				{ pageCtx.T("NotificationSettings.Search") }
+			}
+		</form>
+		if len(props.Rows) == 0 {
+			<p class="text-sm text-200">{ pageCtx.T("NotificationSettings.NoPeople") }</p>
+		}
+		for _, row := range props.Rows {
+			<form method="post" action={ templ.SafeURL("/settings/notifications/users/" + strconv.FormatUint(uint64(row.Recipient.ID), 10)) } class="mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-secondary bg-surface-300 px-5 py-3" data-testid="user-channels-row">
+				<input type="hidden" name="q" value={ props.Search }/>
+				<span class="mr-auto">
+					<span class="font-medium">{ row.Recipient.Name }</span>
+					if row.Recipient.Hint != "" {
+						<span class="block text-sm text-200">{ row.Recipient.Hint }</span>
+					}
+				</span>
+				for _, channel := range props.Channels {
+					<label class="flex items-center gap-2 text-sm">
+						<input type="checkbox" name="channels" value={ string(channel) } checked?={ channelEnabled(row, channel) } disabled?={ !props.CanManage }/>
+						{ pageCtx.T("NotificationSettings.Channel" + channelKey(channel)) }
+					</label>
+				}
+				if props.CanManage {
+					@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
+						{ pageCtx.T("NotificationSettings.Save") }
+					}
+				}
+			</form>
+		}
+	</main>
+}

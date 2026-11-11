@@ -19,12 +19,13 @@ func NewNotificationDispatchRepository() notifications.DispatchRepository {
 	return &NotificationDispatchRepository{}
 }
 
-const dispatchColumns = `id,tenant_id,event,rule,recipient_ids,cursor,delivered,attempts,last_error,created_at,available_at,completed_at`
+const dispatchColumns = `id,tenant_id,event,rule,mode,recipient_ids,addressees,cursor,delivered,attempts,last_error,created_at,available_at,completed_at`
 
 func scanDispatch(row interface{ Scan(...any) error }) (notifications.DispatchJob, error) {
 	var job notifications.DispatchJob
-	var event, rule, ids []byte
-	if err := row.Scan(&job.ID, &job.TenantID, &event, &rule, &ids, &job.Cursor, &job.Delivered, &job.Attempts, &job.LastError, &job.CreatedAt, &job.AvailableAt, &job.CompletedAt); err != nil {
+	var event, rule, ids, addressees []byte
+	var mode string
+	if err := row.Scan(&job.ID, &job.TenantID, &event, &rule, &mode, &ids, &addressees, &job.Cursor, &job.Delivered, &job.Attempts, &job.LastError, &job.CreatedAt, &job.AvailableAt, &job.CompletedAt); err != nil {
 		return job, err
 	}
 	if err := json.Unmarshal(event, &job.Event); err != nil {
@@ -36,29 +37,43 @@ func scanDispatch(row interface{ Scan(...any) error }) (notifications.DispatchJo
 	if err := json.Unmarshal(ids, &job.RecipientIDs); err != nil {
 		return job, err
 	}
+	if err := json.Unmarshal(addressees, &job.Addressees); err != nil {
+		return job, err
+	}
+	job.Mode = notifications.NoticeMode(mode)
 	return job, nil
 }
-func (r *NotificationDispatchRepository) Enqueue(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint) (notifications.DispatchJob, error) {
+func (r *NotificationDispatchRepository) Enqueue(ctx context.Context, req notifications.DispatchRequest) (notifications.DispatchJob, error) {
 	const op serrors.Op = "NotificationDispatchRepository.Enqueue"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return notifications.DispatchJob{}, serrors.Wrap(op, err)
 	}
-	if event.TenantID != tenant || event.ID == "" || event.Key == "" {
+	event := req.Event
+	if event.TenantID != tenant || event.ID == "" || event.Key == "" || (req.Mode != notifications.NoticeRule && req.Mode != notifications.NoticeExplicit) {
 		return notifications.DispatchJob{}, serrors.New(serrors.Invalid, "Invalid notification event").WithOp(op)
 	}
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
 		return notifications.DispatchJob{}, serrors.Wrap(op, err)
 	}
-	ruleJSON, err := json.Marshal(rule)
+	ruleJSON, err := json.Marshal(req.Rule)
 	if err != nil {
 		return notifications.DispatchJob{}, serrors.Wrap(op, err)
 	}
+	ids := req.RecipientIDs
 	if ids == nil {
 		ids = []uint{}
 	}
 	idsJSON, err := json.Marshal(ids)
+	if err != nil {
+		return notifications.DispatchJob{}, serrors.Wrap(op, err)
+	}
+	addressees := req.Addressees
+	if addressees == nil {
+		addressees = []notifications.Addressee{}
+	}
+	addresseesJSON, err := json.Marshal(addressees)
 	if err != nil {
 		return notifications.DispatchJob{}, serrors.Wrap(op, err)
 	}
@@ -70,7 +85,7 @@ func (r *NotificationDispatchRepository) Enqueue(ctx context.Context, event noti
 	if event.DedupeKey != "" {
 		identity = event.DedupeKey
 	}
-	job, err := scanDispatch(db.QueryRow(ctx, `INSERT INTO core.notification_dispatches(id,tenant_id,event_key,event_id,event,rule,recipient_ids,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN jsonb_array_length($7::jsonb)=0 THEN NOW() ELSE NULL END) ON CONFLICT(tenant_id,event_key,event_id) DO UPDATE SET event_id=EXCLUDED.event_id RETURNING `+dispatchColumns, uuid.New(), tenant, event.Key, identity, eventJSON, ruleJSON, idsJSON))
+	job, err := scanDispatch(db.QueryRow(ctx, `INSERT INTO core.notification_dispatches(id,tenant_id,event_key,event_id,event,rule,mode,recipient_ids,addressees,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN jsonb_array_length($8::jsonb)+jsonb_array_length($9::jsonb)=0 THEN NOW() ELSE NULL END) ON CONFLICT(tenant_id,event_key,event_id) DO UPDATE SET event_id=EXCLUDED.event_id RETURNING `+dispatchColumns, uuid.New(), tenant, event.Key, identity, eventJSON, ruleJSON, string(req.Mode), idsJSON, addresseesJSON))
 	return job, serrors.Wrap(op, err)
 }
 func (r *NotificationDispatchRepository) Next(ctx context.Context) (*notifications.DispatchJob, error) {
@@ -108,7 +123,7 @@ func (r *NotificationDispatchRepository) Advance(ctx context.Context, id uuid.UU
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	tag, err := db.Exec(ctx, `UPDATE core.notification_dispatches SET cursor=cursor+$3,delivered=delivered+$4,attempts=0,last_error='',available_at=NOW(),completed_at=CASE WHEN cursor+$3>=jsonb_array_length(recipient_ids) THEN NOW() ELSE NULL END WHERE tenant_id=$1 AND id=$2 AND completed_at IS NULL AND cursor+$3<=jsonb_array_length(recipient_ids)`, tenant, id, processed, delivered)
+	tag, err := db.Exec(ctx, `UPDATE core.notification_dispatches SET cursor=cursor+$3,delivered=delivered+$4,attempts=0,last_error='',available_at=NOW(),completed_at=CASE WHEN cursor+$3>=jsonb_array_length(recipient_ids)+jsonb_array_length(addressees) THEN NOW() ELSE NULL END WHERE tenant_id=$1 AND id=$2 AND completed_at IS NULL AND cursor+$3<=jsonb_array_length(recipient_ids)+jsonb_array_length(addressees)`, tenant, id, processed, delivered)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
@@ -173,7 +188,7 @@ func (r *NotificationDispatchRepository) List(ctx context.Context) ([]notificati
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	rows, err := db.Query(ctx, `SELECT id,event_key,jsonb_array_length(recipient_ids),cursor,delivered,attempts,last_error,created_at,available_at,completed_at FROM core.notification_dispatches WHERE tenant_id=$1 ORDER BY completed_at NULLS FIRST,created_at DESC LIMIT 25`, tenant)
+	rows, err := db.Query(ctx, `SELECT id,event_key,jsonb_array_length(recipient_ids)+jsonb_array_length(addressees),cursor,delivered,attempts,last_error,created_at,available_at,completed_at FROM core.notification_dispatches WHERE tenant_id=$1 ORDER BY completed_at NULLS FIRST,created_at DESC LIMIT 25`, tenant)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
