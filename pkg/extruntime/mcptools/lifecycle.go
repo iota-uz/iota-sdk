@@ -155,9 +155,9 @@ func lifecycleTools(r *registrar, d Deps) {
 
 	add(r, mcp.Spec{
 		Name:        "ext_purge",
-		Description: describe("Delete the data of a deactivated package. This cannot be undone.", manage.PermOperate),
+		Description: describe("Delete the data of a deactivated package. This cannot be undone.", manage.PermPublish),
 		Annotations: mcp.Annotations{Title: "Purge package data", Destructive: true},
-		Policy:      managePolicy(), Meta: meta(manage.PermOperate),
+		Policy:      managePolicy(), Meta: meta(manage.PermPublish),
 	}, func(ctx context.Context, actor spi.Subject, in namespaceIn) (ack, error) {
 		return done, svc.Purge(ctx, actor, in.Namespace)
 	})
