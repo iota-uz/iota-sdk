@@ -54,6 +54,22 @@
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./runtime/server": {
+      "types": "./dist/runtime/server.d.ts",
+      "import": "./dist/runtime/server.js"
+    },
+    "./runtime/client": {
+      "types": "./dist/runtime/client.d.ts",
+      "import": "./dist/runtime/client.js"
+    },
+    "./runtime/testing": {
+      "types": "./dist/runtime/testing.d.ts",
+      "import": "./dist/runtime/testing.js"
+    },
     "./chat-ui": {
       "types": "./dist/chat-ui/index.d.ts",
       "import": "./dist/chat-ui/index.js"
@@ -66,7 +82,7 @@
   },
   "scripts": {
     "build": "pnpm build:subpaths",
-    "build:subpaths": "pnpm --dir ../client-host build && pnpm --dir ../solid-ui build:package && pnpm --dir ../lens build:package && pnpm --dir ../testing build && pnpm --dir ../chat-ui build:package && node ./scripts/assemble-subpaths.mjs",
+    "build:subpaths": "pnpm --dir ../client-host build && pnpm --dir ../solid-ui build:package && pnpm --dir ../lens build:package && pnpm --dir ../testing build && pnpm --dir ../runtime build && pnpm --dir ../chat-ui build:package && node ./scripts/assemble-subpaths.mjs",
     "check": "pnpm test:exports",
     "test:exports": "node ./scripts/check-package-exports.mjs",
     "pack": "pnpm build && npm pack --json",

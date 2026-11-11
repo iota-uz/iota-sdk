@@ -7,6 +7,10 @@ const packageJSON = JSON.parse(await readFile(path.join(root, 'package.json'), '
 const expectedExports = [
   './package.json',
   './testing',
+  './runtime',
+  './runtime/server',
+  './runtime/client',
+  './runtime/testing',
   './identity',
   './client-host',
   './solid',
