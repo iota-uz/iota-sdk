@@ -1,0 +1,338 @@
+# Extension runtime platform — implementation contract
+
+Canonical requirements: iota-sdk #411 (epic) and #412–#420, #947/#953, #920/#925–#927,
+EAI-UZ/granite#3780. This file is the **shared implementation contract** between the
+owners of the slices below. A slice owner may not invent a second registry, transport,
+query API or workflow engine; changes to anything in this file go through its owner
+(the orchestrator) first.
+
+## 0. Vocabulary
+
+| Term | Meaning |
+|---|---|
+| package | an extension: `package.json` with an `iota` section, ESM sources, optional npm deps |
+| namespace | stable dotted owner prefix of every resource ID (`acme.insurance`) |
+| resource ID | `<namespace>.<name>`; declared exactly once, in a contract value |
+| contract | pure value describing a resource (no handler). Lives in the **contracts graph** |
+| implementation | server value bound to a contract by typed reference: `implement(Contract, handler)` |
+| version | immutable build of a package: source hash, lockfile, artifacts, manifest, contract resolution snapshot |
+| activation | which version of a package is live; one active version per package |
+| binding | which implementation is active for a command contract; **one per application** |
+| invocation | one execution of a command/query/operation/subscription; records selected binding |
+| occurrence | one durable workflow primitive call: `(instance, name, n)` where `n` counts repeats of `name` |
+
+## 1. Package layout and graphs
+
+```jsonc
+// package.json
+{
+  "name": "@acme/insurance",
+  "version": "0.1.0",
+  "type": "module",
+  "iota": {
+    "namespace": "acme.insurance",
+    "contracts": "./src/contracts.ts",   // pure graph: may import only @iota-uz/sdk/runtime, kits, other pure files, pure npm
+    "server": "./src/server.ts",         // server graph: implementations; Node/npm allowed
+    "client": "./src/client.tsx",        // browser graph: pages/slots/columns/shell (Solid)
+    "capabilities": { "network": ["sms.example.uz"], "secrets": ["SMS_TOKEN"] }
+  },
+  "dependencies": { "@iota-uz/sdk": "*" }
+}
+```
+
+* Three ESM graphs built separately. The registry is the set of **exported values** of the
+  three entry modules carrying the SDK brand (`Symbol.for("iota.resource")`). No global
+  `register()`, no hand-written list.
+* Client graph build fails (source-located diagnostic) when it reaches: the server entry,
+  any file reachable only from server, `@iota-uz/sdk/runtime/server`, or a Node builtin.
+  There is **no** handler stripping.
+* Contracts graph build fails if it reaches `@iota-uz/sdk/runtime/server`, `.../client`,
+  Node builtins or `solid-js`.
+* Own draft imports its own local contracts (`./contracts`). Core and foreign packages are
+  imported from the developer kit: `@iota-kit/<namespace>` (generated `.d.ts` + pure JS refs,
+  never handlers). Kit = catalog snapshot exported by the management backend.
+
+## 2. TypeScript public API (`@iota-uz/sdk/runtime*`)
+
+Subpaths (published inside the single `@iota-uz/sdk` distribution):
+
+* `@iota-uz/sdk/runtime` — pure: `t` (value schema), `entity`, `overlay`, `field`, `query`,
+  `command`, `operation`, `event`, `workflow`, `notice`, `route`, `permission`, `issue`,
+  `domainError`, `column`, types `Ref<E>`, `Infer<S>`.
+* `@iota-uz/sdk/runtime/server` — `implement`, `subscribe`, `guard`, `schedule`,
+  `endpoint`, `templates`, context/tx/wf types.
+* `@iota-uz/sdk/runtime/client` — `page`, `navigation`, `slot`, `shell`, `useCommand`,
+  `useQuery`, `cell` renderers; Solid.
+* `@iota-uz/sdk/runtime/testing` — synthetic fixtures + fake effects harness.
+
+### 2.1 Values (`t`) and wire
+
+`t.string() t.int() t.int64() t.decimal({precision,scale}) t.bool() t.date() t.datetime()
+t.uuid() t.enum([...]) t.json<T>() t.ref(Entity) t.object({...}) t.array(s)` with
+`.optional()` (key may be absent) and `.nullable()`.
+
+Wire (JSON) is exact: `int` = JSON number, must be a safe integer; `int64` = decimal
+**string** (TS type `bigint`-free branded `Int64 = string & {__int64}`); `decimal` = string
+(`Decimal = string & {__decimal}`); `date` = `"YYYY-MM-DD"` (`ISODate`); `datetime` = RFC3339
+with offset (`ISODateTime`); `ref` = `{"entity":"<id>","key":"<string>"}`. Every schema
+serializes into the manifest (§4) so Go validates input/output independently of TS.
+
+### 2.2 Entities, overlays, refs
+
+```ts
+export const Policy = entity("acme.insurance.policy", {
+  number:    field.text({ unique: true }),
+  holder:    field.ref(Customer),
+  premium:   field.decimal({ precision: 18, scale: 2 }),
+  expiresOn: field.date().index(),
+  status:    field.enum(["draft", "active", "expired"]).default("draft"),
+  notes:     field.text().optional(),
+  extra:     field.json<{ tags: string[] }>().optional(),   // JSONB only when declared
+}, {
+  access: {
+    read:  [{ when: ManagePolicies, rows: "all" }, { rows: { holder: { owner: $.user } } }],
+  },
+});
+export type Policy = typeof Policy;
+```
+
+* One PostgreSQL table per entity (§5); field key = stable field ID; rename only with
+  `field.text().renamedFrom("oldKey")`.
+* `Ref<typeof Policy>` = `{ entity: "acme.insurance.policy"; key: string }` branded by the
+  entity ID literal; refs to different entities are not assignable to each other.
+* Native (core/Granite) entities come from the kit: `core.User`, `crm.Client` — kind
+  `"native"`. Generic `tx.insert/update/delete` accept only kind `"own"` (type error +
+  runtime rejection). Native writes go through published operations (`core.users.rename`).
+* `overlay("acme.insurance.clientExtra", crm.Client, { loyaltyTier: field.enum([...]).optional() })`
+  — separate 1:1 typed table keyed by base key. `tx.get(ClientExtra, clientRef)` returns
+  `Overlay | null` — absence is explicit in the type. Overlay fields default-read as declared
+  default or `null`; same semantics in query/filter/sort/list/export.
+* `column(crm.lists.Clients, { id: "loyaltyTier", field: ClientExtra.fields.loyaltyTier,
+  label: {en,ru,uz}, filterable, sortable, exportable })` — pure contract consumed by Go
+  native list + export (§7). Optional client `cell` renderer lives in client graph.
+
+### 2.3 Commands, operations, queries, errors
+
+```ts
+// contracts
+export const NotActive = domainError("acme.insurance.notActive", t.object({ status: t.string() }));
+export const ExtendExpiry = operation("acme.insurance.extendExpiry", {
+  input: t.object({ policy: t.ref(Policy), months: t.int() }),
+  output: t.object({ expiresOn: t.date() }),
+  errors: [NotActive],
+});
+export const RenewPolicy = command("acme.insurance.renewPolicy", { input, output, errors });          // ordinary intent
+export const ActivatePolicy = command("acme.insurance.activatePolicy", { atomic: true, input, output });
+export const Expiring = query("acme.insurance.expiring", { input, output });
+
+// server
+export const extendExpiry = implement(ExtendExpiry, async (tx, input) => { ... });       // (Tx, In) => Out
+export const renew = implement(RenewPolicy, async (ctx, input) => {                     // (CommandContext, In) => Out
+  const quote = await fetch(...);                    // normal Node/npm, no tx open
+  return ctx.transaction(async (tx) => tx.call(ExtendExpiry, {...}));
+});
+export const activate = implement(ActivatePolicy, async (tx, input) => { ... });        // atomic: whole handler in one Go tx
+export const expiring = implement(Expiring, async (q, input) => q.find(Policy, {...}));  // read-only QueryContext
+```
+
+* `Tx` (Go-owned transaction handle): `get find count insert update delete call emit notify
+  start issue`. `tx.call` accepts **only** `Operation | AtomicCommand` (type-level + runtime).
+  Nested `ctx.transaction` inside a tx is rejected.
+* `CommandContext`: `user`, `invocation`, `transaction(cb)`, `query` (read-only),
+  `call(Command)` (new invocation), `secrets`, `log`. No `ctx.base`, no around-chain.
+* Atomicity is part of the PUBLIC contract (`atomic: true`). Any replacement implementation
+  of an atomic command gets `Tx`; ordinary replacement gets `CommandContext`.
+* Errors: `throw NotActive.of({status})` — declared domain errors (closed per contract);
+  validation issues are extensible and namespaced: `issue("acme.insurance.tooLong",
+  t.object({max:t.int()}))`, raised as `tx.issue(TooLong, {path:["notes"], params:{max:10}})`
+  / `throw validation([...])`. Wire: `{kind:"domain"|"validation"|"denied"|"internal",
+  code, params, issues:[{code, phase:"input"|"write", source, path, params}]}`.
+* `guard(ExtendExpiry, async (tx, input) => ...)` — additive transactional guard on an
+  operation (same tx). `guard(RenewPolicy, async (q, input) => ...)` on an ordinary command —
+  **preliminary** input check (read snapshot), named so. `guard(Policy, "write", async (tx,
+  { existing, proposed, changed }) => ...)` — entity write rule in the writing tx.
+  Guards are independent of the active command implementation.
+* `implement(core.commands.RejectIncoming, ...)` from a package = replacement candidate;
+  becomes active only through an explicit binding (§6). One active binding per command per
+  application; no fallback on error.
+
+### 2.4 Events and subscriptions
+
+```ts
+export const PolicyRenewed = event("acme.insurance.policyRenewed.v1", { subject: Policy, payload: t.object({...}) });
+// server
+export const onRenewed = subscribe("acme.insurance.onRenewed", PolicyRenewed, async (tx, e) => {
+  await tx.start(RenewalFollowUp, { policy: e.subject });
+});
+```
+
+* `tx.emit` enqueues atomically with the data (outbox row in the same Go tx).
+* After commit, each active subscription gets its own transaction; receipt
+  `(subscription_id, event_id)` is written in that tx; re-delivery after commit is a no-op.
+  `tx.start` inside it writes a start-intent keyed `(subscription, event)`, so no duplicate
+  workflow. Core events are published by Go modules through the same outbox (`events.Publish
+  (ctx, tx, ...)`), declared in the native catalog with a versioned payload.
+* Subscription runs as the event initiator (current rights); events without a user run as
+  the subscription's explicit owner-user assigned at activation.
+
+### 2.5 Workflows
+
+```ts
+export const RenewalCampaign = workflow("acme.insurance.renewalCampaign", {
+  input: t.object({ before: t.date() }),
+  signals: { decision: t.object({ approved: t.bool() }) },
+});
+// server
+export const renewalCampaign = implement(RenewalCampaign, async (wf, input) => {
+  const targets = await wf.transaction("load", (tx) => tx.find(Policy, {...}));   // DB effect + receipt, one Go tx
+  for (const p of targets) {
+    await wf.step("sms", async ({ idempotencyKey }) => sms.send(..., idempotencyKey)); // re-runnable effect, occurrence n
+  }
+  const d = await wf.task("approve", { subject: p, assignee: user, decision: t.object({approved: t.bool()}), timeout: "3d" });
+  await wf.sleep("cooldown", "1d");
+  const r = await wf.call("renew", RenewPolicy, {...});   // new command invocation → active binding, receipt
+});
+```
+
+* Replay engine (Go-owned journal). Every durable primitive takes a stable `name`; the
+  occurrence key is `(instance, name, n)`. Completed occurrences return the recorded result
+  without executing. `sleep`/`waitFor`/`task` on an unmet condition **suspend**: the Node
+  invocation ends, worker and tx are released; Go timers/signals resume by replaying.
+* The instance pins its package version (code/npm/templates). `wf.call` creates a new
+  invocation that selects the **current** active binding and records it; replay returns
+  the receipt and never re-dispatches.
+* `wf.transaction` writes DB effects + occurrence receipt in one Go tx (dedupe of committed
+  DB effects, not exactly-once network). `wf.step` may repeat; receives a stable provider
+  idempotency key `"<instance>:<name>:<n>"`.
+* Terminate stops future steps (does not compensate). Start v2 = new instance with
+  `predecessor_id`. Current rights checked on each new action; session expiry does not stop
+  instances; denied → `blocked` outcome with diagnostic.
+
+### 2.6 Notifications
+
+```ts
+export const RenewalReminder = notice("acme.insurance.renewalReminder.v1", { subject: Policy, payload: t.object({...}) });
+// server
+export const reminderTemplates = templates(RenewalReminder, {
+  sms: ({ payload, locale }) => `...`,
+  email: ({ payload }) => ({ subject: "...", html: "...", text: "..." }),
+  inApp: ({ payload }) => ({ title: "...", body: "..." }),
+});
+await tx.notify(RenewalReminder, {
+  subject: policyRef, payload,
+  to: [recipient.user(userRef), recipient.record(customerRef), recipient.address({ sms: "+998..." })],
+  channels: ["sms", "email"],
+});
+```
+
+Recipient (user / record via published contact resolver / direct address) ≠ subject ≠
+resolved channel target/device. Enqueue is atomic with the tx; render (pinned template
+version) and provider delivery run after commit through the **core notification service**
+(#920/#925/#926). Rule-mode publication uses the same notice IDs via the core catalog
+(`DefinitionSource`).
+
+### 2.7 UI
+
+```ts
+// contracts (only when the route is shared with server/foreign packages)
+export const PolicyRoute = route("acme.insurance.policy", { path: "/insurance/policies/:id", params: t.object({ id: t.uuid() }) });
+// client.tsx
+export const policies = page("acme.insurance.policies", {
+  path: "/insurance/policies", nav: { label: {...}, group: "acme.insurance", icon: "shield" },
+  permission: ReadPolicies, component: lazy(() => import("./PoliciesScreen")),
+});
+export const policy = page(PolicyRoute, { component: lazy(() => import("./PolicyScreen")) });
+export const nav = navigation({ groups: [...], patches: [{ ref: "core.users", hide: true }] });
+export const clientTierCell = cell(ClientsTierColumn, (p) => <Badge>{p.value}</Badge>);
+export const shell = shellRenderer((p) => <MyShell {...p} />);  // whole authenticated shell
+```
+
+Pages are mounted by the canonical client host inside `layouts.Authenticated` (same
+boundary as legacy pages). Nav is projected by Go from the activated manifest; Node is not
+used per render.
+
+## 3. Wire protocol Go ⇄ Node (pool)
+
+Transport: worker stdio, frames = 4-byte big-endian length + UTF-8 JSON. Protocol version
+`iota.runtime/1`; mismatch → worker rejected.
+
+```
+Go → Node  {"t":"hello","protocol":"iota.runtime/1"}
+Node → Go  {"t":"ready","protocol":"iota.runtime/1","pid":123}
+Go → Node  {"t":"invoke","id":"inv-…","artifact":{"hash":"…","dir":"/cache/…"},"kind":"command|atomic|operation|query|subscription|workflow|guard|template|endpoint|build|extract",
+            "export":"renew","resource":"acme.insurance.renewPolicy","input":…,"ctx":{tenant,user,invocation,occurrence?,deadline,tx?}}
+Node → Go  {"t":"call","inv":"inv-…","id":7,"method":"tx.begin|tx.end|tx.get|tx.find|…|wf.step.begin|…","args":…}
+Go → Node  {"t":"reply","inv":"inv-…","id":7,"ok":true,"value":…} | {"ok":false,"error":{…}}
+Node → Go  {"t":"done","id":"inv-…","ok":true,"value":…} | {"ok":false,"error":{kind,code,message,params,issues,suspend?}}
+Go → Node  {"t":"cancel","id":"inv-…"}
+Node → Go  {"t":"log","inv":"…","level":"info","msg":"…"}
+```
+
+* Go serializes calls per tx handle and owns deadline/commit/rollback.
+* Artifacts are immutable directories addressed by content hash; a worker `import()`s
+  `<dir>/server.mjs` once per hash. Two versions = two module instances in the same worker.
+* Worker env is minimal (`PATH`, `NODE_ENV`, `TZ`, `IOTA_RUNTIME_*`); secrets only through
+  host calls for declared capabilities.
+
+## 4. Manifest (build output, stored per version)
+
+`manifest.json` extracted by running the contracts + server + client graphs' exports in the
+build worker:
+
+```jsonc
+{ "schema": "iota.manifest/1", "namespace": "acme.insurance",
+  "resources": [
+    {"id":"acme.insurance.policy","kind":"entity","fields":[{"id":"number","type":{"kind":"string"},"unique":true}, …],"access":{…}},
+    {"id":"acme.insurance.renewPolicy","kind":"command","atomic":false,"input":{…},"output":{…},"errors":["acme.insurance.notActive"]},
+    {"id":"acme.insurance.policies","kind":"page","path":"/insurance/policies","nav":{…},"chunk":"client/policies-…js"}
+  ],
+  "implementations": [{"export":"renew","implements":"acme.insurance.renewPolicy","kind":"command"}],
+  "subscriptions": [...], "guards": [...], "templates": [...], "dependencies": {"core":"<kit hash>"} }
+```
+
+Go types live in `pkg/extruntime/manifest` (single owner) and are the **only** Go
+representation of resources.
+
+## 5. Persistence (schema `extruntime`, PostgreSQL)
+
+Owned by slice owners but all DDL in one migration set:
+
+* management: `packages`, `package_files` (draft tree), `versions` (immutable, hashes,
+  provenance git|runtime, manifest jsonb, resolution snapshot, review), `artifacts` (hash →
+  bytea), `activations` (history), `command_bindings` (command id → package version export,
+  one active), `owners` (trigger owner-user per subscription/schedule).
+* data: tenant-scoped tables per entity in schema `x_<namespace with _>`:
+  `tenant_id uuid, id uuid pk, <typed columns>, created_at, updated_at, row_version`;
+  overlays: `tenant_id, base_key <base key type>, <columns>, PK(tenant_id, base_key)`.
+  `entity_schemas` (applied field IDs/types per version + migration history).
+* execution: `invocations` (contract, selected binding/version, subject user, outcome,
+  partial-commit flag), `occurrences` (receipts: instance/name/n/result, input hash),
+  `outbox_events`, `subscription_receipts`, `workflow_instances` (pinned version, owner,
+  predecessor, status), `workflow_timers`, `workflow_signals`, `human_tasks`.
+
+## 6. Go host (`pkg/extruntime/...`)
+
+| Package | Owner slice | Responsibility |
+|---|---|---|
+| `manifest` | contracts | manifest Go types, schema validation of wire values |
+| `pool` | runtime | Node worker pool, protocol, supervisor, generations |
+| `host` | runtime | invocation dispatch, tx handles, host-call router, bindings |
+| `data` | data | DDL from manifest, typed query compiler w/ access, overlays, native adapters |
+| `events` | workflows | outbox, subscriptions, receipts |
+| `workflow` | workflows | replay engine, timers, signals, tasks, terminate/start-v2 |
+| `notify` | notifications | adapter to core notifications |
+| `manage` | management | drafts, build, check, fake-test, review, publish, activate; kit export |
+| `ui` | UI | page route host, nav projection, native column/export providers, shell activation |
+| `mcp` | Granite/MCP | MCP tools over `manage` |
+
+The Node side lives in `web/runtime` (workspace package, built into `@iota-uz/sdk` subpaths
+`./runtime`, `./runtime/server`, `./runtime/client`, `./runtime/testing`, and the
+`runtime-host` worker entry).
+
+## 7. Guarantees and honest limits
+
+* Shared Node pool is a trusted domain; no memory sandbox between packages.
+* `wf.transaction` dedupes committed DB effects; external network is never exactly-once.
+* Ordinary command may commit partially before a lost reply; it is not blindly retried.
+* Old instances keep their pinned artifacts; Go host/native operation implementations may
+  change under a compatible public contract; old Go binaries are not retained.
