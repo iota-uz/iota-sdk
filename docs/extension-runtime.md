@@ -671,7 +671,10 @@ allow-list another origin).
 * `pkg/extruntime/e2e` drives the composed `runtime.Component` (real Node pool, real Node build worker built from
   `web/runtime`, real PostgreSQL through `pkg/itf`, real session middleware) through `/_ext/manage`, `/_ext/rpc`, page
   routes, the CRM clients list/export and `/_ext/endpoints`. Its packages are real TypeScript trees in `testdata/`, written
-  with the public author API only. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
+  with the public author API only. The scenarios are numbered once each: 01 new module, 02 overlay, 03 replacement, 04 ordinary
+  commands, 05 core event, 06 restart, 07 versions, 08 `wf.call`, 09 terminate, 10 Git, 11 shell, 12 campaign, 13 native
+  replacement, 14 notice channels, 15 slots, 16 cell renderers, 17 CRM client events, 18 screen replacement, 19 native defaults from
+  background roots. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
   (the SDK emit type-checks `src/client-host/entry.ts` against the client-host declarations). Run with
   `go test -p 1 ./pkg/extruntime/e2e/`.
 

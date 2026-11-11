@@ -330,7 +330,8 @@ func (d *Dispatcher) deliver(ctx context.Context, sub Subscription, ev outboxRow
 // current rights, or the explicit owner of the subscription in the tenant.
 // A non-empty blocked string is the diagnostic of a refused delivery.
 func (d *Dispatcher) subjectFor(ctx context.Context, sub Subscription, ev outboxRow) (spi.Subject, string, error) {
-	userID, kind := int64(0), spi.SubjectInitiator
+	var userID int64
+	kind := spi.SubjectInitiator
 	if ev.initiator != nil {
 		userID = *ev.initiator
 	} else {

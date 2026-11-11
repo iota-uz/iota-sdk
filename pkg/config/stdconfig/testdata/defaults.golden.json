@@ -55,6 +55,7 @@
     "CacheDir": "",
     "WorkflowConcurrency": 0,
     "DisableBackground": false,
+    "TrustedOrigins": "",
     "UI": {
       "HostManifest": "",
       "SourceTTL": 2000000000
@@ -72,6 +73,8 @@
     },
     "Git": {
       "AllowedSchemes": "",
+      "AllowedHosts": "",
+      "AllowPrivateNetworks": false,
       "Binary": "",
       "Timeout": 0
     }

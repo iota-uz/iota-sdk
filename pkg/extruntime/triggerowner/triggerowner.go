@@ -25,8 +25,9 @@ type Querier interface {
 
 // Lookup returns the owner-user of the trigger in the tenant; found is false
 // when none is assigned.
-func Lookup(ctx context.Context, q Querier, triggerID string, tenant uuid.UUID) (userID int64, found bool, err error) {
-	err = q.QueryRow(ctx, `SELECT user_id FROM extruntime.trigger_owners WHERE trigger_id = $1 AND tenant_id = $2`, triggerID, tenant).Scan(&userID)
+func Lookup(ctx context.Context, q Querier, triggerID string, tenant uuid.UUID) (int64, bool, error) {
+	var userID int64
+	err := q.QueryRow(ctx, `SELECT user_id FROM extruntime.trigger_owners WHERE trigger_id = $1 AND tenant_id = $2`, triggerID, tenant).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	}

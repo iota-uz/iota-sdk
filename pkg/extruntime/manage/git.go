@@ -485,7 +485,7 @@ func (c GitConfig) fetchTree(ctx context.Context, repo, commit, subdir string) (
 // read.
 func (c GitConfig) selectEntries(listing []byte, prefix, subdir string) ([]treeEntry, error) {
 	const op = serrors.Op("extruntime.manage.fetchTree")
-	var entries []treeEntry
+	entries := make([]treeEntry, 0, bytes.Count(listing, []byte{0}))
 	var total int64
 	for _, rec := range bytes.Split(listing, []byte{0}) {
 		if len(rec) == 0 {

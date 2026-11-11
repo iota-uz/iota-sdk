@@ -146,11 +146,11 @@ func TestRegister_FromEnvironment(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 
 	cfg.TrustedOrigins = "admin.example.com"
-	assert.ErrorContains(t, cfg.Validate(), "trustedorigins")
+	require.ErrorContains(t, cfg.Validate(), "trustedorigins")
 	cfg.TrustedOrigins = "https://admin.example.com/path"
-	assert.ErrorContains(t, cfg.Validate(), "trustedorigins")
+	require.ErrorContains(t, cfg.Validate(), "trustedorigins")
 	cfg.TrustedOrigins = ""
 
 	cfg.Git.AllowedHosts = "https://git.example.com"
-	assert.ErrorContains(t, cfg.Validate(), "git.allowedhosts")
+	require.ErrorContains(t, cfg.Validate(), "git.allowedhosts")
 }

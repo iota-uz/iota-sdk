@@ -445,7 +445,7 @@ describe('kit', () => {
           const modules = mode === 'name' ? ['@iota-kit/../../escaped'] : ['@iota-kit/granite']
           res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hash: 'abc123', modules }))
         } else if (req.url?.startsWith('/_ext/manage/kit/modules/granite.tgz?hash=abc123') === true) {
-          const files =
+          const files: Record<string, string> =
             mode === 'path'
               ? { 'index.js': 'x', 'a\\..\\..\\..\\escaped.js': 'x' }
               : { 'index.js': 'export const Deal = 1\n', 'index.d.ts': 'export const Deal: 1\n', 'package.json': '{"name":"@iota-kit/granite"}' }

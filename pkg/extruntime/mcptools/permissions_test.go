@@ -65,7 +65,7 @@ func extPermission(name string) permission.Permission {
 func TestAdvertisedPermissionsAreWhatTheServiceEnforces(t *testing.T) {
 	e := newEnv(t)
 	all := []string{manage.PermRead, manage.PermAuthor, manage.PermReview, manage.PermPublish, manage.PermOperate}
-	var checked, skipped []string
+	checked, skipped := make([]string, 0, 64), []string{}
 	next := uint(100)
 	actor := func(perms []string) uint {
 		next++
