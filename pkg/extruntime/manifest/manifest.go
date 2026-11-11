@@ -128,7 +128,12 @@ type ReadRule struct {
 // visible rows are the union of rules whose Permission the subject holds (none
 // applicable = no rows). Rows the subject cannot read cannot be updated or
 // deleted either. Fields lists permissions that are all required to read the
-// field (projection, filter, sort, export).
+// field (projection, filter, sort, export) and to write it: a subject cannot
+// set, change or clear a field it cannot read (ErrFieldNotAccessible), so a
+// write can neither overwrite nor probe a hidden value. An overlay row is
+// visible only to a subject that can see its base row — the read permission of
+// a native base, the read rules of an own base entity — in addition to the
+// overlay's own rules.
 type Access struct {
 	Read   []ReadRule          `json:"read,omitempty"`
 	Fields map[string][]string `json:"fields,omitempty"` // field id -> permissions required to read

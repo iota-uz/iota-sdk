@@ -96,7 +96,15 @@ type Index struct {
 
 	pageByID map[string]*Page
 	natives  map[string]*nativeRoute
+	// artifacts are the content hashes of the artifacts of the activated
+	// package versions; the screen and shell bindings of a snapshot resolve
+	// only into these, so it is the whole set the asset route may serve.
+	artifacts map[string]bool
 }
+
+// ServesArtifact reports whether hash addresses the artifact of an activated
+// package version, and so may have its client subtree served.
+func (ix *Index) ServesArtifact(hash string) bool { return ix.artifacts[hash] }
 
 type nativeRoute struct {
 	id      string
@@ -162,11 +170,15 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 		Columns:     map[string][]listext.Contribution{},
 		pageByID:    map[string]*Page{},
 		natives:     map[string]*nativeRoute{},
+		artifacts:   map[string]bool{},
 	}
 	if s == nil {
 		return ix
 	}
 	ix.Revision = s.Revision
+	for _, p := range s.Packages {
+		ix.artifacts[p.ArtifactHash] = true
+	}
 	for id, pattern := range natives {
 		ix.natives[id] = &nativeRoute{id: id, pattern: pattern, segs: parsePattern(pattern)}
 	}

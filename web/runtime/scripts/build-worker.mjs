@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 // Builds the Node build worker (docs/extension-runtime.md §4) into <out>/build:
 //   worker.mjs, extract.mjs, test-child.mjs   bundled with esbuild; typescript and babel are inlined,
 //                                             esbuild itself (native binary) is resolved at run time
@@ -23,6 +24,12 @@ const buildDir = join(out, "build");
 
 if (emitSdk) {
   const tsc = require.resolve("typescript/bin/tsc");
+  // tsconfig.build.json types `@iota-uz/sdk/client-host` from the client host's emitted declarations.
+  const clientHost = resolve(root, "../client-host");
+  if (!existsSync(join(clientHost, "dist/solid-index.d.ts"))) {
+    const c = spawnSync(process.execPath, [tsc, "-p", join(clientHost, "tsconfig.build.json")], { cwd: clientHost, stdio: "inherit" });
+    if (c.status !== 0) process.exit(c.status ?? 1);
+  }
   const r = spawnSync(process.execPath, [tsc, "-p", join(root, "tsconfig.build.json"), "--outDir", out], { cwd: root, stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
   const h = spawnSync(process.execPath, ["--no-warnings", join(root, "scripts/build-host.mjs"), join(out, "host")], { cwd: root, stdio: "inherit" });

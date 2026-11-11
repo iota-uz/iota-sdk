@@ -373,3 +373,17 @@ func TestAResultWithNULStillFinishesTheInvocationRecord(t *testing.T) {
 	require.True(t, recs[0].Finished)
 	require.Contains(t, *recs[0].Result, "unrecordable")
 }
+
+func TestRecursiveQueryFailsWithANestingDiagnostic(t *testing.T) {
+	e := newEnv(t)
+	e.publish("acme.r", "1.0.0", jsPrelude+rawPrelude+`
+export const loop = async (q, input) => q.query({ id: "acme.r.loop" }, input);
+export const start = async (ctx, input) => probe(() => ctx.query({ id: "acme.r.loop" }, input));`)
+	e.contract(manifest.Resource{ID: "acme.r.loop", Kind: manifest.ResQuery}, "acme.r", "1.0.0", "loop")
+	e.contract(command("acme.r.start", false, nil, nil), "acme.r", "1.0.0", "start")
+	res, err := e.host.Invoke(context.Background(), e.req("acme.r.start", `null`))
+	require.NoError(t, err)
+	got := probeResult(t, res.Output)
+	require.Equal(t, false, got["ok"])
+	require.Equal(t, "runtime.nestingTooDeep", got["code"])
+}

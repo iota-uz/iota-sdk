@@ -42,6 +42,7 @@ func TestMain(m *testing.M) {
 const (
 	hashV1   = "h1h1h1h1h1h1h1h1"
 	hashShel = "5he115he115he115"
+	hashOld  = "01d01d01d01d01d0"
 	pkgName  = "@acme/insurance"
 )
 
@@ -181,6 +182,11 @@ func newEnv(t *testing.T, perms ...string) *env {
 		Artifacts: fakeArtifacts{
 			hashV1 + "/client/policies.js": "export const policies = {}",
 			hashV1 + "/client/chunk.css":   "body{}",
+			hashV1 + "/server.mjs":         "export const secretHandler = 'HANDLER_SECRET'",
+			hashV1 + "/contracts.mjs":      "export const contracts = {}",
+			hashV1 + "/manifest.json":      "{}",
+			hashV1 + "/package.json":       "{}",
+			hashOld + "/client/old.js":     "export const old = {}",
 		},
 		Invoker: inv, Catalog: cat, Host: hostManifest(),
 		NativeRoutes: ui.NativeRoutes{"test.routes.legacy": "/legacy"},
@@ -530,6 +536,7 @@ func TestRPCRejectsWhatTheBrowserMustNotCall(t *testing.T) {
 
 func TestAssetsAreImmutableAndConfined(t *testing.T) {
 	e := newEnv(t)
+	e.src.set([]ui.ActivePackage{pkgV1()})
 	resp := e.suite.GET("/_ext/assets/" + hashV1 + "/client/policies.js").Expect(t).Status(200)
 	assert.Equal(t, "export const policies = {}", resp.Body())
 	assert.Contains(t, resp.Header("Cache-Control"), "immutable")
@@ -547,6 +554,30 @@ func TestAssetsAreImmutableAndConfined(t *testing.T) {
 		assert.NotContains(t, resp.Body(), "export const", p)
 	}
 	e.suite.GET("/_ext/assets/short/client/policies.js").Expect(t).Status(404)
+}
+
+// The route serves the client subtree of artifacts that are live, nothing else:
+// not the server bundle, contracts or manifests of a live artifact, and not
+// any file of an artifact that is no longer (or not yet) activated.
+func TestAssetsServeOnlyTheClientSubtreeOfLiveArtifacts(t *testing.T) {
+	e := newEnv(t)
+	client := "/_ext/assets/" + hashV1 + "/client/policies.js"
+
+	e.suite.GET(client).Expect(t).Status(404) // nothing activated yet
+	e.src.set([]ui.ActivePackage{pkgV1()})
+	e.suite.GET(client).Expect(t).Status(200)
+	e.suite.GET("/_ext/assets/" + hashV1 + "/client/chunk.css").Expect(t).Status(200)
+	for _, p := range []string{"server.mjs", "contracts.mjs", "manifest.json", "package.json"} {
+		resp := e.suite.GET("/_ext/assets/" + hashV1 + "/" + p).Expect(t)
+		assert.Equal(t, 404, resp.Raw().StatusCode, p)
+		assert.NotContains(t, resp.Body(), "HANDLER_SECRET", p)
+	}
+	e.suite.GET("/_ext/assets/" + hashOld + "/client/old.js").Expect(t).Status(404) // never activated
+
+	// a screen binding keeps its package's artifact reachable; a deactivated
+	// package's artifact is gone
+	e.src.set([]ui.ActivePackage{shellPkg()}, ui.Binding{ID: "b1", SlotKind: ui.SlotShell, Package: "@acme/shell", Version: "v2", Export: "shell"})
+	e.suite.GET(client).Expect(t).Status(404)
 }
 
 func TestIndexResolvesMostSpecificPageAndReportsConflicts(t *testing.T) {

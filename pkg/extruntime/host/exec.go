@@ -91,7 +91,24 @@ func (e *execution) resource() string {
 	return e.binding.Contract
 }
 
+// MaxNesting bounds nested invocations (tx.call, tx.query, ctx.call, guards)
+// under one root, so a query or operation that calls itself fails with a
+// diagnostic instead of exhausting the worker stack.
+const MaxNesting = 32
+
+func (e *execution) depth() int {
+	n := 0
+	for p := e.spec.parent; p != nil; p = p.spec.parent {
+		n++
+	}
+	return n
+}
+
 func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, error) {
+	if e.depth() > MaxNesting {
+		return Result{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "runtime.nestingTooDeep",
+			Message: fmt.Sprintf("more than %d nested invocations under one root (recursive call of %s?)", MaxNesting, e.resource())}
+	}
 	out := Result{InvocationID: e.id, Binding: e.binding}
 	parentID := ""
 	if e.spec.parent != nil {

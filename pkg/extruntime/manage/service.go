@@ -46,6 +46,11 @@ type Config struct {
 	Natives *data.NativeRegistry
 	Git     GitConfig
 	Logger  *slog.Logger
+	// Subjects loads the current rights of a user. AssignOwner uses it to
+	// refuse making a user the owner of a trigger when that user holds
+	// permissions the assigning actor lacks. Without it only self-assignment
+	// is possible.
+	Subjects SubjectLoader
 }
 
 // Service is the package lifecycle backend. All methods take the acting
@@ -60,6 +65,7 @@ type Service struct {
 	compiler *data.Compiler
 	git      GitConfig
 	log      *slog.Logger
+	subjects SubjectLoader
 
 	workflows Workflows
 
@@ -94,7 +100,7 @@ func New(cfg Config) (*Service, error) {
 	}
 	return &Service{
 		db: cfg.DB, builder: cfg.Builder, kits: cfg.Kits, arts: cfg.Artifacts, catalog: cfg.Catalog,
-		compiler: data.NewCompiler(cfg.Natives, cfg.Catalog), git: cfg.Git.withDefaults(), log: cfg.Logger,
+		compiler: data.NewCompiler(cfg.Natives, cfg.Catalog), git: cfg.Git.withDefaults(), log: cfg.Logger, subjects: cfg.Subjects,
 		verCache: map[string]versionMeta{},
 	}, nil
 }

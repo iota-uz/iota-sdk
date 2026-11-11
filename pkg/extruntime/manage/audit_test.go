@@ -14,7 +14,8 @@ import (
 // TestEveryManagementActionIsAudited walks through all actions once and
 // checks the audit log: actor, hashes and outcome, including refusals.
 func TestEveryManagementActionIsAudited(t *testing.T) {
-	e := newEnv(t, allowFile)
+	rights := subjectsOf{}
+	e := newEnv(t, allowFile, withSubjects(rights))
 	ctx := context.Background()
 	const other = "acme.rejecter"
 
@@ -60,6 +61,7 @@ func TestEveryManagementActionIsAudited(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming"))
 	owner := e.newUser("owner")
+	rights[owner] = []string{manage.PermRead}
 	_, err = e.svc.AssignOwner(ctx, e.admin, ns+".onRenewed", owner)
 	require.NoError(t, err)
 	require.NoError(t, e.svc.RemoveOwner(ctx, e.admin, ns+".onRenewed"))
