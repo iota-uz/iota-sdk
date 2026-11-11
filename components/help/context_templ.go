@@ -36,7 +36,7 @@ func Context(props ContextProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\topen: false,\n\t\t\toffset: 0,\n\t\t\tplace() {\n\t\t\t\tconst trigger = $refs.trigger.getBoundingClientRect();\n\t\t\t\tconst panel = $refs.panel.getBoundingClientRect();\n\t\t\t\tconst gutter = 16;\n\t\t\t\tconst viewport = document.documentElement.clientWidth;\n\t\t\t\tlet left = trigger.left;\n\t\t\t\tif (left + panel.width &gt; viewport - gutter) left = trigger.right - panel.width;\n\t\t\t\tleft = Math.max(gutter, Math.min(left, viewport - gutter - panel.width));\n\t\t\t\tthis.offset = left - trigger.left;\n\t\t\t},\n\t\t\ttoggle() {\n\t\t\t\tthis.open = !this.open;\n\t\t\t\tif (this.open) this.$nextTick(() =&gt; this.place());\n\t\t\t}\n\t\t}\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\topen: false,\n\t\t\toffset: 0,\n\t\t\tplace() {\n\t\t\t\tconst trigger = $refs.trigger.getBoundingClientRect();\n\t\t\t\tconst panel = $refs.panel.getBoundingClientRect();\n\t\t\t\tconst gutter = 16;\n\t\t\t\tconst viewport = document.documentElement.clientWidth;\n\t\t\t\tlet left = trigger.left;\n\t\t\t\tif (left + panel.width &gt; viewport - gutter) left = trigger.right - panel.width;\n\t\t\t\tleft = Math.max(gutter, Math.min(left, viewport - gutter - panel.width));\n\t\t\t\tthis.offset = left - trigger.left;\n\t\t\t},\n\t\t\ttoggle() {\n\t\t\t\tthis.open = !this.open;\n\t\t\t\tif (this.open) this.$nextTick(() =&gt; this.place());\n\t\t\t}\n\t\t}\" x-id=\"[&#39;help-panel&#39;, &#39;help-title&#39;]\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -57,14 +57,14 @@ func Context(props ContextProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " @keydown.escape.window=\"open = false\" @resize.window=\"open &amp;&amp; place()\"><button type=\"button\" x-ref=\"trigger\" class=\"inline-flex size-8 shrink-0 items-center justify-center rounded-full text-200 transition-colors hover:bg-surface-400 hover:text-brand-500 aria-expanded:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2\" aria-haspopup=\"dialog\" x-bind:aria-expanded=\"String(open)\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " @keydown.escape.window=\"open = false\" @resize.window=\"open &amp;&amp; place()\"><button type=\"button\" x-ref=\"trigger\" class=\"inline-flex size-8 shrink-0 items-center justify-center rounded-full text-200 transition-colors hover:bg-surface-400 hover:text-brand-500 aria-expanded:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\" aria-haspopup=\"dialog\" x-bind:aria-expanded=\"String(open)\" :aria-controls=\"$id(&#39;help-panel&#39;)\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(contextLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 36, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 38, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -85,20 +85,20 @@ func Context(props ContextProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(contextLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 40, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 42, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span></button><div x-cloak x-show=\"open\" x-ref=\"panel\" x-transition.opacity.duration.150ms @click.outside=\"open = false\" role=\"dialog\" aria-modal=\"false\" x-bind:style=\"{ left: offset + &#39;px&#39; }\" class=\"absolute left-0 top-full z-[90] mt-2 w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-subtle bg-surface-300 text-left shadow-xl\"><div class=\"border-b border-subtle px-4 py-3.5\"><h2 class=\"text-sm font-semibold leading-5 text-gray-900\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</span></button><div x-cloak x-show=\"open\" x-ref=\"panel\" x-transition.opacity.duration.150ms @click.outside=\"open = false\" role=\"dialog\" aria-modal=\"false\" :id=\"$id(&#39;help-panel&#39;)\" :aria-labelledby=\"$id(&#39;help-title&#39;)\" x-bind:style=\"{ left: offset + &#39;px&#39; }\" class=\"absolute left-0 top-full z-[90] mt-2 w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-subtle bg-surface-300 text-left shadow-xl\"><div class=\"border-b border-subtle px-4 py-3.5\"><h2 :id=\"$id(&#39;help-title&#39;)\" class=\"text-sm font-semibold leading-5 text-gray-900\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 54, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 58, Col: 99}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -116,7 +116,7 @@ func Context(props ContextProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Summary)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 56, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 60, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -145,7 +145,7 @@ func Context(props ContextProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(section.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 64, Col: 103}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 68, Col: 103}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func Context(props ContextProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(item)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 69, Col: 23}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 73, Col: 23}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -199,14 +199,14 @@ func Context(props ContextProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2\"><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\"><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.ArticleLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 84, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 88, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -235,14 +235,14 @@ func Context(props ContextProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-default bg-surface-300 px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-brand hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" class=\"inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-default bg-surface-300 px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-brand hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.ScreenLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 93, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 97, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -282,7 +282,7 @@ func Hint(props HintProps) templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var15 = []any{"relative inline-flex align-middle", props.Class}
+		var templ_7745c5c3_Var15 = []any{hintClass(props)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var15...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -307,7 +307,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(hintLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 108, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 112, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 121, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 125, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -341,7 +341,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 122, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 126, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -359,7 +359,7 @@ func Hint(props HintProps) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(props.Next)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 124, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 128, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -387,7 +387,7 @@ func Hint(props HintProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(props.ArticleLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 128, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 132, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {

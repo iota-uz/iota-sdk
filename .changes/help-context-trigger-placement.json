@@ -1,1 +1,1 @@
-{"bump":"patch","summary":"Restyle the contextual help trigger as a borderless round button and keep its panel inside the viewport."}
+{"bump":"patch","summary":"Restyle the contextual help trigger as a borderless round button, keep its panel inside the viewport and fix Class rendering on help.Context and help.Hint (changes the rendered class attribute)."}

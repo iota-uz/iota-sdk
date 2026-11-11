@@ -41,8 +41,19 @@ func contextLabel(props ContextProps) string {
 	return defaultLabel
 }
 
+func withClass(base string, extra any) templ.CSSClasses {
+	if extra == nil {
+		return templ.Classes(base)
+	}
+	return templ.Classes(base, extra)
+}
+
 func contextClass(props ContextProps) templ.CSSClasses {
-	return templ.Classes("relative inline-flex shrink-0", props.Class)
+	return withClass("relative inline-flex shrink-0", props.Class)
+}
+
+func hintClass(props HintProps) templ.CSSClasses {
+	return withClass("relative inline-flex align-middle", props.Class)
 }
 
 func contextAttrs(props ContextProps) templ.Attributes {

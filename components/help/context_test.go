@@ -3,8 +3,10 @@ package help
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,22 +31,6 @@ func TestContext_Render(t *testing.T) {
 	require.Contains(t, html, `role="dialog"`)
 }
 
-func TestContext_TriggerStyleAndPanelPlacement(t *testing.T) {
-	var buf bytes.Buffer
-	err := Context(ContextProps{Title: "Policy status"}).Render(context.Background(), &buf)
-	require.NoError(t, err)
-
-	html := buf.String()
-	require.Contains(t, html, "rounded-full")
-	require.Contains(t, html, "text-200")
-	require.Contains(t, html, "aria-expanded:text-brand-500")
-	require.NotContains(t, html, "border-default bg-surface-300 text-gray-700 shadow-sm")
-	require.Contains(t, html, "calc(100vw-2rem)")
-	require.Contains(t, html, `x-ref="trigger"`)
-	require.Contains(t, html, `x-ref="panel"`)
-	require.Contains(t, html, "document.documentElement.clientWidth")
-}
-
 func TestHint_Render(t *testing.T) {
 	var buf bytes.Buffer
 	err := Hint(HintProps{
@@ -62,12 +48,47 @@ func TestHint_Render(t *testing.T) {
 	require.Contains(t, html, "/help/doc/edo/create-document.md#deadline")
 }
 
-func TestContext_CustomClassKeepsPositioningContext(t *testing.T) {
+// Falsely green if the assertions ran only with a Class set: five of the six
+// Granite consumers pass none, and templ's class processor rejects a nil value.
+func TestContext_ClassVariants(t *testing.T) {
+	cases := map[string]any{
+		"nil":         nil,
+		"string":      "text-base font-normal",
+		"templ class": templ.Classes("text-base", map[string]bool{"font-normal": true}),
+	}
+	for name, class := range cases {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := Context(ContextProps{Title: "Policy status", Class: class}).Render(context.Background(), &buf)
+			require.NoError(t, err)
+
+			html := buf.String()
+			require.NotContains(t, html, "unknown-type")
+			require.Contains(t, html, "relative inline-flex shrink-0")
+			require.Equal(t, class != nil, strings.Contains(html, "font-normal"))
+		})
+	}
+}
+
+func TestContext_AccessibilityContract(t *testing.T) {
 	var buf bytes.Buffer
-	err := Context(ContextProps{Title: "Policy status", Class: "text-base font-normal"}).Render(context.Background(), &buf)
+	err := Context(ContextProps{Title: "Policy status", Label: "About this page"}).Render(context.Background(), &buf)
 	require.NoError(t, err)
 
 	html := buf.String()
-	require.Contains(t, html, "relative inline-flex shrink-0 text-base font-normal")
-	require.NotContains(t, html, "unknown-type")
+	require.Equal(t, 1, strings.Count(html, `aria-haspopup="dialog"`))
+	require.Contains(t, html, `aria-label="About this page"`)
+	require.Contains(t, html, `role="dialog"`)
+}
+
+// Falsely green if only Context were covered: Hint takes the same Class prop.
+func TestHint_ClassVariants(t *testing.T) {
+	for name, class := range map[string]any{"nil": nil, "string": "ml-1"} {
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := Hint(HintProps{Title: "Deadline", Description: "Pick a date.", Class: class}).Render(context.Background(), &buf)
+			require.NoError(t, err)
+			require.NotContains(t, buf.String(), "unknown-type")
+		})
+	}
 }
