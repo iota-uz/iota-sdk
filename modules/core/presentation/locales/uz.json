@@ -684,6 +684,26 @@
   "PerPage": "Sahifada",
   "PermissionSets": {
     "Core": {
+      "ExtensionsView": {
+        "Label": "Kengaytmalarni ko'rish",
+        "_Description": "O'rnatilgan kengaytma paketlari va versiyalarini ko'rish"
+      },
+      "ExtensionsAuthor": {
+        "Label": "Kengaytmalarni ishlab chiqish",
+        "_Description": "Qoralamalarni tahrirlash, tekshiruv, yig'ish va testlar"
+      },
+      "ExtensionsReview": {
+        "Label": "Kengaytmalarni ko'rib chiqish",
+        "_Description": "Kengaytma versiyalarini tasdiqlash yoki rad etish"
+      },
+      "ExtensionsPublish": {
+        "Label": "Kengaytmalarni nashr etish",
+        "_Description": "Kengaytmalarni nashr etish, faollashtirish, bog'lash va o'chirish"
+      },
+      "ExtensionsOperate": {
+        "Label": "Kengaytmalar ishini boshqarish",
+        "_Description": "Kengaytma ishini ishga tushirish va to'xtatish"
+      },
       "UserView": {
         "Label": "Foydalanuvchilarni ko'rish",
         "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
@@ -875,6 +895,13 @@
     }
   },
   "Permissions": {
+    "Extensions": {
+      "Read": "Kengaytmalarni ko'rish",
+      "Author": "Kengaytma qoralamalarini tahrirlash",
+      "Review": "Kengaytma versiyalarini ko'rib chiqish",
+      "Publish": "Kengaytmalarni nashr etish va faollashtirish",
+      "Operate": "Kengaytma ishini ishga tushirish va to'xtatish"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -958,6 +985,7 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "extension": "Kengaytmalar",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",

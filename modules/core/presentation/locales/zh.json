@@ -688,6 +688,26 @@
   "PerPage": "每页",
   "PermissionSets": {
     "Core": {
+      "ExtensionsView": {
+        "Label": "查看扩展",
+        "_Description": "查看已安装的扩展包和版本"
+      },
+      "ExtensionsAuthor": {
+        "Label": "开发扩展",
+        "_Description": "编辑草稿，运行检查、构建和测试"
+      },
+      "ExtensionsReview": {
+        "Label": "审核扩展",
+        "_Description": "批准或拒绝扩展版本"
+      },
+      "ExtensionsPublish": {
+        "Label": "发布扩展",
+        "_Description": "发布、启用、绑定和停用扩展"
+      },
+      "ExtensionsOperate": {
+        "Label": "运维扩展",
+        "_Description": "运行和终止扩展任务"
+      },
       "UserView": {
         "Label": "查看用户",
         "_Description": "仅查看用户信息"
@@ -879,6 +899,13 @@
     }
   },
   "Permissions": {
+    "Extensions": {
+      "Read": "查看扩展",
+      "Author": "编辑扩展草稿",
+      "Review": "审核扩展版本",
+      "Publish": "发布并启用扩展",
+      "Operate": "运行和终止扩展任务"
+    },
     "User": {
       "Create": "创建用户",
       "Read": "查看用户",
@@ -962,6 +989,7 @@
   },
   "Remove": "移除",
   "Resources": {
+    "extension": "扩展",
     "bichat": "BI-聊天",
     "user": "用户",
     "role": "角色",

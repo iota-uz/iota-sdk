@@ -687,6 +687,26 @@
   "PerPage": "Por página",
   "PermissionSets": {
     "Core": {
+      "ExtensionsView": {
+        "Label": "Ver extensões",
+        "_Description": "Ver pacotes e versões de extensões instalados"
+      },
+      "ExtensionsAuthor": {
+        "Label": "Desenvolver extensões",
+        "_Description": "Editar rascunhos, executar verificações, builds e testes"
+      },
+      "ExtensionsReview": {
+        "Label": "Revisar extensões",
+        "_Description": "Aprovar ou rejeitar versões de extensões"
+      },
+      "ExtensionsPublish": {
+        "Label": "Publicar extensões",
+        "_Description": "Publicar, ativar, vincular e desativar extensões"
+      },
+      "ExtensionsOperate": {
+        "Label": "Operar extensões",
+        "_Description": "Executar e encerrar trabalho de extensões"
+      },
       "UserView": {
         "Label": "Visualizar usuários",
         "_Description": "Somente visualizar informações dos usuários"
@@ -878,6 +898,13 @@
     }
   },
   "Permissions": {
+    "Extensions": {
+      "Read": "Ver extensões",
+      "Author": "Editar rascunhos de extensões",
+      "Review": "Revisar versões de extensões",
+      "Publish": "Publicar e ativar extensões",
+      "Operate": "Executar e encerrar trabalho de extensões"
+    },
     "User": {
       "Create": "Criar usuários",
       "Read": "Visualizar usuários",
@@ -961,6 +988,7 @@
   },
   "Remove": "Remover",
   "Resources": {
+    "extension": "Extensões",
     "bichat": "BI-Chat",
     "user": "Usuários",
     "role": "Papéis",

@@ -684,6 +684,26 @@
   "PerPage": "Per page",
   "PermissionSets": {
     "Core": {
+      "ExtensionsView": {
+        "Label": "View Extensions",
+        "_Description": "View installed extension packages and versions"
+      },
+      "ExtensionsAuthor": {
+        "Label": "Author Extensions",
+        "_Description": "Edit extension drafts, run checks, builds and tests"
+      },
+      "ExtensionsReview": {
+        "Label": "Review Extensions",
+        "_Description": "Approve or reject extension versions"
+      },
+      "ExtensionsPublish": {
+        "Label": "Publish Extensions",
+        "_Description": "Publish, activate, bind and deactivate extensions"
+      },
+      "ExtensionsOperate": {
+        "Label": "Operate Extensions",
+        "_Description": "Execute and terminate running extension work"
+      },
       "UserView": {
         "Label": "View Users",
         "_Description": "View user information only"
@@ -875,6 +895,13 @@
     }
   },
   "Permissions": {
+    "Extensions": {
+      "Read": "View extensions",
+      "Author": "Edit extension drafts",
+      "Review": "Review extension versions",
+      "Publish": "Publish and activate extensions",
+      "Operate": "Run and terminate extension work"
+    },
     "User": {
       "Create": "Create users",
       "Read": "View users",
@@ -958,6 +985,7 @@
   },
   "Remove": "Remove",
   "Resources": {
+    "extension": "Extensions",
     "bichat": "BI-Chat",
     "user": "Users",
     "role": "Roles",
