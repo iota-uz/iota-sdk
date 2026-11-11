@@ -480,6 +480,27 @@ registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid
 runtime context per document. Native list columns: `pkg/listext` (reference consumer: CRM
 clients list + CSV/Excel export).
 
+**Data access, execution and assets (as implemented, post-audit)**
+* Overlay rows are readable (Get/Find/Count, filters, `NativeOverlayJoin` for native lists and
+  exports) only together with their base row: the native `ReadPermission`, or the base entity's
+  read rules; `PutOverlay` demands the same. Field access is symmetric: a field a subject cannot
+  read cannot be written by it (`ErrFieldNotAccessible`, no value in the error), which also closes
+  the "patch changes nothing" equality oracle. A required hidden field therefore cannot be
+  supplied on insert by a subject without the permission.
+* Ref-path filters into an entity whose own read rule uses a ref path group the rule's joins with
+  the joined table (`LEFT JOIN (t AS j1 LEFT JOIN … AS j2 …) ON …`); aliases come from one counter.
+* A version runs only while its newest review is an approval bound to its exact source and artifact
+  hashes. `manage.Service.ResolveArtifact` (the only door to the pool: invocations, workflow
+  start-v2 and pinned instances, guards, subscriptions, schedules, endpoints, notifications)
+  enforces it on every call, not only `Activate`. A rejection after activation stops delivery:
+  event/schedule/endpoint sources skip the version, `Implementations.Active` fails.
+* `GET /_ext/assets/<hash>/<path>` serves only `client/**`, and only for hashes of the artifacts of
+  currently activated versions (screen and shell bindings resolve only into those). `UIArtifacts`
+  repeats the `client/` confinement.
+* `AssignOwner` (needs `extensions.publish`) accepts the caller, or a user whose every current
+  permission (`manage.Config.Subjects`, direct/role/group) the caller holds; without a rights
+  source only self-assignment. Refusals are audited.
+
 **Engine/events (as implemented)**: `subscription_receipts.status` ∈ `done|failed|dead|blocked`
 (`blocked` = missing owner / refused subject, re-checked later). `workflow_occurrences.status`
 adds `cancelled` (set by Terminate). Activation stores `events.Watermark()` as the

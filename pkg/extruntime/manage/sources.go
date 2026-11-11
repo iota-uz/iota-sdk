@@ -102,9 +102,12 @@ func (src subscriptionSource) ActiveSubscriptions(ctx context.Context) ([]events
 		if len(av.Manifest.Subscriptions) == 0 {
 			continue
 		}
-		art, secrets, err := s.ResolveArtifact(ctx, av.Namespace, av.Version)
+		art, secrets, approved, err := s.resolve(ctx, av.Namespace, av.Version)
 		if err != nil {
 			return nil, err
+		}
+		if !approved {
+			continue // approval revoked after activation: it delivers nothing
 		}
 		for _, sub := range av.Manifest.Subscriptions {
 			after, ok := marks[sub.ID]
@@ -137,9 +140,12 @@ func (src scheduleSource) ActiveSchedules(ctx context.Context) ([]events.Schedul
 		if len(av.Manifest.Schedules) == 0 {
 			continue
 		}
-		art, secrets, err := s.ResolveArtifact(ctx, av.Namespace, av.Version)
+		art, secrets, approved, err := s.resolve(ctx, av.Namespace, av.Version)
 		if err != nil {
 			return nil, err
+		}
+		if !approved {
+			continue // approval revoked after activation: it fires nothing
 		}
 		for _, sc := range av.Manifest.Schedules {
 			out = append(out, events.ScheduleDef{

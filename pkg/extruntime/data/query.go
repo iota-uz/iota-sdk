@@ -49,10 +49,25 @@ type builder struct {
 	root  *model
 	joins []string
 	index map[string]*joinInfo
+	// prefix and seq name the join aliases ("j1", "j2", ...). A nested
+	// builder (a subquery of its own) uses a different prefix.
+	prefix string
+	seq    int
 }
 
 func (s *Store) newBuilder(ctx context.Context, q Querier, sc spi.Scope, root *model) *builder {
-	return &builder{s: s, ctx: ctx, q: q, sc: sc, args: NewArgs(0), root: root, index: map[string]*joinInfo{}}
+	return &builder{s: s, ctx: ctx, q: q, sc: sc, args: NewArgs(0), root: root, index: map[string]*joinInfo{}, prefix: "j"}
+}
+
+// nextAlias hands out a join alias that no other join of the statement uses,
+// including the joins that the access predicate of an earlier join adds.
+func (b *builder) nextAlias() string {
+	b.seq++
+	prefix := b.prefix
+	if prefix == "" {
+		prefix = "j"
+	}
+	return prefix + strconv.Itoa(b.seq)
 }
 
 // column resolves a (possibly dotted) key against base, whose table is aliased
@@ -79,18 +94,30 @@ func (b *builder) column(base *model, baseAlias, path string, mode pathMode, dep
 			if err != nil {
 				return "", nil, nil, err
 			}
-			ji = &joinInfo{alias: "j" + strconv.Itoa(len(b.index)+1), model: target}
+			ji = &joinInfo{alias: b.nextAlias(), model: target}
 			on := fmt.Sprintf("%s.%s = %s.%s AND %s.%s = %s",
 				ji.alias, quoteIdent(target.TenantCol), alias, quoteIdent(cur.TenantCol),
 				ji.alias, quoteIdent(target.KeyCol), alias+"."+quoteIdent(f.Column))
+			src := target.qualified() + " AS " + ji.alias
 			if mode == modeUser {
+				// The read predicate of the joined entity may walk ref paths
+				// of its own. Those joins hang off the joined table, so they
+				// are grouped with it: the ON clause of this join may use
+				// them, and they cannot clash with the outer joins.
+				outer := b.joins
+				b.joins = nil
 				pred, err := b.access(target, ji.alias)
+				nested := b.joins
+				b.joins = outer
 				if err != nil {
 					return "", nil, nil, err
 				}
 				on += " AND " + pred
+				if len(nested) > 0 {
+					src = "(" + src + " " + strings.Join(nested, " ") + ")"
+				}
 			}
-			b.joins = append(b.joins, fmt.Sprintf("LEFT JOIN %s AS %s ON %s", target.qualified(), ji.alias, on))
+			b.joins = append(b.joins, fmt.Sprintf("LEFT JOIN %s ON %s", src, on))
 			b.index[prefix+"|"+strconv.Itoa(int(mode))] = ji
 		}
 		cur, alias = ji.model, ji.alias
@@ -124,6 +151,67 @@ func (b *builder) access(m *model, alias string) (string, error) {
 		}
 		return "TRUE", nil
 	}
+	rules, err := b.ruleAccess(m, alias)
+	if err != nil || m.Kind != kindOverlay {
+		return rules, err
+	}
+	// An overlay row is only visible together with its base row: whoever
+	// cannot read the base cannot read what is attached to it.
+	base, err := b.baseAccess(m, alias)
+	if err != nil {
+		return "", err
+	}
+	switch {
+	case rules == "FALSE" || base == "FALSE":
+		return "FALSE", nil
+	case base == "TRUE":
+		return rules, nil
+	case rules == "TRUE":
+		return base, nil
+	}
+	return "(" + rules + " AND " + base + ")", nil
+}
+
+// baseAccess is the predicate that makes an overlay row (aliased alias) as
+// visible as its base: the read permission of a native base, the read rules of
+// an own base entity.
+func (b *builder) baseAccess(m *model, alias string) (string, error) {
+	sub := b.sc.Subject
+	if m.Base.Native {
+		n, ok := b.s.natives.Get(m.Base.Entity)
+		if !ok {
+			return "", fail(opQuery, ErrUnknownEntity, "native base %s has no descriptor", m.Base.Entity)
+		}
+		if !sub.Has(n.ReadPermission) {
+			return "FALSE", nil
+		}
+		return "TRUE", nil
+	}
+	base, err := b.s.load(b.ctx, b.q, b.sc, m.Base.Entity)
+	if err != nil {
+		return "", err
+	}
+	nb := b.s.newBuilder(b.ctx, b.q, b.sc, base)
+	nb.args = b.args
+	nb.prefix = b.prefix + "b"
+	const baseAlias = "bt"
+	pred, err := nb.access(base, baseAlias)
+	if err != nil {
+		return "", err
+	}
+	if pred == "TRUE" || pred == "FALSE" {
+		return pred, nil
+	}
+	return fmt.Sprintf("EXISTS (SELECT 1 FROM %s AS %s%s WHERE %s.%s = %s.%s AND %s.%s = %s.%s AND %s)",
+		base.qualified(), baseAlias, joinSQL(nb.joins),
+		baseAlias, quoteIdent(base.TenantCol), alias, quoteIdent(m.TenantCol),
+		baseAlias, quoteIdent(base.KeyCol), alias, quoteIdent(m.KeyCol), pred), nil
+}
+
+// ruleAccess is the visibility of a package entity or overlay by its own
+// read rules.
+func (b *builder) ruleAccess(m *model, alias string) (string, error) {
+	sub := b.sc.Subject
 	if len(m.rules) == 0 {
 		return "TRUE", nil
 	}

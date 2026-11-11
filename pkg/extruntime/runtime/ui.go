@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -71,8 +72,12 @@ type UIArtifacts struct{ Store *artifact.Store }
 var _ ui.ArtifactStore = UIArtifacts{}
 
 // Open implements ui.ArtifactStore. Unknown hashes and paths are
-// ui.ErrArtifactNotFound.
+// ui.ErrArtifactNotFound, and so is everything outside the client subtree of
+// the artifact: the browser store never hands out server code or manifests.
 func (a UIArtifacts) Open(ctx context.Context, hash, filePath string) (ui.ArtifactFile, error) {
+	if !strings.HasPrefix(filePath, ui.ClientDir) {
+		return nil, ui.ErrArtifactNotFound
+	}
 	f, err := a.Store.OpenFile(ctx, hash, filePath)
 	if err != nil {
 		switch serrors.CodeOf(err) {

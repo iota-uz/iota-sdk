@@ -466,7 +466,9 @@ func TestUISlicePicksUpActivationsBindingsColumnsAndAssets(t *testing.T) {
 	b, _ := io.ReadAll(f)
 	_ = f.Close()
 	require.Equal(t, "export const clients = 1\n", string(b))
-	for _, bad := range []string{"client/missing.js", "../../etc/passwd", "/etc/passwd"} {
+	// only the client subtree of an artifact is the browser's: the server
+	// bundle, manifests and sources of the same artifact are not
+	for _, bad := range []string{"client/missing.js", "../../etc/passwd", "/etc/passwd", "server.mjs", "manifest.json", "package.json", "contracts.mjs"} {
 		_, err = arts.Open(ctx, pk.ArtifactHash, bad)
 		require.ErrorIs(t, err, ui.ErrArtifactNotFound, bad)
 	}

@@ -211,10 +211,14 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		}
 	}
 	rt.Catalog = catalog.New(deps.DB, rt.Natives)
-	if rt.Manage, err = manage.New(manage.Config{
+	mcfg := manage.Config{
 		DB: deps.DB, Builder: cfg.Builder, Kits: cfg.Kits, Artifacts: rt.Artifacts, Catalog: rt.Catalog,
 		Natives: cfg.Natives, Git: cfg.Git, Logger: cfg.Logger,
-	}); err != nil {
+	}
+	if rt.Subjects != nil {
+		mcfg.Subjects = rt.Subjects
+	}
+	if rt.Manage, err = manage.New(mcfg); err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
 	guard := &guardRef{}
