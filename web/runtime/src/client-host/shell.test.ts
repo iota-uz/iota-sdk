@@ -130,6 +130,40 @@ describe('whole-shell activation around a legacy page', () => {
     expect(outlet.contains(legacyBody)).toBe(true)
   })
 
+  it('keeps the legacy theme controller in step: the <html> class and the stored choice follow the shell', async () => {
+    legacyDocument(runtimeContext(), NAV)
+    const change = vi.fn((choice: string) => {
+      document.documentElement.classList.remove('light', 'dark', 'system')
+      document.documentElement.classList.add(choice)
+    })
+    ;(window as unknown as { iotaTheme?: { change(choice: string): void } }).iotaTheme = { change }
+    try {
+      const { host } = newHost()
+      const seen: { props?: ShellProps } = {}
+      await activateRuntimeShell({ context: readRuntimeContext(document)!, host, window, importModule: async () => shellModule(seen) })
+      seen.props!.theme.set('dark')
+      expect(change).toHaveBeenLastCalledWith('dark')
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      seen.props!.theme.set('system') // the choice is passed through; the resolved theme is the media query's
+      expect(change).toHaveBeenLastCalledWith('system')
+    } finally {
+      delete (window as unknown as { iotaTheme?: unknown }).iotaTheme
+      document.documentElement.classList.remove('light', 'dark', 'system')
+    }
+  })
+
+  it('without a legacy theme controller the <html> class is the resolved theme', async () => {
+    legacyDocument(runtimeContext(), NAV)
+    document.documentElement.classList.add('light')
+    const { host } = newHost()
+    const seen: { props?: ShellProps } = {}
+    await activateRuntimeShell({ context: readRuntimeContext(document)!, host, window, importModule: async () => shellModule(seen) })
+    seen.props!.theme.set('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.classList.contains('light')).toBe(false)
+    document.documentElement.classList.remove('dark')
+  })
+
   it('keeps the standard shell when the module fails to load, is invalid, or throws while mounting', async () => {
     legacyDocument(runtimeContext(), NAV)
     const ctx = readRuntimeContext(document)!

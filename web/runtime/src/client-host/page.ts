@@ -1,7 +1,7 @@
 // Mount runtime of package pages. The canonical client host owns the lifecycle
 // (bootstrap validation, services, portals, theme); this module only loads the
 // package page module, renders it and manages loading / failure / disposal.
-import { createComponent, type Component } from 'solid-js'
+import { createComponent, ErrorBoundary, type Component } from 'solid-js'
 import type { PageProps } from '../client.ts'
 import { decodeRouteParams } from './params.ts'
 import { isPageData, type PageData } from './protocol.ts'
@@ -112,8 +112,8 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
     return element
   }
 
-  const fail = (text: string, cause: unknown, withRetry: boolean) => {
-    root.removeAttribute('aria-busy')
+  /** The host's failure state: the message and, for a load that may succeed again, Retry. */
+  const failure = (text: string, withRetry: boolean) => {
     const alert = status(text, 'data-runtime-page-error', 'alert')
     if (withRetry) {
       const retry = owner.createElement('button')
@@ -125,7 +125,12 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
       retry.addEventListener('click', () => (options.reload ?? (() => owner.defaultView?.location.reload()))(), { once: true })
       alert.append(retry)
     }
-    show(alert)
+    return alert
+  }
+
+  const fail = (text: string, cause: unknown, withRetry: boolean) => {
+    root.removeAttribute('aria-busy')
+    show(failure(text, withRetry))
     delete root.dataset.iotaClientOwner
     owner.defaultView?.console.error(`Runtime page ${data.page.id}: ${text}`, cause)
   }
@@ -153,6 +158,11 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
         show(undefined)
         delete root.dataset.iotaClientOwner
         const Page = page.component
+        // Page components are usually `lazy(() => import(...))`: their chunk arrives after the page module, and a
+        // chunk that cannot be fetched rejects while the page is already mounted. That failure is a load failure
+        // like the module's own: the host shows it, with Retry, instead of leaving an empty page.
+        let mounting = true
+        let early: { error: unknown } | undefined
         try {
           unmount = host.mount({
             root,
@@ -161,15 +171,35 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
             component: (hostProps) => createComponent(RuntimeProvider, {
               transport: options.transport,
               get children() {
-                return createComponent(SlotsProvider, {
-                  source: slots,
-                  get children() { return createComponent(Page as Component<PageProps<never> & { route: Context }>, { params: params as never, route: hostProps.route }) },
+                return createComponent(ErrorBoundary, {
+                  fallback: (cause: unknown) => {
+                    if (mounting) {
+                      early = { error: cause } // thrown while rendering: an invalid page, reported below
+                      return undefined
+                    }
+                    owner.defaultView?.console.error(`Runtime page ${data.page.id}: ${messages.failed}`, cause)
+                    return failure(messages.failed, true)
+                  },
+                  get children() {
+                    return createComponent(SlotsProvider, {
+                      source: slots,
+                      get children() { return createComponent(Page as Component<PageProps<never> & { route: Context }>, { params: params as never, route: hostProps.route }) },
+                    })
+                  },
                 })
               },
             }),
           })
         } catch (cause) {
           fail(messages.invalid, cause, false)
+        } finally {
+          mounting = false
+        }
+        if (early) {
+          const failed = early.error
+          const release = unmount
+          unmount = undefined
+          try { release?.() } finally { fail(messages.invalid, failed, false) }
         }
       },
       (cause: unknown) => {
