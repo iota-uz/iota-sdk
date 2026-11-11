@@ -14,7 +14,6 @@ package configurator
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -104,6 +104,14 @@ type Controller struct {
 	cfg    Config
 	client *clienthost.Controller
 	log    *slog.Logger
+
+	// sdkOnce computes the typings of the SDK once per process: they come
+	// from the installed node_modules, which cannot change under a running
+	// process, and walking them on every editor session is expensive.
+	sdkMu    sync.Mutex
+	sdkBody  []byte
+	sdkEtag  string
+	sdkReady bool
 }
 
 var _ application.Controller = (*Controller)(nil)
@@ -202,11 +210,14 @@ func (c *Controller) build(ctx context.Context, _ *http.Request) (clienthost.Rou
 	}, nil
 }
 
-// session supplies theme, CSRF token, locale, messages and permissions to the
-// host context.
+// session supplies theme, locale, messages and permissions to the host
+// context. It carries no CSRF token: the screen's state-changing calls go to
+// /_ext/manage, which refuses a request a browser marks as cross-site
+// (package originguard, the SDK's Fetch Metadata / Origin mechanism), so a
+// token would only be a secret nobody checks.
 func session(r *http.Request) (clienthost.SessionContext, error) {
 	ctx := r.Context()
-	sc := clienthost.SessionContext{Theme: "light", CSRF: rand.Text(), Locale: listext.LangFromContext(ctx), Messages: Messages(ctx)}
+	sc := clienthost.SessionContext{Theme: "light", Locale: listext.LangFromContext(ctx), Messages: Messages(ctx)}
 	if sub, err := listext.SubjectFromContext(ctx); err == nil {
 		sc.Permissions = append([]string(nil), sub.Permissions...)
 	}
@@ -269,7 +280,25 @@ func (c *Controller) kitTypes(w http.ResponseWriter, r *http.Request) {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
-	writeJSON(w, KitFiles(kit))
+	files := KitFiles(kit)
+	// The kit hash identifies the content: the editor revalidates cheaply.
+	if notModified(w, r, `"`+files.Hash+`"`) {
+		return
+	}
+	writeJSON(w, files)
+}
+
+// notModified sets the ETag and answers 304 when the client already has it.
+func notModified(w http.ResponseWriter, r *http.Request, etag string) bool {
+	w.Header().Set("ETag", etag)
+	for _, candidate := range strings.Split(r.Header.Get("If-None-Match"), ",") {
+		if c := strings.TrimSpace(candidate); c == etag || c == "W/"+etag || c == "*" {
+			w.Header().Set("Cache-Control", "private, no-cache")
+			w.WriteHeader(http.StatusNotModified)
+			return true
+		}
+	}
+	return false
 }
 
 // TypeFiles is the JSON served to Monaco: virtual node_modules paths to file
@@ -300,18 +329,45 @@ func KitFiles(kit build.Kit) TypeFiles {
 }
 
 // sdkTypes serves the typings of @iota-uz/sdk (and the packages they import)
-// from the configured node_modules tree.
+// from the configured node_modules tree. They are collected on the first
+// request and kept for the life of the process (a failure is not kept); the
+// digest of the typings is the ETag, so an editor that has them gets a 304.
 func (c *Controller) sdkTypes(w http.ResponseWriter, r *http.Request) {
 	if _, ok := c.subject(w, r); !ok {
 		return
 	}
-	files, err := collectTypes(c.cfg.Types, c.cfg.TypePackages)
+	body, etag, err := c.sdkSnapshot()
 	if err != nil {
 		c.log.Error("extruntime configurator: collect SDK typings", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, files)
+	if notModified(w, r, etag) {
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	if _, err := w.Write(body); err != nil {
+		c.log.Debug("extruntime configurator: write response", "error", err)
+	}
+}
+
+func (c *Controller) sdkSnapshot() ([]byte, string, error) {
+	c.sdkMu.Lock()
+	defer c.sdkMu.Unlock()
+	if c.sdkReady {
+		return c.sdkBody, c.sdkEtag, nil
+	}
+	files, err := collectTypes(c.cfg.Types, c.cfg.TypePackages)
+	if err != nil {
+		return nil, "", err
+	}
+	body, err := json.Marshal(files)
+	if err != nil {
+		return nil, "", err
+	}
+	c.sdkBody, c.sdkEtag, c.sdkReady = append(body, '\n'), `"`+files.Hash+`"`, true
+	return c.sdkBody, c.sdkEtag, nil
 }
 
 // collectTypes reads .d.ts and package.json files of the allowed top-level

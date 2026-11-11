@@ -3,11 +3,13 @@ package configurator_test
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 
@@ -101,6 +103,7 @@ func TestPageIsAStandardClientRouteForReaders(t *testing.T) {
 	assert.Contains(t, rc.Locale.Messages, "Extensions.Configurator.ConflictText")
 	assert.NotEmpty(t, rc.Locale.Language)
 	assert.Contains(t, []string{"light", "dark"}, rc.Theme)
+	assert.Empty(t, rc.CSRF, "no token is sent that nothing verifies; state-changing calls are guarded by the origin check of /_ext/manage")
 }
 
 func TestPageNeedsExtensionsRead(t *testing.T) {
@@ -232,4 +235,45 @@ func TestMessageKeysAreExactlyTheKeysTheScreenUses(t *testing.T) {
 	sort.Strings(got)
 	sort.Strings(want)
 	assert.Equal(t, want, got)
+}
+
+// countingFS counts the opens of the typings tree.
+type countingFS struct {
+	fs.FS // only Open is promoted: Stat, ReadFile and ReadDir go through it
+	opens *atomic.Int64
+}
+
+func (c countingFS) Open(name string) (fs.File, error) {
+	c.opens.Add(1)
+	return c.FS.Open(name)
+}
+
+// The typings of the SDK come from the installed node_modules and cannot
+// change under a running process: they are collected once and revalidated
+// with an ETag, instead of walked and re-encoded for every editor session.
+func TestSDKTypesAreComputedOnceAndRevalidated(t *testing.T) {
+	var opens atomic.Int64
+	ctrl, err := configurator.NewController(configurator.Config{Host: host(), Service: &manage.Service{}, Types: countingFS{sdkTypes(), &opens}})
+	require.NoError(t, err)
+	suite := itf.NewSuite(t, modules.Components()...)
+	suite.AsUser(itf.User(corePerms.ExtensionsRead)).Register(ctrl)
+
+	first := suite.GET("/extensions/types/sdk").Expect(t).Status(200)
+	etag := first.Header("ETag")
+	require.NotEmpty(t, etag)
+	after := opens.Load()
+	require.Positive(t, after)
+
+	again := suite.GET("/extensions/types/sdk").Expect(t).Status(200)
+	assert.Equal(t, first.Body(), again.Body())
+	assert.Equal(t, etag, again.Header("ETag"))
+	assert.Equal(t, after, opens.Load(), "the second request did not touch the tree")
+
+	cached := suite.GET("/extensions/types/sdk").Header("If-None-Match", etag).Expect(t).Status(304)
+	assert.Empty(t, cached.Body())
+	assert.Equal(t, after, opens.Load())
+
+	var out configurator.TypeFiles
+	require.NoError(t, json.Unmarshal([]byte(first.Body()), &out))
+	assert.Equal(t, `"`+out.Hash+`"`, etag, "the ETag is the digest of the typings")
 }
