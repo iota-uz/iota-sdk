@@ -18,5 +18,5 @@ test("a note is stored for its author and listed back", async () => {
 test("a duplicate title is a declared domain error", async () => {
   const h = host()
   await s.addNote.handler(h.command(), { title: "Same" })
-  await assert.rejects(s.addNote.handler(h.command(), { title: "Same" }), /e2e\.notes\.titleTaken/)
+  await assert.rejects(async () => s.addNote.handler(h.command(), { title: "Same" }), /e2e\.notes\.titleTaken/)
 })

@@ -16,8 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -29,6 +31,7 @@ import (
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	crmPerms "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -216,7 +219,7 @@ func (e *env) restart() {
 // would for a permission a package declared.
 func (e *env) permission(name string) permission.Permission {
 	e.t.Helper()
-	for _, p := range corePerms.Permissions {
+	for _, p := range append(append([]permission.Permission{}, corePerms.Permissions...), crmPerms.Permissions...) {
 		if p.Name() == name {
 			return p
 		}
@@ -271,10 +274,14 @@ func (e *env) serve() {
 	app, container := e.scope.App, e.scope.Container
 	headersCfg, err := composition.Resolve[*headers.Config](container)
 	require.NoError(e.t, err)
+	reqLog := logrus.New()
+	reqLog.SetLevel(logrus.WarnLevel)
 	container.AppendMiddleware(
+		middleware.WithLogger(reqLog, middleware.DefaultLoggerOptions(), headersCfg),
 		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.ContainerKey, container),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
+		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, e.pool),
 		middleware.Provide(constants.TenantIDKey, e.tenant),
 		middleware.ProvideLocalizer(app.Bundle(), app.GetSupportedLanguages()),

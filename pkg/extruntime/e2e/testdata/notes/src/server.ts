@@ -15,7 +15,7 @@ export const addNote = implement(c.AddNote, async (ctx, input) => {
 export const listNotes = implement(c.ListNotes, async (q, input) => {
   const rows = await q.find(c.Note, {
     where: input.pinnedOnly === true ? { pinned: true } : undefined,
-    orderBy: [{ field: "createdAt" }],
+    orderBy: [{ field: "title" }],
   })
   return rows.map((r) => ({ note: r.ref, title: r.title, author: r.author.key }))
 })
