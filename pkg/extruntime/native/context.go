@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -36,6 +37,12 @@ type Tx interface {
 	// Authorize fails with a denied error unless the acting subject holds the
 	// RBAC permission.
 	Authorize(permission string) error
+	// Subject is who the invocation acts as, the subject Authorize checks:
+	// the initiating user, or the owner of a trigger that has no user (a
+	// subscription, schedule or endpoint). Code that attributes a write to
+	// "the acting user" reads it here, never from the HTTP user in ctx,
+	// which a background root does not have.
+	Subject() spi.Subject
 }
 
 // QueryContext is the read-only context of a query handler.

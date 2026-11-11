@@ -159,11 +159,31 @@ type Config struct {
 	// (*native.Implementations). A native contract without a package binding
 	// runs its Go default; without Natives it has no implementation.
 	Natives NativeImplementations
+	// NativeContext, when set, adds the values Go code of the application
+	// needs in the context of a native handler beyond the host's own tenant,
+	// pool and transaction: the host knows who acts and why (the invocation's
+	// subject and trigger) and the application turns that into what its
+	// services read from ctx, for instance the business history execution.
+	// It runs for every native invocation, whatever the root (HTTP request,
+	// subscription, schedule, workflow, endpoint).
+	NativeContext func(ctx context.Context, inv NativeInvocation) context.Context
 
 	// DefaultTimeout bounds invocations whose context has no deadline.
 	// Default 30s.
 	DefaultTimeout time.Duration
 	Logger         *slog.Logger
+}
+
+// NativeInvocation is what the host knows about a running native handler:
+// the subject it acts as (the initiating user, or the owner of the trigger),
+// why the root invocation runs and which invocation this is.
+type NativeInvocation struct {
+	Subject spi.Subject
+	Trigger Trigger
+	// InvocationID is the ID of the native invocation, RootID of the root
+	// invocation it runs under (equal for a root).
+	InvocationID string
+	RootID       string
 }
 
 // NativeImplementations resolves native contracts to their definition and Go
@@ -232,6 +252,12 @@ type Result struct {
 	// after committing at least one transaction. Such invocations are never
 	// retried by the host.
 	PartiallyCommitted bool
+	// AfterCommit is set by Run for a successful invocation that registered
+	// after-commit callbacks (native Tx.AfterCommit) in the caller-owned
+	// transaction. The caller owns the commit, so it must call it once, after
+	// the transaction committed; a caller that rolls back drops it. It is nil
+	// when there is nothing to run.
+	AfterCommit func(ctx context.Context)
 }
 
 // Invoke runs a command, operation or query contract through its active
@@ -309,6 +335,7 @@ func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 		trigger:    req.Trigger,
 		occurrence: req.Occurrence,
 		externalTx: req.Tx,
+		afterHooks: true,
 	})
 	if err != nil {
 		return res, serrors.Wrap(opRun, root.withInfra(err))
@@ -368,6 +395,9 @@ type execSpec struct {
 	// (tx.call) instead of opening its own.
 	join       *txHandle
 	externalTx pgx.Tx
+	// afterHooks keeps the after-commit callbacks registered in externalTx
+	// for the caller (Result.AfterCommit) instead of refusing them.
+	afterHooks bool
 	// id pre-allocates the invocation ID (wf.call journals it before dispatch).
 	id string
 	// startBase, when set, gives the invocation (and what it nests) its own

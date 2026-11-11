@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -251,6 +252,19 @@ func (t *directTx) AfterCommit(fn func(context.Context)) error {
 
 func (t *directTx) Authorize(permission string) error {
 	return t.d.Authorize(t.ctx, permission)
+}
+
+// Subject is the request's user as the initiator; Direct has no permission
+// list of its own (rights are checked by the authorizer).
+func (t *directTx) Subject() spi.Subject {
+	sub := spi.Subject{Kind: spi.SubjectInitiator}
+	if tenant, err := composables.UseTenantID(t.ctx); err == nil {
+		sub.TenantID = tenant
+	}
+	if u, err := composables.UseUser(t.ctx); err == nil && u != nil {
+		sub.UserID = int64(u.ID())
+	}
+	return sub
 }
 
 // directCommand implements CommandContext.

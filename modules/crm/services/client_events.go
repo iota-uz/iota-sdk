@@ -100,16 +100,17 @@ func changedFields(before, after history.Snapshot) []string {
 
 // publishClientEvent enqueues crm.client.created.v1 (before == nil) or
 // crm.client.updated.v1 in tx, so the event commits or rolls back with the
-// client. The acting user, when there is one, is the initiator.
+// client. The initiator is the user the invocation acts as (tx.Subject: the
+// initiating user, or the owner of a subscription, schedule or endpoint), the
+// same subject tx.Authorize checks, not the HTTP user of ctx, which a
+// background root does not have.
 func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.Client) error {
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
-	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, Kind: spi.SubjectInitiator}}
-	if actor, uerr := composables.UseUser(ctx); uerr == nil && actor != nil {
-		scope.Subject.UserID = int64(actor.ID())
-	}
+	acting := tx.Subject()
+	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, UserID: acting.UserID, Kind: acting.Kind}}
 	ref := ClientRef(saved.ID())
 	phone, email := contactOf(saved)
 	if before == nil {

@@ -309,6 +309,9 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		if err := tx.Commit(ctx); err != nil {
 			return false, serrors.FromDB(opScheduleD, err)
 		}
+		if res.AfterCommit != nil {
+			res.AfterCommit(ctx)
+		}
 		return true, nil
 	}
 	if ctx.Err() != nil {

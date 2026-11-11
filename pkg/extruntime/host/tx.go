@@ -40,6 +40,9 @@ type txHandle struct {
 	// this transaction; empty for transactions owned by the caller.
 	owner    string
 	external bool
+	// collect: a caller-owned transaction whose after-commit callbacks are
+	// handed back to the caller (Result.AfterCommit).
+	collect bool
 	// starts, when set, is the key sequence of tx.start calls made through
 	// this handle (a workflow occurrence's transaction).
 	starts *startSource
@@ -61,8 +64,8 @@ type txHandle struct {
 // afterCommit registers fn to run once the transaction commits. A
 // caller-owned transaction is committed outside the host, so it refuses.
 func (h *txHandle) afterCommit(fn func(context.Context)) error {
-	if h.external {
-		return pool.Internal("runtime.afterCommitUnavailable", "the transaction belongs to the caller of the runtime (a subscription delivery or schedule slot); after-commit callbacks cannot be registered in it")
+	if h.external && !h.collect {
+		return pool.Internal("runtime.afterCommitUnavailable", "the transaction belongs to the caller of the runtime and the caller cannot run after-commit callbacks for it")
 	}
 	// Called from inside a data call on the handle (the handle lock may be
 	// held by this goroutine), so the hooks have their own lock.
@@ -122,9 +125,9 @@ func (r *txRegistry) begin(ctx context.Context, owner string, opts pgx.TxOptions
 }
 
 // adopt registers a caller-owned transaction. The host never commits or rolls
-// it back.
-func (r *txRegistry) adopt(tx pgx.Tx) *txHandle {
-	h := &txHandle{id: "tx-" + uuid.NewString(), tx: repo.NewGuardedTx(tx), external: true}
+// it back; with collect it keeps the after-commit callbacks for the caller.
+func (r *txRegistry) adopt(tx pgx.Tx, collect bool) *txHandle {
+	h := &txHandle{id: "tx-" + uuid.NewString(), tx: repo.NewGuardedTx(tx), external: true, collect: collect}
 	r.add(h)
 	return h
 }

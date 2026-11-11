@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -94,6 +95,9 @@ func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx) context.Context {
 	if ctx.Value(constants.PoolKey) == nil {
 		ctx = composables.WithPool(ctx, e.h.cfg.DB)
 	}
+	if fn := e.h.cfg.NativeContext; fn != nil {
+		ctx = fn(ctx, NativeInvocation{Subject: e.scope.Subject, Trigger: e.trigger(), InvocationID: e.id, RootID: e.rootID})
+	}
 	return ctx
 }
 
@@ -156,6 +160,8 @@ func (t *hostTx) AfterCommit(fn func(context.Context)) error {
 }
 
 func (t *hostTx) Authorize(permission string) error { return t.e.authorize(permission) }
+
+func (t *hostTx) Subject() spi.Subject { return t.e.scope.Subject }
 
 func (e *execution) queryVia(ctx context.Context, h *txHandle, query string, input json.RawMessage) (json.RawMessage, error) {
 	if len(input) == 0 {

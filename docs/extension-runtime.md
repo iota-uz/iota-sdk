@@ -718,8 +718,16 @@ native queries run, see §9.3).
   A Go default's own error is returned to Go callers unchanged (its chain intact) and recorded as internal.
 * **Limits.** Package code nested under a Go default shares the Go frame's hold of the transaction: concurrent host calls
   from it (`Promise.all`) fail fast (`repo.ErrTxInUse`) instead of queueing — the same rule as write-rule guards.
-  `upsertClient` cannot run inside a subscription delivery (the after-commit eventbus callbacks are refused there). Other
-  writers of CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command and
+  `upsertClient` runs from every root (HTTP request, subscription delivery, schedule slot, workflow step, endpoint):
+  `host.Config.NativeContext` (`runtime.HistoryExecution`) gives every native handler the business-history execution derived
+  from the invocation — a request of the acting user keeps its own; any other root records the runtime as the service
+  actor (`extruntime:<trigger kind>`) and the invocation's subject (initiator or trigger owner) as the initiator, channel
+  from the trigger (`mcp`→mcp, `endpoint`→api, schedule/subscription/workflow→job, `ui`→ui), operation = the native
+  invocation, run = its root. `native.Tx.Subject()` is the subject `Authorize` checks; the client events name it as their
+  initiator (not the HTTP user of ctx). After-commit callbacks (`Tx.AfterCommit`, e.g. the module's eventbus events) in a
+  caller-owned transaction are handed back to the caller: `host.Result.AfterCommit`, which the subscription dispatcher and
+  the scheduler call after their own commit (a rolled-back delivery drops them); a caller that ignores it loses them.
+  Other writers of CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command and
   therefore publish no `crm.client.*.v1` event.
 
 ### 9.4 Composition boundary (as implemented)

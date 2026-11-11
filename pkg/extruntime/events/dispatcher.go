@@ -313,6 +313,9 @@ func (d *Dispatcher) deliver(ctx context.Context, sub Subscription, ev outboxRow
 		if err := tx.Commit(ctx); err != nil {
 			return false, serrors.FromDB(opDeliver, err)
 		}
+		if res.AfterCommit != nil {
+			res.AfterCommit(ctx)
+		}
 		return true, nil
 	}
 	if ctx.Err() != nil {

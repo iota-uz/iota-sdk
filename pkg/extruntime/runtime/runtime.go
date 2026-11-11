@@ -282,6 +282,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	hostCfg := host.Config{
 		Pool: rt.Pool, DB: deps.DB, Bindings: rt.Bindings, Catalog: rt.Catalog, Data: rt.Data, Artifacts: rt.Manage,
 		Outbox: rt.Outbox, Secrets: cfg.Secrets, Natives: rt.NativeImpls, Logger: cfg.Logger,
+		NativeContext: HistoryExecution(deps.Users),
 	}
 	if subjects != nil {
 		rt.Workflows, err = workflow.New(workflow.Config{

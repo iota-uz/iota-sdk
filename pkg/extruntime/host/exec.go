@@ -143,6 +143,9 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 
 	output, err := e.dispatch(ctx)
 	e.closeOpenTx(ctx)
+	if err == nil {
+		out.AfterCommit = e.callerAfterCommit()
+	}
 
 	e.mu.Lock()
 	out.CommittedTxCount = e.committed
@@ -233,7 +236,7 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 	var ownTx, txh *txHandle
 	switch {
 	case e.spec.externalTx != nil:
-		txh = e.root.txs.adopt(e.spec.externalTx)
+		txh = e.root.txs.adopt(e.spec.externalTx, e.spec.afterHooks)
 		e.mu.Lock()
 		e.extTx = txh
 		e.mu.Unlock()
@@ -322,6 +325,26 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		return nil, err
 	}
 	return output, nil
+}
+
+// callerAfterCommit hands the after-commit callbacks registered in the
+// caller-owned transaction to the caller (nil when there are none).
+func (e *execution) callerAfterCommit() func(context.Context) {
+	e.mu.Lock()
+	h := e.extTx
+	e.mu.Unlock()
+	if h == nil || !h.collect {
+		return nil
+	}
+	h.hookMu.Lock()
+	hooks := h.hooks
+	h.hooks = nil
+	h.hookMu.Unlock()
+	if len(hooks) == 0 {
+		return nil
+	}
+	log := e.h.cfg.Logger
+	return func(ctx context.Context) { native.RunAfterCommit(context.WithoutCancel(ctx), log, hooks) }
 }
 
 func (e *execution) countCommitted() {
