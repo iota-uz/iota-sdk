@@ -1,0 +1,174 @@
+package host
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+)
+
+const (
+	opTxBegin = serrors.Op("extruntime.host.tx.begin")
+	opTxEnd   = serrors.Op("extruntime.host.tx.end")
+)
+
+// TxOutcome is how a Go-owned transaction ends.
+type TxOutcome string
+
+const (
+	TxCommit   TxOutcome = "commit"
+	TxRollback TxOutcome = "rollback"
+)
+
+type heldKey struct{}
+
+// txHandle is one Go-owned transaction. Node only ever sees its ID.
+type txHandle struct {
+	id string
+	tx pgx.Tx
+	// owner is the invocation whose committed_tx_count is incremented in
+	// this transaction; empty for transactions owned by the caller.
+	owner    string
+	external bool
+
+	mu     sync.Mutex
+	closed bool
+}
+
+// do serializes calls on the handle. A pgx transaction is single-connection;
+// concurrent host calls from Node (Promise.all) queue here instead of failing
+// with repo.ErrTxInUse. Calls made from inside a data call of the same handle
+// (an entity write rule running in Node during an insert) carry the handle in
+// their context and bypass the held lock; the guarded tx still fails fast on
+// real concurrency.
+func (h *txHandle) do(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx) error) error {
+	if held, _ := ctx.Value(heldKey{}).(*txHandle); held == h {
+		if h.closed {
+			return errTxClosed()
+		}
+		return fn(ctx, h.tx)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return errTxClosed()
+	}
+	return fn(context.WithValue(ctx, heldKey{}, h), h.tx)
+}
+
+func errTxClosed() error {
+	return pool.Internal("runtime.txClosed", "transaction handle is closed")
+}
+
+// txRegistry holds the open handles of one root invocation. Handles are
+// scoped to the root: nested invocations join them, nothing else can see them.
+type txRegistry struct {
+	db *pgxpool.Pool
+
+	mu      sync.Mutex
+	handles map[string]*txHandle
+}
+
+func newTxRegistry(db *pgxpool.Pool) *txRegistry {
+	return &txRegistry{db: db, handles: map[string]*txHandle{}}
+}
+
+func (r *txRegistry) begin(ctx context.Context, owner string, opts pgx.TxOptions) (*txHandle, error) {
+	tx, err := r.db.BeginTx(ctx, opts)
+	if err != nil {
+		return nil, serrors.FromDB(opTxBegin, err)
+	}
+	h := &txHandle{id: "tx-" + uuid.NewString(), tx: repo.NewGuardedTx(tx), owner: owner}
+	r.add(h)
+	return h, nil
+}
+
+// adopt registers a caller-owned transaction. The host never commits or rolls
+// it back.
+func (r *txRegistry) adopt(tx pgx.Tx) *txHandle {
+	h := &txHandle{id: "tx-" + uuid.NewString(), tx: repo.NewGuardedTx(tx), external: true}
+	r.add(h)
+	return h
+}
+
+func (r *txRegistry) add(h *txHandle) {
+	r.mu.Lock()
+	r.handles[h.id] = h
+	r.mu.Unlock()
+}
+
+func (r *txRegistry) lookup(id string) (*txHandle, error) {
+	r.mu.Lock()
+	h := r.handles[id]
+	r.mu.Unlock()
+	if h == nil {
+		return nil, pool.Internal("runtime.txUnknown", "unknown transaction handle")
+	}
+	return h, nil
+}
+
+// end commits or rolls back the handle. Commit increments the owner's
+// committed_tx_count inside the same transaction.
+func (r *txRegistry) end(ctx context.Context, h *txHandle, outcome TxOutcome) error {
+	if h.external {
+		return pool.Internal("runtime.txExternal", "this transaction is owned by the caller and cannot be ended")
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return errTxClosed()
+	}
+	h.closed = true
+	r.mu.Lock()
+	delete(r.handles, h.id)
+	r.mu.Unlock()
+
+	if outcome == TxCommit {
+		if err := countCommit(ctx, h.tx, h.owner); err != nil {
+			_ = h.tx.Rollback(context.WithoutCancel(ctx))
+			return err
+		}
+		if err := h.tx.Commit(ctx); err != nil {
+			_ = h.tx.Rollback(context.WithoutCancel(ctx))
+			return serrors.FromDB(opTxEnd, err)
+		}
+		return nil
+	}
+	if err := h.tx.Rollback(context.WithoutCancel(ctx)); err != nil && err != pgx.ErrTxClosed {
+		return serrors.FromDB(opTxEnd, err)
+	}
+	return nil
+}
+
+// rollbackAll rolls back everything still open: called when the root
+// invocation ends for any reason (error, deadline, worker loss, suspend).
+func (r *txRegistry) rollbackAll() {
+	r.mu.Lock()
+	open := make([]*txHandle, 0, len(r.handles))
+	for _, h := range r.handles {
+		open = append(open, h)
+	}
+	r.handles = map[string]*txHandle{}
+	r.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, h := range open {
+		if h.external {
+			continue
+		}
+		h.mu.Lock()
+		if !h.closed {
+			h.closed = true
+			_ = h.tx.Rollback(ctx)
+		}
+		h.mu.Unlock()
+	}
+}
