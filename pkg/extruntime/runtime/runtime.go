@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
@@ -180,7 +181,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	}
 	rt := &Runtime{Config: cfg, db: deps.DB, log: cfg.Logger}
 	if deps.Users != nil {
-		rt.Subjects = &UserSubjects{Users: deps.Users, Universe: cfg.PermissionUniverse}
+		rt.Subjects = &UserSubjects{Users: deps.Users, Universe: cfg.PermissionUniverse, Pool: deps.DB}
 	}
 
 	var err error
@@ -382,6 +383,9 @@ func permissionNames(ps []permission.Permission) []string {
 type UserSubjects struct {
 	Users    user.Repository
 	Universe []permission.Permission
+	// Pool is put into the context of repository reads: triggers run in
+	// background goroutines whose context carries no database.
+	Pool *pgxpool.Pool
 }
 
 var (
@@ -394,6 +398,9 @@ func (s *UserSubjects) load(ctx context.Context, tenantID uuid.UUID, userID int6
 		return spi.Subject{}, &host.SubjectBlockedError{TenantID: tenantID, UserID: userID, Reason: "no user"}
 	}
 	ctx = composables.WithTenantID(ctx, tenantID)
+	if s.Pool != nil && ctx.Value(constants.TxKey) == nil {
+		ctx = composables.WithPool(ctx, s.Pool)
+	}
 	u, err := s.Users.GetByID(ctx, uint(userID))
 	if err != nil {
 		if serrors.CodeOf(err) == serrors.NotFound {

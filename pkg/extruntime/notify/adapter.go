@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -355,13 +356,16 @@ func (a *Adapter) Run(ctx context.Context) {
 		}
 	})
 	for {
+		var retry <-chan time.Time
 		if err := a.Sync(ctx); err != nil && ctx.Err() == nil {
 			a.log.Error("extruntime notify: sync failed", "error", err)
+			retry = time.After(5 * time.Second)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-kick:
+		case <-retry:
 		}
 	}
 }

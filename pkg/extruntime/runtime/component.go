@@ -81,7 +81,6 @@ func (c *component) Build(builder *composition.Builder) error {
 		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Users: users})
 	})
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
-	composition.ProvideFunc(builder, func(rt *Runtime) *catalog.Catalog { return rt.Catalog })
 	composition.ProvideFuncAs[spi.Catalog](builder, func(rt *Runtime) *catalog.Catalog { return rt.Catalog })
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {

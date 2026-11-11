@@ -79,6 +79,12 @@ func (b *Builder) Build(_ context.Context, src build.Tree, kit build.Kit) (build
 			arts[f] = c
 		}
 	}
+	// dist/... files are client chunks: they are served from the artifact root.
+	for p, c := range src {
+		if strings.HasPrefix(p, "dist/") {
+			arts[strings.TrimPrefix(p, "dist/")] = c
+		}
+	}
 	hash := artifact.TreeHash(arts)
 	if b.OverrideArtifactHash != "" {
 		hash = b.OverrideArtifactHash
