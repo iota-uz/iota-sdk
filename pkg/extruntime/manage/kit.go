@@ -123,8 +123,30 @@ func (s *Service) Kit(ctx context.Context) (build.Kit, error) {
 		ON CONFLICT (hash) DO NOTHING`, kit.Hash, content); err != nil {
 		return build.Kit{}, serrors.FromDB(op, err)
 	}
-	s.kitKey, s.kitCache = key, kit
+	s.kitKey, s.kitCache, s.kitContracts = key, kit, contractHashes(sources)
 	return kit, nil
+}
+
+// contractHashes maps every contract ID of the kit sources to its hash.
+func contractHashes(sources []build.KitSource) map[string]string {
+	out := map[string]string{}
+	for _, src := range sources {
+		for _, r := range src.Resources {
+			out[r.ID] = r.ContractHash
+		}
+	}
+	return out
+}
+
+// kitWithContracts is Kit plus the contract hashes it was generated from.
+func (s *Service) kitWithContracts(ctx context.Context) (build.Kit, map[string]string, error) {
+	kit, err := s.Kit(ctx)
+	if err != nil {
+		return kit, nil, err
+	}
+	s.kitMu.Lock()
+	defer s.kitMu.Unlock()
+	return kit, s.kitContracts, nil
 }
 
 func toModules(k build.Kit) map[string]map[string][]byte {

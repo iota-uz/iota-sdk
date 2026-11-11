@@ -64,6 +64,8 @@ type Service struct {
 	kitMu    sync.Mutex
 	kitKey   string
 	kitCache build.Kit
+	// kitContracts are the contract hashes the cached kit was generated from
+	kitContracts map[string]string
 
 	verMu    sync.RWMutex
 	verCache map[string]versionMeta

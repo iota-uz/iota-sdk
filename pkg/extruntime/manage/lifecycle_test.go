@@ -273,7 +273,6 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 		Resources: []manifest.Resource{{ID: other + ".dummy", Kind: manifest.ResQuery, Input: emptyObj(), Output: emptyObj()}},
 		Implementations: []manifest.Implementation{
 			{Export: "rejectIncoming", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplCommand},
-			{Export: "wrongKind", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplAtomic},
 		},
 	}
 	e.draft(other, "1.0.0", m, nil)
@@ -284,8 +283,8 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 	// replacement is explicit, validated against the public contract
 	_, err := e.svc.Bind(ctx, e.author, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.PermissionDenied, serrors.CodeOf(err))
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "wrongKind")
-	require.Equal(t, serrors.Invalid, serrors.CodeOf(err), "an atomic implementation cannot replace an ordinary command")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "noSuchExport")
+	require.Equal(t, serrors.Invalid, serrors.CodeOf(err), "only an export the version implements for that contract can be bound")
 	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.events.UserCreated", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.Invalid, serrors.CodeOf(err))
 	b, err := e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
@@ -387,3 +386,84 @@ func TestTriggerOwners(t *testing.T) {
 }
 
 var _ = build.Tree{}
+
+func TestForeignImplementationsAreValidatedAgainstTheCatalogAtPublish(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	const other = "acme.checker"
+	base := func(impls ...manifest.Implementation) manifest.Manifest {
+		return manifest.Manifest{
+			Schema: manifest.SchemaVersion, Namespace: other,
+			Resources:       []manifest.Resource{{ID: other + ".dummy", Kind: manifest.ResQuery, Input: emptyObj(), Output: emptyObj()}},
+			Implementations: impls,
+		}
+	}
+	publishDiags := func(version string, m manifest.Manifest) []string {
+		e.draft(other, version, m, nil)
+		_, err := e.svc.Publish(ctx, e.admin, other, version)
+		require.Error(t, err)
+		require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
+		var de *manage.DiagnosticsError
+		require.True(t, errors.As(err, &de), "%v", err)
+		var codes []string
+		for _, d := range de.Diagnostics {
+			require.Equal(t, build.SeverityError, d.Severity)
+			codes = append(codes, d.Code)
+		}
+		return codes
+	}
+	// an atomic implementation of an ordinary native command
+	require.Equal(t, []string{"contract.kindMismatch"}, publishDiags("1.0.0", base(
+		manifest.Implementation{Export: "r", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplAtomic})))
+	// a query implementation of a command, an event as a command, an unknown contract
+	require.Equal(t, []string{"contract.kindMismatch", "contract.kindMismatch", "contract.unknown"}, publishDiags("1.0.1", base(
+		manifest.Implementation{Export: "a", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplQuery},
+		manifest.Implementation{Export: "b", Implements: "core.events.UserCreated", Kind: manifest.ImplCommand},
+		manifest.Implementation{Export: "c", Implements: "core.commands.Nope", Kind: manifest.ImplCommand})))
+	// an own implementation must match its own contract
+	own := base(manifest.Implementation{Export: "o", Implements: other + ".dummy", Kind: manifest.ImplCommand})
+	require.Equal(t, []string{"contract.kindMismatch"}, publishDiags("1.0.2", own))
+	require.Zero(t, e.count(`SELECT count(*) FROM extruntime.versions WHERE namespace = $1`, other))
+
+	// the matching implementation publishes; the contract hash is recorded
+	e.draft(other, "1.1.0", base(manifest.Implementation{Export: "r", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplCommand}), nil)
+	_, err := e.svc.Publish(ctx, e.admin, other, "1.1.0")
+	require.NoError(t, err)
+	var recorded string
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT foreign_contracts::text FROM extruntime.versions WHERE namespace = $1`, other).Scan(&recorded))
+	r, _, _ := e.cat.Resolve(ctx, "core.commands.RejectIncoming")
+	require.Contains(t, recorded, r.Resource.ContractHash)
+}
+
+func TestActivationIsBlockedWhenAForeignContractChangedSinceTheBuild(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	e.draft(ns, "1.0.0", insuranceManifest(tm(manifest.KindString)), nil)
+	e.release(ns, "1.0.0")
+
+	const other = "acme.override"
+	m := manifest.Manifest{
+		Schema: manifest.SchemaVersion, Namespace: other,
+		Resources:       []manifest.Resource{{ID: other + ".dummy", Kind: manifest.ResQuery, Input: emptyObj(), Output: emptyObj()}},
+		Implementations: []manifest.Implementation{{Export: "renew2", Implements: ns + ".renewPolicy", Kind: manifest.ImplCommand}},
+	}
+	e.draft(other, "1.0.0", m, nil)
+	_, err := e.svc.Publish(ctx, e.admin, other, "1.0.0")
+	require.NoError(t, err)
+	_, err = e.svc.Review(ctx, e.admin, other, "1.0.0", true, "ok")
+	require.NoError(t, err)
+
+	// the owner changes the public input of renewPolicy before the override goes live
+	m2 := insuranceManifest(tm(manifest.KindString))
+	m2.Resources[1].Input = &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{{Name: "months", Type: tm(manifest.KindInt)}}}
+	e.draft(ns, "2.0.0", m2, nil)
+	e.release(ns, "2.0.0")
+
+	_, err = e.svc.Activate(ctx, e.admin, other, "1.0.0")
+	require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
+	require.Contains(t, err.Error(), "changed since the version was built")
+
+	// rebuilt against the new contract it goes live
+	e.draft(other, "1.0.1", m, nil)
+	e.release(other, "1.0.1")
+}

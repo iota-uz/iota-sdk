@@ -64,6 +64,8 @@ CREATE TABLE extruntime.versions (
     repo_url text NOT NULL DEFAULT '',
     repo_commit text NOT NULL DEFAULT '',
     diagnostics jsonb NOT NULL DEFAULT '[]'::jsonb,
+    -- contract hashes of the foreign contracts the version implements, as built
+    foreign_contracts jsonb NOT NULL DEFAULT '{}'::jsonb,
     author_id bigint NOT NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (namespace, version)

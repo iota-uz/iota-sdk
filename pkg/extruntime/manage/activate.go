@@ -197,6 +197,9 @@ func (s *Service) Activate(ctx context.Context, actor spi.Subject, ns, version s
 		if err := s.checkActivatable(ctx, ns, &m); err != nil {
 			return err
 		}
+		if err := s.verifyForeignContracts(ctx, tx, v.ID); err != nil {
+			return err
+		}
 		plan, err := s.schemaPlan(ctx, tx, ns, version, &m, true)
 		if err != nil {
 			return err

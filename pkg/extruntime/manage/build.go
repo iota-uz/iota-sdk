@@ -88,20 +88,26 @@ func nonNil(ds []build.Diagnostic) []build.Diagnostic {
 // buildDraft runs the builder; diagnostics with errors come back as a report,
 // not as an error.
 func (s *Service) buildDraft(ctx context.Context, tree build.Tree) (build.Result, build.Kit, error) {
-	kit, err := s.Kit(ctx)
+	res, kit, _, err := s.buildDraftContracts(ctx, tree)
+	return res, kit, err
+}
+
+// buildDraftContracts also returns the contract hashes of the kit used.
+func (s *Service) buildDraftContracts(ctx context.Context, tree build.Tree) (build.Result, build.Kit, map[string]string, error) {
+	kit, contracts, err := s.kitWithContracts(ctx)
 	if err != nil {
-		return build.Result{}, kit, err
+		return build.Result{}, kit, nil, err
 	}
 	res, err := s.builder.Build(ctx, tree, kit)
 	var failed *build.Failed
 	if errors.As(err, &failed) {
 		res.Diagnostics = failed.Diagnostics
-		return res, kit, nil
+		return res, kit, contracts, nil
 	}
 	if err != nil {
-		return res, kit, serrors.Wrap("extruntime.manage.Build", err)
+		return res, kit, contracts, serrors.Wrap("extruntime.manage.Build", err)
 	}
-	return res, kit, nil
+	return res, kit, contracts, nil
 }
 
 // Build builds the draft against the current kit snapshot. Diagnostics with
@@ -235,12 +241,21 @@ func (s *Service) Publish(ctx context.Context, actor spi.Subject, ns, version st
 	if !versionLabelPattern.MatchString(version) {
 		return fail(serrors.New(serrors.Invalid, fmt.Sprintf("invalid version %q", version)))
 	}
-	res, kit, err := s.buildDraft(ctx, tree)
+	res, kit, built, err := s.buildDraftContracts(ctx, tree)
 	if err != nil {
 		return fail(err)
 	}
 	e.SourceHash, e.ArtifactHash = res.SourceHash, res.ArtifactHash
 	e.Detail["kitHash"] = kit.Hash
+	var foreign map[string]string
+	if !hasErrors(res.Diagnostics) {
+		extra, f, cerr := s.checkImplementations(ctx, ns, res.Manifest, built)
+		if cerr != nil {
+			return fail(cerr)
+		}
+		res.Diagnostics = append(res.Diagnostics, extra...)
+		foreign = f
+	}
 	if hasErrors(res.Diagnostics) {
 		e.Detail["diagnostics"] = len(res.Diagnostics)
 		return fail(serrors.New(serrors.FailedPrecondition, "publish refused: the build has errors").
@@ -280,6 +295,10 @@ func (s *Service) Publish(ctx context.Context, actor spi.Subject, ns, version st
 	if err != nil {
 		return fail(serrors.Wrap(op, err))
 	}
+	foreignJSON, err := json.Marshal(foreign)
+	if err != nil {
+		return fail(serrors.Wrap(op, err))
+	}
 	lockName, lockHash := lockfileOf(tree)
 
 	var out VersionDetail
@@ -308,10 +327,10 @@ func (s *Service) Publish(ctx context.Context, actor spi.Subject, ns, version st
 		var id string
 		if err := tx.QueryRow(ctx, `INSERT INTO extruntime.versions
 			(namespace, version, source_hash, tree_hash, source_archive, artifact_hash, lockfile_name, lockfile_hash, manifest,
-			 kit_hash, provenance, repo_url, repo_commit, diagnostics, author_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14::jsonb, $15) RETURNING id::text`,
+			 kit_hash, provenance, repo_url, repo_commit, diagnostics, foreign_contracts, author_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16) RETURNING id::text`,
 			ns, version, res.SourceHash, treeHash, srcArchive, res.ArtifactHash, lockName, lockHash, string(manJSON),
-			kit.Hash, string(prov), repo, commit, string(diagJSON), actor.UserID).Scan(&id); err != nil {
+			kit.Hash, string(prov), repo, commit, string(diagJSON), string(foreignJSON), actor.UserID).Scan(&id); err != nil {
 			if isUnique(err) {
 				return serrors.New(serrors.AlreadyExists, fmt.Sprintf("version %s of %s is already published", version, ns)).WithOp(op)
 			}

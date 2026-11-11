@@ -158,6 +158,12 @@ func implMatches(i manifest.Implementation, r manifest.Resource) bool {
 		return i.Kind == manifest.ImplOperation
 	case manifest.ResQuery:
 		return i.Kind == manifest.ImplQuery
+	case manifest.ResWorkflow:
+		return i.Kind == manifest.ImplWorkflow
+	case manifest.ResContactResolver:
+		return i.Kind == manifest.ImplContactResolver
+	case manifest.ResDeliveryPolicy:
+		return i.Kind == manifest.ImplDeliveryPolicy
 	}
 	return false
 }
@@ -187,12 +193,17 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 		if err != nil {
 			return err
 		}
-		target, found, err := s.catalog.Resolve(ctx, targetID)
-		if err != nil {
-			return err
-		}
-		if !found {
-			return notFound("target " + targetID)
+		var target spi.ResolvedResource
+		if slotKind != SlotShell {
+			var found bool
+			if target, found, err = s.catalog.Resolve(ctx, targetID); err != nil {
+				return err
+			}
+			if !found {
+				return notFound("target " + targetID)
+			}
+		} else if targetID == "" {
+			return serrors.New(serrors.Invalid, "a shell binding needs a target id")
 		}
 		switch slotKind {
 		case SlotCommand:
@@ -219,8 +230,10 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 			if slotKind == SlotShell {
 				want = manifest.ResShell
 			}
-			if target.Resource.Kind != want && !(slotKind == SlotScreen && target.Resource.Kind == manifest.ResRoute) {
-				return serrors.New(serrors.Invalid, targetID+" is not a "+slotKind+" slot")
+			// A screen target is a native route ID or a package page ID; the
+			// shell has no catalog identity, the newest open row wins.
+			if slotKind == SlotScreen && target.Resource.Kind != manifest.ResPage && target.Resource.Kind != manifest.ResRoute {
+				return serrors.New(serrors.Invalid, targetID+" is not a screen")
 			}
 			ok := false
 			for _, r := range m.manifest.Resources {
