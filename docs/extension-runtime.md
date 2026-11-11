@@ -269,6 +269,17 @@ Node → Go  {"t":"log","inv":"…","level":"info","msg":"…"}
 ```
 
 * Go serializes calls per tx handle and owns deadline/commit/rollback.
+* As implemented (host slice): invoke kinds `command|atomic|operation|query|subscription|
+  workflow|guard|template|endpoint|schedule` (build/extract run in a separate build worker).
+  `ctx` carries `tenant, user{id (int64 string), kind, locale, permissions[]}, invocation,
+  deadline, tx?, trigger, parent, instance`. Host methods: `tx.begin|end|get|find|count|insert|
+  update|delete|putOverlay|call|emit|notify|start`, `q.get|find|count` (lazy REPEATABLE READ
+  READ ONLY snapshot), `invoke.command`, `secrets.get`, `wf.step.begin|end`,
+  `wf.transaction.begin|end|call`, `wf.sleep|waitFor|task|call|start|now|uuid`. Replies:
+  `tx.start`/`wf.start` → `{instance}`, `wf.waitFor` → `{outcome, payload}`. Nested invocations
+  (`tx.call`, `ctx.call`) run on the parent's worker without taking a pool slot. Stray console
+  output becomes `log` frames; closing stdin shuts a worker down.
+
 * Artifacts are immutable directories addressed by content hash; a worker `import()`s
   `<dir>/server.mjs` once per hash. Two versions = two module instances in the same worker.
 * Worker env is minimal (`PATH`, `NODE_ENV`, `TZ`, `IOTA_RUNTIME_*`); secrets only through

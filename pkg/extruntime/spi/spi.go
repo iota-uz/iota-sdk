@@ -16,11 +16,12 @@ import (
 // Subject is the identity an invocation acts as: the initiating user, or the
 // explicit owner-user of a trigger without a user. Never a service principal.
 type Subject struct {
-	TenantID    uuid.UUID   `json:"tenantId"`
-	UserID      int64       `json:"userId"`
-	Kind        SubjectKind `json:"kind"`
-	Permissions []string    `json:"permissions"`
-	Locale      string      `json:"locale,omitempty"`
+	TenantID uuid.UUID   `json:"tenantId"`
+	UserID   int64       `json:"userId"`
+	Kind     SubjectKind `json:"kind"`
+	// Permissions are RBAC permission names (permission.Name(), e.g. "User.Read").
+	Permissions []string `json:"permissions"`
+	Locale      string   `json:"locale,omitempty"`
 	// Credential identifies how the actor authenticated (session, mcp
 	// personal credential id, endpoint) for audit; never an identity source.
 	Credential string `json:"credential,omitempty"`
@@ -37,6 +38,8 @@ const (
 // resolved through that version's schema map, so a workflow pinned to v1 keeps
 // working after v2 is activated (or activation is blocked as incompatible).
 type Caller struct {
+	// Package is the package namespace (the same identifier as
+	// ResolvedResource.Package).
 	Package string `json:"package"`
 	Version string `json:"version"`
 }
@@ -191,4 +194,13 @@ type ResolvedResource struct {
 type Catalog interface {
 	Resolve(ctx context.Context, id string) (ResolvedResource, bool, error)
 	Entities(ctx context.Context) ([]ResolvedResource, error)
+	// Guards lists active guards of target in a phase across all activated
+	// packages (additive, independent of the command binding), in stable ID order.
+	Guards(ctx context.Context, target string, phase manifest.GuardPhase) ([]ResolvedGuard, error)
+}
+
+type ResolvedGuard struct {
+	Guard   manifest.Guard
+	Package string
+	Version string
 }

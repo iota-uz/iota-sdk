@@ -124,6 +124,11 @@ type ReadRule struct {
 	Rows       *Filter `json:"rows,omitempty"`
 }
 
+// Access: no Read rules = readable by every subject of the tenant; with rules,
+// visible rows are the union of rules whose Permission the subject holds (none
+// applicable = no rows). Rows the subject cannot read cannot be updated or
+// deleted either. Fields lists permissions that are all required to read the
+// field (projection, filter, sort, export).
 type Access struct {
 	Read   []ReadRule          `json:"read,omitempty"`
 	Fields map[string][]string `json:"fields,omitempty"` // field id -> permissions required to read
