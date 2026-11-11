@@ -59,7 +59,7 @@ query API or workflow engine; changes to anything in this file go through its ow
 > stale in places: write rules are `writeRule(id, Entity, …)`, operation guards `guard(id, Operation, …)` and ordinary
 > command prechecks `precheck(id, Command, …)` (not `guard(Policy, "write", …)`); errors are thrown as `Err.of(params)` or
 > `validation(Issue.at(path, params))` (there is no `tx.issue`); native lists and entities come from the generated kit
-> (`crm.Clients`, `core.User`, whose names depend on the catalog) rather than `crm.lists.Clients`; `tx.start` needs
+> (`crm.ListsClients`, `core.User`, whose names depend on the catalog) rather than `crm.lists.Clients`; `tx.start` needs
 > `{ key }` outside subscriptions and workflows; `tx.get(overlay, ref)` and `tx.put(overlay, ref, values)` replace
 > overlay reads/writes; `column`'s `id` is the full namespaced ID; `t.ref`/`field.ref` take entities only.
 
@@ -483,7 +483,8 @@ authenticated → actual user, public → trigger owner. Filter keys may be ref 
 Build/extract run in a separate build worker, not the invocation pool.
 
 **UI host (as implemented)**: `bindings.target_id` for `slot_kind='screen'` is a native route
-ID (registered by the host app in `ui.Config.NativeRoutes`) or a package page ID; for
+ID (a `native.Route` of the application's `native.Set`, which the runtime hands to `ui.Config.NativeRoutes`; see §9.4) or
+a package page ID; for
 `slot_kind='shell'` the newest open row wins. Browser endpoints: `POST /_ext/rpc` (commands and
 queries as the session user; operations are never callable from the browser) and
 `GET /_ext/assets/<artifactHash>/<path>` (immutable). Client bundles externalize `solid-js`,
@@ -623,7 +624,7 @@ native queries run, see §9.3).
 
 ### 9.2 Integration notes from the end-to-end suite
 
-* **Native lists** are declared by Go (`runtime.Config.NativeLists`, default `crm.lists.clients`; `catalog.NativeSet.RegisterList`),
+* **Native lists** are declared by Go (`native.List` in the module's registration; the CRM contributes `crm.lists.clients`),
   carried to the kit as `KitSource.Lists` and published as a reference owned by the namespace the list ID extends. An author
   writes `column(crm.ListsClients, {...})` (the name is the PascalCase of the last non-clashing ID segments: the route
   `crm.clients` already holds `Clients`). A list is not discovered from columns any more.
@@ -640,9 +641,9 @@ native queries run, see §9.3).
 
 ### 9.3 Native command boundary (as implemented)
 
-* **Authoring (`pkg/extruntime/native`).** A module declares a native contract once, as a package-level value:
-  `native.Operation | AtomicCommand | Command | Query[In, Out](id, native.Spec{...}, impl)` registered with
-  `native.MustRegister` into `native.Default`. The wire contract is derived from the Go structs by `native.TypeOf`
+* **Authoring (`pkg/extruntime/native`).** A module declares a native contract once, as an immutable package-level value:
+  `native.Operation | AtomicCommand | Command | Query[In, Out](id, native.Spec{...}, impl)`, and adds it to the
+  application's `native.Set` from its registration function (§9.4). The wire contract is derived from the Go structs by `native.TypeOf`
   (explicit `json` names; `wire:"int64|decimal,precision=P,scale=S|date|datetime|uuid|enum=a|b|ref=<entity>|string,maxLength=N"`;
   int64 fields need `wire:"int64"` + `,string`; a pointer field is an optional key and needs `omitempty`; floats, maps,
   interfaces, embedded and recursive types fail loudly) or given explicitly in `Spec.Input/Output`. `impl` is a factory over
@@ -650,8 +651,7 @@ native queries run, see §9.3).
   `CommandFunc(ctx, native.CommandContext, in)`, `QueryFunc(ctx, native.QueryContext, in)`); it is instantiated per
   application on first use (`native.Bind`). `Spec.Permission` is an RBAC permission name: it is not a catalog resource, so
   it is not published in the contract; the host enforces it from the definition on every invocation, whichever
-  implementation is bound. Native contracts reach the catalog and the kit through `catalog.DefaultNatives`;
-  `catalog.Defaults()` is every native resource of the binary without application configuration (offline kits).
+  implementation is bound. Native contracts reach the catalog and the kit through the `native.Set` (§9.4).
 * **Dispatch.** A native contract without an open `slot_kind='command'` binding runs its Go default
   (`host.Config.Natives`, `Binding.Native`, recorded with an empty package/version/export); with a binding the package
   export runs instead — one active implementation, no fallback on error; unbinding restores the Go default. Everything
@@ -666,21 +666,73 @@ native queries run, see §9.3).
   ancestor, or takes a pool slot under a Go root.
 * **Entry points.** Go code calls `Def.Dispatch(ctx, dispatcher, in)`. The runtime component provides
   `native.Dispatcher` (`runtime.HostDispatcher`: root invocation as the session user, trigger `ui`); without the runtime
-  `native.ResolveDispatcher` falls back to `native.Direct` (Go defaults in-process, same validation and transaction shape,
-  `Spec.Permission`/`Authorize` checked against the request user). Reference consumer: CRM — `crm.operations.upsertClient`
+  `native.ResolveDispatcher(container, fallback)` falls back to `native.Direct` over the calling module's contracts (Go
+  defaults in-process, `Spec.Permission`/`Authorize` checked against the request user). Direct and the host share one
+  implementation of the contract rules (`native.CheckInput|CheckOutput|CheckPermissions|CheckCall`, `MaxNesting`), so
+  they return the same error codes; Direct lacks only what needs the runtime (replacements, package guards, records). Reference consumer: CRM — `crm.operations.upsertClient`
   (authorization Client.Create/Client.Update, value-object validation as issues `crm.invalidPhone|invalidEmail|invalidPin|
-  invalidCountry|clientNotFound`, repository save + history in the caller's transaction, client events after commit) and
+  invalidCountry|clientNotFound`, repository save + history in the caller's transaction, `crm.client.created.v1` /
+  `crm.client.updated.v1` through `events.Publish` in that transaction, the module's eventbus events after commit) and
   `crm.commands.saveClient` (ordinary; Go default = one transaction around `upsertClient`). The client create form, the four
   edit forms and the chat "new chat" form dispatch `saveClient`; `ClientService.Create/Update` remain as Go API. A
   dispatch error renders 422 (validation) / 403 (denied) / 409 (domain).
 * **Error mapping.** Data-layer failures reaching package code map to stable kinds instead of `runtime.hostCall`:
   unique → validation `data.unique` (issue phase `write`, path = field), reference → validation `data.reference`,
-  native/foreign generic write → denied `data.nativeWrite` / `data.foreignWrite`, read denied → denied `data.denied`,
+  invalid value → validation `data.invalidValue`, unknown field / invalid query → internal `data.unknownField` /
+  `data.invalidQuery`, native/foreign generic write → denied `data.nativeWrite` (also for a generic write the router
+  refuses before the store, which used to say `runtime.notWritable`) / `data.foreignWrite`, read denied → denied `data.denied`,
   hidden field → denied `data.fieldNotAccessible` (no field values), not found → domain `data.notFound`, row version
   conflict → domain `data.versionConflict`. The two `data.*` domain codes pass the closed-errors check of every contract.
   A Go default's own error is returned to Go callers unchanged (its chain intact) and recorded as internal.
 * **Limits.** Package code nested under a Go default shares the Go frame's hold of the transaction: concurrent host calls
   from it (`Promise.all`) fail fast (`repo.ErrTxInUse`) instead of queueing — the same rule as write-rule guards.
-  `upsertClient` cannot run inside a subscription delivery (after-commit callbacks are refused there). Other writers of
-  CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command.
+  `upsertClient` cannot run inside a subscription delivery (the after-commit eventbus callbacks are refused there). Other
+  writers of CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command and
+  therefore publish no `crm.client.*.v1` event.
+
+### 9.4 Composition boundary (as implemented)
+
+* **One native set.** `native.Set` is the only carrier of native resources: entities (`native.Entity(data.NativeEntity)`),
+  lists (`native.List`), events with Go payload types (`native.Event[P](id, native.EventSpec{Subject, ...})`, payload type
+  derived by `native.TypeOf`), Go-implemented operations/commands/queries with their defaults (`*native.Def`), routes
+  (`native.Route(id, path)`) and plain declarations (`native.Declare(manifest.Resource)` — slots with `props`, pages,
+  permissions, …; entities, events, contracts and routes are refused there because their consumers need more than the
+  resource). IDs are unique across all kinds; the same contract/event value added twice is a no-op. Each module exports a
+  `native.Contributor` (`func(*native.Set) error`): `coreservices.Natives` (core.user, core.user.created.v1),
+  `crm.Natives` (crm.client, crm.lists.clients, crm.client.created/updated.v1, upsertClient, saveClient, route
+  crm.clients). `modules.Natives()` lists the SDK modules' contributors next to `modules.Components()`.
+* **Injected once.** `runtime.Config.Natives` (required) is the composed set:
+  `native.Compose(append(modules.Natives(), app.Natives)...)`. From it the runtime derives the catalog view
+  (`catalog.Natives(set)`: resources, kit sources, `Reserved`, `Snapshot`), the data store's and the management
+  service's entity index (`set.EntityRegistry()`), the Go defaults (`native.Bind(set, deps)`) and the UI slice's
+  replaceable native routes (`ui.Config.NativeRoutes`). The removed channels are `runtime.Config.NativeResources`,
+  `NativeContracts`, `NativeLists`, `runtime.UIConfig.NativeRoutes`, the entity registry field `Natives
+  *data.NativeRegistry`, and the process globals `native.Default` / `native.MustRegister` and `events.Default` /
+  `events.MustRegisterNative` / `events.NativeEvent`. `events.Publish[P](ctx, tx, scope, def, subject, payload)` takes the
+  event definition itself, so publishing needs no registry. `cmd/extruntime-catalog` renders the snapshot of
+  `native.Compose(modules.Natives()...)` — the same registrations a running SDK application has — so the offline kit and
+  an application's kit agree on export names (`crm.Clients` is the route, `crm.ListsClients` the list).
+  `catalog.NewNativeSet(*data.NativeRegistry)` remains as an entities-only view for tools and tests.
+* **Worker delivery.** `runtime.Config.WorkerScript` and `Builder`/`Kits` are optional. When absent, `runtime.ResolveDist`
+  takes them from the installed `@iota-uz/sdk` package — `runtime.Config.Dist.Dir`, else `$IOTA_SDK_DIST`, else
+  `<Dist.AppRoot or cwd>/node_modules/@iota-uz/sdk` — namely `dist/runtime/host/worker.mjs` and
+  `dist/runtime/build/worker.mjs` (a `build.NodeBuilder` working under `CacheDir/build`). It fails with a diagnostic naming
+  the file read and the fix unless `package.json` names `@iota-uz/sdk` at exactly `sdkidentity.ReleaseVersion`,
+  `dist/sdk-identity.json` passes `sdkidentity.Identity.Validate` (same release, full source commit, same protocol major)
+  and both workers exist. The workers are deliberately **not** `//go:embed`ded: they are generated JS (bundled TypeScript
+  compiler, Babel, Solid typings) that is not committed, the build worker needs the native `esbuild` package resolved from
+  `node_modules`, and the release model (`docs/client-host-release-train.md`, `docs/sdk-releases.md`) ships JavaScript only
+  through the npm package of the same release, verified by identity, never from the Go module cache; embedding would
+  commit build output to the Go module and create a second, unverified copy of each worker.
+* **Host conformance.** `web/runtime/tests/conformance/` holds one probe package (entities with read rules and a hidden
+  field, a child with a ref, an overlay, an operation and an ordinary command) and `cases.json` (filters and SQL null
+  semantics, ordering with nulls, paging after read access, hidden fields on read/filter/sort/write, ref paths as left
+  joins, overlay absence and base readability, `tx.call` / `ctx.call` / nested transactions, native writes, unique and
+  missing rows, rollback). `tests/conformance.test.ts` runs every case on the TS test host; `pkg/extruntime/e2e`
+  `TestHostConformance` builds the same package with the real build worker and runs the same cases on the Go host with
+  the PostgreSQL store, so a drift fails one side. The first run aligned the test host with the Go host on
+  `data.unique` (was `data.uniqueViolation`), `runtime.ordinaryCommandInTx` (was `runtime.callNotAtomic`), writes of
+  hidden fields (refused), overlay rows of unreadable bases (null) and `ctx.call` inside `ctx.transaction` (refused), and
+  the Go host with the documented `data.nativeWrite`, `data.unknownField`, `data.invalidQuery`. Error *kinds* are not
+  compared (the test host raises every rejection as an error with a `code`).
 

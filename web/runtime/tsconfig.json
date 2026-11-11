@@ -19,6 +19,15 @@
     "paths": {
       "@iota-uz/sdk/client-host": [
         "../client-host/src/solid-index.ts"
+      ],
+      "@iota-uz/sdk/runtime": [
+        "./src/index.ts"
+      ],
+      "@iota-uz/sdk/runtime/server": [
+        "./src/server.ts"
+      ],
+      "@iota-kit/core": [
+        "./tests/conformance/kit-core.ts"
       ]
     }
   },

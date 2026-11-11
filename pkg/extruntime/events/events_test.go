@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -111,8 +111,11 @@ func TestPoisonedEventGoesDeadWithoutBlockingLaterEvents(t *testing.T) {
 
 func TestEventWithoutInitiatorRunsAsTheTriggerOwnerAndMissingOwnerBlocksWithADiagnostic(t *testing.T) {
 	f := newFixture(t)
-	events.Default.MustRegister(events.NativeEvent{ID: "acme.test.native.v1", Payload: *hosttest.Obj("name", hosttest.Str())})
-	f.env.Catalog.Add(spi.ResolvedResource{Native: true, Resource: events.Default.Resources()[0]})
+	type named struct {
+		Name string `json:"name"`
+	}
+	ev := native.Event[named]("acme.test.native.v1", native.EventSpec{})
+	f.env.Catalog.Add(spi.ResolvedResource{Native: true, Resource: ev.Resource()})
 	sub := f.subscribe("owner", `export const handler = async (tx, e) => { await tx.insert(item, { label: "owner-run:" + tx.user.userId + ":" + tx.user.kind }); };`,
 		func(s *events.Subscription) { s.Event = "acme.test.native.v1" })
 	f.subs.set(sub)
@@ -120,8 +123,7 @@ func TestEventWithoutInitiatorRunsAsTheTriggerOwnerAndMissingOwnerBlocksWithADia
 	publish := func() {
 		tx, err := f.env.DB.Begin(context.Background())
 		require.NoError(t, err)
-		_, err = events.Publish(context.Background(), tx, spi.Scope{Subject: spi.Subject{TenantID: f.env.Tenant}},
-			spi.EventIntent{Event: "acme.test.native.v1", Payload: []byte(`{"name":"sys"}`)})
+		_, err = events.Publish(context.Background(), tx, spi.Scope{Subject: spi.Subject{TenantID: f.env.Tenant}}, ev, nil, named{Name: "sys"})
 		require.NoError(t, err)
 		require.NoError(t, tx.Commit(context.Background()))
 	}
@@ -226,17 +228,22 @@ func TestOutboxAndPublishValidateEventsAndPayloads(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, id)
 
-	_, err = events.Publish(ctx, tx, scope, spi.EventIntent{Event: "core.nope.v1", Payload: []byte(`{}`)})
-	require.ErrorContains(t, err, "not registered in the native event catalog")
-	require.Error(t, events.RegisterNative(events.NativeEvent{ID: "core.noversion", Payload: manifest.Type{Kind: manifest.KindObject}}))
-	cat := events.NewNativeCatalog()
-	require.NoError(t, cat.Register(events.NativeEvent{ID: "core.thing.created.v1", Subject: "core.user", Payload: manifest.Type{Kind: manifest.KindObject}}))
-	require.NoError(t, cat.Register(events.NativeEvent{ID: "core.thing.created.v1", Subject: "core.user", Payload: manifest.Type{Kind: manifest.KindObject}}), "idempotent")
-	require.Error(t, cat.Register(events.NativeEvent{ID: "core.thing.created.v1", Subject: "core.user", Payload: manifest.Type{Kind: manifest.KindString}}), "a changed contract needs a new version")
-	res := cat.Resources()
-	require.Len(t, res, 1)
-	require.Equal(t, manifest.ResEvent, res[0].Kind)
-	require.NotEmpty(t, res[0].ContractHash)
+	type thing struct {
+		Name string `json:"name"`
+	}
+	declared := native.Event[thing]("core.thing.created.v1", native.EventSpec{Subject: "core.user"})
+	_, err = events.Publish(ctx, tx, scope, declared, nil, thing{Name: "x"})
+	require.ErrorContains(t, err, "needs a subject of core.user")
+	_, err = events.Publish(ctx, tx, scope, declared, &spi.ObjectRef{Entity: "crm.client", Key: "1"}, thing{Name: "x"})
+	require.ErrorContains(t, err, "subject must be a core.user ref")
+	id, err = events.Publish(ctx, tx, scope, declared, &spi.ObjectRef{Entity: "core.user", Key: "1"}, thing{Name: "x"})
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+	_, err = native.NewEvent[thing]("core.noversion", native.EventSpec{})
+	require.Error(t, err, "a native event ID ends in a version")
+	res := declared.Resource()
+	require.Equal(t, manifest.ResEvent, res.Kind)
+	require.Equal(t, manifest.ContractHashOf(res), res.ContractHash)
 }
 
 var _ pgx.Tx

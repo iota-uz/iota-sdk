@@ -271,7 +271,7 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 		Schema: manifest.SchemaVersion, Namespace: other,
 		Resources: []manifest.Resource{{ID: other + ".dummy", Kind: manifest.ResQuery, Input: emptyObj(), Output: emptyObj()}},
 		Implementations: []manifest.Implementation{
-			{Export: "rejectIncoming", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplCommand},
+			{Export: "rejectIncoming", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplCommand},
 		},
 	}
 	e.draft(other, "1.0.0", m, nil)
@@ -280,24 +280,24 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 	require.Empty(t, e.openBindings())
 
 	// replacement is explicit, validated against the public contract
-	_, err := e.svc.Bind(ctx, e.author, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
+	_, err := e.svc.Bind(ctx, e.author, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.PermissionDenied, serrors.CodeOf(err))
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "noSuchExport")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "noSuchExport")
 	require.Equal(t, serrors.Invalid, serrors.CodeOf(err), "only an export the version implements for that contract can be bound")
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.events.UserCreated", other, "1.0.0", "rejectIncoming")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.events.userCreated.v1", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.Invalid, serrors.CodeOf(err))
-	b, err := e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
+	b, err := e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "rejectIncoming")
 	require.NoError(t, err)
 	require.Equal(t, other, b.Package)
-	require.Equal(t, map[string]string{"command:core.commands.RejectIncoming": other + "@1.0.0/rejectIncoming"}, e.openBindings())
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "1.0.0", "rejectIncoming")
+	require.Equal(t, map[string]string{"command:core.commands.rejectIncoming": other + "@1.0.0/rejectIncoming"}, e.openBindings())
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.AlreadyExists, serrors.CodeOf(err))
 
 	// a new version that still implements the command keeps the replacement
 	e.draft(other, "2.0.0", m, nil)
 	res = e.release(other, "2.0.0")
 	require.Len(t, res.Rebound, 1)
-	require.Equal(t, map[string]string{"command:core.commands.RejectIncoming": other + "@2.0.0/rejectIncoming"}, e.openBindings())
+	require.Equal(t, map[string]string{"command:core.commands.rejectIncoming": other + "@2.0.0/rejectIncoming"}, e.openBindings())
 
 	// a version that no longer implements it releases the slot: no fallback
 	m3 := m
@@ -310,17 +310,17 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 	// unbind returns the slot; deactivating the package does too
 	_, err = e.svc.Activate(ctx, e.admin, other, "2.0.0")
 	require.NoError(t, err)
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "2.0.0", "rejectIncoming")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "2.0.0", "rejectIncoming")
 	require.NoError(t, err)
-	require.NoError(t, e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming"))
+	require.NoError(t, e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming"))
 	require.Empty(t, e.openBindings())
-	require.Equal(t, serrors.NotFound, serrors.CodeOf(e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming")))
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "2.0.0", "rejectIncoming")
+	require.Equal(t, serrors.NotFound, serrors.CodeOf(e.svc.Unbind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming")))
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "2.0.0", "rejectIncoming")
 	require.NoError(t, err)
 	require.NoError(t, e.svc.Deactivate(ctx, e.admin, other))
 	require.Empty(t, e.openBindings())
 	// a version that is not active cannot hold a binding
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.RejectIncoming", other, "2.0.0", "rejectIncoming")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "2.0.0", "rejectIncoming")
 	require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
 }
 
@@ -415,11 +415,11 @@ func TestForeignImplementationsAreValidatedAgainstTheCatalogAtPublish(t *testing
 	}
 	// an atomic implementation of an ordinary native command
 	require.Equal(t, []string{"contract.kindMismatch"}, publishDiags("1.0.0", base(
-		manifest.Implementation{Export: "r", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplAtomic})))
+		manifest.Implementation{Export: "r", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplAtomic})))
 	// a query implementation of a command, an event as a command, an unknown contract
 	require.Equal(t, []string{"contract.kindMismatch", "contract.kindMismatch", "contract.unknown"}, publishDiags("1.0.1", base(
-		manifest.Implementation{Export: "a", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplQuery},
-		manifest.Implementation{Export: "b", Implements: "core.events.UserCreated", Kind: manifest.ImplCommand},
+		manifest.Implementation{Export: "a", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplQuery},
+		manifest.Implementation{Export: "b", Implements: "core.events.userCreated.v1", Kind: manifest.ImplCommand},
 		manifest.Implementation{Export: "c", Implements: "core.commands.Nope", Kind: manifest.ImplCommand})))
 	// an own implementation must match its own contract
 	own := base(manifest.Implementation{Export: "o", Implements: other + ".dummy", Kind: manifest.ImplCommand})
@@ -427,12 +427,12 @@ func TestForeignImplementationsAreValidatedAgainstTheCatalogAtPublish(t *testing
 	require.Zero(t, e.count(`SELECT count(*) FROM extruntime.versions WHERE namespace = $1`, other))
 
 	// the matching implementation publishes; the contract hash is recorded
-	e.draft(other, "1.1.0", base(manifest.Implementation{Export: "r", Implements: "core.commands.RejectIncoming", Kind: manifest.ImplCommand}), nil)
+	e.draft(other, "1.1.0", base(manifest.Implementation{Export: "r", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplCommand}), nil)
 	_, err := e.svc.Publish(ctx, e.admin, other, "1.1.0")
 	require.NoError(t, err)
 	var recorded string
 	require.NoError(t, e.db.QueryRow(ctx, `SELECT foreign_contracts::text FROM extruntime.versions WHERE namespace = $1`, other).Scan(&recorded))
-	r, _, _ := e.cat.Resolve(ctx, "core.commands.RejectIncoming")
+	r, _, _ := e.cat.Resolve(ctx, "core.commands.rejectIncoming")
 	require.Contains(t, recorded, r.Resource.ContractHash)
 }
 

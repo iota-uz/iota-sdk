@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 
@@ -12,21 +11,19 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// MaxNesting bounds nested calls under one Direct dispatch, like the host's
-// limit.
-const MaxNesting = 32
-
 // Direct is the dispatcher of an application without the extension runtime:
-// it runs the Go defaults in-process with the same input/output validation
-// and transaction shape the host gives them (operations and atomic commands
-// in one transaction, ordinary commands opening their own, queries on a
-// read-only snapshot). There are no package replacements or guards without
-// the runtime.
+// it runs the Go defaults in-process. Input/output validation, permissions,
+// the call shapes of tx.call / ctx.call / query and the nesting limit are the
+// host's own rules (CheckInput, CheckOutput, CheckPermissions, CheckCall,
+// MaxNesting), and the transaction shape is the host's (operations and atomic
+// commands in one transaction, ordinary commands opening their own, queries
+// on a read-only snapshot). What Direct lacks by design is everything that
+// needs the runtime: package replacements, guards of packages, invocation
+// records.
 type Direct struct {
 	impls     *Implementations
 	authorize func(ctx context.Context, permission string) bool
@@ -61,34 +58,36 @@ type depthKey struct{}
 
 // Dispatch implements Dispatcher.
 func (d *Direct) Dispatch(ctx context.Context, contract string, input json.RawMessage) (json.RawMessage, error) {
-	return d.invoke(ctx, contract, input, nil, func(def Definition) error { return nil })
+	return d.invoke(ctx, contract, input, nil, "")
 }
 
-func (d *Direct) invoke(ctx context.Context, contract string, input json.RawMessage, join *directTxState, accept func(Definition) error) (json.RawMessage, error) {
+// invoke runs contract; via is the call shape of a nested invocation ("" for
+// a root dispatch).
+func (d *Direct) invoke(ctx context.Context, contract string, input json.RawMessage, join *directTxState, via Via) (json.RawMessage, error) {
 	const op = serrors.Op("extruntime.native.Direct.Dispatch")
 	depth, _ := ctx.Value(depthKey{}).(int)
 	if depth >= MaxNesting {
-		return nil, pool.Internal("runtime.nestingTooDeep", fmt.Sprintf("more than %d nested invocations (recursive call of %s?)", MaxNesting, contract))
+		return nil, NestingTooDeep(contract)
 	}
 	ctx = context.WithValue(ctx, depthKey{}, depth+1)
 	def, ok := d.impls.Definition(contract)
 	if !ok {
 		return nil, serrors.New(serrors.NotFound, "extruntime: unknown native contract "+contract).WithOp(op)
 	}
-	if err := accept(def); err != nil {
-		return nil, err
-	}
-	if err := d.Authorize(ctx, def.Permission()); err != nil {
-		return nil, err
-	}
 	res := def.Resource()
+	if via != "" {
+		if err := CheckCall(via, res); err != nil {
+			return nil, err
+		}
+	}
+	if err := CheckPermissions(func(p string) bool { return d.allowed(ctx, p) }, res, def); err != nil {
+		return nil, err
+	}
 	if len(input) == 0 {
 		input = json.RawMessage(`null`)
 	}
-	if res.Input != nil {
-		if err := manifest.ValidateValue(*res.Input, input); err != nil {
-			return nil, invalidInput(err)
-		}
+	if err := CheckInput(res, input); err != nil {
+		return nil, err
 	}
 	impl, ok, err := d.impls.Lookup(contract)
 	if err != nil {
@@ -113,35 +112,22 @@ func (d *Direct) invoke(ctx context.Context, contract string, input json.RawMess
 	if err != nil {
 		return nil, err
 	}
-	if res.Output != nil {
-		if verr := manifest.ValidateValue(*res.Output, out); verr != nil {
-			return nil, pool.Internal("runtime.invalidOutput", verr.Error())
-		}
+	if err := CheckOutput(res, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
 
-func invalidInput(err error) error {
-	we := &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
-	var pe *manifest.PathError
-	if errors.As(err, &pe) {
-		path, pathErr := json.Marshal(pe.Path)
-		params, paramsErr := json.Marshal(map[string]string{"message": pe.Message})
-		// An unencodable path leaves the error without per-field issues; the
-		// message above still describes the failure.
-		if pathErr == nil && paramsErr == nil {
-			we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: "input", Path: path, Params: params}}
-		}
-	}
-	return we
+func (d *Direct) allowed(ctx context.Context, permission string) bool {
+	return permission == "" || d.authorize == nil || d.authorize(ctx, permission)
 }
 
 // Authorize checks permission with the configured authorizer.
 func (d *Direct) Authorize(ctx context.Context, permission string) error {
-	if permission == "" || d.authorize == nil || d.authorize(ctx, permission) {
+	if d.allowed(ctx, permission) {
 		return nil
 	}
-	return Denied("runtime.permissionDenied", "permission "+permission+" is required")
+	return Denied(CodePermissionDenied, "permission "+permission+" is required")
 }
 
 // directTxState is one transaction of a Direct dispatch.
@@ -246,16 +232,11 @@ type directTx struct {
 func (t *directTx) DB() pgx.Tx { return t.st.tx }
 
 func (t *directTx) Call(ctx context.Context, contract string, input json.RawMessage) (json.RawMessage, error) {
-	return t.d.invoke(ctx, contract, input, t.st, func(def Definition) error {
-		if def.Kind() != KindOperation && def.Kind() != KindAtomic {
-			return pool.Internal("runtime.ordinaryCommandInTx", "tx.call accepts only operations and atomic commands; "+contract+" is not")
-		}
-		return nil
-	})
+	return t.d.invoke(ctx, contract, input, t.st, ViaTxCall)
 }
 
 func (t *directTx) Query(ctx context.Context, query string, input json.RawMessage) (json.RawMessage, error) {
-	return t.d.invoke(ctx, query, input, t.st, acceptQuery(query))
+	return t.d.invoke(ctx, query, input, t.st, ViaQuery)
 }
 
 func (t *directTx) AfterCommit(fn func(context.Context)) error {
@@ -272,15 +253,6 @@ func (t *directTx) Authorize(permission string) error {
 	return t.d.Authorize(t.ctx, permission)
 }
 
-func acceptQuery(id string) func(Definition) error {
-	return func(def Definition) error {
-		if def.Kind() != KindQuery {
-			return pool.Internal("runtime.notQuery", "query accepts queries; "+id+" is a "+string(def.Kind()))
-		}
-		return nil
-	}
-}
-
 // directCommand implements CommandContext.
 type directCommand struct {
 	d    *Direct
@@ -293,7 +265,7 @@ func (c *directCommand) Transaction(ctx context.Context, fn func(ctx context.Con
 	c.mu.Lock()
 	if c.open {
 		c.mu.Unlock()
-		return pool.Internal("runtime.nestedTransaction", "ctx.transaction cannot be nested")
+		return pool.Internal(CodeNestedTransaction, "ctx.transaction cannot be nested")
 	}
 	c.open = true
 	c.mu.Unlock()
@@ -314,18 +286,13 @@ func (c *directCommand) Call(ctx context.Context, command string, input json.Raw
 	open := c.open
 	c.mu.Unlock()
 	if open {
-		return nil, pool.Internal("runtime.intentInTransaction", "ctx.call is not allowed while a transaction is open")
+		return nil, pool.Internal(CodeIntentInTransaction, "ctx.call is not allowed while a transaction is open")
 	}
-	return c.d.invoke(ctx, command, input, nil, func(def Definition) error {
-		if def.Kind() != KindCommand && def.Kind() != KindAtomic {
-			return pool.Internal("runtime.notCommand", "ctx.call accepts commands; "+command+" is a "+string(def.Kind()))
-		}
-		return nil
-	})
+	return c.d.invoke(ctx, command, input, nil, ViaCtxCall)
 }
 
 func (c *directCommand) Query(ctx context.Context, query string, input json.RawMessage) (json.RawMessage, error) {
-	return c.d.invoke(ctx, query, input, nil, acceptQuery(query))
+	return c.d.invoke(ctx, query, input, nil, ViaQuery)
 }
 
 func (c *directCommand) Authorize(permission string) error {

@@ -97,7 +97,7 @@ func directSet(t *testing.T) (*native.Set, *native.Def[note, total]) {
 			return out, nil
 		}, nil
 	})
-	require.NoError(t, set.Register(add, count, save))
+	require.NoError(t, set.Add(add, count, save))
 	return set, save
 }
 

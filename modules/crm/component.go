@@ -169,11 +169,11 @@ func crmControllers(container *composition.Container) ([]application.Controller,
 	if err != nil {
 		return nil, err
 	}
-	dispatcher, err := native.ResolveDispatcher(container)
+	dispatcher, err := native.ResolveDispatcher(container, services.Contracts())
 	if err != nil {
 		return nil, err
 	}
-	basePath := "/crm/clients"
+	basePath := ClientsPath
 	return []application.Controller{
 		controllers.NewClientController(app, clientService, chatService, logger, controllers.ClientControllerConfig{
 			Dispatcher: dispatcher,

@@ -4,7 +4,8 @@
 // snapshot. The committed snapshot ships in the @iota-uz/sdk distribution so
 // `iota-ext kit generate` renders @iota-kit/core and @iota-kit/crm without a
 // server. Applications with natives of their own export theirs with the same
-// document (`catalog.NativeSet.Snapshot`, or GET /_ext/manage/catalog/natives).
+// document (catalog.Natives(set).Snapshot() over their composed native.Set, or
+// GET /_ext/manage/catalog/natives).
 //
 // Usage:
 //
@@ -22,27 +23,23 @@ import (
 	"os"
 	"path/filepath"
 
-	// Register the native events and Go-implemented commands, operations and queries of the SDK modules
-	// (core.user.created.v1, crm.commands.saveClient, crm.operations.upsertClient, ...).
-	_ "github.com/iota-uz/iota-sdk/modules/core/services"
-	_ "github.com/iota-uz/iota-sdk/modules/crm/services"
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
 // DefaultOutput is the committed snapshot, relative to the repository root.
 const DefaultOutput = "web/runtime/catalog/sdk-natives.json"
 
-// SDKSnapshot is the native catalog of the SDK without application
-// configuration: catalog.Defaults() over the modules this binary links in. Each
-// module that publishes native contracts registers them from its package
-// initialization, so the blank imports below decide what the snapshot (and the
-// kit generated from it) contains.
+// SDKSnapshot is the native catalog of the SDK modules: the native.Set
+// composed from modules.Natives(), the same registrations an application
+// passes to the extension runtime before adding its own.
 func SDKSnapshot() (catalog.Snapshot, error) {
-	set, err := catalog.Defaults()
+	set, err := native.Compose(modules.Natives()...)
 	if err != nil {
 		return catalog.Snapshot{}, err
 	}
-	return set.Snapshot(), nil
+	return catalog.Natives(set).Snapshot(), nil
 }
 
 // Render is the canonical document of the SDK snapshot.

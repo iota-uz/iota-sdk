@@ -124,7 +124,7 @@ describe('writes and contexts', () => {
     const holder = ref(c.Customer, ali.key)
     const policy = await host.transaction((tx) => tx.insert(c.Policy, { number: 'N-1', holder, premium: premium('1.50'), expiresOn: day('2027-01-01') }))
     expect(policy.status).toBe('draft')
-    await expect(host.transaction((tx) => tx.insert(c.Policy, { number: 'N-1', holder, premium: premium('2.00'), expiresOn: day('2027-01-02') }))).rejects.toMatchObject({ code: 'data.uniqueViolation' })
+    await expect(host.transaction((tx) => tx.insert(c.Policy, { number: 'N-1', holder, premium: premium('2.00'), expiresOn: day('2027-01-02') }))).rejects.toMatchObject({ code: 'data.unique' })
     await expect(host.transaction((tx) => tx.insert(c.Policy, { number: 'N-2', holder, premium: 5 as never, expiresOn: day('2027-01-02') }))).rejects.toMatchObject({ code: 'data.invalidValue' })
     const updated = await host.transaction((tx) => tx.update(c.Policy, ref(c.Policy, policy.key), { status: 'active' }, { rowVersion: 1 }))
     expect(updated).toMatchObject({ status: 'active', rowVersion: 2 })
@@ -200,9 +200,9 @@ describe('writes and contexts', () => {
     const guards = [s.extendGuard]
     const host = createTestHost({ fixtures: w.all, entities: [c.Customer], implementations: [s.extendExpiry, s.activate], guards, user: { permissions: [READ] } })
     // @ts-expect-error an ordinary command is not callable inside a transaction
-    await expect(host.transaction((tx) => tx.call(c.RenewPolicy, { policy: w.p1.ref }))).rejects.toMatchObject({ code: 'runtime.callNotAtomic' })
+    await expect(host.transaction((tx) => tx.call(c.RenewPolicy, { policy: w.p1.ref }))).rejects.toMatchObject({ code: 'runtime.ordinaryCommandInTx' })
     // @ts-expect-error queries are not callable either
-    await expect(host.transaction((tx) => tx.call(c.Expiring, { before: day('2030-01-01') }))).rejects.toMatchObject({ code: 'runtime.callNotAtomic' })
+    await expect(host.transaction((tx) => tx.call(c.Expiring, { before: day('2030-01-01') }))).rejects.toMatchObject({ code: 'runtime.ordinaryCommandInTx' })
     const out = await host.transaction((tx) => tx.call(c.ExtendExpiry, { policy: w.p1.ref, months: 12 }))
     expect(out.expiresOn).toBe('2028-03-01')
     expect(host.emitted).toHaveLength(1)

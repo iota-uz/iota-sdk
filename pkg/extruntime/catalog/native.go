@@ -3,85 +3,51 @@
 package catalog
 
 import (
-	"fmt"
-	"regexp"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-var nativeIDPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-zA-Z0-9_]+)+$`)
-
-// NativeSet holds the contracts that Go registers: the native entity
-// descriptors of the data layer plus native commands, operations, events,
-// queries, pages and slots. They are public by contract; the Go
-// implementations behind them are never exported.
+// NativeSet is the catalog's read view of the application's native.Set: the
+// native resources it publishes next to package resources, grouped for the
+// developer kit and the catalog snapshot. It adds nothing to the set.
 type NativeSet struct {
-	entities *data.NativeRegistry
-
-	mu    sync.RWMutex
-	extra map[string]manifest.Resource
-	lists map[string]bool
+	set *native.Set
 }
 
-// NewNativeSet wraps the native entity registry (may be nil).
+// Natives is the catalog view of set (nil: no natives).
+func Natives(set *native.Set) *NativeSet {
+	if set == nil {
+		set = native.NewSet()
+	}
+	return &NativeSet{set: set}
+}
+
+// NewNativeSet is the view of a set that holds only the given native entities
+// (nil: none), for tools and tests that need no other native resource.
 func NewNativeSet(entities *data.NativeRegistry) *NativeSet {
-	return &NativeSet{entities: entities, extra: map[string]manifest.Resource{}, lists: map[string]bool{}}
-}
-
-// Register adds a native contract. IDs are unique across entities and
-// registered contracts.
-func (n *NativeSet) Register(r manifest.Resource) error {
-	const op = serrors.Op("extruntime.catalog.NativeSet.Register")
-	if !nativeIDPattern.MatchString(r.ID) {
-		return serrors.New(serrors.Invalid, fmt.Sprintf("native resource id %q is invalid", r.ID)).WithOp(op)
-	}
-	switch r.Kind {
-	case manifest.ResEntity, manifest.ResOverlay:
-		return serrors.New(serrors.Invalid, "native entities are registered through the data.NativeRegistry").WithOp(op)
-	case "":
-		return serrors.New(serrors.Invalid, "native resource "+r.ID+" has no kind").WithOp(op)
-	case manifest.ResQuery, manifest.ResCommand, manifest.ResOperation, manifest.ResEvent,
-		manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute, manifest.ResPermission,
-		manifest.ResIssue, manifest.ResDomainError, manifest.ResColumn, manifest.ResPage,
-		manifest.ResNavigation, manifest.ResSlot, manifest.ResCell, manifest.ResShell,
-		manifest.ResContactResolver, manifest.ResDeliveryPolicy:
-		// contract kinds a native package may declare
-	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if _, dup := n.extra[r.ID]; dup {
-		return serrors.New(serrors.AlreadyExists, "native resource "+r.ID+" registered twice").WithOp(op)
-	}
-	if n.entities != nil {
-		if _, dup := n.entities.Get(r.ID); dup {
-			return serrors.New(serrors.AlreadyExists, "native resource "+r.ID+" registered twice").WithOp(op)
+	set := native.NewSet()
+	if entities != nil {
+		for _, e := range entities.List() {
+			if err := set.Add(native.Entity(e)); err != nil {
+				// The registry validated every descriptor and its IDs are unique.
+				panic(err)
+			}
 		}
 	}
-	r.ContractHash = manifest.ContractHashOf(r)
-	n.extra[r.ID] = r
-	return nil
+	return &NativeSet{set: set}
 }
 
-// RegisterList declares a native list (for example "crm.lists.clients") that
-// packages may extend with columns. It is published in the kit as a
-// reference, `column(crm.Clients, ...)`.
-func (n *NativeSet) RegisterList(id string) error {
-	const op = serrors.Op("extruntime.catalog.NativeSet.RegisterList")
-	if !nativeIDPattern.MatchString(id) {
-		return serrors.New(serrors.Invalid, fmt.Sprintf("native list id %q is invalid", id)).WithOp(op)
+// Set is the underlying native set.
+func (n *NativeSet) Set() *native.Set {
+	if n == nil {
+		return nil
 	}
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.lists[id] = true
-	return nil
+	return n.set
 }
 
 // Resources lists every native resource sorted by ID, with contract hashes.
@@ -89,23 +55,7 @@ func (n *NativeSet) Resources() []manifest.Resource {
 	if n == nil {
 		return nil
 	}
-	var natives []data.NativeEntity
-	if n.entities != nil {
-		natives = n.entities.List()
-	}
-	n.mu.RLock()
-	out := make([]manifest.Resource, 0, len(natives)+len(n.extra))
-	for _, e := range natives {
-		r := e.Resource()
-		r.ContractHash = manifest.ContractHashOf(r)
-		out = append(out, r)
-	}
-	for _, r := range n.extra {
-		out = append(out, r)
-	}
-	n.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out
+	return n.set.Resources()
 }
 
 // Get returns one native resource.
@@ -113,17 +63,7 @@ func (n *NativeSet) Get(id string) (manifest.Resource, bool) {
 	if n == nil {
 		return manifest.Resource{}, false
 	}
-	if n.entities != nil {
-		if e, ok := n.entities.Get(id); ok {
-			r := e.Resource()
-			r.ContractHash = manifest.ContractHashOf(r)
-			return r, true
-		}
-	}
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	r, ok := n.extra[id]
-	return r, ok
+	return n.set.Resource(id)
 }
 
 // Namespace is the kit namespace of a native resource: the first ID segment
@@ -133,7 +73,8 @@ func Namespace(id string) string {
 	return ns
 }
 
-// Sources groups the native resources by namespace for kit generation.
+// Sources groups the native resources and lists by namespace for kit
+// generation.
 func (n *NativeSet) Sources() []build.KitSource {
 	byNS := map[string][]manifest.Resource{}
 	for _, r := range n.Resources() {
@@ -141,20 +82,18 @@ func (n *NativeSet) Sources() []build.KitSource {
 		byNS[ns] = append(byNS[ns], r)
 	}
 	listsByNS := map[string][]string{}
-	n.mu.RLock()
-	for l := range n.lists {
-		ns := Namespace(l)
-		listsByNS[ns] = append(listsByNS[ns], l)
-		if _, ok := byNS[ns]; !ok {
-			byNS[ns] = nil
+	if n != nil {
+		for _, l := range n.set.Lists() {
+			ns := Namespace(l)
+			listsByNS[ns] = append(listsByNS[ns], l)
+			if _, ok := byNS[ns]; !ok {
+				byNS[ns] = nil
+			}
 		}
 	}
-	n.mu.RUnlock()
 	out := make([]build.KitSource, 0, len(byNS))
 	for ns, res := range byNS {
-		lists := listsByNS[ns]
-		sort.Strings(lists)
-		out = append(out, build.KitSource{Namespace: ns, Resources: res, Lists: lists})
+		out = append(out, build.KitSource{Namespace: ns, Resources: res, Lists: listsByNS[ns]})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Namespace < out[j].Namespace })
 	return out
@@ -164,50 +103,10 @@ func (n *NativeSet) Sources() []build.KitSource {
 // ("core", "crm"): packages may not declare resources there.
 func (n *NativeSet) Reserved(namespace string) bool {
 	root := Namespace(namespace)
-	for _, r := range n.Resources() {
-		if Namespace(r.ID) == root {
+	for _, s := range n.Sources() {
+		if s.Namespace == root {
 			return true
 		}
 	}
 	return false
-}
-
-// DefaultNatives builds the native set an application publishes: the native
-// entity descriptors, the native events (events.Default), the Go-implemented
-// commands, operations and queries (contracts; nil: native.Default), extra
-// contracts (native routes, application-specific resources) and the native
-// lists (empty: the CRM clients list).
-func DefaultNatives(entities *data.NativeRegistry, contracts *native.Set, lists []string, extra ...manifest.Resource) (*NativeSet, error) {
-	const op = serrors.Op("extruntime.catalog.DefaultNatives")
-	if contracts == nil {
-		contracts = native.Default
-	}
-	set := NewNativeSet(entities)
-	all := append([]manifest.Resource{}, events.Default.Resources()...)
-	all = append(all, contracts.Resources()...)
-	all = append(all, extra...)
-	for _, r := range all {
-		if err := set.Register(r); err != nil {
-			return nil, serrors.Wrap(op, err)
-		}
-	}
-	if len(lists) == 0 {
-		lists = []string{data.NativeClientList}
-	}
-	for _, l := range lists {
-		if err := set.RegisterList(l); err != nil {
-			return nil, serrors.Wrap(op, err)
-		}
-	}
-	return set, nil
-}
-
-// Defaults is every native resource of the process without application
-// configuration: data.DefaultNatives entities, native events, the contracts
-// of native.Default (declared by the modules linked into the binary) and the
-// default native lists. An offline kit is generated from
-// Defaults().Sources(); a running application adds its configured native
-// routes and extra contracts (runtime.Config).
-func Defaults() (*NativeSet, error) {
-	return DefaultNatives(data.DefaultNatives(), nil, nil)
 }

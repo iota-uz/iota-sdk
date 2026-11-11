@@ -13,10 +13,11 @@ import (
 
 // ResolveDispatcher returns the application's dispatcher: the one a component
 // provides (the extension runtime provides its host dispatcher), otherwise a
-// Direct dispatcher over the Go defaults of Default bound to the container,
-// authorizing with the request user's permissions. Modules that publish native
-// commands resolve it once and route every entry of those commands through it.
-func ResolveDispatcher(c *composition.Container) (Dispatcher, error) {
+// Direct dispatcher over the Go defaults of fallback (the contracts of the
+// calling module) bound to the container, authorizing with the request user's
+// permissions. Modules that publish native commands resolve it once and route
+// every entry of those commands through it.
+func ResolveDispatcher(c *composition.Container, fallback *Set) (Dispatcher, error) {
 	d, err := composition.Resolve[Dispatcher](c)
 	if err == nil {
 		return d, nil
@@ -24,7 +25,7 @@ func ResolveDispatcher(c *composition.Container) (Dispatcher, error) {
 	if !composition.IsNotProvided(err) {
 		return nil, serrors.Wrap("extruntime.native.ResolveDispatcher", err)
 	}
-	return NewDirect(Bind(Default, c), WithAuthorizer(UserAuthorizer)), nil
+	return NewDirect(Bind(fallback, c), WithAuthorizer(UserAuthorizer)), nil
 }
 
 // UserAuthorizer checks a permission against the effective permissions of the

@@ -1,3 +1,8 @@
+// Package events implements the extension runtime's event side: the
+// transactional outbox (spi.Outbox for package events and Publish, the Go API
+// of native events declared in the application's native.Set), the
+// after-commit dispatcher that delivers events to active subscriptions with
+// per-row receipts, and cron schedules.
 package events
 
 import (
@@ -11,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -30,16 +36,15 @@ type Execer interface {
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }
 
-// Publish enqueues an event in the caller's transaction. It is the Go API of
-// native modules: the event must be registered in the Default native catalog
-// (RegisterNative) and the payload must match its versioned payload type.
-// The scope's subject is the event initiator when it carries a user.
-func Publish(ctx context.Context, tx Execer, sc spi.Scope, in spi.EventIntent) (string, error) {
-	res, ok := Default.Lookup(in.Event)
-	if !ok {
-		return "", serrors.Wrap(opPublish, fmt.Errorf("event %q is not registered in the native event catalog", in.Event))
-	}
-	if err := checkEvent(res, in); err != nil {
+// Publish enqueues a native event in the caller's transaction: the Go API of
+// native modules. ev is the event's declaration (native.Event, contributed to
+// the application's native.Set so the catalog, the kit and subscriptions know
+// it); the payload and subject are validated against it. The row commits or
+// rolls back with tx, so the event is atomic with the change it reports. The
+// scope's subject is the event initiator when it carries a user.
+func Publish[P any](ctx context.Context, tx Execer, sc spi.Scope, ev *native.EventDef[P], subject *spi.ObjectRef, payload P) (string, error) {
+	in, err := ev.IntentOf(subject, payload)
+	if err != nil {
 		return "", serrors.Wrap(opPublish, err)
 	}
 	id, err := insertEvent(ctx, tx, sc, in)

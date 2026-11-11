@@ -23,7 +23,7 @@ export const ClientLoyalty = overlay(
 )
 
 // The overlay field shows up as a column of the native clients list (sort, filter, export).
-export const TierColumn = column(crm.Clients, {
+export const TierColumn = column(crm.ListsClients, {
   id: "acme.loyalty.tier",
   field: ClientLoyalty.fields.tier,
   label: { en: "Loyalty tier", ru: "Уровень" },

@@ -24,7 +24,7 @@ func (e *env) outboxPosition() int64 {
 
 func (e *env) publishEvent() {
 	e.t.Helper()
-	e.exec(`INSERT INTO extruntime.outbox_events (id, tenant_id, event, payload) VALUES (gen_random_uuid(), $1, 'core.events.UserCreated', '{}')`, e.tenant)
+	e.exec(`INSERT INTO extruntime.outbox_events (id, tenant_id, event, payload) VALUES (gen_random_uuid(), $1, 'core.events.userCreated.v1', '{}')`, e.tenant)
 }
 
 func TestActivationWatermarksSubscriptionsAndSourcesFollowActiveVersions(t *testing.T) {
@@ -45,7 +45,7 @@ func TestActivationWatermarksSubscriptionsAndSourcesFollowActiveVersions(t *test
 	require.NoError(t, err)
 	require.Len(t, subs, 1)
 	require.Equal(t, ns+".onRenewed", subs[0].ID)
-	require.Equal(t, "core.events.UserCreated", subs[0].Event)
+	require.Equal(t, "core.events.userCreated.v1", subs[0].Event)
 	require.Equal(t, "1.0.0", subs[0].Version)
 	require.Equal(t, before, subs[0].AfterSeq, "events older than the activation are never replayed")
 	require.FileExists(t, subs[0].Artifact.Dir+"/server.mjs")

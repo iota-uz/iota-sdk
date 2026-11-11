@@ -15,7 +15,9 @@
 //	            return nil, err
 //	        }
 //	        return func(ctx context.Context, tx native.Tx, in UpsertIn) (UpsertOut, error) { ... }, nil
-//	    }))
+//	    })
+//
+//	func Natives(s *native.Set) error { return s.Add(UpsertClient, ClientUpdated, native.Entity(...)) }
 //
 // The Go default is a factory over the application's dependencies (Deps, the
 // composition container), so one process can host several applications.
@@ -34,8 +36,6 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
-	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
@@ -388,72 +388,4 @@ func guarded(d Definition, run func() (json.RawMessage, error)) (json.RawMessage
 
 func kindMismatch(d Definition, want string) error {
 	return serrors.New(serrors.Internal, fmt.Sprintf("native %s is a %s, not %s", d.ID(), d.Kind(), want))
-}
-
-// Set is a registry of native contracts.
-type Set struct {
-	mu   sync.RWMutex
-	defs map[string]Definition
-}
-
-// NewSet returns an empty registry.
-func NewSet() *Set { return &Set{defs: map[string]Definition{}} }
-
-// Default holds the native contracts declared by the modules linked into the
-// process. The catalog publishes them and the kit is generated from them.
-var Default = NewSet()
-
-// Register adds definitions; an ID can be registered once.
-func (s *Set) Register(defs ...Definition) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, d := range defs {
-		if prev, dup := s.defs[d.ID()]; dup {
-			if prev == d {
-				continue
-			}
-			return serrors.New(serrors.AlreadyExists, "native contract "+d.ID()+" registered twice")
-		}
-		s.defs[d.ID()] = d
-	}
-	return nil
-}
-
-// MustRegister registers d into Default and returns it; it panics on a
-// duplicate ID. Use it for package-level declarations.
-func MustRegister[D Definition](d D) D {
-	if err := Default.Register(d); err != nil {
-		panic(err)
-	}
-	return d
-}
-
-// Get returns a definition.
-func (s *Set) Get(id string) (Definition, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	d, ok := s.defs[id]
-	return d, ok
-}
-
-// Definitions lists the definitions sorted by ID.
-func (s *Set) Definitions() []Definition {
-	s.mu.RLock()
-	out := make([]Definition, 0, len(s.defs))
-	for _, d := range s.defs {
-		out = append(out, d)
-	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].ID() < out[j].ID() })
-	return out
-}
-
-// Resources lists the published contracts sorted by ID.
-func (s *Set) Resources() []manifest.Resource {
-	defs := s.Definitions()
-	out := make([]manifest.Resource, 0, len(defs))
-	for _, d := range defs {
-		out = append(out, d.Resource())
-	}
-	return out
 }

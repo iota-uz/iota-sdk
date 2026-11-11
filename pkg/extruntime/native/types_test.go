@@ -170,7 +170,7 @@ func TestDefinitionsPublishTheirContract(t *testing.T) {
 	require.True(t, cmd.Resource().Atomic)
 
 	set := native.NewSet()
-	require.NoError(t, set.Register(op, cmd, op))
-	require.Error(t, set.Register(native.Operation[line, line]("acme.x.op", native.Spec{}, nil)), "one definition per ID")
+	require.NoError(t, set.Add(op, cmd, op))
+	require.Error(t, set.Add(native.Operation[line, line]("acme.x.op", native.Spec{}, nil)), "one definition per ID")
 	require.Equal(t, []string{"acme.x.atomic", "acme.x.op"}, []string{set.Resources()[0].ID, set.Resources()[1].ID})
 }

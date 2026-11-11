@@ -63,7 +63,7 @@ func TestRequeueReceiptsIsOperatorOnlyScopedToTheTenantAndAudited(t *testing.T) 
 	otherTenant := uuid.New()
 	e.exec(`INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())`, otherTenant, "t-"+otherTenant.String()[:8], otherTenant.String()[:8]+".test")
 	insert := func(tenant uuid.UUID, status string) string {
-		id := e.scalar(`INSERT INTO extruntime.outbox_events (id, tenant_id, event, payload) VALUES (gen_random_uuid(), $1, 'core.events.UserCreated', '{}') RETURNING id::text`, tenant)
+		id := e.scalar(`INSERT INTO extruntime.outbox_events (id, tenant_id, event, payload) VALUES (gen_random_uuid(), $1, 'core.events.userCreated.v1', '{}') RETURNING id::text`, tenant)
 		e.exec(`INSERT INTO extruntime.subscription_receipts (subscription, event_id, tenant_id, status, attempts, next_at, last_error)
 			VALUES ($1, $2::uuid, $3, $4, 5, now() + interval '1 hour', 'poison')`, sub, id, tenant, status)
 		return id

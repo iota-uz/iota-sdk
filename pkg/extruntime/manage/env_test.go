@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage/managetest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
@@ -58,11 +59,11 @@ func newEnv(t *testing.T, opts ...func(*manage.Config)) *env {
 	var err error
 	e.arts, err = artifact.NewStore(e.db, e.cache)
 	require.NoError(t, err)
-	e.natives = catalog.NewNativeSet(data.DefaultNatives())
-	require.NoError(t, e.natives.Register(manifest.Resource{ID: "core.commands.RejectIncoming", Kind: manifest.ResCommand,
-		Input: &manifest.Type{Kind: manifest.KindObject}, Output: &manifest.Type{Kind: manifest.KindObject}}))
-	require.NoError(t, e.natives.Register(manifest.Resource{ID: "core.events.UserCreated", Kind: manifest.ResEvent,
-		Payload: &manifest.Type{Kind: manifest.KindObject}}))
+	set := native.NewSet()
+	require.NoError(t, set.Add(native.Entity(data.CoreUser()), native.Entity(data.CRMClient()),
+		native.Command[struct{}, struct{}]("core.commands.rejectIncoming", native.Spec{}, nil),
+		native.Event[struct{}]("core.events.userCreated.v1", native.EventSpec{})))
+	e.natives = catalog.Natives(set)
 	e.cat = catalog.New(e.db, e.natives)
 	cfg := manage.Config{DB: e.db, Builder: e.builder, Kits: e.kits, Artifacts: e.arts, Catalog: e.cat, Natives: data.DefaultNatives()}
 	for _, o := range opts {
@@ -137,7 +138,7 @@ func insuranceManifest(numberType manifest.Type, extra ...manifest.Field) manife
 			{Export: "renew", Implements: ns + ".renewPolicy", Kind: manifest.ImplCommand},
 			{Export: "activate", Implements: ns + ".activatePolicy", Kind: manifest.ImplAtomic},
 		},
-		Subscriptions: []manifest.Subscription{{ID: ns + ".onRenewed", Export: "onRenewed", Event: "core.events.UserCreated"}},
+		Subscriptions: []manifest.Subscription{{ID: ns + ".onRenewed", Export: "onRenewed", Event: "core.events.userCreated.v1"}},
 	}
 }
 

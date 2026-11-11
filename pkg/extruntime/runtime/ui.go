@@ -28,10 +28,6 @@ import (
 type UIConfig struct {
 	// Host describes the browser runtime host bundle. Required.
 	Host clienthost.Manifest
-	// NativeRoutes names the native pages a screen binding may replace; they
-	// are also registered as native route contracts so bindings can target
-	// them.
-	NativeRoutes ui.NativeRoutes
 	// SourceTTL is how long the activated snapshot is cached. Default 2s.
 	SourceTTL time.Duration
 	Logger    logrus.FieldLogger
@@ -108,7 +104,7 @@ func (rt *Runtime) UIConfig() (ui.Config, error) {
 		Artifacts: UIArtifacts{Store: rt.Artifacts},
 		Invoker:   rt.Host,
 		Catalog:   rt.Catalog,
-		Host:      rt.Config.UI.Host, NativeRoutes: rt.Config.UI.NativeRoutes, Logger: rt.Config.UI.Logger,
+		Host:      rt.Config.UI.Host, NativeRoutes: ui.NativeRoutes(rt.Natives.Routes()), Logger: rt.Config.UI.Logger,
 	}, nil
 }
 

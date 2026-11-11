@@ -133,7 +133,7 @@ Contracts you did not declare (users, CRM clients, other packages' commands) are
 
 ```ts
 import * as core from "@iota-kit/core"   // core.User, core.Created (the user-created event)
-import * as crm from "@iota-kit/crm"     // crm.Client, crm.Clients (the native list), crm.SaveClient, crm.UpsertClient
+import * as crm from "@iota-kit/crm"     // crm.Client, crm.ListsClients (the native list), crm.Created, crm.Updated, crm.SaveClient, crm.UpsertClient
 ```
 
 A kit module is generated from a **catalog snapshot**: native entities (with fields and key types), native lists, native
@@ -150,7 +150,8 @@ packages that are active. You get one of three ways:
 them into `node_modules/@iota-kit/` and records the snapshot hash in `node_modules/.iota-kit.json`. The token is read
 from the environment variable you name (never from the command line); `--cookie-env VAR` sends a session cookie header
 instead. The user needs the extensions *read* permission. An application exports a snapshot with
-`GET /_ext/manage/catalog/natives` or `catalog.NativeSet.Snapshot()`; the SDK's own is committed as
+`GET /_ext/manage/catalog/natives` or `catalog.Natives(set).Snapshot()` over its composed `native.Set`; the SDK's own
+(the set of `modules.Natives()`) is committed as
 `web/runtime/catalog/sdk-natives.json` (regenerate it with `go run ./cmd/extruntime-catalog`) and ships in the
 distribution. Rerun the command whenever the application's natives or other packages change; the build pins the kit hash
 in the manifest.
@@ -160,17 +161,20 @@ What a module exports:
 * **Native entities** (`core.User`, `crm.Client`) with their real fields and **key type** (`int64` for both; a ref's key
   is a decimal string such as `"42"`). You can read them, reference them in fields, put an overlay on them, but not
   write them with `tx.insert/update/delete` (§6).
-* **Native lists** (`crm.Clients`) that your `column(...)` contracts extend.
-* **Events** (`core.Created`), to subscribe to.
+* **Native lists** (`crm.ListsClients`) that your `column(...)` contracts extend.
+* **Native routes** (`crm.Clients`, the CRM clients page) you link to or replace with a screen binding.
+* **Events** (`core.Created`, `crm.Created`, `crm.Updated`), to subscribe to. Native events are published by Go in
+  the transaction of the change they report, so a subscription sees them only after that change committed and never
+  for a change that rolled back.
 * **Native commands, operations and queries**, implemented in Go (`crm.SaveClient`, `crm.UpsertClient`). You call them,
   guard them and — for commands — replace them (§7.4).
 * The public contracts of other active packages.
 
 Export names are the PascalCase of the last segment of the ID, a version suffix dropped; when two IDs would collide
-they take more segments (`crm.clients` the route and `crm.lists.clients` the list would become `Clients` and
-`ListsClients`). **The names depend on the catalog you generated from**: the offline SDK kit has `crm.Clients`; an
-application that also registers a `crm.clients` route publishes the list as `crm.ListsClients`. Pull the kit of the
-application you target and use the names it gives you.
+they take more segments (`crm.clients` the route and `crm.lists.clients` the list become `Clients` and
+`ListsClients`). The offline SDK kit and an application built on the SDK modules are generated from the same module
+registrations, so they agree on these names; an application that adds natives of its own can add names (and push an
+existing one to more segments when it collides), so pull the kit of the application you target.
 
 If an import fails with `graph.unknownKit` or TS2307 for `@iota-kit/…`, the module is not installed: the CLI says
 which command to run.
@@ -283,7 +287,7 @@ returns `null` for them (absence is explicit in the type) and the defaults apply
 
 ```ts
 // example/src/contracts.ts
-export const TierColumn = column(crm.Clients, {
+export const TierColumn = column(crm.ListsClients, {
   id: "acme.loyalty.tier",
   field: ClientLoyalty.fields.tier,
   label: { en: "Loyalty tier", ru: "Уровень" },
@@ -393,7 +397,8 @@ Go modules publish **native contracts**: operations, atomic commands, ordinary c
 visible in the kit. The CRM publishes two for its clients:
 
 * `crm.UpsertClient` (operation): the invariant behind every client write: authorization, value validation
-  (phone, e-mail, PIN, country), persistence, change history and the client events.
+  (phone, e-mail, PIN, country), persistence, change history and the client events (`crm.Created` / `crm.Updated`,
+  in the same transaction, §9).
 * `crm.SaveClient` (ordinary command): the intent the client forms run; its Go default calls `UpsertClient` in one
   transaction.
 
@@ -508,6 +513,19 @@ export const onPointsChanged = subscribe("acme.loyalty.onPointsChanged", c.Point
   assigns to the trigger (`ext_owner_assign`). Without an owner the delivery is `blocked`, not lost.
 * Subscribe to platform events through the kit (`subscribe("…", core.Created, handler)`). `tx.start` inside a
   subscription needs no key: the delivery derives one, so redelivery cannot start a second workflow.
+* Platform events are published by Go through the same outbox, **in the transaction of the change**: `core.Created`
+  (`core.user.created.v1`) when a user is created; `crm.Created` / `crm.Updated` (`crm.client.created.v1` /
+  `crm.client.updated.v1`, subject `crm.client`) by `crm.UpsertClient`, so every client write that goes through it
+  — the CRM forms, a `crm.SaveClient` replacement, your own `tx.call(crm.UpsertClient, …)` — publishes one. The
+  payload carries the client's published fields (`clientId`, `firstName`, optional `lastName`, `middleName`,
+  `phone`, `email`; never PIN or passport) and, for updates, `changed`: the `crm.client` field IDs the write changed.
+  A save that rolls back publishes nothing.
+
+```ts
+export const onClientUpdated = subscribe("acme.loyalty.onClientUpdated", crm.Updated, async (tx, event) => {
+  if (event.payload.changed.includes("phone")) tx.log.info("client phone changed", { client: event.payload.clientId })
+})
+```
 
 ## 10. Workflows
 
@@ -810,8 +828,12 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 | `fakes` | `sms`, `email`, `push`, `inApp`, `http` |
 
 What the host reproduces from the Go data layer: SQL null semantics, filters through refs, ordering with the primary-key
-tie-break, read rules before filter and paging, hidden fields, unique constraints, `rowVersion` conflicts, native-write
-refusal, write rules, rollback of events/notices/starts/signals. **What it does not do**: it does not check a contract's
+tie-break, read rules before filter and paging, hidden fields (not readable, filterable, sortable or writable), overlay
+rows readable only with their base row, unique constraints (`data.unique`), `rowVersion` conflicts, native-write
+refusal (`data.nativeWrite`), the `tx.call` / `ctx.call` rules (`runtime.ordinaryCommandInTx`,
+`runtime.intentInTransaction`, `runtime.nestedTransaction`), write rules, rollback of events/notices/starts/signals.
+These semantics are pinned by a shared conformance suite (`web/runtime/tests/conformance/cases.json`) that runs the
+same package and cases on this host and on the Go host with PostgreSQL, so the two cannot drift apart. **What it does not do**: it does not check a contract's
 `permission` (you call the handler directly; test the gate in the application's end-to-end suite), it does not verify
 that a ref points at an existing row, and handlers see one logical process (no concurrency).
 
