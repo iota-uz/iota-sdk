@@ -246,6 +246,10 @@ export class RemoteError extends Error {
   }
 }
 
+export { RuntimeProvider, useCommand, useQuery } from './client-host/hooks.ts'
+export type { CallError, CommandResult, QueryResult } from './client-host/hooks.ts'
+export { TransportError, UnauthenticatedError } from './client-host/transport.ts'
+
 /** A remote error narrowed to a declared domain error: `params` has the contract's type. */
 export interface DomainRemoteError<Id extends string, P> extends RemoteError {
   readonly body: RemoteErrorBody & { readonly kind: 'domain'; readonly code: Id; readonly params: P }

@@ -5,7 +5,7 @@ import {
   $, ContractError, entity, field, href, issue, overlay, ref, route, t, validation, workflow, domainError,
   type Infer, type Json, type Ref, type Row, type UserRef, type ValidationIssue,
 } from '../src/index.ts'
-import { isError, issuesOf, page, RemoteError } from '../src/client.ts'
+import { isError, issuesOf, page, RemoteError, type CallError } from '../src/client.ts'
 import {
   endpoint, guard, implement, precheck, recipient, writeRule,
   type CommandContext, type EndpointRequest, type GuardContext, type QueryContext, type Tx, type WorkflowContext,
@@ -181,6 +181,15 @@ void literal
 void validation(c.TooLong.at(['notes'], { max: 1 }), c.TooLong.at(['other'], { max: 2 }))
 // @ts-expect-error ContractError cannot be constructed by authors
 void new ContractError('domain', 'x', null, [])
+// the hooks' error type narrows the same way
+function hookErrors(error: CallError | undefined): void {
+  if (isError(error, c.NotActive)) {
+    const status: string = error.body.params.status
+    void status
+  }
+  for (const i of issuesOf(error, c.TooLong)) void (i.params.max satisfies number)
+}
+void hookErrors
 async function clientGuards(err: unknown): Promise<void> {
   if (isError(err, c.NotActive)) {
     const status: string = err.body.params.status
