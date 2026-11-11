@@ -45,8 +45,9 @@ describe('pointer affordance', () => {
     const styles = readFileSync('src/styles.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
     const rule = /:where\(\.lens-root, \.lens-print-report\) :where\((?<controls>[^)]*)\)(?<exclusion>:not\([^{]*\))\s*\{\s*cursor: pointer;\s*\}/.exec(styles)?.groups
     expect(rule, 'the zero-specificity base cursor rule is gone').toBeDefined()
+    const selectors = new Set(rule!.controls!.split(',').map((selector) => selector.trim()).filter(Boolean))
     for (const control of ['button', 'summary', "[role='button']", "[role='tab']", "[role='menuitem']", "[role='option']", "input[type='checkbox']", 'label[for]']) {
-      expect(rule!.controls).toContain(control)
+      expect(selectors, `${control} must be listed on its own`).toContain(control)
     }
     expect(rule!.exclusion).toContain(':disabled')
     expect(rule!.exclusion).toContain("[aria-disabled='true']")

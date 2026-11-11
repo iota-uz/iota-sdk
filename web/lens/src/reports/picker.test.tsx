@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { createRoot, createSignal, Show } from 'solid-js'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { CatalogPage } from './contract/types'
 import { catalogEntries, catalogTarget, memoryCatalog, memoryDestinations } from '../stories/reportCatalog'
 import { appendReportPicks, createReportPickerSelection, parseCatalogPage, type ReportCardGenerateOptions, type ReportCatalogHost, type ReportPickerConfirmation } from './picker'
 import { ReportDestinationPicker } from './ReportDestinationPicker'
@@ -535,6 +536,39 @@ describe('ReportPicker AI card creation', () => {
     await waitFor(() => expect(row('created-1')).toBeTruthy())
     expect(host.generate).toHaveBeenCalledTimes(2)
     expect(host.generate.mock.calls[1]![0]).toMatchObject({ prompt: 'revenue per moon' })
+  })
+
+  // False green: a test that generates before the first search settles would never see a late page replace the list.
+  it('keeps a generated report visible and selected when a search that was pending finishes or fails afterwards', async () => {
+    const base = memoryCatalog()
+    const settle: Array<{ resolve: () => void; reject: () => void }> = []
+    const host: ReportCatalogHost = {
+      search: (query, options) => (settle.length === 0 && query.scope === 'all'
+        ? base.search(query, options)
+        : new Promise<CatalogPage>((resolve, reject) => {
+          settle.push({ resolve: () => resolve({ entries: [entry('report-03')] }), reject: () => reject(new Error('late failure')) })
+        })),
+      generate: () => Promise.resolve(created),
+    }
+    mountPicker({ host })
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    fireEvent.click(screen.getByRole('tab', { name: 'Mine' }))
+    open()
+    describeReport('x')
+    fireEvent.click(screen.getByTestId('report-picker-generate-submit'))
+    await waitFor(() => expect(row('created-1')).toBeTruthy())
+    expect(settle).toHaveLength(1)
+    settle[0]!.resolve()
+    await waitFor(() => expect(listed()).toEqual(['created-1', 'report-03']))
+    expect(checkbox('created-1')).toBeChecked()
+    expect(row('created-1')).toHaveTextContent('New')
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    await waitFor(() => expect(settle).toHaveLength(2))
+    settle[1]!.reject()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The reports could not be loaded.'))
+    expect(listed()).toEqual(['created-1'])
+    expect(checkbox('created-1')).toBeChecked()
+    expect(screen.getByTestId('report-picker-confirm')).toHaveTextContent('Add 1')
   })
 
   it('falls back to a generic reason when the rejection has none, and aborts when the drawer closes', async () => {

@@ -308,6 +308,15 @@ const staticStories = [
   ['report-picker--preview-dark', 0, 16],
   ['report-picker--loading-light', 0, 16],
   ['report-picker--loading-dark', 0, 16],
+  ['report-picker--ai-closed-light', 0, 16],
+  ['report-picker--ai-open-light', 0, 16],
+  ['report-picker--ai-open-dark', 0, 16],
+  ['report-picker--ai-working-light', 0, 16],
+  ['report-picker--ai-working-dark', 0, 16],
+  ['report-picker--ai-created-light', 0, 16],
+  ['report-picker--ai-created-dark', 0, 16],
+  ['report-picker--ai-failed-light', 0, 16],
+  ['report-picker--ai-failed-dark', 0, 16],
   ['report-picker--empty-light', 0, 16],
   ['report-picker--empty-dark', 0, 16],
   ['report-picker--no-matches-light', 0, 16],
@@ -656,6 +665,14 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
         ])
         return trigger && popover ? Math.round(popover.x - trigger.x) : undefined
       }).toBe(0)
+    }
+    // The AI stories reach their state through timers; capture only once it is on screen.
+    if (storyId.startsWith('report-picker--ai-')) {
+      const section = page.getByTestId('report-picker-generate')
+      if (storyId.includes('working')) await expect(section).toContainText('Building the report…')
+      if (storyId.includes('created')) await expect(section).toContainText('Press Add to put it on the dashboard')
+      if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
+      if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
     }
     await screenshot(page, storyId, { maxDiffPixels })
   })

@@ -32,6 +32,7 @@ export function memoryCatalog(options: MemoryCatalogOptions = {}): ReportCatalog
   const entries = options.entries ?? catalogEntries()
   let failures = options.failures ?? 0
   let previewFailures = options.previewFailures ?? 0
+  let generated = 0
   const host = {
     searches: 0,
     search(query, { signal }) {
@@ -74,7 +75,7 @@ export function memoryCatalog(options: MemoryCatalogOptions = {}): ReportCatalog
       if (generate.failWith) throw new Error(generate.failWith)
       const created: CatalogEntry = {
         ...structuredClone(entries[1]!),
-        id: 'generated-report',
+        id: `generated-report-${++generated}`,
         revision: '1',
         title: request.prompt.length > 48 ? `${request.prompt.slice(0, 47)}…` : request.prompt,
         ownership: 'personal',

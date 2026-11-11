@@ -66,7 +66,10 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
   const [moreFailed, setMoreFailed] = createSignal(false)
   const [reload, setReload] = createSignal(0)
   const [previewing, setPreviewing] = createSignal<CatalogEntry>()
-  const [created, setCreated] = createSignal<ReadonlySet<string>>(new Set())
+  // Reports made here live apart from fetched pages: a search that finishes (or fails) after the
+  // reader generated one must neither remove the selected row nor reorder it.
+  const [generated, setGenerated] = createSignal<CatalogEntry[]>([])
+  const created = () => new Set(generated().map((entry) => entry.id))
   const [confirming, setConfirming] = createSignal(false)
   const [confirmFailed, setConfirmFailed] = createSignal(false)
   let searchRef: HTMLInputElement | undefined
@@ -144,11 +147,12 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
   }
 
   const adopt = (entry: CatalogEntry) => {
-    setEntries([entry, ...entries().filter((known) => known.id !== entry.id)])
-    setCreated(new Set([...created(), entry.id]))
-    setState('ready')
+    setGenerated([entry, ...generated().filter((known) => known.id !== entry.id)])
     if (!selection.selected(entry.id)) selection.toggle(entry)
   }
+  // A generated report is the reader's own, so it stays while the search is empty or names it, under All or Mine.
+  const pinned = () => generated().filter((entry) => scope() !== 'shared' && entry.title.toLowerCase().includes(query().toLowerCase()))
+  const fetched = () => entries().filter((entry) => !created().has(entry.id))
 
   const closePreview = () => {
     const entry = previewing()
@@ -186,6 +190,20 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
 
   const selectedRestrictions = () => selection.picks().filter((pick) => pick.entry.restriction)
   const emptyCatalog = () => query() === '' && scope() === 'all'
+
+  const renderRow = (entry: CatalogEntry) => (
+    <PickerRow
+      created={created().has(entry.id)}
+      entry={entry}
+      onAddAnother={() => selection.addAnother(entry)}
+      onPreview={props.host.preview ? () => setPreviewing(entry) : undefined}
+      onToggle={() => selection.toggle(entry)}
+      ownership={ownership(entry)}
+      placed={placedCount(entry)}
+      previewRef={(element) => previewButtons.set(entry.id, element)}
+      selected={selection.selected(entry.id)}
+    />
+  )
 
   const footer = (
     <div class="lens-report-picker-footer">
@@ -282,6 +300,11 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
           </div>
         </div>
         <div aria-busy={state() === 'loading' || undefined} class="lens-report-picker-results" id="lens-report-picker-results" role="tabpanel">
+          <Show when={pinned().length > 0}>
+            <ul aria-label={translate('report.picker.list', 'Reports')} class="lens-report-picker-list" data-generated>
+              <For each={pinned()}>{renderRow}</For>
+            </ul>
+          </Show>
           <Switch>
             <Match when={state() === 'loading'}>
               <p class="lens-report-picker-state" role="status">{translate('report.picker.loading', 'Loading reports…')}</p>
@@ -294,7 +317,8 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
                 </button>
               </div>
             </Match>
-            <Match when={entries().length === 0}>
+            <Match when={fetched().length === 0 && pinned().length > 0}>{null}</Match>
+            <Match when={fetched().length === 0}>
               <p class="lens-report-picker-state" data-state={emptyCatalog() ? 'empty' : 'no-matches'} role="status">
                 {emptyCatalog()
                   ? translate('report.picker.empty', 'There are no reports to add yet.')
@@ -303,21 +327,7 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
             </Match>
             <Match when={true}>
               <ul aria-label={translate('report.picker.list', 'Reports')} class="lens-report-picker-list">
-                <For each={entries()}>
-                  {(entry) => (
-                    <PickerRow
-                      created={created().has(entry.id)}
-                      entry={entry}
-                      onAddAnother={() => selection.addAnother(entry)}
-                      onPreview={props.host.preview ? () => setPreviewing(entry) : undefined}
-                      onToggle={() => selection.toggle(entry)}
-                      ownership={ownership(entry)}
-                      placed={placedCount(entry)}
-                      previewRef={(element) => previewButtons.set(entry.id, element)}
-                      selected={selection.selected(entry.id)}
-                    />
-                  )}
-                </For>
+                <For each={fetched()}>{renderRow}</For>
               </ul>
               <Show when={next()}>
                 <div class="lens-report-picker-more">
