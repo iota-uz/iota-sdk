@@ -301,6 +301,20 @@ func TestAccessAppliesBeforePagination(t *testing.T) {
 	out, err := e.store.Find(e.ctx, e.tx, admin, policyID, spi.FindQuery{OrderBy: []spi.Order{{Field: "holder.name", Desc: true}, {Field: "number"}}, Limit: 2})
 	require.NoError(t, err)
 	assert.Equal(t, "N0", decodeList(t, out)[0]["number"], "order through a ref path")
+
+	// writes are gated on read access: a hidden row looks absent
+	for _, r := range decodeList(t, all) {
+		key := r["key"].(string)
+		_, err := e.store.Update(e.ctx, e.tx, subA, policyID, key, raw(map[string]any{"notes": "x"}))
+		delErr := e.store.Delete(e.ctx, e.tx, subA, policyID, key)
+		if strings.HasPrefix(r["number"].(string), "A") {
+			require.NoError(t, err)
+			require.NoError(t, delErr)
+		} else {
+			require.ErrorIs(t, err, data.ErrNotFound)
+			require.ErrorIs(t, delErr, data.ErrNotFound)
+		}
+	}
 }
 
 func TestFieldAccess(t *testing.T) {

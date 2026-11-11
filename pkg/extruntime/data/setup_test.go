@@ -207,3 +207,7 @@ func resource(m *manifest.Manifest, id string) *manifest.Resource {
 	}
 	panic("no resource " + id)
 }
+
+func (c *fakeCatalog) Guards(context.Context, string, manifest.GuardPhase) ([]spi.ResolvedGuard, error) {
+	return nil, nil
+}

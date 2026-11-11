@@ -256,6 +256,25 @@ func (s *Store) verifyNativeRefs(ctx context.Context, tx pgx.Tx, op serrors.Op, 
 	return nil
 }
 
+// readable reports whether the subject's read rules let it see the row; a
+// row it cannot read cannot be updated or deleted either (reported as not
+// found, so hidden rows do not leak through write errors).
+func (s *Store) readable(ctx context.Context, tx pgx.Tx, sc spi.Scope, m *model, key string) (bool, error) {
+	const op = serrors.Op("extruntime.data.Store.readable")
+	b := s.newBuilder(ctx, tx, sc, m)
+	where, err := b.where(sc.Subject, nil, rootAlias+"."+quoteIdent(m.KeyCol)+" = "+m.KeyType.bind(key, b.args))
+	if err != nil {
+		return false, err
+	}
+	rows, err := tx.Query(ctx, "SELECT 1"+b.from()+where, b.args.Values()...)
+	if err != nil {
+		return false, s.dbErr(op, m, err)
+	}
+	found := rows.Next()
+	rows.Close()
+	return found, rows.Err()
+}
+
 func (s *Store) lockRow(ctx context.Context, tx pgx.Tx, m *model, sub spi.Subject, key string) (*projection, *record, error) {
 	a := NewArgs(0)
 	p := m.project(rootAlias, allFields)
@@ -429,6 +448,13 @@ func (s *Store) Update(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity, key
 	if err != nil {
 		return nil, s.dbErr(op, m, err)
 	}
+	if existing != nil {
+		if ok, verr := s.readable(ctx, tx, sc, m, canonKey); verr != nil {
+			return nil, verr
+		} else if !ok {
+			existing = nil
+		}
+	}
 	if existing == nil {
 		return nil, fail(op, ErrNotFound, "%s %s", entity, canonKey)
 	}
@@ -507,6 +533,13 @@ func (s *Store) Delete(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity, key
 	all, existing, err := s.lockRow(ctx, tx, m, sc.Subject, canonKey)
 	if err != nil {
 		return s.dbErr(op, m, err)
+	}
+	if existing != nil {
+		if ok, verr := s.readable(ctx, tx, sc, m, canonKey); verr != nil {
+			return verr
+		} else if !ok {
+			existing = nil
+		}
 	}
 	if existing == nil {
 		return fail(op, ErrNotFound, "%s %s", entity, canonKey)
