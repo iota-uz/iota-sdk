@@ -160,8 +160,8 @@ func (e *env) invocations(contract string) []invocationRow {
 
 // ---- manifest type helpers ----
 
-func str() manifest.Type { return manifest.Type{Kind: manifest.KindString} }
-func num() manifest.Type { return manifest.Type{Kind: manifest.KindInt} }
+func str() manifest.Type     { return manifest.Type{Kind: manifest.KindString} }
+func num() manifest.Type     { return manifest.Type{Kind: manifest.KindInt} }
 func boolean() manifest.Type { return manifest.Type{Kind: manifest.KindBool} }
 
 func obj(props ...any) *manifest.Type {
@@ -205,7 +205,9 @@ func (a *artifacts) ResolveArtifact(_ context.Context, pkg, version string) (poo
 
 // ---- catalog ----
 
-type catalog struct{ res map[string]spi.ResolvedResource }
+type catalog struct {
+	res map[string]spi.ResolvedResource
+}
 
 func (c *catalog) Resolve(_ context.Context, id string) (spi.ResolvedResource, bool, error) {
 	r, ok := c.res[id]
@@ -367,6 +369,24 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 			return nil, err
 		}
 		return json.Marshal(map[string]any{"replay": false, "tx": h})
+	case "wf.transaction.call":
+		var a struct {
+			Callable string
+			Input    json.RawMessage
+		}
+		if err := json.Unmarshal(args, &a); err != nil {
+			return nil, err
+		}
+		h, err := call.OpenTx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out, err := call.CallInTx(ctx, h, a.Callable, a.Input)
+		if err != nil {
+			_ = call.EndTx(ctx, h, host.TxRollback)
+			return nil, err
+		}
+		return out, call.EndTx(ctx, h, host.TxCommit)
 	case "wf.transaction.end":
 		var a struct {
 			Tx      string

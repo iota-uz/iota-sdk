@@ -50,17 +50,24 @@ func invoke(art pool.Artifact, kind pool.Kind, export string, input string, call
 		Export:   export,
 		Resource: "acme.test." + export,
 		Input:    json.RawMessage(input),
-		Ctx:      pool.InvokeContext{Tenant: "t-1", User: pool.UserContext{ID: 7, Locale: "en"}},
-		Calls:    calls,
+		Ctx: pool.InvokeContext{
+			Tenant:  "t-1",
+			Trigger: "ui",
+			User:    pool.UserContext{ID: "7", Kind: "initiator", Locale: "en", Permissions: []string{"acme.read"}},
+		},
+		Calls: calls,
 	}
 }
 
 func TestInvokeEchoesInputAndContext(t *testing.T) {
 	p := newPool(t, 1)
-	art := pooltest.Artifact(t, `export const who = async (ctx, input) => ({ user: ctx.user.id, tenant: ctx.tenant, input });`)
+	art := pooltest.Artifact(t, `export const who = async (ctx, input) => ({
+  user: ctx.user.userId, tenant: ctx.user.tenantId, kind: ctx.user.kind, locale: ctx.user.locale,
+  canRead: ctx.user.has("acme.read"), canWrite: ctx.user.has("acme.write"), anyone: ctx.user.has(""),
+  trigger: ctx.invocation.trigger, hasParent: "parentId" in ctx.invocation, input });`)
 	out, err := p.Invoke(context.Background(), invoke(art, pool.KindCommand, "who", `{"a":1}`, nil))
 	require.NoError(t, err)
-	require.JSONEq(t, `{"user":7,"tenant":"t-1","input":{"a":1}}`, string(out))
+	require.JSONEq(t, `{"user":"7","tenant":"t-1","kind":"initiator","locale":"en","canRead":true,"canWrite":false,"anyone":true,"trigger":"ui","hasParent":false,"input":{"a":1}}`, string(out))
 }
 
 func TestHostCallsRoundTripWithHandleAndConsoleIsolation(t *testing.T) {
@@ -133,10 +140,10 @@ export const boom = async (ctx) => ctx.transaction(async () => { throw new Error
 
 func TestTwoVersionsSideBySideInOnePool(t *testing.T) {
 	p := newPool(t, 1)
-	v1 := pooltest.Artifact(t, `let n = 0; export const ver = async (ctx) => ({ v: "pkgA@1", user: ctx.user.id, calls: ++n });`)
-	v2 := pooltest.Artifact(t, `let n = 0; export const ver = async (ctx) => ({ v: "pkgA@2", user: ctx.user.id, calls: ++n });`)
-	other := pooltest.Artifact(t, `export const ver = async (ctx) => ({ v: "pkgB@1", tenant: ctx.tenant });`)
-	for i, want := range []string{`{"v":"pkgA@1","user":7,"calls":1}`, `{"v":"pkgA@2","user":7,"calls":1}`, `{"v":"pkgA@1","user":7,"calls":2}`, `{"v":"pkgB@1","tenant":"t-1"}`, `{"v":"pkgA@2","user":7,"calls":2}`} {
+	v1 := pooltest.Artifact(t, `let n = 0; export const ver = async (ctx) => ({ v: "pkgA@1", user: ctx.user.userId, calls: ++n });`)
+	v2 := pooltest.Artifact(t, `let n = 0; export const ver = async (ctx) => ({ v: "pkgA@2", user: ctx.user.userId, calls: ++n });`)
+	other := pooltest.Artifact(t, `export const ver = async (ctx) => ({ v: "pkgB@1", tenant: ctx.user.tenantId });`)
+	for i, want := range []string{`{"v":"pkgA@1","user":"7","calls":1}`, `{"v":"pkgA@2","user":"7","calls":1}`, `{"v":"pkgA@1","user":"7","calls":2}`, `{"v":"pkgB@1","tenant":"t-1"}`, `{"v":"pkgA@2","user":"7","calls":2}`} {
 		art := []pool.Artifact{v1, v2, v1, other, v2}[i]
 		out, err := p.Invoke(context.Background(), invoke(art, pool.KindCommand, "ver", `null`, nil))
 		require.NoError(t, err)
@@ -373,4 +380,98 @@ func TestWorkerEnvIsMinimal(t *testing.T) {
 
 	_, err = pool.New(pool.Config{WorkerScript: "x", ExtraEnv: []string{"HOME=/root"}})
 	require.Error(t, err)
+}
+
+func TestSDKShapedExportsAndContexts(t *testing.T) {
+	p := newPool(t, 1)
+	art := pooltest.Artifact(t, `
+const brand = Symbol.for("iota.resource");
+export const impl = { [brand]: true, serverKind: "implementation", handler: async (q, input) => {
+  const rows = await q.find({ id: "acme.test.item" }, { where: { label: "x", or: [{ n: { gt: 1 } }] }, orderBy: [{ field: "n", desc: true }], limit: 5 });
+  const n = await q.count({ id: "acme.test.item" }, { label: { like: "a%" } });
+  return { rows, n };
+} };
+export const endpointImpl = { [brand]: true, serverKind: "endpoint", handler: async (ctx) => ({ status: 200, body: { method: ctx.request.method, hasTx: typeof ctx.transaction } }) };
+export const sched = { [brand]: true, serverKind: "schedule", handler: async (ctx) => ({ slot: ctx.slot, hasCall: typeof ctx.call }) };
+export const tpl = { [brand]: true, serverKind: "templates", renderers: { sms: ({ payload, locale }) => "hi " + payload.name + " " + locale } };
+export const precheck = { [brand]: true, serverKind: "guard", phase: "input", handler: async (q, input) => typeof q.find + ":" + input.x };
+export const opGuard = { [brand]: true, serverKind: "guard", phase: "operation", handler: async (tx, input) => typeof tx.insert + ":" + input.x };
+export const flow = { [brand]: true, serverKind: "implementation", handler: async (wf, input) => {
+  const sig = { workflow: "acme.test.flow", name: "decision", schema: { type: { kind: "bool" } } };
+  const waited = await wf.waitFor("w", sig);
+  const timed = await wf.waitFor("w2", sig, { timeout: "1d" });
+  const task = await wf.task("approve", { subject: { entity: "e", key: "1" }, assignee: wf.user, decision: { type: { kind: "bool" } }, timeout: "3d" });
+  const handle = await wf.start("child", { id: "acme.test.child" }, { n: 1 });
+  const viaCallable = await wf.transaction("op", { id: "acme.test.op" }, { n: 2 });
+  return { instance: wf.instance.id, waited, timed, task, handle, viaCallable, now: await wf.now("t"), uuid: await wf.uuid("u") };
+} };`)
+
+	out, err := p.Invoke(context.Background(), invoke(art, pool.KindQuery, "impl", `null`, pool.HostCallsFunc(func(_ context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+		switch method {
+		case "q.find":
+			require.JSONEq(t, `{"entity":"acme.test.item","query":{"where":{"fields":{"label":{"eq":"x"}},"or":[{"fields":{"n":{"gt":1}}}]},"orderBy":[{"field":"n","desc":true}],"limit":5}}`, string(args))
+			return json.RawMessage(`[]`), nil
+		case "q.count":
+			require.JSONEq(t, `{"entity":"acme.test.item","where":{"fields":{"label":{"like":"a%"}}}}`, string(args))
+			return json.RawMessage(`3`), nil
+		}
+		return nil, errors.New("unexpected " + method)
+	})))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"rows":[],"n":3}`, string(out))
+
+	out, err = p.Invoke(context.Background(), invoke(art, pool.KindEndpoint, "endpointImpl", `{"method":"POST"}`, nil))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"status":200,"body":{"method":"POST","hasTx":"function"}}`, string(out))
+
+	out, err = p.Invoke(context.Background(), invoke(art, pool.KindSchedule, "sched", `{"slot":"2030-01-01T00:00:00Z"}`, nil))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"slot":"2030-01-01T00:00:00Z","hasCall":"function"}`, string(out))
+
+	out, err = p.Invoke(context.Background(), invoke(art, pool.KindTemplate, "tpl", `{"channel":"sms","payload":{"name":"Ann"},"locale":"uz"}`, nil))
+	require.NoError(t, err)
+	require.JSONEq(t, `"hi Ann uz"`, string(out))
+	_, err = p.Invoke(context.Background(), invoke(art, pool.KindTemplate, "tpl", `{"channel":"email","payload":{},"locale":"uz"}`, nil))
+	require.ErrorIs(t, err, pool.ErrExportMissing)
+
+	out, err = p.Invoke(context.Background(), invoke(art, pool.KindGuard, "precheck", `{"x":1}`, nil))
+	require.NoError(t, err)
+	require.JSONEq(t, `"function:1"`, string(out))
+	in := invoke(art, pool.KindGuard, "opGuard", `{"x":2}`, nil)
+	in.Ctx.Tx = "tx-1"
+	out, err = p.Invoke(context.Background(), in)
+	require.NoError(t, err)
+	require.JSONEq(t, `"function:2"`, string(out))
+
+	got := map[string]json.RawMessage{}
+	wf := invoke(art, pool.KindWorkflow, "flow", `null`, pool.HostCallsFunc(func(_ context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+		got[method] = args
+		switch method {
+		case "wf.waitFor":
+			var a struct{ Timeout string }
+			require.NoError(t, json.Unmarshal(args, &a))
+			if a.Timeout == "" {
+				return json.RawMessage(`{"outcome":"received","payload":true}`), nil
+			}
+			return json.RawMessage(`{"outcome":"timeout"}`), nil
+		case "wf.task":
+			return json.RawMessage(`{"outcome":"decided","decision":true,"by":"7"}`), nil
+		case "wf.start":
+			return json.RawMessage(`{"instance":"wfi-9"}`), nil
+		case "wf.transaction.call":
+			return json.RawMessage(`{"done":2}`), nil
+		case "wf.now":
+			return json.RawMessage(`"2030-01-01T00:00:00Z"`), nil
+		case "wf.uuid":
+			return json.RawMessage(`"u-1"`), nil
+		}
+		return nil, errors.New("unexpected " + method)
+	}))
+	wf.Ctx.Instance = "wfi-1"
+	out, err = p.Invoke(context.Background(), wf)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"instance":"wfi-1","waited":true,"timed":{"outcome":"timeout"},"task":{"outcome":"decided","decision":true,"by":"7"},"handle":{"workflow":"acme.test.child","instance":"wfi-9"},"viaCallable":{"done":2},"now":"2030-01-01T00:00:00Z","uuid":"u-1"}`, string(out))
+	require.JSONEq(t, `{"name":"w2","workflow":"acme.test.flow","signal":"decision","timeout":"1d"}`, string(got["wf.waitFor"]))
+	require.JSONEq(t, `{"name":"approve","subject":{"entity":"e","key":"1"},"assignee":{"entity":"core.user","key":"7"},"decision":{"kind":"bool"},"timeout":"3d"}`, string(got["wf.task"]))
+	require.JSONEq(t, `{"name":"op","callable":"acme.test.op","input":{"n":2}}`, string(got["wf.transaction.call"]))
 }

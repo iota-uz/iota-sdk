@@ -32,12 +32,17 @@ export type InvokeKind =
   | "workflow"
   | "guard"
   | "template"
-  | "endpoint";
+  | "endpoint"
+  | "schedule";
 
 export interface InvokeContext {
   tenant: string;
-  user: { id: number; locale?: string };
+  /** id is the int64 user id as a decimal string. */
+  user: { id: string; kind: "initiator" | "owner"; locale?: string; permissions: string[] };
   invocation: string;
+  trigger: "ui" | "mcp" | "endpoint" | "schedule" | "subscription" | "workflow";
+  parent?: string;
+  instance?: string;
   occurrence?: unknown;
   deadline?: string;
   tx?: string;

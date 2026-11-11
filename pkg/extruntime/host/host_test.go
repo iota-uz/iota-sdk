@@ -24,9 +24,9 @@ const domain = (code, params) => Object.assign(new Error(code), { kind: "domain"
 func TestTwoPackagesAndVersionsInOnePoolSeeTheirOwnCaller(t *testing.T) {
 	e := newEnv(t)
 	who := func(pkg string, ver int) string {
-		return jsPrelude + `export const who = async (ctx) => { await ctx.query.find(item); return { pkg: "` + pkg + `", ver: ` + itoa(ver) + `, user: ctx.user.id }; };`
+		return jsPrelude + `export const who = async (ctx) => { await ctx.query.find(item); return { pkg: "` + pkg + `", ver: ` + itoa(ver) + `, user: ctx.user.userId }; };`
 	}
-	out := obj("pkg", str(), "ver", num(), "user", num())
+	out := obj("pkg", str(), "ver", num(), "user", str())
 	e.publish("acme.a", "1.0.0", who("a", 1))
 	e.publish("acme.a", "2.0.0", who("a", 2))
 	e.publish("acme.b", "1.0.0", who("b", 1))
@@ -38,13 +38,13 @@ func TestTwoPackagesAndVersionsInOnePoolSeeTheirOwnCaller(t *testing.T) {
 		require.NoError(t, err)
 		return res
 	}
-	require.JSONEq(t, `{"pkg":"a","ver":1,"user":7}`, string(run("acme.a.who").Output))
-	require.JSONEq(t, `{"pkg":"b","ver":1,"user":7}`, string(run("acme.b.who").Output))
+	require.JSONEq(t, `{"pkg":"a","ver":1,"user":"7"}`, string(run("acme.a.who").Output))
+	require.JSONEq(t, `{"pkg":"b","ver":1,"user":"7"}`, string(run("acme.b.who").Output))
 
 	_, err := e.bindings.Activate(context.Background(), "acme.a.who", "acme.a", "2.0.0", "who", nil)
 	require.NoError(t, err)
 	res := run("acme.a.who")
-	require.JSONEq(t, `{"pkg":"a","ver":2,"user":7}`, string(res.Output))
+	require.JSONEq(t, `{"pkg":"a","ver":2,"user":"7"}`, string(res.Output))
 	require.Equal(t, "2.0.0", res.Binding.Version)
 
 	require.Equal(t, []spi.Caller{
@@ -463,10 +463,17 @@ func TestWorkflowHostCallsAreForwardedAndSuspendUnwinds(t *testing.T) {
 	e.publish("acme.a", "1.0.0", jsPrelude+`
 export const flow = async (wf, input) => {
   const created = await wf.transaction("load", async (tx) => tx.insert(item, { label: "from-wf" }));
+  const viaOp = await wf.transaction("op", { id: "acme.a.addLabel" }, { label: "from-op" });
+  if (viaOp.seen !== 2) throw new Error("operation did not join the wf transaction: " + viaOp.seen);
   try { await wf.sleep("cooldown", "1d"); } catch (e) { /* swallowed: must not matter */ }
   try { await wf.sleep("again", "1d"); } catch (e) { /* host calls after suspend never reach Go */ }
   return "unreachable " + created.key;
+};
+export const addLabel = async (tx, input) => {
+  await tx.insert(item, { label: input.label });
+  return { seen: await tx.count(item) };
 };`)
+	e.contract(manifest.Resource{ID: "acme.a.addLabel", Kind: manifest.ResOperation, Input: obj("label", str()), Output: obj("seen", num())}, "acme.a", "1.0.0", "addLabel")
 	art, _, err := e.art.ResolveArtifact(context.Background(), "acme.a", "1.0.0")
 	require.NoError(t, err)
 
@@ -480,9 +487,9 @@ export const flow = async (wf, input) => {
 	we, _ := pool.AsWireError(err)
 	require.JSONEq(t, `{"wakeAt":"2031-01-01T00:00:00Z"}`, string(we.Suspend))
 	require.Equal(t, host.OutcomeOK, res.Outcome, "suspension is the normal end of a run")
-	require.Equal(t, []string{"wf.transaction.begin", "wf.transaction.end", "wf.sleep"}, e.wf.methods)
-	require.Equal(t, []string{"from-wf"}, e.items(), "wf.transaction committed through the Go-owned tx")
-	require.Equal(t, 1, res.CommittedTxCount)
+	require.Equal(t, []string{"wf.transaction.begin", "wf.transaction.end", "wf.transaction.call", "wf.sleep"}, e.wf.methods)
+	require.Equal(t, []string{"from-wf", "from-op"}, e.items(), "wf.transaction committed through the Go-owned tx")
+	require.Equal(t, 2, res.CommittedTxCount)
 	require.Equal(t, spi.Caller{Package: "acme.a", Version: "1.0.0"}, e.wf.scopes[0].Caller)
 }
 

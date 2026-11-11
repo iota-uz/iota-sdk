@@ -134,11 +134,11 @@ func (p *Pool) spawn(slot int) (*worker, error) {
 	}
 
 	w := &worker{
-		pool:   p,
-		slot:   slot,
-		pid:    cmd.Process.Pid,
-		cmd:    cmd,
-		stdin:  stdin,
+		pool:       p,
+		slot:       slot,
+		pid:        cmd.Process.Pid,
+		cmd:        cmd,
+		stdin:      stdin,
 		exited:     make(chan struct{}),
 		stderrDone: make(chan struct{}),
 		active:     map[string]*run{},

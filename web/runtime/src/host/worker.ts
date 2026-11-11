@@ -7,7 +7,6 @@ import { pathToFileURL } from "node:url";
 
 import {
   createCommandContext,
-  createPlainContext,
   createQuery,
   createTx,
   createWorkflowContext,
@@ -127,16 +126,27 @@ function loadArtifact(artifact: { hash: string; dir: string }): Promise<Record<s
   return loaded;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+/** Server values are functions or branded objects carrying `handler` (or `renderers` for templates). */
 function resolveHandler(mod: Record<string, unknown>, name: string): Handler {
   const value = mod[name];
   if (typeof value === "function") return value as Handler;
-  if (value !== null && typeof value === "object") {
-    const holder = value as Record<string, unknown>;
-    for (const key of ["handler", "run"]) {
-      if (typeof holder[key] === "function") return (holder[key] as Handler).bind(value);
-    }
+  if (isObject(value) && typeof value.handler === "function") {
+    return (value.handler as Handler).bind(value);
   }
   throw internal(CODE.exportMissing, `export "${name}" is not an implementation`);
+}
+
+function resolveRenderer(mod: Record<string, unknown>, name: string, channel: string): Handler {
+  const value = mod[name];
+  const renderer = isObject(value) && isObject(value.renderers) ? value.renderers[channel] : undefined;
+  if (typeof renderer !== "function") {
+    throw internal(CODE.exportMissing, `export "${name}" has no ${channel} template`);
+  }
+  return renderer as Handler;
 }
 
 function requireTx(frame: InvokeFrame): string {
@@ -151,34 +161,42 @@ async function execute(frame: InvokeFrame, inv: Invocation): Promise<unknown> {
   if (!(frame.export in mod)) {
     throw internal(CODE.exportMissing, `artifact ${frame.artifact.hash} has no export "${frame.export}"`);
   }
-  const handler = resolveHandler(mod, frame.export);
 
   const deps: Deps = {
     invocation: frame.id,
     ctx: frame.ctx,
-    signal: inv.controller.signal,
     call: (method, args) => hostCall(inv, method, args),
     log: (level, message) => sendLog(frame.id, level, message),
   };
 
+  const exported = mod[frame.export];
   const scope = { open: true };
   try {
+    if (frame.kind === "template") {
+      const args = frame.input as { channel: string; payload: unknown; subject: unknown; locale: string };
+      return await resolveRenderer(mod, frame.export, args.channel)({ payload: args.payload, subject: args.subject, locale: args.locale });
+    }
+    const handler = resolveHandler(mod, frame.export);
     switch (frame.kind) {
       case "command":
+        return await handler(createCommandContext(deps), frame.input);
       case "endpoint":
-        return await handler(createCommandContext(deps, true), frame.input);
+        return await handler({ ...createCommandContext(deps), request: frame.input });
+      case "schedule":
+        return await handler({ ...createCommandContext(deps), slot: (frame.input as { slot: string }).slot });
       case "atomic":
       case "operation":
       case "subscription":
         return await handler(createTx(deps, requireTx(frame), scope), frame.input);
-      case "guard":
-        return await handler(frame.ctx.tx ? createTx(deps, frame.ctx.tx, scope) : createQuery(deps), frame.input);
+      case "guard": {
+        const phase = isObject(exported) ? exported.phase : undefined;
+        const wantsTx = phase === undefined ? frame.ctx.tx !== undefined : phase !== "input";
+        return await handler(wantsTx ? createTx(deps, requireTx(frame), scope) : createQuery(deps), frame.input);
+      }
       case "query":
         return await handler(createQuery(deps), frame.input);
       case "workflow":
         return await handler(createWorkflowContext(deps), frame.input);
-      case "template":
-        return await handler(frame.input, createPlainContext(deps));
       default:
         throw internal(CODE.badInvocation, `unsupported invocation kind "${String(frame.kind)}"`);
     }

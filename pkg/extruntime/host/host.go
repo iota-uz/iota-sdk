@@ -47,6 +47,10 @@ type WorkflowCall interface {
 	OpenTx(ctx context.Context) (handle string, err error)
 	WithTx(ctx context.Context, handle string, fn func(ctx context.Context, tx pgx.Tx) error) error
 	EndTx(ctx context.Context, handle string, outcome TxOutcome) error
+	// CallInTx runs an operation or atomic command joined to the handle's
+	// transaction (wf.transaction(name, callable, input)). Ordinary commands
+	// are rejected.
+	CallInTx(ctx context.Context, handle, contract string, input json.RawMessage) (json.RawMessage, error)
 }
 
 // WorkflowHandler serves wf.* host calls (wf.step.begin, wf.sleep, ...). The

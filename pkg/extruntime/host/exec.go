@@ -156,10 +156,20 @@ func errorJSON(err error) json.RawMessage {
 // calls the worker, validates the output and commits or rolls back.
 func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 	invCtx := pool.InvokeContext{
-		Tenant:     e.scope.Subject.TenantID.String(),
-		User:       pool.UserContext{ID: e.scope.Subject.UserID, Locale: e.scope.Subject.Locale},
+		Tenant: e.scope.Subject.TenantID.String(),
+		User: pool.UserContext{
+			ID:          strconv.FormatInt(e.scope.Subject.UserID, 10),
+			Kind:        subjectKind(e.scope.Subject),
+			Locale:      e.scope.Subject.Locale,
+			Permissions: append([]string{}, e.scope.Subject.Permissions...),
+		},
 		Invocation: e.id,
+		Trigger:    string(triggerKind(e.trigger().Kind)),
+		Instance:   e.root.producer.InstanceID,
 		Occurrence: e.spec.occurrence,
+	}
+	if e.spec.parent != nil {
+		invCtx.Parent = e.spec.parent.id
 	}
 	var ownTx *txHandle
 	switch {
@@ -318,6 +328,16 @@ func (e *execution) WithTx(ctx context.Context, handle string, fn func(ctx conte
 	return h.do(ctx, fn)
 }
 
+// CallInTx runs an operation or atomic command inside an engine-owned
+// transaction (wf.transaction with a callable).
+func (e *execution) CallInTx(ctx context.Context, handle, contract string, input json.RawMessage) (json.RawMessage, error) {
+	h, err := e.root.txs.lookup(handle)
+	if err != nil {
+		return nil, err
+	}
+	return e.callJoined(ctx, h, contract, input)
+}
+
 func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome) error {
 	h, err := e.root.txs.lookup(handle)
 	if err != nil {
@@ -415,15 +435,19 @@ func (e *execution) txCall(ctx context.Context, args json.RawMessage) (json.RawM
 	if err != nil {
 		return nil, err
 	}
-	res, err := e.h.resolveContract(ctx, a.Contract)
+	return e.callJoined(ctx, h, a.Contract, a.Input)
+}
+
+func (e *execution) callJoined(ctx context.Context, h *txHandle, contract string, input json.RawMessage) (json.RawMessage, error) {
+	res, err := e.h.resolveContract(ctx, contract)
 	if err != nil {
 		return nil, err
 	}
 	joinable := res.Resource.Kind == manifest.ResOperation || (res.Resource.Kind == manifest.ResCommand && res.Resource.Atomic)
 	if !joinable {
-		return nil, fail("runtime.ordinaryCommandInTx", "tx.call accepts only operations and atomic commands; %s is not", a.Contract)
+		return nil, fail("runtime.ordinaryCommandInTx", "tx.call accepts only operations and atomic commands; %s is not", contract)
 	}
-	return e.invokeNested(ctx, a.Contract, a.Input, h)
+	return e.invokeNested(ctx, contract, input, h)
 }
 
 // invokeCommand is ctx.call(Command): a new invocation that selects the
@@ -669,7 +693,7 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 			id, err = e.h.cfg.Starter.Start(ctx, tx, e.scope, spi.StartIntent{Workflow: a.Workflow, Input: a.Input, Key: key, Producer: e.producer()})
 			return err
 		})
-		return marshalID("instanceId", id, err)
+		return marshalID("instance", id, err)
 	}
 }
 

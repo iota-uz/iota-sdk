@@ -29,6 +29,7 @@ const (
 	KindGuard        Kind = "guard"
 	KindTemplate     Kind = "template"
 	KindEndpoint     Kind = "endpoint"
+	KindSchedule     Kind = "schedule"
 )
 
 // Artifact is an immutable directory addressed by content hash. The worker
@@ -38,10 +39,13 @@ type Artifact struct {
 	Dir  string `json:"dir"`
 }
 
-// UserContext is the acting subject exposed to handlers as ctx.user.
+// UserContext is the acting subject; the worker builds ctx.user (Principal)
+// from it. ID is the int64 user id as a decimal string (wire int64).
 type UserContext struct {
-	ID     int64  `json:"id"`
-	Locale string `json:"locale,omitempty"`
+	ID          string   `json:"id"`
+	Kind        string   `json:"kind"`
+	Locale      string   `json:"locale,omitempty"`
+	Permissions []string `json:"permissions"`
 }
 
 // InvokeContext is the "ctx" member of an invoke frame.
@@ -49,6 +53,9 @@ type InvokeContext struct {
 	Tenant     string          `json:"tenant"`
 	User       UserContext     `json:"user"`
 	Invocation string          `json:"invocation"`
+	Trigger    string          `json:"trigger"`
+	Parent     string          `json:"parent,omitempty"`
+	Instance   string          `json:"instance,omitempty"`
 	Occurrence json.RawMessage `json:"occurrence,omitempty"`
 	Deadline   string          `json:"deadline,omitempty"`
 	Tx         string          `json:"tx,omitempty"`
