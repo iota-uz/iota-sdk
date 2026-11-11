@@ -1,4 +1,4 @@
-import { createEffect } from 'solid-js'
+import { createEffect, lazy } from 'solid-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mountSolidClientRoute, readClientBootstrap, type ClientRouteContext } from '@iota-uz/sdk/client-host'
 import { documentPageData, mountRuntimePage, type RouteHost } from './page.ts'
@@ -122,6 +122,39 @@ describe('mountRuntimePage', () => {
     await tick()
     expect(mountEl().querySelector('[data-runtime-page-error]')).not.toBeNull()
     expect(mountEl().querySelector('[data-runtime-page-retry]')).toBeNull() // retry only helps loads
+    expect(console.error).toHaveBeenCalled()
+  })
+
+  it('shows the failure of a lazy page chunk that cannot be fetched, with Retry, instead of an empty page', async () => {
+    pageDocument()
+    const reload = vi.fn()
+    const chunk = deferred<{ default: () => HTMLElement }>()
+    const module = { policy: { component: lazy(() => chunk.promise) } }
+    dispose = mountRuntimePage({ document, host, transport, reload, importModule: async () => module })
+    await tick()
+    expect(mountEl().querySelector('[data-runtime-page-error]')).toBeNull() // still loading: nothing to report yet
+    chunk.reject(new TypeError('Failed to fetch dynamically imported module'))
+    await tick()
+    const alert = mountEl().querySelector('[data-runtime-page-error]')
+    expect(alert?.getAttribute('role')).toBe('alert')
+    expect(alert?.textContent).toContain('The screen could not be loaded.')
+    mountEl().querySelector<HTMLButtonElement>('[data-runtime-page-retry]')!.click()
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(console.error).toHaveBeenCalled()
+    dispose()
+    expect(mountEl().childNodes.length).toBe(0)
+    expect(mountEl().dataset.iotaClientOwner).toBeUndefined()
+  })
+
+  it('reports a page that throws while rendering as an invalid screen (no Retry) and releases its root', async () => {
+    pageDocument()
+    const module = { policy: { component: () => { throw new Error('boom') } } }
+    dispose = mountRuntimePage({ document, host, transport, importModule: async () => module })
+    await tick()
+    const alert = mountEl().querySelector('[data-runtime-page-error]')
+    expect(alert?.textContent).toContain('The screen module is invalid.')
+    expect(mountEl().querySelector('[data-runtime-page-retry]')).toBeNull()
+    expect(mountEl().dataset.iotaClientOwner).toBeUndefined()
     expect(console.error).toHaveBeenCalled()
   })
 

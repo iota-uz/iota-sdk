@@ -8,8 +8,9 @@ What is verified and what is not. The configuration, the composition (`pkg/extru
 "enable by environment → activate a package → call its command" are exercised by tests in this repository: the unit tests of
 the wiring and the config, and `cmd/server`'s `TestServerComposition_ExtensionRuntimeSmoke`, which composes the server's
 real component set on PostgreSQL, runs the Node workers of the built `@iota-uz/sdk` package and drives `/_ext/manage` and
-`/_ext/rpc`. The browser side of an application (its own frontend bundle with the runtime host entry) is **not** exercised
-here: the tests use a stub host manifest. The sections on it say what the server requires and no more.
+`/_ext/rpc`. The browser side of an application (its own frontend bundle with the runtime host entry) is exercised by the
+browser suite of §11 against a host bundle built from the SDK's entry with a minimal recipe, not by an application's real
+frontend build; the other tests use a stub host manifest. The sections on it say what the server requires and no more.
 
 ## 1. Enable the runtime
 
@@ -401,3 +402,53 @@ not state that any Granite work is done, and each row's last column is what to v
 
 Open items that are Granite's, not the SDK's: the frontend host bundle and manifest (#3781, #3782), the atomic bump of Go
 and npm pins (#3783), and the real providers behind the channel adapters.
+
+## 11. Testing the browser side
+
+`pkg/extruntime/e2e/browser` drives a real Chromium (Playwright) against the application that `pkg/extruntime/e2e` composes
+for its server-side scenarios: the SDK's modules on PostgreSQL, session authentication, the real Node workers and build
+worker, and the extension runtime UI. It asserts what the HTML-only scenarios cannot: that the canonical client host mounts,
+disposes and recovers what the server describes.
+
+| Spec | Verifies |
+|---|---|
+| `runtime-page.spec.ts` | a Solid page with a navigation entry: `useQuery` renders data, `useCommand` writes and the UI updates, typed route params arrive decoded, the root, its slot contributions and every listener are released when the document goes away or the route is unmounted, back/forward mounts once per visit, a user without the permission gets neither page nor menu entry |
+| `shell.spec.ts` | a bound shell renderer wraps a legacy Templ/HTMX page (an HTMX swap, an Alpine script and a modal keep working in the host-owned outlet) and a Solid page; `?iota-shell=standard` and closing the binding restore the standard shell; theme (the legacy `<html>` class follows) and locale are the user's |
+| `slots.spec.ts` | slot contributions on the CRM client page (full page and HTMX drawer) and on a Solid page; the audit contribution is absent from the HTML for a user without the permission; an HTMX swap of the region (or closing the drawer) disposes the root, a swap that brings the slot back mounts once |
+| `cells.spec.ts` | a cell renderer island in the CRM clients list: the package component replaces the standard cell, the standard value is still there without JavaScript or when the renderer cannot load, rows swapped by HTMX get and lose islands |
+| `bundle-failure.spec.ts` | the host's loading state, and the error state with Retry when the page module or the page's lazy component chunk answers 404; Retry reloads the document, writes nothing, and recovers |
+
+**How it runs.** `TestBrowserServer` (`pkg/extruntime/e2e/browser_server_test.go`) is skipped unless
+`IOTA_EXT_BROWSER_STATE` names a file. When the Playwright global setup starts it, it composes the application, activates
+the fixture packages (`testdata/browser` plus the scenario fixtures) through the management API, mints session cookies for
+four users (`admin`, `auditor`, `member`, `viewer`), serves the application on `127.0.0.1:4290` with the static assets
+(htmx, Alpine, the theme script) and the **real host bundle** at `/assets/runtime-host.js`, and writes the URL and cookies
+to the state file. Specs bind and unbind the shell through `/_ext/manage` as the administrator. The bundle is built by
+`browser/build-host.mjs`: it is the minimal form of what an application's Vite build does with
+`@iota-uz/sdk/runtime/client-host/entry` (the `@iota-uz/sdk/client-host` alias, Solid's browser export conditions, the
+SDK identity stamped with the commit of the host manifest). Do not let a `tsconfig` `paths` entry point `solid-js` at a
+directory in an application bundle: it bypasses the package's export conditions and bundles Solid's server build, which
+fails in the browser with "Client-only API called on the server side".
+
+**Locally** (Node 20+, Go, the database of the other e2e tests — the `DB_*` variables or `.env`):
+
+```bash
+just extruntime-browser                       # install deps, fetch Chromium, run the whole suite (~1 min after the first Go build)
+just extruntime-browser slots.spec.ts         # one spec
+just extruntime-browser -g "Retry" --headed   # any `playwright test` flag
+```
+
+To iterate on specs without rebuilding and restarting the server, start `TestBrowserServer` yourself (a compiled binary
+reading its stdin until it closes; env `IOTA_EXT_BROWSER_STATE`, `IOTA_EXT_BROWSER_HOST_JS` — the output of
+`node pkg/extruntime/e2e/browser/build-host.mjs <file>` — and `IOTA_EXT_BROWSER_PORT`) and run Playwright with
+`IOTA_EXT_BROWSER_ATTACH=<state file>`; the setup then attaches instead of starting a server.
+
+**In CI** run the same recipe on a runner with PostgreSQL configured like the Go test job, Node, Go and the Chromium system
+libraries (`npx playwright install-deps chromium`). Failures leave screenshots and traces in
+`pkg/extruntime/e2e/browser/test-results` (and an HTML report in `playwright-report` when `CI` is set).
+
+**Limits.** The stylesheet compiled by `just css` is not required (an empty `main.min.css` is served when it is absent), so
+the specs assert on DOM and behavior, never on layout; the realtime socket (`/ws`) of the standard layout is not served;
+and restoring a page from the browser's back/forward cache is not exercised: the layout's pages were not bfcache-eligible
+in the Chromium used (`pageshow.persisted` stayed false with the feature enabled), so the host's `pagehide` disposal never
+met a `pageshow` restore there.

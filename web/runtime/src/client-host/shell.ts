@@ -60,6 +60,23 @@ export interface LoadedShell {
   component: Component<ShellProps>
 }
 
+/**
+ * The standard layout's theme controller (`window.iotaTheme`, theme.js) owns the class of <html> that Tailwind's
+ * `dark:` variants read and the stored choice. The host theme service only writes `data-theme`, so a renderer that
+ * changed the theme through it alone would leave the legacy page content in the old theme and forget the choice on
+ * the next page. Keep the controller in step; without one, the class is the resolved theme.
+ */
+function syncLegacyTheme(win: Window, mode: ThemeMode, resolved: 'light' | 'dark'): void {
+  const legacy = (win as Window & { iotaTheme?: { change?(choice: string): void } }).iotaTheme
+  if (typeof legacy?.change === 'function') {
+    legacy.change(mode)
+    return
+  }
+  const root = win.document.documentElement
+  root.classList.remove('light', 'dark', 'system')
+  root.classList.add(resolved)
+}
+
 function toItem(node: ShellNode, location: Location | undefined): NavItemModel {
   const href = node.href ?? ''
   return {
@@ -143,6 +160,7 @@ export function createShellRenderer(options: ShellRendererOptions): ShellRendere
           set(next) {
             setMode(next)
             const target = next === 'system' ? (win.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : next
+            syncLegacyTheme(win, next, target)
             ctx.theme.set(target)
           },
         }
