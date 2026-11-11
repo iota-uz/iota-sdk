@@ -24,14 +24,14 @@ func (e *env) seenRows(a *actor) []seenRow {
 	return rows
 }
 
-// Scenario 14: the CRM module publishes crm.client.updated.v1 through the
+// Scenario 15: the CRM module publishes crm.client.updated.v1 through the
 // transactional outbox in the upsertClient transaction (declared in the
 // application's native set, so it is in the kit as crm.Updated). A package
 // subscription receives the update made through the CRM HTTP edit form after
 // the commit; a save that rolls back (a package command that writes through
 // crm.operations.upsertClient and then fails) leaves no event and delivers
 // nothing.
-func TestScenario14CRMClientEventsThroughTheOutbox(t *testing.T) {
+func TestScenario15CRMClientEventsThroughTheOutbox(t *testing.T) {
 	e := newEnv(t)
 	admin := e.admin
 	const ns = "e2e.clientwatch"
