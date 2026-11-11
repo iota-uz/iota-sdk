@@ -117,6 +117,9 @@ type runState struct {
 	// staleErr is set once the lease is lost or the instance terminated: the
 	// run must not record anything and every further host call fails with it.
 	staleErr *pool.WireError
+	// abortErr is the infrastructure failure that ended the run: every further
+	// host call is refused and the run is retried with backoff.
+	abortErr error
 }
 
 func (rs *runState) get(name string, n int) (Occurrence, bool) {
@@ -153,6 +156,20 @@ func (rs *runState) markStale(err *pool.WireError) {
 		rs.staleErr = err
 	}
 	rs.mu.Unlock()
+}
+
+func (rs *runState) abort(err error) {
+	rs.mu.Lock()
+	if rs.abortErr == nil {
+		rs.abortErr = err
+	}
+	rs.mu.Unlock()
+}
+
+func (rs *runState) aborted() error {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	return rs.abortErr
 }
 
 func (rs *runState) stale() *pool.WireError {

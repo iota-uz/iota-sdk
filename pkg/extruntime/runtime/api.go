@@ -204,6 +204,7 @@ func (a *API) Handler() http.Handler {
 	r.HandleFunc("/workflows/{id}/retry", a.wrap(a.retryOccurrence)).Methods(http.MethodPost)
 	r.HandleFunc("/workflows/{id}/resume", a.wrap(a.resumeWorkflow)).Methods(http.MethodPost)
 	r.HandleFunc("/tasks/{id}/decide", a.wrap(a.decideTask)).Methods(http.MethodPost)
+	r.HandleFunc("/subscriptions/{subscription}/requeue", a.wrap(a.requeueReceipts)).Methods(http.MethodPost)
 	return root
 }
 
@@ -581,6 +582,21 @@ func (a *API) resumeWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.S
 		return 0, nil, err
 	}
 	return http.StatusNoContent, nil, a.svc.ResumeWorkflow(r.Context(), actor, id)
+}
+
+// requeueReceipts gives the dead-lettered and blocked deliveries of a
+// subscription (or of one event, {"event": "<id>"}) a fresh start.
+func (a *API) requeueReceipts(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in struct {
+		Event string `json:"event"`
+	}
+	if r.ContentLength != 0 {
+		if err := decode(r, w, &in); err != nil {
+			return 0, nil, err
+		}
+	}
+	n, err := a.svc.RequeueReceipts(r.Context(), actor, vars(r, "subscription"), in.Event)
+	return http.StatusOK, map[string]int64{"requeued": n}, err
 }
 
 func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {

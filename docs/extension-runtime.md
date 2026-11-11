@@ -409,7 +409,8 @@ transaction receipts and per-instance artifact pinning.
 * Dispatcher (after commit; LISTEN/NOTIFY + poll) delivers to each **active** subscription in
   `seq` order from its cursor (cursor initialized at activation → no automatic replay of the
   journal on handler update). Each delivery = own tx: handler (Tx) + receipt; duplicate
-  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id`.
+  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id#n` (n = order of
+  the keyless `tx.start` calls inside the delivery).
 * Subject: event initiator's current rights; no initiator → `trigger_owners` owner-user
   (assigned at activation; activation fails without one).
 
@@ -510,6 +511,37 @@ subscription's `AfterSeq`. The management slice supplies `workflow.Implementatio
 sequentially; `wf.user.has()` reads current rights and is not journaled; xmin gating uses the
 cluster snapshot horizon (a long transaction anywhere delays delivery); schedule slots older
 than `Lookback` (15 min) are skipped.
+
+**Engine/events hardening (as implemented)**:
+* `tx.start` without an explicit key derives `base#n`: inside `wf.transaction` / an atomic `wf.call` the
+  base is the occurrence `instance:name:n`, inside an ordinary command called by `wf.call` it is
+  `wf.call:<invocationId>`, inside subscriptions and schedules `subscription:event` / `schedule:id:slot`;
+  `n` counts the keyless starts of that unit, so a replay yields the same keys and a later occurrence can
+  never collide with an earlier child.
+* `DecideTask` locks the instance row before the task (same order as every run write) and wakes it under
+  that lock, like `deliverSignal`; `Resolve`/`Retry` read `blocked` under `FOR UPDATE` in the tx that edits
+  the journal.
+* Infrastructure failures (database/connection errors, lost worker, closed or full pool, cancelled run)
+  are `host.InfraError`: a host call that hits one aborts the workflow run (further calls get
+  `workflow.runAborted`), the lease is released and the run is replayed after the backoff
+  (`failures` counts; `MaxRunFailures` blocks with `failing`). They are never journaled as `OccFailed`;
+  an ordinary `wf.call` that hit one stays `started`, its invocation is recorded `unknown`, and the replay
+  blocks it `ambiguous` (resolve/retry) like a lost worker. Events and schedules retry such a failure after
+  the backoff without counting an attempt, so an outage cannot dead-letter anything.
+* `events.RequeueReceipts` (`Service.RequeueReceipts`, `POST /_ext/manage/subscriptions/{id}/requeue`,
+  operate permission, audited as `events.requeue`) turns `dead` and `blocked` receipts of the tenant back
+  into due `failed` ones with no attempts counted. Schedule runs have no requeue: a dead slot is outside the
+  15 min lookback anyway.
+* `tx.start` / `wf.start` check the workflow contract's `Permission` against the subject (`tx.start`:
+  reloaded current rights, `workflow.startDenied`; `wf.start`: the run's subject, instance `blocked: denied`).
+* A run of an instance whose package has no active version blocks it with `packageDeactivated`
+  (`workflow.PackageGate`, implemented by `manage` over the catalog); `Resume` continues it once the package
+  is active again. Subscriptions and schedules of a deactivated package are not listed by the sources, so
+  nothing is delivered or fired for them. A schedule never fires slots older than its activation
+  (`ScheduleDef.ActiveFrom`).
+* A transaction cannot commit while an invocation joined to it (`tx.call`, `tx.query`) is still running or
+  was cut short because its caller finished: an un-awaited `tx.call` rolls the transaction back with
+  `runtime.nestedInFlight` instead of committing half of it.
 
 ### 9.1 TypeScript authoring API audit (supersedes §2 where it differs)
 

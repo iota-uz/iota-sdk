@@ -204,6 +204,15 @@ func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
 
 func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 	inst := rs.inst
+	if gate, ok := e.cfg.Impl.(PackageGate); ok {
+		active, gerr := gate.PackageActive(runCtx, inst.Package)
+		switch {
+		case gerr != nil:
+			return e.finishTransient(parent, rs, gerr)
+		case !active:
+			return e.finishBlocked(parent, rs, BlockPackageDeactivated, fmt.Sprintf("package %s has no active version; resume the instance after it is activated again", inst.Package))
+		}
+	}
 	subject, err := e.cfg.Subjects.LoadSubject(runCtx, inst.TenantID, inst.SubjectUserID, inst.SubjectKind)
 	switch {
 	case errors.Is(err, host.ErrSubjectBlocked):
@@ -240,13 +249,12 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 				Artifact: art, Secrets: secrets,
 			},
 		},
-		Input:        inst.Input,
-		Subject:      subject,
-		Trigger:      host.Trigger{Kind: host.TriggerWorkflow, Ref: inst.ID.String()},
-		Producer:     spi.Producer{InstanceID: inst.ID.String()},
-		StartKeyBase: inst.ID.String(),
-		Occurrence:   rs.journalPayload(),
-		Token:        rs.token,
+		Input:      inst.Input,
+		Subject:    subject,
+		Trigger:    host.Trigger{Kind: host.TriggerWorkflow, Ref: inst.ID.String()},
+		Producer:   spi.Producer{InstanceID: inst.ID.String()},
+		Occurrence: rs.journalPayload(),
+		Token:      rs.token,
 	})
 
 	if we := rs.stale(); we != nil {
@@ -255,6 +263,11 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 	}
 	if b := rs.blockedInfo(); b != nil {
 		return e.finishBlocked(parent, rs, b.reason, b.detail)
+	}
+	if ab := rs.aborted(); ab != nil {
+		// A host call hit the infrastructure: whatever the workflow made of it,
+		// the run is replayed after a backoff, never failed or completed.
+		return e.finishTransient(parent, rs, ab)
 	}
 	switch {
 	case runErr == nil:
@@ -266,6 +279,8 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 		return e.finishSuspended(parent, rs)
 	case parent.Err() != nil:
 		return e.finishTransient(parent, rs, parent.Err())
+	case host.IsInfrastructure(runErr):
+		return e.finishTransient(parent, rs, runErr)
 	}
 	var we *pool.WireError
 	if errors.As(runErr, &we) {
@@ -281,8 +296,8 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 		}
 		return e.finishFailed(parent, rs, we)
 	}
-	// Worker lost, pool closed, run timeout, database errors: nothing about
-	// the business logic is known, so the instance is replayed later.
+	// Run timeout and anything else untyped: nothing about the business logic
+	// is known, so the instance is replayed later.
 	return e.finishTransient(parent, rs, runErr)
 }
 
