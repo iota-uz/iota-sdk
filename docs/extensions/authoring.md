@@ -665,12 +665,68 @@ export const clientContacts = implement(c.ClientContacts, async (q, record) => {
 * A template renderer exists per channel (`sms`, `email`, `inApp`, `push`); a channel without a renderer is skipped for
   that notice. Renderers receive `{ payload, subject, locale }` and may be async.
 * `recipient.record(ref)` needs a **contact resolver** for that entity (`contactResolver(id, Entity)` + `implement`);
-  it returns the targets per channel (`sms`, `email`, `push`). `deliveryPolicy(id, Entity)` is the matching public
-  contract for consent and opt-out rules.
+  it returns the targets per channel (`sms`, `email`, `push`); a `push` target is a device token and each token is its
+  own delivery with its own outcome.
+* A **delivery policy** (`deliveryPolicy(id, Entity)` + `implement`) is where consent and opt-out live: the SDK has no
+  consent schema, the package that owns the data decides. See [Delivery policies](#delivery-policies).
 * `recipient.user(...)` addresses an ERP user through the platform's notification preferences; it takes a ref to
   `core.user`.
 * Use a stable `name`/key on repeated sends in workflows (`wf.transaction("send:${id}", …)`) so a replay does not notify
   twice.
+
+### Delivery policies
+
+```ts
+// example/src/contracts.ts
+export const ClientConsent = deliveryPolicy("acme.loyalty.clientConsent", crm.Client)
+```
+
+```ts
+// example/src/server.ts
+export const clientConsent = implement(c.ClientConsent, async (q, request) => {
+  const consent = await q.find(c.Consent, { where: { client: request.recipient.ref }, limit: 1 })
+  if (request.channel === "sms" && consent[0]?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
+  return { allow: true }
+})
+```
+
+Once per notice, channel and **target** about to be created for a record recipient of the policy's entity, the platform
+calls every active policy of that entity. The call is made after the sender's transaction committed and never inside
+any write transaction; it runs as the **trigger owner** of the policy (assign one like for a contact resolver:
+`PUT /_ext/manage/triggers/{policyId}/owner`, `ext_owner_assign`) with that user's current rights. A policy of a
+package that is not active (deactivated, replaced, never activated) is simply not consulted.
+
+The request and the answer are a **public, versioned contract**; fields are only ever added.
+
+```jsonc
+// request (the second argument of the handler)
+{
+  "notice":    { "key": "acme.loyalty.redemption_result.v1", "version": 1, "snapshot": "acme.loyalty@1.4.0" },
+  "subject":   { "entity": "acme.loyalty.redemption", "key": "r-1" },   // null when the notice has none
+  "recipient": { "kind": "record", "ref": { "entity": "crm.client", "key": "c-1" }, "address": null },
+  "channel":   "sms",                                                   // "sms" | "email" | "push"
+  "target":    { "address": "+998901234567", "deviceId": null }         // deviceId only for a registered push device
+}
+// answer
+{ "allow": true }
+{ "allow": false, "reason": "sms_opt_out" }
+```
+
+* `notice.key` is the catalog key of the notice: its ID with each segment in snake_case and a trailing `.vN`.
+  `snapshot` is the package version that rendered it.
+* `recipient.kind` is `"record"` today (`ref` set, `address` null). Handle kinds you do not know by allowing; new kinds
+  will only be added with their own fields. Address recipients (a bare phone or email) have no entity to bind a policy
+  to and are governed by the application's Go-configured policy only.
+* `reason` is optional: a short machine code of `[a-z0-9_.-]`, at most 64 characters, without personal data. A denial
+  is stored per target as a **skipped** delivery with error code `policy_denied:<reason>` (or `policy_denied`); the
+  provider is not called and sibling targets (other channels, the other device) are unaffected.
+* Composition is deterministic: the Go-configured `ModuleOptions.NotificationDeliveryPolicy` is consulted first, then
+  the policies of active packages ordered by policy ID and package. **Any denial wins**; the first denial's reason is the
+  one stored and later policies are not asked.
+* A policy that cannot answer is never an implicit allow. No owner assigned, a handler that throws, or an answer that is
+  not `{ allow: boolean, reason?: string }` all leave the delivery waiting and retried (visible as `unresolved`, and
+  `failed` with `resolution_attempt_limit` when attempts run out, after which an operator can retry it). Assign the
+  owner or fix the policy and the waiting deliveries proceed.
 
 ## 12. Triggers
 
@@ -858,7 +914,8 @@ Each `host.deliveries` entry is `{ notice, channel, recipient, target, status, r
 `delivered`, `skipped` (no renderer for the channel, no address, no contact data; `reason` says which) or `failed` (the
 fake channel rejected it: `fakes.sms.failNext(new Error("down"))`, or the template threw). Delivery happens after commit,
 so a rolled-back transaction delivers nothing. Without any templates, `tx.notify` is only recorded in `host.notices`; with
-templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime.
+templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime. The test host does not
+evaluate delivery policies: unit-test a policy by calling its handler with a request of the shape above.
 
 ### 14.3 `fetch` and the fakes
 

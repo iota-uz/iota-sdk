@@ -332,16 +332,28 @@ export type { OutOf }
 export type Implementable =
   | Query | Command | Operation | AnyWorkflow | ContactResolver | DeliveryPolicy
 
-export type DeliveryRequest<E extends AnyEntity> = {
-  readonly record: Ref<E>
-  readonly notice: string
-  readonly channel: Channel
-  readonly target: string
+/**
+ * What a delivery policy is asked, once per notice, channel and target about to be created for a record recipient of
+ * its entity. Fields are only ever added. `recipient.kind` is `'record'` today (`ref` set, `address` null); handle
+ * unknown kinds by allowing. `target.deviceId` is set only for a registered push device. `notice.key` is the catalog
+ * key of the notice (its ID with each segment in snake_case and a trailing `.vN`, for example
+ * `acme.insurance.renewal_reminder.v1`).
+ */
+export interface DeliveryRequest<E extends AnyEntity> {
+  readonly notice: { readonly key: string; readonly version: number; readonly snapshot: string }
+  readonly subject: { readonly entity: string; readonly key: string } | null
+  readonly recipient: { readonly kind: 'record'; readonly ref: Ref<E>; readonly address: null }
+  readonly channel: 'sms' | 'email' | 'push'
+  readonly target: { readonly address: string; readonly deviceId: string | null }
 }
-export interface DeliveryDecision {
-  readonly allow: boolean
-  readonly reason?: string
-}
+
+/**
+ * The verdict of a delivery policy. A denial is recorded per target as a skipped delivery `policy_denied:<reason>`;
+ * `reason` is a short machine code (`[a-z0-9_.-]`, up to 64 characters) and must not contain personal data.
+ */
+export type DeliveryDecision =
+  | { readonly allow: true }
+  | { readonly allow: false; readonly reason?: string }
 
 /** Handler shape by contract kind. Atomic commands and operations get `Tx`; ordinary commands `CommandContext`. */
 export type HandlerOf<C> =

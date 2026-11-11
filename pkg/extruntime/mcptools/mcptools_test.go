@@ -353,6 +353,7 @@ func TestEveryToolIsRegisteredWithASchemaAndAPolicy(t *testing.T) {
 		"ext_owner_remove", "ext_kit_info", "ext_kit_module", "ext_audit_list", "ext_invoke", "ext_resource_list",
 		"ext_resource_get", "ext_workflow_list", "ext_workflow_get", "ext_workflow_signal", "ext_workflow_decide_task",
 		"ext_workflow_terminate", "ext_workflow_start_v2", "ext_workflow_resolve", "ext_workflow_retry", "ext_workflow_resume",
+		"ext_subscription_requeue",
 	} {
 		require.Contains(t, names, want)
 	}
@@ -470,6 +471,94 @@ func TestMCPAndHTTPShareRightsAndAudit(t *testing.T) {
 	}
 	require.GreaterOrEqual(t, denied, 3)
 	_ = ctx
+}
+
+// seedReceipts creates dead-lettered, blocked and delivered receipts of a
+// subscription and returns the event IDs (dead, dead, blocked, done).
+func (e *env) seedReceipts(subscription string) []uuid.UUID {
+	e.t.Helper()
+	ctx := context.Background()
+	ids := make([]uuid.UUID, 4)
+	for i, status := range []string{"dead", "dead", "blocked", "done"} {
+		ids[i] = uuid.New()
+		_, err := e.db.Exec(ctx, `INSERT INTO extruntime.outbox_events (id, tenant_id, event, payload) VALUES ($1, $2, 'acme.something.happened.v1', '{}')`, ids[i], e.tenant)
+		require.NoError(e.t, err)
+		_, err = e.db.Exec(ctx, `INSERT INTO extruntime.subscription_receipts (subscription, event_id, tenant_id, status, attempts, next_at)
+			VALUES ($1, $2, $3, $4, 5, now() + interval '1 day')`, subscription, ids[i], e.tenant, status)
+		require.NoError(e.t, err)
+	}
+	return ids
+}
+
+func (e *env) receiptStatuses(subscription string) []string {
+	e.t.Helper()
+	rows, err := e.db.Query(context.Background(), `SELECT status FROM extruntime.subscription_receipts WHERE subscription = $1 ORDER BY created_at, event_id`, subscription)
+	require.NoError(e.t, err)
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var st string
+		require.NoError(e.t, rows.Scan(&st))
+		out = append(out, st)
+	}
+	require.NoError(e.t, rows.Err())
+	sort.Strings(out)
+	return out
+}
+
+// ext_subscription_requeue is POST /_ext/manage/subscriptions/{id}/requeue: the
+// same right (Extensions.Operate), the same effect and the same audit rows.
+func TestSubscriptionRequeueOverMCPMatchesHTTP(t *testing.T) {
+	e := newEnv(t)
+	const httpSub, mcpSub = "acme.requeuehttp.onThing", "acme.requeuemcp.onThing"
+	httpIDs, mcpIDs := e.seedReceipts(httpSub), e.seedReceipts(mcpSub)
+
+	// --- HTTP
+	status, _ := e.http(readerID, http.MethodPost, "/subscriptions/"+httpSub+"/requeue", nil)
+	require.Equal(t, http.StatusForbidden, status)
+	status, out := e.http(adminID, http.MethodPost, "/subscriptions/"+httpSub+"/requeue", map[string]string{"event": httpIDs[0].String()})
+	require.Equal(t, http.StatusOK, status, string(out))
+	var httpOne struct {
+		Requeued int64 `json:"requeued"`
+	}
+	require.NoError(t, json.Unmarshal(out, &httpOne))
+	status, out = e.http(adminID, http.MethodPost, "/subscriptions/"+httpSub+"/requeue", nil)
+	require.Equal(t, http.StatusOK, status, string(out))
+	var httpAll struct {
+		Requeued int64 `json:"requeued"`
+	}
+	require.NoError(t, json.Unmarshal(out, &httpAll))
+	status, _ = e.http(adminID, http.MethodPost, "/subscriptions/"+httpSub+"/requeue", map[string]string{"event": "not-an-id"})
+	require.Equal(t, http.StatusBadRequest, status)
+
+	// --- MCP
+	e.failed(readerID, "ext_subscription_requeue", map[string]string{"subscription": mcpSub}, mcp.CodeForbidden)
+	var mcpOne, mcpAll struct {
+		Requeued int64 `json:"requeued"`
+	}
+	e.ok(adminID, "ext_subscription_requeue", map[string]string{"subscription": mcpSub, "event": mcpIDs[0].String()}, &mcpOne)
+	e.ok(adminID, "ext_subscription_requeue", map[string]string{"subscription": mcpSub}, &mcpAll)
+	e.failed(adminID, "ext_subscription_requeue", map[string]string{"subscription": mcpSub, "event": "not-an-id"}, mcp.CodeInvalidInput)
+
+	// one event, then the rest of the dead and blocked ones; the delivered one is never touched
+	require.EqualValues(t, 1, httpOne.Requeued)
+	require.EqualValues(t, 2, httpAll.Requeued)
+	require.Equal(t, httpOne.Requeued, mcpOne.Requeued)
+	require.Equal(t, httpAll.Requeued, mcpAll.Requeued)
+	require.Equal(t, []string{"done", "failed", "failed", "failed"}, e.receiptStatuses(httpSub))
+	require.Equal(t, e.receiptStatuses(httpSub), e.receiptStatuses(mcpSub))
+
+	// --- the audit trails match, except for the credential
+	httpRows, mcpRows := e.auditRows("acme.requeuehttp"), e.auditRows("acme.requeuemcp")
+	require.Len(t, httpRows, 4, "denied, one event, all, malformed id: every attempt is audited")
+	for i := range httpRows {
+		require.Equal(t, "events.requeue", httpRows[i].Action)
+		require.Equal(t, "session", httpRows[i].Credential)
+		require.Equal(t, "mcp:test-client", mcpRows[i].Credential)
+		mcpRows[i].Credential, httpRows[i].Credential = "", ""
+	}
+	require.Equal(t, httpRows, mcpRows)
+	require.Equal(t, manage.OutcomeDenied, httpRows[0].Outcome)
 }
 
 func TestPrincipalIsTheRealUserAndScopesNeverWidenRBAC(t *testing.T) {

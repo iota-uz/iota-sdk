@@ -346,12 +346,15 @@ func (f SubjectAccessFunc) CanAccess(ctx context.Context, tenantID uuid.UUID, re
 
 // PolicyRequest describes one external delivery about to be created.
 type PolicyRequest struct {
-	TenantID    uuid.UUID
-	EventKey    string
-	SnapshotRef string
-	Subject     ObjectRef
-	Recipient   Addressee
-	Target      Target
+	TenantID uuid.UUID
+	// EventKey and EventVersion are the notice key ("acme.renewal.v1") and
+	// its version (1).
+	EventKey     string
+	EventVersion int
+	SnapshotRef  string
+	Subject      ObjectRef
+	Recipient    Addressee
+	Target       Target
 }
 
 // PolicyDecision is the verdict of a DeliveryPolicy. Reason is a short machine
@@ -376,6 +379,92 @@ type DeliveryPolicyFunc func(context.Context, PolicyRequest) (PolicyDecision, er
 // Evaluate implements DeliveryPolicy.
 func (f DeliveryPolicyFunc) Evaluate(ctx context.Context, request PolicyRequest) (PolicyDecision, error) {
 	return f(ctx, request)
+}
+
+// DeliveryPolicies composes the business delivery policies of a deployment: the
+// policy configured in Go (ModuleOptions.NotificationDeliveryPolicy) and the
+// named policies that runtime sources (for example extension packages)
+// register. It is itself a DeliveryPolicy and is what the notification
+// platform consults.
+//
+// Composition is deterministic: the Go-configured policy is evaluated first,
+// then the named policies in lexical order of their names. The first denial
+// wins and its reason is the one stored; later policies are not consulted. A
+// policy that fails (returns an error) makes the whole evaluation fail, so the
+// delivery is retried instead of being sent without the policy's verdict. With
+// no policy at all, everything is allowed.
+type DeliveryPolicies struct {
+	mu    sync.RWMutex
+	base  DeliveryPolicy
+	named map[string]DeliveryPolicy
+}
+
+// NewDeliveryPolicies returns a composition whose first member is base (nil
+// for none).
+func NewDeliveryPolicies(base DeliveryPolicy) *DeliveryPolicies {
+	return &DeliveryPolicies{base: base, named: map[string]DeliveryPolicy{}}
+}
+
+// Set installs a named policy, replacing the one registered under the same
+// name (a restarted runtime re-installs its own); a nil policy removes it.
+func (p *DeliveryPolicies) Set(name string, policy DeliveryPolicy) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("invalid delivery policy")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if policy == nil {
+		delete(p.named, name)
+		return nil
+	}
+	p.named[name] = policy
+	return nil
+}
+
+// Names lists the registered policy names in evaluation order.
+func (p *DeliveryPolicies) Names() []string {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	names := make([]string, 0, len(p.named))
+	for name := range p.named {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// Evaluate implements DeliveryPolicy.
+func (p *DeliveryPolicies) Evaluate(ctx context.Context, request PolicyRequest) (PolicyDecision, error) {
+	if p == nil {
+		return PolicyDecision{Allow: true}, nil
+	}
+	p.mu.RLock()
+	members := make([]DeliveryPolicy, 0, len(p.named)+1)
+	if p.base != nil {
+		members = append(members, p.base)
+	}
+	names := make([]string, 0, len(p.named))
+	for name := range p.named {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		members = append(members, p.named[name])
+	}
+	p.mu.RUnlock()
+	for _, member := range members {
+		decision, err := member.Evaluate(ctx, request)
+		if err != nil {
+			return PolicyDecision{}, err
+		}
+		if !decision.Allow {
+			return decision, nil
+		}
+	}
+	return PolicyDecision{Allow: true}, nil
 }
 
 // AllowAllPolicy is the default DeliveryPolicy.

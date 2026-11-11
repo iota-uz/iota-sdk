@@ -58,6 +58,9 @@ type Config struct {
 	Notices   *notifications.Catalog
 	Renderers *notifications.ContentRenderers
 	Contacts  *notifications.ContactResolvers
+	// Policies is the delivery policy composition of the notification
+	// platform; the adapter installs the policies of active packages on it.
+	Policies  *notifications.DeliveryPolicies
 	Runner    Runner
 	Artifacts Artifacts
 	Manifests Manifests
@@ -90,8 +93,14 @@ func NewAdapter(cfg Config) (*Adapter, error) {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Adapter{cfg: cfg, log: cfg.Logger, registered: map[string]bool{}, current: map[string]string{},
-		renderers: map[string]bool{}, contacts: map[string]bool{}}, nil
+	a := &Adapter{cfg: cfg, log: cfg.Logger, registered: map[string]bool{}, current: map[string]string{},
+		renderers: map[string]bool{}, contacts: map[string]bool{}}
+	if cfg.Policies != nil {
+		if err := cfg.Policies.Set(PolicyName, &deliveryPolicy{a: a}); err != nil {
+			return nil, serrors.Wrap("extruntime.notify.NewAdapter", err)
+		}
+	}
+	return a, nil
 }
 
 // definitionSource implements notifications.DefinitionSource for one package
