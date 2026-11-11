@@ -361,7 +361,7 @@ describe('the author guide', () => {
 
   it('ships no stale files in the example', () => {
     const files = readdirSync(join(example, 'src')).sort()
-    expect(files).toEqual(['RedemptionScreen.tsx', 'RewardsScreen.tsx', 'client.tsx', 'contracts.ts', 'server.test.ts', 'server.ts'])
+    expect(files).toEqual(['ClientScreen.tsx', 'RedemptionScreen.tsx', 'RewardsScreen.tsx', 'client.tsx', 'contracts.ts', 'server.test.ts', 'server.ts'])
     expect(statSync(join(example, 'package.json')).isFile()).toBe(true)
   })
 })

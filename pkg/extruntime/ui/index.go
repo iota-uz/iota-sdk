@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 )
 
 // Page is a routable client page resolved from an activated manifest.
@@ -39,6 +40,29 @@ type segment struct {
 // AssetPath is the immutable URL path of the page's client chunk.
 func (p *Page) AssetPath() string {
 	return AssetsPrefix + p.ArtifactHash + "/" + strings.TrimPrefix(p.Chunk, "/")
+}
+
+// SlotContribution is a component an activated package mounts in a slot. It
+// is additive: it exists while its package version is active, with no binding.
+type SlotContribution struct {
+	ID           string
+	Package      string
+	Version      string
+	ArtifactHash string
+	Chunk        string
+	Export       string
+	// Permission is the permission name a viewer needs to get the
+	// contribution; empty means every viewer the slot admits.
+	Permission string
+	Order      int
+}
+
+// Module is the contribution as the browser host loads it.
+func (c SlotContribution) Module() shellext.Module {
+	return shellext.Module{
+		ID: c.ID, Package: c.Package, Version: c.Version,
+		Module: AssetsPrefix + c.ArtifactHash + "/" + strings.TrimPrefix(c.Chunk, "/"), Export: c.Export,
+	}
 }
 
 // ShellRenderer identifies the package shell renderer activated app-wide.
@@ -90,12 +114,19 @@ type Index struct {
 	Shell       *ShellRenderer
 	Navigation  Navigation
 	Columns     map[string][]listext.Contribution
+	// Slots maps a slot ID to its contributions in mounting order (Order,
+	// package, ID). The slot's own declaration (typed props, permission) is
+	// looked up in the catalog when a page renders it.
+	Slots map[string][]SlotContribution
 	// Diagnostics describes ignored declarations (path conflicts, unresolved
 	// bindings); it never blocks the rest.
 	Diagnostics []string
 
 	pageByID map[string]*Page
 	natives  map[string]*nativeRoute
+	// routeParams types the path parameters of every known route: the
+	// routes of activated packages and the native routes the host declared.
+	routeParams map[string]*manifest.Type
 	// artifacts are the content hashes of the artifacts of the activated
 	// package versions; the screen and shell bindings of a snapshot resolve
 	// only into these, so it is the whole set the asset route may serve.
@@ -110,6 +141,21 @@ type nativeRoute struct {
 	id      string
 	pattern string
 	segs    []segment
+	params  *manifest.Type
+	// permission is the route's own requirement, which a replacing page
+	// inherits (a replacement never widens access to the screen).
+	permission string
+}
+
+// NativeRouteDecl is a native route as the index uses it: its path pattern
+// and, when the host declared the route as a typed contract, the types of its
+// path parameters (a package page replacing the route gets them).
+type NativeRouteDecl struct {
+	Pattern string
+	Params  *manifest.Type
+	// Permission is the permission name the native screen requires; a page
+	// replacing the route is served only to subjects who hold it.
+	Permission string
 }
 
 func parsePattern(pattern string) []segment {
@@ -164,12 +210,22 @@ func moreSpecific(a, b []segment) bool {
 // BuildIndex compiles a snapshot. It never fails: declarations that cannot be
 // served are recorded in Diagnostics.
 func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
+	decls := make(map[string]NativeRouteDecl, len(natives))
+	for id, pattern := range natives {
+		decls[id] = NativeRouteDecl{Pattern: pattern}
+	}
+	return buildIndex(s, decls)
+}
+
+func buildIndex(s *Snapshot, natives map[string]NativeRouteDecl) *Index {
 	ix := &Index{
 		Screens:     map[string]*Page{},
 		ScreenPaths: map[string]string{},
 		Columns:     map[string][]listext.Contribution{},
+		Slots:       map[string][]SlotContribution{},
 		pageByID:    map[string]*Page{},
 		natives:     map[string]*nativeRoute{},
+		routeParams: map[string]*manifest.Type{},
 		artifacts:   map[string]bool{},
 	}
 	if s == nil {
@@ -179,8 +235,11 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 	for _, p := range s.Packages {
 		ix.artifacts[p.ArtifactHash] = true
 	}
-	for id, pattern := range natives {
-		ix.natives[id] = &nativeRoute{id: id, pattern: pattern, segs: parsePattern(pattern)}
+	for id, n := range natives {
+		ix.natives[id] = &nativeRoute{id: id, pattern: n.Pattern, segs: parsePattern(n.Pattern), params: n.Params, permission: n.Permission}
+		if n.Params != nil {
+			ix.routeParams[id] = n.Params
+		}
 	}
 	pkgs := append([]ActivePackage(nil), s.Packages...)
 	sort.SliceStable(pkgs, func(i, j int) bool { return pkgs[i].Package < pkgs[j].Package })
@@ -190,14 +249,24 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 		for _, r := range p.Manifest.Resources {
 			if r.Kind == manifest.ResRoute {
 				routes[r.ID] = r
+				if r.Params != nil {
+					ix.routeParams[r.ID] = r.Params
+				}
 			}
 		}
 	}
+	columnOwner := map[string]string{}
+	var cells []cellDecl
 	byPattern := map[string]*Page{}
 	for _, p := range pkgs {
 		for _, r := range p.Manifest.Resources {
 			switch r.Kind {
 			case manifest.ResPage:
+				// A page for a route of the platform or of another package is a screen
+				// replacement candidate: it is served only through a screen binding.
+				if r.Route != "" && !strings.HasPrefix(r.Route, p.Manifest.Namespace+".") {
+					continue
+				}
 				page := &Page{
 					ID: r.ID, Pattern: normalizePattern(r.Path), Package: p.Package, Version: p.Version,
 					ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
@@ -211,6 +280,11 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 						page.Params = route.Params
 						if page.Pattern == "" {
 							page.Pattern = normalizePattern(route.Path)
+						}
+					} else if n, ok := ix.natives[r.Route]; ok {
+						page.Params = n.params
+						if page.Pattern == "" {
+							page.Pattern = normalizePattern(n.pattern)
 						}
 					}
 				}
@@ -240,20 +314,53 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("column %s: missing list, overlay or field", r.ID))
 					continue
 				}
+				columnOwner[r.ID] = p.Package
 				ix.Columns[r.List] = append(ix.Columns[r.List], listext.Contribution{
 					ID: r.ID, Package: p.Package, Version: p.Version, Label: r.Label,
 					Overlay: r.Overlay, Field: r.Field,
 					Filterable: r.Filterable, Sortable: r.Sortable, Exportable: r.Exportable,
 				})
+			case manifest.ResSlot:
+				// A declaration (no target) is a contract; only a contribution is mounted.
+				if r.Target == "" {
+					continue
+				}
+				if r.Export == "" || !servableAsset(p.ArtifactHash, r.Chunk) {
+					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("slot contribution %s: missing export, or chunk/artifact cannot be served", r.ID))
+					continue
+				}
+				ix.Slots[r.Target] = append(ix.Slots[r.Target], SlotContribution{
+					ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
+					Permission: r.Permission, Order: r.Order,
+				})
+			case manifest.ResCell:
+				if r.Target == "" || r.Export == "" || !servableAsset(p.ArtifactHash, r.Chunk) {
+					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("cell %s: missing column or export, or chunk/artifact cannot be served", r.ID))
+					continue
+				}
+				cells = append(cells, cellDecl{SlotContribution{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export}, r.Target})
 			case manifest.ResEntity, manifest.ResOverlay, manifest.ResQuery, manifest.ResCommand, manifest.ResOperation,
 				manifest.ResEvent, manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute, manifest.ResPermission,
-				manifest.ResIssue, manifest.ResDomainError, manifest.ResSlot, manifest.ResCell, manifest.ResShell,
+				manifest.ResIssue, manifest.ResDomainError, manifest.ResShell,
 				manifest.ResContactResolver, manifest.ResDeliveryPolicy:
 				// Not page, navigation or column contributions.
 			}
 		}
 	}
 	sort.SliceStable(ix.Pages, func(i, j int) bool { return moreSpecific(ix.Pages[i].segs, ix.Pages[j].segs) })
+	for _, list := range ix.Slots {
+		sort.SliceStable(list, func(i, j int) bool {
+			a, b := list[i], list[j]
+			if a.Order != b.Order {
+				return a.Order < b.Order
+			}
+			if a.Package != b.Package {
+				return a.Package < b.Package
+			}
+			return a.ID < b.ID
+		})
+	}
+	ix.attachCells(cells, columnOwner)
 
 	// Bindings. The newest open row wins when several exist for the shell.
 	bindings := append([]Binding(nil), s.Bindings...)
@@ -288,6 +395,55 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 		}
 	}
 	return ix
+}
+
+type cellDecl struct {
+	SlotContribution
+	column string
+}
+
+// attachCells gives each contributed column its package renderer. Several
+// packages may supply a cell for one column; the package that declares the
+// column wins, otherwise the first by package name and ID (cells arrive in
+// package order), and the others are reported.
+func (ix *Index) attachCells(cells []cellDecl, owner map[string]string) {
+	chosen := map[string]cellDecl{}
+	for _, c := range cells {
+		prev, taken := chosen[c.column]
+		switch {
+		case !taken:
+			chosen[c.column] = c
+		case owner[c.column] == c.Package && owner[c.column] != prev.Package:
+			ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("cell %s: column %s is rendered by its owner's %s", prev.ID, c.column, c.ID))
+			chosen[c.column] = c
+		default:
+			ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("cell %s: column %s already has the renderer %s", c.ID, c.column, prev.ID))
+		}
+	}
+	for list, cols := range ix.Columns {
+		for i := range cols {
+			if c, ok := chosen[cols[i].ID]; ok {
+				m := c.Module()
+				ix.Columns[list][i].Cell = &m
+			}
+		}
+	}
+	for column := range chosen {
+		if !ix.hasColumn(column) {
+			ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("cell %s: column %s is not contributed by an activated package", chosen[column].ID, column))
+		}
+	}
+}
+
+func (ix *Index) hasColumn(id string) bool {
+	for _, cols := range ix.Columns {
+		for _, c := range cols {
+			if c.ID == id {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // servableAsset reports whether the asset route can serve hash and chunk; a
@@ -344,7 +500,7 @@ func (ix *Index) findPage(pkgs []ActivePackage, b Binding) *Page {
 			page := &Page{
 				ID: r.ID, Pattern: normalizePattern(r.Path), Package: p.Package, Version: p.Version,
 				ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
-				Permission: r.Permission, Route: r.Route, Label: r.Label,
+				Permission: r.Permission, Route: r.Route, Label: r.Label, Params: ix.routeParams[r.Route],
 			}
 			if r.Nav != nil && len(page.Label) == 0 {
 				page.Label = r.Nav.Label
@@ -378,7 +534,10 @@ type Route struct {
 	Page *Page
 	// ReplacedRoute is the route ID whose screen Page replaces, "" otherwise.
 	ReplacedRoute string
-	Params        map[string]string
+	// ReplacedPermission is the permission the replaced native route
+	// requires ("" when none): the replacing page inherits it.
+	ReplacedPermission string
+	Params             map[string]string
 }
 
 // Resolve picks what serves path. A screen binding wins over the native
@@ -397,6 +556,9 @@ func (ix *Index) Resolve(path string) (Route, bool) {
 			if params, ok := match(segs, path); ok {
 				if best == nil || moreSpecific(segs, bestSegs) {
 					best = &Route{Page: ix.Screens[id], ReplacedRoute: id, Params: params}
+					if n, ok := ix.natives[id]; ok {
+						best.ReplacedPermission = n.permission
+					}
 					bestSegs = segs
 				}
 			}

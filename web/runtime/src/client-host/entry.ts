@@ -13,10 +13,11 @@ import {
   type ClientRouteContext,
 } from '@iota-uz/sdk/client-host'
 import { documentPageData, documentTheme, mountRuntimePage, type RouteHost } from './page.ts'
+import { startIslandHost, type IslandEnv } from './islands.ts'
 import { RPC_PATH, readRuntimeContext } from './protocol.ts'
 import { publishSharedModules } from './shared.ts'
 import { activateRuntimeShell } from './shell.ts'
-import { createRpcTransport } from './transport.ts'
+import { createRpcTransport, type RuntimeTransport } from './transport.ts'
 
 export interface Boot {
   /** Unmounts the page and deactivates the shell. */
@@ -32,6 +33,49 @@ function submitLogout(win: Window & typeof globalThis): void {
   form.action = '/logout'
   doc.body.append(form)
   form.submit()
+}
+
+/**
+ * Mounts the islands (slots, list cells) of the document. Each element carries the runtime facts it needs, so
+ * the first island creates the session services and transport for its endpoint; an SDK identity mismatch
+ * refuses the island instead of mounting code built for another host.
+ */
+function startIslands(win: Window & typeof globalThis, importModule?: (url: string) => Promise<Record<string, unknown>>): () => void {
+  const prepared = new Map<string, { transport: RuntimeTransport; dispose(): void } | null>()
+  const stop = startIslandHost({
+    window: win,
+    ...(importModule ? { importModule } : {}),
+    prepare(env: IslandEnv) {
+      const key = JSON.stringify(env)
+      let entry = prepared.get(key)
+      if (entry === undefined) {
+        try {
+          assertSDKIdentity({ releaseVersion: env.sdkReleaseVersion, sourceCommit: env.sdkCommit, protocolVersion: env.protocolVersion })
+          const services = createClientHostServices({
+            bootstrapVersion: '1.0.0',
+            protocolVersion: env.protocolVersion,
+            sdkReleaseVersion: env.sdkReleaseVersion,
+            sdkCommit: env.sdkCommit,
+            initial: null,
+            theme: documentTheme(win.document, 'light'),
+            locale: { language: env.locale, messages: {} },
+            permissions: [],
+          }, win)
+          entry = { transport: createRpcTransport({ endpoint: env.rpc, session: services.session }), dispose: () => services.dispose() }
+        } catch (cause) {
+          win.console.error('Extension islands are disabled: the runtime host does not match this page', cause)
+          entry = null
+        }
+        prepared.set(key, entry)
+      }
+      return entry?.transport
+    },
+  })
+  return () => {
+    stop()
+    for (const entry of prepared.values()) entry?.dispose()
+    prepared.clear()
+  }
 }
 
 /** Starts whatever the document asks for. Safe to call on any authenticated page. */
@@ -81,8 +125,15 @@ export function bootRuntime(
       logout: () => submitLogout(win),
     })
     disposers.push(() => { shellHost.deactivate(); services.dispose() })
-    shell = activateRuntimeShell({ context: runtime, host: shellHost, window: win, ...(deps.importModule ? { importModule: deps.importModule } : {}) })
+    const shellTransport = createRpcTransport({ endpoint: runtime.rpc, session: services.session })
+    shell = activateRuntimeShell({
+      context: runtime, host: shellHost, window: win, transport: shellTransport,
+      ...(deps.importModule ? { importModule: deps.importModule } : {}),
+    })
   }
+
+  // Slots and custom list cells in Go-rendered pages (and in fragments HTMX swaps in later).
+  disposers.push(startIslands(win, deps.importModule))
 
   return { dispose: () => { for (const d of disposers.splice(0).reverse()) d() }, shell }
 }

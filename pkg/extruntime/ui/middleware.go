@@ -11,7 +11,8 @@ import (
 )
 
 // Middleware installs the runtime on every request: the native list column
-// engine, the navigation projection and the shell activation markup. It
+// engine, the navigation projection, the shell activation markup and the
+// islands host (slots and list cells). It
 // reads the snapshot lazily, so a request that renders none of them costs
 // nothing.
 func (r *Runtime) Middleware(overlays listext.OverlayJoiner) mux.MiddlewareFunc {
@@ -34,6 +35,7 @@ func (r *Runtime) Installer(overlays listext.OverlayJoiner) func(context.Context
 	return func(ctx context.Context) context.Context {
 		ctx = shellext.WithNavigation(ctx, nav)
 		ctx = shellext.WithMarkup(ctx, r.Markup)
+		ctx = shellext.WithIslands(ctx, r.newRequestIslands())
 		if engine != nil {
 			ctx = listext.WithEngine(ctx, engine)
 		}

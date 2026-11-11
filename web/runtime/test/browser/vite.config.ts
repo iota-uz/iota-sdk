@@ -1,12 +1,12 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // vite and vite-plugin-solid are installed with web/client-host; the browser fixture borrows them.
-import { defineConfig } from '../../../../client-host/node_modules/vite/dist/node/index.js'
-import solid from '../../../../client-host/node_modules/vite-plugin-solid/dist/esm/index.mjs'
+import { defineConfig } from '../../../client-host/node_modules/vite/dist/node/index.js'
+import solid from '../../../client-host/node_modules/vite-plugin-solid/dist/esm/index.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const clientHost = path.resolve(here, '../../../../client-host')
-const repo = path.resolve(here, '../../../../..')
+const clientHost = path.resolve(here, '../../../client-host')
+const repo = path.resolve(here, '../../../..')
 
 // Stands in for pkg/extruntime/ui: POST /_ext/rpc answers like the Go handler.
 function rpc() {

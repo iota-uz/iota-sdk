@@ -13,12 +13,12 @@ export type {
   Ops, OrderPathOf, OverlayRow, OwnEntity, Overlay, PatchOf, PathOf, ReadRule, RecordOf, RefTo, Row, UserPlaceholder, Where,
 } from './entity.ts'
 export {
-  ContractError, column, command, contactResolver, deliveryPolicy, domainError, event, href, issue, notice,
+  ContractError, column, command, contactResolver, defineSlot, deliveryPolicy, domainError, event, href, issue, notice,
   operation, permission, query, route, slotRef, validation, workflow,
 } from './contracts.ts'
 export type {
   AtomicCommand, Callable, Column, ColumnSpec, Command, ContactResolver, ContactTargets, DeliveryPolicy, DomainError,
-  Event, InputOf, Issue, ListRef, OutOf, SlotRef, Notice, Operation, OrdinaryCommand, Permission, PathParamNames, Query,
+  Event, InputOf, Issue, ListRef, OutOf, SlotDeclaration, SlotRef, SlotSpec, Notice, Operation, OrdinaryCommand, Permission, PathParamNames, Query,
   ResultOf, Route, RouteParamKind, RouteParams, SignalRef, ValidationIssue, Workflow,
 } from './contracts.ts'
 export {

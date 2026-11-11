@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/clientpage",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.clientpage", "client": "./src/client.tsx" }
+}

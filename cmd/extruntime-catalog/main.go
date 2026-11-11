@@ -25,9 +25,14 @@ import (
 	// Register the native events and Go-implemented commands, operations and queries of the SDK modules
 	// (core.user.created.v1, crm.commands.saveClient, crm.operations.upsertClient, ...).
 	_ "github.com/iota-uz/iota-sdk/modules/core/services"
+	crmext "github.com/iota-uz/iota-sdk/modules/crm/extension"
 	_ "github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 )
+
+// crmBasePath is the default base path of the CRM clients pages.
+const crmBasePath = "/crm/clients"
 
 // DefaultOutput is the committed snapshot, relative to the repository root.
 const DefaultOutput = "web/runtime/catalog/sdk-natives.json"
@@ -38,7 +43,9 @@ const DefaultOutput = "web/runtime/catalog/sdk-natives.json"
 // initialization, so the blank imports below decide what the snapshot (and the
 // kit generated from it) contains.
 func SDKSnapshot() (catalog.Snapshot, error) {
-	set, err := catalog.Defaults()
+	// The CRM's extension points (the client view route, the sidebar slot) are plain native resources that the
+	// application adds next to the registered contracts; the kit must carry them too.
+	set, err := catalog.DefaultNatives(data.DefaultNatives(), nil, nil, crmext.Resources(crmBasePath)...)
 	if err != nil {
 		return catalog.Snapshot{}, err
 	}

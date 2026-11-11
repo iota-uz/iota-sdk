@@ -1,6 +1,6 @@
 // Pure contracts of acme.loyalty: every resource the package declares. No handlers, no Node, no Solid.
 import {
-  $, column, command, contactResolver, domainError, entity, event, field, issue, notice, operation, overlay, permission, query,
+  $, column, command, contactResolver, defineSlot, domainError, entity, event, field, issue, notice, operation, overlay, permission, query,
   route, t, workflow,
 } from "@iota-uz/sdk/runtime"
 import * as core from "@iota-kit/core"
@@ -121,3 +121,8 @@ export const RedemptionRoute = route("acme.loyalty.redemptionPage", {
   path: "/loyalty/redemptions/:id",
   params: t.object({ id: t.uuid() }),
 })
+
+// ---- slots
+// A place in our rewards page where any package may mount a component. The host page names it, types its props
+// and passes them; contributions are additive and need no binding.
+export const RewardActions = defineSlot("acme.loyalty.rewardActions", { props: t.object({ reward: t.string() }) })

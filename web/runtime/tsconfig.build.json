@@ -9,5 +9,5 @@
     "paths": { "@iota-uz/sdk/client-host": ["../client-host/dist/solid-index.d.ts"] }
   },
   "include": ["src"],
-  "exclude": ["src/host", "src/cli", "src/client-host/browser", "src/client-host/**/*.test.ts", "src/client-host/fixtures.ts"]
+  "exclude": ["src/host", "src/cli", "src/build", "src/client-host/**/*.test.ts", "src/client-host/fixtures.ts"]
 }

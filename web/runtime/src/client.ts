@@ -100,20 +100,39 @@ export function navigation(spec: NavigationSpec): Navigation {
   return { ...contract({ ...resource, id, kind: 'navigation' }), ...(spec.id ? {} : { implicitId: 'navigation' as const }) }
 }
 
-export interface Slot<P extends object = Record<string, Json>> extends ClientValue<'slot'> {
+/** A contribution built by `slot()`. */
+export interface SlotValue<P extends object = Record<string, Json>> extends ClientValue<'slot'> {
   readonly component: Component<P>
 }
 
-/** Contributes a component to a slot (`target` is the slot ID or a typed `SlotRef`). */
-export function slot<P extends object>(target: SlotRef<P> | string, component: Component<P>, opts: { id?: string } = {}): Slot<P> {
+export interface SlotOptions {
+  /** Explicit ID; default `<namespace>.<export name>`. */
+  id?: string
+  /** Position among the contributions of the slot, ascending; ties break by package, then ID. Default 0. */
+  order?: number
+  /** Only viewers holding it get this contribution (checked on the server, on top of the slot's own permission). */
+  permission?: Permission
+}
+
+/**
+ * Contributes a component to a slot (`target` is a typed `SlotRef` from the kit or `defineSlot`, or a slot ID).
+ * A contribution is additive: it needs no binding, it is active while its package version is, and every
+ * contribution of every active package is mounted, in `order`. The component receives the host page's props.
+ */
+export function slot<P extends object>(target: SlotRef<P> | string, component: Component<P>, opts: SlotOptions = {}): SlotValue<P> {
   const targetId = typeof target === 'string' ? target : target.slotId
   const id = opts.id ?? ''
-  const resource = omitEmpty({ id, kind: 'slot' as const, target: targetId }) as ResourceJSON
+  const resource = omitEmpty({ id, kind: 'slot' as const, target: targetId, order: opts.order, permission: opts.permission?.id }) as ResourceJSON
   return { ...contract({ ...resource, id, kind: 'slot' }), component, ...(opts.id ? {} : { implicitId: 'export' as const }) }
 }
 
 export interface CellProps<V = Json> {
+  /** The column's value for this row (wire JSON: int64 and decimal are strings), `null` when absent. */
   readonly value: V
+  /**
+   * The row's contributed values by column ID (only columns the viewer may read) and `ref`, the native record
+   * (`{ entity, key }`).
+   */
   readonly row: Readonly<Record<string, Json>>
 }
 
@@ -121,7 +140,11 @@ export interface Cell<V = Json> extends ClientValue<'cell'> {
   readonly component: Component<CellProps<V>>
 }
 
-/** Custom renderer for an overlay column in the native list. */
+/**
+ * Custom renderer of a `column(...)` in the native list. The list stays server-rendered (the standard cell is the
+ * fallback until this module loads, or if it fails); filters, sorting and exports never use it: they read the raw
+ * value.
+ */
 export function cell<V>(column: Column<string, V>, component: Component<CellProps<V>>, opts: { id?: string } = {}): Cell<V> {
   const id = opts.id ?? ''
   const resource = omitEmpty({ id, kind: 'cell' as const, target: column.id }) as ResourceJSON
@@ -247,6 +270,8 @@ export class RemoteError extends Error {
 }
 
 export { RuntimeProvider, useCommand, useQuery } from './client-host/hooks.ts'
+export { Slot } from './client-host/slots.ts'
+export type { SlotProps } from './client-host/slots.ts'
 export type { CallError, CommandResult, QueryResult } from './client-host/hooks.ts'
 export { TransportError, UnauthenticatedError } from './client-host/transport.ts'
 

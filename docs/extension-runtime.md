@@ -253,7 +253,10 @@ export const policies = page("acme.insurance.policies", {
 export const policy = page(PolicyRoute, { component: lazy(() => import("./PolicyScreen")) });
 export const nav = navigation({ groups: [...], patches: [{ ref: "core.users", hide: true }] });
 export const clientTierCell = cell(ClientsTierColumn, (p) => <Badge>{p.value}</Badge>);
+export const clientCard = slot(crm.ClientSidebar, (p) => <Card client={p.clientId} />, { order: 10, permission: Manage });
 export const shell = shellRenderer((p) => <MyShell {...p} />);  // whole authenticated shell
+// contracts.ts: a slot of the package's own page — <Slot slot={Widgets} props={{ title }} /> in a client page
+export const Widgets = defineSlot("acme.insurance.widgets", { props: t.object({ title: t.string() }) });
 ```
 
 Pages are mounted by the canonical client host inside `layouts.Authenticated` (same
@@ -491,6 +494,35 @@ queries as the session user; operations are never callable from the browser) and
 registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid and one
 runtime context per document. Native list columns: `pkg/listext` (reference consumer: CRM
 clients list + CSV/Excel export).
+
+**Slots, cells and screen replacement (as implemented)**
+* **A slot is declared by its host page**: `manifest.Resource{Kind: slot}` without `target` (stable ID, typed `props`,
+  optional `permission`). Native pages declare theirs as plain native resources (CRM: `crm.slots.clientSidebar`, props
+  `{clientId: int}`, permission `Client.Read`, in `modules/crm/extension`); packages declare theirs with `defineSlot` in the
+  *contracts* graph, so other packages reach them through the kit (`slotRef(id, propsSchema)` types the contributions).
+* **Contributions are additive**: `slot(ref, Component, {order?, permission?})` is a client resource with `target`, `order`,
+  `permission`; no `bindings` row. The index orders a slot's contributions by (order, package, ID). For a viewer the server
+  keeps the ones whose own permission the viewer holds, and none at all when the slot's declaration requires a permission the
+  viewer lacks. Props passed by the host page are validated against the declared type before they are emitted.
+* **Rendering.** Go pages call `shellext.Slot(ctx, id, props)`: a mount element
+  `<div data-iota-slot=ID data-iota-slot-config={props, contributions[{id,package,version,module,export}], env} hx-disable>`
+  and, once per request, the runtime host entry; with no applicable contribution nothing is rendered. Solid pages and the
+  shell renderer get the same contributions from `PageData.slots` / `RuntimeContext.slots` and mount them with
+  `<Slot slot={…} props={…}/>` (`@iota-uz/sdk/runtime/client`; `ref` is not usable as a prop name, Solid reserves it). The
+  browser host (`client-host/islands.ts`) mounts each element into its own Solid root and disposes it when the element leaves
+  the document (HTMX swap, boosted navigation, `pagehide`); a module that resolves after disposal is dropped.
+* **Cells.** `cell(column, Component)` is a client resource with `target` = column ID. The native list renders the standard
+  cell for the column's type either way and wraps it in `<span data-iota-cell=… data-iota-cell-config={contribution, value,
+  row, env} hx-disable>`; the host replaces the fallback once the component has rendered. `value` is wire JSON, `row` the
+  readable contributed values by column ID plus `ref`. Filters, sorting and exports never use the renderer. One renderer per
+  column (the declaring package wins, then the first by package name).
+* **Screens.** A native route is a `route` resource (CRM: `crm.routes.clientView`, `/crm/clients/:id`, params `{id: int}`,
+  permission `Client.Read`) published like any native resource and resolved through the catalog, so a package page for it
+  (`page(crm.ClientView, …)`) gets typed params. Such a page is a candidate: it is not served until a `screen` binding exists,
+  the replacement requires the route's permission as well as its own, and HTMX partial requests (not boosted) keep reaching
+  the native handler. A request routed by the previous snapshot finishes on it (no 404 while a binding is reverted).
+* The composition root passes the CRM's declarations to the runtime until native registration is unified:
+  `runtime.Config.NativeResources = crmext.Resources(basePath)` (`cmd/extruntime-catalog` does the same for the offline kit).
 
 **Data access, execution and assets (as implemented, post-audit)**
 * Overlay rows are readable (Get/Find/Count, filters, `NativeOverlayJoin` for native lists and

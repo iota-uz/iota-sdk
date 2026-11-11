@@ -691,7 +691,7 @@ export const publicCatalog = endpoint("acme.loyalty.publicCatalog", { method: "G
 
 ## 13. User interface
 
-The client graph exports Solid pages, navigation, cell renderers and (rarely) a shell. Pages are mounted by the canonical
+The client graph exports Solid pages, navigation, slot contributions, cell renderers and (rarely) a shell. Pages are mounted by the canonical
 client host inside the application's authenticated layout, the same boundary as the built-in pages.
 
 ```tsx
@@ -723,9 +723,65 @@ export const nav = navigation({
   `POST /_ext/rpc` as the signed-in user. Queries and commands are callable from the browser; **operations never are**.
   The contract's `permission` is checked there, and read rules filter the rows.
 * **Page for a platform route.** `page(foreignRoute, …)` with a route from the kit is a *screen replacement candidate*,
-  active only through a `screen` binding (like command replacement, §7.4).
+  active only through a `screen` binding (like command replacement, §7.4); see §13.3.
 
-### 13.1 Cell renderers
+### 13.1 Slots
+
+A *slot* is a place in a page where other packages mount components. The **page that owns it declares it**: a stable ID,
+the typed props it passes to every contribution and, optionally, a permission. Contributions are **additive**: they need no
+binding, they are active while their package version is, and every contribution of every active package is mounted.
+
+**Slots of the platform** are declared by Go and arrive in the kit like any other contract. The CRM declares
+`crm.slots.clientSidebar` (props `{ clientId }`) on its client view page and in the client drawer; contribute to it with the
+typed reference:
+
+```tsx
+// example/src/client.tsx
+export const loyaltyCard = slot(crm.ClientSidebar, (props) => <p class="loyalty-card">Loyalty for client {props.clientId}</p>, {
+  order: 10,
+  permission: c.Manage,
+})
+```
+
+* `slot(target, Component, { order?, permission?, id? })`. `target` is the typed reference from the kit (`crm.ClientSidebar`) or
+  from your own `defineSlot`; a plain slot ID string is accepted but its props are untyped. The component receives the props of
+  the declaring page.
+* **Order.** Contributions to one slot are mounted by ascending `order` (default 0), ties broken by package namespace, then
+  contribution ID. The order is the same on every render.
+* **Permission.** The server decides who gets a contribution: the slot's own permission (set by its declaration) and the
+  contribution's `permission` must both be held by the viewer. A contribution the viewer may not have is **absent from the page
+  data / HTML**, not hidden by the browser. The permission is the same kind of name as a page's (`permission(...)`).
+* A broken contribution (its module fails to load, or its component throws) is reported to the console and leaves the page and
+  the other contributions alone. A module that arrives after the user already left the page is dropped.
+
+**Your own slots.** Declare a slot in the contracts graph (it is a contract: other packages import it through the kit) and
+render it in a page of yours with `<Slot>`:
+
+```ts
+// example/src/contracts.ts
+export const RewardActions = defineSlot("acme.loyalty.rewardActions", { props: t.object({ reward: t.string() }) })
+```
+
+```tsx
+// example/src/RewardsScreen.tsx
+{r.name}: {r.cost} <Slot slot={c.RewardActions} props={{ reward: r.name }} />
+```
+
+```tsx
+// example/src/client.tsx
+export const exportAction = slot(c.RewardActions, (props) => <button type="button">Export {props.reward}</button>)
+```
+
+`<Slot slot={…} props={…}/>` comes from `@iota-uz/sdk/runtime/client` and works in a package page and in a shell renderer. (The
+prop is `slot`, not `ref`: Solid's compiler reserves `ref` on every component.) `props` must match the declared props.
+
+**Slots in Go-rendered (Templ/HTMX) pages** use `shellext.Slot(ctx, "module.slots.name", props)` in the template. It renders a
+mount element with the props and the contributions the viewer gets; nothing when none applies. The browser runtime mounts each
+contribution into its own Solid root and releases it when the element is swapped out by HTMX or the page is left. A Go page
+declares its slot as a native resource (`manifest.Resource{ID, Kind: slot, Props, Permission}`), see
+`modules/crm/extension` for the CRM's.
+
+### 13.2 Cell renderers
 
 ```tsx
 // example/src/client.tsx
@@ -734,7 +790,43 @@ export const tierCell = cell(c.TierColumn, (props) => <span class={`tier tier-${
 
 `cell(column, component)` customises how a `column(...)` renders in the native list. Without it the value is shown as text.
 
-### 13.2 The shell
+* The list stays **server-rendered**: the cell is the standard cell for the column's type, wrapped in a mount element. Your
+  component replaces it in the browser once the module has loaded; if it never loads or throws, the standard cell stays. The
+  page reads the same without JavaScript.
+* `props.value` is the column's value as wire JSON (`int` is a number; `int64` and `decimal` are strings; `null` when absent).
+  `props.row` is the row's contributed values by column ID (only columns the viewer may read) and `ref`, the native record
+  (`{ entity, key }`). Access to the column follows the overlay field's access rules: a viewer who may not read the column gets
+  no cell and no value.
+* **Exports, filters and sorting never use the renderer**: they read the raw value.
+* One renderer serves a column. If several packages supply one, the package that declares the column wins, otherwise the first
+  by package name; the others are ignored and reported.
+
+### 13.3 Replacing a native screen
+
+`page(crm.ClientView, { component })` with a route from the kit makes your page a *screen replacement candidate* for that
+route; the CRM client view (`crm.routes.clientView`, `/crm/clients/:id`) is the reference:
+
+```tsx
+// example/src/client.tsx
+export const clientView = page(crm.ClientView, { component: lazy(() => import("./ClientScreen")) })
+```
+
+```tsx
+// example/src/ClientScreen.tsx
+export default function ClientScreen(props: PageProps<{ id: number }>) {
+```
+
+* The page is **not served** by itself. An administrator binds it: `POST /_ext/manage/bindings` with
+  `{"slotKind":"screen","targetId":"crm.routes.clientView","package":"…","version":"…","export":"clientView"}` (or `ext_bind`).
+  One package page holds a route at a time; unbinding restores the native page without a restart.
+* **Typed params.** The route declares its parameters (`id` is an `int`), so `props.params.id` is a number, decoded from the path
+  before the page renders; a path the type refuses (`/crm/clients/abc`) is a 404 and never reaches your page.
+* **Access never widens.** The replacement is served only to viewers who hold what the native screen requires (the route's
+  permission, `Client.Read` here) and what your page's own `permission` requires.
+* Only the *screen* is replaced: HTMX requests for fragments of the native page (the client drawer) still reach the native
+  handlers.
+
+### 13.4 The shell
 
 `shellRenderer((p) => <MyShell {...p} />)` replaces the whole authenticated shell (navigation, header) around every page,
 once an administrator binds it to the `shell` slot. The component receives the host-owned `outlet` element that already
@@ -958,11 +1050,11 @@ Source control is yours: `ext_export` returns the draft as a tree to commit.
 
 ## 18. Reference: where to look
 
-* The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `ref`, `$`,
+* The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
   `href`, wire helpers), `/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`, `endpoint`,
-  `templates`, `recipient`, context types), `/client` (`page`, `navigation`, `slot`, `cell`, `shellRenderer`, `useQuery`,
+  `templates`, `recipient`, context types), `/client` (`page`, `navigation`, `slot`, `Slot`, `cell`, `shellRenderer`, `useQuery`,
   `useCommand`, `isError`, `issuesOf`), `/testing` (everything in §14). `/kit` is internal to generated modules; never
   import it.
-* The complete working package: [`example/`](example). More real packages (an overlay with columns, a campaign workflow with
-  an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
+* The complete working package: [`example/`](example). More real packages (an overlay with columns, a custom cell, slot contributions and a slot of your own, a replacement
+  client view, a campaign workflow with an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
 * The platform contract: [`../extension-runtime.md`](../extension-runtime.md), §9.1 onwards.

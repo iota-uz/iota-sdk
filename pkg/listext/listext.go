@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 )
 
 // Contribution is one column contributed to a list by an activated package.
@@ -43,6 +44,10 @@ type Contribution struct {
 	Filterable bool
 	Sortable   bool
 	Exportable bool
+	// Cell is the package renderer of the column's cells in the native
+	// list, if an activated package contributes one. The server-rendered
+	// standard cell stays as its fallback; exports always use the raw value.
+	Cell *shellext.Module
 }
 
 // ColumnSource lists the columns activated packages contribute to a list, in
@@ -157,6 +162,8 @@ type Plan struct {
 	OrderBy []string
 	// Select holds one SQL expression per column, each yielding text (or NULL).
 	Select []string
+	// Native is the native entity the plan was compiled for (Input.Native).
+	Native string
 	args   *data.Args
 	used   int
 }
@@ -187,7 +194,7 @@ func (p *Plan) SelectList() string {
 // empty and costs no query.
 func (e *Engine) Compile(ctx context.Context, q data.Querier, sub spi.Subject, in Input) (*Plan, error) {
 	const op = serrors.Op("listext.Engine.Compile")
-	plan := &Plan{args: data.NewArgs(in.UsedArgs), used: in.UsedArgs}
+	plan := &Plan{args: data.NewArgs(in.UsedArgs), used: in.UsedArgs, Native: in.Native}
 	if e == nil || e.source == nil {
 		return plan, nil
 	}

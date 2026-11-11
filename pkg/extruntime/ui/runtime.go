@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -27,6 +28,9 @@ type Config struct {
 	// module URL, styles, SDK identity). Required.
 	Host clienthost.Manifest
 	// NativeRoutes names the native pages a screen binding may replace.
+	// A route the host also declares as a typed contract (a native resource
+	// of kind route, with params) is resolved through Catalog: a package
+	// page replacing it receives typed path parameters.
 	NativeRoutes NativeRoutes
 	Logger       logrus.FieldLogger
 }
@@ -50,6 +54,9 @@ type Runtime struct {
 
 	mu sync.Mutex
 	ix *Index
+	// prev is the index the current one replaced: a request that was routed
+	// by it and reaches its handler after the rebuild is still served.
+	prev *Index
 }
 
 // NewRuntime validates cfg.
@@ -75,10 +82,57 @@ func (r *Runtime) Index(ctx context.Context) (*Index, error) {
 	if r.ix != nil && snap != nil && snap.Revision != "" && r.ix.Revision == snap.Revision {
 		return r.ix, nil
 	}
-	ix := BuildIndex(snap, r.cfg.NativeRoutes)
+	ix := buildIndex(snap, r.nativeRoutes(ctx, snap))
 	for _, d := range ix.Diagnostics {
 		r.cfg.Logger.WithField("revision", ix.Revision).Warn("extruntime ui: " + d)
 	}
-	r.ix = ix
+	r.prev, r.ix = r.ix, ix
 	return ix, nil
+}
+
+// previous returns the index the current one replaced, if any.
+func (r *Runtime) previous() *Index {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.prev
+}
+
+// nativeRoutes lists the native routes the index needs: the host's
+// path-only routes, upgraded with the typed contract of every route the
+// snapshot refers to (a screen binding's target, a page's route) that the
+// catalog resolves to a native route resource. Typed routes therefore need
+// no second registration in NativeRoutes.
+func (r *Runtime) nativeRoutes(ctx context.Context, snap *Snapshot) map[string]NativeRouteDecl {
+	out := make(map[string]NativeRouteDecl, len(r.cfg.NativeRoutes))
+	for id, pattern := range r.cfg.NativeRoutes {
+		out[id] = NativeRouteDecl{Pattern: pattern}
+	}
+	if r.cfg.Catalog == nil || snap == nil {
+		return out
+	}
+	wanted := map[string]bool{}
+	for _, b := range snap.Bindings {
+		if b.SlotKind == SlotScreen {
+			wanted[b.TargetID] = true
+		}
+	}
+	for _, p := range snap.Packages {
+		for _, res := range p.Manifest.Resources {
+			if res.Kind == manifest.ResPage && res.Route != "" {
+				wanted[res.Route] = true
+			}
+		}
+	}
+	for id := range wanted {
+		resolved, ok, err := r.cfg.Catalog.Resolve(ctx, id)
+		if err != nil {
+			r.cfg.Logger.WithError(err).Warn("extruntime ui: resolve route " + id)
+			continue
+		}
+		if !ok || !resolved.Native || resolved.Resource.Kind != manifest.ResRoute || resolved.Resource.Path == "" {
+			continue
+		}
+		out[id] = NativeRouteDecl{Pattern: resolved.Resource.Path, Params: resolved.Resource.Params, Permission: resolved.Resource.Permission}
+	}
+	return out
 }

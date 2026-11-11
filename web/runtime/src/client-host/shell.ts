@@ -7,7 +7,10 @@ import { render } from 'solid-js/web'
 import type {
   NavGroupModel, NavItemModel, NavModel, NavWorkspaceModel, NotificationsModel, PaletteModel, ShellProps, ThemeMode, ThemeModel, UserModel,
 } from '../client.ts'
+import { RuntimeProvider } from './hooks.ts'
 import type { RuntimeContext } from './protocol.ts'
+import { createSlotSource, SlotsProvider } from './slots.ts'
+import type { RuntimeTransport } from './transport.ts'
 
 // Structural views of the client host objects (see web/client-host/src/shell-*.ts).
 export interface ShellNode {
@@ -100,6 +103,9 @@ export interface ShellRendererOptions {
   shell: LoadedShell
   context: RuntimeContext
   window: Window
+  /** Lets the shell use `useQuery` / `useCommand`. */
+  transport?: RuntimeTransport
+  importModule?: (url: string) => Promise<Record<string, unknown>>
 }
 
 /** Wraps a loaded shell as a renderer for ShellHost.activate. */
@@ -161,6 +167,15 @@ export function createShellRenderer(options: ShellRendererOptions): ShellRendere
           notifications,
           logout: async () => { ctx.actions.logout() },
         }
+        const slots = createSlotSource({
+          contributions: context.slots ?? {},
+          ...(options.importModule ? { importModule: options.importModule } : {}),
+          console: console,
+        })
+        const body = () => createComponent(SlotsProvider, {
+          source: slots,
+          get children() { return createComponent(shell.component, props) },
+        })
         return createComponent(ErrorBoundary, {
           fallback: (error: unknown) => {
             // A failure while mounting makes mount() throw, so activation reports
@@ -169,7 +184,10 @@ export function createShellRenderer(options: ShellRendererOptions): ShellRendere
             else queueMicrotask(() => ctx.fail(error))
             return null
           },
-          get children() { return createComponent(shell.component, props) },
+          get children() {
+            const transport = options.transport
+            return transport ? createComponent(RuntimeProvider, { transport, get children() { return body() } }) : body()
+          },
         })
       }, ctx.root)
       mounting = false
@@ -191,6 +209,8 @@ export interface ActivateShellOptions<Host extends ShellHostLike> {
   host: Host
   window: Window & typeof globalThis
   importModule?: (url: string) => Promise<Record<string, unknown>>
+  /** Transport for the shell's own queries and commands. */
+  transport?: RuntimeTransport
 }
 
 /**
@@ -216,5 +236,9 @@ export async function activateRuntimeShell<Host extends ShellHostLike>(options: 
     console.error(`Shell renderer ${ref.id}: module ${ref.module} has no shell export "${ref.export ?? 'default'}"`)
     return false
   }
-  return options.host.activate(createShellRenderer({ id: ref.id, shell: value as LoadedShell, context: options.context, window: options.window }))
+  return options.host.activate(createShellRenderer({
+    id: ref.id, shell: value as LoadedShell, context: options.context, window: options.window,
+    ...(options.transport ? { transport: options.transport } : {}),
+    ...(options.importModule ? { importModule: options.importModule } : {}),
+  }))
 }

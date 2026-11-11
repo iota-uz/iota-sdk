@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import * as pub from '../src/index.ts'
 import {
-  $, ContractError, WireError, column, command, compileFilter, domainError, encode, entity, field, href, issue, operation,
-  overlay, ref, route, t, validation, type ValidationIssue,
+  $, ContractError, WireError, column, command, compileFilter, defineSlot, domainError, encode, entity, field, href, issue, operation,
+  overlay, ref, route, slotRef, t, validation, type ValidationIssue,
 } from '../src/index.ts'
 import { foreign, nativeEntity, nativeList } from '../src/kit.ts'
 import { cell, isError, issuesOf, navigation, page, RemoteError, slot } from '../src/client.ts'
@@ -402,5 +402,55 @@ describe('kit exports stay usable for generated modules', () => {
     expect(nativeList('crm.lists.X')).toEqual({ listId: 'crm.lists.X' })
     expect(() => column(nativeList('crm.lists.X'), { id: 'acme.insurance.x', field: c.ClientExtra.fields.points, label: { en: 'x' } })).not.toThrow()
     void command
+  })
+})
+
+describe('slots and cells', () => {
+  const Widgets = defineSlot('acme.insurance.widgets', { props: t.object({ title: t.string(), count: t.int().optional() }), permission: c.ReadPolicies })
+
+  it('declares a slot in the contracts graph with its typed props and permission', () => {
+    const m = collectManifest({ ...ns, contracts: { Widgets, ReadPolicies: c.ReadPolicies } })
+    const decl = m.resources.find((r) => r.id === 'acme.insurance.widgets')!
+    expect(decl).toMatchObject({ kind: 'slot', permission: c.ReadPolicies.id })
+    expect(decl.target).toBeUndefined()
+    expect(decl.props).toEqual({
+      kind: 'object',
+      properties: [{ name: 'title', type: { kind: 'string' } }, { name: 'count', type: { kind: 'int', optional: true } }],
+    })
+    expect(Widgets.slotId).toBe('acme.insurance.widgets')
+  })
+
+  it('keeps a declaration out of the client graph and a contribution out of the contracts graph', () => {
+    expect(problems({ ...ns, client: { Widgets } })).toEqual([expect.stringMatching(/slot contract must be declared and exported from the contracts graph/)])
+    const contribution = slot(Widgets, () => 'x')
+    expect(problems({ ...ns, contracts: { contribution } })).toEqual([expect.stringMatching(/slot belongs to the client graph/)])
+  })
+
+  it('records order, permission and the target of a contribution, and lets a typed ref or an ID name the slot', () => {
+    const late = slot(Widgets, () => 'x', { order: 20, permission: c.ReadPolicies })
+    const early = slot('crm.slots.clientSidebar', () => 'x', { order: -5 })
+    const plain = slot(Widgets, () => 'x', { id: 'acme.insurance.explicit' })
+    const m = collectManifest({ ...ns, contracts: { Widgets, ReadPolicies: c.ReadPolicies }, client: { late, early, plain } })
+    const byId = (id: string) => m.resources.find((r) => r.id === id)!
+    expect(byId('acme.insurance.late')).toMatchObject({ kind: 'slot', target: 'acme.insurance.widgets', order: 20, permission: c.ReadPolicies.id, export: 'late' })
+    expect(byId('acme.insurance.early')).toMatchObject({ target: 'crm.slots.clientSidebar', order: -5 })
+    expect(byId('acme.insurance.early').permission).toBeUndefined()
+    expect(byId('acme.insurance.explicit').order).toBeUndefined()
+  })
+
+  it('refuses a contribution whose in-package slot or column was never declared', () => {
+    const orphan = slot('acme.insurance.nowhere', () => 'x')
+    expect(problems({ ...ns, client: { orphan } })).toEqual([expect.stringMatching(/references "acme.insurance.nowhere" which is not exported by the contracts graph/)])
+    const detached = slotRef('acme.insurance.ghost')
+    const viaRef = slot(detached, () => 'x')
+    expect(problems({ ...ns, client: { viaRef } })).toEqual([expect.stringMatching(/"acme.insurance.ghost"/)])
+  })
+
+  it('types the props of a contribution by the slot', () => {
+    // compile-time only: the props of `slot(Widgets, …)` are { title: string; count?: number }
+    const typed = slot(Widgets, (p) => `${p.title}:${p.count ?? 0}`)
+    // @ts-expect-error `title` is a string
+    slot(Widgets, (p) => p.title.toFixed())
+    expect(typed.component({ title: 'a' })).toBe('a:0')
   })
 })

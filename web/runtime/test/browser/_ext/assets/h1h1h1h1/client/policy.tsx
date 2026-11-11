@@ -1,8 +1,8 @@
 // A package page as the build slice would ship it: `page()` value with a Solid component.
 import { Show } from 'solid-js'
-import { query } from '../../../../../../contracts.ts'
-import { t } from '../../../../../../schema.ts'
-import { useQuery } from '../../../../../hooks.ts'
+import { query } from '../../../../../../src/contracts.ts'
+import { t } from '../../../../../../src/schema.ts'
+import { useQuery } from '../../../../../../src/client-host/hooks.ts'
 
 const Expiring = query('acme.insurance.expiring', { input: t.object({ days: t.int() }), output: t.object({ count: t.int() }) })
 

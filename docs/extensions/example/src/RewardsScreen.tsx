@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js"
-import { isError, useCommand, useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
+import { isError, Slot, useCommand, useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
 import * as c from "./contracts"
 
 export default function RewardsScreen(_props: PageProps) {
@@ -30,7 +30,13 @@ export default function RewardsScreen(_props: PageProps) {
       <Show when={rewards.data()}>
         {(rows) => (
           <ul>
-            <For each={rows()}>{(r) => <li>{r.name}: {r.cost}</li>}</For>
+            <For each={rows()}>
+              {(r) => (
+                <li>
+                  {r.name}: {r.cost} <Slot slot={c.RewardActions} props={{ reward: r.name }} />
+                </li>
+              )}
+            </For>
           </ul>
         )}
       </Show>

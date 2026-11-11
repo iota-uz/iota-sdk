@@ -384,8 +384,32 @@ export interface SlotRef<P extends object = Record<string, Json>> {
   readonly [valueBrand]?: P
 }
 
-export function slotRef<P extends object = Record<string, Json>>(id: string): SlotRef<P> {
+/** A slot by ID. With the props schema the contributions' props are typed by it (the developer kit does this). */
+export function slotRef<S extends ObjectSchema>(id: string, props: S): SlotRef<Infer<S>>
+export function slotRef<P extends object = Record<string, Json>>(id: string): SlotRef<P>
+export function slotRef(id: string, _props?: ObjectSchema): SlotRef<object> {
   return { slotId: id }
+}
+
+/** A slot declaration (`defineSlot`): the contract of a place where packages mount components. */
+export interface SlotDeclaration<Id extends string = string, P extends object = Record<string, Json>> extends Contract<Id, 'slot'>, SlotRef<P> {}
+
+export interface SlotSpec<S extends ObjectSchema> {
+  /** The props the host page passes to every contribution. */
+  props: S
+  /** Contributions are mounted only for viewers who hold it (checked on the server). */
+  permission?: Permission
+}
+
+/**
+ * Declares a slot of this package: a place in one of its own pages (`<Slot slot={…} props={…}/>` from
+ * `@iota-uz/sdk/runtime/client`) where any activated package may mount a component. Export it from the contracts
+ * graph like a route; other packages contribute through the developer kit (`slot(kit.Name, Component)`). Slots of
+ * the platform are declared by Go and arrive the same way, from the kit.
+ */
+export function defineSlot<const Id extends string, S extends ObjectSchema>(id: Id, spec: SlotSpec<S>): SlotDeclaration<Id, Infer<S>> {
+  const resource = omitEmpty({ id, kind: 'slot' as const, props: spec.props.type, permission: spec.permission?.id }) as ResourceJSON
+  return { ...contract({ ...resource, id, kind: 'slot' }), slotId: id }
 }
 
 export interface ColumnSpec {

@@ -28,6 +28,7 @@ import (
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	crmext "github.com/iota-uz/iota-sdk/modules/crm/extension"
 	crmPerms "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -118,8 +119,10 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	e.cfg = runtime.Config{
 		WorkerScript: worker, CacheDir: t.TempDir(), PoolSize: cfg.poolSize,
 		Builder: builder, Kits: builder,
-		Git:    manage.GitConfig{AllowedSchemes: []string{"file"}},
-		Events: cfg.events, Schedules: cfg.schedules,
+		// The CRM's extension points (client view route, sidebar slot) are native resources of the application.
+		NativeResources: crmext.Resources("/crm/clients"),
+		Git:             manage.GitConfig{AllowedSchemes: []string{"file"}},
+		Events:          cfg.events, Schedules: cfg.schedules,
 		UI: &runtime.UIConfig{
 			Host: clienthost.Manifest{
 				Package: "@iota-uz/sdk", PackageVersion: "0.5.6", SDKCommit: "0123456789abcdef0123456789abcdef01234567",

@@ -6,6 +6,7 @@ import type { PageProps } from '../client.ts'
 import { decodeRouteParams } from './params.ts'
 import { isPageData, type PageData } from './protocol.ts'
 import { RuntimeProvider } from './hooks.ts'
+import { createSlotSource, SlotsProvider } from './slots.ts'
 import type { RuntimeTransport } from './transport.ts'
 
 /** The slice of @iota-uz/sdk/client-host the page runtime needs, injected so it is testable. */
@@ -89,6 +90,11 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
   const messages = { ...DEFAULT_MESSAGES, ...options.messages }
   const load = options.importModule ?? ((url: string) => import(/* @vite-ignore */ url) as Promise<Record<string, unknown>>)
 
+  const slots = createSlotSource({
+    contributions: data.slots ?? {},
+    ...(options.importModule ? { importModule: options.importModule } : {}),
+    console: owner.defaultView?.console ?? console,
+  })
   let active = true
   let generation = 0
   let unmount: (() => void) | undefined
@@ -154,7 +160,12 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
             props: {},
             component: (hostProps) => createComponent(RuntimeProvider, {
               transport: options.transport,
-              get children() { return createComponent(Page as Component<PageProps<never> & { route: Context }>, { params: params as never, route: hostProps.route }) },
+              get children() {
+                return createComponent(SlotsProvider, {
+                  source: slots,
+                  get children() { return createComponent(Page as Component<PageProps<never> & { route: Context }>, { params: params as never, route: hostProps.route }) },
+                })
+              },
             }),
           })
         } catch (cause) {

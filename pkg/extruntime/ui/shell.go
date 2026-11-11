@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"sort"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 )
 
 // RuntimeContextElementID is the id of the JSON script element the browser
@@ -39,6 +39,9 @@ type RuntimeContext struct {
 	User              *RuntimeUser      `json:"user,omitempty"`
 	Shell             *ShellRef         `json:"shell,omitempty"`
 	Navigation        RuntimeNavigation `json:"navigation"`
+	// Slots are the slot contributions the user gets, by slot ID, for the
+	// `<Slot>` components of the shell renderer.
+	Slots map[string][]shellext.Module `json:"slots"`
 }
 
 // ShellRef identifies the shell renderer module to load.
@@ -139,6 +142,7 @@ func (r *Runtime) Context(ctx context.Context) (*RuntimeContext, error) {
 			Module: ix.Shell.AssetPath(), Export: ix.Shell.Export, Binding: ix.Shell.BindingID,
 		},
 		Navigation: RuntimeNavigation{Workspaces: []WorkspaceRef{}, Palette: Palette(ix, sub, lang)},
+		Slots:      r.visibleSlots(ctx, ix, sub),
 	}
 	for _, w := range ix.Navigation.Workspaces {
 		rc.Navigation.Workspaces = append(rc.Navigation.Workspaces, WorkspaceRef{ID: w.ID, Label: listext.LabelFor(w.Label, lang, w.ID), Icon: w.Icon, Order: w.Order})
@@ -160,26 +164,21 @@ func (r *Runtime) Markup(ctx context.Context) templ.Component {
 	if rc == nil {
 		return nil
 	}
-	return templ.ComponentFunc(func(_ context.Context, w io.Writer) error {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 		b, err := json.Marshal(rc)
 		if err != nil {
 			return err
 		}
-		m := r.cfg.Host
-		for _, style := range m.Styles {
-			if _, err := fmt.Fprintf(w, `<link rel="stylesheet" href="%s">`, template.HTMLEscapeString(style)); err != nil {
-				return err
-			}
-		}
 		if _, err := fmt.Fprintf(w, `<script id="%s" type="application/json">%s</script>`, RuntimeContextElementID, b); err != nil {
 			return err
 		}
-		integrity := ""
-		if v := m.Integrity[m.Entry]; v != "" {
-			integrity = ` integrity="` + template.HTMLEscapeString(v) + `" crossorigin="anonymous"`
+		// The host is written once per request, whichever of the shell and
+		// the first island comes first.
+		if isl, ok := shellext.IslandsFrom(ctx); ok {
+			if ri, ok := isl.(*requestIslands); ok {
+				return ri.writeHost(w)
+			}
 		}
-		_, err = fmt.Fprintf(w, `<script type="module" src="%s" data-sdk-commit="%s" data-package="%s"%s></script>`,
-			template.HTMLEscapeString(m.Entry), template.HTMLEscapeString(m.SDKCommit), template.HTMLEscapeString(m.Package), integrity)
-		return err
+		return r.writeHost(w)
 	})
 }

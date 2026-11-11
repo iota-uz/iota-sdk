@@ -481,6 +481,41 @@
               }
             ]
           }
+        },
+        {
+          "id": "crm.routes.clientView",
+          "kind": "route",
+          "contractHash": "43eb77a3bfeb7a2b90d9c9b1fe033288505d9f7ad51d725151444f6bb66aeb46",
+          "params": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "id",
+                "type": {
+                  "kind": "int"
+                }
+              }
+            ]
+          },
+          "permission": "Client.Read",
+          "path": "/crm/clients/:id"
+        },
+        {
+          "id": "crm.slots.clientSidebar",
+          "kind": "slot",
+          "contractHash": "9947d278afdcc6466640d0de047d0dc53fc01f3fd10e6067ad1aa104b636f028",
+          "permission": "Client.Read",
+          "props": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "clientId",
+                "type": {
+                  "kind": "int"
+                }
+              }
+            ]
+          }
         }
       ],
       "lists": [

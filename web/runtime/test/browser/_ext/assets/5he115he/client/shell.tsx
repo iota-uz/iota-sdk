@@ -1,6 +1,6 @@
 // A whole-shell renderer as a package would ship it: wraps the host-owned outlet.
 import { For } from 'solid-js'
-import type { ShellProps } from '../../../../../../client.ts'
+import type { ShellProps } from '../../../../../../src/client.ts'
 
 function Shell(props: ShellProps) {
   return (

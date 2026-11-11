@@ -1,6 +1,7 @@
 // Wire contract between pkg/extruntime/ui (Go) and the browser runtime. The Go
 // types are PageData and RuntimeContext; keep them in step.
 import type { TypeJSON } from '../model.ts'
+import type { SlotContribution } from './slots.ts'
 
 /** `initial.kind` of the client route context of a runtime page. */
 export const PAGE_DATA_KIND = 'iota.runtime.page'
@@ -28,6 +29,8 @@ export interface PageData {
   paramTypes?: TypeJSON
   /** Route id whose native screen this page replaces. */
   replacedRoute?: string
+  /** Slot contributions by slot ID, resolved for this viewer (activation, order, permissions). */
+  slots?: Record<string, SlotContribution[]>
 }
 
 export interface ShellRef {
@@ -55,6 +58,8 @@ export interface RuntimeContext {
   user?: RuntimeUserRef
   shell?: ShellRef
   navigation: { workspaces: WorkspaceRef[]; palette: PaletteRef[] }
+  /** Slot contributions by slot ID, resolved for this viewer; the shell renderer's `<Slot>` reads them. */
+  slots?: Record<string, SlotContribution[]>
 }
 
 export function isPageData(value: unknown): value is PageData {

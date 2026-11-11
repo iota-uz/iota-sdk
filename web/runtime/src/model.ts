@@ -173,7 +173,12 @@ export interface ResourceJSON {
   patches?: NavPatchJSON[]
   workspaces?: WorkspaceJSON[]
   palette?: PaletteEntryJSON[]
+  /** Slot contribution: the slot ID; cell: the column ID. */
   target?: string
+  /** Slot declaration: the typed props its host page passes to every contribution. */
+  props?: TypeJSON
+  /** Slot contribution: position among the contributions of the slot (ascending, default 0). */
+  order?: number
 }
 
 export type ImplKind =

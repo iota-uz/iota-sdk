@@ -26,10 +26,15 @@ const KitScope = "@iota-kit/"
 
 // kitExcluded lists the client-graph resource kinds: pages, navigation,
 // cells and shell renderers belong to the browser graph and are not contracts
-// another package can import.
+// another package can import. A slot is a contract only as a declaration; a
+// slot contribution (it has a target) is a client value.
 var kitExcluded = map[manifest.ResourceKind]bool{
-	manifest.ResPage: true, manifest.ResNavigation: true, manifest.ResSlot: true,
+	manifest.ResPage: true, manifest.ResNavigation: true,
 	manifest.ResCell: true, manifest.ResShell: true,
+}
+
+func kitExcludes(r manifest.Resource) bool {
+	return kitExcluded[r.Kind] || (r.Kind == manifest.ResSlot && r.Target != "")
 }
 
 type kitDoc struct {
@@ -66,7 +71,7 @@ func (s *Service) kitSources(ctx context.Context) ([]build.KitSource, error) {
 	for _, av := range active {
 		src := build.KitSource{Namespace: av.Namespace}
 		for _, r := range av.Manifest.Resources {
-			if kitExcluded[r.Kind] {
+			if kitExcludes(r) {
 				continue
 			}
 			if r.ContractHash == "" {

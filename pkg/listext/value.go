@@ -111,10 +111,35 @@ func (v Value) Export() any {
 	return *v.Raw
 }
 
+// WireJSON is the value as the browser receives it: bool as bool, int as a
+// number, everything else (int64 and decimal exact) as its canonical text, and
+// nil for NULL.
+func (v Value) WireJSON() any {
+	if v.Raw == nil {
+		return nil
+	}
+	switch v.Type.Kind {
+	case manifest.KindInt:
+		if n, err := strconv.ParseInt(*v.Raw, 10, 64); err == nil {
+			return n
+		}
+	case manifest.KindBool:
+		return *v.Raw == "true"
+	case manifest.KindString, manifest.KindInt64, manifest.KindDecimal, manifest.KindDate,
+		manifest.KindDateTime, manifest.KindUUID, manifest.KindEnum, manifest.KindJSON,
+		manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Exact text.
+	}
+	return *v.Raw
+}
+
 // Cell pairs a column with the value of one row.
 type Cell struct {
 	Column Column
 	Value  Value
+	// Row holds every contributed value of the row by column ID (wire JSON)
+	// and "ref", the native record; a package cell renderer receives it.
+	Row map[string]any
 }
 
 // condition turns a user-supplied filter into a typed condition. A value that

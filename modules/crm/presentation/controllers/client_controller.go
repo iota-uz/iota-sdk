@@ -326,10 +326,12 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	// The client view: a page of its own for a document request (the native
+	// screen of crm.routes.clientView) and the drawer fragment for HTMX.
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
 
 	hxRouter := r.PathPrefix(c.config.BasePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
-	hxRouter.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.GetPassportEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.GetTaxEdit)).Methods(http.MethodGet)
@@ -783,7 +785,15 @@ func (c *ClientController) View(
 		return
 	}
 
+	// The drawer names its client in the query (?view=); the view page in
+	// the path (/{id}).
+	fullPage := (htmx.WantsFullPage(r) || htmx.IsBoosted(r)) && r.URL.Query().Get("view") == ""
 	clientID, err := clientIDFromQ(r.URL)
+	if err != nil {
+		var id uint
+		id, err = shared.ParseID(r)
+		clientID = id
+	}
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
@@ -817,6 +827,11 @@ func (c *ClientController) View(
 		return
 	}
 
+	if fullPage {
+		c.viewPage(w, r, entity, qTab, component)
+		return
+	}
+
 	hxCurrentURL, err := url.Parse(htmx.CurrentURL(r))
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
@@ -827,23 +842,11 @@ func (c *ClientController) View(
 		SelectedTab: r.URL.RequestURI(),
 		CallbackURL: hxCurrentURL.Path,
 		Tabs:        []clients.ClientTab{},
+		ClientID:    entity.ID(),
 	}
 
 	// Build tabs from configured tabs
-	for _, tabDef := range c.tabsOrder {
-		// Check permissions if needed here
-		if len(tabDef.Permissions) > 0 {
-			// Convert permission pointers to rbac.Permission types
-			perms := make([]rbac.Permission, 0, len(tabDef.Permissions))
-			for _, p := range tabDef.Permissions {
-				perms = append(perms, rbac.Perm(p))
-			}
-
-			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
-				continue // Skip this tab if user doesn't have permission
-			}
-		}
-
+	for _, tabDef := range c.visibleTabs(r) {
 		q := url.Values{}
 		q.Set("view", strconv.Itoa(int(entity.ID())))
 		q.Set("tab", tabDef.ID)
@@ -866,6 +869,43 @@ func (c *ClientController) View(
 		ctx := templ.WithChildren(r.Context(), component)
 		templ.Handler(clients.ViewDrawer(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// visibleTabs are the configured tabs the request user may open.
+func (c *ClientController) visibleTabs(r *http.Request) []TabDefinition {
+	out := make([]TabDefinition, 0, len(c.tabsOrder))
+	for _, tabDef := range c.tabsOrder {
+		if len(tabDef.Permissions) > 0 {
+			// Convert permission pointers to rbac.Permission types
+			perms := make([]rbac.Permission, 0, len(tabDef.Permissions))
+			for _, p := range tabDef.Permissions {
+				perms = append(perms, rbac.Perm(p))
+			}
+			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
+				continue // Skip this tab if user doesn't have permission
+			}
+		}
+		out = append(out, tabDef)
+	}
+	return out
+}
+
+// viewPage renders the client view as a page of its own, with the selected
+// tab beside the sidebar slot extension packages contribute to.
+func (c *ClientController) viewPage(w http.ResponseWriter, r *http.Request, entity client.Client, selected string, tab templ.Component) {
+	props := clients.ViewPageProps{
+		Title:    mappers.ClientToViewModel(entity).FullName(),
+		ClientID: entity.ID(),
+	}
+	for _, tabDef := range c.visibleTabs(r) {
+		props.Tabs = append(props.Tabs, clients.ViewPageTab{
+			Name:     intl.MustT(r.Context(), tabDef.NameKey),
+			Href:     fmt.Sprintf("%s/%d?tab=%s", c.config.BasePath, entity.ID(), url.QueryEscape(tabDef.ID)),
+			Selected: tabDef.ID == selected,
+		})
+	}
+	ctx := templ.WithChildren(r.Context(), tab)
+	templ.Handler(clients.ViewPage(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (c *ClientController) GetPersonalEdit(

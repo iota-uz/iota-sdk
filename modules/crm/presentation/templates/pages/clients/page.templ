@@ -8,9 +8,12 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/crm/extension"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 )
 
 // formatData returns "-" if the string is empty, otherwise returns the string
@@ -41,6 +44,55 @@ type ViewDrawerProps struct {
 	SelectedTab string
 	CallbackURL string
 	Tabs        []ClientTab
+	ClientID    uint
+}
+
+// ViewPageProps are the props of the client view page.
+type ViewPageProps struct {
+	Title    string
+	ClientID uint
+	// Tabs link to the page itself with the tab selected.
+	Tabs []ViewPageTab
+}
+
+// ViewPageTab is one tab link of the client view page.
+type ViewPageTab struct {
+	Name     string
+	Href     string
+	Selected bool
+}
+
+// clientSidebar is the sidebar slot of the client view: the contributions of
+// extension packages, rendered with the client they are about.
+templ clientSidebar(clientID uint) {
+	@shellext.Slot(ctx, extension.SlotClientSidebar, extension.ClientSidebarProps{ClientID: int(clientID)})
+}
+
+// ViewPage is the client view as a page of its own (the native screen of
+// crm.routes.clientView): the selected tab (children) beside the sidebar slot.
+templ ViewPage(props ViewPageProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: props.Title}}) {
+		<div class="m-6 flex gap-6" data-testid="crm-client-view">
+			<div class="min-w-0 flex-1">
+				<h1 class="text-2xl font-medium">{ props.Title }</h1>
+				<nav class="mt-4 flex gap-4 border-b border-primary" aria-label="tabs">
+					for _, t := range props.Tabs {
+						<a
+							href={ templ.SafeURL(t.Href) }
+							class={ "pb-2 text-sm", templ.KV("border-b-2 border-brand-500 font-medium", t.Selected) }
+							aria-current?={ t.Selected }
+						>{ t.Name }</a>
+					}
+				</nav>
+				<div class="mt-4">
+					{ children... }
+				</div>
+			</div>
+			<aside class="w-72 shrink-0" data-testid="crm-client-sidebar">
+				@clientSidebar(props.ClientID)
+			</aside>
+		</div>
+	}
 }
 
 templ ViewDrawer(props ViewDrawerProps) {
@@ -68,6 +120,9 @@ templ ViewDrawer(props ViewDrawerProps) {
 			@tab.BoostedContent(templ.Classes("flex-1 flex flex-col min-h-0")) {
 				{ children... }
 			}
+			<div class="shrink-0" data-testid="crm-client-sidebar">
+				@clientSidebar(props.ClientID)
+			</div>
 		</div>
 	}
 }

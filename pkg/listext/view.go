@@ -11,7 +11,9 @@ type View struct {
 	Lang    string
 	Columns []Column
 	Request Request
-	rows    map[string][]Value
+	// Native is the native entity ID of the listed rows ("crm.client").
+	Native string
+	rows   map[string][]Value
 }
 
 // NewView builds the view of a plan. Rows are added with SetRow.
@@ -19,7 +21,7 @@ func NewView(p *Plan, req Request, lang string) *View {
 	if p == nil || len(p.Columns) == 0 {
 		return nil
 	}
-	return &View{Lang: lang, Columns: p.Columns, Request: req, rows: map[string][]Value{}}
+	return &View{Lang: lang, Columns: p.Columns, Request: req, Native: p.Native, rows: map[string][]Value{}}
 }
 
 // SetRow stores the values of one row, aligned with Columns.
@@ -37,6 +39,7 @@ func (v *View) Cells(key string) []Cell {
 	}
 	values := v.rows[key]
 	out := make([]Cell, len(v.Columns))
+	row := map[string]any{"ref": map[string]string{"entity": v.Native, "key": key}}
 	for i, c := range v.Columns {
 		out[i] = Cell{Column: c}
 		if i < len(values) {
@@ -44,6 +47,10 @@ func (v *View) Cells(key string) []Cell {
 		} else {
 			out[i].Value = Value{Type: c.Type}
 		}
+		row[c.ID] = out[i].Value.WireJSON()
+	}
+	for i := range out {
+		out[i].Row = row
 	}
 	return out
 }

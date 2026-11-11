@@ -53,10 +53,11 @@ function typeRefs(type: TypeJSON | undefined, out: string[]): void {
 function referencedIds(r: ResourceJSON): string[] {
   const out: string[] = []
   r.fields?.forEach((f) => typeRefs(f.type, out))
-  for (const t of [r.input, r.output, r.params, r.payload]) typeRefs(t, out)
+  for (const t of [r.input, r.output, r.params, r.payload, r.props]) typeRefs(t, out)
   Object.values(r.signals ?? {}).forEach((t) => typeRefs(t, out))
   out.push(...(r.errors ?? []))
   for (const id of [r.base, r.subject, r.permission, r.route, r.overlay]) if (id) out.push(id)
+  if ((r.kind === 'slot' || r.kind === 'cell') && r.target) out.push(r.target)
   return out
 }
 
@@ -171,7 +172,8 @@ export function collectManifest(input: CollectInput): ManifestJSON {
         external(value, where)
         continue
       }
-      const isClient = CLIENT_KINDS.has(value.kind)
+      // A slot declaration is a contract (other packages reference it through the kit); only contributions are client values.
+      const isClient = CLIENT_KINDS.has(value.kind) && !(value.kind === 'slot' && value.resource.target === undefined)
       if (graph === 'contracts' && isClient) {
         problems.push(`${where}: ${value.kind} belongs to the client graph`)
         continue

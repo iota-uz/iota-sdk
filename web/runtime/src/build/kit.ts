@@ -77,7 +77,7 @@ function typeRefs(type: TypeJSON | undefined, out: string[]): void {
 function dependencies(r: ResourceJSON): string[] {
   const out: string[] = [];
   r.fields?.forEach((f) => typeRefs(f.type, out));
-  for (const t of [r.input, r.output, r.params, r.payload]) typeRefs(t, out);
+  for (const t of [r.input, r.output, r.params, r.payload, r.props]) typeRefs(t, out);
   Object.values(r.signals ?? {}).forEach((t) => typeRefs(t, out));
   out.push(...(r.errors ?? []));
   for (const id of [r.base, r.subject, r.permission, r.overlay]) if (id !== undefined && id !== "") out.push(id);
@@ -257,7 +257,8 @@ class Generator {
         return `foreign(${this.use("column")}(${this.expr(r.id, `list:${r.list ?? ""}`)}, { ${props.join(", ")} }))`;
       }
       case "slot":
-        return `${this.use("slotRef")}(${q(r.id)})`;
+        // The props schema types the contributions' props: `slot(kit.ClientSidebar, (p) => p.clientId)`.
+        return r.props === undefined ? `${this.use("slotRef")}(${q(r.id)})` : `${this.use("slotRef")}(${q(r.id)}, ${this.schema(r.id, r.props)})`;
       default:
         return undefined;
     }

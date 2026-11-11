@@ -12,5 +12,5 @@
     }
   },
   "include": ["."],
-  "exclude": ["**/*.test.ts", "browser/*.spec.ts", "browser/*.config.ts"]
+  "exclude": ["**/*.test.ts"]
 }

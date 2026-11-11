@@ -104,6 +104,36 @@ if (packageJSON.bin?.['iota-ext'] !== './dist/runtime/cli/iota-ext.mjs') {
   await walk(path.join(root, 'dist/runtime/build/vendor'))
 }
 
+// Test fixtures never ship: the browser pages and fake extension assets of the runtime host live in
+// web/runtime/test/browser, outside the published tree, and unit tests and their helpers are not emitted.
+// (The authoring guide's example package under dist/runtime/docs and the vendored toolchain are data, not fixtures.)
+{
+  const fixtureLike = [
+    [/(^|\/)(browser|_ext)$/, 'a browser fixture directory'],
+    [/\.(spec|test)\.[cm]?[jt]sx?$/, 'a test file'],
+    [/(^|\/)(playwright|vite|vitest)\.config\.[cm]?[jt]s$/, 'a test runner config'],
+    [/(^|\/)client-host\/fixtures\.(d\.ts|[cm]?[jt]s)$/, 'the client host test fixtures'],
+    [/\.html$/, 'an HTML fixture page'],
+  ]
+  const leaked = []
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name)
+      const rel = path.relative(path.join(root, 'dist/runtime'), file).split(path.sep).join('/')
+      if (rel === 'docs' || rel === 'build/vendor') continue
+      const hit = fixtureLike.find(([pattern]) => pattern.test(rel))
+      if (hit) leaked.push(`${rel} (${hit[1]})`)
+      if (entry.isDirectory()) await walk(file)
+    }
+  }
+  await walk(path.join(root, 'dist/runtime'))
+  if (leaked.length > 0) throw new Error(`test fixtures are in the published runtime package:\n  ${leaked.join('\n  ')}`)
+  // The browser entry of the runtime host and the slot / cell island host are what ships.
+  for (const file of ['dist/runtime/client-host/entry.js', 'dist/runtime/client-host/islands.js', 'dist/runtime/client-host/slots.js']) {
+    await access(path.join(root, file))
+  }
+}
+
 const targets = []
 for (const value of Object.values(packageJSON.exports)) {
   if (typeof value === 'string') {

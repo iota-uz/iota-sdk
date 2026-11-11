@@ -16,8 +16,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 )
 
 // ControllerID is the descriptor ID of the runtime page host.
@@ -92,7 +94,19 @@ func (c *Controller) matchPage(r *http.Request, _ *mux.RouteMatch) bool {
 		return false
 	}
 	route, ok := ix.Resolve(r.URL.Path)
-	return ok && paramsValid(route.Page.Params, route.Params)
+	if !ok || !paramsValid(route.Page.Params, route.Params) {
+		return false
+	}
+	// A screen replaces a native screen, not the fragments the native page
+	// loads from its own route: an HTMX partial request (not a boosted
+	// navigation) still reaches the native handler.
+	return route.ReplacedRoute == "" || !isPartialRequest(r)
+}
+
+// isPartialRequest reports an HTMX request that swaps a fragment in, as
+// opposed to a full navigation or a boosted link.
+func isPartialRequest(r *http.Request) bool {
+	return htmx.IsHxRequest(r) && !htmx.IsBoosted(r) && !htmx.IsHistoryRestoreRequest(r)
 }
 
 // PageData is the initial value of a runtime page route: what the browser
@@ -108,6 +122,9 @@ type PageData struct {
 	ParamTypes *manifest.Type `json:"paramTypes,omitempty"`
 	// ReplacedRoute is the route ID whose native screen this page replaces.
 	ReplacedRoute string `json:"replacedRoute,omitempty"`
+	// Slots are the slot contributions the viewer gets, by slot ID, for the
+	// `<Slot>` components of the page.
+	Slots map[string][]shellext.Module `json:"slots"`
 }
 
 // PageDataKind marks the initial value of a runtime page route.
@@ -133,6 +150,16 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	route, ok := ix.Resolve(r.URL.Path)
+	if !ok {
+		// The router chose this handler from the previous snapshot and the
+		// source refreshed in between (a binding was reverted, a package
+		// deactivated): finish the request on the index that routed it.
+		if prev := c.previous(); prev != nil {
+			if route, ok = prev.Resolve(r.URL.Path); ok {
+				ix = prev
+			}
+		}
+	}
 	if !ok || !paramsValid(route.Page.Params, route.Params) {
 		http.NotFound(w, r)
 		return
@@ -143,7 +170,8 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The permission is checked here, whatever the navigation shows.
-	if !sub.Has(route.Page.Permission) {
+	// A replacing page also needs what the native screen it replaces needs.
+	if !sub.Has(route.Page.Permission) || !sub.Has(route.ReplacedPermission) {
 		w.WriteHeader(http.StatusForbidden)
 		if err := error_pages.Forbidden().Render(ctx, w); err != nil {
 			_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))
@@ -163,6 +191,7 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 			Params:        nonNil(route.Params),
 			ParamTypes:    page.Params,
 			ReplacedRoute: route.ReplacedRoute,
+			Slots:         c.visibleSlots(ctx, ix, sub),
 		}),
 		Theme:       "light",
 		Route:       clienthost.RouteIdentity{ID: page.ID, Path: r.URL.Path, FeatureID: page.ID},

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 	"strings"
 )
 
@@ -33,9 +34,21 @@ templ Cells(cells []listext.Cell) {
 	}
 }
 
-// Cell is the standard renderer of one value, chosen by its declared type.
-// Text is escaped by templ; JSON values are shown as text, never as markup.
+// Cell renders one value. A package renderer contributed for the column mounts
+// in the browser as an island; the standard renderer below is the server
+// output either way, so the list reads the same without JavaScript and while
+// the package module loads. Exports never use a renderer.
 templ Cell(cell listext.Cell) {
+	if cell.Column.Cell != nil {
+		@shellext.CellIsland(ctx, shellext.Cell{Renderer: *cell.Column.Cell, Value: cell.Value.WireJSON(), Row: cell.Row}, standard(cell))
+	} else {
+		@standard(cell)
+	}
+}
+
+// standard is the standard renderer of one value, chosen by its declared type.
+// Text is escaped by templ; JSON values are shown as text, never as markup.
+templ standard(cell listext.Cell) {
 	switch  {
 		case cell.Value.Null():
 			<span class="text-300" data-ext-cell={ cell.Column.ID }>—</span>

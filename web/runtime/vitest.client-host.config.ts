@@ -3,14 +3,14 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const clientHost = path.resolve(here, '../../../client-host')
+const clientHost = path.resolve(here, '../client-host')
 const solidRoot = path.join(clientHost, 'node_modules/solid-js')
 
 // Browser-graph tests of the runtime host. Run with
-//   web/client-host/node_modules/.bin/vitest run --config web/runtime/src/client-host/vitest.config.ts
+//   pnpm --dir web/runtime test:client-host
 // (client-host owns jsdom and solid-js in the workspace).
 export default defineConfig({
-  root: here,
+  root: path.join(here, 'src/client-host'),
   test: {
     include: ['*.test.ts'],
     environment: 'jsdom',
@@ -25,5 +25,5 @@ export default defineConfig({
       'solid-js': path.join(solidRoot, 'dist/solid.js'),
     },
   },
-  server: { fs: { allow: [path.resolve(here, '../../../..')] } },
+  server: { fs: { allow: [path.resolve(here, '../..')] } },
 })

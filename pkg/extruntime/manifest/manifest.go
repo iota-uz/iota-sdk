@@ -241,6 +241,9 @@ type Resource struct {
 	Target string `json:"target,omitempty"`
 	// Props of a slot declaration (typed props passed to contributions).
 	Props *Type `json:"props,omitempty"`
+	// Order positions a slot contribution among the contributions of its
+	// slot (ascending; ties break by package, then ID).
+	Order int `json:"order,omitempty"`
 }
 
 type ImplKind string
@@ -407,7 +410,8 @@ func ContractHashOf(r Resource) string {
 		Subject string          `json:"subject,omitempty"`
 		Signals map[string]Type `json:"signals,omitempty"`
 		Path    string          `json:"path,omitempty"`
-	}{r.ID, r.Kind, r.Atomic, nil, r.Base, r.Input, r.Output, r.Errors, r.Params, r.Payload, r.Subject, r.Signals, r.Path}
+		Props   *Type           `json:"props,omitempty"`
+	}{r.ID, r.Kind, r.Atomic, nil, r.Base, r.Input, r.Output, r.Errors, r.Params, r.Payload, r.Subject, r.Signals, r.Path, r.Props}
 	for _, f := range r.Fields {
 		f.Label = nil
 		shape.Fields = append(shape.Fields, f)
