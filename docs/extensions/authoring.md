@@ -49,7 +49,7 @@ Two things surprise newcomers:
 npm install --save-dev @iota-uz/sdk            # provides the iota-ext command; esbuild comes with it
 npx iota-ext init loyalty --namespace acme.loyalty
 cd loyalty
-npm install                                    # editor support and the lockfile publishing needs
+npm install                                    # editor support and the lockfile publishing needs; the kit is not in node_modules
 npx iota-ext check                             # typecheck + graph rules + manifest
 npx iota-ext test                              # run *.test.ts on the in-memory test host
 npx iota-ext build                             # artifacts and manifest in .iota/build
@@ -57,10 +57,16 @@ npx iota-ext build                             # artifacts and manifest in .iota
 
 `init` writes `package.json`, `tsconfig.json`, `src/contracts.ts`, `src/server.ts`, `src/client.tsx` (a page),
 `src/server.test.ts` (a passing test) and generates the kit for the SDK's own natives (`@iota-kit/core`,
-`@iota-kit/crm`) **offline**. Everything works before you have access to any server. When you do, `iota-ext kit pull`
-replaces the offline kit with the application's real one (see §5).
+`@iota-kit/crm`) **offline** into `.iota/kit/`. Everything works before you have access to any server. When you do,
+`iota-ext kit pull` replaces the offline kit with the application's real one (see §5).
 
 `iota-ext` is the `bin` of `@iota-uz/sdk` (Node ≥ 20.19). Full reference: §16.
+
+`init` pins `"@iota-uz/sdk"` in `package.json` to the **exact version of the CLI that ran it** (`iota-ext --version`), not a
+range. The extension runtime (`iota-ext`, `@iota-uz/sdk/runtime/*`) ships from that release on; earlier public builds of the
+package have no `dist/runtime`, and a caret range could resolve to one of them. Keep the dependency on a release that
+contains the runtime, and when you upgrade the SDK, upgrade it together with a fresh `kit generate`/`kit pull`. If you
+install the SDK from a tarball or a registry mirror, the dependency points there instead; the rule is the same.
 
 ## 3. Package layout
 
@@ -69,6 +75,8 @@ loyalty/
 ├─ package.json          the iota section: namespace, entries, capabilities
 ├─ package-lock.json     required to publish when the package has any dependency besides @iota-uz/sdk
 ├─ tsconfig.json         for your editor (see §4)
+├─ .iota/kit/            the generated developer kit (§5): commit it
+├─ .iota/build/          `iota-ext build` output: do not commit
 └─ src/
    ├─ contracts.ts       contracts graph
    ├─ server.ts          server graph
@@ -88,7 +96,7 @@ loyalty/
     "client": "./src/client.tsx",
     "capabilities": { "network": ["api.partner.example"], "secrets": ["PARTNER_TOKEN"] }
   },
-  "dependencies": { "@iota-uz/sdk": "*" }
+  "dependencies": { "@iota-uz/sdk": "0.5.6" }
 }
 ```
 
@@ -116,6 +124,7 @@ only serves the editor and should mirror those options. The scaffold writes:
     "strict": true, "noEmit": true, "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    "paths": { "@iota-kit/*": ["./.iota/kit/*"] },
     "jsx": "preserve", "jsxImportSource": "solid-js"
   },
   "include": ["src"]
@@ -126,7 +135,11 @@ only serves the editor and should mirror those options. The scaffold writes:
   `init` does it. The SDK's own typings come from `@iota-uz/sdk`.
 * `types: ["node"]` is what lets tests import `node:assert`; you do not need it if you use the SDK's `assert` (§14).
 * Import local files without extensions (`import * as c from "./contracts"`); the bundler resolves them.
-* Do not rely on options the platform does not use (path aliases, `experimentalDecorators`, JSX other than Solid).
+* `paths` is the one alias you need: it lets the editor (and your own `tsc`) resolve `@iota-kit/*` from `.iota/kit/`, where
+  the kit lives (§5). `iota-ext` does not read it: it resolves the kit itself. `iota-ext kit generate` adds the entry to a
+  `tsconfig.json` written before the kit moved out of `node_modules` (a tsconfig with comments is left alone and the
+  command prints the line to add).
+* Do not rely on other options the platform does not use (other path aliases, `experimentalDecorators`, JSX other than Solid).
 
 ## 5. The developer kit
 
@@ -147,8 +160,15 @@ packages that are active. You get one of three ways:
 | an application's snapshot file | `iota-ext kit generate --catalog app.json` | the application exported its native catalog; works offline |
 | the live kit | `iota-ext kit pull --server https://erp.example.com --token-env IOTA_TOKEN` | you can reach the application's `/_ext/manage` API |
 
-`kit pull` downloads every module of the current kit from `GET /_ext/manage/kit` and `/kit/modules/<ns>.tgz`, unpacks
-them into `node_modules/@iota-kit/` and records the snapshot hash in `node_modules/.iota-kit.json`. The token is read
+`kit generate` and `kit pull` write the modules to **`.iota/kit/<ns>/`** (`index.js`, `index.d.ts`, `package.json`) and
+the snapshot in `.iota/kit/kit.json`: its hash and the SHA-256 of every file. The kit is deliberately **not** in
+`node_modules`: a package manager deletes what it did not install, so a generated `node_modules/@iota-kit` vanished on
+every `npm install`. `.iota/kit` is yours to commit (it pins the snapshot the package was written against and needs no
+server to restore); `iota-ext` and its build worker resolve `@iota-kit/*` from it (the application builds against its own
+kit), your editor through the `paths` entry of `tsconfig.json` (§4). A package that still has the old `node_modules/@iota-kit` layout keeps
+working (the CLI says so); the next `kit generate` or `kit pull` moves it. `iota-ext kit status` verifies the kit
+against its record: each module is `ok`, `missing` (a module or file is gone), `modified` (a file was edited) or
+`unrecorded`, and the exit code is 1 when the kit is damaged. The token is read
 from the environment variable you name (never from the command line); `--cookie-env VAR` sends a session cookie header
 instead. The user needs the extensions *read* permission. An application exports a snapshot with
 `GET /_ext/manage/catalog/natives` or `catalog.Natives(set).Snapshot()` over its composed `native.Set`; the SDK's own
@@ -177,8 +197,11 @@ they take more segments (`crm.clients` the route and `crm.lists.clients` the lis
 registrations, so they agree on these names; an application that adds natives of its own can add names (and push an
 existing one to more segments when it collides), so pull the kit of the application you target.
 
-If an import fails with `graph.unknownKit` or TS2307 for `@iota-kit/…`, the module is not installed: the CLI says
-which command to run.
+If an import fails, the module is not in the kit: the diagnostic is `graph.unknownKit` (once per file and module, instead of
+TS2307) and names the commands that install it (`kit generate`, `kit generate --catalog <file>`, `kit pull`). The follow-on
+type errors it causes (implicit `any`, missing properties on values typed through the missing module) are hidden, with one
+`kit.followOn` warning saying how many, so the first error you see is the cause. When the kit's files are gone or edited, the
+hint says so and points at `kit status`.
 
 ## 6. Data
 
@@ -237,6 +260,14 @@ export const catalog = implement(c.Catalog, async (q, input) => {
   / `data.foreignWrite` denial if you cast around it.
 
 ### 6.3 Access rules
+
+Rules and gates refer to **permissions**, which you declare in the contracts graph. A permission is a named capability with a
+label for the role editor; the ID lives in your namespace, and the label is a map of locale to text:
+
+```ts
+// example/src/contracts.ts
+export const Manage = permission("acme.loyalty.manage", { label: { en: "Manage loyalty", ru: "Управление лояльностью" } })
+```
 
 ```ts
 // example/src/contracts.ts
@@ -648,6 +679,14 @@ export const resultTemplates = templates(c.RedemptionResult, {
 })
 ```
 
+A record recipient needs a **contact resolver**: a contract for the entity, declared in the contracts graph, and its
+implementation, bound in the server graph:
+
+```ts
+// example/src/contracts.ts
+export const ClientContacts = contactResolver("acme.loyalty.clientContacts", crm.Client)
+```
+
 ```ts
 // example/src/server.ts
 export const clientContacts = implement(c.ClientContacts, async (q, record) => {
@@ -665,13 +704,21 @@ export const clientContacts = implement(c.ClientContacts, async (q, record) => {
   back. A notice needs templates in some active package, or the call fails.
 * A template renderer exists per channel (`sms`, `email`, `inApp`, `push`); a channel without a renderer is skipped for
   that notice. Renderers receive `{ payload, subject, locale }` and may be async.
-* `recipient.record(ref)` needs a **contact resolver** for that entity (`contactResolver(id, Entity)` + `implement`);
-  it returns the targets per channel (`sms`, `email`, `push`); a `push` target is a device token and each token is its
-  own delivery with its own outcome.
+* `recipient.record(ref)` needs the **contact resolver** above for that entity (`contactResolver(id, Entity)` +
+  `implement`); it returns the targets per channel (`sms`, `email`, `push`); a `push` target is a device token and each
+  token is its own delivery with its own outcome. It has no `inApp` target: an in-app message addresses an ERP user.
 * A **delivery policy** (`deliveryPolicy(id, Entity)` + `implement`) is where consent and opt-out live: the SDK has no
   consent schema, the package that owns the data decides. See [Delivery policies](#delivery-policies).
 * `recipient.user(...)` addresses an ERP user through the platform's notification preferences; it takes a ref to
   `core.user`.
+* **Mixed recipients.** `channels` apply to **every** recipient of the call: the platform tries each recipient × channel
+  pair and records a skipped delivery (with the reason) for a pair that has no target, instead of failing the call. A
+  record recipient is reachable over `sms`, `email` and `push` only if its resolver returns targets; `inApp` reaches ERP users
+  only (`recipient.user`), so `to: [recipient.record(client), recipient.user(agent)], channels: ["sms", "inApp"]` sends the
+  SMS to the client, the in-app message to the agent, and records `record × inApp` and (with no phone on the user) `user × sms`
+  as skipped. That is rarely what you mean: **send one `tx.notify` per audience**, each with the channels that fit it
+  (`wf.transaction` can hold both calls), and read the skipped rows in `host.deliveries` (§14.2) when a message does not
+  arrive.
 * Use a stable `name`/key on repeated sends in workflows (`wf.transaction("send:${id}", …)`) so a replay does not notify
   twice.
 
@@ -697,7 +744,8 @@ any write transaction; it runs as the **trigger owner** of the policy (assign on
 `PUT /_ext/manage/triggers/{policyId}/owner`, `ext_owner_assign`) with that user's current rights. A policy of a
 package that is not active (deactivated, replaced, never activated) is simply not consulted.
 
-The request and the answer are a **public, versioned contract**; fields are only ever added.
+The request and the answer are a **public, versioned contract**; fields are only ever added. The test host evaluates bound
+policies with the same request (§14.2).
 
 ```jsonc
 // request (the second argument of the handler)
@@ -932,15 +980,18 @@ import {
 } from "@iota-uz/sdk/runtime/testing"
 ```
 
+Import everything test-related from **`@iota-uz/sdk/runtime/testing`**. (`@iota-uz/sdk/testing`, without `runtime`, is a different
+package, the Playwright helpers.)
+
 ```ts
 // example/src/server.test.ts
 function host(options: TestHostOptions = {}) {
   return createTestHost({
-    implementations: [s.adjustPoints, s.createReward, s.redeem, s.catalog, s.approval, s.reminder, s.clientContacts, s.resultTemplates, s.reminderTemplates],
+    implementations: [s.adjustPoints, s.createReward, s.redeem, s.catalog, s.approval, s.reminder, s.clientContacts, s.clientConsent, s.resultTemplates, s.reminderTemplates],
     user: { permissions: [c.Manage.id] },
     secrets: { PARTNER_TOKEN: "token-for-tests" },
     ...options,
-    fixtures: [ali, ...(options.fixtures ?? [])],
+    fixtures: [ali, agent, ...(options.fixtures ?? [])],
   })
 }
 ```
@@ -953,8 +1004,8 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 
 | `createTestHost({ … })` option | meaning |
 |---|---|
-| `fixtures` | initial rows: `fixture(Entity, values, { key })` and `overlayFixture(Overlay, baseRef, values)`; defaults apply, values are validated; native entities need an explicit `key` |
-| `implementations` | handlers `tx.call` / `ctx.call` / `wf.call` dispatch to, by contract; also `templates(...)` and `contactResolver` implementations used by notice delivery |
+| `fixtures` | initial rows: `fixture(Entity, values, { key })` and `overlayFixture(Overlay, baseRef, values)`; defaults apply (`createdAt` / `updatedAt` default to `EPOCH` on every entity), values are validated; native entities need an explicit `key` |
+| `implementations` | handlers `tx.call` / `ctx.call` / `wf.call` dispatch to, by contract; also `templates(...)`, and the `contactResolver` and `deliveryPolicy` implementations notice delivery uses |
 | `templates` | `templates(...)` exports (alternatively list them in `implementations`) |
 | `contacts` | `(record) => ContactTargets \| undefined`: contact data of record recipients, answered before a bound resolver |
 | `guards` | `guard`, `precheck` and `writeRule` values to apply |
@@ -963,6 +1014,7 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 | `secrets` | values for `ctx.secrets.get` |
 | `fakes` | your own `fakeEffects()` instance |
 | `now` | start of the host clock |
+| `snapshot` | the `package@version` that delivery policies receive as `notice.snapshot` (default `<owner>.<module>@0.0.0`) |
 
 | `host.` | meaning |
 |---|---|
@@ -992,8 +1044,18 @@ With any `templates` bound, a committed `tx.notify` is rendered and delivered, p
 
 * **address** recipients are used as given (`address.sms` → `fakes.sms`);
 * **record** recipients go through `contacts`, else the `contactResolver` implementation bound for that entity;
-* **user** recipients read the `core.user` fixture (`fixture(core.User, { email, phone, … }, { key: "42" })`): `sms` →
-  phone, `email` → e-mail, `inApp` and `push` → the user key.
+* **user** recipients read the `core.user` fixture: `sms` → phone, `email` → e-mail, `inApp` and `push` → the user key, and
+  `uiLanguage` becomes the template `locale`.
+
+```ts
+// example/src/server.test.ts
+const agent = fixture(core.User, { firstName: "Agent", lastName: "A", email: "agent@example.uz", uiLanguage: "en" }, { key: "42" })
+```
+
+A native entity's fixture needs an explicit `key` and the fields the entity requires (`firstName`, `lastName`, `email` and
+`uiLanguage` for `core.User`); `createdAt` and `updatedAt` default to `EPOCH` (`"2026-01-01T00:00:00Z"`, exported by the same
+module) on every entity, whether or not it declares them as fields, so you never write them. Pass them to test time-dependent
+code.
 
 ```ts
 // example/src/server.test.ts
@@ -1004,11 +1066,47 @@ With any `templates` bound, a committed `tx.notify` is rendered and delivered, p
 ```
 
 Each `host.deliveries` entry is `{ notice, channel, recipient, target, status, reason?, content? }` with status
-`delivered`, `skipped` (no renderer for the channel, no address, no contact data; `reason` says which) or `failed` (the
-fake channel rejected it: `fakes.sms.failNext(new Error("down"))`, or the template threw). Delivery happens after commit,
-so a rolled-back transaction delivers nothing. Without any templates, `tx.notify` is only recorded in `host.notices`; with
-templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime. The test host does not
-evaluate delivery policies: unit-test a policy by calling its handler with a request of the shape above.
+`delivered`, `skipped` (no renderer for the channel, no address, no contact data, a denied policy; `reason` says which) or
+`failed` (the fake channel rejected it: `fakes.sms.failNext(new Error("down"))`, the template threw, or a policy failed).
+Delivery happens after commit, so a rolled-back transaction delivers nothing. Without any templates, `tx.notify` is only
+recorded in `host.notices`; with templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime.
+
+**Every channel is tried for every recipient** (§11, mixed recipients). The rows tell you which pair had no target:
+
+```ts
+// example/src/server.test.ts
+  assert.deepEqual(h.deliveries.map((d) => [d.recipient.kind, d.channel, d.status]), [
+    ["record", "sms", "delivered"],
+    ["record", "inApp", "skipped"], // in-app messages address ERP users, not client records
+    ["user", "sms", "skipped"], // the core.User fixture has no phone
+    ["user", "inApp", "delivered"],
+  ])
+```
+
+**Delivery policies are evaluated.** For a record recipient, before a message is sent to a target over `sms`, `email` or
+`push`, the host asks every `deliveryPolicy` implementation bound for the recipient's entity (list it in
+`implementations`), with the request shape of §11: `notice.key` and `version` derived from the notice ID, `snapshot` from
+the `snapshot` option, `target.address` the resolved phone or e-mail and `deviceId` null. Policies run in contract-ID order
+with the rights of the test host's user and the first denial wins: the delivery is `skipped` with reason
+`policy_denied:<reason>` (or `policy_denied`; a `reason` that is not `[a-z0-9_.-]{1,64}` is dropped as in production) and the
+fake channel is not called, while the other targets and channels go on. A policy that throws, or answers anything but
+`{ allow: boolean, reason?: string }`, makes the delivery `failed`: like the platform, it is never an implicit allow.
+In-app, user and address recipients have no policy.
+
+```ts
+// example/src/server.test.ts
+  const h = host({ fixtures: [mug, redemption, overlayFixture(c.ClientLoyalty, ali.ref, { smsOptOut: true })] })
+  await h.transaction((tx) =>
+    tx.notify(c.RedemptionResult, { subject: redemption.ref, payload: { reward: "Mug", approved: true }, to: [recipient.record(ali.ref)], channels: ["sms", "email"] }),
+  )
+  assert.deepEqual(h.fakes.sms.delivered, [])
+  assert.deepEqual(h.fakes.email.delivered.map((m) => m.to), ["ali@example.uz"])
+  assert.deepEqual(h.deliveries.map((d) => [d.channel, d.status, d.reason]), [["sms", "skipped", "policy_denied:sms_opt_out"], ["email", "delivered", undefined]])
+```
+
+What stays outside the host: the trigger-owner assignment (a policy with no owner is retried in production; the host just
+runs it) and the application's Go-configured policy. Unit-test a policy in isolation by calling its handler with a request
+object, as you would any query handler.
 
 ### 14.3 `fetch` and the fakes
 
@@ -1049,6 +1147,22 @@ A subscription, schedule or endpoint handler is a plain function: call `sub.hand
 `host.transaction`, or `host.deliver(sub, event)`; for a schedule or endpoint pass `{ ...host.command(), slot }` /
 `{ ...host.command(), request }`.
 
+### 14.5 What the offline tools do not cover: the client graph
+
+`iota-ext test` runs your **server** code. There is no offline surface that mounts a Solid page, slot or cell renderer: that
+needs a DOM, a browser build of Solid and the host's shared module registry, none of which the Node test host has, and a
+stub would only hide differences from the browser. What you do have offline:
+
+* `iota-ext check` / `build` typecheck the client graph (props, `useQuery` / `useCommand` inputs and results are typed from
+  your contracts), enforce its rules (no server imports, no Node built-ins) and bundle it for the browser, so a screen that
+  compiles calls your contracts correctly;
+* every query and command a screen calls is a plain contract you can test on the host (§14.1), including its permission
+  behaviour through read rules; keep screen logic that deserves a test in a pure `.ts` file and test that file;
+* the loading, error and empty states and the markup are checked in the application: activate the package on a development
+  instance, or render the component in your own Vitest + jsdom setup with `vite-plugin-solid`: wrap it in
+  `RuntimeProvider` (exported by `@iota-uz/sdk/runtime/client`) with a fake transport,
+  `{ invoke: async (kind, resource, input) => … }`, which is what `useQuery` and `useCommand` call.
+
 ## 15. Errors the tools print
 
 Every diagnostic is `file:line:col code message` and points at **your** source.
@@ -1058,7 +1172,7 @@ Every diagnostic is `file:line:col code message` and points at **your** source.
 | `ts.<n>` | a TypeScript error (the number is the compiler's). Messages for the usual mistakes name the fix: a write to a native entity → "use a published operation (`tx.call`)"; ordering by an enum → "cannot order by 'status'"; a range on a non-orderable field; a filter on a `json` field; `tx.call` of an ordinary command → "use `ctx.call`"; a keyless `tx.start` → "needs a start key" |
 | `graph.impureContract` | the contracts graph imported `@iota-uz/sdk/runtime/server\|client`, Solid or a Node built-in |
 | `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …") |
-| `graph.unknownKit` | an `@iota-kit/<ns>` module is not installed: `iota-ext kit generate` or `kit pull` |
+| `graph.unknownKit` | an `@iota-kit/<ns>` module is not in the kit: `iota-ext kit generate` or `kit pull` (reported once per file and module; the type errors it causes are hidden and counted by the `kit.followOn` warning) |
 | `manifest.duplicateId` / `outsideNamespace` / `invalidId` | an ID is declared twice, outside the namespace, or malformed. Entities, routes and workflows share one ID space: give them different names |
 | `manifest.undeclaredReference` | a resource refers to a contract that is not exported from the contracts graph |
 | `manifest.wrongGraph` | a contract exported from the server graph, a server value from the client one, … |
@@ -1079,7 +1193,7 @@ name (`PolicyBadge` → `<namespace>.policyBadge`).
 iota-ext init <dir> --namespace <owner.module> [--name <npm name>] [--no-client] [--no-kit] [--force]
 iota-ext kit generate [--catalog <file|sdk>]...        # offline; default: the SDK natives
 iota-ext kit pull --server <url> [--token-env VAR] [--cookie-env VAR]
-iota-ext kit status
+iota-ext kit status [--json]                            # verify .iota/kit: modules, files, hashes, tsconfig paths; exit 1 when damaged
 iota-ext check [--json]
 iota-ext build [--out <dir>] [--json]                   # default .iota/build: artifacts/ and manifest.json
 iota-ext test [filter...] [--json]
@@ -1093,7 +1207,8 @@ prints one JSON document for machines:
 | `check` | `{ ok, diagnostics: [{ file, line?, column?, severity, code, message }], manifest }` |
 | `build` | `{ ok, out, diagnostics, artifacts: [path], manifest }` |
 | `test` | `{ ok, passed, failed, diagnostics, cases: [{ name, file, passed, durationMs, message?, location?: { file, line, column }, frames? }] }` |
-| `kit generate` / `kit pull` | `{ ok, hash, modules }` |
+| `kit generate` / `kit pull` | `{ ok, hash, modules, dir, editor }` (`editor`: `present`, `added`, `manual` or `absent`, the state of the tsconfig `paths` entry) |
+| `kit status` | `{ ok, installed, dir, location, hash, source, modules: [{ name, state, problems }], editor }` (`state`: `ok`, `missing`, `modified`, `unrecorded`) |
 
 **Exit codes**: `0` success; `1` the package has errors or a test failed; `2` usage (unknown option, bad namespace, not a
 package directory); `3` environment (the network, the build worker, an unreadable catalog file, an HTTP 401/403 from
@@ -1131,10 +1246,11 @@ Source control is yours: `ext_export` returns the draft as a tree to commit.
 ## 18. Reference: where to look
 
 * The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
-  `href`, wire helpers), `/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`, `endpoint`,
-  `templates`, `recipient`, context types), `/client` (`page`, `navigation`, `slot`, `Slot`, `cell`, `shellRenderer`, `useQuery`,
-  `useCommand`, `isError`, `issuesOf`), `/testing` (everything in §14). `/kit` is internal to generated modules; never
-  import it.
+  `href`, wire helpers), `@iota-uz/sdk/runtime/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`,
+  `endpoint`, `templates`, `recipient`, context types), `@iota-uz/sdk/runtime/client` (`page`, `navigation`, `slot`, `Slot`, `cell`,
+  `shellRenderer`, `useQuery`, `useCommand`, `isError`, `issuesOf`), `@iota-uz/sdk/runtime/testing` (everything in §14: the test
+  host, `fixture`, `EPOCH`, `assert`, the fakes; **not** `@iota-uz/sdk/testing`, which is the Playwright package).
+  `@iota-uz/sdk/runtime/kit` is internal to generated modules; never import it.
 * The complete working package: [`example/`](example). More real packages (an overlay with columns, a custom cell, slot contributions and a slot of your own, a replacement
   client view, a campaign workflow with an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
 * The platform contract: [`../extension-runtime.md`](../extension-runtime.md), §9.1 onwards.

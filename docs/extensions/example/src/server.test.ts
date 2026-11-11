@@ -3,21 +3,23 @@ import {
   assert, createTestHost, fixture, overlayFixture, test, type TestHostOptions,
 } from "@iota-uz/sdk/runtime/testing"
 import { ref } from "@iota-uz/sdk/runtime"
-import { implement } from "@iota-uz/sdk/runtime/server"
+import { implement, recipient } from "@iota-uz/sdk/runtime/server"
 import * as core from "@iota-kit/core"
 import * as crm from "@iota-kit/crm"
 import * as c from "./contracts"
 import * as s from "./server"
 
 const ali = fixture(crm.Client, { firstName: "Ali", phone: "+998901112233", email: "ali@example.uz" }, { key: "7" })
+// Native fixtures need an explicit key. createdAt and updatedAt default to EPOCH; the fields the entity requires are yours.
+const agent = fixture(core.User, { firstName: "Agent", lastName: "A", email: "agent@example.uz", uiLanguage: "en" }, { key: "42" })
 
 function host(options: TestHostOptions = {}) {
   return createTestHost({
-    implementations: [s.adjustPoints, s.createReward, s.redeem, s.catalog, s.approval, s.reminder, s.clientContacts, s.resultTemplates, s.reminderTemplates],
+    implementations: [s.adjustPoints, s.createReward, s.redeem, s.catalog, s.approval, s.reminder, s.clientContacts, s.clientConsent, s.resultTemplates, s.reminderTemplates],
     user: { permissions: [c.Manage.id] },
     secrets: { PARTNER_TOKEN: "token-for-tests" },
     ...options,
-    fixtures: [ali, ...(options.fixtures ?? [])],
+    fixtures: [ali, agent, ...(options.fixtures ?? [])],
   })
 }
 
@@ -89,6 +91,38 @@ test("the approval workflow waits for the human task, then settles and notifies"
   assert.deepEqual(h.fakes.sms.delivered.map((m) => [m.to, m.text]), [["+998901112233", 'Your reward "Mug" is approved.']])
   assert.deepEqual(h.fakes.email.delivered.map((m) => m.to), ["ali@example.uz"])
   assert.deepEqual(h.deliveries.map((d) => [d.channel, d.status]), [["sms", "delivered"], ["email", "delivered"]])
+})
+
+test("a delivery policy skips an opted-out SMS; the e-mail to the same client still goes out", async () => {
+  const mug = fixture(c.Reward, { name: "Mug", cost: 30 })
+  const redemption = fixture(c.Redemption, { client: ali.ref, reward: mug.ref, cost: 30, requestedBy: ref(core.User, "1") })
+  const h = host({ fixtures: [mug, redemption, overlayFixture(c.ClientLoyalty, ali.ref, { smsOptOut: true })] })
+  await h.transaction((tx) =>
+    tx.notify(c.RedemptionResult, { subject: redemption.ref, payload: { reward: "Mug", approved: true }, to: [recipient.record(ali.ref)], channels: ["sms", "email"] }),
+  )
+  assert.deepEqual(h.fakes.sms.delivered, [])
+  assert.deepEqual(h.fakes.email.delivered.map((m) => m.to), ["ali@example.uz"])
+  assert.deepEqual(h.deliveries.map((d) => [d.channel, d.status, d.reason]), [["sms", "skipped", "policy_denied:sms_opt_out"], ["email", "delivered", undefined]])
+})
+
+test("one notify to a client and an ERP user: every channel is tried for every recipient", async () => {
+  const mug = fixture(c.Reward, { name: "Mug", cost: 30 })
+  const redemption = fixture(c.Redemption, { client: ali.ref, reward: mug.ref, cost: 30, requestedBy: ref(core.User, "42") })
+  const h = host({ fixtures: [mug, redemption] })
+  await h.transaction((tx) =>
+    tx.notify(c.RedemptionResult, {
+      subject: redemption.ref,
+      payload: { reward: "Mug", approved: true },
+      to: [recipient.record(ali.ref), recipient.user(agent.ref)],
+      channels: ["sms", "inApp"],
+    }),
+  )
+  assert.deepEqual(h.deliveries.map((d) => [d.recipient.kind, d.channel, d.status]), [
+    ["record", "sms", "delivered"],
+    ["record", "inApp", "skipped"], // in-app messages address ERP users, not client records
+    ["user", "sms", "skipped"], // the core.User fixture has no phone
+    ["user", "inApp", "delivered"],
+  ])
 })
 
 test("an event reaches its subscription and promotes the tier", async () => {

@@ -3,6 +3,7 @@ import { posix } from "node:path";
 
 import ts from "typescript";
 
+import { explainMissingKit } from "./kitdiag.ts";
 import type { Layout } from "./layout.ts";
 import type { Diagnostic, KitPayload } from "./protocol.ts";
 import { inNodeModules, isInside, listFiles, relPath } from "./util.ts";
@@ -103,9 +104,12 @@ export function typecheck(dir: string, layout: Layout, kit: KitPayload): Diagnos
   const options = compilerOptions(dir);
   const program = ts.createProgram({ rootNames: sourceFiles(dir), options, host: createHost(vfs, layout) });
   const out: Diagnostic[] = [];
+  const codes: number[] = [];
   for (const d of ts.getPreEmitDiagnostics(program)) {
     const diagnostic = toDiagnostic(dir, d);
-    if (diagnostic !== undefined) out.push(diagnostic);
+    if (diagnostic === undefined) continue;
+    out.push(diagnostic);
+    codes.push(d.code);
   }
-  return out;
+  return explainMissingKit(out, codes, kit.modules);
 }

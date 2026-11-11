@@ -10,6 +10,7 @@ import babel from "@babel/core";
 import solidPreset from "babel-preset-solid";
 import type * as Esbuild from "esbuild";
 
+import { unknownKitMessage } from "./kitdiag.ts";
 import type { Layout } from "./layout.ts";
 import { locateImport } from "./locate.ts";
 import type { Diagnostic, KitPayload } from "./protocol.ts";
@@ -197,7 +198,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
         if (spec.startsWith("@iota-kit/")) {
           const name = spec.split("/").slice(0, 2).join("/");
           if (env.kit.modules[name]?.["index.js"] === undefined) {
-            violate("graph.unknownKit", `kit module "${name}" is not part of the developer kit this package builds against`, importer, spec);
+            violate("graph.unknownKit", unknownKitMessage(name, env.kit.modules), importer, spec);
             return { path: spec, external: true };
           }
           sink.kitModules.add(name);

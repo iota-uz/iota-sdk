@@ -46,7 +46,11 @@ export function normalizeDiagnostics(list: readonly Diagnostic[]): Diagnostic[] 
   const seen = new Set<string>();
   const out: Diagnostic[] = [];
   for (const d of list) {
-    const key = `${d.file}\u0000${d.line ?? 0}\u0000${d.column ?? 0}\u0000${d.code}\u0000${d.message}`;
+    // A missing kit module is reported once per file (the typecheck and the graph rules both notice it).
+    const key =
+      d.code === "graph.unknownKit"
+        ? `${d.file}\u0000${d.code}\u0000${/"(@iota-kit\/[^"]+)"/.exec(d.message)?.[1] ?? d.message}`
+        : `${d.file}\u0000${d.line ?? 0}\u0000${d.column ?? 0}\u0000${d.code}\u0000${d.message}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(d);

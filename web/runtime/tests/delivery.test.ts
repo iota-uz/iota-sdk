@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { decimal, isoDate, ref } from '../src/index.ts'
-import { recipient } from '../src/server.ts'
-import { assert, AssertionError, createTestHost, fakeEffects, fixture, type TestHostOptions } from '../src/testing.ts'
+import { decimal, deliveryPolicy, isoDate, ref } from '../src/index.ts'
+import { implement, recipient } from '../src/server.ts'
+import type { Channel } from '../src/model.ts'
+import type { Ref } from '../src/schema.ts'
+import { assert, AssertionError, createTestHost, fakeEffects, fixture, type Fixture, type TestHostOptions } from '../src/testing.ts'
 import * as c from '../typetests/acme/contracts.ts'
 import * as s from '../typetests/acme/server.ts'
 import * as kit from '../typetests/kit.ts'
@@ -111,6 +113,115 @@ describe('notice delivery', () => {
     )
     expect(host.notices).toHaveLength(1)
     expect(host.deliveries).toEqual([])
+  })
+})
+
+describe('delivery policies', () => {
+  const send = (host: ReturnType<typeof createTestHost>, to: Ref | undefined, channels: readonly [Channel, ...Channel[]], policy: Fixture<typeof c.Policy>) =>
+    host.transaction((tx) =>
+      tx.notify(c.RenewalReminder, {
+        subject: policy.ref,
+        payload: { number: 'P-1', expiresOn },
+        to: to === undefined ? [recipient.address({ sms: '+1555000', email: 'x@example.uz' })] : [recipient.record(to)],
+        channels,
+      }),
+    )
+
+  function policyHost(extra: TestHostOptions = {}) {
+    const ali = fixture(c.Customer, { name: 'Ali', phone: '+998901112233' })
+    const abroad = fixture(c.Customer, { name: 'Bob', phone: '+1555123456' })
+    const policy = fixture(c.Policy, { number: 'P-1', holder: ali.ref, premium: decimal('10.00'), expiresOn })
+    const host = createTestHost({
+      fixtures: [ali, abroad, policy],
+      implementations: [s.reminderTemplates, s.customerContacts, s.customerConsent],
+      contacts: (record) => (record.key === ali.ref.key ? { sms: ['+998901112233'], email: ['ali@example.uz'] } : record.key === abroad.ref.key ? { sms: ['+1555123456'], email: ['bob@example.uz'] } : undefined),
+      ...extra,
+    })
+    return { host, ali, abroad, policy }
+  }
+
+  it('skips a denied target as policy_denied and still delivers the others', async () => {
+    const { host, abroad, policy } = policyHost()
+    await send(host, abroad.ref, ['sms', 'email'], policy)
+    expect(host.fakes.sms.delivered).toEqual([])
+    expect(host.fakes.email.delivered.map((m) => m.to)).toEqual(['bob@example.uz'])
+    expect(host.deliveries.map((d) => [d.channel, d.target, d.status, d.reason])).toEqual([
+      ['sms', '+1555123456', 'skipped', 'policy_denied'],
+      ['email', 'bob@example.uz', 'delivered', undefined],
+    ])
+  })
+
+  it('allows what the policy allows', async () => {
+    const { host, ali, policy } = policyHost()
+    await send(host, ali.ref, ['sms'], policy)
+    expect(host.fakes.sms.delivered.map((m) => m.to)).toEqual(['+998901112233'])
+  })
+
+  it('passes the platform request shape, with a snake_case notice key and the configured snapshot', async () => {
+    const seen: unknown[] = []
+    const spy = implement(c.CustomerConsent, async (_q, request) => {
+      seen.push(request)
+      return { allow: true }
+    })
+    const { host, ali, policy } = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, spy], snapshot: 'acme.insurance@1.4.0' })
+    await send(host, ali.ref, ['email'], policy)
+    expect(seen).toEqual([
+      {
+        notice: { key: 'acme.insurance.renewal_reminder.v1', version: 1, snapshot: 'acme.insurance@1.4.0' },
+        subject: policy.ref,
+        recipient: { kind: 'record', ref: ali.ref, address: null },
+        channel: 'email',
+        target: { address: 'ali@example.uz', deviceId: null },
+      },
+    ])
+    const dflt = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, spy] })
+    seen.length = 0
+    await send(dflt.host, dflt.ali.ref, ['sms'], dflt.policy)
+    expect(seen).toEqual([expect.objectContaining({ notice: expect.objectContaining({ snapshot: 'acme.insurance@0.0.0' }) })])
+  })
+
+  it('stores a valid reason and drops one that is not a machine code', async () => {
+    const reasoned = (reason: string) => implement(c.CustomerConsent, async () => ({ allow: false, reason }))
+    for (const [reason, stored] of [['sms_opt_out', 'policy_denied:sms_opt_out'], ['Has Spaces', 'policy_denied'], ['x'.repeat(65), 'policy_denied']] as const) {
+      const { host, ali, policy } = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, reasoned(reason)] })
+      await send(host, ali.ref, ['sms'], policy)
+      expect(host.deliveries.map((d) => [d.status, d.reason])).toEqual([['skipped', stored]])
+    }
+  })
+
+  it('asks every bound policy in contract-ID order and the first denial wins', async () => {
+    const First = deliveryPolicy('acme.insurance.aFirst', c.Customer)
+    const asked: string[] = []
+    const allowing = implement(First, async () => (asked.push('aFirst'), { allow: true }))
+    const denying = implement(c.CustomerConsent, async () => (asked.push('customerConsent'), { allow: false, reason: 'second' }))
+    const Last = deliveryPolicy('acme.insurance.zLast', c.Customer)
+    const never = implement(Last, async () => (asked.push('zLast'), { allow: false, reason: 'third' }))
+    const { host, ali, policy } = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, never, denying, allowing] })
+    await send(host, ali.ref, ['sms'], policy)
+    expect(asked).toEqual(['aFirst', 'customerConsent'])
+    expect(host.deliveries.map((d) => d.reason)).toEqual(['policy_denied:second'])
+  })
+
+  it('never lets a failing or malformed policy through', async () => {
+    const throwing = implement(c.CustomerConsent, async () => {
+      throw new Error('boom')
+    })
+    const malformed = implement(c.CustomerConsent, (async () => ({ allow: 'yes' })) as never)
+    for (const [impl, text] of [[throwing, 'boom'], [malformed, 'must return {allow: boolean']] as const) {
+      const { host, ali, policy } = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, impl] })
+      await send(host, ali.ref, ['sms'], policy)
+      expect(host.fakes.sms.delivered).toEqual([])
+      expect(host.deliveries).toEqual([expect.objectContaining({ status: 'failed', reason: expect.stringContaining(text) })])
+    }
+  })
+
+  it('does not apply to address recipients or to a policy of another entity', async () => {
+    const asked: string[] = []
+    const spy = implement(c.CustomerConsent, async () => (asked.push('asked'), { allow: false }))
+    const { host, policy } = policyHost({ implementations: [s.reminderTemplates, s.customerContacts, spy] })
+    await send(host, undefined, ['sms', 'email'], policy)
+    expect(asked).toEqual([])
+    expect(host.fakes.sms.delivered.map((m) => m.to)).toEqual(['+1555000'])
   })
 })
 

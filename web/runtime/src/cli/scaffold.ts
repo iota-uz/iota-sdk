@@ -36,7 +36,9 @@ export function scaffold(o: ScaffoldOptions): Record<string, string> {
       server: './src/server.ts',
       ...(o.client ? { client: './src/client.tsx' } : {}),
     },
-    dependencies: { '@iota-uz/sdk': o.sdkVersion === '0.0.0' ? '*' : `^${o.sdkVersion}` },
+    // Exact, not a range: the extension runtime ships from the version of the CLI that wrote this file, and earlier public
+    // builds of the package have no dist/runtime (a caret range could resolve to one of them).
+    dependencies: { '@iota-uz/sdk': o.sdkVersion === '0.0.0' ? '*' : o.sdkVersion },
     devDependencies: { '@types/node': '^22.0.0', ...(o.client ? { 'solid-js': '^1.9.0' } : {}), typescript: '~5.7.2' },
   }
   files['package.json'] = JSON.stringify(pkg, null, 2) + '\n'
@@ -52,6 +54,8 @@ export function scaffold(o: ScaffoldOptions): Record<string, string> {
           skipLibCheck: true,
           lib: ['ES2022', 'DOM', 'DOM.Iterable'],
           types: ['node'],
+          // The generated kit lives in .iota/kit, not in node_modules (npm install deletes what it did not install).
+          paths: { '@iota-kit/*': ['./.iota/kit/*'] },
           ...(o.client ? { jsx: 'preserve', jsxImportSource: 'solid-js' } : {}),
         },
         include: ['src'],
@@ -59,7 +63,8 @@ export function scaffold(o: ScaffoldOptions): Record<string, string> {
       null,
       2,
     ) + '\n'
-  files['.gitignore'] = 'node_modules\n.iota\n'
+  // .iota/kit is committed: it pins the snapshot the package was written against and needs no server to restore.
+  files['.gitignore'] = 'node_modules\n.iota/build\n'
   files['src/contracts.ts'] = `// Pure contracts: every resource this package declares. No handlers, no Node, no Solid.
 import { command, entity, field, query, t } from "@iota-uz/sdk/runtime"
 

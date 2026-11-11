@@ -6,6 +6,15 @@ import { encode } from './wire.ts'
 
 export const EPOCH = '2026-01-01T00:00:00Z' as ISODateTime
 
+/** The system timestamps a native entity may declare as fields; a fixture defaults them to `EPOCH`. */
+const TIMESTAMPS = ['createdAt', 'updatedAt'] as const
+type Timestamp = (typeof TIMESTAMPS)[number]
+
+/** `InsertOf<E>` where `createdAt` / `updatedAt` are always optional (they default to `EPOCH`), whether or not the entity declares them. */
+export type FixtureValues<E> = {
+  [K in keyof InsertOf<E> as K extends Timestamp ? never : K]: InsertOf<E>[K]
+} & { [K in keyof InsertOf<E> as K extends Timestamp ? K : never]?: InsertOf<E>[K] }
+
 export interface Fixture<E extends EntityLike> {
   readonly ref: Ref<E>
   /** The stored row as `get` returns it, including its typed `ref`. */
@@ -32,7 +41,7 @@ function materialize(fields: Readonly<Record<string, { spec: { default?: Json };
   const given = values as Readonly<Record<string, unknown>>
   const out: Record<string, unknown> = {}
   for (const [key, f] of Object.entries(fields)) {
-    out[key] = given[key] !== undefined ? given[key] : (f.spec.default ?? null)
+    out[key] = given[key] !== undefined ? given[key] : (TIMESTAMPS as readonly string[]).includes(key) ? EPOCH : (f.spec.default ?? null)
   }
   return out
 }
@@ -45,8 +54,10 @@ function checked(entity: AnyEntity | AnyOverlay, record: Record<string, unknown>
 /**
  * A synthetic record of `entity` with its ref. Defaults apply, optional fields read `null`, values are
  * validated against the field types, and the key is deterministic unless given (native entities need one).
+ * `createdAt` and `updatedAt` default to `EPOCH` on every entity, also when a native entity declares them as fields
+ * (`core.User` requires them, `crm.Client` makes them optional: a fixture needs neither).
  */
-export function fixture<E extends AnyEntity>(entity: E, values: InsertOf<E>, opts: { key?: string } = {}): Fixture<E> {
+export function fixture<E extends AnyEntity>(entity: E, values: FixtureValues<E>, opts: { key?: string } = {}): Fixture<E> {
   if (entity.entityKind === 'native' && opts.key === undefined) {
     throw new Error(`fixture(${entity.id}): native entities need an explicit key (${entity.keyType})`)
   }
