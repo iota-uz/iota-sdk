@@ -20,8 +20,11 @@ type ContextProps struct {
 	ScreenLabel  string
 	Label        string
 	Sections     []ContextSection
-	Class        any
-	Attrs        templ.Attributes
+	// Class is appended to the wrapper classes. Accepts anything templ.Classes
+	// accepts (string, templ.CSSClass, map[string]bool, templ.KV values) and
+	// []any of those; nil entries are ignored.
+	Class any
+	Attrs templ.Attributes
 }
 
 type HintProps struct {
@@ -31,7 +34,8 @@ type HintProps struct {
 	ArticlePath  string
 	ArticleLabel string
 	Label        string
-	Class        any
+	// Class accepts the same values as ContextProps.Class.
+	Class any
 }
 
 func contextLabel(props ContextProps) string {
@@ -41,11 +45,24 @@ func contextLabel(props ContextProps) string {
 	return defaultLabel
 }
 
+// withClass joins base with extra for templ's class processor, which rejects
+// nil and []any with a --templ-css-class-unknown-type marker.
 func withClass(base string, extra any) templ.CSSClasses {
-	if extra == nil {
-		return templ.Classes(base)
+	classes := []any{base}
+	var add func(v any)
+	add = func(v any) {
+		switch value := v.(type) {
+		case nil:
+		case []any:
+			for _, item := range value {
+				add(item)
+			}
+		default:
+			classes = append(classes, value)
+		}
 	}
-	return templ.Classes(base, extra)
+	add(extra)
+	return templ.Classes(classes...)
 }
 
 func contextClass(props ContextProps) templ.CSSClasses {
