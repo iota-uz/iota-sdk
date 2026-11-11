@@ -221,15 +221,14 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           const contents = await transformJsx(esbuild, args.path, await readFile(args.path, "utf8"), rules.jsx);
           return { contents, loader: "js", resolveDir: dirname(args.path) };
         } catch (err) {
+          // esbuild reports precise messages; Babel reports `loc`.
+          const messages = (err as { errors?: Esbuild.Message[] }).errors;
+          if (Array.isArray(messages) && messages.length > 0) {
+            return { errors: messages.map((m) => ({ text: m.text, location: m.location })) };
+          }
           const loc = (err as { loc?: { line: number; column: number } }).loc;
-          return {
-            errors: [
-              {
-                text: errorMessage(err).split("\n")[0] ?? "JSX transform failed",
-                location: { file: args.path, ...(loc === undefined ? {} : { line: loc.line, column: loc.column }) },
-              },
-            ],
-          };
+          const text = (errorMessage(err).split("\n")[0] ?? "JSX transform failed").replace(`${args.path}: `, "");
+          return { errors: [{ text, location: { file: args.path, ...(loc === undefined ? {} : { line: loc.line, column: loc.column }) } }] };
         }
       });
     },
