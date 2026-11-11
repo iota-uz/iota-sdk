@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 
 import type { BuildResponse, Diagnostic, KitResponse, KitSourcePayload, TestResponse } from '../build/protocol.ts'
 import { UsageError, parseArgs } from './args.ts'
-import { KIT_DIR, KIT_PATHS_KEY, KIT_PATHS_VALUE, editorPaths, ensureEditorPaths, inspectKit, installKit, loadKit, type KitReport } from './kitfs.ts'
+import { InvalidKitError, KIT_DIR, KIT_PATHS_KEY, KIT_PATHS_VALUE, editorPaths, ensureEditorPaths, inspectKit, installKit, kitNamespace, loadKit, type KitReport } from './kitfs.ts'
 import { formatDiagnostics, formatTests, plural, style, type Style } from './report.ts'
 import { EnvironmentError, locateDistribution, runWorker, type Distribution } from './runtime.ts'
 import { defaultPackageName, scaffold, validateNamespace } from './scaffold.ts'
@@ -278,12 +278,20 @@ async function kitPull(ctx: Context, argv: readonly string[]): Promise<number> {
   }
   const index = (await (await get(`${base}/kit`)).json()) as { hash: string; modules: string[] }
   const modules: Record<string, Record<string, Uint8Array>> = {}
-  for (const name of index.modules) {
-    const namespace = name.replace(/^@iota-kit\//, '')
-    const archive = new Uint8Array(await (await get(`${base}/kit/modules/${namespace}.tgz?hash=${index.hash}`)).arrayBuffer())
-    modules[name] = Object.fromEntries(untar(archive).map((e) => [e.path, e.data]))
+  let record: ReturnType<typeof installKit>
+  try {
+    // The server is not trusted with names or paths: they are validated before anything is requested or written.
+    if (typeof index.hash !== 'string' || !Array.isArray(index.modules)) throw new InvalidKitError('the kit index has no hash or module list')
+    const namespaces = index.modules.map((name) => kitNamespace(name))
+    for (const [i, name] of index.modules.entries()) {
+      const archive = new Uint8Array(await (await get(`${base}/kit/modules/${namespaces[i]}.tgz?hash=${encodeURIComponent(index.hash)}`)).arrayBuffer())
+      modules[name] = Object.fromEntries(untar(archive).map((e) => [e.path, e.data]))
+    }
+    record = installKit(dir, index.hash, modules, { kind: 'server', url: server })
+  } catch (err) {
+    if (err instanceof InvalidKitError) throw new EnvironmentError(`${server} sent a kit that cannot be installed (the installed kit is unchanged): ${err.message}`)
+    throw err
   }
-  const record = installKit(dir, index.hash, modules, { kind: 'server', url: server })
   const editor = ensureEditorPaths(dir)
   if (args.flag('json')) json(ctx.io, { ok: true, hash: record.hash, modules: record.modules, dir: KIT_DIR, editor })
   else {

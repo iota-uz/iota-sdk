@@ -7,8 +7,8 @@
 // (`@iota-kit/*` -> `./.iota/kit/*`, see `ensureEditorPaths`). Packages that still have the old
 // `node_modules/@iota-kit` layout keep working until the kit is regenerated, which moves it.
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 
 import type { KitModules, KitPayload } from '../build/protocol.ts'
 
@@ -164,29 +164,99 @@ export function inspectKit(dir: string): KitReport {
   return { location, record, modules, ok: modules.length > 0 && modules.every((m) => m.state === 'ok') }
 }
 
+/** A kit the CLI refuses to install: a module name or a file path that could write outside the kit. */
+export class InvalidKitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InvalidKitError'
+  }
+}
+
+/** The manifest namespace grammar: dot-separated lowercase words. A kit module is `@iota-kit/<namespace>`. */
+const NAMESPACE_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/
+
+/** The namespace of a kit module name (`@iota-kit/crm` -> `crm`); refuses anything else. */
+export function kitNamespace(name: string): string {
+  const namespace = name.startsWith(`${SCOPE}/`) ? name.slice(SCOPE.length + 1) : ''
+  if (!NAMESPACE_PATTERN.test(namespace)) throw new InvalidKitError(`kit module name ${JSON.stringify(name)} is not ${SCOPE}/<namespace>`)
+  return namespace
+}
+
+/**
+ * A kit file path is relative and plain: segments of ordinary characters only, no `.`/`..`, no empty segment, no
+ * absolute or drive-qualified path, no backslash or control character. After joining it must stay inside the module
+ * directory (checked again against the resolved path, in case a rule above is ever loosened).
+ */
+function checkKitPath(module: string, root: string, path: string): void {
+  const bad = (why: string): never => {
+    throw new InvalidKitError(`kit module ${module} has an unsafe file path ${JSON.stringify(path)}: ${why}`)
+  }
+  if (path === '' || isAbsolute(path) || path.startsWith('/') || /^[A-Za-z]:/.test(path)) bad('it is empty or absolute')
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u001f]/.test(path)) bad('it has a backslash or a control character')
+  for (const segment of path.split('/')) {
+    if (segment === '' || segment === '.' || segment === '..') bad('it has an empty, "." or ".." segment')
+  }
+  const target = resolve(root, path)
+  if (!target.startsWith(root + sep)) bad('it resolves outside the module directory')
+}
+
+/** Validates every module name and file path of a kit; nothing on disk is touched. */
+export function checkKit(modules: Readonly<Record<string, Readonly<Record<string, string | Uint8Array>>>>): void {
+  const seen = new Set<string>()
+  for (const [name, content] of Object.entries(modules)) {
+    const namespace = kitNamespace(name)
+    if (seen.has(namespace)) throw new InvalidKitError(`kit module ${name} appears twice`)
+    seen.add(namespace)
+    const root = resolve('/kit-root', namespace)
+    for (const path of Object.keys(content)) checkKitPath(name, root, path)
+  }
+}
+
 /**
  * Replaces the installed kit with `modules` (each: relative path -> text or bytes) and records its provenance.
- * A kit left in the pre-`.iota/kit` location (`node_modules/@iota-kit`) is removed: it is superseded.
+ * Every name and path is validated first, and the new kit is written next to the old one and renamed into place,
+ * so a refused or interrupted install leaves the installed kit as it was. A kit left in the pre-`.iota/kit` location
+ * (`node_modules/@iota-kit`) is removed once the new one is in place: it is superseded.
  */
 export function installKit(dir: string, hash: string, modules: Readonly<Record<string, Readonly<Record<string, string | Uint8Array>>>>, source: KitRecord['source']): KitRecord {
-  rmSync(kitRoot(dir), { recursive: true, force: true })
-  rmSync(legacyScope(dir), { recursive: true, force: true })
-  rmSync(legacyRecord(dir), { force: true })
+  checkKit(modules)
+  const live = kitRoot(dir)
+  const nonce = `${process.pid}-${createHash('sha256').update(String(Math.random())).digest('hex').slice(0, 8)}`
+  const staging = `${live}.staging-${nonce}`
+  const previous = `${live}.previous-${nonce}`
+  mkdirSync(dirname(live), { recursive: true })
+  rmSync(staging, { recursive: true, force: true })
   const files: Record<string, Record<string, string>> = {}
-  for (const [name, content] of Object.entries(modules)) {
-    if (!name.startsWith(`${SCOPE}/`)) throw new Error(`unexpected kit module "${name}"`)
-    files[name] = {}
-    for (const [path, data] of Object.entries(content)) {
-      const target = join(moduleDir(dir, 'kit', name), path)
-      mkdirSync(dirname(target), { recursive: true })
-      writeFileSync(target, data)
-      files[name][path] = sha256(data)
+  try {
+    mkdirSync(staging, { recursive: true })
+    for (const [name, content] of Object.entries(modules)) {
+      const root = join(staging, kitNamespace(name))
+      files[name] = {}
+      for (const [path, data] of Object.entries(content)) {
+        const target = join(root, path)
+        mkdirSync(dirname(target), { recursive: true })
+        writeFileSync(target, data)
+        files[name][path] = sha256(data)
+      }
     }
+    const record: KitRecord = { hash, source, modules: Object.keys(modules).sort(), files }
+    writeFileSync(join(staging, 'kit.json'), JSON.stringify(record, null, 2) + '\n')
+    const hadKit = existsSync(live)
+    if (hadKit) renameSync(live, previous)
+    try {
+      renameSync(staging, live)
+    } catch (err) {
+      if (hadKit) renameSync(previous, live)
+      throw err
+    }
+    rmSync(previous, { recursive: true, force: true })
+    rmSync(legacyScope(dir), { recursive: true, force: true })
+    rmSync(legacyRecord(dir), { force: true })
+    return record
+  } finally {
+    rmSync(staging, { recursive: true, force: true })
   }
-  const record: KitRecord = { hash, source, modules: Object.keys(modules).sort(), files }
-  mkdirSync(kitRoot(dir), { recursive: true })
-  writeFileSync(recordFile(dir), JSON.stringify(record, null, 2) + '\n')
-  return record
 }
 
 export type EditorPaths = 'present' | 'added' | 'absent' | 'manual'

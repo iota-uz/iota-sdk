@@ -407,6 +407,8 @@ describe('kit', () => {
     let server: Server
     let base = ''
     let sawAuth: string | undefined
+    // What the server sends: a good kit, or a hostile one.
+    let mode: 'good' | 'name' | 'path' = 'good'
 
     function tarball(files: Record<string, string>): Buffer {
       const blocks: Buffer[] = []
@@ -440,11 +442,14 @@ describe('kit', () => {
           return
         }
         if (req.url === '/_ext/manage/kit') {
-          res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hash: 'abc123', modules: ['@iota-kit/granite'] }))
+          const modules = mode === 'name' ? ['@iota-kit/../../escaped'] : ['@iota-kit/granite']
+          res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ hash: 'abc123', modules }))
         } else if (req.url?.startsWith('/_ext/manage/kit/modules/granite.tgz?hash=abc123') === true) {
-          res.writeHead(200, { 'content-type': 'application/gzip' }).end(
-            tarball({ 'index.js': 'export const Deal = 1\n', 'index.d.ts': 'export const Deal: 1\n', 'package.json': '{"name":"@iota-kit/granite"}' }),
-          )
+          const files =
+            mode === 'path'
+              ? { 'index.js': 'x', 'a\\..\\..\\..\\escaped.js': 'x' }
+              : { 'index.js': 'export const Deal = 1\n', 'index.d.ts': 'export const Deal: 1\n', 'package.json': '{"name":"@iota-kit/granite"}' }
+          res.writeHead(200, { 'content-type': 'application/gzip' }).end(tarball(files))
         } else {
           res.writeHead(404).end()
         }
@@ -464,6 +469,24 @@ describe('kit', () => {
       expect(readFileSync(join(dir, '.iota/kit/granite/index.js'), 'utf8')).toBe('export const Deal = 1\n')
       expect(JSON.parse(readFileSync(join(dir, '.iota/kit/kit.json'), 'utf8'))).toMatchObject({ hash: 'abc123', modules: ['@iota-kit/granite'], source: { kind: 'server' } })
       expect(existsSync(join(dir, 'node_modules/@iota-kit'))).toBe(false)
+    })
+
+    it('refuses a hostile kit before it deletes or writes anything, keeping the installed kit', async () => {
+      const dir = project('pullevil')
+      writeFileSync(join(dir, 'package.json'), '{"name":"x"}')
+      mode = 'good'
+      expect((await iotaAsync(dir, { IOTA_TOKEN: 's3cret' }, 'kit', 'pull', '--server', base, '--token-env', 'IOTA_TOKEN')).status).toBe(0)
+      for (const hostile of ['name', 'path'] as const) {
+        mode = hostile
+        const r = await iotaAsync(dir, { IOTA_TOKEN: 's3cret' }, 'kit', 'pull', '--server', base, '--token-env', 'IOTA_TOKEN')
+        expect(r.status, r.err).toBe(3)
+        expect(r.err).toContain('the installed kit is unchanged')
+        expect(readFileSync(join(dir, '.iota/kit/granite/index.js'), 'utf8')).toBe('export const Deal = 1\n')
+        expect(readdirSync(join(dir, '.iota'))).toEqual(['kit'])
+        expect(existsSync(join(sandbox, 'escaped'))).toBe(false)
+        expect(readdirSync(sandbox).filter((n) => n.includes('escaped'))).toEqual([])
+      }
+      mode = 'good'
     })
 
     it('reports an authentication failure as an environment error (3), never taking the token from argv', async () => {
