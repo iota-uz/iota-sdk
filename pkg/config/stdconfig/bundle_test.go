@@ -33,6 +33,7 @@ func TestRegisterAll_AllNonNil(t *testing.T) {
 		{"App", b.App},
 		{"Bichat", b.Bichat},
 		{"DB", b.DB},
+		{"ExtRuntime", b.ExtRuntime},
 		{"GoogleOAuth", b.GoogleOAuth},
 		{"HTTP", b.HTTP},
 		{"Meili", b.Meili},

@@ -4,7 +4,8 @@ Canonical requirements: iota-sdk #411 (epic) and #412–#420, #947/#953, #920/#9
 EAI-UZ/granite#3780. This file is the **shared implementation contract** between the
 owners of the slices below. A slice owner may not invent a second registry, transport,
 query API or workflow engine; changes to anything in this file go through its owner
-(the orchestrator) first.
+(the orchestrator) first. Enabling the runtime in an application (configuration, composition, operations) is the
+integrator's guide [`extensions/consumer.md`](extensions/consumer.md).
 
 ## 0. Vocabulary
 
@@ -767,3 +768,11 @@ native queries run, see §9.3).
   the Go host with the documented `data.nativeWrite`, `data.unknownField`, `data.invalidQuery`. Error *kinds* are not
   compared (the test host raises every rejection as an error with a `code`).
 
+* **Configuration-driven enablement.** `pkg/config/stdconfig/extruntimeconfig` is the `EXTRUNTIME_*` section (disabled by
+  default). `pkg/extruntime/wiring.NewComponent(wiring.Options{Natives: ...})` reads it at build: disabled it contributes
+  nothing; enabled it verifies the `@iota-uz/sdk` distribution (`ResolveDist`), loads the client-host manifest
+  (`UI.HostManifest`), maps the section to `runtime.Config` (`wiring.RuntimeConfig`) and composes `runtime.NewComponent`.
+  `cmd/server` and `cmd/worker` append it to their components; `cmd/server`'s `serverComponents` is the set the smoke test
+  boots. Public-endpoint tenants resolve from a configured ID or `runtime.TenantByHost` (`tenants.domain`). MCP tools are
+  registered only into an application-provided `*mcp.Registry` (`wiring.Options.MCPRegistry`): the SDK servers host no MCP
+  gateway.

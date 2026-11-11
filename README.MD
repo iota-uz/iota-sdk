@@ -34,6 +34,7 @@ import '@iota-uz/sdk/lens/styles.css'
 - [Documentation](https://iota-uz.github.io/iota-sdk/): Official documentation and guides
 - [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A
 - [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project
+- [Extension runtime](docs/extensions/consumer.md): Enable the TypeScript extension runtime in an application ([writing packages](docs/extensions/authoring.md))
 - [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK
 - [Demo stand](https://demo.iotaerp.com): Explore the SDK UI
 - [Docker hub](https://hub.docker.com/r/iotauz/sdk) - Official Docker images

@@ -4,6 +4,7 @@ An **extension package** adds data, behaviour, workflows, notifications and UI t
 touching its Go code. You write TypeScript against `@iota-uz/sdk`, test it on your machine, and publish it through the
 application's configurator UI or MCP tools. This guide is the author's manual; the implementation contract between the
 platform's own slices is [`../extension-runtime.md`](../extension-runtime.md) (read it only if you build the platform).
+Enabling the runtime in an application and operating it is [`consumer.md`](consumer.md).
 
 Everything here compiles and passes: the complete example package is [`example/`](example) (`acme.loyalty`, a loyalty
 programme for CRM clients), and the code blocks below that start with `// example/<file>` are quoted from it. CI
