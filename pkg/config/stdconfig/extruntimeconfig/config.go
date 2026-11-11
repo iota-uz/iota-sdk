@@ -73,6 +73,16 @@ type GitConfig struct {
 	// may use: https, ssh and file. Default "https,ssh". "file" lets a caller
 	// read any repository on the server; enable it only for trusted setups.
 	AllowedSchemes string `koanf:"allowedschemes"`
+	// AllowedHosts is the comma-separated list of hosts https and ssh imports
+	// may use: an exact name ("git.example.com") or "*.example.com" for any
+	// subdomain. Empty: any host whose addresses are public. Set it in
+	// production so the import API cannot be pointed at arbitrary servers.
+	AllowedHosts string `koanf:"allowedhosts"`
+	// AllowPrivateNetworks lets https and ssh imports reach loopback,
+	// link-local (cloud metadata), private and other non-public addresses.
+	// Default false: the host name is resolved and every address checked, and
+	// the transport connects to the addresses that were checked.
+	AllowPrivateNetworks bool `koanf:"allowprivatenetworks"`
 	// Binary is the git executable. Default "git".
 	Binary string `koanf:"binary"`
 	// Timeout bounds one import. Default 2m.
@@ -162,6 +172,12 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("extruntimeconfig: git.allowedschemes: unsupported scheme %q (https, ssh or file)", s)
 		}
 	}
+	for _, h := range c.GitHosts() {
+		name := strings.TrimPrefix(h, "*.")
+		if name == "" || strings.ContainsAny(name, "*/:@ ") {
+			return fmt.Errorf("extruntimeconfig: git.allowedhosts: %q is not a host name (git.example.com or *.example.com)", h)
+		}
+	}
 	return nil
 }
 
@@ -172,6 +188,18 @@ func (c *Config) GitSchemes() []string {
 	for _, s := range strings.Split(c.Git.AllowedSchemes, ",") {
 		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
 			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// GitHosts returns the allowed import hosts, lower-cased; nil allows any host
+// with public addresses.
+func (c *Config) GitHosts() []string {
+	var out []string
+	for _, h := range strings.Split(c.Git.AllowedHosts, ",") {
+		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
+			out = append(out, h)
 		}
 	}
 	return out

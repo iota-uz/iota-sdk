@@ -79,6 +79,8 @@ application composes exactly as before.
 | `EXTRUNTIME_ENDPOINTS_PUBLICTENANTBYHOST` | `false` | Resolve that tenant from the `Host` header against `tenants.domain`. Exclusive with the above. |
 | `EXTRUNTIME_ENDPOINTS_MAXBODYBYTES` / `_TIMEOUT` | 1 MiB / 30s | Body and invocation bounds of package endpoints. |
 | `EXTRUNTIME_GIT_ALLOWEDSCHEMES` / `_BINARY` / `_TIMEOUT` | `https,ssh` / `git` / `2m` | Package imports from Git. `file` lets a caller read any repository on the server. |
+| `EXTRUNTIME_GIT_ALLOWEDHOSTS` | – (any host with public addresses) | Comma-separated hosts https/ssh imports may use: `git.example.com` or `*.example.com`. **Set it in production.** |
+| `EXTRUNTIME_GIT_ALLOWPRIVATENETWORKS` | `false` | Lets imports reach loopback, link-local (cloud metadata), private, shared (CGNAT) and reserved addresses. Leave off unless the Git server is on your own network. |
 
 Rights: the management API and the configurator authorize every action against `Extensions.Read`, `Extensions.Author`,
 `Extensions.Review`, `Extensions.Publish` and `Extensions.Operate` (`modules/core/permissions`). Grant them to the roles that
@@ -271,7 +273,15 @@ resources, subscriptions, schedules and endpoints, and replaces the previous act
   recorded schema state. It is refused while the package is active or live instances still pin it. It cannot be undone;
   deactivate is the default way to switch a package off.
 * **Git and export**: `POST /import/git` (a commit; schemes per `EXTRUNTIME_GIT_ALLOWEDSCHEMES`), `/import/tree`, and
-  `GET /packages/{ns}/export` return the draft as a tree to commit. Source control is the author's.
+  `GET /packages/{ns}/export` return the draft as a tree to commit. Source control is the author's. An import is an
+  outgoing request made by the server on a caller's behalf, so it is bounded: the host must match
+  `EXTRUNTIME_GIT_ALLOWEDHOSTS` (when set), is resolved by the server, and every address must be public (unless
+  `EXTRUNTIME_GIT_ALLOWPRIVATENETWORKS`); https connects to the addresses that were checked and does not follow
+  redirects. Only the requested commit is fetched (`--depth=1`); a server that will not serve an unadvertised commit
+  is asked for branch tips only, so the commit must then be one. The download, each file and the whole tree are
+  size-limited (128 MiB tree, 8 MiB per file, 5000 files) and the sizes are checked before any content is read.
+  Failures return stable reasons (`git_destination_denied`, `git_fetch_failed`, `git_commit_not_found`,
+  `git_too_large`, `git_unexpected_output`); what Git itself printed is only in the server log.
 
 ### 6.2 Events: requeue
 

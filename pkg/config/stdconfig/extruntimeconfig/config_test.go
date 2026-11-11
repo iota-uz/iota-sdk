@@ -122,6 +122,8 @@ func TestRegister_FromEnvironment(t *testing.T) {
 	t.Setenv("EXTRUNTIME_ENDPOINTS_PUBLICTENANT", tenant)
 	t.Setenv("EXTRUNTIME_ENDPOINTS_TIMEOUT", "45s")
 	t.Setenv("EXTRUNTIME_GIT_ALLOWEDSCHEMES", "https,ssh")
+	t.Setenv("EXTRUNTIME_GIT_ALLOWEDHOSTS", "Git.Example.com, *.corp.example.com")
+	t.Setenv("EXTRUNTIME_GIT_ALLOWPRIVATENETWORKS", "true")
 
 	src, err := config.Build(envprov.New())
 	require.NoError(t, err)
@@ -137,4 +139,10 @@ func TestRegister_FromEnvironment(t *testing.T) {
 	assert.Equal(t, tenant, cfg.Endpoints.PublicTenant)
 	assert.Equal(t, 45*time.Second, cfg.Endpoints.Timeout)
 	assert.Equal(t, []string{"https", "ssh"}, cfg.GitSchemes())
+	assert.Equal(t, []string{"git.example.com", "*.corp.example.com"}, cfg.GitHosts())
+	assert.True(t, cfg.Git.AllowPrivateNetworks)
+	require.NoError(t, cfg.Validate())
+
+	cfg.Git.AllowedHosts = "https://git.example.com"
+	assert.ErrorContains(t, cfg.Validate(), "git.allowedhosts")
 }

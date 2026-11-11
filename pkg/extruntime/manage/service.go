@@ -100,7 +100,7 @@ func New(cfg Config) (*Service, error) {
 	}
 	return &Service{
 		db: cfg.DB, builder: cfg.Builder, kits: cfg.Kits, arts: cfg.Artifacts, catalog: cfg.Catalog,
-		compiler: data.NewCompiler(cfg.Natives, cfg.Catalog), git: cfg.Git.withDefaults(), log: cfg.Logger, subjects: cfg.Subjects,
+		compiler: data.NewCompiler(cfg.Natives, cfg.Catalog), git: withLog(cfg.Git.withDefaults(), cfg.Logger), log: cfg.Logger, subjects: cfg.Subjects,
 		verCache: map[string]versionMeta{},
 	}, nil
 }
