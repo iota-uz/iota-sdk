@@ -3,6 +3,7 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -17,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
+
+// MaxPayloadBytes bounds the raw JSON payload of one event.
+const MaxPayloadBytes = 64 * 1024
 
 const TestEventKey = "core.notification.test.v1"
 
@@ -41,6 +45,12 @@ type Event struct {
 	// It is persisted with queued dispatch jobs, so pending deliveries keep
 	// resolving the definition they were enqueued with.
 	SnapshotRef string `json:"snapshot_ref,omitempty"`
+	// Payload is the typed payload of a runtime producer as raw JSON. Data is
+	// the flat form used by native producers; renderers may read either.
+	Payload json.RawMessage `json:"payload,omitempty"`
+	// Producer identifies the invocation, event or workflow occurrence that
+	// produced the event.
+	Producer Producer `json:"producer,omitempty"`
 }
 
 type Content struct{ Title, Body, ActionURL string }
@@ -291,6 +301,12 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 	}
 	if event.Version != version || event.TenantID == uuid.Nil || strings.TrimSpace(event.ID) == "" || len(event.ID) > 200 || len(event.DedupeKey) > 200 {
 		return event, fmt.Errorf("invalid notification event envelope")
+	}
+	if len(event.Payload) > MaxPayloadBytes || (len(event.Payload) > 0 && !json.Valid(event.Payload)) {
+		return event, fmt.Errorf("invalid notification payload")
+	}
+	if err := event.Producer.Validate(); err != nil {
+		return event, err
 	}
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = time.Now().UTC()

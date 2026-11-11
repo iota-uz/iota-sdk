@@ -289,34 +289,107 @@ updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
 PRIMARY KEY (tenant_id,
     event_key));
 
-CREATE TABLE core.notification_deliveries (
+CREATE TABLE core.notification_notices (
     id uuid PRIMARY KEY,
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     event_key text NOT NULL,
+    event_version integer NOT NULL DEFAULT 1 CHECK (event_version >= 1),
+    snapshot_ref text NOT NULL DEFAULT '',
+    event_id text NOT NULL,
+    mode text NOT NULL CHECK (mode IN ('rule', 'explicit')),
+    subject_entity text NOT NULL DEFAULT '',
+    subject_key text NOT NULL DEFAULT '',
+    producer_invocation_id text NOT NULL DEFAULT '',
+    producer_event_id text NOT NULL DEFAULT '',
+    producer_instance_id text NOT NULL DEFAULT '',
+    producer_occurrence text NOT NULL DEFAULT '',
+    event jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, id),
+    UNIQUE (tenant_id, event_key, event_id),
+    CHECK ((subject_entity = '') = (subject_key = ''))
+);
+
+CREATE INDEX notification_notices_subject_idx ON core.notification_notices (tenant_id, subject_entity, subject_key)
+WHERE
+    subject_entity <> '';
+
+CREATE TABLE core.notification_deliveries (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    notice_id uuid NOT NULL,
+    event_key text NOT NULL,
     event_id text NOT NULL,
     content_version integer NOT NULL DEFAULT 1,
-    user_id integer NOT NULL,
+    recipient_kind text NOT NULL DEFAULT 'user' CHECK (recipient_kind IN ('user', 'record', 'address')),
+    recipient_user_id integer,
+    recipient_ref_entity text,
+    recipient_ref_key text,
+    recipient_key text NOT NULL DEFAULT '',
     channel text NOT NULL CHECK (channel IN ('in_app', 'email', 'sms', 'push')),
-    status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'no_address')),
-    language text
-    NOT NULL DEFAULT 'en',
+    target_key text NOT NULL DEFAULT '',
+    target_address text NOT NULL DEFAULT '',
+    target_device_id text NOT NULL DEFAULT '',
+    status text NOT NULL DEFAULT 'pending',
+    language text NOT NULL DEFAULT 'en',
     level text NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'success', 'warning', 'error')),
     title varchar(300) NOT NULL,
     body text NOT NULL DEFAULT '',
     action_url varchar(2000) NOT NULL DEFAULT '',
+    content jsonb NOT NULL DEFAULT '{}',
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
-    last_error text NOT NULL DEFAULT '',
+    attempt_limit integer NOT NULL DEFAULT 5 CHECK (attempt_limit >= 1),
+    error_code text NOT NULL DEFAULT '',
     provider_receipt text NOT NULL DEFAULT '',
+    inbox_notification_id uuid REFERENCES core.notifications (id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     available_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivered_at timestamptz,
-    CONSTRAINT notification_deliveries_user_tenant_fkey FOREIGN KEY (tenant_id, user_id) REFERENCES users (tenant_id, id) ON DELETE CASCADE,
-    UNIQUE (tenant_id, event_key, event_id, user_id, channel)
+    CONSTRAINT notification_deliveries_user_tenant_fkey FOREIGN KEY (tenant_id, recipient_user_id) REFERENCES users (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT notification_deliveries_notice_fkey FOREIGN KEY (tenant_id, notice_id) REFERENCES core.notification_notices (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT notification_deliveries_status_check CHECK (status IN ('unresolved', 'pending', 'sent', 'failed', 'ambiguous', 'no_address', 'skipped')),
+    CONSTRAINT notification_deliveries_recipient_check CHECK ((recipient_kind = 'user' AND recipient_user_id IS NOT NULL AND recipient_ref_entity IS NULL AND recipient_ref_key IS NULL) OR (recipient_kind = 'record' AND recipient_user_id IS NULL AND recipient_ref_entity IS NOT NULL AND recipient_ref_key IS NOT NULL) OR (recipient_kind = 'address' AND recipient_user_id IS NULL AND recipient_ref_entity IS NULL AND recipient_ref_key IS NULL AND (target_address <> '' OR status = 'no_address'))),
+    CONSTRAINT notification_deliveries_in_app_check CHECK (channel <> 'in_app' OR recipient_kind = 'user'),
+    CONSTRAINT notification_deliveries_inbox_check CHECK (inbox_notification_id IS NULL OR channel = 'in_app'),
+    CONSTRAINT notification_deliveries_target_key UNIQUE (tenant_id, notice_id, recipient_key, channel, target_key)
 );
+
+CREATE INDEX notification_deliveries_notice_idx ON core.notification_deliveries (tenant_id, event_key, event_id);
 
 CREATE INDEX notification_deliveries_due_idx ON core.notification_deliveries (tenant_id, available_at, created_at)
 WHERE
-    status = 'pending' AND channel <> 'in_app';
+    status IN ('pending', 'unresolved') AND channel <> 'in_app';
+
+CREATE TABLE core.notification_delivery_attempts (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    delivery_id uuid NOT NULL REFERENCES core.notification_deliveries (id) ON DELETE CASCADE,
+    attempt integer NOT NULL CHECK (attempt >= 1),
+    started_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at timestamptz,
+    outcome text CHECK (outcome IN ('sent', 'failed', 'permanent', 'ambiguous')),
+    provider_receipt text NOT NULL DEFAULT '',
+    error_code text NOT NULL DEFAULT '',
+    PRIMARY KEY (delivery_id, attempt),
+    CHECK ((outcome IS NULL) = (finished_at IS NULL))
+);
+
+CREATE INDEX notification_delivery_attempts_tenant_idx ON core.notification_delivery_attempts (tenant_id, delivery_id);
+
+CREATE TABLE core.notification_push_devices (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    user_id integer NOT NULL,
+    device_id text NOT NULL CHECK (device_id <> ''),
+    token text NOT NULL CHECK (token <> ''),
+    platform text NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    revoked_at timestamptz,
+    CONSTRAINT notification_push_devices_user_tenant_fkey FOREIGN KEY (tenant_id, user_id) REFERENCES users (tenant_id, id) ON DELETE CASCADE,
+    PRIMARY KEY (tenant_id, user_id, device_id)
+);
+
+CREATE UNIQUE INDEX notification_push_devices_token_idx ON core.notification_push_devices (tenant_id, token)
+WHERE
+    revoked_at IS NULL;
 
 CREATE TABLE core.notification_channel_preferences (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -335,6 +408,8 @@ CREATE TABLE core.notification_dispatches (
     event jsonb NOT NULL,
     rule jsonb NOT NULL,
     recipient_ids jsonb NOT NULL,
+    mode text NOT NULL DEFAULT 'rule' CHECK (mode IN ('rule', 'explicit')),
+    addressees jsonb NOT NULL DEFAULT '[]',
     cursor integer NOT NULL DEFAULT 0 CHECK (CURSOR >= 0),
     delivered integer NOT NULL DEFAULT 0 CHECK (delivered >= 0),
     attempts integer NOT NULL DEFAULT 0,
