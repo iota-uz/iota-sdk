@@ -49,9 +49,10 @@ func (s *Service) triggerExists(ctx context.Context, id string) (bool, error) {
 				return true, nil
 			}
 		}
-		// a contact resolver runs after commit without a user: it needs an owner too
+		// a contact resolver and a delivery policy run after commit without a
+		// user: they need an owner too
 		for _, i := range av.Manifest.Implementations {
-			if i.Kind == manifest.ImplContactResolver && i.Implements == id {
+			if (i.Kind == manifest.ImplContactResolver || i.Kind == manifest.ImplDeliveryPolicy) && i.Implements == id {
 				return true, nil
 			}
 		}

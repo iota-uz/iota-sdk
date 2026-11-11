@@ -69,6 +69,15 @@ type ownerRemoveIn struct {
 	TriggerID string `json:"trigger_id"`
 }
 
+type requeueIn struct {
+	Subscription string `json:"subscription" jsonschema:"ID of a subscription of an active package"`
+	Event        string `json:"event,omitempty" jsonschema:"requeue only the receipt of this event ID; every dead-lettered and blocked receipt of the subscription when omitted"`
+}
+
+type requeueOut struct {
+	Requeued int64 `json:"requeued"`
+}
+
 type auditIn struct {
 	Namespace string `json:"namespace,omitempty"`
 	Action    string `json:"action,omitempty"`
@@ -218,6 +227,18 @@ func lifecycleTools(r *registrar, d Deps) {
 		Policy:      managePolicy(), Meta: meta(manage.PermPublish),
 	}, func(ctx context.Context, actor spi.Subject, in ownerRemoveIn) (ack, error) {
 		return done, svc.RemoveOwner(ctx, actor, in.TriggerID)
+	})
+
+	add(r, mcp.Spec{
+		Name: "ext_subscription_requeue",
+		Description: describe("Give the dead-lettered and blocked event deliveries of a subscription (or of one event) a fresh start; "+
+			"the dispatcher redelivers them on its next pass with the subscription's current handler. Mirrors "+
+			"POST /_ext/manage/subscriptions/{id}/requeue.", manage.PermOperate),
+		Annotations: mcp.Annotations{Title: "Requeue subscription receipts"},
+		Policy:      managePolicy(), Meta: meta(manage.PermOperate),
+	}, func(ctx context.Context, actor spi.Subject, in requeueIn) (requeueOut, error) {
+		n, err := svc.RequeueReceipts(ctx, actor, in.Subscription, in.Event)
+		return requeueOut{Requeued: n}, err
 	})
 
 	add(r, mcp.Spec{

@@ -133,6 +133,11 @@ var (
 	ErrNoAddress = errors.New("notification recipient has no address for channel")
 	// ErrPermanent marks a provider error that must not be retried.
 	ErrPermanent = errors.New("permanent notification provider failure")
+	// ErrTargetGone marks a permanent failure that says the target itself no
+	// longer exists (an expired or unsubscribed push registration). Adapters
+	// wrap it together with ErrPermanent; the channel service then revokes the
+	// registered device so it is not tried for later notices.
+	ErrTargetGone = errors.New("notification target is gone")
 	// ErrAmbiguous marks a provider error whose outcome is unknown: the message
 	// may have been accepted (timeout after the request was sent, lost reply).
 	ErrAmbiguous = errors.New("ambiguous notification provider outcome")

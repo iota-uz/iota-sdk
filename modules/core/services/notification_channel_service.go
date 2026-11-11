@@ -254,6 +254,9 @@ func (s *NotificationChannelService) send(ctx context.Context, d notifications.D
 	case err == nil:
 		return notifications.AttemptResult{Outcome: notifications.AttemptSent, Status: notifications.DeliverySent, Receipt: receipt.ProviderMessageID}
 	case errors.Is(err, notifications.ErrPermanent):
+		if errors.Is(err, notifications.ErrTargetGone) {
+			s.revokeGoneDevice(ctx, d)
+		}
 		return notifications.AttemptResult{Outcome: notifications.AttemptPermanent, Status: notifications.DeliveryFailed, ErrorCode: notifications.ErrorCodeProviderRejected}
 	case errors.Is(err, notifications.ErrAmbiguous) || errors.Is(err, context.DeadlineExceeded):
 		// The provider may have accepted the message. Retrying automatically
@@ -261,5 +264,18 @@ func (s *NotificationChannelService) send(ctx context.Context, d notifications.D
 		return notifications.AttemptResult{Outcome: notifications.AttemptAmbiguous, Status: notifications.DeliveryAmbiguous, ErrorCode: notifications.ErrorCodeProviderAmbiguous}
 	default:
 		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
+	}
+}
+
+// revokeGoneDevice stops pushes to a registered device its provider reported as
+// gone. Failing to revoke only means the next notice learns the same thing.
+func (s *NotificationChannelService) revokeGoneDevice(ctx context.Context, d notifications.Delivery) {
+	if d.RecipientKind != notifications.RecipientUser || d.TargetDeviceID == "" || s.platform == nil || s.platform.Devices == nil {
+		return
+	}
+	revoke, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := s.platform.Devices.Revoke(revoke, d.UserID, d.TargetDeviceID); err != nil && s.logger != nil {
+		s.logger.WithError(err).Warn("failed to revoke a push device its provider reported as gone")
 	}
 }

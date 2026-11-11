@@ -124,6 +124,9 @@ type Deps struct {
 	Notices   *notifications.Catalog
 	Renderers *notifications.ContentRenderers
 	Contacts  *notifications.ContactResolvers
+	// Policies composes delivery policies; the notify adapter installs the
+	// policies of active packages on it.
+	Policies *notifications.DeliveryPolicies
 	// Users loads the current rights of owners and initiators.
 	Users user.Repository
 	// NativeDeps resolves the dependencies of the Go defaults of native
@@ -304,7 +307,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 			owners = rt.Subjects
 		}
 		rt.Notify, err = notify.NewAdapter(notify.Config{
-			Catalog: rt.Catalog, Notices: deps.Notices, Renderers: deps.Renderers, Contacts: deps.Contacts,
+			Catalog: rt.Catalog, Notices: deps.Notices, Renderers: deps.Renderers, Contacts: deps.Contacts, Policies: deps.Policies,
 			Runner: rt.Host, Artifacts: rt.Manage, Manifests: rt.Manage, Owners: rt.Manage, Subjects: owners,
 			Published: notify.PgPublished{DB: deps.DB}, Logger: cfg.Logger,
 		})

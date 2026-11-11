@@ -99,13 +99,17 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		policies, err := composition.Resolve[*notifications.DeliveryPolicies](container)
+		if err != nil {
+			return nil, err
+		}
 		users, err := composition.Resolve[user.Repository](container)
 		if err != nil {
 			return nil, err
 		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
-		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Users: users, NativeDeps: container})
+		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users, NativeDeps: container})
 	})
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
 	// Every Go entry of a native contract dispatches through the host.
