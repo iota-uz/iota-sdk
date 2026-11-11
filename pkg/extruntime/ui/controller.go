@@ -104,6 +104,9 @@ type PageData struct {
 	// Params are the path parameters as strings; the client decodes them
 	// with the route's schema.
 	Params map[string]string `json:"params"`
+	// ParamTypes are the declared types of the route's parameters, when the
+	// page implements a typed route.
+	ParamTypes *manifest.Type `json:"paramTypes,omitempty"`
 	// ReplacedRoute is the route ID whose native screen this page replaces.
 	ReplacedRoute string `json:"replacedRoute,omitempty"`
 }
@@ -159,6 +162,7 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 			Kind:          PageDataKind,
 			Page:          PageRef{ID: page.ID, Package: page.Package, Version: page.Version, Module: page.AssetPath(), Export: page.Export},
 			Params:        nonNil(route.Params),
+			ParamTypes:    page.Params,
 			ReplacedRoute: route.ReplacedRoute,
 		}),
 		Theme:       "light",

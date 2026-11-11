@@ -259,6 +259,8 @@ func TestPageHostServesActivatedPagesWithoutRestart(t *testing.T) {
 	scriptJSON(t, body, "iota-client-context", &rc)
 	require.NoError(t, json.Unmarshal(rc.Initial, &data))
 	assert.Equal(t, map[string]string{"id": id}, data.Params)
+	require.NotNil(t, data.ParamTypes)
+	assert.Equal(t, manifest.KindObject, data.ParamTypes.Kind, "the client decodes params with the route's types")
 	status, _ = e.get(t, "/insurance/policies/not-a-uuid")
 	assert.Equal(t, http.StatusNotFound, status, "params are validated against the route contract")
 
