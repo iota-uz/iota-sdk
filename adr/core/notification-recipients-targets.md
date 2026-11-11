@@ -14,7 +14,7 @@ applies_to:
   - modules/core/services/notification_dispatch_service.go
   - modules/core/services/notification_routing_service.go
   - modules/core/infrastructure/persistence/notification_delivery_repository.go
-  - migrations/changes-1793400000.sql
+  - migrations/changes-1793450000.sql
 tags: [core, notifications, runtime]
 refs: [iota-uz/iota-sdk#926, iota-uz/iota-sdk#920, iota-uz/iota-sdk#925, iota-uz/iota-sdk#927, iota-uz/iota-sdk#411]
 supersedes: []
