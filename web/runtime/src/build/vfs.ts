@@ -21,6 +21,7 @@ const SDK_PACKAGE = {
     "./runtime": { types: "./runtime/index.d.ts" },
     "./runtime/server": { types: "./runtime/server.d.ts" },
     "./runtime/client": { types: "./runtime/client.d.ts" },
+    "./runtime/kit": { types: "./runtime/kit.d.ts" },
     "./runtime/testing": { types: "./runtime/testing.d.ts" },
   },
 };

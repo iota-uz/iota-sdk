@@ -1,13 +1,14 @@
 // Synthetic typed fixtures: records and overlay rows built from the real entity definitions.
 import type { AnyEntity, AnyOverlay, InsertOf, OverlayRow, Row } from './entity.ts'
 import type { ISODateTime, Json } from './model.ts'
-import { t, type Ref } from './schema.ts'
+import { t, type EntityLike, type Ref } from './schema.ts'
 import { encode } from './wire.ts'
 
 export const EPOCH = '2026-01-01T00:00:00Z' as ISODateTime
 
-export interface Fixture<E> {
-  readonly ref: Ref<Extract<E, { readonly id: string }>>
+export interface Fixture<E extends EntityLike> {
+  readonly ref: Ref<E>
+  /** The stored row as `get` returns it, including its typed `ref`. */
   readonly record: Row<E>
 }
 
@@ -54,7 +55,7 @@ export function fixture<E extends AnyEntity>(entity: E, values: InsertOf<E>, opt
   checked(entity, fields)
   return {
     ref: { entity: entity.id, key } as Fixture<E>['ref'],
-    record: { key, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as Row<E>,
+    record: { key, ref: { entity: entity.id, key }, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as unknown as Row<E>,
   }
 }
 

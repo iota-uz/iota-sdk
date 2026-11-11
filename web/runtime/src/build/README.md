@@ -44,9 +44,8 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
 
 Externals: `@iota-uz/sdk/runtime*` stay bare imports in server/contracts artifacts (resolved by the host
 loader). Kit modules and npm dependencies are bundled (artifacts are self-contained and reproducible from
-tree + kit). Client chunks never carry Solid or the runtime client: `solid-js`, `solid-js/web` and
-`@iota-uz/sdk/runtime/client` are replaced by generated shims that read the host's registry
+tree + kit). Client chunks never carry Solid or the runtime client: `solid-js`, `solid-js/web`,
+`solid-js/store` and `@iota-uz/sdk/runtime/client` are replaced by generated shims that read the host's registry
 `globalThis[Symbol.for("iota.runtime.shared")]` (`client-host/shared.ts`; the shim export names are generated
-into `shared-exports.json` from the same sources). The pure `@iota-uz/sdk/runtime` and `solid-js/store`
-(whose `solid-js` import is shimmed) are bundled. `client/manifest.json` lists the registry modules used
+into `shared-exports.json` from the same sources). The pure `@iota-uz/sdk/runtime` is bundled. `client/manifest.json` lists the registry modules used
 under `shared`.

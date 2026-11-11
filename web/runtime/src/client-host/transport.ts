@@ -19,6 +19,7 @@ export class TransportError extends Error {
   readonly kind = 'transport'
   readonly status: number | undefined
   readonly retriable: boolean
+  // No parameter properties: the host build strips types only (scripts/build-host.mjs).
   constructor(message: string, status: number | undefined, retriable: boolean, options?: { cause?: unknown }) {
     super(message, options)
     this.name = 'TransportError'
