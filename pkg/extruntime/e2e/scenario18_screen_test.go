@@ -12,12 +12,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 )
 
-// Scenario 16: a native screen (the CRM client view, route
+// Scenario 18: a native screen (the CRM client view, route
 // crm.routes.clientView) is replaced by a package page with the route's typed
 // parameters, through a screen binding; the native requirement still applies;
 // HTMX fragments keep reaching the native handler; reverting restores the
 // Templ page.
-func TestScenario16ScreenReplacementOfTheClientView(t *testing.T) {
+func TestScenario18ScreenReplacementOfTheClientView(t *testing.T) {
 	e := newEnv(t)
 	admin := e.admin
 	viewer := e.newActor("viewer", "Client.Read")

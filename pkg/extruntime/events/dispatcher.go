@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -334,13 +335,14 @@ func (d *Dispatcher) subjectFor(ctx context.Context, sub Subscription, ev outbox
 		userID = *ev.initiator
 	} else {
 		kind = spi.SubjectOwner
-		err := d.cfg.DB.QueryRow(ctx, `SELECT user_id FROM extruntime.trigger_owners WHERE trigger_id = $1 AND tenant_id = $2`, sub.ID, ev.tenant).Scan(&userID)
-		if errors.Is(err, pgx.ErrNoRows) {
+		owner, found, err := triggerowner.Lookup(ctx, d.cfg.DB, sub.ID, ev.tenant)
+		if err != nil {
+			return spi.Subject{}, "", serrors.Wrap(opDeliver, err)
+		}
+		if !found {
 			return spi.Subject{}, fmt.Sprintf("event %s has no initiator and subscription %s has no owner-user in tenant %s", ev.id, sub.ID, ev.tenant), nil
 		}
-		if err != nil {
-			return spi.Subject{}, "", serrors.FromDB(opDeliver, err)
-		}
+		userID = owner
 	}
 	subject, err := d.cfg.Subjects.LoadSubject(ctx, ev.tenant, userID, kind)
 	if errors.Is(err, host.ErrSubjectBlocked) {

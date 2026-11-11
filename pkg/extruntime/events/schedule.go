@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -245,13 +246,12 @@ func (s *Scheduler) loadRuns(ctx context.Context, schedule string, since time.Ti
 }
 
 func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, prior int) (bool, error) {
-	var ownerID int64
-	err := s.cfg.DB.QueryRow(ctx, `SELECT user_id FROM extruntime.trigger_owners WHERE trigger_id = $1 AND tenant_id = $2`, def.ID, tenant).Scan(&ownerID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
-	}
+	ownerID, found, err := triggerowner.Lookup(ctx, s.cfg.DB, def.ID, tenant)
 	if err != nil {
-		return false, serrors.FromDB(opScheduleD, err)
+		return false, serrors.Wrap(opScheduleD, err)
+	}
+	if !found {
+		return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
 	}
 	subject, err := s.cfg.Subjects.LoadSubject(ctx, tenant, ownerID, spi.SubjectOwner)
 	if errors.Is(err, host.ErrSubjectBlocked) {

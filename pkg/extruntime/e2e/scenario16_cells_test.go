@@ -36,11 +36,11 @@ func cellElements(t *testing.T, body string) []cellElement {
 	return out
 }
 
-// Scenario 15: a package cell renderer for a column another package adds to
+// Scenario 16: a package cell renderer for a column another package adds to
 // the native clients list. The list stays server-rendered (the standard cell
 // is the fallback inside the mount element); the renderer is an island the
 // browser mounts; filters, sorting and exports keep using the raw value.
-func TestScenario15CellRendererIsAnIslandAndExportsStayRaw(t *testing.T) {
+func TestScenario16CellRendererIsAnIslandAndExportsStayRaw(t *testing.T) {
 	e := newEnv(t)
 	admin := e.admin
 	manager := e.newActor("manager", "Client.Read", permViewIntern)

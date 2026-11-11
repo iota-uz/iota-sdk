@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 )
 
 // Public URL layout of the runtime UI.
@@ -44,17 +46,15 @@ const ClientDir = "client/"
 var hashPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
 // cleanAssetPath returns the normalized relative path or false when it could
-// escape the artifact (".." segments, absolute or backslash paths, NUL).
+// escape the artifact. It is artifact.CleanPath, the one path rule of trees
+// and artifacts, minus the leniency of a leading "./": a URL names the file
+// exactly.
 func cleanAssetPath(p string) (string, bool) {
-	if p == "" || strings.ContainsAny(p, "\\\x00") || strings.HasPrefix(p, "/") {
+	if strings.HasPrefix(p, "./") {
 		return "", false
 	}
-	for _, seg := range strings.Split(p, "/") {
-		if seg == ".." || seg == "." || seg == "" {
-			return "", false
-		}
-	}
-	return path.Clean(p), true
+	clean, err := artifact.CleanPath(p)
+	return clean, err == nil
 }
 
 func contentTypeOf(p string) string {

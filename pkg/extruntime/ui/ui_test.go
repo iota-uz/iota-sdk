@@ -660,7 +660,9 @@ func TestAssetPathConfinement(t *testing.T) {
 		assert.True(t, valid, in)
 		assert.Equal(t, want, got)
 	}
-	for _, in := range []string{"", "/abs.js", "../x.js", "client/../../x.js", "client//a.js", "client\\a.js", "a/./b.js", "a\x00.js", "client/.."} {
+	for _, in := range []string{"", "/abs.js", "../x.js", "client/../../x.js", "client//a.js", "client\\a.js", "a/./b.js", "a\x00.js", "client/..",
+		// the rules of artifact.CleanPath, which this path shares with trees and artifacts
+		".git/config", "node_modules/x.js", "./client/a.js", "client/a.js/", "client/a\x7f.js", "client/a\tb.js"} {
 		_, valid := ui.CleanAssetPath(in)
 		assert.False(t, valid, "%q must be rejected", in)
 	}

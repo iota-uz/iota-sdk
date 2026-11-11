@@ -66,12 +66,12 @@ func moduleIDs(mods []shellext.Module) []string {
 	return ids
 }
 
-// Scenario 14: packages contribute components to slots. The CRM declares a
+// Scenario 15: packages contribute components to slots. The CRM declares a
 // native slot on its client view (page and drawer, Templ/HTMX); another
 // package declares a slot on a Solid page of its own. Contributions are
 // additive (no binding), ordered, each filtered by its own permission on the
 // server, and appear and vanish with activation, without a restart.
-func TestScenario14SlotContributionsOnLegacyAndRuntimePages(t *testing.T) {
+func TestScenario15SlotContributionsOnLegacyAndRuntimePages(t *testing.T) {
 	e := newEnv(t)
 	admin := e.admin
 	viewer := e.newActor("viewer", "Client.Read")

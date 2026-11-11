@@ -2,7 +2,6 @@ package manage
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -173,13 +173,5 @@ func (s *Service) ListOwners(ctx context.Context, actor spi.Subject) ([]TriggerO
 // OwnerOf returns the owner-user of a trigger in a tenant for the events and
 // workflow slices. ok is false when none is assigned (the run is blocked).
 func (s *Service) OwnerOf(ctx context.Context, tenantID uuid.UUID, triggerID string) (int64, bool, error) {
-	var userID int64
-	err := s.db.QueryRow(ctx, `SELECT user_id FROM extruntime.trigger_owners WHERE trigger_id = $1 AND tenant_id = $2`, triggerID, tenantID).Scan(&userID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, serrors.FromDB("extruntime.manage.OwnerOf", err)
-	}
-	return userID, true, nil
+	return triggerowner.Lookup(ctx, s.db, triggerID, tenantID)
 }
