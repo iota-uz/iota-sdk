@@ -108,6 +108,7 @@ type kitSourcePayload struct {
 	Namespace       string              `json:"namespace"`
 	Resources       []manifest.Resource `json:"resources"`
 	ContractsModule string              `json:"contractsModule,omitempty"`
+	Lists           []string            `json:"lists,omitempty"`
 }
 
 type kitRequest struct {
@@ -196,7 +197,7 @@ func (b *NodeBuilder) Test(ctx context.Context, src Tree, kit Kit) (TestReport, 
 func (b *NodeBuilder) GenerateKit(ctx context.Context, sources []KitSource) (Kit, error) {
 	req := kitRequest{Op: "kit"}
 	for _, s := range sources {
-		req.Sources = append(req.Sources, kitSourcePayload{Namespace: s.Namespace, Resources: s.Resources, ContractsModule: string(s.ContractsModule)})
+		req.Sources = append(req.Sources, kitSourcePayload{Namespace: s.Namespace, Resources: s.Resources, ContractsModule: string(s.ContractsModule), Lists: s.Lists})
 	}
 	var resp kitResponse
 	if err := b.run(ctx, "", req, &resp); err != nil {

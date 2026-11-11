@@ -63,6 +63,9 @@ type Config struct {
 	// pages, slots) published in the catalog and the kit. Native events
 	// declared through events.RegisterNative are included automatically.
 	NativeResources []manifest.Resource
+	// NativeLists are the native lists packages may extend with columns.
+	// Default: the CRM clients list.
+	NativeLists []string
 	// PermissionUniverse lists the permissions a trigger owner's rights are
 	// computed over. Default: the core permissions.
 	PermissionUniverse []permission.Permission
@@ -201,6 +204,15 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	}
 	for _, r := range native {
 		if err := rt.Natives.Register(r); err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+	}
+	lists := cfg.NativeLists
+	if len(lists) == 0 {
+		lists = []string{data.NativeClientList}
+	}
+	for _, l := range lists {
+		if err := rt.Natives.RegisterList(l); err != nil {
 			return nil, serrors.Wrap(op, err)
 		}
 	}

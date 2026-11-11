@@ -450,7 +450,7 @@ export function generateKit(layout: Layout, sources: readonly KitSourcePayload[]
     seen.add(s.namespace);
   }
   const ordered = [...sources].sort((a, b) => (a.namespace < b.namespace ? -1 : 1));
-  const hash = sha256(JSON.stringify(ordered.map((s) => [s.namespace, [...s.resources].sort((a, b) => (a.id < b.id ? -1 : 1)), s.contractsModule ?? null])));
+  const hash = sha256(JSON.stringify(ordered.map((s) => [s.namespace, [...s.resources].sort((a, b) => (a.id < b.id ? -1 : 1)), s.contractsModule ?? null, [...(s.lists ?? [])].sort()])));
 
   // Index of every public resource and native list with its export name in its module.
   const index = new Map<string, Entry>();
@@ -462,6 +462,8 @@ export function generateKit(layout: Layout, sources: readonly KitSourcePayload[]
   }
   // A native list is owned by the namespace its id extends (longest prefix), else by the first declaring column.
   const listOwner = new Map<string, string>();
+  // A list a source declares belongs to that source.
+  for (const s of ordered) for (const l of s.lists ?? []) if (!listOwner.has(l)) listOwner.set(l, s.namespace);
   for (const s of ordered) {
     for (const r of publicOf.get(s.namespace) ?? []) {
       if (r.kind !== "column" || !r.list) continue;

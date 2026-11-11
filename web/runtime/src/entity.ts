@@ -380,7 +380,7 @@ export function overlay<const Id extends string, B extends AnyEntity, F extends 
   id: Id,
   base: B,
   fields: F,
-  opts: Pick<EntityOptions<F>, 'label' | 'description'> = {},
+  opts: Pick<EntityOptions<F>, 'label' | 'description' | 'access'> = {},
 ): Overlay<Id, B, F> {
   for (const [key, f] of Object.entries(fields)) {
     if (!f.type.optional && !f.type.nullable && f.spec.default === undefined) {
@@ -394,6 +394,7 @@ export function overlay<const Id extends string, B extends AnyEntity, F extends 
     description: opts.description,
     base: base.id,
     fields: Object.entries(fields).map(([k, f]) => compileField(k, f)),
+    access: compileAccess(id, fields, opts.access),
   })
   return { ...contract(resource), base, fields: bind(id, fields, true) }
 }

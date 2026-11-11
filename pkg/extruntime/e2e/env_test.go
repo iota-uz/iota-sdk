@@ -53,11 +53,12 @@ import (
 // Permissions that package fixtures declare; the test application grants
 // them to users by name, as an administrator would.
 const (
-	permNotesRead   = "e2e.notes.read"
-	permNotesWrite  = "e2e.notes.write"
-	permViewIntern  = "e2e.clientextra.viewInternal"
-	permLedgerRead  = "e2e.ledger.read"
-	permLedgerWrite = "e2e.ledger.write"
+	permNotesRead    = "e2e.notes.read"
+	permNotesWrite   = "e2e.notes.write"
+	permViewIntern   = "e2e.clientextra.viewInternal"
+	permClientManage = "e2e.clientextra.manage"
+	permLedgerRead   = "e2e.ledger.read"
+	permLedgerWrite  = "e2e.ledger.write"
 )
 
 // actor is a signed-in user of the test application: a real user row with
@@ -180,7 +181,7 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	})
 
 	e.admin = e.newActor("admin", append(extensionPerms(), "User.Create", "User.Read", "Client.Read", "Client.Create", "Client.Update",
-		permNotesRead, permNotesWrite, permViewIntern, permLedgerRead, permLedgerWrite)...)
+		permNotesRead, permNotesWrite, permViewIntern, permClientManage, permLedgerRead, permLedgerWrite)...)
 	e.serve()
 	return e
 }

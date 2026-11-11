@@ -37,6 +37,8 @@ export interface KitSourcePayload {
   resources: readonly ResourceJSON[];
   /** Pure contracts module of an active package, shipped as the module JS. */
   contractsModule?: string;
+  /** Native list IDs the namespace owns; packages extend them with `column(<ns>.<List>, ...)`. */
+  lists?: readonly string[];
 }
 
 export interface KitRequest {

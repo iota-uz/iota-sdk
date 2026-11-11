@@ -100,6 +100,10 @@ type KitSource struct {
 	Namespace       string
 	Resources       []manifest.Resource
 	ContractsModule []byte
+	// Lists are the native list IDs the namespace owns ("crm.lists.clients").
+	// A native list is declared here, not by a column: packages extend it
+	// with `column(crm.Clients, ...)`.
+	Lists []string
 }
 
 // KitGenerator renders `@iota-kit/<namespace>` modules (pure JS refs built

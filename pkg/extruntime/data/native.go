@@ -156,6 +156,9 @@ func (r *NativeRegistry) List() []NativeEntity {
 const (
 	NativeUser   = "core.user"
 	NativeClient = "crm.client"
+	// NativeClientList is the public ID of the CRM clients list, which
+	// packages extend with columns.
+	NativeClientList = "crm.lists.clients"
 )
 
 func str(maxLen int) manifest.Type {

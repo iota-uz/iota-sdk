@@ -26,11 +26,12 @@ type NativeSet struct {
 
 	mu    sync.RWMutex
 	extra map[string]manifest.Resource
+	lists map[string]bool
 }
 
 // NewNativeSet wraps the native entity registry (may be nil).
 func NewNativeSet(entities *data.NativeRegistry) *NativeSet {
-	return &NativeSet{entities: entities, extra: map[string]manifest.Resource{}}
+	return &NativeSet{entities: entities, extra: map[string]manifest.Resource{}, lists: map[string]bool{}}
 }
 
 // Register adds a native contract. IDs are unique across entities and
@@ -58,6 +59,20 @@ func (n *NativeSet) Register(r manifest.Resource) error {
 	}
 	r.ContractHash = manifest.ContractHashOf(r)
 	n.extra[r.ID] = r
+	return nil
+}
+
+// RegisterList declares a native list (for example "crm.lists.clients") that
+// packages may extend with columns. It is published in the kit as a
+// reference, `column(crm.Clients, ...)`.
+func (n *NativeSet) RegisterList(id string) error {
+	const op = serrors.Op("extruntime.catalog.NativeSet.RegisterList")
+	if !nativeIDPattern.MatchString(id) {
+		return serrors.New(serrors.Invalid, fmt.Sprintf("native list id %q is invalid", id)).WithOp(op)
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.lists[id] = true
 	return nil
 }
 
@@ -115,9 +130,21 @@ func (n *NativeSet) Sources() []build.KitSource {
 		ns := Namespace(r.ID)
 		byNS[ns] = append(byNS[ns], r)
 	}
+	listsByNS := map[string][]string{}
+	n.mu.RLock()
+	for l := range n.lists {
+		ns := Namespace(l)
+		listsByNS[ns] = append(listsByNS[ns], l)
+		if _, ok := byNS[ns]; !ok {
+			byNS[ns] = nil
+		}
+	}
+	n.mu.RUnlock()
 	out := make([]build.KitSource, 0, len(byNS))
 	for ns, res := range byNS {
-		out = append(out, build.KitSource{Namespace: ns, Resources: res})
+		lists := listsByNS[ns]
+		sort.Strings(lists)
+		out = append(out, build.KitSource{Namespace: ns, Resources: res, Lists: lists})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Namespace < out[j].Namespace })
 	return out
