@@ -39,6 +39,10 @@ export function isInt64String(s: string): boolean {
   return n >= INT64_MIN && n <= INT64_MAX
 }
 
+export function isUUID(s: string): boolean {
+  return UUID_PATTERN.test(s)
+}
+
 export function isISODate(s: string): boolean {
   const m = DATE_PATTERN.exec(s)
   return m !== null && validDate(m[1]!, m[2]!, m[3]!)

@@ -56,7 +56,7 @@ describe('wire codec', () => {
   })
 
   it('checks refs, enums, uuids and max length', () => {
-    const policy = { id: 'acme.insurance.policy' }
+    const policy = { id: 'acme.insurance.policy', kind: 'entity' } as const
     validate(t.ref(policy), { entity: 'acme.insurance.policy', key: 'k' })
     fails(t.ref(policy), { entity: 'acme.insurance.customer', key: 'k' }, /expected ref to acme.insurance.policy/)
     fails(t.ref(policy), { entity: 'acme.insurance.policy', key: '' }, /expected ref/)

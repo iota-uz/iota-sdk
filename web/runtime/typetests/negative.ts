@@ -2,9 +2,10 @@
 // Not enforceable by types: a client-graph file importing a server value (`@iota-uz/sdk/runtime/server`
 // or the server entry). The build slice rejects that edge with a source-located diagnostic.
 import {
-  ref, t, href, entity, field, overlay, column, nativeList,
-  type Ref,
+  ref, t, href, entity, field, overlay, column,
+  type Infer, type Ref,
 } from '../src/index.ts'
+import { nativeList } from '../src/kit.ts'
 import { page } from '../src/client.ts'
 import {
   guard, implement, precheck, subscribe, writeRule,
@@ -128,8 +129,9 @@ void page(c.PolicyRoute, { component: (p) => p.params.nope })
 void c.TooLong.at(['notes'], { max: 'ten' })
 // @ts-expect-error domain error params
 void c.NotActive.of({ status: 1 })
-// @ts-expect-error int64 is a string on the wire, not a number
-void t.int64().nullable() satisfies never
+// @ts-expect-error int64 is a branded string on the wire, not a number
+const wrongInt64: Infer<ReturnType<typeof t.int64>> = 5
+void wrongInt64
 
 // --- writes are checked against field types
 // @ts-expect-error missing required field

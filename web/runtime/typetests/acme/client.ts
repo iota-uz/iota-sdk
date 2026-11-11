@@ -10,6 +10,8 @@ export const policies = page('acme.insurance.policies', {
   component: () => 'Policies',
 })
 export const policy = page(c.PolicyRoute, { component: (p) => p.params.id })
+// replaces a route of the platform/another package (from the kit): a candidate, bound at activation
+export const ClientView = page(kit.ClientView, { component: (p) => p.params.id })
 export const nav = navigation({
   groups: [{ id: 'acme.insurance', label: { en: 'Insurance' } }],
   patches: [{ ref: 'core.users', hide: true }],

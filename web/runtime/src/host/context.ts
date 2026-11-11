@@ -66,35 +66,74 @@ function findQuery(query: FindArgs | undefined): Record<string, unknown> {
   return where === undefined ? rest : { ...rest, where: compileFilter(where) };
 }
 
+/**
+ * Entity rows carry a typed `ref` to themselves (`Row<E>.ref`), computed here so a handler never re-states the
+ * entity. Overlay rows (keyed by `baseKey`) have none.
+ */
+function withRef(entity: string, row: unknown): unknown {
+  if (row === null || typeof row !== "object") return row;
+  const record = row as Record<string, unknown>;
+  return typeof record.key === "string" && !("baseKey" in record) ? { ...record, ref: { entity, key: record.key } } : row;
+}
+
+function withRefs(entity: string, value: unknown): unknown {
+  return Array.isArray(value) ? value.map((row) => withRef(entity, row)) : withRef(entity, value);
+}
+
 /** Read access shared by Tx (`tx.*`, handle-bound) and QueryContext (`q.*`, snapshot). */
-function reader(call: (op: "get" | "find" | "count", args: Record<string, unknown>) => Promise<unknown>) {
+function reader(call: (op: "get" | "find" | "count" | "query", args: Record<string, unknown>) => Promise<unknown>) {
   return {
-    get: (entity: Resource, ref: Reference) => call("get", { entity: idOf(entity), key: keyOf(ref) }),
-    find: (entity: Resource, query?: FindArgs) => call("find", { entity: idOf(entity), query: findQuery(query) }),
+    get: async (entity: Resource, ref: Reference) =>
+      withRefs(idOf(entity), await call("get", { entity: idOf(entity), key: keyOf(ref) })),
+    find: async (entity: Resource, query?: FindArgs) =>
+      withRefs(idOf(entity), await call("find", { entity: idOf(entity), query: findQuery(query) })),
     count: (entity: Resource, where?: object) =>
       call("count", { entity: idOf(entity), where: where === undefined ? null : compileFilter(where) }),
+    /** Runs another query in the same snapshot (or transaction) with the caller's rights. */
+    query: (query: Resource, input: unknown) => call("query", { query: idOf(query), input }),
   };
 }
 
-/** Tx proxy bound to one Go-owned transaction handle. */
-export function createTx(deps: Deps, handle: string, scope: { open: boolean }) {
-  const call = (method: string, args: Record<string, unknown>) => {
+interface InstanceLike {
+  readonly workflow: string;
+  readonly instance: string;
+}
+
+const signalArgs = (instance: InstanceLike, name: string, payload: unknown) => ({
+  workflow: instance.workflow,
+  instance: instance.instance,
+  name,
+  payload,
+});
+
+function txCaller(deps: Deps, handle: string, scope: { open: boolean }) {
+  return (method: string, args: Record<string, unknown>) => {
     if (!scope.open) {
       return Promise.reject(internal(CODE.txClosed, "transaction is closed"));
     }
     return deps.call(method, { tx: handle, ...args });
   };
+}
+
+/** Tx proxy bound to one Go-owned transaction handle. */
+export function createTx(deps: Deps, handle: string, scope: { open: boolean }) {
+  const call = txCaller(deps, handle, scope);
   return {
     user: principal(deps.ctx),
     invocation: invocationInfo(deps),
+    log: logger(deps),
     ...reader((op, args) => call(`tx.${op}`, args)),
-    insert: (entity: Resource, values: unknown) => call("tx.insert", { entity: idOf(entity), values }),
-    update: (entity: Resource, ref: Reference, patch: object, options?: { rowVersion?: number }) =>
-      call("tx.update", {
-        entity: idOf(entity),
-        key: keyOf(ref),
-        patch: options?.rowVersion === undefined ? patch : { ...patch, rowVersion: options.rowVersion },
-      }),
+    insert: async (entity: Resource, values: unknown) =>
+      withRefs(idOf(entity), await call("tx.insert", { entity: idOf(entity), values })),
+    update: async (entity: Resource, ref: Reference, patch: object, options?: { rowVersion?: number }) =>
+      withRefs(
+        idOf(entity),
+        await call("tx.update", {
+          entity: idOf(entity),
+          key: keyOf(ref),
+          patch: options?.rowVersion === undefined ? patch : { ...patch, rowVersion: options.rowVersion },
+        }),
+      ),
     delete: async (entity: Resource, ref: Reference): Promise<void> => {
       await call("tx.delete", { entity: idOf(entity), key: keyOf(ref) });
     },
@@ -115,6 +154,54 @@ export function createTx(deps: Deps, handle: string, scope: { open: boolean }) {
       })) as { instance: string };
       return { workflow: idOf(workflow), instance: started.instance };
     },
+    signal: async (instance: InstanceLike, name: string, payload: unknown): Promise<void> => {
+      await call("tx.signal", signalArgs(instance, name, payload));
+    },
+  };
+}
+
+/**
+ * Context of precheck/guard/write-rule handlers: reads (through the writing transaction for transactional
+ * guards), identity and log. It has no write API; a guard rejects by throwing.
+ */
+export function createGuardContext(deps: Deps, handle: string, scope: { open: boolean }) {
+  const call = txCaller(deps, handle, scope);
+  return {
+    user: principal(deps.ctx),
+    invocation: invocationInfo(deps),
+    log: logger(deps),
+    ...reader((op, args) => call(`tx.${op}`, args)),
+  };
+}
+
+interface RawEndpointRequest {
+  method?: string;
+  path?: string;
+  headers?: Readonly<Record<string, string>>;
+  query?: Readonly<Record<string, string>>;
+  body?: Json;
+  /** Exact request bytes, base64. When absent they are derived from the parsed `body`. */
+  rawBody?: string;
+}
+
+/** `EndpointContext.request`: the parsed `body`, the exact `rawBody` bytes and their UTF-8 `text()`. */
+export function createEndpointRequest(input: unknown) {
+  const raw = (input ?? {}) as RawEndpointRequest;
+  const bytes =
+    raw.rawBody !== undefined
+      ? new Uint8Array(Buffer.from(raw.rawBody, "base64"))
+      : raw.body === undefined
+        ? new Uint8Array()
+        : new Uint8Array(Buffer.from(JSON.stringify(raw.body), "utf8"));
+  const text = new TextDecoder().decode(bytes);
+  return {
+    method: raw.method ?? "",
+    path: raw.path ?? "",
+    headers: raw.headers ?? {},
+    query: raw.query ?? {},
+    body: raw.body,
+    rawBody: bytes,
+    text: () => text,
   };
 }
 
@@ -153,11 +240,16 @@ async function inTransaction<T>(
 /** CommandContext of an ordinary command. */
 export function createCommandContext(deps: Deps) {
   let inTx = false;
+  const snapshot = createQuery(deps);
   return {
     user: principal(deps.ctx),
     invocation: invocationInfo(deps),
     log: logger(deps),
-    query: createQuery(deps),
+    /** `ctx.query` is the read-only snapshot context and callable: `ctx.query(Q, input)` runs a query. */
+    query: Object.assign((query: Resource, input: unknown) => snapshot.query(query, input), snapshot),
+    signal: async (instance: InstanceLike, name: string, payload: unknown): Promise<void> => {
+      await deps.call("invoke.signal", signalArgs(instance, name, payload));
+    },
     secrets: { get: (name: string) => deps.call("secrets.get", { name }) as Promise<string> },
     call: (command: Resource, input: unknown) => deps.call("invoke.command", { command: idOf(command), input }),
     async transaction<T>(cb: (tx: ReturnType<typeof createTx>) => Promise<T>): Promise<T> {
@@ -198,6 +290,7 @@ export function createWorkflowContext(deps: Deps) {
     user: principal(deps.ctx),
     instance: { id: deps.ctx.instance ?? "" },
     log: logger(deps),
+    secrets: { get: (name: string) => deps.call("secrets.get", { name }) as Promise<string> },
     async transaction(
       name: string,
       body: ((tx: ReturnType<typeof createTx>) => Promise<unknown>) | Resource,

@@ -3,6 +3,9 @@ import type { ResourceJSON, ResourceKind } from './model.ts'
 /** Every value the registry collects carries this brand. */
 export const RESOURCE: unique symbol = Symbol.for('iota.resource')
 
+/** Set only on contracts issued through the developer-kit entry (`@iota-uz/sdk/runtime/kit`). */
+export const KIT: unique symbol = Symbol.for('iota.kit')
+
 /** A pure, declared resource: carries the manifest JSON that describes it. */
 export interface Contract<Id extends string = string, K extends ResourceKind = ResourceKind> {
   readonly [RESOURCE]: true
@@ -11,6 +14,7 @@ export interface Contract<Id extends string = string, K extends ResourceKind = R
   readonly resource: ResourceJSON
   /** Declared by another package or by the platform; referenced, never re-declared by this package. */
   readonly foreign: boolean
+  readonly [KIT]?: true
 }
 
 export function isBranded(value: unknown): value is { readonly [RESOURCE]: true } {
@@ -23,18 +27,24 @@ export function isContract(value: unknown): value is Contract {
   return typeof v.id === 'string' && typeof v.kind === 'string' && typeof v.resource === 'object'
 }
 
+/** True for contracts issued by the developer kit; the only contracts allowed to be `foreign`. */
+export function isKitIssued(value: Contract): boolean {
+  return value.foreign && (value as { [KIT]?: unknown })[KIT] === true
+}
+
+/** Internal constructor of every contract. `foreign` is reserved for the kit entry. */
 export function contract<Id extends string, K extends ResourceKind>(
   resource: ResourceJSON & { id: Id; kind: K },
   foreign = false,
 ): Contract<Id, K> {
-  return { [RESOURCE]: true, id: resource.id, kind: resource.kind, resource, foreign }
+  const base = { [RESOURCE]: true, id: resource.id, kind: resource.kind, resource, foreign } as const
+  return foreign ? { ...base, [KIT]: true } : base
 }
 
-/** Marks a contract as declared elsewhere (kit-generated refs): it is referenced, never emitted into this manifest. */
-export function foreign<C extends Contract>(c: C): C {
-  return { ...c, foreign: true }
-}
-
+/**
+ * Omits the zero values Go's `omitempty` drops for typed fields (`false`, `""`, `[]`, `undefined`).
+ * Never use it for JSON-valued members (`default`, filter values): there `false`, `""`, `0` and `[]` are real values.
+ */
 export function omitEmpty<T extends object>(value: T): T {
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(value)) {

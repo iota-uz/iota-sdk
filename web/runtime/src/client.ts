@@ -2,11 +2,13 @@
 // values only; the canonical client host mounts them. Server values must never be imported here
 // (the build slice rejects that edge; it cannot be expressed in types).
 import type { Component } from 'solid-js'
-import type { Column, Command, AtomicCommand, InputOf, Permission, Query, ResultOf, Route, SlotRef } from './contracts.ts'
+import type {
+  AtomicCommand, Column, Command, DomainError, InputOf, Issue, PathParamNames, Permission, Query, ResultOf, Route, SlotRef,
+} from './contracts.ts'
 import type { ImplKind, Json, Label, NavGroupJSON, NavPatchJSON, PaletteEntryJSON, ResourceJSON, WorkspaceJSON } from './model.ts'
 import { contract, omitEmpty, type Contract } from './resource.ts'
 import type { AnySchema, Infer } from './schema.ts'
-import { decode, encode } from './wire.ts'
+import { decode, encode, validate } from './wire.ts'
 
 /** How a client value without an explicit ID is named at manifest collection. */
 export type ImplicitId = 'export' | 'navigation' | 'shell'
@@ -37,15 +39,25 @@ export interface PageSpec<P> {
   component: Component<PageProps<P>>
 }
 
-/** A page bound to a shared route (typed params; its ID is `<route id>.page`) or declared with its own ID and path. */
+/** Props of a page declared by path: each `:name` segment is a string. */
+export type PathProps<Path extends string> = { readonly [K in PathParamNames<Path>]: string }
+
+/**
+ * A page bound to a route (typed params) or declared with its own ID and path.
+ * - Own route: the page ID is `<route id>.page`.
+ * - Route of the platform or another package (from the kit): a screen replacement. The page gets an ID in this
+ *   package (`<namespace>.<export name>`), `route` names the replaced route, and it is only a candidate: it becomes
+ *   active through an explicit `screen` binding at activation.
+ */
 export function page<R extends Route>(route: R, spec: PageSpec<Infer<R['params']>>): Page<Infer<R['params']>>
-export function page(id: string, spec: PageSpec<Record<string, string>> & { path: string }): Page
+export function page<const Path extends string>(id: string, spec: PageSpec<PathProps<Path>> & { path: Path }): Page<PathProps<Path>>
 export function page(
   target: string | Route,
   spec: PageSpec<never> & { path?: string },
 ): Page<never> | Page {
   const isRoute = typeof target !== 'string'
-  const id = isRoute ? `${target.id}.page` : target
+  const replacement = isRoute && target.foreign
+  const id = isRoute ? (replacement ? '' : `${target.id}.page`) : target
   const path = isRoute ? target.path : spec.path
   if (path === undefined) throw new Error(`page ${id}: path is required`)
   const resource = omitEmpty({
@@ -56,7 +68,11 @@ export function page(
     nav: spec.nav as ResourceJSON['nav'],
     permission: spec.permission?.id,
   }) as ResourceJSON
-  return { ...contract({ ...resource, id, kind: 'page' }), component: spec.component as Component<PageProps<never>> }
+  return {
+    ...contract({ ...resource, id, kind: 'page' }),
+    component: spec.component as Component<PageProps<never>>,
+    ...(replacement ? { implicitId: 'export' as const } : {}),
+  }
 }
 
 export interface NavigationSpec {
@@ -228,6 +244,50 @@ export class RemoteError extends Error {
     this.name = 'RemoteError'
     this.body = body
   }
+}
+
+/** A remote error narrowed to a declared domain error: `params` has the contract's type. */
+export interface DomainRemoteError<Id extends string, P> extends RemoteError {
+  readonly body: RemoteErrorBody & { readonly kind: 'domain'; readonly code: Id; readonly params: P }
+}
+
+/** One validation issue narrowed to a declared issue contract. */
+export interface TypedRemoteIssue<Id extends string, P> {
+  readonly code: Id
+  readonly phase: 'input' | 'write'
+  readonly source: string
+  readonly path: readonly string[]
+  readonly params: P
+}
+
+/**
+ * `if (isError(err, NotActive)) err.body.params.status`: true when `err` is that declared domain error
+ * (and its params match the contract schema).
+ */
+export function isError<Id extends string, P extends AnySchema>(err: unknown, error: DomainError<Id, P>): err is DomainRemoteError<Id, Infer<P>> {
+  if (!(err instanceof RemoteError) || err.body.kind !== 'domain' || err.body.code !== error.id) return false
+  try {
+    validate(error.params, err.body.params)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The validation issues of `err` that are `issue`, with typed params (other issues and malformed params are skipped). */
+export function issuesOf<Id extends string, P extends AnySchema>(err: unknown, issue: Issue<Id, P>): readonly TypedRemoteIssue<Id, Infer<P>>[] {
+  if (!(err instanceof RemoteError) || err.body.kind !== 'validation') return []
+  const out: TypedRemoteIssue<Id, Infer<P>>[] = []
+  for (const i of err.body.issues ?? []) {
+    if (i.code !== issue.id) continue
+    try {
+      validate(issue.params, i.params)
+    } catch {
+      continue
+    }
+    out.push({ code: issue.id, phase: i.phase, source: i.source, path: i.path, params: i.params as Infer<P> })
+  }
+  return out
 }
 
 /** Provided by the client host; carries wire JSON only. */

@@ -19,7 +19,7 @@ export const expiring = implement(c.Expiring, async (q, input) => {
     orderBy: [{ field: 'expiresOn' }],
     limit: 100,
   })
-  return rows.map((r) => ({ policy: ref(c.Policy, r.key), number: r.number }))
+  return rows.map((r) => ({ policy: r.ref, number: r.number }))
 })
 
 export const extendExpiry = implement(c.ExtendExpiry, async (tx, input) => {
@@ -35,10 +35,19 @@ export const extendExpiry = implement(c.ExtendExpiry, async (tx, input) => {
   return { expiresOn }
 })
 
+export const getPolicy = implement(c.GetPolicy, (tx, input) => tx.get(c.Policy, input.policy))
+export const customerSummary = implement(c.CustomerSummary, async (q, input) => {
+  const customer = await q.get(c.Customer, input.customer)
+  if (customer === null) throw validation(c.TooLong.at(['customer'], { max: 0 }))
+  return { name: customer.name, phone: customer.phone }
+})
+
 // --- ordinary command: external call → transaction → response
 export const renew = implement(c.RenewPolicy, async (ctx, input) => {
   const policy = await ctx.query.get(c.Policy, input.policy)
   if (policy === null) throw c.NotActive.of({ status: 'missing' })
+  const open = await ctx.query(c.Expiring, { before: policy.expiresOn })
+  ctx.log.info('expiring', { open: open.length })
   const response = await fetch(`https://quotes.example.uz/${policy.number}`)
   const quote = decimal(((await response.json()) as { premium: string }).premium)
   const renewed = await ctx.transaction(async (tx) => tx.call(c.ExtendExpiry, { policy: input.policy, months: 12 }))
@@ -47,7 +56,8 @@ export const renew = implement(c.RenewPolicy, async (ctx, input) => {
 
 export const activate = implement(c.ActivatePolicy, async (tx, input) => {
   await tx.update(c.Policy, input.policy, { status: 'active' })
-  await tx.start(c.RenewalFollowUp, { policy: input.policy }, { key: `activate:${input.policy.key}` })
+  const instance = await tx.start(c.RenewalFollowUp, { policy: input.policy }, { key: `activate:${input.policy.key}` })
+  await tx.signal(instance, 'decision', { approved: true })
   return { status: 'active' }
 })
 
@@ -59,17 +69,20 @@ export const onRenewed = subscribe('acme.insurance.onRenewed', c.PolicyRenewed, 
 // --- workflow with task / sleep / call / notify
 export const renewalFollowUp = implement(c.RenewalFollowUp, async (wf, input) => {
   const policy = await wf.transaction('load', (tx) => tx.get(c.Policy, input.policy))
+  const loaded = await wf.transaction('loadDefault', { output: t.row(c.Policy).nullable() }, (tx) => tx.get(c.Policy, input.policy))
+  void loaded
   if (policy === null) return { renewed: false }
   await wf.sleep('cooldown', '1d')
   const verdict = await wf.task('approve', {
     subject: input.policy,
-    assignee: wf.user,
+    assignee: ref(kit.User, wf.user.userId),
     decision: t.object({ approved: t.bool() }),
     timeout: '3d',
   })
   if (verdict.outcome === 'timeout' || !verdict.decision.approved) return { renewed: false }
   const renewed = await wf.call('renew', c.RenewPolicy, { policy: input.policy })
-  const sms = await wf.step('sms', { output: t.object({ id: t.string() }) }, async ({ idempotencyKey }) => ({ id: idempotencyKey }))
+  const token = await wf.secrets.get('SMS_TOKEN')
+  const sms = await wf.step('sms', { output: t.object({ id: t.string() }) }, async ({ idempotencyKey }) => ({ id: `${token.length}:${idempotencyKey}` }))
   await wf.step('log', async () => {
     return { sent: sms.id, at: renewed.expiresOn }
   })
@@ -117,8 +130,11 @@ export const sendInvoice = implement(kit.SendInvoice, async (ctx, input) => {
 export const rejectGuard = guard('acme.insurance.rejectGuard', kit.RejectIncoming, async (_tx, input) => {
   if (input.reason === '') throw validation(c.TooLong.at(['reason'], { max: 1 }))
 })
-export const extendGuard = guard('acme.insurance.extendGuard', c.ExtendExpiry, async (_tx, input) => {
-  if (input.months > 36) throw validation(c.TooLong.at(['months'], { max: 36 }))
+// guards get a read-only context: they read (also through other queries), then reject by throwing
+export const extendGuard = guard('acme.insurance.extendGuard', c.ExtendExpiry, async (ctx, input) => {
+  const policy = await ctx.get(c.Policy, input.policy)
+  ctx.log.debug('extend', { months: input.months })
+  if (input.months > 36 || policy?.status === 'expired') throw validation(c.TooLong.at(['months'], { max: 36 }))
 })
 export const renewPrecheck = precheck('acme.insurance.renewPrecheck', c.RenewPolicy, async (q, input) => {
   const policy = await q.get(c.Policy, input.policy)
@@ -141,7 +157,9 @@ export const paymentWebhook = endpoint(
   'acme.insurance.paymentWebhook',
   { method: 'POST', path: '/insurance/webhook', public: true },
   async (ctx) => {
+    const signed = ctx.request.headers['x-signature'] === ctx.request.text() || ctx.request.rawBody.byteLength === 0
     const body = decode(WebhookBody, ctx.request.body)
+    ctx.log.info('webhook', { signed })
     await ctx.call(c.ActivatePolicy, { policy: body.policy })
     return { status: 204 }
   },

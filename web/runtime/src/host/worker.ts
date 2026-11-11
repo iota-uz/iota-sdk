@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 
 import {
   createCommandContext,
+  createEndpointRequest,
+  createGuardContext,
   createQuery,
   createTx,
   createWorkflowContext,
@@ -181,7 +183,7 @@ async function execute(frame: InvokeFrame, inv: Invocation): Promise<unknown> {
       case "command":
         return await handler(createCommandContext(deps), frame.input);
       case "endpoint":
-        return await handler({ ...createCommandContext(deps), request: frame.input });
+        return await handler({ ...createCommandContext(deps), request: createEndpointRequest(frame.input) });
       case "schedule":
         return await handler({ ...createCommandContext(deps), slot: (frame.input as { slot: string }).slot });
       case "atomic":
@@ -191,7 +193,7 @@ async function execute(frame: InvokeFrame, inv: Invocation): Promise<unknown> {
       case "guard": {
         const phase = isObject(exported) ? exported.phase : undefined;
         const wantsTx = phase === undefined ? frame.ctx.tx !== undefined : phase !== "input";
-        return await handler(wantsTx ? createTx(deps, requireTx(frame), scope) : createQuery(deps), frame.input);
+        return await handler(wantsTx ? createGuardContext(deps, requireTx(frame), scope) : createQuery(deps), frame.input);
       }
       case "query":
         return await handler(createQuery(deps), frame.input);
