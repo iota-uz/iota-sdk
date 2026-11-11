@@ -188,3 +188,7 @@ func (n *Notifier) Enqueue(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.
 	}
 	return receipt.NoticeID.String(), nil
 }
+
+// SetEnsurer connects the definition adapter after construction (the adapter
+// needs the host, the host needs this notifier).
+func (n *Notifier) SetEnsurer(e Ensurer) { n.ensure = e }
