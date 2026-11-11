@@ -1,0 +1,105 @@
+[
+  {
+    "id": "core.commands.rejectIncoming",
+    "kind": "command",
+    "atomic": true,
+    "input": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "client",
+          "type": {
+            "kind": "ref",
+            "entity": "crm.client"
+          }
+        },
+        {
+          "name": "reason",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    },
+    "output": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "rejected",
+          "type": {
+            "kind": "bool"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "core.users.rename",
+    "kind": "operation",
+    "input": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "user",
+          "type": {
+            "kind": "ref",
+            "entity": "core.user"
+          }
+        },
+        {
+          "name": "name",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "core.commands.sendInvoice",
+    "kind": "command",
+    "input": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "client",
+          "type": {
+            "kind": "ref",
+            "entity": "crm.client"
+          }
+        }
+      ]
+    },
+    "output": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "number",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "core.user",
+    "kind": "entity",
+    "fields": [
+      {
+        "id": "name",
+        "type": {
+          "kind": "string"
+        }
+      },
+      {
+        "id": "email",
+        "type": {
+          "kind": "string",
+          "optional": true,
+          "nullable": true
+        }
+      }
+    ]
+  }
+]

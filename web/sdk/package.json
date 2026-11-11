@@ -94,13 +94,17 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.0",
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "esbuild": ">=0.25.0"
   },
   "peerDependenciesMeta": {
     "solid-js": {
       "optional": true
     },
     "@playwright/test": {
+      "optional": true
+    },
+    "esbuild": {
       "optional": true
     }
   }

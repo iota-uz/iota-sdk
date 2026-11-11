@@ -1,0 +1,95 @@
+[
+  {
+    "id": "crm.client",
+    "kind": "entity",
+    "fields": [
+      {
+        "id": "name",
+        "type": {
+          "kind": "string"
+        }
+      },
+      {
+        "id": "phone",
+        "type": {
+          "kind": "string",
+          "optional": true,
+          "nullable": true
+        }
+      }
+    ]
+  },
+  {
+    "id": "crm.clientCreated.v1",
+    "kind": "event",
+    "subject": "crm.client",
+    "payload": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "name",
+          "type": {
+            "kind": "string"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "crm.slots.clientToolbar",
+    "kind": "slot"
+  },
+  {
+    "id": "crm.clients.markContacted",
+    "kind": "operation",
+    "input": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "client",
+          "type": {
+            "kind": "ref",
+            "entity": "crm.client"
+          }
+        }
+      ]
+    },
+    "output": {
+      "kind": "object",
+      "properties": [
+        {
+          "name": "at",
+          "type": {
+            "kind": "datetime"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "crm.clientsName",
+    "kind": "column",
+    "list": "crm.lists.Clients",
+    "overlay": "crm.clientProfile",
+    "field": "segment",
+    "label": {
+      "en": "Segment"
+    },
+    "filterable": true
+  },
+  {
+    "id": "crm.clientProfile",
+    "kind": "overlay",
+    "base": "crm.client",
+    "fields": [
+      {
+        "id": "segment",
+        "type": {
+          "kind": "string",
+          "optional": true,
+          "nullable": true
+        }
+      }
+    ]
+  }
+]
