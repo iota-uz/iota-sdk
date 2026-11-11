@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { $, decimal, isoDate, ref, validation } from '../src/index.ts'
+import { $, decimal, isoDate, ref, validation, type ISODateTime } from '../src/index.ts'
 import { guard, implement, precheck, subscribe, writeRule, type Tx } from '../src/server.ts'
 import { createTestHost, fixture, overlayFixture, TestHostError, test as registerTest, describe as group, UnmatchedRequestError } from '../src/testing.ts'
 import * as c from '../typetests/acme/contracts.ts'
@@ -73,6 +73,17 @@ describe('reads follow the Go data layer', () => {
     await expect(q.find(c.Policy, { where: { nope: 1 } as never })).rejects.toMatchObject({ code: 'data.unknownField' })
     await expect(q.find(c.Policy, { where: { extra: { lt: 1 } } as never })).rejects.toMatchObject({ code: 'data.invalidQuery' })
     await expect(q.find(c.Policy, { where: { status: { like: 'a%' }, expiresOn: { like: 'x' } } as never })).rejects.toMatchObject({ code: 'data.invalidQuery' })
+  })
+
+  it('filters and orders by the system columns key, createdAt and updatedAt', async () => {
+    const host = createTestHost({ entities: [c.Customer], user: { permissions: [READ] }, now: '2026-01-01T00:00:00Z' as ISODateTime })
+    const first = await host.transaction((tx) => tx.insert(c.Customer, { name: 'A' }))
+    const second = await host.transaction((tx) => tx.insert(c.Customer, { name: 'B' }))
+    const q = host.query()
+    const byCreated = await q.find(c.Customer, { orderBy: [{ field: 'createdAt', desc: true }, { field: 'name' }] })
+    expect(byCreated.map((r) => r.name)).toEqual(['A', 'B'])
+    expect((await q.find(c.Customer, { where: { key: { in: [second.key] } } })).map((r) => r.name)).toEqual(['B'])
+    expect(await q.count(c.Customer, { createdAt: { gte: first.createdAt } })).toBe(2)
   })
 
   it('clamps the page size to 100 by default and 1000 at most', async () => {

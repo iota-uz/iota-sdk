@@ -379,7 +379,10 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
 
   // ---- read model
 
-  const typeAt = (def: Def | undefined, key: string): TypeJSON | undefined => def?.fields[key]?.type
+  // System columns every entity row has (filterable/orderable as in the Go store).
+  const SYSTEM_TYPES: Readonly<Record<string, TypeJSON>> = { key: { kind: 'string' }, createdAt: { kind: 'datetime' }, updatedAt: { kind: 'datetime' } }
+  const typeAt = (def: Def | undefined, key: string): TypeJSON | undefined =>
+    def?.fields[key]?.type ?? (def !== undefined && def.resource.kind === 'entity' ? SYSTEM_TYPES[key] : undefined)
 
   const hiddenField = (def: Def | undefined, key: string): boolean => {
     const required = (def?.resource.access?.fields ?? {})[key] ?? []
