@@ -1,4 +1,5 @@
-import { onCleanup, onMount, type JSXElement } from 'solid-js'
+import { documentPortalRegistry } from '@iota-uz/sdk/client-host'
+import { createUniqueId, onCleanup, onMount, type JSXElement } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { X } from '../icons'
 import { useDrawerHeader } from './provider'
@@ -36,6 +37,12 @@ export function LensDrawer(props: LensDrawerProps): JSXElement {
   // views that host a full focus canvas; the slide-in motion is unchanged.
   const wide = () => header()?.size === 'wide'
   let dialogRef: HTMLDivElement | undefined
+  // The client host owns the portal root, the background inert/scroll lock and
+  // focus restore; Lens keeps only its own layer, focus trap and Escape.
+  const registry = documentPortalRegistry(document)
+  const mount = registry.root('drawer')
+  mount.style.zIndex = 'var(--lens-drawer-z, 2147483640)'
+  const overlayId = createUniqueId()
 
   onMount(() => {
     const restore = props.restoreFocus
@@ -43,13 +50,8 @@ export function LensDrawer(props: LensDrawerProps): JSXElement {
     // The portaled dialog takes focus itself; the client-host portal focused the
     // first focusable control (the drawer's own close button) on mount.
     ;(dialogRef?.querySelector<HTMLElement>('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])') ?? dialogRef)?.focus()
-    // A blocking overlay locks the page behind it for the duration.
-    const previousOverflow = document.documentElement.style.overflow
-    document.documentElement.style.overflow = 'hidden'
-    onCleanup(() => {
-      document.documentElement.style.overflow = previousOverflow
-      restore?.focus()
-    })
+    const release = registry.mount({ id: overlayId, surface: 'drawer', restore: restore ?? null })
+    onCleanup(release)
   })
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -78,7 +80,7 @@ export function LensDrawer(props: LensDrawerProps): JSXElement {
   }
 
   return (
-    <Portal mount={document.body}>
+    <Portal mount={mount}>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- shortcuts are delegated from the focusable dialog inside; the root is not a focus stop. */}
       <div
         aria-label={props.label}

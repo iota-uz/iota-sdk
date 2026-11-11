@@ -4,6 +4,7 @@ package viewmodels
 import (
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -41,6 +42,9 @@ type Client struct {
 	Comments    string
 	CreatedAt   string
 	UpdatedAt   string
+	// Extensions are the cells of columns contributed by extension packages,
+	// aligned with the list's extension columns.
+	Extensions []listext.Cell
 }
 
 func (c *Client) FullName() string {

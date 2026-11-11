@@ -686,6 +686,7 @@
   },
   "No": "否",
   "PerPage": "每页",
+  "SortBy": "排序",
   "PermissionSets": {
     "Core": {
       "ExtensionsView": {

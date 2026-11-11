@@ -15,6 +15,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/shellcontext"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/url"
 	"strconv"
@@ -300,6 +302,8 @@ templ Authenticated(props AuthenticatedProps) {
 	}}
 	@Base(&props.BaseProps) {
 		@toast.Container()
+		@shellcontext.Component()
+		@shellext.Component()
 		@MobileSidebar(sidebarProps)
 		<div
 			x-data="{
@@ -316,6 +320,7 @@ templ Authenticated(props AuthenticatedProps) {
 				}
 			}"
 			data-sidebar-state={ string(sidebarProps.InitialState) }
+			data-iota-shell-standard
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
 			class="flex min-h-screen sdk-min-h-dvh w-full"
 		>
@@ -324,7 +329,7 @@ templ Authenticated(props AuthenticatedProps) {
 			</div>
 			<div class="flex-1 flex flex-col h-screen sdk-h-dvh overflow-hidden">
 				@Navbar(pageCtx, props.NavbarLeft)
-				<div class="flex-1 overflow-y-auto content">
+				<div class="flex-1 overflow-y-auto content" data-iota-shell-outlet>
 					{ children... }
 				</div>
 			</div>

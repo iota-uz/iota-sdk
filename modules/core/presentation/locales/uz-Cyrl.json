@@ -682,6 +682,7 @@
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
+  "SortBy": "Саралаш",
   "PermissionSets": {
     "Core": {
       "ExtensionsView": {

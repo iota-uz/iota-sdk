@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -224,9 +227,18 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 	return exists, nil
 }
 
-func (g *ClientRepository) GetPaginated(
-	ctx context.Context, params *client.FindParams,
-) ([]client.Client, error) {
+// listFilter is the WHERE/JOIN part shared by the list query and its count.
+type listFilter struct {
+	join  string
+	where []string
+	args  []any
+	plan  *listext.Plan
+}
+
+// buildListFilter compiles the tenant scope, the list filters and the filters
+// contributed by extension columns. Extension predicates belong to the list
+// query itself, so they apply before pagination and counting.
+func (g *ClientRepository) buildListFilter(ctx context.Context, params *client.FindParams) (*listFilter, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -251,65 +263,125 @@ func (g *ClientRepository) GetPaginated(
 
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+		where = append(where, fmt.Sprintf("(c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s)", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
 		args = append(args, "%"+params.Search+"%")
+	}
+
+	out := &listFilter{where: where, args: args}
+	plan, err := listext.Compile(ctx, listext.Input{
+		List:      client.ListID,
+		Native:    client.NativeEntityID,
+		BaseAlias: "c",
+		Request:   params.Extra,
+		UsedArgs:  len(args),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if plan != nil {
+		out.plan = plan
+		out.join = plan.Join
+		out.where = append(out.where, plan.Where...)
+		out.args = plan.Args(args)
+	}
+	return out, nil
+}
+
+func (g *ClientRepository) GetPaginated(
+	ctx context.Context, params *client.FindParams,
+) ([]client.Client, error) {
+	f, err := g.buildListFilter(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	order := params.SortBy.ToSQL(g.fieldMap)
+	if f.plan != nil && len(f.plan.OrderBy) > 0 {
+		order = "ORDER BY " + strings.Join(f.plan.OrderBy, ", ") + ", c.id"
 	}
 
 	sql := repo.Join(
 		selectClientQuery,
-		repo.JoinWhere(where...),
-		params.SortBy.ToSQL(g.fieldMap),
+		f.join,
+		repo.JoinWhere(f.where...),
+		order,
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 
 	return g.queryClients(
 		ctx,
 		sql,
-		args...,
+		f.args...,
 	)
 }
 
 func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams) (int64, error) {
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return 0, err
-	}
-
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	where := make([]string, 0)
-	args := make([]interface{}, 0)
-
-	// Add tenant filter first
-	where = append(where, fmt.Sprintf("c.tenant_id = $%d", len(args)+1))
-	args = append(args, tenantID)
-
-	// Apply filters
-	for _, filter := range params.Filters {
-		column, ok := g.fieldMap[filter.Column]
-		if !ok {
-			continue
-		}
-		where = append(where, filter.Filter.String(column, len(args)+1))
-		args = append(args, filter.Filter.Value()...)
+	f, err := g.buildListFilter(ctx, params)
+	if err != nil {
+		return 0, err
 	}
 
-	if params.Search != "" {
-		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
-		args = append(args, "%"+params.Search+"%")
-	}
-
-	query := countClientQuery + " " + repo.JoinWhere(where...)
+	query := repo.Join(countClientQuery, f.join, repo.JoinWhere(f.where...))
 
 	var count int64
-	if err := pool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, query, f.args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+// ExtensionView reads the columns extension packages contribute to the
+// clients list for the given clients. The columns are the ones readable by
+// the current user; purpose selects the table (all) or the export
+// (exportable only). It returns nil when no column applies.
+func (g *ClientRepository) ExtensionView(ctx context.Context, params *client.FindParams, purpose listext.Purpose, ids []uint) (*listext.View, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := listext.Compile(ctx, listext.Input{
+		List:      client.ListID,
+		Native:    client.NativeEntityID,
+		BaseAlias: "c",
+		Purpose:   purpose,
+		UsedArgs:  2,
+	})
+	if err != nil {
+		return nil, err
+	}
+	view := listext.NewView(plan, params.Extra, listext.LangFromContext(ctx))
+	if view == nil || len(ids) == 0 {
+		return view, nil
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]int64, len(ids))
+	for i, id := range ids {
+		keys[i] = int64(id)
+	}
+	query := repo.Join("SELECT c.id", plan.SelectList(), "FROM clients c", plan.Join,
+		"WHERE c.tenant_id = $1 AND c.id = ANY($2)")
+	rows, err := tx.Query(ctx, query, plan.Args([]any{tenantID, keys})...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		values, err := plan.Scan(rows, &id)
+		if err != nil {
+			return nil, err
+		}
+		view.SetRow(strconv.FormatInt(id, 10), values)
+	}
+	return view, rows.Err()
 }
 
 func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client, error) {

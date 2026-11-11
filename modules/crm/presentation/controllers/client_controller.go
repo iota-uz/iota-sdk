@@ -39,6 +39,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -142,6 +143,32 @@ type ClientsPaginatedResponse struct {
 	Page    int
 	PerPage int
 	HasMore bool
+	// Extensions holds the columns extension packages contribute to the list.
+	Extensions *listext.View
+}
+
+// withExtensions reads the extension columns of entities and attaches each
+// row's cells to its view model.
+func withExtensions(
+	ctx context.Context,
+	clientService *services.ClientService,
+	params *client.FindParams,
+	purpose listext.Purpose,
+	entities []client.Client,
+	models []*viewmodels.Client,
+) (*listext.View, error) {
+	ids := make([]uint, len(entities))
+	for i, e := range entities {
+		ids[i] = e.ID()
+	}
+	view, err := clientService.ExtensionView(ctx, params, purpose, ids)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving extension columns")
+	}
+	for _, m := range models {
+		m.Extensions = view.Cells(m.ID)
+	}
+	return view, nil
 }
 
 func NewClientController(
@@ -308,12 +335,13 @@ func (c *ClientController) Register(r *mux.Router) {
 	}
 }
 
-func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *services.ClientService) ([]*viewmodels.Client, error) {
+func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *services.ClientService) ([]*viewmodels.Client, *listext.View, error) {
 	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving tenant")
+		return nil, nil, errors.Wrap(err, "Error retrieving tenant")
 	}
 	params := &client.FindParams{
+		Extra: listext.ParseQuery(r.URL.Query()),
 		SortBy: client.SortBy{
 			Fields: []client.SortByField{{
 				Field:     client.CreatedAt,
@@ -352,10 +380,15 @@ func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *s
 
 	clientEntities, err := clientService.GetPaginated(r.Context(), params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving clients")
+		return nil, nil, errors.Wrap(err, "Error retrieving clients")
 	}
 
-	return mapping.MapViewModels(clientEntities, mappers.ClientToViewModel), nil
+	models := mapping.MapViewModels(clientEntities, mappers.ClientToViewModel)
+	view, err := withExtensions(r.Context(), clientService, params, listext.PurposeExport, clientEntities, models)
+	if err != nil {
+		return nil, nil, err
+	}
+	return models, view, nil
 }
 
 func (c *ClientController) viewModelClients(
@@ -366,6 +399,7 @@ func (c *ClientController) viewModelClients(
 	params := &client.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
+		Extra:  listext.ParseQuery(r.URL.Query()),
 		SortBy: client.SortBy{
 			Fields: []client.SortByField{{
 				Field:     client.CreatedAt,
@@ -405,23 +439,34 @@ func (c *ClientController) viewModelClients(
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving tenant")
 	}
+	// The total uses the same filters as the page, so paging stops where the
+	// filtered list ends.
 	total, err := clientService.Count(r.Context(), &client.FindParams{
-		Filters: []client.Filter{
+		Search: params.Search,
+		Extra:  params.Extra,
+		Filters: append([]client.Filter{
 			{
 				Column: client.TenantID,
 				Filter: repo.Eq(tenant),
 			},
-		},
+		}, params.Filters...),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting clients")
 	}
 
+	models := mapping.MapViewModels(clientEntities, mappers.ClientToViewModel)
+	view, err := withExtensions(r.Context(), clientService, params, listext.PurposeList, clientEntities, models)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ClientsPaginatedResponse{
-		Clients: mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
-		Page:    paginationParams.Page,
-		PerPage: params.Limit,
-		HasMore: int64(paginationParams.Page*params.Limit) < total,
+		Clients:    models,
+		Page:       paginationParams.Page,
+		PerPage:    params.Limit,
+		HasMore:    int64(paginationParams.Page*params.Limit) < total,
+		Extensions: view,
 	}, nil
 }
 
@@ -448,11 +493,13 @@ func (c *ClientController) List(
 		return
 	}
 	props := &clients.IndexPageProps{
-		NewURL:  fmt.Sprintf("%s/new", c.config.BasePath),
-		Clients: paginated.Clients,
-		Page:    paginated.Page,
-		PerPage: paginated.PerPage,
-		HasMore: paginated.HasMore,
+		NewURL:     fmt.Sprintf("%s/new", c.config.BasePath),
+		Clients:    paginated.Clients,
+		Page:       paginated.Page,
+		PerPage:    paginated.PerPage,
+		HasMore:    paginated.HasMore,
+		Extensions: paginated.Extensions,
+		Query:      r.URL.Query(),
 	}
 	if isHxRequest {
 		// For infinite scroll pagination (page > 1), return only rows
@@ -494,28 +541,15 @@ func (c *ClientController) Export(
 		return
 	}
 	ctx := r.Context()
-	pgCtx := composables.UsePageCtx(ctx)
+	headers, rows, err := c.exportTable(r, clientService)
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		return
+	}
 	switch format {
 	case export.ExportFormatExcel:
-		upload, err := excelService.ExportFromDataSource(ctx, excel.NewFunctionDataSource([]string{
-			pgCtx.T("Clients.List.FullName"),
-			pgCtx.T("Clients.List.Phone"),
-			pgCtx.T("UpdatedAt"),
-		}, func(ctx context.Context) ([][]interface{}, error) {
-			clients, err := c.viewModelClientsAll(r, clientService)
-			if err != nil {
-				return nil, err
-			}
-
-			out := make([][]interface{}, len(clients))
-			for i, client := range clients {
-				out[i] = []interface{}{
-					client.FullName(),
-					client.Phone,
-					client.UpdatedAt,
-				}
-			}
-			return out, nil
+		upload, err := excelService.ExportFromDataSource(ctx, excel.NewFunctionDataSource(headers, func(ctx context.Context) ([][]interface{}, error) {
+			return rows, nil
 		}), exportconfig.New(exportconfig.WithFilename("clients_export.xlsx")))
 
 		if err != nil {
@@ -538,22 +572,13 @@ func (c *ClientController) Export(
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
-		if err := writer.WriteHeader([]string{
-			pgCtx.T("Clients.List.FullName"),
-			pgCtx.T("Clients.List.Phone"),
-			pgCtx.T("UpdatedAt"),
-		}); err != nil {
-			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-			return
-		}
-		clients, err := c.viewModelClientsAll(r, clientService)
-		if err != nil {
+		if err := writer.WriteHeader(headers); err != nil {
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
-		for _, client := range clients {
-			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+		for _, row := range rows {
+			if err := writer.WriteRow(row); err != nil {
 				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
@@ -580,6 +605,49 @@ func (c *ClientController) Export(
 	default:
 		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	}
+}
+
+// exportTable builds the exported table: the standard columns followed by the
+// exportable columns extension packages contribute, for the rows the current
+// list filters select.
+func (c *ClientController) exportTable(r *http.Request, clientService *services.ClientService) ([]string, [][]interface{}, error) {
+	pgCtx := composables.UsePageCtx(r.Context())
+	clients, extensions, err := c.viewModelClientsAll(r, clientService)
+	if err != nil {
+		return nil, nil, err
+	}
+	headers := []string{
+		pgCtx.T("Clients.List.FullName"),
+		pgCtx.T("Clients.List.Phone"),
+		pgCtx.T("UpdatedAt"),
+	}
+	headers = append(headers, extensionHeaders(extensions)...)
+	rows := make([][]interface{}, len(clients))
+	for i, client := range clients {
+		rows[i] = append([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}, extensionValues(client)...)
+	}
+	return headers, rows, nil
+}
+
+// extensionHeaders are the titles of the exported extension columns.
+func extensionHeaders(view *listext.View) []string {
+	if view == nil {
+		return nil
+	}
+	out := make([]string, len(view.Columns))
+	for i, col := range view.Columns {
+		out[i] = view.Title(col)
+	}
+	return out
+}
+
+// extensionValues are the exported extension cells of one row.
+func extensionValues(client *viewmodels.Client) []interface{} {
+	out := make([]interface{}, len(client.Extensions))
+	for i, cell := range client.Extensions {
+		out[i] = cell.Value.Export()
+	}
+	return out
 }
 
 func (c *ClientController) Create(
