@@ -2,7 +2,7 @@
 // esbuild. One plugin enforces the graph rules, resolves kit modules from memory, and runs the Solid
 // JSX transform; violations are collected as source-located diagnostics instead of aborting the build.
 import { builtinModules } from "node:module";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -27,8 +27,25 @@ const SOLID = /^solid-js(?:\/.*)?$/;
 const BUILTINS = new Set(builtinModules);
 const SKIP = Symbol("iota.skip");
 
-/** What the browser host must provide to client chunks (kept as bare imports). */
-export const CLIENT_SHARED = (spec: string): boolean => SOLID.test(spec) || spec === "@iota-uz/sdk/runtime" || spec === "@iota-uz/sdk/runtime/client";
+/**
+ * Specifiers client bundles never carry their own copy of: the browser host publishes its instances in
+ * `globalThis[Symbol.for("iota.runtime.shared")]` (client-host/shared.ts) and bundles read them through a
+ * generated shim. A second Solid or runtime client would break reactivity and the RuntimeProvider context.
+ */
+export const SHARED_SPECIFIERS: ReadonlySet<string> = new Set(["solid-js", "solid-js/web", "@iota-uz/sdk/runtime/client"]);
+const SHARED_REGISTRY = 'globalThis[Symbol.for("iota.runtime.shared")]';
+
+let sharedNames: Record<string, string[]> | undefined;
+
+function sharedShim(layout: Layout, spec: string): string {
+  sharedNames ??= JSON.parse(readFileSync(layout.sharedExports, "utf8")) as Record<string, string[]>;
+  const names = sharedNames[spec] ?? [];
+  return [
+    `const m = ${SHARED_REGISTRY}?.[${JSON.stringify(spec)}];`,
+    `if (m === undefined) throw new Error(${JSON.stringify(`iota runtime: the host did not publish shared module "${spec}"`)});`,
+    names.length > 0 ? `export const { ${names.join(", ")} } = m;` : "",
+  ].join("\n");
+}
 
 export interface GraphEnv {
   mode: Mode;
@@ -53,7 +70,8 @@ export interface GraphResult {
   kitModules: Set<string>;
   /** Files written for the entry output (relative path) and external bare imports. */
   entryOutput: string | undefined;
-  externals: Set<string>;
+  /** Client: shared modules the bundle reads from the host registry. */
+  shared: Set<string>;
 }
 
 const REQUIRE_SHIM =
@@ -62,7 +80,7 @@ const REQUIRE_SHIM =
 interface Rules {
   platform: "node" | "browser";
   jsx: "dom" | "ssr";
-  solid: "external" | "vendor" | "forbid";
+  solid: "shared" | "vendor" | "forbid";
   sdkServer?: string;
   sdkClient?: string;
   builtin?: string;
@@ -71,7 +89,7 @@ interface Rules {
 const RULES: Record<Mode, Rules> = {
   contracts: { platform: "node", jsx: "ssr", solid: "forbid", sdkServer: "graph.impureContract", sdkClient: "graph.impureContract", builtin: "graph.impureContract" },
   server: { platform: "node", jsx: "ssr", solid: "vendor", sdkClient: "graph.clientInServer" },
-  client: { platform: "browser", jsx: "dom", solid: "external", sdkServer: "graph.serverInClient", builtin: "graph.serverInClient" },
+  client: { platform: "browser", jsx: "dom", solid: "shared", sdkServer: "graph.serverInClient", builtin: "graph.serverInClient" },
   extract: { platform: "node", jsx: "ssr", solid: "vendor" },
   test: { platform: "node", jsx: "ssr", solid: "vendor" },
 };
@@ -117,7 +135,7 @@ function toDiagnostics(dir: string, list: readonly Esbuild.Message[], severity: 
   });
 }
 
-function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Diagnostic[]; kitModules: Set<string> }): Esbuild.Plugin {
+function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Diagnostic[]; kitModules: Set<string>; shared: Set<string> }): Esbuild.Plugin {
   const rules = RULES[env.mode];
   const parents = new Map<string, { importer: string; spec: string }>();
 
@@ -151,6 +169,19 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
         const spec = args.path;
         const importer = args.importer;
 
+        if (env.mode === "client") {
+          if (SHARED_SPECIFIERS.has(spec)) {
+            sink.shared.add(spec);
+            return { path: spec, namespace: "iota-shared" };
+          }
+          // The pure runtime has no state worth sharing (brands use the global symbol registry): bundled.
+          if (spec === "@iota-uz/sdk/runtime") return { path: join(env.layout.hostDir, "sdk", "index.mjs") };
+          if (spec === "@iota-uz/sdk/runtime/server") {
+            violate("graph.serverInClient", `client graph imports "${spec}", which is server-only`, importer, spec);
+            return { path: spec, external: true };
+          }
+        }
+
         if (SDK_RUNTIME.has(spec)) {
           if (spec === "@iota-uz/sdk/runtime/server" && rules.sdkServer !== undefined) {
             violate(rules.sdkServer, `${env.mode} graph imports "${spec}", which is server-only`, importer, spec);
@@ -183,7 +214,6 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
             violate("graph.impureContract", `${env.mode} graph imports "${spec}"`, importer, spec);
             return { path: spec, external: true };
           }
-          if (rules.solid === "external") return { path: spec, external: true };
           const r = await build.resolve(spec, { kind: args.kind, resolveDir: env.layout.vendor.modules, pluginData: SKIP });
           return r.errors.length > 0 ? { errors: r.errors } : { path: r.path };
         }
@@ -208,6 +238,8 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
         }
         return { path: r.path, namespace: r.namespace, external: r.external, sideEffects: r.sideEffects, suffix: r.suffix };
       });
+
+      build.onLoad({ filter: /.*/, namespace: "iota-shared" }, (args) => ({ contents: sharedShim(env.layout, args.path), loader: "js" }));
 
       build.onLoad({ filter: /.*/, namespace: "iota-kit" }, (args) => ({
         contents: env.kit.modules[args.path]?.["index.js"] ?? "",
@@ -237,7 +269,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
 
 export async function runGraph(esbuild: typeof Esbuild, env: GraphEnv): Promise<GraphResult> {
   const rules = RULES[env.mode];
-  const sink = { diagnostics: [] as Diagnostic[], kitModules: new Set<string>() };
+  const sink = { diagnostics: [] as Diagnostic[], kitModules: new Set<string>(), shared: new Set<string>() };
   const client = env.mode === "client";
   const outdir = join(env.dir, ".iota-out");
   const options: Esbuild.BuildOptions = {
@@ -279,7 +311,6 @@ export async function runGraph(esbuild: typeof Esbuild, env: GraphEnv): Promise<
   }
 
   const inputs = new Set<string>();
-  const externals = new Set<string>();
   let entryOutput: string | undefined;
   if (metafile !== undefined) {
     for (const input of Object.keys(metafile.inputs)) {
@@ -289,8 +320,7 @@ export async function runGraph(esbuild: typeof Esbuild, env: GraphEnv): Promise<
       const rel = relPath(outdir, join(env.dir, path));
       // Dynamic-import chunks also carry an entryPoint; only the package entry's output is the entry.
       if (out.entryPoint !== undefined && join(env.dir, out.entryPoint) === env.entry) entryOutput = rel;
-      for (const imp of out.imports) if (imp.external === true) externals.add(imp.path);
     }
   }
-  return { diagnostics: sink.diagnostics, files, metafile, inputs, kitModules: sink.kitModules, entryOutput, externals };
+  return { diagnostics: sink.diagnostics, files, metafile, inputs, kitModules: sink.kitModules, entryOutput, shared: sink.shared };
 }

@@ -16,6 +16,8 @@ export interface Layout {
   loaderURL: string;
   vendor: { lib: string; nodeTypes: string; solid: string; /** Directory whose node_modules holds solid-js (esbuild resolveDir). */ modules: string };
   workerFile: string;
+  /** Generated: named exports of the modules the browser host shares (see graphs.ts). */
+  sharedExports: string;
 }
 
 export function resolveLayout(moduleURL: string): Layout {
@@ -34,6 +36,7 @@ export function resolveLayout(moduleURL: string): Layout {
       modules: join(buildDir, "vendor"),
     },
     workerFile,
+    sharedExports: join(buildDir, "shared-exports.json"),
   };
 }
 

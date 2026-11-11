@@ -23,6 +23,7 @@
   ],
   "exclude": [
     "src/host",
-    "src/build"
+    "src/build",
+    "src/client-host"
   ]
 }

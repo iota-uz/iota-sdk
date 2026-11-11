@@ -171,13 +171,13 @@ func TestBuildAcmePackage(t *testing.T) {
 		Schema  string   `json:"schema"`
 		Entry   string   `json:"entry"`
 		Chunks  []string `json:"chunks"`
-		Imports []string `json:"imports"`
+		Shared  []string `json:"shared"`
 		Exports []string `json:"exports"`
 	}
 	require.NoError(t, json.Unmarshal(res.Artifacts["client/manifest.json"], &clientManifest))
 	require.Equal(t, page.Chunk, clientManifest.Entry)
 	require.GreaterOrEqual(t, len(clientManifest.Chunks), 2, "lazy(() => import()) screens are separate chunks")
-	require.Contains(t, clientManifest.Imports, "solid-js")
+	require.ElementsMatch(t, []string{"@iota-uz/sdk/runtime/client", "solid-js", "solid-js/web"}, clientManifest.Shared)
 	require.Contains(t, clientManifest.Exports, "policies")
 
 	// No handler stripping and no server code in the browser graph.
@@ -186,8 +186,13 @@ func TestBuildAcmePackage(t *testing.T) {
 			require.NotContains(t, string(content), "quotes.example.uz", name)
 			require.NotContains(t, string(content), "implement(", name)
 			require.NotContains(t, string(content), "@iota-uz/sdk/runtime/server", name)
+			// Solid and the runtime client come from the host's registry, never from a bundled copy.
+			require.NotContains(t, string(content), "function createRoot", name)
+			require.NotContains(t, string(content), `from "solid-js`, name)
+			require.NotContains(t, string(content), `from "@iota-uz/sdk/runtime/client"`, name)
 		}
 	}
+	require.Contains(t, string(res.Artifacts[page.Chunk]), `Symbol.for("iota.runtime.shared")`)
 	// The pure contracts artifact has no handlers either.
 	require.NotContains(t, string(res.Artifacts["contracts.mjs"]), "quotes.example.uz")
 	require.NotContains(t, string(res.Artifacts["contracts.mjs"]), "implement(")
@@ -204,6 +209,27 @@ func TestBuildAcmePackage(t *testing.T) {
 	diags, err := b.Check(context.Background(), tree, kit)
 	require.NoError(t, err)
 	require.Empty(t, diags)
+
+	t.Run("the page chunk exports what the browser host mounts", func(t *testing.T) {
+		dir := t.TempDir()
+		for name, content := range res.Artifacts {
+			p := filepath.Join(dir, filepath.FromSlash(name))
+			require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+			require.NoError(t, os.WriteFile(p, content, 0o644))
+		}
+		// Publish a registry like client-host/shared.ts does; every named import resolves to a stub.
+		// The runtime client is the SDK's real module; Solid is stubbed (nothing renders at load time).
+		clientModule := filepath.Join(filepath.Dir(filepath.Dir(buildtest.Config(t).WorkerScript)), "host", "sdk", "client.mjs")
+		script := `const stub = new Proxy({}, { get: (_, name) => (...a) => (name === "lazy" ? () => null : {}) });
+globalThis[Symbol.for("iota.runtime.shared")] = { "solid-js": stub, "solid-js/web": stub, "@iota-uz/sdk/runtime/client": await import(process.argv[3]) };
+const m = await import(process.argv[1]);
+const p = m[process.argv[2]];
+console.log(JSON.stringify({ id: p.id, kind: p.kind, path: p.resource.path, component: typeof p.component }));`
+		cmd := exec.Command("node", "--no-warnings", "--input-type=module", "-e", script, "file://"+filepath.Join(dir, filepath.FromSlash(page.Chunk)), page.Export, "file://"+clientModule)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+		require.JSONEq(t, `{"id":"acme.insurance.policies","kind":"page","path":"/insurance/policies","component":"function"}`, strings.TrimSpace(string(out)))
+	})
 
 	t.Run("server.mjs runs in a real pool worker", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), res.ArtifactHash)

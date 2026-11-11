@@ -7,7 +7,7 @@ import type * as Esbuild from "esbuild";
 
 import type { CapabilitiesJSON, ManifestJSON } from "../model.ts";
 import { extractManifest } from "./extraction.ts";
-import { CLIENT_SHARED, runGraph, type GraphResult } from "./graphs.ts";
+import { runGraph, type GraphResult } from "./graphs.ts";
 import type { Layout } from "./layout.ts";
 import type { BuildResponse, Diagnostic, PackageRequest } from "./protocol.ts";
 import { typecheck } from "./typecheck.ts";
@@ -210,7 +210,7 @@ function withChunks(manifest: ManifestJSON, chunk: string): ManifestJSON {
   };
 }
 
-/** `client/manifest.json`: the entry chunk, lazy chunks, stylesheets and the imports the host must provide. */
+/** `client/manifest.json`: the entry chunk, lazy chunks, stylesheets and the shared modules the bundle reads from the host registry. */
 function clientManifest(manifest: ManifestJSON, client: GraphResult, entry: string): string {
   const all = [...client.files.keys()].sort();
   const exported = manifest.resources.filter((r) => r.export !== undefined).map((r) => r.export as string).sort();
@@ -220,7 +220,7 @@ function clientManifest(manifest: ManifestJSON, client: GraphResult, entry: stri
     entry: `client/${entry}`,
     chunks: all.filter((f) => f.endsWith(".js") && f !== entry).map((f) => `client/${f}`),
     css: all.filter((f) => f.endsWith(".css")).map((f) => `client/${f}`),
-    imports: [...client.externals].filter(CLIENT_SHARED).sort(),
+    shared: [...client.shared].sort(),
     exports: [...new Set(exported)],
   };
   return JSON.stringify(doc, null, 2) + "\n";
