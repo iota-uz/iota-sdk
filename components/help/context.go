@@ -41,12 +41,8 @@ func contextLabel(props ContextProps) string {
 	return defaultLabel
 }
 
-func contextClass(props ContextProps) any {
-	base := "relative inline-flex shrink-0"
-	if props.Class == nil {
-		return base
-	}
-	return []any{base, props.Class}
+func contextClass(props ContextProps) templ.CSSClasses {
+	return templ.Classes("relative inline-flex shrink-0", props.Class)
 }
 
 func contextAttrs(props ContextProps) templ.Attributes {

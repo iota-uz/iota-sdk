@@ -61,3 +61,13 @@ func TestHint_Render(t *testing.T) {
 	require.Contains(t, html, "Choose a realistic date")
 	require.Contains(t, html, "/help/doc/edo/create-document.md#deadline")
 }
+
+func TestContext_CustomClassKeepsPositioningContext(t *testing.T) {
+	var buf bytes.Buffer
+	err := Context(ContextProps{Title: "Policy status", Class: "text-base font-normal"}).Render(context.Background(), &buf)
+	require.NoError(t, err)
+
+	html := buf.String()
+	require.Contains(t, html, "relative inline-flex shrink-0 text-base font-normal")
+	require.NotContains(t, html, "unknown-type")
+}
