@@ -1,184 +1,195 @@
 -- +migrate Up
--- Extension runtime management: packages, draft trees, immutable versions,
--- artifacts, reviews, activations, trigger owners, kit snapshots, audit.
--- Everything here is application-wide except trigger_owners (per tenant).
-CREATE SCHEMA IF NOT EXISTS extruntime;
+-- Extension runtime: events (outbox, subscription receipts, trigger owners,
+-- schedule runs) and the durable workflow engine (docs/extension-runtime.md §8, §9).
 
-CREATE TABLE extruntime.packages (
-    namespace text PRIMARY KEY CHECK (namespace ~ '^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$'),
-    npm_name text NOT NULL DEFAULT '',
-    provenance text NOT NULL CHECK (provenance IN ('git', 'runtime')),
-    repo_url text NOT NULL DEFAULT '',
-    repo_commit text NOT NULL DEFAULT '',
-    -- tree hash of the last imported tree; a draft whose tree still equals it
-    -- publishes with git provenance, an edited one with runtime provenance
-    imported_tree_hash text NOT NULL DEFAULT '',
-    draft_rev bigint NOT NULL DEFAULT 0,
-    created_by bigint NOT NULL,
+CREATE TABLE extruntime.outbox_events (
+    seq bigserial NOT NULL UNIQUE,
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    event text NOT NULL,
+    subject_entity text,
+    subject_key text,
+    payload jsonb NOT NULL,
+    initiator_user_id bigint,
+    producer_invocation_id uuid,
+    occurred_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+
+CREATE INDEX outbox_events_event_seq_idx ON extruntime.outbox_events (event, seq);
+
+CREATE INDEX outbox_events_occurred_idx ON extruntime.outbox_events (occurred_at);
+
+CREATE INDEX outbox_events_tenant_idx ON extruntime.outbox_events (tenant_id, seq);
+
+CREATE TABLE extruntime.subscription_receipts (
+    subscription text NOT NULL,
+    event_id uuid NOT NULL REFERENCES extruntime.outbox_events (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    status text NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'dead', 'blocked')),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    next_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error text NOT NULL DEFAULT '',
+    invocation_id uuid,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by bigint NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CHECK (provenance <> 'git' OR (repo_url <> '' AND repo_commit <> ''))
+    PRIMARY KEY (subscription, event_id)
 );
 
-CREATE TABLE extruntime.package_files (
-    namespace text NOT NULL REFERENCES extruntime.packages (namespace) ON DELETE CASCADE,
-    path text NOT NULL,
-    content bytea NOT NULL,
-    hash text NOT NULL,
-    updated_by bigint NOT NULL,
-    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (namespace, path)
-);
+CREATE INDEX subscription_receipts_retry_idx ON extruntime.subscription_receipts (subscription, next_at)
+WHERE
+    status IN ('pending', 'failed', 'blocked');
 
--- Content-addressed blobs: tar archives of source trees and of built
--- artifact trees. Immutable.
-CREATE TABLE extruntime.artifacts (
-    hash text PRIMARY KEY,
-    kind text NOT NULL CHECK (kind IN ('source', 'build')),
-    content bytea NOT NULL,
-    size bigint NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Developer kit snapshots (contract resolution snapshots). Immutable.
-CREATE TABLE extruntime.catalog_snapshots (
-    hash text PRIMARY KEY,
-    content bytea NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE extruntime.versions (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    namespace text NOT NULL REFERENCES extruntime.packages (namespace),
-    version text NOT NULL CHECK (version <> ''),
-    source_hash text NOT NULL,
-    tree_hash text NOT NULL,
-    source_archive text NOT NULL REFERENCES extruntime.artifacts (hash),
-    artifact_hash text NOT NULL REFERENCES extruntime.artifacts (hash),
-    lockfile_name text NOT NULL DEFAULT '',
-    lockfile_hash text NOT NULL DEFAULT '',
-    manifest jsonb NOT NULL,
-    kit_hash text NOT NULL REFERENCES extruntime.catalog_snapshots (hash),
-    provenance text NOT NULL CHECK (provenance IN ('git', 'runtime')),
-    repo_url text NOT NULL DEFAULT '',
-    repo_commit text NOT NULL DEFAULT '',
-    diagnostics jsonb NOT NULL DEFAULT '[]'::jsonb,
-    -- contract hashes of the foreign contracts the version implements, as built
-    foreign_contracts jsonb NOT NULL DEFAULT '{}'::jsonb,
-    author_id bigint NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (namespace, version)
-);
-
-CREATE INDEX versions_namespace_created_idx ON extruntime.versions (namespace, created_at DESC);
-
--- Reviews are append-only and bound to the exact hashes that were reviewed.
-CREATE TABLE extruntime.version_reviews (
-    id bigserial PRIMARY KEY,
-    version_id uuid NOT NULL REFERENCES extruntime.versions (id),
-    source_hash text NOT NULL,
-    artifact_hash text NOT NULL,
-    reviewer_id bigint NOT NULL,
-    approve boolean NOT NULL,
-    comment text NOT NULL DEFAULT '',
-    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX version_reviews_version_idx ON extruntime.version_reviews (version_id, id DESC);
-
--- +migrate StatementBegin
-CREATE FUNCTION extruntime.forbid_mutation() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-    RAISE EXCEPTION 'extruntime.% rows are immutable', TG_TABLE_NAME USING ERRCODE = 'restrict_violation';
-END;
-$$;
--- +migrate StatementEnd
-
-CREATE TRIGGER versions_immutable BEFORE UPDATE OR DELETE ON extruntime.versions
-FOR EACH ROW EXECUTE FUNCTION extruntime.forbid_mutation();
-
-CREATE TRIGGER artifacts_immutable BEFORE UPDATE OR DELETE ON extruntime.artifacts
-FOR EACH ROW EXECUTE FUNCTION extruntime.forbid_mutation();
-
-CREATE TRIGGER catalog_snapshots_immutable BEFORE UPDATE OR DELETE ON extruntime.catalog_snapshots
-FOR EACH ROW EXECUTE FUNCTION extruntime.forbid_mutation();
-
-CREATE TRIGGER version_reviews_immutable BEFORE UPDATE OR DELETE ON extruntime.version_reviews
-FOR EACH ROW EXECUTE FUNCTION extruntime.forbid_mutation();
-
--- Activation history. Application-wide; at most one active row per package.
-CREATE TABLE extruntime.activations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    namespace text NOT NULL REFERENCES extruntime.packages (namespace),
-    version_id uuid NOT NULL REFERENCES extruntime.versions (id),
-    state text NOT NULL CHECK (state IN ('active', 'disabled', 'purged')),
-    activated_by bigint NOT NULL,
-    activated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ended_by bigint,
-    ended_at timestamptz,
-    -- DDL statements applied by this activation (empty when the schema did not change)
-    schema_steps jsonb NOT NULL DEFAULT '[]'::jsonb
-);
-
-CREATE UNIQUE INDEX activations_one_active_idx ON extruntime.activations (namespace) WHERE state = 'active';
-
-CREATE INDEX activations_namespace_idx ON extruntime.activations (namespace, activated_at DESC);
-
--- What a replacement binding displaced, so deactivating the replacement can
--- reinstate the previous implementation of the slot.
-CREATE TABLE extruntime.binding_displaced (
-    binding_id uuid PRIMARY KEY REFERENCES extruntime.bindings (id) ON DELETE CASCADE,
-    displaced_binding_id uuid NOT NULL REFERENCES extruntime.bindings (id) ON DELETE CASCADE
-);
-
--- Owner-user of a trigger (subscription, schedule, public endpoint) per tenant.
-CREATE TABLE IF NOT EXISTS extruntime.trigger_owners (
+CREATE TABLE extruntime.trigger_owners (
     trigger_id text NOT NULL,
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     user_id bigint NOT NULL,
-    assigned_by bigint,
     assigned_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (trigger_id, tenant_id)
 );
 
-CREATE TABLE extruntime.audit_log (
-    id bigserial PRIMARY KEY,
-    at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    actor_user_id bigint NOT NULL,
-    credential text NOT NULL DEFAULT '',
-    action text NOT NULL,
-    namespace text NOT NULL DEFAULT '',
-    version text NOT NULL DEFAULT '',
-    target text NOT NULL DEFAULT '',
-    source_hash text NOT NULL DEFAULT '',
-    artifact_hash text NOT NULL DEFAULT '',
-    outcome text NOT NULL CHECK (outcome IN ('ok', 'failed', 'denied')),
-    detail jsonb NOT NULL DEFAULT '{}'::jsonb
+CREATE TABLE extruntime.schedule_runs (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    schedule text NOT NULL,
+    slot timestamptz NOT NULL,
+    status text NOT NULL CHECK (status IN ('done', 'failed', 'dead', 'blocked')),
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    next_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error text NOT NULL DEFAULT '',
+    invocation_id uuid,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tenant_id, schedule, slot)
 );
 
-CREATE INDEX audit_log_at_idx ON extruntime.audit_log (at DESC, id DESC);
+CREATE TABLE extruntime.workflow_instances (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    workflow text NOT NULL,
+    package text NOT NULL,
+    version text NOT NULL,
+    artifact_hash text NOT NULL DEFAULT '',
+    export text NOT NULL,
+    input jsonb NOT NULL,
+    status text NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'waiting', 'completed', 'failed', 'terminated', 'blocked')),
+    result jsonb,
+    error jsonb,
+    blocked_reason text NOT NULL DEFAULT '',
+    blocked_detail text NOT NULL DEFAULT '',
+    subject_user_id bigint NOT NULL,
+    subject_kind text NOT NULL CHECK (subject_kind IN ('initiator', 'owner')),
+    predecessor_id uuid REFERENCES extruntime.workflow_instances (id),
+    parent_instance_id uuid REFERENCES extruntime.workflow_instances (id),
+    start_invocation_id uuid,
+    start_key text,
+    wake_at timestamptz,
+    lease_owner text,
+    lease_until timestamptz,
+    lease_epoch bigint NOT NULL DEFAULT 0,
+    run_count integer NOT NULL DEFAULT 0,
+    failures integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at timestamptz
+);
 
-CREATE INDEX audit_log_namespace_idx ON extruntime.audit_log (namespace, id DESC);
+CREATE UNIQUE INDEX workflow_instances_start_key_idx ON extruntime.workflow_instances (tenant_id, start_key)
+WHERE
+    start_key IS NOT NULL;
+
+CREATE INDEX workflow_instances_ready_idx ON extruntime.workflow_instances (status, wake_at, lease_until)
+WHERE
+    status IN ('running', 'waiting');
+
+CREATE INDEX workflow_instances_tenant_idx ON extruntime.workflow_instances (tenant_id, created_at DESC);
+
+CREATE INDEX workflow_instances_predecessor_idx ON extruntime.workflow_instances (predecessor_id)
+WHERE
+    predecessor_id IS NOT NULL;
+
+CREATE INDEX workflow_instances_parent_idx ON extruntime.workflow_instances (parent_instance_id)
+WHERE
+    parent_instance_id IS NOT NULL;
+
+CREATE TABLE extruntime.workflow_occurrences (
+    instance_id uuid NOT NULL REFERENCES extruntime.workflow_instances (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name text NOT NULL,
+    n integer NOT NULL CHECK (n >= 0),
+    kind text NOT NULL CHECK (kind IN ('transaction', 'step', 'sleep', 'waitFor', 'task', 'call', 'start', 'now', 'uuid')),
+    status text NOT NULL CHECK (status IN ('started', 'completed', 'failed', 'waiting', 'cancelled')),
+    input_hash text NOT NULL DEFAULT '',
+    result jsonb,
+    error jsonb,
+    attempts integer NOT NULL DEFAULT 0,
+    wake_at timestamptz,
+    invocation_id uuid,
+    contract_hash text NOT NULL DEFAULT '',
+    meta jsonb,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (instance_id, name, n)
+);
+
+CREATE INDEX workflow_occurrences_tenant_idx ON extruntime.workflow_occurrences (tenant_id, instance_id);
+
+CREATE TABLE extruntime.workflow_signals (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    instance_id uuid NOT NULL REFERENCES extruntime.workflow_instances (id) ON DELETE CASCADE,
+    name text NOT NULL,
+    payload jsonb NOT NULL,
+    sender_user_id bigint,
+    signal_key text,
+    consumed_name text,
+    consumed_n integer,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    consumed_at timestamptz
+);
+
+CREATE UNIQUE INDEX workflow_signals_key_idx ON extruntime.workflow_signals (tenant_id, instance_id, signal_key)
+WHERE
+    signal_key IS NOT NULL;
+
+CREATE INDEX workflow_signals_open_idx ON extruntime.workflow_signals (instance_id, name, created_at)
+WHERE
+    consumed_name IS NULL;
+
+CREATE TABLE extruntime.human_tasks (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    instance_id uuid NOT NULL REFERENCES extruntime.workflow_instances (id) ON DELETE CASCADE,
+    name text NOT NULL,
+    n integer NOT NULL,
+    subject_entity text NOT NULL DEFAULT '',
+    subject_key text NOT NULL DEFAULT '',
+    assignee_user_id bigint NOT NULL,
+    decision_schema jsonb,
+    status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'decided', 'expired', 'cancelled')),
+    decision jsonb,
+    decided_by bigint,
+    due_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    decided_at timestamptz,
+    UNIQUE (instance_id, name, n)
+);
+
+CREATE INDEX human_tasks_assignee_idx ON extruntime.human_tasks (tenant_id, assignee_user_id, status);
+
+CREATE INDEX human_tasks_subject_idx ON extruntime.human_tasks (tenant_id, subject_entity, subject_key);
 
 -- +migrate Down
-DROP TABLE IF EXISTS extruntime.audit_log;
+DROP TABLE IF EXISTS extruntime.human_tasks;
 
-DROP TABLE IF EXISTS extruntime.binding_displaced;
+DROP TABLE IF EXISTS extruntime.workflow_signals;
 
-DROP TABLE IF EXISTS extruntime.activations;
+DROP TABLE IF EXISTS extruntime.workflow_occurrences;
 
-DROP TABLE IF EXISTS extruntime.version_reviews;
+DROP TABLE IF EXISTS extruntime.workflow_instances;
 
-DROP TABLE IF EXISTS extruntime.versions;
+DROP TABLE IF EXISTS extruntime.schedule_runs;
 
-DROP TABLE IF EXISTS extruntime.catalog_snapshots;
+DROP TABLE IF EXISTS extruntime.trigger_owners;
 
-DROP TABLE IF EXISTS extruntime.artifacts;
+DROP TABLE IF EXISTS extruntime.subscription_receipts;
 
-DROP TABLE IF EXISTS extruntime.package_files;
-
-DROP TABLE IF EXISTS extruntime.packages;
-
-DROP FUNCTION IF EXISTS extruntime.forbid_mutation();
+DROP TABLE IF EXISTS extruntime.outbox_events;
