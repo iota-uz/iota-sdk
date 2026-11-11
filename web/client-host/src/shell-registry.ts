@@ -7,6 +7,8 @@ export interface ShellNavigationItem {
   icon?: string
   parent?: string
   workspace?: string
+  pinned?: boolean
+  beta?: boolean
   order?: number
   permissions?: readonly string[]
 }

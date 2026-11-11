@@ -58,7 +58,14 @@ func Flatten(items []types.NavigationItem) []NavigationItem {
 				key = "item:" + position
 			}
 			if _, taken := used[key]; taken {
-				key = key + "#" + position
+				base := key
+				key = base + "#" + position
+				for n := 2; ; n++ {
+					if _, clash := used[key]; !clash {
+						break
+					}
+					key = base + "#" + position + "-" + strconv.Itoa(n)
+				}
 			}
 			used[key] = struct{}{}
 			itemWorkspace := item.Workspace
