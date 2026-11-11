@@ -335,10 +335,10 @@
   ],
   "candidate": {
     "version": "0.40.0",
-    "source": "632d2616ccaaf530020866cd189ddafe060472db",
-    "sha": "b3f93ca5eaab0c0e26fd0bb63c2bcbdb48c354e0",
-    "phase": "failed",
-    "run_id": "43080638770"
+    "source": "8223e7f2c1d33ef92520593e29fdf0e7965f4753",
+    "sha": "5237f0cc252f8d34c01fe8149b57b19759704bea",
+    "phase": "testing",
+    "run_id": "43088772666"
   },
   "ready": {
     "version": "0.39.1",
