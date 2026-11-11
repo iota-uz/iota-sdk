@@ -63,7 +63,7 @@ func (v Value) Text() string {
 }
 
 // Bool returns the value of a bool column.
-func (v Value) Bool() (value, ok bool) {
+func (v Value) Bool() (bool, bool) {
 	if v.Raw == nil {
 		return false, false
 	}
@@ -82,6 +82,10 @@ func (v Value) Time() (time.Time, bool) {
 	case manifest.KindDateTime:
 		t, err := time.Parse(time.RFC3339, *v.Raw)
 		return t, err == nil
+	case manifest.KindString, manifest.KindInt, manifest.KindInt64, manifest.KindDecimal,
+		manifest.KindBool, manifest.KindUUID, manifest.KindEnum, manifest.KindJSON,
+		manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Not a point in time.
 	}
 	return time.Time{}, false
 }
@@ -99,6 +103,10 @@ func (v Value) Export() any {
 		}
 	case manifest.KindBool:
 		return *v.Raw == "true"
+	case manifest.KindString, manifest.KindInt64, manifest.KindDecimal, manifest.KindDate,
+		manifest.KindDateTime, manifest.KindUUID, manifest.KindEnum, manifest.KindJSON,
+		manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Exported as the exact text.
 	}
 	return *v.Raw
 }
@@ -179,6 +187,8 @@ func literal(t manifest.Type, raw string) (json.RawMessage, error) {
 		return nil, fmt.Errorf("%q is not one of the enum values", raw)
 	case manifest.KindString, manifest.KindInt64, manifest.KindDecimal, manifest.KindDate, manifest.KindDateTime, manifest.KindUUID:
 		return json.Marshal(raw)
+	case manifest.KindJSON, manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Not filterable from list controls; reported below.
 	}
 	return nil, fmt.Errorf("%s columns cannot be filtered", t.Kind)
 }

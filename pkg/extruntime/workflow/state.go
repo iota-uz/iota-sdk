@@ -113,7 +113,7 @@ type runState struct {
 
 	mu      sync.Mutex
 	journal map[occKey]Occurrence
-	blocked *blockInfo
+	blocked *blockedError
 	// staleErr is set once the lease is lost or the instance terminated: the
 	// run must not record anything and every further host call fails with it.
 	staleErr *pool.WireError
@@ -141,11 +141,11 @@ func (rs *runState) del(name string, n int) {
 	rs.mu.Unlock()
 }
 
-func (rs *runState) block(reason, detail string) *blockInfo {
+func (rs *runState) block(reason, detail string) *blockedError {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	if rs.blocked == nil {
-		rs.blocked = &blockInfo{reason: reason, detail: detail}
+		rs.blocked = &blockedError{reason: reason, detail: detail}
 	}
 	return rs.blocked
 }
@@ -178,7 +178,18 @@ func (rs *runState) stale() *pool.WireError {
 	return rs.staleErr
 }
 
-func (rs *runState) blockedInfo() *blockInfo {
+// staleCode reports whether the run was abandoned (its lease was lost or its
+// instance terminated) and the code of the reason.
+func (rs *runState) staleCode() (string, bool) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	if rs.staleErr == nil {
+		return "", false
+	}
+	return rs.staleErr.Code, true
+}
+
+func (rs *runState) blockedInfo() *blockedError {
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	return rs.blocked
@@ -233,8 +244,8 @@ func (e *Engine) loadJournal(ctx context.Context, inst Instance) (map[occKey]Occ
 
 // claim takes one ready instance: a new or crashed one (no live lease), or a
 // waiting one whose wake_at passed. The epoch is bumped, which fences any
-// previous runner of the instance.
-func (e *Engine) claim(ctx context.Context) (*Instance, error) {
+// previous runner of the instance. The boolean is false when none is ready.
+func (e *Engine) claim(ctx context.Context) (*Instance, bool, error) {
 	row := e.cfg.DB.QueryRow(ctx, `
 		UPDATE extruntime.workflow_instances i
 		SET status = 'running', lease_owner = $1, lease_until = now() + $2::interval, lease_epoch = i.lease_epoch + 1,
@@ -249,12 +260,12 @@ func (e *Engine) claim(ctx context.Context) (*Instance, error) {
 		RETURNING `+instanceCols, e.cfg.Owner, e.cfg.LeaseTTL.String())
 	inst, err := scanInstance(row)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err != nil {
-		return nil, serrors.FromDB(opClaim, err)
+		return nil, false, serrors.FromDB(opClaim, err)
 	}
-	return &inst, nil
+	return &inst, true, nil
 }
 
 // fence is the first statement of every state-writing transaction: it proves

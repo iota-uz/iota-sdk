@@ -192,7 +192,7 @@ func newEnv(t *testing.T, perms ...string) *env {
 		NativeRoutes: ui.NativeRoutes{"test.routes.legacy": "/legacy"},
 	})
 	require.NoError(t, err)
-	var ps []permission.Permission
+	ps := make([]permission.Permission, 0, len(perms))
 	for _, p := range perms {
 		ps = append(ps, perm(p))
 	}
@@ -216,10 +216,19 @@ func scriptJSON(t *testing.T, body, id string, into any) {
 	require.NoError(t, json.Unmarshal([]byte(rest[:j]), into), rest[:j])
 }
 
+// statusCode is the status of a recorded response. The recorder's result body
+// is in memory; it is closed all the same.
+func statusCode(resp *itf.Response) int {
+	raw := resp.Raw()
+	code := raw.StatusCode
+	_ = raw.Body.Close()
+	return code
+}
+
 func (e *env) get(t *testing.T, path string) (int, string) {
 	t.Helper()
 	resp := e.suite.GET(path).Expect(t)
-	return resp.Raw().StatusCode, resp.Body()
+	return statusCode(resp), resp.Body()
 }
 
 func (e *env) post(t *testing.T, path string, body any) (int, ui.RPCResponseForTest) {
@@ -229,7 +238,7 @@ func (e *env) post(t *testing.T, path string, body any) (int, ui.RPCResponseForT
 	resp := e.suite.POST(path).Header("Content-Type", "application/json").JSON(json.RawMessage(b)).Expect(t)
 	var out ui.RPCResponseForTest
 	require.NoError(t, json.Unmarshal([]byte(resp.Body()), &out), resp.Body())
-	return resp.Raw().StatusCode, out
+	return statusCode(resp), out
 }
 
 func TestPageHostServesActivatedPagesWithoutRestart(t *testing.T) {
@@ -550,7 +559,7 @@ func TestAssetsAreImmutableAndConfined(t *testing.T) {
 	e.suite.GET("/_ext/assets/" + hashV1 + "/client/missing.js").Expect(t).Status(404)
 	for _, p := range []string{"/../x/secret.js", "/client/%2e%2e/%2e%2e/etc/passwd", "/client//policies.js"} {
 		resp := e.suite.GET("/_ext/assets/" + hashV1 + p).Expect(t)
-		assert.NotEqual(t, 200, resp.Raw().StatusCode, p)
+		assert.NotEqual(t, 200, statusCode(resp), p)
 		assert.NotContains(t, resp.Body(), "export const", p)
 	}
 	e.suite.GET("/_ext/assets/short/client/policies.js").Expect(t).Status(404)
@@ -569,7 +578,7 @@ func TestAssetsServeOnlyTheClientSubtreeOfLiveArtifacts(t *testing.T) {
 	e.suite.GET("/_ext/assets/" + hashV1 + "/client/chunk.css").Expect(t).Status(200)
 	for _, p := range []string{"server.mjs", "contracts.mjs", "manifest.json", "package.json"} {
 		resp := e.suite.GET("/_ext/assets/" + hashV1 + "/" + p).Expect(t)
-		assert.Equal(t, 404, resp.Raw().StatusCode, p)
+		assert.Equal(t, 404, statusCode(resp), p)
 		assert.NotContains(t, resp.Body(), "HANDLER_SECRET", p)
 	}
 	e.suite.GET("/_ext/assets/" + hashOld + "/client/old.js").Expect(t).Status(404) // never activated

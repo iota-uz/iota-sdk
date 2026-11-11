@@ -125,9 +125,13 @@ func invalidInput(err error) error {
 	we := &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
 	var pe *manifest.PathError
 	if errors.As(err, &pe) {
-		path, _ := json.Marshal(pe.Path)
-		params, _ := json.Marshal(map[string]string{"message": pe.Message})
-		we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: "input", Path: path, Params: params}}
+		path, pathErr := json.Marshal(pe.Path)
+		params, paramsErr := json.Marshal(map[string]string{"message": pe.Message})
+		// An unencodable path leaves the error without per-field issues; the
+		// message above still describes the failure.
+		if pathErr == nil && paramsErr == nil {
+			we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: "input", Path: path, Params: params}}
+		}
 	}
 	return we
 }

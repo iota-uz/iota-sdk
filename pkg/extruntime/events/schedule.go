@@ -209,7 +209,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 		}
 		for _, slot := range slots {
 			for _, tenant := range tenants {
-				if st, ok := known[runKey{tenant, slot}]; ok && !(st.due && (st.status == StatusFailed || st.status == StatusBlocked)) {
+				if st, ok := known[runKey{tenant, slot}]; ok && (!st.due || (st.status != StatusFailed && st.status != StatusBlocked)) {
 					continue
 				}
 				ok, err := s.runSlot(ctx, def, tenant, slot, known[runKey{tenant, slot}].attempts)
@@ -282,7 +282,8 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		return false, serrors.FromDB(opScheduleD, err)
 	}
 	slotISO := slot.UTC().Format(time.RFC3339)
-	input, _ := json.Marshal(map[string]string{"slot": slotISO})
+	// slotISO is an RFC 3339 timestamp: it needs no JSON escaping.
+	input := json.RawMessage(`{"slot":"` + slotISO + `"}`)
 	res, runErr := s.cfg.Runner.Run(ctx, host.RunRequest{
 		Export: host.Export{
 			Kind:     pool.KindSchedule,

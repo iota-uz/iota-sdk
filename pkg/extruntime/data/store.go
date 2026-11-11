@@ -185,7 +185,7 @@ func parseWrites(op serrors.Op, sub spi.Subject, m *model, obj map[string]json.R
 	}
 	sort.Strings(keys)
 	seen := map[string]string{}
-	var out []colWrite
+	out := make([]colWrite, 0, len(keys))
 	for _, k := range keys {
 		f, ok := m.byKey[k]
 		if !ok {
@@ -372,7 +372,7 @@ func (s *Store) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity stri
 	}
 
 	proposed := &record{key: id.String(), vals: map[string]json.RawMessage{}}
-	var changed []string
+	changed := make([]string, 0, len(writes))
 	for _, f := range m.Fields {
 		if f.Default != nil {
 			proposed.vals[f.Column] = f.Default
@@ -471,8 +471,8 @@ func (s *Store) Update(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity, key
 	}
 	visible := m.project(rootAlias, visibleTo(m, sc.Subject))
 
-	var changedWrites []colWrite
-	var changed []string
+	changedWrites := make([]colWrite, 0, len(writes))
+	changed := make([]string, 0, len(writes))
 	proposed := *existing
 	proposed.vals = make(map[string]json.RawMessage, len(existing.vals))
 	for k, v := range existing.vals {
@@ -623,8 +623,8 @@ func (s *Store) PutOverlay(ctx context.Context, tx pgx.Tx, sc spi.Scope, overlay
 			}
 		}
 	}
-	var changed []string
-	var changedWrites []colWrite
+	changed := make([]string, 0, len(writes))
+	changedWrites := make([]colWrite, 0, len(writes))
 	for _, w := range writes {
 		if existing != nil && (string(w.canon) == existing.value(w.f)) {
 			continue
@@ -641,7 +641,7 @@ func (s *Store) PutOverlay(ctx context.Context, tx pgx.Tx, sc spi.Scope, overlay
 	if existing != nil && len(changedWrites) == 0 {
 		return visible.marshal(existing), nil
 	}
-	var existingJSON json.RawMessage = json.RawMessage("null")
+	existingJSON := json.RawMessage("null")
 	if existing != nil {
 		existingJSON = all.marshal(existing)
 	}

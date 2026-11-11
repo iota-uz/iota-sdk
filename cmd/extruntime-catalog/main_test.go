@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 )
 
 func TestCommittedSnapshotIsCurrent(t *testing.T) {
@@ -39,8 +40,7 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 		require.NotNil(t, s.Resources, "%s: resources must serialize as an array", s.Namespace)
 		lists[s.Namespace] = s.Lists
 		for _, r := range s.Resources {
-			switch r.Kind {
-			case "entity":
+			if r.Kind == manifest.ResEntity {
 				keyTypes[r.ID] = r.KeyType
 			}
 			ids[r.ID] = string(r.Kind)

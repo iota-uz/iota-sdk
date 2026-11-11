@@ -85,6 +85,12 @@ func newModel(t *Table, id string) *model {
 	switch t.Kind {
 	case manifest.ResOverlay:
 		m.Kind, m.KeyCol, m.KeyType, m.Base = kindOverlay, "base_key", t.Base.KeyType, t.Base
+	case manifest.ResEntity, manifest.ResQuery, manifest.ResCommand, manifest.ResOperation,
+		manifest.ResEvent, manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute,
+		manifest.ResPermission, manifest.ResIssue, manifest.ResDomainError, manifest.ResColumn,
+		manifest.ResPage, manifest.ResNavigation, manifest.ResSlot, manifest.ResCell,
+		manifest.ResShell, manifest.ResContactResolver, manifest.ResDeliveryPolicy:
+		fallthrough
 	default:
 		m.Kind, m.KeyCol, m.KeyType, m.hasMeta = kindOwn, "id", KeyUUID, true
 	}

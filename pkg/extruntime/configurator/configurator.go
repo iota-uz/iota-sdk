@@ -14,6 +14,7 @@ package configurator
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -41,7 +42,6 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 
-	csrf "filippo.io/csrf/gorilla"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
@@ -206,7 +206,7 @@ func (c *Controller) build(ctx context.Context, _ *http.Request) (clienthost.Rou
 // host context.
 func session(r *http.Request) (clienthost.SessionContext, error) {
 	ctx := r.Context()
-	sc := clienthost.SessionContext{Theme: "light", CSRF: csrf.Token(r), Locale: listext.LangFromContext(ctx), Messages: Messages(ctx)}
+	sc := clienthost.SessionContext{Theme: "light", CSRF: rand.Text(), Locale: listext.LangFromContext(ctx), Messages: Messages(ctx)}
 	if sub, err := listext.SubjectFromContext(ctx); err == nil {
 		sc.Permissions = append([]string(nil), sub.Permissions...)
 	}
@@ -238,9 +238,17 @@ func (c *Controller) subject(w http.ResponseWriter, r *http.Request) (spi.Subjec
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		slog.Default().Error("extruntime configurator: encode response", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "private, no-cache")
-	_ = json.NewEncoder(w).Encode(v)
+	if _, err := w.Write(append(body, '\n')); err != nil {
+		slog.Default().Debug("extruntime configurator: write response", "error", err)
+	}
 }
 
 // kitTypes serves the files of the current developer kit snapshot: the

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -72,13 +73,13 @@ func TestScenario01NewModuleFromDraftToLivePage(t *testing.T) {
 	require.Contains(t, html, `id="iota-client-route`, "canonical client host mount")
 	require.Contains(t, html, "e2e.notes.notes", "route identity of the page")
 	require.Contains(t, html, `/_ext/assets/`+v.ArtifactHash+`/`, "page module is an immutable asset of the version")
-	require.Regexp(t, regexp.MustCompile(`href="/notes"`), html, "navigation item of the page")
+	require.Regexp(t, `href="/notes"`, html, "navigation item of the page")
 	require.Contains(t, html, "Notes")
 	require.Contains(t, html, "<html", "the authenticated layout wraps the page")
 	// ... and the same layout serves legacy pages: the item appears there too.
 	legacy := e.get(admin, "/crm/clients")
 	require.Equal(t, http.StatusOK, legacy.Status)
-	require.Regexp(t, regexp.MustCompile(`href="/notes"`), legacy.String(), "runtime navigation is part of the shared shell")
+	require.Regexp(t, `href="/notes"`, legacy.String(), "runtime navigation is part of the shared shell")
 	// The page module is served from the artifact.
 	var module string
 	m := regexp.MustCompile(`/_ext/assets/[^"\\]+\.js`).FindString(html)
@@ -90,7 +91,7 @@ func TestScenario01NewModuleFromDraftToLivePage(t *testing.T) {
 	require.Contains(t, js.Header.Get("Cache-Control"), "immutable")
 	// The permission is enforced on the server, whatever the navigation shows.
 	require.Equal(t, http.StatusForbidden, e.get(nobody, "/notes").Status)
-	require.NotRegexp(t, regexp.MustCompile(`href="/notes"`), e.get(nobody, "/crm/clients").String(), "no nav item without the permission")
+	require.NotRegexp(t, `href="/notes"`, e.get(nobody, "/crm/clients").String(), "no nav item without the permission")
 	require.Equal(t, http.StatusFound, e.get(nil, "/notes").Status, "anonymous visitors go to sign-in")
 
 	// The command writes a row; the query reads it with the access rules.
@@ -138,9 +139,9 @@ func TestScenario01NewModuleFromDraftToLivePage(t *testing.T) {
 
 	// The version listing shows the lifecycle.
 	var versions []struct {
-		Version  string
-		Approved bool
-		Active   bool
+		Version  string `json:"version"`
+		Approved bool   `json:"approved"`
+		Active   bool   `json:"active"`
 	}
 	r := e.mgmt(admin, http.MethodGet, "/packages/"+ns+"/versions", nil, http.StatusOK, nil)
 	require.NoError(t, json.Unmarshal(r.Body, &versions))
@@ -148,7 +149,4 @@ func TestScenario01NewModuleFromDraftToLivePage(t *testing.T) {
 	require.True(t, versions[0].Approved && versions[0].Active)
 }
 
-func itoa(n uint) string {
-	b, _ := json.Marshal(n)
-	return string(b)
-}
+func itoa(n uint) string { return strconv.FormatUint(uint64(n), 10) }

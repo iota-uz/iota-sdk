@@ -215,7 +215,7 @@ func (b *builder) ruleAccess(m *model, alias string) (string, error) {
 	if len(m.rules) == 0 {
 		return "TRUE", nil
 	}
-	var preds []string
+	preds := make([]string, 0, len(m.rules))
 	for _, r := range m.rules {
 		if !sub.Has(r.Permission) {
 			continue
@@ -242,7 +242,7 @@ func (b *builder) filter(base *model, alias string, f *manifest.Filter, mode pat
 	if f == nil {
 		return "TRUE", nil
 	}
-	var parts []string
+	parts := make([]string, 0, len(f.Fields)+1)
 	keys := make([]string, 0, len(f.Fields))
 	for k := range f.Fields {
 		keys = append(keys, k)
@@ -281,6 +281,8 @@ func orderable(k manifest.TypeKind) bool {
 	case manifest.KindString, manifest.KindInt, manifest.KindInt64, manifest.KindDecimal,
 		manifest.KindDate, manifest.KindDateTime, manifest.KindUUID, manifest.KindEnum:
 		return true
+	case manifest.KindBool, manifest.KindJSON, manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		return false
 	}
 	return false
 }
@@ -292,7 +294,7 @@ func (b *builder) resolveValue(raw json.RawMessage) (json.RawMessage, error) {
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil || len(m) != 1 {
-		return raw, nil
+		return raw, nil //nolint:nilerr // not a single-key placeholder object: a plain JSON value passes through untouched
 	}
 	name, ok := m["$"]
 	if !ok {
@@ -401,7 +403,7 @@ func (b *builder) condition(col string, f *fieldModel, c manifest.Condition, fie
 }
 
 func (b *builder) orderBy(orders []spi.Order) (string, error) {
-	var parts []string
+	parts := make([]string, 0, len(orders))
 	for _, o := range orders {
 		expr, f, _, err := b.column(b.root, rootAlias, o.Field, modeUser, 0)
 		if err != nil {

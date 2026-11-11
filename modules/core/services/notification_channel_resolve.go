@@ -129,6 +129,8 @@ func recipientOf(d notifications.Delivery) notifications.Addressee {
 		if d.Record != nil {
 			return notifications.RecordAddressee(d.Record.Entity, d.Record.Key)
 		}
+	case notifications.RecipientAddress:
+		// Addressed directly: built from the delivery's own target below.
 	}
 	return notifications.AddressAddressee(map[notifications.Channel]string{d.Channel: d.TargetAddress})
 }
@@ -159,6 +161,8 @@ func (s *NotificationChannelService) targets(ctx context.Context, d notification
 			language = contact.Language
 		}
 		return uniqueTargets(d.Channel, contact.Targets), language, nil
+	case notifications.RecipientUser:
+		// Resolved from the user's devices and address below.
 	}
 	var found []notifications.Target
 	if d.Channel == notifications.ChannelPush && s.platform != nil && s.platform.Devices != nil {

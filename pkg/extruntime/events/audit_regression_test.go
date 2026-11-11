@@ -14,7 +14,7 @@ import (
 
 // outageOnItems makes inserts into host_items fail like an exhausted
 // connection limit (SQLSTATE 53300) until off is called.
-func (f *fixture) outageOnItems() (off func()) {
+func (f *fixture) outageOnItems() func() {
 	f.t.Helper()
 	ctx := context.Background()
 	for _, q := range []string{

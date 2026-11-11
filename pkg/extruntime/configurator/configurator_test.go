@@ -121,7 +121,7 @@ func TestSDKTypesServeOnlyTheConfiguredTypingPackages(t *testing.T) {
 	assert.Equal(t, "application/json", resp.Header("Content-Type"))
 	var out configurator.TypeFiles
 	require.NoError(t, json.Unmarshal([]byte(resp.Body()), &out))
-	var paths []string
+	paths := make([]string, 0, len(out.Files))
 	for p := range out.Files {
 		paths = append(paths, p)
 	}
@@ -178,7 +178,7 @@ func TestKitFilesAreVirtualNodeModules(t *testing.T) {
 	assert.Equal(t, "k1", out.Hash)
 	assert.Equal(t, "export declare const a: 1", out.Files["@iota-kit/core/index.d.ts"])
 	assert.Contains(t, out.Files["@iota-kit/core/package.json"], `"types":"index.d.ts"`, "a module without package.json resolves through a generated one")
-	assert.Equal(t, `{"name":"@iota-kit/acme"}`, out.Files["@iota-kit/acme/package.json"])
+	assert.JSONEq(t, `{"name":"@iota-kit/acme"}`, out.Files["@iota-kit/acme/package.json"])
 	assert.NotContains(t, out.Files, "@iota-kit/acme/README.md")
 }
 
@@ -224,7 +224,7 @@ func TestMessageKeysAreExactlyTheKeysTheScreenUses(t *testing.T) {
 			used[m[1]] = true
 		}
 	}
-	var got []string
+	got := make([]string, 0, len(used))
 	for k := range used {
 		got = append(got, k)
 	}

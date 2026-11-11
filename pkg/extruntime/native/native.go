@@ -118,7 +118,7 @@ type Definition interface {
 	Permission() string
 	// HasDefault reports whether a Go default implementation is declared.
 	HasDefault() bool
-	bind(d Deps) (*Implementation, error)
+	bind(d Deps) (*Implementation, bool, error)
 }
 
 // Def is a typed native contract.
@@ -228,47 +228,52 @@ func (d *Def[I, O]) HasDefault() bool            { return d.factory != nil }
 func (d *Def[I, O]) Resource() manifest.Resource { return cloneResource(d.res) }
 
 func cloneResource(r manifest.Resource) manifest.Resource {
-	b, _ := json.Marshal(r)
+	b, err := json.Marshal(r)
+	if err != nil {
+		return r
+	}
 	var out manifest.Resource
-	_ = json.Unmarshal(b, &out)
+	if err := json.Unmarshal(b, &out); err != nil {
+		return r
+	}
 	return out
 }
 
-func (d *Def[I, O]) bind(deps Deps) (*Implementation, error) {
+func (d *Def[I, O]) bind(deps Deps) (*Implementation, bool, error) {
 	if d.factory == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	f, err := d.factory(deps)
 	if err != nil {
-		return nil, serrors.Wrap("extruntime.native.bind", fmt.Errorf("%s: %w", d.id, err))
+		return nil, false, serrors.Wrap("extruntime.native.bind", fmt.Errorf("%s: %w", d.id, err))
 	}
 	impl := &Implementation{def: d}
 	switch fn := f.(type) {
 	case OperationFunc[I, O]:
 		if fn == nil {
-			return nil, nil
+			return nil, false, nil
 		}
 		impl.tx = func(ctx context.Context, tx Tx, raw json.RawMessage) (json.RawMessage, error) {
 			return typed(raw, func(in I) (O, error) { return fn(ctx, tx, in) })
 		}
 	case CommandFunc[I, O]:
 		if fn == nil {
-			return nil, nil
+			return nil, false, nil
 		}
 		impl.cmd = func(ctx context.Context, c CommandContext, raw json.RawMessage) (json.RawMessage, error) {
 			return typed(raw, func(in I) (O, error) { return fn(ctx, c, in) })
 		}
 	case QueryFunc[I, O]:
 		if fn == nil {
-			return nil, nil
+			return nil, false, nil
 		}
 		impl.query = func(ctx context.Context, q QueryContext, raw json.RawMessage) (json.RawMessage, error) {
 			return typed(raw, func(in I) (O, error) { return fn(ctx, q, in) })
 		}
 	default:
-		return nil, serrors.New(serrors.Internal, fmt.Sprintf("native %s: unexpected handler %T", d.id, f))
+		return nil, false, serrors.New(serrors.Internal, fmt.Sprintf("native %s: unexpected handler %T", d.id, f))
 	}
-	return impl, nil
+	return impl, true, nil
 }
 
 func typed[I, O any](raw json.RawMessage, fn func(I) (O, error)) (json.RawMessage, error) {
@@ -338,38 +343,47 @@ type Implementation struct {
 func (i *Implementation) Definition() Definition { return i.def }
 
 // RunTx runs an operation or atomic command handler.
-func (i *Implementation) RunTx(ctx context.Context, tx Tx, in json.RawMessage) (_ json.RawMessage, err error) {
+func (i *Implementation) RunTx(ctx context.Context, tx Tx, in json.RawMessage) (json.RawMessage, error) {
 	if i.tx == nil {
 		return nil, kindMismatch(i.def, "a transactional")
 	}
-	defer recovered(i.def, &err)
-	return i.tx(ctx, tx, in)
+	return guarded(i.def, func() (json.RawMessage, error) { return i.tx(ctx, tx, in) })
 }
 
 // RunCommand runs an ordinary command handler.
-func (i *Implementation) RunCommand(ctx context.Context, c CommandContext, in json.RawMessage) (_ json.RawMessage, err error) {
+func (i *Implementation) RunCommand(ctx context.Context, c CommandContext, in json.RawMessage) (json.RawMessage, error) {
 	if i.cmd == nil {
 		return nil, kindMismatch(i.def, "an ordinary command")
 	}
-	defer recovered(i.def, &err)
-	return i.cmd(ctx, c, in)
+	return guarded(i.def, func() (json.RawMessage, error) { return i.cmd(ctx, c, in) })
 }
 
 // RunQuery runs a query handler.
-func (i *Implementation) RunQuery(ctx context.Context, q QueryContext, in json.RawMessage) (_ json.RawMessage, err error) {
+func (i *Implementation) RunQuery(ctx context.Context, q QueryContext, in json.RawMessage) (json.RawMessage, error) {
 	if i.query == nil {
 		return nil, kindMismatch(i.def, "a query")
 	}
-	defer recovered(i.def, &err)
-	return i.query(ctx, q, in)
+	return guarded(i.def, func() (json.RawMessage, error) { return i.query(ctx, q, in) })
 }
 
-// recovered turns a panic of a Go default into an internal error, so the
-// host still rolls back, records and releases what the invocation holds.
-func recovered(d Definition, err *error) {
-	if r := recover(); r != nil {
-		*err = pool.Internal("runtime.nativePanic", fmt.Sprintf("%s panicked: %v", d.ID(), r))
-	}
+// guarded runs a handler and turns a panic of a Go default into an internal
+// error, so the host still rolls back, records and releases what the
+// invocation holds.
+func guarded(d Definition, run func() (json.RawMessage, error)) (json.RawMessage, error) {
+	var (
+		out json.RawMessage
+		err error
+	)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				out = nil
+				err = pool.Internal("runtime.nativePanic", fmt.Sprintf("%s panicked: %v", d.ID(), r))
+			}
+		}()
+		out, err = run()
+	}()
+	return out, err
 }
 
 func kindMismatch(d Definition, want string) error {

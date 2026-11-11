@@ -21,6 +21,7 @@ const (
 // policy (whose read rule itself walks a ref path) and an overlay of the
 // policy entity.
 func auditManifest(t *testing.T) *manifest.Manifest {
+	t.Helper()
 	m := clone(t, insuranceV1())
 	m.Resources = append(m.Resources,
 		manifest.Resource{ID: claimID, Kind: manifest.ResEntity, Fields: []manifest.Field{
@@ -101,7 +102,7 @@ func TestOverlayOfAnOwnEntityFollowsTheBaseRowVisibility(t *testing.T) {
 	strangerSc := e.scope("v1", stranger)
 	assert.Equal(t, "null", string(mustGet(t, e, strangerSc, policyID, pol)))
 	assert.Equal(t, "null", string(mustGet(t, e, strangerSc, policyExtraID, pol)), "overlay of an invisible base row")
-	assert.Len(t, decodeList(t, mustFind(t, e, strangerSc, policyExtraID, spi.FindQuery{})), 0)
+	assert.Empty(t, decodeList(t, mustFind(t, e, strangerSc, policyExtraID, spi.FindQuery{})))
 	n, err := e.store.Count(e.ctx, e.tx, strangerSc, policyExtraID, nil)
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, n)

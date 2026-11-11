@@ -35,7 +35,7 @@ func git(t *testing.T, dir string, args ...string) string {
 
 // bareRepo commits files (plus a symlink and a node_modules file that must
 // not become part of the package tree) and returns a bare clone and the SHA.
-func bareRepo(t *testing.T, files map[string]string) (repo, sha string) {
+func bareRepo(t *testing.T, files map[string]string) (string, string) {
 	t.Helper()
 	work := t.TempDir()
 	git(t, work, "init", "-q")
@@ -49,8 +49,8 @@ func bareRepo(t *testing.T, files map[string]string) (repo, sha string) {
 	require.NoError(t, os.WriteFile(filepath.Join(work, "node_modules", "x.js"), []byte("x"), 0o644))
 	git(t, work, "add", "-A", "-f")
 	git(t, work, "commit", "-q", "-m", "package")
-	sha = git(t, work, "rev-parse", "HEAD")
-	repo = filepath.Join(t.TempDir(), "pkg.git")
+	sha := git(t, work, "rev-parse", "HEAD")
+	repo := filepath.Join(t.TempDir(), "pkg.git")
 	git(t, work, "clone", "-q", "--bare", work, repo)
 	return repo, sha
 }
@@ -149,7 +149,7 @@ func TestGitImportExportRoundTripPreservesHashes(t *testing.T) {
 	require.Equal(t, tarball.TreeHash, v.TreeHash)
 	exp, err := e.svc.ExportVersion(ctx, e.reader, ns, "1.0.0", manage.FormatTar)
 	require.NoError(t, err)
-	require.Equal(t, tarball.Data, exp.Data, "the version exports exactly the imported source")
+	require.Equal(t, exp.Data, tarball.Data, "the version exports exactly the imported source")
 
 	_, err = e.svc.PutFile(ctx, e.author, ns, "README.md", []byte("edited\n"), nil)
 	require.NoError(t, err)
@@ -302,7 +302,7 @@ func TestCatalogInvalidatesOnActivationAcrossReplicas(t *testing.T) {
 
 	ents, err := e.cat.Entities(ctx)
 	require.NoError(t, err)
-	var ids []string
+	ids := make([]string, 0, len(ents))
 	for _, r := range ents {
 		ids = append(ids, r.Resource.ID)
 	}

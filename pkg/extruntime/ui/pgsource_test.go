@@ -102,7 +102,7 @@ func TestColumnResourcesBecomeListContributionsInOrder(t *testing.T) {
 	require.NoError(t, err)
 	got, err := rt.Columns().Columns(context.Background(), "crm.lists.clients")
 	require.NoError(t, err)
-	var ids []string
+	ids := make([]string, 0, len(got))
 	for _, c := range got {
 		ids = append(ids, c.ID)
 	}

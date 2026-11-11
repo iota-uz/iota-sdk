@@ -37,6 +37,8 @@ func (k KeyType) Wire() string {
 		return "uuid"
 	case KeyInt, KeyInt64:
 		return "int64"
+	case KeyText:
+		fallthrough
 	default:
 		return "string"
 	}
@@ -51,6 +53,8 @@ func (k KeyType) SQL() string {
 		return "integer"
 	case KeyInt64:
 		return "bigint"
+	case KeyText:
+		fallthrough
 	default:
 		return "text"
 	}
@@ -77,6 +81,8 @@ func (k KeyType) Canonical(s string) (string, error) {
 			return "", fmt.Errorf("key %q is not an int64", s)
 		}
 		return strconv.FormatInt(n, 10), nil
+	case KeyText:
+		fallthrough
 	default:
 		if s == "" {
 			return "", fmt.Errorf("key is empty")
@@ -94,6 +100,8 @@ func (k KeyType) bind(canonical string, a *Args) string {
 		return a.Add(n) + "::" + k.SQL()
 	case KeyUUID:
 		return a.Add(canonical) + "::text::uuid"
+	case KeyText:
+		fallthrough
 	default:
 		return a.Add(canonical) + "::text"
 	}
@@ -106,6 +114,8 @@ func (k KeyType) wireType() manifest.Type {
 		return manifest.Type{Kind: manifest.KindUUID}
 	case KeyInt, KeyInt64:
 		return manifest.Type{Kind: manifest.KindInt64}
+	case KeyText:
+		fallthrough
 	default:
 		return manifest.Type{Kind: manifest.KindString}
 	}

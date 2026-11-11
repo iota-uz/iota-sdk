@@ -83,6 +83,10 @@ func (a UIArtifacts) Open(ctx context.Context, hash, filePath string) (ui.Artifa
 		switch serrors.CodeOf(err) {
 		case serrors.NotFound, serrors.Invalid:
 			return nil, ui.ErrArtifactNotFound
+		case serrors.Internal, serrors.AlreadyExists, serrors.Conflict, serrors.FailedPrecondition,
+			serrors.PermissionDenied, serrors.Unauthenticated, serrors.RateLimited, serrors.Unavailable,
+			serrors.Timeout, serrors.Canceled, serrors.Unimplemented:
+			return nil, err
 		}
 		return nil, err
 	}

@@ -188,6 +188,8 @@ func validateString(t Type, s string, path []string) error {
 				return fail(path, "more than %d digits", t.Precision)
 			}
 		}
+	case KindInt, KindBool, KindJSON, KindRef, KindObject, KindArray:
+		// Not carried as a JSON string; no string constraints apply.
 	}
 	return nil
 }

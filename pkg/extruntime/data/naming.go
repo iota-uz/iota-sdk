@@ -89,7 +89,7 @@ func shortName(parts ...string) string {
 // overlay from its resource ID alone: schema "x_<namespace with _>", table
 // snake(<name>). Names never contain dots, so the namespace is everything up
 // to the last dot.
-func entityLocation(id string) (schema, table string, err error) {
+func entityLocation(id string) (string, string, error) {
 	i := strings.LastIndexByte(id, '.')
 	if i <= 0 || i == len(id)-1 {
 		return "", "", fmt.Errorf("resource id %q has no namespace", id)
@@ -101,8 +101,8 @@ func entityLocation(id string) (schema, table string, err error) {
 	if !nameRe.MatchString(name) {
 		return "", "", fmt.Errorf("invalid resource name %q in %q", name, id)
 	}
-	schema = "x_" + strings.ReplaceAll(ns, ".", "_")
-	table = snake(name)
+	schema := "x_" + strings.ReplaceAll(ns, ".", "_")
+	table := snake(name)
 	if len(schema) > maxIdentLen || len(table) > maxIdentLen {
 		return "", "", fmt.Errorf("%q is too long for a PostgreSQL identifier", id)
 	}

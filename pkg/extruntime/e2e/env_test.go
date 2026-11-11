@@ -2,14 +2,11 @@ package e2e_test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -191,10 +188,10 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	return e
 }
 
-func resolve[T any](t testing.TB, c *composition.Container) T {
-	t.Helper()
+func resolve[T any](tb testing.TB, c *composition.Container) T {
+	tb.Helper()
 	v, err := composition.Resolve[T](c)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	return v
 }
 
@@ -237,7 +234,7 @@ func (e *env) permission(name string) permission.Permission {
 // signed-in session for it.
 func (e *env) newActor(name string, perms ...string) *actor {
 	e.t.Helper()
-	var ps []permission.Permission
+	ps := make([]permission.Permission, 0, len(perms))
 	for _, p := range perms {
 		ps = append(ps, e.permission(p))
 	}
@@ -299,7 +296,7 @@ func (e *env) serve() {
 	for _, c := range app.Controllers() {
 		e.mountController(r, c)
 	}
-	var notFound http.Handler = http.NotFoundHandler()
+	notFound := http.NotFoundHandler()
 	for i := len(mws) - 1; i >= 0; i-- {
 		notFound = mws[i](notFound)
 	}
@@ -318,12 +315,6 @@ func (e *env) mountController(r *mux.Router, c application.Controller) {
 		}
 	}()
 	c.Register(r)
-}
-
-func newToken() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 // ---- assertions on the database (reads only) ----
@@ -348,15 +339,6 @@ func (e *env) scalarString(sql string, args ...any) string {
 func (e *env) eventually(what string, timeout time.Duration, cond func() bool) {
 	e.t.Helper()
 	require.Eventually(e.t, cond, timeout, 50*time.Millisecond, what)
-}
-
-func contains(s string, subs ...string) bool {
-	for _, x := range subs {
-		if !strings.Contains(s, x) {
-			return false
-		}
-	}
-	return true
 }
 
 // pumpNotifications runs the notification worker's passes once the work is

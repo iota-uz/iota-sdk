@@ -116,11 +116,11 @@ func TestScenario10GitImportAndExportRoundTrip(t *testing.T) {
 	require.False(t, rep.HasErrors)
 	require.Equal(t, vd.SourceHash, rep.SourceHash)
 	require.Equal(t, vd.ArtifactHash, rep.ArtifactHash)
-	var ids []string
+	ids := make([]string, 0, len(rep.Manifest.Resources))
 	for _, res := range rep.Manifest.Resources {
 		ids = append(ids, res.ID)
 	}
-	var before []string
+	before := make([]string, 0, len(vd.Manifest.Resources))
 	for _, res := range vd.Manifest.Resources {
 		before = append(before, res.ID)
 	}

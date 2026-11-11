@@ -188,7 +188,7 @@ func (s *Service) loadSnapshot(ctx context.Context, hash string) (build.Kit, err
 }
 
 // KitModules lists the module names of the current kit and its hash.
-func (s *Service) KitModules(ctx context.Context, actor spi.Subject) (hash string, modules []string, err error) {
+func (s *Service) KitModules(ctx context.Context, actor spi.Subject) (string, []string, error) {
 	if err := require(actor, PermRead); err != nil {
 		return "", nil, err
 	}
@@ -196,6 +196,7 @@ func (s *Service) KitModules(ctx context.Context, actor spi.Subject) (hash strin
 	if err != nil {
 		return "", nil, err
 	}
+	modules := make([]string, 0, len(kit.Modules))
 	for n := range kit.Modules {
 		modules = append(modules, n)
 	}

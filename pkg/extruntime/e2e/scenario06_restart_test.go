@@ -86,7 +86,7 @@ func TestScenario06HumanDecisionAndTimerSurviveEngineRestart(t *testing.T) {
 	require.Equal(t, "approved", e.approvalStatus(admin, req.Request))
 	require.Greater(t, done.RunCount, runs, "the instance was replayed after the restarts")
 	final := e.workflow(admin, id)
-	var names []string
+	names := make([]string, 0, len(final.Occurrences))
 	for _, o := range final.Occurrences {
 		require.Equal(t, "completed", o.Status, o.Name)
 		names = append(names, o.Name)

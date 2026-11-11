@@ -236,6 +236,9 @@ func paramValid(t manifest.Type, v string) bool {
 		return false
 	case manifest.KindString:
 		return t.MaxLength == 0 || len([]rune(v)) <= t.MaxLength
+	case manifest.KindDateTime, manifest.KindJSON, manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Not scalar types a URL parameter can carry.
+		return false
 	}
 	return false
 }

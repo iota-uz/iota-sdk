@@ -2,7 +2,6 @@ package data_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,7 +93,7 @@ func TestNativeReadOnly(t *testing.T) {
 			return err
 		},
 	} {
-		assert.ErrorIs(t, f(), data.ErrNativeWrite, name)
+		require.ErrorIs(t, f(), data.ErrNativeWrite, name)
 	}
 	assert.Equal(t, "Reader", e.scalar(`SELECT first_name FROM users WHERE id = $1`, uid), "nothing was written")
 }
@@ -239,7 +238,7 @@ func TestNativeListOverlayJoin(t *testing.T) {
 	require.ErrorIs(t, err, data.ErrInvalidQuery, "an overlay joins only its own base")
 	_, err = e.store.NativeOverlayJoin(e.ctx, e.tx, full.Subject, "crm.client", "c; drop", []data.OverlayFieldRef{tier}, data.NewArgs(0))
 	require.ErrorIs(t, err, data.ErrInvalidQuery)
-	assert.False(t, strings.Contains(j.SQL, ";"))
+	assert.NotContains(t, j.SQL, ";")
 }
 
 func TestOverlayRowAccessFiltersTheJoin(t *testing.T) {

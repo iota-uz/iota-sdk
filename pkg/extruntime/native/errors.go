@@ -24,10 +24,18 @@ func Validation(issues ...Issue) error {
 	for _, is := range issues {
 		wi := pool.Issue{Code: is.Code, Phase: "input"}
 		if len(is.Path) > 0 {
-			wi.Path, _ = json.Marshal(is.Path)
+			path, err := json.Marshal(is.Path)
+			if err != nil {
+				return pool.Internal("runtime.invalidIssue", "issue path is not JSON-encodable: "+err.Error())
+			}
+			wi.Path = path
 		}
 		if is.Params != nil {
-			wi.Params, _ = json.Marshal(is.Params)
+			params, err := json.Marshal(is.Params)
+			if err != nil {
+				return pool.Internal("runtime.invalidIssue", "issue params are not JSON-encodable: "+err.Error())
+			}
+			wi.Params = params
 		}
 		we.Issues = append(we.Issues, wi)
 	}
@@ -41,7 +49,11 @@ func Validation(issues ...Issue) error {
 func Domain(code string, params any) error {
 	we := &pool.WireError{Kind: pool.ErrKindDomain, Code: code}
 	if params != nil {
-		we.Params, _ = json.Marshal(params)
+		raw, err := json.Marshal(params)
+		if err != nil {
+			return pool.Internal("runtime.invalidDomainParams", "domain error params of "+code+" are not JSON-encodable: "+err.Error())
+		}
+		we.Params = raw
 	}
 	return we
 }
@@ -77,6 +89,8 @@ func HTTPStatus(err error) int {
 		return http.StatusForbidden
 	case pool.ErrKindDomain:
 		return http.StatusConflict
+	case pool.ErrKindInternal, pool.ErrKindSuspend:
+		return http.StatusInternalServerError
 	}
 	return http.StatusInternalServerError
 }

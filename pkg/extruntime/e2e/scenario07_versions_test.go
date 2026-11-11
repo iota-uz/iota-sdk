@@ -11,6 +11,7 @@ import (
 // versionedTree is the "versioned" fixture stamped with a tag; v2 also evolves
 // the entity with an optional field its workflow writes.
 func versionedTree(t *testing.T, tag string, evolve bool) tree {
+	t.Helper()
 	tr := loadTree(t, "versioned").with("src/server.ts", "__TAG__", tag)
 	if evolve {
 		tr = tr.with("src/contracts.ts", "// EXTRA_FIELD", "extra: field.text().optional(),").
@@ -72,7 +73,7 @@ func TestScenario07InstancesStayPinnedToTheirVersion(t *testing.T) {
 	require.Equal(t, "2.0.0", doneB.Version)
 
 	// Each wrote through its own code against the one evolved table.
-	require.Equal(t, "", e.scalarString(`SELECT extra FROM x_e2e_versioned.log WHERE label = 'old'`), "v1 knows no extra field")
+	require.Empty(t, e.scalarString(`SELECT extra FROM x_e2e_versioned.log WHERE label = 'old'`), "v1 knows no extra field")
 	require.Equal(t, "written by v2", e.scalarString(`SELECT extra FROM x_e2e_versioned.log WHERE label = 'new'`))
 	require.Equal(t, "v1", e.scalarString(`SELECT tag FROM x_e2e_versioned.log WHERE label = 'old'`))
 

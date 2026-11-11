@@ -171,7 +171,7 @@ func (s *NotificationDispatchService) EnqueueExplicit(ctx context.Context, req A
 				return invalid("no contact resolver is registered for the recipient entity")
 			}
 			others = append(others, a)
-		default:
+		case notifications.RecipientAddress:
 			others = append(others, a)
 		}
 	}

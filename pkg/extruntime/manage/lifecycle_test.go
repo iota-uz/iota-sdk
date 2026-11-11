@@ -2,7 +2,6 @@ package manage_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -55,7 +54,7 @@ func TestDraftCheckBuildPublishReviewActivate(t *testing.T) {
 	require.Equal(t, "src/bad.ts", rep.Diagnostics[0].File)
 	_, err = e.svc.Publish(ctx, e.admin, ns, "1.0.0")
 	var de *manage.DiagnosticsError
-	require.True(t, errors.As(err, &de), "%v", err)
+	require.ErrorAs(t, err, &de)
 	require.Equal(t, "ts.2345", de.Diagnostics[0].Code)
 	require.Zero(t, e.count(`SELECT count(*) FROM extruntime.versions`))
 	require.NoError(t, e.svc.DeleteFile(ctx, e.author, ns, "src/bad.ts"))
@@ -233,7 +232,7 @@ func TestIncompatibleSchemaActivationIsBlocked(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
 	var se *data.SchemaError
-	require.True(t, errors.As(err, &se), "%v", err)
+	require.ErrorAs(t, err, &se)
 	require.Equal(t, data.DiagTypeChange, se.Diagnostics[0].Code)
 	require.Equal(t, map[string]string{
 		"command:" + ns + ".renewPolicy":    ns + "@1.0.0/renew",
@@ -252,7 +251,7 @@ func TestIncompatibleSchemaActivationIsBlocked(t *testing.T) {
 	_, err = e.svc.Review(ctx, e.admin, ns, "3.0.0", true, "ok")
 	require.NoError(t, err)
 	_, err = e.svc.Activate(ctx, e.admin, ns, "3.0.0")
-	require.True(t, errors.As(err, &se), "%v", err)
+	require.ErrorAs(t, err, &se)
 	require.Equal(t, data.DiagIncompatiblePinned, se.Diagnostics[0].Code)
 	require.Contains(t, err.Error(), "pins an incompatible version")
 
@@ -406,7 +405,7 @@ func TestForeignImplementationsAreValidatedAgainstTheCatalogAtPublish(t *testing
 		require.Error(t, err)
 		require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
 		var de *manage.DiagnosticsError
-		require.True(t, errors.As(err, &de), "%v", err)
+		require.ErrorAs(t, err, &de)
 		var codes []string
 		for _, d := range de.Diagnostics {
 			require.Equal(t, build.SeverityError, d.Severity)

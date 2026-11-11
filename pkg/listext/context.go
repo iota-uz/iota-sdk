@@ -60,7 +60,7 @@ func SubjectFromContext(ctx context.Context) (spi.Subject, error) {
 func Compile(ctx context.Context, in Input) (*Plan, error) {
 	e := FromContext(ctx)
 	if e == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: no engine means no plan and no error, so callers need no branch
 	}
 	sub, err := SubjectFromContext(ctx)
 	if err != nil {

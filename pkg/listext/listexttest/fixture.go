@@ -43,7 +43,7 @@ func (c *Catalog) Resolve(_ context.Context, id string) (spi.ResolvedResource, b
 }
 
 func (c *Catalog) Entities(context.Context) ([]spi.ResolvedResource, error) {
-	var out []spi.ResolvedResource
+	out := make([]spi.ResolvedResource, 0, len(c.res))
 	for _, r := range c.res {
 		out = append(out, r)
 	}

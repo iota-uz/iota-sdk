@@ -145,7 +145,7 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 func (s *ClientService) ExtensionView(ctx context.Context, params *client.FindParams, purpose listext.Purpose, ids []uint) (*listext.View, error) {
 	reader, ok := s.repo.(client.ExtensionReader)
 	if !ok {
-		return nil, nil
+		return nil, nil //nolint:nilnil // A nil view is the documented "no extension columns" answer; callers render the plain list.
 	}
 	return reader.ExtensionView(ctx, params, purpose, ids)
 }

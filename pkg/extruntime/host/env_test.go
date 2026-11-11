@@ -176,8 +176,6 @@ func obj(props ...any) *manifest.Type {
 	return &t
 }
 
-func optional(t manifest.Type) manifest.Type { t.Optional = true; return t }
-
 func command(id string, atomic bool, in, out *manifest.Type, errs ...string) manifest.Resource {
 	return manifest.Resource{ID: id, Kind: manifest.ResCommand, Atomic: atomic, Input: in, Output: out, Errors: errs}
 }
@@ -191,6 +189,7 @@ type artifacts struct {
 }
 
 func (a *artifacts) add(t *testing.T, pkg, version, source string) {
+	t.Helper()
 	art := pooltest.Artifact(t, source)
 	a.mu.Lock()
 	a.byVersion[pkg+"@"+version] = art
@@ -300,7 +299,9 @@ func (s *itemStore) Count(ctx context.Context, tx pgx.Tx, sc spi.Scope, _ string
 
 func (s *itemStore) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, _ string, values json.RawMessage) (json.RawMessage, error) {
 	s.seen(sc)
-	var v struct{ Label string }
+	var v struct {
+		Label string `json:"label"`
+	}
 	if err := json.Unmarshal(values, &v); err != nil {
 		return nil, err
 	}
@@ -424,8 +425,8 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 		return json.Marshal(call.InvocationID())
 	case "wf.call":
 		var a struct {
-			Command string
-			Input   json.RawMessage
+			Command string          `json:"command"`
+			Input   json.RawMessage `json:"input"`
 		}
 		if err := json.Unmarshal(args, &a); err != nil {
 			return nil, err
@@ -442,8 +443,8 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 		return json.Marshal(map[string]any{"replay": false, "tx": h})
 	case "wf.transaction.call":
 		var a struct {
-			Callable string
-			Input    json.RawMessage
+			Callable string          `json:"callable"`
+			Input    json.RawMessage `json:"input"`
 		}
 		if err := json.Unmarshal(args, &a); err != nil {
 			return nil, err
@@ -460,8 +461,8 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 		return out, call.EndTx(ctx, h, host.TxCommit)
 	case "wf.transaction.end":
 		var a struct {
-			Tx      string
-			Outcome host.TxOutcome
+			Tx      string         `json:"tx"`
+			Outcome host.TxOutcome `json:"outcome"`
 		}
 		if err := json.Unmarshal(args, &a); err != nil {
 			return nil, err

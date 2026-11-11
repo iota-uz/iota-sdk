@@ -245,6 +245,11 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 					Overlay: r.Overlay, Field: r.Field,
 					Filterable: r.Filterable, Sortable: r.Sortable, Exportable: r.Exportable,
 				})
+			case manifest.ResEntity, manifest.ResOverlay, manifest.ResQuery, manifest.ResCommand, manifest.ResOperation,
+				manifest.ResEvent, manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute, manifest.ResPermission,
+				manifest.ResIssue, manifest.ResDomainError, manifest.ResSlot, manifest.ResCell, manifest.ResShell,
+				manifest.ResContactResolver, manifest.ResDeliveryPolicy:
+				// Not page, navigation or column contributions.
 			}
 		}
 	}

@@ -233,8 +233,9 @@ func cells(body, col string) []string {
 		re = regexp.MustCompile(`data-ext-cell="` + regexp.QuoteMeta(col) + `"[^>]*>\s*([^<]*?)\s*<`)
 		cellRe[col] = re
 	}
-	var out []string
-	for _, m := range re.FindAllStringSubmatch(body, -1) {
+	matches := re.FindAllStringSubmatch(body, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
 		out = append(out, m[1])
 	}
 	return out

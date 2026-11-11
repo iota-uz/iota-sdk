@@ -89,9 +89,10 @@ var SaveClient = native.MustRegister(native.Command("crm.commands.saveClient", n
 }, func(native.Deps) (native.CommandFunc[SaveClientInput, SaveClientOutput], error) {
 	return func(ctx context.Context, c native.CommandContext, in SaveClientInput) (SaveClientOutput, error) {
 		var out SaveClientOutput
-		err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) (err error) {
-			out, err = UpsertClient.Call(ctx, tx, in)
-			return err
+		err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) error {
+			var callErr error
+			out, callErr = UpsertClient.Call(ctx, tx, in)
+			return callErr
 		})
 		return out, err
 	}, nil

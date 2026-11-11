@@ -41,7 +41,10 @@ export const flow = async (wf, input) => {
 	st.drain()
 	require.Equal(t, workflow.StatusCompleted, st.status(parent))
 
-	var out struct{ A, B string }
+	var out struct {
+		A string `json:"a"`
+		B string `json:"b"`
+	}
 	require.NoError(t, json.Unmarshal(st.instance(parent).Result, &out))
 	list, err := st.engine.List(context.Background(), workflow.ListFilter{TenantID: env.Tenant})
 	require.NoError(t, err)
@@ -49,7 +52,9 @@ export const flow = async (wf, input) => {
 	require.Len(t, list, 3, "parent + kidA + kidB")
 	keys := map[string]string{}
 	for _, i := range list {
-		var in struct{ Who string }
+		var in struct {
+			Who string `json:"who"`
+		}
 		require.NoError(t, json.Unmarshal(i.Input, &in))
 		if i.StartKey != nil {
 			keys[in.Who] = *i.StartKey
@@ -188,7 +193,7 @@ export const flow = async (wf, input) => {
 
 // outageOn makes inserts into table fail with a "too many connections"
 // error while the returned switch is on.
-func outageOn(t *testing.T, env *hosttest.Env, table string) (off func()) {
+func outageOn(t *testing.T, env *hosttest.Env, table string) func() {
 	t.Helper()
 	ctx := context.Background()
 	for _, q := range []string{

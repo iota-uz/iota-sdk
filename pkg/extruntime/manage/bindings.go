@@ -39,17 +39,18 @@ func openBindingsOf(ctx context.Context, tx pgx.Tx, pkg string) ([]Binding, erro
 	return out, serrors.FromDB(op, rows.Err())
 }
 
-// slotHolder returns the open binding of a slot, nil when the slot is free.
-func slotHolder(ctx context.Context, tx pgx.Tx, kind, target string) (*Binding, error) {
+// slotHolder returns the open binding of a slot; found is false when the slot
+// is free.
+func slotHolder(ctx context.Context, tx pgx.Tx, kind, target string) (Binding, bool, error) {
 	b, err := scanBinding(tx.QueryRow(ctx, `SELECT `+bindingColumns+` FROM extruntime.bindings
 		WHERE slot_kind = $1 AND target_id = $2 AND active_to IS NULL FOR UPDATE`, kind, target))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return Binding{}, false, nil
 	}
 	if err != nil {
-		return nil, serrors.FromDB("extruntime.manage.slotHolder", err)
+		return Binding{}, false, serrors.FromDB("extruntime.manage.slotHolder", err)
 	}
-	return &b, nil
+	return b, true, nil
 }
 
 func closeBinding(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
@@ -71,16 +72,18 @@ func insertBinding(ctx context.Context, tx pgx.Tx, kind, target, pkg, version, e
 	return b, serrors.FromDB("extruntime.manage.insertBinding", err)
 }
 
-func displacedOf(ctx context.Context, tx pgx.Tx, id uuid.UUID) (*uuid.UUID, error) {
+// displacedOf returns the binding that b displaced; found is false when it
+// displaced none.
+func displacedOf(ctx context.Context, tx pgx.Tx, id uuid.UUID) (uuid.UUID, bool, error) {
 	var d uuid.UUID
 	err := tx.QueryRow(ctx, `SELECT displaced_binding_id FROM extruntime.binding_displaced WHERE binding_id = $1`, id).Scan(&d)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
+		return uuid.UUID{}, false, nil
 	}
 	if err != nil {
-		return nil, serrors.FromDB("extruntime.manage.displacedOf", err)
+		return uuid.UUID{}, false, serrors.FromDB("extruntime.manage.displacedOf", err)
 	}
-	return &d, nil
+	return d, true, nil
 }
 
 func setDisplaced(ctx context.Context, tx pgx.Tx, id, displaced uuid.UUID) error {
@@ -108,10 +111,10 @@ func release(ctx context.Context, tx pgx.Tx, b Binding, by int64) (*Binding, err
 	if err := closeBinding(ctx, tx, b.ID); err != nil {
 		return nil, err
 	}
-	d, err := displacedOf(ctx, tx, b.ID)
-	for err == nil && d != nil {
+	d, found, err := displacedOf(ctx, tx, b.ID)
+	for err == nil && found {
 		var prev Binding
-		if prev, err = bindingByID(ctx, tx, *d); err != nil {
+		if prev, err = bindingByID(ctx, tx, d); err != nil {
 			break
 		}
 		var ok bool
@@ -123,16 +126,16 @@ func release(ctx context.Context, tx pgx.Tx, b Binding, by int64) (*Binding, err
 			if ierr != nil {
 				return nil, ierr
 			}
-			if chain, cerr := displacedOf(ctx, tx, prev.ID); cerr != nil {
+			if chain, hasChain, cerr := displacedOf(ctx, tx, prev.ID); cerr != nil {
 				return nil, cerr
-			} else if chain != nil {
-				if serr := setDisplaced(ctx, tx, nb.ID, *chain); serr != nil {
+			} else if hasChain {
+				if serr := setDisplaced(ctx, tx, nb.ID, chain); serr != nil {
 					return nil, serr
 				}
 			}
 			return &nb, nil
 		}
-		d, err = displacedOf(ctx, tx, prev.ID)
+		d, found, err = displacedOf(ctx, tx, prev.ID)
 	}
 	return nil, err
 }
@@ -143,6 +146,8 @@ func bindsAsCommand(k manifest.ImplKind) bool {
 	switch k {
 	case manifest.ImplCommand, manifest.ImplAtomic, manifest.ImplOperation, manifest.ImplQuery:
 		return true
+	case manifest.ImplWorkflow, manifest.ImplContactResolver, manifest.ImplDeliveryPolicy:
+		return false
 	}
 	return false
 }
@@ -164,6 +169,11 @@ func implMatches(i manifest.Implementation, r manifest.Resource) bool {
 		return i.Kind == manifest.ImplContactResolver
 	case manifest.ResDeliveryPolicy:
 		return i.Kind == manifest.ImplDeliveryPolicy
+	case manifest.ResEntity, manifest.ResOverlay, manifest.ResEvent, manifest.ResNotice,
+		manifest.ResRoute, manifest.ResPermission, manifest.ResIssue, manifest.ResDomainError,
+		manifest.ResColumn, manifest.ResPage, manifest.ResNavigation, manifest.ResSlot,
+		manifest.ResCell, manifest.ResShell:
+		return false
 	}
 	return false
 }
@@ -247,12 +257,12 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 		default:
 			return serrors.New(serrors.Invalid, "unknown slot kind "+slotKind)
 		}
-		holder, err := slotHolder(ctx, tx, slotKind, targetID)
+		holder, held, err := slotHolder(ctx, tx, slotKind, targetID)
 		if err != nil {
 			return err
 		}
 		var chain *uuid.UUID
-		if holder != nil {
+		if held {
 			if holder.Package == ns && holder.Version == version && holder.Export == export {
 				return serrors.New(serrors.AlreadyExists, "that implementation already holds the slot")
 			}
@@ -260,8 +270,12 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 				return err
 			}
 			if holder.Package == ns {
-				if chain, err = displacedOf(ctx, tx, holder.ID); err != nil {
-					return err
+				displaced, has, derr := displacedOf(ctx, tx, holder.ID)
+				if derr != nil {
+					return derr
+				}
+				if has {
+					chain = &displaced
 				}
 			} else {
 				id := holder.ID
@@ -287,18 +301,18 @@ func (s *Service) Bind(ctx context.Context, actor spi.Subject, slotKind, targetI
 func (s *Service) Unbind(ctx context.Context, actor spi.Subject, slotKind, targetID string) error {
 	e := &auditEntry{Action: ActionUnbind, Target: slotKind + ":" + targetID}
 	return s.mutate(ctx, actor, PermPublish, e, func(tx pgx.Tx) error {
-		holder, err := slotHolder(ctx, tx, slotKind, targetID)
+		holder, held, err := slotHolder(ctx, tx, slotKind, targetID)
 		if err != nil {
 			return err
 		}
-		if holder == nil {
+		if !held {
 			return notFound("binding " + slotKind + ":" + targetID)
 		}
 		e.Namespace, e.Version = holder.Package, holder.Version
 		if slotKind == SlotCommand && ownsID(holder.Package, targetID) {
 			return serrors.New(serrors.FailedPrecondition, "the binding is the package's own implementation; deactivate the package instead")
 		}
-		_, err = release(ctx, tx, *holder, actor.UserID)
+		_, err = release(ctx, tx, holder, actor.UserID)
 		return err
 	})
 }

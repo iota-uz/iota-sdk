@@ -450,7 +450,7 @@ func (s *Service) importTree(ctx context.Context, actor spi.Subject, action stri
 }
 
 // lockfileOf finds the package manager lockfile of a tree.
-func lockfileOf(t build.Tree) (name, hash string) {
+func lockfileOf(t build.Tree) (string, string) {
 	for _, n := range []string{"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"} {
 		if c, ok := t[n]; ok {
 			return n, artifact.HashBytes(c)

@@ -94,7 +94,8 @@ export const snap = async (ctx, input) => {
 
 	run := func(contract, query, arg string, insert bool, perms ...string) map[string]any {
 		t.Helper()
-		in, _ := json.Marshal(map[string]any{"query": query, "arg": json.RawMessage(arg), "insert": insert})
+		in, err := json.Marshal(map[string]any{"query": query, "arg": json.RawMessage(arg), "insert": insert})
+		require.NoError(t, err)
 		res, err := e.host.Invoke(context.Background(), e.req(contract, string(in), perms...))
 		require.NoError(t, err)
 		return probeResult(t, res.Output)
@@ -137,8 +138,9 @@ export const snap = async (ctx, input) => {
 	t.Run("q.query reads the same snapshot as the rest of the invocation", func(t *testing.T) {
 		before := len(e.items())
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, err := e.db.Exec(context.Background(), `INSERT INTO host_items (tenant_id, label) VALUES ($1, 'concurrent')`, e.tenant)
-			require.NoError(t, err)
+			if _, err := e.db.Exec(context.Background(), `INSERT INTO host_items (tenant_id, label) VALUES ($1, 'concurrent')`, e.tenant); err != nil {
+				t.Errorf("concurrent insert: %v", err)
+			}
 			_, _ = w.Write([]byte(`{}`))
 		}))
 		defer srv.Close()
@@ -202,7 +204,9 @@ export const sneaky = async (q) => ({ writes: await rawWrites(q.invocation.id) }
 	t.Run("a query invocation", func(t *testing.T) {
 		res, err := e.host.Invoke(context.Background(), e.req("acme.q.sneaky", `null`))
 		require.NoError(t, err)
-		var out struct{ Writes json.RawMessage }
+		var out struct {
+			Writes json.RawMessage `json:"writes"`
+		}
 		require.NoError(t, json.Unmarshal(res.Output, &out))
 		readOnly(t, out.Writes)
 		require.Empty(t, e.items())

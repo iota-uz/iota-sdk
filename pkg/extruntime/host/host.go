@@ -547,9 +547,13 @@ func invalidValue(phase string, err error) *pool.WireError {
 	var pe *manifest.PathError
 	we := &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
 	if errors.As(err, &pe) {
-		path, _ := json.Marshal(pe.Path)
-		params, _ := json.Marshal(map[string]string{"message": pe.Message})
-		we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: phase, Path: path, Params: params}}
+		path, pathErr := json.Marshal(pe.Path)
+		params, paramsErr := json.Marshal(map[string]string{"message": pe.Message})
+		// Without an encodable path the error keeps its message and no
+		// per-field issue.
+		if pathErr == nil && paramsErr == nil {
+			we.Issues = []pool.Issue{{Code: "runtime.invalidValue", Phase: phase, Path: path, Params: params}}
+		}
 	}
 	if phase == "output" {
 		we.Kind = pool.ErrKindInternal

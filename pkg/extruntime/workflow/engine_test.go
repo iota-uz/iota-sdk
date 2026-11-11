@@ -67,7 +67,7 @@ func TestStepRerunsAfterWorkerCrashWithTheSameIdempotencyKey(t *testing.T) {
 		keys = append(keys, r.URL.Query().Get("key"))
 		first := len(keys) == 1
 		mu.Unlock()
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"crash":%v}`, first)))
+		_, _ = fmt.Fprintf(w, `{"crash":%v}`, first)
 	}))
 	defer srv.Close()
 	publishFlow(t, env, im, "acme.a", "1.0.0", `
@@ -648,7 +648,11 @@ export const flow = async (wf) => {
 	u0, _ := occ(h, "u", 0)
 	require.NoError(t, st.signal(id, "go", `{"note":"n"}`, ""))
 	require.Equal(t, 1, st.drain())
-	var res struct{ At, ID, Again string }
+	var res struct {
+		At    string `json:"at"`
+		ID    string `json:"id"`
+		Again string `json:"again"`
+	}
 	require.NoError(t, json.Unmarshal(st.instance(id).Result, &res))
 	require.JSONEq(t, string(at0.Result), `"`+res.At+`"`, "the replay returned the journaled clock reading")
 	require.JSONEq(t, string(u0.Result), `"`+res.ID+`"`)

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
@@ -119,7 +120,9 @@ export const boom = async (ctx) => ctx.transaction(async () => { throw new Error
 		case "tx.begin":
 			return json.RawMessage(`{"tx":"h"}`), nil
 		case "tx.end":
-			var a struct{ Outcome string }
+			var a struct {
+				Outcome string `json:"outcome"`
+			}
 			require.NoError(t, json.Unmarshal(args, &a))
 			outcomes = append(outcomes, a.Outcome)
 			return json.RawMessage(`null`), nil
@@ -273,7 +276,7 @@ func TestQueueWhenAllWorkersBusy(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			out, err := p.Invoke(context.Background(), invoke(art, pool.KindCommand, "slow", `"x"`, nil))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			results[i] = string(out)
 		}()
 		time.Sleep(20 * time.Millisecond)
@@ -295,7 +298,7 @@ func TestQueueLimit(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_, err := p.Invoke(context.Background(), invoke(art, pool.KindCommand, "slow", `null`, nil))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}()
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -309,13 +312,12 @@ func TestNestedInvocationOnParentWorkerDoesNotDeadlock(t *testing.T) {
 	art := pooltest.Artifact(t, `
 export const outer = async (ctx) => ({ inner: await ctx.call({ id: "acme.test.inner" }, { n: 2 }) });
 export const inner = async (ctx, input) => ({ doubled: input.n * 2 });`)
-	var calls pool.HostCallsFunc
-	calls = func(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
-		require.Equal(t, "invoke.command", method)
+	calls := pool.HostCallsFunc(func(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+		assert.Equal(t, "invoke.command", method)
 		parent := invoke(art, pool.KindCommand, "inner", `{"n":2}`, noCalls{})
 		parent.ParentID = ctx.Value(parentKey{}).(string)
 		return p.Invoke(ctx, parent)
-	}
+	})
 	in := invoke(art, pool.KindCommand, "outer", `null`, nil)
 	in.ID = "root-1"
 	in.Calls = pool.HostCallsFunc(func(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
@@ -449,7 +451,9 @@ export const flow = { [brand]: true, serverKind: "implementation", handler: asyn
 		got[method] = args
 		switch method {
 		case "wf.waitFor":
-			var a struct{ Timeout string }
+			var a struct {
+				Timeout string `json:"timeout"`
+			}
 			require.NoError(t, json.Unmarshal(args, &a))
 			if a.Timeout == "" {
 				return json.RawMessage(`{"outcome":"received","payload":true}`), nil
@@ -475,9 +479,11 @@ export const flow = { [brand]: true, serverKind: "implementation", handler: asyn
 	require.JSONEq(t, `{"name":"w2","n":0,"workflow":"acme.test.flow","signal":"decision","timeout":"1d"}`, string(got["wf.waitFor"]))
 	require.JSONEq(t, `{"name":"approve","n":0,"subject":{"entity":"e","key":"1"},"assignee":{"entity":"core.user","key":"7"},"decision":{"kind":"bool"},"timeout":"3d"}`, string(got["wf.task"]))
 	var txCall struct {
-		Name, Callable, InputHash string
-		N                         int
-		Input                     json.RawMessage
+		Name      string          `json:"name"`
+		Callable  string          `json:"callable"`
+		InputHash string          `json:"inputHash"`
+		N         int             `json:"n"`
+		Input     json.RawMessage `json:"input"`
 	}
 	require.NoError(t, json.Unmarshal(got["wf.transaction.call"], &txCall))
 	require.Equal(t, "op", txCall.Name)

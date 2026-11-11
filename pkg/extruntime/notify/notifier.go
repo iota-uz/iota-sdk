@@ -58,8 +58,8 @@ func NewNotifier(dispatch Dispatcher, actives Actives, manifests Manifests, ensu
 
 // templateOwner finds the package version whose templates render the notice:
 // the caller's pinned version when it has a template for it, otherwise the
-// active package that provides one.
-func (n *Notifier) templateOwner(ctx context.Context, sc spi.Scope, in spi.NoticeIntent) (pkg, version string, err error) {
+// active package that provides one. It returns the package and its version.
+func (n *Notifier) templateOwner(ctx context.Context, sc spi.Scope, in spi.NoticeIntent) (string, string, error) {
 	active, err := n.actives.Active(ctx)
 	if err != nil {
 		return "", "", err

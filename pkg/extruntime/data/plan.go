@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // StepKind classifies a DDL step.
@@ -84,9 +85,9 @@ func (p MigrationPlan) SQL() string {
 	return b.String()
 }
 
-func (a *Applied) stateHash() string {
+func (a *Applied) stateHash() (string, error) {
 	if a == nil || len(a.Tables) == 0 {
-		return ""
+		return "", nil
 	}
 	ids := make([]string, 0, len(a.Tables))
 	for id := range a.Tables {
@@ -97,10 +98,13 @@ func (a *Applied) stateHash() string {
 	for _, id := range ids {
 		t := *a.Tables[id]
 		t.Version = "" // version bumps alone do not move the physical base
-		b, _ := json.Marshal(t)
+		b, err := json.Marshal(t)
+		if err != nil {
+			return "", err
+		}
 		h.Write(b)
 	}
-	return hex.EncodeToString(h.Sum(nil))
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 type phases struct {
@@ -126,14 +130,26 @@ func Plan(applied *Applied, desired *Schema) (MigrationPlan, error) {
 	if applied == nil {
 		applied = &Applied{Package: desired.Package, Tables: map[string]*PhysTable{}, Views: map[string]*Schema{}}
 	}
+	fromHash, err := applied.stateHash()
+	if err != nil {
+		return MigrationPlan{}, serrors.Wrap(op, err)
+	}
 	plan := MigrationPlan{
 		Package: desired.Package, ToVersion: desired.Version,
-		FromVersion: applied.Current, FromHash: applied.stateHash(), Physical: map[string]*PhysTable{},
+		FromVersion: applied.Current, FromHash: fromHash, Physical: map[string]*PhysTable{},
 	}
 	var bag diagBag
 
 	if v, ok := applied.Views[desired.Version]; ok {
-		if v.logicalHash() != desired.logicalHash() {
+		viewHash, err := v.logicalHash()
+		if err != nil {
+			return plan, serrors.Wrap(op, err)
+		}
+		desiredHash, err := desired.logicalHash()
+		if err != nil {
+			return plan, serrors.Wrap(op, err)
+		}
+		if viewHash != desiredHash {
 			bag.add(desired.Package, "", DiagStructureChange, "version %s was already applied with a different schema", desired.Version)
 			return plan, bag.err()
 		}
@@ -295,6 +311,8 @@ func indexSteps(t *PhysTable, c *PhysColumn, have, want indexKind) []Step {
 			Kind: StepIndex, Resource: t.ID, Description: "index on " + c.Name,
 			SQL: fmt.Sprintf("CREATE INDEX %s ON %s (tenant_id, %s)", quoteIdent(indexName(t, c, want)), tbl, quoteIdent(c.Name)),
 		})
+	case indexNone:
+		// Only the drop above applies.
 	}
 	return out
 }
@@ -347,7 +365,7 @@ func enumCheck(t *PhysTable, c *PhysColumn) string {
 }
 
 func createTableSQL(t *PhysTable) string {
-	var lines []string
+	lines := make([]string, 0, len(t.Columns)*2+8)
 	lines = append(lines, "tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE")
 	if t.Kind == manifest.ResOverlay {
 		lines = append(lines, "base_key "+t.Base.KeyType.SQL()+" NOT NULL")
@@ -403,7 +421,7 @@ func planExistingTable(pt *PhysTable, dt Table, ph *phases, plan *MigrationPlan,
 		f  FieldSpec
 		i  int
 	}
-	var pairs []pair
+	pairs := make([]pair, 0, len(dt.Fields))
 	var added []int
 	for i, f := range dt.Fields {
 		var pc *PhysColumn
@@ -545,6 +563,10 @@ func diffColumn(t *PhysTable, pc *PhysColumn, f FieldSpec, ph *phases, bag *diag
 				Step{Kind: StepConstraint, Resource: t.ID, Description: "enum check on " + pc.Name, SQL: "ALTER TABLE " + tbl + " ADD " + enumCheck(t, &next)},
 			)
 		}
+	case manifest.KindInt, manifest.KindInt64, manifest.KindBool, manifest.KindDate,
+		manifest.KindDateTime, manifest.KindUUID, manifest.KindJSON, manifest.KindRef,
+		manifest.KindObject, manifest.KindArray:
+		// Nothing beyond the kind to reconcile.
 	}
 	if alterType {
 		ph.alters = append(ph.alters, Step{

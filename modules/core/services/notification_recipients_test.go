@@ -228,6 +228,9 @@ func TestNotificationRecipients_DirectAddressAndMissingAddressIsVisible(t *testi
 		case notifications.DeliverySent:
 			sent++
 			require.Equal(t, "walkin@example.com", d.TargetAddress)
+		case notifications.DeliveryUnresolved, notifications.DeliveryPending, notifications.DeliveryFailed,
+			notifications.DeliveryAmbiguous, notifications.DeliverySkipped:
+			require.Failf(t, "unexpected email delivery status", "status %q", d.Status)
 		}
 	}
 	require.Equal(t, 1, noAddress, "the second person has no email: a visible outcome, not overall success")

@@ -105,6 +105,10 @@ func fieldIncompat(f FieldSpec, pc *PhysColumn) []string {
 		if len(gone) > 0 {
 			out = append(out, "enum values no longer accepted: "+strings.Join(gone, ", "))
 		}
+	case manifest.KindInt, manifest.KindInt64, manifest.KindBool, manifest.KindDate,
+		manifest.KindDateTime, manifest.KindUUID, manifest.KindJSON, manifest.KindRef,
+		manifest.KindObject, manifest.KindArray:
+		// No type parameter beyond the kind itself to compare.
 	}
 	return out
 }

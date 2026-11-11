@@ -25,7 +25,8 @@ func (e *env) targets(a *actor, campaign uuid.UUID) []target {
 }
 
 func (e *env) inbound(from, text string) resp {
-	body, _ := json.Marshal(map[string]string{"from": from, "text": text})
+	body, err := json.Marshal(map[string]string{"from": from, "text": text})
+	require.NoError(e.t, err)
 	return e.do(nil, http.MethodPost, "/_ext/endpoints/e2e.renewals/sms/inbound", strings.NewReader(string(body)), "Content-Type", "application/json")
 }
 
@@ -141,11 +142,15 @@ func TestScenario12SMSRenewalCampaignPilot(t *testing.T) {
 
 	// The window closes: the others are closed as "noReply", and the instance finishes.
 	done := e.waitStatus(admin, id, "completed")
+	type outcome struct {
+		Number  string `json:"number"`
+		Outcome string `json:"outcome"`
+	}
 	var out struct {
-		Outcomes []struct{ Number, Outcome string } `json:"outcomes"`
+		Outcomes []outcome `json:"outcomes"`
 	}
 	require.NoError(t, json.Unmarshal(done.Result, &out), string(done.Result))
-	require.Equal(t, []struct{ Number, Outcome string }{{"P-01", "replied"}, {"P-02", "noReply"}, {"P-05", "noReply"}}, out.Outcomes)
+	require.Equal(t, []outcome{{"P-01", "replied"}, {"P-02", "noReply"}, {"P-05", "noReply"}}, out.Outcomes)
 	final := e.targets(admin, id)
 	require.Equal(t, "replied", final[0].Outcome)
 	require.NotNil(t, final[0].Reply)

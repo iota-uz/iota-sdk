@@ -25,7 +25,7 @@ func internalErr(code, format string, args ...any) *pool.WireError {
 	return &pool.WireError{Kind: pool.ErrKindInternal, Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
-func blockedWire(b *blockInfo) *pool.WireError {
+func blockedWire(b *blockedError) *pool.WireError {
 	return &pool.WireError{Kind: pool.ErrKindInternal, Code: codeBlocked, Message: b.Error()}
 }
 
@@ -80,9 +80,9 @@ func terminalReply(o Occurrence) (json.RawMessage, error) {
 // replayWrap is the reply of *.begin calls for a recorded outcome.
 func replayWrap(o Occurrence) (json.RawMessage, error) {
 	if o.Status == OccFailed {
-		return marshal(map[string]any{"replay": true, "ok": false, "error": json.RawMessage(o.Error)}), nil
+		return marshal(map[string]any{"replay": true, "ok": false, "error": o.Error}), nil
 	}
-	return marshal(map[string]any{"replay": true, "ok": true, "value": json.RawMessage(nonNull(o.Result))}), nil
+	return marshal(map[string]any{"replay": true, "ok": true, "value": nonNull(o.Result)}), nil
 }
 
 // CallWorkflow serves the wf.* host calls of a workflow run. Every call

@@ -20,7 +20,7 @@ import (
 // there is no automatic replay of older events); one that continues from the
 // previously active version keeps its position; one the new version dropped
 // loses its row.
-func (s *Service) syncSubscriptions(ctx context.Context, tx pgx.Tx, ns string, m *manifest.Manifest) (added int, err error) {
+func (s *Service) syncSubscriptions(ctx context.Context, tx pgx.Tx, ns string, m *manifest.Manifest) (int, error) {
 	const op = serrors.Op("extruntime.manage.syncSubscriptions")
 	rows, err := tx.Query(ctx, `SELECT subscription FROM extruntime.subscription_watermarks WHERE package = $1`, ns)
 	if err != nil {
@@ -39,6 +39,7 @@ func (s *Service) syncSubscriptions(ctx context.Context, tx pgx.Tx, ns string, m
 	if err := rows.Err(); err != nil {
 		return 0, serrors.FromDB(op, err)
 	}
+	added := 0
 	keep := make([]string, 0, len(m.Subscriptions))
 	var mark int64
 	haveMark := false
@@ -48,8 +49,9 @@ func (s *Service) syncSubscriptions(ctx context.Context, tx pgx.Tx, ns string, m
 			continue
 		}
 		if !haveMark {
-			if mark, err = events.Watermark(ctx, tx); err != nil {
-				return 0, err
+			var werr error
+			if mark, werr = events.Watermark(ctx, tx); werr != nil {
+				return 0, werr
 			}
 			haveMark = true
 		}

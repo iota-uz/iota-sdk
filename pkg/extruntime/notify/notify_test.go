@@ -53,7 +53,7 @@ type noGuard struct{}
 
 func (noGuard) CheckWrite(context.Context, pgx.Tx, spi.Scope, spi.WriteChange) error { return nil }
 
-type subjects struct{ tenant uuid.UUID }
+type subjects struct{}
 
 func (s subjects) ResolveSubject(_ context.Context, tenant uuid.UUID, userID int64) (spi.Subject, error) {
 	return spi.Subject{TenantID: tenant, UserID: userID, Kind: spi.SubjectOwner, Permissions: []string{"Customer.Read"}}, nil
@@ -222,16 +222,13 @@ func (e *nenv) activate(version string) {
 	require.NoError(e.t, e.adapter.Sync(context.Background()))
 }
 
-func (e *nenv) scope(version string) spi.Scope {
-	return e.scopeOf(spi.Caller{Package: ns, Version: version})
-}
-
 func (e *nenv) scopeOf(c spi.Caller) spi.Scope {
 	return spi.Scope{Subject: spi.Subject{TenantID: e.f.TenantID(), UserID: e.owner, Kind: spi.SubjectInitiator}, Caller: c}
 }
 
 func (e *nenv) intent(number string, recipients ...spi.Recipient) spi.NoticeIntent {
-	payload, _ := json.Marshal(map[string]string{"number": number, "expiresOn": "2026-12-01"})
+	payload, err := json.Marshal(map[string]string{"number": number, "expiresOn": "2026-12-01"})
+	require.NoError(e.t, err)
 	return spi.NoticeIntent{
 		Notice: noticeID, Version: "", Subject: &spi.ObjectRef{Entity: customerID, Key: "p-1"}, Payload: payload,
 		Recipients: recipients, Channels: []string{"sms", "email"},
@@ -360,8 +357,9 @@ func TestPendingDeliveriesKeepResolvingTheirSnapshotAfterDeactivationAndNewVersi
 
 	// the queued ones still render with their own version's template
 	e.drain()
-	var v1texts []string
-	for _, m := range e.sms.SentTo("+998900000001") {
+	v1sent := e.sms.SentTo("+998900000001")
+	v1texts := make([]string, 0, len(v1sent))
+	for _, m := range v1sent {
 		v1texts = append(v1texts, m.Text)
 	}
 	require.ElementsMatch(t, []string{
@@ -383,8 +381,9 @@ func TestPendingDeliveriesKeepResolvingTheirSnapshotAfterDeactivationAndNewVersi
 	_, err = e.send("2.0.0", true, e.intent("P-6", spi.Recipient{Kind: spi.RecipientAddress, Address: map[string]string{"sms": "+998900000002"}}))
 	require.NoError(t, err)
 	e.drain()
-	var texts []string
-	for _, m := range e.sms.Sent() {
+	sent := e.sms.Sent()
+	texts := make([]string, 0, len(sent))
+	for _, m := range sent {
 		texts = append(texts, m.Text)
 	}
 	require.Contains(t, texts, "V1.0.0 Policy P-5 (p-1) expires 2026-12-01 [en]", "queued under v1")

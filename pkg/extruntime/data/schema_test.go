@@ -102,11 +102,12 @@ func TestCompileRefusals(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, data.ErrIncompatibleSchema)
 	var se *data.SchemaError
-	require.True(t, errors.As(err, &se))
+	require.ErrorAs(t, err, &se)
 	assert.Len(t, se.Diagnostics, 5, err.Error())
 }
 
 func mutate(t *testing.T, f func(m *manifest.Manifest)) *manifest.Manifest {
+	t.Helper()
 	m := clone(t, insuranceV1())
 	f(m)
 	return m
@@ -117,7 +118,7 @@ func diagCodes(err error) []string {
 	if !errors.As(err, &se) {
 		return nil
 	}
-	var out []string
+	out := make([]string, 0, len(se.Diagnostics))
 	for _, d := range se.Diagnostics {
 		out = append(out, d.Resource+"."+d.Field+":"+d.Code)
 	}
@@ -194,6 +195,7 @@ func TestEvolutionRefusals(t *testing.T) {
 }
 
 func v2Manifest(t *testing.T) *manifest.Manifest {
+	t.Helper()
 	return mutate(t, func(m *manifest.Manifest) {
 		r := resource(m, policyID)
 		r.Fields[9].ID = "comment" // notes -> comment

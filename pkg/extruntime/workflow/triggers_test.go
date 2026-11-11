@@ -35,6 +35,7 @@ func (s schedSource) ActiveSchedules(context.Context) ([]events.ScheduleDef, err
 }
 
 func instanceCount(t *testing.T, env *hosttest.Env) int {
+	t.Helper()
 	var n int
 	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT count(*) FROM extruntime.workflow_instances WHERE tenant_id = $1`, env.Tenant).Scan(&n))
 	return n
@@ -70,8 +71,14 @@ export const onThing = async (tx, e) => { await tx.start({ id: "acme.test.flow" 
 	})
 	require.NoError(t, err)
 	emit := func(name string, rollback bool) error {
-		in, _ := json.Marshal(map[string]any{"name": name, "rollback": rollback})
-		_, err := st.host.Invoke(context.Background(), host.Request{Contract: "acme.test.emit", Input: in, Subject: env.Subject(7, "p"), Trigger: host.Trigger{Kind: host.TriggerUI}})
+		in, err := json.Marshal(struct {
+			Name     string `json:"name"`
+			Rollback bool   `json:"rollback"`
+		}{Name: name, Rollback: rollback})
+		if err != nil {
+			return err
+		}
+		_, err = st.host.Invoke(context.Background(), host.Request{Contract: "acme.test.emit", Input: in, Subject: env.Subject(7, "p"), Trigger: host.Trigger{Kind: host.TriggerUI}})
 		return err
 	}
 	deliver := func(want int) {
