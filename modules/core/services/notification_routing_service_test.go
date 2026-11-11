@@ -56,6 +56,17 @@ func (d *deliveryStub) Deliver(_ context.Context, n notification.Notification) (
 	return n, nil
 }
 
+// noticeStub stores nothing: unit tests only need Ensure to return an identity.
+type noticeStub struct{}
+
+func (noticeStub) Ensure(_ context.Context, n notifications.Notice) (notifications.Notice, error) {
+	n.ID = uuid.New()
+	return n, nil
+}
+func (noticeStub) Get(context.Context, uuid.UUID) (notifications.Notice, error) {
+	return notifications.Notice{}, errors.New("not stored")
+}
+
 type directoryStub struct{ allowed map[uint]bool }
 
 func (d directoryStub) Search(context.Context, notifications.RecipientQuery) ([]notifications.Recipient, error) {
@@ -82,7 +93,7 @@ func routingFixture(t *testing.T) (context.Context, *NotificationRoutingService,
 	email, err := internet.NewEmail("recipient@example.com")
 	require.NoError(t, err)
 	users := recipientsStub{users: []user.User{user.New("Recipient", "User", email, user.UILanguage("ru"), user.WithID(1), user.WithTenantID(tenant))}}
-	return ctx, &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, directory: directoryStub{allowed: map[uint]bool{1: true}}}, rules, delivery
+	return ctx, &NotificationRoutingService{catalog: catalog, rules: rules, users: users, delivery: delivery, directory: directoryStub{allowed: map[uint]bool{1: true}}, platform: &NotificationPlatform{Notices: noticeStub{}, Renderers: notifications.NewContentRenderers(catalog)}}, rules, delivery
 }
 func TestNotificationRoutingPublish(t *testing.T) {
 	for _, scenario := range []string{"enabled", "disabled", "cross tenant", "empty identity", "blocked", "delivery failure"} {

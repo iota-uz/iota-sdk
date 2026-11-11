@@ -99,6 +99,63 @@ publication/subscription logs. Settings show a single delivery status line:
 everything is being delivered, or how many jobs are retrying with a retry action
 for managers. Event payloads are not displayed in diagnostics.
 
+## Delivery channels
+
+Rules select channels (`Rule.Channels`: `in_app`, `email`, `sms`, `push`); an empty
+selection keeps the previous in-app-only behaviour. The settings page shows the
+picker once an adapter is installed. Install providers in the application:
+
+```go
+core.NewComponent(&core.ModuleOptions{
+    NotificationChannels:        []notifications.ChannelAdapter{emailAdapter, smsAdapter, pushAdapter},
+    NotificationAddressResolver: addresses, // email, phone or device token per user
+})
+```
+
+The SDK ships the contract, not providers. Applications wire their own senders
+and decide where addresses and device tokens live. `ChannelAdapter.Send` must
+not assume a transaction and should wrap `notifications.ErrPermanent` for errors
+that cannot succeed on retry; `AddressResolver` returns `notifications.ErrNoAddress`
+when a recipient is unreachable.
+
+Each notice, recipient, channel and target is one row in
+`core.notification_deliveries` (see [Recipients, targets and attempts](#recipients-targets-and-attempts)).
+In-app delivery records `sent` next to its inbox row and links to it;
+read/unread stays on the inbox row. Delivery rows for external channels are
+written as intents in the same worker transaction as the in-app write and
+checkpoint. Workers then resolve targets, render and call providers with no
+transaction open. Failed attempts back off exponentially up to five attempts per
+retry budget, then become `failed`. Provider error text and credentials are never
+stored: only a short error code. `NotificationChannelService.Retry` reopens one
+`failed`, `ambiguous` or `no_address` row without touching other rows. Delivery
+is at-least-once: a crash between a provider accepting a message and its outcome
+being stored repeats that one message after the two-minute lease expires, and the
+interrupted attempt is recorded as `ambiguous`.
+
+A producer that names recipients itself calls
+`NotificationDispatchService.EnqueueExplicit` (or `EnqueueAddressed` for the
+recipient count, or `EnqueueAddressedTx` with its own `pgx.Tx`). It uses the same
+durable queue and per-recipient eligibility checks but ignores the administrator's
+rule for the event, so a disabled rule does not suppress it and settings cannot
+change its audience or channels. Other deliveries of the same event are unaffected when
+one recipient or channel fails. Addressed jobs use their own identity namespace
+(`addressed:<id>`), so a rule-based job for the same event ID does not absorb them.
+External deliveries run in their own worker loop, so slow providers never delay
+in-app dispatch. Eligibility is checked when content is rendered; a recipient who
+loses access afterwards can still receive the already rendered message until it
+is sent.
+
+### Personal channel choices
+
+Under **Channels per person** (`/settings/notifications/users`) a manager turns a
+channel on or off for one person. A channel switched off is skipped for that
+person in every event, rule-based or addressed; their other channels and other
+recipients are unaffected, and a person with every channel off gets nothing.
+Choices are stored as opt-outs in `core.notification_channel_preferences`
+(tenant-scoped), so people without a row keep everything the rule selects, and an
+opt-out for a channel whose adapter is not installed is kept. The page needs
+`NotificationRules.Read`; saving needs `NotificationRules.Manage`.
+
 ## Validation
 
 ```sh
@@ -116,6 +173,155 @@ SDK replica with the same PostgreSQL and Redis to check cross-instance delivery.
 It covers saved settings, overlapping/group/role audiences, severity toast,
 realtime dropdown/history, read persistence, membership removal and disabling.
 
-Email, SMS, Telegram, browser push, administrator-authored expressions/templates,
+Telegram, administrator-authored expressions/templates,
 quiet hours, per-user preferences, retention jobs and durable domain-event replay
 remain outside these notification tasks.
+
+## Runtime definition sources
+
+Definitions that do not come from native composition (for example a TypeScript
+extension activated from an immutable snapshot) implement
+`notifications.DefinitionSource` and are added with `Catalog.RegisterSource`.
+
+- Every definition carries `Source` (the source name) and a non-empty
+  `SnapshotRef`. Registration is atomic: one invalid or duplicate definition
+  rejects the whole source.
+- Keys stay versioned (`...v1`). Registering an existing key fails, so an update
+  is published as a new version (`...v2`), never as a silent overwrite.
+- Events produced from a runtime definition set `Event.SnapshotRef`. It is part
+  of the queued dispatch job's event JSON, so no schema change is needed, and
+  `Catalog.For(event)` resolves exactly that snapshot.
+- `Catalog.Deactivate(source)` removes the source's definitions from the active
+  catalog and the settings list. Pending deliveries keep rendering through their
+  snapshot. The catalog is in memory: after a restart the source re-supplies
+  the snapshots that still have pending deliveries.
+- Definitions are metadata plus simple localized templates; recipients are
+  resolved by Go from descriptors. Computing text, payload or explicit recipients
+  stays in the author's code before enqueue.
+
+## Recipients, targets and attempts
+
+A notice has four separate identities that the delivery model never mixes:
+
+| Identity | What it is | Where it lives |
+|---|---|---|
+| Notice | event key/version, snapshot ref, event ID, producer, mode `rule` or `explicit` | `core.notification_notices` |
+| Subject | the business object the notice is about (`Event.Subject`, entity + key) | on the notice |
+| Recipient | `user`, `record` (entity + key) or `address` (channel → address) | `recipient_*` columns of a delivery |
+| Target | the concrete email, phone or push device the recipient is reached on | `target_address`, `target_device_id` |
+
+A customer without an ERP account is a normal recipient: no user row is created
+for a contact. In-app delivery exists only for `user` recipients; for `record`
+and `address` recipients the in-app channel is ignored, and a send that has such
+recipients must select at least one external channel.
+
+### Explicit send
+
+```go
+receipt, err := dispatch.EnqueueAddressedTx(ctx, tx, services.AddressedRequest{
+    Event: notifications.Event{
+        Key: "acme.insurance.renewal.v1", TenantID: tenant,
+        SnapshotRef: "pkg-1.4.0",                     // pins the definition and templates
+        Subject:     notifications.SubjectReference{Type: "acme.policy", ID: "P-1"},
+        Payload:     json.RawMessage(`{"due":"2026-12-01"}`),
+    },
+    Recipients: []notifications.Addressee{
+        notifications.UserAddressee(userID),
+        notifications.RecordAddressee("acme.customer", "c-1"),
+        notifications.AddressAddressee(map[notifications.Channel]string{notifications.ChannelSMS: "+998901234567"}),
+    },
+    Channels: []notifications.Channel{notifications.ChannelSMS, notifications.ChannelEmail},
+    Producer: notifications.Producer{InstanceID: wf, Occurrence: "remind#2"},
+})
+```
+
+The notice, its recipients and the dispatch job are written in `tx`, so commit
+exposes them to workers and rollback removes them. The context must carry the
+tenant. Unknown notices, invalid recipients, a record entity without a registered
+`ContactResolver` and unavailable channels fail here, before commit. When the event
+has no `DedupeKey`, one is derived from the producer (`InstanceID#Occurrence`, else
+`InvocationID`, else `EventID`) plus the subject, recipients, channels and payload,
+so a replayed producer step returns the same `NoticeID` while a different intent from
+the same producer is its own notice. Rule-mode events (`Enqueue`) keep the
+USER/GROUP/ROLE/EVENT_RECIPIENT semantics and are never retargeted by, nor
+retarget, an explicit send.
+
+### What happens after commit
+
+1. The dispatch worker writes, per recipient and channel, an `unresolved` intent
+   row. For users it also applies eligibility, the personal channel opt-outs and
+   `SubjectAccess` (a denial is a `skipped` row with code `subject_access_denied`
+   per channel, with no inbox row), and writes the inbox row and its `sent`
+   in-app delivery.
+2. The channel worker claims intents in a short transaction, then with no
+   transaction open expands each into targets:
+   - `user`: email/SMS through `AddressResolver`; push through the device
+     registry (`core.notification_push_devices`, one delivery per active device),
+     falling back to a legacy single token from `AddressResolver` when the user has
+     no registered device;
+   - `record`: the contact returned by the `ContactResolver` registered for the
+     entity, filtered by channel; its language is used for content;
+   - `address`: the address itself.
+3. Record and address targets pass `DeliveryPolicy` (default allow; deny → `skipped`
+   with `policy_denied[:reason]`). The SDK defines no consent schema: the owning
+   domain package implements the interface.
+4. The content is rendered once per intent by `ContentRenderers` using the pinned
+   `(event key, snapshot ref)`: a renderer registered with `ContentRenderers.Register`
+   (the plug-in point for runtime/TypeScript templates), else the catalog definition
+   resolved by snapshot, which keeps working after the definition source is
+   deactivated or replaced. `ChannelContent` carries title/body/action URL (in-app,
+   push), `Data` (push payload), subject/HTML/text (email) and text (SMS). The
+   rendered content is persisted with each delivery.
+5. Each target is attempted independently by the provider adapter; one target failing
+   never changes a sibling's row.
+
+No resolver, policy, renderer or provider is called inside the producer's
+transaction. The in-app inbox text is rendered in the dispatch worker's own
+transaction (it is written atomically with the checkpoint), so renderers for
+in-app content must be fast and local. User eligibility is evaluated when the
+intent is written; a recipient who loses access before the provider call still
+receives the already queued external message.
+
+### Outcomes
+
+| Delivery status | Meaning |
+|---|---|
+| `unresolved` | waiting for targets, policy and content (also retrying a resolver outage) |
+| `pending` | target known, waiting for an attempt or a scheduled retry |
+| `sent` | accepted by the provider (or stored, for in-app) |
+| `failed` | permanent provider rejection, or attempts exhausted |
+| `ambiguous` | the provider may have accepted it (`ErrAmbiguous`, timeout, lease expiry); never retried automatically |
+| `no_address` | no address or device for this recipient and channel (`contact_not_found` for an unknown record) |
+| `skipped` | access or business policy stopped it; the error code says which |
+
+`core.notification_delivery_attempts` records every provider call: attempt number,
+start and finish, outcome `sent|failed|permanent|ambiguous`, the provider receipt and
+an error code. `Message.IdempotencyKey` is the delivery ID and is the same on every
+attempt of a delivery. Adapters return `notifications.ErrPermanent` for a rejection
+and `notifications.ErrAmbiguous` when the outcome is unknown. A target or
+`no_address` row reopened with `Retry` gets a fresh attempt budget; rows with
+no target go back through resolution.
+
+### Wiring
+
+```go
+core.NewComponent(&core.ModuleOptions{
+    NotificationChannels:         []notifications.ChannelAdapter{email, sms, push},
+    NotificationAddressResolver:  userAddresses,                      // users' email and phone
+    NotificationContactResolvers: map[string]notifications.ContactResolver{"acme.customer": customers},
+    NotificationSubjectAccess:    subjectAccess,                      // may user U see subject ref?
+    NotificationDeliveryPolicy:   consentPolicy,                      // business consent, default allow
+})
+```
+
+Push devices of users are managed with `NotificationChannelService.RegisterDevice` and
+`RevokeDevice` (a token that another registration of the tenant holds moves to the
+newest). External recipients bring their devices through their `ContactResolver`. The
+extension runtime can register more resolvers at runtime on the
+`*notifications.ContactResolvers` registry and renderers on
+`*notifications.ContentRenderers`, both resolvable from the container.
+
+Synthetic providers for tests live in `modules/core/notifications/notificationstest`
+(recording email/SMS/push adapters with per-address failure, ambiguous and permanent
+outcomes, a map-backed contact resolver, recording access and policy hooks). They are
+never registered by the core component.

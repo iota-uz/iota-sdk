@@ -3,6 +3,7 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -17,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
+
+// MaxPayloadBytes bounds the raw JSON payload of one event.
+const MaxPayloadBytes = 64 * 1024
 
 const TestEventKey = "core.notification.test.v1"
 
@@ -36,6 +40,17 @@ type Event struct {
 	ID          string            `json:"id"`
 	TenantID    uuid.UUID         `json:"tenant_id"`
 	Data        map[string]string `json:"data"`
+	// SnapshotRef identifies the immutable snapshot that owns the definition
+	// used to render this event. Empty for natively registered definitions.
+	// It is persisted with queued dispatch jobs, so pending deliveries keep
+	// resolving the definition they were enqueued with.
+	SnapshotRef string `json:"snapshot_ref,omitempty"`
+	// Payload is the typed payload of a runtime producer as raw JSON. Data is
+	// the flat form used by native producers; renderers may read either.
+	Payload json.RawMessage `json:"payload,omitempty"`
+	// Producer identifies the invocation, event or workflow occurrence that
+	// produced the event.
+	Producer Producer `json:"producer,omitempty"`
 }
 
 type Content struct{ Title, Body, ActionURL string }
@@ -64,50 +79,150 @@ type Definition struct {
 	Description          map[string]string
 	RequiredPermission   permission.Permission
 	Render               func(Event, string) (Content, error)
+	// Source names the runtime definition source that supplied this
+	// definition. Empty for definitions registered by native composition.
+	Source string
+	// SnapshotRef is the immutable snapshot the definition comes from.
+	// Required for runtime sources, empty for native definitions.
+	SnapshotRef string
+}
+
+// DefinitionSource supplies notification definitions from outside native
+// composition, for example from an immutable activation snapshot of a runtime
+// extension. Every returned definition must carry Source == Name() and a
+// non-empty SnapshotRef. Sources never overwrite existing definitions: a
+// changed definition is published under a new versioned key.
+type DefinitionSource interface {
+	Name() string
+	Definitions(context.Context) ([]Definition, error)
 }
 
 type Catalog struct {
 	mu          sync.RWMutex
 	definitions map[string]Definition
+	// snapshots keeps every runtime definition by key and snapshot so queued
+	// deliveries still resolve their definition after the source is deactivated.
+	snapshots map[string]Definition
 }
 
-func NewCatalog() *Catalog { return &Catalog{definitions: make(map[string]Definition)} }
+func NewCatalog() *Catalog {
+	return &Catalog{definitions: make(map[string]Definition), snapshots: make(map[string]Definition)}
+}
+
+func snapshotID(key, ref string) string { return key + "@" + ref }
+
+// RegisterSource registers all definitions of a runtime source atomically:
+// if any definition is invalid or duplicates an existing key, none is added.
+func (c *Catalog) RegisterSource(ctx context.Context, source DefinitionSource) error {
+	if source == nil || strings.TrimSpace(source.Name()) == "" {
+		return fmt.Errorf("invalid notification definition source")
+	}
+	definitions, err := source.Definitions(ctx)
+	if err != nil {
+		return fmt.Errorf("load notification definitions from %s: %w", source.Name(), err)
+	}
+	for _, d := range definitions {
+		if d.Source != source.Name() || strings.TrimSpace(d.SnapshotRef) == "" {
+			return fmt.Errorf("notification definition %s must carry source %q and a snapshot reference", d.Key, source.Name())
+		}
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	staged := make([]Definition, 0, len(definitions))
+	seen := map[string]bool{}
+	for _, d := range definitions {
+		if seen[d.Key] {
+			return fmt.Errorf("notification event already registered: %s", d.Key)
+		}
+		seen[d.Key] = true
+		normalized, err := c.prepare(d)
+		if err != nil {
+			return err
+		}
+		staged = append(staged, normalized)
+	}
+	for _, d := range staged {
+		c.definitions[d.Key] = d
+		c.snapshots[snapshotID(d.Key, d.SnapshotRef)] = d
+	}
+	return nil
+}
+
+// Deactivate removes the source's definitions from the active catalog. They
+// stay resolvable by snapshot so already queued deliveries can still render.
+func (c *Catalog) Deactivate(source string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for key, d := range c.definitions {
+		if d.Source != "" && d.Source == source {
+			delete(c.definitions, key)
+		}
+	}
+}
+
+// For returns the definition an event must be processed with. Events bound to
+// a snapshot resolve to that exact snapshot even when it is no longer active.
+func (c *Catalog) For(event Event) (Definition, bool) {
+	if event.SnapshotRef == "" {
+		return c.Get(event.Key)
+	}
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	d, ok := c.snapshots[snapshotID(event.Key, event.SnapshotRef)]
+	return cloneDefinition(d), ok
+}
 
 func (c *Catalog) Register(d Definition) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if d.Source != "" || d.SnapshotRef != "" {
+		return fmt.Errorf("runtime notification definitions must be registered through a definition source")
+	}
+	d, err := c.prepare(d)
+	if err != nil {
+		return err
+	}
+	c.definitions[d.Key] = d
+	return nil
+}
+
+// prepare validates a definition and fills defaults. The caller holds c.mu.
+func (c *Catalog) prepare(d Definition) (Definition, error) {
 	if !eventKeyPattern.MatchString(d.Key) || d.Name["en"] == "" {
-		return fmt.Errorf("invalid notification definition")
+		return Definition{}, fmt.Errorf("invalid notification definition")
 	}
 	if d.DefaultLevel == "" {
 		d.DefaultLevel = notification.LevelInfo
 	}
 	if !d.DefaultLevel.Valid() {
-		return fmt.Errorf("invalid default notification level")
+		return Definition{}, fmt.Errorf("invalid default notification level")
 	}
 	keys := map[string]bool{}
 	for _, key := range d.RecipientKeys {
 		if key.Key == "" || keys[key.Key] || key.Resolve == nil || key.Name["en"] == "" {
-			return fmt.Errorf("invalid recipient definition")
+			return Definition{}, fmt.Errorf("invalid recipient definition")
 		}
 		keys[key.Key] = true
 	}
 	fields := map[string]bool{}
 	for _, field := range d.PayloadFields {
 		if field.Key == "" || fields[field.Key] {
-			return fmt.Errorf("invalid notification payload field")
+			return Definition{}, fmt.Errorf("invalid notification payload field")
 		}
 		fields[field.Key] = true
 	}
 	defaults := map[string]bool{}
 	for _, key := range d.DefaultRecipientKeys {
 		if !keys[key] || defaults[key] {
-			return fmt.Errorf("unknown default recipient key: %s", key)
+			return Definition{}, fmt.Errorf("unknown default recipient key: %s", key)
 		}
 		defaults[key] = true
 	}
 	if _, exists := c.definitions[d.Key]; exists {
-		return fmt.Errorf("notification event already registered: %s", d.Key)
+		return Definition{}, fmt.Errorf("notification event already registered: %s", d.Key)
+	}
+	if _, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" {
+		return Definition{}, fmt.Errorf("notification snapshot already registered: %s", snapshotID(d.Key, d.SnapshotRef))
 	}
 	if d.Render == nil {
 		names := cloneDefinition(d).Name
@@ -116,8 +231,7 @@ func (c *Catalog) Register(d Definition) error {
 			return Content{Title: Localized(names, language), Body: Localized(descriptions, language)}, nil
 		}
 	}
-	c.definitions[d.Key] = cloneDefinition(d)
-	return nil
+	return cloneDefinition(d), nil
 }
 
 func (c *Catalog) Get(key string) (Definition, bool) {
@@ -154,7 +268,13 @@ type Rule struct {
 	UserIDs       []uint             `json:"user_ids"`
 	GroupIDs      []uuid.UUID        `json:"group_ids"`
 	RoleIDs       []uint             `json:"role_ids"`
+	// Channels selects delivery channels. Empty means in-app only.
+	Channels []Channel `json:"channels,omitempty"`
 }
+
+// EffectiveChannels returns the normalized channel selection.
+func (r Rule) EffectiveChannels() []Channel { return NormalizeChannels(r.Channels) }
+
 type RuleRepository interface {
 	Get(context.Context, string) (Rule, error)
 	Save(context.Context, Rule) error
@@ -168,7 +288,7 @@ func TestDefinition() Definition {
 	}}
 }
 func (c *Catalog) Normalize(event Event) (Event, error) {
-	d, ok := c.Get(event.Key)
+	d, ok := c.For(event)
 	if !ok {
 		return event, fmt.Errorf("unknown notification event")
 	}
@@ -181,6 +301,12 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 	}
 	if event.Version != version || event.TenantID == uuid.Nil || strings.TrimSpace(event.ID) == "" || len(event.ID) > 200 || len(event.DedupeKey) > 200 {
 		return event, fmt.Errorf("invalid notification event envelope")
+	}
+	if len(event.Payload) > MaxPayloadBytes || (len(event.Payload) > 0 && !json.Valid(event.Payload)) {
+		return event, fmt.Errorf("invalid notification payload")
+	}
+	if err := event.Producer.Validate(); err != nil {
+		return event, err
 	}
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = time.Now().UTC()
