@@ -1,0 +1,50 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Refuse billing refunds that have no captured money or an invalid amount, and serialize Cancel, Refund and Delete with a row lock. billing.Repository gains GetByIDForUpdate, so custom implementations must add it."
+    },
+    {
+      "bump": "minor",
+      "summary": "Render ungrouped filter builder reference fields with fewer than five options as a checkbox list instead of a searchable combobox."
+    },
+    {
+      "bump": "patch",
+      "summary": "Keep selected reference values that are no longer available as options visible and removable in the filter builder checkbox list."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens report picker opens as a right-side drawer with whole-row selection, an optional ReportCatalogHost.generate that creates one report from a plain-language description, new report.picker.generate.* runtime strings, and a zero-specificity pointer cursor for every enabled interactive control in the Lens stylesheet."
+    },
+    {
+      "bump": "patch",
+      "summary": "Classify the notification delivery-channel mutations in the business history coverage matrix so the coverage test passes again."
+    },
+    {
+      "bump": "patch",
+      "summary": "Preserve decimal minor units when creating money from floats while truncating excess fractional digits toward zero."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add notification delivery channels (email, SMS, push) with provider adapters, per-channel delivery state and retry, channel selection on event rules, per-user channel opt-outs and explicit addressed sends."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add notification definition sources: runtime definitions bound to an immutable snapshot reference, atomic registration, deactivation that keeps pending deliveries renderable."
+    },
+    {
+      "bump": "minor",
+      "summary": "Publish the server-resolved shell navigation from layouts.Authenticated and read it into one shared ShellRegistry per document."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add ShellRegistry to the client host: extension navigation items, rename/move/hide patches, header and footer contributions with owner disposal and conflict diagnostics."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add ShellHost for a single app-wide shell renderer with outlet handoff and standard-shell fallback, publish the signed-in user in the shell context, and move the Lens drawer onto the shared document portal registry."
+    }
+  ],
+  "source": "8223e7f2c1d33ef92520593e29fdf0e7965f4753",
+  "version": "0.40.0"
+}
