@@ -10,6 +10,7 @@ import (
 	"math/big"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/shopspring/decimal"
 )
 
 // Injection points for backward compatibility.
@@ -121,18 +122,14 @@ func New(amount int64, code string) *Money {
 }
 
 // NewFromFloat creates and returns new instance of Money from a float64.
-// Always rounding trailing decimals down.
+// Trailing decimals are truncated toward zero.
 func NewFromFloat(amount float64, code string) *Money {
-	currencyDecimals := math.Pow10(newCurrency(code).get().Fraction)
-	scaled := amount * currencyDecimals
-
-	// Safe conversion: use big.Float -> big.Int to avoid int64 overflow
-	bf := new(big.Float).SetFloat64(scaled)
-	bi, _ := bf.Int(nil)
+	currency := newCurrency(code).get()
+	scaled := decimal.NewFromFloat(amount).Shift(int32(currency.Fraction))
 
 	return &Money{
-		amount:   bi,
-		currency: newCurrency(code).get(),
+		amount:   scaled.BigInt(),
+		currency: currency,
 	}
 }
 
