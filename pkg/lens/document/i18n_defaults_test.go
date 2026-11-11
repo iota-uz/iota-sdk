@@ -42,6 +42,7 @@ func TestRuntimeI18nDefaultsCoverReportPickerAndEditor(t *testing.T) {
 	}
 	require.Contains(t, defaults[I18nReportPickerTitle], "{target}")
 	require.Contains(t, defaults[I18nReportPickerAdd], "{count}")
+	require.Contains(t, defaults[I18nReportPickerGenerateCreated], "{title}")
 	require.Contains(t, defaults[I18nReportPickerOwnershipSharedBy], "{owner}")
 	require.Contains(t, defaults[I18nReportDestinationTitle], "{title}")
 	require.Contains(t, defaults[I18nReportEditorAdded], "{count}")

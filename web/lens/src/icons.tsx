@@ -432,3 +432,9 @@ export const SquaresFour = glyph(
   </>,
   32,
 )
+
+/** Generate with AI: a four-point spark. */
+export const Sparkle = glyph(
+  () => <path d="M128,32 L150,106 L224,128 L150,150 L128,224 L106,150 L32,128 L106,106 Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" />,
+  16,
+)
