@@ -231,6 +231,38 @@
 }
 
 @layer components {
+  /* Preflight is off here and the host's own reset (Tailwind 4's among them)
+     leaves a <button> with the arrow cursor, so every control that answers a
+     click states its affordance once, at zero specificity: any class-level
+     cursor below (grab, wait, help, not-allowed, default for a disabled or
+     current control) still wins, and a control nobody listed is no longer the
+     one without a pointer. Disabled and aria-disabled controls are excluded. */
+  :where(.lens-root, .lens-print-report) :where(
+    button,
+    summary,
+    select,
+    label[for],
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [role='menuitemradio'],
+    [role='menuitemcheckbox'],
+    [role='option'],
+    [role='switch'],
+    [role='checkbox'],
+    [role='radio'],
+    [role='link'],
+    input[type='checkbox'],
+    input[type='radio'],
+    input[type='button'],
+    input[type='submit'],
+    input[type='reset'],
+    input[type='file'],
+    input[type='range']
+  ):not(:disabled, [aria-disabled='true']) {
+    cursor: pointer;
+  }
+
   .lens-root {
     @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
@@ -556,6 +588,48 @@
     height: min(90vh, 100%);
   }
 
+  /* The drawer variant: a full-height sheet on the inline end. The page behind
+     stays visible through the scrim, so the reader keeps the dashboard they are
+     adding to in sight. It slides in from the right and, on a dismissal, back
+     out (data-leaving) before the host is told. */
+  .lens-report-dialog-backdrop[data-variant='drawer'] {
+    @apply lens:justify-end lens:p-0;
+    animation: lens-backdrop-fade 180ms ease-out;
+  }
+
+  .lens-report-dialog-backdrop[data-variant='drawer'][data-leaving] {
+    animation: lens-backdrop-fade 180ms ease-in reverse forwards;
+  }
+
+  .lens-report-dialog[data-variant='drawer'] {
+    @apply lens:rounded-none lens:border-y-0 lens:border-r-0;
+    width: min(640px, 100%);
+    height: 100%;
+    max-height: 100%;
+    animation: lens-report-drawer-enter 180ms ease-out;
+  }
+
+  .lens-report-dialog[data-variant='drawer'][data-leaving] {
+    animation: lens-report-drawer-leave 180ms ease-in forwards;
+  }
+
+  @keyframes lens-report-drawer-enter {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+
+  @keyframes lens-report-drawer-leave {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-report-dialog-backdrop[data-variant='drawer'],
+    .lens-report-dialog[data-variant='drawer'] {
+      animation: none;
+    }
+  }
+
   .lens-report-dialog-header {
     @apply lens:flex lens:items-start lens:gap-3 lens:border-0 lens:border-b lens:border-solid lens:border-border lens:px-5 lens:py-4;
   }
@@ -651,7 +725,16 @@
     border-color: var(--lens-divider);
   }
 
-  .lens-report-picker-item[data-selected] {
+  .lens-report-picker-item:not([data-placed]) {
+    cursor: pointer;
+  }
+
+  .lens-report-picker-item:not([data-placed]):hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-report-picker-item[data-selected],
+  .lens-report-picker-item[data-selected]:hover {
     background: var(--lens-accent-50);
   }
 
@@ -685,6 +768,81 @@
   .lens-report-picker-badge[data-tone='placed'] {
     background: var(--lens-accent-100);
     color: var(--lens-accent-700);
+  }
+
+  .lens-report-picker-badge[data-tone='new'] {
+    background: var(--lens-accent-600);
+    color: var(--lens-text-on-accent);
+  }
+
+  /* "Create with AI": a compact disclosure above the filters; open, it holds the
+     description, the action and the progress or the reason it failed. */
+  .lens-report-picker-generate {
+    @apply lens:flex lens:flex-col lens:border-0 lens:border-b lens:border-solid;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-report-picker-generate-toggle {
+    @apply lens:flex lens:min-h-control-lg lens:w-full lens:items-center lens:gap-2 lens:border-0 lens:bg-transparent lens:px-5 lens:py-2 lens:text-left lens:font-sans lens:text-md lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-picker-generate-toggle:hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-report-picker-generate-icon {
+    color: var(--lens-accent-600);
+  }
+
+  .lens-report-picker-generate-title {
+    @apply lens:flex-1;
+  }
+
+  .lens-report-picker-generate-body {
+    @apply lens:flex lens:flex-col lens:gap-2 lens:px-5 lens:pb-3;
+  }
+
+  .lens-report-picker-generate-hint {
+    @apply lens:m-0 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-picker-generate-input {
+    @apply lens:w-full lens:resize-y lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:py-2 lens:font-sans lens:text-md lens:text-strong;
+    box-sizing: border-box;
+    min-height: 4.5rem;
+  }
+
+  .lens-report-picker-generate-input:disabled {
+    @apply lens:opacity-60;
+  }
+
+  .lens-report-picker-generate-actions {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-3;
+  }
+
+  .lens-report-picker-generate-status {
+    @apply lens:m-0 lens:flex lens:min-w-0 lens:flex-1 lens:items-center lens:gap-2 lens:text-base lens:text-muted;
+  }
+
+  .lens-report-picker-generate-status[data-state='done'] {
+    @apply lens:text-strong;
+  }
+
+  .lens-report-picker-generate-spinner {
+    @apply lens:inline-block lens:size-3.5 lens:flex-none lens:rounded-full lens:border-2 lens:border-solid;
+    border-color: var(--lens-border-strong);
+    border-top-color: var(--lens-accent-600);
+    animation: lens-report-generate-spin 800ms linear infinite;
+  }
+
+  @keyframes lens-report-generate-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-report-picker-generate-spinner {
+      animation-duration: 2400ms;
+    }
   }
 
   .lens-report-picker-restriction {
@@ -1139,7 +1297,8 @@
     }
 
     .lens-report-dialog,
-    .lens-report-dialog[data-size='wide'] {
+    .lens-report-dialog[data-size='wide'],
+    .lens-report-dialog[data-variant='drawer'] {
       @apply lens:rounded-none lens:border-0;
       width: 100%;
       height: 100%;

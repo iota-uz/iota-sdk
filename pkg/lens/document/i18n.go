@@ -131,6 +131,22 @@ const (
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportPickerAddNone = "report.picker.addNone"
 
+	// Report picker: AI card creation.
+	I18nReportPickerGenerateTitle           = "report.picker.generate.title"
+	I18nReportPickerGenerateHint            = "report.picker.generate.hint"
+	I18nReportPickerGenerateLabel           = "report.picker.generate.label"
+	I18nReportPickerGeneratePlaceholder     = "report.picker.generate.placeholder"
+	I18nReportPickerGenerateSubmit          = "report.picker.generate.submit"
+	I18nReportPickerGenerateStop            = "report.picker.generate.stop"
+	I18nReportPickerGenerateFailed          = "report.picker.generate.failed"
+	I18nReportPickerGenerateRetry           = "report.picker.generate.retry"
+	I18nReportPickerGenerateCreated         = "report.picker.generate.created"
+	I18nReportPickerGenerateNew             = "report.picker.generate.new"
+	I18nReportPickerGenerateStageStarting   = "report.picker.generate.stage.starting"
+	I18nReportPickerGenerateStageSchema     = "report.picker.generate.stage.schema"
+	I18nReportPickerGenerateStageGenerating = "report.picker.generate.stage.generating"
+	I18nReportPickerGenerateStageValidating = "report.picker.generate.stage.validating"
+
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportDestinationConfirm      = "report.destination.confirm"
 	I18nReportDestinationDescription  = "report.destination.description"
@@ -620,6 +636,20 @@ func RuntimeI18nKeys() []string {
 		I18nReportProposalTitle,
 
 		I18nReportPickerAddNone,
+		I18nReportPickerGenerateTitle,
+		I18nReportPickerGenerateHint,
+		I18nReportPickerGenerateLabel,
+		I18nReportPickerGeneratePlaceholder,
+		I18nReportPickerGenerateSubmit,
+		I18nReportPickerGenerateStop,
+		I18nReportPickerGenerateFailed,
+		I18nReportPickerGenerateRetry,
+		I18nReportPickerGenerateCreated,
+		I18nReportPickerGenerateNew,
+		I18nReportPickerGenerateStageStarting,
+		I18nReportPickerGenerateStageSchema,
+		I18nReportPickerGenerateStageGenerating,
+		I18nReportPickerGenerateStageValidating,
 
 		I18nReportDestinationConfirm,
 		I18nReportDestinationDescription,

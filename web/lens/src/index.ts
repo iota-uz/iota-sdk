@@ -46,6 +46,7 @@ export { ReportPicker, type ReportPickerProps } from './reports/ReportPicker'
 export { ReportDestinationPicker, type ReportDestinationPickerProps } from './reports/ReportDestinationPicker'
 export { appendReportPicks, createReportPickerSelection, parseCatalogPage, parseDestinations } from './reports/picker'
 export type {
+  ReportCardGenerateOptions, ReportCardGenerateRequest, ReportCardGenerateStage,
   ReportCatalogEntry, ReportCatalogHost, ReportCatalogPage, ReportCatalogQuery, ReportCatalogScope, ReportDestination,
   ReportDestinationChoice, ReportDestinationConfirmation, ReportDestinationHost, ReportPick, ReportPickerConfirmation,
 } from './reports/picker'
