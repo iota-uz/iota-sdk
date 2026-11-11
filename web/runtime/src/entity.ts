@@ -110,9 +110,9 @@ type OptionalInsertKeys<F extends FieldShape> = Exclude<keyof F, RequiredInsertK
 
 /** Values accepted by `tx.insert`: fields that are optional or defaulted may be omitted. */
 export type InsertOf<E> = Simplify<
-  { [K in RequiredInsertKeys<Fields<E>>]: Infer<Fields<E>[K]> } & { [K in OptionalInsertKeys<Fields<E>>]?: Infer<Fields<E>[K]> }
+  { [K in RequiredInsertKeys<Fields<E>>]: FieldValue<Fields<E>[K]> } & { [K in OptionalInsertKeys<Fields<E>>]?: FieldValue<Fields<E>[K]> }
 >
-export type PatchOf<E> = { [K in keyof Fields<E>]?: Infer<Fields<E>[K]> }
+export type PatchOf<E> = { [K in keyof Fields<E>]?: FieldValue<Fields<E>[K]> }
 
 // ---- filters ----
 
