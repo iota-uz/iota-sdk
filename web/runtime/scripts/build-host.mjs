@@ -17,7 +17,10 @@ const hostSrc = join(src, "host");
 const out = process.argv[2] ? resolve(process.argv[2]) : join(root, "dist", "host");
 
 const isSource = (f) => f.endsWith(".ts") && !f.endsWith(".d.ts") && !f.endsWith(".test.ts") && !f.endsWith(".check.ts");
-const entries = (await readdir(hostSrc)).filter(isSource).map((f) => join(hostSrc, f));
+const hostEntries = (await readdir(hostSrc)).filter(isSource).map((f) => join(hostSrc, f));
+// Public SDK modules artifacts import as `@iota-uz/sdk/runtime*` (resolved by host/loader.ts).
+const publicEntries = ["index", "server", "client", "testing"].map((name) => join(src, `${name}.ts`));
+const entries = [...hostEntries, ...publicEntries];
 
 // Output path of a source file: host modules flat, everything else under sdk/.
 const outPath = (file) =>

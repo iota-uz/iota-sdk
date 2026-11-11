@@ -37,6 +37,25 @@ if (!packageJSON.peerDependencies?.['solid-js']) {
   throw new Error('Solid must be a peer dependency')
 }
 
+// Node workers shipped inside the runtime subpath: the invocation host and the build worker.
+for (const file of [
+  'dist/runtime/host/worker.mjs',
+  'dist/runtime/host/register.mjs',
+  'dist/runtime/host/loader.mjs',
+  'dist/runtime/host/sdk/index.mjs',
+  'dist/runtime/build/worker.mjs',
+  'dist/runtime/build/extract.mjs',
+  'dist/runtime/build/test-child.mjs',
+  'dist/runtime/build/vendor/lib/lib.es2022.d.ts',
+  'dist/runtime/build/vendor/node-types/package.json',
+  'dist/runtime/build/vendor/node_modules/solid-js/package.json',
+]) {
+  await access(path.join(root, file))
+}
+if (!packageJSON.peerDependencies?.esbuild) {
+  throw new Error('the build worker needs esbuild as an (optional) peer dependency')
+}
+
 const targets = []
 for (const value of Object.values(packageJSON.exports)) {
   if (typeof value === 'string') {

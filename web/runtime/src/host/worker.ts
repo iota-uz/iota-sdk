@@ -5,6 +5,8 @@ import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import "./register.ts";
+
 import {
   createCommandContext,
   createQuery,

@@ -22,6 +22,7 @@
     "tests"
   ],
   "exclude": [
-    "src/host"
+    "src/host",
+    "src/build"
   ]
 }
