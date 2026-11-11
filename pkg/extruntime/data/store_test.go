@@ -423,3 +423,22 @@ func TestWriteGuard(t *testing.T) {
 	assert.Equal(t, "two", decode(t, e.guard.calls[0].Existing)["notes"])
 	assert.NotEqual(t, "null", string(mustGet(t, e, sc, policyID, pol["key"].(string))), "rejected delete kept the row")
 }
+
+func TestForeignPackageWriteRejected(t *testing.T) {
+	e := newEnv(t)
+	e.install("v1", insuranceV1())
+	owner := e.scope("v1", e.newUser("O"), "Policy.ReadAll")
+	key := e.mustInsert(owner, customerID, map[string]any{"name": "c"})["key"].(string)
+
+	other := owner
+	other.Caller = spi.Caller{Package: "acme.other", Version: "v1"}
+	_, err := e.store.Insert(e.ctx, e.tx, other, customerID, raw(map[string]any{"name": "x"}))
+	require.ErrorIs(t, err, data.ErrForeignWrite)
+	_, err = e.store.Update(e.ctx, e.tx, other, customerID, key, raw(map[string]any{"name": "x"}))
+	require.ErrorIs(t, err, data.ErrForeignWrite)
+	require.ErrorIs(t, e.store.Delete(e.ctx, e.tx, other, customerID, key), data.ErrForeignWrite)
+
+	got, err := e.store.Get(e.ctx, e.tx, other, customerID, key)
+	require.NoError(t, err, "foreign packages may read through the owner's access rules")
+	assert.NotEqual(t, "null", string(got))
+}

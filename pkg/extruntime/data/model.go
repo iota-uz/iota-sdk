@@ -33,8 +33,10 @@ type fieldModel struct {
 // model is the resolved shape of an entity, overlay or native entity for one
 // call: physical location, the caller's field keys and the read policy.
 type model struct {
-	ID        string
-	Kind      modelKind
+	ID   string
+	Kind modelKind
+	// Owner is the namespace of the package that declares the entity/overlay.
+	Owner     string
 	Schema    string
 	Table     string
 	TenantCol string
@@ -231,6 +233,7 @@ func (s *Store) load(ctx context.Context, q Querier, sc spi.Scope, id string) (*
 		return nil, err
 	}
 	m := newModel(table, id)
+	m.Owner = rr.Package
 	active := table
 	if viewVersion != rr.Version {
 		if active, err = s.schemas.Table(ctx, q, rr.Package, rr.Version, id); err != nil {

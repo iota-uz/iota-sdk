@@ -189,6 +189,9 @@ type Resource struct {
 	Fields []Field `json:"fields,omitempty"`
 	Base   string  `json:"base,omitempty"`
 	Access *Access `json:"access,omitempty"`
+	// KeyType of native entities ("int64" | "uuid" | "string"); package
+	// entities are always uuid.
+	KeyType string `json:"keyType,omitempty"`
 
 	// query / command / operation / workflow / issue / domainError / event / notice / route
 	Atomic  bool            `json:"atomic,omitempty"`
@@ -230,6 +233,8 @@ type Resource struct {
 
 	// slot / cell target (slot id or column id)
 	Target string `json:"target,omitempty"`
+	// Props of a slot declaration (typed props passed to contributions).
+	Props *Type `json:"props,omitempty"`
 }
 
 type ImplKind string

@@ -17,6 +17,10 @@ var (
 	// a native (core/Granite) entity. Native writes go through published
 	// operations.
 	ErrNativeWrite = serrors.New(serrors.FailedPrecondition, "native entities are read-only through generic data calls")
+	// ErrForeignWrite is returned when package code writes another package's
+	// entity or overlay through generic data calls; cross-package writes go
+	// through the owner's published operations, like native ones.
+	ErrForeignWrite = serrors.New(serrors.FailedPrecondition, "entities of another package are read-only through generic data calls")
 	// ErrUnknownEntity: the resource is not a known entity or overlay.
 	ErrUnknownEntity = serrors.New(serrors.NotFound, "unknown entity")
 	// ErrNotFound: the addressed record does not exist (or is not visible).

@@ -535,3 +535,12 @@ named exports").
 Endpoint requests have `body` (parsed), `rawBody: Uint8Array`, `text()`; the invoke input carries `rawBody` as base64.
 Handlers may be sync. `tx.call(ordinaryCommand)` etc. fail with a readable message in the type error.
 `Tx<'plain'>` is not assignable to `Tx<'derived'>`.
+
+**Build (as implemented)**: one Node build process per operation (`check|build|test|kit`). Kit
+modules (`@iota-kit/*`) are **bundled** into artifacts (self-contained, reproducible from tree +
+kit hash); only `@iota-uz/sdk/runtime*` stays external for server/contracts graphs and is
+resolved by the worker loader. Client bundles externalize `solid-js`, `solid-js/web`,
+`solid-js/store` and `@iota-uz/sdk/runtime/client` through the shared registry. Generic
+writes are allowed only to the caller package's own entities/overlays (`ErrForeignWrite`
+otherwise); other packages' data is changed through their published operations. Native
+entities carry `keyType`; slot declarations carry `props`.

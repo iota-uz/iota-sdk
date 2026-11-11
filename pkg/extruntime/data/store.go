@@ -149,6 +149,8 @@ func (s *Store) writable(ctx context.Context, tx pgx.Tx, sc spi.Scope, op serror
 	switch {
 	case m.Kind == kindNative:
 		return nil, fail(op, ErrNativeWrite, "%s is native; use a published operation", entity)
+	case sc.Caller.Package != "" && m.Owner != sc.Caller.Package:
+		return nil, fail(op, ErrForeignWrite, "%s belongs to %s; use its published operations", entity, m.Owner)
 	case m.Kind != want && want == kindOwn:
 		return nil, unsupported(op, "%s is an overlay; use PutOverlay", entity)
 	case m.Kind != want:
