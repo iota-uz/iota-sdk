@@ -193,6 +193,7 @@ func (a *API) Handler() http.Handler {
 	r.HandleFunc("/triggers/{trigger}/owner", a.wrap(a.removeOwner)).Methods(http.MethodDelete)
 	r.HandleFunc("/kit", a.wrap(a.kit)).Methods(http.MethodGet)
 	r.HandleFunc("/kit/modules/{module:.+}", a.wrap(a.kitModule)).Methods(http.MethodGet)
+	r.HandleFunc("/catalog/natives", a.wrap(a.nativeCatalog)).Methods(http.MethodGet)
 	r.HandleFunc("/audit", a.wrap(a.audit)).Methods(http.MethodGet)
 
 	r.HandleFunc("/workflows", a.wrap(a.listWorkflows)).Methods(http.MethodGet)
@@ -435,6 +436,13 @@ func (a *API) removeOwner(_ http.ResponseWriter, r *http.Request, actor spi.Subj
 func (a *API) kit(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
 	hash, modules, err := a.svc.KitModules(r.Context(), actor)
 	return http.StatusOK, map[string]any{"hash": hash, "modules": modules}, err
+}
+
+// nativeCatalog serves the snapshot of the application's native contracts, the
+// offline input of `iota-ext kit generate --catalog`.
+func (a *API) nativeCatalog(_ http.ResponseWriter, _ *http.Request, actor spi.Subject) (int, any, error) {
+	snap, err := a.svc.NativeSnapshot(actor)
+	return http.StatusOK, snap, err
 }
 
 func (a *API) kitModule(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {

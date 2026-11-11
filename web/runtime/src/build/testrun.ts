@@ -9,7 +9,8 @@ import type * as Esbuild from "esbuild";
 import { runGraph } from "./graphs.ts";
 import type { Layout } from "./layout.ts";
 import type { Diagnostic, PackageRequest, TestCaseResult, TestResponse } from "./protocol.ts";
-import { errorMessage, listFiles, normalizeDiagnostics } from "./util.ts";
+import { typecheck } from "./typecheck.ts";
+import { errorMessage, hasErrors, listFiles, normalizeDiagnostics } from "./util.ts";
 
 const TEST_FILE = /\.test\.(?:[cm]?ts|[cm]?js)$/;
 const CASE_TIMEOUT_MS = 10_000;
@@ -19,9 +20,20 @@ interface ChildReport {
   cases: TestCaseResult[];
 }
 
-function runChild(layout: Layout, cwd: string, files: { file: string; path: string }[]): Promise<ChildReport> {
+interface ChildFile {
+  /** Test file relative to the package. */
+  file: string;
+  /** The bundle to import. */
+  path: string;
+  /** Its source map (sources are relative to `base`). */
+  map: string;
+  /** Directory the map's sources are relative to (esbuild's virtual outdir). */
+  base: string;
+}
+
+function runChild(layout: Layout, cwd: string, files: ChildFile[]): Promise<ChildReport> {
   const script = join(dirname(layout.workerFile), "test-child.mjs");
-  const config = { loader: layout.loaderURL, files, caseTimeoutMs: CASE_TIMEOUT_MS };
+  const config = { loader: layout.loaderURL, files, caseTimeoutMs: CASE_TIMEOUT_MS, internal: [layout.hostDir, dirname(layout.workerFile)] };
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["--no-warnings", script, JSON.stringify(config)], {
       cwd,
@@ -48,10 +60,22 @@ function runChild(layout: Layout, cwd: string, files: { file: string; path: stri
 export async function runTests(esbuild: typeof Esbuild, layout: Layout, req: PackageRequest): Promise<TestResponse> {
   const diagnostics: Diagnostic[] = [];
   const cases: TestCaseResult[] = [];
-  const found = listFiles(req.dir, (rel) => rel.split("/").some((s) => s === "node_modules" || s.startsWith("."))).filter((f) => TEST_FILE.test(f));
+  // A test that does not compile must not run (and its type errors are the useful output).
+  if (req.typecheck !== false) {
+    try {
+      diagnostics.push(...typecheck(req.dir, layout, req.kit));
+    } catch (err) {
+      diagnostics.push({ file: "package.json", severity: "error", code: "typecheck.failed", message: errorMessage(err) });
+    }
+    if (hasErrors(diagnostics)) return { diagnostics: normalizeDiagnostics(diagnostics), cases };
+  }
+  const wanted = req.filter ?? [];
+  const found = listFiles(req.dir, (rel) => rel.split("/").some((s) => s === "node_modules" || s.startsWith("."))).filter(
+    (f) => TEST_FILE.test(f) && (wanted.length === 0 || wanted.some((w) => f.includes(w))),
+  );
   const scratch = mkdtempSync(join(req.outDir, "tests-"));
   try {
-    const bundles: { file: string; path: string }[] = [];
+    const bundles: ChildFile[] = [];
     for (const [i, file] of found.entries()) {
       const out = `test-${i}`;
       const graph = await runGraph(esbuild, { mode: "test", dir: req.dir, layout, kit: req.kit, entry: join(req.dir, file), outName: out });
@@ -65,7 +89,9 @@ export async function runTests(esbuild: typeof Esbuild, layout: Layout, req: Pac
       const path = join(scratch, `${out}.mjs`);
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, bytes);
-      bundles.push({ file, path });
+      const map = `${path}.map`;
+      writeFileSync(map, graph.files.get(`${out}.mjs.map`) ?? "{}");
+      bundles.push({ file, path, map, base: join(req.dir, ".iota-out") });
     }
     if (bundles.length > 0) {
       try {

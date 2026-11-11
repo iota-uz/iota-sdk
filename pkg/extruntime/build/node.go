@@ -122,9 +122,16 @@ type buildResponse struct {
 	Artifacts   []string         `json:"artifacts"`
 }
 
+// workerCase is a TestCase plus the source-mapped frames of a failure, which
+// Test folds into the message.
+type workerCase struct {
+	TestCase
+	Frames []string `json:"frames,omitempty"`
+}
+
 type testResponse struct {
 	Diagnostics []Diagnostic `json:"diagnostics"`
-	Cases       []TestCase   `json:"cases"`
+	Cases       []workerCase `json:"cases"`
 }
 
 type kitResponse struct {
@@ -184,8 +191,26 @@ func (b *NodeBuilder) Test(ctx context.Context, src Tree, kit Kit) (TestReport, 
 	if _, err := b.runPackage(ctx, "test", src, kit, &resp, nil); err != nil {
 		return TestReport{}, err
 	}
-	report := TestReport{Passed: !hasErrors(resp.Diagnostics), Cases: resp.Cases}
-	for _, c := range resp.Cases {
+	report := TestReport{Passed: !hasErrors(resp.Diagnostics)}
+	for _, wc := range resp.Cases {
+		c := wc.TestCase
+		if len(wc.Frames) > 0 {
+			c.Message += "\n    at " + strings.Join(wc.Frames, "\n    at ")
+		}
+		report.Cases = append(report.Cases, c)
+	}
+	// A package that does not compile is not run: its type errors are the report.
+	for _, d := range resp.Diagnostics {
+		if d.Severity != SeverityError {
+			continue
+		}
+		where := d.File
+		if d.Line > 0 {
+			where = fmt.Sprintf("%s:%d:%d", d.File, d.Line, d.Column)
+		}
+		report.Cases = append(report.Cases, TestCase{Name: "compile " + d.File, File: d.File, Message: fmt.Sprintf("%s %s: %s", where, d.Code, d.Message)})
+	}
+	for _, c := range report.Cases {
 		if !c.Passed {
 			report.Passed = false
 		}

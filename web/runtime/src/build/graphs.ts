@@ -293,6 +293,8 @@ export async function runGraph(esbuild: typeof Esbuild, env: GraphEnv): Promise<
     assetNames: "asset-[hash]",
     outExtension: { ".js": client ? ".js" : ".mjs" },
     tsconfigRaw: { compilerOptions: {} },
+    // Test bundles carry a source map so a failing assertion is reported at the author's .ts line.
+    ...(env.mode === "test" ? { sourcemap: "external" as const, sourcesContent: false } : {}),
     define: client ? { "process.env.NODE_ENV": '"production"' } : {},
     // Contracts are pure ESM (no Node shims); server and Node-side bundles may bundle CommonJS dependencies.
     ...(client || env.mode === "contracts" ? {} : { banner: { js: REQUIRE_SHIM } }),

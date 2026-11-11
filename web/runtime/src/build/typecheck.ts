@@ -60,8 +60,34 @@ export function sourceFiles(dir: string): string[] {
     .map((f) => posix.join(dir, f));
 }
 
+/**
+ * Arity errors cannot carry a type-level message, so the ones authors hit are explained here:
+ * `tx.start(W, input)` outside a subscription or workflow lacks its required start key.
+ */
+function hintFor(d: ts.Diagnostic): string | undefined {
+  if (d.code !== 2554 || d.file === undefined || d.start === undefined) return undefined;
+  const at = d.start;
+  let hint: string | undefined;
+  const visit = (node: ts.Node): void => {
+    if (hint !== undefined || at < node.getFullStart() || at > node.getEnd()) return;
+    ts.forEachChild(node, visit);
+    if (
+      hint === undefined &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "start" &&
+      node.arguments.length === 2
+    ) {
+      hint = "hint: tx.start needs a start key outside subscriptions and workflows: tx.start(Workflow, input, { key })";
+    }
+  };
+  visit(d.file);
+  return hint;
+}
+
 export function toDiagnostic(dir: string, d: ts.Diagnostic): Diagnostic | undefined {
-  const message = ts.flattenDiagnosticMessageText(d.messageText, "\n");
+  const hint = hintFor(d);
+  const message = ts.flattenDiagnosticMessageText(d.messageText, "\n") + (hint === undefined ? "" : `\n${hint}`);
   const severity = d.category === ts.DiagnosticCategory.Error ? "error" : d.category === ts.DiagnosticCategory.Warning ? "warning" : undefined;
   if (severity === undefined) return undefined;
   if (d.file === undefined || d.start === undefined) {

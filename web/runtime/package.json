@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/build-host.mjs && node scripts/build-worker.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json && tsc --noEmit -p src/host/tsconfig.json && tsc --noEmit -p src/build/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json && tsc --noEmit -p src/host/tsconfig.json && tsc --noEmit -p src/build/tsconfig.json && tsc --noEmit -p src/cli/tsconfig.json",
     "typecheck:types": "tsc --noEmit -p tsconfig.typetests.json",
     "test": "vitest run && pnpm test:client-host",
     "build-host": "node scripts/build-host.mjs",

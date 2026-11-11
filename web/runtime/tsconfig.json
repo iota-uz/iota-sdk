@@ -31,6 +31,7 @@
     "src/client-host/browser/*.spec.ts",
     "src/client-host/browser/*.config.ts",
     "src/client-host/browser/_ext",
-    "src/build"
+    "src/build",
+    "src/cli"
   ]
 }

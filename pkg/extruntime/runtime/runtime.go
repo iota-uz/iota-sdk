@@ -215,7 +215,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	}
 	lists := cfg.NativeLists
 	if len(lists) == 0 {
-		lists = []string{data.NativeClientList}
+		lists = data.DefaultNativeLists()
 	}
 	for _, l := range lists {
 		if err := rt.Natives.RegisterList(l); err != nil {

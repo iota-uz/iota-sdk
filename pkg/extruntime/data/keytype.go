@@ -28,6 +28,20 @@ func (k KeyType) valid() bool {
 	return false
 }
 
+// Wire is the manifest name of the key type ("uuid" | "int64" | "string"),
+// as published in Resource.KeyType and the developer kit: a serial integer
+// travels as int64, text as string.
+func (k KeyType) Wire() string {
+	switch k {
+	case KeyUUID:
+		return "uuid"
+	case KeyInt, KeyInt64:
+		return "int64"
+	default:
+		return "string"
+	}
+}
+
 // SQL is the column type.
 func (k KeyType) SQL() string {
 	switch k {

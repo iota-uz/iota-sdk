@@ -54,7 +54,7 @@ func (n NativeEntity) field(id string) (NativeField, bool) {
 // Resource renders the descriptor as a catalog resource (kind entity), so a
 // catalog can publish it in the developer kit.
 func (n NativeEntity) Resource() manifest.Resource {
-	r := manifest.Resource{ID: n.ID, Kind: manifest.ResEntity, Label: n.Label}
+	r := manifest.Resource{ID: n.ID, Kind: manifest.ResEntity, Label: n.Label, KeyType: n.KeyType.Wire()}
 	for _, f := range n.Fields {
 		r.Fields = append(r.Fields, manifest.Field{ID: f.ID, Type: f.Type})
 	}
@@ -209,6 +209,10 @@ func CRMClient() NativeEntity {
 		},
 	}
 }
+
+// DefaultNativeLists are the native lists the SDK publishes for packages to
+// extend with columns when the application declares none of its own.
+func DefaultNativeLists() []string { return []string{NativeClientList} }
 
 // DefaultNatives registers the SDK's native descriptors.
 func DefaultNatives() *NativeRegistry {

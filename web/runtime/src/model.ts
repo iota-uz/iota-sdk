@@ -147,6 +147,8 @@ export interface ResourceJSON {
   fields?: FieldJSON[]
   base?: string
   access?: AccessJSON
+  /** Native entities only: the type of the record key (package entities are always uuid). */
+  keyType?: 'int64' | 'uuid' | 'string'
   atomic?: true
   input?: TypeJSON
   output?: TypeJSON

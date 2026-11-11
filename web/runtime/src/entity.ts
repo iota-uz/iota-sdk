@@ -212,18 +212,38 @@ export type OrderPathOf<E> = PathOfKind<PathLeaves<Fields<E>>, Orderable>
 
 type Val<V> = NonNullable<V> extends UserRef ? V | UserPlaceholder : V
 
-/** The conditions a field of wire kind `N` supports: ranges only on orderable kinds, `like` only on strings. */
+/** Name of a wire kind in the hints below (`key` and `ref` read better as they are). */
+type KindName<N extends string> = N extends 'string' ? 'string' : N
+
+/**
+ * The conditions a field of wire kind `N` supports: ranges only on orderable kinds, `like` only on strings.
+ * An operator the kind lacks is typed as a `Hint`, so using it names the reason in the error text.
+ */
 export type Ops<V, N extends string = string> = N extends 'key'
-  ? { eq?: V; in?: readonly V[] }
+  ? { eq?: V; in?: readonly V[]; ne?: Hint<'key supports only eq and in'>; lt?: Hint<'key supports only eq and in'>; gt?: Hint<'key supports only eq and in'> }
   : { eq?: Val<V>; ne?: Val<V>; in?: readonly Val<V>[]; isNull?: boolean } & ([N] extends [Orderable]
       ? { lt?: NonNullable<V>; lte?: NonNullable<V>; gt?: NonNullable<V>; gte?: NonNullable<V> }
-      : unknown) &
-      ([N] extends ['string'] ? { like?: string } : unknown)
+      : {
+          lt?: Hint<`${KindName<N>} fields cannot be compared with lt/lte/gt/gte: ranges need int, int64, decimal, date, datetime or string`>
+          lte?: Hint<`${KindName<N>} fields cannot be compared with lt/lte/gt/gte: ranges need int, int64, decimal, date, datetime or string`>
+          gt?: Hint<`${KindName<N>} fields cannot be compared with lt/lte/gt/gte: ranges need int, int64, decimal, date, datetime or string`>
+          gte?: Hint<`${KindName<N>} fields cannot be compared with lt/lte/gt/gte: ranges need int, int64, decimal, date, datetime or string`>
+        }) &
+      ([N] extends ['string'] ? { like?: string } : { like?: Hint<`like needs a string field, not ${KindName<N>}`> })
 
 /** Conjunction of conditions on fields or ref paths; a bare value means equality. */
 export type Where<E> = {
-  [L in PathLeaves<Fields<E>> as L[2] extends 'json' ? never : L[0]]?: Val<L[1]> | Ops<L[1], L[2]>
+  [L in PathLeaves<Fields<E>> as L[0]]?: L[2] extends 'json' ? Hint<`json field '${L[0]}' cannot be filtered: filter on a typed field`> : Val<L[1]> | Ops<L[1], L[2]>
 } & { or?: readonly Where<E>[] }
+
+type OrderEntries<E> = {
+  [L in PathLeaves<Fields<E>> as L[0]]: L[2] extends Orderable
+    ? { field: L[0]; desc?: boolean }
+    : { field: L[0]; desc?: boolean } & Hint<`cannot order by '${L[0]}': ${KindName<L[2]>} fields have no database order; order by an int, int64, decimal, date, datetime or string field, or createdAt/updatedAt`>
+}
+
+/** One `orderBy` entry: an orderable path; any other path is accepted by the types only to explain, in the error text, why not. */
+export type OrderBy<E> = OrderEntries<E>[keyof OrderEntries<E>]
 
 const opKeys = new Set(['eq', 'ne', 'in', 'lt', 'lte', 'gt', 'gte', 'isNull', 'like'])
 

@@ -25,6 +25,10 @@ export interface KitPayload {
 
 export interface PackageRequest {
   op: "check" | "build" | "test";
+  /** `test` only: typecheck the package first and run nothing when it does not compile (default true). */
+  typecheck?: boolean;
+  /** `test` only: run just the test files whose path contains one of these strings. */
+  filter?: readonly string[];
   /** Materialized source tree. */
   dir: string;
   /** Scratch/output directory; artifacts are written below it. */
@@ -55,12 +59,23 @@ export interface BuildResponse {
   artifacts: string[];
 }
 
+export interface SourceLocation {
+  file: string;
+  line: number;
+  column: number;
+}
+
 export interface TestCaseResult {
   name: string;
+  /** The test file (relative to the package). */
   file: string;
   passed: boolean;
   message?: string;
   durationMs: number;
+  /** Failure only: where in the author's source the failure surfaced (source-mapped, relative to the package). */
+  location?: SourceLocation;
+  /** Failure only: the source-mapped frames of the author's code and its dependencies, innermost first. */
+  frames?: string[];
 }
 
 export interface TestResponse {

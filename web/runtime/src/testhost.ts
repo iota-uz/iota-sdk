@@ -8,23 +8,27 @@
 //     commands; native entities reject generic writes;
 //   * emit/notify/start/signal are recorded on commit and discarded on rollback; signals reach the in-memory
 //     workflow run of the instance (or wait in its inbox until the test creates the run);
+//   * with `templates`, a committed notice is rendered and delivered per recipient and channel to the fake
+//     sms/email/push/inApp channels (`host.deliveries` records every outcome); address recipients are used
+//     as given, record recipients go through `contacts` or a bound contactResolver, user recipients read
+//     their `core.user` fixture;
 //   * `q.query` / `tx.query` / `ctx.query` run the bound query in the same snapshot (transaction state inside a
 //     transaction, the committed state the call started from otherwise) with the caller's rights;
 //   * precheck / guard / write-rule handlers get a read-only context (no write members), like the worker;
 //   * rows carry their typed `ref`; handlers may be synchronous;
 //   * workflow primitives are journaled by (name, n) and driven by the test: a task/signal/sleep that is
 //     not satisfied suspends the run, exactly like the replay engine.
-import type { Command, Callable, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
+import type { Command, Callable, ContactResolver, ContactTargets, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
 import { compileFilter } from './entity.ts'
 import type { AnyEntity, AnyOverlay } from './entity.ts'
 import { type FakeEffects, fakeEffects } from './fakes.ts'
 import { EPOCH, OVERLAY_OF, type Fixture } from './fixtures.ts'
-import type { ConditionJSON, FilterJSON, ISODateTime, Json, ReadRuleJSON, TypeJSON } from './model.ts'
+import type { Channel, ConditionJSON, FilterJSON, ISODateTime, Json, ReadRuleJSON, TypeJSON } from './model.ts'
 import type { AnySchema, Infer, Ref } from './schema.ts'
 import type {
   Awaitable, CommandContext, Duration, FindQuery, GuardContext, Implementation, Implementable, InvocationInfo, Logger, OperationGuard,
-  Principal, PrecheckGuard, QueryContext, ReadContext, Reader, SignalPayload, SignalResult, StepContext, Subscription, SubscriptionEvent,
-  TaskResult, TaskSpec, TriggerKind, Tx, WorkflowContext, WorkflowInstance, WriteRule,
+  Principal, PrecheckGuard, QueryContext, ReadContext, Reader, Recipient, SignalPayload, SignalResult, StepContext, Subscription, SubscriptionEvent,
+  TaskResult, TaskSpec, AnyTemplates, TriggerKind, Tx, WorkflowContext, WorkflowInstance, WriteRule,
 } from './server.ts'
 import { decode, encode, validate } from './wire.ts'
 
@@ -105,6 +109,26 @@ export interface StartedWorkflow {
   readonly input: Json
 }
 
+export type DeliveryStatus = 'delivered' | 'failed' | 'skipped'
+
+/**
+ * What became of one notice for one recipient on one channel (one row per resolved target). `skipped` means the
+ * message was never attempted (no template for the channel, no address, no contact data); `failed` means the fake
+ * channel rejected it (`fakes.<channel>.failNext(...)`) or the template threw.
+ */
+export interface Delivery {
+  readonly notice: string
+  readonly channel: Channel
+  readonly recipient: Recipient
+  /** The phone number, e-mail address or user key the message went to; absent when none could be resolved. */
+  readonly target: string | undefined
+  readonly status: DeliveryStatus
+  /** Why the delivery was skipped or failed. */
+  readonly reason?: string
+  /** The rendered message handed to the fake channel. */
+  readonly content?: Json
+}
+
 type AnyWorkflow = Workflow<string, AnySchema, AnySchema | undefined, Readonly<Record<string, AnySchema>>>
 
 /**
@@ -122,8 +146,22 @@ export interface TestHostOptions {
   /** Definitions the host cannot learn from calls (targets of ref paths such as "holder.owner"). */
   entities?: readonly (AnyEntity | AnyOverlay)[]
   fakes?: FakeEffects
-  /** Handlers `tx.call`, `ctx.call` and `wf.call` dispatch to, by contract ID. */
-  implementations?: readonly Implementation[]
+  /**
+   * Handlers `tx.call`, `ctx.call` and `wf.call` dispatch to, by contract ID. `templates(...)` exports and
+   * `contactResolver` implementations listed here are used by notice delivery as well.
+   */
+  implementations?: readonly (Implementation | AnyTemplates)[]
+  /**
+   * The package's `templates(...)` exports. With any templates (here or in `implementations`) a committed
+   * `tx.notify` is rendered and delivered to `fakes`; a notice without templates is then a `notify.noTemplates`
+   * error, like in the runtime. Without templates, notices are only recorded in `host.notices`.
+   */
+  templates?: readonly AnyTemplates[]
+  /**
+   * Contact data of record recipients (`recipient.record(ref)`), answered before a bound `contactResolver`.
+   * Return `undefined` to fall through to the resolver.
+   */
+  contacts?: (record: Ref) => ContactTargets | undefined | Promise<ContactTargets | undefined>
   guards?: readonly TestGuard[]
   user?: { id?: string; permissions?: readonly string[]; locale?: string; kind?: 'initiator' | 'owner' }
   secrets?: Readonly<Record<string, string>>
@@ -170,6 +208,8 @@ export interface TestHost {
   /** Committed outbox. */
   readonly emitted: readonly EmittedEvent[]
   readonly notices: readonly SentNotice[]
+  /** Outcome of every notice delivery attempt (needs `templates`), in delivery order. */
+  readonly deliveries: readonly Delivery[]
   readonly started: readonly StartedWorkflow[]
   /** Committed signals, in delivery order. */
   readonly signals: readonly DeliveredSignal[]
@@ -307,9 +347,16 @@ class Store {
 type Def = AnyEntity | AnyOverlay
 const isOverlay = (d: Def): d is AnyOverlay => d.kind === 'overlay'
 
+interface PendingNotice {
+  readonly sent: SentNotice
+  readonly schema: AnySchema
+  /** Stable per-host sequence: part of the idempotency key of each message. */
+  readonly seq: string
+}
+
 interface Pending {
   emitted: EmittedEvent[]
-  notices: SentNotice[]
+  notices: PendingNotice[]
   started: StartedWorkflow[]
   signals: DeliveredSignal[]
 }
@@ -334,7 +381,8 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
 
   let store = new Store()
   const defs = new Map<string, Def>()
-  const committed: Pending = { emitted: [], notices: [], started: [], signals: [] }
+  const committed = { emitted: [] as EmittedEvent[], notices: [] as SentNotice[], started: [] as StartedWorkflow[], signals: [] as DeliveredSignal[] }
+  const deliveries: Delivery[] = []
   const logs: { level: string; message: string }[] = []
   const impls = new Map<string, Implementation>()
   const writeRules = new Map<string, AnyWriteRule[]>()
@@ -354,7 +402,12 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     if (!defs.has(def.id)) defs.set(def.id, def)
   }
   for (const d of options.entities ?? []) register(d)
-  for (const impl of options.implementations ?? []) impls.set(impl.contract.id, impl)
+  const templateSets = new Map<string, AnyTemplates>()
+  for (const item of options.implementations ?? []) {
+    if (item.serverKind === 'templates') templateSets.set(item.notice.id, item)
+    else impls.set(item.contract.id, item)
+  }
+  for (const set of options.templates ?? []) templateSets.set(set.notice.id, set)
   const push = <T>(map: Map<string, T[]>, id: string, value: T): void => void map.set(id, [...(map.get(id) ?? []), value])
   for (const g of options.guards ?? []) {
     if (g.phase === 'write') push(writeRules, g.target.id, g)
@@ -783,7 +836,11 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
         guard()
         if (notice.subject !== undefined && args.subject?.entity !== notice.subject.id) fail('runtime.invalidInput', `notice "${notice.id}" needs a subject of "${notice.subject.id}"`)
         if (args.to.length === 0 || args.channels.length === 0) fail('runtime.invalidInput', `notice "${notice.id}" needs recipients and channels`)
-        scope.pending.notices.push({ notice: notice.id, subject: args.subject, payload: encode(notice.payload, args.payload as never), to: json(args.to), channels: [...args.channels] })
+        if (templateSets.size > 0 && !templateSets.has(notice.id)) {
+          fail('notify.noTemplates', `no templates(...) for notice "${notice.id}" are bound in this test host; pass them in createTestHost({ templates })`)
+        }
+        const sent: SentNotice = { notice: notice.id, subject: args.subject, payload: encode(notice.payload, args.payload as never), to: json(args.to), channels: [...args.channels] }
+        scope.pending.notices.push({ sent, schema: notice.payload, seq: nextId('ntc') })
       },
       start: async (wf: Workflow, input: unknown, opts?: { key?: string }) => {
         guard()
@@ -803,11 +860,82 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     return tx as unknown as Tx<'plain'> & Tx<'derived'>
   }
 
-  const flush = (pending: Pending): void => {
+  // ---- notice delivery (after commit, like the runtime: rendering and providers never roll a transaction back)
+
+  const channelTargets = async (recipient: Recipient, channel: Channel, locale: { value: string }): Promise<{ targets: string[]; reason?: string }> => {
+    if (recipient.kind === 'address') {
+      const address = recipient.address[channel]
+      return address === undefined || address === '' ? { targets: [], reason: `the address has no ${channel} entry` } : { targets: [address] }
+    }
+    if (recipient.kind === 'user') {
+      const key = recipient.user.key
+      const row = store.table('core.user').get(key)
+      if (row === undefined) {
+        return { targets: [], reason: `no core.user fixture with key "${key}": add fixture(core.User, { ... }, { key: "${key}" }) to createTestHost({ fixtures })` }
+      }
+      if (typeof row.uiLanguage === 'string' && row.uiLanguage !== '') locale.value = row.uiLanguage
+      const value = channel === 'sms' ? row.phone : channel === 'email' ? row.email : key
+      return typeof value === 'string' && value !== '' ? { targets: [value] } : { targets: [], reason: `the core.user fixture "${key}" has no ${channel === 'sms' ? 'phone' : 'email'}` }
+    }
+    if (channel === 'inApp') return { targets: [], reason: 'inApp notifications address ERP users, not records' }
+    const record = recipient.record
+    let found = options.contacts === undefined ? undefined : await options.contacts(record)
+    if (found === undefined) {
+      const resolver = [...impls.values()].find((i) => i.contract.kind === 'contactResolver' && (i.contract as ContactResolver).entity.id === record.entity)
+      if (resolver === undefined) {
+        return { targets: [], reason: `no contact data for ${record.entity}: pass createTestHost({ contacts }) or bind its contactResolver in implementations` }
+      }
+      found = await (resolver.handler as unknown as (q: QueryContext, record: Ref) => Awaitable<ContactTargets>)(queryContext(), record)
+    }
+    const list = found[channel] ?? []
+    return list.length > 0 ? { targets: [...list] } : { targets: [], reason: `the contact data of ${record.entity} "${record.key}" has no ${channel} target` }
+  }
+
+  const deliverNotice = async ({ sent, schema, seq }: PendingNotice): Promise<void> => {
+    const set = templateSets.get(sent.notice)
+    const renderers = (set?.renderers ?? {}) as Partial<Record<Channel, (args: { payload: unknown; subject: unknown; locale: string }) => unknown>>
+    for (const raw of sent.to) {
+      const recipient = raw as Recipient
+      for (const channel of sent.channels as readonly Channel[]) {
+        const record = (partial: Omit<Delivery, 'notice' | 'channel' | 'recipient'>): void =>
+          void deliveries.push({ notice: sent.notice, channel, recipient, ...partial })
+        const locale = { value: user.locale ?? 'en' }
+        const resolved = await channelTargets(recipient, channel, locale)
+        if (resolved.targets.length === 0) {
+          record({ target: undefined, status: 'skipped', reason: resolved.reason ?? 'no target' })
+          continue
+        }
+        const render = renderers[channel]
+        for (const target of resolved.targets) {
+          if (render === undefined) {
+            record({ target, status: 'skipped', reason: `the templates of ${sent.notice} have no ${channel} renderer` })
+            continue
+          }
+          let content: Json
+          const idempotencyKey = `${seq}:${channel}:${target}`
+          try {
+            const rendered = await render({ payload: decode(schema, sent.payload as never), subject: sent.subject, locale: locale.value })
+            content = json(rendered as Json)
+            if (channel === 'sms') await fakes.sms.send({ to: target, text: String(rendered), idempotencyKey })
+            else if (channel === 'email') await fakes.email.send({ to: target, ...(rendered as { subject: string; html: string; text?: string }), idempotencyKey })
+            else if (channel === 'push') await fakes.push.send({ to: target, ...(rendered as { title: string; body: string; data?: Readonly<Record<string, string>> }), idempotencyKey })
+            else await fakes.inApp.send({ to: target, ...(rendered as { title: string; body: string; url?: string }), idempotencyKey })
+          } catch (e) {
+            record({ target, status: 'failed', reason: e instanceof Error ? e.message : String(e) })
+            continue
+          }
+          record({ target, status: 'delivered', content })
+        }
+      }
+    }
+  }
+
+  const flush = async (pending: Pending): Promise<void> => {
     committed.emitted.push(...pending.emitted)
-    committed.notices.push(...pending.notices)
+    committed.notices.push(...pending.notices.map((n) => n.sent))
     committed.started.push(...pending.started)
     for (const signal of pending.signals) deliverSignal(signal)
+    if (templateSets.size > 0) for (const n of pending.notices) await deliverNotice(n)
   }
 
   /** Runs `body` in a transaction on a working copy: adopted on success, discarded on throw. */
@@ -818,7 +946,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       const result = await body(tx)
       scope.open = false
       store = scope.store
-      flush(scope.pending)
+      await flush(scope.pending)
       return result
     } catch (e) {
       scope.open = false
@@ -1087,6 +1215,9 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     },
     get notices() {
       return committed.notices
+    },
+    get deliveries() {
+      return deliveries
     },
     get started() {
       return committed.started

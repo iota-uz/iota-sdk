@@ -29,6 +29,15 @@ export interface PushMessage {
   to: string
   title: string
   body: string
+  data?: Readonly<Record<string, string>>
+  idempotencyKey?: string
+}
+/** An in-app notification for an ERP user (`to` is the user key). */
+export interface InAppMessage {
+  to: string
+  title: string
+  body: string
+  url?: string
   idempotencyKey?: string
 }
 
@@ -118,11 +127,18 @@ function fakeHttp(): FakeHttp {
   }
 }
 
-/** Registry of fake external effects a test wires into step/transaction code under test. */
+/**
+ * Registry of fake external effects a test wires into step/transaction code under test.
+ *
+ * `createTestHost` delivers committed `tx.notify` calls to `sms`, `email`, `push` and `inApp` (rendering the
+ * package's `templates` first); `http` backs `fetch`: while a test host exists, `fetch(url)` in the code under
+ * test is answered by `http.route(method, url, response)` and an unrouted request throws `UnmatchedRequestError`.
+ */
 export interface FakeEffects {
   readonly sms: FakeChannel<SmsMessage>
   readonly email: FakeChannel<EmailMessage>
   readonly push: FakeChannel<PushMessage>
+  readonly inApp: FakeChannel<InAppMessage>
   readonly http: FakeHttp
   reset(): void
 }
@@ -131,16 +147,19 @@ export function fakeEffects(): FakeEffects {
   const sms = fakeChannel<SmsMessage>('sms')
   const email = fakeChannel<EmailMessage>('email')
   const push = fakeChannel<PushMessage>('push')
+  const inApp = fakeChannel<InAppMessage>('inApp')
   const http = fakeHttp()
   return {
     sms,
     email,
     push,
+    inApp,
     http,
     reset() {
       sms.reset()
       email.reset()
       push.reset()
+      inApp.reset()
       http.reset()
     },
   }

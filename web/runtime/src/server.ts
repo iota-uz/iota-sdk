@@ -1,7 +1,7 @@
 // Server graph: implementations and the context interfaces the Node worker host provides.
 // This file is pure: no Node, DOM or solid imports. Handlers never reach the client graph.
 import type {
-  AnyEntity, AnyOverlay, Hint, InsertOf, OrderPathOf, OwnEntity, PatchOf, RecordOf, RefTo, Row, Where,
+  AnyEntity, AnyOverlay, Hint, InsertOf, OrderBy, OwnEntity, PatchOf, RecordOf, RefTo, Row, Where,
 } from './entity.ts'
 import type {
   AtomicCommand, Callable, Command, ContactResolver, ContactTargets, DeliveryPolicy, Event, InputOf, Notice, Operation,
@@ -49,7 +49,7 @@ export interface FindQuery<E> {
   /** Field keys, system columns or dotted ref paths such as "holder.owner". Access rules apply before filter, count and paging. */
   where?: Where<E>
   /** Orderable fields and `createdAt` / `updatedAt` (also through refs). */
-  orderBy?: readonly { field: OrderPathOf<E>; desc?: boolean }[]
+  orderBy?: readonly OrderBy<E>[]
   /** Default 100, maximum 1000. */
   limit?: number
   offset?: number
@@ -146,16 +146,23 @@ type WfCallable<C> = C extends OrdinaryCommand | AtomicCommand
 
 type AnyCallable = Callable | OrdinaryCommand | Query
 
+/** Generic writes take the package's own entities; anything else resolves to a readable message. */
+type OwnOnly<E> = E extends OwnEntity
+  ? E
+  : E extends AnyEntity
+    ? Hint<`'${E['id']}' belongs to the platform or another package: its data changes through a published operation (tx.call), not tx.insert/update/delete`>
+    : Hint<'only entities declared by this package can be written'>
+
 /**
  * The Go-owned transaction handle. `K` is "plain" where the caller must name a start key
  * and "derived" inside subscriptions and workflows, where the host derives it.
  */
 export interface Tx<K extends 'plain' | 'derived' = 'plain'> extends ReadContext {
   /** Own entities only; native writes go through published operations. */
-  insert<E extends OwnEntity>(entity: E, values: InsertOf<E>): Promise<RecordOf<E>>
+  insert<E extends AnyEntity>(entity: OwnOnly<E>, values: InsertOf<E>): Promise<RecordOf<E>>
   /** With `rowVersion`, fails with a version conflict unless the row is still at that version. */
-  update<E extends OwnEntity>(entity: E, ref: RefTo<E>, patch: PatchOf<E>, options?: { rowVersion?: number }): Promise<RecordOf<E>>
-  delete<E extends OwnEntity>(entity: E, ref: RefTo<E>): Promise<void>
+  update<E extends AnyEntity>(entity: OwnOnly<E>, ref: RefTo<E>, patch: PatchOf<E>, options?: { rowVersion?: number }): Promise<RecordOf<E>>
+  delete<E extends AnyEntity>(entity: OwnOnly<E>, ref: RefTo<E>): Promise<void>
   /** Upserts the 1:1 overlay row of `base`; omitted fields keep their value (or default). */
   put<O extends AnyOverlay>(overlay: O, base: RefTo<O['base']>, values: PatchOf<O>): Promise<RecordOf<O>>
   /** Operations and atomic commands join this transaction. Ordinary commands are rejected. */
@@ -477,6 +484,14 @@ export interface Templates<N extends AnyNotice = AnyNotice> {
   readonly serverKind: 'templates'
   readonly notice: N
   readonly renderers: TemplateSet<N>
+}
+
+/** Any templates value regardless of its notice (renderer arguments erased, so `Templates<N>` is assignable). */
+export interface AnyTemplates {
+  readonly [RESOURCE]: true
+  readonly serverKind: 'templates'
+  readonly notice: AnyNotice
+  readonly renderers: { readonly [K in keyof TemplateSet<AnyNotice>]?: (args: never) => unknown }
 }
 
 export function templates<N extends AnyNotice>(notice: N, renderers: TemplateSet<N>): Templates<N> {

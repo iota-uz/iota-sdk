@@ -216,7 +216,7 @@ class Generator {
     const subject = (): string => (r.subject === undefined ? "" : `subject: ${this.expr(r.id, r.subject)}, `);
     switch (r.kind) {
       case "entity":
-        return `${this.use("nativeEntity")}(${q(r.id)}, ${this.fields(r.id, r.fields)}, { key: "string" })`;
+        return `${this.use("nativeEntity")}(${q(r.id)}, ${this.fields(r.id, r.fields)}, { key: ${q(r.keyType ?? "string")} })`;
       case "overlay": {
         const opts = [r.label !== undefined ? `label: ${q(r.label)}` : "", r.description !== undefined ? `description: ${q(r.description)}` : ""].filter(Boolean);
         return `foreign(${this.use("overlay")}(${q(r.id)}, ${this.expr(r.id, r.base ?? "")}, ${this.fields(r.id, r.fields)}${opts.length > 0 ? `, { ${opts.join(", ")} }` : ""}))`;
