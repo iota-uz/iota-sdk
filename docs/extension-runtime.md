@@ -479,3 +479,13 @@ queries as the session user; operations are never callable from the browser) and
 registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid and one
 runtime context per document. Native list columns: `pkg/listext` (reference consumer: CRM
 clients list + CSV/Excel export).
+
+**Engine/events (as implemented)**: `subscription_receipts.status` ∈ `done|failed|dead|blocked`
+(`blocked` = missing owner / refused subject, re-checked later). `workflow_occurrences.status`
+adds `cancelled` (set by Terminate). Activation stores `events.Watermark()` as the
+subscription's `AfterSeq`. The management slice supplies `workflow.Implementations`,
+`events.SubscriptionSource`, `events.ScheduleSource`. The workflow journal travels in
+`InvokeContext.Occurrence.journal`. Known limits: concurrent waits in `Promise.all` suspend
+sequentially; `wf.user.has()` reads current rights and is not journaled; xmin gating uses the
+cluster snapshot horizon (a long transaction anywhere delays delivery); schedule slots older
+than `Lookback` (15 min) are skipped.
