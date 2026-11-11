@@ -3,6 +3,8 @@ import { documentShellRegistry, ShellHost, type ThemeService } from '@iota-uz/sd
 import type { Component } from 'solid-js'
 import type { ShellProps } from '../client.ts'
 import { bootRuntime } from './entry.ts'
+import { SHARED_MODULES } from './shared.ts'
+import * as hooks from './hooks.ts'
 import { legacyDocument, pageData, pageDocument, runtimeContext, tick } from './fixtures.ts'
 import { buildNavModel, activateRuntimeShell, type ShellNode } from './shell.ts'
 import { RUNTIME_CONTEXT_ELEMENT_ID, readRuntimeContext } from './protocol.ts'
@@ -190,6 +192,17 @@ describe('bootRuntime', () => {
     boot.dispose()
     expect(standard.hidden).toBe(false)
     expect(document.getElementById('solid-page')).toBeNull()
+  })
+
+  it('publishes the host instances that package bundles are externalized against', () => {
+    legacyDocument(null)
+    const boot = bootRuntime(window)
+    const shared = (window as unknown as Record<symbol, Record<string, Record<string, unknown>>>)[SHARED_MODULES]!
+    expect(Object.keys(shared)).toEqual(['solid-js', 'solid-js/web', '@iota-uz/sdk/runtime/client'])
+    expect(shared['@iota-uz/sdk/runtime/client']!.useQuery).toBe(hooks.useQuery) // the very instance the pages are rendered with
+    expect(typeof shared['@iota-uz/sdk/runtime/client']!.page).toBe('function')
+    expect(typeof shared['solid-js']!.createSignal).toBe('function')
+    boot.dispose()
   })
 
   it('is a no-op on a page without runtime context', async () => {

@@ -551,7 +551,7 @@ func TestAssetsAreImmutableAndConfined(t *testing.T) {
 
 func TestIndexResolvesMostSpecificPageAndReportsConflicts(t *testing.T) {
 	mk := func(pkg string, res ...manifest.Resource) ui.ActivePackage {
-		return ui.ActivePackage{Package: pkg, Version: "v1", ArtifactHash: "h-" + pkg + "-hash", Manifest: manifest.Manifest{Resources: res}}
+		return ui.ActivePackage{Package: pkg, Version: "v1", ArtifactHash: "hhhhhhhh-" + strings.NewReplacer("@", "", "/", "-").Replace(pkg), Manifest: manifest.Manifest{Resources: res}}
 	}
 	page := func(id, path string) manifest.Resource {
 		return manifest.Resource{ID: id, Kind: manifest.ResPage, Path: path, Chunk: "c.js"}
@@ -583,4 +583,19 @@ func TestAssetPathConfinement(t *testing.T) {
 		_, valid := ui.CleanAssetPath(in)
 		assert.False(t, valid, "%q must be rejected", in)
 	}
+}
+
+func TestIndexSkipsPagesItCannotServe(t *testing.T) {
+	bad := ui.ActivePackage{Package: "@a/bad", Version: "v1", ArtifactHash: "x", Manifest: manifest.Manifest{Resources: []manifest.Resource{
+		{ID: "a.bad.short", Kind: manifest.ResPage, Path: "/short", Chunk: "c.js"},
+	}}}
+	escape := ui.ActivePackage{Package: "@a/esc", Version: "v1", ArtifactHash: "hhhhhhhh", Manifest: manifest.Manifest{Resources: []manifest.Resource{
+		{ID: "a.esc.up", Kind: manifest.ResPage, Path: "/up", Chunk: "../other/c.js"},
+		{ID: "a.esc.shell", Kind: manifest.ResShell, Chunk: "../s.js", Export: "shell"},
+	}}}
+	ix := ui.BuildIndex(&ui.Snapshot{Revision: "1", Packages: []ui.ActivePackage{bad, escape},
+		Bindings: []ui.Binding{{ID: "s", SlotKind: ui.SlotShell, Package: "@a/esc", Version: "v1", Export: "shell"}}}, nil)
+	assert.Empty(t, ix.Pages)
+	assert.Nil(t, ix.Shell)
+	assert.NotEmpty(t, ix.Diagnostics)
 }

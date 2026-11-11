@@ -39,15 +39,14 @@ var _ application.Controller = (*Controller)(nil)
 // NewController registers nothing yet; add it to the application.
 func NewController(rt *Runtime) *Controller { return &Controller{Runtime: rt} }
 
-// Descriptor declares the controller as the last-resort prefix route for
-// navigation and access purposes. The controller is ordered before every
-// other so a screen binding wins over the native route it replaces, but it
-// only matches paths that a page or binding currently serves.
+// Descriptor declares the static routes (assets, RPC). The dynamic page route
+// is not declared: it matches only paths that an activated page or binding
+// serves right now, and it is ordered before every other controller so a
+// screen binding wins over the native route it replaces.
 func (c *Controller) Descriptor() application.ControllerDescriptor {
 	return application.Descriptor(ControllerID, math.MinInt32,
-		application.AllowCollision(application.Prefix("/", application.Authenticated())),
-		application.AllowCollision(application.Prefix(AssetsPrefix, application.Authenticated())),
-		application.AllowCollision(application.Post(RPCPath, application.Authenticated())),
+		application.Prefix(AssetsPrefix, application.Authenticated()),
+		application.Post(RPCPath, application.Authenticated()),
 	)
 }
 

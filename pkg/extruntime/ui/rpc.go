@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
@@ -147,7 +148,7 @@ func (c *Controller) rpcHandler(w http.ResponseWriter, r *http.Request) {
 		Contract: req.Resource,
 		Input:    input,
 		Subject:  sub,
-		Trigger:  host.Trigger{Kind: host.TriggerUI, Ref: r.Header.Get("Referer")},
+		Trigger:  host.Trigger{Kind: host.TriggerUI, Ref: triggerRef(r)},
 	})
 	if err != nil {
 		var we *pool.WireError
@@ -174,4 +175,17 @@ func (c *Controller) rpcHandler(w http.ResponseWriter, r *http.Request) {
 		out = json.RawMessage("null")
 	}
 	writeRPC(w, http.StatusOK, rpcResponse{OK: true, Value: out, Invocation: result.InvocationID})
+}
+
+// triggerRef identifies the calling page for the invocation record: the
+// referring path, bounded; the header is client-controlled, so it is data only.
+func triggerRef(r *http.Request) string {
+	ref := r.Header.Get("Referer")
+	if u, err := url.Parse(ref); err == nil && u.Path != "" {
+		ref = u.Path
+	}
+	if len(ref) > 256 {
+		ref = ref[:256]
+	}
+	return ref
 }

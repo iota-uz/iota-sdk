@@ -154,3 +154,32 @@ func TestActivatedColumnResourceAppearsInTheCRMClientsList(t *testing.T) {
 	assert.NotContains(t, body, "Loyalty tier")
 	assert.Contains(t, body, "Bob Doe")
 }
+
+// The component composes into a real application: its controller passes the
+// route collision validation next to every module, and its middleware and
+// spotlight provider are contributed.
+func TestComponentComposesIntoAnApplication(t *testing.T) {
+	src := &fakeSource{}
+	src.set([]ui.ActivePackage{pkgV1()})
+	comp, err := ui.NewComponent(ui.Config{Source: src, Artifacts: fakeArtifacts{}, Host: hostManifest()}, nil)
+	require.NoError(t, err)
+	env := itf.Setup(t, itf.WithComponents(append(modules.Components(), comp)...))
+
+	var found bool
+	for _, c := range env.App.Controllers() {
+		if c.Descriptor().ID == ui.ControllerID {
+			found = true
+			assert.Equal(t, "/_ext/rpc", c.Descriptor().Routes[1].Path)
+		}
+	}
+	assert.True(t, found, "the page host is a controller of the application")
+	assert.NotEmpty(t, env.App.Middleware())
+	var palette bool
+	for _, p := range env.Container.SpotlightProviders() {
+		palette = palette || p.ProviderID() == "extruntime.palette"
+	}
+	assert.True(t, palette)
+
+	_, err = ui.NewComponent(ui.Config{}, nil)
+	require.Error(t, err, "a component without a source is refused")
+}

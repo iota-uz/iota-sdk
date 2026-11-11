@@ -14,6 +14,7 @@ import {
 } from '@iota-uz/sdk/client-host'
 import { documentPageData, documentTheme, mountRuntimePage, type RouteHost } from './page.ts'
 import { RPC_PATH, readRuntimeContext } from './protocol.ts'
+import { publishSharedModules } from './shared.ts'
 import { activateRuntimeShell } from './shell.ts'
 import { createRpcTransport } from './transport.ts'
 
@@ -40,6 +41,7 @@ export function bootRuntime(
 ): Boot {
   const doc = win.document
   const disposers: (() => void)[] = []
+  publishSharedModules(win)
   let shell: Promise<boolean> = Promise.resolve(false)
 
   if (documentPageData(doc)) {

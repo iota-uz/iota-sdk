@@ -202,8 +202,8 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 						}
 					}
 				}
-				if page.Pattern == "" || page.Chunk == "" || p.ArtifactHash == "" {
-					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("page %s: missing path, chunk or artifact", r.ID))
+				if page.Pattern == "" || !servableAsset(p.ArtifactHash, r.Chunk) {
+					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("page %s: missing path, or chunk/artifact cannot be served", r.ID))
 					continue
 				}
 				if prev, dup := byPattern[page.Pattern]; dup {
@@ -273,6 +273,16 @@ func BuildIndex(s *Snapshot, natives NativeRoutes) *Index {
 	return ix
 }
 
+// servableAsset reports whether the asset route can serve hash and chunk; a
+// declaration that points elsewhere would only produce a 404 in the browser.
+func servableAsset(hash, chunk string) bool {
+	if !hashPattern.MatchString(hash) {
+		return false
+	}
+	_, ok := cleanAssetPath(strings.TrimPrefix(chunk, "/"))
+	return ok
+}
+
 func normalizePattern(p string) string {
 	p = strings.TrimSpace(p)
 	if p == "" {
@@ -311,7 +321,7 @@ func (ix *Index) findPage(pkgs []ActivePackage, b Binding) *Page {
 			if r.Kind != manifest.ResPage || (r.Export != b.Export && r.ID != b.Export) {
 				continue
 			}
-			if r.Chunk == "" || p.ArtifactHash == "" {
+			if !servableAsset(p.ArtifactHash, r.Chunk) {
 				return nil
 			}
 			page := &Page{
@@ -337,7 +347,7 @@ func (ix *Index) findShell(pkgs []ActivePackage, b Binding) *ShellRenderer {
 			if r.Kind != manifest.ResShell || (r.Export != b.Export && r.ID != b.Export) {
 				continue
 			}
-			if r.Chunk == "" || p.ArtifactHash == "" {
+			if !servableAsset(p.ArtifactHash, r.Chunk) {
 				return nil
 			}
 			return &ShellRenderer{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, BindingID: b.ID}
