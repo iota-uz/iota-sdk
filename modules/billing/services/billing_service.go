@@ -291,9 +291,11 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 			return fmt.Errorf("%w: status %q", ErrTransactionNotRefundable, entity.Status())
 		}
 
-		// Written so that NaN, which fails every comparison, is refused too.
+		// Written so that NaN, which fails every comparison, is refused too. The
+		// tolerance only absorbs rounding on a positive balance; it must not make
+		// a fully refunded transaction refundable again.
 		remaining := refundableQuantity(entity)
-		if !(cmd.Quantity > 0 && cmd.Quantity <= remaining+refundTolerance) {
+		if !(remaining > 0 && cmd.Quantity > 0 && cmd.Quantity <= remaining+refundTolerance) {
 			return fmt.Errorf("%w: requested %v, refundable %v", ErrInvalidRefundAmount, cmd.Quantity, remaining)
 		}
 
@@ -302,8 +304,17 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 			return err
 		}
 
+		provider := s.providers[entity.Gateway()]
+
+		// A gateway that records refunded sums can only learn the new sum from its
+		// provider. Without one the status would change but the sum would not, and
+		// the same balance could be refunded again.
+		if _, tracked := entity.Details().(details.RefundTracker); tracked && provider == nil {
+			return fmt.Errorf("%w: no provider registered for gateway %q", ErrTransactionNotRefundable, entity.Gateway())
+		}
+
 		// If provider exists, use it
-		if provider := s.providers[entity.Gateway()]; provider != nil {
+		if provider != nil {
 			providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
 			if err != nil {
 				return err

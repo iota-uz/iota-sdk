@@ -291,6 +291,16 @@ type rendezvousProvider struct {
 	wait    time.Duration
 	calls   atomic.Int32
 	second  chan struct{}
+
+	refundedMu sync.Mutex
+	refunded   []float64
+}
+
+// refundedAmounts returns the amounts the service asked the gateway to refund.
+func (p *rendezvousProvider) refundedAmounts() []float64 {
+	p.refundedMu.Lock()
+	defer p.refundedMu.Unlock()
+	return append([]float64(nil), p.refunded...)
 }
 
 func newRendezvousProvider(gateway billing.Gateway, wait time.Duration) *rendezvousProvider {
@@ -318,7 +328,10 @@ func (p *rendezvousProvider) Cancel(_ context.Context, t billing.Transaction) (b
 	return t.SetStatus(billing.Canceled), nil
 }
 
-func (p *rendezvousProvider) Refund(_ context.Context, t billing.Transaction, _ float64) (billing.Transaction, error) {
+func (p *rendezvousProvider) Refund(_ context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
+	p.refundedMu.Lock()
+	p.refunded = append(p.refunded, quantity)
+	p.refundedMu.Unlock()
 	p.meet()
 	return t.SetStatus(billing.Refunded), nil
 }
@@ -450,6 +463,12 @@ func TestBillingService_Refund_RefusesInvalidAmount(t *testing.T) {
 		{name: "infinite", gateway: billing.Click, details: details.NewClickDetails("inf"), quantity: math.Inf(1)},
 		{name: "above total", gateway: billing.Click, details: details.NewClickDetails("above"), quantity: 1000.5},
 		{
+			name:     "nothing remains, within tolerance",
+			gateway:  billing.Octo,
+			details:  details.NewOctoDetails("settled", details.OctoWithRefundedSum(1000)),
+			quantity: 0.0005,
+		},
+		{
 			name:     "above what remains",
 			gateway:  billing.Octo,
 			details:  details.NewOctoDetails("remains", details.OctoWithRefundedSum(600)),
@@ -473,6 +492,21 @@ func TestBillingService_Refund_RefusesInvalidAmount(t *testing.T) {
 	}
 }
 
+func TestBillingService_Refund_RefusesTrackedGatewayWithoutProvider(t *testing.T) {
+	t.Parallel()
+	f := setupCommittedTest(t)
+
+	transaction := seedTransaction(t, f, billing.PartiallyRefunded, billing.Octo,
+		details.NewOctoDetails("no_provider", details.OctoWithRefundedSum(600)))
+
+	billingService := services.NewBillingService(persistence.NewBillingRepository(), nil, f.App.EventPublisher())
+	_, err := billingService.Refund(poolContext(f), &services.RefundTransactionCommand{
+		TransactionID: transaction.ID(),
+		Quantity:      400,
+	})
+	require.ErrorIs(t, err, services.ErrTransactionNotRefundable)
+}
+
 func TestBillingService_Refund_AllowsCapturedMoney(t *testing.T) {
 	t.Parallel()
 	f := setupCommittedTest(t)
@@ -489,6 +523,7 @@ func TestBillingService_Refund_AllowsCapturedMoney(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, billing.Refunded, refunded.Status())
 		assert.EqualValues(t, 1, provider.calls.Load())
+		assert.Equal(t, []float64{400}, provider.refundedAmounts(), "the gateway must receive the requested amount")
 	})
 
 	// Cash records no refunded sum, so the ceiling stays the transaction total and
