@@ -1125,7 +1125,7 @@ Both do the same things:
 6. **Operate**: `ext_workflow_*` (inspect, signal, decide tasks, terminate, restart, resolve), `ext_audit_list`,
    `ext_deactivate`, `ext_purge` (deletes the package's data).
 
-Permissions: *read* (kit, versions), *author* (drafts), *review*, *publish* (activate, bind, owners), *operate* (purge).
+Permissions: *read* (kit, versions), *author* (drafts), *review*, *publish* (activate, deactivate, purge, bind, owners), *operate* (execute, workflow actions, requeue).
 Source control is yours: `ext_export` returns the draft as a tree to commit.
 
 ## 18. Reference: where to look
