@@ -5,6 +5,8 @@
 package manifest
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -74,6 +76,10 @@ const (
 	ResSlot        ResourceKind = "slot"
 	ResCell        ResourceKind = "cell"
 	ResShell       ResourceKind = "shell"
+	// ResContactResolver publishes how a record recipient resolves to channel
+	// targets; ResDeliveryPolicy is a business consent/opt-out policy.
+	ResContactResolver ResourceKind = "contactResolver"
+	ResDeliveryPolicy  ResourceKind = "deliveryPolicy"
 )
 
 // Field is a stable, typed column of an entity or overlay. ID never changes;
@@ -90,6 +96,8 @@ type Field struct {
 
 // Condition is one comparison of a filter. Value may be the placeholder
 // {"$":"user"} meaning the current subject's user Ref.
+// Filter keys are field IDs or dotted ref paths ("holder.owner") compiled to
+// explicit joins through ref fields.
 type Condition struct {
 	Eq     json.RawMessage   `json:"eq,omitempty"`
 	Ne     json.RawMessage   `json:"ne,omitempty"`
@@ -144,12 +152,31 @@ type NavGroup struct {
 	Order int    `json:"order,omitempty"`
 }
 
+type Workspace struct {
+	ID    string `json:"id"`
+	Label Label  `json:"label"`
+	Icon  string `json:"icon,omitempty"`
+	Order int    `json:"order,omitempty"`
+}
+
+// PaletteEntry adds a command-palette/search entry pointing at a page or
+// command resource.
+type PaletteEntry struct {
+	ID       string   `json:"id"`
+	Label    Label    `json:"label"`
+	Target   string   `json:"target"`
+	Keywords []string `json:"keywords,omitempty"`
+}
+
 // Resource is a declared contract. Kind selects which fields are meaningful.
 type Resource struct {
-	ID          string       `json:"id"`
-	Kind        ResourceKind `json:"kind"`
-	Label       Label        `json:"label,omitempty"`
-	Description string       `json:"description,omitempty"`
+	ID   string       `json:"id"`
+	Kind ResourceKind `json:"kind"`
+	// ContractHash is computed by Go at publish time (ContractHashOf) from the
+	// canonical public shape; it is never authored.
+	ContractHash string `json:"contractHash,omitempty"`
+	Label        Label  `json:"label,omitempty"`
+	Description  string `json:"description,omitempty"`
 
 	// entity / overlay
 	Fields []Field `json:"fields,omitempty"`
@@ -186,8 +213,10 @@ type Resource struct {
 	Exportable bool   `json:"exportable,omitempty"`
 
 	// navigation
-	Groups  []NavGroup `json:"groups,omitempty"`
-	Patches []NavPatch `json:"patches,omitempty"`
+	Groups     []NavGroup     `json:"groups,omitempty"`
+	Patches    []NavPatch     `json:"patches,omitempty"`
+	Workspaces []Workspace    `json:"workspaces,omitempty"`
+	Palette    []PaletteEntry `json:"palette,omitempty"`
 
 	// slot / cell target (slot id or column id)
 	Target string `json:"target,omitempty"`
@@ -229,7 +258,11 @@ const (
 	GuardWrite GuardPhase = "write"
 )
 
+// Guard is an additive check with its own stable ID (used as issue source).
+// Authored as precheck(...) (input), guard(...) (operation) or
+// writeRule(...) (write).
 type Guard struct {
+	ID     string     `json:"id"`
 	Export string     `json:"export"`
 	Target string     `json:"target"`
 	Phase  GuardPhase `json:"phase"`
@@ -242,9 +275,10 @@ type Template struct {
 }
 
 type Schedule struct {
-	ID     string `json:"id"`
-	Export string `json:"export"`
-	Cron   string `json:"cron"`
+	ID       string `json:"id"`
+	Export   string `json:"export"`
+	Cron     string `json:"cron"`
+	Timezone string `json:"timezone,omitempty"`
 }
 
 type Endpoint struct {
@@ -330,4 +364,31 @@ func (m *Manifest) Validate() error {
 		exports[i.Export] = true
 	}
 	return nil
+}
+
+// ContractHashOf hashes the public, compatibility-relevant shape of a
+// resource. Labels and descriptions are excluded.
+func ContractHashOf(r Resource) string {
+	shape := struct {
+		ID      string          `json:"id"`
+		Kind    ResourceKind    `json:"kind"`
+		Atomic  bool            `json:"atomic,omitempty"`
+		Fields  []Field         `json:"fields,omitempty"`
+		Base    string          `json:"base,omitempty"`
+		Input   *Type           `json:"input,omitempty"`
+		Output  *Type           `json:"output,omitempty"`
+		Errors  []string        `json:"errors,omitempty"`
+		Params  *Type           `json:"params,omitempty"`
+		Payload *Type           `json:"payload,omitempty"`
+		Subject string          `json:"subject,omitempty"`
+		Signals map[string]Type `json:"signals,omitempty"`
+		Path    string          `json:"path,omitempty"`
+	}{r.ID, r.Kind, r.Atomic, nil, r.Base, r.Input, r.Output, r.Errors, r.Params, r.Payload, r.Subject, r.Signals, r.Path}
+	for _, f := range r.Fields {
+		f.Label = nil
+		shape.Fields = append(shape.Fields, f)
+	}
+	b, _ := json.Marshal(shape)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

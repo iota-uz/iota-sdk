@@ -401,3 +401,60 @@ transaction receipts and per-instance artifact pinning.
   receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id`.
 * Subject: event initiator's current rights; no initiator → `trigger_owners` owner-user
   (assigned at activation; activation fails without one).
+
+## 9. Revisions after architecture review (2026-11-11, Opus 5.5) — supersede §2–§8 where they differ
+
+**Persistence identities (decided now to avoid a second schema change)**
+* Single `extruntime.bindings(id, slot_kind command|screen|shell, target_id, package, version,
+  export, activated_by, active_from, active_to)` — one open row per (slot_kind, target_id)
+  application-wide. Replaces `command_bindings`; shell/screen replacement and revert use it.
+* Activation is **application-wide**; per-tenant trigger owners in `trigger_owners(trigger_id,
+  tenant_id, user_id)`. A tenant without an owner gets a `blocked` trigger run, not a failed
+  activation. `activations` carry `state active|disabled|purged`.
+* Fields: `entity_schemas` assigns each field an immutable **physical column** at first apply;
+  field keys (and `renamedFrom` aliases) map to it per package version. DataStore calls carry
+  `spi.Scope{Subject, Caller{Package, Version}}` and resolve keys through the caller version's
+  map. Activation is blocked when a running instance's pinned schema is incompatible.
+* `Resource.ContractHash` (Go `manifest.ContractHashOf`) recorded in `invocations`,
+  `workflow_occurrences`, bindings; kit snapshots in `catalog_snapshots(hash, content)`.
+* `invocations` add `parent_invocation_id, root_id, trigger_kind ui|mcp|endpoint|schedule|
+  subscription|workflow, trigger_ref, binding_id, contract_hash, result, committed_tx_count`.
+* `workflow_instances` add `parent_instance_id, start_invocation_id, blocked_reason,
+  lease_epoch`; `start_key` unique per `(tenant_id, start_key)`; start-v2 has `start_key=null`.
+  `workflow_signals` add `sender_user_id, signal_key unique`. `outbox_events` add
+  `producer_invocation_id`. `schedule_runs(tenant_id, schedule, slot)`; `Schedule.Timezone`.
+* Single table list: no `workflow_timers` table (wake_at columns), `trigger_owners` (not `owners`).
+
+**Events**: no strict seq cursor. The dispatcher reads only rows whose
+`xmin::text::xid8 < pg_snapshot_xmin(pg_current_snapshot())` (committed and visible), the
+activation watermark only excludes events older than activation. Per-row delivery state:
+`subscription_receipts(subscription, event_id, status pending|done|failed|dead, attempts,
+next_at, last_error, invocation_id)` with retry/backoff and dead-letter; one poisoned event
+does not block the subscription.
+
+**Engine**: every state write is fenced `WHERE id=$1 AND lease_epoch=$e` in the same tx as
+the occurrence write (stale runner cannot record). `invoke` for a workflow run carries the
+journal of completed occurrences so replay is answered inside Node (no O(n²) host calls);
+fan-out via child `wf.start`. Concurrent primitives (`Promise.all`) get `n` at call time; the
+run suspends only after in-flight steps record. Signal consumption + occurrence completion
+commit in one tx; task decision vs timeout is a compare-and-set on `human_tasks.status`.
+`wf.call` of an ordinary command: host increments `committed_tx_count` inside each
+`ctx.transaction`; on replay an existing outcome is returned, otherwise `blocked: ambiguous`
+showing the commit count. Management actions for blocked occurrences: `resolve(occurrence,
+result)`, `retry(occurrence)`, `resume`. Terminate cancels open tasks/timers, rejects signals,
+does not cascade to children. `wf.transaction(name, cb | Operation | AtomicCommand, input?)`
+stores `input_hash`; mismatch on replay → `blocked: nondeterminism`. `wf.now(name)`,
+`wf.uuid(name)` journaled helpers. Step/transaction results must be JSON (`Json` type) or
+declare `{output: schema}`.
+
+**Author API**: `precheck(id, OrdinaryCommand, (q, input) => …)` (preliminary snapshot),
+`guard(id, Operation|AtomicCommand, (tx, input) => …)`, `writeRule(id, Entity, (tx, {existing,
+proposed, changed}) => …)`; guards have stable IDs used as issue `source`. One error path:
+`throw Err.of(params)` for declared domain errors and `throw validation(Issue.at(path,
+params), …)` for issues (no `tx.issue`). `tx.start(W, input, {key})` — key required outside
+subscriptions/workflows. Overlay write `tx.put(Overlay, baseRef, values)`. Templates include
+`push`. Resource kinds `contactResolver` / `deliveryPolicy` for #926 public contracts.
+Endpoints get `EndpointContext` (ordinary ctx + `request`, returns `{status, headers, body}`);
+authenticated → actual user, public → trigger owner. Filter keys may be ref paths
+(`"holder.owner"`), compiled to explicit joins. Navigation adds `workspaces` and `palette`.
+Build/extract run in a separate build worker, not the invocation pool.

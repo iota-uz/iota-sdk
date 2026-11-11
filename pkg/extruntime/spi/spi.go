@@ -16,10 +16,35 @@ import (
 // Subject is the identity an invocation acts as: the initiating user, or the
 // explicit owner-user of a trigger without a user. Never a service principal.
 type Subject struct {
-	TenantID    uuid.UUID `json:"tenantId"`
-	UserID      int64     `json:"userId"`
-	Permissions []string  `json:"permissions"`
-	Locale      string    `json:"locale,omitempty"`
+	TenantID    uuid.UUID   `json:"tenantId"`
+	UserID      int64       `json:"userId"`
+	Kind        SubjectKind `json:"kind"`
+	Permissions []string    `json:"permissions"`
+	Locale      string      `json:"locale,omitempty"`
+	// Credential identifies how the actor authenticated (session, mcp
+	// personal credential id, endpoint) for audit; never an identity source.
+	Credential string `json:"credential,omitempty"`
+}
+
+type SubjectKind string
+
+const (
+	SubjectInitiator SubjectKind = "initiator"
+	SubjectOwner     SubjectKind = "owner"
+)
+
+// Caller is the package version whose code issues a data call. Field keys are
+// resolved through that version's schema map, so a workflow pinned to v1 keeps
+// working after v2 is activated (or activation is blocked as incompatible).
+type Caller struct {
+	Package string `json:"package"`
+	Version string `json:"version"`
+}
+
+// Scope is who acts and which code acts.
+type Scope struct {
+	Subject Subject
+	Caller  Caller
 }
 
 func (s Subject) Has(permission string) bool {
@@ -52,14 +77,87 @@ type FindQuery struct {
 // are JSON objects in exact wire form with "key" (string) and declared fields.
 // Get on an absent record (or overlay row) returns JSON null, not an error.
 type DataStore interface {
-	Get(ctx context.Context, tx pgx.Tx, s Subject, entity, key string) (json.RawMessage, error)
-	Find(ctx context.Context, tx pgx.Tx, s Subject, entity string, q FindQuery) (json.RawMessage, error)
-	Count(ctx context.Context, tx pgx.Tx, s Subject, entity string, where *manifest.Filter) (int64, error)
-	Insert(ctx context.Context, tx pgx.Tx, s Subject, entity string, values json.RawMessage) (json.RawMessage, error)
-	Update(ctx context.Context, tx pgx.Tx, s Subject, entity, key string, patch json.RawMessage) (json.RawMessage, error)
-	Delete(ctx context.Context, tx pgx.Tx, s Subject, entity, key string) error
+	Get(ctx context.Context, tx pgx.Tx, sc Scope, entity, key string) (json.RawMessage, error)
+	Find(ctx context.Context, tx pgx.Tx, sc Scope, entity string, q FindQuery) (json.RawMessage, error)
+	Count(ctx context.Context, tx pgx.Tx, sc Scope, entity string, where *manifest.Filter) (int64, error)
+	Insert(ctx context.Context, tx pgx.Tx, sc Scope, entity string, values json.RawMessage) (json.RawMessage, error)
+	Update(ctx context.Context, tx pgx.Tx, sc Scope, entity, key string, patch json.RawMessage) (json.RawMessage, error)
+	Delete(ctx context.Context, tx pgx.Tx, sc Scope, entity, key string) error
 	// PutOverlay upserts the 1:1 overlay row of baseKey.
-	PutOverlay(ctx context.Context, tx pgx.Tx, s Subject, overlay, baseKey string, values json.RawMessage) (json.RawMessage, error)
+	PutOverlay(ctx context.Context, tx pgx.Tx, sc Scope, overlay, baseKey string, values json.RawMessage) (json.RawMessage, error)
+}
+
+// Producer identifies what produced an intent (event, notice, start) so
+// receipts, dedupe and history link back to it.
+type Producer struct {
+	InvocationID string `json:"invocationId,omitempty"`
+	EventID      string `json:"eventId,omitempty"`
+	InstanceID   string `json:"instanceId,omitempty"`
+	Occurrence   string `json:"occurrence,omitempty"` // "<name>#<n>"
+}
+
+// ObjectRef is the wire Ref<Entity>.
+type ObjectRef struct {
+	Entity string `json:"entity"`
+	Key    string `json:"key"`
+}
+
+type EventIntent struct {
+	Event    string          `json:"event"`
+	Subject  *ObjectRef      `json:"subject,omitempty"`
+	Payload  json.RawMessage `json:"payload"`
+	Producer Producer        `json:"producer"`
+}
+
+// Outbox enqueues events in the caller's tx (atomic with data).
+type Outbox interface {
+	Emit(ctx context.Context, tx pgx.Tx, sc Scope, e EventIntent) (eventID string, err error)
+}
+
+type StartIntent struct {
+	Workflow string          `json:"workflow"`
+	Input    json.RawMessage `json:"input"`
+	// Key dedupes the start (tenant-scoped). Required outside subscriptions
+	// and workflows, where the host derives it.
+	Key         string   `json:"key"`
+	Predecessor string   `json:"predecessor,omitempty"`
+	Producer    Producer `json:"producer"`
+}
+
+// Starter writes a workflow start intent in the caller's tx.
+type Starter interface {
+	Start(ctx context.Context, tx pgx.Tx, sc Scope, s StartIntent) (instanceID string, err error)
+}
+
+type RecipientKind string
+
+const (
+	RecipientUser    RecipientKind = "user"
+	RecipientRecord  RecipientKind = "record"
+	RecipientAddress RecipientKind = "address"
+)
+
+type Recipient struct {
+	Kind    RecipientKind     `json:"kind"`
+	UserID  int64             `json:"userId,omitempty"`
+	Record  *ObjectRef        `json:"record,omitempty"`
+	Address map[string]string `json:"address,omitempty"` // channel -> address
+}
+
+type NoticeIntent struct {
+	Notice     string          `json:"notice"`
+	Version    string          `json:"version"` // package version pinning templates
+	Subject    *ObjectRef      `json:"subject,omitempty"`
+	Payload    json.RawMessage `json:"payload"`
+	Recipients []Recipient     `json:"recipients"`
+	Channels   []string        `json:"channels"`
+	Producer   Producer        `json:"producer"`
+}
+
+// Notifier enqueues an explicit notice send in the caller's tx; rendering
+// and delivery happen after commit in the shared notification service.
+type Notifier interface {
+	Enqueue(ctx context.Context, tx pgx.Tx, sc Scope, n NoticeIntent) (noticeID string, err error)
 }
 
 // WriteChange is what an entity write rule sees inside the writing tx.
@@ -75,7 +173,7 @@ type WriteChange struct {
 // WriteGuard runs entity write rules (package guards with phase "write") in
 // the same tx before the row is written. A non-nil error aborts the write.
 type WriteGuard interface {
-	CheckWrite(ctx context.Context, tx pgx.Tx, s Subject, change WriteChange) error
+	CheckWrite(ctx context.Context, tx pgx.Tx, sc Scope, change WriteChange) error
 }
 
 // ResolvedResource is a resource found in the active catalog together with
