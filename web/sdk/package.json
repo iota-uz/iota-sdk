@@ -66,6 +66,10 @@
       "types": "./dist/runtime/client.d.ts",
       "import": "./dist/runtime/client.js"
     },
+    "./runtime/kit": {
+      "types": "./dist/runtime/kit.d.ts",
+      "import": "./dist/runtime/kit.js"
+    },
     "./runtime/testing": {
       "types": "./dist/runtime/testing.d.ts",
       "import": "./dist/runtime/testing.js"

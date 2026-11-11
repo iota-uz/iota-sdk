@@ -2,7 +2,7 @@
 // fake external effects. The runtime harness that runs handlers against them is a separate slice.
 import type { AnyEntity, AnyOverlay, InsertOf, OverlayRow, Row } from './entity.ts'
 import type { ISODateTime, Json } from './model.ts'
-import { t, type Ref } from './schema.ts'
+import { t, type EntityLike, type Ref } from './schema.ts'
 import { encode } from './wire.ts'
 
 export { collectManifest, ManifestError } from './manifest.ts'
@@ -12,8 +12,8 @@ export type { CollectInput } from './manifest.ts'
 
 const EPOCH = '2026-01-01T00:00:00Z' as ISODateTime
 
-export interface Fixture<E> {
-  readonly ref: Ref<Extract<E, { readonly id: string }>>
+export interface Fixture<E extends EntityLike> {
+  readonly ref: Ref<E>
   readonly record: Row<E>
 }
 
@@ -60,7 +60,7 @@ export function fixture<E extends AnyEntity>(entity: E, values: InsertOf<E>, opt
   checked(entity, fields)
   return {
     ref: { entity: entity.id, key } as Fixture<E>['ref'],
-    record: { key, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as Row<E>,
+    record: { key, ref: { entity: entity.id, key }, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as Row<E>,
   }
 }
 

@@ -3,7 +3,7 @@
 import type { ClientValue } from './client.ts'
 import type { Channel, GuardJSON, ImplKind, ManifestJSON, ResourceJSON, TypeJSON, CapabilitiesJSON } from './model.ts'
 import { MANIFEST_SCHEMA } from './model.ts'
-import { isBranded, isContract, type Contract } from './resource.ts'
+import { isBranded, isContract, isKitIssued, type Contract } from './resource.ts'
 import type { AnyGuard, Implementation, ServerValue } from './server.ts'
 
 export interface CollectInput {
@@ -60,10 +60,60 @@ function referencedIds(r: ResourceJSON): string[] {
   return out
 }
 
+/** Inside-package navigation references must resolve; ones pointing at core or other packages are checked at activation. */
+function checkNavigation(
+  resources: readonly ResourceJSON[],
+  namespace: string,
+  inPackage: (id: string) => boolean,
+  problems: string[],
+): void {
+  const ids = new Set(resources.map((r) => r.id))
+  const groups = new Set(resources.flatMap((r) => (r.kind === 'navigation' ? (r.groups ?? []).map((g) => g.id) : [])))
+  const known = (id: string): boolean => ids.has(id) || groups.has(id)
+  for (const r of resources) {
+    const where = `resource "${r.id}"`
+    if (r.nav?.group && inPackage(r.nav.group) && !groups.has(r.nav.group)) {
+      problems.push(`${where}: nav.group "${r.nav.group}" is not declared by a navigation(...) groups entry of "${namespace}"`)
+    }
+    if (r.nav?.parent && inPackage(r.nav.parent) && !known(r.nav.parent)) {
+      problems.push(`${where}: nav.parent "${r.nav.parent}" is not a page or group of "${namespace}"`)
+    }
+    for (const entry of r.palette ?? []) {
+      if (inPackage(entry.target) && !ids.has(entry.target)) {
+        problems.push(`${where}: palette entry "${entry.id}" targets "${entry.target}", which is not exported by "${namespace}"`)
+      }
+    }
+    for (const patch of r.patches ?? []) {
+      for (const id of [patch.ref, patch.parent]) {
+        if (id && inPackage(id) && !known(id)) problems.push(`${where}: nav patch references "${id}", which is not declared by "${namespace}"`)
+      }
+    }
+  }
+}
+
+const lowerFirst = (name: string): string => name.charAt(0).toLowerCase() + name.slice(1)
+
+const MAX_SCAN_DEPTH = 6
+
+/** Finds a branded value hidden inside a plain object or array, e.g. `export const all = { Policy }`. */
+function nestedBranded(value: unknown, seen: Set<unknown> = new Set(), depth = 0): string | undefined {
+  if (typeof value !== 'object' || value === null || depth > MAX_SCAN_DEPTH || seen.has(value)) return undefined
+  seen.add(value)
+  const proto: unknown = Object.getPrototypeOf(value)
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return undefined
+  for (const [key, inner] of Object.entries(value)) {
+    if (isBranded(inner)) return key
+    const found = nestedBranded(inner, seen, depth + 1)
+    if (found !== undefined) return `${key}.${found}`
+  }
+  return undefined
+}
+
 /** Collects the manifest of a package, or throws a `ManifestError` listing every problem found. */
 export function collectManifest(input: CollectInput): ManifestJSON {
   const problems: string[] = []
   const { namespace } = input
+  const inPackage = (id: string): boolean => id === namespace || id.startsWith(`${namespace}.`)
   if (!NAMESPACE_PATTERN.test(namespace)) problems.push(`invalid namespace "${namespace}"`)
 
   const owned = new Map<string, string>() // id → where it is declared
@@ -87,18 +137,40 @@ export function collectManifest(input: CollectInput): ManifestJSON {
 
   const resources: ResourceJSON[] = []
   const seen = new Set<unknown>()
+  const declared = (id: string, where: string): void => {
+    if (!resources.some((r) => r.id === id)) problems.push(`${where}: references "${id}" which is not exported by the contracts graph`)
+  }
+
+  /** A `foreign` contract belongs to the platform or another package and must come from the developer kit. */
+  const external = (c: Contract, where: string): void => {
+    if (!isKitIssued(c)) problems.push(`${where}: "${c.id}" is marked foreign but was not issued by the developer kit`)
+    else if (inPackage(c.id)) problems.push(`${where}: kit contract "${c.id}" is inside this package's own namespace "${namespace}"`)
+  }
+  /** Referencing a contract: foreign ones must be kit-issued; own ones must be exported by the contracts graph. */
+  const reference = (c: Contract, where: string): void => {
+    if (c.foreign) external(c, where)
+    else if (!inPackage(c.id)) problems.push(`${where}: "${c.id}" is outside namespace "${namespace}"; contracts of other packages come from the developer kit`)
+    else declared(c.id, where)
+  }
 
   const collectResources = (graph: 'contracts' | 'client', ns: Readonly<Record<string, unknown>>): void => {
     for (const [name, value] of Object.entries(ns)) {
-      if (!isBranded(value)) continue
       const where = `${graph} export "${name}"`
+      if (!isBranded(value)) {
+        const inner = nestedBranded(value)
+        if (inner !== undefined) problems.push(`${where}: contains "${inner}"; export resources as top-level named exports`)
+        continue
+      }
       if (!isContract(value)) {
         problems.push(`${where}: server value exported from the ${graph} graph`)
         continue
       }
       if (seen.has(value)) continue
       seen.add(value)
-      if (value.foreign) continue
+      if (value.foreign) {
+        external(value, where)
+        continue
+      }
       const isClient = CLIENT_KINDS.has(value.kind)
       if (graph === 'contracts' && isClient) {
         problems.push(`${where}: ${value.kind} belongs to the client graph`)
@@ -111,7 +183,7 @@ export function collectManifest(input: CollectInput): ManifestJSON {
       const resource = { ...value.resource }
       if (isClient) {
         const implicit = (value as ClientValue).implicitId
-        if (implicit === 'export') resource.id = `${namespace}.${name}`
+        if (implicit === 'export') resource.id = `${namespace}.${lowerFirst(name)}`
         else if (implicit === 'navigation') resource.id = `${namespace}.navigation`
         else if (implicit === 'shell') resource.id = `${namespace}.shell`
         if (value.kind !== 'navigation') resource.export = name
@@ -122,12 +194,8 @@ export function collectManifest(input: CollectInput): ManifestJSON {
   collectResources('contracts', input.contracts)
   collectResources('client', input.client)
 
-  const declared = (id: string, where: string): void => {
-    if (id.startsWith(`${namespace}.`) && !resources.some((r) => r.id === id)) {
-      problems.push(`${where}: references "${id}" which is not exported by the contracts graph`)
-    }
-  }
-  for (const r of resources) for (const id of referencedIds(r)) declared(id, `resource "${r.id}"`)
+  for (const r of resources) for (const id of referencedIds(r)) if (inPackage(id)) declared(id, `resource "${r.id}"`)
+  checkNavigation(resources, namespace, inPackage, problems)
 
   const implementations: NonNullable<ManifestJSON['implementations']> = []
   const subscriptions: NonNullable<ManifestJSON['subscriptions']> = []
@@ -139,8 +207,12 @@ export function collectManifest(input: CollectInput): ManifestJSON {
   const templated = new Map<string, string>()
 
   for (const [name, value] of Object.entries(input.server)) {
-    if (!isBranded(value)) continue
     const where = `server export "${name}"`
+    if (!isBranded(value)) {
+      const inner = nestedBranded(value)
+      if (inner !== undefined) problems.push(`${where}: contains "${inner}"; export resources as top-level named exports`)
+      continue
+    }
     if (isContract(value)) {
       problems.push(`${where}: contract exported from the server graph; declare it in the contracts graph`)
       continue
@@ -156,7 +228,7 @@ export function collectManifest(input: CollectInput): ManifestJSON {
           problems.push(`${where}: cannot implement contract "${c.id}" of kind "${c.kind}"`)
           break
         }
-        if (!c.foreign) declared(c.id, where)
+        reference(c, where)
         const prior = implemented.get(c.id)
         if (prior !== undefined) {
           problems.push(`${where}: "${c.id}" is already implemented by export "${prior}"`)
@@ -167,7 +239,7 @@ export function collectManifest(input: CollectInput): ManifestJSON {
         break
       }
       case 'subscription': {
-        if (!sv.event.foreign) declared(sv.event.id, where)
+        reference(sv.event, where)
         if (claim(sv.id, where)) subscriptions.push({ id: sv.id, export: name, event: sv.event.id })
         break
       }
@@ -182,7 +254,7 @@ export function collectManifest(input: CollectInput): ManifestJSON {
           problems.push(`${where}: ${g.phase} guard cannot target ${target.kind} "${target.id}"`)
           break
         }
-        if (!target.foreign) declared(target.id, where)
+        reference(target, where)
         if (claim(g.id, where)) guards.push({ id: g.id, export: name, target: target.id, phase: g.phase })
         break
       }
@@ -197,7 +269,7 @@ export function collectManifest(input: CollectInput): ManifestJSON {
           problems.push(`${where}: templates for "${sv.notice.id}" define no channel`)
           break
         }
-        if (!sv.notice.foreign) declared(sv.notice.id, where)
+        reference(sv.notice, where)
         templated.set(sv.notice.id, name)
         templates.push({ export: name, notice: sv.notice.id, channels })
         break

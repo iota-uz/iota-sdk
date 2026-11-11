@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { collectManifest, ManifestError } from '../src/manifest.ts'
-import { command, entity, field, foreign, notice, operation, t } from '../src/index.ts'
+import { command, entity, field, notice, operation, t } from '../src/index.ts'
+import { foreign } from '../src/kit.ts'
 import { endpoint, guard, implement, precheck, schedule, templates } from '../src/server.ts'
 import { page, navigation, shellRenderer } from '../src/client.ts'
 import * as contracts from '../typetests/acme/contracts.ts'

@@ -10,6 +10,7 @@ const expectedExports = [
   './runtime',
   './runtime/server',
   './runtime/client',
+  './runtime/kit',
   './runtime/testing',
   './identity',
   './client-host',

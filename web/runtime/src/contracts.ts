@@ -1,7 +1,8 @@
 import type { Json, Label, ResourceJSON } from './model.ts'
 import { contract, omitEmpty, type Contract } from './resource.ts'
-import type { AnyField, AnyEntity, BoundMeta, FieldValue } from './entity.ts'
-import type { AnySchema, Infer } from './schema.ts'
+import type { AnyField, AnyEntity, BoundMeta, FieldValue, Hint } from './entity.ts'
+import type { AnySchema, Infer, ObjectSchema, Schema } from './schema.ts'
+import { encode } from './wire.ts'
 
 export type OutOf<O> = O extends AnySchema ? Infer<O> : void
 
@@ -15,26 +16,39 @@ export function permission<const Id extends string>(id: Id, spec: { label: Label
   return { ...contract({ id, kind: 'permission', label: spec.label }), label: spec.label }
 }
 
+/** Brand of issue instances: only `Issue.at(path, params)` produces them, `validation()` accepts nothing else. */
+export const ISSUE: unique symbol = Symbol.for('iota.issue')
+
 export interface ValidationIssue<P = unknown> {
+  readonly [ISSUE]: true
   readonly code: string
   readonly path: readonly string[]
   readonly params: P
 }
 
-/** Error thrown by handlers; the host maps it to the wire error `{kind, code, params, issues}`. */
+let makeError: <P>(kind: 'domain' | 'validation', code: string, params: P, issues: readonly ValidationIssue[]) => ContractError<P>
+
+/**
+ * Error thrown by handlers; the host maps it to the wire error `{kind, code, params, issues}`.
+ * Never constructed directly: use `DomainError.of(params)` or `validation(Issue.at(path, params))`.
+ */
 export class ContractError<P = unknown> extends Error {
   readonly kind: 'domain' | 'validation'
   readonly code: string
   readonly params: P
   readonly issues: readonly ValidationIssue[]
 
-  constructor(kind: 'domain' | 'validation', code: string, params: P, issues: readonly ValidationIssue[] = []) {
+  private constructor(kind: 'domain' | 'validation', code: string, params: P, issues: readonly ValidationIssue[]) {
     super(`${code}${issues.length > 0 ? ` (${issues.map((i) => `${i.path.join('.')}: ${i.code}`).join(', ')})` : ''}`)
     this.name = 'ContractError'
     this.kind = kind
     this.code = code
     this.params = params
     this.issues = issues
+  }
+
+  static {
+    makeError = (kind, code, params, issues) => new ContractError(kind, code, params, issues)
   }
 }
 
@@ -48,7 +62,7 @@ export function domainError<const Id extends string, P extends AnySchema>(id: Id
   return {
     ...contract({ id, kind: 'domainError', params: params.type }),
     params,
-    of: (value) => new ContractError('domain', id, value),
+    of: (value) => makeError('domain', id, value, []),
   }
 }
 
@@ -62,12 +76,16 @@ export function issue<const Id extends string, P extends AnySchema>(id: Id, para
   return {
     ...contract({ id, kind: 'issue', params: params.type }),
     params,
-    at: (path, value) => ({ code: id, path, params: value }),
+    at: (path, value) => ({ [ISSUE]: true, code: id, path: [...path], params: value }),
   }
 }
 
+/** `throw validation(TooLong.at(['notes'], { max: 10 }))`. Accepts only instances produced by `Issue.at`. */
 export function validation(...issues: readonly [ValidationIssue, ...ValidationIssue[]]): ContractError<null> {
-  return new ContractError('validation', 'validation', null, issues)
+  for (const i of issues) {
+    if ((i as { [ISSUE]?: unknown })[ISSUE] !== true) throw new TypeError('validation(): issues must be created with Issue.at(path, params)')
+  }
+  return makeError('validation', 'validation', null, issues)
 }
 
 // ---- callable contracts ----
@@ -232,19 +250,92 @@ export function workflow<
 
 // ---- routes ----
 
-export interface Route<Id extends string = string, P extends AnySchema = AnySchema> extends Contract<Id, 'route'> {
-  readonly path: string
+/** Names of the `:name` segments of a path template, e.g. `'/p/:id/x/:n'` → `'id' | 'n'`. */
+export type PathParamNames<P extends string> = P extends `${string}/:${infer Rest}`
+  ? Rest extends `${infer Name}/${infer Tail}`
+    ? Name | PathParamNames<`/${Tail}`>
+    : Rest
+  : never
+
+/** Kinds a path parameter may have: they must survive a URL segment unchanged. */
+export type RouteParamKind = 'string' | 'uuid' | 'int' | 'int64'
+const ROUTE_PARAM_KINDS: ReadonlySet<string> = new Set<RouteParamKind>(['string', 'uuid', 'int', 'int64'])
+
+/** The `params` schema a path requires: exactly its `:name` segments, each a required string/uuid/int/int64. */
+export type RouteParams<Path extends string> = ObjectSchema<{
+  readonly [K in PathParamNames<Path>]: Schema<string | number, 'req', RouteParamKind>
+}>
+
+type NoExtraParams<Path extends string, P> = P extends ObjectSchema<infer S>
+  ? [Exclude<keyof S & string, PathParamNames<Path>>] extends [never]
+    ? unknown
+    : Hint<`params has a key that is not a :segment of the path: ${Exclude<keyof S & string, PathParamNames<Path>>}`>
+  : unknown
+
+export interface Route<Id extends string = string, P extends AnySchema = AnySchema, Path extends string = string> extends Contract<Id, 'route'> {
+  readonly path: Path
   readonly params: P
 }
 
-export function route<const Id extends string, P extends AnySchema>(id: Id, spec: { path: string; params: P }): Route<Id, P> {
+const PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/** Splits a path template into literal and `:name` segments, rejecting anything ambiguous. */
+function parsePath(where: string, path: string): { literal: string; param?: string }[] {
+  if (!path.startsWith('/')) throw new Error(`${where}: path "${path}" must start with "/"`)
+  const names = new Set<string>()
+  return path
+    .split('/')
+    .slice(1)
+    .map((segment) => {
+      if (!segment.includes(':')) return { literal: segment }
+      const name = segment.slice(1)
+      if (!segment.startsWith(':') || !PARAM_NAME.test(name)) throw new Error(`${where}: path segment "${segment}" must be a literal or exactly ":name"`)
+      if (names.has(name)) throw new Error(`${where}: path parameter ":${name}" appears twice`)
+      names.add(name)
+      return { literal: '', param: name }
+    })
+}
+
+function checkRouteParams(id: string, path: string, params: AnySchema): void {
+  const names = parsePath(`route ${id}`, path).flatMap((s) => (s.param === undefined ? [] : [s.param]))
+  const type = params.type
+  if (type.kind !== 'object' || type.optional || type.nullable) throw new Error(`route ${id}: params must be t.object({...})`)
+  const declared = new Map((type.properties ?? []).map((p) => [p.name, p.type]))
+  for (const name of names) {
+    const p = declared.get(name)
+    if (p === undefined) throw new Error(`route ${id}: path parameter ":${name}" has no schema in params`)
+    if (!ROUTE_PARAM_KINDS.has(p.kind)) throw new Error(`route ${id}: ":${name}" is ${p.kind}; path parameters are string, uuid, int or int64`)
+    if (p.optional || p.nullable) throw new Error(`route ${id}: ":${name}" must be required and non-null`)
+  }
+  for (const name of declared.keys()) {
+    if (!names.includes(name)) throw new Error(`route ${id}: params has "${name}", which is not a :segment of "${path}"`)
+  }
+}
+
+/** Params must be exactly the `:name` segments of `path` (checked by types and at declaration). */
+export function route<const Id extends string, const Path extends string, P extends RouteParams<Path>>(
+  id: Id,
+  spec: { path: Path; params: P & NoExtraParams<Path, P> },
+): Route<Id, P, Path> {
+  checkRouteParams(id, spec.path, spec.params)
   return { ...contract({ id, kind: 'route', path: spec.path, params: spec.params.type }), path: spec.path, params: spec.params }
 }
 
-/** Concrete URL of a route: `/insurance/policies/:id` + `{ id }`. */
+/** Concrete URL of a route: `/insurance/policies/:id` + `{ id }`. Params are validated and percent-encoded. */
 export function href<R extends Route>(r: R, params: Infer<R['params']>): string {
-  const values = params as Readonly<Record<string, Json | undefined>>
-  return r.path.replace(/:([A-Za-z0-9_]+)/g, (_, name: string) => encodeURIComponent(String(values[name] ?? '')))
+  const wire = encode(r.params, params)
+  const values = (typeof wire === 'object' && wire !== null && !Array.isArray(wire) ? wire : {}) as Readonly<Record<string, Json | undefined>>
+  return (
+    '/' +
+    parsePath(`route ${r.id}`, r.path)
+      .map((segment) => {
+        if (segment.param === undefined) return segment.literal
+        const value = String(values[segment.param])
+        if (value === '' || value === '.' || value === '..') throw new Error(`route ${r.id}: ":${segment.param}" cannot be "${value}"`)
+        return encodeURIComponent(value)
+      })
+      .join('/')
+  )
 }
 
 // ---- notification contracts (#926) ----

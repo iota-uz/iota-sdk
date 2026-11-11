@@ -212,6 +212,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.19.2
+      jsdom:
+        specifier: 25.0.1
+        version: 25.0.1
       solid-js:
         specifier: 1.9.15
         version: 1.9.15
@@ -220,7 +223,7 @@ importers:
         version: 5.7.2
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.19.2)(jsdom@29.1.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@24.19.2)(typescript@5.7.2))
+        version: 2.1.9(@types/node@24.19.2)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@24.19.2)(typescript@5.7.2))
 
   web/sdk:
     dependencies:
@@ -7327,7 +7330,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@24.19.2)(jsdom@29.1.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@24.19.2)(typescript@5.7.2)):
+  vitest@2.1.9(@types/node@24.19.2)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@24.19.2)(typescript@5.7.2)):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.15.0(@types/node@24.19.2)(typescript@5.7.2))(vite@5.4.21(@types/node@24.19.2)(lightningcss@1.32.0))
@@ -7351,7 +7354,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.19.2
-      jsdom: 29.1.1
+      jsdom: 25.0.1
     transitivePeerDependencies:
       - less
       - lightningcss

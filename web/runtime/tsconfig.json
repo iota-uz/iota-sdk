@@ -15,13 +15,21 @@
       "DOM"
     ],
     "types": [],
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@iota-uz/sdk/client-host": [
+        "../client-host/src/solid-index.ts"
+      ]
+    }
   },
   "include": [
     "src",
     "tests"
   ],
   "exclude": [
-    "src/host"
+    "src/host",
+    "src/client-host/browser/*.spec.ts",
+    "src/client-host/browser/*.config.ts",
+    "src/client-host/browser/_ext"
   ]
 }

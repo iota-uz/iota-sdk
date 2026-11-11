@@ -4,7 +4,9 @@
     "noEmit": false,
     "declaration": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": { "@iota-uz/sdk/client-host": ["../client-host/dist/solid-index.d.ts"] }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/host", "src/client-host/browser", "src/client-host/**/*.test.ts", "src/client-host/fixtures.ts"]
 }

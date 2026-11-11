@@ -489,3 +489,49 @@ subscription's `AfterSeq`. The management slice supplies `workflow.Implementatio
 sequentially; `wf.user.has()` reads current rights and is not journaled; xmin gating uses the
 cluster snapshot horizon (a long transaction anywhere delays delivery); schedule slots older
 than `Lookback` (15 min) are skipped.
+
+### 9.1 TypeScript authoring API audit (supersedes §2 where it differs)
+
+**Kit entry.** `@iota-uz/sdk/runtime/kit` (`foreign`, `nativeEntity`, `nativeList`) is internal: only generated
+`@iota-kit/*` modules import it. The author-facing `@iota-uz/sdk/runtime` has no way to mint a contract outside the
+package namespace, and `contract()` is not exported. `collectManifest` rejects any contract whose ID is outside the
+namespace unless it was issued by the kit; a locally built `operation('core.x', …)` that is only implemented is an error,
+and so is a kit contract inside the package's own namespace. Go still re-validates every foreign reference and
+implementation against the catalog snapshot at publish (separate slice).
+
+**Rows and refs.** Every entity row from `get/find/insert/update` has `ref: Ref<E>` (attached in the host context
+layer; overlay rows have none). `recipient.user` and `wf.task({assignee})` take `UserRef` (`Ref` to `core.user`; a
+`Principal` is still accepted as an assignee). `$.user` only types/validates against `core.user` refs. `t.ref` /
+`field.ref` take entities only; `ref(entity, key)` checks the key against the key type. A union of entities in
+`tx.get/update/delete/put` is a type error. `ref` is a reserved field key.
+
+**Fields.** `.optional()` is optional+nullable: `T | null` on read, `T | null | undefined` on write. `.default(x)` is
+validated against the column and emitted in the manifest even when falsy (`false`, `0`, `""`, `[]`, `null`); it reads `T`
+only for a non-nullable column. `access.read: []` is an error; `rows: 'none'` is the explicit deny. `t.json<T>` needs a
+JSON `T` and rejects `null` unless `.nullable()` (as Go does); `NaN`/`±Infinity` fail `encode`.
+`t.row(Entity|Overlay)` and `t.fields(Entity, pick?)` describe rows/fields for command outputs.
+
+**Filters.** Ranges only on int/int64/decimal/date/datetime/string, `like` only on strings, nothing on json; `key` takes
+`eq`/`in`; `createdAt`/`updatedAt` filter and order (also through ref paths). `orderBy` takes orderable paths only.
+
+**Routes.** `route(id, {path, params})`: `params` must be exactly the `:name` segments (each a literal or whole
+segment), required, kind string/uuid/int/int64 — types and runtime. `href` validates, percent-encodes and refuses
+empty/`.`/`..`. `page(foreignRoute, …)` (route from the kit) is a screen replacement candidate: ID
+`<namespace>.<exportName>`, `route` = replaced route; it is active only through a `screen` binding.
+
+**Manifest.** Implicit client IDs lower the first character of the export name (`PolicyBadge` → `ns.policyBadge`).
+In-package `nav.group`, `nav.parent`, palette `target` and nav patch refs must resolve; foreign ones are checked at
+activation. A branded value nested in an exported plain object/array is an error ("export resources as top-level
+named exports").
+
+**Errors.** `validation()` accepts only `Issue.at(...)` instances; `ContractError` has no public constructor. Client:
+`isError(err, DomainErr)` / `issuesOf(err, Issue)` narrow `CallError` / `RemoteError` with typed params.
+
+**Server contexts.** `tx.query / q.query / ctx.query(Q, input)` run a query in the same snapshot/tx (host methods
+`tx.query`, `q.query`). `tx.start` returns `WorkflowInstance<W>`; `tx.signal(instance, name, payload)` and
+`ctx.signal(…)` are typed by the workflow (host methods `tx.signal`, `invoke.signal`; args
+`{workflow, instance, name, payload}`). `wf.secrets` and `log` on Tx/Command/Query/Workflow contexts. `precheck`,
+`guard` and `writeRule` get a read-only `GuardContext` (get/find/count/query/user/invocation/log; reject by throwing).
+Endpoint requests have `body` (parsed), `rawBody: Uint8Array`, `text()`; the invoke input carries `rawBody` as base64.
+Handlers may be sync. `tx.call(ordinaryCommand)` etc. fail with a readable message in the type error.
+`Tx<'plain'>` is not assignable to `Tx<'derived'>`.

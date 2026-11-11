@@ -3,6 +3,24 @@
 
 export type Json = null | boolean | number | string | readonly Json[] | { readonly [key: string]: Json | undefined }
 
+/** A JSON value other than `null` (the wire rejects `null` for a `json` type unless it is `.nullable()`). */
+export type JsonNotNull = Exclude<Json, null>
+
+/**
+ * `T` when every member of `T` is JSON, otherwise a type `T` is not assignable to. Unlike `T extends Json`
+ * it accepts `interface`s (which have no implicit index signature) and ignores symbol-keyed phantom brands
+ * such as the one on `Ref`. Use as `T extends JsonOf<T>`.
+ */
+export type JsonOf<T> = T extends string | number | boolean | null | undefined | void
+  ? T
+  : T extends bigint | symbol | ((...args: never[]) => unknown)
+    ? never
+    : T extends readonly (infer U)[]
+      ? readonly JsonOf<U>[]
+      : T extends object
+        ? { [K in keyof T as K extends symbol ? never : K]: JsonOf<T[K]> }
+        : never
+
 declare const int64Brand: unique symbol
 declare const decimalBrand: unique symbol
 declare const dateBrand: unique symbol

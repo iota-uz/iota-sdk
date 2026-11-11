@@ -1,7 +1,6 @@
 // A miniature developer kit: platform-owned (native) entities, lists and public contracts.
-import {
-  command, event, field, foreign, nativeEntity, nativeList, operation, query, slotRef, t,
-} from '../src/index.ts'
+import { command, event, field, operation, route, slotRef, t } from '../src/index.ts'
+import { foreign, nativeEntity, nativeList } from '../src/kit.ts'
 
 export const User = nativeEntity('core.user', { name: field.text(), email: field.text().optional() }, { key: 'int64' })
 export const Client = nativeEntity('crm.client', { name: field.text(), phone: field.text().optional() }, { key: 'uuid' })
@@ -25,3 +24,4 @@ export const SendInvoice = foreign(
 )
 export const ClientCreated = foreign(event('crm.clientCreated.v1', { subject: Client, payload: t.object({ name: t.string() }) }))
 export const ClientToolbar = slotRef<{ client: { key: string } }>('crm.slots.clientToolbar')
+export const ClientView = foreign(route('crm.routes.clientView', { path: '/crm/clients/:id', params: t.object({ id: t.uuid() }) }))

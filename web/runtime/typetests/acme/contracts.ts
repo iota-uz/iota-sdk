@@ -60,6 +60,15 @@ export const ActivatePolicy = command('acme.insurance.activatePolicy', {
   input: t.object({ policy: t.ref(Policy) }),
   output: t.object({ status: t.string() }),
 })
+/** A command/query output can return rows without re-declaring them: `t.row` is the row schema. */
+export const GetPolicy = query('acme.insurance.getPolicy', {
+  input: t.object({ policy: t.ref(Policy) }),
+  output: t.row(Policy).nullable(),
+})
+export const CustomerSummary = query('acme.insurance.customerSummary', {
+  input: t.object({ customer: t.ref(Customer) }),
+  output: t.fields(Customer, ['name', 'phone']),
+})
 export const Expiring = query('acme.insurance.expiring', {
   input: t.object({ before: t.date() }),
   output: t.array(t.object({ policy: t.ref(Policy), number: t.string() })),
