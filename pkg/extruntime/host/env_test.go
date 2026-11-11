@@ -215,6 +215,10 @@ func (c *catalog) Resolve(_ context.Context, id string) (spi.ResolvedResource, b
 }
 func (c *catalog) Entities(context.Context) ([]spi.ResolvedResource, error) { return nil, nil }
 
+func (c *catalog) Guards(context.Context, string, manifest.GuardPhase) ([]spi.ResolvedGuard, error) {
+	return nil, nil
+}
+
 // ---- data store double: one real table ----
 
 type itemStore struct {

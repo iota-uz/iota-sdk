@@ -191,4 +191,13 @@ type ResolvedResource struct {
 type Catalog interface {
 	Resolve(ctx context.Context, id string) (ResolvedResource, bool, error)
 	Entities(ctx context.Context) ([]ResolvedResource, error)
+	// Guards lists active guards of target in a phase across all activated
+	// packages (additive, independent of the command binding), in stable ID order.
+	Guards(ctx context.Context, target string, phase manifest.GuardPhase) ([]ResolvedGuard, error)
+}
+
+type ResolvedGuard struct {
+	Guard   manifest.Guard
+	Package string
+	Version string
 }
