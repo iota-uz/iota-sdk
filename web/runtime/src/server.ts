@@ -404,7 +404,11 @@ export interface WriteRule<E extends AnyEntity = AnyEntity> {
   readonly handler: (ctx: GuardContext, change: WriteChange<E>) => Awaitable<void>
 }
 
-export type AnyGuard = PrecheckGuard | OperationGuard | WriteRule
+/** Any guard regardless of its target type (handler parameters erased, so `WriteRule<E>` is assignable). */
+type ErasedGuard<G extends { readonly handler: unknown }> = Omit<G, 'handler'> & {
+  readonly handler: (ctx: GuardContext, arg: never) => Awaitable<void>
+}
+export type AnyGuard = ErasedGuard<PrecheckGuard> | ErasedGuard<OperationGuard> | ErasedGuard<WriteRule>
 
 /** Preliminary input check of an ordinary command on a read snapshot; not a race-free guarantee. Read-only context. */
 export function precheck<C extends OrdinaryCommand>(

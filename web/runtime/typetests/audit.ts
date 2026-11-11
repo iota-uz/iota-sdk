@@ -13,6 +13,8 @@ import {
 } from '../src/server.ts'
 import * as kit from './kit.ts'
 import * as c from './acme/contracts.ts'
+import * as acmeServer from './acme/server.ts'
+import type { AnyGuard } from '../src/server.ts'
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
 function assertType<_T extends true>(): void {}
@@ -353,3 +355,9 @@ void writeRule('acme.insurance.sync', c.Policy, () => {})
 void implement(c.ExtendExpiry, () => ({ expires: 1 }))
 
 export { overlay, ContractError }
+
+// any guard, whatever its target, fits a list of guards
+{
+  const guards: readonly AnyGuard[] = [acmeServer.notesRule, acmeServer.extendGuard, acmeServer.rejectGuard]
+  void guards
+}
