@@ -685,6 +685,26 @@
   "SortBy": "Саралаш",
   "PermissionSets": {
     "Core": {
+      "ExtensionsView": {
+        "Label": "Кенгайтмаларни кўриш",
+        "_Description": "Ўрнатилган кенгайтма пакетлари ва версияларини кўриш"
+      },
+      "ExtensionsAuthor": {
+        "Label": "Кенгайтмаларни ишлаб чиқиш",
+        "_Description": "Қораламаларни таҳрирлаш, текширув, йиғиш ва тестлар"
+      },
+      "ExtensionsReview": {
+        "Label": "Кенгайтмаларни кўриб чиқиш",
+        "_Description": "Кенгайтма версияларини тасдиқлаш ёки рад этиш"
+      },
+      "ExtensionsPublish": {
+        "Label": "Кенгайтмаларни нашр этиш",
+        "_Description": "Кенгайтмаларни нашр этиш, фаоллаштириш, боғлаш ва ўчириш"
+      },
+      "ExtensionsOperate": {
+        "Label": "Кенгайтмалар ишини бошқариш",
+        "_Description": "Кенгайтма ишини ишга тушириш ва тўхтатиш"
+      },
       "UserView": {
         "Label": "Foydalanuvchilarni ko'rish",
         "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
@@ -876,6 +896,13 @@
     }
   },
   "Permissions": {
+    "Extensions": {
+      "Read": "Кенгайтмаларни кўриш",
+      "Author": "Кенгайтма қораламаларини таҳрирлаш",
+      "Review": "Кенгайтма версияларини кўриб чиқиш",
+      "Publish": "Кенгайтмаларни нашр этиш ва фаоллаштириш",
+      "Operate": "Кенгайтма ишини ишга тушириш ва тўхтатиш"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -959,6 +986,7 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "extension": "Кенгайтмалар",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",

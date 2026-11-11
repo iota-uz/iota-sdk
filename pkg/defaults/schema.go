@@ -106,6 +106,27 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 			Description: "NotificationSettings.PermissionManageDescription", Module: "Core",
 			Permissions: []permission.Permission{corePerms.NotificationRulesRead, corePerms.NotificationRulesManage},
 		},
+		core.viewSet("Extensions", corePerms.ExtensionsRead),
+		rbac.PermissionSet{
+			Key: "extensions_author", Label: "PermissionSets.Core.ExtensionsAuthor.Label",
+			Description: "PermissionSets.Core.ExtensionsAuthor._Description", Module: "Core",
+			Permissions: []permission.Permission{corePerms.ExtensionsRead, corePerms.ExtensionsAuthor},
+		},
+		rbac.PermissionSet{
+			Key: "extensions_review", Label: "PermissionSets.Core.ExtensionsReview.Label",
+			Description: "PermissionSets.Core.ExtensionsReview._Description", Module: "Core",
+			Permissions: []permission.Permission{corePerms.ExtensionsRead, corePerms.ExtensionsReview},
+		},
+		rbac.PermissionSet{
+			Key: "extensions_publish", Label: "PermissionSets.Core.ExtensionsPublish.Label",
+			Description: "PermissionSets.Core.ExtensionsPublish._Description", Module: "Core",
+			Permissions: []permission.Permission{corePerms.ExtensionsRead, corePerms.ExtensionsPublish},
+		},
+		rbac.PermissionSet{
+			Key: "extensions_operate", Label: "PermissionSets.Core.ExtensionsOperate.Label",
+			Description: "PermissionSets.Core.ExtensionsOperate._Description", Module: "Core",
+			Permissions: []permission.Permission{corePerms.ExtensionsRead, corePerms.ExtensionsOperate},
+		},
 		core.viewSet("User", corePerms.UserRead),
 		rbac.PermissionSet{
 			Key:         "user_manage",
