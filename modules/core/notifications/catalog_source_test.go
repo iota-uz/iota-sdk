@@ -117,3 +117,15 @@ func TestEvent_SnapshotRefSurvivesJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(data), "snapshot_ref")
 }
+
+func TestCatalogReservesKeysAcrossDeactivationAndPinsSnapshot(t *testing.T) {
+	t.Parallel()
+	const key = "ext.thing.happened.v1"
+	catalog := NewCatalog()
+	require.NoError(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "a")}}))
+	event, err := catalog.Normalize(Event{Key: key, ID: "1", TenantID: uuid.New()})
+	require.NoError(t, err)
+	require.Equal(t, "a", event.SnapshotRef)
+	catalog.Deactivate("ts")
+	require.Error(t, catalog.RegisterSource(context.Background(), staticSource{name: "ts", definitions: []Definition{runtimeDefinition(key, "b")}}))
+}
