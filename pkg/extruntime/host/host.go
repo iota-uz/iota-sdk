@@ -44,6 +44,11 @@ type SecretResolver interface {
 type WorkflowCall interface {
 	InvocationID() string
 	Scope() spi.Scope
+	// Producer is what the run was started with (workflow instance).
+	Producer() spi.Producer
+	// Token is the opaque RunRequest.Token of the run, so the engine finds the
+	// state of the run a wf.* call belongs to.
+	Token() string
 	OpenTx(ctx context.Context) (handle string, err error)
 	WithTx(ctx context.Context, handle string, fn func(ctx context.Context, tx pgx.Tx) error) error
 	EndTx(ctx context.Context, handle string, outcome TxOutcome) error
@@ -51,6 +56,28 @@ type WorkflowCall interface {
 	// transaction (wf.transaction(name, callable, input)). Ordinary commands
 	// are rejected.
 	CallInTx(ctx context.Context, handle, contract string, input json.RawMessage) (json.RawMessage, error)
+	// CallCommand dispatches a command as a NEW invocation (wf.call): it
+	// selects the currently active binding, records it, and runs on the worker
+	// of this run without taking a pool slot. invocationID, when set, is the
+	// pre-allocated ID of the invocation record, so the engine can journal
+	// `started` before dispatch and find the record after a crash.
+	CallCommand(ctx context.Context, contract string, input json.RawMessage, invocationID string) (CallResult, error)
+	// CallCommandInTx runs an atomic command joined to the handle's
+	// transaction as a new invocation record, returning its identity.
+	CallCommandInTx(ctx context.Context, handle, contract string, input json.RawMessage) (CallResult, error)
+}
+
+// CallResult is the outcome of a command dispatched for the durable engine.
+// It is returned together with the error on failure; InvocationID is empty
+// when the call failed before an invocation was recorded.
+type CallResult struct {
+	InvocationID       string
+	Binding            Binding
+	ContractHash       string
+	Output             json.RawMessage
+	Outcome            Outcome
+	CommittedTxCount   int
+	PartiallyCommitted bool
 }
 
 // WorkflowHandler serves wf.* host calls (wf.step.begin, wf.sleep, ...). The
@@ -68,6 +95,9 @@ type Config struct {
 	Bindings Bindings
 	Catalog  spi.Catalog
 	Data     spi.DataStore
+	// Artifacts resolves the artifact of guards (package@version). Required
+	// when the catalog reports active guards.
+	Artifacts ArtifactResolver
 
 	Outbox   spi.Outbox
 	Starter  spi.Starter
@@ -131,6 +161,7 @@ type Result struct {
 	InvocationID string
 	Output       json.RawMessage
 	Binding      Binding
+	ContractHash string
 	Outcome      Outcome
 	// CommittedTxCount is how many transactions this invocation committed.
 	CommittedTxCount int
@@ -186,7 +217,13 @@ type RunRequest struct {
 	Tx           pgx.Tx
 	Producer     spi.Producer
 	StartKeyBase string
-	Occurrence   json.RawMessage
+	// Occurrence is passed to the handler as ctx.occurrence. For workflow
+	// invocations it carries the replay journal ({"journal":[...]}) the worker
+	// answers completed primitives from.
+	Occurrence json.RawMessage
+	// Token is an opaque value the engine reads back through
+	// WorkflowCall.Token().
+	Token string
 }
 
 // Run executes an export directly. The caller has already chosen the
@@ -196,6 +233,7 @@ func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 		txs:          newTxRegistry(h.cfg.DB),
 		producer:     req.Producer,
 		startKeyBase: req.StartKeyBase,
+		token:        req.Token,
 	}
 	defer root.txs.rollbackAll()
 	ctx, cancel := h.withDeadline(ctx)
@@ -227,6 +265,7 @@ type rootState struct {
 	txs          *txRegistry
 	producer     spi.Producer
 	startKeyBase string
+	token        string
 	startSeq     atomic.Int64
 }
 
@@ -242,6 +281,8 @@ type execSpec struct {
 	// (tx.call) instead of opening its own.
 	join       *txHandle
 	externalTx pgx.Tx
+	// id pre-allocates the invocation ID (wf.call journals it before dispatch).
+	id string
 }
 
 // execute resolves, authorizes, validates, records and runs one invocation.
@@ -274,12 +315,23 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		if binding, err = h.cfg.Bindings.Resolve(ctx, spec.contract); err != nil {
 			return Result{}, err
 		}
+		if kind == pool.KindCommand {
+			// Preliminary input guards of an ordinary command run before the
+			// invocation is recorded, on a read snapshot; independent of the
+			// bound implementation.
+			if err := h.runGuards(ctx, guardRun{
+				root: root, parent: spec.parent, subject: spec.subject, trigger: triggerOf(spec),
+				contract: contract, target: contract.ID, phase: manifest.GuardInput, input: spec.input,
+			}); err != nil {
+				return Result{}, err
+			}
+		}
 	}
 
 	e := &execution{
 		h:        h,
 		root:     root,
-		id:       uuid.NewString(),
+		id:       idOr(spec.id),
 		spec:     spec,
 		contract: contract,
 		binding:  binding,
@@ -294,6 +346,20 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		e.rootID = spec.parent.rootID
 	}
 	return e.run(ctx, res)
+}
+
+func idOr(id string) string {
+	if id != "" {
+		return id
+	}
+	return uuid.NewString()
+}
+
+func triggerOf(spec execSpec) Trigger {
+	if spec.parent != nil {
+		return spec.parent.trigger()
+	}
+	return spec.trigger
 }
 
 func (h *Host) resolveContract(ctx context.Context, id string) (spi.ResolvedResource, error) {

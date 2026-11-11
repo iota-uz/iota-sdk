@@ -1,10 +1,12 @@
 // Runtime context objects handed to handlers. Each one implements the matching
 // interface of ../server.ts; conformance.check.ts asserts the member sets match.
+import { createHash } from "node:crypto";
+
 import { compileFilter } from "../entity.ts";
 import type { Int64, Json } from "../model.ts";
 import type { Principal } from "../server.ts";
-import { CODE, internal, toWire } from "./errors.ts";
-import type { CallFn, InvokeContext } from "./protocol.ts";
+import { CODE, fromWire, internal, toWire } from "./errors.ts";
+import type { CallFn, InvokeContext, WireError } from "./protocol.ts";
 
 type Resource = string | { readonly id: string };
 type Reference = string | { readonly key: string };
@@ -175,7 +177,21 @@ export function createCommandContext(deps: Deps) {
   };
 }
 
-type Replayed = { replay: true; value: unknown } | { replay: false; [key: string]: unknown };
+/** One terminal occurrence of the replay journal the invoke carries. */
+interface JournalEntry {
+  name: string;
+  n: number;
+  kind: string;
+  status: "completed" | "failed";
+  inputHash?: string;
+  result?: unknown;
+  error?: WireError;
+}
+
+/** Reply of wf.*.begin: the recorded outcome of a replayed primitive, or the data to execute it. */
+type Begun =
+  | { replay: true; ok: boolean; value?: unknown; error?: WireError }
+  | { replay: false; [key: string]: unknown };
 
 interface SignalRefLike {
   readonly workflow: string;
@@ -184,12 +200,80 @@ interface SignalRefLike {
 
 type StepEffect = (step: { idempotencyKey: string }) => Promise<unknown>;
 
-/** WorkflowContext: every durable primitive is a wf.* host call; Go owns the journal. */
+/** Key-sorted JSON, so the hash of a value does not depend on property order. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).filter((k) => record[k] !== undefined).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical(record[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+const hashOf = (value: unknown): string => createHash("sha256").update(canonical(value)).digest("hex");
+
+const replayKey = (name: string, n: number): string => `${n}\u0000${name}`;
+
+function unwrap(begun: Begun & { replay: true }): unknown {
+  if (!begun.ok) throw fromWire(begun.error ?? { kind: "internal", code: CODE.hostCall, message: "recorded failure" });
+  return begun.value;
+}
+
+/**
+ * WorkflowContext: every durable primitive is a wf.* host call; Go owns the journal.
+ *
+ * The occurrence counter `n` of a name is assigned here, synchronously at call time, so
+ * concurrent primitives (Promise.all) get stable occurrences. The invoke carries the
+ * terminal occurrences (`ctx.occurrence.journal`); replays of those are answered locally
+ * without a host call. A primitive that can suspend first waits until the steps and
+ * transactions it runs beside have recorded, so a suspension never abandons in-flight work.
+ */
 export function createWorkflowContext(deps: Deps) {
   const assignee = (value: unknown) =>
     typeof value === "object" && value !== null && "userId" in value
       ? { entity: "core.user", key: String((value as { userId: unknown }).userId) }
       : value;
+
+  const journal = new Map<string, JournalEntry>();
+  for (const entry of (deps.ctx.occurrence as { journal?: JournalEntry[] } | undefined)?.journal ?? []) {
+    journal.set(replayKey(entry.name, entry.n), entry);
+  }
+  const counters = new Map<string, number>();
+  const next = (name: string): number => {
+    const n = counters.get(name) ?? 0;
+    counters.set(name, n + 1);
+    return n;
+  };
+  const replayed = (name: string, n: number, kind: string, hash?: string): JournalEntry | undefined => {
+    const entry = journal.get(replayKey(name, n));
+    if (entry === undefined || entry.kind !== kind) return undefined;
+    // A changed input is a determinism violation: let Go see it and block the instance.
+    if (hash !== undefined && entry.inputHash !== undefined && entry.inputHash !== "" && entry.inputHash !== hash) return undefined;
+    return entry;
+  };
+  const answer = (entry: JournalEntry): unknown => {
+    if (entry.status === "failed") throw fromWire(entry.error ?? { kind: "internal", code: CODE.hostCall, message: "recorded failure" });
+    return entry.result ?? null;
+  };
+
+  const inFlight = new Set<Promise<unknown>>();
+  const track = <T>(promise: Promise<T>): Promise<T> => {
+    inFlight.add(promise);
+    const settled = () => inFlight.delete(promise);
+    promise.then(settled, settled);
+    return promise;
+  };
+  const quiesce = async (): Promise<void> => {
+    for (;;) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      if (inFlight.size === 0) return;
+      await Promise.allSettled([...inFlight]);
+    }
+  };
+  const call = (method: string, name: string, n: number, extra: Record<string, unknown> = {}) =>
+    deps.call(method, { name, n, ...extra });
+
   return {
     user: principal(deps.ctx),
     instance: { id: deps.ctx.instance ?? "" },
@@ -199,59 +283,114 @@ export function createWorkflowContext(deps: Deps) {
       body: ((tx: ReturnType<typeof createTx>) => Promise<unknown>) | Resource,
       input?: unknown,
     ): Promise<unknown> {
+      const n = next(name);
       if (typeof body !== "function") {
-        return deps.call("wf.transaction.call", { name, callable: idOf(body), input });
+        const inputHash = hashOf({ callable: idOf(body), input: input ?? null });
+        const hit = replayed(name, n, "transaction", inputHash);
+        if (hit !== undefined) return answer(hit);
+        return track(call("wf.transaction.call", name, n, { callable: idOf(body), input, inputHash }));
       }
-      const begun = (await deps.call("wf.transaction.begin", { name })) as Replayed;
-      if (begun.replay) return begun.value;
-      return inTransaction(
-        deps,
-        async () => begun.tx as string,
-        (tx, outcome, value) => deps.call("wf.transaction.end", { name, tx, outcome, value: value ?? null }),
-        body,
+      const hit = replayed(name, n, "transaction");
+      if (hit !== undefined) return answer(hit);
+      return track(
+        (async () => {
+          const begun = (await call("wf.transaction.begin", name, n)) as Begun;
+          if (begun.replay) return unwrap(begun);
+          return inTransaction(
+            deps,
+            async () => begun.tx as string,
+            (tx, outcome, value) => call("wf.transaction.end", name, n, { tx, outcome, value: value ?? null }),
+            body,
+          );
+        })(),
       );
     },
     async step(name: string, first: unknown, second?: StepEffect): Promise<unknown> {
+      const n = next(name);
+      const hit = replayed(name, n, "step");
+      if (hit !== undefined) return answer(hit);
       const effect = (typeof first === "function" ? first : second) as StepEffect;
-      const begun = (await deps.call("wf.step.begin", { name })) as Replayed;
-      if (begun.replay) return begun.value;
-      let value: unknown;
-      try {
-        value = await effect({ idempotencyKey: begun.idempotencyKey as string });
-      } catch (err) {
-        await deps.call("wf.step.end", { name, ok: false, error: toWire(err) }).catch(() => undefined);
-        throw err;
-      }
-      await deps.call("wf.step.end", { name, ok: true, value: value ?? null });
-      return value;
+      return track(
+        (async () => {
+          const begun = (await call("wf.step.begin", name, n)) as Begun;
+          if (begun.replay) return unwrap(begun);
+          let value: unknown;
+          try {
+            value = await effect({ idempotencyKey: begun.idempotencyKey as string });
+          } catch (err) {
+            await call("wf.step.end", name, n, { ok: false, error: toWire(err) }).catch(() => undefined);
+            throw err;
+          }
+          await call("wf.step.end", name, n, { ok: true, value: value ?? null });
+          return value;
+        })(),
+      );
     },
     sleep: async (name: string, duration: string): Promise<void> => {
-      await deps.call("wf.sleep", { name, duration });
+      const n = next(name);
+      const hit = replayed(name, n, "sleep");
+      if (hit !== undefined) {
+        answer(hit);
+        return;
+      }
+      await quiesce();
+      await call("wf.sleep", name, n, { duration });
     },
     async waitFor(name: string, signal: SignalRefLike, options?: { timeout: string }): Promise<unknown> {
-      const result = (await deps.call("wf.waitFor", {
-        name,
+      const n = next(name);
+      const shape = (result: unknown) => (options === undefined ? (result as { payload?: unknown }).payload : result);
+      const hit = replayed(name, n, "waitFor");
+      if (hit !== undefined) return shape(answer(hit));
+      await quiesce();
+      const result = await call("wf.waitFor", name, n, {
         workflow: signal.workflow,
         signal: signal.name,
         ...(options === undefined ? {} : { timeout: options.timeout }),
-      })) as { outcome: string; payload?: unknown };
-      return options === undefined ? result.payload : result;
+      });
+      return shape(result);
     },
-    task: (name: string, spec: { subject: unknown; assignee: unknown; decision: { type: unknown }; timeout?: string }) =>
-      deps.call("wf.task", {
-        name,
+    async task(
+      name: string,
+      spec: { subject: unknown; assignee: unknown; decision: { type: unknown }; timeout?: string },
+    ): Promise<unknown> {
+      const n = next(name);
+      const hit = replayed(name, n, "task");
+      if (hit !== undefined) return answer(hit);
+      await quiesce();
+      return call("wf.task", name, n, {
         subject: spec.subject,
         assignee: assignee(spec.assignee),
         decision: spec.decision.type,
         ...(spec.timeout === undefined ? {} : { timeout: spec.timeout }),
-      }),
-    call: (name: string, command: Resource, input: unknown) =>
-      deps.call("wf.call", { name, command: idOf(command), input }),
-    start: async (name: string, workflow: Resource, input: unknown) => {
-      const started = (await deps.call("wf.start", { name, workflow: idOf(workflow), input })) as { instance: string };
+      });
+    },
+    async call(name: string, command: Resource, input: unknown): Promise<unknown> {
+      const n = next(name);
+      const inputHash = hashOf({ command: idOf(command), input: input ?? null });
+      const hit = replayed(name, n, "call", inputHash);
+      if (hit !== undefined) return answer(hit);
+      return track(call("wf.call", name, n, { command: idOf(command), input, inputHash }));
+    },
+    async start(name: string, workflow: Resource, input: unknown) {
+      const n = next(name);
+      const inputHash = hashOf({ workflow: idOf(workflow), input: input ?? null });
+      const hit = replayed(name, n, "start", inputHash);
+      const started = (hit !== undefined
+        ? answer(hit)
+        : await track(call("wf.start", name, n, { workflow: idOf(workflow), input, inputHash }))) as { instance: string };
       return { workflow: idOf(workflow), instance: started.instance };
     },
-    now: (name: string) => deps.call("wf.now", { name }) as Promise<string>,
-    uuid: (name: string) => deps.call("wf.uuid", { name }) as Promise<string>,
+    async now(name: string): Promise<string> {
+      const n = next(name);
+      const hit = replayed(name, n, "now");
+      if (hit !== undefined) return answer(hit) as string;
+      return (await track(call("wf.now", name, n))) as string;
+    },
+    async uuid(name: string): Promise<string> {
+      const n = next(name);
+      const hit = replayed(name, n, "uuid");
+      if (hit !== undefined) return answer(hit) as string;
+      return (await track(call("wf.uuid", name, n))) as string;
+    },
   };
 }
