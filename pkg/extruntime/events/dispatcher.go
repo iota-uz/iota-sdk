@@ -120,10 +120,12 @@ func (c *Config) defaults() error {
 
 // Dispatcher delivers outbox events to active subscriptions after commit.
 //
-// Only rows whose inserting transaction is older than every running
-// transaction are read (xmin gating), so a transaction that took a lower seq
-// but commits later is never skipped; the activation watermark only excludes
-// events older than the activation. Each delivery is its own transaction with
+// Every committed event without a done/dead receipt of the subscription is
+// eligible; there is no read cursor, so a transaction that took a lower seq but
+// commits later is never skipped and no running transaction anywhere in the
+// cluster delays delivery. Order follows seq among visible rows (not a strict
+// commit order). The activation watermark only excludes events older than the
+// activation. Each delivery is its own transaction with
 // the subscription receipt, so a duplicate delivery is a no-op, and a poisoned
 // event is retried with backoff and dead-lettered without blocking later ones.
 type Dispatcher struct {
@@ -163,7 +165,6 @@ FROM extruntime.outbox_events e
 LEFT JOIN extruntime.subscription_receipts r ON r.subscription = $1 AND r.event_id = e.id
 WHERE e.event = $2
   AND e.seq > $3
-  AND e.xmin::text::xid8 < pg_snapshot_xmin(pg_current_snapshot())
   AND (r.event_id IS NULL OR (r.status IN ('pending', 'failed', 'blocked') AND r.next_at <= now()))
 ORDER BY e.seq
 LIMIT $4`
@@ -433,7 +434,6 @@ func (d *Dispatcher) Prune(ctx context.Context) (int64, error) {
 	tag, err := d.cfg.DB.Exec(ctx, `
 		DELETE FROM extruntime.outbox_events e
 		WHERE e.occurred_at < now() - $1::interval
-		  AND e.xmin::text::xid8 < pg_snapshot_xmin(pg_current_snapshot())
 		  AND NOT EXISTS (
 			SELECT 1 FROM extruntime.subscription_receipts r
 			WHERE r.event_id = e.id AND r.status IN ('pending', 'failed', 'blocked'))`, d.cfg.Retention.String())

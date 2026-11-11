@@ -446,9 +446,11 @@ transaction receipts and per-instance artifact pinning.
   `producer_invocation_id`. `schedule_runs(tenant_id, schedule, slot)`; `Schedule.Timezone`.
 * Single table list: no `workflow_timers` table (wake_at columns), `trigger_owners` (not `owners`).
 
-**Events**: no strict seq cursor. The dispatcher reads only rows whose
-`xmin::text::xid8 < pg_snapshot_xmin(pg_current_snapshot())` (committed and visible), the
-activation watermark only excludes events older than activation. Per-row delivery state:
+**Events**: no seq cursor. Every committed (visible) event lacking a done/dead receipt of the
+subscription is eligible, so late-committing lower-seq events are never skipped and no long
+transaction elsewhere in the cluster delays delivery (an earlier xmin-horizon gate was removed for
+that reason, 2026-11-11). Delivery order is by seq among visible rows, not a strict commit order;
+the activation watermark only excludes events older than activation. Per-row delivery state:
 `subscription_receipts(subscription, event_id, status pending|done|failed|dead, attempts,
 next_at, last_error, invocation_id)` with retry/backoff and dead-letter; one poisoned event
 does not block the subscription.
@@ -517,8 +519,8 @@ adds `cancelled` (set by Terminate). Activation stores `events.Watermark()` as t
 subscription's `AfterSeq`. The management slice supplies `workflow.Implementations`,
 `events.SubscriptionSource`, `events.ScheduleSource`. The workflow journal travels in
 `InvokeContext.Occurrence.journal`. Known limits: concurrent waits in `Promise.all` suspend
-sequentially; `wf.user.has()` reads current rights and is not journaled; xmin gating uses the
-cluster snapshot horizon (a long transaction anywhere delays delivery); schedule slots older
+sequentially; `wf.user.has()` reads current rights and is not journaled; event delivery is not strictly
+commit-ordered across concurrent producers; schedule slots older
 than `Lookback` (15 min) are skipped.
 
 **Engine/events hardening (as implemented)**:

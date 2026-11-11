@@ -117,8 +117,8 @@ func (f *fixture) emit(user int64, name string, rollback bool) error {
 	return err
 }
 
-// deliverUntil runs the dispatcher until cond holds. Delivery waits for older
-// transactions anywhere in the cluster to end (xmin gating), so it polls.
+// deliverUntil runs the dispatcher until cond holds. Delivery is asynchronous
+// work to be picked up by the poll loop, so it polls.
 func (f *fixture) deliverUntil(timeout time.Duration, cond func() bool, msg string) {
 	f.t.Helper()
 	deadline := time.Now().Add(timeout)

@@ -61,7 +61,7 @@ func TestSubscriptionsAreIndependentAndAFailingOneDoesNotHoldBackTheOther(t *tes
 	require.Equal(t, events.StatusDone, f.receipts(good.ID)["x"].Status)
 }
 
-func TestOutOfOrderCommitIsStillDeliveredInSeqOrder(t *testing.T) {
+func TestOutOfOrderCommitIsDeliveredWithoutWaitingForOpenTransactions(t *testing.T) {
 	f := newFixture(t)
 	sub := f.subscribe("a", `export const handler = async (tx, e) => { await tx.insert(item, { label: e.payload.name }); };`)
 	f.subs.set(sub)
@@ -78,14 +78,12 @@ func TestOutOfOrderCommitIsStillDeliveredInSeqOrder(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, txB.Commit(ctx)) // B commits first
 
-	n, err := f.disp.RunOnce(ctx)
-	require.NoError(t, err)
-	require.Zero(t, n, "B is not delivered while an older transaction (A) may still commit a lower seq")
-	require.Empty(t, f.env.Items())
+	f.deliverUntil(20*time.Second, func() bool { return len(f.env.Items()) == 1 }, "B delivered while A is still open")
+	require.Equal(t, []string{"B"}, f.env.Items(), "an open transaction elsewhere does not hold back committed events")
 
 	require.NoError(t, txA.Commit(ctx))
-	f.deliverUntil(20*time.Second, func() bool { return len(f.env.Items()) == 2 }, "both delivered after A commits")
-	require.Equal(t, []string{"A", "B"}, f.env.Items(), "delivered in seq order although A committed last")
+	f.deliverUntil(20*time.Second, func() bool { return len(f.env.Items()) == 2 }, "A delivered after it commits")
+	require.ElementsMatch(t, []string{"A", "B"}, f.env.Items(), "the lower seq that committed late is not skipped")
 }
 
 func TestPoisonedEventGoesDeadWithoutBlockingLaterEvents(t *testing.T) {
