@@ -469,3 +469,13 @@ Endpoints get `EndpointContext` (ordinary ctx + `request`, returns `{status, hea
 authenticated → actual user, public → trigger owner. Filter keys may be ref paths
 (`"holder.owner"`), compiled to explicit joins. Navigation adds `workspaces` and `palette`.
 Build/extract run in a separate build worker, not the invocation pool.
+
+**UI host (as implemented)**: `bindings.target_id` for `slot_kind='screen'` is a native route
+ID (registered by the host app in `ui.Config.NativeRoutes`) or a package page ID; for
+`slot_kind='shell'` the newest open row wins. Browser endpoints: `POST /_ext/rpc` (commands and
+queries as the session user; operations are never callable from the browser) and
+`GET /_ext/assets/<artifactHash>/<path>` (immutable). Client bundles externalize `solid-js`,
+`solid-js/web` and `@iota-uz/sdk/runtime/client`, resolved from the host's shared module
+registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid and one
+runtime context per document. Native list columns: `pkg/listext` (reference consumer: CRM
+clients list + CSV/Excel export).
