@@ -87,6 +87,16 @@ func (e *Env) NewPool(size int) *pool.Pool {
 	return p
 }
 
+// NewTenant inserts another tenant.
+func (e *Env) NewTenant() uuid.UUID {
+	e.T.Helper()
+	id := uuid.New()
+	_, err := e.DB.Exec(context.Background(),
+		`INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())`, id, "t-"+id.String()[:8], id.String()[:8]+".test")
+	require.NoError(e.T, err)
+	return id
+}
+
 // Subject is a user with permissions of the env tenant.
 func (e *Env) Subject(userID int64, perms ...string) spi.Subject {
 	return spi.Subject{TenantID: e.Tenant, UserID: userID, Kind: spi.SubjectInitiator, Permissions: perms, Locale: "en"}

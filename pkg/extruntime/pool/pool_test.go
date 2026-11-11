@@ -471,7 +471,16 @@ export const flow = { [brand]: true, serverKind: "implementation", handler: asyn
 	out, err = p.Invoke(context.Background(), wf)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"instance":"wfi-1","waited":true,"timed":{"outcome":"timeout"},"task":{"outcome":"decided","decision":true,"by":"7"},"handle":{"workflow":"acme.test.child","instance":"wfi-9"},"viaCallable":{"done":2},"now":"2030-01-01T00:00:00Z","uuid":"u-1"}`, string(out))
-	require.JSONEq(t, `{"name":"w2","workflow":"acme.test.flow","signal":"decision","timeout":"1d"}`, string(got["wf.waitFor"]))
-	require.JSONEq(t, `{"name":"approve","subject":{"entity":"e","key":"1"},"assignee":{"entity":"core.user","key":"7"},"decision":{"kind":"bool"},"timeout":"3d"}`, string(got["wf.task"]))
-	require.JSONEq(t, `{"name":"op","callable":"acme.test.op","input":{"n":2}}`, string(got["wf.transaction.call"]))
+	require.JSONEq(t, `{"name":"w2","n":0,"workflow":"acme.test.flow","signal":"decision","timeout":"1d"}`, string(got["wf.waitFor"]))
+	require.JSONEq(t, `{"name":"approve","n":0,"subject":{"entity":"e","key":"1"},"assignee":{"entity":"core.user","key":"7"},"decision":{"kind":"bool"},"timeout":"3d"}`, string(got["wf.task"]))
+	var txCall struct {
+		Name, Callable, InputHash string
+		N                         int
+		Input                     json.RawMessage
+	}
+	require.NoError(t, json.Unmarshal(got["wf.transaction.call"], &txCall))
+	require.Equal(t, "op", txCall.Name)
+	require.Equal(t, "acme.test.op", txCall.Callable)
+	require.JSONEq(t, `{"n":2}`, string(txCall.Input))
+	require.Len(t, txCall.InputHash, 64, "the worker sends the sha256 of the canonical input for the determinism check")
 }

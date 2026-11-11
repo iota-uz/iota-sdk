@@ -24,8 +24,13 @@ type execKey struct{}
 
 // guardRun describes one guard phase to run for a target.
 type guardRun struct {
-	root    *rootState
+	root *rootState
+	// parent is the invocation recorded as the parent of the guard runs; live
+	// is the nearest invocation that is running on a worker (nil: the guard
+	// takes a pool slot of its own). They differ for operation guards, which
+	// run before the guarded invocation has started.
 	parent  *execution
+	live    *execution
 	subject spi.Subject
 	trigger Trigger
 	// contract is the guarded command/operation; nil for entity write rules.
@@ -77,6 +82,8 @@ func (h *Host) runGuards(ctx context.Context, g guardRun) error {
 			subject:    g.subject,
 			trigger:    g.trigger,
 			parent:     g.parent,
+			placement:  true,
+			placeOn:    g.live,
 			join:       g.join,
 			externalTx: g.ext,
 		})
@@ -140,7 +147,7 @@ func (h *Host) CheckWrite(ctx context.Context, tx pgx.Tx, sc spi.Scope, change s
 		return serrors.Wrap(opCheckWrite, err)
 	}
 	err = h.runGuards(ctx, guardRun{
-		root: root, parent: parent, subject: sc.Subject, trigger: trigger,
+		root: root, parent: parent, live: parent, subject: sc.Subject, trigger: trigger,
 		target: change.Entity, phase: manifest.GuardWrite, input: input, ext: tx,
 	})
 	if err != nil {

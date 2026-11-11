@@ -207,7 +207,7 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		// Operation guards run inside the transaction, before the bound
 		// implementation, and cannot be bypassed by replacing it.
 		if gerr := e.h.runGuards(ctx, guardRun{
-			root: e.root, parent: e, subject: e.spec.subject, trigger: e.trigger(),
+			root: e.root, parent: e, live: e.spec.parent, subject: e.spec.subject, trigger: e.trigger(),
 			contract: e.contract, target: e.contract.ID, phase: manifest.GuardOperation, input: e.spec.input, join: txh,
 		}); gerr != nil {
 			if ownTx != nil {
@@ -227,7 +227,12 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		Ctx:      invCtx,
 		Calls:    e,
 	}
-	if e.spec.parent != nil {
+	switch {
+	case e.spec.placement:
+		if e.spec.placeOn != nil {
+			inv.ParentID = e.spec.placeOn.id
+		}
+	case e.spec.parent != nil:
 		inv.ParentID = e.spec.parent.id
 	}
 	output, err := e.h.cfg.Pool.Invoke(ctx, inv)

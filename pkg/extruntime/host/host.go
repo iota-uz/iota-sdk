@@ -277,6 +277,11 @@ type execSpec struct {
 	trigger    Trigger
 	occurrence json.RawMessage
 	parent     *execution
+	// placement set: run on the worker of placeOn (nil: take a pool slot of its
+	// own) instead of the parent's. Guards use it because they run before the
+	// invocation they belong to is live.
+	placement bool
+	placeOn   *execution
 	// join runs an operation or atomic command in an existing transaction
 	// (tx.call) instead of opening its own.
 	join       *txHandle
@@ -320,7 +325,7 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 			// invocation is recorded, on a read snapshot; independent of the
 			// bound implementation.
 			if err := h.runGuards(ctx, guardRun{
-				root: root, parent: spec.parent, subject: spec.subject, trigger: triggerOf(spec),
+				root: root, parent: spec.parent, live: spec.parent, subject: spec.subject, trigger: triggerOf(spec),
 				contract: contract, target: contract.ID, phase: manifest.GuardInput, input: spec.input,
 			}); err != nil {
 				return Result{}, err

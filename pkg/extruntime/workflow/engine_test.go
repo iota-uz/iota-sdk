@@ -500,12 +500,18 @@ export const flow = async (wf) => {
 	o, _ := occ(st.history(id), "c", 0)
 	require.Equal(t, workflow.OccStarted, o.Status)
 
+	// Retry accepts the risk: the call is dispatched again as a new invocation.
+	require.NoError(t, st.engine.Retry(context.Background(), env.Tenant, id, "c", 0))
+	require.NoError(t, st.engine.Resume(context.Background(), env.Tenant, id))
+	st.until(10*time.Second, func() bool { return st.status(id) == workflow.StatusBlocked }, "the retried call crashes again and is ambiguous again")
+	require.Equal(t, []string{"partial", "partial"}, env.Items(), "retry re-executed the command (the duplicate was accepted by the operator)")
+
 	require.NoError(t, st.engine.Resolve(context.Background(), env.Tenant, id, "c", 0, json.RawMessage(`{"v":7}`)))
 	require.NoError(t, st.engine.Resume(context.Background(), env.Tenant, id))
 	require.Equal(t, 1, st.drain())
 	require.Equal(t, workflow.StatusCompleted, st.status(id))
 	require.JSONEq(t, `{"v":7}`, string(st.instance(id).Result), "the operator's result stands in for the unknown outcome")
-	require.Equal(t, []string{"partial"}, env.Items())
+	require.Equal(t, []string{"partial", "partial"}, env.Items())
 }
 
 func TestSignalsAreValidatedDedupedAndConsumedInOrder(t *testing.T) {

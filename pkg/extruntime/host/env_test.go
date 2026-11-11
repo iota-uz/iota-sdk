@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -79,13 +80,14 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	cfg := host.Config{
 		Pool: e.pool, DB: e.db, Bindings: e.bindings, Catalog: e.catalog, Data: e.store,
 		Outbox: e.outbox, Starter: e.starter, Notifier: e.notifier, Workflow: e.wf,
-		Logger: logger,
+		Artifacts: e.art, Logger: logger,
 	}
 	for _, o := range opts {
 		o(&cfg)
 	}
 	e.host, err = host.New(cfg)
 	require.NoError(t, err)
+	e.store.guard = e.host
 
 	e.catalog.res["core.native"] = spi.ResolvedResource{Native: true, Resource: manifest.Resource{ID: "core.native", Kind: manifest.ResEntity}}
 	e.catalog.res[itemEntity] = spi.ResolvedResource{Package: "acme.a", Version: "1.0.0", Resource: manifest.Resource{ID: itemEntity, Kind: manifest.ResEntity}}
@@ -206,7 +208,8 @@ func (a *artifacts) ResolveArtifact(_ context.Context, pkg, version string) (poo
 // ---- catalog ----
 
 type catalog struct {
-	res map[string]spi.ResolvedResource
+	res    map[string]spi.ResolvedResource
+	guards []spi.ResolvedGuard
 }
 
 func (c *catalog) Resolve(_ context.Context, id string) (spi.ResolvedResource, bool, error) {
@@ -215,14 +218,22 @@ func (c *catalog) Resolve(_ context.Context, id string) (spi.ResolvedResource, b
 }
 func (c *catalog) Entities(context.Context) ([]spi.ResolvedResource, error) { return nil, nil }
 
-func (c *catalog) Guards(context.Context, string, manifest.GuardPhase) ([]spi.ResolvedGuard, error) {
-	return nil, nil
+func (c *catalog) Guards(_ context.Context, target string, phase manifest.GuardPhase) ([]spi.ResolvedGuard, error) {
+	var out []spi.ResolvedGuard
+	for _, g := range c.guards {
+		if g.Guard.Target == target && g.Guard.Phase == phase {
+			out = append(out, g)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Guard.ID < out[j].Guard.ID })
+	return out, nil
 }
 
 // ---- data store double: one real table ----
 
 type itemStore struct {
 	db     *pgxpool.Pool
+	guard  spi.WriteGuard
 	mu     sync.Mutex
 	scopes []spi.Scope
 }
@@ -290,6 +301,11 @@ func (s *itemStore) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, _ strin
 	var v struct{ Label string }
 	if err := json.Unmarshal(values, &v); err != nil {
 		return nil, err
+	}
+	if s.guard != nil {
+		if err := s.guard.CheckWrite(ctx, tx, sc, spi.WriteChange{Entity: itemEntity, Op: "insert", Proposed: values, Changed: []string{"label"}}); err != nil {
+			return nil, err
+		}
 	}
 	var id int64
 	if err := tx.QueryRow(ctx, `INSERT INTO host_items (tenant_id, label) VALUES ($1, $2) RETURNING id`, sc.Subject.TenantID, v.Label).Scan(&id); err != nil {

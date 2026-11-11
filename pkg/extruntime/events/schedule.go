@@ -170,7 +170,7 @@ type runKey struct {
 type runState struct {
 	status   string
 	attempts int
-	nextAt   time.Time
+	due      bool // next_at has passed on the database clock
 }
 
 // RunOnce evaluates every active schedule once and runs the due slots of
@@ -201,7 +201,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 		}
 		for _, slot := range slots {
 			for _, tenant := range tenants {
-				if st, ok := known[runKey{tenant, slot}]; ok && !(st.nextAt.Before(now) && (st.status == StatusFailed || st.status == StatusBlocked)) {
+				if st, ok := known[runKey{tenant, slot}]; ok && !(st.due && (st.status == StatusFailed || st.status == StatusBlocked)) {
 					continue
 				}
 				ok, err := s.runSlot(ctx, def, tenant, slot, known[runKey{tenant, slot}].attempts)
@@ -218,7 +218,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 }
 
 func (s *Scheduler) loadRuns(ctx context.Context, schedule string, since time.Time) (map[runKey]runState, error) {
-	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, slot, status, attempts, next_at FROM extruntime.schedule_runs WHERE schedule = $1 AND slot >= $2`, schedule, since)
+	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, slot, status, attempts, next_at <= now() FROM extruntime.schedule_runs WHERE schedule = $1 AND slot >= $2`, schedule, since)
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
 	}
@@ -227,7 +227,7 @@ func (s *Scheduler) loadRuns(ctx context.Context, schedule string, since time.Ti
 	for rows.Next() {
 		var k runKey
 		var st runState
-		if err := rows.Scan(&k.tenant, &k.slot, &st.status, &st.attempts, &st.nextAt); err != nil {
+		if err := rows.Scan(&k.tenant, &k.slot, &st.status, &st.attempts, &st.due); err != nil {
 			return nil, serrors.FromDB(opSchedule, err)
 		}
 		k.slot = k.slot.UTC()
