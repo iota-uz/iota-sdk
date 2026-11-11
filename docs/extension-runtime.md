@@ -336,3 +336,68 @@ The Node side lives in `web/runtime` (workspace package, built into `@iota-uz/sd
 * Ordinary command may commit partially before a lost reply; it is not blindly retried.
 * Old instances keep their pinned artifacts; Go host/native operation implementations may
   change under a compatible public contract; old Go binaries are not retained.
+
+## 8. Durable engine and events (design for the workflows slice)
+
+### Engine qualification
+
+DBOS (TS and Go) was qualified **by analysis** against the author API (no experiment run yet):
+* DBOS transactions run on DBOS's own data source connection; `wf.transaction` requires the
+  occurrence receipt to commit in the **Go-owned** tx together with DB effects — not expressible.
+* DBOS recovers workflows by application version per process; the shared pool runs v1 and v2
+  of several packages side by side and selects artifacts per instance.
+* Waiting in DBOS Go keeps the workflow goroutine/Node invocation alive or requires our own
+  re-entry journal anyway.
+
+Decision: a Go-owned **replay journal engine** over PostgreSQL (not a queue): deterministic
+re-execution of the pinned TS function, journal of completed occurrences, durable timers,
+signals, human tasks, leases and crash recovery. Revisit if a candidate supports external
+transaction receipts and per-instance artifact pinning.
+
+### Tables (`extruntime`)
+
+* `workflow_instances(id, tenant_id, workflow, package, version, artifact_hash, export, input,
+  status running|waiting|completed|failed|terminated|blocked, result, error, subject_user_id,
+  subject_kind initiator|owner, predecessor_id, start_key unique, wake_at, lease_owner,
+  lease_until, run_count, created_at, updated_at)`
+* `workflow_occurrences(instance_id, name, n, kind, status started|completed|failed|waiting,
+  input_hash, result, error, attempts, wake_at, invocation_id, PK(instance_id,name,n))`
+* `workflow_signals(id, instance_id, name, payload, consumed_name, consumed_n, created_at)`
+* `human_tasks(id, tenant_id, instance_id, name, n, subject_entity, subject_key,
+  assignee_user_id, decision_schema, status open|decided|expired|cancelled, decision,
+  decided_by, due_at)`
+* `outbox_events(seq bigserial, id uuid, tenant_id, event, subject_entity, subject_key,
+  payload, initiator_user_id, occurred_at)`; `subscription_cursors(subscription, from_seq)`;
+  `subscription_receipts(subscription, event_id, invocation_id, PK(subscription,event_id))`;
+  `trigger_owners(trigger_id, tenant_id, user_id)`; `schedule_runs(schedule, slot)`.
+
+### Primitive semantics (occurrence = (instance, name, n), n = per-run counter of `name`)
+
+| Call | First execution | Replay |
+|---|---|---|
+| `wf.transaction(name, cb)` | Go tx; cb data calls; receipt row inserted **in the same tx**; commit | return stored result |
+| `wf.step(name, fx)` | short tx marks `started`, attempts++; fx runs in Node with key `instance:name:n`; result recorded | completed → stored; `started` → fx runs again (at-least-once, same key) |
+| `wf.sleep(name, d)` | record `wake_at`; suspend | `now ≥ wake_at` → complete |
+| `wf.waitFor(name, signal, {timeout})` | consume unconsumed signal or suspend | consumed → payload |
+| `wf.task(name, spec)` | create `human_tasks` row; suspend | decided → `{outcome:"decided", decision, by}`; due → `{outcome:"timeout"}` |
+| `wf.call(name, command, input)` | new invocation selecting the **current** active binding (recorded); atomic: receipt in the command tx; ordinary: `started` recorded before dispatch | completed → stored; `started` without result → instance `blocked` (`ambiguous`, manual review) |
+| `wf.start(name, workflow, input)` | instance row with `start_key=instance:name:n` | stored instance ref |
+
+* A different kind at the same (name, n) → `nondeterminism`, instance `blocked`.
+* Suspend ends the Node invocation (worker freed, no tx held). A scheduler wakes instances on
+  `wake_at`/signal/task decision; runs are claimed with `FOR UPDATE SKIP LOCKED` + lease;
+  expired leases are re-claimed after restart and replayed.
+* Each run loads the subject's **current** permissions; disabled/denied → `blocked` with a
+  diagnostic. Session expiry is irrelevant.
+* Terminate: status `terminated`, in-flight run cancelled, further host calls rejected; done
+  effects stay. Start v2: new instance (any version) with `predecessor_id`; history linked.
+
+### Events
+
+* `tx.emit` / Go `events.Publish(ctx, tx, …)` insert into `outbox_events` in the caller's tx.
+* Dispatcher (after commit; LISTEN/NOTIFY + poll) delivers to each **active** subscription in
+  `seq` order from its cursor (cursor initialized at activation → no automatic replay of the
+  journal on handler update). Each delivery = own tx: handler (Tx) + receipt; duplicate
+  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id`.
+* Subject: event initiator's current rights; no initiator → `trigger_owners` owner-user
+  (assigned at activation; activation fails without one).
