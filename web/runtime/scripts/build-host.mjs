@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Builds the Node host worker without dependencies: strips TypeScript types
-// (node:module stripTypeScriptTypes) from src/host/*.ts and from the SDK
+// Builds the Node host worker: strips TypeScript types (esbuild transform,
+// per file, no bundling) from src/host/*.ts and from the SDK
 // modules the worker imports at runtime, and writes
 //   <out>/worker.mjs, <out>/*.mjs        host modules
 //   <out>/sdk/*.mjs                      SDK modules (entity.ts, schema.ts, ...)
 // Default output: web/runtime/dist/host. Sources must use erasable TypeScript
 // syntax only (no enums, namespaces or parameter properties).
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { stripTypeScriptTypes } from "node:module";
+import { transform } from "esbuild";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,7 +35,7 @@ while (queue.length > 0) {
   const file = queue.pop();
   if (done.has(file)) continue;
   done.add(file);
-  const stripped = stripTypeScriptTypes(await readFile(file, "utf8"), { mode: "strip" });
+  const { code: stripped } = await transform(await readFile(file, "utf8"), { loader: "ts", format: "esm", target: "node20", sourcefile: file });
   const target = outPath(file);
   const rewritten = stripped.replace(specifier, (_all, lead, quote, spec) => {
     const dep = resolve(dirname(file), spec);
