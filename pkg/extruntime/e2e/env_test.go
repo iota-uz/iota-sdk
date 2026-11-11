@@ -130,7 +130,9 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 			},
 			NativeRoutes: cfg.uiRoutes, SourceTTL: 10 * time.Millisecond,
 		},
-		Logger: logger,
+		// A webhook has no session: the application resolves its tenant (by host name in production).
+		Endpoints: runtime.EndpointConfig{PublicTenant: func(*http.Request) (uuid.UUID, bool) { return e.tenant, true }},
+		Logger:    logger,
 	}
 	comp, err := runtime.NewComponent(e.cfg)
 	require.NoError(t, err)

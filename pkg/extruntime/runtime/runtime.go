@@ -256,7 +256,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		if err != nil {
 			return fail(err)
 		}
-		hostCfg.Workflow, hostCfg.Starter = rt.Workflows, rt.Workflows
+		hostCfg.Workflow, hostCfg.Starter, hostCfg.Signals = rt.Workflows, rt.Workflows, rt.Workflows
 		rt.Manage.SetWorkflows(rt.Workflows)
 	}
 	if deps.Dispatch != nil {
