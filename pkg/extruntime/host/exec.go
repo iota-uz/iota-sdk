@@ -55,10 +55,21 @@ type execution struct {
 	ctxTx     *txHandle // open ctx.transaction of an ordinary invocation
 	snapshot  *txHandle
 	committed int
+	// extTx is the adopted caller-owned transaction of a Run; a schedule's
+	// ctx.transaction joins it, so its effects commit with the caller's receipt.
+	extTx         *txHandle
+	extRolledBack bool
 }
 
 func (e *execution) InvocationID() string { return e.id }
 func (e *execution) Scope() spi.Scope     { return e.scope }
+func (e *execution) Token() string        { return e.root.token }
+
+func (e *execution) Producer() spi.Producer {
+	p := e.root.producer
+	p.InvocationID = e.id
+	return p
+}
 
 func (e *execution) trigger() Trigger {
 	if e.spec.parent != nil {
@@ -84,6 +95,7 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 	if hash == "" && e.contract != nil {
 		hash = manifest.ContractHashOf(*e.contract)
 	}
+	out.ContractHash = hash
 	trig := e.trigger()
 	if err := e.h.rec.start(ctx, startRecord{
 		ID: e.id, ParentID: parentID, RootID: e.rootID,
@@ -171,22 +183,38 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 	if e.spec.parent != nil {
 		invCtx.Parent = e.spec.parent.id
 	}
-	var ownTx *txHandle
+	var ownTx, txh *txHandle
 	switch {
 	case e.spec.externalTx != nil:
-		invCtx.Tx = e.root.txs.adopt(e.spec.externalTx).id
+		txh = e.root.txs.adopt(e.spec.externalTx)
+		e.mu.Lock()
+		e.extTx = txh
+		e.mu.Unlock()
+		invCtx.Tx = txh.id
+	case e.spec.join != nil:
+		txh = e.spec.join
+		invCtx.Tx = txh.id
 	case e.kind == pool.KindAtomic || e.kind == pool.KindOperation:
-		if e.spec.join != nil {
-			invCtx.Tx = e.spec.join.id
-		} else {
-			h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
-			if err != nil {
-				return nil, err
-			}
-			ownTx, invCtx.Tx = h, h.id
+		h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
+		if err != nil {
+			return nil, err
 		}
+		ownTx, txh, invCtx.Tx = h, h, h.id
 	case e.kind == pool.KindSubscription:
 		return nil, fail("runtime.txRequired", "subscription handlers run in a caller-owned transaction")
+	}
+	if txh != nil && e.contract != nil && (e.kind == pool.KindAtomic || e.kind == pool.KindOperation) {
+		// Operation guards run inside the transaction, before the bound
+		// implementation, and cannot be bypassed by replacing it.
+		if gerr := e.h.runGuards(ctx, guardRun{
+			root: e.root, parent: e, live: e.spec.parent, subject: e.spec.subject, trigger: e.trigger(),
+			contract: e.contract, target: e.contract.ID, phase: manifest.GuardOperation, input: e.spec.input, join: txh,
+		}); gerr != nil {
+			if ownTx != nil {
+				_ = e.root.txs.end(ctx, ownTx, TxRollback)
+			}
+			return nil, gerr
+		}
 	}
 
 	inv := pool.Invocation{
@@ -199,7 +227,12 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		Ctx:      invCtx,
 		Calls:    e,
 	}
-	if e.spec.parent != nil {
+	switch {
+	case e.spec.placement:
+		if e.spec.placeOn != nil {
+			inv.ParentID = e.spec.placeOn.id
+		}
+	case e.spec.parent != nil:
 		inv.ParentID = e.spec.parent.id
 	}
 	output, err := e.h.cfg.Pool.Invoke(ctx, inv)
@@ -208,6 +241,12 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		err = e.checkOutput(output)
 	} else {
 		err = e.closedErrors(err)
+	}
+	e.mu.Lock()
+	rolledBack := e.extRolledBack
+	e.mu.Unlock()
+	if err == nil && rolledBack {
+		err = fail("runtime.txRolledBack", "the handler rolled back its transaction and then returned normally; the caller-owned transaction is not committed")
 	}
 	if ownTx != nil {
 		if err != nil {
@@ -269,6 +308,7 @@ func (e *execution) closeOpenTx(ctx context.Context) {
 
 // Call serves one host call of the worker running this invocation.
 func (e *execution) Call(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+	ctx = context.WithValue(ctx, execKey{}, e)
 	out, err := e.call(ctx, method, args)
 	if err != nil {
 		return nil, asWire(err)
@@ -354,13 +394,21 @@ func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome)
 
 // txBegin opens the transaction of an ordinary invocation's ctx.transaction.
 func (e *execution) txBegin(ctx context.Context) (json.RawMessage, error) {
-	if e.kind != pool.KindCommand && e.kind != pool.KindEndpoint {
+	if e.kind != pool.KindCommand && e.kind != pool.KindEndpoint && e.kind != pool.KindSchedule {
 		return nil, fail("runtime.txNotAllowed", "%s invocations do not open transactions; they run in the transaction the host gave them", e.kind)
 	}
 	e.mu.Lock()
 	if e.ctxTx != nil {
 		e.mu.Unlock()
 		return nil, fail("runtime.nestedTransaction", "ctx.transaction cannot be nested")
+	}
+	ext := e.extTx
+	if ext != nil {
+		// A run with a caller-owned transaction (a schedule slot with its
+		// receipt): ctx.transaction joins it instead of opening another one.
+		e.ctxTx = ext
+		e.mu.Unlock()
+		return json.Marshal(map[string]string{"tx": ext.id})
 	}
 	e.mu.Unlock()
 	h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
@@ -390,6 +438,17 @@ func (e *execution) txEnd(ctx context.Context, args json.RawMessage) (json.RawMe
 	if a.Outcome != TxCommit && a.Outcome != TxRollback {
 		return nil, fail(pool.CodeHostCall, "unknown tx.end outcome %q", a.Outcome)
 	}
+	if h.external {
+		// The caller commits; a rollback poisons the run, because part of the
+		// caller's transaction would otherwise commit anyway.
+		e.mu.Lock()
+		e.ctxTx = nil
+		if a.Outcome == TxRollback {
+			e.extRolledBack = true
+		}
+		e.mu.Unlock()
+		return json.RawMessage(`null`), nil
+	}
 	err := e.root.txs.end(ctx, h, a.Outcome)
 	e.mu.Lock()
 	e.ctxTx = nil
@@ -404,7 +463,15 @@ func (e *execution) txEnd(ctx context.Context, args json.RawMessage) (json.RawMe
 }
 
 func (e *execution) invokeNested(ctx context.Context, contract string, input json.RawMessage, join *txHandle) (json.RawMessage, error) {
-	res, err := e.h.execute(ctx, e.root, execSpec{
+	res, err := e.invokeNestedResult(ctx, contract, input, join, "")
+	if err != nil {
+		return nil, err
+	}
+	return res.Output, nil
+}
+
+func (e *execution) invokeNestedResult(ctx context.Context, contract string, input json.RawMessage, join *txHandle, id string) (Result, error) {
+	return e.h.execute(ctx, e.root, execSpec{
 		contract:   contract,
 		input:      input,
 		subject:    e.spec.subject,
@@ -412,11 +479,39 @@ func (e *execution) invokeNested(ctx context.Context, contract string, input jso
 		occurrence: nil,
 		parent:     e,
 		join:       join,
+		id:         id,
 	})
-	if err != nil {
-		return nil, err
+}
+
+func callResult(res Result) CallResult {
+	return CallResult{
+		InvocationID: res.InvocationID, Binding: res.Binding, ContractHash: res.ContractHash, Output: res.Output, Outcome: res.Outcome,
+		CommittedTxCount: res.CommittedTxCount, PartiallyCommitted: res.PartiallyCommitted,
 	}
-	return res.Output, nil
+}
+
+// CallCommand is wf.call: a new invocation of a command that selects the
+// currently active binding.
+func (e *execution) CallCommand(ctx context.Context, contract string, input json.RawMessage, invocationID string) (CallResult, error) {
+	res, err := e.invokeNestedResult(ctx, contract, input, nil, invocationID)
+	return callResult(res), err
+}
+
+// CallCommandInTx runs an atomic command joined to the engine's transaction.
+func (e *execution) CallCommandInTx(ctx context.Context, handle, contract string, input json.RawMessage) (CallResult, error) {
+	h, err := e.root.txs.lookup(handle)
+	if err != nil {
+		return CallResult{}, err
+	}
+	rc, err := e.h.resolveContract(ctx, contract)
+	if err != nil {
+		return CallResult{}, err
+	}
+	if !(rc.Resource.Kind == manifest.ResCommand && rc.Resource.Atomic) {
+		return CallResult{}, fail("runtime.notAtomic", "%s is not an atomic command", contract)
+	}
+	res, err := e.invokeNestedResult(ctx, contract, input, h, "")
+	return callResult(res), err
 }
 
 // txCall dispatches an operation or atomic command to its active
