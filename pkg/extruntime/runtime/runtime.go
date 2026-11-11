@@ -81,6 +81,9 @@ type Config struct {
 	// UI enables the runtime UI slice (page host, navigation, shell, native
 	// list columns) on top of the management storage. Nil disables it.
 	UI *UIConfig
+	// Endpoints configures the package HTTP endpoints served under
+	// /_ext/endpoints (mounted with the API capability).
+	Endpoints EndpointConfig
 
 	// Extensions attach after the runtime is built (MCP tools, extra
 	// consumers); each receives the Runtime and returns a stop function.

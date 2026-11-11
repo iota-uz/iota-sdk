@@ -221,7 +221,9 @@ func (c *Catalog) prepare(d Definition) (Definition, error) {
 	if _, exists := c.definitions[d.Key]; exists {
 		return Definition{}, fmt.Errorf("notification event already registered: %s", d.Key)
 	}
-	if _, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" {
+	// A snapshot is immutable: the same source may register it again when an
+	// already seen version is re-activated; another source may not claim it.
+	if prev, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" && prev.Source != d.Source {
 		return Definition{}, fmt.Errorf("notification snapshot already registered: %s", snapshotID(d.Key, d.SnapshotRef))
 	}
 	if d.Render == nil {

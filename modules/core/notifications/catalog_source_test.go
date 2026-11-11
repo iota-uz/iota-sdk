@@ -117,3 +117,21 @@ func TestEvent_SnapshotRefSurvivesJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(data), "snapshot_ref")
 }
+
+func TestCatalogRegisterSource_ReactivatesSameSnapshot(t *testing.T) {
+	c := NewCatalog()
+	src := staticSource{name: "ts", definitions: []Definition{runtimeDefinition("ext.thing.happened.v1", "pkg@1")}}
+	require.NoError(t, c.RegisterSource(context.Background(), src))
+	c.Deactivate("ts")
+	_, active := c.Get("ext.thing.happened.v1")
+	require.False(t, active)
+
+	require.NoError(t, c.RegisterSource(context.Background(), src), "re-activating the same immutable version")
+	_, active = c.Get("ext.thing.happened.v1")
+	require.True(t, active)
+
+	c.Deactivate("ts")
+	other := staticSource{name: "other", definitions: []Definition{runtimeDefinition("ext.thing.happened.v1", "pkg@1")}}
+	other.definitions[0].Source = "other"
+	require.Error(t, c.RegisterSource(context.Background(), other), "another source cannot claim the snapshot")
+}

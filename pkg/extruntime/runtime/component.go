@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"embed"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/endpoint"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -85,6 +86,13 @@ func (c *component) Build(builder *composition.Builder) error {
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {
 			return []application.Controller{NewController(NewAPI(rt.Manage, requestSubject, rt.log))}
+		})
+		composition.ContributeControllersFunc(builder, func(rt *Runtime) ([]application.Controller, error) {
+			h, err := rt.EndpointHandler()
+			if err != nil {
+				return nil, err
+			}
+			return []application.Controller{endpoint.NewController(h)}, nil
 		})
 	}
 	if builder.Context().HasCapability(composition.CapabilityAPI) || builder.Context().HasCapability(composition.CapabilityWorker) {

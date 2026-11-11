@@ -273,8 +273,8 @@ Node → Go  {"t":"log","inv":"…","level":"info","msg":"…"}
   workflow|guard|template|endpoint|schedule` (build/extract run in a separate build worker).
   `ctx` carries `tenant, user{id (int64 string), kind, locale, permissions[]}, invocation,
   deadline, tx?, trigger, parent, instance`. Host methods: `tx.begin|end|get|find|count|insert|
-  update|delete|putOverlay|call|emit|notify|start`, `q.get|find|count` (lazy REPEATABLE READ
-  READ ONLY snapshot), `invoke.command`, `secrets.get`, `wf.step.begin|end`,
+  update|delete|putOverlay|call|emit|notify|start|signal|query`, `q.get|find|count|query` (lazy REPEATABLE READ
+  READ ONLY snapshot), `invoke.command`, `invoke.signal`, `secrets.get`, `wf.step.begin|end`,
   `wf.transaction.begin|end|call`, `wf.sleep|waitFor|task|call|start|now|uuid`. Replies:
   `tx.start`/`wf.start` → `{instance}`, `wf.waitFor` → `{outcome, payload}`. Nested invocations
   (`tx.call`, `ctx.call`) run on the parent's worker without taking a pool slot. Stray console
@@ -544,3 +544,14 @@ resolved by the worker loader. Client bundles externalize `solid-js`, `solid-js/
 writes are allowed only to the caller package's own entities/overlays (`ErrForeignWrite`
 otherwise); other packages' data is changed through their published operations. Native
 entities carry `keyType`; slot declarations carry `props`.
+
+**Host rules (as implemented)**: guard and query invocations may only call read methods
+(`tx.get|find|count|query`, `q.*`, `secrets.get`); any write or `wf.*` call returns
+`runtime.readOnlyContext` — enforced by the Go router, not only by the TS context.
+`invoke.command`, `invoke.signal` and `wf.call` return `runtime.intentInTransaction` while a Go tx
+is open in the invocation. `tx.query`/`q.query` return `runtime.nativeQueryUnavailable` for a
+query without a package implementation (Go-implemented native queries are future work).
+`wf.step`/`wf.transaction` results are JSON-normalized on first execution. HTTP endpoints:
+`/_ext/endpoints/<namespace>/<path>` (sync response; session user, or the trigger owner for
+`public` endpoints; tenant of an unauthenticated request via `runtime.Config.Endpoints.PublicTenant`;
+`Set-Cookie` from handlers is dropped).
