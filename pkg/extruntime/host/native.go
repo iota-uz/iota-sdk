@@ -72,6 +72,9 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 		c := &hostCommand{e: e}
 		defer c.done.Store(true)
 		return e.native.RunCommand(e.nativeCtx(ctx, nil), c, in)
+	case pool.KindSubscription, pool.KindWorkflow, pool.KindGuard, pool.KindTemplate,
+		pool.KindEndpoint, pool.KindSchedule:
+		// not native contract shapes
 	}
 	return nil, fail("runtime.nativeKind", "%s invocations have no Go implementation", e.kind)
 }
@@ -275,7 +278,9 @@ func dataError(err error) *pool.WireError {
 func writeIssue(err error, code, message string) *pool.WireError {
 	is := pool.Issue{Code: code, Phase: "write"}
 	if fs := serrors.FieldsOf(err); len(fs) > 0 && fs[0].Field != "" {
-		is.Path, _ = json.Marshal([]string{fs[0].Field})
+		if path, perr := json.Marshal([]string{fs[0].Field}); perr == nil {
+			is.Path = path
+		}
 	}
 	return &pool.WireError{Kind: pool.ErrKindValidation, Code: code, Message: message, Issues: []pool.Issue{is}}
 }

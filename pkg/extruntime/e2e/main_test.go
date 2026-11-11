@@ -16,7 +16,7 @@ var repoRoot string
 var (
 	hostOnce   sync.Once
 	hostDir    string
-	hostErr    error
+	errHost    error
 	hostScript string
 )
 
@@ -40,27 +40,27 @@ func TestMain(m *testing.M) {
 
 // hostWorker builds the Node host worker (web/runtime/src/host) once per test
 // process and returns the path of worker.mjs.
-func hostWorker(t testing.TB) string {
-	t.Helper()
+func hostWorker(tb testing.TB) string {
+	tb.Helper()
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("node is not installed")
+		tb.Skip("node is not installed")
 	}
 	hostOnce.Do(func() {
-		hostDir, hostErr = os.MkdirTemp("", "iota-e2e-host-")
-		if hostErr != nil {
+		hostDir, errHost = os.MkdirTemp("", "iota-e2e-host-")
+		if errHost != nil {
 			return
 		}
 		script := filepath.Join(repoRoot, "web", "runtime", "scripts", "build-host.mjs")
 		out := filepath.Join(hostDir, "host")
 		if b, err := exec.Command(node, "--no-warnings", script, out).CombinedOutput(); err != nil {
-			hostErr = fmt.Errorf("build host worker: %w\n%s", err, b)
+			errHost = fmt.Errorf("build host worker: %w\n%s", err, b)
 			return
 		}
 		hostScript = filepath.Join(out, "worker.mjs")
 	})
-	if hostErr != nil {
-		t.Fatal(hostErr)
+	if errHost != nil {
+		tb.Fatal(errHost)
 	}
 	return hostScript
 }

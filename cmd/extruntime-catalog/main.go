@@ -85,8 +85,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if !bytes.Equal(have, doc) {
 			return fmt.Errorf("%s is stale (run `go run ./cmd/extruntime-catalog` and commit the result)", *out)
 		}
-		fmt.Fprintf(stdout, "%s is up to date\n", *out)
-		return nil
+		_, err = fmt.Fprintf(stdout, "%s is up to date\n", *out)
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
 		return err
@@ -94,6 +94,6 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if err := os.WriteFile(*out, doc, 0o644); err != nil {
 		return errors.Join(fmt.Errorf("write %s", *out), err)
 	}
-	fmt.Fprintf(stdout, "wrote %s\n", *out)
-	return nil
+	_, err = fmt.Fprintf(stdout, "wrote %s\n", *out)
+	return err
 }

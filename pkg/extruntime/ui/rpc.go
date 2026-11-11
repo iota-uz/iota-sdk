@@ -56,10 +56,16 @@ type rpcResponse struct {
 }
 
 func writeRPC(w http.ResponseWriter, status int, body rpcResponse) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		// A Value that is not valid JSON cannot be sent as a result.
+		status = http.StatusInternalServerError
+		data = []byte(`{"ok":false,"error":{"kind":"internal","code":"ui.encode","message":"the response could not be encoded"}}`)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	_, _ = w.Write(append(data, '\n'))
 }
 
 func rpcFail(w http.ResponseWriter, status int, kind pool.ErrorKind, code, message string) {
@@ -82,6 +88,8 @@ func statusOf(kind pool.ErrorKind) int {
 		return http.StatusForbidden
 	case pool.ErrKindDomain, pool.ErrKindValidation:
 		return http.StatusUnprocessableEntity
+	case pool.ErrKindInternal, pool.ErrKindSuspend:
+		return http.StatusInternalServerError
 	}
 	return http.StatusInternalServerError
 }

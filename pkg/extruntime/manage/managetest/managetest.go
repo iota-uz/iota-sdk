@@ -66,7 +66,7 @@ func (b *Builder) Build(_ context.Context, src build.Tree, kit build.Kit) (build
 	ds := b.diagnostics(src)
 	for _, d := range ds {
 		if d.Severity == build.SeverityError {
-			return build.Result{Diagnostics: ds}, &build.Failed{Diagnostics: ds}
+			return build.Result{Diagnostics: ds}, &build.FailedError{Diagnostics: ds}
 		}
 	}
 	var m manifest.Manifest

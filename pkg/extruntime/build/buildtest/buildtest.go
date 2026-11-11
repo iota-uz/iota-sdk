@@ -63,9 +63,9 @@ func Config(tb testing.TB) build.Config {
 	}
 }
 
-func ensure(root, node string) (dir string, ok bool, errText string) {
+func ensure(root, node string) (string, bool, string) {
 	stamp := sourceHash(root)
-	dir = filepath.Join(os.TempDir(), "iota-extruntime-build-"+stamp[:16])
+	dir := filepath.Join(os.TempDir(), "iota-extruntime-build-"+stamp[:16])
 	if _, err := os.Stat(filepath.Join(dir, "build", "worker.mjs")); err == nil {
 		return dir, true, ""
 	}
@@ -94,7 +94,12 @@ func sourceHash(root string) string {
 	h := sha256.New()
 	for _, sub := range []string{"src", "scripts"} {
 		_ = filepath.WalkDir(filepath.Join(root, sub), func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+			if err != nil {
+				// An unreadable directory contributes nothing to the hash; for a
+				// failed root WalkDir treats SkipDir as the end of the walk.
+				return fs.SkipDir
+			}
+			if d.IsDir() {
 				return nil
 			}
 			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".json") {

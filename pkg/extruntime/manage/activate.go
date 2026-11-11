@@ -301,7 +301,7 @@ func (s *Service) rebind(ctx context.Context, tx pgx.Tx, by int64, ns, version s
 			out.Released = append(out.Released, b)
 			continue
 		}
-		chain, err := displacedOf(ctx, tx, b.ID)
+		chain, hasChain, err := displacedOf(ctx, tx, b.ID)
 		if err != nil {
 			return err
 		}
@@ -312,8 +312,8 @@ func (s *Service) rebind(ctx context.Context, tx pgx.Tx, by int64, ns, version s
 		if err != nil {
 			return err
 		}
-		if chain != nil {
-			if err := setDisplaced(ctx, tx, nb.ID, *chain); err != nil {
+		if hasChain {
+			if err := setDisplaced(ctx, tx, nb.ID, chain); err != nil {
 				return err
 			}
 		}
@@ -323,11 +323,11 @@ func (s *Service) rebind(ctx context.Context, tx pgx.Tx, by int64, ns, version s
 		if !ownsID(ns, i.Implements) || !bindsAsCommand(i.Kind) {
 			continue
 		}
-		holder, err := slotHolder(ctx, tx, SlotCommand, i.Implements)
+		holder, held, err := slotHolder(ctx, tx, SlotCommand, i.Implements)
 		if err != nil {
 			return err
 		}
-		if holder != nil {
+		if held {
 			// A replacement from another package holds the slot: keep it,
 			// and remember this implementation as what it displaced.
 			ph, err := insertBinding(ctx, tx, SlotCommand, i.Implements, ns, version, i.Export, by, true)

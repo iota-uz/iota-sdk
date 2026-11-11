@@ -19,7 +19,7 @@ func snake(s string) string {
 	var b strings.Builder
 	for i, r := range s {
 		if r >= 'A' && r <= 'Z' {
-			if i > 0 && s[i-1] != '_' && !(s[i-1] >= 'A' && s[i-1] <= 'Z') {
+			if i > 0 && s[i-1] != '_' && (s[i-1] < 'A' || s[i-1] > 'Z') {
 				b.WriteByte('_')
 			}
 			b.WriteRune(r + ('a' - 'A'))
@@ -68,8 +68,9 @@ func templateChannel(c notifications.Channel) string {
 // SnapshotRef is the immutable reference queued notices keep: package@version.
 func SnapshotRef(pkg, version string) string { return pkg + "@" + version }
 
-// SplitRef parses a SnapshotRef.
-func SplitRef(ref string) (pkg, version string, ok bool) {
+// SplitRef parses a SnapshotRef into its package and version; ok is false when
+// ref is not of the form package@version.
+func SplitRef(ref string) (string, string, bool) {
 	i := strings.LastIndex(ref, "@")
 	if i <= 0 || i == len(ref)-1 {
 		return "", "", false

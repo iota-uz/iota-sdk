@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -42,7 +43,7 @@ var httpClient = &http.Client{
 // session travels as the session cookie the browser would hold.
 func (e *env) do(a *actor, method, path string, body io.Reader, headers ...string) resp {
 	e.t.Helper()
-	req, err := http.NewRequest(method, e.srv.URL+path, body)
+	req, err := http.NewRequestWithContext(context.Background(), method, e.srv.URL+path, body)
 	require.NoError(e.t, err)
 	if a != nil {
 		req.AddCookie(&http.Cookie{Name: "sid", Value: a.token})
@@ -91,8 +92,8 @@ func (e *env) mgmt(a *actor, method, path string, in any, want int, out any) res
 type tree map[string]string
 
 // loadTree reads testdata/<dir> as a package tree.
-func loadTree(t testing.TB, dir string) tree {
-	t.Helper()
+func loadTree(tb testing.TB, dir string) tree {
+	tb.Helper()
 	root := filepath.Join("pkg", "extruntime", "e2e", "testdata", dir)
 	out := tree{}
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -104,8 +105,8 @@ func loadTree(t testing.TB, dir string) tree {
 		out[filepath.ToSlash(rel)] = string(b)
 		return err
 	})
-	require.NoError(t, err)
-	require.NotEmpty(t, out, dir)
+	require.NoError(tb, err)
+	require.NotEmpty(tb, out, dir)
 	return out
 }
 
@@ -232,7 +233,7 @@ func (e *env) assignOwner(a *actor, trigger string, owner *actor) {
 
 // rpcResult is the answer of POST /_ext/rpc.
 type rpcResult struct {
-	Status int
+	Status int             `json:"-"`
 	OK     bool            `json:"ok"`
 	Value  json.RawMessage `json:"value"`
 	Error  *struct {

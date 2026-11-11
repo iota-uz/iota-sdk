@@ -48,6 +48,12 @@ func (n *NativeSet) Register(r manifest.Resource) error {
 		return serrors.New(serrors.Invalid, "native entities are registered through the data.NativeRegistry").WithOp(op)
 	case "":
 		return serrors.New(serrors.Invalid, "native resource "+r.ID+" has no kind").WithOp(op)
+	case manifest.ResQuery, manifest.ResCommand, manifest.ResOperation, manifest.ResEvent,
+		manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute, manifest.ResPermission,
+		manifest.ResIssue, manifest.ResDomainError, manifest.ResColumn, manifest.ResPage,
+		manifest.ResNavigation, manifest.ResSlot, manifest.ResCell, manifest.ResShell,
+		manifest.ResContactResolver, manifest.ResDeliveryPolicy:
+		// contract kinds a native package may declare
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -83,15 +89,17 @@ func (n *NativeSet) Resources() []manifest.Resource {
 	if n == nil {
 		return nil
 	}
-	var out []manifest.Resource
+	var natives []data.NativeEntity
 	if n.entities != nil {
-		for _, e := range n.entities.List() {
-			r := e.Resource()
-			r.ContractHash = manifest.ContractHashOf(r)
-			out = append(out, r)
-		}
+		natives = n.entities.List()
 	}
 	n.mu.RLock()
+	out := make([]manifest.Resource, 0, len(natives)+len(n.extra))
+	for _, e := range natives {
+		r := e.Resource()
+		r.ContractHash = manifest.ContractHashOf(r)
+		out = append(out, r)
+	}
 	for _, r := range n.extra {
 		out = append(out, r)
 	}

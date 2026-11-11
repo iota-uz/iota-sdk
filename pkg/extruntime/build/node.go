@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path"
@@ -152,7 +153,7 @@ func (b *NodeBuilder) Check(ctx context.Context, src Tree, kit Kit) ([]Diagnosti
 	return resp.Diagnostics, nil
 }
 
-// Build returns *Failed when diagnostics contain errors.
+// Build returns *FailedError when diagnostics contain errors.
 func (b *NodeBuilder) Build(ctx context.Context, src Tree, kit Kit) (Result, error) {
 	var resp buildResponse
 	var artifacts Tree
@@ -166,7 +167,7 @@ func (b *NodeBuilder) Build(ctx context.Context, src Tree, kit Kit) (Result, err
 	}
 	res := Result{Diagnostics: resp.Diagnostics, SourceHash: HashTree(src)}
 	if hasErrors(res.Diagnostics) {
-		return res, &Failed{Diagnostics: res.Diagnostics}
+		return res, &FailedError{Diagnostics: res.Diagnostics}
 	}
 	if resp.Manifest == nil {
 		return res, errors.New("build: worker returned no manifest")
@@ -178,7 +179,7 @@ func (b *NodeBuilder) Build(ctx context.Context, src Tree, kit Kit) (Result, err
 	}
 	if err := res.Manifest.Validate(); err != nil {
 		res.Diagnostics = append(res.Diagnostics, Diagnostic{File: "package.json", Severity: SeverityError, Code: "manifest.invalid", Message: err.Error()})
-		return res, &Failed{Diagnostics: res.Diagnostics}
+		return res, &FailedError{Diagnostics: res.Diagnostics}
 	}
 	res.Artifacts = artifacts
 	res.ArtifactHash = HashTree(artifacts)
@@ -233,7 +234,7 @@ func (b *NodeBuilder) GenerateKit(ctx context.Context, sources []KitSource) (Kit
 		return Kit{}, err
 	}
 	if hasErrors(resp.Diagnostics) {
-		return Kit{}, &Failed{Diagnostics: resp.Diagnostics}
+		return Kit{}, &FailedError{Diagnostics: resp.Diagnostics}
 	}
 	kit := Kit{Hash: resp.Hash, Modules: make(map[string]Tree, len(resp.Modules))}
 	for name, files := range resp.Modules {
@@ -267,7 +268,11 @@ func (b *NodeBuilder) runPackage(ctx context.Context, op string, src Tree, kit K
 	if err != nil {
 		return "", fmt.Errorf("build: temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmp)
+	defer func() {
+		if err := os.RemoveAll(tmp); err != nil {
+			slog.Default().Warn("extruntime build: remove temp dir", "dir", tmp, "error", err)
+		}
+	}()
 	dir, outDir := filepath.Join(tmp, "src"), filepath.Join(tmp, "out")
 	if err := materialize(dir, src); err != nil {
 		return "", err
@@ -275,10 +280,10 @@ func (b *NodeBuilder) runPackage(ctx context.Context, op string, src Tree, kit K
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return "", fmt.Errorf("build: out dir: %w", err)
 	}
-	if diag, err := b.install(ctx, dir, src); err != nil {
+	if diag, failed, err := b.install(ctx, dir, src); err != nil {
 		return "", err
-	} else if diag != nil {
-		return "", b.installFailure(op, out, *diag)
+	} else if failed {
+		return "", b.installFailure(op, out, diag)
 	}
 	req := packageRequest{Op: op, Dir: dir, OutDir: outDir, Kit: kitPayload{Hash: kit.Hash, Modules: map[string]map[string]string{}}}
 	for name, files := range kit.Modules {
@@ -306,11 +311,11 @@ func (b *NodeBuilder) installFailure(op string, out any, d Diagnostic) error {
 	case *buildResponse:
 		r.Diagnostics = []Diagnostic{d}
 		if op == "build" {
-			return &Failed{Diagnostics: r.Diagnostics}
+			return &FailedError{Diagnostics: r.Diagnostics}
 		}
 		return nil
 	default:
-		return &Failed{Diagnostics: []Diagnostic{d}}
+		return &FailedError{Diagnostics: []Diagnostic{d}}
 	}
 }
 
@@ -406,33 +411,14 @@ var providedDependencies = map[string]bool{"@iota-uz/sdk": true}
 // install runs `npm ci --ignore-scripts` from the lockfile when package.json
 // declares dependencies beyond the provided ones. A missing lockfile or a
 // failed install is reported as a diagnostic, not as an infrastructure error.
-func (b *NodeBuilder) install(ctx context.Context, dir string, src Tree) (*Diagnostic, error) {
+func (b *NodeBuilder) install(ctx context.Context, dir string, src Tree) (Diagnostic, bool, error) {
 	raw, ok := src["package.json"]
-	if !ok {
-		return nil, nil
-	}
-	var pkg struct {
-		Dependencies         map[string]string `json:"dependencies"`
-		DevDependencies      map[string]string `json:"devDependencies"`
-		OptionalDependencies map[string]string `json:"optionalDependencies"`
-	}
-	if err := json.Unmarshal(raw, &pkg); err != nil {
-		return nil, nil // the worker reports an invalid package.json with a location
-	}
-	needed := false
-	for _, set := range []map[string]string{pkg.Dependencies, pkg.DevDependencies, pkg.OptionalDependencies} {
-		for name := range set {
-			if !providedDependencies[name] {
-				needed = true
-			}
-		}
-	}
-	if !needed {
-		return nil, nil
+	if !ok || !needsInstall(raw) {
+		return Diagnostic{}, false, nil
 	}
 	if _, lock := src["package-lock.json"]; !lock {
 		if _, shrink := src["npm-shrinkwrap.json"]; !shrink {
-			return &Diagnostic{File: "package.json", Severity: SeverityError, Code: "npm.lockfileMissing", Message: "package.json has dependencies but the tree has no package-lock.json; dependencies are installed with `npm ci` from the lockfile"}, nil
+			return Diagnostic{File: "package.json", Severity: SeverityError, Code: "npm.lockfileMissing", Message: "package.json has dependencies but the tree has no package-lock.json; dependencies are installed with `npm ci` from the lockfile"}, true, nil
 		}
 	}
 	cache := filepath.Join(b.cfg.WorkDir, ".npm-cache")
@@ -444,15 +430,37 @@ func (b *NodeBuilder) install(ctx context.Context, dir string, src Tree) (*Diagn
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("build: npm ci: %w", ctx.Err())
+			return Diagnostic{}, false, fmt.Errorf("build: npm ci: %w", ctx.Err())
 		}
 		msg := strings.TrimSpace(out.String())
 		if len(msg) > 2000 {
 			msg = msg[:2000]
 		}
-		return &Diagnostic{File: "package.json", Severity: SeverityError, Code: "npm.install", Message: "npm ci failed: " + msg}, nil
+		return Diagnostic{File: "package.json", Severity: SeverityError, Code: "npm.install", Message: "npm ci failed: " + msg}, true, nil
 	}
-	return nil, nil
+	return Diagnostic{}, false, nil
+}
+
+// needsInstall reports whether package.json declares dependencies beyond the
+// provided ones. An unparsable package.json needs no install: the worker
+// reports it with a location.
+func needsInstall(raw []byte) bool {
+	var pkg struct {
+		Dependencies         map[string]string `json:"dependencies"`
+		DevDependencies      map[string]string `json:"devDependencies"`
+		OptionalDependencies map[string]string `json:"optionalDependencies"`
+	}
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		return false
+	}
+	for _, set := range []map[string]string{pkg.Dependencies, pkg.DevDependencies, pkg.OptionalDependencies} {
+		for name := range set {
+			if !providedDependencies[name] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func readArtifacts(root string, paths []string) (Tree, error) {

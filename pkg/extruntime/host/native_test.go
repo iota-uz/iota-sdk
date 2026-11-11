@@ -98,7 +98,8 @@ func newNatives(t *testing.T) *natives {
 			n.defaults++
 			n.mu.Unlock()
 			var out seenOut
-			err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) (err error) {
+			err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) error {
+				var err error
 				if out, err = n.add.Call(ctx, tx, in); err != nil {
 					return err
 				}
@@ -129,8 +130,7 @@ func newNatives(t *testing.T) *natives {
 		}, nil
 	})
 	loop := native.Operation("acme.n.loop", native.Spec{}, func(native.Deps) (native.OperationFunc[labelIn, seenOut], error) {
-		var self func(ctx context.Context, tx native.Tx, in labelIn) (seenOut, error)
-		self = func(ctx context.Context, tx native.Tx, in labelIn) (seenOut, error) {
+		self := func(ctx context.Context, tx native.Tx, in labelIn) (seenOut, error) {
 			raw, err := tx.Call(ctx, "acme.n.loop", json.RawMessage(`{"label":"again"}`))
 			if err != nil {
 				return seenOut{}, err
@@ -303,7 +303,8 @@ export const check = async (tx, input) => { if (input.label.length > 8) throw re
 export const check = async (q, input) => { if (input.label === "forbidden") throw reject("acme.g.forbidden", ["label"], {}); };`)
 
 	run := func(label string, perms ...string) (host.Result, error) {
-		in, _ := json.Marshal(labelIn{Label: label})
+		in, err := json.Marshal(labelIn{Label: label})
+		require.NoError(t, err)
 		return e.host.Invoke(context.Background(), e.req("acme.n.save", string(in), perms...))
 	}
 
@@ -370,7 +371,9 @@ func dataErr(code serrors.Code, sentinel *serrors.Error, field string) error {
 }
 
 func (s failingStore) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity string, values json.RawMessage) (json.RawMessage, error) {
-	var v struct{ Label string }
+	var v struct {
+		Label string `json:"label"`
+	}
 	_ = json.Unmarshal(values, &v)
 	switch v.Label {
 	case "unique":
@@ -406,8 +409,10 @@ export const rethrow = async (tx, input) => { await tx.insert(item, { label: inp
 	e.contract(command("acme.a.rethrow", true, obj("label", str()), nil), "acme.a", "1.0.0", "rethrow")
 
 	type result struct {
-		Kind, Code, Message string
-		Path                []string
+		Kind    string   `json:"kind"`
+		Code    string   `json:"code"`
+		Message string   `json:"message"`
+		Path    []string `json:"path"`
 	}
 	cases := map[string]result{
 		"unique":    {Kind: "validation", Code: host.CodeDataUnique, Path: []string{"number"}},

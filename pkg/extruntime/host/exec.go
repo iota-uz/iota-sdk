@@ -199,7 +199,15 @@ func errorJSON(err error) json.RawMessage {
 	if errors.Is(err, pool.ErrWorkerLost) {
 		we = &pool.WireError{Kind: pool.ErrKindInternal, Code: "runtime.workerLost", Message: err.Error()}
 	}
-	b, _ := json.Marshal(we)
+	b, err2 := json.Marshal(we)
+	if err2 != nil {
+		// A payload that cannot be encoded must not hide the failure itself:
+		// report its kind, code and message without the structured parts.
+		b, err2 = json.Marshal(&pool.WireError{Kind: we.Kind, Code: we.Code, Message: we.Message})
+		if err2 != nil {
+			return json.RawMessage(`{"kind":"internal","code":"runtime.encodeError"}`)
+		}
+	}
 	return b
 }
 
@@ -633,7 +641,7 @@ func (e *execution) CallCommandInTx(ctx context.Context, handle, contract string
 	if err != nil {
 		return CallResult{}, err
 	}
-	if !(rc.Resource.Kind == manifest.ResCommand && rc.Resource.Atomic) {
+	if rc.Resource.Kind != manifest.ResCommand || !rc.Resource.Atomic {
 		return CallResult{}, fail("runtime.notAtomic", "%s is not an atomic command", contract)
 	}
 	res, err := e.invokeNestedResult(ctx, contract, input, h, "")
@@ -682,6 +690,9 @@ func (e *execution) rejectIntentInTx(what string) error {
 	switch e.kind {
 	case pool.KindAtomic, pool.KindOperation, pool.KindSubscription:
 		open = true
+	case pool.KindCommand, pool.KindQuery, pool.KindWorkflow, pool.KindGuard,
+		pool.KindTemplate, pool.KindEndpoint, pool.KindSchedule:
+		// open only while a Go transaction is
 	}
 	if open {
 		return fail(CodeIntentInTransaction, "%s is not allowed while a transaction is open; finish the transaction first (use tx.signal / tx.start inside it)", what)
@@ -921,7 +932,8 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 			return nil, fail("runtime.notConfigured", "event outbox is not configured")
 		}
 		var id string
-		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) (err error) {
+		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			var err error
 			id, err = e.h.cfg.Outbox.Emit(ctx, tx, e.scope, spi.EventIntent{Event: a.Event, Subject: a.Subject, Payload: a.Payload, Producer: e.producer()})
 			return err
 		})
@@ -945,7 +957,8 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 			return nil, err
 		}
 		var id string
-		err = h.do(ctx, func(ctx context.Context, tx pgx.Tx) (err error) {
+		err = h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			var err error
 			id, err = e.h.cfg.Notifier.Enqueue(ctx, tx, e.scope, spi.NoticeIntent{
 				Notice: a.Notice, Version: e.binding.Version, Subject: a.Subject, Payload: a.Payload,
 				Recipients: recipients, Channels: a.Channels, Producer: e.producer(),
@@ -991,7 +1004,8 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 			}
 		}
 		var id string
-		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) (err error) {
+		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			var err error
 			id, err = e.h.cfg.Starter.Start(ctx, tx, e.scope, spi.StartIntent{Workflow: a.Workflow, Input: a.Input, Key: key, Producer: e.producer()})
 			return err
 		})

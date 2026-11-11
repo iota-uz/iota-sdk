@@ -27,7 +27,7 @@ func (p paletteProvider) StreamDocuments(ctx context.Context, scope spotlight.Pr
 	if err != nil {
 		return err
 	}
-	var docs []spotlight.SearchDocument
+	docs := make([]spotlight.SearchDocument, 0, len(ix.Navigation.Palette))
 	for _, e := range ix.Navigation.Palette {
 		pattern, ok := ix.resolveRoutePattern(e.Target)
 		if !ok || containsParam(pattern) {

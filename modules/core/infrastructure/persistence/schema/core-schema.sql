@@ -331,7 +331,8 @@ CREATE TABLE core.notification_deliveries (
     target_address text NOT NULL DEFAULT '',
     target_device_id text NOT NULL DEFAULT '',
     status text NOT NULL DEFAULT 'pending',
-    language text NOT NULL DEFAULT 'en',
+    language text
+    NOT NULL DEFAULT 'en',
     level text NOT NULL DEFAULT 'info' CHECK (level IN ('info', 'success', 'warning', 'error')),
     title varchar(300) NOT NULL,
     body text NOT NULL DEFAULT '',

@@ -96,17 +96,17 @@ func typeOf(t reflect.Type, tag string, visiting []reflect.Type) (manifest.Type,
 			return manifest.Type{}, fmt.Errorf("%s is recursive", t)
 		}
 	}
-	switch {
-	case t == timeType:
+	switch t {
+	case timeType:
 		if w.kind != "" && w.kind != "datetime" {
 			return manifest.Type{}, fmt.Errorf("time.Time travels as datetime; wire %q needs a string field", w.kind)
 		}
 		return manifest.Type{Kind: manifest.KindDateTime}, nil
-	case t == uuidType:
+	case uuidType:
 		return manifest.Type{Kind: manifest.KindUUID}, noWire(t, w)
-	case t == rawType:
+	case rawType:
 		return manifest.Type{Kind: manifest.KindJSON}, noWire(t, w)
-	case t == objectRef || t == refValueType:
+	case objectRef, refValueType:
 		if w.kind != "ref" || w.params["ref"] == "" {
 			return manifest.Type{}, fmt.Errorf("%s needs `wire:\"ref=<entity id>\"`", t)
 		}
@@ -137,6 +137,10 @@ func typeOf(t reflect.Type, tag string, visiting []reflect.Type) (manifest.Type,
 			return manifest.Type{}, err
 		}
 		return objectType(t, append(visiting, t))
+	case reflect.Invalid, reflect.Uint, reflect.Uintptr, reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func,
+		reflect.Interface, reflect.Map, reflect.Ptr, reflect.UnsafePointer:
+		// no wire type; reported below
 	}
 	return manifest.Type{}, fmt.Errorf("%s (%s) has no wire type; declare the contract type explicitly", t, t.Kind())
 }

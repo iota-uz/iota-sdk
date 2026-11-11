@@ -110,8 +110,14 @@ func (f *fixture) subscribe(id, source string, mods ...func(*events.Subscription
 
 // emit runs the emitter command as the user.
 func (f *fixture) emit(user int64, name string, rollback bool) error {
-	in, _ := json.Marshal(map[string]any{"name": name, "rollback": rollback})
-	_, err := f.host.Invoke(context.Background(), host.Request{
+	in, err := json.Marshal(struct {
+		Name     string `json:"name"`
+		Rollback bool   `json:"rollback"`
+	}{Name: name, Rollback: rollback})
+	if err != nil {
+		return err
+	}
+	_, err = f.host.Invoke(context.Background(), host.Request{
 		Contract: "acme.test.emit", Input: in, Subject: f.env.Subject(user, "p1"), Trigger: host.Trigger{Kind: host.TriggerUI, Ref: "test"},
 	})
 	return err

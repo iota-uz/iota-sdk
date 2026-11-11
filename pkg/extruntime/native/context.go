@@ -80,6 +80,7 @@ type Implementations struct {
 type bound struct {
 	once sync.Once
 	impl *Implementation
+	has  bool
 	err  error
 }
 
@@ -119,11 +120,11 @@ func (i *Implementations) Lookup(id string) (*Implementation, bool, error) {
 		i.bound[id] = b
 	}
 	i.mu.Unlock()
-	b.once.Do(func() { b.impl, b.err = d.bind(i.deps) })
+	b.once.Do(func() { b.impl, b.has, b.err = d.bind(i.deps) })
 	if b.err != nil {
 		return nil, false, b.err
 	}
-	return b.impl, b.impl != nil, nil
+	return b.impl, b.has, nil
 }
 
 // ErrNoImplementation is returned for a native contract without a Go default

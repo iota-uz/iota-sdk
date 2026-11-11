@@ -103,6 +103,15 @@ func containsParam(pattern string) bool {
 	return false
 }
 
+// signedInSubject is the invoking subject of the request, if a user is signed in.
+func signedInSubject(ctx context.Context) (spi.Subject, bool) {
+	sub, err := listext.SubjectFromContext(ctx)
+	if err != nil {
+		return spi.Subject{}, false
+	}
+	return sub, true
+}
+
 // Context builds the runtime context for a request, or nil when no shell
 // renderer is bound (a page then needs no runtime).
 func (r *Runtime) Context(ctx context.Context) (*RuntimeContext, error) {
@@ -110,9 +119,10 @@ func (r *Runtime) Context(ctx context.Context) (*RuntimeContext, error) {
 	if err != nil || ix.Shell == nil {
 		return nil, err
 	}
-	sub, err := listext.SubjectFromContext(ctx)
-	if err != nil {
-		return nil, nil
+	sub, signedIn := signedInSubject(ctx)
+	if !signedIn {
+		// No signed-in user: there is nothing to bootstrap.
+		return nil, nil //nolint:nilnil // A nil context is the documented "no runtime needed" answer, as for an unbound shell.
 	}
 	lang := listext.LangFromContext(ctx)
 	rc := &RuntimeContext{

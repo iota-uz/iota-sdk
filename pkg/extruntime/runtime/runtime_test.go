@@ -218,7 +218,7 @@ func (e *apiEnv) do(user int, method, path string, body any, headers ...string) 
 		require.NoError(e.t, err)
 		rd = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequest(method, e.srv.URL+runtime.APIPrefix+path, rd)
+	req, err := http.NewRequestWithContext(context.Background(), method, e.srv.URL+runtime.APIPrefix+path, rd)
 	require.NoError(e.t, err)
 	if user != 0 {
 		req.Header.Set("X-User", strconv.Itoa(user))
@@ -228,9 +228,9 @@ func (e *apiEnv) do(user int, method, path string, body any, headers ...string) 
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(e.t, err)
-	defer resp.Body.Close()
 	out, err := io.ReadAll(resp.Body)
 	require.NoError(e.t, err)
+	require.NoError(e.t, resp.Body.Close())
 	return resp.StatusCode, out, resp.Header
 }
 
@@ -374,7 +374,7 @@ func TestManagementAPIMirrorsTheServiceWithItsRightsAndErrors(t *testing.T) {
 	e.json(admin, http.MethodPost, "/packages/"+ns+"/purge", nil, http.StatusNoContent, nil)
 	var audit []manage.AuditEntry
 	e.json(reader, http.MethodGet, "/audit?namespace="+ns+"&action=publish", nil, http.StatusOK, &audit)
-	var outcomes []string
+	outcomes := make([]string, 0, len(audit))
 	for _, a := range audit {
 		outcomes = append(outcomes, a.Outcome)
 	}
@@ -474,8 +474,6 @@ func TestUISlicePicksUpActivationsBindingsColumnsAndAssets(t *testing.T) {
 	}
 	_, err = arts.Open(ctx, "0000000000000000", "client/clients.js")
 	require.ErrorIs(t, err, ui.ErrArtifactNotFound)
-	var store ui.ArtifactStore = e.arts2()
-	_ = store
 
 	// deactivation takes pages, columns and bindings away
 	require.NoError(t, e.svc.Deactivate(ctx, admin, ns))
@@ -487,5 +485,3 @@ func TestUISlicePicksUpActivationsBindingsColumnsAndAssets(t *testing.T) {
 	cols, _ = uirt.Columns().Columns(ctx, "crm.lists.clients")
 	require.Empty(t, cols)
 }
-
-func (e *apiEnv) arts2() ui.ArtifactStore { return runtime.UIArtifacts{Store: e.arts} }

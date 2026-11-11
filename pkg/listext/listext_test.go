@@ -161,7 +161,7 @@ func TestExportPlanKeepsOnlyExportableColumns(t *testing.T) {
 	f := listexttest.Install(t, e.Ctx, e.Tx, list, listexttest.Manifest(nil), true)
 	plan, err := f.Engine.Compile(e.Ctx, e.Tx, e.sub("Client.Read", listexttest.VipPermission), listext.Input{List: list, Native: "crm.client", BaseAlias: "c", Purpose: listext.PurposeExport})
 	require.NoError(t, err)
-	var ids []string
+	ids := make([]string, 0, len(plan.Columns))
 	for _, c := range plan.Columns {
 		ids = append(ids, c.ID)
 	}

@@ -25,8 +25,9 @@ func (e *env) createClientForm(a *actor, first, last, phone string) resp {
 }
 
 // clientName reads a client's names from the CRM table.
-func (e *env) clientName(phone string) (first, last string, found bool) {
+func (e *env) clientName(phone string) (string, string, bool) {
 	e.t.Helper()
+	var first, last string
 	err := e.pool.QueryRow(context.Background(),
 		`SELECT first_name, last_name FROM clients WHERE tenant_id = $1 AND regexp_replace(phone_number, '\D', '', 'g') = $2`, e.tenant, digits(phone)).Scan(&first, &last)
 	if err != nil {

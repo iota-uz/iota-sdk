@@ -42,15 +42,6 @@ func (n NativeEntity) schema() string {
 	return n.Schema
 }
 
-func (n NativeEntity) field(id string) (NativeField, bool) {
-	for _, f := range n.Fields {
-		if f.ID == id {
-			return f, true
-		}
-	}
-	return NativeField{}, false
-}
-
 // Resource renders the descriptor as a catalog resource (kind entity), so a
 // catalog can publish it in the developer kit.
 func (n NativeEntity) Resource() manifest.Resource {
@@ -90,6 +81,10 @@ func (n NativeEntity) validate() error {
 		switch f.Type.Kind {
 		case manifest.KindObject, manifest.KindArray:
 			return fmt.Errorf("native %s: field %q has unsupported type %s", n.ID, f.ID, f.Type.Kind)
+		case manifest.KindString, manifest.KindInt, manifest.KindInt64, manifest.KindDecimal,
+			manifest.KindBool, manifest.KindDate, manifest.KindDateTime, manifest.KindUUID,
+			manifest.KindEnum, manifest.KindJSON, manifest.KindRef:
+			// Scalar kinds are all supported.
 		}
 	}
 	for id := range n.FieldPermissions {

@@ -99,7 +99,7 @@ func (s *Service) buildDraftContracts(ctx context.Context, tree build.Tree) (bui
 		return build.Result{}, kit, nil, err
 	}
 	res, err := s.builder.Build(ctx, tree, kit)
-	var failed *build.Failed
+	var failed *build.FailedError
 	if errors.As(err, &failed) {
 		res.Diagnostics = failed.Diagnostics
 		return res, kit, contracts, nil

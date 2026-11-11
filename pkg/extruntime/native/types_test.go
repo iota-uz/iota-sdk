@@ -19,24 +19,24 @@ type line struct {
 }
 
 type everything struct {
-	Name      string          `json:"name" wire:"string,maxLength=40"`
-	Count     int             `json:"count"`
-	Big       int64           `json:"big,string" wire:"int64"`
-	BigText   string          `json:"bigText" wire:"int64"`
-	Price     string          `json:"price" wire:"decimal,precision=18,scale=2"`
-	Due       string          `json:"due" wire:"date"`
-	At        time.Time       `json:"at"`
-	AtText    string          `json:"atText" wire:"datetime"`
-	ID        uuid.UUID       `json:"id"`
-	Status    string          `json:"status" wire:"enum=draft|active"`
-	Active    bool            `json:"active"`
-	Extra     json.RawMessage `json:"extra"`
-	Client    spi.ObjectRef   `json:"client" wire:"ref=crm.client"`
-	Lines     []line          `json:"lines"`
-	Tags      []string        `json:"tags" wire:"uuid"`
-	Note      *string         `json:"note,omitempty"`
-	Skipped   string          `json:"-"`
-	unexposed string
+	Name    string          `json:"name" wire:"string,maxLength=40"`
+	Count   int             `json:"count"`
+	Big     int64           `json:"big,string" wire:"int64"`
+	BigText string          `json:"bigText" wire:"int64"`
+	Price   string          `json:"price" wire:"decimal,precision=18,scale=2"`
+	Due     string          `json:"due" wire:"date"`
+	At      time.Time       `json:"at"`
+	AtText  string          `json:"atText" wire:"datetime"`
+	ID      uuid.UUID       `json:"id"`
+	Status  string          `json:"status" wire:"enum=draft|active"`
+	Active  bool            `json:"active"`
+	Extra   json.RawMessage `json:"extra"`
+	Client  spi.ObjectRef   `json:"client" wire:"ref=crm.client"`
+	Lines   []line          `json:"lines"`
+	Tags    []string        `json:"tags" wire:"uuid"`
+	Note    *string         `json:"note,omitempty"`
+	Skipped string          `json:"-"`
+	_       string
 }
 
 func TestTypeOfDerivesTheWireTypeFromTags(t *testing.T) {

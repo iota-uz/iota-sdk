@@ -8,9 +8,7 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-)
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 
 // pageView renders a runtime page inside the same authenticated layout as
 // legacy pages. bootstrap is the canonical client host fragment: mount element,

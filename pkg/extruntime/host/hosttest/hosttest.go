@@ -169,8 +169,9 @@ type Artifacts struct {
 }
 
 // Add registers the server.mjs source of pkg@version.
-func (a *Artifacts) Add(t testing.TB, pkg, version, source string) pool.Artifact {
-	art := pooltest.Artifact(t, source)
+func (a *Artifacts) Add(tb testing.TB, pkg, version, source string) pool.Artifact {
+	tb.Helper()
+	art := pooltest.Artifact(tb, source)
 	a.mu.Lock()
 	a.byVersion[pkg+"@"+version] = art
 	a.mu.Unlock()
@@ -353,7 +354,9 @@ func (s *ItemStore) Count(ctx context.Context, tx pgx.Tx, sc spi.Scope, _ string
 
 func (s *ItemStore) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity string, values json.RawMessage) (json.RawMessage, error) {
 	s.seen(sc)
-	var v struct{ Label string }
+	var v struct {
+		Label string `json:"label"`
+	}
 	if err := json.Unmarshal(values, &v); err != nil {
 		return nil, err
 	}

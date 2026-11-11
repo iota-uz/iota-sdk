@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ export const hostcalls = async (ctx, input) => {
 };`
 
 func benchPool(tb testing.TB, size int) *pool.Pool {
+	tb.Helper()
 	p, err := pool.New(pool.Config{
 		Size:         size,
 		WorkerScript: pooltest.BuildWorker(tb),
@@ -111,7 +113,4 @@ func BenchmarkHostCall(b *testing.B) {
 	}
 }
 
-func itoa(n int) string {
-	b, _ := json.Marshal(n)
-	return string(b)
-}
+func itoa(n int) string { return strconv.Itoa(n) }

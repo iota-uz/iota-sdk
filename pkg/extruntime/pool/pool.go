@@ -239,7 +239,6 @@ func (p *Pool) supervise(slot int, first chan<- error) {
 		w, err := p.spawn(slot)
 		if err != nil {
 			if !reportedFirst {
-				reportedFirst = true
 				first <- err
 				return
 			}

@@ -67,13 +67,12 @@ func (f *fakeSource) ActiveEndpoints(context.Context) ([]endpoint.Endpoint, erro
 }
 
 type fixture struct {
-	t    *testing.T
-	env  *hosttest.Env
-	src  *fakeSource
-	h    *endpoint.Handler
-	art  pool.Artifact
-	cfg  endpoint.Config
-	user int64 // session user of requests that carry X-Test-User
+	t   *testing.T
+	env *hosttest.Env
+	src *fakeSource
+	h   *endpoint.Handler
+	art pool.Artifact
+	cfg endpoint.Config
 }
 
 type option func(*endpoint.Config)
@@ -133,7 +132,13 @@ func (f *fixture) handler() *endpoint.Handler {
 
 type reqKey struct{}
 
-func (f *fixture) do(method, target string, body []byte, headers map[string]string) (*http.Response, []byte) {
+// reply is the part of a response the tests inspect besides its body.
+type reply struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func (f *fixture) do(method, target string, body []byte, headers map[string]string) (reply, []byte) {
 	f.t.Helper()
 	req := httptest.NewRequest(method, target, bytes.NewReader(body))
 	for k, v := range headers {
@@ -145,7 +150,8 @@ func (f *fixture) do(method, target string, body []byte, headers map[string]stri
 	res := rec.Result()
 	out, err := io.ReadAll(res.Body)
 	require.NoError(f.t, err)
-	return res, out
+	require.NoError(f.t, res.Body.Close())
+	return reply{StatusCode: res.StatusCode, Header: res.Header}, out
 }
 
 func jsonMap(t *testing.T, b []byte) map[string]any {
@@ -229,7 +235,7 @@ func TestFormAndOpaqueBodies(t *testing.T) {
 	require.Equal(t, "{not json", got["text"])
 
 	_, body = f.do(http.MethodPost, base+"/hook", nil, auth)
-	require.Equal(t, "", jsonMap(t, body)["raw"])
+	require.Empty(t, jsonMap(t, body)["raw"])
 }
 
 func merge(m map[string]string, kv ...string) map[string]string {
@@ -370,7 +376,7 @@ func TestHandlerOutcomesBecomeHTTPResponses(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, res.StatusCode)
 	require.Empty(t, body)
 
-	res, body = f.do(http.MethodPost, base+"/sync", nil, auth)
+	res, _ = f.do(http.MethodPost, base+"/sync", nil, auth)
 	require.Equal(t, http.StatusOK, res.StatusCode, "a synchronous handler works")
 	require.Equal(t, "text/plain", res.Header.Get("Content-Type"), "the handler chose the content type")
 

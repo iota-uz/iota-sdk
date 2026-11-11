@@ -36,7 +36,7 @@ templ Cells(cells []listext.Cell) {
 // Cell is the standard renderer of one value, chosen by its declared type.
 // Text is escaped by templ; JSON values are shown as text, never as markup.
 templ Cell(cell listext.Cell) {
-	switch {
+	switch  {
 		case cell.Value.Null():
 			<span class="text-300" data-ext-cell={ cell.Column.ID }>—</span>
 		case cell.Column.Type.Kind == manifest.KindBool:
@@ -88,8 +88,8 @@ templ filter(view *listext.View, col listext.Column) {
 	switch col.Type.Kind {
 		case manifest.KindEnum:
 			@base.Select(&base.SelectProps{
-				Prefix:      view.Title(col),
-				Attrs:       templ.Attributes{"name": listext.ParamPrefix + col.ID},
+				Prefix: view.Title(col),
+				Attrs:  templ.Attributes{"name": listext.ParamPrefix + col.ID},
 			}) {
 				<option value="">—</option>
 				for _, v := range col.Type.Values {

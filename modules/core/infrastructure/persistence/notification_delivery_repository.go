@@ -90,6 +90,8 @@ func insertDelivery(ctx context.Context, db repo.Tx, tenant uuid.UUID, d notific
 			return serrors.New(serrors.Invalid, "Invalid notification delivery")
 		}
 		refEntity, refKey = &d.Record.Entity, &d.Record.Key
+	case notifications.RecipientAddress:
+		// An address recipient is identified by its recipient key alone.
 	}
 	status := d.Status
 	if status == "" {
@@ -169,6 +171,7 @@ func (r *NotificationDeliveryRepository) ClaimUnresolved(ctx context.Context, li
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
+	defer rows.Close()
 	result, err := scanDeliveries(rows)
 	return result, serrors.Wrap(op, err)
 }
@@ -246,6 +249,7 @@ SELECT `+deliveryColumns+` FROM claimed`, tenant, limit, lease.Seconds(), notifi
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
+	defer rows.Close()
 	result, err := scanDeliveries(rows)
 	return result, serrors.Wrap(op, err)
 }
@@ -306,6 +310,7 @@ func (r *NotificationDeliveryRepository) ForEvent(ctx context.Context, eventKey,
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
+	defer rows.Close()
 	result, err := scanDeliveries(rows)
 	return result, serrors.Wrap(op, err)
 }

@@ -165,16 +165,17 @@ func NewHandler(cfg Config) (*Handler, error) {
 }
 
 // match splits "<namespace>/<path>" and finds the endpoints with that path.
-func match(all []Endpoint, rest string) (path []Endpoint) {
+func match(all []Endpoint, rest string) []Endpoint {
 	ns, p, ok := strings.Cut(rest, "/")
 	if !ok || ns == "" {
 		return nil
 	}
 	p = "/" + p
+	var matched []Endpoint
 	for _, ep := range all {
 		if ep.Package == ns && ep.Path == p {
-			path = append(path, ep)
+			matched = append(matched, ep)
 		}
 	}
-	return path
+	return matched
 }

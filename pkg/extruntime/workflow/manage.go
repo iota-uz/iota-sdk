@@ -366,8 +366,12 @@ func signalWire(err error) error {
 		}
 		var pe *manifest.PathError
 		if errors.As(err, &pe) {
-			path, _ := json.Marshal(pe.Path)
-			params, _ := json.Marshal(map[string]string{"message": pe.Message})
+			path, pathErr := json.Marshal(pe.Path)
+			params, paramsErr := json.Marshal(map[string]string{"message": pe.Message})
+			if pathErr != nil || paramsErr != nil {
+				// Strings always encode; without the structured detail the message still says it.
+				return &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
+			}
 			return &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error(),
 				Issues: []pool.Issue{{Code: "runtime.invalidValue", Phase: "input", Path: path, Params: params}}}
 		}
@@ -408,7 +412,7 @@ func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.
 	if err != nil {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: %v", ErrForbidden, err))
 	}
-	if actor.UserID != assignee && !(e.cfg.TaskAdminPermission != "" && current.Has(e.cfg.TaskAdminPermission)) {
+	if actor.UserID != assignee && (e.cfg.TaskAdminPermission == "" || !current.Has(e.cfg.TaskAdminPermission)) {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not the assignee of task %s", ErrForbidden, actor.UserID, taskID))
 	}
 	if len(schema) > 0 {

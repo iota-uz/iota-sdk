@@ -253,11 +253,11 @@ var (
 	errRunAborted = &pool.WireError{Kind: pool.ErrKindInternal, Code: codeAborted, Message: "the run was aborted by an infrastructure failure and will be retried"}
 )
 
-type blockInfo struct {
+type blockedError struct {
 	reason, detail string
 }
 
-func (b *blockInfo) Error() string { return b.reason + ": " + b.detail }
+func (b *blockedError) Error() string { return b.reason + ": " + b.detail }
 
 func marshal(v any) json.RawMessage {
 	b, err := json.Marshal(v)

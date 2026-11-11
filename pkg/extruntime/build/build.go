@@ -59,7 +59,7 @@ type Result struct {
 type Builder interface {
 	// Check typechecks and validates graphs without producing artifacts.
 	Check(ctx context.Context, src Tree, kit Kit) ([]Diagnostic, error)
-	// Build returns an error of type *Failed when diagnostics contain errors.
+	// Build returns an error of type *FailedError when diagnostics contain errors.
 	Build(ctx context.Context, src Tree, kit Kit) (Result, error)
 	// Test runs the package's synthetic tests (*.test.ts) against fake
 	// effects; unknown external effects fail instead of reaching a network.
@@ -79,12 +79,12 @@ type TestReport struct {
 	Cases  []TestCase `json:"cases"`
 }
 
-// Failed carries the diagnostics of a failed build.
-type Failed struct {
+// FailedError carries the diagnostics of a failed build.
+type FailedError struct {
 	Diagnostics []Diagnostic
 }
 
-func (f *Failed) Error() string {
+func (f *FailedError) Error() string {
 	for _, d := range f.Diagnostics {
 		if d.Severity == SeverityError {
 			return "build failed: " + d.File + ": " + d.Message
@@ -97,13 +97,13 @@ func (f *Failed) Error() string {
 // descriptors exported by Go or an active package's manifest. Pure contract
 // modules of active packages may be shipped as-is in ContractsModule.
 type KitSource struct {
-	Namespace       string
-	Resources       []manifest.Resource
-	ContractsModule []byte
+	Namespace       string              `json:"Namespace"`
+	Resources       []manifest.Resource `json:"Resources"`
+	ContractsModule []byte              `json:"ContractsModule"`
 	// Lists are the native list IDs the namespace owns ("crm.lists.clients").
 	// A native list is declared here, not by a column: packages extend it
 	// with `column(crm.Clients, ...)`.
-	Lists []string
+	Lists []string `json:"Lists"`
 }
 
 // KitGenerator renders `@iota-kit/<namespace>` modules (pure JS refs built

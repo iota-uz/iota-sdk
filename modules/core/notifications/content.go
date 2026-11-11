@@ -31,12 +31,14 @@ type ChannelContent struct {
 
 // Summary returns the title and body persisted in the delivery's own columns:
 // the email subject and text body, or the SMS text.
-func (c ChannelContent) Summary(channel Channel) (title, body string) {
+func (c ChannelContent) Summary(channel Channel) (string, string) {
 	switch channel {
 	case ChannelEmail:
 		return firstNonEmpty(c.Subject, c.Title), firstNonEmpty(c.Text, c.Body)
 	case ChannelSMS:
 		return "", firstNonEmpty(c.Text, c.Body)
+	case ChannelInApp, ChannelPush:
+		return c.Title, c.Body
 	}
 	return c.Title, c.Body
 }
@@ -168,6 +170,8 @@ func contentForChannel(channel Channel, rendered Content) ChannelContent {
 		content.HTML = "<p>" + html.EscapeString(rendered.Body) + "</p>"
 	case ChannelSMS:
 		content.Text = strings.TrimSpace(rendered.Title + "\n" + rendered.Body)
+	case ChannelInApp, ChannelPush:
+		// Title and body already carry everything these channels show.
 	}
 	return content
 }

@@ -75,8 +75,9 @@ func lineOf(t *testing.T, tree build.Tree, file, needle string) int {
 // nativeSources reads the native catalogs testdata/kit/<ns>.json.
 func nativeSources(t *testing.T) []build.KitSource {
 	t.Helper()
-	var sources []build.KitSource
-	for _, ns := range []string{"core", "crm"} {
+	namespaces := []string{"core", "crm"}
+	sources := make([]build.KitSource, 0, len(namespaces))
+	for _, ns := range namespaces {
 		raw, err := os.ReadFile(filepath.Join("testdata", "kit", ns+".json"))
 		require.NoError(t, err)
 		var resources []manifest.Resource
@@ -95,7 +96,7 @@ func nativeKit(t *testing.T, b *build.NodeBuilder) build.Kit {
 
 func diagnostic(t *testing.T, err error, code string) build.Diagnostic {
 	t.Helper()
-	var failed *build.Failed
+	var failed *build.FailedError
 	require.ErrorAs(t, err, &failed)
 	for _, d := range failed.Diagnostics {
 		if d.Code == code {
@@ -305,7 +306,7 @@ func TestGraphAndTypeDiagnostics(t *testing.T) {
 		tree := clone(base)
 		replace(t, tree, "src/client.tsx", `import * as c from "./contracts"`, "import * as c from \"./contracts\"\nimport { guard } from \"@iota-uz/sdk/runtime/server\"\nimport { readFileSync } from \"node:fs\"\nexport const x = [guard, readFileSync]")
 		_, err := b.Build(ctx, tree, kit)
-		var failed *build.Failed
+		var failed *build.FailedError
 		require.ErrorAs(t, err, &failed)
 		lines := map[int]string{}
 		for _, d := range failed.Diagnostics {
@@ -341,7 +342,7 @@ func TestGraphAndTypeDiagnostics(t *testing.T) {
 		tree := clone(base)
 		replace(t, tree, "src/contracts.ts", `import * as core from "@iota-kit/core"`, "import * as core from \"@iota-kit/core\"\nimport { guard } from \"@iota-uz/sdk/runtime/server\"\nimport { createSignal } from \"solid-js\"\nexport const x = [guard, createSignal]")
 		_, err := b.Build(ctx, tree, kit)
-		var failed *build.Failed
+		var failed *build.FailedError
 		require.ErrorAs(t, err, &failed)
 		var n int
 		for _, d := range failed.Diagnostics {
@@ -614,7 +615,7 @@ for (const [name, module, expected] of [["core", core, expectedCore], ["crm", cr
 		client := manifest.Resource{ID: "a.thing", Kind: manifest.ResEntity, Fields: []manifest.Field{{ID: "other", Type: manifest.Type{Kind: manifest.KindRef, Entity: "b.thing"}}}}
 		other := manifest.Resource{ID: "b.thing", Kind: manifest.ResEntity, Fields: []manifest.Field{{ID: "other", Type: manifest.Type{Kind: manifest.KindRef, Entity: "a.thing"}}}}
 		_, err := b.GenerateKit(ctx, []build.KitSource{{Namespace: "a", Resources: []manifest.Resource{client}}, {Namespace: "b", Resources: []manifest.Resource{other}}})
-		var failed *build.Failed
+		var failed *build.FailedError
 		require.ErrorAs(t, err, &failed)
 		require.Equal(t, "kit.cycle", failed.Diagnostics[0].Code)
 	})

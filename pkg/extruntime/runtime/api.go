@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -125,9 +124,15 @@ func (a *API) fail(w http.ResponseWriter, err error) {
 	case errors.As(err, &se):
 		body.Error.Diagnostics = se.Diagnostics
 	}
+	status := serrorhttp.Status(err)
+	encoded, marshalErr := json.Marshal(body)
+	if marshalErr != nil {
+		encoded = []byte(`{"error":{"code":"internal","message":"internal error"}}`)
+		status = http.StatusInternalServerError
+	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(serrorhttp.Status(err))
-	_ = json.NewEncoder(w).Encode(body)
+	w.WriteHeader(status)
+	_, _ = w.Write(append(encoded, '\n'))
 }
 
 func decode(r *http.Request, w http.ResponseWriter, into any) error {
@@ -386,7 +391,7 @@ func (a *API) importTree(w http.ResponseWriter, r *http.Request, actor spi.Subje
 	if err != nil {
 		return 0, nil, err
 	}
-	out, err := a.svc.ImportTree(r.Context(), actor, build.Tree(tree), manage.ImportMeta{Provenance: manage.ProvenanceRuntime})
+	out, err := a.svc.ImportTree(r.Context(), actor, tree, manage.ImportMeta{Provenance: manage.ProvenanceRuntime})
 	return http.StatusOK, out, err
 }
 

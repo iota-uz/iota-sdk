@@ -72,7 +72,8 @@ func directSet(t *testing.T) (*native.Set, *native.Def[note, total]) {
 	save := native.Command("acme.d.save", native.Spec{}, func(native.Deps) (native.CommandFunc[note, total], error) {
 		return func(ctx context.Context, c native.CommandContext, in note) (total, error) {
 			var out total
-			err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) (err error) {
+			err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) error {
+				var err error
 				if out, err = add.Call(ctx, tx, in); err != nil {
 					return err
 				}

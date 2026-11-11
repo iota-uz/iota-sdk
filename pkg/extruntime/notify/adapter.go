@@ -165,7 +165,7 @@ func (a *Adapter) definitions(ctx context.Context, ns, version string, m manifes
 	}
 	source := SourceName(ns)
 	ref := SnapshotRef(ns, version)
-	var defs []notifications.Definition
+	defs := make([]notifications.Definition, 0, len(ns2))
 	seen := map[string]string{}
 	for _, n := range ns2 {
 		key := EventKey(n.resource.ID)
@@ -429,7 +429,7 @@ func (r *renderer) Render(ctx context.Context, req notifications.RenderRequest) 
 	}
 	var payload any
 	if len(req.Event.Payload) > 0 {
-		payload = json.RawMessage(req.Event.Payload)
+		payload = req.Event.Payload
 	}
 	input, err := json.Marshal(map[string]any{"channel": channel, "payload": payload, "subject": subject, "locale": req.Language})
 	if err != nil {
@@ -480,7 +480,7 @@ func decodeContent(channel notifications.Channel, raw json.RawMessage) (notifica
 		if content.Subject == "" || (content.HTML == "" && content.Text == "") {
 			return notifications.ChannelContent{}, permanent(errors.New("email template needs a subject and html or text"))
 		}
-	default:
+	case notifications.ChannelInApp, notifications.ChannelPush:
 		if content.Title == "" && content.Body == "" {
 			return notifications.ChannelContent{}, permanent(errors.New("template returned no title or body"))
 		}
@@ -555,7 +555,10 @@ func (c *contactResolver) ResolveContact(ctx context.Context, tenantID uuid.UUID
 	if err != nil {
 		return notifications.Contact{}, serrors.Wrap(op, err)
 	}
-	input, _ := json.Marshal(spi.ObjectRef{Entity: ref.Entity, Key: ref.Key})
+	input, err := json.Marshal(spi.ObjectRef{Entity: ref.Entity, Key: ref.Key})
+	if err != nil {
+		return notifications.Contact{}, serrors.Wrap(op, err)
+	}
 	res, err := c.a.cfg.Runner.Run(ctx, host.RunRequest{
 		Export: host.Export{
 			Kind: pool.KindQuery, Resource: impl.resolverID,

@@ -219,7 +219,14 @@ func (e *env) ok(id uint, tool string, input any, into any) {
 	}
 }
 
-func (e *env) failed(id uint, tool string, input any, code mcp.Code) *mcp.Failure {
+// failed asserts that the tool call fails with code.
+func (e *env) failed(id uint, tool string, input any, code mcp.Code) {
+	e.t.Helper()
+	_ = e.failure(id, tool, input, code)
+}
+
+// failure is failed, returning the failure for further assertions.
+func (e *env) failure(id uint, tool string, input any, code mcp.Code) *mcp.Failure {
 	e.t.Helper()
 	res := e.call(id, tool, input)
 	require.False(e.t, res.OK, "%s should fail", tool)
@@ -239,7 +246,7 @@ func (e *env) http(user int, method, path string, body any, headers ...string) (
 		require.NoError(e.t, err)
 		rd = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequest(method, e.srv.URL+runtime.APIPrefix+path, rd)
+	req, err := http.NewRequestWithContext(context.Background(), method, e.srv.URL+runtime.APIPrefix+path, rd)
 	require.NoError(e.t, err)
 	req.Header.Set("X-User", strconv.Itoa(user))
 	for i := 0; i+1 < len(headers); i += 2 {
@@ -247,7 +254,7 @@ func (e *env) http(user int, method, path string, body any, headers ...string) (
 	}
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(e.t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(e.t, resp.Body.Close()) }()
 	out, err := io.ReadAll(resp.Body)
 	require.NoError(e.t, err)
 	return resp.StatusCode, out
@@ -535,7 +542,7 @@ func TestDraftEditingDiagnosticsAndConcurrencyOverMCP(t *testing.T) {
 	require.Equal(t, "base64", read.Encoding)
 
 	// publish is refused with the diagnostics as issues pointing at file:line
-	f := e.failed(adminID, "ext_publish", map[string]string{"namespace": ns, "version": "1.0.0"}, mcp.CodeConflict)
+	f := e.failure(adminID, "ext_publish", map[string]string{"namespace": ns, "version": "1.0.0"}, mcp.CodeConflict)
 	require.NotEmpty(t, f.Issues)
 	require.Equal(t, "src/bad.ts:1", f.Issues[0].Path)
 	require.Equal(t, "ts.2345", f.Issues[0].Code)
@@ -668,7 +675,7 @@ func TestInvokeRunsAsTheCallingUserThroughTheHost(t *testing.T) {
 	var out struct {
 		InvocationID string          `json:"invocation_id"`
 		Output       json.RawMessage `json:"output"`
-		Package      string
+		Package      string          `json:"Package"`
 	}
 	ctx := mcp.WithRequestID(e.principal(readerID, mcp.AllScopes()), "req-7")
 	res := e.callCtx(ctx, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}})
@@ -693,17 +700,17 @@ func TestInvokeRunsAsTheCallingUserThroughTheHost(t *testing.T) {
 	// the model cannot name a user: the schema has no such field
 	e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "user_id": 1}, mcp.CodeInvalidInput)
 	// entities are not callable
-	f := e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".policy"}, mcp.CodeInvalidInput)
+	f := e.failure(readerID, "ext_invoke", map[string]any{"resource": ns + ".policy"}, mcp.CodeInvalidInput)
 	require.Equal(t, "kind", f.Issues[0].Code)
 	e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".missing"}, mcp.CodeNotFound)
 	require.Len(t, e.invoke.calls, 1)
 
 	// the host's refusals and the package's typed errors keep their meaning
 	e.invoke.err = &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.permissionDenied", Message: "permission Policy.Renew is required for " + ns + ".renewPolicy"}
-	f = e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}}, mcp.CodeForbidden)
+	f = e.failure(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}}, mcp.CodeForbidden)
 	require.Contains(t, f.Message, "Policy.Renew")
 	e.invoke.err = &pool.WireError{Kind: pool.ErrKindValidation, Issues: []pool.Issue{{Code: "policy.expired", Path: json.RawMessage(`["number"]`), Params: json.RawMessage(`{"on":"2025-01-01"}`)}}}
-	f = e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}}, mcp.CodeInvalidInput)
+	f = e.failure(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}}, mcp.CodeInvalidInput)
 	require.Equal(t, "policy.expired", f.Issues[0].Code)
 	e.invoke.err = host.ErrNoBinding
 	e.failed(readerID, "ext_invoke", map[string]any{"resource": ns + ".renewPolicy", "input": map[string]string{"number": "P-1"}}, mcp.CodeConflict)

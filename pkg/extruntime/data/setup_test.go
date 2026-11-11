@@ -55,7 +55,7 @@ func (c *fakeCatalog) Resolve(_ context.Context, id string) (spi.ResolvedResourc
 }
 
 func (c *fakeCatalog) Entities(context.Context) ([]spi.ResolvedResource, error) {
-	var out []spi.ResolvedResource
+	out := make([]spi.ResolvedResource, 0, len(c.res))
 	for _, r := range c.res {
 		out = append(out, r)
 	}

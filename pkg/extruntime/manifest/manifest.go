@@ -124,7 +124,8 @@ type ReadRule struct {
 	Rows       *Filter `json:"rows,omitempty"`
 }
 
-// Access: no Read rules = readable by every subject of the tenant; with rules,
+// Access declares who may read an entity and which fields need extra
+// permissions. No Read rules = readable by every subject of the tenant; with rules,
 // visible rows are the union of rules whose Permission the subject holds (none
 // applicable = no rows). Rows the subject cannot read cannot be updated or
 // deleted either. Fields lists permissions that are all required to read the
@@ -411,7 +412,14 @@ func ContractHashOf(r Resource) string {
 		f.Label = nil
 		shape.Fields = append(shape.Fields, f)
 	}
-	b, _ := json.Marshal(shape)
+	b, err := json.Marshal(shape)
+	if err != nil {
+		// Only a malformed json.RawMessage (a constant or filter operand
+		// built in code, never one decoded from a manifest) can fail here.
+		// The hash must stay deterministic and must not collide with a valid
+		// shape's, so the failure itself is what gets hashed.
+		b = []byte("invalid-shape:" + r.ID + ":" + err.Error())
+	}
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }

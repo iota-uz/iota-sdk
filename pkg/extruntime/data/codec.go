@@ -21,11 +21,16 @@ func isNullRaw(raw json.RawMessage) bool {
 	return len(t) == 0 || bytes.Equal(t, []byte("null"))
 }
 
+// encodeJSON renders v without HTML escaping. Callers pass strings, numbers,
+// booleans and manifest.RefValue, none of which can fail to encode; should one
+// ever fail, the result is JSON null instead of a half-written value.
 func encodeJSON(v any) json.RawMessage {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		return json.RawMessage("null")
+	}
 	return bytes.TrimRight(buf.Bytes(), "\n")
 }
 
@@ -161,6 +166,8 @@ func canonicalValue(t manifest.Type, raw json.RawMessage) (json.RawMessage, erro
 			return nil, err
 		}
 		return encodeJSON(r), nil
+	case manifest.KindObject, manifest.KindArray:
+		// Composite values have no canonical scalar form; reported below.
 	}
 	return nil, fmt.Errorf("type %q has no canonical form", t.Kind)
 }
@@ -210,6 +217,8 @@ func bindValue(t manifest.Type, keyType KeyType, raw json.RawMessage, a *Args) (
 			return "", err
 		}
 		return keyType.bind(key, a), nil
+	case manifest.KindObject, manifest.KindArray:
+		// Composite values are never bound as a single parameter; reported below.
 	}
 	return "", fmt.Errorf("type %q cannot be bound", t.Kind)
 }
@@ -247,6 +256,10 @@ func newReader(alias, column string, t manifest.Type) reader {
 		r.kind, r.expr = readBool, col
 	case manifest.KindDateTime:
 		r.kind, r.expr = readTime, col
+	case manifest.KindString, manifest.KindInt, manifest.KindInt64, manifest.KindDecimal,
+		manifest.KindDate, manifest.KindUUID, manifest.KindEnum, manifest.KindJSON,
+		manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		fallthrough
 	default:
 		r.kind, r.expr = readText, col+"::text"
 	}
@@ -259,6 +272,8 @@ func (r reader) dest() any {
 		return new(*bool)
 	case readTime:
 		return new(*time.Time)
+	case readText:
+		fallthrough
 	default:
 		return new(*string)
 	}
@@ -266,7 +281,7 @@ func (r reader) dest() any {
 
 // wire converts a scanned destination. present=false means the key is omitted
 // (NULL in a non-nullable optional field).
-func (r reader) wire(dest any) (raw json.RawMessage, present bool, err error) {
+func (r reader) wire(dest any) (json.RawMessage, bool, error) {
 	switch d := dest.(type) {
 	case **bool:
 		if *d == nil {
@@ -291,6 +306,10 @@ func (r reader) wire(dest any) (raw json.RawMessage, present bool, err error) {
 			return c, true, err
 		case manifest.KindRef:
 			return encodeJSON(manifest.RefValue{Entity: r.refEntity, Key: s}), true, nil
+		case manifest.KindString, manifest.KindInt64, manifest.KindDecimal, manifest.KindBool,
+			manifest.KindDate, manifest.KindDateTime, manifest.KindUUID, manifest.KindEnum,
+			manifest.KindObject, manifest.KindArray:
+			return encodeJSON(s), true, nil
 		default:
 			return encodeJSON(s), true, nil
 		}

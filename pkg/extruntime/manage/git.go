@@ -49,13 +49,14 @@ func (c GitConfig) withDefaults() GitConfig {
 var commitPattern = regexp.MustCompile(`^([0-9a-f]{40}|[0-9a-f]{64})$`)
 
 // scheme classifies a repository location and returns a form safe to store.
-func (c GitConfig) scheme(repo string) (scheme, redacted string, err error) {
+func (c GitConfig) scheme(repo string) (string, string, error) {
 	bad := func(msg string) (string, string, error) {
 		return "", "", serrors.New(serrors.Invalid, "repository URL: "+msg)
 	}
 	if repo == "" || strings.HasPrefix(repo, "-") || strings.Contains(repo, "::") || strings.ContainsAny(repo, "\x00\n\r") {
 		return bad("not allowed")
 	}
+	var scheme, redacted string
 	switch {
 	case strings.Contains(repo, "://"):
 		u, perr := url.Parse(repo)
@@ -155,7 +156,7 @@ func (c GitConfig) fetchTree(ctx context.Context, repo, commit, subdir string) (
 		return nil, serrors.Wrap(op, err)
 	}
 	type entry struct{ sha, path string }
-	var entries []entry
+	entries := make([]entry, 0, bytes.Count(listing, []byte{0}))
 	for _, rec := range bytes.Split(listing, []byte{0}) {
 		if len(rec) == 0 {
 			continue

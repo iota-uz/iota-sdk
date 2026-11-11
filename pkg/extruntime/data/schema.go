@@ -69,24 +69,8 @@ func (s *Schema) Table(id string) (*Table, bool) {
 	return nil, false
 }
 
-func (t *Table) field(key string) (*FieldSpec, bool) {
-	for i := range t.Fields {
-		if t.Fields[i].Key == key {
-			return &t.Fields[i], true
-		}
-	}
-	for i := range t.Fields {
-		for _, a := range t.Fields[i].Aliases {
-			if a == key {
-				return &t.Fields[i], true
-			}
-		}
-	}
-	return nil, false
-}
-
 // logicalHash identifies the schema ignoring physical column assignment.
-func (s *Schema) logicalHash() string {
+func (s *Schema) logicalHash() (string, error) {
 	cp := Schema{Package: s.Package, Version: s.Version, Tables: make([]Table, len(s.Tables))}
 	for i, t := range s.Tables {
 		t.Fields = append([]FieldSpec(nil), t.Fields...)
@@ -95,9 +79,12 @@ func (s *Schema) logicalHash() string {
 		}
 		cp.Tables[i] = t
 	}
-	b, _ := json.Marshal(cp)
+	b, err := json.Marshal(cp)
+	if err != nil {
+		return "", err
+	}
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // PhysColumn is a column of a physical table. Keys lists every field key that
@@ -308,6 +295,10 @@ func (c *Compiler) compileField(ctx context.Context, m *manifest.Manifest, f man
 		}
 		spec.Ref = target
 		spec.SQLType = target.KeyType.SQL()
+	case manifest.KindString, manifest.KindInt, manifest.KindInt64, manifest.KindDecimal,
+		manifest.KindBool, manifest.KindDate, manifest.KindDateTime, manifest.KindUUID,
+		manifest.KindEnum, manifest.KindJSON:
+		fallthrough
 	default:
 		t, err := sqlType(f.Type)
 		if err != nil {
@@ -386,6 +377,8 @@ func sqlType(t manifest.Type) (string, error) {
 		return "text", nil
 	case manifest.KindJSON:
 		return "jsonb", nil
+	case manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		fallthrough
 	default:
 		return "", fmt.Errorf("type %q cannot be stored", t.Kind)
 	}
@@ -417,6 +410,8 @@ func defaultLiteral(t manifest.Type, canon json.RawMessage) (string, error) {
 		return quoteLiteral(s) + "::" + map[manifest.TypeKind]string{manifest.KindDate: "date", manifest.KindDateTime: "timestamptz", manifest.KindUUID: "uuid"}[t.Kind], nil
 	case manifest.KindJSON:
 		return quoteLiteral(string(canon)) + "::jsonb", nil
+	case manifest.KindRef, manifest.KindObject, manifest.KindArray:
+		// Refs and composites cannot carry a default; reported below.
 	}
 	return "", fmt.Errorf("type %q cannot have a default", t.Kind)
 }

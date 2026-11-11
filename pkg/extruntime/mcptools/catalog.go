@@ -76,13 +76,14 @@ func summaryOf(rr spi.ResolvedResource) resourceSummary {
 // resources lists the active catalog: native contracts and the resources of
 // every activated package version.
 func resources(ctx context.Context, cat *catalog.Catalog) ([]spi.ResolvedResource, error) {
-	var out []spi.ResolvedResource
-	for _, r := range cat.Natives().Resources() {
-		out = append(out, spi.ResolvedResource{Resource: r, Native: true})
-	}
+	natives := cat.Natives().Resources()
 	active, err := cat.Active(ctx)
 	if err != nil {
 		return nil, err
+	}
+	out := make([]spi.ResolvedResource, 0, len(natives))
+	for _, r := range natives {
+		out = append(out, spi.ResolvedResource{Resource: r, Native: true})
 	}
 	for _, av := range active {
 		for _, r := range av.Manifest.Resources {

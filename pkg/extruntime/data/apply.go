@@ -154,7 +154,11 @@ func Apply(ctx context.Context, tx pgx.Tx, plan MigrationPlan) error {
 	if err != nil {
 		return err
 	}
-	if current.stateHash() != plan.FromHash {
+	currentHash, err := current.stateHash()
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if currentHash != plan.FromHash {
 		return fail(op, ErrStalePlan, "applied schema of %s changed since the plan was made", plan.Package)
 	}
 	for _, s := range plan.Steps {
@@ -172,10 +176,16 @@ func Apply(ctx context.Context, tx pgx.Tx, plan MigrationPlan) error {
 		}
 	}
 	for _, t := range plan.Changed {
-		cols, _ := json.Marshal(t.Columns)
+		cols, err := json.Marshal(t.Columns)
+		if err != nil {
+			return serrors.Wrap(op, err)
+		}
 		var base any
 		if t.Base != nil {
-			b, _ := json.Marshal(t.Base)
+			b, err := json.Marshal(t.Base)
+			if err != nil {
+				return serrors.Wrap(op, err)
+			}
 			base = string(b)
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO extruntime.entity_schemas
@@ -189,10 +199,16 @@ func Apply(ctx context.Context, tx pgx.Tx, plan MigrationPlan) error {
 	}
 	if !plan.Adopted {
 		for _, t := range plan.View.Tables {
-			fields, _ := json.Marshal(t.Fields)
+			fields, err := json.Marshal(t.Fields)
+			if err != nil {
+				return serrors.Wrap(op, err)
+			}
 			var base any
 			if t.Base != nil {
-				b, _ := json.Marshal(t.Base)
+				b, err := json.Marshal(t.Base)
+				if err != nil {
+					return serrors.Wrap(op, err)
+				}
 				base = string(b)
 			}
 			if _, err := tx.Exec(ctx, `INSERT INTO extruntime.entity_schema_versions
@@ -207,8 +223,14 @@ func Apply(ctx context.Context, tx pgx.Tx, plan MigrationPlan) error {
 	for i, s := range plan.Steps {
 		stmts[i] = s.SQL
 	}
-	sj, _ := json.Marshal(stmts)
-	rj, _ := json.Marshal(plan.Renames)
+	sj, err := json.Marshal(stmts)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	rj, err := json.Marshal(plan.Renames)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
 	if _, err := tx.Exec(ctx, `INSERT INTO extruntime.schema_migrations_history
 		(package, from_version, to_version, adopted, statements, renames)
 		VALUES ($1, $2, $3, $4, $5::text::jsonb, $6::text::jsonb)`,

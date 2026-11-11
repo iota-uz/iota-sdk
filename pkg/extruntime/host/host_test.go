@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestTwoPackagesAndVersionsInOnePoolSeeTheirOwnCaller(t *testing.T) {
 	require.Equal(t, 1, e.pool.Stats().Ready, "everything ran in one warm worker")
 }
 
-func itoa(n int) string { b, _ := json.Marshal(n); return string(b) }
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func TestOrdinaryCommandCallsOutsideTxThenCommitsViaTransaction(t *testing.T) {
 	e := newEnv(t)

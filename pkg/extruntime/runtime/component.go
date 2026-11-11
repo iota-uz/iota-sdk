@@ -172,7 +172,7 @@ func (c *Controller) Descriptor() application.ControllerDescriptor {
 }
 
 func (c *Controller) Register(r *mux.Router) {
-	var h http.Handler = c.api.Handler()
+	h := c.api.Handler()
 	for _, mw := range []mux.MiddlewareFunc{middleware.ProvideUser(), middleware.Authorize()} {
 		h = mw(h)
 	}

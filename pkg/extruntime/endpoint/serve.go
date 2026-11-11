@@ -38,10 +38,15 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
+	data, err := json.Marshal(body)
+	if err != nil {
+		http.Error(w, "response encoding failed", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	_, _ = w.Write(append(data, '\n'))
 }
 
 // ServeHTTP routes /_ext/endpoints/<namespace>/<path> to the active endpoint
@@ -64,7 +69,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var ep *Endpoint
-	var allowed []string
+	allowed := make([]string, 0, len(candidates))
 	for i := range candidates {
 		allowed = append(allowed, candidates[i].Method)
 		if strings.EqualFold(candidates[i].Method, r.Method) {

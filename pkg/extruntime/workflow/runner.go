@@ -14,10 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
-
-const opRun = serrors.Op("extruntime.workflow.run")
 
 // RunOnce claims and runs ready instances one after another until none is
 // ready, and returns how many runs it executed. It is the deterministic entry
@@ -25,11 +22,11 @@ const opRun = serrors.Op("extruntime.workflow.run")
 func (e *Engine) RunOnce(ctx context.Context) (int, error) {
 	n := 0
 	for {
-		inst, err := e.claim(ctx)
+		inst, claimed, err := e.claim(ctx)
 		if err != nil {
 			return n, err
 		}
-		if inst == nil {
+		if !claimed {
 			return n, nil
 		}
 		e.runClaimed(ctx, inst)
@@ -86,12 +83,12 @@ func (e *Engine) Serve(ctx context.Context) {
 
 func (e *Engine) worker(ctx context.Context, wake <-chan struct{}) {
 	for ctx.Err() == nil {
-		inst, err := e.claim(ctx)
+		inst, claimed, err := e.claim(ctx)
 		if err != nil {
 			if ctx.Err() == nil {
 				e.cfg.Logger.Error("extruntime: workflow claim failed", "error", err)
 			}
-		} else if inst != nil {
+		} else if claimed {
 			e.runClaimed(ctx, inst)
 			continue
 		}
@@ -154,7 +151,7 @@ func (e *Engine) cancelLocal(instance string) {
 // heartbeat renews the lease while the run is active. A fenced renewal that
 // matches no row means the lease was taken over or the instance terminated:
 // the run is aborted and records nothing more.
-func (e *Engine) heartbeat(ctx context.Context, rs *runState) (stop func()) {
+func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 	hb, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -257,8 +254,8 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 		Token:      rs.token,
 	})
 
-	if we := rs.stale(); we != nil {
-		e.cfg.Logger.Info("extruntime: workflow run abandoned", "instance", inst.ID, "reason", we.Code)
+	if code, abandoned := rs.staleCode(); abandoned {
+		e.cfg.Logger.Info("extruntime: workflow run abandoned", "instance", inst.ID, "reason", code)
 		return nil
 	}
 	if b := rs.blockedInfo(); b != nil {
@@ -303,14 +300,25 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 
 // checkOutput validates the workflow result against its declared output.
 func (e *Engine) checkOutput(ctx context.Context, inst Instance, out []byte) *pool.WireError {
-	res, ok, err := e.cfg.Catalog.Resolve(ctx, inst.Workflow)
-	if err != nil || !ok || res.Resource.Output == nil {
+	declared := e.declaredOutput(ctx, inst.Workflow)
+	if declared == nil {
 		return nil
 	}
-	if verr := manifest.ValidateValue(*res.Resource.Output, out); verr != nil {
+	if verr := manifest.ValidateValue(*declared, out); verr != nil {
 		return &pool.WireError{Kind: pool.ErrKindInternal, Code: "runtime.invalidOutput", Message: verr.Error()}
 	}
 	return nil
+}
+
+// declaredOutput is the output type a workflow declares, nil when it declares
+// none or the catalog cannot say: an unknown contract is not a reason to fail
+// a run that completed.
+func (e *Engine) declaredOutput(ctx context.Context, workflow string) *manifest.Type {
+	res, ok, err := e.cfg.Catalog.Resolve(ctx, workflow)
+	if err != nil || !ok {
+		return nil
+	}
+	return res.Resource.Output
 }
 
 // listen returns a channel that receives on every NOTIFY of channel and at

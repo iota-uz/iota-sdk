@@ -62,6 +62,7 @@ func ClientToViewModel(entity client.Client) *viewmodels.Client {
 		Comments:    entity.Comments(),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		Extensions:  nil, // Filled by the list controller from extension columns.
 	}
 }
 
