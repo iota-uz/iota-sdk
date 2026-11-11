@@ -12,6 +12,8 @@ export const CODE = {
   nestedTransaction: "runtime.nestedTransaction",
   txClosed: "runtime.txClosed",
   badInvocation: "runtime.badInvocation",
+  intentInTransaction: "runtime.intentInTransaction",
+  resultNotJson: "runtime.resultNotJson",
 } as const;
 
 /** Structured error that crosses the Go/Node boundary without losing its shape. */

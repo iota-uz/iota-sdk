@@ -5,6 +5,7 @@ import * as c from '../typetests/acme/contracts.ts'
 
 type Call = { method: string; args: Record<string, unknown> }
 interface Ctx {
+  occurrence?: unknown
   tenant: string
   user: { id: string; kind: 'initiator'; permissions: string[] }
   invocation: string
@@ -22,8 +23,15 @@ interface HostContext {
   createQuery(deps: Deps): Record<string, Fn>
   createGuardContext(deps: Deps, handle: string, scope: { open: boolean }): Record<string, unknown>
   createCommandContext(deps: Deps): Record<string, unknown> & { query: Fn & Record<string, Fn> }
-  createWorkflowContext(deps: Deps): Record<string, unknown> & { secrets: { get(name: string): Promise<string> } }
+  createWorkflowContext(deps: Deps): WorkflowHost
   createEndpointRequest(input: unknown): { rawBody: Uint8Array; text(): string; body: unknown; method: string }
+}
+
+interface WorkflowHost {
+  secrets: { get(name: string): Promise<string> }
+  step(name: string, effect: (step: { idempotencyKey: string }) => Promise<unknown>): Promise<unknown>
+  transaction(name: string, body: (tx: Record<string, Fn>) => Promise<unknown>): Promise<unknown>
+  call(name: string, command: { id: string }, input: unknown): Promise<unknown>
 }
 
 const specifier = '../src/host/context.ts'
@@ -151,5 +159,109 @@ describe('host context: endpoint request', () => {
     const empty = host.createEndpointRequest({})
     expect(empty.rawBody.byteLength).toBe(0)
     expect(empty.text()).toBe('')
+  })
+})
+
+describe('host context: ordinary intents are refused while a Go transaction is open', () => {
+  it('rejects ctx.call and ctx.signal inside ctx.transaction and allows them outside', async () => {
+    const { deps, calls } = harness(({ method }) => (method === 'tx.begin' ? { tx: 'h1' } : null))
+    const ctx = host.createCommandContext(deps) as unknown as {
+      call(c: { id: string }, input: unknown): Promise<unknown>
+      signal(i: { workflow: string; instance: string }, name: string, payload: unknown): Promise<void>
+      transaction<T>(cb: (tx: Record<string, Fn>) => Promise<T>): Promise<T>
+    }
+    const instance = { workflow: 'acme.w', instance: 'i-1' }
+    await ctx.transaction(async () => {
+      await expect(ctx.call({ id: 'acme.insurance.renewPolicy' }, {})).rejects.toMatchObject({ code: 'runtime.intentInTransaction' })
+      await expect(ctx.signal(instance, 'decision', {})).rejects.toMatchObject({ code: 'runtime.intentInTransaction' })
+    })
+    expect(calls.map((c) => c.method)).toEqual(['tx.begin', 'tx.end'])
+    await ctx.call({ id: 'acme.insurance.renewPolicy' }, { n: 1 })
+    await ctx.signal(instance, 'decision', {})
+    expect(calls.map((c) => c.method).slice(2)).toEqual(['invoke.command', 'invoke.signal'])
+    // the rejection is not sticky: a failed transaction also re-opens the gate
+    await expect(ctx.transaction(async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    await ctx.call({ id: 'acme.insurance.renewPolicy' }, {})
+    expect(calls.at(-1)?.method).toBe('invoke.command')
+  })
+
+  it('rejects wf.call while a wf.transaction is in flight and allows it after', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const { deps, calls } = harness(({ method }) => (method === 'wf.transaction.begin' ? { replay: false, tx: 'h1' } : method === 'wf.call' ? 'called' : null))
+    const wf = host.createWorkflowContext(deps)
+    const tx = wf.transaction('load', async () => { await gate; return 1 })
+    await expect(wf.call('renew', { id: 'acme.insurance.renewPolicy' }, {})).rejects.toMatchObject({ code: 'runtime.intentInTransaction' })
+    expect(calls.some((c) => c.method === 'wf.call')).toBe(false)
+    release()
+    await tx
+    expect(await wf.call('renew', { id: 'acme.insurance.renewPolicy' }, {})).toBe('called')
+    // a rejected call consumed no occurrence: the first renew is still n=0
+    expect(calls.filter((c) => c.method === 'wf.call').map((c) => c.args.n)).toEqual([0])
+  })
+})
+
+describe('host context: durable results are normalized to JSON on the first execution', () => {
+  class Money {
+    constructor(readonly amount: number, readonly at: Date) {}
+    get label() { return `${this.amount}!` }
+  }
+  const produce = () => ({ when: new Date('2026-01-02T03:04:05.000Z'), money: new Money(5, new Date('2026-02-03T00:00:00.000Z')), skipped: undefined, nan: Number.NaN, list: [undefined, () => 1] })
+
+  function recorder() {
+    const recorded = new Map<string, unknown>()
+    return {
+      recorded,
+      reply: ({ method, args }: Call): unknown => {
+        if (method === 'wf.step.begin') return { replay: false, idempotencyKey: 'k' }
+        if (method === 'wf.transaction.begin') return { replay: false, tx: 'h1' }
+        if (method === 'wf.step.end' || method === 'wf.transaction.end') recorded.set(String(args.name), args.value)
+        return null
+      },
+    }
+  }
+
+  const replayDeps = (kind: string, name: string, result: unknown): Deps => ({
+    ...harness().deps,
+    ctx: { ...harness().deps.ctx, occurrence: { journal: [{ name, n: 0, kind, status: 'completed', result }] } } as Ctx,
+  })
+
+  it('returns from wf.step the value it recorded, equal to the replayed one', async () => {
+    const rec = recorder()
+    const { deps } = harness(rec.reply)
+    const first = await host.createWorkflowContext(deps).step('quote', async () => produce())
+    const stored = rec.recorded.get('quote')
+    expect(first).toEqual(stored)
+    expect(first).toEqual({
+      when: '2026-01-02T03:04:05.000Z',
+      money: { amount: 5, at: '2026-02-03T00:00:00.000Z' },
+      nan: null,
+      list: [null, null],
+    })
+    const replayed = await host.createWorkflowContext(replayDeps('step', 'quote', JSON.parse(JSON.stringify(stored)))).step('quote', async () => {
+      throw new Error('must not run on replay')
+    })
+    expect(replayed).toEqual(first)
+  })
+
+  it('does the same for wf.transaction callbacks and turns undefined into null', async () => {
+    const rec = recorder()
+    const { deps } = harness(rec.reply)
+    const wf = host.createWorkflowContext(deps)
+    const first = await wf.transaction('load', async () => produce())
+    expect(first).toEqual(rec.recorded.get('load'))
+    expect(first).toMatchObject({ when: '2026-01-02T03:04:05.000Z' })
+    expect(await wf.transaction('none', async () => undefined)).toBeNull()
+    const replayed = await host.createWorkflowContext(replayDeps('transaction', 'load', JSON.parse(JSON.stringify(rec.recorded.get('load'))))).transaction('load', async () => {
+      throw new Error('must not run on replay')
+    })
+    expect(replayed).toEqual(first)
+  })
+
+  it('fails a step whose result has no JSON form instead of recording something else', async () => {
+    const rec = recorder()
+    const { deps, calls } = harness(rec.reply)
+    await expect(host.createWorkflowContext(deps).step('big', async () => ({ n: 1n }))).rejects.toMatchObject({ code: 'runtime.resultNotJson' })
+    expect(calls.find((c) => c.method === 'wf.step.end')?.args).toMatchObject({ ok: false })
   })
 })

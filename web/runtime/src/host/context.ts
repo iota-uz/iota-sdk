@@ -20,6 +20,27 @@ export interface Deps {
   log: (level: Level, message: string) => void;
 }
 
+/**
+ * What a durable step/transaction result is after it has been recorded: its JSON form. The first execution returns this
+ * exact value, so it equals what every replay reads from the journal (a `Date` is its ISO string, a class instance its
+ * own enumerable data, `undefined` is `null`). Values with no JSON form (bigint, cycles) fail instead of diverging.
+ */
+function normalizeResult(value: unknown): unknown {
+  let text: string | undefined;
+  try {
+    text = JSON.stringify(value);
+  } catch (err) {
+    throw internal(CODE.resultNotJson, `result is not JSON: ${(err as Error).message}`);
+  }
+  return text === undefined ? null : JSON.parse(text);
+}
+
+const intentInTransaction = (what: string) =>
+  internal(
+    CODE.intentInTransaction,
+    `${what} is not allowed while a transaction is open; finish the transaction first (use tx.signal / tx.start inside it)`,
+  );
+
 const idOf = (resource: Resource): string => (typeof resource === "string" ? resource : resource.id);
 const keyOf = (ref: Reference): string => (typeof ref === "string" ? ref : ref.key);
 
@@ -250,10 +271,14 @@ export function createCommandContext(deps: Deps) {
     /** `ctx.query` is the read-only snapshot context and callable: `ctx.query(Q, input)` runs a query. */
     query: Object.assign((query: Resource, input: unknown) => snapshot.query(query, input), snapshot),
     signal: async (instance: InstanceLike, name: string, payload: unknown): Promise<void> => {
+      if (inTx) throw intentInTransaction("ctx.signal");
       await deps.call("invoke.signal", signalArgs(instance, name, payload));
     },
     secrets: { get: (name: string) => deps.call("secrets.get", { name }) as Promise<string> },
-    call: (command: Resource, input: unknown) => deps.call("invoke.command", { command: idOf(command), input }),
+    call: async (command: Resource, input: unknown) => {
+      if (inTx) throw intentInTransaction("ctx.call");
+      return deps.call("invoke.command", { command: idOf(command), input });
+    },
     async transaction<T>(cb: (tx: ReturnType<typeof createTx>) => Promise<T>): Promise<T> {
       if (inTx) {
         throw internal(CODE.nestedTransaction, "ctx.transaction cannot be nested");
@@ -353,6 +378,17 @@ export function createWorkflowContext(deps: Deps) {
     return entry.result ?? null;
   };
 
+  // Go transactions (wf.transaction) in flight; an ordinary command dispatched meanwhile would run beside them.
+  let transactions = 0;
+  const withTransactionInFlight = async <T>(run: () => Promise<T>): Promise<T> => {
+    transactions++;
+    try {
+      return await run();
+    } finally {
+      transactions--;
+    }
+  };
+
   const inFlight = new Set<Promise<unknown>>();
   const track = <T>(promise: Promise<T>): Promise<T> => {
     inFlight.add(promise);
@@ -385,21 +421,22 @@ export function createWorkflowContext(deps: Deps) {
         const inputHash = hashOf({ callable: idOf(body), input: input ?? null });
         const hit = replayed(name, n, "transaction", inputHash);
         if (hit !== undefined) return answer(hit);
-        return track(call("wf.transaction.call", name, n, { callable: idOf(body), input, inputHash }));
+        return track(withTransactionInFlight(() => call("wf.transaction.call", name, n, { callable: idOf(body), input, inputHash })));
       }
       const hit = replayed(name, n, "transaction");
       if (hit !== undefined) return answer(hit);
       return track(
-        (async () => {
+        withTransactionInFlight(async () => {
           const begun = (await call("wf.transaction.begin", name, n)) as Begun;
           if (begun.replay) return unwrap(begun);
           return inTransaction(
             deps,
             async () => begun.tx as string,
             (tx, outcome, value) => call("wf.transaction.end", name, n, { tx, outcome, value: value ?? null }),
-            body,
+            // The recorded result and the returned one are the same normalized value.
+            async (tx) => normalizeResult(await body(tx)),
           );
-        })(),
+        }),
       );
     },
     async step(name: string, first: unknown, second?: StepEffect): Promise<unknown> {
@@ -413,12 +450,12 @@ export function createWorkflowContext(deps: Deps) {
           if (begun.replay) return unwrap(begun);
           let value: unknown;
           try {
-            value = await effect({ idempotencyKey: begun.idempotencyKey as string });
+            value = normalizeResult(await effect({ idempotencyKey: begun.idempotencyKey as string }));
           } catch (err) {
             await call("wf.step.end", name, n, { ok: false, error: toWire(err) }).catch(() => undefined);
             throw err;
           }
-          await call("wf.step.end", name, n, { ok: true, value: value ?? null });
+          await call("wf.step.end", name, n, { ok: true, value });
           return value;
         })(),
       );
@@ -462,6 +499,7 @@ export function createWorkflowContext(deps: Deps) {
       });
     },
     async call(name: string, command: Resource, input: unknown): Promise<unknown> {
+      if (transactions > 0) throw intentInTransaction("wf.call");
       const n = next(name);
       const inputHash = hashOf({ command: idOf(command), input: input ?? null });
       const hit = replayed(name, n, "call", inputHash);

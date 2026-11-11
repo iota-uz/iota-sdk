@@ -186,6 +186,7 @@ type Engine struct {
 var (
 	_ host.WorkflowHandler = (*Engine)(nil)
 	_ spi.Starter          = (*Engine)(nil)
+	_ host.Signaler        = (*Engine)(nil)
 )
 
 func New(cfg Config) (*Engine, error) {

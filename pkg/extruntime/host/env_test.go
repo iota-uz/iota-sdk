@@ -43,6 +43,7 @@ type env struct {
 	starter  *starterDouble
 	notifier *notifierDouble
 	wf       *workflowDouble
+	signals  *signalDouble
 }
 
 type envOption func(*host.Config)
@@ -57,7 +58,8 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	scope := h.Scope(t)
 	e := &env{t: t, db: scope.Pool, tenant: scope.Tenant.ID}
 	_, err := e.db.Exec(context.Background(), `CREATE TABLE host_items (id bigserial PRIMARY KEY, tenant_id uuid NOT NULL, label text NOT NULL);
-		CREATE TABLE host_outbox (id bigserial PRIMARY KEY, event text NOT NULL, payload jsonb)`)
+		CREATE TABLE host_outbox (id bigserial PRIMARY KEY, event text NOT NULL, payload jsonb);
+		CREATE TABLE host_signals (id bigserial PRIMARY KEY, name text NOT NULL, payload jsonb)`)
 	require.NoError(t, err)
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
@@ -75,11 +77,11 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	e.store = &itemStore{db: e.db}
 	e.art = &artifacts{byVersion: map[string]pool.Artifact{}, secrets: map[string][]string{}}
 	e.bindings = host.NewPgBindings(e.db, e.art)
-	e.outbox, e.starter, e.notifier, e.wf = &outboxDouble{}, &starterDouble{}, &notifierDouble{}, &workflowDouble{}
+	e.outbox, e.starter, e.notifier, e.wf, e.signals = &outboxDouble{}, &starterDouble{}, &notifierDouble{}, &workflowDouble{}, &signalDouble{}
 
 	cfg := host.Config{
 		Pool: e.pool, DB: e.db, Bindings: e.bindings, Catalog: e.catalog, Data: e.store,
-		Outbox: e.outbox, Starter: e.starter, Notifier: e.notifier, Workflow: e.wf,
+		Outbox: e.outbox, Starter: e.starter, Notifier: e.notifier, Workflow: e.wf, Signals: e.signals,
 		Artifacts: e.art, Logger: logger,
 	}
 	for _, o := range opts {
@@ -367,6 +369,42 @@ func (n *notifierDouble) Enqueue(_ context.Context, _ pgx.Tx, _ spi.Scope, in sp
 	return "ntc-" + strconv.Itoa(len(n.notices)), nil
 }
 
+// signalDouble writes a row through the tx it is handed, like the engine.
+type signalDouble struct {
+	mu      sync.Mutex
+	intents []host.SignalIntent
+	scopes  []spi.Scope
+	// fail, when set, is returned instead of writing.
+	fail error
+}
+
+func (s *signalDouble) SignalInTx(ctx context.Context, tx pgx.Tx, sc spi.Scope, in host.SignalIntent) error {
+	s.mu.Lock()
+	s.intents = append(s.intents, in)
+	s.scopes = append(s.scopes, sc)
+	fail := s.fail
+	s.mu.Unlock()
+	if fail != nil {
+		return fail
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO host_signals (name, payload) VALUES ($1, $2)`, in.Name, []byte(in.Payload))
+	return err
+}
+
+func (e *env) signalRows() []string {
+	rows, err := e.db.Query(context.Background(), `SELECT name || ':' || payload::text FROM host_signals ORDER BY id`)
+	require.NoError(e.t, err)
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var l string
+		require.NoError(e.t, rows.Scan(&l))
+		out = append(out, l)
+	}
+	require.NoError(e.t, rows.Err())
+	return out
+}
+
 // ---- workflow handler double ----
 
 type workflowDouble struct {
@@ -381,6 +419,19 @@ func (w *workflowDouble) CallWorkflow(ctx context.Context, call host.WorkflowCal
 	w.scopes = append(w.scopes, call.Scope())
 	w.mu.Unlock()
 	switch method {
+	case "wf.now":
+		// Lets a hand-written artifact learn its invocation ID.
+		return json.Marshal(call.InvocationID())
+	case "wf.call":
+		var a struct {
+			Command string
+			Input   json.RawMessage
+		}
+		if err := json.Unmarshal(args, &a); err != nil {
+			return nil, err
+		}
+		res, err := call.CallCommand(ctx, a.Command, a.Input, "")
+		return res.Output, err
 	case "wf.sleep":
 		return nil, &pool.WireError{Kind: pool.ErrKindSuspend, Suspend: json.RawMessage(`{"wakeAt":"2031-01-01T00:00:00Z"}`)}
 	case "wf.transaction.begin":
