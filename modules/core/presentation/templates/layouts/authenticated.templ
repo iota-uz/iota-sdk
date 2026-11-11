@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/shellcontext"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"net/url"
 	"strconv"
@@ -300,6 +301,7 @@ templ Authenticated(props AuthenticatedProps) {
 	}}
 	@Base(&props.BaseProps) {
 		@toast.Container()
+		@shellcontext.Component()
 		@MobileSidebar(sidebarProps)
 		<div
 			x-data="{
