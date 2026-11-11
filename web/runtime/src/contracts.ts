@@ -1,6 +1,6 @@
 import type { Json, Label, ResourceJSON } from './model.ts'
 import { contract, omitEmpty, type Contract } from './resource.ts'
-import type { AnyField, AnyEntity, BoundMeta } from './entity.ts'
+import type { AnyField, AnyEntity, BoundMeta, FieldValue } from './entity.ts'
 import type { AnySchema, Infer } from './schema.ts'
 
 export type OutOf<O> = O extends AnySchema ? Infer<O> : void
@@ -280,8 +280,21 @@ export function nativeList<const Id extends string>(id: Id): ListRef<Id> {
   return { listId: id }
 }
 
-export interface Column<Id extends string = string> extends Contract<Id, 'column'> {
+declare const valueBrand: unique symbol
+
+export interface Column<Id extends string = string, V = Json> extends Contract<Id, 'column'> {
   readonly list: string
+  readonly [valueBrand]?: V
+}
+
+/** A slot owned by the platform or another package; `P` are the props its contributions receive. */
+export interface SlotRef<P extends object = Record<string, Json>> {
+  readonly slotId: string
+  readonly [valueBrand]?: P
+}
+
+export function slotRef<P extends object = Record<string, Json>>(id: string): SlotRef<P> {
+  return { slotId: id }
 }
 
 export interface ColumnSpec {
@@ -295,7 +308,10 @@ export interface ColumnSpec {
 }
 
 /** Adds an overlay field as a column of a native list, filter, sort and export. */
-export function column<const S extends ColumnSpec>(list: ListRef, spec: S & { id: S['id'] }): Column<S['id']> {
+export function column<const S extends ColumnSpec>(
+  list: ListRef,
+  spec: S & { id: S['id'] },
+): Column<S['id'], FieldValue<S['field']>> {
   const resource = omitEmpty({
     id: spec.id,
     kind: 'column' as const,

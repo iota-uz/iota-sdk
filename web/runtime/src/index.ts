@@ -10,11 +10,11 @@ export type {
 } from './entity.ts'
 export {
   ContractError, column, command, contactResolver, deliveryPolicy, domainError, event, href, issue, nativeList, notice,
-  operation, permission, query, route, validation, workflow,
+  operation, permission, query, route, slotRef, validation, workflow,
 } from './contracts.ts'
 export type {
   AtomicCommand, Callable, Column, ColumnSpec, Command, ContactResolver, ContactTargets, DeliveryPolicy, DomainError,
-  Event, InputOf, Issue, ListRef, Notice, Operation, OrdinaryCommand, Permission, Query, ResultOf, Route, SignalRef,
+  Event, InputOf, Issue, ListRef, OutOf, SlotRef, Notice, Operation, OrdinaryCommand, Permission, Query, ResultOf, Route, SignalRef,
   ValidationIssue, Workflow,
 } from './contracts.ts'
 export {
