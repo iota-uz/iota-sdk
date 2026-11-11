@@ -17,18 +17,25 @@ export interface RuntimeTransport {
 /** The request never produced a structured answer (network, proxy, malformed body). */
 export class TransportError extends Error {
   readonly kind = 'transport'
-  constructor(message: string, readonly status: number | undefined, readonly retriable: boolean, options?: { cause?: unknown }) {
+  readonly status: number | undefined
+  readonly retriable: boolean
+  // Explicit fields instead of parameter properties: the host worker build strips types in erasable-only mode.
+  constructor(message: string, status: number | undefined, retriable: boolean, options?: { cause?: unknown }) {
     super(message, options)
     this.name = 'TransportError'
+    this.status = status
+    this.retriable = retriable
   }
 }
 
 /** The session is gone and could not be refreshed. */
 export class UnauthenticatedError extends Error {
   readonly kind = 'unauthenticated'
-  constructor(readonly reauthUrl?: string) {
+  readonly reauthUrl: string | undefined
+  constructor(reauthUrl?: string) {
     super('Session expired')
     this.name = 'UnauthenticatedError'
+    this.reauthUrl = reauthUrl
   }
 }
 
