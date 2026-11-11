@@ -92,3 +92,18 @@ func (f *Failed) Error() string {
 	}
 	return "build failed"
 }
+
+// KitSource is one namespace's public resources for kit generation: native
+// descriptors exported by Go or an active package's manifest. Pure contract
+// modules of active packages may be shipped as-is in ContractsModule.
+type KitSource struct {
+	Namespace       string
+	Resources       []manifest.Resource
+	ContractsModule []byte
+}
+
+// KitGenerator renders `@iota-kit/<namespace>` modules (pure JS refs built
+// with the public SDK builders plus .d.ts) from catalog sources.
+type KitGenerator interface {
+	GenerateKit(ctx context.Context, sources []KitSource) (Kit, error)
+}
