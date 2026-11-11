@@ -684,8 +684,8 @@ export const ClientConsent = deliveryPolicy("acme.loyalty.clientConsent", crm.Cl
 ```ts
 // example/src/server.ts
 export const clientConsent = implement(c.ClientConsent, async (q, request) => {
-  const consent = await q.find(c.Consent, { where: { client: request.recipient.ref }, limit: 1 })
-  if (request.channel === "sms" && consent[0]?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
+  const loyalty = await q.get(c.ClientLoyalty, request.recipient.ref)
+  if (request.channel === "sms" && loyalty?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
   return { allow: true }
 })
 ```

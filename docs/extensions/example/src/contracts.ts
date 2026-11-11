@@ -1,6 +1,6 @@
 // Pure contracts of acme.loyalty: every resource the package declares. No handlers, no Node, no Solid.
 import {
-  $, column, command, contactResolver, defineSlot, domainError, entity, event, field, issue, notice, operation, overlay, permission, query,
+  $, column, command, contactResolver, defineSlot, deliveryPolicy, domainError, entity, event, field, issue, notice, operation, overlay, permission, query,
   route, t, workflow,
 } from "@iota-uz/sdk/runtime"
 import * as core from "@iota-kit/core"
@@ -18,6 +18,7 @@ export const ClientLoyalty = overlay(
     tier: field.enum(["standard", "silver", "gold"]).default("standard"),
     points: field.int().default(0),
     note: field.text().optional(),
+    smsOptOut: field.bool().default(false),
   },
   { access: { fields: { note: [Manage] } } },
 )
@@ -103,6 +104,9 @@ export const PointsReminder = notice("acme.loyalty.pointsReminder.v1", {
 
 // Lets notifications reach a client record: where to send an SMS or an e-mail.
 export const ClientContacts = contactResolver("acme.loyalty.clientContacts", crm.Client)
+
+// Consent is our business policy, not a core field: asked once per target before anything is sent to a client.
+export const ClientConsent = deliveryPolicy("acme.loyalty.clientConsent", crm.Client)
 
 export const Approval = workflow("acme.loyalty.approval", {
   input: t.object({ redemption: t.ref(Redemption) }),

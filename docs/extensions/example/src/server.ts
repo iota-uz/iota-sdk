@@ -141,6 +141,12 @@ export const saveClient = implement(crm.SaveClient, async (ctx, input) =>
 )
 
 // ---- notifications: contact data of a record, and per-channel templates
+export const clientConsent = implement(c.ClientConsent, async (q, request) => {
+  const loyalty = await q.get(c.ClientLoyalty, request.recipient.ref)
+  if (request.channel === "sms" && loyalty?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
+  return { allow: true }
+})
+
 export const clientContacts = implement(c.ClientContacts, async (q, record) => {
   const client = await q.get(crm.Client, record)
   if (client === null) return {}
