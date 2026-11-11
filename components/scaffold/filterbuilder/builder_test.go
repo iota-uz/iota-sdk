@@ -258,6 +258,18 @@ func TestCheckboxOptionsKeepSelectedDisabledOptionRemovable(t *testing.T) {
 	assert.Contains(t, inputs[1], ` disabled`, "a fresh selection stays blocked")
 }
 
+func TestCheckboxOptionsKeepMissingSelectedValues(t *testing.T) {
+	html := render(t, CheckboxOptions([]Option{
+		{Value: "1", Label: "Active", Count: -1},
+	}, []string{"9", "1", "9"}))
+
+	inputs := checkboxInputs(t, html)
+	require.Len(t, inputs, 2, "the missing value is rendered once")
+	assert.Contains(t, inputs[0], `value="1"`)
+	assert.Contains(t, inputs[1], `value="9"`)
+	assert.Contains(t, inputs[1], ` checked`, "a missing selected value stays checked so it can be removed")
+}
+
 func TestChipEditorPreChecksConditionValues(t *testing.T) {
 	fs := filterq.FilterSet{{Field: "status", Op: filterq.OpIs, Values: []string{"2"}}}
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
