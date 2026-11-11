@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -34,10 +36,17 @@ type NavigationItem struct {
 	Order     int    `json:"order"`
 }
 
+// User is the signed-in user as a shell renderer may display it.
+type User struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 // Context is the payload serialized into the page.
 type Context struct {
 	Version    string           `json:"version"`
 	Navigation []NavigationItem `json:"navigation"`
+	User       *User            `json:"user,omitempty"`
 }
 
 // Flatten converts a navigation tree into stable, unique keys. Items without a
@@ -87,7 +96,14 @@ func Flatten(items []types.NavigationItem) []NavigationItem {
 // sidebar middleware stores. A request without navigation yields an empty list.
 func FromContext(ctx context.Context) Context {
 	items, _ := ctx.Value(constants.NavItemsKey).([]types.NavigationItem)
-	return Context{Version: Version, Navigation: Flatten(items)}
+	value := Context{Version: Version, Navigation: Flatten(items)}
+	if u, err := composables.UseUser(ctx); err == nil && u != nil {
+		value.User = &User{
+			Name:  strings.TrimSpace(u.FirstName() + " " + u.LastName()),
+			Email: u.Email().Value(),
+		}
+	}
+	return value
 }
 
 // Script renders the context as an application/json script element. JSON is

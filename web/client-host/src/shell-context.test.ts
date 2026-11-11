@@ -16,10 +16,11 @@ describe('shell context', () => {
   })
 
   it('reads the server navigation into the shared registry', () => {
-    const doc = page({ version: '1.2.0', navigation: [
+    const doc = page({ version: '1.2.0', user: { name: 'Ada', email: 'a@x' }, navigation: [
       { key: 'crm', title: 'CRM', order: 0, workspace: 'sales' },
       { key: '/clients', title: 'Clients', href: '/clients', parent: 'crm', order: 0 },
     ] })
+    expect(readShellContext(doc)?.user).toEqual({ name: 'Ada', email: 'a@x' })
     const registry = documentShellRegistry(doc)
     expect(registry.navigation()).toMatchObject([{ key: 'crm', workspace: 'sales', children: [{ key: '/clients', href: '/clients' }] }])
     expect(documentShellRegistry(doc)).toBe(registry)

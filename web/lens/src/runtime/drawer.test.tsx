@@ -180,3 +180,29 @@ describe('Lens drawer host', () => {
     expect(fetcher).not.toHaveBeenCalled()
   })
 })
+
+describe('Lens drawer portal ownership', () => {
+  it('mounts in the shared host root and releases scroll lock, inert and focus on close', async () => {
+    const shell = globalThis.document.createElement('div')
+    shell.setAttribute('data-iota-shell-standard', '')
+    const opener = globalThis.document.createElement('button')
+    shell.append(opener)
+    globalThis.document.body.append(shell)
+    opener.focus()
+    const view = render(() => (
+      <LensDrawer closeLabel="Close" eyebrow="Metric" label="Detail" onClose={() => undefined} restoreFocus={opener}>
+        <p>body</p>
+      </LensDrawer>
+    ))
+    const dialog = await screen.findByRole('dialog', { name: 'Detail' })
+    expect(dialog.closest('[data-iota-portal="drawer"]')).not.toBeNull()
+    expect(globalThis.document.body.querySelectorAll(':scope > .lens-drawer-root')).toHaveLength(0)
+    expect(globalThis.document.documentElement.style.overflow).toBe('hidden')
+    expect(shell.inert).toBe(true)
+    view.unmount()
+    expect(globalThis.document.documentElement.style.overflow).toBe('')
+    expect(shell.inert).toBe(false)
+    expect(globalThis.document.activeElement).toBe(opener)
+    shell.remove()
+  })
+})

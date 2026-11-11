@@ -10,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/shellcontext"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -72,4 +75,14 @@ func TestComponent_WithoutNavigation(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, shellcontext.Component().Render(context.Background(), &out))
 	assert.Contains(t, out.String(), `"navigation":[]`)
+}
+
+func TestFromContext_IncludesSignedInUser(t *testing.T) {
+	email, err := internet.NewEmail("ada@example.com")
+	require.NoError(t, err)
+	ctx := composables.WithUser(context.Background(), user.New("Ada", "Lovelace", email, user.UILanguageEN))
+	got := shellcontext.FromContext(ctx)
+	require.NotNil(t, got.User)
+	assert.Equal(t, shellcontext.User{Name: "Ada Lovelace", Email: "ada@example.com"}, *got.User)
+	assert.Nil(t, shellcontext.FromContext(context.Background()).User)
 }
