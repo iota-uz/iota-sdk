@@ -172,6 +172,9 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		Renderers: resolve[*notifications.ContentRenderers](t, e.scope.Container),
 		Contacts:  resolve[*notifications.ContactResolvers](t, e.scope.Container),
 		Users:     resolve[user.Repository](t, e.scope.Container),
+		// The Go defaults of native contracts resolve their services here, as
+		// the component wires them.
+		NativeDeps: e.scope.Container,
 	}
 
 	// The harness runs the container's start hooks, so the component's own

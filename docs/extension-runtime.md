@@ -603,7 +603,8 @@ entities carry `keyType`; slot declarations carry `props`.
 `runtime.readOnlyContext` — enforced by the Go router, not only by the TS context.
 `invoke.command`, `invoke.signal` and `wf.call` return `runtime.intentInTransaction` while a Go tx
 is open in the invocation. `tx.query`/`q.query` return `runtime.nativeQueryUnavailable` for a
-query without a package implementation (Go-implemented native queries are future work).
+query with no implementation at all (neither a Go default nor a bound package export; Go-implemented
+native queries run, see §9.3).
 `wf.step`/`wf.transaction` results are JSON-normalized on first execution. HTTP endpoints:
 `/_ext/endpoints/<namespace>/<path>` (sync response; session user, or the trigger owner for
 `public` endpoints; tenant of an unauthenticated request via `runtime.Config.Endpoints.PublicTenant`;
@@ -625,3 +626,50 @@ query without a package implementation (Go-implemented native queries are future
   with the public author API only. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
   (the SDK emit type-checks `src/client-host/entry.ts` against the client-host declarations). Run with
   `go test -p 1 ./pkg/extruntime/e2e/`.
+
+### 9.3 Native command boundary (as implemented)
+
+* **Authoring (`pkg/extruntime/native`).** A module declares a native contract once, as a package-level value:
+  `native.Operation | AtomicCommand | Command | Query[In, Out](id, native.Spec{...}, impl)` registered with
+  `native.MustRegister` into `native.Default`. The wire contract is derived from the Go structs by `native.TypeOf`
+  (explicit `json` names; `wire:"int64|decimal,precision=P,scale=S|date|datetime|uuid|enum=a|b|ref=<entity>|string,maxLength=N"`;
+  int64 fields need `wire:"int64"` + `,string`; a pointer field is an optional key and needs `omitempty`; floats, maps,
+  interfaces, embedded and recursive types fail loudly) or given explicitly in `Spec.Input/Output`. `impl` is a factory over
+  `native.Deps` (the composition container) returning the typed Go default (`OperationFunc(ctx, native.Tx, in)`,
+  `CommandFunc(ctx, native.CommandContext, in)`, `QueryFunc(ctx, native.QueryContext, in)`); it is instantiated per
+  application on first use (`native.Bind`). `Spec.Permission` is an RBAC permission name: it is not a catalog resource, so
+  it is not published in the contract; the host enforces it from the definition on every invocation, whichever
+  implementation is bound. Native contracts reach the catalog and the kit through `catalog.DefaultNatives`;
+  `catalog.Defaults()` is every native resource of the binary without application configuration (offline kits).
+* **Dispatch.** A native contract without an open `slot_kind='command'` binding runs its Go default
+  (`host.Config.Natives`, `Binding.Native`, recorded with an empty package/version/export); with a binding the package
+  export runs instead — one active implementation, no fallback on error; unbinding restores the Go default. Everything
+  else is the package path: input/output validation, permission, prechecks and operation guards of packages
+  (`Catalog.Guards`), invocation records, nesting limit, closed domain errors. Operations and atomic commands run inside
+  the caller's transaction (`tx.call`) or one the host opens; queries in the caller's transaction/snapshot (`tx.query`,
+  `q.query`) or a read-only snapshot; ordinary commands get `CommandContext.Transaction` / `Call` / `Query`. The handler's
+  `ctx` carries the transaction (`composables.UseTx`, so repositories join it), the subject's tenant and the pool, plus the
+  root request's values (user, session) when the root came from HTTP. `Tx.AfterCommit` runs callbacks after the
+  transaction commits (module events published post-commit); it is refused in a caller-owned transaction (subscription
+  delivery, schedule slot). A package invocation nested under a Go frame runs on the worker of the nearest package
+  ancestor, or takes a pool slot under a Go root.
+* **Entry points.** Go code calls `Def.Dispatch(ctx, dispatcher, in)`. The runtime component provides
+  `native.Dispatcher` (`runtime.HostDispatcher`: root invocation as the session user, trigger `ui`); without the runtime
+  `native.ResolveDispatcher` falls back to `native.Direct` (Go defaults in-process, same validation and transaction shape,
+  `Spec.Permission`/`Authorize` checked against the request user). Reference consumer: CRM — `crm.operations.upsertClient`
+  (authorization Client.Create/Client.Update, value-object validation as issues `crm.invalidPhone|invalidEmail|invalidPin|
+  invalidCountry|clientNotFound`, repository save + history in the caller's transaction, client events after commit) and
+  `crm.commands.saveClient` (ordinary; Go default = one transaction around `upsertClient`). The client create form, the four
+  edit forms and the chat "new chat" form dispatch `saveClient`; `ClientService.Create/Update` remain as Go API. A
+  dispatch error renders 422 (validation) / 403 (denied) / 409 (domain).
+* **Error mapping.** Data-layer failures reaching package code map to stable kinds instead of `runtime.hostCall`:
+  unique → validation `data.unique` (issue phase `write`, path = field), reference → validation `data.reference`,
+  native/foreign generic write → denied `data.nativeWrite` / `data.foreignWrite`, read denied → denied `data.denied`,
+  hidden field → denied `data.fieldNotAccessible` (no field values), not found → domain `data.notFound`, row version
+  conflict → domain `data.versionConflict`. The two `data.*` domain codes pass the closed-errors check of every contract.
+  A Go default's own error is returned to Go callers unchanged (its chain intact) and recorded as internal.
+* **Limits.** Package code nested under a Go default shares the Go frame's hold of the transaction: concurrent host calls
+  from it (`Promise.all`) fail fast (`repo.ErrTxInUse`) instead of queueing — the same rule as write-rule guards.
+  `upsertClient` cannot run inside a subscription delivery (after-commit callbacks are refused there). Other writers of
+  CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command.
+

@@ -143,7 +143,10 @@ func newNatives(t *testing.T) *natives {
 	badOut := native.Operation("acme.n.badOutput", native.Spec{Output: obj("n", num())}, func(native.Deps) (native.OperationFunc[labelIn, seenOut], error) {
 		return func(context.Context, native.Tx, labelIn) (seenOut, error) { return seenOut{Seen: 1}, nil }, nil
 	})
-	require.NoError(t, n.set.Register(n.add, n.save, count, viaPkg, loop, badOut))
+	panics := native.Operation("acme.n.panic", native.Spec{}, func(native.Deps) (native.OperationFunc[labelIn, seenOut], error) {
+		return func(context.Context, native.Tx, labelIn) (seenOut, error) { panic("bug") }, nil
+	})
+	require.NoError(t, n.set.Register(n.add, n.save, count, viaPkg, loop, badOut, panics))
 	return n
 }
 
@@ -208,6 +211,12 @@ func TestNativeCommandRunsItsGoDefaultThroughTheHost(t *testing.T) {
 		require.Len(t, issues, 1)
 		require.Equal(t, "acme.n.invalid", issues[0].Code)
 		require.JSONEq(t, `["label"]`, string(issues[0].Path))
+	})
+
+	t.Run("a panicking Go default fails its invocation, not the process", func(t *testing.T) {
+		_, err := e.host.Invoke(context.Background(), e.req("acme.n.panic", `{"label":"x"}`))
+		require.Equal(t, "runtime.nativePanic", asWire(t, err).Code)
+		require.Equal(t, "error", e.invocations("acme.n.panic")[0].Outcome)
 	})
 
 	t.Run("recursion is bounded by the nesting limit", func(t *testing.T) {

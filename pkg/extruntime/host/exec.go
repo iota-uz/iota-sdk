@@ -768,11 +768,11 @@ func (e *execution) nestedQuery(ctx context.Context, h *txHandle, args json.RawM
 	if res.Resource.Kind != manifest.ResQuery {
 		return nil, fail(CodeNotQuery, "tx.query accepts queries; %s is a %s", a.Query, res.Resource.Kind)
 	}
-	return e.runQuery(ctx, h, res, a.Query, a.Input)
+	return e.runQuery(ctx, h, a.Query, a.Input)
 }
 
 // runQuery runs a query contract nested in this invocation, reading through h.
-func (e *execution) runQuery(ctx context.Context, h *txHandle, res spi.ResolvedResource, query string, input json.RawMessage) (json.RawMessage, error) {
+func (e *execution) runQuery(ctx context.Context, h *txHandle, query string, input json.RawMessage) (json.RawMessage, error) {
 	out, err := e.invokeNested(ctx, query, input, h)
 	if errors.Is(err, ErrNoBinding) {
 		return nil, fail(CodeNativeQueryUnavailable, "query %s has no implementation (neither a Go default nor a bound package export)", query)

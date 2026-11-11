@@ -38,6 +38,7 @@ import (
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -337,27 +338,38 @@ type Implementation struct {
 func (i *Implementation) Definition() Definition { return i.def }
 
 // RunTx runs an operation or atomic command handler.
-func (i *Implementation) RunTx(ctx context.Context, tx Tx, in json.RawMessage) (json.RawMessage, error) {
+func (i *Implementation) RunTx(ctx context.Context, tx Tx, in json.RawMessage) (_ json.RawMessage, err error) {
 	if i.tx == nil {
 		return nil, kindMismatch(i.def, "a transactional")
 	}
+	defer recovered(i.def, &err)
 	return i.tx(ctx, tx, in)
 }
 
 // RunCommand runs an ordinary command handler.
-func (i *Implementation) RunCommand(ctx context.Context, c CommandContext, in json.RawMessage) (json.RawMessage, error) {
+func (i *Implementation) RunCommand(ctx context.Context, c CommandContext, in json.RawMessage) (_ json.RawMessage, err error) {
 	if i.cmd == nil {
 		return nil, kindMismatch(i.def, "an ordinary command")
 	}
+	defer recovered(i.def, &err)
 	return i.cmd(ctx, c, in)
 }
 
 // RunQuery runs a query handler.
-func (i *Implementation) RunQuery(ctx context.Context, q QueryContext, in json.RawMessage) (json.RawMessage, error) {
+func (i *Implementation) RunQuery(ctx context.Context, q QueryContext, in json.RawMessage) (_ json.RawMessage, err error) {
 	if i.query == nil {
 		return nil, kindMismatch(i.def, "a query")
 	}
+	defer recovered(i.def, &err)
 	return i.query(ctx, q, in)
+}
+
+// recovered turns a panic of a Go default into an internal error, so the
+// host still rolls back, records and releases what the invocation holds.
+func recovered(d Definition, err *error) {
+	if r := recover(); r != nil {
+		*err = pool.Internal("runtime.nativePanic", fmt.Sprintf("%s panicked: %v", d.ID(), r))
+	}
 }
 
 func kindMismatch(d Definition, want string) error {

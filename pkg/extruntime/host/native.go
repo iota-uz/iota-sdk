@@ -166,7 +166,7 @@ func (e *execution) queryVia(ctx context.Context, h *txHandle, query string, inp
 	if res.Resource.Kind != manifest.ResQuery {
 		return nil, fail(CodeNotQuery, "query accepts queries; %s is a %s", query, res.Resource.Kind)
 	}
-	return e.runQuery(ctx, h, res, query, input)
+	return e.runQuery(ctx, h, query, input)
 }
 
 // hostCommand implements native.CommandContext for an ordinary command.
