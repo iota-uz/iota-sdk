@@ -1,7 +1,7 @@
 // Server graph: implementations and the context interfaces the Node worker host provides.
 // This file is pure: no Node, DOM or solid imports. Handlers never reach the client graph.
 import type {
-  AnyEntity, AnyOverlay, InsertOf, OwnEntity, PatchOf, PathOf, RecordOf, Where,
+  AnyEntity, AnyOverlay, InsertOf, OwnEntity, PatchOf, PathOf, RecordOf, Row, Where,
 } from './entity.ts'
 import type {
   AtomicCommand, Callable, Command, ContactResolver, ContactTargets, DeliveryPolicy, Event, InputOf, Notice, Operation,
@@ -46,6 +46,7 @@ export interface FindQuery<E> {
   /** Field keys or dotted ref paths such as "holder.owner". Access rules apply before filter, count and paging. */
   where?: Where<E>
   orderBy?: readonly { field: PathOf<E>; desc?: boolean }[]
+  /** Default 100, maximum 1000. */
   limit?: number
   offset?: number
 }
@@ -105,7 +106,8 @@ export interface Tx<K extends 'plain' | 'derived' = 'plain'> extends Reader {
   readonly invocation: InvocationInfo
   /** Own entities only; native writes go through published operations. */
   insert<E extends OwnEntity>(entity: E, values: InsertOf<E>): Promise<RecordOf<E>>
-  update<E extends OwnEntity>(entity: E, ref: Ref<E>, patch: PatchOf<E>): Promise<RecordOf<E>>
+  /** With `rowVersion`, fails with a version conflict unless the row is still at that version. */
+  update<E extends OwnEntity>(entity: E, ref: Ref<E>, patch: PatchOf<E>, options?: { rowVersion?: number }): Promise<RecordOf<E>>
   delete<E extends OwnEntity>(entity: E, ref: Ref<E>): Promise<void>
   /** Upserts the 1:1 overlay row of `base`; omitted fields keep their value (or default). */
   put<O extends AnyOverlay>(overlay: O, base: Ref<O['base']>, values: PatchOf<O>): Promise<RecordOf<O>>
@@ -215,9 +217,9 @@ export interface WorkflowContext {
 
 export interface WriteChange<E extends AnyEntity> {
   readonly op: 'insert' | 'update' | 'delete'
-  readonly existing: RecordOf<E> | null
+  readonly existing: Row<E> | null
   /** The record as it will be written; null on delete. */
-  readonly proposed: RecordOf<E> | null
+  readonly proposed: Row<E> | null
   readonly changed: readonly (keyof E['fields'] & string)[]
 }
 

@@ -1,7 +1,7 @@
 // Building blocks for tests without a Granite checkout: synthetic typed fixtures and a registry of
 // fake external effects. The runtime harness that runs handlers against them is a separate slice.
-import type { AnyEntity, AnyOverlay, InsertOf, RecordOf } from './entity.ts'
-import type { Json } from './model.ts'
+import type { AnyEntity, AnyOverlay, InsertOf, OverlayRow, Row } from './entity.ts'
+import type { ISODateTime, Json } from './model.ts'
 import { t, type Ref } from './schema.ts'
 import { encode } from './wire.ts'
 
@@ -10,9 +10,11 @@ export type { CollectInput } from './manifest.ts'
 
 // ---------------------------------------------------------------- fixtures
 
+const EPOCH = '2026-01-01T00:00:00Z' as ISODateTime
+
 export interface Fixture<E> {
   readonly ref: Ref<Extract<E, { readonly id: string }>>
-  readonly record: RecordOf<E>
+  readonly record: Row<E>
 }
 
 function hash(text: string): string {
@@ -58,15 +60,15 @@ export function fixture<E extends AnyEntity>(entity: E, values: InsertOf<E>, opt
   checked(entity, fields)
   return {
     ref: { entity: entity.id, key } as Fixture<E>['ref'],
-    record: { key, ...fields } as RecordOf<E>,
+    record: { key, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as Row<E>,
   }
 }
 
 /** A synthetic overlay row for a base record. */
-export function overlayFixture<O extends AnyOverlay>(overlay: O, base: Ref<O['base']>, values: Partial<InsertOf<O>> = {}): RecordOf<O> {
+export function overlayFixture<O extends AnyOverlay>(overlay: O, base: Ref<O['base']>, values: Partial<InsertOf<O>> = {}): OverlayRow<O> {
   const fields = materialize(overlay.fields, values)
   checked(overlay, fields)
-  return { key: base.key, ...fields } as RecordOf<O>
+  return { baseKey: base.key, ...fields } as OverlayRow<O>
 }
 
 // ---------------------------------------------------------------- fake external effects

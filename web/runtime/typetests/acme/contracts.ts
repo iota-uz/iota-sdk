@@ -79,7 +79,7 @@ export const RenewalFollowUp = workflow('acme.insurance.renewalFollowUp', {
   signals: { decision: t.object({ approved: t.bool() }) },
 })
 
-export const PolicyRoute = route('acme.insurance.policy', { path: '/insurance/policies/:id', params: t.object({ id: t.uuid() }) })
+export const PolicyRoute = route('acme.insurance.policyRoute', { path: '/insurance/policies/:id', params: t.object({ id: t.uuid() }) })
 
 export const CustomerContacts = contactResolver('acme.insurance.customerContacts', Customer)
 export const CustomerConsent = deliveryPolicy('acme.insurance.customerConsent', Customer)

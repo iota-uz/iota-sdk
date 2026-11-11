@@ -8,10 +8,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/build-host.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json && tsc --noEmit -p src/host/tsconfig.json",
     "typecheck:types": "tsc --noEmit -p tsconfig.typetests.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build-host": "node scripts/build-host.mjs"
   },
   "peerDependencies": {
     "solid-js": "^1.9.0"
@@ -22,6 +23,7 @@
     }
   },
   "devDependencies": {
+    "@types/node": "24.x",
     "solid-js": "1.9.15",
     "typescript": "5.7.2",
     "vitest": "2.1.9"

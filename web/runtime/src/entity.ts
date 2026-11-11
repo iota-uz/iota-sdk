@@ -1,4 +1,4 @@
-import type { AccessJSON, ConditionJSON, FieldJSON, FilterJSON, Json, Label, ReadRuleJSON, TypeJSON } from './model.ts'
+import type { AccessJSON, ConditionJSON, FieldJSON, FilterJSON, ISODateTime, Json, Label, ReadRuleJSON, TypeJSON } from './model.ts'
 import { contract, omitEmpty, type Contract } from './resource.ts'
 import { makeSchema, t, type DecimalOptions, type Infer, type Presence, type Ref, type Schema, type StringOptions } from './schema.ts'
 import type { Permission } from './contracts.ts'
@@ -102,8 +102,26 @@ export type FieldValue<S> = S extends Schema<infer V, infer K> ? (K extends 'opt
 
 type Fields<E> = E extends { readonly fields: infer G extends FieldShape } ? G : never
 
-/** A record as read: `key` plus every declared field (optional ones read `null`). */
-export type RecordOf<E> = Simplify<{ readonly key: string } & { readonly [K in keyof Fields<E>]: FieldValue<Fields<E>[K]> }>
+type FieldValues<E> = { readonly [K in keyof Fields<E>]: FieldValue<Fields<E>[K]> }
+
+/** An entity row as returned by the data layer: system columns plus every declared field (optional ones read `null`). */
+export type Row<E> = Simplify<
+  {
+    readonly key: string
+    readonly createdAt: ISODateTime
+    readonly updatedAt: ISODateTime
+    /** Incremented on every write; pass it to `tx.update(..., { rowVersion })` for an optimistic check. */
+    readonly rowVersion: number
+  } & FieldValues<E>
+>
+
+/** An overlay row, keyed by the base record's key. */
+export type OverlayRow<O> = Simplify<{ readonly baseKey: string } & FieldValues<O>>
+
+export type RecordOf<E> = E extends { readonly base: AnyEntity } ? OverlayRow<E> : Row<E>
+
+/** Keys the data layer owns on every row; declaring a field with one of these keys is an error. */
+export const RESERVED_KEYS: ReadonlySet<string> = new Set(['key', 'createdAt', 'updatedAt', 'rowVersion', 'baseKey'])
 
 type RequiredInsertKeys<F extends FieldShape> = { [K in keyof F]: F[K] extends Schema<unknown, 'req'> ? K : never }[keyof F]
 type OptionalInsertKeys<F extends FieldShape> = Exclude<keyof F, RequiredInsertKeys<F>>
@@ -226,10 +244,10 @@ function compileAccess<F extends FieldShape>(access: EntityAccess<F> | undefined
   return omitEmpty({ read, fields: Object.keys(fields).length > 0 ? fields : undefined }) as AccessJSON
 }
 
-function bind<F extends FieldShape>(owner: string, fields: F): BoundFields<F> {
+function bind<F extends FieldShape>(owner: string, fields: F, rejectReserved: boolean): BoundFields<F> {
   const out: Record<string, AnyField & BoundMeta> = {}
   for (const [key, f] of Object.entries(fields)) {
-    if (key === 'key') throw new Error(`${owner}: field key "key" is reserved for the record key`)
+    if (rejectReserved && RESERVED_KEYS.has(key)) throw new Error(`${owner}: field key "${key}" is reserved for the data layer`)
     out[key] = { ...f, owner, key }
   }
   return out as BoundFields<F>
@@ -249,7 +267,7 @@ export function entity<const Id extends string, F extends FieldShape>(
     fields: Object.entries(fields).map(([k, f]) => compileField(k, f)),
     access: compileAccess(opts.access),
   })
-  return { ...contract(resource), entityKind: 'own', keyType: 'uuid', fields: bind(id, fields) }
+  return { ...contract(resource), entityKind: 'own', keyType: 'uuid', fields: bind(id, fields, true) }
 }
 
 /**
@@ -266,7 +284,7 @@ export function nativeEntity<const Id extends string, F extends FieldShape>(
     kind: 'entity' as const,
     fields: Object.entries(fields).map(([k, f]) => compileField(k, f)),
   }
-  return { ...contract(resource, true), entityKind: 'native', keyType: opts.key, fields: bind(id, fields) }
+  return { ...contract(resource, true), entityKind: 'native', keyType: opts.key, fields: bind(id, fields, false) }
 }
 
 /**
@@ -292,7 +310,7 @@ export function overlay<const Id extends string, B extends AnyEntity, F extends 
     base: base.id,
     fields: Object.entries(fields).map(([k, f]) => compileField(k, f)),
   })
-  return { ...contract(resource), base, fields: bind(id, fields) }
+  return { ...contract(resource), base, fields: bind(id, fields, true) }
 }
 
 export function ref<E extends EntityLike>(entity: E, key: string): Ref<E> {

@@ -37,7 +37,7 @@ export interface PageSpec<P> {
   component: Component<PageProps<P>>
 }
 
-/** A page bound to a shared route (typed params) or declared with its own ID and path. */
+/** A page bound to a shared route (typed params; its ID is `<route id>.page`) or declared with its own ID and path. */
 export function page<R extends Route>(route: R, spec: PageSpec<Infer<R['params']>>): Page<Infer<R['params']>>
 export function page(id: string, spec: PageSpec<Record<string, string>> & { path: string }): Page
 export function page(
@@ -45,7 +45,7 @@ export function page(
   spec: PageSpec<never> & { path?: string },
 ): Page<never> | Page {
   const isRoute = typeof target !== 'string'
-  const id = isRoute ? target.id : target
+  const id = isRoute ? `${target.id}.page` : target
   const path = isRoute ? target.path : spec.path
   if (path === undefined) throw new Error(`page ${id}: path is required`)
   const resource = omitEmpty({

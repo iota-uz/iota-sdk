@@ -89,8 +89,12 @@ export function createTx(deps: Deps, handle: string, scope: { open: boolean }) {
     invocation: invocationInfo(deps),
     ...reader((op, args) => call(`tx.${op}`, args)),
     insert: (entity: Resource, values: unknown) => call("tx.insert", { entity: idOf(entity), values }),
-    update: (entity: Resource, ref: Reference, patch: unknown) =>
-      call("tx.update", { entity: idOf(entity), key: keyOf(ref), patch }),
+    update: (entity: Resource, ref: Reference, patch: object, options?: { rowVersion?: number }) =>
+      call("tx.update", {
+        entity: idOf(entity),
+        key: keyOf(ref),
+        patch: options?.rowVersion === undefined ? patch : { ...patch, rowVersion: options.rowVersion },
+      }),
     delete: async (entity: Resource, ref: Reference): Promise<void> => {
       await call("tx.delete", { entity: idOf(entity), key: keyOf(ref) });
     },

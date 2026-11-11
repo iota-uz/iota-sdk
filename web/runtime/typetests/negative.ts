@@ -155,3 +155,20 @@ void c.ClientExtra.fields.nope
 void column(nativeList('crm.lists.X'), { id: 'a.b', field: 'loyaltyTier', label: { en: 'x' } })
 
 export { entity, field, overlay, ref }
+
+// --- row shapes returned by the data layer
+async function rowShapes(): Promise<void> {
+  const row = await tx.insert(c.Customer, { name: 'n' })
+  const key: string = row.key
+  const version: number = row.rowVersion
+  const created: string = row.createdAt
+  const overlayRow = await tx.put(c.ClientExtra, clientRef, { points: 1 })
+  const baseKey: string = overlayRow.baseKey
+  await tx.update(c.Customer, customerRef, { name: 'm' }, { rowVersion: row.rowVersion })
+  // @ts-expect-error overlay rows are keyed by baseKey, not key
+  void overlayRow.key
+  // @ts-expect-error rowVersion is a number
+  const badVersion: string = row.rowVersion
+  void [key, version, created, baseKey, badVersion]
+}
+void rowShapes
