@@ -3,9 +3,11 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -86,12 +88,29 @@ func (r recorder) start(ctx context.Context, s startRecord) error {
 func (r recorder) finish(ctx context.Context, f finishRecord) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, err := r.db.Exec(ctx, `
+	const update = `
 		UPDATE extruntime.invocations
 		SET finished_at = CURRENT_TIMESTAMP, outcome = $2, partially_committed = $3, result = $4, error = $5
-		WHERE id = $1`,
-		f.ID, string(f.Outcome), f.PartiallyCommitted, jsonOrNil(f.Result), jsonOrNil(f.Error))
+		WHERE id = $1`
+	_, err := r.db.Exec(ctx, update, f.ID, string(f.Outcome), f.PartiallyCommitted, jsonOrNil(f.Result), jsonOrNil(f.Error))
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgUnsupportedEscape {
+		// A handler result or error that carries U+0000 (an endpoint echoing a
+		// binary body) cannot be stored as jsonb. The outcome must still be
+		// recorded, or the invocation would stay "unknown" forever.
+		_, err = r.db.Exec(ctx, update, f.ID, string(f.Outcome), f.PartiallyCommitted, unrecordable(f.Result), unrecordable(f.Error))
+	}
 	return serrors.FromDB(opRecordFinish, err)
+}
+
+// pgUnsupportedEscape is SQLSTATE 22P05 (jsonb rejects \u0000).
+const pgUnsupportedEscape = "22P05"
+
+func unrecordable(b json.RawMessage) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return []byte(`{"unrecordable":"the value contains U+0000 and cannot be stored"}`)
 }
 
 // countCommit is called inside the committing transaction so the counter

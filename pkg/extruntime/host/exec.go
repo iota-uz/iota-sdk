@@ -15,7 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+const opSignal = serrors.Op("extruntime.host.invoke.signal")
 
 // WireErrorer lets data, event and workflow slices return structured errors
 // (domain, validation, denied) without importing the host.
@@ -59,6 +62,9 @@ type execution struct {
 	// ctx.transaction joins it, so its effects commit with the caller's receipt.
 	extTx         *txHandle
 	extRolledBack bool
+	// engineTxs are the transactions the durable engine opened for this
+	// invocation (wf.transaction) and has not ended yet.
+	engineTxs map[string]struct{}
 }
 
 func (e *execution) InvocationID() string { return e.id }
@@ -191,6 +197,9 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 		e.extTx = txh
 		e.mu.Unlock()
 		invCtx.Tx = txh.id
+	case e.spec.join != nil && e.kind == pool.KindQuery:
+		// A nested query (tx.query / q.query) reads through the joined
+		// transaction via q.*; it is never handed the handle itself.
 	case e.spec.join != nil:
 		txh = e.spec.join
 		invCtx.Tx = txh.id
@@ -316,8 +325,25 @@ func (e *execution) Call(ctx context.Context, method string, args json.RawMessag
 	return out, nil
 }
 
-func (e *execution) call(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+// writeMethods are the host calls that change state or start intents. Guards
+// and queries are read-only: the router rejects these from them whatever
+// context object the worker built, so a hand-written artifact cannot write.
+func isWriteMethod(method string) bool {
 	switch method {
+	case "tx.begin", "tx.end", "tx.insert", "tx.update", "tx.delete", "tx.putOverlay", "tx.emit", "tx.notify", "tx.start", "tx.signal", "tx.call",
+		"invoke.command", "invoke.signal":
+		return true
+	}
+	return strings.HasPrefix(method, "wf.")
+}
+
+func (e *execution) call(ctx context.Context, method string, args json.RawMessage) (json.RawMessage, error) {
+	if (e.kind == pool.KindGuard || e.kind == pool.KindQuery) && isWriteMethod(method) {
+		return nil, fail(CodeReadOnlyContext, "%s invocations are read-only; %s is not allowed", e.kind, method)
+	}
+	switch method {
+	case "invoke.signal":
+		return e.invokeSignal(ctx, args)
 	case "tx.begin":
 		return e.txBegin(ctx)
 	case "tx.end":
@@ -357,6 +383,12 @@ func (e *execution) OpenTx(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	e.mu.Lock()
+	if e.engineTxs == nil {
+		e.engineTxs = map[string]struct{}{}
+	}
+	e.engineTxs[h.id] = struct{}{}
+	e.mu.Unlock()
 	return h.id, nil
 }
 
@@ -383,7 +415,11 @@ func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome)
 	if err != nil {
 		return err
 	}
-	if err := e.root.txs.end(ctx, h, outcome); err != nil {
+	err = e.root.txs.end(ctx, h, outcome)
+	e.mu.Lock()
+	delete(e.engineTxs, handle)
+	e.mu.Unlock()
+	if err != nil {
 		return err
 	}
 	if outcome == TxCommit {
@@ -493,6 +529,9 @@ func callResult(res Result) CallResult {
 // CallCommand is wf.call: a new invocation of a command that selects the
 // currently active binding.
 func (e *execution) CallCommand(ctx context.Context, contract string, input json.RawMessage, invocationID string) (CallResult, error) {
+	if err := e.rejectIntentInTx("wf.call"); err != nil {
+		return CallResult{}, err
+	}
 	res, err := e.invokeNestedResult(ctx, contract, input, nil, invocationID)
 	return callResult(res), err
 }
@@ -545,6 +584,24 @@ func (e *execution) callJoined(ctx context.Context, h *txHandle, contract string
 	return e.invokeNested(ctx, contract, input, h)
 }
 
+// rejectIntentInTx refuses an ordinary intent while a Go transaction is open
+// in this invocation: the open ctx.transaction of an ordinary invocation, the
+// invocation-long transaction of an atomic command, operation or subscription
+// handler, or a wf.transaction of the durable engine.
+func (e *execution) rejectIntentInTx(what string) error {
+	e.mu.Lock()
+	open := e.ctxTx != nil || len(e.engineTxs) > 0
+	e.mu.Unlock()
+	switch e.kind {
+	case pool.KindAtomic, pool.KindOperation, pool.KindSubscription:
+		open = true
+	}
+	if open {
+		return fail(CodeIntentInTransaction, "%s is not allowed while a transaction is open; finish the transaction first (use tx.signal / tx.start inside it)", what)
+	}
+	return nil
+}
+
 // invokeCommand is ctx.call(Command): a new invocation that selects the
 // current active binding.
 func (e *execution) invokeCommand(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
@@ -553,6 +610,9 @@ func (e *execution) invokeCommand(ctx context.Context, args json.RawMessage) (js
 		Input   json.RawMessage
 	}
 	if err := decode(args, &a); err != nil {
+		return nil, err
+	}
+	if err := e.rejectIntentInTx("ctx.call"); err != nil {
 		return nil, err
 	}
 	res, err := e.h.resolveContract(ctx, a.Command)
@@ -592,11 +652,50 @@ func (e *execution) queryData(ctx context.Context, method string, args json.RawM
 	switch method {
 	case "q.get", "q.find", "q.count":
 		return e.dataRead(ctx, h, "tx."+strings.TrimPrefix(method, "q."), args)
+	case "q.query":
+		return e.nestedQuery(ctx, h, args)
 	}
 	return nil, fail(pool.CodeHostCall, "unknown host call %q", method)
 }
 
+// nestedQuery runs a query contract's active implementation as a nested
+// invocation that reads through the handle h (the caller's transaction for
+// tx.query, its read snapshot for q.query), with the caller's rights. It is
+// validated against the contract, permission-checked and recorded with the
+// caller as parent like any invocation.
+func (e *execution) nestedQuery(ctx context.Context, h *txHandle, args json.RawMessage) (json.RawMessage, error) {
+	var a struct {
+		Query string
+		Input json.RawMessage
+	}
+	if err := decode(args, &a); err != nil {
+		return nil, err
+	}
+	if len(a.Input) == 0 {
+		a.Input = json.RawMessage(`null`)
+	}
+	res, err := e.h.resolveContract(ctx, a.Query)
+	if err != nil {
+		return nil, err
+	}
+	if res.Resource.Kind != manifest.ResQuery {
+		return nil, fail(CodeNotQuery, "tx.query accepts queries; %s is a %s", a.Query, res.Resource.Kind)
+	}
+	unavailable := fail(CodeNativeQueryUnavailable, "query %s has no package implementation; native queries cannot be called from package code yet", a.Query)
+	if res.Native {
+		return nil, unavailable
+	}
+	out, err := e.invokeNested(ctx, a.Query, a.Input, h)
+	if errors.Is(err, ErrNoBinding) {
+		return nil, unavailable
+	}
+	return out, err
+}
+
 func (e *execution) readSnapshot(ctx context.Context) (*txHandle, error) {
+	if e.spec.join != nil && e.kind == pool.KindQuery {
+		return e.spec.join, nil
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.snapshot != nil {
@@ -624,7 +723,9 @@ func (e *execution) txData(ctx context.Context, method string, args json.RawMess
 		return e.dataRead(ctx, h, method, args)
 	case "tx.insert", "tx.update", "tx.delete", "tx.putOverlay":
 		return e.dataWrite(ctx, h, method, args)
-	case "tx.emit", "tx.notify", "tx.start":
+	case "tx.query":
+		return e.nestedQuery(ctx, h, args)
+	case "tx.emit", "tx.notify", "tx.start", "tx.signal":
 		return e.intent(ctx, h, method, args)
 	}
 	return nil, fail(pool.CodeHostCall, "unknown host call %q", method)
@@ -764,6 +865,18 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 			return err
 		})
 		return marshalID("noticeId", id, err)
+	case "tx.signal":
+		in, err := e.signalIntent(args)
+		if err != nil {
+			return nil, err
+		}
+		err = h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {
+			return e.h.cfg.Signals.SignalInTx(ctx, tx, e.scope, in)
+		})
+		if err != nil {
+			return nil, err
+		}
+		return json.RawMessage(`null`), nil
 	default: // tx.start
 		var a struct {
 			Workflow string
@@ -790,6 +903,43 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 		})
 		return marshalID("instance", id, err)
 	}
+}
+
+func (e *execution) signalIntent(args json.RawMessage) (SignalIntent, error) {
+	var in SignalIntent
+	if err := decode(args, &in); err != nil {
+		return in, err
+	}
+	if e.h.cfg.Signals == nil {
+		return in, fail("runtime.notConfigured", "workflow signals are not configured")
+	}
+	in.Producer = e.producer()
+	return in, nil
+}
+
+// invokeSignal is ctx.signal: the signal is written in its own short
+// transaction. It is an ordinary intent, so it is refused while this
+// invocation holds a transaction (tx.signal is the atomic variant).
+func (e *execution) invokeSignal(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	if err := e.rejectIntentInTx("ctx.signal"); err != nil {
+		return nil, err
+	}
+	in, err := e.signalIntent(args)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := e.h.cfg.DB.Begin(ctx)
+	if err != nil {
+		return nil, serrors.FromDB(opSignal, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := e.h.cfg.Signals.SignalInTx(ctx, tx, e.scope, in); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serrors.FromDB(opSignal, err)
+	}
+	return json.RawMessage(`null`), nil
 }
 
 func marshalID(field, id string, err error) (json.RawMessage, error) {
