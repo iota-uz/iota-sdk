@@ -182,17 +182,61 @@ func (s *Service) ManifestOf(ctx context.Context, pkg, version string) (manifest
 }
 
 // ResolveArtifact maps a package version to its materialized immutable
-// artifact directory and declared secrets. It implements host.ArtifactResolver.
+// artifact directory and declared secrets. It implements host.ArtifactResolver
+// and is the single door through which package code is handed to the pool: a
+// version runs only while its newest review is an approval bound to the
+// version's exact source and artifact hashes (the rule Activate enforces).
+// Unreviewed and rejected versions fail with FailedPrecondition.
 func (s *Service) ResolveArtifact(ctx context.Context, pkg, version string) (pool.Artifact, []string, error) {
-	m, err := s.meta(ctx, pkg, version)
+	art, secrets, approved, err := s.resolve(ctx, pkg, version)
 	if err != nil {
 		return pool.Artifact{}, nil, err
+	}
+	if !approved {
+		return pool.Artifact{}, nil, notApproved(pkg, version)
+	}
+	return art, secrets, nil
+}
+
+func notApproved(pkg, version string) error {
+	return serrors.New(serrors.FailedPrecondition, "version "+pkg+"@"+version+" is not approved")
+}
+
+// resolve is ResolveArtifact with the approval verdict returned instead of
+// raised, for callers that skip a revoked version rather than fail. The
+// artifact is materialized only for an approved version.
+func (s *Service) resolve(ctx context.Context, pkg, version string) (pool.Artifact, []string, bool, error) {
+	m, err := s.meta(ctx, pkg, version)
+	if err != nil {
+		return pool.Artifact{}, nil, false, err
+	}
+	approved, err := s.approved(ctx, pkg, version)
+	if err != nil || !approved {
+		return pool.Artifact{}, nil, false, err
 	}
 	dir, err := s.arts.Dir(ctx, m.artifactHash)
 	if err != nil {
-		return pool.Artifact{}, nil, err
+		return pool.Artifact{}, nil, false, err
 	}
-	return pool.Artifact{Hash: m.artifactHash, Dir: dir}, m.secrets, nil
+	return pool.Artifact{Hash: m.artifactHash, Dir: dir}, m.secrets, true, nil
+}
+
+// approved reports whether the newest review of a version approves its exact
+// hashes. Reviews are appended over time, so this is read on every call
+// rather than cached with the immutable facts of the version.
+func (s *Service) approved(ctx context.Context, pkg, version string) (bool, error) {
+	var ok *bool
+	err := s.db.QueryRow(ctx, `SELECT r.approve AND r.source_hash = v.source_hash AND r.artifact_hash = v.artifact_hash
+		FROM extruntime.versions v
+		LEFT JOIN LATERAL (SELECT * FROM extruntime.version_reviews WHERE version_id = v.id ORDER BY id DESC LIMIT 1) r ON true
+		WHERE v.namespace = $1 AND v.version = $2`, pkg, version).Scan(&ok)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, notFound("version " + pkg + "@" + version)
+	}
+	if err != nil {
+		return false, serrors.FromDB("extruntime.manage.approved", err)
+	}
+	return ok != nil && *ok, nil
 }
 
 // ReviewInput is a review decision. ExpectSourceHash and ExpectArtifactHash,

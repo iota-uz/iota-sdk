@@ -23,9 +23,12 @@ func (src endpointSource) ActiveEndpoints(ctx context.Context) ([]endpoint.Endpo
 		if len(av.Manifest.Endpoints) == 0 {
 			continue
 		}
-		art, secrets, err := s.ResolveArtifact(ctx, av.Namespace, av.Version)
+		art, secrets, approved, err := s.resolve(ctx, av.Namespace, av.Version)
 		if err != nil {
 			return nil, err
+		}
+		if !approved {
+			continue // approval revoked after activation: it serves nothing
 		}
 		for _, ep := range av.Manifest.Endpoints {
 			out = append(out, endpoint.Endpoint{

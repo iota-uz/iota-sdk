@@ -355,10 +355,12 @@ func TestReplacementOfAnotherPackagesCommandFallsBackToTheOwner(t *testing.T) {
 }
 
 func TestTriggerOwners(t *testing.T) {
-	e := newEnv(t)
+	rights := subjectsOf{}
+	e := newEnv(t, withSubjects(rights))
 	ctx := context.Background()
 	e.draft(ns, "1.0.0", insuranceManifest(tm(manifest.KindString)), nil)
 	user := e.newUser("owner")
+	rights[user] = []string{manage.PermRead}
 
 	_, err := e.svc.AssignOwner(ctx, e.admin, ns+".onRenewed", user)
 	require.Equal(t, serrors.NotFound, serrors.CodeOf(err), "the trigger is not active yet")

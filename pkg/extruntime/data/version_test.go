@@ -22,12 +22,18 @@ func TestCallerVersionResolvesKeysThroughItsOwnMap(t *testing.T) {
 	v2 := e.scope("v2", uid, "Policy.ReadAll", "Policy.Secret")
 	cust := e.mustInsert(v2, customerID, map[string]any{"name": "C"})["key"].(string)
 
-	pol := e.mustInsert(v1, policyID, policyBody(cust, "V-1", map[string]any{"notes": "n1", "secret": "s"}))
+	pol := e.mustInsert(v1, policyID, policyBody(cust, "V-1", map[string]any{"notes": "n1"}))
 	assert.Equal(t, "n1", pol["notes"])
 	assert.NotContains(t, pol, "comment")
 	assert.NotContains(t, pol, "rating", "v1 does not know fields added later")
-	assert.NotContains(t, pol, "secret", "field access follows the column, whatever the key")
 	key := pol["key"].(string)
+	// v2 (which holds the permission) fills the secret column; v1 cannot read
+	// it, and cannot write it either: field access follows the column.
+	_, err := e.store.Update(e.ctx, e.tx, v2, policyID, key, js(map[string]any{"secret": "s"}))
+	require.NoError(t, err)
+	assert.NotContains(t, decode(t, mustGet(t, e, v1, policyID, key)), "secret", "field access follows the column, whatever the key")
+	_, err = e.store.Update(e.ctx, e.tx, v1, policyID, key, js(map[string]any{"secret": "t"}))
+	require.ErrorIs(t, err, data.ErrFieldNotAccessible)
 
 	seen := decode(t, mustGet(t, e, v2, policyID, key))
 	assert.Equal(t, "n1", seen["comment"], "the renamed key reads the same column")
@@ -35,7 +41,7 @@ func TestCallerVersionResolvesKeysThroughItsOwnMap(t *testing.T) {
 	assert.Equal(t, "a", seen["tier"], "optional field default applies only through the schema default")
 	assert.NotContains(t, seen, "notes")
 
-	_, err := e.store.Update(e.ctx, e.tx, v2, policyID, key, js(map[string]any{"comment": "n2", "branch": "B"}))
+	_, err = e.store.Update(e.ctx, e.tx, v2, policyID, key, js(map[string]any{"comment": "n2", "branch": "B"}))
 	require.NoError(t, err)
 	back := decode(t, mustGet(t, e, v1, policyID, key))
 	assert.Equal(t, "n2", back["notes"])

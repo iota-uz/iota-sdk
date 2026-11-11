@@ -174,8 +174,11 @@ type colWrite struct {
 }
 
 // parseWrites validates and canonicalizes an object of field values. Unknown
-// keys, meta keys and two keys for one column are refused.
-func parseWrites(op serrors.Op, m *model, obj map[string]json.RawMessage) ([]colWrite, error) {
+// keys, meta keys and two keys for one column are refused, and so is a field
+// the subject may not read: writing it would let the subject overwrite what it
+// cannot see, and the "nothing changed" short cut would answer whether a guess
+// equals the hidden value.
+func parseWrites(op serrors.Op, sub spi.Subject, m *model, obj map[string]json.RawMessage) ([]colWrite, error) {
 	keys := make([]string, 0, len(obj))
 	for k := range obj {
 		keys = append(keys, k)
@@ -187,6 +190,9 @@ func parseWrites(op serrors.Op, m *model, obj map[string]json.RawMessage) ([]col
 		f, ok := m.byKey[k]
 		if !ok {
 			return nil, fail(op, ErrUnknownField, "%q on %s", k, m.ID)
+		}
+		if m.hidden(sub, f) {
+			return nil, fail(op, ErrFieldNotAccessible, "%q on %s", k, m.ID)
 		}
 		if prev, dup := seen[f.Column]; dup {
 			return nil, fail(op, ErrInvalidValue, "%q and %q address the same field", prev, k)
@@ -348,7 +354,7 @@ func (s *Store) Insert(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity stri
 		}
 		delete(obj, "key")
 	}
-	writes, err := parseWrites(op, m, obj)
+	writes, err := parseWrites(op, sc.Subject, m, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +448,7 @@ func (s *Store) Update(ctx context.Context, tx pgx.Tx, sc spi.Scope, entity, key
 		}
 		delete(obj, "key")
 	}
-	writes, err := parseWrites(op, m, obj)
+	writes, err := parseWrites(op, sc.Subject, m, obj)
 	if err != nil {
 		return nil, err
 	}
@@ -577,11 +583,11 @@ func (s *Store) PutOverlay(ctx context.Context, tx pgx.Tx, sc spi.Scope, overlay
 	if err != nil {
 		return nil, fail(op, ErrInvalidValue, "%v", err)
 	}
-	writes, err := parseWrites(op, m, obj)
+	writes, err := parseWrites(op, sc.Subject, m, obj)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.lockBase(ctx, tx, op, sc.Subject, m, canonKey); err != nil {
+	if err := s.lockBase(ctx, tx, op, sc, m, canonKey); err != nil {
 		return nil, err
 	}
 	all, existing, err := s.lockRow(ctx, tx, m, sc.Subject, canonKey)
@@ -682,8 +688,12 @@ func (s *Store) PutOverlay(ctx context.Context, tx pgx.Tx, sc spi.Scope, overlay
 	return visible.marshal(recs[0]), nil
 }
 
-// lockBase verifies and share-locks the base row of an overlay write.
-func (s *Store) lockBase(ctx context.Context, tx pgx.Tx, op serrors.Op, sub spi.Subject, m *model, key string) error {
+// lockBase verifies and share-locks the base row of an overlay write. The
+// subject must be able to read the base row: the read permission of a native
+// base, the read rules of an own base entity (an invisible row is reported as
+// not found).
+func (s *Store) lockBase(ctx context.Context, tx pgx.Tx, op serrors.Op, sc spi.Scope, m *model, key string) error {
+	sub := sc.Subject
 	b := m.Base
 	tenantCol := "tenant_id"
 	if b.Native {
@@ -695,6 +705,18 @@ func (s *Store) lockBase(ctx context.Context, tx pgx.Tx, op serrors.Op, sub spi.
 			return fail(op, ErrDenied, "writing an overlay of %s", b.Entity)
 		}
 		tenantCol = n.TenantColumn
+	} else {
+		bm, err := s.load(ctx, tx, sc, b.Entity)
+		if err != nil {
+			return err
+		}
+		ok, err := s.readable(ctx, tx, sc, bm, key)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fail(op, ErrNotFound, "%s %s", b.Entity, key)
+		}
 	}
 	a := NewArgs(0)
 	sql := fmt.Sprintf("SELECT 1 FROM %s WHERE %s = %s AND %s = %s FOR KEY SHARE",

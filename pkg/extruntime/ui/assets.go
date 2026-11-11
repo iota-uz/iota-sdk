@@ -36,6 +36,11 @@ type ArtifactStore interface {
 	Open(ctx context.Context, hash, filePath string) (ArtifactFile, error)
 }
 
+// ClientDir is the only subtree of an artifact the browser may load: the
+// bundled client chunks and their assets. The server bundle, contracts,
+// manifests and sources of the same artifact are never served.
+const ClientDir = "client/"
+
 var hashPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,128}$`)
 
 // cleanAssetPath returns the normalized relative path or false when it could
@@ -87,6 +92,20 @@ func (c *Controller) assetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !c.authenticated(r) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if !strings.HasPrefix(clean, ClientDir) {
+		http.NotFound(w, r)
+		return
+	}
+	ix, err := c.Index(r.Context())
+	if err != nil {
+		c.cfg.Logger.WithError(err).Error("extruntime ui: index for asset")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !ix.ServesArtifact(hash) {
+		http.NotFound(w, r) // not (or no longer) the artifact of an activated version
 		return
 	}
 	etag := `"` + hash + `:` + clean + `"`

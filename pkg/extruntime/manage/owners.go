@@ -13,6 +13,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
+// SubjectLoader resolves the current rights of a user; host.SubjectLoader
+// satisfies it.
+type SubjectLoader interface {
+	LoadSubject(ctx context.Context, tenantID uuid.UUID, userID int64, kind spi.SubjectKind) (spi.Subject, error)
+}
+
 // TriggerOwner is the user a trigger without a user (subscription on a
 // system event, schedule, public endpoint) runs as, per tenant.
 type TriggerOwner struct {
@@ -53,10 +59,47 @@ func (s *Service) triggerExists(ctx context.Context, id string) (bool, error) {
 	return false, nil
 }
 
+// checkOwnerRights refuses an owner who outranks the assigner. A trigger runs
+// with the current rights of its owner, so naming a user is lending out their
+// permissions: the actor may name themselves, or a user whose every current
+// permission (direct, role, group) the actor holds too. Without a rights
+// source only self-assignment can be proven safe.
+func (s *Service) checkOwnerRights(ctx context.Context, actor spi.Subject, userID int64, detail map[string]any) error {
+	const op = serrors.Op("extruntime.manage.checkOwnerRights")
+	if userID == actor.UserID {
+		detail["ownerRights"] = "self"
+		return nil
+	}
+	denied := serrors.New(serrors.PermissionDenied, "the owner must be you or a user whose permissions you all hold").WithOp(op)
+	if s.subjects == nil {
+		detail["ownerRights"] = "unverifiable"
+		return denied
+	}
+	owner, err := s.subjects.LoadSubject(ctx, actor.TenantID, userID, spi.SubjectOwner)
+	if err != nil {
+		detail["ownerRights"] = "unresolved"
+		return serrors.New(serrors.Invalid, "the owner's rights cannot be resolved").WithOp(op).WithCause(err)
+	}
+	var excess int
+	for _, p := range owner.Permissions {
+		if !actor.Has(p) {
+			excess++
+		}
+	}
+	if excess > 0 {
+		detail["ownerRights"] = "exceeds assigner"
+		detail["excessPermissions"] = excess
+		return denied
+	}
+	detail["ownerRights"] = "covered"
+	return nil
+}
+
 // AssignOwner sets the owner-user of a trigger in the actor's tenant. The
-// trigger must be declared by an active package and the user must belong to
-// the tenant. A tenant without an owner gets blocked trigger runs, not a
-// failed activation.
+// trigger must be declared by an active package, the user must belong to the
+// tenant, and must not hold permissions the actor lacks (see
+// checkOwnerRights). A tenant without an owner gets blocked trigger runs, not
+// a failed activation.
 func (s *Service) AssignOwner(ctx context.Context, actor spi.Subject, triggerID string, userID int64) (TriggerOwner, error) {
 	const op = serrors.Op("extruntime.manage.AssignOwner")
 	e := &auditEntry{Action: ActionAssignOwner, Target: triggerID, Detail: map[string]any{"tenantId": actor.TenantID.String(), "ownerUserId": userID}}
@@ -75,6 +118,9 @@ func (s *Service) AssignOwner(ctx context.Context, actor spi.Subject, triggerID 
 		}
 		if !exists {
 			return serrors.New(serrors.Invalid, "the owner must be a user of the tenant")
+		}
+		if err := s.checkOwnerRights(ctx, actor, userID, e.Detail); err != nil {
+			return err
 		}
 		out = TriggerOwner{TriggerID: triggerID, TenantID: actor.TenantID, UserID: userID}
 		return tx.QueryRow(ctx, `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id)
