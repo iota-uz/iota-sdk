@@ -235,6 +235,9 @@ const (
 	ImplOperation ImplKind = "operation"
 	ImplQuery     ImplKind = "query"
 	ImplWorkflow  ImplKind = "workflow"
+	// contact resolver / delivery policy implementations of #926 contracts
+	ImplContactResolver ImplKind = "contactResolver"
+	ImplDeliveryPolicy  ImplKind = "deliveryPolicy"
 )
 
 // Implementation binds a server export to a contract by ID. The contract may
