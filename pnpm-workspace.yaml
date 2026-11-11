@@ -6,3 +6,4 @@ packages:
   - web/testing
   - web/runtime
   - web/chat-ui
+  - pkg/extruntime/configurator/web
