@@ -53,6 +53,9 @@ type execution struct {
 	binding  Binding
 	kind     pool.Kind
 	scope    spi.Scope
+	// starts is the tx.start key sequence this invocation draws from: its
+	// parent's, unless the invocation was given a base of its own.
+	starts *startSource
 
 	mu        sync.Mutex
 	ctxTx     *txHandle // open ctx.transaction of an ordinary invocation
@@ -149,6 +152,12 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 		fin.Error = errorJSON(err)
 	case errors.Is(err, pool.ErrWorkerLost):
 		out.Outcome = OutcomeWorkerLost
+		fin.Error = errorJSON(err)
+	case e.root.infra.get() != nil:
+		// A host call failed for an infrastructure reason. Whatever the handler
+		// made of it, the invocation did not finish on its own terms: its
+		// outcome is unknown, never a recorded business failure.
+		out.Outcome = OutcomeUnknown
 		fin.Error = errorJSON(err)
 	default:
 		out.Outcome = OutcomeError
@@ -274,6 +283,11 @@ func (e *execution) dispatch(ctx context.Context) (json.RawMessage, error) {
 	if err == nil && rolledBack {
 		err = fail("runtime.txRolledBack", "the handler rolled back its transaction and then returned normally; the caller-owned transaction is not committed")
 	}
+	if err == nil && e.spec.externalTx != nil && txh != nil && (txh.inflight.Load() > 0 || txh.abandoned.Load()) {
+		// The caller commits this transaction: it must not see a handler whose
+		// un-awaited tx.call is still running or was cut short.
+		err = fail("runtime.nestedInFlight", "a nested invocation joined to the caller-owned transaction did not finish before the handler returned (an un-awaited tx.call?); the caller must roll back")
+	}
 	if ownTx != nil {
 		if err != nil {
 			_ = e.root.txs.end(ctx, ownTx, TxRollback)
@@ -337,6 +351,9 @@ func (e *execution) Call(ctx context.Context, method string, args json.RawMessag
 	ctx = context.WithValue(ctx, execKey{}, e)
 	out, err := e.call(ctx, method, args)
 	if err != nil {
+		if IsInfrastructure(err) {
+			e.root.infra.note(err)
+		}
 		return nil, asWire(err)
 	}
 	return out, nil
@@ -395,10 +412,13 @@ func decode(args json.RawMessage, into any) error {
 
 // OpenTx opens a transaction for the durable engine (wf.transaction); the
 // worker reaches it through tx.* calls with the returned handle.
-func (e *execution) OpenTx(ctx context.Context) (string, error) {
+func (e *execution) OpenTx(ctx context.Context, startKeyBase string) (string, error) {
 	h, err := e.root.txs.begin(ctx, e.id, pgx.TxOptions{})
 	if err != nil {
 		return "", err
+	}
+	if startKeyBase != "" {
+		h.starts = &startSource{base: startKeyBase}
 	}
 	e.mu.Lock()
 	if e.engineTxs == nil {
@@ -424,8 +444,12 @@ func (e *execution) CallInTx(ctx context.Context, handle, contract string, input
 	if err != nil {
 		return nil, err
 	}
-	return e.callJoined(ctx, h, contract, input)
+	out, err := e.callJoined(ctx, h, contract, input)
+	return out, e.root.withInfra(err)
 }
+
+// InfraError implements WorkflowCall.
+func (e *execution) InfraError() error { return e.root.infra.get() }
 
 func (e *execution) EndTx(ctx context.Context, handle string, outcome TxOutcome) error {
 	h, err := e.root.txs.lookup(handle)
@@ -549,8 +573,17 @@ func (e *execution) CallCommand(ctx context.Context, contract string, input json
 	if err := e.rejectIntentInTx("wf.call"); err != nil {
 		return CallResult{}, err
 	}
-	res, err := e.invokeNestedResult(ctx, contract, input, nil, invocationID)
-	return callResult(res), err
+	var base string
+	if invocationID != "" {
+		// An ordinary command is never replayed: its pre-allocated invocation is
+		// the stable identity its tx.start keys derive from.
+		base = "wf.call:" + invocationID
+	}
+	res, err := e.h.execute(ctx, e.root, execSpec{
+		contract: contract, input: input, subject: e.spec.subject, trigger: e.trigger(),
+		parent: e, id: invocationID, startBase: base,
+	})
+	return callResult(res), e.root.withInfra(err)
 }
 
 // CallCommandInTx runs an atomic command joined to the engine's transaction.
@@ -567,7 +600,7 @@ func (e *execution) CallCommandInTx(ctx context.Context, handle, contract string
 		return CallResult{}, fail("runtime.notAtomic", "%s is not an atomic command", contract)
 	}
 	res, err := e.invokeNestedResult(ctx, contract, input, h, "")
-	return callResult(res), err
+	return callResult(res), e.root.withInfra(err)
 }
 
 // txCall dispatches an operation or atomic command to its active
@@ -908,10 +941,16 @@ func (e *execution) intent(ctx context.Context, h *txHandle, method string, args
 		}
 		key := a.Key
 		if key == "" {
-			if e.root.startKeyBase == "" {
-				return nil, fail("runtime.startKeyRequired", "tx.start needs {key} outside subscriptions and workflows")
+			// The handle's own sequence (a workflow occurrence) wins over the
+			// invocation's (a delivery, a slot, a workflow-called command).
+			src := h.starts
+			if src == nil {
+				src = e.starts
 			}
-			key = e.root.startKeyBase + "#" + strconv.FormatInt(e.root.startSeq.Add(1), 10)
+			var ok bool
+			if key, ok = src.next(); !ok {
+				return nil, fail("runtime.startKeyRequired", "tx.start needs {key} outside subscriptions, schedules and workflows")
+			}
 		}
 		var id string
 		err := h.do(ctx, func(ctx context.Context, tx pgx.Tx) (err error) {

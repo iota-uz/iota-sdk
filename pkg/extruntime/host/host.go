@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -49,7 +50,10 @@ type WorkflowCall interface {
 	// Token is the opaque RunRequest.Token of the run, so the engine finds the
 	// state of the run a wf.* call belongs to.
 	Token() string
-	OpenTx(ctx context.Context) (handle string, err error)
+	// OpenTx opens the transaction. startKeyBase is the occurrence identity
+	// ("instance:name:n") the host derives the dedupe keys of tx.start calls
+	// made through the handle from, so they are stable across replays.
+	OpenTx(ctx context.Context, startKeyBase string) (handle string, err error)
 	WithTx(ctx context.Context, handle string, fn func(ctx context.Context, tx pgx.Tx) error) error
 	EndTx(ctx context.Context, handle string, outcome TxOutcome) error
 	// CallInTx runs an operation or atomic command joined to the handle's
@@ -65,6 +69,10 @@ type WorkflowCall interface {
 	// CallCommandInTx runs an atomic command joined to the handle's
 	// transaction as a new invocation record, returning its identity.
 	CallCommandInTx(ctx context.Context, handle, contract string, input json.RawMessage) (CallResult, error)
+	// InfraError is the first infrastructure failure a host call of this run
+	// hit (database, connection, worker, pool), or nil. The engine aborts and
+	// retries a run that has one instead of letting the workflow see it.
+	InfraError() error
 }
 
 // CallResult is the outcome of a command dispatched for the durable engine.
@@ -189,9 +197,10 @@ type Request struct {
 	// back to the event, workflow instance or occurrence that caused it.
 	Producer spi.Producer
 	// StartKeyBase is the dedupe key prefix the host derives tx.start keys
-	// from inside subscription deliveries ("subscription:event") and workflow
-	// transactions ("instance:name:n"). Without it, tx.start needs an
-	// explicit key.
+	// from inside subscription deliveries ("subscription:event") and schedule
+	// slots. Workflow transactions derive theirs from the occurrence
+	// ("instance:name:n", see WorkflowCall.OpenTx). Without a base, tx.start
+	// needs an explicit key.
 	StartKeyBase string
 	// Occurrence is passed to the handler as ctx.occurrence.
 	Occurrence json.RawMessage
@@ -218,9 +227,9 @@ type Result struct {
 // reported with Result.PartiallyCommitted; the host never re-runs it.
 func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
 	root := &rootState{
-		txs:          newTxRegistry(h.cfg.DB),
-		producer:     req.Producer,
-		startKeyBase: req.StartKeyBase,
+		txs:      newTxRegistry(h.cfg.DB),
+		producer: req.Producer,
+		starts:   &startSource{base: req.StartKeyBase},
 	}
 	defer root.txs.rollbackAll()
 	ctx, cancel := h.withDeadline(ctx)
@@ -272,10 +281,10 @@ type RunRequest struct {
 // implementation (a subscription's or workflow instance's pinned version).
 func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 	root := &rootState{
-		txs:          newTxRegistry(h.cfg.DB),
-		producer:     req.Producer,
-		startKeyBase: req.StartKeyBase,
-		token:        req.Token,
+		txs:      newTxRegistry(h.cfg.DB),
+		producer: req.Producer,
+		starts:   &startSource{base: req.StartKeyBase},
+		token:    req.Token,
 	}
 	defer root.txs.rollbackAll()
 	ctx, cancel := h.withDeadline(ctx)
@@ -290,7 +299,7 @@ func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 		externalTx: req.Tx,
 	})
 	if err != nil {
-		return res, serrors.Wrap(opRun, err)
+		return res, serrors.Wrap(opRun, root.withInfra(err))
 	}
 	return res, nil
 }
@@ -304,11 +313,30 @@ func (h *Host) withDeadline(ctx context.Context) (context.Context, context.Cance
 
 // rootState is shared by a root invocation and everything it nests.
 type rootState struct {
-	txs          *txRegistry
-	producer     spi.Producer
-	startKeyBase string
-	token        string
-	startSeq     atomic.Int64
+	txs      *txRegistry
+	producer spi.Producer
+	// starts derives the dedupe keys of tx.start calls that carry no key.
+	starts *startSource
+	token  string
+	// infra is the first infrastructure failure of a host call under this root.
+	infra infraState
+}
+
+// startSource derives deterministic tx.start keys: base#1, base#2, ... in the
+// order the calls arrive. The base identifies where the sequence lives (a
+// subscription delivery, a schedule slot, one workflow occurrence, one
+// ordinary command called by a workflow), so a replay of that unit yields the
+// same keys and a different unit can never collide with it.
+type startSource struct {
+	base string
+	seq  atomic.Int64
+}
+
+func (s *startSource) next() (string, bool) {
+	if s == nil || s.base == "" {
+		return "", false
+	}
+	return s.base + "#" + strconv.FormatInt(s.seq.Add(1), 10), true
 }
 
 type execSpec struct {
@@ -330,10 +358,26 @@ type execSpec struct {
 	externalTx pgx.Tx
 	// id pre-allocates the invocation ID (wf.call journals it before dispatch).
 	id string
+	// startBase, when set, gives the invocation (and what it nests) its own
+	// tx.start key sequence instead of the parent's.
+	startBase string
 }
 
 // execute resolves, authorizes, validates, records and runs one invocation.
 func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Result, error) {
+	if spec.join != nil {
+		// The transaction cannot commit while an invocation joined to it runs,
+		// nor after one was cut short: the pool cancels the host calls still
+		// running when the caller's handler returns, so an un-awaited tx.call
+		// ends here with a cancelled context, after some of its writes.
+		spec.join.inflight.Add(1)
+		defer func() {
+			spec.join.inflight.Add(-1)
+			if ctx.Err() != nil {
+				spec.join.abandoned.Store(true)
+			}
+		}()
+	}
 	var (
 		res      spi.ResolvedResource
 		contract *manifest.Resource
@@ -389,8 +433,13 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		},
 	}
 	e.rootID = e.id
+	e.starts = root.starts
 	if spec.parent != nil {
 		e.rootID = spec.parent.rootID
+		e.starts = spec.parent.starts
+	}
+	if spec.startBase != "" {
+		e.starts = &startSource{base: spec.startBase}
 	}
 	return e.run(ctx, res)
 }

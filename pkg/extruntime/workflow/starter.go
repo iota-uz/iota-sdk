@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -40,11 +41,14 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 	if in.Key == "" {
 		return "", &pool.WireError{Kind: pool.ErrKindInternal, Code: "runtime.startKeyRequired", Message: "a workflow start needs a dedupe key"}
 	}
-	impl, err := e.prepareStart(ctx, in.Workflow, in.Input)
+	plan, err := e.prepareStart(ctx, in.Workflow, in.Input)
 	if err != nil {
 		return "", err
 	}
-	spec := startSpec{workflow: in.Workflow, input: in.Input, impl: impl, subject: sc.Subject, key: in.Key, invocation: in.Producer.InvocationID}
+	if err := e.authorizeStart(ctx, sc.Subject, in.Workflow, plan.permission); err != nil {
+		return "", err
+	}
+	spec := startSpec{workflow: in.Workflow, input: in.Input, impl: plan.impl, subject: sc.Subject, key: in.Key, invocation: in.Producer.InvocationID}
 	if in.Predecessor != "" {
 		pid, err := uuid.Parse(in.Predecessor)
 		if err != nil {
@@ -65,26 +69,60 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 	return id.String(), nil
 }
 
+// CodeStartDenied is the typed error of tx.start / wf.start by a subject that
+// lacks the workflow contract's permission.
+const CodeStartDenied = "workflow.startDenied"
+
+// startPlan is what a start pins: the implementation, and the permission the
+// workflow contract demands of whoever starts it.
+type startPlan struct {
+	impl       Implementation
+	permission string
+}
+
 // prepareStart resolves the workflow contract and the implementation to pin
 // and validates the input, before any lock is taken.
-func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.RawMessage) (Implementation, error) {
+func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.RawMessage) (startPlan, error) {
 	res, ok, err := e.cfg.Catalog.Resolve(ctx, workflow)
 	if err != nil {
-		return Implementation{}, serrors.Wrap(opPrepare, err)
+		return startPlan{}, serrors.Wrap(opPrepare, err)
 	}
 	if !ok || res.Resource.Kind != manifest.ResWorkflow {
-		return Implementation{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.unknownWorkflow", Message: workflow + " is not a workflow contract"}
+		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.unknownWorkflow", Message: workflow + " is not a workflow contract"}
 	}
 	if res.Resource.Input != nil {
 		if verr := manifest.ValidateValue(*res.Resource.Input, input); verr != nil {
-			return Implementation{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
+			return startPlan{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
 		}
 	}
 	impl, err := e.cfg.Impl.Active(ctx, workflow)
 	if err != nil {
-		return Implementation{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: fmt.Sprintf("%s has no active implementation: %v", workflow, err)}
+		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: fmt.Sprintf("%s has no active implementation: %v", workflow, err)}
 	}
-	return impl, nil
+	return startPlan{impl: impl, permission: res.Resource.Permission}, nil
+}
+
+// authorizeStart checks the workflow contract's permission against the rights
+// the starting subject holds now, as signals do.
+func (e *Engine) authorizeStart(ctx context.Context, sc spi.Subject, workflow, permission string) error {
+	if permission == "" {
+		return nil
+	}
+	kind := sc.Kind
+	if kind == "" {
+		kind = spi.SubjectInitiator
+	}
+	current, err := e.cfg.Subjects.LoadSubject(ctx, sc.TenantID, sc.UserID, kind)
+	if err != nil {
+		if host.IsInfrastructure(err) {
+			return err
+		}
+		return &pool.WireError{Kind: pool.ErrKindDenied, Code: CodeStartDenied, Message: fmt.Sprintf("user %d may not start %s: %v", sc.UserID, workflow, err)}
+	}
+	if !current.Has(permission) {
+		return &pool.WireError{Kind: pool.ErrKindDenied, Code: CodeStartDenied, Message: fmt.Sprintf("permission %s is required to start %s", permission, workflow)}
+	}
+	return nil
 }
 
 // insertInstance inserts the instance, or returns the existing one with the

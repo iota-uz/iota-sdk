@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,16 @@ type txHandle struct {
 	// this transaction; empty for transactions owned by the caller.
 	owner    string
 	external bool
+	// starts, when set, is the key sequence of tx.start calls made through
+	// this handle (a workflow occurrence's transaction).
+	starts *startSource
+	// inflight counts invocations joined to this handle that have not
+	// returned. The transaction cannot commit while any is running: its
+	// later writes would hit a closed handle after the earlier ones committed.
+	inflight atomic.Int32
+	// abandoned is set when a joined invocation ended because its caller
+	// finished or was cancelled: part of its writes are in the transaction.
+	abandoned atomic.Bool
 
 	mu     sync.Mutex
 	closed bool
@@ -130,6 +141,14 @@ func (r *txRegistry) end(ctx context.Context, h *txHandle, outcome TxOutcome) er
 	delete(r.handles, h.id)
 	r.mu.Unlock()
 
+	if outcome == TxCommit && (h.inflight.Load() > 0 || h.abandoned.Load()) {
+		// A tx.call / tx.query that nobody awaited is still running in this
+		// transaction, or was cut short when its caller finished. Committing
+		// would persist what it wrote so far and lose the rest; roll everything
+		// back instead.
+		_ = h.tx.Rollback(context.WithoutCancel(ctx))
+		return pool.Internal("runtime.nestedInFlight", "a nested invocation joined to this transaction did not finish before its caller (an un-awaited tx.call?); the transaction was rolled back")
+	}
 	if outcome == TxCommit {
 		if err := countCommit(ctx, h.tx, h.owner); err != nil {
 			_ = h.tx.Rollback(context.WithoutCancel(ctx))

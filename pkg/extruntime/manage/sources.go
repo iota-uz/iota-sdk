@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -132,6 +133,25 @@ func (src scheduleSource) ActiveSchedules(ctx context.Context) ([]events.Schedul
 	if err != nil {
 		return nil, err
 	}
+	// A schedule never fires slots before its version was activated.
+	rows, err := s.db.Query(ctx, `SELECT namespace, activated_at FROM extruntime.activations WHERE state = 'active'`)
+	if err != nil {
+		return nil, serrors.FromDB(serrors.Op("extruntime.manage.ActiveSchedules"), err)
+	}
+	activated := map[string]time.Time{}
+	for rows.Next() {
+		var ns string
+		var at time.Time
+		if err := rows.Scan(&ns, &at); err != nil {
+			rows.Close()
+			return nil, serrors.FromDB(serrors.Op("extruntime.manage.ActiveSchedules"), err)
+		}
+		activated[ns] = at
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, serrors.FromDB(serrors.Op("extruntime.manage.ActiveSchedules"), err)
+	}
 	var out []events.ScheduleDef
 	for _, av := range active {
 		if len(av.Manifest.Schedules) == 0 {
@@ -144,7 +164,7 @@ func (src scheduleSource) ActiveSchedules(ctx context.Context) ([]events.Schedul
 		for _, sc := range av.Manifest.Schedules {
 			out = append(out, events.ScheduleDef{
 				ID: sc.ID, Package: av.Namespace, Version: av.Version, Export: sc.Export, Cron: sc.Cron, Timezone: sc.Timezone,
-				Artifact: art, Secrets: secrets,
+				Artifact: art, Secrets: secrets, ActiveFrom: activated[av.Namespace],
 			})
 		}
 	}
