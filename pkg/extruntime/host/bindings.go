@@ -34,6 +34,9 @@ type Binding struct {
 	// Secrets lists the secret names the package declared in its
 	// capabilities; secrets.get is limited to them.
 	Secrets []string
+	// Native is set when the Go default implementation of a native contract
+	// runs (no package binding); Package, Version and Export are empty.
+	Native bool
 }
 
 // Bindings resolves the single active implementation of a contract.

@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -48,9 +50,26 @@ type txHandle struct {
 	// abandoned is set when a joined invocation ended because its caller
 	// finished or was cancelled: part of its writes are in the transaction.
 	abandoned atomic.Bool
+	hookMu    sync.Mutex
 
 	mu     sync.Mutex
 	closed bool
+	// hooks run after a commit of the transaction (native Tx.AfterCommit).
+	hooks []func(context.Context)
+}
+
+// afterCommit registers fn to run once the transaction commits. A
+// caller-owned transaction is committed outside the host, so it refuses.
+func (h *txHandle) afterCommit(fn func(context.Context)) error {
+	if h.external {
+		return pool.Internal("runtime.afterCommitUnavailable", "the transaction belongs to the caller of the runtime (a subscription delivery or schedule slot); after-commit callbacks cannot be registered in it")
+	}
+	// Called from inside a data call on the handle (the handle lock may be
+	// held by this goroutine), so the hooks have their own lock.
+	h.hookMu.Lock()
+	h.hooks = append(h.hooks, fn)
+	h.hookMu.Unlock()
+	return nil
 }
 
 // do serializes calls on the handle. A pgx transaction is single-connection;
@@ -81,14 +100,15 @@ func errTxClosed() error {
 // txRegistry holds the open handles of one root invocation. Handles are
 // scoped to the root: nested invocations join them, nothing else can see them.
 type txRegistry struct {
-	db *pgxpool.Pool
+	db  *pgxpool.Pool
+	log *slog.Logger
 
 	mu      sync.Mutex
 	handles map[string]*txHandle
 }
 
-func newTxRegistry(db *pgxpool.Pool) *txRegistry {
-	return &txRegistry{db: db, handles: map[string]*txHandle{}}
+func newTxRegistry(db *pgxpool.Pool, log *slog.Logger) *txRegistry {
+	return &txRegistry{db: db, log: log, handles: map[string]*txHandle{}}
 }
 
 func (r *txRegistry) begin(ctx context.Context, owner string, opts pgx.TxOptions) (*txHandle, error) {
@@ -158,6 +178,11 @@ func (r *txRegistry) end(ctx context.Context, h *txHandle, outcome TxOutcome) er
 			_ = h.tx.Rollback(context.WithoutCancel(ctx))
 			return serrors.FromDB(opTxEnd, err)
 		}
+		h.hookMu.Lock()
+		hooks := h.hooks
+		h.hooks = nil
+		h.hookMu.Unlock()
+		native.RunAfterCommit(context.WithoutCancel(ctx), r.log, hooks)
 		return nil
 	}
 	if err := h.tx.Rollback(context.WithoutCancel(ctx)); err != nil && err != pgx.ErrTxClosed {

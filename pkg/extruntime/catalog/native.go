@@ -11,7 +11,9 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -160,4 +162,44 @@ func (n *NativeSet) Reserved(namespace string) bool {
 		}
 	}
 	return false
+}
+
+// DefaultNatives builds the native set an application publishes: the native
+// entity descriptors, the native events (events.Default), the Go-implemented
+// commands, operations and queries (contracts; nil: native.Default), extra
+// contracts (native routes, application-specific resources) and the native
+// lists (empty: the CRM clients list).
+func DefaultNatives(entities *data.NativeRegistry, contracts *native.Set, lists []string, extra ...manifest.Resource) (*NativeSet, error) {
+	const op = serrors.Op("extruntime.catalog.DefaultNatives")
+	if contracts == nil {
+		contracts = native.Default
+	}
+	set := NewNativeSet(entities)
+	all := append([]manifest.Resource{}, events.Default.Resources()...)
+	all = append(all, contracts.Resources()...)
+	all = append(all, extra...)
+	for _, r := range all {
+		if err := set.Register(r); err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+	}
+	if len(lists) == 0 {
+		lists = []string{data.NativeClientList}
+	}
+	for _, l := range lists {
+		if err := set.RegisterList(l); err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+	}
+	return set, nil
+}
+
+// Defaults is every native resource of the process without application
+// configuration: data.DefaultNatives entities, native events, the contracts
+// of native.Default (declared by the modules linked into the binary) and the
+// default native lists. An offline kit is generated from
+// Defaults().Sources(); a running application adds its configured native
+// routes and extra contracts (runtime.Config).
+func Defaults() (*NativeSet, error) {
+	return DefaultNatives(data.DefaultNatives(), nil, nil)
 }

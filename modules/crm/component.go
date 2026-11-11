@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -81,31 +82,8 @@ func (c *component) Build(builder *composition.Builder) error {
 	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllersFunc(builder, func(
-			app application.Application,
-			clientService *services.ClientService,
-			chatService *services.ChatService,
-			templateService *services.MessageTemplateService,
-			userService *coreservices.UserService,
-			tenantService *coreservices.TenantService,
-			twilioProvider *cpassproviders.TwilioProvider,
-			logger *logrus.Logger,
-			paginationCfg *pagination.Config,
-		) []application.Controller {
-			basePath := "/crm/clients"
-			return []application.Controller{
-				controllers.NewClientController(app, clientService, chatService, logger, controllers.ClientControllerConfig{
-					BasePath: basePath,
-					Tabs: []controllers.TabDefinition{
-						controllers.ProfileTab(basePath, clientService),
-						controllers.ChatTab(basePath, clientService, chatService),
-						controllers.ActionsTab(),
-					},
-				}),
-				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats", logger, paginationCfg),
-				controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
-				controllers.NewTwilioController(app, twilioProvider),
-			}
+		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
+			return crmControllers(container)
 		})
 	}
 
@@ -149,4 +127,65 @@ func newCRMChatService(
 		[]chat.Provider{twilioProvider},
 		bus,
 	)
+}
+
+// crmControllers builds the CRM controllers. The client forms dispatch the
+// published client commands through the application's native.Dispatcher (the
+// extension runtime's host when it is enabled, the Go defaults otherwise).
+func crmControllers(container *composition.Container) ([]application.Controller, error) {
+	app, err := composition.Resolve[application.Application](container)
+	if err != nil {
+		return nil, err
+	}
+	clientService, err := composition.Resolve[*services.ClientService](container)
+	if err != nil {
+		return nil, err
+	}
+	chatService, err := composition.Resolve[*services.ChatService](container)
+	if err != nil {
+		return nil, err
+	}
+	templateService, err := composition.Resolve[*services.MessageTemplateService](container)
+	if err != nil {
+		return nil, err
+	}
+	userService, err := composition.Resolve[*coreservices.UserService](container)
+	if err != nil {
+		return nil, err
+	}
+	tenantService, err := composition.Resolve[*coreservices.TenantService](container)
+	if err != nil {
+		return nil, err
+	}
+	twilioProvider, err := composition.Resolve[*cpassproviders.TwilioProvider](container)
+	if err != nil {
+		return nil, err
+	}
+	logger, err := composition.Resolve[*logrus.Logger](container)
+	if err != nil {
+		return nil, err
+	}
+	paginationCfg, err := composition.Resolve[*pagination.Config](container)
+	if err != nil {
+		return nil, err
+	}
+	dispatcher, err := native.ResolveDispatcher(container)
+	if err != nil {
+		return nil, err
+	}
+	basePath := "/crm/clients"
+	return []application.Controller{
+		controllers.NewClientController(app, clientService, chatService, logger, controllers.ClientControllerConfig{
+			Dispatcher: dispatcher,
+			BasePath:   basePath,
+			Tabs: []controllers.TabDefinition{
+				controllers.ProfileTab(basePath, clientService),
+				controllers.ChatTab(basePath, clientService, chatService),
+				controllers.ActionsTab(),
+			},
+		}),
+		controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, dispatcher, "/crm/chats", logger, paginationCfg),
+		controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
+		controllers.NewTwilioController(app, twilioProvider),
+	}, nil
 }

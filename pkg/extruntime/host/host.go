@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -129,8 +130,8 @@ const (
 	// invocation, whatever context object the worker built.
 	CodeReadOnlyContext = "runtime.readOnlyContext"
 	// CodeNativeQueryUnavailable is returned by tx.query / q.query for a query
-	// that has no package implementation (a Go-implemented native query):
-	// native queries are not callable from package code yet.
+	// with no implementation: neither a Go default (native) nor a bound
+	// package export.
 	CodeNativeQueryUnavailable = "runtime.nativeQueryUnavailable"
 	// CodeNotQuery is returned by tx.query / q.query for a non-query contract.
 	CodeNotQuery = "runtime.notQuery"
@@ -154,11 +155,22 @@ type Config struct {
 	Signals  Signaler
 	Workflow WorkflowHandler
 	Secrets  SecretResolver
+	// Natives are the Go default implementations of native contracts
+	// (*native.Implementations). A native contract without a package binding
+	// runs its Go default; without Natives it has no implementation.
+	Natives NativeImplementations
 
 	// DefaultTimeout bounds invocations whose context has no deadline.
 	// Default 30s.
 	DefaultTimeout time.Duration
 	Logger         *slog.Logger
+}
+
+// NativeImplementations resolves native contracts to their definition and Go
+// default implementation; *native.Implementations implements it.
+type NativeImplementations interface {
+	Definition(id string) (native.Definition, bool)
+	Lookup(id string) (*native.Implementation, bool, error)
 }
 
 // Host is the invocation host.
@@ -227,7 +239,7 @@ type Result struct {
 // reported with Result.PartiallyCommitted; the host never re-runs it.
 func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
 	root := &rootState{
-		txs:      newTxRegistry(h.cfg.DB),
+		txs:      newTxRegistry(h.cfg.DB, h.cfg.Logger),
 		producer: req.Producer,
 		starts:   &startSource{base: req.StartKeyBase},
 	}
@@ -281,7 +293,7 @@ type RunRequest struct {
 // implementation (a subscription's or workflow instance's pinned version).
 func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 	root := &rootState{
-		txs:      newTxRegistry(h.cfg.DB),
+		txs:      newTxRegistry(h.cfg.DB, h.cfg.Logger),
 		producer: req.Producer,
 		starts:   &startSource{base: req.StartKeyBase},
 		token:    req.Token,
@@ -382,6 +394,7 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		res      spi.ResolvedResource
 		contract *manifest.Resource
 		binding  Binding
+		impl     *native.Implementation
 		kind     pool.Kind
 		err      error
 	)
@@ -397,13 +410,15 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		if kind, err = kindOf(contract); err != nil {
 			return Result{}, err
 		}
-		if !spec.subject.Has(contract.Permission) {
-			return Result{}, &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.permissionDenied", Message: "permission " + contract.Permission + " is required for " + contract.ID}
+		for _, perm := range h.permissionsOf(res) {
+			if !spec.subject.Has(perm) {
+				return Result{}, &pool.WireError{Kind: pool.ErrKindDenied, Code: "runtime.permissionDenied", Message: "permission " + perm + " is required for " + contract.ID}
+			}
 		}
 		if err := validateInput(contract, spec.input); err != nil {
 			return Result{}, err
 		}
-		if binding, err = h.cfg.Bindings.Resolve(ctx, spec.contract); err != nil {
+		if binding, impl, err = h.resolveBinding(ctx, res); err != nil {
 			return Result{}, err
 		}
 		if kind == pool.KindCommand {
@@ -426,6 +441,7 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		spec:     spec,
 		contract: contract,
 		binding:  binding,
+		native:   impl,
 		kind:     kind,
 		scope: spi.Scope{
 			Subject: spec.subject,
@@ -442,6 +458,38 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		e.starts = &startSource{base: spec.startBase}
 	}
 	return e.run(ctx, res)
+}
+
+// permissionsOf lists the permissions an invocation of the contract needs:
+// the published contract's, and for a native contract the RBAC permission of
+// its Go definition (not a catalog resource, so not published). Both apply
+// whichever implementation is bound.
+func (h *Host) permissionsOf(res spi.ResolvedResource) []string {
+	perms := []string{res.Resource.Permission}
+	if res.Native && h.cfg.Natives != nil {
+		if d, ok := h.cfg.Natives.Definition(res.Resource.ID); ok {
+			perms = append(perms, d.Permission())
+		}
+	}
+	return perms
+}
+
+// resolveBinding selects the one active implementation: the bound package
+// export, or for a native contract without a binding its Go default. A
+// binding that cannot be resolved is an error; there is no fallback.
+func (h *Host) resolveBinding(ctx context.Context, res spi.ResolvedResource) (Binding, *native.Implementation, error) {
+	b, err := h.cfg.Bindings.Resolve(ctx, res.Resource.ID)
+	if err == nil || !errors.Is(err, ErrNoBinding) || !res.Native || h.cfg.Natives == nil {
+		return b, nil, err
+	}
+	impl, ok, lerr := h.cfg.Natives.Lookup(res.Resource.ID)
+	if lerr != nil {
+		return Binding{}, nil, lerr
+	}
+	if !ok {
+		return Binding{}, nil, err
+	}
+	return Binding{Contract: res.Resource.ID, Native: true}, impl, nil
 }
 
 func idOr(id string) string {

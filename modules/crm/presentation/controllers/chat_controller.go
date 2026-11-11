@@ -22,13 +22,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
-	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -46,6 +46,7 @@ type SendMessageDTO struct {
 
 type ChatController struct {
 	app             application.Application
+	dispatcher      native.Dispatcher
 	userService     *coreservices.UserService
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
@@ -63,6 +64,7 @@ func NewChatController(
 	chatService *services.ChatService,
 	templateService *services.MessageTemplateService,
 	tenantService *coreservices.TenantService,
+	dispatcher native.Dispatcher,
 	basePath string,
 	logger *logrus.Logger,
 	paginationCfg ...*pagination.Config,
@@ -71,8 +73,12 @@ func NewChatController(
 	if len(paginationCfg) > 0 {
 		cfg = paginationCfg[0]
 	}
+	if dispatcher == nil {
+		dispatcher = services.DirectClientDispatcher(clientService)
+	}
 	return &ChatController{
 		app:             app,
+		dispatcher:      dispatcher,
 		userService:     userService,
 		templateService: templateService,
 		clientService:   clientService,
@@ -482,42 +488,23 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientDto := &dtos.CreateClientDTO{
-		FirstName: "",
-		LastName:  "",
-		Phone:     dto.Phone,
-	}
-
-	tenant, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	clientEntity, err := clientDto.ToEntity(tenant)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
-		return
-	}
-
-	if err = c.clientService.Create(r.Context(), clientEntity); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
+	empty := ""
+	_, err = services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		FirstName: &empty, LastName: &empty, Phone: &dto.Phone,
+	})
+	if we, ok := native.AsError(err); ok && len(we.Issues) > 0 && we.Issues[0].Code == services.IssueInvalidPhone {
 		templ.Handler(chatsui.NewChatForm(chatsui.NewChatProps{
 			BaseURL:       c.basePath,
 			CreateChatURL: c.basePath,
 			Phone:         dto.Phone,
 			Errors: map[string]string{
-				"Phone": serrors.Public(serrors.NewInvalid("").WithCause(err), nil).Message,
+				"Phone": serrors.Public(serrors.NewInvalid("").WithCause(phone.ErrInvalidPhoneNumber), nil).Message,
 			},
 		})).ServeHTTP(w, r)
 		return
 	}
 	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		writeDispatchError(w, r, err)
 		return
 	}
 	htmx.Redirect(w, c.basePath)

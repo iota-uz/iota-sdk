@@ -37,6 +37,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
@@ -113,6 +114,10 @@ type TabDefinition struct {
 }
 
 type ClientControllerConfig struct {
+	// Dispatcher runs the published client commands (crm.commands.saveClient);
+	// with the extension runtime it is the host's, so a package replacement
+	// and package guards apply to the forms. Nil: the Go defaults in-process.
+	Dispatcher  native.Dispatcher
 	BasePath    string
 	Middleware  []mux.MiddlewareFunc
 	Tabs        []TabDefinition
@@ -130,6 +135,7 @@ func DefaultClientControllerConfig() ClientControllerConfig {
 
 type ClientController struct {
 	app           application.Application
+	dispatcher    native.Dispatcher
 	clientService *services.ClientService
 	chatService   *services.ChatService
 	config        ClientControllerConfig
@@ -185,8 +191,13 @@ func NewClientController(
 	}
 
 	// Initialize controller
+	dispatcher := cfg.Dispatcher
+	if dispatcher == nil {
+		dispatcher = services.DirectClientDispatcher(clientService)
+	}
 	controller := &ClientController{
 		app:           app,
+		dispatcher:    dispatcher,
 		clientService: clientService,
 		chatService:   chatService,
 		config:        cfg,
@@ -691,26 +702,32 @@ func (c *ClientController) Create(
 		return
 	}
 
-	tenant, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	logger.Infof("Creating client with tenant ID: %s", tenant)
-
-	clientEntity, err := dto.ToEntity(tenant)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err = clientService.Create(r.Context(), clientEntity); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		FirstName: &dto.FirstName, LastName: &dto.LastName, MiddleName: &dto.MiddleName, Phone: &dto.Phone,
+		Email: &dto.Email, Address: &dto.Address, PassportSeries: &dto.PassportSeries, PassportNumber: &dto.PassportNumber,
+		Pin: &dto.Pin, CountryCode: &dto.CountryCode,
+	}); err != nil {
+		logger.WithError(err).Info("client was not created")
+		writeDispatchError(w, r, err)
 		return
 	}
 
 	shared.Redirect(w, r, c.config.BasePath)
+}
+
+// writeDispatchError answers a failed client command: structured runtime
+// errors (validation issues, denied, domain) with their status and message,
+// anything else as an internal error.
+func writeDispatchError(w http.ResponseWriter, r *http.Request, err error) {
+	if we, ok := native.AsError(err); ok {
+		msg := we.Message
+		if msg == "" {
+			msg = we.Code
+		}
+		http.Error(w, msg, native.HTTPStatus(err))
+		return
+	}
+	serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 }
 
 func (c *ClientController) tabToComponent(
@@ -1006,25 +1023,17 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, FirstName: &dto.FirstName, LastName: &dto.LastName, MiddleName: &dto.MiddleName,
+		Phone: &dto.Phone, Email: &dto.Email, Address: &dto.Address,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1078,25 +1087,16 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, PassportSeries: &dto.PassportSeries, PassportNumber: &dto.PassportNumber,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1150,25 +1150,16 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, Pin: &dto.Pin, CountryCode: &dto.CountryCode,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1221,25 +1212,16 @@ func (c *ClientController) UpdateNotes(
 		templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, Comments: &dto.Comments,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
