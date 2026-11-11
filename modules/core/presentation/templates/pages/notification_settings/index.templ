@@ -31,6 +31,8 @@ type Props struct {
 	Recipients []Recipient
 	Groups     []notifications.GroupOption
 	Roles      []notifications.RoleOption
+	// Channels are the selectable delivery channels; the picker is hidden when only in-app exists.
+	Channels   []notifications.Channel
 	CanManage  bool
 	MessageKey string
 	Delivered  int
@@ -134,6 +136,7 @@ lang := pageCtx.GetLocale().String()
 		if !props.CanManage {
 			<p class="text-sm text-200 rounded-lg bg-surface-400 px-4 py-3 mt-4">{ pageCtx.T("NotificationSettings.ReadOnly") }</p>
 		}
+		<p class="mt-2 text-sm"><a href="/settings/notifications/users" class="text-primary-600 hover:underline">{ pageCtx.T("NotificationSettings.UserChannels") }</a></p>
 		<section id="notification-queue" class="mt-4 h-5" hx-get="/settings/notifications/queue" hx-trigger="load" hx-swap="outerHTML"></section>
 		{{ previousModule := "" }}
 		for _, event := range props.Rules {
@@ -308,6 +311,19 @@ lang := pageCtx.GetLocale().String()
 								}
 							</select>
 						</label>
+						if len(props.Channels) > 1 || hasExternalChannel(event.Rule) {
+							<fieldset class="mt-3">
+								<legend class="font-medium">{ pageCtx.T("NotificationSettings.Channels") }</legend>
+								<div class="mt-1 flex flex-wrap gap-4">
+									for _, channel := range channelChoices(props.Channels, event.Rule) {
+										<label class="flex items-center gap-2 font-normal">
+											<input type="checkbox" name="channels" value={ string(channel) } checked?={ hasChannel(event.Rule, channel) } disabled?={ !props.CanManage }/>
+											{ pageCtx.T("NotificationSettings.Channel" + channelKey(channel)) }
+										</label>
+									}
+								</div>
+							</fieldset>
+						}
 					</details>
 				</div>
 				if props.CanManage {
@@ -332,6 +348,54 @@ lang := pageCtx.GetLocale().String()
 			</form>
 		}
 	</main>
+}
+
+// channelChoices lists available channels plus any selected one whose adapter is
+// gone, so the administrator sees it and must change it explicitly.
+func channelChoices(available []notifications.Channel, rule notifications.Rule) []notifications.Channel {
+	choices := append([]notifications.Channel{}, available...)
+	for _, c := range rule.EffectiveChannels() {
+		found := false
+		for _, a := range available {
+			if a == c {
+				found = true
+			}
+		}
+		if !found {
+			choices = append(choices, c)
+		}
+	}
+	return choices
+}
+
+func hasExternalChannel(rule notifications.Rule) bool {
+	for _, c := range rule.EffectiveChannels() {
+		if c.External() {
+			return true
+		}
+	}
+	return false
+}
+
+func hasChannel(rule notifications.Rule, channel notifications.Channel) bool {
+	for _, c := range rule.EffectiveChannels() {
+		if c == channel {
+			return true
+		}
+	}
+	return false
+}
+
+func channelKey(c notifications.Channel) string {
+	switch c {
+	case notifications.ChannelEmail:
+		return "Email"
+	case notifications.ChannelSMS:
+		return "SMS"
+	case notifications.ChannelPush:
+		return "Push"
+	}
+	return "InApp"
 }
 
 func levelKey(l notification.Level) string {

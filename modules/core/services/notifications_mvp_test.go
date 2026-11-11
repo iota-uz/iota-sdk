@@ -196,10 +196,15 @@ func TestNotificationsMVP_GroupAndRoleAudiences(t *testing.T) {
 
 func setupNotificationTest(t *testing.T, permissions ...permission.Permission) *itf.TestEnvironment {
 	t.Helper()
+	return setupNotificationChannelTest(t, nil, nil, permissions...)
+}
+
+func setupNotificationChannelTest(t *testing.T, adapters []notifications.ChannelAdapter, resolver notifications.AddressResolver, permissions ...permission.Permission) *itf.TestEnvironment {
+	t.Helper()
 	components := modules.Components()
 	for i, component := range components {
 		if component.Descriptor().Name == "core" {
-			components[i] = core.NewComponent(&core.ModuleOptions{DisableNotificationWorker: true, PermissionSchema: defaults.PermissionSchema()})
+			components[i] = core.NewComponent(&core.ModuleOptions{DisableNotificationWorker: true, PermissionSchema: defaults.PermissionSchema(), NotificationChannels: adapters, NotificationAddressResolver: resolver})
 		}
 	}
 	return itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User(permissions...)))

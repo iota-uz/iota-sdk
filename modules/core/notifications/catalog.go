@@ -154,7 +154,13 @@ type Rule struct {
 	UserIDs       []uint             `json:"user_ids"`
 	GroupIDs      []uuid.UUID        `json:"group_ids"`
 	RoleIDs       []uint             `json:"role_ids"`
+	// Channels selects delivery channels. Empty means in-app only.
+	Channels []Channel `json:"channels,omitempty"`
 }
+
+// EffectiveChannels returns the normalized channel selection.
+func (r Rule) EffectiveChannels() []Channel { return NormalizeChannels(r.Channels) }
+
 type RuleRepository interface {
 	Get(context.Context, string) (Rule, error)
 	Save(context.Context, Rule) error

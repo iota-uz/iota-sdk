@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -261,6 +262,29 @@ func TestNotificationSettings_RecipientsRequireManage(t *testing.T) {
 	c.Recipients(response, settingsRequest(t, http.MethodGet, "/settings/notifications/recipients", permissions.NotificationRulesRead), service)
 	require.Equal(t, http.StatusForbidden, response.Code)
 	require.Empty(t, directory.searched)
+}
+
+func TestNotificationSettings_UserChannelsRequireManageToSave(t *testing.T) {
+	directory := &settingsDirectory{allowed: []notifications.Recipient{{ID: 1, Name: "Visible Person"}}}
+	service := services.NewNotificationRoutingService(notifications.NewCatalog(), &settingsRuleRepo{}, &settingsUsersRepo{}, nil, settingsAudienceRepo{}, directory)
+	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
+	req := settingsRequest(t, http.MethodPost, "/settings/notifications/users/1", permissions.NotificationRulesRead)
+	req = mux.SetURLVars(req, map[string]string{"id": "1"})
+	response := httptest.NewRecorder()
+	c.SaveUserChannels(response, req, service)
+	require.Equal(t, http.StatusForbidden, response.Code)
+}
+
+func TestNotificationSettings_UserChannelsListPeopleForReaders(t *testing.T) {
+	directory := &settingsDirectory{allowed: []notifications.Recipient{{ID: 1, Name: "Visible Person"}}}
+	service := services.NewNotificationRoutingService(notifications.NewCatalog(), &settingsRuleRepo{}, &settingsUsersRepo{}, nil, settingsAudienceRepo{}, directory)
+	c := controllers.NewNotificationSettingsController().(*controllers.NotificationSettingsController)
+	response := httptest.NewRecorder()
+	req := settingsRequest(t, http.MethodGet, "/settings/notifications/users", permissions.NotificationRulesRead)
+	req.Header.Set("Hx-Request", "true")
+	c.UserChannels(response, req, service)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Contains(t, response.Body.String(), "Visible Person")
 }
 
 type settingsAudienceRepo struct{}

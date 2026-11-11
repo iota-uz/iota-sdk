@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +39,71 @@ func (s *NotificationDispatchService) Enqueue(ctx context.Context, event notific
 		return 0, nil
 	}
 	job, err := s.repo.Enqueue(ctx, normalized, rule, ids)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	return len(job.RecipientIDs), nil
+}
+
+// AddressedRequest names recipients and channels explicitly. It never reads or
+// changes the administrator's event rule, so a producer's choice of audience
+// cannot be overridden by settings.
+type AddressedRequest struct {
+	Event        notifications.Event
+	RecipientIDs []uint
+	// Channels defaults to in-app only.
+	Channels []notifications.Channel
+	// Level overrides the event's default level when set.
+	Level notification.Level
+}
+
+// EnqueueAddressed queues delivery to explicit recipients. Like Enqueue it joins
+// the caller's transaction, so rollback removes the job, and providers are only
+// called by workers after commit. Eligibility and permissions are rechecked per
+// recipient before content is rendered.
+func (s *NotificationDispatchService) EnqueueAddressed(ctx context.Context, req AddressedRequest) (int, error) {
+	const op serrors.Op = "NotificationDispatchService.EnqueueAddressed"
+	event, err := s.router.Catalog().Normalize(req.Event)
+	if err != nil {
+		return 0, serrors.New(serrors.Invalid, err.Error()).WithOp(op)
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	if tenant != event.TenantID || (req.Level != "" && !req.Level.Valid()) {
+		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
+	}
+	if err := s.router.validateActor(ctx, event); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	channels := notifications.NormalizeChannels(req.Channels)
+	if err := s.router.validateChannels(channels); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	// Addressed jobs have their own identity namespace, so an event rule that
+	// already queued the same event ID cannot swallow the requested audience.
+	identity := event.DedupeKey
+	if identity == "" {
+		identity = event.ID
+	}
+	event.DedupeKey = "addressed:" + identity
+	if len(event.DedupeKey) > 200 {
+		event.DedupeKey = fmt.Sprintf("addressed:sha256:%x", sha256.Sum256([]byte(identity)))
+	}
+	ids := make([]uint, 0, len(req.RecipientIDs))
+	seen := map[uint]bool{}
+	for _, id := range req.RecipientIDs {
+		if id != 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	rule := notifications.Rule{EventKey: event.Key, Configured: true, Enabled: true, Level: req.Level, Channels: channels, UserIDs: ids}
+	job, err := s.repo.Enqueue(ctx, event, rule, ids)
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
 	}

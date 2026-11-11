@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -35,6 +37,43 @@ type NotificationRoutingService struct {
 	delivery  NotificationDelivery
 	audience  notifications.AudienceRepository
 	directory notifications.RecipientDirectory
+	channels  *NotificationChannelService
+}
+
+// WithChannels enables external channels; without it every rule is in-app only.
+func (s *NotificationRoutingService) WithChannels(channels *NotificationChannelService) *NotificationRoutingService {
+	s.channels = channels
+	return s
+}
+
+// UserChannels returns the channels each user opted out of.
+func (s *NotificationRoutingService) UserChannels(ctx context.Context, ids []uint) (map[uint][]notifications.Channel, error) {
+	if s.channels == nil {
+		return map[uint][]notifications.Channel{}, nil
+	}
+	return s.channels.Disabled(ctx, ids)
+}
+
+// SetUserChannels stores which channels a user wants. The user must be someone
+// who can receive notifications in the current tenant.
+func (s *NotificationRoutingService) SetUserChannels(ctx context.Context, userID uint, enabled []notifications.Channel) error {
+	const op = "NotificationRoutingService.SetUserChannels"
+	available, err := s.directory.GetByIDs(ctx, []uint{userID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if len(available) != 1 || s.channels == nil {
+		return serrors.New(serrors.Invalid, "invalid recipient").WithOp(op)
+	}
+	return s.channels.SetEnabled(ctx, userID, enabled)
+}
+
+// Channels lists the channels a rule can select.
+func (s *NotificationRoutingService) Channels() []notifications.Channel {
+	if s.channels == nil {
+		return []notifications.Channel{notifications.ChannelInApp}
+	}
+	return s.channels.Available()
 }
 
 func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory) *NotificationRoutingService {
@@ -95,6 +134,9 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 	if rule.Level != "" && !rule.Level.Valid() {
 		return serrors.New(serrors.Invalid, "invalid notification level").WithOp(op)
 	}
+	if err := s.validateChannels(rule.Channels); err != nil {
+		return err
+	}
 	keys := map[string]bool{}
 	for _, key := range definition.RecipientKeys {
 		keys[key.Key] = true
@@ -153,14 +195,8 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 		return rule, nil, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
 	definition, _ := s.catalog.Get(event.Key)
-	if event.ActorUserID != 0 {
-		actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
-		if err != nil {
-			return rule, nil, serrors.Wrap(op, err)
-		}
-		if len(actors) != 1 || actors[0].TenantID() != tenant {
-			return rule, nil, serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
-		}
+	if err := s.validateActor(ctx, event); err != nil {
+		return rule, nil, err
 	}
 	rule, err = s.rules.Get(ctx, event.Key)
 	if err != nil {
@@ -250,6 +286,21 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	}
 	delivered := 0
 	seen := map[uint]bool{}
+	channels := rule.EffectiveChannels()
+	var disabled map[uint][]notifications.Channel
+	if s.channels != nil {
+		disabled, err = s.channels.Disabled(ctx, ids)
+		if err != nil {
+			return 0, serrors.Wrap(op, err)
+		}
+	}
+	// A missing adapter must not block the other channels: its deliveries are
+	// recorded and retried by the channel service.
+	for _, c := range channels {
+		if !c.Valid() {
+			return 0, serrors.New(serrors.Invalid, "invalid notification channel").WithOp(op)
+		}
+	}
 	for _, u := range users {
 		if seen[u.ID()] || u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive || (definition.RequiredPermission != nil && !u.Can(definition.RequiredPermission)) {
 			continue
@@ -264,7 +315,18 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				continue
 			}
 		}
-		content, err := definition.Render(event, string(u.UILanguage()))
+		userChannels := channels
+		if len(disabled[u.ID()]) > 0 {
+			userChannels = slices.DeleteFunc(slices.Clone(channels), func(c notifications.Channel) bool { return slices.Contains(disabled[u.ID()], c) })
+			if len(userChannels) == 0 {
+				continue
+			}
+		}
+		language := string(u.UILanguage())
+		if language == "" {
+			language = "en"
+		}
+		content, err := definition.Render(event, language)
 		if err != nil {
 			return delivered, serrors.Wrap(op, err)
 		}
@@ -274,16 +336,72 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 				return delivered, serrors.Wrap(op, err)
 			}
 		}
-		n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
-		if err != nil {
+		// Every channel, not only in-app, must carry a safe internal link.
+		if _, err := notification.New(u.ID(), "validation", "", notification.WithActionURL(content.ActionURL)); err != nil {
 			return delivered, serrors.Wrap(op, err)
 		}
-		if _, err = s.delivery.Deliver(ctx, n); err != nil {
-			return delivered, serrors.Wrap(op, err)
+		identity := event.DedupeKey
+		if identity == "" {
+			identity = event.ID
+		}
+		var userDeliveries []notifications.Delivery
+		for _, channel := range userChannels {
+			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: truncateRunes(content.Title, 300), Body: content.Body, ActionURL: content.ActionURL}
+			if channel != notifications.ChannelInApp {
+				userDeliveries = append(userDeliveries, d)
+				continue
+			}
+			n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
+			if err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			if _, err = s.delivery.Deliver(ctx, n); err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			d.Status = notifications.DeliverySent
+			userDeliveries = append(userDeliveries, d)
+		}
+		// Recorded with the recipient's inbox write so a later failure cannot
+		// leave a saved message without its delivery rows.
+		if len(userDeliveries) > 0 && s.channels != nil {
+			if err := s.channels.Record(ctx, userDeliveries); err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
 		}
 		delivered++
 	}
 	return delivered, nil
+}
+
+func (s *NotificationRoutingService) validateActor(ctx context.Context, event notifications.Event) error {
+	const op = "NotificationRoutingService.validateActor"
+	if event.ActorUserID == 0 {
+		return nil
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if len(actors) != 1 || actors[0].TenantID() != tenant {
+		return serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
+	}
+	return nil
+}
+
+func (s *NotificationRoutingService) validateChannels(channels []notifications.Channel) error {
+	if s.channels == nil {
+		for _, c := range channels {
+			if c != notifications.ChannelInApp {
+				return serrors.New(serrors.Invalid, "invalid or unavailable notification channel").WithOp("NotificationRoutingService.validateChannels")
+			}
+		}
+		return nil
+	}
+	return s.channels.Validate(channels)
 }
 
 func (s *NotificationRoutingService) Groups(ctx context.Context) ([]notifications.GroupOption, error) {
@@ -329,4 +447,13 @@ func (s *NotificationRoutingService) validateAudience(ctx context.Context, rule 
 		}
 	}
 	return nil
+}
+
+// truncateRunes keeps external delivery rows within the title column so one
+// oversized rendered title cannot fail and endlessly retry a whole batch.
+func truncateRunes(value string, limit int) string {
+	if utf8.RuneCountInString(value) <= limit {
+		return value
+	}
+	return string([]rune(value)[:limit])
 }
