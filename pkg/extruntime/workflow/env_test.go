@@ -137,7 +137,7 @@ func newStack(t *testing.T, env *hosttest.Env, im *impls, opts ...stackOption) *
 	eng, err := workflow.New(wcfg)
 	require.NoError(t, err)
 	c := &counting{inner: eng}
-	hcfg.Starter, hcfg.Workflow = eng, c
+	hcfg.Starter, hcfg.Workflow, hcfg.Signals = eng, c, eng
 	h, err := host.New(hcfg)
 	require.NoError(t, err)
 	eng.Attach(h)

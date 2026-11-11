@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -205,9 +207,79 @@ func notify(ctx context.Context, tx queryer) error {
 // against the workflow's declared signal type. A repeated signal with the same
 // key is a no-op. A terminated, completed or failed instance rejects it.
 func (e *Engine) Signal(ctx context.Context, tenant uuid.UUID, sender int64, instance uuid.UUID, name string, payload json.RawMessage, key string) error {
-	inst, err := e.instance(ctx, e.cfg.DB, tenant, instance)
+	tx, err := e.cfg.DB.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := e.deliverSignal(ctx, tx, signalReq{tenant: tenant, sender: sender, instance: instance, name: name, payload: payload, key: key}); err != nil {
+		return err
+	}
+	return serrors.FromDB(opManage, tx.Commit(ctx))
+}
+
+// Typed errors of tx.signal / invoke.signal (host.Signaler).
+const (
+	CodeInstanceNotFound     = "workflow.instanceNotFound"
+	CodeInstanceNotAccepting = "workflow.instanceNotAccepting"
+	CodeInstanceMismatch     = "workflow.instanceMismatch"
+	CodeUnknownSignal        = "workflow.unknownSignal"
+	CodeSignalDenied         = "workflow.signalDenied"
+)
+
+var errSignalDenied = errors.New("extruntime workflow: subject may not signal this workflow")
+
+// SignalInTx implements host.Signaler: the signal row is written in the
+// caller's transaction, atomically with the caller's data. The instance must
+// belong to the subject's tenant and run the given workflow, the payload must
+// match the workflow contract's signal schema, and the subject's CURRENT
+// rights must include the workflow's permission. Failures are typed wire
+// errors and leave the transaction usable.
+func (e *Engine) SignalInTx(ctx context.Context, tx pgx.Tx, sc spi.Scope, in host.SignalIntent) error {
+	id, err := uuid.Parse(in.Instance)
+	if err != nil {
+		return signalWire(fmt.Errorf("%w: instance %q is not an instance id", ErrNotFound, in.Instance))
+	}
+	subject := sc.Subject
+	return signalWire(e.deliverSignal(ctx, tx, signalReq{
+		tenant: subject.TenantID, sender: subject.UserID, instance: id, workflow: in.Workflow, name: in.Name, payload: in.Payload, key: in.Key, actor: &subject,
+	}))
+}
+
+type signalReq struct {
+	tenant   uuid.UUID
+	sender   int64
+	instance uuid.UUID
+	// workflow, when set, must be the workflow the instance runs.
+	workflow string
+	name     string
+	payload  json.RawMessage
+	key      string
+	// actor, when set, is checked against the workflow's permission with the
+	// rights it holds now.
+	actor *spi.Subject
+}
+
+type unknownSignalError struct{ workflow, name string }
+
+func (u *unknownSignalError) Error() string {
+	return fmt.Sprintf("workflow %s declares no signal %q", u.workflow, u.name)
+}
+
+type mismatchError struct{ got, want string }
+
+func (m *mismatchError) Error() string {
+	return fmt.Sprintf("instance runs workflow %s, not %s", m.want, m.got)
+}
+
+// deliverSignal validates and writes one signal in q's transaction.
+func (e *Engine) deliverSignal(ctx context.Context, q queryer, r signalReq) error {
+	inst, err := e.instance(ctx, q, r.tenant, r.instance)
 	if err != nil {
 		return err
+	}
+	if r.workflow != "" && r.workflow != inst.Workflow {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: %w", ErrInvalid, &mismatchError{got: r.workflow, want: inst.Workflow}))
 	}
 	res, ok, err := e.cfg.Catalog.Resolve(ctx, inst.Workflow)
 	if err != nil {
@@ -216,53 +288,96 @@ func (e *Engine) Signal(ctx context.Context, tenant uuid.UUID, sender int64, ins
 	if !ok {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s is not in the catalog", ErrInvalid, inst.Workflow))
 	}
-	typ, declared := res.Resource.Signals[name]
+	typ, declared := res.Resource.Signals[r.name]
 	if !declared {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s declares no signal %q", ErrInvalid, inst.Workflow, name))
+		return serrors.Wrap(opManage, fmt.Errorf("%w: %w", ErrInvalid, &unknownSignalError{workflow: inst.Workflow, name: r.name}))
 	}
+	payload := r.payload
 	if len(payload) == 0 {
 		payload = json.RawMessage(`null`)
 	}
 	if verr := manifest.ValidateValue(typ, payload); verr != nil {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: signal %q payload: %v", ErrInvalid, name, verr))
+		return serrors.Wrap(opManage, fmt.Errorf("%w: signal %q payload: %w", ErrInvalid, r.name, verr))
 	}
-	tx, err := e.cfg.DB.Begin(ctx)
-	if err != nil {
-		return serrors.FromDB(opManage, err)
+	if r.actor != nil {
+		kind := r.actor.Kind
+		if kind == "" {
+			kind = spi.SubjectInitiator
+		}
+		current, err := e.cfg.Subjects.LoadSubject(ctx, r.tenant, r.actor.UserID, kind)
+		if err != nil {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: %w", errSignalDenied, err))
+		}
+		if !current.Has(res.Resource.Permission) {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: permission %s is required for %s", errSignalDenied, res.Resource.Permission, inst.Workflow))
+		}
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	// Locking the instance row first serializes with a run that is suspending.
 	var status string
-	err = tx.QueryRow(ctx, `
+	err = q.QueryRow(ctx, `
 		UPDATE extruntime.workflow_instances
 		SET wake_at = CASE WHEN status = 'waiting' THEN now() ELSE wake_at END, updated_at = now()
 		WHERE id = $1 AND tenant_id = $2 AND status IN ('running', 'waiting', 'blocked')
-		RETURNING status`, instance, tenant).Scan(&status)
+		RETURNING status`, r.instance, r.tenant).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is %s", ErrNotAccepting, instance, inst.Status))
+		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is %s", ErrNotAccepting, r.instance, inst.Status))
 	}
 	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
 	var sig any
-	if key != "" {
-		sig = key
+	if r.key != "" {
+		sig = r.key
 	}
 	var sender64 any
-	if sender > 0 {
-		sender64 = sender
+	if r.sender > 0 {
+		sender64 = r.sender
 	}
-	if _, err := tx.Exec(ctx, `
+	if _, err := q.Exec(ctx, `
 		INSERT INTO extruntime.workflow_signals (id, tenant_id, instance_id, name, payload, sender_user_id, signal_key)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (tenant_id, instance_id, signal_key) WHERE signal_key IS NOT NULL DO NOTHING`,
-		uuid.New(), tenant, instance, name, []byte(payload), sender64, sig); err != nil {
+		uuid.New(), r.tenant, r.instance, r.name, []byte(payload), sender64, sig); err != nil {
 		return serrors.FromDB(opManage, err)
 	}
-	if err := notify(ctx, tx); err != nil {
+	return notify(ctx, q)
+}
+
+// signalWire maps the engine's sentinel errors to the typed wire errors the
+// worker (and so the package author) sees.
+func signalWire(err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := pool.AsWireError(err); ok {
 		return err
 	}
-	return serrors.FromDB(opManage, tx.Commit(ctx))
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotFound, Message: err.Error()}
+	case errors.Is(err, ErrNotAccepting):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotAccepting, Message: err.Error()}
+	case errors.Is(err, errSignalDenied):
+		return &pool.WireError{Kind: pool.ErrKindDenied, Code: CodeSignalDenied, Message: err.Error()}
+	case errors.Is(err, ErrInvalid):
+		var mm *mismatchError
+		if errors.As(err, &mm) {
+			return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceMismatch, Message: err.Error()}
+		}
+		var pe *manifest.PathError
+		if errors.As(err, &pe) {
+			path, _ := json.Marshal(pe.Path)
+			params, _ := json.Marshal(map[string]string{"message": pe.Message})
+			return &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error(),
+				Issues: []pool.Issue{{Code: "runtime.invalidValue", Phase: "input", Path: path, Params: params}}}
+		}
+		var us *unknownSignalError
+		if errors.As(err, &us) {
+			return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeUnknownSignal, Message: err.Error()}
+		}
+		return &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: err.Error()}
+	}
+	return err
 }
 
 // DecideTask records the decision of an open human task. The actor must be

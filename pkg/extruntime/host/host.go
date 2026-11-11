@@ -87,8 +87,49 @@ type WorkflowHandler interface {
 	CallWorkflow(ctx context.Context, call WorkflowCall, method string, args json.RawMessage) (json.RawMessage, error)
 }
 
-// Config wires the host. Outbox, Starter, Notifier, Workflow and Secrets are
-// optional: the matching host calls fail explicitly when absent.
+// SignalIntent is a signal to a workflow instance, as sent by tx.signal and
+// invoke.signal.
+type SignalIntent struct {
+	// Workflow is the workflow contract ID the instance runs; a mismatch with
+	// the instance is rejected.
+	Workflow string          `json:"workflow"`
+	Instance string          `json:"instance"`
+	Name     string          `json:"name"`
+	Payload  json.RawMessage `json:"payload"`
+	// Key makes a repeated delivery a no-op when set.
+	Key      string       `json:"key,omitempty"`
+	Producer spi.Producer `json:"producer"`
+}
+
+// Signaler writes a signal row in the caller's transaction, so it commits
+// atomically with the caller's data. It validates the payload against the
+// workflow contract's signal schema, checks the subject's current rights for
+// the workflow and rejects unknown, finished or terminated instances with
+// typed errors. *workflow.Engine implements it.
+type Signaler interface {
+	SignalInTx(ctx context.Context, tx pgx.Tx, sc spi.Scope, in SignalIntent) error
+}
+
+// Codes of errors raised by the host router itself.
+const (
+	// CodeIntentInTransaction rejects an ordinary intent (ctx.call, wf.call,
+	// ctx.signal) while a Go transaction is open in the same invocation: the
+	// intent would run its own transactions while this one holds a connection
+	// and locks, and could commit before this one fails.
+	CodeIntentInTransaction = "runtime.intentInTransaction"
+	// CodeReadOnlyContext rejects a write host call from a guard or query
+	// invocation, whatever context object the worker built.
+	CodeReadOnlyContext = "runtime.readOnlyContext"
+	// CodeNativeQueryUnavailable is returned by tx.query / q.query for a query
+	// that has no package implementation (a Go-implemented native query):
+	// native queries are not callable from package code yet.
+	CodeNativeQueryUnavailable = "runtime.nativeQueryUnavailable"
+	// CodeNotQuery is returned by tx.query / q.query for a non-query contract.
+	CodeNotQuery = "runtime.notQuery"
+)
+
+// Config wires the host. Outbox, Starter, Notifier, Signals, Workflow and
+// Secrets are optional: the matching host calls fail explicitly when absent.
 type Config struct {
 	Pool     Runner
 	DB       *pgxpool.Pool
@@ -102,6 +143,7 @@ type Config struct {
 	Outbox   spi.Outbox
 	Starter  spi.Starter
 	Notifier spi.Notifier
+	Signals  Signaler
 	Workflow WorkflowHandler
 	Secrets  SecretResolver
 
