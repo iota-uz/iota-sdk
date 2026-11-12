@@ -47,6 +47,9 @@ type Document struct {
 	Path    string
 	Content []byte
 	Meta    DocumentMeta
+	// SourceMount is the mount of the contributed documentation source that
+	// served the document; empty for the Help Center's own files.
+	SourceMount string
 }
 
 // DocumentMeta is the optional reader-facing metadata declared in a document's
@@ -138,6 +141,9 @@ type ContentService struct {
 	// rooted at Root for disk mode, or a sub-FS of config.FS for embedded mode.
 	// nil when no content source is configured.
 	fsys fs.FS
+	// sources are the run-time documentation sources merged next to the file
+	// tree; nil when none are contributed. See WithSources.
+	sources *sourceSet
 }
 
 func NewContentService(config ContentConfig) *ContentService {
@@ -158,15 +164,32 @@ func NewContentService(config ContentConfig) *ContentService {
 	return svc
 }
 
+// Tree returns the sidebar tree: the file tree with the categories of the
+// contributed documentation sources merged in, as the reader in ctx may see
+// them.
 func (s *ContentService) Tree(ctx context.Context) ([]viewmodels.CategoryNode, error) {
+	return s.tree(ctx, true)
+}
+
+func (s *ContentService) tree(ctx context.Context, withSources bool) ([]viewmodels.CategoryNode, error) {
 	localeDir, locale, err := s.localeRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildTree(localeDir, locale)
+	nodes, err := s.buildTreeNodes(localeDir, locale)
+	if err != nil {
+		return nil, err
+	}
+	if withSources {
+		s.mergeSources(ctx, locale, &nodes)
+	}
+	return finishTree(nodes), nil
 }
 
 func (s *ContentService) Get(ctx context.Context, docPath string) (*Document, error) {
+	if source, rel, ok := s.sources.resolve(docPath); ok {
+		return s.getSourceDocument(ctx, source, rel)
+	}
 	localeDir, locale, err := s.localeRoot(ctx)
 	if err != nil {
 		return nil, err
@@ -220,8 +243,11 @@ func (s *ContentService) Media(ctx context.Context, mediaPath string) (*Media, e
 	return &Media{Path: cleanPath, Content: content}, nil
 }
 
+// DefaultDocument is the first document of the file tree: contributed sources
+// come and go with the reader's permissions, so they never become the landing
+// page.
 func (s *ContentService) DefaultDocument(ctx context.Context) (*Document, error) {
-	nodes, err := s.Tree(ctx)
+	nodes, err := s.tree(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -366,6 +392,21 @@ func (s *ContentService) localeDirExists(locale string) bool {
 }
 
 func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.CategoryNode, error) {
+	nodes, err := s.buildTreeNodes(localeDir, locale)
+	if err != nil {
+		return nil, err
+	}
+	return finishTree(nodes), nil
+}
+
+// finishTree orders the category tree and turns it into view models.
+func finishTree(nodes []*categoryTreeNode) []viewmodels.CategoryNode {
+	docs := categoryViewModels(nodes)
+	sortNodes(docs)
+	return docs
+}
+
+func (s *ContentService) buildTreeNodes(localeDir, locale string) ([]*categoryTreeNode, error) {
 	var tree []*categoryTreeNode
 
 	err := fs.WalkDir(s.fsys, localeDir, func(p string, d fs.DirEntry, err error) error {
@@ -398,17 +439,14 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 	})
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) && locale != s.config.DefaultLocale {
-			return s.buildTree(s.config.DefaultLocale, s.config.DefaultLocale)
+			return s.buildTreeNodes(s.config.DefaultLocale, s.config.DefaultLocale)
 		}
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, ErrDocumentNotFound
 		}
 		return nil, err
 	}
-
-	docs := categoryViewModels(tree)
-	sortNodes(docs)
-	return docs, nil
+	return tree, nil
 }
 
 func (s *ContentService) isHiddenPath(candidate string) bool {
