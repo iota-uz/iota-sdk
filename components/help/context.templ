@@ -9,29 +9,59 @@ templ Context(props ContextProps) {
 			left: 0,
 			top: 0,
 			maxWidth: 0,
+			maxHeight: 0,
 			async place() {
 				const gutter = 16;
+				const gap = 8;
 				const viewport = document.documentElement.clientWidth;
+				const viewportHeight = document.documentElement.clientHeight;
 				this.maxWidth = viewport - 2 * gutter;
+				this.maxHeight = 0;
 				await this.$nextTick();
 				const trigger = $refs.trigger.getBoundingClientRect();
-				const width = $refs.panel.getBoundingClientRect().width;
+				const panel = $refs.panel.getBoundingClientRect();
 				let left = trigger.left;
-				if (left + width > viewport - gutter) left = trigger.right - width;
-				this.left = Math.max(gutter, Math.min(left, viewport - gutter - width));
-				this.top = trigger.bottom + 8;
+				if (left + panel.width > viewport - gutter) left = trigger.right - panel.width;
+				this.left = Math.max(gutter, Math.min(left, viewport - gutter - panel.width));
+				const below = viewportHeight - trigger.bottom - gap - gutter;
+				const above = trigger.top - gap - gutter;
+				const openAbove = panel.height > below && above > below;
+				const room = Math.max(openAbove ? above : below, 96);
+				this.maxHeight = room;
+				this.top = openAbove ? trigger.top - gap - Math.min(panel.height, room) : trigger.bottom + gap;
 			},
 			toggle() {
-				this.open = !this.open;
-				if (this.open) this.$nextTick(() => this.place());
+				if (this.open) return this.close();
+				this.open = true;
+				this.$nextTick(async () => {
+					await this.place();
+					$refs.panel.focus({ preventScroll: true });
+				});
+			},
+			close(restoreFocus = true) {
+				if (!this.open) return;
+				this.open = false;
+				if (restoreFocus) $refs.trigger.focus({ preventScroll: true });
+			},
+			leave(event) {
+				const items = [...$refs.panel.querySelectorAll('a[href], button:not([disabled])')];
+				const first = items[0];
+				const last = items[items.length - 1];
+				const active = document.activeElement;
+				const leavingForward = !event.shiftKey && (active === last || (!last && active === $refs.panel));
+				const leavingBackward = event.shiftKey && (active === first || active === $refs.panel);
+				if (leavingForward || leavingBackward) {
+					event.preventDefault();
+					this.close();
+				}
 			}
 		}"
 		x-id="['help-panel', 'help-title']"
 		class={ contextClass(props) }
 		{ contextAttrs(props)... }
-		@keydown.escape.window="open = false"
+		@keydown.escape.window="close()"
 		@resize.window="open && place()"
-		@scroll.window.capture.passive="open && place()"
+		@scroll.window.capture.passive="open && !($event.target instanceof Node && $refs.panel.contains($event.target)) && place()"
 	>
 		<button
 			type="button"
@@ -52,13 +82,15 @@ templ Context(props ContextProps) {
 				x-show="open"
 				x-ref="panel"
 				x-transition.opacity.duration.150ms
-				@click.outside="open = false"
+				@click.outside="close(false)"
 				role="dialog"
 				aria-modal="false"
+				tabindex="-1"
+				@keydown.tab="leave($event)"
 				:id="$id('help-panel')"
 				:aria-labelledby="$id('help-title')"
-				x-bind:style="{ left: left + 'px', top: top + 'px', maxWidth: maxWidth ? maxWidth + 'px' : null }"
-				class="fixed z-[90] w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-subtle bg-surface-300 text-left shadow-xl"
+				x-bind:style="{ left: left + 'px', top: top + 'px', maxWidth: maxWidth ? maxWidth + 'px' : null, maxHeight: maxHeight ? maxHeight + 'px' : null }"
+				class="fixed z-[90] w-[min(23rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl focus-visible:outline-none border border-subtle bg-surface-300 text-left shadow-xl"
 			>
 				<div class="border-b border-subtle px-4 py-3.5">
 					<h2 :id="$id('help-title')" class="text-sm font-semibold leading-5 text-gray-900">{ props.Title }</h2>

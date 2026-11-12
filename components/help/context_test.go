@@ -124,7 +124,11 @@ func TestContext_AccessibilityPairs(t *testing.T) {
 		require.NotNil(t, m, attr)
 		return m[1]
 	}
-	controls, panelID := name(":aria-controls"), name(`role="dialog" aria-modal="false" :id`)
+	dialogTag := regexp.MustCompile(`<div[^>]*role="dialog"[^>]*>`).FindString(markup)
+	require.NotEmpty(t, dialogTag)
+	idMatch := regexp.MustCompile(` :id="\$id\('([^']+)'\)"`).FindStringSubmatch(dialogTag)
+	require.NotNil(t, idMatch)
+	controls, panelID := name(":aria-controls"), idMatch[1]
 	labelledBy, titleID := name(":aria-labelledby"), name("<h2 :id")
 	require.Equal(t, controls, panelID)
 	require.Equal(t, labelledBy, titleID)
@@ -149,4 +153,18 @@ func TestContext_PanelIsNotRenderedInsideTheRoot(t *testing.T) {
 	require.NotContains(t, root, "<h2")
 	require.Contains(t, panel, `role="dialog"`)
 	require.Contains(t, panel, "<h2")
+}
+
+// Falsely green if only the dialog's presence were checked: keyboard users need
+// a focusable container to land on when the panel opens (it is teleported to the
+// end of the body), and a tall panel must be able to scroll internally.
+func TestContext_PanelIsFocusableAndScrollable(t *testing.T) {
+	markup := renderToString(t, Context(ContextProps{Title: "Policy status"}))
+
+	_, panel, found := strings.Cut(markup, `<template x-teleport="body">`)
+	require.True(t, found)
+	open := regexp.MustCompile(`<div[^>]*role="dialog"[^>]*>`).FindString(panel)
+	require.NotEmpty(t, open)
+	require.Contains(t, open, `tabindex="-1"`)
+	require.Contains(t, strings.Fields(regexp.MustCompile(`class="([^"]*)"`).FindStringSubmatch(open)[1]), "overflow-y-auto")
 }
