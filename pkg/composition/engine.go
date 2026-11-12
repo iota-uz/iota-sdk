@@ -652,6 +652,11 @@ func (c *Container) instantiateAll() error {
 }
 
 func (c *Container) materialize() error {
+	// Help sources are collected before controllers so the Help Center's
+	// controller factory sees them in Container.HelpSources.
+	if err := collectInto(c, c.helpSourceFactories, &c.helpSources); err != nil {
+		return err
+	}
 	controllerContributions, err := collectControllerContributions(c, c.controllerFactories)
 	if err != nil {
 		return err
@@ -706,9 +711,6 @@ func (c *Container) materialize() error {
 	}
 	c.quickLinks = append(c.quickLinks, navModel.quickLinks...)
 	if err := collectInto(c, c.spotlightFactories, &c.spotlightProviders); err != nil {
-		return err
-	}
-	if err := collectInto(c, c.helpSourceFactories, &c.helpSources); err != nil {
 		return err
 	}
 	if err := collectOneInto(c, c.spotlightAgentFactory, &c.spotlightAgent); err != nil {
