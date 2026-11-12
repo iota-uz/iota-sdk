@@ -66,6 +66,11 @@ func validate(t Type, raw json.RawMessage, path []string) error {
 		}
 		return validateString(t, s, path)
 	case KindInt:
+		// json.Number also decodes a quoted number; the wire form of int is a
+		// bare JSON number (int64 travels as a string, int does not).
+		if t := bytes.TrimSpace(raw); len(t) > 0 && t[0] == '"' {
+			return fail(path, "expected integer")
+		}
 		var f json.Number
 		dec := json.NewDecoder(bytes.NewReader(raw))
 		dec.UseNumber()

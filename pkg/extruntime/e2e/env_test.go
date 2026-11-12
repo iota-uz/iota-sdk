@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -96,7 +97,12 @@ type envConfig struct {
 	schedules events.SchedulerConfig
 	poolSize  int
 	resolvers map[string]notifications.ContactResolver
+	// helpCenter composes the Help Center, which serves the runtime's
+	// documentation source.
+	helpCenter bool
 }
+
+func withHelpCenter() envOption { return func(c *envConfig) { c.helpCenter = true } }
 
 func newEnv(t *testing.T, opts ...envOption) *env {
 	t.Helper()
@@ -147,6 +153,9 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		}
 	}
 	components = append(components, comp)
+	if cfg.helpCenter {
+		components = append(components, helpcenter.NewComponent(helpcenter.EmbeddedContentConfig()))
+	}
 
 	h := itf.NewHarness(t, itf.HarnessConfig{
 		Name:       "extruntime_e2e",

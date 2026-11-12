@@ -119,6 +119,7 @@ func TestSchemaAndServerAgreeOnWireRules(t *testing.T) {
 	}{
 		{"int ok", manifest.Type{Kind: manifest.KindInt}, `9007199254740991`, true},
 		{"int above safe range", manifest.Type{Kind: manifest.KindInt}, `9007199254740992`, false},
+		{"int as a quoted number", manifest.Type{Kind: manifest.KindInt}, `"1"`, false},
 		{"int64 string", manifest.Type{Kind: manifest.KindInt64}, `"-9223372036854775808"`, true},
 		{"int64 as number", manifest.Type{Kind: manifest.KindInt64}, `1`, false},
 		{"int64 leading zero", manifest.Type{Kind: manifest.KindInt64}, `"01"`, false},
