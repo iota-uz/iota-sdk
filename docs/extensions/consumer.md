@@ -430,26 +430,41 @@ website. It never contains implementation source, template bodies, secrets or th
 * **Help Center.** Whenever the runtime is enabled it contributes a documentation source mounted at `extensions`
   (`composition.ContributeHelpSources`; the Help Center component renders it). Under *Extensions*: **Guides** (the author's
   manual and this guide, bundled into the binary; links between them stay inside the Help Center, links to repository files
-  point at the release tag of the SDK build on GitHub), **Reference** (an overview and one document per namespace: entities
+  point at the release tag of the SDK build on GitHub; developers only, see below), **Reference** (an overview and one document per namespace: entities
   and overlays with fields, key type and read access, commands, operations and queries with input, output, errors and
   permission, events, workflows and their signals, notices, issues and domain errors, routes, pages, slots, cells, columns,
   the shell, endpoints, schedules, subscriptions and the guards on each target, each with its package and version, JSON
   Schemas and examples) and **HTTP API**. Documents are available as `/help/doc/extensions/...`.
-* **Who sees what.** A user holding `Extensions.Read` sees everything. Any other signed-in user sees the resources whose
-  permission is empty or held; an entity or overlay only if the data layer would let them read its rows (an overlay also
-  needs its base entity, and fields that need permissions the user lacks are left out); an endpoint if it is public or the
-  user is signed in (it runs as them); schedules, subscriptions and the packages' guard lists stay with `Extensions.Read`.
-  A namespace with nothing left is not listed, and its page answers 404.
-* **`GET /_ext/manage/reference`** returns the same model as JSON, for the configurator's Reference tab (a session is enough;
-  the answer is filtered the same way). The MCP tool `ext_reference` returns it as markdown.
+* **Who sees what.** A user holding `Extensions.Read` sees everything. Any other signed-in user sees the *reference* of
+  the resources whose permission is empty or held; an entity or overlay only if the data layer would let them read its rows
+  (an overlay also needs its base entity); a field that needs permissions the user lacks is left out of the field list, the
+  record's schema and example, and a column that shows it is left out too. **The guides and the HTTP API document are
+  developer documentation: only `Extensions.Read` holders see them**, and so package endpoints, schedules, subscriptions
+  and the packages' guard lists (endpoints are for integrators, and listing them would reveal packages whose contracts the
+  user may not see). A namespace with nothing left is not listed and its page answers 404; a user with nothing visible at
+  all does not get the *Extensions* section.
+* **`GET /_ext/manage/reference`** returns the full model as JSON, for the configurator's Reference tab, so it requires
+  `Extensions.Read` (the configurator's own permission). The Help Center and the MCP tool `ext_reference` (markdown) filter
+  per reader.
+* **Where it is served.** The documents link `/_ext/openapi.json` only on a deployment that serves the HTTP API (the
+  process with the API capability). A worker-only or API-less build renders the HTTP API document as one sentence saying so.
 * **`GET /_ext/openapi.json`** is an OpenAPI 3.1 document of the HTTP interface for the signed-in user (session cookie;
   `Cache-Control: no-store`): `POST /_ext/rpc` as one request variant per visible command and query, discriminated by
   `resource` and carrying the input JSON Schema, with the value schema of each contract in the response envelope (it is a
   same-origin browser transport, not an integration API); the package endpoints under `/_ext/endpoints/...` with their method
   and security (a public endpoint has none; the others need the session cookie) — endpoint specs declare no body schema, so
   their bodies are documented as untyped; and, for `Extensions.Read` holders only, the management API under `/_ext/manage`
-  with request and response schemas, the error envelope and the permission each route requires (`x-required-permission`).
-  The management routes are mounted and documented from one table in `pkg/extruntime/runtime`, so they cannot drift apart.
+  with request and response schemas, the error envelope and the permission each route requires (`x-required-permission`;
+  deciding a task also lets its assignee in, which the description says). Package endpoints are listed to `Extensions.Read`
+  holders only, like in the Help Center. Each group documents its own failures: the management API its error envelope,
+  the RPC its `RpcFailure` (`kind` is `domain`, `validation`, `denied`, `internal` or `suspend`), package endpoints
+  whatever their handler returns. The management routes are mounted, documented and permission-checked from one table in
+  `pkg/extruntime/runtime`, so they cannot drift apart.
+
+  The JSON Schemas state the wire rules the server applies. Three things a schema validator cannot say are written in
+  the schema's `description`: an `int` must be a bare integer (`1`, not `1.0` or `1e2`); a `decimal` has at most
+  `precision` significant digits (its `scale` is in the pattern); and a `datetime` is RFC 3339 with an uppercase `T`
+  and `Z`. An array without a declared item type accepts nothing.
 
 ### 9.2 Offline OpenAPI export (Granite's Swagger UI)
 

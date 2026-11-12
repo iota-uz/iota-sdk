@@ -803,9 +803,11 @@ export const publicCatalog = endpoint("acme.loyalty.publicCatalog", { method: "G
 })
 ```
 
-* `schedule(id, cron | { cron, timezone }, handler)`: a 5-field cron expression and an optional IANA time zone. `ctx.slot`
-  is the scheduled instant. A slot older than 15 minutes (after downtime) is skipped, not replayed.
-* `endpoint(id, { method, path, public }, handler)` is served at `/_ext/endpoints/<namespace>/<path>`; the handler gets the
+* `schedule(id, cron | { cron, timezone }, handler)`: a 5-field cron expression and an optional IANA time zone (publish
+  refuses a zone the platform does not know). `ctx.slot` is the scheduled instant. A slot older than 15 minutes (after downtime) is skipped, not replayed.
+* `endpoint(id, { method, path, public }, handler)` (`method` is `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` or
+  `OPTIONS`; `path` starts with `/` and has no spaces, control characters, backticks or backslashes — publish refuses
+  anything else) is served at `/_ext/endpoints/<namespace>/<path>`; the handler gets the
   command context plus `ctx.request` (`method path headers query body rawBody text()`) and returns
   `{ status, headers?, body? }`. `rawBody` is for signature checks. Response `headers` are an allowlist (content type,
   caching, `ETag`, `Content-Disposition`, a same-origin `Location` on a redirect, your own `X-` headers); `Set-Cookie`, CORS

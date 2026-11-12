@@ -806,15 +806,39 @@ allow-list another origin).
 * **One visibility rule** (`reference.Visible`, `EndpointVisible`, `FieldVisible`): `Extensions.Read` sees everything;
   otherwise a resource is shown if its `permission` is empty or held and, for an entity or overlay,
   `data.EntityReadable` (the same read-rule predicate the query builder compiles, `data.RuleGrantsRows`, including the base
-  of an overlay) lets the reader see rows. The reader is the session subject (`runtime.SubjectFromContext`).
-* **Surfaces.** `reference.NewSource` is the `helpdocs.Source` mounted at `extensions` (`guides/*` from the embedded
-  `docs/extensions` guides with links rewritten, `reference/index`, `reference/<namespace>`, `api`), contributed by
-  `runtime.NewComponent` with `composition.ContributeHelpSources`; `GET /_ext/manage/reference` serves the model as JSON
-  (configurator tab); the MCP tool `ext_reference` serves a namespace as markdown.
+  of an overlay) lets the reader see rows; a column is shown only with the overlay field it shows. A field the reader
+  cannot read is absent everywhere: the field list, the record's signature, schema and example, and the cross-references
+  derived from the entity. Package endpoints, schedules, subscriptions and the packages' guard lists (on a target as well
+  as per namespace) are shown to `Extensions.Read` readers only: endpoints are for integrators, and listing them would
+  reveal packages whose contracts the reader may not see. The reader is the session subject
+  (`runtime.SubjectFromContext`).
+* **Surfaces.** `reference.NewSource` is the `helpdocs.Source` mounted at `extensions`, contributed by
+  `runtime.NewComponent` with `composition.ContributeHelpSources`. `reference/index` and `reference/<namespace>` follow
+  the visibility rule; the developer documentation — `guides/*` (from the embedded `docs/extensions` guides with links
+  rewritten) and `api` — is shown to `Extensions.Read` readers only. A reader with nothing visible gets an empty tree,
+  so the mount disappears for them. The guides need no catalog and are served when it fails. The documents link
+  `/_ext/openapi.json` only where the build serves it (the API capability composed the controllers —
+  `SourceConfig.APIServed`); otherwise they omit the link and say the HTTP API is not served by this deployment.
+  `GET /_ext/manage/reference` serves the full model as JSON to the configurator tab and therefore requires
+  `Extensions.Read`; the MCP tool `ext_reference` serves a namespace as markdown, filtered per reader.
+* **Package text is data.** Every string a package declares is rendered through one escaping function (`reference.text`:
+  no HTML, no markdown syntax, no autolinks, one line) or a table-safe code span; at publish `manifest.Validate` refuses
+  values outside the closed domains the reference prints (endpoint method and path, schedule time zone, template
+  channels, guard phase, resource kind, key type).
+* **Schema parity.** `reference.TypeSchema` and `manifest.ValidateValue` agree on every wire rule the schema can state
+  (`TestSchemaAndServerAgreeOnWireRules`); the places where it cannot are stated in the schema's `description` and pinned
+  by `TestSchemaAndServerKnownDivergences`: an `int` written `1.0` or `1e2` (JSON Schema validates the parsed number), a
+  decimal over its `precision` (significant digits ignore leading zeros), and the RFC 3339 `format` being stricter than
+  Go for a comma fraction or a `+24:00` offset. An array type without an item type accepts nothing, as on the server.
 * **OpenAPI 3.1** (`pkg/extruntime/openapi`: builder, Go-type schema registry, validator). `GET /_ext/openapi.json`
   (`runtime.OpenAPI`) composes `reference.AddContracts` (the RPC as a `oneOf` per visible command/query discriminated by
   `resource`, value schemas per contract, endpoints as untyped operations) with, for `Extensions.Read` holders,
   `runtime.ManageOperations`. The management API is registered from the `routes` table in `runtime/api_routes.go`, the
-  same table the spec is generated from; `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's
-  document offline.
+  same table the spec is generated from, **and enforced from it**: a route's `perm` is checked in `API.wrap` before the
+  handler runs (a refusal is audited under the route's `audit` action with the fields the service would record), so the
+  table cannot say one thing and the handler do another. A route with an alternative way in (`/tasks/{id}/decide`: the
+  task's assignee, or `Extensions.Operate`) leaves the decision to the service and says so in the document. The service
+  keeps checking the same permission. Empty lists are encoded as `[]`. Each operation group documents its own default
+  error: the management envelope on `/_ext/manage`, `RpcFailure` on `/_ext/rpc`, none on package endpoints.
+  `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's document offline.
 
