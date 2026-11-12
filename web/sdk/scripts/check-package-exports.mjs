@@ -28,12 +28,15 @@ const expectedExports = [
 if (JSON.stringify(Object.keys(packageJSON.exports).sort()) !== JSON.stringify(expectedExports.sort())) {
   throw new Error(`unexpected public exports: ${Object.keys(packageJSON.exports).join(', ')}`)
 }
-// esbuild is the one runtime dependency: the shipped build worker and `iota-ext` require it at run time.
-if (JSON.stringify(Object.keys(packageJSON.dependencies ?? {})) !== JSON.stringify(['esbuild'])) {
-  throw new Error(`the public package must depend on esbuild and nothing else, got ${Object.keys(packageJSON.dependencies ?? {}).join(', ')}`)
+// The public package carries no dependencies (release contract, see
+// scripts/verify-frontend-artifacts.mjs). The build worker and `iota-ext` load
+// the native esbuild at run time, so it is an optional peer the host and
+// extension packages install themselves.
+if (Object.keys(packageJSON.dependencies ?? {}).length !== 0) {
+  throw new Error(`the public package must have no dependencies, got ${Object.keys(packageJSON.dependencies).join(', ')}`)
 }
-if (packageJSON.peerDependencies?.esbuild || packageJSON.peerDependenciesMeta?.esbuild) {
-  throw new Error('esbuild is a regular dependency, not a peer')
+if (!packageJSON.peerDependencies?.esbuild || packageJSON.peerDependenciesMeta?.esbuild?.optional !== true) {
+  throw new Error('esbuild must be an optional peer dependency')
 }
 if (packageJSON.peerDependencies?.react || packageJSON.peerDependencies?.['react-dom']) {
   throw new Error('React must not be a public runtime dependency')
