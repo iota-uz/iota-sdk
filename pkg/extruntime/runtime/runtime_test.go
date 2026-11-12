@@ -107,6 +107,14 @@ func TestComponentComposesTheRuntimeAndRunsAPackageEndToEnd(t *testing.T) {
 	t.Cleanup(func() { _ = rt.Close(context.Background()) })
 	ctx := context.Background()
 
+	// the runtime contributes its documentation to the Help Center
+	sources := f.Container.HelpSources()
+	mounts := make([]string, 0, len(sources))
+	for _, src := range sources {
+		mounts = append(mounts, src.Mount())
+	}
+	require.Equal(t, []string{"extensions"}, mounts)
+
 	var owner int64
 	require.NoError(t, f.Pool.QueryRow(ctx, `INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
 		VALUES ($1, 'user', 'Own', 'Er', $2, 'en') RETURNING id`, f.TenantID(), "owner-"+uuid.NewString()+"@example.com").Scan(&owner))

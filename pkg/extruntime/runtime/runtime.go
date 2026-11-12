@@ -34,6 +34,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/notify"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -177,6 +178,9 @@ type Runtime struct {
 	Notifier *notify.Notifier
 	// Subjects loads current rights; nil without a user repository.
 	Subjects *UserSubjects
+	// Reference is the live API reference over the catalog (Help Center,
+	// configurator, MCP and the OpenAPI document render it).
+	Reference *reference.Builder
 
 	db      *pgxpool.Pool
 	log     *slog.Logger
@@ -259,6 +263,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	rt.Natives = cfg.Natives
 	rt.NativeImpls = native.Bind(cfg.Natives, deps.NativeDeps)
 	rt.Catalog = catalog.New(deps.DB, catalog.Natives(cfg.Natives))
+	rt.Reference = reference.New(rt.Catalog)
 	entities := cfg.Natives.EntityRegistry()
 	mcfg := manage.Config{
 		DB: deps.DB, Builder: cfg.Builder, Kits: cfg.Kits, Artifacts: rt.Artifacts, Catalog: rt.Catalog,

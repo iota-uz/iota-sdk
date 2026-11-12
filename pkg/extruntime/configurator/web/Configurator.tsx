@@ -6,6 +6,7 @@ import { ConfigCtx, MSG_PREFIX, describeError, rightsOf, useConfig, type Ctx, ty
 import { AuditTab } from './AuditTab'
 import { EditorTab } from './EditorTab'
 import { createLoader } from './load'
+import { ReferenceTab } from './ReferenceTab'
 import { VersionsTab } from './VersionsTab'
 import { WorkflowsTab } from './WorkflowsTab'
 import type { PackageInfo } from './types'
@@ -17,7 +18,7 @@ export interface ScreenProps {
   typesBase: string
 }
 
-type Tab = 'editor' | 'versions' | 'workflows' | 'audit'
+type Tab = 'editor' | 'versions' | 'workflows' | 'reference' | 'audit'
 
 interface Notice { id: number; kind: NoticeKind; text: string }
 
@@ -117,7 +118,7 @@ const Shell: Component<{ basePath: string }> = (props) => {
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'editor', label: t('Editor') }, { id: 'versions', label: t('Versions') },
-    { id: 'workflows', label: t('Workflows') }, { id: 'audit', label: t('Audit') },
+    { id: 'workflows', label: t('Workflows') }, { id: 'reference', label: t('Reference') }, { id: 'audit', label: t('Audit') },
   ]
 
   return (
@@ -179,6 +180,7 @@ const Shell: Component<{ basePath: string }> = (props) => {
             </div>
             <Show when={tab() === 'versions'}><VersionsTab pkg={p} refreshKey={refresh()} onChanged={() => void packages.reload()} /></Show>
             <Show when={tab() === 'workflows'}><WorkflowsTab namespace={p.namespace} /></Show>
+            <Show when={tab() === 'reference'}><ReferenceTab current={p.namespace} /></Show>
             <Show when={tab() === 'audit'}><AuditTab namespace={p.namespace} refreshKey={refresh()} /></Show>
           </>
         )}</Show>

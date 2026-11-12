@@ -791,3 +791,30 @@ allow-list another origin).
   boots. Public-endpoint tenants resolve from a configured ID or `runtime.TenantByHost` (`tenants.domain`). MCP tools are
   registered only into an application-provided `*mcp.Registry` (`wiring.Options.MCPRegistry`): the SDK servers host no MCP
   gateway.
+
+### 9.5 Documentation as part of the product (as implemented)
+
+* **One model.** `pkg/extruntime/reference` builds the reference from the catalog (`catalog.Active()` manifests and
+  `Natives()`): per namespace the entities and overlays (fields, key type, read access), commands, operations, queries
+  (atomic, input, output, errors, permission), events, workflows (signals), notices, issues and domain errors, routes,
+  pages, navigation, slots, cells, columns, the shell, endpoints, schedules, subscriptions and the guards on each target,
+  with package and version. It carries no implementation source, template bodies, secrets or capability declarations. Wire
+  types render as JSON Schema 2020-12 with the exact rules of `manifest.ValidateValue` (`reference.TypeSchema`, with
+  `Example`; tests validate every example with both) — `int` is a safe integer, `int64` and `decimal` strings with
+  patterns, `ref` an `{entity, key}` pair, `object` closed with its non-optional properties required, `nullable` a type
+  union with null.
+* **One visibility rule** (`reference.Visible`, `EndpointVisible`, `FieldVisible`): `Extensions.Read` sees everything;
+  otherwise a resource is shown if its `permission` is empty or held and, for an entity or overlay,
+  `data.EntityReadable` (the same read-rule predicate the query builder compiles, `data.RuleGrantsRows`, including the base
+  of an overlay) lets the reader see rows. The reader is the session subject (`runtime.SubjectFromContext`).
+* **Surfaces.** `reference.NewSource` is the `helpdocs.Source` mounted at `extensions` (`guides/*` from the embedded
+  `docs/extensions` guides with links rewritten, `reference/index`, `reference/<namespace>`, `api`), contributed by
+  `runtime.NewComponent` with `composition.ContributeHelpSources`; `GET /_ext/manage/reference` serves the model as JSON
+  (configurator tab); the MCP tool `ext_reference` serves a namespace as markdown.
+* **OpenAPI 3.1** (`pkg/extruntime/openapi`: builder, Go-type schema registry, validator). `GET /_ext/openapi.json`
+  (`runtime.OpenAPI`) composes `reference.AddContracts` (the RPC as a `oneOf` per visible command/query discriminated by
+  `resource`, value schemas per contract, endpoints as untyped operations) with, for `Extensions.Read` holders,
+  `runtime.ManageOperations`. The management API is registered from the `routes` table in `runtime/api_routes.go`, the
+  same table the spec is generated from; `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's
+  document offline.
+

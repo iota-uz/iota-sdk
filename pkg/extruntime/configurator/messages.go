@@ -13,17 +13,19 @@ const messagePrefix = "Extensions.Configurator."
 // reads through the host's locale service. Every key exists in every locale
 // file of the core module.
 var MessageKeys = []string{
-	"Action", "Activate", "Active", "Actor", "Approve", "Approved", "ArtifactHash", "AssignOwner", "Audit",
-	"Bind", "Bindings", "Build", "Cancel", "Check", "Close", "Comment", "Commit", "Conflict", "ConflictText",
-	"Create", "Deactivate", "Decide", "Decision", "Delete", "DeleteConfirm", "Details", "Editor",
-	"EditorLoadFailed", "Export", "Files", "Filter", "Hashes", "History", "Import", "ImportGit", "KeepMine",
-	"KitHash", "Loading", "Namespace", "NewFile", "NewFilePath", "NewPackage", "NoAudit", "NoPackages",
-	"NoProblems", "NoVersions", "NoWorkflows", "NotApproved", "Occurrences", "Outcome", "Output", "Owners",
-	"Packages", "Payload", "Problems", "Publish", "ReadOnly", "Refresh", "Reject", "Remove", "Rename", "RepoURL",
-	"Resolve", "Resume", "Retry", "RetryStep", "Save", "SaveAll", "SelectFile", "SelectPackage", "Signal",
-	"SignalName", "Signals", "SlotKind", "SourceHash", "StaleProblems", "StartV2", "Started", "Status", "Subdir",
-	"TakeTheirs", "TargetID", "Tasks", "Terminate", "Test", "TestsFailed", "TestsPassed", "Title", "TriggerID",
-	"TypesLoadFailed", "Unbind", "Unsaved", "UserID", "Version", "Versions", "Workflow", "Workflows", "Working",
+	"Action", "Activate", "Active", "Actor", "Approve", "Approved", "ArtifactHash", "AssignOwner", "Atomic",
+	"Audit", "Bind", "Bindings", "Build", "Cancel", "Check", "Close", "Comment", "Commit", "Conflict",
+	"ConflictText", "Create", "Current", "Deactivate", "Decide", "Decision", "Delete", "DeleteConfirm",
+	"Details", "Editor", "EditorLoadFailed", "Endpoints", "Example", "Export", "Fields", "Files", "Filter",
+	"Hashes", "History", "Import", "ImportGit", "KeepMine", "KitHash", "Loading", "Namespace", "Native",
+	"NewFile", "NewFilePath", "NewPackage", "NoAudit", "NoPackages", "NoProblems", "NoReference", "NoVersions",
+	"NoWorkflows", "NotApproved", "Occurrences", "OpenInHelpCenter", "Outcome", "Output", "Owners", "Packages",
+	"Payload", "Permission", "Problems", "Publish", "ReadOnly", "Reference", "Refresh", "Reject", "Remove",
+	"Rename", "RepoURL", "Resolve", "Resume", "Retry", "RetryStep", "Save", "SaveAll", "Schema", "SelectFile",
+	"SelectPackage", "Signal", "SignalName", "Signals", "SlotKind", "SourceHash", "StaleProblems", "StartV2",
+	"Started", "Status", "Subdir", "TakeTheirs", "TargetID", "Tasks", "Terminate", "Test", "TestsFailed",
+	"TestsPassed", "Title", "TriggerID", "TypesLoadFailed", "Unbind", "Unsaved", "UserID", "Version",
+	"Versions", "Workflow", "Workflows", "Working",
 }
 
 // Messages resolves the screen's strings for the request locale. A key that

@@ -341,7 +341,7 @@ owner gets *blocked* runs, not a failed activation. Blocked or deleted owners bl
 
 The management service is available as MCP tools (`ext_package_*`, `ext_check|build|test`, `ext_publish`, `ext_review`,
 `ext_activate`, `ext_bind`, `ext_owner_*`, `ext_workflow_*`, `ext_subscription_requeue`, `ext_invoke`, the kit and catalog
-tools, ...). The SDK registers them into the application's shared `pkg/mcp` registry; **the SDK servers have none**, because
+tools, `ext_reference`, ...). The SDK registers them into the application's shared `pkg/mcp` registry; **the SDK servers have none**, because
 the MCP protocol adapter (`mcpgateway`) is a separate Go module an application composes itself:
 
 ```go
@@ -365,10 +365,15 @@ subject from it, so the audit row names the user as actor and `mcp:<client>` as 
 manage extensions. A separate public MCP (for example a read-only analytics assistant) is simply another registry/engine;
 it does not need these tools.
 
+`ext_reference` is the one read tool that does not ask for `Extensions.Read`: it needs the `extensions:read` scope and a signed-in
+user, and returns the live API reference of a namespace as markdown (the text the Help Center shows), filtered to what that
+user's permissions allow (§9.1). Omit the namespace for the overview.
+
 ## 8. The configurator and its client bundle
 
 `EXTRUNTIME_CONFIGURATOR_ENABLED=true` mounts `/extensions` (Monaco editor, versions, review/activation, bindings,
-workflows). The page is a Solid screen of **the application's** client host, not a second host, so the application's frontend
+workflows, and a **Reference** tab with the live API reference of everything installed, a namespace picker, the selected
+package's namespace highlighted and an "Open in Help Center" link; §9.1). The page is a Solid screen of **the application's** client host, not a second host, so the application's frontend
 build must include it:
 
 1. **The host bundle and its manifest.** The frontend build (Vite) bundles the runtime host entry
@@ -415,6 +420,58 @@ Authors then run `iota-ext kit generate --catalog app-natives.json` (a snapshot 
 passed alone) or `iota-ext kit pull --server <url>` for the live kit including the active packages' contracts. Commit the
 snapshot and regenerate it in CI whenever natives change; export names are derived from IDs, so an added native can lengthen
 an existing name when two IDs collide.
+
+### 9.1 The live reference and the OpenAPI document
+
+The documentation of the platform is part of the application, generated from what is installed right now (the natives of
+the application and the manifests of the activated package versions) and filtered per reader. Nothing is a separate
+website. It never contains implementation source, template bodies, secrets or the capability declarations of a package.
+
+* **Help Center.** Whenever the runtime is enabled it contributes a documentation source mounted at `extensions`
+  (`composition.ContributeHelpSources`; the Help Center component renders it). Under *Extensions*: **Guides** (the author's
+  manual and this guide, bundled into the binary; links between them stay inside the Help Center, links to repository files
+  point at the release tag of the SDK build on GitHub), **Reference** (an overview and one document per namespace: entities
+  and overlays with fields, key type and read access, commands, operations and queries with input, output, errors and
+  permission, events, workflows and their signals, notices, issues and domain errors, routes, pages, slots, cells, columns,
+  the shell, endpoints, schedules, subscriptions and the guards on each target, each with its package and version, JSON
+  Schemas and examples) and **HTTP API**. Documents are available as `/help/doc/extensions/...`.
+* **Who sees what.** A user holding `Extensions.Read` sees everything. Any other signed-in user sees the resources whose
+  permission is empty or held; an entity or overlay only if the data layer would let them read its rows (an overlay also
+  needs its base entity, and fields that need permissions the user lacks are left out); an endpoint if it is public or the
+  user is signed in (it runs as them); schedules, subscriptions and the packages' guard lists stay with `Extensions.Read`.
+  A namespace with nothing left is not listed, and its page answers 404.
+* **`GET /_ext/manage/reference`** returns the same model as JSON, for the configurator's Reference tab (a session is enough;
+  the answer is filtered the same way). The MCP tool `ext_reference` returns it as markdown.
+* **`GET /_ext/openapi.json`** is an OpenAPI 3.1 document of the HTTP interface for the signed-in user (session cookie;
+  `Cache-Control: no-store`): `POST /_ext/rpc` as one request variant per visible command and query, discriminated by
+  `resource` and carrying the input JSON Schema, with the value schema of each contract in the response envelope (it is a
+  same-origin browser transport, not an integration API); the package endpoints under `/_ext/endpoints/...` with their method
+  and security (a public endpoint has none; the others need the session cookie) — endpoint specs declare no body schema, so
+  their bodies are documented as untyped; and, for `Extensions.Read` holders only, the management API under `/_ext/manage`
+  with request and response schemas, the error envelope and the permission each route requires (`x-required-permission`).
+  The management routes are mounted and documented from one table in `pkg/extruntime/runtime`, so they cannot drift apart.
+
+### 9.2 Offline OpenAPI export (Granite's Swagger UI)
+
+A Swagger UI that cannot reach a running server (or an API portal built at release time) needs the document as a file:
+
+```sh
+go run ./cmd/extruntime-catalog -openapi api.json        # the SDK natives; -check fails when the file is stale
+```
+
+renders the HTTP interface of the SDK's native catalog (the browser RPC for the native commands and queries, and the
+management API) as a validated OpenAPI 3.1 file. An application with natives of its own renders its set the same way:
+
+```go
+set, _ := native.Compose(append(modules.Natives(), app.Natives)...)
+model, _ := reference.New(reference.Natives(catalog.Natives(set))).FullModel(ctx, "en")
+doc, _ := runtime.BuildOpenAPI(model, "sid") // "sid" is the session cookie name
+os.WriteFile("api.json", doc, 0o644)
+```
+
+Serve `api.json` to Swagger UI as a static file. Against a running application, point Swagger UI at
+`/_ext/openapi.json` of the same origin: the session cookie authorizes it, and it then shows the activated packages as
+well. "Try it out" works for same-origin pages only (the RPC and the management API refuse cross-site requests).
 
 ## 10. Checklist: Granite (EAI-UZ/granite#3780, "Целевой API платформы расширений")
 

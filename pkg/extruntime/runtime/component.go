@@ -19,8 +19,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
+	"github.com/iota-uz/iota-sdk/pkg/helpdocs"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
@@ -121,9 +123,26 @@ func (c *component) Build(builder *composition.Builder) error {
 	// Every Go entry of a native contract dispatches through the host.
 	composition.ProvideFuncAs[native.Dispatcher](builder, func(rt *Runtime) *HostDispatcher { return rt.CommandDispatcher() })
 	composition.ProvideFuncAs[spi.Catalog](builder, func(rt *Runtime) *catalog.Catalog { return rt.Catalog })
+	// The live reference and the SDK guides join the Help Center whenever the
+	// runtime is enabled; what a reader sees is decided per request.
+	composition.ContributeHelpSources(builder, func(container *composition.Container) ([]helpdocs.Source, error) {
+		rt, err := composition.Resolve[*Runtime](container)
+		if err != nil {
+			return nil, err
+		}
+		src, err := reference.NewSource(reference.SourceConfig{
+			Builder: rt.Reference, Subject: SubjectFromContext, ManageRoutes: ManageRoutes(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return []helpdocs.Source{src}, nil
+	})
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {
-			return []application.Controller{NewController(NewAPI(rt.Manage, requestSubject, rt.log).WithOriginGuard(rt.origins))}
+			api := NewAPI(rt.Manage, requestSubject, rt.log).WithOriginGuard(rt.origins).WithReference(rt.Reference)
+			openapi := NewOpenAPI(rt.Reference, requestSubject, func(msg string, err error) { rt.log.Error(msg, "error", err) })
+			return []application.Controller{NewController(api), openapi}
 		})
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) ([]application.Controller, error) {
 			h, err := rt.EndpointHandler()

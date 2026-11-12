@@ -45,3 +45,15 @@
 .iota-cfg-problem.stale { opacity: .55; }
 .iota-cfg-problem:hover { background: var(--cfg-panel); }
 .iota-cfg-badge { border: 1px solid var(--cfg-border); border-radius: 999px; padding: 0 8px; font-size: 12px; }
+.iota-cfg-link { color: var(--cfg-accent); text-decoration: underline; }
+.iota-cfg-reference { display: grid; grid-template-columns: 220px 1fr; gap: 12px; margin-top: 8px; }
+@media (max-width: 900px) { .iota-cfg-reference { grid-template-columns: 1fr; } }
+.iota-cfg-reference-nav ul { list-style: none; margin: 0; padding: 0; }
+.iota-cfg-reference-nav li > button { width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 8px; }
+.iota-cfg-reference-nav li.selected > button { background: var(--cfg-panel); font-weight: 600; }
+.iota-cfg-reference-nav li.current > button { border-left: 3px solid var(--cfg-accent); }
+.iota-cfg-reference-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.iota-cfg-reference-body h4 { margin: 8px 0 4px; }
+.iota-cfg-reference-item { border: 1px solid var(--cfg-border); border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; }
+.iota-cfg-reference-item > summary { cursor: pointer; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.iota-cfg-reference-type pre { margin: 4px 0; padding: 6px; background: var(--cfg-panel); border-radius: 6px; overflow: auto; max-height: 280px; }
