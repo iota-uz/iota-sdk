@@ -30,6 +30,10 @@ type SourceConfig struct {
 	// ManageRoutes lists the management API for readers who hold
 	// Extensions.Read (the API document shows it to them only).
 	ManageRoutes []APIRoute
+	// APIServed says whether this deployment serves the HTTP API (the OpenAPI
+	// document, the management API and the package endpoints). When false,
+	// the documents link no OpenAPI document and say so.
+	APIServed bool
 	// Guides overrides the embedded SDK guides (tests).
 	Guides fs.FS
 	// Ref is the git ref repository links point at. Default: SourceRef().
@@ -48,9 +52,9 @@ type guide struct {
 	markdown []byte
 }
 
-// NewSource returns the helpdocs.Source mounted at "extensions": the SDK
-// guides, the live reference (one document per namespace the reader may see)
-// and the HTTP API document.
+// NewSource returns the helpdocs.Source mounted at "extensions": the live
+// reference (one document per namespace the reader may see) and, for readers
+// holding Extensions.Read, the SDK guides and the HTTP API document.
 func NewSource(cfg SourceConfig) (helpdocs.Source, error) {
 	const op = serrors.Op("extruntime.reference.NewSource")
 	if cfg.Builder == nil || cfg.Subject == nil {
@@ -79,29 +83,47 @@ func (s *source) Mount() string       { return Mount }
 func (s *source) Title(string) string { return "Extensions" }
 func (s *source) Order() int          { return 200 }
 
-// reader returns the model the request's reader sees, or ok=false when there
-// is no reader (nothing is shown to an unidentified request).
-func (s *source) reader(ctx context.Context, locale string) (*Model, bool, error) {
+// subject returns the reader of the request, or ok=false when there is none
+// (nothing is shown to an unidentified request).
+func (s *source) subject(ctx context.Context) (spi.Subject, bool) {
 	sub, err := s.cfg.Subject(ctx)
 	if err != nil {
-		return nil, false, nil //nolint:nilerr // no reader: the mount is simply empty
+		return spi.Subject{}, false
 	}
-	m, err := s.cfg.Builder.Model(ctx, sub, locale)
-	if err != nil {
-		return nil, false, err
-	}
-	return m, true, nil
+	return sub, true
 }
 
-// Tree implements helpdocs.Source.
+// model returns the model sub sees.
+func (s *source) model(ctx context.Context, sub spi.Subject, locale string) (*Model, error) {
+	return s.cfg.Builder.Model(ctx, sub, locale)
+}
+
+// api is how the overview refers to the HTTP API for a reader.
+func (s *source) api(sub spi.Subject) APIAccess {
+	switch {
+	case !CanReadAll(sub):
+		return APIHidden
+	case s.cfg.APIServed:
+		return APIServed
+	}
+	return APIUnavailable
+}
+
+// Tree implements helpdocs.Source. The guides and the HTTP API document are
+// developer documentation: only readers holding Extensions.Read get them. Any
+// other reader gets the reference of what they may use, and nothing at all —
+// the mount disappears — when that is nothing.
 func (s *source) Tree(ctx context.Context, locale string) ([]helpdocs.Node, error) {
-	m, ok, err := s.reader(ctx, locale)
-	if err != nil || !ok {
+	sub, ok := s.subject(ctx)
+	if !ok {
+		return nil, nil
+	}
+	m, err := s.model(ctx, sub, locale)
+	if err != nil {
 		return nil, err
 	}
-	guides := helpdocs.Node{Title: "Guides", Path: GuidesPath, Order: 10}
-	for i, g := range s.guides {
-		guides.Children = append(guides.Children, helpdocs.Node{Title: g.title, Path: g.path, Order: i})
+	if !m.Full && len(m.Namespaces) == 0 {
+		return nil, nil
 	}
 	ref := helpdocs.Node{Title: "Reference", Path: ReferencePath, Order: 20, Children: []helpdocs.Node{
 		{Title: "Overview", Path: IndexPath, Order: 0},
@@ -109,31 +131,58 @@ func (s *source) Tree(ctx context.Context, locale string) ([]helpdocs.Node, erro
 	for i, ns := range m.Namespaces {
 		ref.Children = append(ref.Children, helpdocs.Node{Title: ns.Name, Path: NamespacePath(ns.Name), Order: i + 1})
 	}
+	if !m.Full {
+		return []helpdocs.Node{ref}, nil
+	}
+	guides := helpdocs.Node{Title: "Guides", Path: GuidesPath, Order: 10}
+	for i, g := range s.guides {
+		guides.Children = append(guides.Children, helpdocs.Node{Title: g.title, Path: g.path, Order: i})
+	}
 	return []helpdocs.Node{guides, ref, {Title: "HTTP API", Path: APIPath, Order: 30}}, nil
 }
 
 // Get implements helpdocs.Source.
 func (s *source) Get(ctx context.Context, locale, docPath string) (helpdocs.Document, error) {
 	docPath = strings.Trim(docPath, "/")
-	m, ok, err := s.reader(ctx, locale)
-	if err != nil {
-		return helpdocs.Document{}, err
-	}
+	sub, ok := s.subject(ctx)
 	if !ok {
 		return helpdocs.Document{}, helpdocs.ErrNotFound
 	}
 	doc := helpdocs.Document{Path: docPath, Audience: Audience}
-	switch {
-	case docPath == IndexPath:
-		doc.Title, doc.Markdown = "Extension reference", RenderIndex(m, true)
-	case docPath == APIPath:
-		doc.Title = "HTTP API"
-		var routes []APIRoute
-		if m.Full {
-			routes = s.cfg.ManageRoutes
+	// The guides are static: they need no catalog, so a catalog failure does
+	// not take them down.
+	for _, g := range s.guides {
+		if g.path == docPath {
+			if !CanReadAll(sub) {
+				return helpdocs.Document{}, helpdocs.ErrNotFound
+			}
+			doc.Title, doc.Markdown = g.title, g.markdown
+			return doc, nil
 		}
-		doc.Markdown = RenderAPI(m, routes)
-	case strings.HasPrefix(docPath, ReferencePath+"/"):
+	}
+	switch {
+	case docPath == APIPath:
+		if !CanReadAll(sub) {
+			return helpdocs.Document{}, helpdocs.ErrNotFound
+		}
+		m, err := s.model(ctx, sub, locale)
+		if err != nil {
+			return helpdocs.Document{}, err
+		}
+		doc.Title = "HTTP API"
+		doc.Markdown = RenderAPI(m, s.cfg.ManageRoutes, s.cfg.APIServed)
+	case docPath == IndexPath || strings.HasPrefix(docPath, ReferencePath+"/"):
+		m, err := s.model(ctx, sub, locale)
+		if err != nil {
+			return helpdocs.Document{}, err
+		}
+		if !m.Full && len(m.Namespaces) == 0 {
+			return helpdocs.Document{}, helpdocs.ErrNotFound
+		}
+		if docPath == IndexPath {
+			doc.Title, doc.Markdown = "Extension reference", RenderIndex(m, s.api(sub))
+			return doc, nil
+		}
 		name := strings.TrimPrefix(docPath, ReferencePath+"/")
 		body, found := RenderNamespace(m, name)
 		if !found {
@@ -141,12 +190,6 @@ func (s *source) Get(ctx context.Context, locale, docPath string) (helpdocs.Docu
 		}
 		doc.Title, doc.Markdown = name, body
 	default:
-		for _, g := range s.guides {
-			if g.path == docPath {
-				doc.Title, doc.Markdown = g.title, g.markdown
-				return doc, nil
-			}
-		}
 		return helpdocs.Document{}, helpdocs.ErrNotFound
 	}
 	return doc, nil

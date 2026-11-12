@@ -25,7 +25,8 @@ type Lookup func(id string) (manifest.Resource, bool)
 //     rule the host applies to every call of the resource);
 //   - an entity or overlay is shown only if the reader may read its rows: the
 //     rule the data layer applies to queries (data.EntityReadable), including
-//     the base of an overlay.
+//     the base of an overlay;
+//   - a column is shown only if the reader may read the overlay field it shows.
 //
 // Everything else the reference shows is derived from visible resources
 // (see EndpointVisible for endpoints).
@@ -39,6 +40,13 @@ func Visible(sub spi.Subject, r manifest.Resource, lookup Lookup) bool {
 	if r.Kind == manifest.ResEntity || r.Kind == manifest.ResOverlay {
 		return data.EntityReadable(sub, r, lookup)
 	}
+	// A column shows one field of an overlay: a reader who cannot read the
+	// field has no column for it, and the column would name the field.
+	if r.Kind == manifest.ResColumn && r.Overlay != "" && r.Field != "" {
+		if overlay, ok := lookup(r.Overlay); ok && !data.FieldReadable(sub, overlay.Access, r.Field) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -49,9 +57,10 @@ func FieldVisible(sub spi.Subject, r manifest.Resource, fieldID string) bool {
 	return CanReadAll(sub) || data.FieldReadable(sub, r.Access, fieldID)
 }
 
-// EndpointVisible reports whether an endpoint is shown: a public endpoint is
-// open to anyone, any other runs as the signed-in user, so every signed-in
-// reader could call it; Extensions.Read sees all.
-func EndpointVisible(sub spi.Subject, e EndpointDoc) bool {
-	return CanReadAll(sub) || e.Public || sub.UserID != 0
+// EndpointVisible reports whether a package endpoint is shown: only to a
+// holder of Extensions.Read. Endpoints are for integrators, not for ordinary
+// users, and listing them would also reveal which packages are installed
+// whose contracts the reader may not see.
+func EndpointVisible(sub spi.Subject, _ EndpointDoc) bool {
+	return CanReadAll(sub)
 }

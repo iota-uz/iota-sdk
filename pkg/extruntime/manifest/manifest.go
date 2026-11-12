@@ -11,6 +11,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
+	// The time zone database travels with the binary, so a schedule's zone
+	// means the same on every host that validates or runs it.
+	_ "time/tzdata"
 )
 
 const SchemaVersion = "iota.manifest/1"
@@ -342,6 +346,44 @@ var (
 	idPattern        = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-zA-Z0-9_]*)+$`)
 )
 
+// ResourceKinds are the resource kinds a manifest may declare.
+var ResourceKinds = []ResourceKind{
+	ResEntity, ResOverlay, ResQuery, ResCommand, ResOperation, ResEvent, ResWorkflow, ResNotice, ResRoute,
+	ResPermission, ResIssue, ResDomainError, ResColumn, ResPage, ResNavigation, ResSlot, ResCell, ResShell,
+	ResContactResolver, ResDeliveryPolicy,
+}
+
+// KnownResourceKind reports whether k is a resource kind a manifest may declare.
+func KnownResourceKind(k ResourceKind) bool {
+	for _, known := range ResourceKinds {
+		if k == known {
+			return true
+		}
+	}
+	return false
+}
+
+// GuardPhases are the phases a guard may run in.
+var GuardPhases = []GuardPhase{GuardInput, GuardOperation, GuardWrite}
+
+// TemplateChannels are the notification channels a template may be shipped
+// for (the names the notification adapter resolves).
+var TemplateChannels = []string{"email", "sms", "push", "inApp"}
+
+// EndpointMethods are the HTTP methods an endpoint may answer.
+var EndpointMethods = []string{"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+
+var keyTypes = []string{"", "int64", "uuid", "string"}
+
+func oneOf[T comparable](v T, set []T) bool {
+	for _, x := range set {
+		if v == x {
+			return true
+		}
+	}
+	return false
+}
+
 // Find returns the resource with id.
 func (m *Manifest) Find(id string) (Resource, bool) {
 	for _, r := range m.Resources {
@@ -373,6 +415,12 @@ func (m *Manifest) Validate() error {
 			return fmt.Errorf("manifest: resource %q declared twice", r.ID)
 		}
 		seen[r.ID] = true
+		if !KnownResourceKind(r.Kind) {
+			return fmt.Errorf("manifest: resource %q has unknown kind %q", r.ID, r.Kind)
+		}
+		if !oneOf(r.KeyType, keyTypes) {
+			return fmt.Errorf("manifest: resource %q has unknown key type %q", r.ID, r.KeyType)
+		}
 		if r.Kind == ResEntity || r.Kind == ResOverlay {
 			fields := map[string]bool{}
 			for _, f := range r.Fields {
@@ -383,12 +431,53 @@ func (m *Manifest) Validate() error {
 			}
 		}
 	}
+	if err := m.validateTriggers(); err != nil {
+		return err
+	}
 	exports := map[string]bool{}
 	for _, i := range m.Implementations {
 		if exports[i.Export] {
 			return fmt.Errorf("manifest: export %q implements twice", i.Export)
 		}
 		exports[i.Export] = true
+	}
+	return nil
+}
+
+// validateTriggers checks the closed domains of the declarations the
+// reference and the runtime act on: an unknown value is refused at publish
+// instead of failing later or being rendered as is.
+func (m *Manifest) validateTriggers() error {
+	for _, e := range m.Endpoints {
+		if !oneOf(strings.ToUpper(e.Method), EndpointMethods) {
+			return fmt.Errorf("manifest: endpoint %q has unsupported method %q (one of %s)", e.ID, e.Method, strings.Join(EndpointMethods, ", "))
+		}
+		if !strings.HasPrefix(e.Path, "/") || strings.ContainsFunc(e.Path, func(r rune) bool { return r <= ' ' || r == 0x7f || r == '`' || r == '\\' }) {
+			return fmt.Errorf("manifest: endpoint %q has an invalid path %q (it starts with / and has no spaces, control characters, backticks or backslashes)", e.ID, e.Path)
+		}
+	}
+	for _, s := range m.Schedules {
+		if s.Timezone == "" {
+			continue
+		}
+		if _, err := time.LoadLocation(s.Timezone); err != nil {
+			return fmt.Errorf("manifest: schedule %q has an unknown time zone %q", s.ID, s.Timezone)
+		}
+	}
+	for _, t := range m.Templates {
+		if len(t.Channels) == 0 {
+			return fmt.Errorf("manifest: templates of notice %q name no channel", t.Notice)
+		}
+		for _, c := range t.Channels {
+			if !oneOf(c, TemplateChannels) {
+				return fmt.Errorf("manifest: templates of notice %q use unknown channel %q (one of %s)", t.Notice, c, strings.Join(TemplateChannels, ", "))
+			}
+		}
+	}
+	for _, g := range m.Guards {
+		if !oneOf(g.Phase, GuardPhases) {
+			return fmt.Errorf("manifest: guard %q has unknown phase %q", g.ID, g.Phase)
+		}
 	}
 	return nil
 }

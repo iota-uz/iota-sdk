@@ -30,6 +30,17 @@ func TestScenario20ReferenceInTheHelpCenter(t *testing.T) {
 	require.Equal(t, http.StatusOK, index.Status, index.String())
 	require.Contains(t, index.String(), refPath, "sidebar links the package reference")
 
+	// The guides and the HTTP API document are developer documentation: a
+	// reader without Extensions.Read is not shown them, neither in the sidebar
+	// nor by address.
+	guidePath, apiPath := "/help/doc/extensions/guides/authoring", "/help/doc/extensions/api"
+	require.Equal(t, http.StatusOK, e.get(admin, apiPath).Status)
+	for name, who := range map[string]*actor{"a writer": member, "a reader without rights": nobody} {
+		require.Equal(t, http.StatusNotFound, e.get(who, guidePath).Status, "guides are hidden from %s", name)
+		require.Equal(t, http.StatusNotFound, e.get(who, "/help/doc/extensions/guides/consumer").Status, name)
+		require.Equal(t, http.StatusNotFound, e.get(who, apiPath).Status, "the HTTP API document is hidden from %s", name)
+	}
+
 	// An administrator of extensions sees every contract of the package.
 	full := e.get(admin, refPath)
 	require.Equal(t, http.StatusOK, full.Status, full.String())
@@ -46,6 +57,10 @@ func TestScenario20ReferenceInTheHelpCenter(t *testing.T) {
 	require.Equal(t, http.StatusOK, plain.Status, plain.String())
 	require.Contains(t, plain.String(), "e2e.notes.listNotes")
 	require.NotContains(t, plain.String(), "e2e.notes.addNote", "a command the reader may not run is not documented to them")
+	require.NotContains(t, writer.String(), guidePath, "the writer's sidebar lists the reference only")
+	require.NotContains(t, plain.String(), guidePath)
+	require.Contains(t, full.String(), guidePath, "the administrator's sidebar lists the guides")
+	require.NotContains(t, plain.String(), "/_ext/openapi.json", "the overview does not point a reader at documents they cannot open")
 
 	// The OpenAPI document is filtered the same way and carries the contract's input schema.
 	type openAPI struct {
@@ -71,4 +86,38 @@ func TestScenario20ReferenceInTheHelpCenter(t *testing.T) {
 	for path := range plainDoc.Paths {
 		require.False(t, strings.HasPrefix(path, "/_ext/manage/"), "management API hidden from %s", path)
 	}
+}
+
+// A field the reader may not read is absent from the whole reference: the
+// field list, the record's signature, schema and example, and the OpenAPI and
+// management documents.
+func TestScenario20HiddenFieldsAreAbsentFromTheReference(t *testing.T) {
+	e := newEnv(t, withHelpCenter())
+	const ns = "e2e.clientextra"
+	admin := e.admin
+	e.deploy(admin, ns, "1.0.0", loadTree(t, "clientextra"))
+	refPath := "/help/doc/extensions/reference/" + ns
+
+	// The overlay is visible to whoever may see crm.client; its internal note
+	// needs one more permission.
+	plain := e.newActor("client-reader", "Client.Read")
+	auditor := e.newActor("auditor", "Client.Read", permViewIntern)
+
+	seen := e.get(plain, refPath)
+	require.Equal(t, http.StatusOK, seen.Status, seen.String())
+	require.Contains(t, seen.String(), "tier", "the overlay's open field is documented")
+	require.NotContains(t, seen.String(), "internalNote", "a hidden field is absent from the reader's reference, columns included")
+
+	both := e.get(auditor, refPath)
+	require.Equal(t, http.StatusOK, both.Status, both.String())
+	require.Contains(t, both.String(), "internalNote", "with the permission the field is documented")
+	require.Contains(t, e.get(admin, refPath).String(), "internalNote")
+
+	// The configurator's model (Extensions.Read only) is the full one.
+	ref := e.get(plain, "/_ext/manage/reference")
+	require.Equal(t, http.StatusForbidden, ref.Status, "the configurator's reference needs Extensions.Read")
+	require.NotContains(t, ref.String(), "internalNote")
+	full := e.get(admin, "/_ext/manage/reference")
+	require.Equal(t, http.StatusOK, full.Status, full.String())
+	require.Contains(t, full.String(), "internalNote")
 }

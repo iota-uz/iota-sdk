@@ -154,7 +154,12 @@ func (c *HelpCenterController) search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	props := help.SearchResultsProps{BasePath: c.basePath, Query: q, Available: c.searchAvailable()}
 	if props.Available && q != "" {
-		tree, _ := c.contentService.Tree(r.Context())
+		tree, err := c.contentService.Tree(r.Context())
+		if err != nil {
+			// The documents of the sources are listed from the tree; without it
+			// the search still answers from the file index.
+			logrus.WithError(serrors.Wrap("HelpCenterController.search", err)).Warn("help center search ran without the documentation sources")
+		}
 		props.Results = c.sourceHits(tree, q)
 		if c.indexAvailable() {
 			results, err := c.searcher.Search(r.Context(), q, kb.SearchOptions{TopK: c.searchFetchLimit()})

@@ -206,8 +206,9 @@ export interface ActivationResult {
 }
 
 // The live API reference (GET /_ext/manage/reference; Go: reference.Model).
-// The reader sees what their permissions allow: Extensions.Read holders see
-// everything the catalog holds.
+// The route needs Extensions.Read, so the configurator always gets the full
+// model: everything the catalog holds. The Help Center and the MCP tools serve
+// the model filtered to the reader's permissions.
 
 export interface ReferenceTypeDoc {
   /** Compact signature, for example `{ id: uuid, note?: string(255) }`. */

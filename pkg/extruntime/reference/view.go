@@ -38,8 +38,12 @@ func (f *full) view(sub spi.Subject, locale string) *Model {
 			out.Schedules, out.Subscriptions, out.Guards = ns.Schedules, ns.Subscriptions, ns.Guards
 		}
 		if !all {
+			// Who subscribes to an event and which guards run on a target
+			// belong to other packages' operations: only Extensions.Read
+			// readers see them.
 			for i := range out.Items {
 				out.Items[i].Subscribers = nil
+				out.Items[i].Guards = nil
 			}
 		}
 		if len(out.Items) == 0 && len(out.Endpoints) == 0 && len(out.Schedules) == 0 && len(out.Subscriptions) == 0 {
@@ -56,20 +60,38 @@ func (f *full) viewAll(locale string) *Model {
 }
 
 // localize resolves the labels of an item in locale and drops the fields the
-// reader cannot read.
+// reader cannot read: from the field list, from the record (signature, schema
+// and example) and from the resource the rest of the reference derives from.
 func localize(it Item, sub spi.Subject, locale string) Item {
 	it.Label = pickLabel(it.labels, locale)
 	r := it.res
 	if len(it.Fields) > 0 {
 		fields := make([]FieldDoc, 0, len(it.Fields))
+		visible := make([]manifest.Field, 0, len(r.Fields))
 		for i, fd := range it.Fields {
 			if i >= len(r.Fields) || !FieldVisible(sub, r, fd.ID) {
 				continue
 			}
 			fd.Label = pickLabel(r.Fields[i].Label, locale)
 			fields = append(fields, fd)
+			visible = append(visible, r.Fields[i])
 		}
 		it.Fields = fields
+		if len(visible) != len(r.Fields) {
+			r.Fields = visible
+			if r.Access != nil {
+				access := *r.Access
+				access.Fields = map[string][]string{}
+				for _, f := range visible {
+					if perms, ok := r.Access.Fields[f.ID]; ok {
+						access.Fields[f.ID] = perms
+					}
+				}
+				r.Access = &access
+			}
+			it.res = r
+			it.Record = recordDoc(visible, it.refKey)
+		}
 	}
 	if it.Nav != nil && r.Nav != nil {
 		nav := *it.Nav

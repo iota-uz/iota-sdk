@@ -71,7 +71,13 @@ func NewAPI(svc *manage.Service, subject SubjectFunc, log *slog.Logger) *API {
 
 type handler func(w http.ResponseWriter, r *http.Request, actor spi.Subject) (status int, body any, err error)
 
-func (a *API) wrap(h handler) http.HandlerFunc {
+// wrap serves one route: it checks the origin, identifies the actor, enforces
+// the permission the route declares and only then runs the handler. The
+// permission comes from the routes table, so what the table (and with it the
+// OpenAPI document) says is what the API enforces. A refusal is audited the
+// way the service audits its own.
+func (a *API) wrap(rt route, h handler) http.HandlerFunc {
+	perm := rt.permission()
 	return func(w http.ResponseWriter, r *http.Request) {
 		// The session cookie rides along on a request any site makes: a
 		// state-changing call must come from this origin (or a trusted one).
@@ -85,6 +91,12 @@ func (a *API) wrap(h handler) http.HandlerFunc {
 		actor, err := a.subject(r)
 		if err != nil {
 			a.fail(w, err)
+			return
+		}
+		// A route with an alternative way in (the assignee of a task) leaves the
+		// decision to the service, which knows the alternative.
+		if perm != "" && rt.alt == "" && !actor.Has(perm) {
+			a.fail(w, a.svc.Deny(r.Context(), actor, perm, rt.denied(w, r)))
 			return
 		}
 		status, body, err := h(w, r, actor)
@@ -107,8 +119,22 @@ func (a *API) wrap(h handler) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
-		_ = json.NewEncoder(w).Encode(body)
+		_ = json.NewEncoder(w).Encode(withEmptySlices(body))
 	}
+}
+
+// deniedTarget names what a refused request was after, for the audit row: the
+// first of the path variables that identify a target.
+func deniedTarget(r *http.Request) string {
+	if slot := vars(r, "slot"); slot != "" {
+		return slot + ":" + vars(r, "target")
+	}
+	for _, name := range []string{"path", "trigger", "subscription", "id", "module"} {
+		if v := vars(r, name); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 type rawResponse struct {
@@ -195,7 +221,7 @@ func (a *API) Handler() http.Handler {
 	root := mux.NewRouter()
 	r := root.PathPrefix(APIPrefix).Subrouter()
 	for _, rt := range routes {
-		r.HandleFunc(rt.path, a.wrap(rt.bind(a))).Methods(rt.method)
+		r.HandleFunc(rt.path, a.wrap(rt, rt.bind(a))).Methods(rt.method)
 	}
 	return root
 }
@@ -534,7 +560,7 @@ func (a *API) retryOccurrence(w http.ResponseWriter, r *http.Request, actor spi.
 	if err != nil {
 		return 0, nil, err
 	}
-	var in occurrenceRequest
+	var in retryRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -574,9 +600,10 @@ func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subje
 	return http.StatusNoContent, nil, a.svc.DecideTask(r.Context(), actor, id, in.Decision)
 }
 
-// reference serves the live API reference as the signed-in reader sees it. No
-// permission is required beyond the session: the model is filtered by the
-// reader's permissions (reference.Visible).
+// reference serves the live API reference to the configurator. The route
+// requires Extensions.Read, so the model is the full one; it is still built
+// for the actor, which keeps the reader's locale. The Help Center and the MCP
+// tools serve the filtered reference to everyone else.
 func (a *API) reference(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
 	m, err := a.ref.Model(r.Context(), actor, r.URL.Query().Get("locale"))
 	return http.StatusOK, m, err

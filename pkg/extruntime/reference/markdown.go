@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,26 +34,58 @@ func NamespacePath(namespace string) string { return ReferencePath + "/" + names
 // at most two segments deep, so the link is relative to the document: "../x/y"
 // from a nested document, "x/y" from the top level.
 func docURL(from, to string) string {
+	to = linkDest(to)
 	if strings.Contains(from, "/") {
 		return "../" + to
 	}
 	return to
 }
 
-// text makes untrusted package text safe to put in a markdown line: one line,
-// no HTML, no markdown syntax.
+// markdownSpecials are the characters text escapes with a backslash: the ones
+// that open emphasis, links, images, HTML, entities, tables, headings,
+// strikethrough or an autolinked address. CommonMark renders a backslash
+// escape of any ASCII punctuation as the character itself.
+const markdownSpecials = "\\`*_[]<>&|#~!@"
+
+// text makes untrusted package text safe to put in a markdown line, a heading
+// or a table cell: one line, no HTML, no markdown syntax and no autolinks
+// (https://…, www.… and addresses are shown as plain text).
 func text(s string) string {
-	s = strings.Join(strings.Fields(s), " ")
-	s = html.EscapeString(s)
+	rs := []rune(strings.Join(strings.Fields(s), " "))
 	var b strings.Builder
-	for _, r := range s {
-		switch r {
-		case '\\', '`', '*', '_', '[', ']', '|', '#', '~':
+	for i, r := range rs {
+		switch {
+		case strings.ContainsRune(markdownSpecials, r):
+			b.WriteByte('\\')
+		case r == ':' && i+2 < len(rs) && rs[i+1] == '/' && rs[i+2] == '/':
+			// a scheme: "https://" is no link once the colon is escaped
+			b.WriteByte('\\')
+		case r == '.' && i >= 3 && strings.EqualFold(string(rs[i-3:i]), "www"):
 			b.WriteByte('\\')
 		}
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// paragraph is text for the start of a line: it also keeps a leading list,
+// setext or ordered-list marker from turning the line into a block.
+func paragraph(s string) string {
+	out := text(s)
+	switch {
+	case out == "":
+	case strings.ContainsRune("-+=", rune(out[0])):
+		out = "\\" + out
+	default:
+		i := 0
+		for i < len(out) && out[i] >= '0' && out[i] <= '9' {
+			i++
+		}
+		if i > 0 && i < len(out) && (out[i] == '.' || out[i] == ')') {
+			out = out[:i] + "\\" + out[i:]
+		}
+	}
+	return out
 }
 
 // code puts s in a code span, widening the delimiter around embedded backticks.
@@ -72,9 +104,18 @@ func code(s string) string {
 	return ticks + s + ticks
 }
 
-// cell is a table cell: single line, pipes escaped.
-func cell(s string) string {
-	return strings.ReplaceAll(strings.Join(strings.Fields(s), " "), "|", `\|`)
+// tcode is code for a table cell: a pipe would end the cell even inside a
+// code span, so it is escaped the way GFM tables expect.
+func tcode(s string) string { return strings.ReplaceAll(code(s), "|", `\|`) }
+
+// linkDest makes s safe as the destination of a link: every character outside
+// the path alphabet is percent-encoded.
+func linkDest(s string) string {
+	segments := strings.Split(s, "/")
+	for i, seg := range segments {
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
 }
 
 // indentJSON pretty-prints a JSON document; an invalid one is returned as is.
@@ -132,6 +173,11 @@ func namespaceOf(m *Model, id string) string {
 	return ""
 }
 
+// itemCell is itemRef for a table cell.
+func (w *md) itemCell(id string) string {
+	return strings.ReplaceAll(w.itemRef(id), "|", `\|`)
+}
+
 func (w *md) itemRefs(ids []string) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
@@ -140,16 +186,35 @@ func (w *md) itemRefs(ids []string) string {
 	return strings.Join(parts, ", ")
 }
 
+// APIAccess says how a rendered document may refer to the HTTP API.
+type APIAccess int
+
+const (
+	// APIHidden: do not mention the HTTP API (MCP, readers who do not see the
+	// developer documentation).
+	APIHidden APIAccess = iota
+	// APIServed: link the HTTP API document and the OpenAPI document.
+	APIServed
+	// APIUnavailable: the deployment does not serve the HTTP API; say so
+	// instead of linking a document that does not exist.
+	APIUnavailable
+)
+
 // RenderIndex is the overview document of the reference.
-func RenderIndex(m *Model, apiLinks bool) []byte {
+func RenderIndex(m *Model, api APIAccess) []byte {
 	w := &md{m: m, from: IndexPath}
 	w.line("# Extension reference")
 	w.blank()
 	w.line("What is installed in this application right now: the native contracts the application registers and the activated extension packages. It is generated from the live catalog and shows what **you** may use; a resource that needs a permission you do not hold is not listed.")
 	w.blank()
-	if apiLinks {
+	switch api {
+	case APIServed:
 		w.line("The HTTP interface of the same contracts is described in [HTTP API](%s) and as an [OpenAPI 3.1 document](%s).", docURL(w.from, APIPath), OpenAPIPath)
 		w.blank()
+	case APIUnavailable:
+		w.line("The HTTP API is not served by this deployment.")
+		w.blank()
+	case APIHidden:
 	}
 	if len(m.Namespaces) == 0 {
 		w.line("Nothing is visible to you yet: no package is active, or none of its contracts is open to your permissions.")
@@ -158,7 +223,7 @@ func RenderIndex(m *Model, apiLinks bool) []byte {
 	w.line("| Namespace | Source | Resources | Endpoints |")
 	w.line("| --- | --- | ---: | ---: |")
 	for _, ns := range m.Namespaces {
-		w.line("| [%s](%s) | %s | %d | %d |", code(ns.Name), docURL(w.from, NamespacePath(ns.Name)), sourceLabel(ns), len(ns.Items), len(ns.Endpoints))
+		w.line("| [%s](%s) | %s | %d | %d |", tcode(ns.Name), docURL(w.from, NamespacePath(ns.Name)), sourceLabel(ns), len(ns.Items), len(ns.Endpoints))
 	}
 	w.blank()
 	w.line("Resource kinds: entities and overlays hold data; commands, operations and queries are callable; events, workflows and notices describe what happens; routes, pages, slots, cells, columns and the shell shape the user interface.")
@@ -233,7 +298,7 @@ func (w *md) item(it Item) {
 	}
 	w.line("### %s", title)
 	w.blank()
-	meta := []string{string(it.Kind)}
+	meta := []string{text(string(it.Kind))}
 	if it.Atomic {
 		meta = append(meta, "atomic")
 	}
@@ -258,7 +323,7 @@ func (w *md) item(it Item) {
 	w.line("%s", strings.Join(meta, " · "))
 	w.blank()
 	if it.Description != "" {
-		w.line("%s", text(it.Description))
+		w.line("%s", paragraph(it.Description))
 		w.blank()
 	}
 	w.access(it)
@@ -308,23 +373,23 @@ func (w *md) fields(it Item) {
 			notes = append(notes, "indexed")
 		}
 		if len(f.Default) > 0 {
-			notes = append(notes, "default "+code(string(f.Default)))
+			notes = append(notes, "default "+tcode(string(f.Default)))
 		}
 		if len(f.Permissions) > 0 {
 			perms := make([]string, len(f.Permissions))
 			for i, p := range f.Permissions {
-				perms[i] = code(p)
+				perms[i] = tcode(p)
 			}
 			notes = append(notes, "needs "+strings.Join(perms, " + "))
 		}
 		if len(f.RenamedAs) > 0 {
-			notes = append(notes, "was "+code(strings.Join(f.RenamedAs, ", ")))
+			notes = append(notes, "was "+tcode(strings.Join(f.RenamedAs, ", ")))
 		}
 		req := ""
 		if f.Required {
 			req = "yes"
 		}
-		w.line("| %s | %s | %s | %s |", code(f.ID), cell(code(f.Type)), req, cell(strings.Join(notes, "; ")))
+		w.line("| %s | %s | %s | %s |", tcode(f.ID), tcode(f.Type), req, strings.Join(notes, "; "))
 	}
 	w.blank()
 	if it.Record != nil {
@@ -433,13 +498,17 @@ func (w *md) relations(it Item) {
 		}
 	}
 	if len(it.Channels) > 0 {
-		w.line("Template channels: %s.", strings.Join(it.Channels, ", "))
+		channels := make([]string, len(it.Channels))
+		for i, c := range it.Channels {
+			channels[i] = code(c)
+		}
+		w.line("Template channels: %s.", strings.Join(channels, ", "))
 		w.blank()
 	}
 	if len(it.Guards) > 0 {
 		parts := make([]string, len(it.Guards))
 		for i, g := range it.Guards {
-			parts[i] = code(g.ID) + " (" + g.Phase + ", " + code(g.Package) + ")"
+			parts[i] = code(g.ID) + " (" + text(g.Phase) + ", " + code(g.Package) + ")"
 		}
 		w.line("Guards: %s.", strings.Join(parts, ", "))
 		w.blank()
@@ -508,7 +577,7 @@ func (w *md) namespaceTables(ns Namespace) {
 			if e.Public {
 				access = "public (runs as the trigger owner)"
 			}
-			w.line("| %s | %s | %s |", cell(e.Method), code(e.URL), access)
+			w.line("| %s | %s | %s |", text(e.Method), tcode(e.URL), access)
 		}
 		w.blank()
 	}
@@ -518,7 +587,7 @@ func (w *md) namespaceTables(ns Namespace) {
 		w.line("| ID | Cron | Time zone |")
 		w.line("| --- | --- | --- |")
 		for _, s := range ns.Schedules {
-			w.line("| %s | %s | %s |", code(s.ID), code(s.Cron), cell(s.Timezone))
+			w.line("| %s | %s | %s |", tcode(s.ID), tcode(s.Cron), text(s.Timezone))
 		}
 		w.blank()
 	}
@@ -528,7 +597,7 @@ func (w *md) namespaceTables(ns Namespace) {
 		w.line("| ID | Event |")
 		w.line("| --- | --- |")
 		for _, s := range ns.Subscriptions {
-			w.line("| %s | %s |", code(s.ID), w.itemRef(s.Event))
+			w.line("| %s | %s |", tcode(s.ID), w.itemCell(s.Event))
 		}
 		w.blank()
 	}
@@ -538,7 +607,7 @@ func (w *md) namespaceTables(ns Namespace) {
 		w.line("| ID | Target | Phase |")
 		w.line("| --- | --- | --- |")
 		for _, g := range ns.Guards {
-			w.line("| %s | %s | %s |", code(g.ID), w.itemRef(g.Target), cell(g.Phase))
+			w.line("| %s | %s | %s |", tcode(g.ID), w.itemCell(g.Target), text(g.Phase))
 		}
 		w.blank()
 	}
@@ -550,14 +619,23 @@ type APIRoute struct {
 	Path       string
 	Summary    string
 	Permission string
+	// Alternative is who else may call the route besides a holder of
+	// Permission, in words ("the assignee of the task").
+	Alternative string
 }
 
 // RenderAPI is the HTTP API document: the browser RPC, the package endpoints
-// and (for readers who may use it) the management API.
-func RenderAPI(m *Model, manage []APIRoute) []byte {
+// and (for readers who may use it) the management API. served says whether
+// this deployment serves the HTTP API at all; when it does not, the document
+// says so and links nothing.
+func RenderAPI(m *Model, manage []APIRoute, served bool) []byte {
 	w := &md{m: m, from: APIPath}
 	w.line("# HTTP API")
 	w.blank()
+	if !served {
+		w.line("The HTTP API (the OpenAPI document, the management API and the package endpoints) is not served by this deployment.")
+		return []byte(w.String())
+	}
 	w.line("Everything on this page is also available as an [OpenAPI 3.1 document](%s) (JSON, signed-in users only; it lists what you may use). Import it into Swagger UI, Postman or a code generator.", OpenAPIPath)
 	w.blank()
 	w.line("All endpoints use the browser session cookie; state-changing requests must come from this application's origin.")
@@ -585,9 +663,9 @@ func RenderAPI(m *Model, manage []APIRoute) []byte {
 		for _, it := range callable {
 			perm := ""
 			if it.Permission != "" {
-				perm = code(it.Permission)
+				perm = tcode(it.Permission)
 			}
-			w.line("| %s | %s | %s |", w.itemRef(it.ID), rpcKind(it), perm)
+			w.line("| %s | %s | %s |", w.itemCell(it.ID), rpcKind(it), perm)
 		}
 		w.blank()
 	}
@@ -608,7 +686,7 @@ func RenderAPI(m *Model, manage []APIRoute) []byte {
 			if e.Public {
 				access = "public"
 			}
-			w.line("| %s | %s | %s | %s |", cell(e.Method), code(e.URL), access, code(e.Package))
+			w.line("| %s | %s | %s | %s |", text(e.Method), tcode(e.URL), access, tcode(e.Package))
 		}
 		w.blank()
 	}
@@ -623,9 +701,15 @@ func RenderAPI(m *Model, manage []APIRoute) []byte {
 		for _, r := range manage {
 			perm := ""
 			if r.Permission != "" {
-				perm = code(r.Permission)
+				perm = tcode(r.Permission)
 			}
-			w.line("| %s | %s | %s | %s |", cell(r.Method), code(r.Path), perm, cell(r.Summary))
+			if r.Alternative != "" {
+				if perm != "" {
+					perm += " or "
+				}
+				perm += text(r.Alternative)
+			}
+			w.line("| %s | %s | %s | %s |", text(r.Method), tcode(r.Path), perm, text(r.Summary))
 		}
 		w.blank()
 	}

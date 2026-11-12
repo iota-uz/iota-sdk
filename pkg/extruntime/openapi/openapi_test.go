@@ -55,11 +55,11 @@ func TestBuilderRendersAValidDocument(t *testing.T) {
 	t.Parallel()
 	b := openapi.New(openapi.Info{Title: "t", Version: "1", SessionCookie: "session"})
 	b.Tag("x", "things")
-	b.ErrorEnvelope("An error.", b.Schemas().Add("Err", openapi.Schema{"type": "object"}))
+	errEnvelope := &openapi.Response{Description: "An error.", Schema: b.Schemas().Add("Err", openapi.Schema{"type": "object"})}
 	b.Add(openapi.Operation{
 		Method: http.MethodGet, Path: "/a/{id}", ID: "getA", Summary: "Get A", Permission: "A.Read", Tags: []string{"x"},
 		Params:    []openapi.Param{{Name: "id", In: "path", Required: true}, {Name: "q", In: "query"}},
-		Responses: []openapi.Response{{Status: 200, Schema: openapi.Of[Node](b.Schemas())}},
+		Responses: []openapi.Response{{Status: 200, Schema: openapi.Of[Node](b.Schemas())}}, Default: errEnvelope,
 	})
 	b.Add(openapi.Operation{Method: http.MethodPost, Path: "/a/{id}", ID: "postA", Public: true,
 		Params:  []openapi.Param{{Name: "id", In: "path"}},
@@ -78,6 +78,7 @@ func TestBuilderRendersAValidDocument(t *testing.T) {
 	post := doc["paths"].(map[string]any)["/a/{id}"].(map[string]any)["post"].(map[string]any)
 	require.Equal(t, []any{}, post["security"])
 	require.Contains(t, get["responses"], "default")
+	require.NotContains(t, post["responses"], "default", "an operation without an error envelope documents none")
 }
 
 func TestBuilderRefusesDuplicates(t *testing.T) {

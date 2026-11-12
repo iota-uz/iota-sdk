@@ -141,7 +141,7 @@ export class ManageApi {
   removeOwner(triggerId: string): Promise<void> { return this.json(`/triggers/${enc(triggerId)}/owner`, { method: 'DELETE' }) }
 
   kit(signal?: AbortSignal): Promise<KitInfo> { return this.json('/kit', { signal }) }
-  /** reference loads the live API reference as the signed-in user may see it. */
+  /** reference loads the full live API reference (the route needs Extensions.Read, which opens the configurator). */
   reference(locale?: string, signal?: AbortSignal): Promise<ReferenceModel> {
     return this.json(`/reference${locale ? `?locale=${enc(locale)}` : ''}`, { signal })
   }

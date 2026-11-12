@@ -44,7 +44,7 @@ func TestReaderWithoutPermissionsSeesOnlyOpenResources(t *testing.T) {
 	}, itemIDs(m))
 	require.Equal(t, []string{"acme.loyalty", "crm"}, namespaceNames(m), "core holds only a gated entity and disappears")
 	ns, _ := m.Namespace("acme.loyalty")
-	require.Len(t, ns.Endpoints, 2, "a signed-in reader could call both endpoints")
+	require.Empty(t, ns.Endpoints, "package endpoints are for integrators: Extensions.Read only")
 	require.Empty(t, ns.Schedules)
 	require.Empty(t, ns.Subscriptions)
 	require.Empty(t, ns.Guards)
@@ -64,7 +64,12 @@ func TestGatedResourcesAppearWithTheirPermission(t *testing.T) {
 	require.NotContains(t, ids, "acme.loyalty.card", "the entity has its own read rule")
 	require.NotContains(t, ids, "crm.operations.addNote")
 	award, _ := m.Lookup("acme.loyalty.award")
-	require.Len(t, award.Guards, 1, "guards on a visible target are part of its contract")
+	require.Empty(t, award.Guards, "which guards other packages put on a target stays with Extensions.Read")
+
+	m, err = newBuilder(t).Model(context.Background(), admin(), "")
+	require.NoError(t, err)
+	award, _ = m.Lookup("acme.loyalty.award")
+	require.Len(t, award.Guards, 1)
 }
 
 func TestEntityNeedsAReadRuleAndAnOverlayNeedsItsBase(t *testing.T) {
@@ -142,10 +147,11 @@ func TestVisibleRule(t *testing.T) {
 func TestEndpointVisibility(t *testing.T) {
 	t.Parallel()
 	public, private := reference.EndpointDoc{Public: true}, reference.EndpointDoc{}
-	require.True(t, reference.EndpointVisible(spi.Subject{}, public), "anyone could call a public endpoint")
-	require.False(t, reference.EndpointVisible(spi.Subject{}, private), "no session, no private endpoint")
-	require.True(t, reference.EndpointVisible(reader("en"), private))
-	require.True(t, reference.EndpointVisible(admin(), private))
+	for _, e := range []reference.EndpointDoc{public, private} {
+		require.False(t, reference.EndpointVisible(spi.Subject{}, e), "no session")
+		require.False(t, reference.EndpointVisible(reader("en"), e), "a signed-in user does not integrate")
+		require.True(t, reference.EndpointVisible(admin(), e))
+	}
 }
 
 func TestNamespacesLeftEmptyAreHidden(t *testing.T) {
@@ -157,4 +163,20 @@ func TestNamespacesLeftEmptyAreHidden(t *testing.T) {
 	m, err = b.Model(context.Background(), reader("en", "User.Read"), "")
 	require.NoError(t, err)
 	require.Equal(t, []string{"core", "crm"}, namespaceNames(m))
+}
+
+func TestColumnOfAnOverlayFieldNeedsTheFieldPermission(t *testing.T) {
+	t.Parallel()
+	overlay := manifest.Resource{
+		ID: "acme.x.extra", Kind: manifest.ResOverlay, Base: "base",
+		Access: &manifest.Access{Fields: map[string][]string{"note": {"X.Note"}}},
+	}
+	lookup := func(id string) (manifest.Resource, bool) { return overlay, id == overlay.ID }
+	column := func(field string) manifest.Resource {
+		return manifest.Resource{ID: "acme.x.col", Kind: manifest.ResColumn, Overlay: overlay.ID, Field: field}
+	}
+	require.True(t, reference.Visible(reader("en"), column("tier"), lookup), "an open field")
+	require.False(t, reference.Visible(reader("en"), column("note"), lookup), "the column would name a field the reader cannot read")
+	require.True(t, reference.Visible(reader("en", "X.Note"), column("note"), lookup))
+	require.True(t, reference.Visible(admin(), column("note"), lookup))
 }

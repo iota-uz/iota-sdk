@@ -40,6 +40,11 @@ const (
 	ErrKindSuspend    ErrorKind = "suspend"
 )
 
+// ErrorKinds lists every kind, for documents that enumerate them.
+func ErrorKinds() []ErrorKind {
+	return []ErrorKind{ErrKindDomain, ErrKindValidation, ErrKindDenied, ErrKindInternal, ErrKindSuspend}
+}
+
 // Codes of runtime-originated internal errors.
 const (
 	CodeArtifactMissing = "runtime.artifactMissing"

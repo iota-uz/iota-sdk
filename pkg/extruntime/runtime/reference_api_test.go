@@ -10,10 +10,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 )
 
-// The management API serves the live reference of the activated package,
-// filtered by the session: Extensions.Read sees everything, a user without
-// permissions the open resources only.
-func TestReferenceEndpointServesTheActivePackageFilteredBySession(t *testing.T) {
+// The management API serves the full live reference of the activated package
+// to the configurator: it needs Extensions.Read. The Help Center and the MCP
+// tools serve the filtered reference to everyone else.
+func TestReferenceEndpointServesTheActivePackageToExtensionsRead(t *testing.T) {
 	e := newAPIEnv(t)
 	const admin, reader, stranger = 1, 2, 3
 
@@ -42,18 +42,12 @@ func TestReferenceEndpointServesTheActivePackageFilteredBySession(t *testing.T) 
 	_, ok = full.Lookup("core.user")
 	require.True(t, ok, "native contracts are part of it too")
 
-	// no permissions: the open entity and the open command (it declares no
-	// permission), but not the gated native entity nor the subscription
-	var limited reference.Model
-	e.json(stranger, http.MethodGet, "/reference", nil, http.StatusOK, &limited)
-	require.False(t, limited.Full)
-	_, ok = limited.Lookup(ns + ".policy")
-	require.True(t, ok)
-	_, ok = limited.Lookup("core.user")
-	require.False(t, ok, "core.user needs User.Read")
-	pkg, _ = limited.Namespace(ns)
-	require.Empty(t, pkg.Subscriptions)
+	// no Extensions.Read: refused, with nothing of the reference in the body
+	status, body, _ := e.do(stranger, http.MethodGet, "/reference", nil)
+	require.Equal(t, http.StatusForbidden, status)
+	require.NotContains(t, string(body), ns)
+	require.Contains(t, string(body), manage.PermRead)
 
-	status, _, _ := e.do(0, http.MethodGet, "/reference", nil)
+	status, _, _ = e.do(0, http.MethodGet, "/reference", nil)
 	require.GreaterOrEqual(t, status, 400)
 }

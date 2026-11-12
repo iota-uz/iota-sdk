@@ -43,7 +43,7 @@ func referenceTool(r *registrar, ref *reference.Builder) {
 			out.Namespaces = append(out.Namespaces, ns.Name)
 		}
 		if in.Namespace == "" {
-			out.Markdown = string(reference.RenderIndex(m, false))
+			out.Markdown = string(reference.RenderIndex(m, reference.APIHidden))
 			return out, nil
 		}
 		body, ok := reference.RenderNamespace(m, in.Namespace)
