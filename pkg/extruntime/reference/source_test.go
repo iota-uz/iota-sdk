@@ -25,6 +25,7 @@ func newSource(t *testing.T, who *spi.Subject) helpdocs.Source {
 			return *who, nil
 		},
 		ManageRoutes: []reference.APIRoute{{Method: "GET", Path: "/_ext/manage/packages", Summary: "List packages", Permission: reference.PermRead}},
+		APIServed:    true,
 		Ref:          "v9.9.9",
 	})
 	require.NoError(t, err)
@@ -57,10 +58,8 @@ func TestSourceMountAndTree(t *testing.T) {
 	tree, err = newSource(t, &o).Tree(context.Background(), "en")
 	require.NoError(t, err)
 	require.Equal(t, []string{
-		"guides", "guides/authoring", "guides/consumer",
 		"reference", "reference/index", "reference/acme.loyalty", "reference/crm",
-		"api",
-	}, paths(tree), "namespaces the reader cannot see are not listed")
+	}, paths(tree), "namespaces the reader cannot see are not listed; the guides and the HTTP API are for Extensions.Read")
 }
 
 func TestSourceHidesEverythingFromAnUnknownReader(t *testing.T) {
@@ -104,7 +103,7 @@ func TestSourceGetServesGuidesReferenceAndAPI(t *testing.T) {
 		"# `acme.loyalty`", "active version **1.2.0**", "## Commands", "### `acme.loyalty.award` — Award points",
 		"permission `Loyalty.Manage`", "{ card: ref<acme.loyalty.card>, points: int }", "JSON Schema:", `"additionalProperties": false`,
 		"[`acme.loyalty.notRegistered`](../reference/acme.loyalty)", "Refers to:", "## Endpoints", "`/_ext/endpoints/acme.loyalty/webhooks/stripe`",
-		"public (runs as the trigger owner)", "## Schedules", "0 3 * * *", "## Subscriptions", "## Guards", "Template channels: email, sms.",
+		"public (runs as the trigger owner)", "## Schedules", "0 3 * * *", "## Subscriptions", "## Guards", "Template channels: `email`, `sms`.",
 		"| `number` | `string(16)` | yes | Number; unique |",
 	} {
 		require.Contains(t, ns, want)
@@ -143,9 +142,13 @@ func TestSourceGetRefusesWhatTheReaderCannotSee(t *testing.T) {
 	require.NotContains(t, body, "## Schedules")
 	require.Contains(t, body, "acme.loyalty.tiers")
 
-	api, err := src.Get(context.Background(), "en", "api")
+	for _, p := range []string{"api", "guides/authoring", "guides/consumer"} {
+		_, err = src.Get(context.Background(), "en", p)
+		require.ErrorIs(t, err, helpdocs.ErrNotFound, "%s is developer documentation: Extensions.Read only", p)
+	}
+	d, err = src.Get(context.Background(), "en", "reference/index")
 	require.NoError(t, err)
-	require.NotContains(t, string(api.Markdown), "Management API", "the management API is described to Extensions.Read holders only")
+	require.NotContains(t, string(d.Markdown), "OpenAPI", "the reader does not see the HTTP API document, so the overview does not point at it")
 }
 
 func TestPackageTextCannotInjectMarkdownOrHTML(t *testing.T) {
@@ -153,7 +156,7 @@ func TestPackageTextCannotInjectMarkdownOrHTML(t *testing.T) {
 	got := string(renderEvil(t))
 	require.NotContains(t, got, "<script>")
 	require.NotContains(t, got, "[click](javascript:")
-	require.Contains(t, got, "&lt;script&gt;")
+	require.Contains(t, got, `\<script\>`)
 }
 
 func TestRewriteGuideLinks(t *testing.T) {

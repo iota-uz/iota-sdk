@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/openapi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 )
 
 // OpenAPI tags of the contract operations.
@@ -14,8 +15,16 @@ const (
 	TagEndpoints = "endpoints"
 )
 
-// ErrorKinds are the `kind` values of an RPC error.
-var ErrorKinds = []any{"domain", "validation", "denied", "internal"}
+// ErrorKinds are the `kind` values of an RPC error: every kind the runtime
+// reports (see pool.ErrorKinds), so a new kind reaches the document with it.
+var ErrorKinds = func() []any {
+	kinds := pool.ErrorKinds()
+	out := make([]any, len(kinds))
+	for i, k := range kinds {
+		out[i] = string(k)
+	}
+	return out
+}()
 
 // AddContracts adds the parts of the HTTP API that the reference describes to
 // the OpenAPI document: the browser RPC (POST /_ext/rpc) with one request
@@ -89,6 +98,10 @@ func addRPC(b *openapi.Builder, m *Model) {
 				if !nullableType(it.Input.Schema) {
 					required = append(required, "input")
 				}
+			} else {
+				// No declared input: the handler takes an absent input or an
+				// explicit null (ui/rpc.go) and nothing else is meaningful.
+				props["input"] = openapi.Schema{"type": "null"}
 			}
 			ref := reg.Add(req, openapi.Schema{
 				"title": it.ID, "description": contractDescription(it),
@@ -158,6 +171,7 @@ func addRPC(b *openapi.Builder, m *Model) {
 			"The request is one variant per callable contract, discriminated by `resource`.",
 		Request:   &openapi.Body{Schema: reqRef, Required: true},
 		Responses: responses,
+		Default:   &openapi.Response{Description: "Any other failure: the RPC error envelope.", Schema: failure},
 	})
 }
 
@@ -170,6 +184,8 @@ func nullableType(s openapi.Schema) bool {
 				return true
 			}
 		}
+	case string:
+		return ty == "null"
 	case nil:
 		_, strict := s["not"]
 		return !strict

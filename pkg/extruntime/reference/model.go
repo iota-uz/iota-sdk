@@ -153,6 +153,9 @@ type Item struct {
 
 	res    manifest.Resource
 	labels manifest.Label
+	// refKey picks the sample key of a ref; the record of an entity is
+	// rebuilt from the fields a reader may see.
+	refKey func(string) string
 }
 
 // Resource is the contract as declared. It is unexported data of the model:
@@ -415,7 +418,7 @@ func assemble(active []catalog.ActiveVersion, natives *catalog.NativeSet) *full 
 		n.Package = &PackageRef{Namespace: av.Namespace, Version: av.Version}
 		for _, e := range av.Manifest.Endpoints {
 			n.Endpoints = append(n.Endpoints, EndpointDoc{
-				ID: e.ID, Method: e.Method, Path: e.Path, URL: EndpointURL(av.Namespace, e.Path),
+				ID: e.ID, Method: strings.ToUpper(e.Method), Path: e.Path, URL: EndpointURL(av.Namespace, e.Path),
 				Public: e.Public, Package: av.Namespace, Version: av.Version,
 			})
 		}
@@ -539,9 +542,6 @@ func newItem(r manifest.Resource, pkg, version string, native bool, refKey func(
 }
 
 func fillEntity(it *Item, r manifest.Resource, refKey func(string) string) {
-	record := manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
-		{Name: "key", Type: manifest.Type{Kind: manifest.KindString}},
-	}}
 	for _, f := range r.Fields {
 		fd := FieldDoc{
 			ID: f.ID, Type: Signature(f.Type), Required: !f.Type.Optional, Unique: f.Unique, Indexed: f.Index,
@@ -551,7 +551,6 @@ func fillEntity(it *Item, r manifest.Resource, refKey func(string) string) {
 			fd.Permissions = append([]string(nil), r.Access.Fields[f.ID]...)
 		}
 		it.Fields = append(it.Fields, fd)
-		record.Properties = append(record.Properties, manifest.Property{Name: f.ID, Type: f.Type})
 	}
 	if r.Access != nil {
 		ad := &AccessDoc{}
@@ -560,7 +559,21 @@ func fillEntity(it *Item, r manifest.Resource, refKey func(string) string) {
 		}
 		it.Access = ad
 	}
-	it.Record = typeDoc(&record, refKey)
+	it.refKey = refKey
+	it.Record = recordDoc(r.Fields, refKey)
+}
+
+// recordDoc documents the wire record of an entity holding fields: its key and
+// the fields. It is built from the fields a reader may see, so the record
+// never names a field the field list omits.
+func recordDoc(fields []manifest.Field, refKey func(string) string) *TypeDoc {
+	record := manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
+		{Name: "key", Type: manifest.Type{Kind: manifest.KindString}},
+	}}
+	for _, f := range fields {
+		record.Properties = append(record.Properties, manifest.Property{Name: f.ID, Type: f.Type})
+	}
+	return typeDoc(&record, refKey)
 }
 
 // pickLabel chooses the text for locale: the exact tag, its language, English,

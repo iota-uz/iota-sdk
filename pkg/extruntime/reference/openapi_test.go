@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -77,12 +78,21 @@ func TestContractsFollowTheReaderVisibility(t *testing.T) {
 	require.Len(t, req["oneOf"], 2, "only the open queries")
 	require.NotContains(t, string(raw), "acme.loyalty.award")
 	paths := sub(t, doc, "paths").(map[string]any)
-	require.Len(t, paths, 3, "rpc and the two endpoints a signed-in reader could call")
+	require.Equal(t, []string{"/_ext/rpc"}, sortedKeys(paths), "package endpoints are listed for Extensions.Read only")
 
 	doc, _ = contractDoc(t, spi.Subject{})
 	paths = sub(t, doc, "paths").(map[string]any)
-	require.NotContains(t, paths, "/_ext/endpoints/acme.loyalty/export", "no session, no private endpoint")
-	require.Contains(t, paths, "/_ext/endpoints/acme.loyalty/webhooks/stripe")
+	require.NotContains(t, paths, "/_ext/endpoints/acme.loyalty/export")
+	require.NotContains(t, paths, "/_ext/endpoints/acme.loyalty/webhooks/stripe")
+}
+
+func sortedKeys(m map[string]any) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func TestRPCRequestSchemaAcceptsExamplesAndRejectsStrangers(t *testing.T) {
@@ -112,4 +122,8 @@ func TestRPCRequestSchemaAcceptsExamplesAndRejectsStrangers(t *testing.T) {
 	require.NoError(t, validates(t, resp, `{"ok":false,"error":{"kind":"domain","code":"acme.loyalty.notRegistered","params":{"id":"123e4567-e89b-12d3-a456-426614174000"}}}`))
 	require.Error(t, validates(t, resp, `{"ok":true,"value":{"balance":10.5}}`), "decimal is a string")
 	require.Error(t, validates(t, resp, `{"ok":false,"error":{"kind":"mystery","code":"x"}}`))
+}
+
+func newOpenAPIBuilder() *openapi.Builder {
+	return openapi.New(openapi.Info{Title: "t", Version: "1"})
 }

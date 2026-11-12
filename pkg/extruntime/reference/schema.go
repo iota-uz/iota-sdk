@@ -24,19 +24,27 @@ const MaxSafeInteger = 1<<53 - 1
 // Patterns of the string forms of manifest types. They are the same
 // expressions manifest.ValidateValue applies, widened to ECMA-262 syntax.
 const (
-	patternInt64    = `^-?(0|[1-9][0-9]{0,18})$`
-	patternDate     = `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`
-	patternDateTime = `^[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?([Zz]|[+-][0-9]{2}:[0-9]{2})$`
+	patternInt64 = `^-?(0|[1-9][0-9]{0,18})$`
+	patternDate  = `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`
+	// patternDateTime is what time.RFC3339Nano parsing accepts in shape: an
+	// uppercase T and Z, a "." or "," before the fraction (Go takes both), and
+	// a numeric offset with a colon. Calendar ranges are left to "format".
+	patternDateTime = `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.,][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$`
 	patternUUID     = `^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`
 )
 
 // TypeSchema renders t as the JSON Schema of its wire form, the exact rules of
 // manifest.ValidateValue (docs/extension-runtime.md §2.1):
 //
-//   - int is a JSON integer in the safe range ±(2^53-1);
+//   - int is a JSON integer in the safe range ±(2^53-1). The server also
+//     requires the literal to carry no fraction or exponent (1, not 1.0 or
+//     1e2); JSON Schema validates the parsed number and cannot say so, which is
+//     stated in the description;
 //   - int64 and decimal are strings (a JSON number would lose digits), with
-//     the patterns the server applies; decimal also carries its scale and
-//     precision;
+//     the patterns the server applies. The pattern of a decimal enforces its
+//     scale; its precision (significant digits, leading zeros not counted) has
+//     no regular expression short of a lookahead and is stated in the
+//     description;
 //   - date, datetime and uuid are strings in their canonical forms;
 //   - ref is {entity, key} with the entity pinned when the type names one;
 //   - enum is one of its string values;
@@ -58,7 +66,7 @@ func TypeSchema(t manifest.Type) Schema {
 		s["type"] = "integer"
 		s["minimum"] = -MaxSafeInteger
 		s["maximum"] = MaxSafeInteger
-		s["description"] = "Integer literal (no fraction or exponent) within ±(2^53-1)."
+		s["description"] = "Integer literal within ±(2^53-1), written without a fraction or exponent: 1, not 1.0 or 1e2 (the server rejects those spellings; a JSON Schema validator cannot tell them apart)."
 	case manifest.KindInt64:
 		s["type"] = "string"
 		s["pattern"] = patternInt64
@@ -75,7 +83,7 @@ func TypeSchema(t manifest.Type) Schema {
 		s["type"] = "string"
 		s["format"] = "date-time"
 		s["pattern"] = patternDateTime
-		s["description"] = "RFC 3339 timestamp with an offset."
+		s["description"] = "RFC 3339 timestamp with an offset, uppercase T and Z (a comma is accepted before the fraction, as Go parses it)."
 	case manifest.KindUUID:
 		s["type"] = "string"
 		s["format"] = "uuid"
@@ -98,10 +106,11 @@ func TypeSchema(t manifest.Type) Schema {
 		s["properties"] = Schema{"entity": entity, "key": Schema{"type": "string", "minLength": 1}}
 		s["required"] = []any{"entity", "key"}
 	case manifest.KindArray:
-		s["type"] = "array"
-		if t.Items != nil {
-			s["items"] = TypeSchema(*t.Items)
+		if t.Items == nil {
+			return itemlessArray(t)
 		}
+		s["type"] = "array"
+		s["items"] = TypeSchema(*t.Items)
 	case manifest.KindObject:
 		objectSchema(s, t)
 	}
@@ -126,6 +135,17 @@ func stringsToAny(in []string) []any {
 	return out
 }
 
+// itemlessArray is the schema of an array type that declares no item type. The
+// server rejects every value of it (even []), so the schema accepts none; a
+// nullable one still takes null.
+func itemlessArray(t manifest.Type) Schema {
+	const desc = "An array without a declared item type: the runtime rejects every array here. Declare the item type."
+	if t.Nullable {
+		return Schema{"type": "null", "description": desc}
+	}
+	return Schema{"not": Schema{}, "description": desc}
+}
+
 func decimalSchema(s Schema, t manifest.Type) {
 	s["type"] = "string"
 	frac := `(\.[0-9]+)?`
@@ -136,10 +156,9 @@ func decimalSchema(s Schema, t manifest.Type) {
 	}
 	s["pattern"] = `^-?(0|[1-9][0-9]*)` + frac + `$`
 	if t.Precision > 0 {
-		// digits, an optional sign, the point and a leading zero: a bound the
-		// precision implies; the digit count itself is stated in the description.
-		s["maxLength"] = t.Precision + 3
-		desc += fmt.Sprintf(" and at most %d significant digits", t.Precision)
+		// Not a length bound: leading zeros are not counted ("0.0005" has one
+		// digit), so any bound on the length would reject valid values.
+		desc += fmt.Sprintf(" and at most %d significant digits (leading zeros are not counted)", t.Precision)
 	}
 	s["description"] = desc + "."
 }

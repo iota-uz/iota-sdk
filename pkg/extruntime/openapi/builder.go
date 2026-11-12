@@ -70,12 +70,19 @@ type Operation struct {
 	Params      []Param
 	Request     *Body
 	Responses   []Response
+	// Default answers any status the operation does not list (the "default"
+	// response): the error envelope of this operation, when it has one. Its
+	// Status is ignored. Operations whose failures are arbitrary leave it nil.
+	Default *Response
 	// Public operations need no session; every other one needs the session
 	// cookie.
 	Public bool
 	// Permission is the permission the operation requires, documented as
 	// x-required-permission ("" when a session is enough).
 	Permission string
+	// Alternative is who else may call the operation besides a holder of
+	// Permission, in words ("you are the assignee of the task").
+	Alternative string
 	// Extensions are extra "x-" members of the operation.
 	Extensions map[string]any
 }
@@ -86,8 +93,6 @@ type Builder struct {
 	ops     []Operation
 	tags    map[string]string
 	schemas *Registry
-	errSch  Schema
-	errDesc string
 	servers []string
 }
 
@@ -107,10 +112,6 @@ func (b *Builder) Tag(name, description string) { b.tags[name] = description }
 
 // Server adds a server URL (default: relative to the document's origin).
 func (b *Builder) Server(url string) { b.servers = append(b.servers, url) }
-
-// ErrorEnvelope sets the schema of the error body every operation may answer
-// with (the "default" response).
-func (b *Builder) ErrorEnvelope(description string, s Schema) { b.errDesc, b.errSch = description, s }
 
 // Add appends an operation.
 func (b *Builder) Add(op Operation) { b.ops = append(b.ops, op) }
@@ -150,12 +151,6 @@ func (b *Builder) Document() (map[string]any, error) {
 	}
 	if schemas := b.schemas.Schemas(); len(schemas) > 0 {
 		components["schemas"] = schemas
-	}
-	if b.errSch != nil {
-		components["responses"] = map[string]any{"Error": map[string]any{
-			"description": b.errDesc,
-			"content":     map[string]any{"application/json": map[string]any{"schema": b.errSch}},
-		}}
 	}
 	info := map[string]any{"title": b.info.Title, "version": b.info.Version}
 	if b.info.Description != "" {
@@ -217,6 +212,9 @@ func (b *Builder) render(op Operation) map[string]any {
 	desc := op.Description
 	if op.Permission != "" {
 		note := "Requires the permission `" + op.Permission + "`."
+		if op.Alternative != "" {
+			note = "Requires the permission `" + op.Permission + "`, or " + op.Alternative + "."
+		}
 		if desc != "" {
 			desc += "\n\n"
 		}
@@ -263,28 +261,14 @@ func (b *Builder) render(op Operation) map[string]any {
 	}
 	responses := map[string]any{}
 	for _, r := range op.Responses {
-		resp := map[string]any{"description": r.Description}
-		if resp["description"] == "" {
-			resp["description"] = http.StatusText(r.Status)
-		}
-		if r.Schema != nil {
-			ct := r.ContentType
-			if ct == "" {
-				ct = "application/json"
-			}
-			resp["content"] = map[string]any{ct: map[string]any{"schema": r.Schema}}
-		}
-		if len(r.Headers) > 0 {
-			headers := map[string]any{}
-			for name, d := range r.Headers {
-				headers[name] = map[string]any{"description": d, "schema": Schema{"type": "string"}}
-			}
-			resp["headers"] = headers
-		}
-		responses[strconv.Itoa(r.Status)] = resp
+		responses[strconv.Itoa(r.Status)] = renderResponse(r)
 	}
-	if b.errSch != nil {
-		responses["default"] = map[string]any{"$ref": "#/components/responses/Error"}
+	if op.Default != nil {
+		d := *op.Default
+		if d.Description == "" {
+			d.Description = "Error"
+		}
+		responses["default"] = renderResponse(d)
 	}
 	if len(responses) == 0 {
 		responses["200"] = map[string]any{"description": "OK"}
@@ -299,4 +283,26 @@ func (b *Builder) render(op Operation) map[string]any {
 		o[k] = v
 	}
 	return o
+}
+
+func renderResponse(r Response) map[string]any {
+	resp := map[string]any{"description": r.Description}
+	if r.Description == "" {
+		resp["description"] = http.StatusText(r.Status)
+	}
+	if r.Schema != nil {
+		ct := r.ContentType
+		if ct == "" {
+			ct = "application/json"
+		}
+		resp["content"] = map[string]any{ct: map[string]any{"schema": r.Schema}}
+	}
+	if len(r.Headers) > 0 {
+		headers := map[string]any{}
+		for name, d := range r.Headers {
+			headers[name] = map[string]any{"description": d, "schema": Schema{"type": "string"}}
+		}
+		resp["headers"] = headers
+	}
+	return resp
 }

@@ -162,6 +162,25 @@ func (s *Service) deny(ctx context.Context, actor spi.Subject, perm string, e au
 	return deniedError(perm)
 }
 
+// DeniedRequest describes a request refused before it reached the service: the
+// audit action it would have run under and what it was after.
+type DeniedRequest struct {
+	Action    string
+	Namespace string
+	Version   string
+	Target    string
+}
+
+// Deny refuses a request whose transport found the permission missing. It
+// records the refusal like the service's own (when the request names an
+// audited action) and returns the permission-denied error.
+func (s *Service) Deny(ctx context.Context, actor spi.Subject, perm string, d DeniedRequest) error {
+	if d.Action == "" {
+		return deniedError(perm)
+	}
+	return s.deny(ctx, actor, perm, auditEntry{Action: d.Action, Namespace: d.Namespace, Version: d.Version, Target: d.Target})
+}
+
 // mutate runs fn in one transaction together with its audit row. A failure
 // rolls back both and is audited on its own.
 func (s *Service) mutate(ctx context.Context, actor spi.Subject, perm string, e *auditEntry, fn func(tx pgx.Tx) error) error {

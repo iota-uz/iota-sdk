@@ -206,6 +206,10 @@ func newAPIEnv(t *testing.T) *apiEnv {
 			1: {manage.PermRead, manage.PermAuthor, manage.PermReview, manage.PermPublish, manage.PermOperate},
 			2: {manage.PermRead},
 		}[id]
+		// X-Perms gives the request user exactly these permissions.
+		if p, ok := r.Header["X-Perms"]; ok {
+			perms = strings.Split(strings.Join(p, ","), ",")
+		}
 		if id == 0 {
 			return spi.Subject{}, fmt.Errorf("no user")
 		}

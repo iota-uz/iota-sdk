@@ -130,11 +130,11 @@ func TestOpenAPIDocumentIsValidAndIncludesTheManagementAPIForReaders(t *testing.
 	require.Contains(t, doc.Comps.Schemas, "ManageError")
 	require.Contains(t, doc.Comps.Sec, "sessionCookie")
 
-	// every management operation names its permission, but the reference
+	// every management operation names its permission, the reference included
 	publish := doc.Paths["/_ext/manage/packages/{ns}/publish"]["post"].(map[string]any)
 	require.Equal(t, "Extensions.Publish", publish["x-required-permission"])
 	reference := doc.Paths["/_ext/manage/reference"]["get"].(map[string]any)
-	require.NotContains(t, reference, "x-required-permission")
+	require.Equal(t, "Extensions.Read", reference["x-required-permission"])
 
 	// readers without Extensions.Read get the contracts, never the management API
 	limited, err := b.Model(context.Background(), asReader(), "en")
@@ -180,4 +180,69 @@ func TestOpenAPIEndpointServesTheReadersDocument(t *testing.T) {
 	rec = get(&admin)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "/_ext/manage/packages")
+}
+
+func TestOpenAPIDocumentsEachGroupsOwnErrorsAndPermissions(t *testing.T) {
+	t.Parallel()
+	full, err := referenceOf(t).FullModel(context.Background(), "en")
+	require.NoError(t, err)
+	raw, err := runtime.BuildOpenAPI(full, "sid")
+	require.NoError(t, err)
+	var doc struct {
+		Paths map[string]map[string]map[string]any `json:"paths"`
+		Comps struct {
+			Schemas   map[string]map[string]any `json:"schemas"`
+			Responses map[string]any            `json:"responses"`
+		} `json:"components"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	require.Empty(t, doc.Comps.Responses, "no shared default error response")
+
+	defaultSchema := func(path, method string) any {
+		responses := doc.Paths[path][method]["responses"].(map[string]any)
+		def, ok := responses["default"].(map[string]any)
+		if !ok {
+			return nil
+		}
+		return def["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["$ref"]
+	}
+	require.Equal(t, "#/components/schemas/RpcFailure", defaultSchema("/_ext/rpc", "post"), "the RPC's failures are its own envelope")
+	for path, methods := range doc.Paths {
+		for method := range methods {
+			switch {
+			case strings.HasPrefix(path, "/_ext/manage/"):
+				require.Equal(t, "#/components/schemas/ManageError", defaultSchema(path, method), "%s %s", method, path)
+			case strings.HasPrefix(path, "/_ext/endpoints/"):
+				require.Nil(t, defaultSchema(path, method), "a package endpoint's failures are the package's")
+			}
+		}
+	}
+
+	// A task may be decided by its assignee as well as by Extensions.Operate.
+	decide := doc.Paths["/_ext/manage/tasks/{id}/decide"]["post"]
+	require.Contains(t, decide["description"], "`Extensions.Operate`, or you are the assignee of the task")
+
+	// Retry names the occurrence; unlike resolve it takes no result.
+	retryBody := doc.Paths["/_ext/manage/workflows/{id}/retry"]["post"]["requestBody"].(map[string]any)
+	ref := retryBody["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["$ref"].(string)
+	retry := doc.Comps.Schemas[strings.TrimPrefix(ref, "#/components/schemas/")]
+	props := retry["properties"].(map[string]any)
+	require.Contains(t, props, "name")
+	require.NotContains(t, props, "result")
+	resolveBody := doc.Paths["/_ext/manage/workflows/{id}/resolve"]["post"]["requestBody"].(map[string]any)
+	require.Contains(t, resolveBody["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)["$ref"], "occurrenceRequest")
+}
+
+// The reference is served to the configurator and needs Extensions.Read; the
+// summary the Help Center lists says so.
+func TestManageRoutesListThePermissionOfTheReferenceAndTheTaskAlternative(t *testing.T) {
+	t.Parallel()
+	byRoute := map[string]reference.APIRoute{}
+	for _, r := range runtime.ManageRoutes() {
+		byRoute[r.Method+" "+r.Path] = r
+	}
+	require.Equal(t, reference.PermRead, byRoute["GET /_ext/manage/reference"].Permission)
+	decide := byRoute["POST /_ext/manage/tasks/{id}/decide"]
+	require.Equal(t, "Extensions.Operate", decide.Permission)
+	require.Contains(t, decide.Alternative, "assignee")
 }
