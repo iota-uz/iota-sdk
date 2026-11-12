@@ -46,7 +46,7 @@ Two things surprise newcomers:
 ## 2. Quick start
 
 ```sh
-npm install --save-dev @iota-uz/sdk            # provides the iota-ext command; esbuild comes with it
+npm install --save-dev @iota-uz/sdk esbuild@^0.25   # iota-ext, and the bundler its build worker loads (an optional peer)
 npx iota-ext init loyalty --namespace acme.loyalty
 cd loyalty
 npm install                                    # editor support and the lockfile publishing needs; the kit is not in node_modules

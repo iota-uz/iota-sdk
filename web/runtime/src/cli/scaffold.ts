@@ -39,7 +39,8 @@ export function scaffold(o: ScaffoldOptions): Record<string, string> {
     // Exact, not a range: the extension runtime ships from the version of the CLI that wrote this file, and earlier public
     // builds of the package have no dist/runtime (a caret range could resolve to one of them).
     dependencies: { '@iota-uz/sdk': o.sdkVersion === '0.0.0' ? '*' : o.sdkVersion },
-    devDependencies: { '@types/node': '^22.0.0', ...(o.client ? { 'solid-js': '^1.9.0' } : {}), typescript: '~5.7.2' },
+    // esbuild is an optional peer of @iota-uz/sdk (the public package carries no dependencies); the CLI's build worker needs it.
+    devDependencies: { '@types/node': '^22.0.0', esbuild: '^0.25.0', ...(o.client ? { 'solid-js': '^1.9.0' } : {}), typescript: '~5.7.2' },
   }
   files['package.json'] = JSON.stringify(pkg, null, 2) + '\n'
   files['tsconfig.json'] =

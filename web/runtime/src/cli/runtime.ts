@@ -55,7 +55,7 @@ export function runWorker<R extends Response>(dist: Distribution, request: Reque
         resolve(JSON.parse(line) as R)
       } catch {
         const text = (stderr || stdout).trim()
-        const hint = /Cannot find (?:module|package) 'esbuild'/.test(text) ? '\nesbuild is a dependency of @iota-uz/sdk: run your package manager install.' : ''
+        const hint = /Cannot find (?:module|package) 'esbuild'/.test(text) ? '\nesbuild is a peer dependency of @iota-uz/sdk: add it to your devDependencies (npm install --save-dev esbuild@^0.25.0).' : ''
         reject(new EnvironmentError(`the build worker exited with ${String(code)}:\n${text.slice(0, 2000)}${hint}`))
       }
     })

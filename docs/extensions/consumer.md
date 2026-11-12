@@ -19,7 +19,7 @@ frontend build; the other tests use a stub host manifest. The sections on it say
 | Requirement | Detail |
 |---|---|
 | Go module | `github.com/iota-uz/iota-sdk` at release *R* (`pkg/sdkidentity.ReleaseVersion`). |
-| `@iota-uz/sdk` | The npm package at **exactly** *R*, installed with its dependencies (the build worker needs the native `esbuild` package). The Go module and the package are one release unit ([`../client-host-release-train.md`](../client-host-release-train.md)); update `go.mod`, `go.sum`, `package.json` and the JS lockfile together. |
+| `@iota-uz/sdk` | The npm package at **exactly** *R*, plus `esbuild@^0.25` as a production dependency of the application: the server's build worker needs the native `esbuild` package, which `@iota-uz/sdk` declares as an optional peer (the public package carries no dependencies of its own). The Go module and the package are one release unit ([`../client-host-release-train.md`](../client-host-release-train.md)); update `go.mod`, `go.sum`, `package.json` and the JS lockfile together. |
 | Node.js | `>= 20.19.0` (the package's `engines`), on `PATH` or named by `EXTRUNTIME_NODEBINARY`. `npm` as well when packages have their own dependencies (builds run `npm ci --ignore-scripts`). |
 | PostgreSQL | The application's own database. The runtime keeps its tables in schema `extruntime` and one schema `x_<namespace>` per package; both are created by migrations/activation, never by the Node workers. |
 | `git` | Only for importing packages from Git (`/_ext/manage/import/git`). |
@@ -37,7 +37,7 @@ Shipping the package next to the binary (Dockerfile sketch):
 FROM node:22-bookworm-slim AS js
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev          # installs @iota-uz/sdk@<R> and its esbuild
+RUN npm ci --omit=dev          # installs @iota-uz/sdk@<R> and esbuild (both in "dependencies")
 
 FROM golang:1.24 AS go
 # ... go build -o /out/server ./cmd/server
