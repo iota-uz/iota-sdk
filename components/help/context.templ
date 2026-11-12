@@ -15,6 +15,7 @@ templ Context(props ContextProps) {
 				const gap = 8;
 				const viewport = document.documentElement.clientWidth;
 				const viewportHeight = document.documentElement.clientHeight;
+				const scrollTop = $refs.panel.scrollTop;
 				this.maxWidth = viewport - 2 * gutter;
 				this.maxHeight = 0;
 				await this.$nextTick();
@@ -29,6 +30,8 @@ templ Context(props ContextProps) {
 				const room = Math.max(openAbove ? above : below, 96);
 				this.maxHeight = room;
 				this.top = openAbove ? trigger.top - gap - Math.min(panel.height, room) : trigger.bottom + gap;
+				await this.$nextTick();
+				$refs.panel.scrollTop = scrollTop;
 			},
 			toggle() {
 				if (this.open) return this.close();

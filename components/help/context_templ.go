@@ -36,7 +36,7 @@ func Context(props ContextProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\topen: false,\n\t\t\tleft: 0,\n\t\t\ttop: 0,\n\t\t\tmaxWidth: 0,\n\t\t\tmaxHeight: 0,\n\t\t\tasync place() {\n\t\t\t\tconst gutter = 16;\n\t\t\t\tconst gap = 8;\n\t\t\t\tconst viewport = document.documentElement.clientWidth;\n\t\t\t\tconst viewportHeight = document.documentElement.clientHeight;\n\t\t\t\tthis.maxWidth = viewport - 2 * gutter;\n\t\t\t\tthis.maxHeight = 0;\n\t\t\t\tawait this.$nextTick();\n\t\t\t\tconst trigger = $refs.trigger.getBoundingClientRect();\n\t\t\t\tconst panel = $refs.panel.getBoundingClientRect();\n\t\t\t\tlet left = trigger.left;\n\t\t\t\tif (left + panel.width &gt; viewport - gutter) left = trigger.right - panel.width;\n\t\t\t\tthis.left = Math.max(gutter, Math.min(left, viewport - gutter - panel.width));\n\t\t\t\tconst below = viewportHeight - trigger.bottom - gap - gutter;\n\t\t\t\tconst above = trigger.top - gap - gutter;\n\t\t\t\tconst openAbove = panel.height &gt; below &amp;&amp; above &gt; below;\n\t\t\t\tconst room = Math.max(openAbove ? above : below, 96);\n\t\t\t\tthis.maxHeight = room;\n\t\t\t\tthis.top = openAbove ? trigger.top - gap - Math.min(panel.height, room) : trigger.bottom + gap;\n\t\t\t},\n\t\t\ttoggle() {\n\t\t\t\tif (this.open) return this.close();\n\t\t\t\tthis.open = true;\n\t\t\t\tthis.$nextTick(async () =&gt; {\n\t\t\t\t\tawait this.place();\n\t\t\t\t\t$refs.panel.focus({ preventScroll: true });\n\t\t\t\t});\n\t\t\t},\n\t\t\tclose(restoreFocus = true) {\n\t\t\t\tif (!this.open) return;\n\t\t\t\tthis.open = false;\n\t\t\t\tif (restoreFocus) $refs.trigger.focus({ preventScroll: true });\n\t\t\t},\n\t\t\tleave(event) {\n\t\t\t\tconst items = [...$refs.panel.querySelectorAll(&#39;a[href], button:not([disabled])&#39;)];\n\t\t\t\tconst first = items[0];\n\t\t\t\tconst last = items[items.length - 1];\n\t\t\t\tconst active = document.activeElement;\n\t\t\t\tconst leavingForward = !event.shiftKey &amp;&amp; (active === last || (!last &amp;&amp; active === $refs.panel));\n\t\t\t\tconst leavingBackward = event.shiftKey &amp;&amp; (active === first || active === $refs.panel);\n\t\t\t\tif (leavingForward || leavingBackward) {\n\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\tthis.close();\n\t\t\t\t}\n\t\t\t}\n\t\t}\" x-id=\"[&#39;help-panel&#39;, &#39;help-title&#39;]\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\topen: false,\n\t\t\tleft: 0,\n\t\t\ttop: 0,\n\t\t\tmaxWidth: 0,\n\t\t\tmaxHeight: 0,\n\t\t\tasync place() {\n\t\t\t\tconst gutter = 16;\n\t\t\t\tconst gap = 8;\n\t\t\t\tconst viewport = document.documentElement.clientWidth;\n\t\t\t\tconst viewportHeight = document.documentElement.clientHeight;\n\t\t\t\tconst scrollTop = $refs.panel.scrollTop;\n\t\t\t\tthis.maxWidth = viewport - 2 * gutter;\n\t\t\t\tthis.maxHeight = 0;\n\t\t\t\tawait this.$nextTick();\n\t\t\t\tconst trigger = $refs.trigger.getBoundingClientRect();\n\t\t\t\tconst panel = $refs.panel.getBoundingClientRect();\n\t\t\t\tlet left = trigger.left;\n\t\t\t\tif (left + panel.width &gt; viewport - gutter) left = trigger.right - panel.width;\n\t\t\t\tthis.left = Math.max(gutter, Math.min(left, viewport - gutter - panel.width));\n\t\t\t\tconst below = viewportHeight - trigger.bottom - gap - gutter;\n\t\t\t\tconst above = trigger.top - gap - gutter;\n\t\t\t\tconst openAbove = panel.height &gt; below &amp;&amp; above &gt; below;\n\t\t\t\tconst room = Math.max(openAbove ? above : below, 96);\n\t\t\t\tthis.maxHeight = room;\n\t\t\t\tthis.top = openAbove ? trigger.top - gap - Math.min(panel.height, room) : trigger.bottom + gap;\n\t\t\t\tawait this.$nextTick();\n\t\t\t\t$refs.panel.scrollTop = scrollTop;\n\t\t\t},\n\t\t\ttoggle() {\n\t\t\t\tif (this.open) return this.close();\n\t\t\t\tthis.open = true;\n\t\t\t\tthis.$nextTick(async () =&gt; {\n\t\t\t\t\tawait this.place();\n\t\t\t\t\t$refs.panel.focus({ preventScroll: true });\n\t\t\t\t});\n\t\t\t},\n\t\t\tclose(restoreFocus = true) {\n\t\t\t\tif (!this.open) return;\n\t\t\t\tthis.open = false;\n\t\t\t\tif (restoreFocus) $refs.trigger.focus({ preventScroll: true });\n\t\t\t},\n\t\t\tleave(event) {\n\t\t\t\tconst items = [...$refs.panel.querySelectorAll(&#39;a[href], button:not([disabled])&#39;)];\n\t\t\t\tconst first = items[0];\n\t\t\t\tconst last = items[items.length - 1];\n\t\t\t\tconst active = document.activeElement;\n\t\t\t\tconst leavingForward = !event.shiftKey &amp;&amp; (active === last || (!last &amp;&amp; active === $refs.panel));\n\t\t\t\tconst leavingBackward = event.shiftKey &amp;&amp; (active === first || active === $refs.panel);\n\t\t\t\tif (leavingForward || leavingBackward) {\n\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\tthis.close();\n\t\t\t\t}\n\t\t\t}\n\t\t}\" x-id=\"[&#39;help-panel&#39;, &#39;help-title&#39;]\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -64,7 +64,7 @@ func Context(props ContextProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(contextLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 73, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 76, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -85,7 +85,7 @@ func Context(props ContextProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(contextLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 77, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 80, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -98,7 +98,7 @@ func Context(props ContextProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 96, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 99, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -116,7 +116,7 @@ func Context(props ContextProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Summary)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 98, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 101, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -145,7 +145,7 @@ func Context(props ContextProps) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(section.Title)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 106, Col: 104}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 109, Col: 104}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func Context(props ContextProps) templ.Component {
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(item)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 111, Col: 24}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 114, Col: 24}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -206,7 +206,7 @@ func Context(props ContextProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.ArticleLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 126, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 129, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -242,7 +242,7 @@ func Context(props ContextProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.ScreenLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 135, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 138, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -307,7 +307,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(hintLabel(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 151, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 154, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 164, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 167, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -341,7 +341,7 @@ func Hint(props HintProps) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 165, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 168, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -359,7 +359,7 @@ func Hint(props HintProps) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(props.Next)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 167, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 170, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -387,7 +387,7 @@ func Hint(props HintProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(props.ArticleLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 171, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/help/context.templ`, Line: 174, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
