@@ -135,3 +135,18 @@ func TestContext_AccessibilityPairs(t *testing.T) {
 	require.Contains(t, declared[1], "'"+controls+"'")
 	require.Contains(t, declared[1], "'"+labelledBy+"'")
 }
+
+// Falsely green if the check only looked for a dialog anywhere in the output:
+// consumers place Context inside headings, so the panel must not render inside
+// the component's own element (it is teleported to the body).
+func TestContext_PanelIsNotRenderedInsideTheRoot(t *testing.T) {
+	markup := renderToString(t, Context(ContextProps{Title: "Policy status", Summary: "Check coverage."}))
+
+	root, panel, found := strings.Cut(markup, `<template x-teleport="body">`)
+	require.True(t, found)
+	require.Contains(t, root, `aria-haspopup="dialog"`)
+	require.NotContains(t, root, `role="dialog"`)
+	require.NotContains(t, root, "<h2")
+	require.Contains(t, panel, `role="dialog"`)
+	require.Contains(t, panel, "<h2")
+}
