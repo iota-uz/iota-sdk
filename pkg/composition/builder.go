@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/health"
+	"github.com/iota-uz/iota-sdk/pkg/helpdocs"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -182,6 +183,7 @@ type Builder struct {
 	hashFSFactories       []namedFactory[[]*hashfs.FS]
 	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
 	spotlightFactories    []namedFactory[[]spotlight.SearchProvider]
+	helpSourceFactories   []namedFactory[[]helpdocs.Source]
 	spotlightAgent        *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
@@ -418,6 +420,12 @@ func ContributeHashFS(builder *Builder, factory func(*Container) ([]*hashfs.FS, 
 
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {
 	appendFactory(builder, "spotlight", factory, &builder.spotlightFactories)
+}
+
+// ContributeHelpSources adds documentation sources the Help Center serves
+// next to its own content (see pkg/helpdocs).
+func ContributeHelpSources(builder *Builder, factory func(*Container) ([]helpdocs.Source, error)) {
+	appendFactory(builder, "help-sources", factory, &builder.helpSourceFactories)
 }
 
 func ContributeSpotlightAgent(builder *Builder, factory func(*Container) (spotlight.Agent, error)) {
