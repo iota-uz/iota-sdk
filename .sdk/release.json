@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Restyle the contextual help trigger as a borderless round button, keep its panel inside the viewport, and fix class rendering in help.Context, help.Hint and help.Link when a Class prop is passed (changes the rendered class attribute)."
+    }
+  ],
+  "source": "a6702fe8bb77b60e09c97fd641acc4a4b4e7f96f",
+  "version": "0.40.1"
+}
