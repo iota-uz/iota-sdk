@@ -8,16 +8,17 @@ templ Context(props ContextProps) {
 			open: false,
 			offset: 0,
 			maxWidth: 0,
-			place() {
+			async place() {
 				const gutter = 16;
 				const viewport = document.documentElement.clientWidth;
+				this.maxWidth = viewport - 2 * gutter;
+				await this.$nextTick();
 				const trigger = $refs.trigger.getBoundingClientRect();
-				const origin = $el.getBoundingClientRect().left;
-				const width = Math.min($refs.panel.getBoundingClientRect().width, viewport - 2 * gutter);
+				const origin = $el.getBoundingClientRect().left + $el.clientLeft;
+				const width = $refs.panel.getBoundingClientRect().width;
 				let left = trigger.left;
 				if (left + width > viewport - gutter) left = trigger.right - width;
 				left = Math.max(gutter, Math.min(left, viewport - gutter - width));
-				this.maxWidth = viewport - 2 * gutter;
 				this.offset = left - origin;
 			},
 			toggle() {
