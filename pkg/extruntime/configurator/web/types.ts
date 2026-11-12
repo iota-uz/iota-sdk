@@ -204,3 +204,91 @@ export interface ActivationResult {
   rebound?: BindingInfo[]
   released?: BindingInfo[]
 }
+
+// The live API reference (GET /_ext/manage/reference; Go: reference.Model).
+// The reader sees what their permissions allow: Extensions.Read holders see
+// everything the catalog holds.
+
+export interface ReferenceTypeDoc {
+  /** Compact signature, for example `{ id: uuid, note?: string(255) }`. */
+  signature: string
+  /** JSON Schema (2020-12) of the wire form. */
+  schema: Record<string, unknown>
+  /** A valid example value in wire form. */
+  example: unknown
+}
+
+export interface ReferenceField {
+  id: string
+  label?: string
+  type: string
+  required: boolean
+  unique?: boolean
+  indexed?: boolean
+  permissions?: string[]
+}
+
+export interface ReferenceGuard {
+  id: string
+  target: string
+  phase: string
+  package: string
+  version?: string
+}
+
+export interface ReferenceItem {
+  id: string
+  kind: string
+  label?: string
+  description?: string
+  /** Declaring package; absent for native contracts. */
+  package?: string
+  version?: string
+  native?: boolean
+  permission?: string
+  atomic?: boolean
+  input?: ReferenceTypeDoc
+  output?: ReferenceTypeDoc
+  payload?: ReferenceTypeDoc
+  params?: ReferenceTypeDoc
+  props?: ReferenceTypeDoc
+  record?: ReferenceTypeDoc
+  errors?: string[]
+  subject?: string
+  signals?: Array<{ name: string; payload: ReferenceTypeDoc }>
+  keyType?: string
+  base?: string
+  fields?: ReferenceField[]
+  path?: string
+  target?: string
+  guards?: ReferenceGuard[]
+  subscribers?: string[]
+  extendedBy?: string[]
+}
+
+export interface ReferenceEndpoint {
+  id: string
+  method: string
+  path: string
+  url: string
+  public: boolean
+  package: string
+  version: string
+}
+
+export interface ReferenceNamespace {
+  name: string
+  package?: { namespace: string; version: string }
+  native?: boolean
+  items: ReferenceItem[]
+  endpoints?: ReferenceEndpoint[]
+  schedules?: Array<{ id: string; cron: string; timezone?: string }>
+  subscriptions?: Array<{ id: string; event: string }>
+  guards?: ReferenceGuard[]
+}
+
+export interface ReferenceModel {
+  namespaces: ReferenceNamespace[]
+  /** True when the reader holds Extensions.Read and sees everything. */
+  full: boolean
+}

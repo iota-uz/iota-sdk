@@ -217,14 +217,11 @@ func (b *builder) ruleAccess(m *model, alias string) (string, error) {
 	}
 	preds := make([]string, 0, len(m.rules))
 	for _, r := range m.rules {
-		if !sub.Has(r.Permission) {
+		if !RuleGrantsRows(sub, r) {
 			continue
 		}
 		if r.All {
 			return "TRUE", nil
-		}
-		if r.Rows == nil {
-			continue
 		}
 		p, err := b.filter(m.policy, alias, r.Rows, modeTrusted)
 		if err != nil {

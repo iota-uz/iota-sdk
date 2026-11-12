@@ -351,7 +351,7 @@ func TestEveryToolIsRegisteredWithASchemaAndAPolicy(t *testing.T) {
 		"ext_publish", "ext_version_list", "ext_version_get", "ext_review", "ext_activate", "ext_deactivate", "ext_purge",
 		"ext_activation_list", "ext_binding_list", "ext_bind", "ext_unbind", "ext_owner_list", "ext_owner_assign",
 		"ext_owner_remove", "ext_kit_info", "ext_kit_module", "ext_audit_list", "ext_invoke", "ext_resource_list",
-		"ext_resource_get", "ext_workflow_list", "ext_workflow_get", "ext_workflow_signal", "ext_workflow_decide_task",
+		"ext_resource_get", "ext_reference", "ext_workflow_list", "ext_workflow_get", "ext_workflow_signal", "ext_workflow_decide_task",
 		"ext_workflow_terminate", "ext_workflow_start_v2", "ext_workflow_resolve", "ext_workflow_retry", "ext_workflow_resume",
 		"ext_subscription_requeue",
 	} {

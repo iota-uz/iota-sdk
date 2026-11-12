@@ -23,4 +23,9 @@
 // declare only a scope: the service decides the permission, so a refused
 // attempt leaves the same "denied" audit row as over HTTP. The permission each
 // tool needs is published in Spec.Meta under MetaPermissions.
+//
+// ext_reference is the exception to "read tools require Extensions.Read": it
+// needs only a read scope and a signed-in user, and returns the reference
+// filtered to what the user's permissions allow (see reference.Visible), like
+// the Help Center does.
 package mcptools

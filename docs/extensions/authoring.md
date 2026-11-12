@@ -1246,6 +1246,13 @@ Both do the same things:
 Permissions: *read* (kit, versions), *author* (drafts), *review*, *publish* (activate, deactivate, purge, bind, owners), *operate* (execute, workflow actions, requeue).
 Source control is yours: `ext_export` returns the draft as a tree to commit.
 
+What is installed documents itself. In the application's Help Center, *Extensions → Reference* lists every namespace you may
+see with its entities, commands, queries, events, workflows, endpoints and the JSON Schemas and examples of their inputs and
+outputs, taken from the live catalog (your own package appears there as soon as it is active); the same reference is the
+**Reference** tab of the configurator and the `ext_reference` MCP tool. You see the resources your permissions allow, and
+`Extensions.Read` shows everything. `GET /_ext/openapi.json` serves the HTTP interface as an OpenAPI 3.1 document, and
+operators can export one offline for Swagger UI (see [`consumer.md`](consumer.md), §9).
+
 ## 18. Reference: where to look
 
 * The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
@@ -1257,3 +1264,5 @@ Source control is yours: `ext_export` returns the draft as a tree to commit.
 * The complete working package: [`example/`](example). More real packages (an overlay with columns, a custom cell, slot contributions and a slot of your own, a replacement
   client view, a campaign workflow with an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
 * The platform contract: [`../extension-runtime.md`](../extension-runtime.md), §9.1 onwards.
+* The live API reference of the application you publish to: *Extensions → Reference* in the Help Center (`/help`), the
+  configurator's Reference tab, `ext_reference` over MCP, and `GET /_ext/openapi.json` (OpenAPI 3.1).

@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -43,6 +44,7 @@ type API struct {
 	subject SubjectFunc
 	log     *slog.Logger
 	origins *originguard.Guard
+	ref     *reference.Builder
 }
 
 // WithOriginGuard sets who may make state-changing requests from another
@@ -52,12 +54,19 @@ func (a *API) WithOriginGuard(g *originguard.Guard) *API {
 	return a
 }
 
+// WithReference makes the API serve the reference from b (default: one built
+// over the service's catalog). It returns the API.
+func (a *API) WithReference(b *reference.Builder) *API {
+	a.ref = b
+	return a
+}
+
 // NewAPI builds the handler tree rooted at APIPrefix.
 func NewAPI(svc *manage.Service, subject SubjectFunc, log *slog.Logger) *API {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &API{svc: svc, subject: subject, log: log}
+	return &API{svc: svc, subject: subject, log: log, ref: reference.New(svc.Catalog())}
 }
 
 type handler func(w http.ResponseWriter, r *http.Request, actor spi.Subject) (status int, body any, err error)
@@ -179,56 +188,15 @@ func vars(r *http.Request, name string) string {
 	return v
 }
 
-// Handler returns the routes. Mount it so that requests reach it with the
-// APIPrefix intact.
+// Handler returns the routes, registered from the same table the OpenAPI
+// document is generated from (see routes). Mount it so that requests reach it
+// with the APIPrefix intact.
 func (a *API) Handler() http.Handler {
 	root := mux.NewRouter()
 	r := root.PathPrefix(APIPrefix).Subrouter()
-	p := "/packages/{ns}"
-
-	r.HandleFunc("/packages", a.wrap(a.listPackages)).Methods(http.MethodGet)
-	r.HandleFunc("/packages", a.wrap(a.createPackage)).Methods(http.MethodPost)
-	r.HandleFunc(p, a.wrap(a.getPackage)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/files", a.wrap(a.listFiles)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/files/{path:.+}", a.wrap(a.getFile)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/files/{path:.+}", a.wrap(a.putFile)).Methods(http.MethodPut)
-	r.HandleFunc(p+"/files/{path:.+}", a.wrap(a.deleteFile)).Methods(http.MethodDelete)
-	r.HandleFunc(p+"/move", a.wrap(a.moveFile)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/check", a.wrap(a.check)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/build", a.wrap(a.build)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/test", a.wrap(a.test)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/publish", a.wrap(a.publish)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/versions", a.wrap(a.listVersions)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/versions/{version}", a.wrap(a.getVersion)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/versions/{version}/review", a.wrap(a.review)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/versions/{version}/activate", a.wrap(a.activate)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/deactivate", a.wrap(a.deactivate)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/purge", a.wrap(a.purge)).Methods(http.MethodPost)
-	r.HandleFunc(p+"/activations", a.wrap(a.listActivations)).Methods(http.MethodGet)
-	r.HandleFunc(p+"/export", a.wrap(a.export)).Methods(http.MethodGet)
-	r.HandleFunc("/import/git", a.wrap(a.importGit)).Methods(http.MethodPost)
-	r.HandleFunc("/import/tree", a.wrap(a.importTree)).Methods(http.MethodPost)
-	r.HandleFunc("/bindings", a.wrap(a.listBindings)).Methods(http.MethodGet)
-	r.HandleFunc("/bindings", a.wrap(a.bind)).Methods(http.MethodPost)
-	r.HandleFunc("/bindings/{slot}/{target}", a.wrap(a.unbind)).Methods(http.MethodDelete)
-	r.HandleFunc("/owners", a.wrap(a.listOwners)).Methods(http.MethodGet)
-	r.HandleFunc("/triggers/{trigger}/owner", a.wrap(a.assignOwner)).Methods(http.MethodPut)
-	r.HandleFunc("/triggers/{trigger}/owner", a.wrap(a.removeOwner)).Methods(http.MethodDelete)
-	r.HandleFunc("/kit", a.wrap(a.kit)).Methods(http.MethodGet)
-	r.HandleFunc("/kit/modules/{module:.+}", a.wrap(a.kitModule)).Methods(http.MethodGet)
-	r.HandleFunc("/catalog/natives", a.wrap(a.nativeCatalog)).Methods(http.MethodGet)
-	r.HandleFunc("/audit", a.wrap(a.audit)).Methods(http.MethodGet)
-
-	r.HandleFunc("/workflows", a.wrap(a.listWorkflows)).Methods(http.MethodGet)
-	r.HandleFunc("/workflows/{id}", a.wrap(a.getWorkflow)).Methods(http.MethodGet)
-	r.HandleFunc("/workflows/{id}/signal", a.wrap(a.signalWorkflow)).Methods(http.MethodPost)
-	r.HandleFunc("/workflows/{id}/terminate", a.wrap(a.terminateWorkflow)).Methods(http.MethodPost)
-	r.HandleFunc("/workflows/{id}/start-v2", a.wrap(a.startWorkflowV2)).Methods(http.MethodPost)
-	r.HandleFunc("/workflows/{id}/resolve", a.wrap(a.resolveOccurrence)).Methods(http.MethodPost)
-	r.HandleFunc("/workflows/{id}/retry", a.wrap(a.retryOccurrence)).Methods(http.MethodPost)
-	r.HandleFunc("/workflows/{id}/resume", a.wrap(a.resumeWorkflow)).Methods(http.MethodPost)
-	r.HandleFunc("/tasks/{id}/decide", a.wrap(a.decideTask)).Methods(http.MethodPost)
-	r.HandleFunc("/subscriptions/{subscription}/requeue", a.wrap(a.requeueReceipts)).Methods(http.MethodPost)
+	for _, rt := range routes {
+		r.HandleFunc(rt.path, a.wrap(rt.bind(a))).Methods(rt.method)
+	}
 	return root
 }
 
@@ -238,10 +206,7 @@ func (a *API) listPackages(_ http.ResponseWriter, r *http.Request, actor spi.Sub
 }
 
 func (a *API) createPackage(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		Namespace string `json:"namespace"`
-		NPMName   string `json:"npmName"`
-	}
+	var in createPackageRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -290,7 +255,7 @@ func (a *API) deleteFile(_ http.ResponseWriter, r *http.Request, actor spi.Subje
 }
 
 func (a *API) moveFile(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct{ From, To string }
+	var in moveRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -313,9 +278,7 @@ func (a *API) test(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (i
 }
 
 func (a *API) publish(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		Version string `json:"version"`
-	}
+	var in versionRequest
 	if r.ContentLength != 0 {
 		if err := decode(r, w, &in); err != nil && !errors.Is(err, io.EOF) {
 			return 0, nil, err
@@ -336,12 +299,7 @@ func (a *API) getVersion(_ http.ResponseWriter, r *http.Request, actor spi.Subje
 }
 
 func (a *API) review(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		Approve            bool   `json:"approve"`
-		Comment            string `json:"comment"`
-		ExpectSourceHash   string `json:"expectSourceHash"`
-		ExpectArtifactHash string `json:"expectArtifactHash"`
-	}
+	var in reviewRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -387,11 +345,7 @@ func (a *API) export(_ http.ResponseWriter, r *http.Request, actor spi.Subject) 
 }
 
 func (a *API) importGit(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		RepoURL string `json:"repoUrl"`
-		Commit  string `json:"commit"`
-		Subdir  string `json:"subdir"`
-	}
+	var in importGitRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -419,13 +373,7 @@ func (a *API) listBindings(_ http.ResponseWriter, r *http.Request, actor spi.Sub
 }
 
 func (a *API) bind(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		SlotKind string `json:"slotKind"`
-		TargetID string `json:"targetId"`
-		Package  string `json:"package"`
-		Version  string `json:"version"`
-		Export   string `json:"export"`
-	}
+	var in bindRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -443,9 +391,7 @@ func (a *API) listOwners(_ http.ResponseWriter, r *http.Request, actor spi.Subje
 }
 
 func (a *API) assignOwner(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		UserID int64 `json:"userId"`
-	}
+	var in assignOwnerRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -541,11 +487,7 @@ func (a *API) signalWorkflow(w http.ResponseWriter, r *http.Request, actor spi.S
 	if err != nil {
 		return 0, nil, err
 	}
-	var in struct {
-		Name    string          `json:"name"`
-		Payload json.RawMessage `json:"payload"`
-		Key     string          `json:"key"`
-	}
+	var in signalRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -565,9 +507,7 @@ func (a *API) startWorkflowV2(w http.ResponseWriter, r *http.Request, actor spi.
 	if err != nil {
 		return 0, nil, err
 	}
-	var in struct {
-		Version string `json:"version"`
-	}
+	var in versionRequest
 	if r.ContentLength != 0 {
 		if err := decode(r, w, &in); err != nil {
 			return 0, nil, err
@@ -577,18 +517,12 @@ func (a *API) startWorkflowV2(w http.ResponseWriter, r *http.Request, actor spi.
 	return http.StatusCreated, map[string]string{"instance": out.String()}, err
 }
 
-type occurrenceBody struct {
-	Name   string          `json:"name"`
-	N      int             `json:"n"`
-	Result json.RawMessage `json:"result"`
-}
-
 func (a *API) resolveOccurrence(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
 	id, err := uuidVar(r, "id")
 	if err != nil {
 		return 0, nil, err
 	}
-	var in occurrenceBody
+	var in occurrenceRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -600,7 +534,7 @@ func (a *API) retryOccurrence(w http.ResponseWriter, r *http.Request, actor spi.
 	if err != nil {
 		return 0, nil, err
 	}
-	var in occurrenceBody
+	var in occurrenceRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
@@ -618,9 +552,7 @@ func (a *API) resumeWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.S
 // requeueReceipts gives the dead-lettered and blocked deliveries of a
 // subscription (or of one event, {"event": "<id>"}) a fresh start.
 func (a *API) requeueReceipts(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
-	var in struct {
-		Event string `json:"event"`
-	}
+	var in requeueRequest
 	if r.ContentLength != 0 {
 		if err := decode(r, w, &in); err != nil {
 			return 0, nil, err
@@ -635,11 +567,17 @@ func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subje
 	if err != nil {
 		return 0, nil, err
 	}
-	var in struct {
-		Decision json.RawMessage `json:"decision"`
-	}
+	var in decideRequest
 	if err := decode(r, w, &in); err != nil {
 		return 0, nil, err
 	}
 	return http.StatusNoContent, nil, a.svc.DecideTask(r.Context(), actor, id, in.Decision)
+}
+
+// reference serves the live API reference as the signed-in reader sees it. No
+// permission is required beyond the session: the model is filtered by the
+// reader's permissions (reference.Visible).
+func (a *API) reference(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	m, err := a.ref.Model(r.Context(), actor, r.URL.Query().Get("locale"))
+	return http.StatusOK, m, err
 }

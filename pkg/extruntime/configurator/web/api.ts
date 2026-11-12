@@ -1,5 +1,5 @@
 import type {
-  ActivationResult, AuditEntry, BindingInfo, BuildReport, CheckReport, Diagnostic, KitInfo, PackageInfo, RemoteFile,
+  ActivationResult, AuditEntry, BindingInfo, BuildReport, CheckReport, Diagnostic, KitInfo, PackageInfo, ReferenceModel, RemoteFile,
   Review, TestReport, TriggerOwner, TypeFiles, VersionInfo, WorkflowHistory, WorkflowInstance,
 } from './types'
 
@@ -141,6 +141,10 @@ export class ManageApi {
   removeOwner(triggerId: string): Promise<void> { return this.json(`/triggers/${enc(triggerId)}/owner`, { method: 'DELETE' }) }
 
   kit(signal?: AbortSignal): Promise<KitInfo> { return this.json('/kit', { signal }) }
+  /** reference loads the live API reference as the signed-in user may see it. */
+  reference(locale?: string, signal?: AbortSignal): Promise<ReferenceModel> {
+    return this.json(`/reference${locale ? `?locale=${enc(locale)}` : ''}`, { signal })
+  }
   audit(namespace: string, signal?: AbortSignal): Promise<AuditEntry[]> { return this.json(`/audit?namespace=${enc(namespace)}&limit=50`, { signal }) }
 
   listWorkflows(status: string, signal?: AbortSignal): Promise<WorkflowInstance[]> {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/openapi"
 )
 
 func TestCommittedSnapshotIsCurrent(t *testing.T) {
@@ -65,4 +66,38 @@ func TestCheckFlagReportsStaleFile(t *testing.T) {
 
 	require.NoError(t, run([]string{"-out", file}, &out, &errOut))
 	require.NoError(t, run([]string{"-check", "-out", file}, &out, &errOut))
+}
+
+func TestOpenAPIExportDescribesTheNativeCatalog(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "api.json")
+	var out, errOut bytes.Buffer
+	require.NoError(t, run([]string{"-openapi", file}, &out, &errOut))
+
+	raw, err := os.ReadFile(file)
+	require.NoError(t, err)
+	require.NoError(t, openapi.Validate(raw))
+	var doc struct {
+		OpenAPI string                    `json:"openapi"`
+		Paths   map[string]map[string]any `json:"paths"`
+		Comps   struct {
+			Schemas map[string]any `json:"schemas"`
+		} `json:"components"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	require.Equal(t, "3.1.0", doc.OpenAPI)
+	require.Contains(t, doc.Paths, "/_ext/rpc")
+	require.Contains(t, doc.Paths, "/_ext/manage/packages")
+	require.Contains(t, doc.Comps.Schemas, "rpc.request.crm.commands.saveClient", "the native commands are RPC variants")
+	require.NotContains(t, doc.Comps.Schemas, "rpc.request.crm.operations.upsertClient", "operations are not callable from the browser")
+
+	// the snapshot default is untouched, and -check works on the OpenAPI file
+	require.NoError(t, run([]string{"-openapi", file, "-check"}, &out, &errOut))
+	require.NoError(t, os.WriteFile(file, []byte("{}\n"), 0o644))
+	require.Error(t, run([]string{"-openapi", file, "-check"}, &out, &errOut))
+
+	again, err := RenderOpenAPI()
+	require.NoError(t, err)
+	second, err := RenderOpenAPI()
+	require.NoError(t, err)
+	require.Equal(t, again, second, "the export is deterministic")
 }
