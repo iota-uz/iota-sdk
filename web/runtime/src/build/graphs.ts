@@ -49,10 +49,24 @@ const SHARED_LOADERS = 'globalThis[Symbol.for("iota.runtime.shared.loaders")]';
 
 let sharedNames: Record<string, string[]> | undefined;
 
-function sharedShim(layout: Layout, spec: string): string {
+/** The shared runtime client: its `helpHref` is the one export a bundle gets bound to its own package rather than the host's page. */
+const RUNTIME_CLIENT = "@iota-uz/sdk/runtime/client";
+
+/**
+ * The module a client bundle reads for a shared specifier. `namespace` is the package being built: the shim of the runtime
+ * client exports a `helpHref` bound to it, so a slot or cell of package B rendered on package A's page (or on a native page)
+ * links to B's documentation; an explicit `{ namespace }` argument still wins.
+ */
+export function sharedShim(layout: Layout, spec: string, namespace?: string): string {
   sharedNames ??= JSON.parse(readFileSync(layout.sharedExports, "utf8")) as Record<string, string[]>;
-  const names = sharedNames[spec] ?? [];
-  const exports = names.length > 0 ? `export const { ${names.join(", ")} } = m;` : "";
+  const bound = spec === RUNTIME_CLIENT && namespace !== undefined;
+  const names = (sharedNames[spec] ?? []).filter((n) => !(bound && n === "helpHref"));
+  const exports = [
+    names.length > 0 ? `export const { ${names.join(", ")} } = m;` : "",
+    bound ? `export const helpHref = (path, options = {}) => m.helpHref(path, { ...options, namespace: options.namespace ?? ${JSON.stringify(namespace)} });` : "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
   if (LAZY_SHARED.has(spec)) {
     return [
       `const load = ${SHARED_LOADERS}?.[${JSON.stringify(spec)}];`,
@@ -363,7 +377,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
 
       build.onLoad({ filter: /.*/, namespace: "iota-kit-stub" }, () => ({ contents: kitStub(env.layout), loader: "js" }));
 
-      build.onLoad({ filter: /.*/, namespace: "iota-shared" }, (args) => ({ contents: sharedShim(env.layout, args.path), loader: "js" }));
+      build.onLoad({ filter: /.*/, namespace: "iota-shared" }, (args) => ({ contents: sharedShim(env.layout, args.path, env.namespace), loader: "js" }));
 
       build.onLoad({ filter: /.*/, namespace: "iota-kit" }, (args) => ({
         contents: env.kit.modules[args.path]?.["index.js"] ?? "",

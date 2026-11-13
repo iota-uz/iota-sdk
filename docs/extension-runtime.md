@@ -881,7 +881,10 @@ it follows the same visibility rule.
   `#`. Titles and audiences are re-sanitised to plain text when listed. The markdown body goes through the Help Center's renderer
   and sanitizer.
 * **Linking.** `helpHref(path, {namespace?, base?})` (`@iota-uz/sdk/runtime/client`, `web/runtime/src/help.ts`) returns
-  `/help/doc/apps/<namespace>/<path>`; the namespace defaults to the package of the runtime page (`PageData.page.package`).
+  `/help/doc/apps/<namespace>/<path>`. In a package bundle the namespace defaults to **the package the bundle belongs to**: the client graph's
+  shim for the shared `@iota-uz/sdk/runtime/client` (`sharedShim` in `build/graphs.ts`) exports a `helpHref` bound to the package being built, so
+  a slot or cell of package B rendered on package A's page or on a native page links to B's documents; an explicit `{namespace}` wins. The page
+  context (`PageData.page.package`) is only the fallback of code the build did not bind.
 
 ### 9.7 Package styles and the UI kit (as implemented)
 

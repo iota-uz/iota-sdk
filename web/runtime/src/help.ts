@@ -12,7 +12,7 @@ const DOC_PATH = /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*)*$/
 const NAMESPACE = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/
 
 export interface HelpHrefOptions {
-  /** The package whose documentation to open. Default: the package of the page being shown. */
+  /** The package whose documentation to open. Default: the package the calling code belongs to. */
   namespace?: string
   /** Where the Help Center is mounted. Default: `/help`. */
   base?: string
@@ -44,8 +44,12 @@ function pageNamespace(): string | undefined {
 
 /**
  * Link to a document of the package's own documentation, for `<a href={helpHref("getting-started")}>`.
- * `iota-ext check` reports a literal that names no `docs/en/<path>.md`. Outside a runtime page (a slot rendered by
- * a native page, a cell), pass the namespace: `helpHref("setup", { namespace: "acme.loyalty" })`.
+ * `iota-ext check` reports a literal that names no `docs/en/<path>.md`.
+ *
+ * In a package bundle (anything built by `iota-ext build`) the default package is the one the bundle belongs to: the build binds
+ * this function to the package namespace, so a slot or cell of package B rendered on package A's page, or on a native page, links
+ * to B's own documents. An explicit `{ namespace }` names another package's. The fallback below (the package of the runtime page
+ * being shown) serves code the build did not bind, such as the host itself.
  */
 export function helpHref(path: string, options: HelpHrefOptions = {}): string {
   const namespace = options.namespace ?? pageNamespace()

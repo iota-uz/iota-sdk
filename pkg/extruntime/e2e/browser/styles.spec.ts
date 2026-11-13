@@ -102,6 +102,19 @@ test.describe('package styles', () => {
     expect(links[0]).toMatch(/\/client\/tailwind\.css$/)
   })
 
+  test('a slot links to its own package documentation on a native page and on another package\'s page', async ({ browser }) => {
+    s = await signIn(browser, 'auditor')
+    const { page } = s
+    const own = '/help/doc/apps/e2e.styled/getting-started'
+
+    await page.goto(clientPage) // a native (Templ/HTMX) page: there is no page context to take the package from
+    await expect(page.getByTestId('styled-help')).toHaveAttribute('href', own)
+
+    await page.goto('/browser/cross') // package e2e.browser's runtime page, with e2e.styled's contribution in it
+    await expect(page.getByTestId('cross-page')).toBeVisible()
+    await expect(page.getByTestId('styled-help')).toHaveAttribute('href', own)
+  })
+
   test('the UI kit is a lazy chunk of the host: a page that does not use it never downloads it', async ({ browser }) => {
     s = await signIn(browser, 'auditor')
     const { page } = s
@@ -128,7 +141,7 @@ test.describe('package styles', () => {
     page.on('request', (request) => { if (new URL(request.url()).pathname.endsWith('.css')) requests.push(new URL(request.url()).pathname) })
     await page.goto(clientPage)
     const badge = page.getByTestId('styled-badge')
-    await expect(badge).toHaveText(`Styled for client ${ann}`)
+    await expect(badge).toContainText(`Styled for client ${ann}`)
 
     // The sidebar slot has other packages' contributions too (each with its own version); the styled package's list is
     // what the server put in the island's configuration.
@@ -158,7 +171,7 @@ test.describe('package styles', () => {
 
     await swap('[data-iota-slot]') // and the swap that brings the slot element back
     await expect(badge).toHaveCount(1)
-    await expect(badge).toHaveText(`Styled for client ${ann}`)
+    await expect(badge).toContainText(`Styled for client ${ann}`)
     expect((await computed(page, 'styled-badge', ['border-left-width']))['border-left-width']).toBe('7px')
 
     expect((await linked()).sort(), 'no second link after the island came back').toEqual([...styles].sort())
