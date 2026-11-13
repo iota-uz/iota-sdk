@@ -116,6 +116,44 @@ describe('iota-ext init → check → build → test', () => {
     expect(tests.status).toBe(0)
   }, 180_000)
 
+  describe('the SDK dependency init writes is the spec the SDK was installed with', () => {
+    function written(parent: string, args: string[], cwd = parent): string {
+      writeFileSync(join(parent, 'package.json'), JSON.stringify({ name: 'host', dependencies: { '@iota-uz/sdk': args[0] } }))
+      const init = iota(cwd, 'init', ...args.slice(1), '--namespace', 'acme.spec', '--no-client', '--no-kit')
+      expect(init.err).toBe('')
+      expect(init.status).toBe(0)
+      const target = join(cwd, args[1] ?? 'pkg')
+      return (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['@iota-uz/sdk']!
+    }
+
+    it('rewrites a file: tarball spec relative to the new package', () => {
+      const parent = project('spec-file')
+      expect(written(parent, ['file:../x.tgz', 'pkg'])).toBe('file:../../x.tgz')
+    })
+
+    it('rewrites a link: directory and a bare relative path, and resolves from a nested working directory', () => {
+      const parent = project('spec-link')
+      expect(written(parent, ['link:../sdk-checkout', 'pkg'])).toBe('link:../../sdk-checkout')
+      expect(written(parent, ['../x.tgz', 'pkg2'])).toBe('file:../../x.tgz')
+      mkdirSync(join(parent, 'packages'))
+      expect(written(parent, ['file:./vendor/sdk.tgz', 'pkg3'], join(parent, 'packages'))).toBe('file:../../vendor/sdk.tgz')
+    })
+
+    it('keeps an absolute path, a git ref and a URL as written', () => {
+      const parent = project('spec-keep')
+      expect(written(parent, ['file:/opt/sdk.tgz', 'a'])).toBe('file:/opt/sdk.tgz')
+      expect(written(parent, ['github:iota-uz/iota-sdk#abc123', 'b'])).toBe('github:iota-uz/iota-sdk#abc123')
+      expect(written(parent, ['https://example.com/sdk.tgz', 'c'])).toBe('https://example.com/sdk.tgz')
+    })
+
+    it('writes the exact installed version for a registry range or tag', () => {
+      const parent = project('spec-registry')
+      const sdkVersion = (JSON.parse(readFileSync(join(sandbox, 'sdk', 'package.json'), 'utf8')) as { version: string }).version
+      expect(written(parent, ['^0.5.0', 'a'])).toBe(sdkVersion)
+      expect(written(parent, ['latest', 'b'])).toBe(sdkVersion)
+    })
+  })
+
   it('refuses a bad namespace and a non-empty directory with exit code 2', () => {
     const dir = project('usage')
     expect(iota(dir, 'init', 'x', '--namespace', 'Acme').status).toBe(2)

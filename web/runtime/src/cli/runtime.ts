@@ -22,21 +22,25 @@ export interface Distribution {
   readonly sdkCatalog: string
   /** The `@iota-uz/sdk` version this CLI ships with. */
   readonly sdkVersion: string
+  /** The package directory of the `@iota-uz/sdk` this CLI runs from. */
+  readonly sdkDir: string
 }
 
 export function locateDistribution(moduleURL: string): Distribution {
   const root = dirname(dirname(fileURLToPath(moduleURL)))
   let version = '0.0.0'
+  let sdkDir = dirname(root)
   for (let dir = root, i = 0; i < 4; dir = dirname(dir), i++) {
     const file = join(dir, 'package.json')
     if (!existsSync(file)) continue
     const pkg = JSON.parse(readFileSync(file, 'utf8')) as { name?: string; version?: string }
     if (pkg.name === '@iota-uz/sdk' && pkg.version !== undefined) {
       version = pkg.version
+      sdkDir = dir
       break
     }
   }
-  return { root, worker: join(root, 'build', 'worker.mjs'), sdkCatalog: join(root, 'catalog', 'sdk-natives.json'), sdkVersion: version }
+  return { root, worker: join(root, 'build', 'worker.mjs'), sdkCatalog: join(root, 'catalog', 'sdk-natives.json'), sdkVersion: version, sdkDir }
 }
 
 /** One worker process per operation: a JSON request on stdin, a JSON response on stdout. */

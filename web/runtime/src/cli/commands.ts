@@ -9,6 +9,7 @@ import { UsageError, parseArgs } from './args.ts'
 import { InvalidKitError, KIT_DIR, KIT_PATHS_KEY, KIT_PATHS_VALUE, editorPaths, ensureEditorPaths, inspectKit, installKit, kitNamespace, loadKit, type KitReport } from './kitfs.ts'
 import { formatDiagnostics, formatTests, plural, style, type Style } from './report.ts'
 import { EnvironmentError, locateDistribution, runWorker, type Distribution } from './runtime.ts'
+import { resolveSdkSpec } from './sdkspec.ts'
 import { defaultPackageName, scaffold, validateNamespace } from './scaffold.ts'
 import { untar } from './tar.ts'
 
@@ -353,7 +354,7 @@ async function init(ctx: Context, argv: readonly string[]): Promise<number> {
   if (invalid !== undefined) throw new UsageError(invalid)
   const dir = resolve(ctx.io.cwd, target)
   if (existsSync(dir) && readdirSync(dir).length > 0 && !args.flag('force')) throw new UsageError(`${dir} is not empty (use --force to write the scaffold anyway)`)
-  const files = scaffold({ namespace, name: args.value('name') ?? defaultPackageName(namespace), sdkVersion: ctx.dist.sdkVersion, client: !args.flag('no-client') })
+  const files = scaffold({ namespace, name: args.value('name') ?? defaultPackageName(namespace), sdkSpec: resolveSdkSpec({ sdkDir: ctx.dist.sdkDir, sdkVersion: ctx.dist.sdkVersion, cwd: ctx.io.cwd, newDir: dir }), client: !args.flag('no-client') })
   for (const [path, text] of Object.entries(files)) {
     const file = join(dir, path)
     mkdirSync(dirname(file), { recursive: true })
