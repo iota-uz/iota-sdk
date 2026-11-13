@@ -114,4 +114,34 @@ describe('menu placement', () => {
     expect(offset.left).toBeGreaterThanOrEqual(8)
     expect(offset.left + menu.width).toBeLessThanOrEqual(viewport.width - 8)
   })
+  it('folds export and expand into one «⋯» menu when the tile header is narrow', async () => {
+    const observers: Array<() => void> = []
+    class FakeObserver {
+      constructor(callback: () => void) { observers.push(callback) }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeObserver)
+    const widthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(150)
+    const document_ = parseDocument({ ...fixture, endpoints: { ...fixture.endpoints, export: '/lens/export' } })
+    render(() =>
+      <DocumentProvider initialDocument={document_}>
+        <DashboardRuntimeProvider locale="en">{() => <DashboardPanels />}</DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    const trigger = await screen.findByRole('button', { name: 'Panel actions' })
+    expect(screen.queryByRole('button', { name: 'Export panel' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Expand panel' })).not.toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitem', { name: 'Image (PNG)' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Expand panel' })).toBeInTheDocument()
+
+    widthSpy.mockReturnValue(420)
+    observers.forEach((callback) => callback())
+    expect(await screen.findByRole('button', { name: 'Expand panel' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export panel' })).toBeInTheDocument()
+    vi.unstubAllGlobals()
+  })
 })
