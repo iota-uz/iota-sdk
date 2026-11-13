@@ -113,6 +113,9 @@
         "Title": "Project deleted",
         "Summary": "The project was removed"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "Enter a number, for example 15 000 000.50"
     }
   },
   "ProjectStages": {

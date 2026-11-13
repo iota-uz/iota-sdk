@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/shopspring/decimal"
 )
 
 // ProjectDomainToViewModel maps a project domain model to a view model.
@@ -36,11 +37,11 @@ func ProjectDomainToViewUpdateModel(p project.Project) dtos.ProjectUpdateDTO {
 		CounterpartyID:   p.CounterpartyID().String(),
 		Name:             p.Name(),
 		Description:      p.Description(),
-		ContractAmount:   0,
+		ContractAmount:   shared.Amount{},
 		ContractCurrency: "",
 	}
 	if contract := p.Contract(); contract != nil {
-		dto.ContractAmount = contract.AsMajorUnits()
+		dto.ContractAmount = shared.NewAmount(decimal.NewFromFloat(contract.AsMajorUnits()))
 		dto.ContractCurrency = contract.Currency().Code
 	}
 	return dto
@@ -51,7 +52,7 @@ func ProjectViewModelToUpdateDTO(vm viewmodels.ProjectViewModel) dtos.ProjectUpd
 		CounterpartyID:   vm.CounterpartyID,
 		Name:             vm.Name,
 		Description:      vm.Description,
-		ContractAmount:   0,
+		ContractAmount:   shared.Amount{},
 		ContractCurrency: "",
 	}
 }

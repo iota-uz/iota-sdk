@@ -113,6 +113,9 @@
         "Title": "Loyiha o'chirildi",
         "Summary": "Loyiha hisobdan o'chirildi"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "Raqam kiriting, masalan 15 000 000,50"
     }
   },
   "ProjectStages": {
