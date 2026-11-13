@@ -28,6 +28,8 @@ var (
 	alpineTooltip  = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
 	htmxAlpineInit = "/assets/" + assets.HashFS.HashName("js/lib/htmx-alpine-init.js")
 	permissionsJs  = "/assets/" + assets.HashFS.HashName("js/permissions.js")
+
+	formValidationJs = "/assets/" + assets.HashFS.HashName("js/form-validation.js")
 )
 
 templ DefaultHead() {
@@ -91,6 +93,7 @@ templ Base(props *BaseProps) {
 		</head>
 		<body { bodyAttrs... }>
 			{ children... }
+			<script src={ formValidationJs } data-required={ intl.TWithDefault(ctx, "FormValidation.Required", "Please fill out this field.") } data-email={ intl.TWithDefault(ctx, "FormValidation.InvalidEmail", "Enter a valid email address.") } data-url={ intl.TWithDefault(ctx, "FormValidation.InvalidUrl", "Enter a valid URL.") } data-format={ intl.TWithDefault(ctx, "FormValidation.InvalidFormat", "Match the requested format.") }></script>
 		</body>
 	</html>
 }

@@ -919,14 +919,14 @@ func passwordLock(p *Props) templ.Component {
 			templ_7745c5c3_Var38 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<label x-data=\"passwordVisibility\" class=\"relative mx-1 flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center\"><input type=\"checkbox\" class=\"absolute inset-0 h-full w-full cursor-pointer appearance-none peer password-lock\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<label x-data=\"passwordVisibility\" class=\"relative flex size-10 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:text-gray-700 -mr-2\"><input type=\"checkbox\" class=\"peer password-lock absolute inset-0 size-full cursor-pointer appearance-none rounded-md focus-visible:outline-2 focus-visible:outline-brand\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(p.id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 273, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 276, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 		if templ_7745c5c3_Err != nil {
@@ -937,9 +937,9 @@ func passwordLock(p *Props) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var40 string
-		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.TogglePassword", "Show password"))
+		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.ShowPassword", "Show password"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 273, Col: 206}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 277, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -949,11 +949,11 @@ func passwordLock(p *Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = icons.Eye(icons.Props{Size: "20", Class: "pointer-events-none absolute duration-200 peer-checked:scale-0"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = icons.EyeSlash(icons.Props{Size: "20", Class: "pointer-events-none absolute duration-200 scale-0 peer-checked:scale-100"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1268,7 +1268,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(p.id)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 485, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 491, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -1281,7 +1281,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var47 string
 			templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(p.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 485, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 491, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 			if templ_7745c5c3_Err != nil {
@@ -1299,7 +1299,7 @@ func (p *MoneyProps) render() templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(alpineConfig)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 488, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 494, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -1312,7 +1312,7 @@ func (p *MoneyProps) render() templ.Component {
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 494, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 500, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {
@@ -1419,7 +1419,7 @@ func (p *MoneyProps) render() templ.Component {
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(p.id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 510, Col: 14}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 516, Col: 14}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1445,7 +1445,7 @@ func (p *MoneyProps) render() templ.Component {
 		var templ_7745c5c3_Var57 string
 		templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(p.Placeholder)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 515, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 521, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 		if templ_7745c5c3_Err != nil {
@@ -1458,7 +1458,7 @@ func (p *MoneyProps) render() templ.Component {
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs("validationError !== '' || " + fmt.Sprintf("%t", p.Error != ""))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 519, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 525, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -1488,7 +1488,7 @@ func (p *MoneyProps) render() templ.Component {
 				return strings.Join(ids, " ")
 			}())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 527, Col: 10}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 533, Col: 10}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1572,7 +1572,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var62 string
 			templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(errorID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 545, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 551, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 			if templ_7745c5c3_Err != nil {
@@ -1585,7 +1585,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var63 string
 			templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(p.id)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 548, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 554, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 			if templ_7745c5c3_Err != nil {
@@ -1598,7 +1598,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 551, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 557, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 			if templ_7745c5c3_Err != nil {
@@ -1617,7 +1617,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(validationErrorID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 557, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 563, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1636,7 +1636,7 @@ func (p *MoneyProps) render() templ.Component {
 			var templ_7745c5c3_Var66 string
 			templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(conversionID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 568, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/input/input.templ`, Line: 574, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 			if templ_7745c5c3_Err != nil {

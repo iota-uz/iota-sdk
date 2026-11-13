@@ -1,0 +1,36 @@
+package components
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// formatLocalDateTime renders an RFC 3339 timestamp (or the legacy
+// "2006-01-02 15:04:05" UTC form) in the application time zone. The second
+// result is false when no time zone is configured or the value is unparsable.
+func formatLocalDateTime(ctx context.Context, value string) (string, bool) {
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t, err = time.ParseInLocation("2006-01-02 15:04:05", value, time.UTC)
+		if err != nil {
+			return "", false
+		}
+	}
+	return composables.FormatDateTime(ctx, t)
+}
+
+// LocalDateTime shows an absolute timestamp. With an application time zone
+// configured it is rendered on the server in that zone; otherwise it falls back
+// to formatting in the viewer's browser zone.
+templ LocalDateTime(value string) {
+	if text, ok := formatLocalDateTime(ctx, value); ok {
+		<time datetime={ value }>{ text }</time>
+	} else {
+		<div x-data="dateTimeFormat">
+			<span x-text={ fmt.Sprintf("format('%s')", value) }></span>
+		</div>
+	}
+}

@@ -5,11 +5,14 @@ import (
 	"github.com/google/uuid"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"strconv"
+	"strings"
 )
 
 type Recipient struct {
@@ -64,6 +67,21 @@ type pickerConfig struct {
 	Items   []pickerItem `json:"items"`
 	Options []pickerItem `json:"options"`
 	Manage  bool         `json:"manage"`
+}
+
+// moduleLabel returns the human-readable module name, matching the Modules.*
+// keys regardless of the case the catalog uses ("core" -> Modules.Core).
+func moduleLabel(pageCtx types.PageContext, module string) string {
+	if module == "" {
+		return module
+	}
+	title := strings.ToUpper(module[:1]) + module[1:]
+	for _, candidate := range []string{module, title, strings.ToUpper(module)} {
+		if label := pageCtx.TSafe("Modules." + candidate); label != "" {
+			return label
+		}
+	}
+	return module
 }
 
 func selected[T comparable](ids []T, id T) bool {
@@ -125,7 +143,7 @@ templ Content(props *Props) {
 	{{pageCtx := composables.UsePageCtx(ctx)
 lang := pageCtx.GetLocale().String()
 	}}
-	<main id="notification-settings" class="p-4 md:p-8 max-w-4xl mx-auto">
+	<main id="notification-settings" class="p-6 md:p-8 max-w-4xl mx-auto">
 		<header class="mb-2">
 			<h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.Title") }</h1>
 			<p class="text-sm text-200 mt-1">{ pageCtx.T("NotificationSettings.Intro") }</p>
@@ -141,7 +159,7 @@ lang := pageCtx.GetLocale().String()
 		{{ previousModule := "" }}
 		for _, event := range props.Rules {
 			if event.Definition.Module != previousModule {
-				<h2 class="text-sm font-medium text-200 mt-8 mb-3">{ event.Definition.Module }</h2>
+				<h2 class="text-sm font-medium text-200 mt-8 mb-3">{ moduleLabel(pageCtx, event.Definition.Module) }</h2>
 				{{ previousModule = event.Definition.Module }}
 			}
 			<form
@@ -219,7 +237,7 @@ lang := pageCtx.GetLocale().String()
 										aria-expanded="false"
 										:aria-expanded="open"
 										placeholder={ pageCtx.T("NotificationSettings.AddRecipient") }
-										class="h-7 min-w-32 flex-1 border-0 bg-transparent px-1 text-sm outline-none placeholder:text-200 focus:ring-0"
+										class="h-7 min-w-32 flex-1 border-0 bg-transparent px-2 text-sm outline-none placeholder:text-200 focus:ring-0"
 										@focus="open = true; loadPeople()"
 										@input="open = true; hi = 0; searchPeople()"
 										@keydown="key($event)"
@@ -283,16 +301,20 @@ lang := pageCtx.GetLocale().String()
 							<legend class="font-medium text-sm">{ pageCtx.T("NotificationSettings.DynamicRecipients") }</legend>
 							<div class="mt-2 space-y-2">
 								for _, recipient := range event.Definition.RecipientKeys {
-									<label class="flex items-center gap-2 text-sm">
-										<input type="checkbox" name="recipient_keys" value={ recipient.Key } checked?={ selected(event.Rule.RecipientKeys, recipient.Key) }/>
-										{ notifications.Localized(recipient.Name, lang) }
-									</label>
+									@input.Checkbox(&input.CheckboxProps{
+										Label:   notifications.Localized(recipient.Name, lang),
+										Class:   templ.Classes("text-sm font-normal"),
+										Checked: selected(event.Rule.RecipientKeys, recipient.Key),
+										Attrs:   templ.Attributes{"name": "recipient_keys", "value": recipient.Key},
+									})
 								}
 								for _, key := range event.MissingKeys {
-									<label class="flex items-center gap-2 text-sm text-red-600">
-										<input type="checkbox" name="recipient_keys" value={ key } checked/>
-										{ pageCtx.T("NotificationSettings.Unavailable") }: { key }
-									</label>
+									@input.Checkbox(&input.CheckboxProps{
+										Label:   pageCtx.T("NotificationSettings.Unavailable") + ": " + key,
+										Class:   templ.Classes("text-sm font-normal text-red-600"),
+										Checked: true,
+										Attrs:   templ.Attributes{"name": "recipient_keys", "value": key},
+									})
 								}
 							</div>
 						</fieldset>
@@ -304,7 +326,7 @@ lang := pageCtx.GetLocale().String()
 						</summary>
 						<label class="mt-3 block font-medium">
 							{ pageCtx.T("NotificationSettings.Level") }
-							<select name="level" disabled?={ !props.CanManage } class="mt-1 block rounded-lg border border-secondary bg-surface-300 p-2 font-normal">
+							<select name="level" disabled?={ !props.CanManage } class="mt-1 block rounded-lg border border-secondary bg-surface-300 px-3 py-2 font-normal">
 								<option value="" selected?={ event.Rule.Level == "" }>{ pageCtx.T("NotificationSettings.DefaultLevel") } ({ pageCtx.T("NotificationSettings.Level" + levelKey(event.Definition.DefaultLevel)) })</option>
 								for _, level := range []notification.Level{notification.LevelInfo, notification.LevelSuccess, notification.LevelWarning, notification.LevelError} {
 									<option value={ string(level) } selected?={ event.Rule.Level == level }>{ pageCtx.T("NotificationSettings.Level" + levelKey(level)) }</option>
@@ -316,10 +338,12 @@ lang := pageCtx.GetLocale().String()
 								<legend class="font-medium">{ pageCtx.T("NotificationSettings.Channels") }</legend>
 								<div class="mt-1 flex flex-wrap gap-4">
 									for _, channel := range channelChoices(props.Channels, event.Rule) {
-										<label class="flex items-center gap-2 font-normal">
-											<input type="checkbox" name="channels" value={ string(channel) } checked?={ hasChannel(event.Rule, channel) } disabled?={ !props.CanManage }/>
-											{ pageCtx.T("NotificationSettings.Channel" + channelKey(channel)) }
-										</label>
+										@input.Checkbox(&input.CheckboxProps{
+											Label:   pageCtx.T("NotificationSettings.Channel" + channelKey(channel)),
+											Class:   templ.Classes("font-normal"),
+											Checked: hasChannel(event.Rule, channel),
+											Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
+										})
 									}
 								</div>
 							</fieldset>

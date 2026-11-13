@@ -269,10 +269,16 @@ templ Checkbox(p *CheckboxProps) {
 }
 
 templ passwordLock(p *Props) {
-	<label x-data="passwordVisibility" class="relative mx-1 flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">
-		<input type="checkbox" class="absolute inset-0 h-full w-full cursor-pointer appearance-none peer password-lock" value={ p.id } aria-label={ intl.TWithDefault(ctx, "Common.TogglePassword", "Show password") } @change="toggle"/>
-		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
-		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
+	<label x-data="passwordVisibility" class="relative flex size-10 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:text-gray-700 -mr-2">
+		<input
+			type="checkbox"
+			class="peer password-lock absolute inset-0 size-full cursor-pointer appearance-none rounded-md focus-visible:outline-2 focus-visible:outline-brand"
+			value={ p.id }
+			aria-label={ intl.TWithDefault(ctx, "Common.ShowPassword", "Show password") }
+			@change="toggle"
+		/>
+		@icons.Eye(icons.Props{Size: "20", Class: "pointer-events-none absolute duration-200 peer-checked:scale-0"})
+		@icons.EyeSlash(icons.Props{Size: "20", Class: "pointer-events-none absolute duration-200 scale-0 peer-checked:scale-100"})
 	</label>
 }
 
