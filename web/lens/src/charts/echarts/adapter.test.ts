@@ -295,10 +295,19 @@ describe('ECharts adapter', () => {
     observer.resize({ width: 950, height: 320 })
     expect(chart.options).toHaveLength(built)
 
+    clientWidth = 520
+    observer.resize({ width: 520, height: 320 })
+    expect(chart.options.length).toBeGreaterThan(built)
+    expect(nameColumn()).toBe(198)
+
+    // Below a phone-width plot the names leave the column altogether and sit
+    // above their bars, which is a decision of its own and rebuilds too.
+    const columnBuilt = chart.options.length
     clientWidth = 438
     observer.resize({ width: 438, height: 320 })
-    expect(chart.options.length).toBeGreaterThan(built)
-    expect(nameColumn()).toBe(166)
+    expect(chart.options.length).toBeGreaterThan(columnBuilt)
+    const narrow = chart.options.at(-1) as unknown as { yAxis?: { axisLabel?: { show?: boolean } } }
+    expect(narrow.yAxis?.axisLabel?.show).toBe(false)
 
     instance.dispose()
   })

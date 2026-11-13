@@ -1147,7 +1147,11 @@ function ChartLegend(props: {
 
   return (
     <Show when={labelIndex >= 0}>
-      <div class="lens-chart-legend-shell" style={expanded() ? { '--lens-chart-legend-max': 'none' } as JSX.CSSProperties : undefined}>
+      <div
+        class="lens-chart-legend-shell"
+        data-collapsed={(beyondFold() > 0 && !expanded()) || undefined}
+        style={expanded() ? { '--lens-chart-legend-max': 'none' } as JSX.CSSProperties : undefined}
+      >
         {bulk() && (
           <div class="lens-chart-legend-controls">
             <div

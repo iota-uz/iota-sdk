@@ -102,7 +102,9 @@ function formatCompactNumber(value: number, field: FieldFormat, locale: string, 
 function formatMoney(value: number, field: FieldFormat, locale: string): string {
   const currency = field.currency ?? 'USD'
   const scaled = field.minorUnits ? value / 100 : value
-  if (field.compact) return formatCompactNumber(scaled, field, locale, currency)
+  // The host's own grapheme wins over the ISO code in every form of a money
+  // figure; compact amounts used to print «UZS» next to exact ones printing «so’m».
+  if (field.compact) return formatCompactNumber(scaled, field, locale, field.symbol?.trim() || currency)
   // A document that pins the currency's grapheme wants the server formatter's
   // "<amount> <symbol>" shape (UZS → "so’m"), not the locale's own currency
   // display for the ISO code.
