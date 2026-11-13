@@ -358,8 +358,8 @@
     "version": "0.40.3",
     "source": "f49f0786ecb0e79ed592fa7bb4f85fc628dd3869",
     "sha": "2eb6e15c0b8873d2e4db665e388e5942f38875d5",
-    "phase": "failed",
-    "run_id": "43465139023"
+    "phase": "testing",
+    "run_id": "43467525597"
   },
   "ready": {
     "version": "0.40.2",
