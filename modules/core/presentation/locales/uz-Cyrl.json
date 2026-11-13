@@ -177,7 +177,12 @@
     "TabNavigation": "Ички бўлимлар навигацияси",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Маълумотларни юклаб бўлмади",
-    "Retry": "Қайта уриниш"
+    "Retry": "Қайта уриниш",
+    "Close": "Ёпиш",
+    "SaveFailed": "Сақлаб бўлмади",
+    "NetworkError": "Серверга уланиш йўқ",
+    "NetworkErrorHint": "Уланишни текшириб, қайта уриниб кўринг.",
+    "TogglePassword": "Паролни кўрсатиш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -674,9 +679,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Жорий аккаунт",
 			"AddAccount": "Аккаунт қўшиш",
-			"LogoutCurrent": "Жорий аккаунтдан чиқиш",
+			"LogoutCurrent": "Чиқиш",
 			"LogoutAll": "Барча аккаунтлардан чиқиш",
-      "Settings": "Созламалар"
+      "Settings": "Созламалар",
+      "Theme": "Мавзу",
+      "OpenMenu": "Менюни очиш"
     },
     "Departments": "Бўлимлар"
   },

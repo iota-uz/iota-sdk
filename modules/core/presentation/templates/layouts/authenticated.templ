@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/shellcontext"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -21,6 +22,10 @@ import (
 	"strconv"
 	"time"
 )
+
+// navbarButtonClass is shared by every round control in the navbar so they keep
+// one size (40px on touch screens) and one colour pair in both themes.
+const navbarButtonClass = "flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 lg:h-9 lg:w-9"
 
 var (
 	navbarOnce = templ.NewOnceHandle()
@@ -35,7 +40,7 @@ templ Avatar() {
 			url = u.Avatar.URL
 		}
 	}}
-	<summary class="flex items-center justify-center cursor-pointer" aria-label={ u.Title() }>
+	<summary class="flex h-10 w-10 items-center justify-center cursor-pointer list-none lg:h-auto lg:w-auto [&::-webkit-details-marker]:hidden" aria-label={ u.Title() }>
 		@avatar.Avatar(avatar.Props{
 			ImageURL: url,
 			Initials: u.Initials(),
@@ -43,8 +48,18 @@ templ Avatar() {
 	</summary>
 }
 
+// NavbarBrand fills the left half of the navbar on screens where the sidebar
+// (and its logo) is hidden behind the menu button.
+templ NavbarBrand() {
+	if logo, err := UseLogo(ctx); err == nil {
+		<a href="/" x-data="{ isCollapsed: false }" class="flex h-10 min-w-0 max-w-[40%] items-center overflow-hidden lg:hidden [&_img]:h-8 [&_img]:w-auto" data-testid="navbar-brand">
+			@logo
+		</a>
+	}
+}
+
 templ ThemeSwitcher() {
-	<div class="relative flex h-9 w-9 shrink-0 items-center justify-center" data-testid="navbar-theme-switcher">
+	<div class="relative flex h-10 w-10 shrink-0 items-center justify-center lg:h-9 lg:w-9" data-testid="navbar-theme-switcher">
 		<input
 			class="peer/system appearance-none absolute"
 			type="radio"
@@ -56,7 +71,8 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-light"
-			class="group/system absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 invisible peer-checked/system:visible"
+			class={ navbarButtonClass, "group/system absolute invisible peer-checked/system:visible" }
+			aria-label={ intl.TWithDefault(ctx, "NavigationLinks.Navbar.Theme", "Theme") }
 		>
 			@icons.Desktop(icons.Props{
 				Size:  "20",
@@ -73,7 +89,8 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-dark"
-			class="group/light absolute flex items-center justify-center w-9 h-9 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 invisible peer-checked/light:visible"
+			class={ navbarButtonClass, "group/light absolute invisible peer-checked/light:visible" }
+			aria-label={ intl.TWithDefault(ctx, "NavigationLinks.Navbar.Theme", "Theme") }
 		>
 			@icons.Sun(icons.Props{
 				Size:    "20",
@@ -91,7 +108,8 @@ templ ThemeSwitcher() {
 		/>
 		<label
 			for="theme-system"
-			class="group/dark absolute flex items-center justify-center w-9 h-9 rounded-full bg-black-950 text-white cursor-pointer transition-colors hover:bg-black-800 invisible peer-checked/dark:visible"
+			class={ navbarButtonClass, "group/dark absolute invisible peer-checked/dark:visible" }
+			aria-label={ intl.TWithDefault(ctx, "NavigationLinks.Navbar.Theme", "Theme") }
 		>
 			@icons.Moon(icons.Props{
 				Size:       "20",
@@ -109,11 +127,10 @@ templ ThemeSwitcher() {
 templ SidebarTrigger(class string) {
 	<button
 		x-data
-		class={
-			"flex items-center justify-center w-9 h-9 shrink-0 rounded-full bg-gray-200 text-black cursor-pointer transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800",
-			class,
-		}
+		type="button"
+		class={ navbarButtonClass, class }
 		data-testid="navbar-sidebar-trigger"
+		aria-label={ intl.TWithDefault(ctx, "NavigationLinks.Navbar.OpenMenu", "Open menu") }
 		@click="$dispatch('open-sidebar')"
 	>
 		@icons.List(icons.Props{Size: "20"})
@@ -131,9 +148,11 @@ templ Navbar(pageCtx types.PageContext, navbarLeft templ.Component) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-4 md:px-8 bg-surface-300 border-b-primary">
 		if navbarLeft != nil {
 			@navbarLeft
+		} else {
+			@NavbarBrand()
 		}
 		<div class="ml-auto flex shrink-0 items-center gap-2 md:gap-3" data-testid="navbar-controls">
-			<div class="hidden lg:block lg:mr-2">
+			<div class="lg:mr-2">
 				@spotlight.Spotlight()
 			</div>
 			@NotificationBell()
@@ -337,14 +356,14 @@ templ Authenticated(props AuthenticatedProps) {
 
 templ NotificationBell() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<details class="relative" data-testid="notification-bell" x-data @keydown.escape.stop="$el.removeAttribute('open')">
-		<summary class="relative flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 [&::-webkit-details-marker]:hidden" aria-label={ pageCtx.T("Notifications.Title") }>
+	<details class="sm:relative" data-testid="notification-bell" x-data @keydown.escape.stop="$el.removeAttribute('open')" @click.outside="$el.removeAttribute('open')">
+		<summary class={ navbarButtonClass, "relative list-none [&::-webkit-details-marker]:hidden" } aria-label={ pageCtx.T("Notifications.Title") }>
 			@icons.Bell(icons.Props{Size: "20"})
-			<span id="notification-bell-count" hx-get="/notifications/summary" hx-trigger="notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite">
+			<span id="notification-bell-count" data-htmx-error-toast="off" hx-get="/notifications/summary" hx-trigger="notificationsChanged from:body" hx-swap="innerHTML" aria-live="polite">
 				@NotificationBellCount(services.NotificationUnreadCount(ctx))
 			</span>
 		</summary>
-		<div class="absolute right-0 z-[80] mt-2 max-h-[75vh] w-96 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-secondary bg-surface-300 shadow-lg" id="notification-dropdown" hx-get="/notifications/dropdown" hx-trigger="load, notificationsChanged from:body" hx-swap="innerHTML"></div>
+		<div class="fixed inset-x-4 top-[4.5rem] z-[80] max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-xl border border-secondary bg-surface-300 shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-[75vh] sm:w-96 sm:max-w-[calc(100vw-2rem)]" id="notification-dropdown" data-htmx-error-toast="off" hx-get="/notifications/dropdown" hx-trigger="load, notificationsChanged from:body" hx-swap="innerHTML"></div>
 	</details>
 	<script>
  if (!window.iotaNotificationRealtimeInstalled) {
@@ -413,11 +432,11 @@ templ NotificationItem(n notification.Notification) {
 				<a href={ templ.URL(safe) } class="mt-1 inline-block text-sm text-primary hover:underline">{ pageCtx.T("Notifications.Open") }</a>
 			}
 		</div>
-		<time class="shrink-0 pt-0.5 text-xs text-200 group-hover:invisible" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ notificationTime(n.CreatedAt()) }</time>
+		<time class="shrink-0 pt-0.5 text-xs text-200 sm:group-hover:invisible" datetime={ n.CreatedAt().Format("2006-01-02T15:04:05Z07:00") }>{ notificationTime(n.CreatedAt()) }</time>
 		if n.ReadAt() == nil {
-			<span class="mt-2 size-1.5 shrink-0 rounded-full bg-primary group-hover:hidden" aria-hidden="true"></span>
-			<form class="absolute right-3 top-3 opacity-0 group-hover:opacity-100 focus-within:opacity-100" method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
-				<button type="submit" class="flex size-7 items-center justify-center rounded-md border border-secondary bg-surface-300 text-200 hover:text-100" aria-label={ pageCtx.T("Notifications.MarkRead") } title={ pageCtx.T("Notifications.MarkRead") }>
+			<span class="mt-2 size-1.5 shrink-0 rounded-full bg-primary sm:group-hover:hidden" aria-hidden="true"></span>
+			<form class="shrink-0 sm:absolute sm:right-3 sm:top-3 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100" method="post" action={ templ.URL("/notifications/" + n.ID().String() + "/read") } hx-post={ "/notifications/" + n.ID().String() + "/read" } hx-swap="none">
+				<button type="submit" class="flex size-9 items-center justify-center rounded-md border border-secondary bg-surface-300 text-200 hover:text-100 sm:size-7" aria-label={ pageCtx.T("Notifications.MarkRead") } title={ pageCtx.T("Notifications.MarkRead") }>
 					@icons.Check(icons.Props{Size: "14"})
 				</button>
 			</form>
