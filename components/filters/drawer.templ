@@ -44,8 +44,8 @@ templ Drawer(props DrawerProps) {
 				<div class="sticky bottom-0 -mx-4 -mb-4 flex gap-3 border-t border-subtle bg-white p-4">
 					if props.ResetLabel != "" {
 						@button.Secondary(button.Props{
-						Size:  button.SizeNormal,
-						Class: "flex-1 justify-center",
+							Size:  button.SizeNormal,
+							Class: "flex-1 justify-center",
 							Attrs: templ.Attributes{"type": "button", "@click": "reset()"},
 						}) {
 							{ props.ResetLabel }
@@ -53,8 +53,8 @@ templ Drawer(props DrawerProps) {
 					}
 					if props.ApplyLabel != "" {
 						@button.Primary(button.Props{
-						Size:  button.SizeNormal,
-						Class: "flex-1 justify-center",
+							Size:  button.SizeNormal,
+							Class: "flex-1 justify-center",
 							Attrs: templ.Attributes{"type": "button", "@click": "apply()"},
 						}) {
 							{ props.ApplyLabel }

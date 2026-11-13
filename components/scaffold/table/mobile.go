@@ -79,9 +79,10 @@ func (c *TableConfig) UsesCards() bool {
 		return false
 	case MobileLayoutCards:
 		return true
-	default:
+	case MobileLayoutAuto:
 		return !c.Editable.Enabled
 	}
+	return !c.Editable.Enabled
 }
 
 // resolvedMobileRole returns the role a column plays in the card layout.
