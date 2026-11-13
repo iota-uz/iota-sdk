@@ -130,6 +130,7 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
       entry: info.client,
       serverOnly,
       ...(info.server === undefined ? {} : { serverEntry: relPath(req.dir, info.server) }),
+      ...(info.contracts === undefined ? {} : { contractsEntry: relPath(req.dir, info.contracts) }),
     });
   }
   for (const g of Object.values(graphs)) if (g !== undefined) diagnostics.push(...g.diagnostics);

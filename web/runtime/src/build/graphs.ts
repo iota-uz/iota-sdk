@@ -90,6 +90,8 @@ export interface GraphEnv {
   /** Client: files reachable only from the server graph (relative to dir). */
   serverOnly?: ReadonlySet<string>;
   serverEntry?: string;
+  /** Client: the contracts entry (relative to dir), named by the message of a server-only import. */
+  contractsEntry?: string;
   /** Output base name of the entry (default: the mode). */
   outName?: string;
   /** The package namespace: scopes the class names of `*.module.css` files so packages sharing a page cannot collide. */
@@ -225,6 +227,14 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
     });
   };
 
+  // An unresolved import, located at the import in the author's source: JSX files are transformed before esbuild reads them,
+  // so the location esbuild reports for them is a line of the transformed output.
+  const unresolved = (importer: string, spec: string, text: string, original?: Esbuild.PartialMessage): Esbuild.PartialMessage => {
+    const loc = importer.startsWith("/") && !inNodeModules(importer) ? locateImport(importer, spec) : undefined;
+    if (loc === undefined) return original === undefined ? { text } : { ...original, text };
+    return { text, location: { file: importer, line: loc.line, column: loc.column - 1 } };
+  };
+
   return {
     name: "iota-graph",
     setup(build) {
@@ -245,6 +255,10 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
             violate("graph.serverInClient", `client graph imports "${spec}", which is server-only`, importer, spec);
             return { path: spec, external: true };
           }
+        }
+
+        if (spec.startsWith(`${KIT_SPECIFIER}/`)) {
+          return { errors: [unresolved(importer, spec, `Could not resolve "${spec}": UI kit subpaths are not importable, only "${KIT_SPECIFIER}" is; import the component from it (import { Button } from "${KIT_SPECIFIER}")`)] };
         }
 
         if (spec === KIT_SPECIFIER && env.mode !== "client") {
@@ -298,7 +312,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           kind: args.kind,
           pluginData: SKIP,
         });
-        if (r.errors.length > 0) return { errors: r.errors, warnings: r.warnings };
+        if (r.errors.length > 0) return { errors: r.errors.map((e) => unresolved(importer, spec, e.text, e)), warnings: r.warnings };
         if (importer.startsWith("/")) parents.set(r.path, { importer, spec });
 
         if (r.namespace === "file" && CSS_FILE.test(r.path) && args.kind !== "url-token") {
@@ -327,7 +341,14 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           if (rel === env.serverEntry) {
             violate("graph.serverInClient", `client graph imports the server entry "${rel}"`, importer, spec);
           } else if (env.serverOnly?.has(rel) === true) {
-            violate("graph.serverInClient", `client graph imports "${rel}", which is reachable only from the server graph`, importer, spec);
+            const shared = env.contractsEntry ?? "the contracts entry";
+            violate(
+              "graph.serverInClient",
+              `client graph imports "${rel}", which is reachable only from the server graph. The contracts graph (${shared}) is the pure layer client and server share: ` +
+                `if "${rel}" is pure (no Node, no server SDK), export it from ${shared} or import it there, so the contracts graph reaches it; otherwise keep it out of client code`,
+              importer,
+              spec,
+            );
           }
         }
         return { path: r.path, namespace: r.namespace, external: r.external, sideEffects: r.sideEffects, suffix: r.suffix };
