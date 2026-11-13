@@ -27,6 +27,15 @@ function world() {
 
 const numbers = (rows: readonly { number: string }[]) => rows.map((r) => r.number)
 
+describe('fixtures', () => {
+  it('expose their key directly, the same one as the ref and the record', () => {
+    const ali = fixture(c.Customer, { name: 'Ali' })
+    expect(ali.key).toBe(ali.ref.key)
+    expect(ali.key).toBe(ali.record.key)
+    expect(fixture(c.Customer, { name: 'Ali' }, { key: KEY }).key).toBe(KEY)
+  })
+})
+
 describe('reads follow the Go data layer', () => {
   it('filters with SQL null semantics, operators and nested or', async () => {
     const w = world()

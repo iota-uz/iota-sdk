@@ -16,6 +16,8 @@ export type FixtureValues<E> = {
 } & { [K in keyof InsertOf<E> as K extends Timestamp ? K : never]?: InsertOf<E>[K] }
 
 export interface Fixture<E extends EntityLike> {
+  /** The record's key: `ref.key`, for passing to `tx.get`-style calls and comparisons without going through `ref`. */
+  readonly key: string
   readonly ref: Ref<E>
   /** The stored row as `get` returns it, including its typed `ref`. */
   readonly record: Row<E>
@@ -65,6 +67,7 @@ export function fixture<E extends AnyEntity>(entity: E, values: FixtureValues<E>
   const fields = materialize(entity.fields, values)
   checked(entity, fields)
   return {
+    key,
     ref: { entity: entity.id, key } as Fixture<E>['ref'],
     record: { key, ref: { entity: entity.id, key }, createdAt: EPOCH, updatedAt: EPOCH, rowVersion: 1, ...fields } as unknown as Row<E>,
   }

@@ -22,7 +22,7 @@
 //     not satisfied suspends the run, exactly like the replay engine.
 import type { Command, Callable, ContactResolver, ContactTargets, DeliveryPolicy, Event, OrdinaryCommand, Query, Workflow } from './contracts.ts'
 import { compileFilter } from './entity.ts'
-import type { AnyEntity, AnyOverlay } from './entity.ts'
+import type { AnyEntity, AnyOverlay, Row as EntityRow } from './entity.ts'
 import { type FakeEffects, fakeEffects } from './fakes.ts'
 import { EPOCH, OVERLAY_OF, type Fixture } from './fixtures.ts'
 import type { Channel, ConditionJSON, FilterJSON, ISODateTime, Json, ReadRuleJSON, TypeJSON } from './model.ts'
@@ -277,7 +277,7 @@ export interface TestHost {
     options?: { instance?: string },
   ): WorkflowRun<C>
   /** Committed rows of an entity, in insertion order. */
-  table<E extends AnyEntity>(entity: E): readonly Readonly<Record<string, unknown>>[]
+  table<E extends AnyEntity>(entity: E): readonly EntityRow<E>[]
   /** The committed overlay row of a base record, or null. */
   overlayRow<O extends AnyOverlay>(overlay: O, base: Ref<O['base']>): Readonly<Record<string, unknown>> | null
 }
@@ -1362,7 +1362,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
     table: ((entity: AnyEntity) => {
       register(entity)
       return [...store.table(entity.id).values()].map((r) => project(entity, r))
-    }) as TestHost['table'],
+    }) as unknown as TestHost['table'],
     overlayRow: ((overlay: AnyOverlay, base: Ref) => {
       register(overlay)
       const row = store.overlay(overlay.id).get(base.key)
