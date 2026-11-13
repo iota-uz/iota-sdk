@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { collectDocs, scanLinks } from '../src/build/docs.ts'
-import { sharedShim } from '../src/build/graphs.ts'
+import { sharedShim } from '../src/build/shared.ts'
 import type { Layout } from '../src/build/layout.ts'
 import { helpDocHref, helpHref } from '../src/help.ts'
 import type { ManifestJSON } from '../src/model.ts'
