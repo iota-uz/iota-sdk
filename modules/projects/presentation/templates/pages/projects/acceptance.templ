@@ -53,18 +53,18 @@ templ AcceptancePanel(props *AcceptanceProps) {
 				<p class="text-sm text-200">{ pageCtx.T("Projects.Acceptance.Empty") }</p>
 			}
 			for _, document := range props.Documents {
-				<div class="bg-surface-600 border border-primary rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+				<div class="bg-surface-600 border border-primary rounded-lg px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div class="min-w-0">
 						<p class="text-sm font-medium truncate">
 							{ pageCtx.T("Projects.Acceptance.Kinds." + kindKey(document.Kind)) } № { document.Number }
 						</p>
-						<p class="text-xs text-200 flex gap-2">
+						<p class="text-xs text-200 flex flex-wrap gap-x-2">
 							<span>{ document.Date }</span>
 							<span>{ pageCtx.T("Projects.Acceptance.Statuses." + document.Status) }</span>
 							<span class="truncate">{ document.Description }</span>
 						</p>
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex flex-wrap items-center gap-2">
 						<span class="text-sm font-medium tabular-nums whitespace-nowrap">{ document.Amount }</span>
 						if document.CanSign {
 							@button.Secondary(button.Props{
@@ -114,6 +114,7 @@ templ AcceptancePanel(props *AcceptanceProps) {
 			hx-post={ basePath }
 			hx-target={ acceptanceTarget(props.ProjectID) }
 			hx-swap="innerHTML"
+			novalidate
 		>
 			@composables.CSRFTokenField()
 			<h3 class="text-sm font-medium">{ pageCtx.T("Projects.Acceptance.New") }</h3>
@@ -139,16 +140,13 @@ templ AcceptancePanel(props *AcceptanceProps) {
 					Attrs: templ.Attributes{"name": "Date", "value": dateValue(time.Time(props.Form.Date))},
 					Error: props.Errors["Date"],
 				})
-				<div class="grid grid-cols-2 gap-4">
-					@input.Number(&input.Props{
-						Label: pageCtx.T("Projects.Acceptance.Amount"),
-						Attrs: templ.Attributes{
-							"name":  "Amount",
-							"value": amountValue(props.Form.Amount),
-							"step":  "0.01",
-							"min":   "0",
-						},
-						Error: props.Errors["Amount"],
+				<div class="grid grid-cols-2 gap-4" x-data={ currencyScope(props.Form.CurrencyCode) }>
+					@corecomponents.MoneyInput(&corecomponents.MoneyInputProps{
+						Label:      pageCtx.T("Projects.Acceptance.Amount"),
+						Name:       "Amount",
+						Value:      amountText(ctx, props.Form.Amount),
+						Error:      props.Errors["Amount"],
+						SuffixExpr: "currency",
 					})
 					@corecomponents.CurrencySelect(&corecomponents.CurrencySelectProps{
 						Label:       pageCtx.T("Projects.Acceptance.CurrencyCode"),
@@ -156,7 +154,7 @@ templ AcceptancePanel(props *AcceptanceProps) {
 						Value:       props.Form.CurrencyCode,
 						Currencies:  props.Currencies,
 						Error:       props.Errors["CurrencyCode"],
-						Attrs:       templ.Attributes{"name": "CurrencyCode"},
+						Attrs:       templ.Attributes{"name": "CurrencyCode", "@change": "currency = $event.target.value"},
 					})
 				</div>
 			</div>

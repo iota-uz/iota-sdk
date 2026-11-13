@@ -1,0 +1,149 @@
+package components
+
+import (
+	"context"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/shopspring/decimal"
+)
+
+const groupSeparator = " "
+
+// MoneyInputProps configures MoneyInput.
+type MoneyInputProps struct {
+	Label       string
+	Name        string
+	Placeholder string
+	// Value is the text to show; use FormatAmountInput to build it.
+	Value string
+	Error string
+	// Suffix is a fixed text after the amount, normally the currency code.
+	Suffix string
+	// SuffixExpr is an Alpine expression for a suffix that follows another
+	// control, such as the currency select. It wins over Suffix.
+	SuffixExpr string
+	Attrs      templ.Attributes
+}
+
+// DecimalSeparator is the decimal separator the user's language writes.
+func DecimalSeparator(ctx context.Context) string {
+	if locale, ok := intl.UseLocale(ctx); ok {
+		base, _ := locale.Base()
+		switch base.String() {
+		case "en", "zh", "ja", "ko", "th", "he":
+			return "."
+		}
+		return ","
+	}
+	return "."
+}
+
+// FormatAmountInput formats an amount for MoneyInput: digits in groups of
+// three and the decimal separator of the user's language, with two fraction
+// digits when the amount has a fraction.
+func FormatAmountInput(ctx context.Context, amount decimal.Decimal) string {
+	if amount.IsZero() {
+		return ""
+	}
+	if amount.Exponent() < 0 {
+		amount = amount.Round(2)
+	}
+	text := amount.StringFixed(0)
+	fraction := ""
+	if !amount.Equal(amount.Truncate(0)) {
+		text = amount.Truncate(0).String()
+		fraction = amount.Sub(amount.Truncate(0)).Abs().StringFixed(2)[2:]
+	}
+	negative := strings.HasPrefix(text, "-")
+	text = strings.TrimPrefix(text, "-")
+
+	var grouped strings.Builder
+	for i, digit := range text {
+		if i > 0 && (len(text)-i)%3 == 0 {
+			grouped.WriteString(groupSeparator)
+		}
+		grouped.WriteRune(digit)
+	}
+	result := grouped.String()
+	if negative {
+		result = "-" + result
+	}
+	if fraction != "" {
+		result += DecimalSeparator(ctx) + fraction
+	}
+	return result
+}
+
+// moneyInputScript groups digits as they are typed. The server accepts the
+// same notations (see money.ParseAmount), so the field is only a convenience.
+const moneyInputScript = `{
+	sep: '.',
+	format(el) {
+		const caret = el.selectionStart ?? el.value.length;
+		const significant = (text) => text.replace(/[^0-9.,]/g, '').length;
+		const before = significant(el.value.slice(0, caret));
+		const raw = el.value.replace(/[^0-9.,-]/g, '');
+		const negative = raw.startsWith('-');
+		const body = raw.replace(/-/g, '');
+		const marks = body.match(/[.,]/g) || [];
+		let whole = body, fraction = '', hasFraction = false;
+		const decimalMark = marks.length === 1 || new Set(marks).size > 1 ? body.search(/[.,][^.,]*$/) : -1;
+		if (decimalMark >= 0) {
+			whole = body.slice(0, decimalMark);
+			fraction = body.slice(decimalMark + 1);
+			hasFraction = true;
+		}
+		whole = whole.replace(/[.,]/g, '').replace(/^0+(?=\d)/, '');
+		fraction = fraction.replace(/[.,]/g, '');
+		let grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+		const text = (negative ? '-' : '') + grouped + (hasFraction ? this.sep + fraction : '');
+		el.value = text;
+		let seen = 0, position = text.length;
+		for (let i = 0; i < text.length && seen < before; i++) {
+			if (/[0-9.,]/.test(text[i])) seen++;
+			position = i + 1;
+		}
+		if (before === 0) position = negative && caret > 0 ? 1 : 0;
+		el.setSelectionRange(position, position);
+	},
+}`
+
+// MoneyInput is a text field for an amount: numeric keyboard on phones, digit
+// grouping while typing and an optional currency suffix.
+templ MoneyInput(props *MoneyInputProps) {
+	{{
+		attrs := templ.Attributes{
+			"name":         props.Name,
+			"value":        props.Value,
+			"inputmode":    "decimal",
+			"autocomplete": "off",
+			"@input":       "format($el)",
+		}
+		for key, value := range props.Attrs {
+			attrs[key] = value
+		}
+		suffixAttrs := templ.Attributes{"class": "text-sm text-200 whitespace-nowrap"}
+		if props.SuffixExpr != "" {
+			suffixAttrs["x-text"] = props.SuffixExpr
+		}
+		suffix := moneySuffix(props.Suffix, suffixAttrs)
+	}}
+	<div x-data={ moneyInputScript } x-init={ "sep = '" + DecimalSeparator(ctx) + "'" } class="w-full">
+		@input.Text(&input.Props{
+			Label:       props.Label,
+			Placeholder: props.Placeholder,
+			Attrs:       attrs,
+			Error:       props.Error,
+			AddonRight: &input.Addon{
+				Class:     "shrink-0 items-center",
+				Component: suffix,
+			},
+		})
+	</div>
+}
+
+templ moneySuffix(text string, attrs templ.Attributes) {
+	<span { attrs... }>{ text }</span>
+}

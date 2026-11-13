@@ -113,6 +113,9 @@
         "Title": "项目已删除",
         "Summary": "项目已被移除"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "请输入数字，例如 15 000 000.50"
     }
   },
   "ProjectStages": {

@@ -12,7 +12,20 @@ type CounterpartySelectProps struct {
 	Name           string
 	NotFoundText   string
 	Form           string
+	Error          string
 	Counterparties []*viewmodels.Counterparty
+}
+
+// selectedCounterpartyName returns the name to show for the chosen counterparty.
+// The options come from the search endpoint, so the chosen one is rendered
+// here: without its name the picker shows an empty value.
+func selectedCounterpartyName(props *CounterpartySelectProps) string {
+	for _, counterparty := range props.Counterparties {
+		if counterparty.ID == props.Value {
+			return counterparty.Name
+		}
+	}
+	return ""
 }
 
 templ CounterpartySelect(props *CounterpartySelectProps) {
@@ -26,7 +39,10 @@ templ CounterpartySelect(props *CounterpartySelectProps) {
 		Form:         props.Form,
 	}) {
 		if props.Value != "" {
-			<option value={ props.Value } selected></option>
+			<option value={ props.Value } selected>{ selectedCounterpartyName(props) }</option>
 		}
+	}
+	if props.Error != "" {
+		<small class="text-xs text-red-500 -mt-3" data-testid="field-error">{ props.Error }</small>
 	}
 }

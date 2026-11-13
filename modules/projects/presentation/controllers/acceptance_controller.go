@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,7 +79,7 @@ func (c *AcceptanceController) Panel(
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
-	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
+	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
 }
 
 func (c *AcceptanceController) Create(
@@ -115,7 +117,7 @@ func (c *AcceptanceController) Create(
 		http.Error(w, "Error creating acceptance document", http.StatusInternalServerError)
 		return
 	}
-	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
+	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
 }
 
 func (c *AcceptanceController) Sign(
@@ -163,7 +165,7 @@ func (c *AcceptanceController) Delete(
 		http.Error(w, "Error deleting acceptance document", acceptanceErrorStatus(err))
 		return
 	}
-	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
+	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
 }
 
 func (c *AcceptanceController) change(
@@ -182,7 +184,7 @@ func (c *AcceptanceController) change(
 		http.Error(w, "Error changing acceptance document status", acceptanceErrorStatus(err))
 		return
 	}
-	panel.render(w, r, logger, projectID, dtos.AcceptanceCreateDTO{}, map[string]string{})
+	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
 }
 
 // acceptanceErrorStatus answers a document of another project as not found and
@@ -211,6 +213,11 @@ func (c *AcceptanceController) ids(w http.ResponseWriter, r *http.Request) (uuid
 		return uuid.Nil, uuid.Nil, false
 	}
 	return projectID, id, true
+}
+
+// blankForm is the form of a new document, dated today.
+func blankForm() dtos.AcceptanceCreateDTO {
+	return dtos.AcceptanceCreateDTO{Date: shared.DateOnly(time.Now())}
 }
 
 // render answers with the tab; an empty form currency defaults to the
