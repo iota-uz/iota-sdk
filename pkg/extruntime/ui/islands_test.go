@@ -75,12 +75,17 @@ func slotConfig(t *testing.T, body string) (map[string]json.RawMessage, []shelle
 
 func newSlotEnv(t *testing.T, decl map[string]manifest.Resource, props any, perms ...string) *env {
 	t.Helper()
+	return newSlotEnvWithArtifacts(t, fakeArtifacts{}, decl, props, perms...)
+}
+
+func newSlotEnvWithArtifacts(t *testing.T, artifacts fakeArtifacts, decl map[string]manifest.Resource, props any, perms ...string) *env {
+	t.Helper()
 	suite := itf.NewSuite(t, modules.Components()...)
 	src := &fakeSource{}
 	src.set(nil)
 	rt, err := ui.NewRuntime(ui.Config{
 		Source:    src,
-		Artifacts: fakeArtifacts{},
+		Artifacts: artifacts,
 		Catalog:   fakeCatalog(decl),
 		Host:      hostManifest(),
 	})

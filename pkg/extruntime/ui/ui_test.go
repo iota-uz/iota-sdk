@@ -167,6 +167,12 @@ type env struct {
 
 func newEnv(t *testing.T, perms ...string) *env {
 	t.Helper()
+	return newEnvWithArtifacts(t, nil, perms...)
+}
+
+// newEnvWithArtifacts is newEnv with more files in the artifact store (client manifests, stylesheets).
+func newEnvWithArtifacts(t *testing.T, extra fakeArtifacts, perms ...string) *env {
+	t.Helper()
 	suite := itf.NewSuite(t, modules.Components()...)
 	src := &fakeSource{}
 	src.set(nil)
@@ -177,18 +183,22 @@ func newEnv(t *testing.T, perms ...string) *env {
 		"acme.insurance.activate": {ID: "acme.insurance.activate", Kind: manifest.ResCommand, Atomic: true},
 		"acme.insurance.extend":   {ID: "acme.insurance.extend", Kind: manifest.ResOperation},
 	}
+	artifacts := fakeArtifacts{
+		hashV1 + "/client/policies.js": "export const policies = {}",
+		hashV1 + "/client/chunk.css":   "body{}",
+		hashV1 + "/server.mjs":         "export const secretHandler = 'HANDLER_SECRET'",
+		hashV1 + "/contracts.mjs":      "export const contracts = {}",
+		hashV1 + "/manifest.json":      "{}",
+		hashV1 + "/package.json":       "{}",
+		hashOld + "/client/old.js":     "export const old = {}",
+	}
+	for k, v := range extra {
+		artifacts[k] = v
+	}
 	rt, err := ui.NewRuntime(ui.Config{
-		Source: src,
-		Artifacts: fakeArtifacts{
-			hashV1 + "/client/policies.js": "export const policies = {}",
-			hashV1 + "/client/chunk.css":   "body{}",
-			hashV1 + "/server.mjs":         "export const secretHandler = 'HANDLER_SECRET'",
-			hashV1 + "/contracts.mjs":      "export const contracts = {}",
-			hashV1 + "/manifest.json":      "{}",
-			hashV1 + "/package.json":       "{}",
-			hashOld + "/client/old.js":     "export const old = {}",
-		},
-		Invoker: inv, Catalog: cat, Host: hostManifest(),
+		Source:    src,
+		Artifacts: artifacts,
+		Invoker:   inv, Catalog: cat, Host: hostManifest(),
 		NativeRoutes: ui.NativeRoutes{"test.routes.legacy": "/legacy"},
 	})
 	require.NoError(t, err)

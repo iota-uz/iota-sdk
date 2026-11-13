@@ -68,7 +68,7 @@ describe('iota-ext init → check → build → test', () => {
     expect(init.status).toBe(0)
     const pkg = join(dir, 'pkg')
     expect(init.out).toContain('kit generated: @iota-kit/core, @iota-kit/crm')
-    for (const f of ['package.json', 'tsconfig.json', 'src/contracts.ts', 'src/server.ts', 'src/client.tsx', 'src/server.test.ts', '.iota/kit/core/index.d.ts', '.iota/kit/kit.json']) {
+    for (const f of ['package.json', 'tsconfig.json', 'src/contracts.ts', 'src/server.ts', 'src/client.tsx', 'src/server.test.ts', 'src/NotesScreen.module.css', 'src/css-modules.d.ts', '.iota/kit/core/index.d.ts', '.iota/kit/kit.json']) {
       expect(existsSync(join(pkg, f)), f).toBe(true)
     }
     const written = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')) as { iota: unknown; dependencies: Record<string, string> }
@@ -95,6 +95,20 @@ describe('iota-ext init → check → build → test', () => {
     }
     const manifest = JSON.parse(readFileSync(join(pkg, '.iota/build/manifest.json'), 'utf8')) as { namespace: string; dependencies?: Record<string, string> }
     expect(manifest.namespace).toBe('acme.loyalty')
+
+    // The scaffolded page styles itself with a kit component, Tailwind utilities and a CSS module; the build ships all of it.
+    const screen = readFileSync(join(pkg, 'src/NotesScreen.tsx'), 'utf8')
+    expect(screen).toContain('from "@iota-uz/sdk/solid-ui"')
+    expect(screen).toContain('class="flex flex-col gap-4 p-6"')
+    expect(screen).toContain('from "./NotesScreen.module.css"')
+    const clientManifest = JSON.parse(readFileSync(join(pkg, '.iota/build/artifacts/client/manifest.json'), 'utf8')) as { css: string[]; shared: string[] }
+    expect(clientManifest.shared).toContain('@iota-uz/sdk/solid-ui')
+    expect(clientManifest.css).toHaveLength(2)
+    expect(clientManifest.css[0]).toBe('client/tailwind.css')
+    const utilities = readFileSync(join(pkg, '.iota/build/artifacts', clientManifest.css[0]!), 'utf8')
+    expect(utilities).toContain('.gap-4{')
+    expect(utilities).not.toContain('box-sizing') // utilities only: the host page has the base
+    expect(readFileSync(join(pkg, '.iota/build/artifacts', clientManifest.css[1]!), 'utf8')).toMatch(/\.NotesScreen_[0-9a-f]{8}_list\b/)
 
     const tests = iota(pkg, 'test')
     expect(tests.out).toContain('✓ a stored note is listed back')
@@ -154,6 +168,33 @@ export const b = tx.start(c.Note as never, {})
       rmSync(file)
     }
   })
+
+  it('refuses a global stylesheet in client code with its location and the two allowed forms', () => {
+    const parent = project('css')
+    expect(iota(parent, 'init', 'pkg', '--namespace', 'acme.css').status).toBe(0)
+    const pkg = join(parent, 'pkg')
+    writeFileSync(join(pkg, 'src', 'global.css'), 'body { background: red }\n')
+    const screen = join(pkg, 'src', 'NotesScreen.tsx')
+    const original = readFileSync(screen, 'utf8')
+    writeFileSync(screen, original.replace('import * as c from "./contracts"', 'import * as c from "./contracts"\nimport "./global.css"'))
+    const r = iota(pkg, 'check')
+    expect(r.status).toBe(1)
+    expect(r.err).toMatch(/^src\/NotesScreen\.tsx:5:8 graph\.globalCss /m)
+    expect(r.err).toContain('shares one page')
+    expect(r.err).toContain('Tailwind')
+    expect(r.err).toContain('.module.css')
+    // The build reports the same, with no artifacts.
+    const built = iota(pkg, 'build')
+    expect(built.status).toBe(1)
+    expect(existsSync(join(pkg, '.iota/build/artifacts/client/manifest.json'))).toBe(false)
+    // Restored, and a module stylesheet without its type declaration explains how to declare it.
+    writeFileSync(screen, original)
+    rmSync(join(pkg, 'src', 'css-modules.d.ts'))
+    const untyped = iota(pkg, 'check')
+    expect(untyped.status).toBe(1)
+    expect(untyped.err).toMatch(/^src\/NotesScreen\.tsx:\d+:\d+ ts\.2307 /m)
+    expect(untyped.err).toContain('declare module "*.module.css"')
+  }, 120_000)
 
   it('explains tx.start without a key', () => {
     const file = join(dir(), 'src', 'start.ts')

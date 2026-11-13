@@ -48,6 +48,9 @@ func sdkTypes() fstest.MapFS {
 		"@iota-uz/sdk/package.json":                     {Data: []byte(`{"name":"@iota-uz/sdk"}`)},
 		"@iota-uz/sdk/dist/runtime/index.d.ts":          {Data: []byte("export declare const t: 1")},
 		"@iota-uz/sdk/dist/runtime/index.js":            {Data: []byte("export const t = 1")},
+		"@iota-uz/sdk/dist/solid-ui/index.d.ts":         {Data: []byte("export declare function Button(): void")},
+		"@iota-uz/sdk/dist/solid-ui/forms/Button.d.ts":  {Data: []byte("export declare const button: 1")},
+		"@iota-uz/sdk/dist/solid-ui/embedded-css.js":    {Data: []byte("export default ''")},
 		"@iota-uz/sdk/node_modules/left-pad/index.d.ts": {Data: []byte("nested")},
 		"solid-js/types/index.d.ts":                     {Data: []byte("export declare function createSignal(): void")},
 		"left-pad/index.d.ts":                           {Data: []byte("not an allowed package")},
@@ -129,7 +132,12 @@ func TestSDKTypesServeOnlyTheConfiguredTypingPackages(t *testing.T) {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	assert.Equal(t, []string{"@iota-uz/sdk/dist/runtime/index.d.ts", "@iota-uz/sdk/package.json", "solid-js/types/index.d.ts"}, paths)
+	// The typings of the Solid UI kit (@iota-uz/sdk/solid-ui) ride along with the SDK package the host installed: the
+	// editor resolves them like the runtime's, at the same release as the host.
+	assert.Equal(t, []string{
+		"@iota-uz/sdk/dist/runtime/index.d.ts", "@iota-uz/sdk/dist/solid-ui/forms/Button.d.ts", "@iota-uz/sdk/dist/solid-ui/index.d.ts",
+		"@iota-uz/sdk/package.json", "solid-js/types/index.d.ts",
+	}, paths)
 	assert.NotEmpty(t, out.Hash)
 }
 

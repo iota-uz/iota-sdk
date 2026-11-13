@@ -239,9 +239,9 @@ test *args="":
   go test -tags {{GO_TEST_TAG}} {{args}} ./...
 
 [group("test")]
-[doc("Extension runtime UI in a real Chromium against the composed e2e application (pkg/extruntime/e2e/browser). Needs Node, Go and the e2e database; extra arguments go to `playwright test`")]
+[doc("Extension runtime UI in a real Chromium against the composed e2e application (pkg/extruntime/e2e/browser; builds the host bundle with its lazy UI kit and the host stylesheet). Needs Node, Go and the e2e database; extra arguments go to `playwright test`")]
 extruntime-browser *args="":
-  pnpm install --frozen-lockfile --filter @iota-uz/sdk-runtime-internal --filter "@iota-uz/sdk-client-host-internal..."
+  pnpm install --frozen-lockfile --filter @iota-uz/iota-sdk-workspace --filter @iota-uz/sdk-runtime-internal --filter @iota-uz/sdk-solid-ui-internal --filter "@iota-uz/sdk-client-host-internal..."
   web/client-host/node_modules/.bin/playwright install chromium
   web/client-host/node_modules/.bin/playwright test --config pkg/extruntime/e2e/browser/playwright.config.ts {{args}}
 

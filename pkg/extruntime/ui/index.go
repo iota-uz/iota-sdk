@@ -19,6 +19,8 @@ type Page struct {
 	ArtifactHash string
 	Chunk        string
 	Export       string
+	// Styles are the immutable URLs of the stylesheets of the page's version.
+	Styles []string
 	// Permission is the permission name the subject must hold; empty means
 	// every authenticated user.
 	Permission string
@@ -51,6 +53,8 @@ type SlotContribution struct {
 	ArtifactHash string
 	Chunk        string
 	Export       string
+	// Styles are the immutable URLs of the stylesheets of the contribution's version.
+	Styles []string
 	// Permission is the permission name a viewer needs to get the
 	// contribution; empty means every viewer the slot admits.
 	Permission string
@@ -62,6 +66,7 @@ func (c SlotContribution) Module() shellext.Module {
 	return shellext.Module{
 		ID: c.ID, Package: c.Package, Version: c.Version,
 		Module: AssetsPrefix + c.ArtifactHash + "/" + strings.TrimPrefix(c.Chunk, "/"), Export: c.Export,
+		Styles: c.Styles,
 	}
 }
 
@@ -74,6 +79,8 @@ type ShellRenderer struct {
 	Chunk        string
 	Export       string
 	BindingID    string
+	// Styles are the immutable URLs of the stylesheets of the renderer's version.
+	Styles []string
 }
 
 // AssetPath is the immutable URL path of the shell's client chunk.
@@ -269,7 +276,7 @@ func buildIndex(s *Snapshot, natives map[string]NativeRouteDecl) *Index {
 				}
 				page := &Page{
 					ID: r.ID, Pattern: normalizePattern(r.Path), Package: p.Package, Version: p.Version,
-					ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
+					ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, Styles: p.styleURLs(),
 					Permission: r.Permission, Nav: r.Nav, Route: r.Route, Label: r.Label,
 				}
 				if r.Nav != nil && len(page.Label) == 0 {
@@ -331,14 +338,14 @@ func buildIndex(s *Snapshot, natives map[string]NativeRouteDecl) *Index {
 				}
 				ix.Slots[r.Target] = append(ix.Slots[r.Target], SlotContribution{
 					ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
-					Permission: r.Permission, Order: r.Order,
+					Styles: p.styleURLs(), Permission: r.Permission, Order: r.Order,
 				})
 			case manifest.ResCell:
 				if r.Target == "" || r.Export == "" || !servableAsset(p.ArtifactHash, r.Chunk) {
 					ix.Diagnostics = append(ix.Diagnostics, fmt.Sprintf("cell %s: missing column or export, or chunk/artifact cannot be served", r.ID))
 					continue
 				}
-				cells = append(cells, cellDecl{SlotContribution{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export}, r.Target})
+				cells = append(cells, cellDecl{SlotContribution{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, Styles: p.styleURLs()}, r.Target})
 			case manifest.ResEntity, manifest.ResOverlay, manifest.ResQuery, manifest.ResCommand, manifest.ResOperation,
 				manifest.ResEvent, manifest.ResWorkflow, manifest.ResNotice, manifest.ResRoute, manifest.ResPermission,
 				manifest.ResIssue, manifest.ResDomainError, manifest.ResShell,
@@ -499,7 +506,7 @@ func (ix *Index) findPage(pkgs []ActivePackage, b Binding) *Page {
 			}
 			page := &Page{
 				ID: r.ID, Pattern: normalizePattern(r.Path), Package: p.Package, Version: p.Version,
-				ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export,
+				ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, Styles: p.styleURLs(),
 				Permission: r.Permission, Route: r.Route, Label: r.Label, Params: ix.routeParams[r.Route],
 			}
 			if r.Nav != nil && len(page.Label) == 0 {
@@ -523,7 +530,7 @@ func (ix *Index) findShell(pkgs []ActivePackage, b Binding) *ShellRenderer {
 			if !servableAsset(p.ArtifactHash, r.Chunk) {
 				return nil
 			}
-			return &ShellRenderer{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, BindingID: b.ID}
+			return &ShellRenderer{ID: r.ID, Package: p.Package, Version: p.Version, ArtifactHash: p.ArtifactHash, Chunk: r.Chunk, Export: r.Export, BindingID: b.ID, Styles: p.styleURLs()}
 		}
 	}
 	return nil

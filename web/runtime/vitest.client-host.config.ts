@@ -20,6 +20,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@iota-uz/sdk/client-host': path.join(clientHost, 'src/solid-index.ts'),
+      // The kit is built and bundled lazily by the application; the tests use small stand-ins.
+      '@iota-uz/sdk/solid-ui/embedded-css': path.join(here, 'test/stubs/kit-css.ts'),
+      '@iota-uz/sdk/solid-ui': path.join(here, 'test/stubs/kit.ts'),
       'solid-js/web': path.join(solidRoot, 'web/dist/web.js'),
       'solid-js/store': path.join(solidRoot, 'store/dist/store.js'),
       'solid-js': path.join(solidRoot, 'dist/solid.js'),

@@ -39,6 +39,19 @@ describe('TypeScript configuration', () => {
     expect(paths['@iota-uz/sdk/*']![0]).toBe('node_modules/@iota-uz/sdk/dist/*/index.d.ts')
   })
 
+  it('resolves the SDK entries a package may import: the runtime API and the Solid UI kit', () => {
+    // The paths mapping as TypeScript applies it: the first candidate that exists in the virtual node_modules wins.
+    const o = compilerOptions(enums)
+    const [pattern, candidates] = Object.entries(o.paths as Record<string, string[]>).find(([k]) => k === '@iota-uz/sdk/*')!
+    const files = new Set(['node_modules/@iota-uz/sdk/dist/solid-ui/index.d.ts', 'node_modules/@iota-uz/sdk/dist/runtime/client.d.ts'])
+    const resolve = (specifier: string) => {
+      const star = specifier.slice(pattern.indexOf('*'))
+      return candidates.map((c) => c.replace('*', star)).find((c) => files.has(c))
+    }
+    expect(resolve('@iota-uz/sdk/solid-ui')).toBe('node_modules/@iota-uz/sdk/dist/solid-ui/index.d.ts')
+    expect(resolve('@iota-uz/sdk/runtime/client')).toBe('node_modules/@iota-uz/sdk/dist/runtime/client.d.ts')
+  })
+
   it('configures both defaults', () => {
     const a = fakeDefaults()
     const b = fakeDefaults()

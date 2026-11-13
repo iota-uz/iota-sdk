@@ -7,6 +7,7 @@ import { decodeRouteParams } from './params.ts'
 import { isPageData, type PageData } from './protocol.ts'
 import { RuntimeProvider } from './hooks.ts'
 import { createSlotSource, SlotsProvider } from './slots.ts'
+import { ensureStyles } from './styles.ts'
 import type { RuntimeTransport } from './transport.ts'
 
 /** The slice of @iota-uz/sdk/client-host the page runtime needs, injected so it is testable. */
@@ -93,6 +94,7 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
   const slots = createSlotSource({
     contributions: data.slots ?? {},
     ...(options.importModule ? { importModule: options.importModule } : {}),
+    document: owner,
     console: owner.defaultView?.console ?? console,
   })
   let active = true
@@ -139,8 +141,10 @@ export function mountRuntimePage<Context extends { theme: 'light' | 'dark'; init
     const current = ++generation
     root.setAttribute('aria-busy', 'true')
     show(status(messages.loading, 'data-runtime-page-loading', 'status'))
-    void load(data.page.module).then(
-      (module) => {
+    // The version's stylesheets load alongside its module (the server already links them in the page HTML, so this
+    // usually finds them): the page renders only once both are in, so it never paints unstyled.
+    void Promise.all([load(data.page.module), ensureStyles(owner, data.page.styles)]).then(
+      ([module]) => {
         if (!active || current !== generation) return // disposed while loading: the late module is dropped
         const page = resolveExport(module, data.page.export)
         if (!page) {

@@ -13,7 +13,8 @@ npx iota-ext kit status                              # verify the kit in .iota/k
 ```
 
 Import paths: `@iota-uz/sdk/runtime` (contracts), `@iota-uz/sdk/runtime/server` (handlers), `@iota-uz/sdk/runtime/client`
-(pages, Solid), `@iota-uz/sdk/runtime/testing` (test host, fixtures, fakes, `assert`; not `@iota-uz/sdk/testing`, the
+(pages, Solid), `@iota-uz/sdk/solid-ui` (the host's Solid UI kit, client graph only; styling with it, Tailwind utilities and
+`*.module.css` is in the guide, "Styling"), `@iota-uz/sdk/runtime/testing` (test host, fixtures, fakes, `assert`; not `@iota-uz/sdk/testing`, the
 Playwright package). `init` pins `@iota-uz/sdk` to the exact version of the CLI that ran it: the runtime ships from that
 release on. Exit codes: 0 ok, 1 package errors or failing tests, 2 usage, 3 environment.
 

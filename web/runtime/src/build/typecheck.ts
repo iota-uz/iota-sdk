@@ -61,11 +61,18 @@ export function sourceFiles(dir: string): string[] {
     .map((f) => posix.join(dir, f));
 }
 
+const CSS_MODULE_DECLARATION =
+  'hint: a scoped CSS module needs its type declared once per package, for example in src/css-modules.d.ts:\n' +
+  'declare module "*.module.css" { const classes: Readonly<Record<string, string>>; export default classes }';
+
 /**
  * Arity errors cannot carry a type-level message, so the ones authors hit are explained here:
- * `tx.start(W, input)` outside a subscription or workflow lacks its required start key.
+ * `tx.start(W, input)` outside a subscription or workflow lacks its required start key; an import of a `*.module.css`
+ * file needs the module declared (the declaration lives in the package, not in the SDK typings, which TypeScript cannot
+ * deliver as a global).
  */
 function hintFor(d: ts.Diagnostic): string | undefined {
+  if (d.code === 2307 && typeof d.messageText === "string" && /\.module\.css'/.test(d.messageText)) return CSS_MODULE_DECLARATION;
   if (d.code !== 2554 || d.file === undefined || d.start === undefined) return undefined;
   const at = d.start;
   let hint: string | undefined;

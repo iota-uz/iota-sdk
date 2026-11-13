@@ -7,6 +7,7 @@ import type * as Esbuild from "esbuild";
 
 import type { CapabilitiesJSON, ManifestJSON } from "../model.ts";
 import { collectDocs } from "./docs.ts";
+import { stylesheetPaths, tailwindStylesheet, TAILWIND_OUTPUT } from "./css.ts";
 import { extractManifest } from "./extraction.ts";
 import { runGraph, type GraphResult } from "./graphs.ts";
 import type { Layout } from "./layout.ts";
@@ -116,7 +117,7 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
     diagnostics.push({ file: "package.json", severity: "error", code: "typecheck.failed", message: errorMessage(err) });
   }
 
-  const env = { dir: req.dir, layout, kit: req.kit };
+  const env = { dir: req.dir, layout, kit: req.kit, namespace: info.namespace };
   const graphs: Record<"contracts" | "server" | "client", GraphResult | undefined> = { contracts: undefined, server: undefined, client: undefined };
   if (info.contracts !== undefined) graphs.contracts = await runGraph(esbuild, { ...env, mode: "contracts", entry: info.contracts });
   if (info.server !== undefined) graphs.server = await runGraph(esbuild, { ...env, mode: "server", entry: info.server });
@@ -132,6 +133,13 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
     });
   }
   for (const g of Object.values(graphs)) if (g !== undefined) diagnostics.push(...g.diagnostics);
+  // Tailwind utilities for the classes the client graph's own sources use (css.ts).
+  let utilities: string | undefined;
+  if (graphs.client !== undefined && !hasErrors(graphs.client.diagnostics)) {
+    const sheet = await tailwindStylesheet(esbuild, layout, [...graphs.client.inputs].map((f) => join(req.dir, f)));
+    diagnostics.push(...sheet.diagnostics);
+    utilities = sheet.css;
+  }
   if (hasErrors(diagnostics.filter((d) => !d.code.startsWith("ts.")))) return done();
 
   // Artifacts.
@@ -140,6 +148,7 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
   if (graphs.server !== undefined) addOutput(files, "server.mjs", graphs.server.files.get("server.mjs"));
   if (graphs.client !== undefined && clientEntry !== undefined) {
     for (const [path, bytes] of graphs.client.files) files.set(`client/${path}`, bytes);
+    if (utilities !== undefined) files.set(TAILWIND_OUTPUT, Buffer.from(utilities));
   }
 
   // Manifest extraction imports the real server/contracts artifacts; the client graph is rebuilt for
@@ -175,7 +184,7 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
     let manifest = extraction.manifest;
     if (manifest !== undefined && graphs.client !== undefined && clientEntry !== undefined) {
       manifest = withChunks(manifest, `client/${clientEntry}`);
-      files.set("client/manifest.json", Buffer.from(clientManifest(manifest, graphs.client, clientEntry)));
+      files.set("client/manifest.json", Buffer.from(clientManifest(manifest, graphs.client, clientEntry, stylesheetPaths(files.keys()))));
     }
     if (manifest !== undefined) {
       // End-user documentation: docs/<locale>/<path>.md joins the manifest and the artifact.
@@ -219,7 +228,7 @@ function withChunks(manifest: ManifestJSON, chunk: string): ManifestJSON {
 }
 
 /** `client/manifest.json`: the entry chunk, lazy chunks, stylesheets and the shared modules the bundle reads from the host registry. */
-function clientManifest(manifest: ManifestJSON, client: GraphResult, entry: string): string {
+function clientManifest(manifest: ManifestJSON, client: GraphResult, entry: string, css: string[]): string {
   const all = [...client.files.keys()].sort();
   const exported = manifest.resources.filter((r) => r.export !== undefined).map((r) => r.export as string).sort();
   const doc = {
@@ -227,7 +236,7 @@ function clientManifest(manifest: ManifestJSON, client: GraphResult, entry: stri
     namespace: manifest.namespace,
     entry: `client/${entry}`,
     chunks: all.filter((f) => f.endsWith(".js") && f !== entry).map((f) => `client/${f}`),
-    css: all.filter((f) => f.endsWith(".css")).map((f) => `client/${f}`),
+    css,
     shared: [...client.shared].sort(),
     exports: [...new Set(exported)],
   };

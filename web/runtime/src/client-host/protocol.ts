@@ -18,6 +18,8 @@ export interface PageRef {
   module: string
   /** Export of the module that holds the page; default export when absent. */
   export?: string
+  /** Immutable asset URLs of the stylesheets of the page's version (Tailwind utilities, CSS modules), linked before the first render. */
+  styles?: string[]
 }
 
 export interface PageData {
@@ -40,6 +42,8 @@ export interface ShellRef {
   module: string
   export?: string
   binding: string
+  /** Immutable asset URLs of the shell renderer's version stylesheets. */
+  styles?: string[]
 }
 
 export interface WorkspaceRef { id: string; label: string; icon?: string; order: number }

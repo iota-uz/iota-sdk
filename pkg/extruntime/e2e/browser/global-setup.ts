@@ -27,9 +27,13 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   const work = mkdtempSync(join(tmpdir(), 'iota-ext-browser-'))
   const state = join(work, 'state.json')
   const hostJS = join(work, 'runtime-host.js')
+  const hostCSS = join(work, 'host.css')
   const testBinary = join(work, 'e2e.test')
 
   run(process.execPath, [join(here, 'build-host.mjs'), hostJS], repo)
+  // The application's stylesheet carries the SDK tokens and the component classes (`just css` builds it over the whole
+  // repository). The suite needs those, not the utilities of every source: the input without any @source.
+  run(join(repo, 'node_modules/.bin/tailwindcss'), ['--input', 'styles/tailwind/input.css', '--output', hostCSS], repo)
   // A compiled test binary instead of `go test`: the server is a long-running test, and stopping it must reach it.
   run('go', ['test', '-c', '-o', testBinary, '.'], e2eDir)
 
@@ -37,7 +41,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     cwd: e2eDir,
     // The server stops when its stdin closes, so it never outlives the runner.
     stdio: ['pipe', 'inherit', 'inherit'],
-    env: { ...process.env, IOTA_EXT_BROWSER_STATE: state, IOTA_EXT_BROWSER_HOST_JS: hostJS, IOTA_EXT_BROWSER_PORT: port },
+    env: { ...process.env, IOTA_EXT_BROWSER_STATE: state, IOTA_EXT_BROWSER_HOST_JS: hostJS, IOTA_EXT_BROWSER_HOST_CSS: hostCSS, IOTA_EXT_BROWSER_PORT: port },
   })
   const exited = new Promise<number | null>((resolveExit) => server.once('exit', (code) => resolveExit(code)))
   let dead = false

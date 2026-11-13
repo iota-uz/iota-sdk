@@ -5,7 +5,8 @@
 // else. The standard shell stays around the failure.
 import { expect, signIn, test, type Page, type Request, type Session } from './harness'
 
-const ASSETS = '**/_ext/assets/**'
+// The scripts of the package, not its stylesheets (a version's stylesheets are linked in the page HTML and block its first paint).
+const ASSETS = '**/_ext/assets/**/*.js'
 const MOUNT = '#iota-client-route-mount'
 const HOST_FAILURE = /Runtime page e2e\.browser\.fragile: The screen could not be loaded\./
 

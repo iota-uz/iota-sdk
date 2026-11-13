@@ -238,3 +238,54 @@ describe('cell islands', () => {
     expect(pieces()).toEqual(['A:1'])
   })
 })
+
+describe('version stylesheets of islands', () => {
+  const sheet = '/_ext/assets/h1h1/client/tailwind.css'
+  const sheets = () => Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"]'))
+  beforeEach(() => { document.head.innerHTML = '' })
+  afterEach(() => { document.head.innerHTML = '' })
+
+  it('links the version stylesheet once for several islands and renders them after it loaded', async () => {
+    document.body.innerHTML = `<main>${slotHtml('s', { clientId: 1 }, [contribution('a', { styles: [sheet] }), contribution('b', { styles: [sheet] })])}${slotHtml('s2', { clientId: 2 }, [contribution('a', { styles: [sheet] })])}</main>`
+    start({ [url('a')]: { a: piece('A') }, [url('b')]: { b: piece('B') } })
+    await tick()
+    expect(sheets()).toHaveLength(1)
+    expect(pieces()).toEqual([]) // modules are in, the stylesheet is not: no unstyled paint
+    sheets()[0]!.dispatchEvent(new Event('load'))
+    await tick()
+    expect(pieces()).toEqual(['A:1', 'B:1', 'A:2'])
+    expect(sheets()).toHaveLength(1)
+  })
+
+  it('keeps one stylesheet across a swap that removes the island and one that brings it back', async () => {
+    document.body.innerHTML = `<section id="region">${slotHtml('s', { clientId: 1 }, [contribution('a', { styles: [sheet] })])}</section>`
+    start({ [url('a')]: { a: piece('A') } })
+    await tick()
+    sheets()[0]!.dispatchEvent(new Event('load'))
+    await tick()
+    expect(pieces()).toEqual(['A:1'])
+
+    const region = document.getElementById('region')!
+    region.innerHTML = '<h1>heading</h1>' // an HTMX swap that drops the slot
+    await tick()
+    expect(pieces()).toEqual([])
+    expect(sheets()).toHaveLength(1) // the link is the document's, not the island's
+
+    region.innerHTML = slotHtml('s', { clientId: 1 }, [contribution('a', { styles: [sheet] })]) // and one that brings it back
+    await tick()
+    expect(pieces()).toEqual(['A:1'])
+    expect(sheets()).toHaveLength(1)
+  })
+
+  it('styles list cells too', async () => {
+    const c = contribution('cell', { styles: [sheet] })
+    document.body.innerHTML = `<table><tr><td>${cellHtml(c, 'gold', {}, 'gold')}</td></tr></table>`
+    start({ [url('cell')]: { cell: { component: (p: { value: string }) => { const el = document.createElement('b'); el.dataset.piece = 'cell'; el.textContent = p.value.toUpperCase(); return el } } } })
+    await tick()
+    expect(sheets()).toHaveLength(1)
+    expect(pieces()).toEqual([])
+    sheets()[0]!.dispatchEvent(new Event('load'))
+    await tick()
+    expect(pieces()).toEqual(['GOLD'])
+  })
+})
