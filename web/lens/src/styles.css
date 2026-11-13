@@ -267,6 +267,15 @@
     @apply lens:box-border lens:min-h-32 lens:min-w-0 lens:bg-page lens:p-4 lens:font-sans lens:text-text;
   }
 
+  /* A phone already hands the board a card of the host's own padding; the
+     root's 16px on top of it is how a tile ended up 80px narrower than the
+     screen. */
+  @media (max-width: 640px) {
+    .lens-root:not(.lens-root-inline) {
+      @apply lens:p-2;
+    }
+  }
+
   /* A Lens root that only scopes the tokens: a component mounted inside a host
      page (the composition editor) keeps the host's surface and spacing. */
   .lens-root.lens-root-inline {
@@ -2636,9 +2645,39 @@
     @apply lens:col-span-1 lens:h-full lens:min-w-0;
   }
 
+  /* Phone: two columns, so a board of KPI tiles reads as a 2×2 scorecard
+     instead of a column of 160px-tall cards. Everything else keeps a full row
+     of its own; only a stat tile (marked `data-tile`) takes half of it. A tile
+     that would sit alone on its row — the last of an odd run — takes the whole
+     row rather than leaving a hole beside it. */
   @media (max-width: 768px) {
     .lens-panel-grid {
-      grid-template-columns: minmax(0, 1fr);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .lens-grid-item {
+      grid-column: 1 / -1;
+    }
+
+    .lens-grid-item[data-tile] {
+      grid-column: span 1 / span 1;
+    }
+
+    .lens-grid-item[data-tile]:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+
+    /* Listed apart: one selector a browser cannot parse would drop the rule above too. */
+    .lens-grid-item[data-tile]:not(:has(+ .lens-grid-item[data-tile])):not(.lens-grid-item[data-tile] + .lens-grid-item[data-tile]) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Below this width two tiles no longer carry a figure each (a 21px amount
+     needs ~140px), so the board goes back to one tile per row. */
+  @container lens-dashboard (max-width: 20rem) {
+    .lens-grid-item[data-tile] {
+      grid-column: 1 / -1;
     }
   }
 
@@ -2745,7 +2784,7 @@
      and its fixed-size action chrome separate rows based on the card itself.
      The title stays complete; export/expand controls remain reachable. */
   @container lens-panel-header (max-width: 320px) {
-    .lens-panel-heading {
+    .lens-panel:not(.lens-panel-stat) .lens-panel-heading {
       @apply lens:flex-none;
       flex-basis: 100%;
       min-width: 0;
@@ -2758,10 +2797,30 @@
       line-clamp: unset;
     }
 
-    .lens-panel-actions {
+    .lens-panel:not(.lens-panel-stat) .lens-panel-actions {
       @apply lens:pb-1;
       flex-basis: 100%;
     }
+  }
+
+  /* A stat tile's header is always one row, at every width, and the SDK owns
+     that: the title yields (it wraps, it never pushes) and the controls keep
+     their size. A host stylesheet used to force `nowrap` onto this header from
+     outside while the container query above still gave the title and the
+     controls a full row each, which put the export and expand buttons 240px to
+     the right of a 310px card. The controls fold into one «⋯» menu when even a
+     shrunken title cannot share the row (see PanelFrame). */
+  .lens-panel-stat .lens-panel-header {
+    flex-wrap: nowrap;
+  }
+
+  .lens-panel-stat .lens-panel-heading {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .lens-panel-stat .lens-panel-actions {
+    flex: 0 0 auto;
   }
 
   /* Controls are fixed-size affordances: only the summary badge gives ground. */

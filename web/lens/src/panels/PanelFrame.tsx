@@ -1,5 +1,5 @@
 
-import { createEffect, createSignal, Show } from 'solid-js'
+import { createEffect, createSignal, onCleanup, Show } from 'solid-js'
 import type { JSX, JSXElement } from 'solid-js'
 import type { Frame, Panel } from '../contract'
 import { clampedDeltaPercent, type PanelFrameState, useDashboard, useFormat, useTranslate } from '../runtime'
@@ -11,6 +11,9 @@ import { useExportAllowed } from './drillGate'
 import { panelFailureCopy } from './panelFailure'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
+
+/** Header width (px) below which a stat tile folds export and expand into «⋯». */
+const compactHeaderWidth = 260
 
 export interface PanelFrameProps {
   panel: Panel
@@ -246,6 +249,22 @@ export function PanelFrame(props: PanelFrameProps) {
 
   const toggleExpanded = () => setExpanded(true)
 
+  // A tile's header is one row: title, then controls. Two 28–36px controls
+  // beside a title in a two-up phone grid leave the title a few characters or
+  // push the controls past the card, so below this header width they fold into
+  // one «⋯» menu. Measured on the header itself because the card, not the
+  // viewport, is what runs out of room.
+  const [compactHeader, setCompactHeader] = createSignal(false)
+  const watchHeader = (header: HTMLElement) => {
+    if (variant !== 'stat' || typeof ResizeObserver === 'undefined') return
+    const measure = () => setCompactHeader(header.clientWidth > 0 && header.clientWidth < compactHeaderWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(header)
+    onCleanup(() => observer.disconnect())
+  }
+  const foldedActions = () => compactHeader() && exportable() && expandable
+
   const collapse = () => {
     restoreFocus = true
     setExpanded(false)
@@ -282,7 +301,7 @@ export function PanelFrame(props: PanelFrameProps) {
       data-testid={`lens-panel-${props.panel.id}`}
       data-stale={props.frame.isStale || undefined}
     >
-      <header class="lens-panel-header">
+      <header class="lens-panel-header" ref={watchHeader}>
         {/* The panel's identity travels as one item. The note explains the
             panel's subject, so it hangs off the title rather than joining the
             controls: export and expand are things you do to the panel, this is
@@ -316,9 +335,13 @@ export function PanelFrame(props: PanelFrameProps) {
             <span class="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>
           </Show>
           <Show when={exportable()}>
-            <PanelExportMenu panelId={props.panel.id} title={props.panel.title} />
+            <PanelExportMenu
+              compact={foldedActions() ? { expanded: expanded(), onExpand: expanded() ? collapse : toggleExpanded } : undefined}
+              panelId={props.panel.id}
+              title={props.panel.title}
+            />
           </Show>
-          <Show when={expandable}>
+          <Show when={expandable && !foldedActions()}>
             <button
               aria-label={expandLabel()}
               aria-expanded={expanded()}
