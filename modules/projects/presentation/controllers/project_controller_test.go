@@ -3,10 +3,13 @@ package controllers_test
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	financeServices "github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -16,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/stretchr/testify/require"
 )
 
@@ -506,4 +510,49 @@ func TestProjectController_InvalidUUID(t *testing.T) {
 	suite.GET(ProjectBasePath + "/invalid-uuid/drawer").
 		Expect(t).
 		Status(404)
+}
+
+func TestProjectController_GetEditDrawer_ShowsContractAndCounterparty(t *testing.T) {
+	t.Parallel()
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewComponent(), projects.NewComponent()).Build().
+		AsUser(itf.User())
+	suite.Register(controllers.NewProjectController())
+	env := suite.Environment()
+
+	currencyService := itf.GetService[coreservices.CurrencyService](env)
+	for _, c := range []currency.Currency{currency.USD, currency.EUR} {
+		require.NoError(t, currencyService.Create(env.Ctx, &currency.CreateDTO{
+			Code:   string(c.Code()),
+			Name:   c.Name(),
+			Symbol: string(c.Symbol()),
+		}))
+	}
+	client, err := itf.GetService[financeServices.CounterpartyService](env).Create(env.Ctx, counterparty.New(
+		"Acme LLC",
+		counterparty.Customer,
+		counterparty.LLC,
+		counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	p := project.New(
+		"Contracted project",
+		client.ID(),
+		project.WithTenantID(env.Tenant.ID),
+		project.WithContract(money.NewFromFloat(15000000.5, "EUR")),
+	)
+	require.NoError(t, itf.GetService[services.ProjectService](env).Create(env.Ctx, p))
+
+	html := suite.GET(fmt.Sprintf("%s/%s/drawer", ProjectBasePath, p.ID())).
+		Expect(t).
+		Status(200).
+		HTML()
+
+	counterpartyOption := html.Element(fmt.Sprintf("//select[@name='CounterpartyID']/option[@value='%s' and @selected]", client.ID()))
+	counterpartyOption.Exists()
+	require.Equal(t, "Acme LLC", strings.TrimSpace(counterpartyOption.Text()))
+	html.Element("//input[@name='ContractAmount' and @value='15\u00a0000\u00a0000.50']").Exists()
+	html.Element("//select[@name='ContractCurrency']/option[@value='EUR' and @selected]").Exists()
+	html.Element("//select[@name='ContractCurrency']/option[@value='USD' and @selected]").NotExists()
 }

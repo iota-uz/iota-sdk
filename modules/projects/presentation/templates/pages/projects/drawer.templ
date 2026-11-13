@@ -1,6 +1,8 @@
 package projects
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
@@ -14,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	projectViewModels "github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"strconv"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type DrawerEditProps struct {
@@ -32,27 +34,33 @@ type DrawerCreateProps struct {
 	Errors         map[string]string
 }
 
-func amountValue(amount float64) string {
-	if amount == 0 {
-		return ""
+// amountText shows what the user typed when it was not a number, and the
+// amount in the user's notation otherwise.
+func amountText(ctx context.Context, amount shared.Amount) string {
+	if amount.Err() != nil {
+		return amount.Text()
 	}
-	return strconv.FormatFloat(amount, 'f', -1, 64)
+	return corecomponents.FormatAmountInput(ctx, amount.Decimal())
+}
+
+// currencyScope is the Alpine state shared by the amount and its currency, so
+// the amount can show the chosen currency as its suffix.
+func currencyScope(currency string) string {
+	scope, _ := json.Marshal(map[string]string{"currency": currency})
+	return string(scope)
 }
 
 // contractFields asks for the amount agreed with the client and its currency;
 // both empty mean the project has no contract amount.
-templ contractFields(amount float64, currency string, currencies []*coreviewmodels.Currency, errors map[string]string) {
+templ contractFields(amount shared.Amount, currency string, currencies []*coreviewmodels.Currency, errors map[string]string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-		@input.Number(&input.Props{
-			Label: pageCtx.T("Projects.Single.ContractAmount"),
-			Attrs: templ.Attributes{
-				"value": amountValue(amount),
-				"name":  "ContractAmount",
-				"step":  "0.01",
-				"min":   "0",
-			},
-			Error: errors["ContractAmount"],
+	<div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-data={ currencyScope(currency) }>
+		@corecomponents.MoneyInput(&corecomponents.MoneyInputProps{
+			Label:      pageCtx.T("Projects.Single.ContractAmount"),
+			Name:       "ContractAmount",
+			Value:      amountText(ctx, amount),
+			Error:      errors["ContractAmount"],
+			SuffixExpr: "currency",
 		})
 		@corecomponents.CurrencySelect(&corecomponents.CurrencySelectProps{
 			Label:       pageCtx.T("Projects.Single.ContractCurrency"),
@@ -60,7 +68,7 @@ templ contractFields(amount float64, currency string, currencies []*coreviewmode
 			Value:       currency,
 			Currencies:  currencies,
 			Error:       errors["ContractCurrency"],
-			Attrs:       templ.Attributes{"name": "ContractCurrency"},
+			Attrs:       templ.Attributes{"name": "ContractCurrency", "@change": "currency = $event.target.value"},
 		})
 	</div>
 }
@@ -96,6 +104,7 @@ templ EditDrawer(props *DrawerEditProps) {
 						hx-post={ fmt.Sprintf("/projects/%s", props.Project.ID) }
 						hx-target={ fmt.Sprintf("#project-drawer-%s", props.Project.ID) }
 						hx-swap="outerHTML"
+						novalidate
 						class="flex flex-col h-full"
 					>
 						<div class="flex-1 p-6 space-y-4">
@@ -114,6 +123,7 @@ templ EditDrawer(props *DrawerEditProps) {
 								Name:           "CounterpartyID",
 								NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 								Counterparties: props.Counterparties,
+								Error:          props.Errors["CounterpartyID"],
 							})
 							@contractFields(props.UpdateData.ContractAmount, props.UpdateData.ContractCurrency, props.Currencies, props.Errors)
 							@input.TextArea(&input.TextAreaProps{
@@ -194,6 +204,7 @@ templ CreateDrawer(props *DrawerCreateProps) {
 				hx-post="/projects"
 				hx-target="#project-create-drawer"
 				hx-swap="outerHTML"
+				novalidate
 				class="flex flex-col h-full"
 			>
 				<div class="flex-1 p-6 space-y-4">
@@ -212,6 +223,7 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						Name:           "CounterpartyID",
 						NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 						Counterparties: props.Counterparties,
+						Error:          props.Errors["CounterpartyID"],
 					})
 					@contractFields(props.Project.ContractAmount, props.Project.ContractCurrency, props.Currencies, props.Errors)
 					@input.TextArea(&input.TextAreaProps{

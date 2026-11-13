@@ -991,6 +991,10 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 			result.Kind = FormatMoney
 			result.Currency = spec.Currency
 			result.MinorUnits = false
+			// The same grapheme as the exact money format: a tile printing
+			// «so’m» beside a chart printing «UZS» is two currency formats on
+			// one board.
+			result.Symbol = currencySymbol(spec.Currency)
 		}
 		result.Compact = true
 	case format.KindPercent:
