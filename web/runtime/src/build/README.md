@@ -29,7 +29,9 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
   one `graph.unknownKit` diagnostic naming the kit commands, and the TS errors that follow from it are dropped) → three esbuild graphs →
   manifest extraction (`manifest.*`) → artifacts below `<outDir>/artifacts`:
   `contracts.mjs`, `server.mjs`, `client/index-<hash>.js`, `client/chunk-<hash>.js`,
-  `client/manifest.json`. `check` runs the same pipeline and writes nothing.
+  `client/manifest.json`, and `docs/<locale>/<path>.md` for a package that ships documentation (`docs.ts`: front matter,
+  links and permissions validated with `docs.*` diagnostics; the files join the manifest's `docs`). `check` runs the same
+  pipeline and writes nothing.
 * `test` — typechecks the package first (`typecheck: false` skips it; type errors are returned as `diagnostics` and
   nothing runs), then bundles every `*.test.ts` (optionally only those matching `filter`; SDK external, kit bundled, with
   an external source map) and runs the cases registered with `test()` from `@iota-uz/sdk/runtime/testing` in

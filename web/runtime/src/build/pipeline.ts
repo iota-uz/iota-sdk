@@ -6,6 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import type * as Esbuild from "esbuild";
 
 import type { CapabilitiesJSON, ManifestJSON } from "../model.ts";
+import { collectDocs } from "./docs.ts";
 import { extractManifest } from "./extraction.ts";
 import { runGraph, type GraphResult } from "./graphs.ts";
 import type { Layout } from "./layout.ts";
@@ -175,6 +176,13 @@ export async function runBuild(esbuild: typeof Esbuild, layout: Layout, req: Pac
     if (manifest !== undefined && graphs.client !== undefined && clientEntry !== undefined) {
       manifest = withChunks(manifest, `client/${clientEntry}`);
       files.set("client/manifest.json", Buffer.from(clientManifest(manifest, graphs.client, clientEntry)));
+    }
+    if (manifest !== undefined) {
+      // End-user documentation: docs/<locale>/<path>.md joins the manifest and the artifact.
+      const documentation = collectDocs({ dir: req.dir, namespace: info.namespace, manifest });
+      diagnostics.push(...documentation.diagnostics);
+      for (const [path, bytes] of documentation.files) files.set(path, bytes);
+      if (documentation.docs.length > 0) manifest = { ...manifest, docs: documentation.docs };
     }
     return done(manifest);
   } catch (err) {

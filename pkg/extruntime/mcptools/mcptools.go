@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pkgdocs"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/mcp"
@@ -43,6 +44,9 @@ type Deps struct {
 	Invoker Invoker
 	// Reference serves ext_reference. Default: built over Catalog.
 	Reference *reference.Builder
+	// Docs enables ext_docs, the documentation packages ship for their
+	// users; nil leaves the tool out.
+	Docs *pkgdocs.Library
 }
 
 // Tools builds the tool set.
@@ -63,6 +67,9 @@ func Tools(d Deps) ([]mcp.Tool, error) {
 	workflowTools(r, d)
 	catalogTools(r, d)
 	referenceTool(r, d.Reference)
+	if d.Docs != nil {
+		docsTool(r, d.Docs)
+	}
 	if d.Invoker != nil {
 		invokeTool(r, d)
 	}
@@ -95,7 +102,7 @@ func (Extension) Name() string { return "extruntime-mcp" }
 
 // Attach implements runtime.Extension.
 func (e Extension) Attach(_ context.Context, rt *runtime.Runtime) (func(context.Context) error, error) {
-	d := Deps{Manage: rt.Manage, Catalog: rt.Catalog, Reference: rt.Reference}
+	d := Deps{Manage: rt.Manage, Catalog: rt.Catalog, Reference: rt.Reference, Docs: rt.Docs}
 	if rt.Host != nil {
 		d.Invoker = rt.Host
 	}

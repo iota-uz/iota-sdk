@@ -83,6 +83,7 @@ loyalty/
    ├─ client.tsx         client graph (pages, navigation, cells)
    ├─ *.tsx              screens, loaded lazily from client.tsx
    └─ *.test.ts          tests (run by `iota-ext test`; never part of an artifact)
+└─ docs/<locale>/        documentation for your users, markdown (§13.5)
 ```
 
 ```json
@@ -973,6 +974,108 @@ export const shell = shellRenderer((p) => (
 Client chunks must not import the server entry, anything only the server reaches, `@iota-uz/sdk/runtime/server` or a Node
 built-in (`graph.serverInClient`); Solid and the runtime client are not bundled: the host provides them.
 
+### 13.5 Documentation for your users
+
+A package ships its own end-user documentation. It is markdown in the package tree, so it is versioned with the code,
+reviewed with it (the source and artifact hashes cover every word) and replaced by the next version when that version is
+activated. It appears in the Help Center under **Applications** (`/help/doc/apps/<namespace>/<document>`), for the
+people who use the package. It is not the developer reference: that is generated from your contracts and lives under
+**Extensions** (§18).
+
+```text
+docs/
+├─ en/                       the default locale: every document exists here
+│  ├─ getting-started.md     → /help/doc/apps/acme.loyalty/getting-started
+│  └─ admin/
+│     └─ setup.md            → /help/doc/apps/acme.loyalty/admin/setup
+└─ ru/
+   └─ getting-started.md     the Russian translation of getting-started
+```
+
+**Rules.** Everything under `docs/` follows one rule, `docs/<locale>/<path>.md`:
+
+* The first directory is the **locale**: a lowercase language tag such as `en`, `ru`, `uz` or `pt-br`. There are no
+  un-localized documents; a package with one language puts everything in `docs/en/`.
+* `<path>` is the document's address: up to five segments of lowercase letters, digits, `-` and `_`, without the
+  extension (`admin/setup`). The same path in another locale is a translation of the same document.
+* **`en` is the default locale and is complete**: a document that exists in another locale must exist in `en` too
+  (`docs.missingDefault`). A reader gets the translation for their locale (`ru-RU` → `ru`), else the English one.
+* Only `.md` files. Images and other files are **not supported** (`docs.unsupportedFile`); a relative image is refused
+  (`docs.image`). Describe in words, or link an absolute `https://` URL.
+* A document is at most 256 KiB, UTF-8, a version's documents at most 4 MiB in 200 files.
+
+**Front matter** is optional, a block of flat `key: value` lines between `---` lines at the very top (a deliberate
+subset of YAML: no lists, no nesting; quote a value with `"…"` when it contains `#` or starts with a quote):
+
+```md
+---
+title: Setting up limits        # sidebar label and heading; default: the first # heading, else the file name
+order: 2                        # position among the documents; lower first, then by title (default 0)
+audience: Managers              # a short hint of who the document is for
+permission: acme.loyalty.manage # only holders of this permission see the document
+---
+
+# Setting up limits
+```
+
+* `title` and `audience` are **plain text**: one line, no `<` or `>`. They are shown literally; markdown in them is not
+  interpreted.
+* `permission` is a permission the package declares (`permission("acme.loyalty.manage", …)`, which must be exported) or
+  a native one (`Client.Update`). A permission in the package's own namespace that the package does not declare is an
+  error (`docs.unknownPermission`); a permission of another package or a native contract is checked against the
+  catalog when you publish. All translations of a document carry the same permission (`docs.permissionMismatch`).
+  A reader without it gets *not found*, and the document is not in their sidebar. Holders of `Extensions.Read` see
+  every document, as they see every resource of the reference.
+
+**Who sees a package's documentation.** The same people who see the package in the reference: a reader sees the
+documentation of a package when at least one of its resources is visible to them (a command they may run, an entity
+whose rows they may read, a route or a declared event or permission that needs no permission), or when they hold
+`Extensions.Read`. A package whose only resources are gated is invisible to readers without those permissions, and so
+is its documentation. Declaring a permission, an event or a route makes the package visible to everyone, because
+those resources have no permission of their own: gate a document with `permission`, not with the package's visibility,
+when it must stay private.
+
+**Links.** Markdown links are written against the source tree and checked at build time:
+
+```md
+Read the [limits](limits.md), or [how to set them up](admin/setup.md#cards).   <!-- another document, by file name -->
+Back to the [start](../getting-started.md).                                   <!-- relative to this file -->
+Open the [cards page](route:acme.loyalty.cards).                              <!-- a page or route of this package -->
+Pay at [the bank](https://bank.example/pay).                                  <!-- http, https, mailto, tel -->
+```
+
+* A relative link names another document by its file name with `.md`; it may end with `#section`. It must stay inside
+  the locale's tree (`docs.linkEscapes`) and name a document that exists (`docs.brokenLink`). The Help Center serves
+  documents without the extension; the platform drops `.md` for you.
+* `route:<resource id>` links a `page` or `route` of the package with a fixed address (no `:param`) to its path
+  (`docs.unknownRoute`).
+* `javascript:`, `data:` and other schemes, protocol-relative `//host` links and query strings on document links are
+  refused (`docs.linkScheme`, `docs.linkTarget`). Only markdown links are rewritten; a raw HTML `<a href="x.md">` is
+  passed to the Help Center's sanitizer as written.
+* Links inside code spans and fenced blocks are text, not links.
+
+Markdown is rendered by the Help Center's sanitizer: raw HTML is cleaned like any Help Center article (scripts, event
+handlers and `javascript:` URLs never survive).
+
+**Linking from your pages.** `helpHref` gives the address of one of your documents:
+
+```tsx
+import { helpHref } from "@iota-uz/sdk/runtime/client"
+
+<a href={helpHref("getting-started")}>How does this work?</a>
+<a href={helpHref("admin/setup#cards")}>Limits</a>
+```
+
+On a package page the package is known from the page. Elsewhere (a slot or a cell rendered by a native page) name it:
+`helpHref("setup", { namespace: "acme.loyalty" })`. A call with a string literal is checked by `iota-ext check` against
+your `docs/en` documents (`docs.unknownHelpHref`, with the file, line and column of the call), so a renamed document
+breaks the build rather than the link. A computed argument cannot be checked. `helpHref` throws on a malformed path.
+
+`iota-ext check` and `build` report every rule above with `docs/<locale>/<path>.md:line:col code message`; a document that
+passes ships in the artifact (front matter removed) and its title, order, audience and permission in the manifest
+(`docs`). Publishing re-checks the structure and the permissions against the catalog. The assistant tool `ext_docs` reads
+the same documents with the same visibility as the Help Center.
+
 ## 14. Testing
 
 `iota-ext test` runs every `*.test.ts` file against an **in-memory test host**: the real contract definitions, your
@@ -1185,6 +1288,7 @@ Every diagnostic is `file:line:col code message` and points at **your** source.
 | `manifest.invalidDeclaration` | an invalid cron expression, endpoint path, guard target, … |
 | `manifest.import` | importing a bundle failed (a top-level error in your code) |
 | `build.unresolved` / `build.error` / `build.jsx` | a bundling error: a missing module, a JSX problem |
+| `docs.*` | a problem in `docs/` (§13.5): `frontMatter`, `title`, `audience`, `badPermission` / `unknownPermission` / `permissionMismatch`, `noLocale` / `badLocale` / `badPath` / `unsupportedFile` / `missingDefault` / `tooLarge` / `encoding` / `symlink`, `brokenLink` / `linkEscapes` / `linkTarget` / `linkScheme` / `unknownRoute` / `image`, `unknownHelpHref` |
 | `package.*` | `package.json` problems: missing `iota` section, a bad namespace, an entry that does not exist |
 | `npm.lockfileMissing` | published packages with dependencies need `package-lock.json` |
 
@@ -1260,11 +1364,13 @@ operators can export one offline for Swagger UI (see [`consumer.md`](consumer.md
 * The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
   `href`, wire helpers), `@iota-uz/sdk/runtime/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`,
   `endpoint`, `templates`, `recipient`, context types), `@iota-uz/sdk/runtime/client` (`page`, `navigation`, `slot`, `Slot`, `cell`,
-  `shellRenderer`, `useQuery`, `useCommand`, `isError`, `issuesOf`), `@iota-uz/sdk/runtime/testing` (everything in §14: the test
+  `shellRenderer`, `useQuery`, `useCommand`, `isError`, `issuesOf`, `helpHref`), `@iota-uz/sdk/runtime/testing` (everything in §14: the test
   host, `fixture`, `EPOCH`, `assert`, the fakes; **not** `@iota-uz/sdk/testing`, which is the Playwright package).
   `@iota-uz/sdk/runtime/kit` is internal to generated modules; never import it.
 * The complete working package: [`example/`](example). More real packages (an overlay with columns, a custom cell, slot contributions and a slot of your own, a replacement
   client view, a campaign workflow with an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
 * The platform contract: [`../extension-runtime.md`](../extension-runtime.md), §9.1 onwards.
+* Documentation for your own users: §13.5. It lands in the Help Center under *Applications*, next to (not inside) the developer
+  reference below.
 * The live API reference of the application you publish to: *Extensions → Reference* in the Help Center (`/help`), the
   configurator's Reference tab, `ext_reference` over MCP, and `GET /_ext/openapi.json` (OpenAPI 3.1).
