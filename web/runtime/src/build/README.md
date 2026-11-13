@@ -29,6 +29,7 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
   one `graph.unknownKit` diagnostic naming the kit commands, and the TS errors that follow from it are dropped) → three esbuild graphs →
   manifest extraction (`manifest.*`) → artifacts below `<outDir>/artifacts`:
   `contracts.mjs`, `server.mjs`, `client/index-<hash>.js`, `client/chunk-<hash>.js`,
+  `client/tailwind.css` and `client/index-<hash>.css` (the version's stylesheets, see "Package styles"),
   `client/manifest.json`. `check` runs the same pipeline and writes nothing.
 * `test` — typechecks the package first (`typecheck: false` skips it; type errors are returned as `diagnostics` and
   nothing runs), then bundles every `*.test.ts` (optionally only those matching `filter`; SDK external, kit bundled, with
@@ -46,6 +47,9 @@ extraction child, test child) registers `host/loader.ts` to resolve them.
 | contracts | must not reach `@iota-uz/sdk/runtime/server|client`, `solid-js*`, Node builtins | `graph.impureContract` |
 | server | must not reach `@iota-uz/sdk/runtime/client` | `graph.clientInServer` |
 | client | must not reach the server entry, a module only the server graph reaches (not reachable from contracts; npm excluded), `@iota-uz/sdk/runtime/server`, Node builtins | `graph.serverInClient` |
+| contracts, server | must not import a stylesheet (`.css`, `.module.css`) | `graph.cssOutsideClient` |
+| contracts, server | must not import `@iota-uz/sdk/solid-ui` (the UI kit is client-only) | `graph.impureContract`, `graph.clientInServer` |
+| client | must not import a global (non-module) stylesheet, from code or from another stylesheet | `graph.globalCss` |
 | any | `@iota-kit/<ns>` not in the kit | `graph.unknownKit` |
 
 Externals: `@iota-uz/sdk/runtime*` stay bare imports in server/contracts artifacts (resolved by the host
@@ -55,3 +59,24 @@ tree + kit). Client chunks never carry Solid or the runtime client: `solid-js`, 
 `globalThis[Symbol.for("iota.runtime.shared")]` (`client-host/shared.ts`; the shim export names are generated
 into `shared-exports.json` from the same sources). The pure `@iota-uz/sdk/runtime` is bundled. `client/manifest.json` lists the registry modules used
 under `shared`.
+
+## Package styles
+
+A client graph styles itself with two mechanisms, both artifacts of the version (covered by its hash) and both listed in
+`client/manifest.json` under `css`, utilities first:
+
+* **Tailwind utilities** (`css.ts`): the pure-JS Tailwind v4 compiler runs in the worker over the author files of the client
+  graph (the esbuild metafile's inputs, so exactly the files that ship), with the host's own token mapping (`build/theme/tailwind.config.js`,
+  copied verbatim from the repository root by `build-worker.mjs`, so the host's pipeline and the packages cannot drift) and Tailwind's `theme`
+  and `utilities` layers only. No preflight or base: the host page has them. Candidates are the string-like tokens of the sources; the compiler
+  drops what is not a utility. The result is minified with esbuild and written to `client/tailwind.css`; no utility, no file.
+* **Scoped CSS modules**: `*.module.css` imports go through esbuild's `local-css` loader as virtual modules named after the file, the package
+  namespace and a digest of path and content, so the class names (`Board_1a2b3c4d_panel`) are unique to the package and to the version. esbuild bundles
+  the CSS of the whole entry graph (lazy chunks included) into the entry's stylesheet; the per-chunk copies are dropped. A malformed stylesheet is
+  `css.syntax`, located in the author's file.
+
+`@iota-uz/sdk/solid-ui` is a shared specifier like Solid, but lazy: its shim awaits the host's loader
+(`globalThis[Symbol.for("iota.runtime.shared.loaders")]`), so only hosts running a version that imports it pay for the kit. It is the
+host's instance at the host's release version. Where a bundle is only evaluated in Node (manifest extraction, package tests) the specifier is an inert stub with the same exports.
+`build-worker.mjs` records the kit's export names in `shared-exports.json` and, with `--emit-sdk`, emits its declarations next to the runtime ones (the assembled package
+ships them as `dist/solid-ui`).

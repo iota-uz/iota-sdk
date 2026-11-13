@@ -1,0 +1,10 @@
+.panel {
+  display: grid;
+  gap: 11px;
+  letter-spacing: 3px;
+}
+
+.accent {
+  outline-style: solid;
+  outline-width: 5px;
+}

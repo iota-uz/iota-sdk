@@ -381,6 +381,12 @@ build must include it:
    shell) and the application's Solid features, and emits a `clienthost.Manifest` JSON (`package`, `packageVersion`,
    `sdkCommit`, `sdkReleaseVersion`, `protocolVersion`, `entry`, `styles`, `integrity`). Its release/commit/protocol must
    be the Go SDK's; `EXTRUNTIME_UI_HOSTMANIFEST` points at it and a stale bundle fails at startup.
+   The entry lazily imports the Solid UI kit that packages may use (`@iota-uz/sdk/solid-ui`, with its utilities sheet
+   `@iota-uz/sdk/solid-ui/embedded-css`, both resolved through the SDK package's exports): a code-splitting build (Vite does by
+   default) emits it as its own chunk, fetched only when an activated package version that imports the kit is mounted, so
+   an installation whose packages do not use it pays nothing. The kit is the one in the host bundle, i.e. the SDK release the
+   Go module shares; the application's page must already carry the SDK stylesheet (tokens, component classes), which the kit's
+   utilities assume. A version's own stylesheets are linked by the runtime, not by the application (authoring guide §13.5).
 2. **`solidFeatures` merge.** The configurator's screen is generated into
    `pkg/extruntime/configurator/web/solid-features.generated.ts` (`solidFeatures`, a `SolidFeatureCatalog`). The
    application merges it with its own catalog (`iota-solid` generates the app's) and passes the result to
@@ -521,17 +527,19 @@ disposes and recovers what the server describes.
 | `shell.spec.ts` | a bound shell renderer wraps a legacy Templ/HTMX page (an HTMX swap, an Alpine script and a modal keep working in the host-owned outlet) and a Solid page; `?iota-shell=standard` and closing the binding restore the standard shell; theme (the legacy `<html>` class follows) and locale are the user's |
 | `slots.spec.ts` | slot contributions on the CRM client page (full page and HTMX drawer) and on a Solid page; the audit contribution is absent from the HTML for a user without the permission; an HTMX swap of the region (or closing the drawer) disposes the root, a swap that brings the slot back mounts once |
 | `cells.spec.ts` | a cell renderer island in the CRM clients list: the package component replaces the standard cell, the standard value is still there without JavaScript or when the renderer cannot load, rows swapped by HTMX get and lose islands |
+| `styles.spec.ts` | package styles in the browser, by computed style: a package page renders kit components (Button, Tabs) styled, a Tailwind utility resolves on the SDK token (`bg-primary-600` = the host's `--primary-600`), a `*.module.css` class applies under its scoped name, and the page links the version's two stylesheets once; the kit is a lazy chunk of the host bundle that a page not using it never downloads; a slot island's version stylesheets are linked and requested once across HTMX swaps that remove and restore the island |
 | `bundle-failure.spec.ts` | the host's loading state, and the error state with Retry when the page module or the page's lazy component chunk answers 404; Retry reloads the document, writes nothing, and recovers |
 
 **How it runs.** `TestBrowserServer` (`pkg/extruntime/e2e/browser_server_test.go`) is skipped unless
 `IOTA_EXT_BROWSER_STATE` names a file. When the Playwright global setup starts it, it composes the application, activates
 the fixture packages (`testdata/browser` plus the scenario fixtures) through the management API, mints session cookies for
 four users (`admin`, `auditor`, `member`, `viewer`), serves the application on `127.0.0.1:4290` with the static assets
-(htmx, Alpine, the theme script) and the **real host bundle** at `/assets/runtime-host.js`, and writes the URL and cookies
-to the state file. Specs bind and unbind the shell through `/_ext/manage` as the administrator. The bundle is built by
+(htmx, Alpine, the theme script) and the **real host bundle** at `/assets/runtime-host.js` (code-split: its lazy chunks, the UI kit
+among them, are served as `/assets/runtime-host-chunk-*.js`), and writes the URL and cookies to the state file. Specs bind and unbind the shell through `/_ext/manage` as the administrator. The bundle is built by
 `browser/build-host.mjs`: it is the minimal form of what an application's Vite build does with
 `@iota-uz/sdk/runtime/client-host/entry` (the `@iota-uz/sdk/client-host` alias, Solid's browser export conditions, the
-SDK identity stamped with the commit of the host manifest). Do not let a `tsconfig` `paths` entry point `solid-js` at a
+SDK identity stamped with the commit of the host manifest; code splitting on, with the kit's library build and its embedded
+utilities sheet, as a Vite build of the application produces them). Do not let a `tsconfig` `paths` entry point `solid-js` at a
 directory in an application bundle: it bypasses the package's export conditions and bundles Solid's server build, which
 fails in the browser with "Client-only API called on the server side".
 
@@ -552,8 +560,10 @@ reading its stdin until it closes; env `IOTA_EXT_BROWSER_STATE`, `IOTA_EXT_BROWS
 libraries (`npx playwright install-deps chromium`). Failures leave screenshots and traces in
 `pkg/extruntime/e2e/browser/test-results` (and an HTML report in `playwright-report` when `CI` is set).
 
-**Limits.** The stylesheet compiled by `just css` is not required (an empty `main.min.css` is served when it is absent), so
-the specs assert on DOM and behavior, never on layout; the realtime socket (`/ws`) of the standard layout is not served;
+**Limits.** The stylesheet compiled by `just css` is not required: when it is absent the runner builds the part of it that the
+specs need (the SDK tokens and component classes, `styles/tailwind/input.css` without any `@source`, served as
+`main.min.css`; `IOTA_EXT_BROWSER_HOST_CSS`), so styling is asserted by computed style on the elements the fixtures render, never by
+pixel layout; the realtime socket (`/ws`) of the standard layout is not served;
 and restoring a page from the browser's back/forward cache is not exercised: the layout's pages were not bfcache-eligible
 in the Chromium used (`pageshow.persisted` stayed false with the feature enabled), so the host's `pagehide` disposal never
 met a `pageshow` restore there.

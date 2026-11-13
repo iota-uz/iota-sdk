@@ -55,6 +55,9 @@ func (c *Config) validate() error {
 // projection, the shell contributor and the column source.
 type Runtime struct {
 	cfg Config
+	// styles keeps what the client manifests of the active artifacts say
+	// about their stylesheets (see styles.go).
+	styles versionStyles
 
 	mu sync.Mutex
 	ix *Index
@@ -86,6 +89,7 @@ func (r *Runtime) Index(ctx context.Context) (*Index, error) {
 	if r.ix != nil && snap != nil && snap.Revision != "" && r.ix.Revision == snap.Revision {
 		return r.ix, nil
 	}
+	snap = r.withStyles(ctx, snap)
 	ix := buildIndex(snap, r.nativeRoutes(ctx, snap))
 	for _, d := range ix.Diagnostics {
 		r.cfg.Logger.WithField("revision", ix.Revision).Warn("extruntime ui: " + d)

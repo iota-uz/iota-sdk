@@ -127,6 +127,7 @@ export function startIslandHost(options: IslandHostOptions): () => void {
     const source = createSlotSource({
       contributions: { [slotId]: config.contributions },
       ...(importModule ? { importModule } : {}),
+      document: doc,
       console: win.console,
     })
     return render(
@@ -148,7 +149,7 @@ export function startIslandHost(options: IslandHostOptions): () => void {
     const transport = config && options.prepare(config.env)
     if (!config || !transport) return () => {}
     const fallback = Array.from(element.childNodes)
-    const source = createSlotSource({ contributions: {}, ...(importModule ? { importModule } : {}), console: win.console })
+    const source = createSlotSource({ contributions: {}, ...(importModule ? { importModule } : {}), document: doc, console: win.console })
     return render(
       () => createComponent(RuntimeProvider, {
         transport,

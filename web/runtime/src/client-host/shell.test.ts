@@ -152,6 +152,27 @@ describe('whole-shell activation around a legacy page', () => {
     }
   })
 
+  it('activates the renderer only once the stylesheets of its version loaded', async () => {
+    const sheet = '/_ext/assets/5he115he/client/tailwind.css'
+    const runtime = runtimeContext()
+    runtime.shell!.styles = [sheet]
+    legacyDocument(runtime, NAV)
+    const { host } = newHost()
+    const seen: { props?: ShellProps } = {}
+    let active = false
+    const activation = activateRuntimeShell({ context: readRuntimeContext(document)!, host, window, importModule: async () => shellModule(seen) }).then((ok) => { active = ok })
+    await tick()
+    const link = document.querySelector<HTMLLinkElement>(`link[rel~="stylesheet"][href="${sheet}"]`)!
+    expect(link).not.toBeNull()
+    expect(active).toBe(false) // the module is in; the standard shell stays until the stylesheet is too
+    expect(host.activeRenderer()).toBeFalsy()
+    link.dispatchEvent(new Event('load'))
+    await activation
+    expect(active).toBe(true)
+    expect(document.querySelectorAll(`link[href="${sheet}"]`)).toHaveLength(1)
+    link.remove()
+  })
+
   it('without a legacy theme controller the <html> class is the resolved theme', async () => {
     legacyDocument(runtimeContext(), NAV)
     document.documentElement.classList.add('light')

@@ -11,9 +11,12 @@ import templruntime "github.com/a-h/templ/runtime"
 import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 
 // pageView renders a runtime page inside the same authenticated layout as
-// legacy pages. bootstrap is the canonical client host fragment: mount element,
-// route context and the host entry module.
-func pageView(title string, bootstrap templ.Component) templ.Component {
+// legacy pages. styles are the stylesheets of the page's package version: they
+// are linked before the mount element, so the page never paints unstyled
+// (the browser host reuses these links instead of adding its own).
+// bootstrap is the canonical client host fragment: mount element, route
+// context and the host entry module.
+func pageView(title string, styles []string, bootstrap templ.Component) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -46,6 +49,29 @@ func pageView(title string, bootstrap templ.Component) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			for _, href := range styles {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<link rel=\"stylesheet\" href=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var3 string
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(href)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/extruntime/ui/page.templ`, Line: 14, Col: 37}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" data-iota-ext-css>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = bootstrap.Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

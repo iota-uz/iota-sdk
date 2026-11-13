@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
@@ -21,6 +22,22 @@ type ActivePackage struct {
 	// client chunks; it is the first segment of every asset URL.
 	ArtifactHash string
 	Manifest     manifest.Manifest
+	// Styles are the stylesheets of the version's client build, as paths
+	// inside the artifact ("client/tailwind.css"), in link order. A source
+	// that leaves them empty gets them read from the artifact's client
+	// manifest (Runtime.Index).
+	Styles []string
+}
+
+// styleURLs are the immutable URLs of the version's stylesheets.
+func (p ActivePackage) styleURLs() []string {
+	var urls []string
+	for _, s := range p.Styles {
+		if servableAsset(p.ArtifactHash, s) {
+			urls = append(urls, AssetsPrefix+p.ArtifactHash+"/"+strings.TrimPrefix(s, "/"))
+		}
+	}
+	return urls
 }
 
 // Binding is an open row of extruntime.bindings for a screen or the shell.

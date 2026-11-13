@@ -52,6 +52,8 @@ type ShellRef struct {
 	Module  string `json:"module"`
 	Export  string `json:"export,omitempty"`
 	Binding string `json:"binding"`
+	// Styles are the immutable URLs of the stylesheets of the renderer's version.
+	Styles []string `json:"styles,omitempty"`
 }
 
 // RuntimeNavigation holds the navigation extras of the shell model.
@@ -139,7 +141,7 @@ func (r *Runtime) Context(ctx context.Context) (*RuntimeContext, error) {
 		User:              runtimeUser(ctx),
 		Shell: &ShellRef{
 			ID: ix.Shell.ID, Package: ix.Shell.Package, Version: ix.Shell.Version,
-			Module: ix.Shell.AssetPath(), Export: ix.Shell.Export, Binding: ix.Shell.BindingID,
+			Module: ix.Shell.AssetPath(), Export: ix.Shell.Export, Binding: ix.Shell.BindingID, Styles: ix.Shell.Styles,
 		},
 		Navigation: RuntimeNavigation{Workspaces: []WorkspaceRef{}, Palette: Palette(ix, sub, lang)},
 		Slots:      r.visibleSlots(ctx, ix, sub),

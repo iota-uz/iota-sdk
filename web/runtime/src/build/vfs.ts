@@ -23,6 +23,7 @@ const SDK_PACKAGE = {
     "./runtime/client": { types: "./runtime/client.d.ts" },
     "./runtime/kit": { types: "./runtime/kit.d.ts" },
     "./runtime/testing": { types: "./runtime/testing.d.ts" },
+    "./solid-ui": { types: "./solid-ui/index.d.ts" },
   },
 };
 
@@ -37,6 +38,7 @@ export class VirtualFS {
     const modules = posix.join(dir, "node_modules");
     this.addFile(posix.join(modules, "@iota-uz/sdk/package.json"), JSON.stringify(SDK_PACKAGE));
     this.mounts.push({ virtual: posix.join(modules, "@iota-uz/sdk/runtime"), real: layout.sdkTypes });
+    if (layout.solidUITypes !== undefined) this.mounts.push({ virtual: posix.join(modules, "@iota-uz/sdk/solid-ui"), real: layout.solidUITypes });
     // Vendored typings fill in only what the package did not install itself.
     this.mountUnlessInstalled(posix.join(modules, "solid-js"), layout.vendor.solid);
     this.mountUnlessInstalled(posix.join(modules, "@types/node"), layout.vendor.nodeTypes);

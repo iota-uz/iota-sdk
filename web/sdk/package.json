@@ -42,6 +42,10 @@
       "import": "./dist/solid-ui/index.js"
     },
     "./solid-ui/standalone.css": "./dist/solid-ui/standalone.css",
+    "./solid-ui/embedded-css": {
+      "types": "./dist/solid-ui/embedded-css.d.ts",
+      "import": "./dist/solid-ui/embedded-css.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./identity": {
       "types": "./dist/sdk-identity.d.ts",

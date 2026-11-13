@@ -257,6 +257,9 @@ importers:
       solid-js:
         specifier: 1.9.15
         version: 1.9.15
+      tailwindcss:
+        specifier: 4.1.18
+        version: 4.1.18
       typescript:
         specifier: 5.7.2
         version: 5.7.2

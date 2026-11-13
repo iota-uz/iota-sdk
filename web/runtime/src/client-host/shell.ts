@@ -10,6 +10,7 @@ import type {
 import { RuntimeProvider } from './hooks.ts'
 import type { RuntimeContext } from './protocol.ts'
 import { createSlotSource, SlotsProvider } from './slots.ts'
+import { ensureStyles } from './styles.ts'
 import type { RuntimeTransport } from './transport.ts'
 
 // Structural views of the client host objects (see web/client-host/src/shell-*.ts).
@@ -188,6 +189,7 @@ export function createShellRenderer(options: ShellRendererOptions): ShellRendere
         const slots = createSlotSource({
           contributions: context.slots ?? {},
           ...(options.importModule ? { importModule: options.importModule } : {}),
+          document: win.document,
           console: console,
         })
         const body = () => createComponent(SlotsProvider, {
@@ -244,7 +246,8 @@ export async function activateRuntimeShell<Host extends ShellHostLike>(options: 
   const console = options.window.console
   let module: Record<string, unknown>
   try {
-    module = await load(ref.module)
+    const [loaded] = await Promise.all([load(ref.module), ensureStyles(options.window.document, ref.styles)])
+    module = loaded
   } catch (cause) {
     console.error(`Shell renderer ${ref.id} could not be loaded; the standard shell stays`, cause)
     return false

@@ -126,23 +126,58 @@ export const nav = navigation({
 })
 `
     files['src/NotesScreen.tsx'] = `import { For, Show } from "solid-js"
-import { useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
+import { Button, Card } from "@iota-uz/sdk/solid-ui"
+import { useCommand, useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
 import * as c from "./contracts"
+import styles from "./NotesScreen.module.css"
 
+// Styling without a line of CSS written inline: the SDK's Solid UI kit (the host's own instance and theme), Tailwind
+// utility classes (compiled with the SDK design tokens into this version's stylesheet) and a scoped CSS module.
 export default function NotesScreen(_props: PageProps) {
   const notes = useQuery(c.ListNotes, {})
+  const add = useCommand(c.AddNote)
   return (
-    <section>
-      <h1>Notes</h1>
+    <section class="flex flex-col gap-4 p-6">
+      <h1 class="text-xl font-semibold">Notes</h1>
+      <Card>
+        <Button
+          variant="primary"
+          loading={add.pending()}
+          onClick={() => void add.run({ title: "New note" }).then(() => notes.refetch())}
+        >
+          Add a note
+        </Button>
+      </Card>
       <Show when={notes.data()}>
         {(rows) => (
-          <ul>
-            <For each={rows()}>{(note) => <li>{note.title}</li>}</For>
+          <ul class={styles.list}>
+            <For each={rows()}>{(note) => <li class={styles.item}>{note.title}</li>}</For>
           </ul>
         )}
       </Show>
     </section>
   )
+}
+`
+    files['src/css-modules.d.ts'] = `// The type of a scoped CSS module: \`styles.list\` is the unique class name the build gives \`.list\`.
+// (Plain \`.css\` imports are refused by the build; see docs/authoring.md, "Styling".)
+declare module "*.module.css" {
+  const classes: Readonly<Record<string, string>>
+  export default classes
+}
+`
+    files['src/NotesScreen.module.css'] = `/* Scoped: the class names below are made unique to this package, so they cannot leak into the host or other packages. */
+.list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  border-bottom: 1px solid currentcolor;
+  padding-bottom: 0.5rem;
 }
 `
   }

@@ -42,6 +42,11 @@ type Module struct {
 	Version string `json:"version"`
 	Module  string `json:"module"`
 	Export  string `json:"export,omitempty"`
+	// Styles are the immutable asset URLs of the stylesheets of the package
+	// version the module belongs to (Tailwind utilities, scoped CSS modules).
+	// The browser host links each once per document before the module's first
+	// render.
+	Styles []string `json:"styles,omitempty"`
 }
 
 // Cell is a custom renderer for one cell of a native list.

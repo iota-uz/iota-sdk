@@ -17,6 +17,7 @@ const expectedExports = [
   './solid',
   './solid-ui',
   './solid-ui/standalone.css',
+  './solid-ui/embedded-css',
   './styles.css',
   './chat-ui',
   './chat-ui/icons',

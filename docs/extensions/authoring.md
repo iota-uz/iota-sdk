@@ -973,6 +973,66 @@ export const shell = shellRenderer((p) => (
 Client chunks must not import the server entry, anything only the server reaches, `@iota-uz/sdk/runtime/server` or a Node
 built-in (`graph.serverInClient`); Solid and the runtime client are not bundled: the host provides them.
 
+### 13.5 Styling: the UI kit, Tailwind and CSS modules
+
+Packages share one page with the application and with each other, so a package styles itself with three tools, none of
+which leaks: the SDK's Solid UI kit, Tailwind utility classes and scoped CSS modules. Do not write inline `style=` attributes
+for what these provide, and do not import global stylesheets (below).
+
+```tsx
+// src/RewardsScreen.tsx
+import { Button, Card, Tabs, TabsContent, TabsList, TabsTrigger } from "@iota-uz/sdk/solid-ui"
+import styles from "./RewardsScreen.module.css"
+
+export default function RewardsScreen() {
+  return (
+    <section class={`${styles.board} p-6`}>
+      <Card><Button variant="primary" onClick={save}>Save</Button></Card>
+      <Tabs defaultValue="terms">…</Tabs>
+    </section>
+  )
+}
+```
+
+* **The UI kit** is `import { … } from "@iota-uz/sdk/solid-ui"` (forms, overlays, navigation, tables, charts…). It is the **host's own
+  instance**: your bundle does not contain it, it shares the host's Solid and the host's theme (light/dark, tokens), so a `Button` looks like
+  every other button of the application. There is exactly one import path; subpaths of the kit are not importable from packages.
+  The host loads the kit **lazily**, only when a package version that imports it is mounted, together with the kit's own
+  utility stylesheet; an installation whose packages do not use it never downloads it. **Version coupling**: the kit is the
+  version of the host that serves your package, the same release as the runtime (`@iota-uz/sdk` and the Go module are one
+  release). Components added in a newer SDK are not there on an older host; `iota-ext check` typechecks against the kit of the
+  SDK you installed, so pin `@iota-uz/sdk` to the version of the instance you deploy to. Only the client graph can import it
+  (`graph.clientInServer` / `graph.impureContract` otherwise); package tests (`iota-ext test`) can import client code that uses it, as an inert stand-in.
+* **Tailwind utilities** (`class="flex gap-4 p-6 bg-primary-600 md:flex-col"`). At build the worker compiles the classes the **client
+  sources** use (string-like tokens in the files of the client graph, so write class names as whole strings; a name assembled from
+  parts such as `` `bg-${tone}-500` `` is not found) with the SDK's design tokens: the same `tailwind.config.js` mapping the application's
+  own pipeline uses, so `bg-primary-600`, `text-gray-700`, `border-subtle` and `bg-surface-300` mean what they mean in the application, in
+  both themes. The result is `client/tailwind.css` in the version's artifact: utilities only (the host page already has the base styles),
+  and only the classes you use. There is no Tailwind config of your own and no `@apply`.
+* **Scoped CSS modules** for what utilities do not express (`*.module.css`). `import styles from "./Panel.module.css"`;
+  `styles.panel` is a class name unique to your package, file and content (`Panel_1a2b3c4d_panel`), so it cannot collide with the application or another
+  package, or with the same package's other version. Declare the type once per package, as `iota-ext init` does:
+
+  ```ts
+  // src/css-modules.d.ts
+  declare module "*.module.css" {
+    const classes: Readonly<Record<string, string>>
+    export default classes
+  }
+  ```
+
+  A module's rules are unlayered, so they win over utilities and the kit when both set a property on one element. Plain CSS (`@import` of
+  another module file, `composes: x from "./other.module.css"`, nesting, media queries) works; local `url()` assets do not: use `data:` URIs.
+* **Global stylesheets are refused.** `import "./global.css"` (or any plain `.css`, from code or from `@import` in a module) fails with
+  `graph.globalCss` at the import: every package shares one page, so a global rule would restyle the host and other packages. Use utilities
+  or a module. A stylesheet imported by the server or contracts graph is `graph.cssOutsideClient`. Malformed CSS is `css.syntax` at its line.
+
+Both stylesheets belong to the version: they are built with it, covered by its artifact hash and reviewed with it, served from the same
+immutable `/_ext/assets/<artifactHash>/client/…` URLs, and `client/manifest.json` lists them under `css`. The application links them
+before the first render of any page, slot, cell or shell of the version — in the page HTML for a package page, and in the document head for
+slots, cells and the shell (once per document, however many islands or HTMX swaps) — so nothing paints unstyled and a swap never loses
+a stylesheet a neighbour still needs. `iota-ext init` scaffolds a page that uses a kit component, a utility and a CSS module.
+
 ## 14. Testing
 
 `iota-ext test` runs every `*.test.ts` file against an **in-memory test host**: the real contract definitions, your
@@ -1159,8 +1219,8 @@ needs a DOM, a browser build of Solid and the host's shared module registry, non
 stub would only hide differences from the browser. What you do have offline:
 
 * `iota-ext check` / `build` typecheck the client graph (props, `useQuery` / `useCommand` inputs and results are typed from
-  your contracts), enforce its rules (no server imports, no Node built-ins) and bundle it for the browser, so a screen that
-  compiles calls your contracts correctly;
+  your contracts), enforce its rules (no server imports, no Node built-ins, no global stylesheets), bundle it for the browser and
+  build its stylesheets (§13.5), so a screen that compiles calls your contracts correctly;
 * every query and command a screen calls is a plain contract you can test on the host (§14.1), including its permission
   behaviour through read rules; keep screen logic that deserves a test in a pure `.ts` file and test that file;
 * the loading, error and empty states and the markup are checked in the application: activate the package on a development
@@ -1176,7 +1236,10 @@ Every diagnostic is `file:line:col code message` and points at **your** source.
 |---|---|
 | `ts.<n>` | a TypeScript error (the number is the compiler's). Messages for the usual mistakes name the fix: a write to a native entity → "use a published operation (`tx.call`)"; ordering by an enum → "cannot order by 'status'"; a range on a non-orderable field; a filter on a `json` field; `tx.call` of an ordinary command → "use `ctx.call`"; a keyless `tx.start` → "needs a start key" |
 | `graph.impureContract` | the contracts graph imported `@iota-uz/sdk/runtime/server\|client`, Solid or a Node built-in |
-| `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …") |
+| `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …"); the UI kit (`@iota-uz/sdk/solid-ui`) counts as client-only |
+| `graph.globalCss` | client code (or one of its stylesheets) imported a global stylesheet: use utilities or a `*.module.css` (§13.5) |
+| `graph.cssOutsideClient` | the server or contracts graph imported a stylesheet |
+| `css.syntax` / `css.tailwind` | a malformed stylesheet (located in the file) / the Tailwind compiler failed on the package's styles |
 | `graph.unknownKit` | an `@iota-kit/<ns>` module is not in the kit: `iota-ext kit generate` or `kit pull` (reported once per file and module; the type errors it causes are hidden and counted by the `kit.followOn` warning) |
 | `manifest.duplicateId` / `outsideNamespace` / `invalidId` | an ID is declared twice, outside the namespace, or malformed. Entities, routes and workflows share one ID space: give them different names |
 | `manifest.undeclaredReference` | a resource refers to a contract that is not exported from the contracts graph |

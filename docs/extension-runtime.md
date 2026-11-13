@@ -494,7 +494,8 @@ queries as the session user; operations are never callable from the browser) and
 `GET /_ext/assets/<artifactHash>/<path>` (immutable). Client bundles externalize `solid-js`,
 `solid-js/web` and `@iota-uz/sdk/runtime/client`, resolved from the host's shared module
 registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid and one
-runtime context per document. Native list columns: `pkg/listext` (reference consumer: CRM
+runtime context per document; `@iota-uz/sdk/solid-ui` is shared the same way but lazily (§9.6),
+and a version's stylesheets are linked before its first render (§9.6). Native list columns: `pkg/listext` (reference consumer: CRM
 clients list + CSV/Excel export).
 
 **Slots, cells and screen replacement (as implemented)**
@@ -841,4 +842,50 @@ allow-list another origin).
   keeps checking the same permission. Empty lists are encoded as `[]`. Each operation group documents its own default
   error: the management envelope on `/_ext/manage`, `RpcFailure` on `/_ext/rpc`, none on package endpoints.
   `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's document offline.
+
+### 9.6 Package styles and the UI kit (as implemented)
+
+A package styles its client without inline styles. Three tools, none of which can leak into the host or into another package:
+
+* **The Solid UI kit** — `import { Button, Tabs, … } from "@iota-uz/sdk/solid-ui"`, the one import path (no narrower subpaths; the
+  kit's stylesheet and typings are not importable by packages). It is shared like Solid (`SHARED_SPECIFIERS` in
+  `build/graphs.ts`): the client graph replaces the import with a generated shim and the bundle carries none of the kit, so the
+  package renders with the host's Solid instance and theme. **It is the host's version**: the kit is part of the host bundle, i.e. of the
+  SDK release the Go module and the npm package share; the package builds against the typings of the SDK it installed
+  (`dist/solid-ui`, resolved by the CLI's tsconfig and, in the build worker, mounted next to the runtime typings; the configurator
+  serves them with the rest of `@iota-uz/sdk`, Monaco resolves `@iota-uz/sdk/solid-ui` through its `@iota-uz/sdk/*` path
+  rule) and runs on whichever kit the serving host has.
+* **Lazy host loading.** The registry has two parts: `globalThis[Symbol.for("iota.runtime.shared")]` (eager: Solid, the runtime
+  client) and `globalThis[Symbol.for("iota.runtime.shared.loaders")]` (async loaders of lazily shared modules). The kit shim of a package bundle
+  is `const m = await load()` (top-level await in the ESM chunk), so the version's entry or page chunk settles only when the host
+  has loaded the kit; `client-host/shared.ts` publishes the loader as `import('./kit.ts')`, which a code-splitting bundler (Vite, esbuild
+  with `splitting`) emits as its own chunk. A host whose packages do not import the kit never downloads or evaluates it; the browser suite
+  asserts it. The kit's utilities (`web/solid-ui/src/embedded.css`: the utilities the kit's sources use on the SDK token mapping, no preflight and no tokens, which
+  the host page carries) are built to `embedded-css.js`, a string module in the same chunk, and installed once per document as a constructed
+  stylesheet (a `<style>` element where unsupported); they are never a separate request and never a different release from the kit. Where a
+  bundle is only evaluated in Node (manifest extraction, `iota-ext test`) the specifier resolves to an inert stub with the same export names
+  (`shared-exports.json`, generated from the kit's sources by `build-worker.mjs`); the server and contracts graphs reject it
+  (`graph.clientInServer`, `graph.impureContract`).
+* **Package CSS, part of the immutable version artifact** (so hash-covered and reviewed with the version):
+  * `client/tailwind.css` — Tailwind v4 compiled **in the build worker** with its pure-JS compiler (no CLI subprocess, no native scanner) over the
+    author files of the client graph, with the host's own token mapping (`tailwind.config.js` of the repository root, copied verbatim into
+    `build/theme/` by `build-worker.mjs`, the same file the host's `just css` pipeline reads) plus Tailwind's `theme` and `utilities` layers only.
+    Utilities only: no preflight, no base. Class candidates are the string tokens of the sources; unused classes are not emitted; with no
+    utility there is no file. Output is minified and deterministic.
+  * `*.module.css` imports — esbuild's `local-css` loader, with the class prefix made unique per package namespace, path and content
+    (`Board_1a2b3c4d_panel`), emitted into the entry's stylesheet (`client/index-<hash>.css`; the per-chunk copies esbuild also writes are dropped).
+    Module rules are unlayered and so beat the layered utilities and kit whatever the link order.
+  * A plain `.css` import from client code (or from `@import` in a module) is `graph.globalCss`; any stylesheet in the server or contracts graph is
+    `graph.cssOutsideClient`; malformed CSS is `css.syntax` (esbuild only warns; the build makes it an error); a failure of the Tailwind step is `css.tailwind`.
+    All are located in the author's file (`iota-ext check` / `build`). CSS `url()` assets are not supported (`data:` URIs are).
+  * `client/manifest.json` (`iota.client/1`) lists them in `css`, utilities first, and the shared modules in `shared`.
+* **Linking.** `ui.Runtime.Index` reads the `css` list of each activated artifact's client manifest once (artifacts are immutable; a failed
+  read is not cached and the version renders without styles, logged) and stores the immutable URLs (`/_ext/assets/<hash>/client/…`) on the page,
+  slot contribution, cell renderer and shell renderer of that version (`shellext.Module.Styles`, `PageRef.Styles`, `ShellRef.Styles`). A runtime
+  page's HTML links them before the mount element (`page.templ`, `data-iota-ext-css`). The browser host (`client-host/styles.ts`
+  `ensureStyles`) makes sure each URL is linked **once per document** — reusing a link the HTML already carries, otherwise appending one to
+  `<head>` — and resolves when it loaded; the page, `createSlotSource` (slots, cells) and the shell wait for it together with the module's import,
+  so nothing renders unstyled. Island links live in the head, not in the swapped fragment: an HTMX swap that removes an island does not remove its
+  neighbours' stylesheet, a fragment that brings the island back finds the link, and several islands of a version share it. The stylesheet is
+  per version; it is not removed when a version deactivates (a document reload drops it).
 

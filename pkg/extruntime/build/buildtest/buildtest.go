@@ -89,10 +89,13 @@ func ensure(root, node string) (string, bool, string) {
 	return dir, true, ""
 }
 
-// sourceHash covers everything the worker build depends on.
+// sourceHash covers everything the worker build depends on: the runtime
+// sources, the SDK theme the package stylesheets are compiled with
+// (tailwind.config.js) and the UI kit whose export names and declarations the
+// worker ships (web/solid-ui/src).
 func sourceHash(root string) string {
 	h := sha256.New()
-	for _, sub := range []string{"src", "scripts"} {
+	for _, sub := range []string{"src", "scripts", filepath.Join("..", "solid-ui", "src")} {
 		_ = filepath.WalkDir(filepath.Join(root, sub), func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				// An unreadable directory contributes nothing to the hash; for a
@@ -102,7 +105,7 @@ func sourceHash(root string) string {
 			if d.IsDir() {
 				return nil
 			}
-			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".json") {
+			if strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx") || strings.HasSuffix(path, ".mjs") || strings.HasSuffix(path, ".json") {
 				b, _ := os.ReadFile(path)
 				h.Write([]byte(path))
 				h.Write(b)
@@ -110,7 +113,7 @@ func sourceHash(root string) string {
 			return nil
 		})
 	}
-	for _, f := range []string{"package.json", "tsconfig.json", "tsconfig.build.json"} {
+	for _, f := range []string{"package.json", "tsconfig.json", "tsconfig.build.json", filepath.Join("..", "..", "tailwind.config.js"), filepath.Join("..", "solid-ui", "tsconfig.package.json")} {
 		b, _ := os.ReadFile(filepath.Join(root, f))
 		h.Write(b)
 	}

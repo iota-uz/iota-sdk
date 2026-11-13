@@ -139,6 +139,10 @@ type PageRef struct {
 	Module string `json:"module"`
 	// Export is the export of Module holding the page; empty for default.
 	Export string `json:"export,omitempty"`
+	// Styles are the immutable URLs of the stylesheets of the page's version.
+	// The page HTML links them; the browser host also ensures them before
+	// the first render.
+	Styles []string `json:"styles,omitempty"`
 }
 
 func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +191,7 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 		SDKCommit:         c.cfg.Host.SDKCommit,
 		Initial: mustJSON(PageData{
 			Kind:          PageDataKind,
-			Page:          PageRef{ID: page.ID, Package: page.Package, Version: page.Version, Module: page.AssetPath(), Export: page.Export},
+			Page:          PageRef{ID: page.ID, Package: page.Package, Version: page.Version, Module: page.AssetPath(), Export: page.Export, Styles: page.Styles},
 			Params:        nonNil(route.Params),
 			ParamTypes:    page.Params,
 			ReplacedRoute: route.ReplacedRoute,
@@ -203,7 +207,7 @@ func (c *Controller) servePage(w http.ResponseWriter, r *http.Request) {
 	title := listext.LabelFor(page.Label, lang, page.ID)
 	bootstrap := clienthost.Bootstrap(clienthost.Page{Title: title, MountID: PageMountID, Manifest: c.cfg.Host, Context: rc})
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	templ.Handler(pageView(title, bootstrap), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(pageView(title, page.Styles, bootstrap), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func nonNil(m map[string]string) map[string]string {

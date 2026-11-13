@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -36,13 +37,18 @@ import (
 //   - waits until the runner stops it (SIGINT/SIGTERM, or its stdin closing).
 //
 //     IOTA_EXT_BROWSER_STATE    path of the JSON state file to write (the switch that enables this test)
-//     IOTA_EXT_BROWSER_HOST_JS  path of the runtime host bundle (browser/build-host.mjs)
+//     IOTA_EXT_BROWSER_HOST_JS  path of the runtime host bundle (browser/build-host.mjs); its lazy chunks (the UI kit)
+//     sit next to it and are served as /assets/runtime-host-chunk-*.js
+//     IOTA_EXT_BROWSER_HOST_CSS optional path of the host stylesheet (the SDK tokens and component classes); stands in for
+//     the application's compiled main.min.css when a checkout has not built it
 //     IOTA_EXT_BROWSER_PORT     port to listen on, 0 or unset for a free one
 const (
 	browserStateEnv  = "IOTA_EXT_BROWSER_STATE"
 	browserHostEnv   = "IOTA_EXT_BROWSER_HOST_JS"
+	browserCSSEnv    = "IOTA_EXT_BROWSER_HOST_CSS"
 	browserPortEnv   = "IOTA_EXT_BROWSER_PORT"
 	hostEntryPath    = "/assets/runtime-host.js"
+	hostChunkPrefix  = "/assets/runtime-host-chunk-"
 	languageEndpoint = "/__e2e/language"
 
 	permBrowserUse   = "e2e.browser.use"
@@ -90,6 +96,7 @@ func TestBrowserServer(t *testing.T) {
 		map[string]any{"client": map[string]string{"entity": "crm.client", "key": annKey}, "tier": "gold", "score": 30, "internalNote": "board-member"}, nil)
 	e.deploy(admin, "e2e.tiercell", "1.0.0", loadTree(t, "tiercell"))
 	e.deploy(admin, "e2e.browser", "1.0.0", loadTree(t, "browser"))
+	e.deploy(admin, "e2e.styled", "1.0.0", loadTree(t, "styled"))
 
 	// auditor holds every right of the suite; member lacks the audit panels; viewer only reads clients;
 	// admin manages extensions (bindings) and, as the legacy pages need, reads clients.
@@ -119,7 +126,7 @@ func TestBrowserServer(t *testing.T) {
 	lis, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort("127.0.0.1", port))
 	require.NoError(t, err)
 
-	handler := e.browserHandler(hostJS)
+	handler := e.browserHandler(hostJS, os.Getenv(browserCSSEnv))
 	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 30 * time.Second}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(lis) }()
@@ -148,12 +155,19 @@ func TestBrowserServer(t *testing.T) {
 // browserHandler fronts the application with what a deployment adds around it: the static assets (htmx, Alpine,
 // the theme script), the frontend bundle of the runtime host, and a test-only control for state the suite cannot
 // change through the application's UI.
-func (e *env) browserHandler(hostJS string) http.Handler {
+func (e *env) browserHandler(hostJS, hostCSS string) http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc(hostEntryPath, func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		http.ServeFile(w, req, hostJS)
+	})
+	// The lazy chunks of the host bundle (the UI kit) sit next to the entry; only the bundler's own names are served.
+	chunkDir := filepath.Dir(hostJS)
+	r.HandleFunc(hostChunkPrefix+"{name:[A-Za-z0-9_-]+}.js", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		http.ServeFile(w, req, filepath.Join(chunkDir, "runtime-host-chunk-"+mux.Vars(req)["name"]+".js"))
 	})
 	// POST {"user": <id>, "language": "ru"}: the user's saved interface language, as the account page would set it.
 	r.HandleFunc(languageEndpoint, func(w http.ResponseWriter, req *http.Request) {
@@ -176,11 +190,15 @@ func (e *env) browserHandler(hostJS string) http.Handler {
 	r.Path("/ws").HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "the realtime socket is not served in the browser suite", http.StatusNotFound)
 	})
-	// The compiled Tailwind stylesheet is a build product (`just css`); a checkout without it gets an empty one,
-	// so the page does not fail on a missing resource. Styles do not matter to the host's behavior.
+	// The compiled Tailwind stylesheet is a build product (`just css`). A checkout without it gets the host stylesheet the
+	// runner built (the SDK tokens and component classes, as the real one carries them), or an empty one, so the page does
+	// not fail on a missing resource.
 	if f, err := coreassets.FS.Open("css/main.min.css"); err != nil {
-		r.HandleFunc("/assets/css/main.min.css", func(w http.ResponseWriter, _ *http.Request) {
+		r.HandleFunc("/assets/css/main.min.css", func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+			if hostCSS != "" {
+				http.ServeFile(w, req, hostCSS)
+			}
 		})
 	} else {
 		_ = f.Close()

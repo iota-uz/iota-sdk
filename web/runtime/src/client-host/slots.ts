@@ -5,6 +5,7 @@
 // from the client entry, which the build also evaluates in Node.
 import { createComponent, createContext, createSignal, ErrorBoundary, For, onCleanup, useContext, type Component, type JSX } from 'solid-js'
 import type { SlotRef } from '../contracts.ts'
+import { ensureStyles } from './styles.ts'
 
 /** One contribution the server resolved for a slot: where its module is and which export holds the component. */
 export interface SlotContribution {
@@ -15,6 +16,8 @@ export interface SlotContribution {
   readonly module: string
   /** Export of `module` holding the `slot()` value; default export when absent. */
   readonly export?: string
+  /** Immutable asset URLs of the stylesheets of the contribution's version; linked (once per document) before it renders. */
+  readonly styles?: readonly string[]
 }
 
 /** What the host gives `<Slot>`: the contributions of a slot and the way to load one. */
@@ -95,6 +98,8 @@ export interface SlotSourceOptions {
   /** Dynamic import, injectable for tests. */
   importModule?: (url: string) => Promise<Record<string, unknown>>
   console?: Pick<Console, 'error'>
+  /** Document the contributions' stylesheets are linked in (default: the global document, when there is one). */
+  document?: Document
 }
 
 const EMPTY: readonly SlotContribution[] = []
@@ -104,6 +109,7 @@ export function createSlotSource(options: SlotSourceOptions): SlotSource {
   const importModule = options.importModule ?? ((url: string) => import(/* @vite-ignore */ url) as Promise<Record<string, unknown>>)
   const log = options.console ?? console
   const modules = new Map<string, Promise<Record<string, unknown>>>()
+  const doc = options.document ?? (typeof document === 'undefined' ? undefined : document)
   return {
     contributions: (slotId) => options.contributions[slotId] ?? EMPTY,
     async load(contribution) {
@@ -113,7 +119,9 @@ export function createSlotSource(options: SlotSourceOptions): SlotSource {
         modules.set(contribution.module, pending)
       }
       try {
-        const component = resolveComponent(await pending, contribution.export)
+        // The version's stylesheets load alongside its module; the component renders only once both are in.
+        const [module] = await Promise.all([pending, ensureStyles(doc, contribution.styles)])
+        const component = resolveComponent(module, contribution.export)
         if (!component) log.error(`Slot contribution ${contribution.id}: module ${contribution.module} has no component export "${contribution.export ?? 'default'}"`)
         return component
       } catch (cause) {

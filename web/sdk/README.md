@@ -7,6 +7,7 @@ subpath APIs are built from separate internal workspace modules:
 - `@iota-uz/sdk/solid`
 - `@iota-uz/sdk/solid-ui`
 - `@iota-uz/sdk/solid-ui/standalone.css`
+- `@iota-uz/sdk/solid-ui/embedded-css` (a string module: the kit's utilities for a page that already carries the SDK stylesheet; consumed by the runtime host bundle, not by application code)
 - `@iota-uz/sdk/styles.css`
 - `@iota-uz/sdk/lens`
 - `@iota-uz/sdk/lens/styles.css`
