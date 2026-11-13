@@ -437,6 +437,12 @@ transaction receipts and per-instance artifact pinning.
 * Activation is **application-wide**; per-tenant trigger owners in `trigger_owners(trigger_id,
   tenant_id, user_id)`. A tenant without an owner gets a `blocked` trigger run, not a failed
   activation. `activations` carry `state active|disabled|purged`.
+* **Write rules and purge (intended).** Entity `writeRule`s run in the data `Store` for every row write it makes for a caller
+  (`insert`/`update`/`delete`/overlay `put`: a package command, `ext_invoke`, a workflow, an operator's `execute`); no administrative
+  path writes rows another way. `Purge` (`Extensions.Publish`, audited, refused while the package is active or live instances pin it)
+  is a **teardown, not a write**: it drops the deactivated package's entity tables whole (`DROP TABLE … CASCADE`) and deletes its recorded
+  schema state, so no write rule runs for the rows that go with it — a rule that refuses every delete does not stop a purge. Schema
+  application at activation is additive DDL and never rewrites rows. (E2E scenario 24 pins both halves.)
 * Fields: `entity_schemas` assigns each field an immutable **physical column** at first apply;
   field keys (and `renamedFrom` aliases) map to it per package version. DataStore calls carry
   `spi.Scope{Subject, Caller{Package, Version}}` and resolve keys through the caller version's
