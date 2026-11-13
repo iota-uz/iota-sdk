@@ -29,11 +29,28 @@ A package has up to three **graphs**, each an ES module entry declared in `packa
 |---|---|---|---|
 | contracts | `src/contracts.ts` | `@iota-uz/sdk/runtime`, `@iota-kit/*`, pure files, pure npm packages | everywhere (it is pure data) |
 | server | `src/server.ts` | everything above, `@iota-uz/sdk/runtime/server`, Node built-ins, npm | in the platform's Node worker pool |
-| client | `src/client.tsx` | contracts, `@iota-uz/sdk/runtime/client`, `solid-js`, browser-safe npm | in the browser (Solid) |
+| client | `src/client.tsx` | contracts and the pure files the contracts graph reaches, `@iota-uz/sdk/runtime/client`, `@iota-uz/sdk/solid-ui`, `solid-js`, browser-safe npm | in the browser (Solid) |
 
 The registry of a package is the set of **named exports** of the three entry modules that carry the SDK brand. There is
 no `register()` call and no manifest to write: export a contract, a page or an implementation and it exists. A violated
 graph rule (the client importing the server, a contract importing Node) is a build error with a file and line.
+
+**Sharing code between the server and the browser.** The contracts graph is the shared, pure layer: whatever it reaches
+can be imported by the server *and* the client. A file that only the server graph reaches is server code, and the client
+may not import it (`graph.serverInClient`): it could carry business logic or secrets you never meant to ship to a
+browser. So a calculation both sides need (a score, a price, a verdict) lives in a pure file — no `runtime/server`, no
+Node built-ins — that `contracts.ts` imports or re-exports:
+
+```ts
+// src/calc.ts — pure: numbers in, numbers out
+export function weightedScore(scores: readonly number[], weights: readonly number[]): number { … }
+
+// src/contracts.ts
+export * as calc from "./calc"        // or `import "./calc"`: either puts calc.ts in the shared layer
+
+// src/server.ts and src/AssessmentScreen.tsx
+import { weightedScore } from "./calc"  // both graphs may import it now
+```
 
 Two things surprise newcomers:
 
@@ -55,8 +72,9 @@ npx iota-ext test                              # run *.test.ts on the in-memory 
 npx iota-ext build                             # artifacts and manifest in .iota/build
 ```
 
-`init` writes `package.json`, `tsconfig.json`, `src/contracts.ts`, `src/server.ts`, `src/client.tsx` (a page),
-`src/server.test.ts` (a passing test) and generates the kit for the SDK's own natives (`@iota-kit/core`,
+`init` writes `package.json`, `tsconfig.json`, `.gitignore`, `src/contracts.ts`, `src/server.ts`, `src/server.test.ts`
+(a passing test) and, unless you pass `--no-client`, `src/client.tsx` with a page `src/NotesScreen.tsx` that uses a UI kit
+component, Tailwind utilities and `src/NotesScreen.module.css`, plus `src/css-modules.d.ts` (§13.6), and generates the kit for the SDK's own natives (`@iota-kit/core`,
 `@iota-kit/crm`) **offline** into `.iota/kit/`. Everything works before you have access to any server. When you do,
 `iota-ext kit pull` replaces the offline kit with the application's real one (see §5).
 
@@ -77,12 +95,13 @@ loyalty/
 ├─ tsconfig.json         for your editor (see §4)
 ├─ .iota/kit/            the generated developer kit (§5): commit it
 ├─ .iota/build/          `iota-ext build` output: do not commit
-└─ src/
-   ├─ contracts.ts       contracts graph
-   ├─ server.ts          server graph
-   ├─ client.tsx         client graph (pages, navigation, cells)
-   ├─ *.tsx              screens, loaded lazily from client.tsx
-   └─ *.test.ts          tests (run by `iota-ext test`; never part of an artifact)
+├─ .gitignore            node_modules and .iota/build (never .iota/kit)
+├─ src/
+│  ├─ contracts.ts       contracts graph
+│  ├─ server.ts          server graph
+│  ├─ client.tsx         client graph (pages, navigation, cells)
+│  ├─ *.tsx              screens, loaded lazily from client.tsx
+│  └─ *.test.ts          tests (run by `iota-ext test`; never part of an artifact)
 └─ docs/<locale>/        documentation for your users, markdown (§13.5)
 ```
 
@@ -230,6 +249,21 @@ Field builders: `field.text({maxLength})` (`string` is an alias), `int`, `int64`
 * `.unique()`, `.index()`, `.label({...})`, `.renamedFrom("oldKey")` (the column follows the field across renames).
 
 Use `t.*` (the same builders without column semantics) for inputs and outputs.
+
+**Money and other exact numbers.** `decimal` and `int64` travel as strings (JSON numbers lose precision), typed as
+branded `Decimal` / `Int64`. Build them with the wire helpers from `@iota-uz/sdk/runtime`; they validate the format and,
+for a decimal, precision and scale:
+
+```ts
+import { decimal, int64 } from "@iota-uz/sdk/runtime"
+
+await tx.insert(Assessment, { premium: decimal("100000.00", { precision: 18, scale: 2 }), sum: decimal("10000000") })
+const premium = Number(row.premium)                 // arithmetic is yours: the platform stores and compares exactly
+const ours = decimal((premium * share / 100).toFixed(2))
+```
+
+The platform never does arithmetic on your behalf. Converting to `Number` is fine for ratios and display; for sums that
+must stay exact, compute on integers of the smallest unit (`int64` cents) or use a decimal library in your package.
 
 ### 6.2 Reading and writing
 
@@ -516,6 +550,25 @@ export const rewardRule = writeRule("acme.loyalty.rewardRule", c.Reward, async (
   write of that entity, whatever code path writes it.
 * `precheck(id, OrdinaryCommand, (q, input) => …)` is a *preliminary* check on a read snapshot for an ordinary command:
   useful for early feedback, not a race-free guarantee.
+
+`change.op` is `"insert"`, `"update"` or `"delete"`; `existing` is the row before (null on insert), `proposed` the row
+after (null on delete) and `changed` the fields an update patches. That makes rules such as *append-only* or *frozen
+once published* one line each:
+
+```ts
+// an append-only log: rows are written once and never changed or removed
+export const logIsAppendOnly = writeRule("acme.reinsurance.logIsAppendOnly", c.ChangeLog, async (_ctx, change) => {
+  if (change.op !== "insert") throw validation(c.LogIsImmutable.at([], {}))
+})
+// a published parameter set is frozen
+export const publishedIsFrozen = writeRule("acme.reinsurance.publishedIsFrozen", c.ParameterSet, async (_ctx, change) => {
+  if (change.existing?.status === "published") throw validation(c.PublishedIsFrozen.at([], {}))
+})
+```
+
+A rule refuses with a validation issue (or a declared domain error); it applies to every write through the platform,
+whoever makes it. Purging a package's data (`ext_package_purge`, an administrator action that drops the package's tables)
+is not a write and runs no rules.
 
 All three get a **read-only** context (`get find count query user log`) and reject by throwing. Their IDs become the
 `source` of the issues they raise. A guard on an operation applies to every caller, including other packages and Go.
@@ -1044,7 +1097,8 @@ Open the [cards page](route:acme.loyalty.cards).                              <!
 Pay at [the bank](https://bank.example/pay).                                  <!-- http, https, mailto, tel -->
 ```
 
-* A relative link names another document by its file name with `.md`; it may end with `#section`. It must stay inside
+* A relative link names another document by its file name with `.md`; it may end with `#section` (the fragment itself
+  is not checked, neither here nor in `helpHref`). It must stay inside
   the locale's tree (`docs.linkEscapes`) and name a document that exists (`docs.brokenLink`). The Help Center serves
   documents without the extension; the platform drops `.md` for you.
 * `route:<resource id>` links a `page` or `route` of the package with a fixed address (no `:param`) to its path
@@ -1075,14 +1129,16 @@ breaks the build rather than the link. A computed argument cannot be checked. `h
 passes ships in the artifact (front matter removed) and its title, order, audience and permission in the manifest
 (`docs`). Publishing re-checks the structure and the permissions against the catalog. The assistant tool `ext_docs` reads
 the same documents with the same visibility as the Help Center.
+
 ### 13.6 Styling: the UI kit, Tailwind and CSS modules
 
 Packages share one page with the application and with each other, so a package styles itself with three tools, none of
 which leaks: the SDK's Solid UI kit, Tailwind utility classes and scoped CSS modules. Do not write inline `style=` attributes
-for what these provide, and do not import global stylesheets (below).
+for what these provide, and do not import global stylesheets (below). A value that comes from data — the width of a bar,
+a colour per status — is the one thing classes cannot hold: pass it as a CSS custom property and let a module use it.
 
 ```tsx
-// src/RewardsScreen.tsx
+// a screen of your package
 import { Button, Card, Tabs, TabsContent, TabsList, TabsTrigger } from "@iota-uz/sdk/solid-ui"
 import styles from "./RewardsScreen.module.css"
 
@@ -1094,6 +1150,11 @@ export default function RewardsScreen() {
     </section>
   )
 }
+```
+
+```tsx
+// data-driven values: a custom property, consumed by the module (`.fill { width: calc(var(--share) * 1%) }`)
+<div class={styles.bar}><div class={styles.fill} style={{ "--share": String(share()) }} /></div>
 ```
 
 * **The UI kit** is `import { … } from "@iota-uz/sdk/solid-ui"` (forms, overlays, navigation, tables, charts…). It is the **host's own
@@ -1134,6 +1195,23 @@ immutable `/_ext/assets/<artifactHash>/client/…` URLs, and `client/manifest.js
 before the first render of any page, slot, cell or shell of the version — in the page HTML for a package page, and in the document head for
 slots, cells and the shell (once per document, however many islands or HTMX swaps) — so nothing paints unstyled and a swap never loses
 a stylesheet a neighbour still needs. `iota-ext init` scaffolds a page that uses a kit component, a utility and a CSS module.
+
+**What the kit offers.** The authoritative list with every prop is the kit's typings in your installed SDK,
+`node_modules/@iota-uz/sdk/dist/solid-ui/index.d.ts` (your editor shows them on hover). The pieces a business screen uses most:
+
+| Need | Components | Key props |
+|---|---|---|
+| Actions | `Button` (and `PrimaryButton`, `SecondaryButton`, `DangerButton`, `GhostButton`) | `variant`: `primary` `secondary` `primary-outline` `danger` `ghost` `sidebar`; `size`: `normal` `md` `sm` `xs`; `loading`, `disabled`, `href`, `icon` |
+| Text fields | `Input` (`TextInput`, `NumberInput`, `DateInput`, …), `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Toggle`, `Slider`, `DatePicker`, `Combobox`, `SearchSelect`, `PhoneInput`, `Upload` | `label`, `description`, `error`, `placeholder`; `Select`: `options: { value, label }[]`, `defaultValue` |
+| Layout | `Card`, `CardHeader`, `DescriptionList` (`DescriptionListItem`, `DescriptionListLabel`, `DescriptionListValue`), `Breadcrumbs` | |
+| Tabs | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`; `NavTabs`, `TabLink` for links | `Tabs`: `value` + `onValueChange` (controlled) or `defaultValue`; trigger and content share a `value` |
+| Tables | `Table` composed of `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`; `EmptyState`, `Pagination`, `Skeleton`, `Loader` | `TableHead`: sorting props; `EmptyState`: `title`, `description` |
+| Status | `Badge`, `Alert` (`ErrorAlert`, `SuccessAlert`), `Progress`, `Spinner`, `Toast` | `Badge.variant`: `pink` `yellow` `green` `blue` `purple` `gray`; `Alert.variant`: `error` `success` |
+| Overlays | `Dialog`, `ConfirmationDialog`, `Drawer`, `ViewDrawer`, `Dropdown` | `open` + `onOpenChange` or `defaultOpen`; `Drawer.direction`: `rtl` `ltr` `btt` `ttb` |
+| Charts | `Chart` | `options` (ApexCharts options); it draws with the `ApexCharts` the page provides (`window.ApexCharts`) or a `factory` you pass |
+
+Anything the kit does not have — a custom gauge, a layered bar — is plain Solid markup styled with utilities and a module, as
+in the snippet above.
 
 ## 14. Testing
 
@@ -1326,9 +1404,32 @@ stub would only hide differences from the browser. What you do have offline:
 * every query and command a screen calls is a plain contract you can test on the host (§14.1), including its permission
   behaviour through read rules; keep screen logic that deserves a test in a pure `.ts` file and test that file;
 * the loading, error and empty states and the markup are checked in the application: activate the package on a development
-  instance, or render the component in your own Vitest + jsdom setup with `vite-plugin-solid`: wrap it in
-  `RuntimeProvider` (exported by `@iota-uz/sdk/runtime/client`) with a fake transport,
-  `{ invoke: async (kind, resource, input) => … }`, which is what `useQuery` and `useCommand` call.
+  instance, or render the component in your own Vitest + jsdom setup (below).
+
+**Rendering a screen in Vitest.** Install `vitest`, `jsdom`, `vite-plugin-solid`, `@solidjs/testing-library` and
+**`vite@^6`** (newer Vite majors require a newer esbuild than the SDK's `esbuild@^0.25` peer and npm refuses the tree):
+
+```ts
+// vitest.config.ts
+import { defineConfig } from "vitest/config"
+import solid from "vite-plugin-solid"
+import { fileURLToPath } from "node:url"
+
+export default defineConfig({
+  plugins: [solid()],
+  resolve: {
+    conditions: ["browser"],
+    // the developer kit is not in node_modules (§5): point the import at the generated modules
+    alias: [{ find: /^@iota-kit\/(.+)$/, replacement: fileURLToPath(new URL("./.iota/kit/$1/index.js", import.meta.url)) }],
+  },
+  test: { environment: "jsdom", include: ["dom/**/*.spec.tsx"], server: { deps: { inline: [/@iota-uz\/sdk/] } } },
+})
+```
+
+In a test, wrap the screen in `RuntimeProvider` (from `@iota-uz/sdk/runtime/client`) with a fake transport,
+`{ invoke: async (kind, resource, input) => … }`, which is what `useQuery` and `useCommand` call. Here the UI kit is the real
+one (imported directly, not through the host) and your `*.module.css` classes resolve through Vite. Pass `helpHref` an
+explicit `{ namespace }` in such tests, or the page context it otherwise reads is missing.
 
 ## 15. Errors the tools print
 
