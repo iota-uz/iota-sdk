@@ -1,0 +1,26 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Lens on phones: a stat tile's header is one row at every width and folds export/expand into a «⋯» menu (new key panel.actions) when the tile is narrow; KPI tiles form a 2×2 grid on a phone; the dashboard freshness label truncates instead of pushing Export onto a second row; horizontal bars hang names above the bars on narrow plots and keep the unit inside the grid; a pie legend folds to a few rows without the per-row eye and bulk controls; the sr-only chart mark buttons no longer overlap; the drill arrow stays beside the figure; the runtime ships built-in Russian (and a Latin Uzbek subset) chrome messages chosen by the document locale, with the host catalogue still winning; compact money carries the host grapheme (FieldFormat.symbol is now set for abbreviated money) so tiles and charts print one currency format."
+    },
+    {
+      "bump": "minor",
+      "summary": "Mobile app shell: 16px form fields on phones, heading focus and 44px close controls in drawers, shared DrawerHeader/DrawerFooter with inline delete confirmation, global HTMX error toasts and targeted refresh (htmx.RefreshTargets), mobile search, brand and notification panel in the navbar."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add optional application default language (bootstrap.WithDefaultLanguage) and application time zone (bootstrap.WithTimezone); language-select lists only enabled languages; 404 renders inside the authenticated shell; login keeps the email out of the URL and sets autocomplete; password reveal toggle fixed; localized currency names, filter labels, module/resource labels and browser validation messages; sessions show application-zone time and host-only IPs; profile heading/avatar preview; notification settings layout and checkboxes."
+    },
+    {
+      "bump": "minor",
+      "summary": "Fix the project edit drawer showing an empty counterparty; accept amounts typed with spaces, no-break spaces and a decimal comma (money.ParseAmount, shared.Amount form type); add core MoneyInput component, field error for CounterpartySelect, responsive acceptance rows and a default document date. ProjectCreateDTO/ProjectUpdateDTO.ContractAmount and AcceptanceCreateDTO.Amount are now shared.Amount."
+    },
+    {
+      "bump": "minor",
+      "summary": "Scaffold table on phones: card layout with column mobile roles (WithMobileRole, WithMobileLayout), primary action plus \"more\" menu in EmbeddedContent, form-scoped hx-trigger with WithoutPushURL/WithPushURL, filter bottom sheet with Apply/Reset, active filter chips, distinct empty states, and unlinked placeholder cells."
+    }
+  ],
+  "source": "44b88680870a8d8eea81c94cfb8fe21647bc6e2b",
+  "version": "0.41.0"
+}
