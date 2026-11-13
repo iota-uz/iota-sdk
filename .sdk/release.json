@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Keep the mcp schema when rolling back migration 1793184901 if the host application has its own objects in it, so migrate down no longer fails with 2BP01."
+    }
+  ],
+  "source": "f49f0786ecb0e79ed592fa7bb4f85fc628dd3869",
+  "version": "0.40.3"
+}
