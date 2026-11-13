@@ -46,3 +46,25 @@ func TestContainer_LabelsEveryDismissButton(t *testing.T) {
 		})
 	}
 }
+
+// The global HTMX error listener reads its texts from the container, so the
+// container must always carry them, even without a localizer.
+func TestContainer_ExposesErrorTextsForHTMXFailures(t *testing.T) {
+	t.Parallel()
+
+	ctx := composables.WithPageCtx(
+		t.Context(),
+		types.NewPageContext(language.English, &url.URL{Path: "/"}, nil),
+	)
+	var buf bytes.Buffer
+	require.NoError(t, Container().Render(ctx, &buf))
+	html := buf.String()
+	for _, want := range []string{
+		`data-toast-container`,
+		`data-error-load-failed="Could not load data"`,
+		`data-error-save-failed="Could not save changes"`,
+		`data-error-network="No connection to the server"`,
+	} {
+		require.Contains(t, html, want)
+	}
+}

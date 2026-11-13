@@ -198,18 +198,7 @@ templ NewDepartmentDrawer() {
 	}) {
 		<div class="bg-white w-full md:w-[450px] ml-auto">
 			<div class="flex flex-col h-full">
-				<form method="dialog">
-					<div class="flex justify-between px-4 py-3 border-b border-primary">
-						<h3 class="text-lg font-medium">
-							{ pageCtx.T("Departments.Meta.New.Title") }
-						</h3>
-						<div>
-							<button class="cursor-pointer">
-								@icons.XCircle(icons.Props{Size: "20"})
-							</button>
-						</div>
-					</div>
-				</form>
+				@dialog.DrawerHeader(pageCtx.T("Departments.Meta.New.Title"))
 				<div class="flex-1 min-h-0" hx-get="/departments/new" hx-trigger="load" hx-swap="innerHTML">
 					<div class="flex justify-center items-center h-full">
 						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-strong"></div>
@@ -235,18 +224,7 @@ templ EditDepartmentDrawer(props *EditFormProps) {
 	}) {
 		<div class="bg-white w-full md:w-[450px] ml-auto">
 			<div class="flex flex-col h-full">
-				<form method="dialog">
-					<div class="flex justify-between px-4 py-3 border-b border-primary">
-						<h3 class="text-lg font-medium">
-							{ pageCtx.T("Departments.Meta.Edit.Title") }
-						</h3>
-						<div>
-							<button class="cursor-pointer">
-								@icons.XCircle(icons.Props{Size: "20"})
-							</button>
-						</div>
-					</div>
-				</form>
+				@dialog.DrawerHeader(pageCtx.T("Departments.Meta.Edit.Title"))
 				<div class="flex-1 min-h-0">
 					@EditForm(props)
 				</div>

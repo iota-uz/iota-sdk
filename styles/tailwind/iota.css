@@ -1490,3 +1490,39 @@
 .peer\/dark:checked + label .iota-theme-icon {
   scale: 1;
 }
+
+/*
+ * iOS Safari zooms the page when a focused field renders below 16px. Unlayered
+ * so it also beats Tailwind's `text-sm`/`text-xs` utilities and `.form-control`
+ * font-size on phones; checkbox/radio inputs have no text to zoom.
+ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Shared drawer/dialog chrome (components/base/dialog). The close control keeps
+ * a 44px touch target and the footer stays reachable while the body scrolls.
+ */
+.drawer-close {
+  align-items: center;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 2.75rem;
+  justify-content: center;
+  width: 2.75rem;
+}
+
+.drawer-close:hover {
+  background-color: oklch(var(--clr-surface-400));
+}
+
+[data-dialog-title]:focus {
+  outline: none;
+}
