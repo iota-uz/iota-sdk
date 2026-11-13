@@ -4,6 +4,12 @@
 //   - Tailwind utilities over the SDK design tokens: `client/tailwind.css`, compiled from the classes the client sources
 //     use, with the host's own token mapping (tailwind.config.js, copied into the worker at build time) and Tailwind's
 //     theme and utilities layers only. No preflight and no base: the host page already has them.
+//     The sheet is utilities only: theme values are inlined into the utilities (`theme(inline)`), so it ships no `:root`/`:host`
+//     variables, no `@layer` order statement and no `properties` fallback layer. What it keeps besides the `utilities` layer is
+//     what a utility cannot work without: `@keyframes` of an animation utility and the `@property` registrations of the `--tw-*`
+//     variables it uses (the registration's initial value is what makes `translate`, `box-shadow`, `filter` and the like valid
+//     when only some of their `--tw-*` parts are set). Tailwind emits them verbatim, so they are the host's own definitions; where
+//     the host registers the same variable the rule is identical and the last one wins.
 //   - `*.module.css` imports, scoped by esbuild's local-css loader (graphs.ts) and emitted next to the client chunks.
 //
 // Tailwind runs in-process through its pure-JS compiler (no CLI subprocess, no native scanner): the candidates are the
@@ -55,6 +61,34 @@ function loadConfig(layout: Layout): object {
   return mod.exports;
 }
 
+/**
+ * Tailwind's `properties` layer: the bare `@layer properties;` order statement and the `@supports` block that initialises the
+ * `--tw-*` variables for browsers without `@property` (older than the build TARGET). Neither is needed, and the statement
+ * would be a layer-order declaration of its own in a sheet the host already ordered.
+ */
+export function withoutPropertiesLayer(css: string): string {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const start = css.indexOf("@layer properties", at);
+    if (start < 0) return out + css.slice(at);
+    out += css.slice(at, start);
+    let i = start + "@layer properties".length;
+    while (/\s/.test(css[i] ?? "")) i++;
+    if (css[i] === ";") {
+      at = i + 1;
+      continue;
+    }
+    if (css[i] !== "{") throw new Error("unexpected @layer properties statement");
+    let depth = 0;
+    for (; i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      else if (css[i] === "}" && --depth === 0) break;
+    }
+    at = i + 1;
+  }
+}
+
 export interface Stylesheet {
   /** The minified CSS; undefined when the sources use no utility. */
   css: string | undefined;
@@ -81,8 +115,7 @@ export async function tailwindStylesheet(esbuild: typeof Esbuild, layout: Layout
     const compiler = await compile(
       [
         '@config "tailwind.config.js";',
-        "@layer theme, base, components, utilities;",
-        '@import "tailwindcss/theme.css" layer(theme);',
+        '@import "tailwindcss/theme.css" theme(inline);',
         '@import "tailwindcss/utilities.css" layer(utilities);',
       ].join("\n"),
       {
@@ -102,7 +135,7 @@ export async function tailwindStylesheet(esbuild: typeof Esbuild, layout: Layout
     const built = compiler.build([...candidates].sort());
     // No class of the sources is a utility: the compiler restates only the layer order, and there is nothing to ship.
     if (!built.includes("@layer utilities {")) return { css: undefined, diagnostics: [] };
-    const out = await esbuild.transform(built, { loader: "css", minify: true, target: TARGET, legalComments: "none" });
+    const out = await esbuild.transform(withoutPropertiesLayer(built), { loader: "css", minify: true, target: TARGET, legalComments: "none" });
     return { css: out.code, diagnostics: [] };
   } catch (err) {
     return { css: undefined, diagnostics: [{ file: "package.json", severity: "error", code: "css.tailwind", message: `Tailwind could not compile the package styles: ${errorMessage(err)}` }] };

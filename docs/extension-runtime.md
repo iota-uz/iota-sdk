@@ -910,7 +910,11 @@ A package styles its client without inline styles. Three tools, none of which ca
   * `client/tailwind.css` — Tailwind v4 compiled **in the build worker** with its pure-JS compiler (no CLI subprocess, no native scanner) over the
     author files of the client graph, with the host's own token mapping (`tailwind.config.js` of the repository root, copied verbatim into
     `build/theme/` by `build-worker.mjs`, the same file the host's `just css` pipeline reads) plus Tailwind's `theme` and `utilities` layers only.
-    Utilities only: no preflight, no base. Class candidates are the string tokens of the sources; unused classes are not emitted; with no
+    Utilities only: no preflight, no base, no `:root`/`:host` theme variables (theme values are inlined into the utilities with `theme(inline)`),
+    no `@layer` order statement and no `properties` fallback layer (the host owns the layer order and the theme); only the `utilities` layer, the
+    `@keyframes` an animation utility uses and the `@property` registrations of the `--tw-*` variables a utility composes (identical to the host's,
+    required because the host registers only what its own sources use). Class candidates are every string token of the sources (an ordinary
+    `"block"` string also yields `.block{}`; deliberate, see `web/runtime/src/build/README.md`); unused classes are not emitted; with no
     utility there is no file. Output is minified and deterministic.
   * `*.module.css` imports — esbuild's `local-css` loader, with the class prefix made unique per package namespace, path and content
     (`Board_1a2b3c4d_panel`), emitted into the entry's stylesheet (`client/index-<hash>.css`; the per-chunk copies esbuild also writes are dropped).

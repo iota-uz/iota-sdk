@@ -70,8 +70,22 @@ A client graph styles itself with two mechanisms, both artifacts of the version 
 * **Tailwind utilities** (`css.ts`): the pure-JS Tailwind v4 compiler runs in the worker over the author files of the client
   graph (the esbuild metafile's inputs, so exactly the files that ship), with the host's own token mapping (`build/theme/tailwind.config.js`,
   copied verbatim from the repository root by `build-worker.mjs`, so the host's pipeline and the packages cannot drift) and Tailwind's `theme`
-  and `utilities` layers only. No preflight or base: the host page has them. Candidates are the string-like tokens of the sources; the compiler
-  drops what is not a utility. The result is minified with esbuild and written to `client/tailwind.css`; no utility, no file.
+  and `utilities` layers only. The sheet is **utilities only**: theme values are inlined into the utilities (`theme(inline)`), so it carries no
+  `:root`/`:host` variables, no `@layer` order statement (the host's stylesheet owns the order `theme, base, components, utilities`) and no
+  `properties` fallback layer. Two things that are not utilities stay, because some utilities do not work without them: the `@keyframes` of an
+  animation utility (`animate-spin`) and the `@property` registrations of the `--tw-*` variables a utility composes (`ring-*`, `shadow-*`,
+  `translate-*`, `blur-*`, `space-*`, ...). The registration's initial value is what makes `box-shadow: var(--tw-inset-shadow), ..., var(--tw-ring-shadow)`
+  valid when only some parts are set, and the host stylesheet registers only the variables its own sources use. Tailwind prints each registration
+  the same way in every build of the same version, so a package's rules are identical to the host's (a test compiles the host's `@import "tailwindcss"`
+  and compares them); where both register a variable the last rule wins and says the same thing. No preflight or base: the host page has them.
+  The result is minified with esbuild and written to `client/tailwind.css`; no utility, no file.
+  Candidates are every token of every string literal and every whitespace/quote-separated token of the sources (the same over-generation
+  Tailwind's own scanner does); the compiler drops what is not a utility. **Consequence: an ordinary string that happens to be a utility name
+  (`"block"`, `"flex"`, `"hidden"`, `"table"`, `"container"`, `"border"`) also produces its rule.** That is harmless (a rule applies only to an element
+  that carries the class, and it costs bytes), and it is deliberately not narrowed to `class`/`className`/`classList` values and helper arguments:
+  class names are routinely held in constants, variant maps, arrays and props of other components (`const base = "flex gap-2"`,
+  `{ primary: "bg-primary-600" }`, `<Card bodyClass="p-4">`), where a syntactic restriction would silently drop styles instead of adding a few
+  bytes. To keep a word out of the sheet, make it not a class token (build it from parts, or use a different value).
 * **Scoped CSS modules**: `*.module.css` imports go through esbuild's `local-css` loader as virtual modules named after the file, the package
   namespace and a digest of path and content, so the class names (`Board_1a2b3c4d_panel`) are unique to the package and to the version. esbuild bundles
   the CSS of the whole entry graph (lazy chunks included) into the entry's stylesheet; the per-chunk copies are dropped. A malformed stylesheet is

@@ -4,7 +4,7 @@ import styles from "./Dashboard.module.css"
 export default function Dashboard() {
   return (
     <main data-testid="styled-dashboard" class={styles.panel}>
-      <div data-testid="utility-box" class="p-4 bg-primary-600">
+      <div data-testid="utility-box" class="p-4 bg-primary-600 ring-4 translate-x-2">
         Utilities on the SDK tokens
       </div>
       <div data-testid="module-box" class={styles.accent}>

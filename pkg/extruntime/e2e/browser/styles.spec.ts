@@ -76,6 +76,14 @@ test.describe('package styles', () => {
     })
     expect(token).not.toBe('rgba(0, 0, 0, 0)') // the host defines the SDK token the utility refers to
     expect(utility['background-color']).toBe(token)
+    // Utilities made of several `--tw-*` parts only work through the sheet's own @property registrations (the host stylesheet of
+    // this suite has no utility, so no registration): `ring-4` is a 4px spread shadow, `translate-x-2` a translate of 8px.
+    const composed = await computed(page, 'utility-box', ['box-shadow', 'translate'])
+    expect(composed['box-shadow']).toMatch(/0px 0px 0px 4px/)
+    expect(composed['translate']).toBe('8px')
+    // Utilities only: no theme variables or layer-order statement in the package's sheet, the host's own order stands.
+    const sheet = await page.evaluate(async (href) => (await fetch(href)).text(), (await page.locator('link[rel~="stylesheet"][data-iota-ext-css]').first().getAttribute('href')) ?? '')
+    expect(sheet).not.toMatch(/:root|:host|@layer\s+(theme|base|components|properties)/)
 
     // A scoped CSS module: the rules apply, under a class name unique to the package's sheet.
     const panel = await computed(page, 'styled-dashboard', ['display', 'letter-spacing', 'row-gap'])
