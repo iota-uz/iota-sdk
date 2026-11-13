@@ -120,7 +120,8 @@ func (s *Service) SignalWorkflow(ctx context.Context, actor spi.Subject, id uuid
 }
 
 // DecideTask records the decision of a human task. The engine lets only the
-// assignee (or a holder of the operate permission) decide.
+// assignee (for a task assigned to a permission, a holder of it) or a holder of
+// the operate permission decide.
 func (s *Service) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, decision json.RawMessage) error {
 	e := wfEntry(ActionWorkflowDecide, taskID, nil)
 	return s.workflowAction(ctx, actor, "", e, func(w Workflows) error {

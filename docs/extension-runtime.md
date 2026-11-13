@@ -388,8 +388,9 @@ transaction receipts and per-instance artifact pinning.
   input_hash, result, error, attempts, wake_at, invocation_id, PK(instance_id,name,n))`
 * `workflow_signals(id, instance_id, name, payload, consumed_name, consumed_n, created_at)`
 * `human_tasks(id, tenant_id, instance_id, name, n, subject_entity, subject_key,
-  assignee_user_id, decision_schema, status open|decided|expired|cancelled, decision,
-  decided_by, due_at)`
+  assignee_kind user|permission, assignee_user_id (null for a permission), assignee_permission, decision_schema,
+  status open|decided|expired|cancelled, decision, decided_by, due_at)` (migration `changes-1794700000.sql` added the
+  assignee kind; exactly one of user and permission is set)
 * `outbox_events(seq bigserial, id uuid, tenant_id, event, subject_entity, subject_key,
   payload, initiator_user_id, occurred_at)`; `subscription_cursors(subscription, from_seq)`;
   `subscription_receipts(subscription, event_id, invocation_id, PK(subscription,event_id))`;
@@ -403,7 +404,7 @@ transaction receipts and per-instance artifact pinning.
 | `wf.step(name, fx)` | short tx marks `started`, attempts++; fx runs in Node with key `instance:name:n`; result recorded | completed → stored; `started` → fx runs again (at-least-once, same key) |
 | `wf.sleep(name, d)` | record `wake_at`; suspend | `now ≥ wake_at` → complete |
 | `wf.waitFor(name, signal, {timeout})` | consume unconsumed signal or suspend | consumed → payload |
-| `wf.task(name, spec)` | create `human_tasks` row; suspend | decided → `{outcome:"decided", decision, by}`; due → `{outcome:"timeout"}` |
+| `wf.task(name, spec)` | create `human_tasks` row (the assignee is a `core.user` ref, or `{permission}`: any holder of a permission an active package declares, else `workflow.invalidAssignee`); suspend | decided → `{outcome:"decided", decision, by}`; due → `{outcome:"timeout"}` |
 | `wf.call(name, command, input)` | new invocation selecting the **current** active binding (recorded); atomic: receipt in the command tx; ordinary: `started` recorded before dispatch | completed → stored; `started` without result → instance `blocked` (`ambiguous`, manual review) |
 | `wf.start(name, workflow, input)` | instance row with `start_key=instance:name:n` | stored instance ref |
 
@@ -436,6 +437,12 @@ transaction receipts and per-instance artifact pinning.
 * Activation is **application-wide**; per-tenant trigger owners in `trigger_owners(trigger_id,
   tenant_id, user_id)`. A tenant without an owner gets a `blocked` trigger run, not a failed
   activation. `activations` carry `state active|disabled|purged`.
+* **Write rules and purge (intended).** Entity `writeRule`s run in the data `Store` for every row write it makes for a caller
+  (`insert`/`update`/`delete`/overlay `put`: a package command, `ext_invoke`, a workflow, an operator's `execute`); no administrative
+  path writes rows another way. `Purge` (`Extensions.Publish`, audited, refused while the package is active or live instances pin it)
+  is a **teardown, not a write**: it drops the deactivated package's entity tables whole (`DROP TABLE … CASCADE`) and deletes its recorded
+  schema state, so no write rule runs for the rows that go with it — a rule that refuses every delete does not stop a purge. Schema
+  application at activation is additive DDL and never rewrites rows. (E2E scenario 24 pins both halves.)
 * Fields: `entity_schemas` assigns each field an immutable **physical column** at first apply;
   field keys (and `renamedFrom` aliases) map to it per package version. DataStore calls carry
   `spi.Scope{Subject, Caller{Package, Version}}` and resolve keys through the caller version's
@@ -599,7 +606,7 @@ implementation against the catalog snapshot at publish (separate slice).
 
 **Rows and refs.** Every entity row from `get/find/insert/update` has `ref: Ref<E>` (attached in the host context
 layer; overlay rows have none). `recipient.user` and `wf.task({assignee})` take `UserRef` (`Ref` to `core.user`; a
-`Principal` is still accepted as an assignee). `$.user` only types/validates against `core.user` refs. `t.ref` /
+`Principal` is still accepted as an assignee; `{ permission }` assigns the task to anyone holding that declared permission — a committee: `DecideTask` authorizes a holder judged by their current rights, the task admin (operate) as before, nobody else). `$.user` only types/validates against `core.user` refs. `t.ref` /
 `field.ref` take entities only; `ref(entity, key)` checks the key against the key type. A union of entities in
 `tx.get/update/delete/put` is a type error. `ref` is a reserved field key.
 
@@ -838,7 +845,7 @@ allow-list another origin).
   same table the spec is generated from, **and enforced from it**: a route's `perm` is checked in `API.wrap` before the
   handler runs (a refusal is audited under the route's `audit` action with the fields the service would record), so the
   table cannot say one thing and the handler do another. A route with an alternative way in (`/tasks/{id}/decide`: the
-  task's assignee, or `Extensions.Operate`) leaves the decision to the service and says so in the document. The service
+  task's assignee or, for a task assigned to a permission, a holder of it, or `Extensions.Operate`) leaves the decision to the service and says so in the document. The service
   keeps checking the same permission. Empty lists are encoded as `[]`. Each operation group documents its own default
   error: the management envelope on `/_ext/manage`, `RpcFailure` on `/_ext/rpc`, none on package endpoints.
   `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's document offline.
@@ -881,7 +888,10 @@ it follows the same visibility rule.
   `#`. Titles and audiences are re-sanitised to plain text when listed. The markdown body goes through the Help Center's renderer
   and sanitizer.
 * **Linking.** `helpHref(path, {namespace?, base?})` (`@iota-uz/sdk/runtime/client`, `web/runtime/src/help.ts`) returns
-  `/help/doc/apps/<namespace>/<path>`; the namespace defaults to the package of the runtime page (`PageData.page.package`).
+  `/help/doc/apps/<namespace>/<path>`. In a package bundle the namespace defaults to **the package the bundle belongs to**: the client graph's
+  shim for the shared `@iota-uz/sdk/runtime/client` (`sharedShim` in `build/graphs.ts`) exports a `helpHref` bound to the package being built, so
+  a slot or cell of package B rendered on package A's page or on a native page links to B's documents; an explicit `{namespace}` wins. The page
+  context (`PageData.page.package`) is only the fallback of code the build did not bind.
 
 ### 9.7 Package styles and the UI kit (as implemented)
 
@@ -910,7 +920,11 @@ A package styles its client without inline styles. Three tools, none of which ca
   * `client/tailwind.css` — Tailwind v4 compiled **in the build worker** with its pure-JS compiler (no CLI subprocess, no native scanner) over the
     author files of the client graph, with the host's own token mapping (`tailwind.config.js` of the repository root, copied verbatim into
     `build/theme/` by `build-worker.mjs`, the same file the host's `just css` pipeline reads) plus Tailwind's `theme` and `utilities` layers only.
-    Utilities only: no preflight, no base. Class candidates are the string tokens of the sources; unused classes are not emitted; with no
+    Utilities only: no preflight, no base, no `:root`/`:host` theme variables (theme values are inlined into the utilities with `theme(inline)`),
+    no `@layer` order statement and no `properties` fallback layer (the host owns the layer order and the theme); only the `utilities` layer, the
+    `@keyframes` an animation utility uses and the `@property` registrations of the `--tw-*` variables a utility composes (identical to the host's,
+    required because the host registers only what its own sources use). Class candidates are every string token of the sources (an ordinary
+    `"block"` string also yields `.block{}`; deliberate, see `web/runtime/src/build/README.md`); unused classes are not emitted; with no
     utility there is no file. Output is minified and deterministic.
   * `*.module.css` imports — esbuild's `local-css` loader, with the class prefix made unique per package namespace, path and content
     (`Board_1a2b3c4d_panel`), emitted into the entry's stylesheet (`client/index-<hash>.css`; the per-chunk copies esbuild also writes are dropped).

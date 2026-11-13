@@ -116,6 +116,44 @@ describe('iota-ext init → check → build → test', () => {
     expect(tests.status).toBe(0)
   }, 180_000)
 
+  describe('the SDK dependency init writes is the spec the SDK was installed with', () => {
+    function written(parent: string, args: string[], cwd = parent): string {
+      writeFileSync(join(parent, 'package.json'), JSON.stringify({ name: 'host', dependencies: { '@iota-uz/sdk': args[0] } }))
+      const init = iota(cwd, 'init', ...args.slice(1), '--namespace', 'acme.spec', '--no-client', '--no-kit')
+      expect(init.err).toBe('')
+      expect(init.status).toBe(0)
+      const target = join(cwd, args[1] ?? 'pkg')
+      return (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['@iota-uz/sdk']!
+    }
+
+    it('rewrites a file: tarball spec relative to the new package', () => {
+      const parent = project('spec-file')
+      expect(written(parent, ['file:../x.tgz', 'pkg'])).toBe('file:../../x.tgz')
+    })
+
+    it('rewrites a link: directory and a bare relative path, and resolves from a nested working directory', () => {
+      const parent = project('spec-link')
+      expect(written(parent, ['link:../sdk-checkout', 'pkg'])).toBe('link:../../sdk-checkout')
+      expect(written(parent, ['../x.tgz', 'pkg2'])).toBe('file:../../x.tgz')
+      mkdirSync(join(parent, 'packages'))
+      expect(written(parent, ['file:./vendor/sdk.tgz', 'pkg3'], join(parent, 'packages'))).toBe('file:../../vendor/sdk.tgz')
+    })
+
+    it('keeps an absolute path, a git ref and a URL as written', () => {
+      const parent = project('spec-keep')
+      expect(written(parent, ['file:/opt/sdk.tgz', 'a'])).toBe('file:/opt/sdk.tgz')
+      expect(written(parent, ['github:iota-uz/iota-sdk#abc123', 'b'])).toBe('github:iota-uz/iota-sdk#abc123')
+      expect(written(parent, ['https://example.com/sdk.tgz', 'c'])).toBe('https://example.com/sdk.tgz')
+    })
+
+    it('writes the exact installed version for a registry range or tag', () => {
+      const parent = project('spec-registry')
+      const sdkVersion = (JSON.parse(readFileSync(join(sandbox, 'sdk', 'package.json'), 'utf8')) as { version: string }).version
+      expect(written(parent, ['^0.5.0', 'a'])).toBe(sdkVersion)
+      expect(written(parent, ['latest', 'b'])).toBe(sdkVersion)
+    })
+  })
+
   it('refuses a bad namespace and a non-empty directory with exit code 2', () => {
     const dir = project('usage')
     expect(iota(dir, 'init', 'x', '--namespace', 'Acme').status).toBe(2)
@@ -549,8 +587,12 @@ describe('the author guide', () => {
   it('has an example package that checks, builds and passes its tests', () => {
     const dir = project('guide')
     const pkg = join(dir, 'example')
-    cpSync(example, pkg, { recursive: true, filter: (src) => !src.includes('node_modules') && !src.includes('.iota') })
+    cpSync(example, pkg, { recursive: true, filter: (src) => !src.includes('node_modules') && !src.includes(join('.iota', 'build')) })
+    // The committed kit is the one `kit generate` writes now, and is intact.
+    const committed = readFileSync(join(pkg, '.iota/kit/kit.json'), 'utf8')
+    expect(iota(pkg, 'kit', 'status').status).toBe(0)
     expect(iota(pkg, 'kit', 'generate').status).toBe(0)
+    expect(readFileSync(join(pkg, '.iota/kit/kit.json'), 'utf8'), 'the example\'s committed .iota/kit is stale: run `iota-ext kit generate` in docs/extensions/example').toBe(committed)
     mkdirSync(join(pkg, 'node_modules', '@iota-uz'), { recursive: true })
     symlinkSync(join(sandbox, 'sdk'), join(pkg, 'node_modules', '@iota-uz', 'sdk'), 'dir')
 
@@ -563,7 +605,29 @@ describe('the author guide', () => {
     expect(tests.out).toMatch(/\d+ tests: \d+ passed$/m)
     expect(tests.out).not.toContain('✗')
     expect(tests.status, tests.out).toBe(0)
+
+    // Its client screen uses the UI kit, a Tailwind utility and a scoped CSS module, and the build ships all of it.
+    const manifest = JSON.parse(readFileSync(join(pkg, '.iota/build/artifacts/client/manifest.json'), 'utf8')) as { css: string[]; shared: string[] }
+    expect(manifest.shared).toContain('@iota-uz/sdk/solid-ui')
+    expect(manifest.css).toHaveLength(2)
+    expect(readFileSync(join(pkg, '.iota/build/artifacts', manifest.css[0]!), 'utf8')).toContain('.p-6{')
+    expect(readFileSync(join(pkg, '.iota/build/artifacts', manifest.css[1]!), 'utf8')).toMatch(/\.RewardsScreen_[0-9a-f]{8}_board\b/)
   }, 240_000)
+
+  it('is a package as `iota-ext init` and the guide describe it', () => {
+    const pkg = JSON.parse(readFileSync(join(example, 'package.json'), 'utf8')) as { dependencies: Record<string, string>; devDependencies: Record<string, string> }
+    const sdkVersion = (JSON.parse(readFileSync(join(repoRoot, 'web', 'sdk', 'package.json'), 'utf8')) as { version: string }).version
+    expect(pkg.dependencies['@iota-uz/sdk'], 'the exact SDK version init writes, not a range').toBe(sdkVersion)
+    expect(pkg.devDependencies['esbuild']).toBe('^0.25.0')
+    // §4: the editor resolves the kit from .iota/kit through tsconfig paths.
+    expect((JSON.parse(readFileSync(join(example, 'tsconfig.json'), 'utf8')) as { compilerOptions: { paths: unknown } }).compilerOptions.paths).toEqual({ '@iota-kit/*': ['./.iota/kit/*'] })
+    // The kit is committed (§3): nothing ignores it, and the generated build output stays ignored.
+    expect(readFileSync(join(example, '.gitignore'), 'utf8')).toBe('node_modules\n.iota/build\n')
+    expect(existsSync(join(example, '.iota/kit/kit.json'))).toBe(true)
+    const ignored = (path: string) => spawnSync('git', ['check-ignore', '-q', path], { cwd: repoRoot }).status === 0
+    expect(ignored('docs/extensions/example/.iota/kit/core/index.js')).toBe(false)
+    expect(ignored('docs/extensions/example/.iota/build/manifest.json')).toBe(true)
+  })
 
   it('quotes the example files verbatim', () => {
     // Every fenced block that starts with a `// example/<file>` marker must consist of lines that occur in that file.
@@ -583,7 +647,7 @@ describe('the author guide', () => {
 
   it('ships no stale files in the example', () => {
     const files = readdirSync(join(example, 'src')).sort()
-    expect(files).toEqual(['ClientScreen.tsx', 'RedemptionScreen.tsx', 'RewardsScreen.tsx', 'client.tsx', 'contracts.ts', 'server.test.ts', 'server.ts'])
+    expect(files).toEqual(['ClientScreen.tsx', 'RedemptionScreen.tsx', 'RewardsScreen.module.css', 'RewardsScreen.tsx', 'client.tsx', 'contracts.ts', 'css-modules.d.ts', 'server.test.ts', 'server.ts'])
     expect(statSync(join(example, 'package.json')).isFile()).toBe(true)
   })
 })

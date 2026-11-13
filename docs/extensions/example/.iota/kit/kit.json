@@ -1,0 +1,25 @@
+{
+  "hash": "5322e7edacffc1dfc5ab80cdfa4c59a381bec46e0da46ede46c17a8fe224787d",
+  "source": {
+    "kind": "catalog",
+    "files": [
+      "sdk"
+    ]
+  },
+  "modules": [
+    "@iota-kit/core",
+    "@iota-kit/crm"
+  ],
+  "files": {
+    "@iota-kit/core": {
+      "index.js": "4e12cfbd16b7c3d8a256b59fc3c0bf971216e39210e16913a9f3927c0633afa8",
+      "index.d.ts": "0649ed9d4261ffc99dd35435d34a32af7e39d04f2971a960662b7cf7f085e04b",
+      "package.json": "6011b941d0d5167058c9b1fb2e59e167aded645b616fcb7e2bcd6e08a5147831"
+    },
+    "@iota-kit/crm": {
+      "index.js": "7ab3e103cf0a00080783ff71e8c7513cd12a1317f41fe0182ec2e09226d9998a",
+      "index.d.ts": "afec2c3eea7e97a726cde884526a14738157dafee93790314a7f334f6c34e9ca",
+      "package.json": "381cf95fbd9eb4d95f408533f9e4724e76d9be0e7ebaf7d8b11ec942546511b3"
+    }
+  }
+}

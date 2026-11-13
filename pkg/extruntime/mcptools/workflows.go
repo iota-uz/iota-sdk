@@ -96,8 +96,8 @@ func workflowTools(r *registrar, d Deps) {
 
 	add(r, mcp.Spec{
 		Name: "ext_workflow_decide_task",
-		Description: "Record the decision of a human task. The assignee may decide it; anyone else needs " +
-			manage.PermOperate + ".",
+		Description: "Record the decision of a human task. The assignee may decide it (for a task assigned to a permission, " +
+			"anyone who holds that permission); anyone else needs " + manage.PermOperate + ".",
 		Annotations: mcp.Annotations{Title: "Decide task", Idempotent: true},
 		Policy:      managePolicy(), Meta: meta(),
 	}, func(ctx context.Context, actor spi.Subject, in decideIn) (ack, error) {

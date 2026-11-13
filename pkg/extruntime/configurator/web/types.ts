@@ -164,7 +164,10 @@ export interface WorkflowOccurrence {
 export interface WorkflowTask {
   ID: string
   Name: string
+  /** `user`: AssigneeUserID decides; `permission`: anyone holding AssigneePermission. */
+  AssigneeKind: 'user' | 'permission'
   AssigneeUserID: number
+  AssigneePermission: string
   DecisionSchema?: unknown
   Status: string
   Decision?: unknown

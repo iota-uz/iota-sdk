@@ -13,6 +13,9 @@ import type * as Esbuild from "esbuild";
 import { unknownKitMessage } from "./kitdiag.ts";
 import type { Layout } from "./layout.ts";
 import { locateImport } from "./locate.ts";
+import { KIT_SPECIFIER, LAZY_SHARED, sharedExportNames, sharedShim } from "./shared.ts";
+
+export { KIT_SPECIFIER, LAZY_SHARED };
 import type { Diagnostic, KitPayload } from "./protocol.ts";
 import { errorMessage, inNodeModules, relPath, sha256 } from "./util.ts";
 
@@ -29,9 +32,6 @@ const SOLID = /^solid-js(?:\/.*)?$/;
 const BUILTINS = new Set(builtinModules);
 const SKIP = Symbol("iota.skip");
 
-/** The SDK's Solid UI kit. Packages import this one specifier; there are no narrower subpaths. */
-export const KIT_SPECIFIER = "@iota-uz/sdk/solid-ui";
-
 /**
  * Specifiers client bundles never carry their own copy of: the browser host publishes its instances in
  * `globalThis[Symbol.for("iota.runtime.shared")]` (client-host/shared.ts) and bundles read them through a
@@ -40,41 +40,11 @@ export const KIT_SPECIFIER = "@iota-uz/sdk/solid-ui";
  */
 export const SHARED_SPECIFIERS: ReadonlySet<string> = new Set(["solid-js", "solid-js/web", "solid-js/store", "@iota-uz/sdk/runtime/client", KIT_SPECIFIER]);
 /**
- * Shared specifiers the host provides lazily: the registry holds an async loader (`SHARED_LOADERS`), and the shim awaits it
- * (top-level await), so a host pays for the module only when a package version actually imports it.
- */
-export const LAZY_SHARED: ReadonlySet<string> = new Set([KIT_SPECIFIER]);
-const SHARED_REGISTRY = 'globalThis[Symbol.for("iota.runtime.shared")]';
-const SHARED_LOADERS = 'globalThis[Symbol.for("iota.runtime.shared.loaders")]';
-
-let sharedNames: Record<string, string[]> | undefined;
-
-function sharedShim(layout: Layout, spec: string): string {
-  sharedNames ??= JSON.parse(readFileSync(layout.sharedExports, "utf8")) as Record<string, string[]>;
-  const names = sharedNames[spec] ?? [];
-  const exports = names.length > 0 ? `export const { ${names.join(", ")} } = m;` : "";
-  if (LAZY_SHARED.has(spec)) {
-    return [
-      `const load = ${SHARED_LOADERS}?.[${JSON.stringify(spec)}];`,
-      `if (load === undefined) throw new Error(${JSON.stringify(`iota runtime: the host does not provide "${spec}" (the UI kit ships with the host, at the version of the runtime release it was built for)`)});`,
-      "const m = await load();",
-      exports,
-    ].join("\n");
-  }
-  return [
-    `const m = ${SHARED_REGISTRY}?.[${JSON.stringify(spec)}];`,
-    `if (m === undefined) throw new Error(${JSON.stringify(`iota runtime: the host did not publish shared module "${spec}"`)});`,
-    exports,
-  ].join("\n");
-}
-
-/**
  * Stands in for the UI kit where a bundle is evaluated in Node (manifest extraction, package tests): the module can be
  * imported and its exports referenced, but nothing renders. Calling, constructing or reading a member of an export is inert.
  */
 function kitStub(layout: Layout): string {
-  sharedNames ??= JSON.parse(readFileSync(layout.sharedExports, "utf8")) as Record<string, string[]>;
-  const names = sharedNames[KIT_SPECIFIER] ?? [];
+  const names = sharedExportNames(layout, KIT_SPECIFIER);
   return [
     "const stub = (name) => new Proxy(function () {}, { get: (_t, key) => (key === 'name' ? name : stub(name + '.' + String(key))), apply: () => undefined, construct: () => ({}) });",
     ...names.map((n) => `export const ${n} = stub(${JSON.stringify(n)});`),
@@ -90,6 +60,8 @@ export interface GraphEnv {
   /** Client: files reachable only from the server graph (relative to dir). */
   serverOnly?: ReadonlySet<string>;
   serverEntry?: string;
+  /** Client: the contracts entry (relative to dir), named by the message of a server-only import. */
+  contractsEntry?: string;
   /** Output base name of the entry (default: the mode). */
   outName?: string;
   /** The package namespace: scopes the class names of `*.module.css` files so packages sharing a page cannot collide. */
@@ -225,6 +197,14 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
     });
   };
 
+  // An unresolved import, located at the import in the author's source: JSX files are transformed before esbuild reads them,
+  // so the location esbuild reports for them is a line of the transformed output.
+  const unresolved = (importer: string, spec: string, text: string, original?: Esbuild.PartialMessage): Esbuild.PartialMessage => {
+    const loc = importer.startsWith("/") && !inNodeModules(importer) ? locateImport(importer, spec) : undefined;
+    if (loc === undefined) return original === undefined ? { text } : { ...original, text };
+    return { text, location: { file: importer, line: loc.line, column: loc.column - 1 } };
+  };
+
   return {
     name: "iota-graph",
     setup(build) {
@@ -245,6 +225,10 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
             violate("graph.serverInClient", `client graph imports "${spec}", which is server-only`, importer, spec);
             return { path: spec, external: true };
           }
+        }
+
+        if (spec.startsWith(`${KIT_SPECIFIER}/`)) {
+          return { errors: [unresolved(importer, spec, `Could not resolve "${spec}": UI kit subpaths are not importable, only "${KIT_SPECIFIER}" is; import the component from it (import { Button } from "${KIT_SPECIFIER}")`)] };
         }
 
         if (spec === KIT_SPECIFIER && env.mode !== "client") {
@@ -298,7 +282,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           kind: args.kind,
           pluginData: SKIP,
         });
-        if (r.errors.length > 0) return { errors: r.errors, warnings: r.warnings };
+        if (r.errors.length > 0) return { errors: r.errors.map((e) => unresolved(importer, spec, e.text, e)), warnings: r.warnings };
         if (importer.startsWith("/")) parents.set(r.path, { importer, spec });
 
         if (r.namespace === "file" && CSS_FILE.test(r.path) && args.kind !== "url-token") {
@@ -327,7 +311,14 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
           if (rel === env.serverEntry) {
             violate("graph.serverInClient", `client graph imports the server entry "${rel}"`, importer, spec);
           } else if (env.serverOnly?.has(rel) === true) {
-            violate("graph.serverInClient", `client graph imports "${rel}", which is reachable only from the server graph`, importer, spec);
+            const shared = env.contractsEntry ?? "the contracts entry";
+            violate(
+              "graph.serverInClient",
+              `client graph imports "${rel}", which is reachable only from the server graph. The contracts graph (${shared}) is the pure layer client and server share: ` +
+                `if "${rel}" is pure (no Node, no server SDK), export it from ${shared} or import it there, so the contracts graph reaches it; otherwise keep it out of client code`,
+              importer,
+              spec,
+            );
           }
         }
         return { path: r.path, namespace: r.namespace, external: r.external, sideEffects: r.sideEffects, suffix: r.suffix };
@@ -342,7 +333,7 @@ function plugin(esbuild: typeof Esbuild, env: GraphEnv, sink: { diagnostics: Dia
 
       build.onLoad({ filter: /.*/, namespace: "iota-kit-stub" }, () => ({ contents: kitStub(env.layout), loader: "js" }));
 
-      build.onLoad({ filter: /.*/, namespace: "iota-shared" }, (args) => ({ contents: sharedShim(env.layout, args.path), loader: "js" }));
+      build.onLoad({ filter: /.*/, namespace: "iota-shared" }, (args) => ({ contents: sharedShim(env.layout, args.path, env.namespace), loader: "js" }));
 
       build.onLoad({ filter: /.*/, namespace: "iota-kit" }, (args) => ({
         contents: env.kit.modules[args.path]?.["index.js"] ?? "",

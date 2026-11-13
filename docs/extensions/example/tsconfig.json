@@ -8,6 +8,7 @@
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["node"],
+    "paths": { "@iota-kit/*": ["./.iota/kit/*"] },
     "jsx": "preserve",
     "jsxImportSource": "solid-js"
   },

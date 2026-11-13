@@ -475,27 +475,69 @@ func (e *Engine) wfWaitFor(ctx context.Context, rs *runState, args json.RawMessa
 
 // ---- wf.task ----
 
+// taskAssignee is the wire form of a task's assignee: a user (`{entity: "core.user", key}`, the key a user id) or the
+// holders of a permission (`{permission}`, a permission declared in the catalog).
+type taskAssignee struct {
+	Entity     string `json:"entity"`
+	Key        string `json:"key"`
+	Permission string `json:"permission"`
+}
+
+// resolvedAssignee is the stored form: userID is nil for a permission assignee.
+type resolvedAssignee struct {
+	kind       string
+	userID     *int64
+	permission string
+}
+
+func invalidAssignee(format string, args ...any) error {
+	return &pool.WireError{Kind: pool.ErrKindValidation, Code: "workflow.invalidAssignee", Message: fmt.Sprintf(format, args...)}
+}
+
+// resolveAssignee parses the assignee of a task: a user id, or a permission that (when declared is set, for a new task) the
+// catalog must declare.
+func (e *Engine) resolveAssignee(ctx context.Context, a taskAssignee, declared bool) (resolvedAssignee, error) {
+	if a.Permission != "" {
+		if a.Entity != "" || a.Key != "" {
+			return resolvedAssignee{}, invalidAssignee("task assignee names both a user and a permission")
+		}
+		if declared {
+			res, found, err := e.cfg.Catalog.Resolve(ctx, a.Permission)
+			if err != nil {
+				return resolvedAssignee{}, serrors.Wrap(opCall, err)
+			}
+			if !found || res.Resource.Kind != manifest.ResPermission {
+				return resolvedAssignee{}, invalidAssignee("task assignee permission %q is not declared by any active package", a.Permission)
+			}
+		}
+		return resolvedAssignee{kind: TaskAssigneePermission, permission: a.Permission}, nil
+	}
+	id, err := strconv.ParseInt(a.Key, 10, 64)
+	if err != nil {
+		return resolvedAssignee{}, invalidAssignee("task assignee %q is not a user id", a.Key)
+	}
+	return resolvedAssignee{kind: TaskAssigneeUser, userID: &id}, nil
+}
+
 func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage) (json.RawMessage, error) {
 	var a struct {
 		Name     string          `json:"name"`
 		N        int             `json:"n"`
 		Subject  spi.ObjectRef   `json:"subject"`
-		Assignee spi.ObjectRef   `json:"assignee"`
+		Assignee taskAssignee    `json:"assignee"`
 		Decision json.RawMessage `json:"decision"`
 		Timeout  string          `json:"timeout"`
 	}
 	if err := decodeArgs(args, &a); err != nil {
 		return nil, err
 	}
-	assignee, err := strconv.ParseInt(a.Assignee.Key, 10, 64)
-	if err != nil {
-		return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: "workflow.invalidAssignee", Message: fmt.Sprintf("task assignee %q is not a user id", a.Assignee.Key)}
-	}
 	var timeout time.Duration
 	if a.Timeout != "" {
-		if timeout, err = parseDuration(a.Timeout); err != nil {
+		d, err := parseDuration(a.Timeout)
+		if err != nil {
 			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: "workflow.invalidDuration", Message: err.Error()}
 		}
+		timeout = d
 	}
 	o, ok := rs.get(a.Name, a.N)
 	if ok {
@@ -505,6 +547,11 @@ func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage)
 		if o.terminal() {
 			return terminalReply(o)
 		}
+	}
+	// A new task's assignee is validated against the catalog as it is now; a replay of an existing task does not look again.
+	assignee, err := e.resolveAssignee(ctx, a.Assignee, !ok)
+	if err != nil {
+		return nil, err
 	}
 	var result json.RawMessage
 	var wake *time.Time
@@ -530,9 +577,9 @@ func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage)
 				at = &t
 			}
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO extruntime.human_tasks (id, tenant_id, instance_id, name, n, subject_entity, subject_key, assignee_user_id, decision_schema, due_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-				uuid.New(), rs.inst.TenantID, rs.inst.ID, a.Name, a.N, a.Subject.Entity, a.Subject.Key, assignee, jsonArg(a.Decision), at); err != nil {
+				INSERT INTO extruntime.human_tasks (id, tenant_id, instance_id, name, n, subject_entity, subject_key, assignee_kind, assignee_user_id, assignee_permission, decision_schema, due_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+				uuid.New(), rs.inst.TenantID, rs.inst.ID, a.Name, a.N, a.Subject.Entity, a.Subject.Key, assignee.kind, assignee.userID, assignee.permission, jsonArg(a.Decision), at); err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
 			o = Occurrence{Name: a.Name, N: a.N, Kind: KindTask, Status: OccWaiting, Attempts: 1, WakeAt: at}

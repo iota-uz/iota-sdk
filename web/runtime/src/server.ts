@@ -5,7 +5,7 @@ import type {
 } from './entity.ts'
 import type {
   AtomicCommand, Callable, Command, ContactResolver, ContactTargets, DeliveryPolicy, Event, InputOf, Notice, Operation,
-  OrdinaryCommand, Query, Workflow, SignalRef, ResultOf, OutOf,
+  OrdinaryCommand, Permission, Query, Workflow, SignalRef, ResultOf, OutOf,
 } from './contracts.ts'
 import type { Channel, Int64, ISODateTime, Json, JsonOf } from './model.ts'
 import { RESOURCE } from './resource.ts'
@@ -265,10 +265,19 @@ export type SignalResult<P> =
   | { readonly outcome: 'received'; readonly payload: P }
   | { readonly outcome: 'timeout' }
 
+/** A task for anyone holding `permission` (a committee): the first holder to decide closes it. */
+export interface PermissionAssignee {
+  readonly permission: Permission
+}
+
 export interface TaskSpec<S extends AnySchema> {
   subject: Ref
-  /** A ref to a `core.user`, or the acting principal. */
-  assignee: UserRef | Principal
+  /**
+   * Who decides: a ref to a `core.user`, the acting principal, or `{ permission }` for anyone holding that permission when
+   * they decide. The permission must be declared by an active package (`permission(...)`); an undeclared one fails the call
+   * with `workflow.invalidAssignee`.
+   */
+  assignee: UserRef | Principal | PermissionAssignee
   decision: S
   timeout?: Duration
 }

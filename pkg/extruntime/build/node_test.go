@@ -327,6 +327,34 @@ func TestGraphAndTypeDiagnostics(t *testing.T) {
 		d := diagnostic(t, err, "graph.serverInClient")
 		require.Equal(t, "src/client.tsx", d.File)
 		require.Contains(t, d.Message, "reachable only from the server graph")
+		require.Equal(t, lineOf(t, tree, "src/client.tsx", `from "./serverOnly"`), d.Line)
+		// The message names the way out: the contracts graph is the shared pure layer.
+		require.Contains(t, d.Message, "contracts graph")
+		require.Contains(t, d.Message, "src/contracts.ts")
+		require.Contains(t, d.Message, "export")
+	})
+
+	t.Run("client importing a UI kit subpath", func(t *testing.T) {
+		tree := clone(base)
+		replace(t, tree, "src/client.tsx", `import * as c from "./contracts"`, "import * as c from \"./contracts\"\nimport { Button } from \"@iota-uz/sdk/solid-ui/forms/Button\"\nexport const button = Button")
+		_, err := b.Build(ctx, tree, kit)
+		d := diagnostic(t, err, "build.unresolved")
+		require.Equal(t, "src/client.tsx", d.File)
+		require.Equal(t, lineOf(t, tree, "src/client.tsx", `solid-ui/forms/Button`), d.Line, "the import in the author's source, not in the transformed output")
+		require.Equal(t, 1+strings.Index(strings.Split(string(tree["src/client.tsx"]), "\n")[d.Line-1], `"@iota-uz`), d.Column)
+		require.Contains(t, d.Message, `"@iota-uz/sdk/solid-ui/forms/Button"`)
+		require.Contains(t, d.Message, `only "@iota-uz/sdk/solid-ui"`, "the message names the rule")
+		require.Contains(t, d.Message, "subpath")
+	})
+
+	t.Run("an unresolved import in a JSX file is located in the author's source", func(t *testing.T) {
+		tree := clone(base)
+		replace(t, tree, "src/client.tsx", `import * as c from "./contracts"`, "import * as c from \"./contracts\"\nimport { nothing } from \"no-such-package\"\nexport const n = nothing")
+		_, err := b.Build(ctx, tree, kit)
+		d := diagnostic(t, err, "build.unresolved")
+		require.Equal(t, "src/client.tsx", d.File)
+		require.Equal(t, lineOf(t, tree, "src/client.tsx", `"no-such-package"`), d.Line)
+		require.Contains(t, d.Message, `"no-such-package"`)
 	})
 
 	t.Run("impure contracts", func(t *testing.T) {

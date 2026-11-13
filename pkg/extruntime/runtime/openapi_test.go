@@ -221,6 +221,7 @@ func TestOpenAPIDocumentsEachGroupsOwnErrorsAndPermissions(t *testing.T) {
 	// A task may be decided by its assignee as well as by Extensions.Operate.
 	decide := doc.Paths["/_ext/manage/tasks/{id}/decide"]["post"]
 	require.Contains(t, decide["description"], "`Extensions.Operate`, or you are the assignee of the task")
+	require.Contains(t, decide["description"], "hold the permission it is assigned to", "a task may be assigned to a permission")
 
 	// Retry names the occurrence; unlike resolve it takes no result.
 	retryBody := doc.Paths["/_ext/manage/workflows/{id}/retry"]["post"]["requestBody"].(map[string]any)

@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { collectDocs, scanLinks } from '../src/build/docs.ts'
+import { sharedShim } from '../src/build/shared.ts'
+import type { Layout } from '../src/build/layout.ts'
 import { helpDocHref, helpHref } from '../src/help.ts'
 import type { ManifestJSON } from '../src/model.ts'
 
@@ -205,6 +207,49 @@ describe('helpHref', () => {
     expect(() => helpDocHref('acme.loyalty', '../x')).toThrow(/not a document path/)
     expect(() => helpDocHref('Acme', 'a')).toThrow(/namespace/)
     expect(() => helpHref('a')).toThrow(/package is unknown/)
+  })
+})
+
+describe('helpHref in a package bundle is bound to the package', () => {
+  const REGISTRY = Symbol.for('iota.runtime.shared')
+  const CLIENT = '@iota-uz/sdk/runtime/client'
+
+  /** Evaluates the shim the client graph generates for `@iota-uz/sdk/runtime/client` against the host's real helpHref. */
+  async function load(namespace: string | undefined): Promise<{ helpHref: typeof helpHref; page: unknown }> {
+    const dir = mkdtempSync(join(tmpdir(), 'shim-test-'))
+    dirs.push(dir)
+    const sharedExports = join(dir, 'shared-exports.json')
+    writeFileSync(sharedExports, JSON.stringify({ [CLIENT]: ['page', 'helpHref', 'helpDocHref'] }))
+    const code = sharedShim({ sharedExports } as Layout, CLIENT, namespace)
+    ;(globalThis as Record<symbol, unknown>)[REGISTRY] = { [CLIENT]: { page: 'host-page', helpDocHref, helpHref } }
+    return (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}#${Math.random()}`)) as { helpHref: typeof helpHref; page: unknown }
+  }
+  afterEach(() => {
+    delete (globalThis as Record<symbol, unknown>)[REGISTRY]
+    delete (globalThis as { document?: unknown }).document
+  })
+
+  it("links to the bundle's own package whatever page is shown, and an explicit namespace still wins", async () => {
+    // Package A's runtime page is on screen (its client context names A); the bundle is package B's.
+    ;(globalThis as { document?: unknown }).document = { getElementById: () => ({ textContent: JSON.stringify({ initial: { page: { package: 'acme.pageowner' } } }) }) }
+    const b = await load('acme.slotowner')
+    expect(b.helpHref('getting-started')).toBe('/help/doc/apps/acme.slotowner/getting-started')
+    expect(b.helpHref('getting-started', { namespace: 'acme.other' })).toBe('/help/doc/apps/acme.other/getting-started')
+    expect(b.helpHref('limits#cards', { base: '/docs' })).toBe('/docs/doc/apps/acme.slotowner/limits#cards')
+    expect(b.page).toBe('host-page') // everything else is the host's instance
+    // The host's own function keeps following the page.
+    expect(helpHref('getting-started')).toBe('/help/doc/apps/acme.pageowner/getting-started')
+  })
+
+  it('works where there is no page context at all (a native page)', async () => {
+    const b = await load('acme.slotowner')
+    expect(b.helpHref('getting-started')).toBe('/help/doc/apps/acme.slotowner/getting-started')
+    expect(() => helpHref('getting-started')).toThrow(/package is unknown/)
+  })
+
+  it('leaves the host export alone when the build knows no namespace', async () => {
+    const unbound = await load(undefined)
+    expect(unbound.helpHref).toBe(helpHref)
   })
 })
 

@@ -3,7 +3,8 @@ export interface ScaffoldOptions {
   namespace: string
   /** npm name, e.g. "@acme/loyalty". */
   name: string
-  sdkVersion: string
+  /** The `@iota-uz/sdk` dependency spec to write (see sdkspec.ts). */
+  sdkSpec: string
   client: boolean
 }
 
@@ -36,9 +37,9 @@ export function scaffold(o: ScaffoldOptions): Record<string, string> {
       server: './src/server.ts',
       ...(o.client ? { client: './src/client.tsx' } : {}),
     },
-    // Exact, not a range: the extension runtime ships from the version of the CLI that wrote this file, and earlier public
-    // builds of the package have no dist/runtime (a caret range could resolve to one of them).
-    dependencies: { '@iota-uz/sdk': o.sdkVersion === '0.0.0' ? '*' : o.sdkVersion },
+    // The spec the SDK was installed with (a tarball, a link, a git ref) or its exact registry version: the extension runtime
+    // ships from the version of the CLI that wrote this file, and earlier public builds have no dist/runtime.
+    dependencies: { '@iota-uz/sdk': o.sdkSpec },
     // esbuild is an optional peer of @iota-uz/sdk (the public package carries no dependencies); the CLI's build worker needs it.
     devDependencies: { '@types/node': '^22.0.0', esbuild: '^0.25.0', ...(o.client ? { 'solid-js': '^1.9.0' } : {}), typescript: '~5.7.2' },
   }

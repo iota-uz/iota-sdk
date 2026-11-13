@@ -351,10 +351,12 @@ function unwrap(begun: Begun & { replay: true }): unknown {
  * transactions it runs beside have recorded, so a suspension never abandons in-flight work.
  */
 export function createWorkflowContext(deps: Deps) {
-  const assignee = (value: unknown) =>
-    typeof value === "object" && value !== null && "userId" in value
-      ? { entity: "core.user", key: String((value as { userId: unknown }).userId) }
-      : value;
+  const assignee = (value: unknown) => {
+    if (typeof value !== "object" || value === null) return value;
+    if ("userId" in value) return { entity: "core.user", key: String((value as { userId: unknown }).userId) };
+    const permission = (value as { permission?: { id?: unknown } }).permission;
+    return permission !== undefined && typeof permission.id === "string" ? { permission: permission.id } : value;
+  };
 
   const journal = new Map<string, JournalEntry>();
   for (const entry of (deps.ctx.occurrence as { journal?: JournalEntry[] } | undefined)?.journal ?? []) {

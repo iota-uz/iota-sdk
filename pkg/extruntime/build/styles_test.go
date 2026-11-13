@@ -111,6 +111,8 @@ func TestClientStylesAndSharedKit(t *testing.T) {
 	require.NotContains(t, tw, "bg-primary-400")
 	require.NotContains(t, tw, "*,:before,:after", "no preflight: the host page already has it")
 	require.NotContains(t, tw, "@layer base")
+	require.NotRegexp(t, `:root|:host|@layer\s+(theme|base|components|properties)|@layer\s+[a-z, ]+;`, tw, "utilities only: no theme variables, no layer-order statement")
+	require.NotContains(t, tw, "var(--spacing)", "theme values are inlined into the utilities")
 
 	// A CSS module is scoped to the package, path and content, and emitted into the version's stylesheet.
 	css := string(res.Artifacts[m.CSS[1]])

@@ -32,6 +32,7 @@ interface WorkflowHost {
   step(name: string, effect: (step: { idempotencyKey: string }) => Promise<unknown>): Promise<unknown>
   transaction(name: string, body: (tx: Record<string, Fn>) => Promise<unknown>): Promise<unknown>
   call(name: string, command: { id: string }, input: unknown): Promise<unknown>
+  task(name: string, spec: { subject: unknown; assignee: unknown; decision: { type: unknown } }): Promise<unknown>
 }
 
 const specifier = '../src/host/context.ts'
@@ -263,5 +264,20 @@ describe('host context: durable results are normalized to JSON on the first exec
     const { deps, calls } = harness(rec.reply)
     await expect(host.createWorkflowContext(deps).step('big', async () => ({ n: 1n }))).rejects.toMatchObject({ code: 'runtime.resultNotJson' })
     expect(calls.find((c) => c.method === 'wf.step.end')?.args).toMatchObject({ ok: false })
+  })
+})
+
+describe('host context: the assignee of a task goes over the wire in one of two forms', () => {
+  const taskArgs = async (assignee: unknown) => {
+    const { calls, deps } = harness(() => ({ outcome: 'timeout' }))
+    const wf = host.createWorkflowContext(deps)
+    await wf.task('approve', { subject: { entity: 'acme.insurance.policy', key: 'k' }, assignee, decision: { type: { kind: 'bool' } } })
+    return calls.find((x) => x.method === 'wf.task')!.args['assignee']
+  }
+
+  it('a principal or a user ref is a core.user ref, a permission is its ID', async () => {
+    expect(await taskArgs({ userId: '8', tenantId: 't1', kind: 'initiator' })).toEqual({ entity: 'core.user', key: '8' })
+    expect(await taskArgs({ entity: 'core.user', key: '9' })).toEqual({ entity: 'core.user', key: '9' })
+    expect(await taskArgs({ permission: c.ReadPolicies })).toEqual({ permission: c.ReadPolicies.id })
   })
 })

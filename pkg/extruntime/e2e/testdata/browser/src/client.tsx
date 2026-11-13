@@ -1,5 +1,5 @@
 import { For, Show, lazy } from "solid-js"
-import { navigation, page, shellRenderer, slot } from "@iota-uz/sdk/runtime/client"
+import { Slot, navigation, page, shellRenderer, slot } from "@iota-uz/sdk/runtime/client"
 import * as crm from "@iota-kit/crm"
 import * as c from "./contracts"
 import { probe } from "./probe"
@@ -19,6 +19,16 @@ export const fragile = page("e2e.browser.fragile", {
   path: "/browser/fragile",
   nav: { label: { en: "Fragile page" }, group: "e2e.browser.menu", icon: "bug" },
   component: lazy(() => import("./Fragile")),
+})
+
+// A page of this package that mounts another package's slot contributions (the CRM client sidebar's): their own links must stay theirs.
+export const cross = page("e2e.browser.cross", {
+  path: "/browser/cross",
+  component: () => (
+    <main data-testid="cross-page">
+      <Slot slot={crm.ClientSidebar} props={{ clientId: 1 }} />
+    </main>
+  ),
 })
 
 export const nav = navigation({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { $, decimal, isoDate, ref, validation, type ISODateTime } from '../src/index.ts'
+import { $, decimal, isoDate, permission, ref, t, validation, workflow, type ISODateTime } from '../src/index.ts'
 import { guard, implement, precheck, subscribe, writeRule, type Tx } from '../src/server.ts'
 import { createTestHost, fixture, overlayFixture, TestHostError, test as registerTest, describe as group, UnmatchedRequestError } from '../src/testing.ts'
 import * as c from '../typetests/acme/contracts.ts'
@@ -26,6 +26,15 @@ function world() {
 }
 
 const numbers = (rows: readonly { number: string }[]) => rows.map((r) => r.number)
+
+describe('fixtures', () => {
+  it('expose their key directly, the same one as the ref and the record', () => {
+    const ali = fixture(c.Customer, { name: 'Ali' })
+    expect(ali.key).toBe(ali.ref.key)
+    expect(ali.key).toBe(ali.record.key)
+    expect(fixture(c.Customer, { name: 'Ali' }, { key: KEY }).key).toBe(KEY)
+  })
+})
 
 describe('reads follow the Go data layer', () => {
   it('filters with SQL null semantics, operators and nested or', async () => {
@@ -309,6 +318,39 @@ describe('workflows are driven by the test and replay their journal', () => {
     } finally {
       globalThis.fetch = globalFetch
     }
+  })
+
+  it('lets only the holders of the permission decide a task assigned to a permission', async () => {
+    const Committee = permission('acme.reinsurance.committee', { label: { en: 'Committee' } })
+    const Review = workflow('acme.reinsurance.review', { input: t.object({ policy: t.ref(c.Policy) }), output: t.object({ by: t.string() }) })
+    const review = implement(Review, async (wf, input) => {
+      const verdict = await wf.task('committee', { subject: input.policy, assignee: { permission: Committee }, decision: t.object({ approved: t.bool() }) })
+      return { by: verdict.outcome === 'decided' ? String(verdict.by) : 'nobody' }
+    })
+    const w = world()
+    const host = createTestHost({
+      fixtures: w.all, entities: [c.Customer], implementations: [review],
+      user: { id: '1', permissions: [] },
+      users: { '8': [Committee.id], '9': ['acme.other.thing'] },
+    })
+    const run = host.workflow(review, { policy: w.p1.ref })
+    expect(await run.run()).toMatchObject({ status: 'suspended', on: { kind: 'task', name: 'committee' } })
+    expect(run.tasks).toMatchObject([{ name: 'committee', status: 'open', assignee: { permission: Committee.id } }])
+
+    for (const by of [undefined, '1', '9', '77']) {
+      expect(() => run.decide('committee', { approved: true }, by === undefined ? {} : { by })).toThrow(expect.objectContaining({ code: 'workflow.forbidden' }))
+    }
+    expect(run.tasks[0]?.status).toBe('open')
+    run.decide('committee', { approved: true }, { by: '8' })
+    expect(await run.run()).toEqual({ status: 'completed', value: { by: '8' } })
+
+    // The acting user's own permissions count, and the decision schema still applies.
+    const own = createTestHost({ fixtures: w.all, entities: [c.Customer], implementations: [review], user: { id: '5', permissions: [Committee.id] } })
+    const mine = own.workflow(review, { policy: w.p1.ref })
+    await mine.run()
+    expect(() => mine.decide('committee', { approved: 'yes' })).toThrow(expect.objectContaining({ code: 'workflow.invalidDecision' }))
+    mine.decide('committee', { approved: false })
+    expect(await mine.run()).toEqual({ status: 'completed', value: { by: '5' } })
   })
 
   it('times out tasks and signals by advancing the clock', async () => {

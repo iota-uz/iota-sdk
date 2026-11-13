@@ -415,7 +415,10 @@ func (s *Service) Deactivate(ctx context.Context, actor spi.Subject, ns string) 
 
 // Purge drops the data of a deactivated package: its entity tables and the
 // recorded schema state. It is refused while the package is active or live
-// workflow instances still pin it.
+// workflow instances still pin it. It is a teardown, not a write: the tables
+// are dropped as a whole, so no entity write rule runs for the rows that go
+// (rules guard the writes the data layer makes for a caller; scenario 24 pins
+// that a rule refusing every delete does not stop a purge).
 func (s *Service) Purge(ctx context.Context, actor spi.Subject, ns string) error {
 	const op = serrors.Op("extruntime.manage.Purge")
 	e := &auditEntry{Action: ActionPurge, Namespace: ns, Detail: map[string]any{}}

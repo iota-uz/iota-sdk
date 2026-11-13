@@ -76,6 +76,14 @@ test.describe('package styles', () => {
     })
     expect(token).not.toBe('rgba(0, 0, 0, 0)') // the host defines the SDK token the utility refers to
     expect(utility['background-color']).toBe(token)
+    // Utilities made of several `--tw-*` parts only work through the sheet's own @property registrations (the host stylesheet of
+    // this suite has no utility, so no registration): `ring-4` is a 4px spread shadow, `translate-x-2` a translate of 8px.
+    const composed = await computed(page, 'utility-box', ['box-shadow', 'translate'])
+    expect(composed['box-shadow']).toMatch(/0px 0px 0px 4px/)
+    expect(composed['translate']).toBe('8px')
+    // Utilities only: no theme variables or layer-order statement in the package's sheet, the host's own order stands.
+    const sheet = await page.evaluate(async (href) => (await fetch(href)).text(), (await page.locator('link[rel~="stylesheet"][data-iota-ext-css]').first().getAttribute('href')) ?? '')
+    expect(sheet).not.toMatch(/:root|:host|@layer\s+(theme|base|components|properties)/)
 
     // A scoped CSS module: the rules apply, under a class name unique to the package's sheet.
     const panel = await computed(page, 'styled-dashboard', ['display', 'letter-spacing', 'row-gap'])
@@ -92,6 +100,19 @@ test.describe('package styles', () => {
     expect(links).toHaveLength(2)
     expect(new Set(links).size).toBe(2)
     expect(links[0]).toMatch(/\/client\/tailwind\.css$/)
+  })
+
+  test('a slot links to its own package documentation on a native page and on another package\'s page', async ({ browser }) => {
+    s = await signIn(browser, 'auditor')
+    const { page } = s
+    const own = '/help/doc/apps/e2e.styled/getting-started'
+
+    await page.goto(clientPage) // a native (Templ/HTMX) page: there is no page context to take the package from
+    await expect(page.getByTestId('styled-help')).toHaveAttribute('href', own)
+
+    await page.goto('/browser/cross') // package e2e.browser's runtime page, with e2e.styled's contribution in it
+    await expect(page.getByTestId('cross-page')).toBeVisible()
+    await expect(page.getByTestId('styled-help')).toHaveAttribute('href', own)
   })
 
   test('the UI kit is a lazy chunk of the host: a page that does not use it never downloads it', async ({ browser }) => {
@@ -120,7 +141,7 @@ test.describe('package styles', () => {
     page.on('request', (request) => { if (new URL(request.url()).pathname.endsWith('.css')) requests.push(new URL(request.url()).pathname) })
     await page.goto(clientPage)
     const badge = page.getByTestId('styled-badge')
-    await expect(badge).toHaveText(`Styled for client ${ann}`)
+    await expect(badge).toContainText(`Styled for client ${ann}`)
 
     // The sidebar slot has other packages' contributions too (each with its own version); the styled package's list is
     // what the server put in the island's configuration.
@@ -150,7 +171,7 @@ test.describe('package styles', () => {
 
     await swap('[data-iota-slot]') // and the swap that brings the slot element back
     await expect(badge).toHaveCount(1)
-    await expect(badge).toHaveText(`Styled for client ${ann}`)
+    await expect(badge).toContainText(`Styled for client ${ann}`)
     expect((await computed(page, 'styled-badge', ['border-left-width']))['border-left-width']).toBe('7px')
 
     expect((await linked()).sort(), 'no second link after the island came back').toEqual([...styles].sort())
