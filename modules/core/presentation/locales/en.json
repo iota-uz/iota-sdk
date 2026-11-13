@@ -178,7 +178,12 @@
     "TabNavigation": "Tab navigation",
     "Loading": "Loading...",
     "LoadFailed": "Could not load data",
-    "Retry": "Retry"
+    "Retry": "Retry",
+    "Close": "Close",
+    "SaveFailed": "Could not save changes",
+    "NetworkError": "No connection to the server",
+    "NetworkErrorHint": "Check your connection and try again.",
+    "TogglePassword": "Show password"
   },
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Countries": {
@@ -694,9 +699,11 @@
 			"Logout": "Logout",
 			"CurrentAccount": "Current account",
 			"AddAccount": "Add account",
-			"LogoutCurrent": "Logout current",
+			"LogoutCurrent": "Log out",
 			"LogoutAll": "Logout all accounts",
-      "Settings": "Settings"
+      "Settings": "Settings",
+      "Theme": "Theme",
+      "OpenMenu": "Open menu"
     },
     "Departments": "Departments"
   },

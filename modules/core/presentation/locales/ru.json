@@ -178,7 +178,12 @@
     "TabNavigation": "Навигация по вкладкам",
     "Loading": "Загрузка...",
     "LoadFailed": "Не удалось загрузить данные",
-    "Retry": "Повторить"
+    "Retry": "Повторить",
+    "Close": "Закрыть",
+    "SaveFailed": "Не удалось сохранить",
+    "NetworkError": "Нет связи с сервером",
+    "NetworkErrorHint": "Проверьте подключение и повторите попытку.",
+    "TogglePassword": "Показать пароль"
   },
   "ConfirmDelete": "Вы уверены, что хотите удалить этот элемент?",
   "Countries": {
@@ -694,9 +699,11 @@
 			"Logout": "Выйти",
 			"CurrentAccount": "Текущий аккаунт",
 			"AddAccount": "Добавить аккаунт",
-			"LogoutCurrent": "Выйти из текущего",
+			"LogoutCurrent": "Выйти",
 			"LogoutAll": "Выйти из всех аккаунтов",
-      "Settings": "Настройки"
+      "Settings": "Настройки",
+      "Theme": "Тема",
+      "OpenMenu": "Открыть меню"
     },
     "Departments": "Отделы"
   },

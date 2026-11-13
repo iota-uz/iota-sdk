@@ -113,6 +113,9 @@
         "Title": "Projeto excluído",
         "Summary": "O projeto foi removido"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "Informe um número, por exemplo 15 000 000,50"
     }
   },
   "ProjectStages": {

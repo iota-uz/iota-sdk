@@ -178,7 +178,12 @@
     "TabNavigation": "标签导航",
     "Loading": "加载中...",
     "LoadFailed": "无法加载数据",
-    "Retry": "重试"
+    "Retry": "重试",
+    "Close": "关闭",
+    "SaveFailed": "无法保存",
+    "NetworkError": "无法连接到服务器",
+    "NetworkErrorHint": "请检查网络连接后重试。",
+    "TogglePassword": "显示密码"
   },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
@@ -698,9 +703,11 @@
 			"Logout": "退出登录",
 			"CurrentAccount": "当前账户",
 			"AddAccount": "添加账户",
-			"LogoutCurrent": "退出当前账户",
+			"LogoutCurrent": "退出登录",
 			"LogoutAll": "退出所有账户",
-      "Settings": "设置"
+      "Settings": "设置",
+      "Theme": "主题",
+      "OpenMenu": "打开菜单"
     },
     "Departments": "部门"
   },

@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Mobile app shell: 16px form fields on phones, heading focus and 44px close controls in drawers, shared DrawerHeader/DrawerFooter with inline delete confirmation, global HTMX error toasts and targeted refresh (htmx.RefreshTargets), mobile search, brand and notification panel in the navbar."}

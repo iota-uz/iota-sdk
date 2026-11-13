@@ -24,11 +24,12 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@components.CounterpartySelect(&components.CounterpartySelectProps{
-				Label:       pageCtx.T("Debts.Single.CounterpartyID"),
-				Placeholder: pageCtx.T("Debts.Single.SelectCounterparty"),
-				Value:       props.Debt.CounterpartyID,
-				Name:        "CounterpartyID",
-				Form:        "save-form",
+				Label:          pageCtx.T("Debts.Single.CounterpartyID"),
+				Placeholder:    pageCtx.T("Debts.Single.SelectCounterparty"),
+				Value:          props.Debt.CounterpartyID,
+				Name:           "CounterpartyID",
+				Form:           "save-form",
+				Counterparties: props.Counterparties,
 			})
 			@components.DebtTypeSelect(&components.DebtTypeSelectProps{
 				Label:       pageCtx.T("Debts.Single.Type"),

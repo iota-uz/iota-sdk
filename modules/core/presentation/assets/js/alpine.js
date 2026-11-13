@@ -116,6 +116,34 @@ async function animationsComplete(el) {
   );
 }
 
+// Below the md breakpoint a focused field opens the on-screen keyboard or a
+// date picker, so dialogs focus their heading instead of the first control.
+let isCompactViewport = () =>
+  window.matchMedia("(max-width: 767px)").matches;
+
+function dialogHeading(dialog) {
+  return dialog.querySelector("[data-dialog-title], h1, h2, h3");
+}
+
+function focusDialogHeading(dialog) {
+  let target = dialogHeading(dialog);
+  if (!target) {
+    target = dialog;
+  }
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+}
+
+// showModal() moves focus to the first focusable descendant on its own, so the
+// heading is marked as the autofocus delegate before the dialog opens.
+function prepareDialogFocus(dialog) {
+  if (!isCompactViewport()) return;
+  let heading = dialogHeading(dialog);
+  if (!heading) return;
+  if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+  heading.setAttribute("autofocus", "");
+}
+
 let dialog = (initialState) => ({
   open: initialState || false,
   toggle() {
@@ -130,10 +158,14 @@ let dialog = (initialState) => ({
 
         dialog.removeAttribute("inert");
 
-        let focusTarget = dialog.querySelector("[autofocus]");
-        let dialogBtn = dialog.querySelector("button");
-        if (focusTarget) focusTarget.focus();
-        else if (dialogBtn) dialogBtn.focus();
+        if (isCompactViewport()) {
+          focusDialogHeading(dialog);
+        } else {
+          let focusTarget = dialog.querySelector("[autofocus]");
+          let dialogBtn = dialog.querySelector("button");
+          if (focusTarget) focusTarget.focus();
+          else if (dialogBtn) dialogBtn.focus();
+        }
 
         dialog.dispatchEvent(dialogEvents.opening);
         await animationsComplete(dialog);
@@ -166,8 +198,10 @@ let dialog = (initialState) => ({
   },
   dialog: {
     ["x-effect"]() {
-      if (this.open) this.$el.showModal();
-      else this.$el.close();
+      if (this.open) {
+        prepareDialogFocus(this.$el);
+        if (!this.$el.open) this.$el.showModal();
+      } else this.$el.close();
     },
     async ["x-init"]() {
       this.attrsObserver.observe(this.$el, {
@@ -2886,6 +2920,95 @@ let fbPanel = (cfg = {}) => ({
     }
     return [];
   },
+});
+
+// Global HTMX failure feedback. htmx drops 4xx/5xx and network failures
+// silently, so a failed save looked like a dead button. Opt a request out with
+// `data-htmx-error-toast="off"` on the element or any ancestor, or call
+// preventDefault() on the event from an earlier listener.
+const htmxErrorToast = (() => {
+  let lastKey = "";
+  let lastAt = 0;
+
+  const container = () => document.querySelector("[data-toast-container]");
+  const text = (name, fallback) => container()?.dataset[name] || fallback;
+
+  const plainMessage = (xhr) => {
+    const body = (xhr && xhr.responseText || "").trim();
+    if (!body || body.startsWith("<")) return "";
+    const type = (xhr.getResponseHeader("Content-Type") || "").toLowerCase();
+    if (type.includes("json")) {
+      try {
+        const data = JSON.parse(body);
+        const value = data && (data.message || data.error || data.detail);
+        return typeof value === "string" ? value.slice(0, 300) : "";
+      } catch {
+        return "";
+      }
+    }
+    return body.length <= 300 ? body : "";
+  };
+
+  const isRead = (event) => {
+    const verb = event.detail?.requestConfig?.verb;
+    return !verb || verb.toLowerCase() === "get";
+  };
+
+  // The opt-out covers background reads only: a container can hold both a
+  // polling GET and write forms, and a failed write must always be reported.
+  const optedOut = (event) => {
+    if (!isRead(event)) return false;
+    const elt = event.detail && (event.detail.elt || event.target);
+    return !!(elt && elt.closest && elt.closest('[data-htmx-error-toast="off"]'));
+  };
+
+  const notify = (title, message) => {
+    const key = title + "\u0000" + message;
+    const now = Date.now();
+    if (key === lastKey && now - lastAt < 1500) return;
+    lastKey = key;
+    lastAt = now;
+    window.dispatchEvent(
+      new CustomEvent("notify", { detail: { variant: "error", title, message } })
+    );
+  };
+
+  return {
+    responseError(event) {
+      if (event.defaultPrevented || optedOut(event)) return;
+      const title = isRead(event)
+        ? text("errorLoadFailed", "Could not load data")
+        : text("errorSaveFailed", "Could not save changes");
+      notify(title, plainMessage(event.detail.xhr));
+    },
+    sendError(event) {
+      if (event.defaultPrevented || optedOut(event)) return;
+      notify(
+        text("errorNetwork", "No connection to the server"),
+        text("errorNetworkHint", "Check your connection and try again.")
+      );
+    },
+  };
+})();
+
+document.addEventListener("htmx:responseError", htmxErrorToast.responseError);
+document.addEventListener("htmx:sendError", htmxErrorToast.sendError);
+document.addEventListener("htmx:timeout", htmxErrorToast.sendError);
+
+// Refresh only the regions a host names. A response sends
+// `HX-Trigger: {"iota:refresh": {"targets": ["#orders-table"]}}` (see
+// htmx.RefreshTargets); each matching element re-runs its own request when it
+// listens for the event (delivered to that element only, without bubbling), e.g. `hx-get="/orders" hx-trigger="iota:refresh"`.
+document.addEventListener("iota:refresh", (event) => {
+  const targets = event.detail && event.detail.targets;
+  if (!Array.isArray(targets)) return;
+  targets.forEach((selector) => {
+    document.querySelectorAll(selector).forEach((el) => {
+      // Non-bubbling: only the matched region reloads, never an enclosing
+      // region that also listens for the event.
+      el.dispatchEvent(new CustomEvent("iota:refresh", { bubbles: false }));
+    });
+  });
 });
 
 Alpine.data("dateTimeFormat", dateTimeFormat)

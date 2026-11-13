@@ -2,7 +2,6 @@ package payment_categories
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
@@ -39,9 +38,9 @@ templ EditDrawer(props *DrawerEditProps) {
 				hx-post={ fmt.Sprintf("/finance/payment-categories/%s", props.Category.ID) }
 				hx-target={ fmt.Sprintf("#payment-category-drawer-%s", props.Category.ID) }
 				hx-swap="outerHTML"
-				class="flex flex-col h-full"
+				class="flex min-h-full flex-col"
 			>
-				<div class="flex-1 p-6 space-y-4">
+				<div class="flex-1 space-y-4 p-4 md:p-6">
 					@input.Text(&input.Props{
 						Label: pageCtx.T("PaymentCategories.Single.Name"),
 						Attrs: templ.Attributes{
@@ -59,38 +58,18 @@ templ EditDrawer(props *DrawerEditProps) {
 						Error: props.Errors["Description"],
 					})
 				</div>
-				<div class="p-6 border-t border-subtle flex justify-between">
-					@button.Danger(button.Props{
+				@dialog.DrawerFooter(dialog.DrawerFooterProps{
+					CloseScript: fmt.Sprintf("document.getElementById('payment-category-drawer-%s-dialog').close()", props.Category.ID),
+					SubmitAttrs: templ.Attributes{"name": "_action", "value": "save"},
+					Delete: &dialog.DrawerDelete{
+						ConfirmText: pageCtx.T("PaymentCategories.Single.DeleteConfirmation"),
 						Attrs: templ.Attributes{
-							"type":       "button",
-							"hx-delete":  fmt.Sprintf("/finance/payment-categories/%s", props.Category.ID),
-							"hx-confirm": pageCtx.T("PaymentCategories.Single.DeleteConfirmation"),
-							"hx-target":  "body",
-							"hx-swap":    "beforeend",
+							"hx-delete": fmt.Sprintf("/finance/payment-categories/%s", props.Category.ID),
+							"hx-target": "body",
+							"hx-swap":   "beforeend",
 						},
-					}) {
-						{ pageCtx.T("Delete") }
-					}
-					<div class="flex gap-3">
-						@button.Secondary(button.Props{
-							Attrs: templ.Attributes{
-								"type":   "button",
-								"@click": fmt.Sprintf("document.getElementById('payment-category-drawer-%s-dialog').close()", props.Category.ID),
-							},
-						}) {
-							{ pageCtx.T("Cancel") }
-						}
-						@button.Primary(button.Props{
-							Attrs: templ.Attributes{
-								"type":  "submit",
-								"name":  "_action",
-								"value": "save",
-							},
-						}) {
-							{ pageCtx.T("Save") }
-						}
-					</div>
-				</div>
+					},
+				})
 			</form>
 		}
 	</div>
@@ -115,9 +94,9 @@ templ CreateDrawer(props *DrawerCreateProps) {
 				hx-post="/finance/payment-categories"
 				hx-target="#payment-category-create-drawer"
 				hx-swap="outerHTML"
-				class="flex flex-col h-full"
+				class="flex min-h-full flex-col"
 			>
-				<div class="flex-1 p-6 space-y-4">
+				<div class="flex-1 space-y-4 p-4 md:p-6">
 					@input.Text(&input.Props{
 						Label: pageCtx.T("PaymentCategories.Single.Name"),
 						Attrs: templ.Attributes{
@@ -135,25 +114,10 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						Error: props.Errors["Description"],
 					})
 				</div>
-				<div class="p-6 border-t border-subtle flex justify-end gap-3">
-					@button.Secondary(button.Props{
-						Attrs: templ.Attributes{
-							"type":   "button",
-							"@click": "document.getElementById('payment-category-create-drawer-dialog').close()",
-						},
-					}) {
-						{ pageCtx.T("Cancel") }
-					}
-					@button.Primary(button.Props{
-						Attrs: templ.Attributes{
-							"type":  "submit",
-							"name":  "_action",
-							"value": "save",
-						},
-					}) {
-						{ pageCtx.T("Save") }
-					}
-				</div>
+				@dialog.DrawerFooter(dialog.DrawerFooterProps{
+					CloseScript: "document.getElementById('payment-category-create-drawer-dialog').close()",
+					SubmitAttrs: templ.Attributes{"name": "_action", "value": "save"},
+				})
 			</form>
 		}
 	</div>

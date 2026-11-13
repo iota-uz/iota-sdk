@@ -28,6 +28,12 @@ func initDecoder() *form.Decoder {
 		}
 		return DateOnly(v), nil
 	}, DateOnly{})
+	decoder.RegisterCustomTypeFunc(func(strings []string) (interface{}, error) {
+		if len(strings) == 0 {
+			return Amount{}, nil
+		}
+		return ParseAmount(strings[0]), nil
+	}, Amount{})
 	return decoder
 }
 

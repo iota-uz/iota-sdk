@@ -919,7 +919,7 @@ func passwordLock(p *Props) templ.Component {
 			templ_7745c5c3_Var38 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<label x-data=\"passwordVisibility\" class=\"relative flex size-9 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:text-gray-700 -mr-2\"><input type=\"checkbox\" class=\"peer password-lock absolute inset-0 size-full cursor-pointer appearance-none rounded-md focus-visible:outline-2 focus-visible:outline-brand\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<label x-data=\"passwordVisibility\" class=\"relative flex size-10 shrink-0 cursor-pointer items-center justify-center text-gray-500 hover:text-gray-700 -mr-2\"><input type=\"checkbox\" class=\"peer password-lock absolute inset-0 size-full cursor-pointer appearance-none rounded-md focus-visible:outline-2 focus-visible:outline-brand\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

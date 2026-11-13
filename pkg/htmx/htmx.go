@@ -274,3 +274,39 @@ func ToastWarning(w http.ResponseWriter, title, message string) {
 func ToastInfo(w http.ResponseWriter, title, message string) {
 	TriggerToast(w, ToastVariantInfo, title, message)
 }
+
+// ================= Targeted refresh =================
+
+// RefreshEvent is the client event that asks the page to re-run the request of
+// every element matching one of the listed selectors, without a full reload.
+const RefreshEvent = "iota:refresh"
+
+type refreshDetail struct {
+	Targets []string `json:"targets"`
+}
+
+func refreshTriggerHeader(toast json.RawMessage, selectors []string) string {
+	events := map[string]any{RefreshEvent: refreshDetail{Targets: selectors}}
+	if len(toast) > 0 {
+		events["notify"] = toast
+	}
+	payload, err := json.Marshal(events)
+	if err != nil {
+		return RefreshEvent
+	}
+	return escapeNonASCII(string(payload))
+}
+
+// RefreshTargets sets HX-Trigger so that elements matching selectors reload
+// themselves. A region opts in with `hx-get="<url>" hx-trigger="iota:refresh"`,
+// which keeps scroll position and surrounding state intact, unlike Refresh.
+func RefreshTargets(w http.ResponseWriter, selectors ...string) {
+	w.Header().Set("Hx-Trigger", refreshTriggerHeader(nil, selectors))
+}
+
+// ToastSuccessAndRefresh shows a success toast and refreshes the regions
+// matching selectors. Both events travel in one HX-Trigger header, because
+// separate headers are joined by the browser into a value htmx cannot parse.
+func ToastSuccessAndRefresh(w http.ResponseWriter, title, message string, selectors ...string) {
+	w.Header().Set("Hx-Trigger", refreshTriggerHeader(json.RawMessage(toastPayload(ToastVariantSuccess, title, message)), selectors))
+}
