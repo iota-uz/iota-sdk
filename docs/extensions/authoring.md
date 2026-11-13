@@ -80,11 +80,11 @@ component, Tailwind utilities and `src/NotesScreen.module.css`, plus `src/css-mo
 
 `iota-ext` is the `bin` of `@iota-uz/sdk` (Node ≥ 20.19). Full reference: §16.
 
-`init` pins `"@iota-uz/sdk"` in `package.json` to the **exact version of the CLI that ran it** (`iota-ext --version`), not a
-range. The extension runtime (`iota-ext`, `@iota-uz/sdk/runtime/*`) ships from that release on; earlier public builds of the
+`init` writes `"@iota-uz/sdk"` into `package.json` **exactly as you installed it**: a registry install becomes the exact
+version of the CLI that ran it (`iota-ext --version`), not a range; a tarball, `file:` or `link:` install keeps that spec,
+with a relative path rewritten for the new package directory, so the `npm install` that follows works. The extension runtime (`iota-ext`, `@iota-uz/sdk/runtime/*`) ships from that release on; earlier public builds of the
 package have no `dist/runtime`, and a caret range could resolve to one of them. Keep the dependency on a release that
-contains the runtime, and when you upgrade the SDK, upgrade it together with a fresh `kit generate`/`kit pull`. If you
-install the SDK from a tarball or a registry mirror, the dependency points there instead; the rule is the same.
+contains the runtime, and when you upgrade the SDK, upgrade it together with a fresh `kit generate`/`kit pull`.
 
 ## 3. Package layout
 
@@ -677,10 +677,27 @@ export const approval = implement(c.Approval, async (wf, input) => {
 | `wf.step(name, effect)` | a re-runnable external effect (HTTP, e-mail). **At-least-once**: it may run again after a crash, with the same `idempotencyKey` (`<instance>:<name>:<n>`) |
 | `wf.sleep(name, "30d")` | durable timer (`ms s m h d`) |
 | `wf.waitFor(name, Signal)` | wait for a signal sent with `tx.signal` / `ctx.signal` / an endpoint; with `{ timeout }` it returns `{ outcome: "received" \| "timeout" }` |
-| `wf.task(name, { subject, assignee, decision, timeout })` | a human task; completes with `{ outcome: "decided", decision, by }` or `"timeout"` |
+| `wf.task(name, { subject, assignee, decision, timeout })` | a human task; completes with `{ outcome: "decided", decision, by }` or `"timeout"`. `assignee` is one user (a `core.User` ref, or `wf.user` for the principal) or `{ permission: P }`: anyone holding `P` decides (below) |
 | `wf.call(name, Command, input)` | a new command invocation that uses the *currently active* binding; the receipt is journaled |
 | `wf.start(name, Workflow, input)` | start a child instance |
 | `wf.now(name)`, `wf.uuid(name)` | journaled clock and id, deterministic across replays |
+
+**A task for a group: assign it to a permission.** A committee, a desk or "any authorized underwriter" is a permission,
+not a person. `assignee: { permission: c.ApproveRisks }` (a `permission(...)` your package declares) makes the task
+decidable by **anyone who holds it at the time of the decision**; the first decision wins, and `by` in the result is the
+user who decided. An operator with the workflow administration right can decide any task, as for user tasks. The
+permission must be declared by an active package when the task is created (else the call fails with
+`workflow.invalidAssignee`); a replayed run does not check it again. In tests, give the host the users and their
+permissions and decide as one of them:
+
+```ts
+const host = createTestHost({ users: { "7": ["acme.reinsurance.approveRisks"], "8": [] } })
+const run = host.workflow(approval, { assessment })
+await run.run()                                              // suspended on the task
+run.decide("approve", { approved: true }, { by: "7" })       // a holder: accepted
+// { by: "8" } throws workflow.forbidden: user 8 does not hold the permission
+await run.run()                                              // completed
+```
 
 Rules for replay-safe code:
 
@@ -1033,7 +1050,7 @@ A package ships its own end-user documentation. It is markdown in the package tr
 reviewed with it (the source and artifact hashes cover every word) and replaced by the next version when that version is
 activated. It appears in the Help Center under **Applications** (`/help/doc/apps/<namespace>/<document>`), for the
 people who use the package. It is not the developer reference: that is generated from your contracts and lives under
-**Extensions** (§18).
+**Extensions** (§19).
 
 ```text
 docs/
@@ -1120,8 +1137,9 @@ import { helpHref } from "@iota-uz/sdk/runtime/client"
 <a href={helpHref("admin/setup#cards")}>Limits</a>
 ```
 
-On a package page the package is known from the page. Elsewhere (a slot or a cell rendered by a native page) name it:
-`helpHref("setup", { namespace: "acme.loyalty" })`. A call with a string literal is checked by `iota-ext check` against
+`helpHref` always means **your** package: the build binds it to the namespace of the bundle that calls it, so a slot or a
+cell of yours links to your documents on any page, native or another package's. Pass `{ namespace: "other.pkg" }` to link
+another package's documents. A call with a string literal is checked by `iota-ext check` against
 your `docs/en` documents (`docs.unknownHelpHref`, with the file, line and column of the call), so a renamed document
 breaks the build rather than the link. A computed argument cannot be checked. `helpHref` throws on a malformed path.
 
@@ -1168,10 +1186,12 @@ export default function RewardsScreen() {
   (`graph.clientInServer` / `graph.impureContract` otherwise); package tests (`iota-ext test`) can import client code that uses it, as an inert stand-in.
 * **Tailwind utilities** (`class="flex gap-4 p-6 bg-primary-600 md:flex-col"`). At build the worker compiles the classes the **client
   sources** use (string-like tokens in the files of the client graph, so write class names as whole strings; a name assembled from
-  parts such as `` `bg-${tone}-500` `` is not found) with the SDK's design tokens: the same `tailwind.config.js` mapping the application's
+  parts such as `` `bg-${tone}-500` `` is not found, and an ordinary string that happens to be a class name, like `"block"`,
+emits that utility: harmless, a few bytes) with the SDK's design tokens: the same `tailwind.config.js` mapping the application's
   own pipeline uses, so `bg-primary-600`, `text-gray-700`, `border-subtle` and `bg-surface-300` mean what they mean in the application, in
-  both themes. The result is `client/tailwind.css` in the version's artifact: utilities only (the host page already has the base styles),
-  and only the classes you use. There is no Tailwind config of your own and no `@apply`.
+  both themes. The result is `client/tailwind.css` in the version's artifact: utilities only — no `:root` variables (theme values are
+inlined), no base styles, no layer order; only the `@property` registrations some utilities need, identical to the
+  application's — and only the classes you use. There is no Tailwind config of your own and no `@apply`.
 * **Scoped CSS modules** for what utilities do not express (`*.module.css`). `import styles from "./Panel.module.css"`;
   `styles.panel` is a class name unique to your package, file and content (`Panel_1a2b3c4d_panel`), so it cannot collide with the application or another
   package, or with the same package's other version. Declare the type once per package, as `iota-ext init` does:
@@ -1249,13 +1269,14 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 
 | `createTestHost({ … })` option | meaning |
 |---|---|
-| `fixtures` | initial rows: `fixture(Entity, values, { key })` and `overlayFixture(Overlay, baseRef, values)`; defaults apply (`createdAt` / `updatedAt` default to `EPOCH` on every entity), values are validated; native entities need an explicit `key` |
+| `fixtures` | initial rows: `fixture(Entity, values, { key })` (returns `{ key, ref, record }`) and `overlayFixture(Overlay, baseRef, values)`; defaults apply (`createdAt` / `updatedAt` default to `EPOCH` on every entity), values are validated; native entities need an explicit `key` |
 | `implementations` | handlers `tx.call` / `ctx.call` / `wf.call` dispatch to, by contract; also `templates(...)`, and the `contactResolver` and `deliveryPolicy` implementations notice delivery uses |
 | `templates` | `templates(...)` exports (alternatively list them in `implementations`) |
 | `contacts` | `(record) => ContactTargets \| undefined`: contact data of record recipients, answered before a bound resolver |
 | `guards` | `guard`, `precheck` and `writeRule` values to apply |
 | `entities` | entity definitions the host cannot learn from calls (targets of ref paths) |
 | `user` | `{ id, permissions, locale, kind }` of the acting principal; read rules and hidden fields follow `permissions` |
+| `users` | `{ "<userId>": permissions }`: other users, for tasks assigned to a permission (`run.decide(task, decision, { by })`) |
 | `secrets` | values for `ctx.secrets.get` |
 | `fakes` | your own `fakeEffects()` instance |
 | `now` | start of the host clock |
@@ -1266,9 +1287,9 @@ message and the line in **your** `.ts` file (the bundles are source-mapped), `--
 | `transaction(cb)` | runs `cb(tx)` in one transaction: commit, or rollback when it throws. `host.transaction((tx) => impl.handler(tx, input))` |
 | `command()` / `query()` | an ordinary-command context (`ctx.transaction`, `ctx.query`, `ctx.call`, secrets) / a read-only context |
 | `deliver(subscription, { subject, payload })` | deliver an event to a subscription in its own transaction |
-| `workflow(impl, input)` | a driven run: `run()`, `decide(task, decision)`, `signal(...)`, `tasks`, `journal`; `run()` returns `completed`, `suspended` (on a sleep, signal or task) or `failed` |
+| `workflow(impl, input)` | a driven run: `run()`, `decide(task, decision, { by }?)` (`by` defaults to the host user and must be allowed to decide), `signal(...)`, `tasks`, `journal`; `run()` returns `completed`, `suspended` (on a sleep, signal or task) or `failed`. A `tx.start` inside a command is only recorded in `started`: drive the started run yourself with `host.workflow` |
 | `clock.advance("30d")` | move time; timers fire on the next `run()` |
-| `table(Entity)`, `overlayRow(Overlay, ref)` | committed rows |
+| `table(Entity)`, `overlayRow(Overlay, ref)` | committed rows, typed from the entity |
 | `emitted`, `notices`, `started`, `signals`, `logs` | what committed transactions recorded (rolled back work is not there) |
 | `deliveries` | the outcome of every notice delivery (§14.2) |
 | `fakes` | `sms`, `email`, `push`, `inApp`, `http` |
@@ -1439,7 +1460,7 @@ Every diagnostic is `file:line:col code message` and points at **your** source.
 |---|---|
 | `ts.<n>` | a TypeScript error (the number is the compiler's). Messages for the usual mistakes name the fix: a write to a native entity → "use a published operation (`tx.call`)"; ordering by an enum → "cannot order by 'status'"; a range on a non-orderable field; a filter on a `json` field; `tx.call` of an ordinary command → "use `ctx.call`"; a keyless `tx.start` → "needs a start key" |
 | `graph.impureContract` | the contracts graph imported `@iota-uz/sdk/runtime/server\|client`, Solid or a Node built-in |
-| `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …"); the UI kit (`@iota-uz/sdk/solid-ui`) counts as client-only |
+| `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …"); the UI kit (`@iota-uz/sdk/solid-ui`) counts as client-only. For a local file only the server reaches, the message names the fix: put shared pure code in the contracts layer (§1) |
 | `graph.globalCss` | client code (or one of its stylesheets) imported a global stylesheet: use utilities or a `*.module.css` (§13.6) |
 | `graph.cssOutsideClient` | the server or contracts graph imported a stylesheet |
 | `css.syntax` / `css.tailwind` | a malformed stylesheet (located in the file) / the Tailwind compiler failed on the package's styles |
@@ -1450,7 +1471,7 @@ Every diagnostic is `file:line:col code message` and points at **your** source.
 | `manifest.duplicateImplementation` / `duplicateTemplates` | two exports implement one contract / one notice |
 | `manifest.invalidDeclaration` | an invalid cron expression, endpoint path, guard target, … |
 | `manifest.import` | importing a bundle failed (a top-level error in your code) |
-| `build.unresolved` / `build.error` / `build.jsx` | a bundling error: a missing module, a JSX problem |
+| `build.unresolved` / `build.error` / `build.jsx` | a bundling error at the import in your source: a missing module, a JSX problem; a UI kit subpath (`@iota-uz/sdk/solid-ui/forms/Button`) is unresolved by rule: import from `@iota-uz/sdk/solid-ui` |
 | `docs.*` | a problem in `docs/` (§13.5): `frontMatter`, `title`, `audience`, `badPermission` / `unknownPermission` / `permissionMismatch`, `noLocale` / `badLocale` / `badPath` / `unsupportedFile` / `missingDefault` / `tooLarge` / `encoding` / `symlink`, `brokenLink` / `linkEscapes` / `linkTarget` / `linkScheme` / `unknownRoute` / `image`, `unknownHelpHref` |
 | `package.*` | `package.json` problems: missing `iota` section, a bad namespace, an entry that does not exist |
 | `npm.lockfileMissing` | published packages with dependencies need `package-lock.json` |
@@ -1522,7 +1543,56 @@ outputs, taken from the live catalog (your own package appears there as soon as 
 `Extensions.Read` shows everything. `GET /_ext/openapi.json` serves the HTTP interface as an OpenAPI 3.1 document, and
 operators can export one offline for Swagger UI (see [`consumer.md`](consumer.md), §9).
 
-## 18. Reference: where to look
+## 18. Building a business module: patterns
+
+The platform gives you entities, contracts, rules, workflows and screens; a real module — say, reinsurance underwriting:
+assessments of offered risks, a verdict against limits, approval by a committee, a contract booked in the host
+application — is a combination of a few patterns. Each is built from what the sections above describe.
+
+**Rules that change over time: a versioned parameter set.** Limits, thresholds and weights live in an entity, not in
+code, so an administrator changes them without a release. Keep every version, and pin each assessment to the version it
+was judged on, so a verdict never changes behind the user's back:
+
+```ts
+export const ParameterSet = entity("acme.reinsurance.parameterSet", {
+  label: field.text({ maxLength: 40 }),                         // "v1 of 01.10.2026"
+  status: field.enum(["draft", "published", "retired"]).default("draft"),
+  maxScore: field.decimal({ precision: 4, scale: 2 }),
+  authorityLimit: field.decimal({ precision: 18, scale: 2 }),
+})
+export const Assessment = entity("acme.reinsurance.assessment", {
+  parameters: field.ref(ParameterSet),                          // the version this assessment is judged on
+  /* … */
+})
+```
+
+A `writeRule` freezes a published set (§8); publishing a new version is a command that inserts it and retires the old one
+in one transaction. **Before** an administrator publishes, show the impact: a query that recomputes every open assessment
+with the draft and counts the verdicts that would change, using the same calculation module as the verdict itself.
+
+**One calculation, everywhere.** Put the formulas (score, our share of the loss, the price check, the verdict) in a pure
+module the contracts layer reaches (§1). The server queries return the authoritative verdict; the screen imports the same
+module and recalculates as the user types, with no round trip and no second implementation to drift.
+
+**An audit trail nobody can edit.** A log entity written by your commands (who, when, what, the version of the
+parameters) and an append-only `writeRule` (§8). The runtime also records every invocation and every management action
+(§17); your log is the business history users read on the screen.
+
+**Approval by a committee.** A workflow started by the "submit" command: a human task assigned to a permission (§10), a
+timeout that escalates, and the status change plus a log line in one `wf.transaction` when the decision arrives. A notice
+tells the approvers that a task is waiting (§11).
+
+**What the host application owns.** Offers, cedents and their contracts, a blacklist, currency rates, document approval,
+booking a contract: these are the application's data and commands. You reach them through the developer kit
+(`@iota-kit/<namespace>`) as native contracts the application publishes (§7.4), never through its tables. If the
+application does not publish one yet, that is a contract to add on the application side (consumer guide), not a reason to
+copy its data into your package.
+
+**Screens that look native.** The UI kit for controls and tables, Tailwind utilities for layout, a CSS module for the one
+custom visualization, and custom properties for data-driven sizes (§13.6). Link each screen to its user documentation
+with `helpHref` (§13.5).
+
+## 19. Reference: where to look
 
 * The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
   `href`, wire helpers), `@iota-uz/sdk/runtime/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`,

@@ -294,7 +294,8 @@ resources, subscriptions, schedules and endpoints, and replaces the previous act
   continue after a new activation (`resume`).
 * **Purge** (`POST /packages/{ns}/purge`, `Extensions.Publish`) deletes the data: the package's entity tables and the
   recorded schema state. It is refused while the package is active or live instances still pin it. It cannot be undone;
-  deactivate is the default way to switch a package off.
+  deactivate is the default way to switch a package off. Purge is a teardown, not a write: the package's `writeRule`s
+  (an append-only log, a frozen record) do not run, because the tables are dropped, not edited.
 * **Git and export**: `POST /import/git` (a commit; schemes per `EXTRUNTIME_GIT_ALLOWEDSCHEMES`), `/import/tree`, and
   `GET /packages/{ns}/export` return the draft as a tree to commit. Source control is the author's. An import is an
   outgoing request made by the server on a caller's behalf, so it is bounded: the host must match
@@ -335,7 +336,10 @@ owner gets *blocked* runs, not a failed activation. Blocked or deleted owners bl
 | `packageDeactivated` | activate a version of the package, then `resume` |
 | unfixable | `POST /workflows/{id}/terminate` (completed effects stay), then `start-v2` to begin a new instance on the active (or a named) version |
 
-`signal`, `tasks/{id}/decide` deliver signals and human-task decisions with the caller's current rights.
+`signal`, `tasks/{id}/decide` deliver signals and human-task decisions with the caller's current rights. A task is
+assigned either to one user or to a permission (`assigneeKind` `user` | `permission`, `assigneePermission`): the
+assignee, any current holder of the permission, or an `Extensions.Operate` holder may decide it. Grant the permission of a
+committee task to the committee's role, not to individual users.
 
 ## 7. MCP: personal credentials map to users
 
@@ -524,6 +528,22 @@ not state that any Granite work is done, and each row's last column is what to v
 | 7 | Notifications | `core.ModuleOptions` channels/web push/contact resolvers/delivery policy (§4); TS `notice`, `templates`, `recipient` | Wraps its SMS/e-mail providers as `ChannelAdapter`s, registers contact resolvers for external parties, supplies the consent policy | Fake in-app/e-mail/SMS/push deliveries reach external recipients without ERP users; template version and outcome are visible per delivery |
 | 8 | MCP | `mcptools` via `wiring.Options.MCPRegistry`, `rbacauth`, `mcpgateway.OAuth` (§7) | Registers the tools in Granite's administrative MCP registry and resolves personal credentials to users | Tool calls audit the person and `mcp:<client>`; revoking a permission takes effect on the next call; the public MCP stays separate |
 | 9 | Pilot: renewal SMS campaign | a TS package: workflow (audience → message → send → wait → finish), `endpoint` for the gateway callback, notifications | Writes the package against synthetic fixtures and fake adapters; no marketing primitives in Go | The campaign runs from restart through waits, decisions and terminate/`start-v2` with explicit owners |
+
+**Example: what a reinsurance-underwriting package needs from Granite.** The module (assessments of offered risks, a verdict
+against versioned limits, committee approval, a contract booked from an approved assessment) is written entirely as a
+package; Granite publishes, as natives (§3), only what it owns:
+
+| Granite owns | Published as | Used for |
+|---|---|---|
+| reinsurance offers | `native.Entity` (read-only) + `native.List` for the offers list, a slot/column on it | the "assess this offer" action and the link offer ↔ assessment |
+| cedents, incoming contracts, reclaims | read queries (`native.Query`) | the cedent's loss history in the assessment |
+| the blacklist | a query | a blocking check of the verdict |
+| currency rates | a query | converting an offer to the assessment currency |
+| document approval (ЭДО) | an ordinary command to open a document + a business event when it is decided | routing an approved assessment to signature and resuming the workflow |
+| booking an incoming contract | an ordinary command (`native.Command`) | the last step after approval |
+
+Everything else — parameters and their versions, the calculations, the log, the screens, the approval task, the user
+documentation — is the package's, and changes without a Granite release.
 
 Open items that are Granite's, not the SDK's: the frontend host bundle and manifest (#3781, #3782), the atomic bump of Go
 and npm pins (#3783), and the real providers behind the channel adapters.
