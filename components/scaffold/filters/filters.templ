@@ -119,21 +119,26 @@ templ (t *TableFilter) Component() {
 			}
 		}
 	} else {
-		@base.Select(&base.SelectProps{
-			Placeholder: t.placeholder,
-			Attrs: templ.Attributes{
-				"name": t.Name,
-			},
-		}) {
-			for _, opt := range t.options {
-				<option
-					selected?={ isOptionChecked(ctx, t.Name, opt) }
-					value={ opt.Value }
-				>
-					{ opt.Label }
-				</option>
-			}
-		}
+	<label class="flex flex-col gap-1.5 md:contents">
+	if t.caption() != "" {
+	<span class="text-sm font-medium text-200 md:hidden" data-filter-label>{ t.caption() }</span>
+	}
+	@base.Select(&base.SelectProps{
+	Placeholder: t.placeholder,
+	Attrs: templ.Attributes{
+	"name": t.Name,
+	},
+	}) {
+	for _, opt := range t.options {
+	<option
+	selected?={ isOptionChecked(ctx, t.Name, opt) }
+	value={ opt.Value }
+	>
+	{ opt.Label }
+	</option>
+	}
+	}
+	</label>
 	}
 }
 

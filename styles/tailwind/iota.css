@@ -1490,3 +1490,132 @@
 .peer\/dark:checked + label .iota-theme-icon {
   scale: 1;
 }
+
+/*
+ * Card layout of scaffold tables below 640px (components/scaffold/table). Each
+ * row becomes a card: the primary cell is the title, the amount sits at the
+ * right edge, secondary cells make one small line underneath, and hidden-mobile
+ * cells are not drawn, so nothing scrolls sideways and a hidden column cannot
+ * stretch a row. Roles come from the cell's data-mobile-role. A right-pinned
+ * "actions" cell is dropped when the row itself opens the record.
+ * Unlayered on purpose: the utilities these cells carry (p-4, sticky, hidden)
+ * live in @layer utilities and would win over any layered rule.
+ */
+@media (max-width: 639.98px) {
+  .table-cards table,
+  .table-cards tbody,
+  .table-cards tfoot {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table-cards thead {
+    display: none;
+  }
+
+  .table-cards tbody tr:not(.hidden):not([data-empty-state]),
+  .table-cards tfoot tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.125rem;
+    min-height: 3.5rem;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  .table-cards tbody tr[data-empty-state] {
+    display: block;
+  }
+
+  .table-cards tbody tr[data-row-link]:not(.hidden) {
+    cursor: pointer;
+  }
+
+  .table-cards tbody tr[data-empty-state] > td {
+    display: block;
+  }
+
+  .table-cards td[data-mobile-role] {
+    display: block;
+    position: static;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .table-cards td[data-mobile-role]:empty {
+  display: none;
+  }
+
+  .table-cards td[data-mobile-role]:has(.table-cell-link) {
+  position: relative;
+  }
+
+  .table-cards td[data-mobile-role="primary"] {
+    order: 1;
+    flex: 1 1 0;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: oklch(var(--clr-text-100));
+  }
+
+  .table-cards td[data-mobile-role="amount"] {
+    order: 2;
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: right;
+    color: oklch(var(--clr-text-100));
+  }
+
+  .table-cards td[data-mobile-role="secondary"],
+  .table-cards td[data-mobile-role="actions"] {
+    order: 4;
+    flex: 0 1 auto;
+    max-width: 100%;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    color: oklch(var(--clr-text-200));
+  }
+
+  .table-cards tr:has(> td[data-mobile-role="secondary"]:not(:empty))::after,
+  .table-cards tr:has(> td[data-mobile-role="actions"]:not(:empty))::after {
+    content: "";
+    order: 3;
+    flex: 0 0 100%;
+    height: 0;
+  }
+
+  .table-cards td[data-mobile-role="hidden-mobile"],
+  .table-cards tr[data-row-link] td[data-mobile-role="actions"] {
+    display: none !important;
+  }
+
+  .table-cards td .truncate {
+    max-width: 100% !important;
+  }
+}
+
+/*
+ * A linked cell is clickable as a whole: the link's hit area is stretched over
+ * the cell (padding included), which is at least 40px tall. Sticky cells keep
+ * their own positioning.
+ */
+.table-cell-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+td:has(.table-cell-link):not(.sticky) {
+  position: relative;
+}

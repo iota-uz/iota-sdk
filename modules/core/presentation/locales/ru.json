@@ -1026,6 +1026,8 @@
       "NoDataTitle": "Данные недоступны",
       "NoDataDescription": "Для этой таблицы нет доступных данных.",
       "NothingFound": "Ничего не найдено",
+      "NothingFoundDescription": "Попробуйте изменить поиск или фильтры.",
+      "MoreActions": "Ещё действия",
       "TableSettings": "Настройки таблицы",
       "ResetSettings": "Сбросить настройки",
       "Columns": "Колонки",
@@ -1035,7 +1037,11 @@
     },
     "Filters": {
       "Title": "Фильтры",
-      "SelectAll": "Выбрать все"
+      "SelectAll": "Выбрать все",
+      "Apply": "Применить",
+      "Reset": "Сбросить",
+      "Active": "Активные фильтры",
+      "RemoveChip": "Убрать фильтр"
     },
     "FilterBuilder": {
       "AddFilter": "Добавить фильтр",

@@ -1029,6 +1029,8 @@
       "NoDataTitle": "Nenhum dado disponível",
       "NoDataDescription": "Não há dados disponíveis para esta tabela.",
       "NothingFound": "Nada encontrado",
+      "NothingFoundDescription": "Tente alterar a busca ou os filtros.",
+      "MoreActions": "Mais ações",
       "TableSettings": "Configurações da tabela",
       "ResetSettings": "Redefinir configurações",
       "Columns": "Colunas",
@@ -1038,7 +1040,11 @@
     },
     "Filters": {
       "Title": "Filtros",
-      "SelectAll": "Selecionar tudo"
+      "SelectAll": "Selecionar tudo",
+      "Apply": "Aplicar",
+      "Reset": "Redefinir",
+      "Active": "Filtros ativos",
+      "RemoveChip": "Remover filtro"
     },
     "FilterBuilder": {
       "AddFilter": "Adicionar filtro",
