@@ -178,11 +178,11 @@
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Маълумотларни юклаб бўлмади",
     "Retry": "Қайта уриниш",
-    "Close": "Yopish",
-    "SaveFailed": "Saqlab bo'lmadi",
-    "NetworkError": "Serverga ulanish yo'q",
-    "NetworkErrorHint": "Ulanishni tekshirib, qayta urinib ko'ring.",
-    "TogglePassword": "Parolni ko'rsatish"
+    "Close": "Ёпиш",
+    "SaveFailed": "Сақлаб бўлмади",
+    "NetworkError": "Серверга уланиш йўқ",
+    "NetworkErrorHint": "Уланишни текшириб, қайта уриниб кўринг.",
+    "TogglePassword": "Паролни кўрсатиш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -679,11 +679,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Жорий аккаунт",
 			"AddAccount": "Аккаунт қўшиш",
-			"LogoutCurrent": "Chiqish",
+			"LogoutCurrent": "Чиқиш",
 			"LogoutAll": "Барча аккаунтлардан чиқиш",
       "Settings": "Созламалар",
-      "Theme": "Mavzu",
-      "OpenMenu": "Menyuni ochish"
+      "Theme": "Мавзу",
+      "OpenMenu": "Менюни очиш"
     },
     "Departments": "Бўлимлар"
   },

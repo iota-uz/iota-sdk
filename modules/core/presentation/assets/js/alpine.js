@@ -2949,7 +2949,15 @@ const htmxErrorToast = (() => {
     return body.length <= 300 ? body : "";
   };
 
+  const isRead = (event) => {
+    const verb = event.detail?.requestConfig?.verb;
+    return !verb || verb.toLowerCase() === "get";
+  };
+
+  // The opt-out covers background reads only: a container can hold both a
+  // polling GET and write forms, and a failed write must always be reported.
   const optedOut = (event) => {
+    if (!isRead(event)) return false;
     const elt = event.detail && (event.detail.elt || event.target);
     return !!(elt && elt.closest && elt.closest('[data-htmx-error-toast="off"]'));
   };
@@ -2963,11 +2971,6 @@ const htmxErrorToast = (() => {
     window.dispatchEvent(
       new CustomEvent("notify", { detail: { variant: "error", title, message } })
     );
-  };
-
-  const isRead = (event) => {
-    const verb = event.detail?.requestConfig?.verb;
-    return !verb || verb.toLowerCase() === "get";
   };
 
   return {
@@ -2995,13 +2998,15 @@ document.addEventListener("htmx:timeout", htmxErrorToast.sendError);
 // Refresh only the regions a host names. A response sends
 // `HX-Trigger: {"iota:refresh": {"targets": ["#orders-table"]}}` (see
 // htmx.RefreshTargets); each matching element re-runs its own request when it
-// listens for the event, e.g. `hx-get="/orders" hx-trigger="iota:refresh"`.
+// listens for the event (delivered to that element only, without bubbling), e.g. `hx-get="/orders" hx-trigger="iota:refresh"`.
 document.addEventListener("iota:refresh", (event) => {
   const targets = event.detail && event.detail.targets;
-  if (!Array.isArray(targets) || typeof htmx === "undefined") return;
+  if (!Array.isArray(targets)) return;
   targets.forEach((selector) => {
     document.querySelectorAll(selector).forEach((el) => {
-      htmx.trigger(el, "iota:refresh");
+      // Non-bubbling: only the matched region reloads, never an enclosing
+      // region that also listens for the event.
+      el.dispatchEvent(new CustomEvent("iota:refresh", { bubbles: false }));
     });
   });
 });

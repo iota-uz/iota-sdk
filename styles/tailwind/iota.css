@@ -1506,21 +1506,24 @@
 
 /*
  * Shared drawer/dialog chrome (components/base/dialog). The close control keeps
- * a 44px touch target and the footer stays reachable while the body scrolls.
+ * a 44px touch target. It lives in @layer components so responsive utilities
+ * such as `sm:hidden` can still override its display.
  */
-.drawer-close {
-  align-items: center;
-  border-radius: 9999px;
-  cursor: pointer;
-  display: inline-flex;
-  flex-shrink: 0;
-  height: 2.75rem;
-  justify-content: center;
-  width: 2.75rem;
-}
+@layer components {
+  .drawer-close {
+    align-items: center;
+    border-radius: 9999px;
+    cursor: pointer;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
+  }
 
-.drawer-close:hover {
-  background-color: oklch(var(--clr-surface-400));
+  .drawer-close:hover {
+    background-color: oklch(var(--clr-surface-400));
+  }
 }
 
 [data-dialog-title]:focus {
