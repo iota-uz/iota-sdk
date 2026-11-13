@@ -84,6 +84,11 @@ func (b *Builder) Build(_ context.Context, src build.Tree, kit build.Kit) (build
 		if strings.HasPrefix(p, "dist/") {
 			arts[strings.TrimPrefix(p, "dist/")] = c
 		}
+		// docs/<locale>/<path>.md is the package documentation, shipped as is
+		// (the real builder also removes the front matter).
+		if strings.HasPrefix(p, manifest.DocsDir+"/") {
+			arts[p] = c
+		}
 	}
 	hash := artifact.TreeHash(arts)
 	if b.OverrideArtifactHash != "" {

@@ -255,6 +255,11 @@ func (s *Service) Publish(ctx context.Context, actor spi.Subject, ns, version st
 		}
 		res.Diagnostics = append(res.Diagnostics, extra...)
 		foreign = f
+		docDiags, derr := s.checkDocPermissions(ctx, res.Manifest)
+		if derr != nil {
+			return fail(derr)
+		}
+		res.Diagnostics = append(res.Diagnostics, docDiags...)
 	}
 	if hasErrors(res.Diagnostics) {
 		e.Detail["diagnostics"] = len(res.Diagnostics)
@@ -267,6 +272,9 @@ func (s *Service) Publish(ctx context.Context, actor spi.Subject, ns, version st
 	}
 	if err := m.Validate(); err != nil {
 		return fail(serrors.New(serrors.FailedPrecondition, err.Error()).WithOp(op))
+	}
+	if err := manifest.ValidateDocFiles(m, res.Artifacts); err != nil {
+		return fail(serrors.New(serrors.FailedPrecondition, "documentation: "+err.Error()).WithOp(op))
 	}
 	if res.SourceHash == "" || res.ArtifactHash == "" || len(res.Artifacts) == 0 {
 		return fail(serrors.New(serrors.Internal, "the builder returned no artifact").WithOp(op))

@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js"
-import { isError, Slot, useCommand, useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
+import { helpHref, isError, Slot, useCommand, useQuery, type PageProps } from "@iota-uz/sdk/runtime/client"
 import * as c from "./contracts"
 
 export default function RewardsScreen(_props: PageProps) {
@@ -10,6 +10,7 @@ export default function RewardsScreen(_props: PageProps) {
   return (
     <section>
       <h1>Rewards</h1>
+      <a href={helpHref("getting-started")}>How does loyalty work?</a>
       <input value={name()} onInput={(e) => setName(e.currentTarget.value)} />
       <button
         disabled={create.pending()}

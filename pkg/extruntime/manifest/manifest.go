@@ -336,6 +336,8 @@ type Manifest struct {
 	Schedules       []Schedule       `json:"schedules,omitempty"`
 	Endpoints       []Endpoint       `json:"endpoints,omitempty"`
 	Capabilities    Capabilities     `json:"capabilities,omitempty"`
+	// Docs are the end-user documents the package ships (see Doc).
+	Docs []Doc `json:"docs,omitempty"`
 	// Dependencies maps a foreign namespace to the catalog snapshot hash the
 	// package was built against (contract resolution snapshot).
 	Dependencies map[string]string `json:"dependencies,omitempty"`
@@ -432,6 +434,9 @@ func (m *Manifest) Validate() error {
 		}
 	}
 	if err := m.validateTriggers(); err != nil {
+		return err
+	}
+	if err := m.validateDocs(); err != nil {
 		return err
 	}
 	exports := map[string]bool{}

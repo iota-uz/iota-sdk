@@ -33,6 +33,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/notify"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pkgdocs"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -181,6 +182,9 @@ type Runtime struct {
 	// Reference is the live API reference over the catalog (Help Center,
 	// configurator, MCP and the OpenAPI document render it).
 	Reference *reference.Builder
+	// Docs serves the documentation packages ship for their users (Help
+	// Center "apps" area, MCP ext_docs).
+	Docs *pkgdocs.Library
 
 	db      *pgxpool.Pool
 	log     *slog.Logger
@@ -264,6 +268,9 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	rt.NativeImpls = native.Bind(cfg.Natives, deps.NativeDeps)
 	rt.Catalog = catalog.New(deps.DB, catalog.Natives(cfg.Natives))
 	rt.Reference = reference.New(rt.Catalog)
+	if rt.Docs, err = pkgdocs.NewLibrary(rt.Reference, rt.Artifacts); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
 	entities := cfg.Natives.EntityRegistry()
 	mcfg := manage.Config{
 		DB: deps.DB, Builder: cfg.Builder, Kits: cfg.Kits, Artifacts: rt.Artifacts, Catalog: rt.Catalog,

@@ -270,6 +270,8 @@ export class RemoteError extends Error {
 }
 
 export { RuntimeProvider, useCommand, useQuery } from './client-host/hooks.ts'
+export { helpDocHref, helpHref } from './help.ts'
+export type { HelpHrefOptions } from './help.ts'
 export { Slot } from './client-host/slots.ts'
 export type { SlotProps } from './client-host/slots.ts'
 export type { CallError, CommandResult, QueryResult } from './client-host/hooks.ts'

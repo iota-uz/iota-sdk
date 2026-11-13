@@ -233,6 +233,16 @@ export interface CapabilitiesJSON {
   secrets?: string[]
 }
 
+/** One document of a package in one locale (see build/docs.ts and manifest.Doc). */
+export interface DocJSON {
+  path: string
+  locale: string
+  title: string
+  order?: number
+  audience?: string
+  permission?: string
+}
+
 export interface ManifestJSON {
   schema: 'iota.manifest/1'
   namespace: string
@@ -244,6 +254,7 @@ export interface ManifestJSON {
   schedules?: ScheduleJSON[]
   endpoints?: EndpointJSON[]
   capabilities?: CapabilitiesJSON
+  docs?: DocJSON[]
   dependencies?: Record<string, string>
 }
 

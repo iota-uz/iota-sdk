@@ -367,7 +367,8 @@ it does not need these tools.
 
 `ext_reference` is the one read tool that does not ask for `Extensions.Read`: it needs the `extensions:read` scope and a signed-in
 user, and returns the live API reference of a namespace as markdown (the text the Help Center shows), filtered to what that
-user's permissions allow (§9.1). Omit the namespace for the overview.
+user's permissions allow (§9.1). Omit the namespace for the overview. `ext_docs` is the same kind of tool for the
+documentation that packages ship for their users (§9.1): it lists and reads the documents the caller may see, as markdown.
 
 ## 8. The configurator and its client bundle
 
@@ -443,6 +444,19 @@ website. It never contains implementation source, template bodies, secrets or th
   and the packages' guard lists (endpoints are for integrators, and listing them would reveal packages whose contracts the
   user may not see). A namespace with nothing left is not listed and its page answers 404; a user with nothing visible at
   all does not get the *Extensions* section.
+* **Documentation the packages ship.** A package may carry end-user documentation (`docs/<locale>/<path>.md` in its source;
+  author's manual §13.5). It is part of the immutable version, so it is reviewed and approved with the code, and it appears
+  under the Help Center's **Applications** section (mount `apps`, `/help/doc/apps/<namespace>/<document>`, one category per
+  active package) without any configuration: the runtime contributes the source next to the reference. The host needs to
+  know three things. (1) **Visibility** follows the reference: a user sees a package's documents if they can see at least
+  one of its resources, or hold `Extensions.Read`; a document that names a `permission` in its front matter is shown only
+  to holders. A document a user may not read answers 404, as if it did not exist. (2) **Content is the active version's**:
+  activating a version replaces the documents and deactivating a package removes them, with the next request (the package
+  list follows the catalog generation; a version's texts are immutable and cached by artifact hash). (3) **The mount `apps` is reserved**: the Help Center refuses to start when its own content tree has a
+  category or document at `apps` (the embedded content has `getting-started`, `modules` and `workflows`); an application
+  that adds Help Center content of its own must not use that name. Package markdown is rendered by the Help Center's
+  sanitizer like any article; titles in the sidebar are plain text. Package documents are not part of the Help Center's
+  full-text search (only their titles are matched), like the reference.
 * **`GET /_ext/manage/reference`** returns the full model as JSON, for the configurator's Reference tab, so it requires
   `Extensions.Read` (the configurator's own permission). The Help Center and the MCP tool `ext_reference` (markdown) filter
   per reader.

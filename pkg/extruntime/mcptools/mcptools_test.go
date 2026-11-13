@@ -35,7 +35,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage/managetest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/mcptools"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pkgdocs"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -153,7 +155,9 @@ func newEnv(t *testing.T) *env {
 
 	// MCP transport: the registry, the RBAC authorizer and the engine.
 	reg := mcp.NewRegistry()
-	require.NoError(t, mcptools.Register(reg, mcptools.Deps{Manage: svc, Invoker: e.invoke}))
+	docs, err := pkgdocs.NewLibrary(reference.New(cat), arts)
+	require.NoError(t, err)
+	require.NoError(t, mcptools.Register(reg, mcptools.Deps{Manage: svc, Invoker: e.invoke, Docs: docs}))
 	authz := rbacauth.New(func(_ context.Context, tenant uuid.UUID, id uint) (user.User, error) {
 		u, ok := e.users[id]
 		if !ok || tenant != e.tenant {
@@ -334,7 +338,7 @@ func (e *env) auditRows(ns string) []auditRow {
 
 func TestEveryToolIsRegisteredWithASchemaAndAPolicy(t *testing.T) {
 	svc := &manage.Service{}
-	tools, err := mcptools.Tools(mcptools.Deps{Manage: svc, Catalog: catalog.New(nil, catalog.NewNativeSet(data.DefaultNatives())), Invoker: &fakeInvoker{}})
+	tools, err := mcptools.Tools(mcptools.Deps{Manage: svc, Catalog: catalog.New(nil, catalog.NewNativeSet(data.DefaultNatives())), Invoker: &fakeInvoker{}, Docs: docsLibrary(t)})
 	require.NoError(t, err)
 	names := map[string]mcp.Spec{}
 	for _, tl := range tools {
@@ -351,7 +355,7 @@ func TestEveryToolIsRegisteredWithASchemaAndAPolicy(t *testing.T) {
 		"ext_publish", "ext_version_list", "ext_version_get", "ext_review", "ext_activate", "ext_deactivate", "ext_purge",
 		"ext_activation_list", "ext_binding_list", "ext_bind", "ext_unbind", "ext_owner_list", "ext_owner_assign",
 		"ext_owner_remove", "ext_kit_info", "ext_kit_module", "ext_audit_list", "ext_invoke", "ext_resource_list",
-		"ext_resource_get", "ext_reference", "ext_workflow_list", "ext_workflow_get", "ext_workflow_signal", "ext_workflow_decide_task",
+		"ext_resource_get", "ext_reference", "ext_docs", "ext_workflow_list", "ext_workflow_get", "ext_workflow_signal", "ext_workflow_decide_task",
 		"ext_workflow_terminate", "ext_workflow_start_v2", "ext_workflow_resolve", "ext_workflow_retry", "ext_workflow_resume",
 		"ext_subscription_requeue",
 	} {

@@ -842,3 +842,44 @@ allow-list another origin).
   error: the management envelope on `/_ext/manage`, `RpcFailure` on `/_ext/rpc`, none on package endpoints.
   `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's document offline.
 
+### 9.6 Package documentation (as implemented)
+
+A package ships its own end-user documentation; it is a second documentation channel next to §9.5's generated reference, and
+it follows the same visibility rule.
+
+* **Authoring** (`docs/extensions/authoring.md` §13.5). `docs/<locale>/<path>.md` in the package tree: the first directory is
+  the locale (lowercase tag; `en` is the default and every document must exist in it), `<path>` is up to five segments of
+  `[a-z0-9_-]`. Optional flat front matter (`title`, `order`, `audience`, `permission`; a deliberate YAML subset). Only
+  `.md`; images are not supported. Relative links name documents by file name (`other.md#section`), `route:<id>` links a page or
+  route of the package.
+* **Build** (`web/runtime/src/build/docs.ts`, hooked into `runBuild` after manifest extraction). Each file becomes
+  `manifest.Doc{Path, Locale, Title, Order, Audience, Permission}` (`Manifest.Docs`) and the artifact file
+  `docs/<locale>/<path>.md` with the front matter removed. The source tree, the artifact and therefore both hashes cover the
+  documentation, so the version review covers it. Diagnostics carry `docs/<locale>/<path>.md:line:col`: `docs.frontMatter`,
+  `docs.title`, `docs.audience`, `docs.badPermission` / `unknownPermission` / `permissionMismatch`, `docs.noLocale` /
+  `badLocale` / `badPath` / `unsupportedFile` / `missingDefault` / `tooLarge` / `encoding` / `symlink`, `docs.brokenLink` /
+  `linkEscapes` / `linkTarget` / `linkScheme` / `unknownRoute` / `image`, and `docs.unknownHelpHref` for a literal
+  `helpHref("…")` call of the package's sources that names no document.
+* **Validation in Go** (nothing is trusted from the artifact). `Manifest.Validate` (`manifest/docs.go`) checks path, locale,
+  title and audience (plain text: no control characters, no `<` `>`, bounded), order, permission shape, uniqueness, an `en`
+  version of every path, one permission per path, and that a permission in the package's own namespace is declared by it.
+  `manifest.ValidateDocFiles` (publish, and activation against the stored artifact) requires exactly the listed files under
+  `docs/`, each valid UTF-8 within 256 KiB (4 MiB in all). `manage.checkDocPermissions` (publish and activation) resolves a
+  permission of another package or a native contract in the catalog; a native RBAC name (`Client.Read`) is accepted as written.
+* **Serving** (`pkg/extruntime/pkgdocs`). `pkgdocs.Library` answers `List` and `Read` for a reader; the Help Center source
+  (`pkgdocs.NewSourceOf`, mount `apps`, order 150, contributed by `runtime.NewComponent`) and the MCP tool `ext_docs` are views of
+  it. The mount sits beside the Help Center's own tree and the developer area (`extensions`); it is end-user facing.
+  The tree is one category per visible active package (labelled with the namespace: a manifest carries no display name), its
+  documents ordered by `order`, then title. **Visibility**: `reference.Builder.VisiblePackages` — `Extensions.Read` sees every
+  active package, anyone else a package with at least one resource `reference.Visible` to them (`reference.PackageVisible`) — and
+  per document `permission` (held, or `Extensions.Read`). Forbidden and absent are both `helpdocs.ErrNotFound`. The content
+  is the **active** version's: the package list comes from the catalog snapshot the reference follows (generation-cached), the
+  text from the version's artifact (an immutable file, so cached by artifact hash and path). Locale: exact tag, language, `en`.
+  `pkgdocs.RewriteLinks` drops `.md` from document links (the Help Center resolves relative links against the extension-less
+  document address) and resolves `route:` links to the route's path from the active manifest; a route it cannot resolve becomes
+  `#`. Titles and audiences are re-sanitised to plain text when listed. The markdown body goes through the Help Center's renderer
+  and sanitizer.
+* **Linking.** `helpHref(path, {namespace?, base?})` (`@iota-uz/sdk/runtime/client`, `web/runtime/src/help.ts`) returns
+  `/help/doc/apps/<namespace>/<path>`; the namespace defaults to the package of the runtime page (`PageData.page.package`).
+
+

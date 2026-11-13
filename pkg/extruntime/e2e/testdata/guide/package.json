@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/guide",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.guide", "contracts": "./src/contracts.ts" }
+}

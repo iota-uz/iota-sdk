@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pkgdocs"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
@@ -139,7 +140,13 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return []helpdocs.Source{src}, nil
+		// The documentation the packages ship for their users: the end-user
+		// area of the Help Center, next to the developer reference above.
+		apps, err := pkgdocs.NewSourceOf(rt.Docs, SubjectFromContext)
+		if err != nil {
+			return nil, err
+		}
+		return []helpdocs.Source{src, apps}, nil
 	})
 	if apiServed {
 		composition.ContributeControllersFunc(builder, func(rt *Runtime) []application.Controller {

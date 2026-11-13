@@ -125,6 +125,13 @@ func (s *Service) checkActivatable(ctx context.Context, ns string, m *manifest.M
 			return serrors.New(serrors.FailedPrecondition, fmt.Sprintf("resource %s is already declared by %s", r.ID, owner))
 		}
 	}
+	docDiags, err := s.checkDocPermissions(ctx, *m)
+	if err != nil {
+		return err
+	}
+	if len(docDiags) > 0 {
+		return serrors.New(serrors.FailedPrecondition, docDiags[0].File+": "+docDiags[0].Message)
+	}
 	active, err := s.catalog.Active(ctx)
 	if err != nil {
 		return err
@@ -195,6 +202,9 @@ func (s *Service) Activate(ctx context.Context, actor spi.Subject, ns, version s
 		}
 		m := v.Manifest
 		if err := s.checkActivatable(ctx, ns, &m); err != nil {
+			return err
+		}
+		if err := s.checkDocFiles(ctx, v.ArtifactHash, m); err != nil {
 			return err
 		}
 		if err := s.verifyForeignContracts(ctx, tx, v.ID); err != nil {

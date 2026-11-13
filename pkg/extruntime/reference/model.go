@@ -282,6 +282,8 @@ func (s nativeOnly) Natives() *catalog.NativeSet                             { r
 type full struct {
 	namespaces []Namespace
 	resources  map[string]manifest.Resource
+	// active are the activated package versions the model was assembled from.
+	active []catalog.ActiveVersion
 }
 
 // Model builds the reference for the reader: sub's permissions decide what is
@@ -353,7 +355,7 @@ type declared struct {
 }
 
 func assemble(active []catalog.ActiveVersion, natives *catalog.NativeSet) *full {
-	f := &full{resources: map[string]manifest.Resource{}}
+	f := &full{resources: map[string]manifest.Resource{}, active: active}
 	nativeResources := natives.Resources()
 	decls := make([]declared, 0, len(nativeResources))
 	// Natives win over a package declaring the same ID, as in the catalog.
