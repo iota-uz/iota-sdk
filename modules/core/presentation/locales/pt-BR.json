@@ -177,7 +177,12 @@
     "TabNavigation": "Navegação por abas",
     "Loading": "Carregando...",
     "LoadFailed": "Não foi possível carregar os dados",
-    "Retry": "Tentar novamente"
+    "Retry": "Tentar novamente",
+    "Close": "Fechar",
+    "SaveFailed": "Não foi possível salvar",
+    "NetworkError": "Sem conexão com o servidor",
+    "NetworkErrorHint": "Verifique a conexão e tente novamente.",
+    "TogglePassword": "Mostrar senha"
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
   "Countries": {
@@ -673,9 +678,11 @@
 			"Logout": "Sair",
 			"CurrentAccount": "Conta atual",
 			"AddAccount": "Adicionar conta",
-			"LogoutCurrent": "Sair da conta atual",
+			"LogoutCurrent": "Sair",
 			"LogoutAll": "Sair de todas as contas",
-      "Settings": "Configurações"
+      "Settings": "Configurações",
+      "Theme": "Tema",
+      "OpenMenu": "Abrir menu"
     },
     "Departments": "Departamentos",
     "CRM": "CRM",

@@ -177,7 +177,12 @@
     "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Ma'lumotlarni yuklab bo'lmadi",
-    "Retry": "Qayta urinish"
+    "Retry": "Qayta urinish",
+    "Close": "Yopish",
+    "SaveFailed": "Saqlab bo'lmadi",
+    "NetworkError": "Serverga ulanish yo'q",
+    "NetworkErrorHint": "Ulanishni tekshirib, qayta urinib ko'ring.",
+    "TogglePassword": "Parolni ko'rsatish"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -674,9 +679,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Joriy akkaunt",
 			"AddAccount": "Akkaunt qo‘shish",
-			"LogoutCurrent": "Joriy akkauntdan chiqish",
+			"LogoutCurrent": "Chiqish",
 			"LogoutAll": "Barcha akkauntlardan chiqish",
-      "Settings": "Sozlamalar"
+      "Settings": "Sozlamalar",
+      "Theme": "Mavzu",
+      "OpenMenu": "Menyuni ochish"
     },
     "Departments": "Bo'limlar"
   },

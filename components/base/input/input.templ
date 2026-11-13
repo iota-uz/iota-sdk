@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/twmerge"
 	"github.com/iota-uz/utils/random"
@@ -268,8 +269,8 @@ templ Checkbox(p *CheckboxProps) {
 }
 
 templ passwordLock(p *Props) {
-	<label x-data="passwordVisibility" class="flex items-center justify-center mx-2.5">
-		<input type="checkbox" class="appearance-none peer password-lock" value={ p.id } @change="toggle"/>
+	<label x-data="passwordVisibility" class="relative mx-1 flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">
+		<input type="checkbox" class="absolute inset-0 h-full w-full cursor-pointer appearance-none peer password-lock" value={ p.id } aria-label={ intl.TWithDefault(ctx, "Common.TogglePassword", "Show password") } @change="toggle"/>
 		@icons.Eye(icons.Props{Size: "20", Class: "absolute duration-200 scale-0 peer-checked:scale-100"})
 		@icons.EyeSlash(icons.Props{Size: "20", Class: "absolute duration-200 peer-checked:scale-0"})
 	</label>
