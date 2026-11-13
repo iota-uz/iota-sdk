@@ -983,7 +983,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
 	require.Equal(t, FieldFormat{
-		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true,
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true, Symbol: "so’m",
 	}, doc.Panels[0].Format["value"])
 }
 

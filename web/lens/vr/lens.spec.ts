@@ -178,6 +178,7 @@ const storyIds = [
   'metric-composition--narrow',
   'metric-composition--quality-chips',
   'metric-composition--relationship-variants',
+  'mobile-tiles--phone-board',
   'panel-failure--failure-reasons--dark',
   'panel-failure--failure-reasons--light',
   'panel-matrix--all-kinds-and-states--dark',
@@ -468,6 +469,8 @@ const staticStories = [
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
   ['metric-composition--relationship-variants', 0],
+  // A phone-width board: two-up tiles with folded toolbars, a legend folded to a few rows, names above the bars.
+  ['mobile-tiles--phone-board', 2],
   // What a panel says once the server names the kind of failure. Card-edge
   // antialiasing alternates between two stable rasters here the same way it
   // does across the matrices below (#932).
