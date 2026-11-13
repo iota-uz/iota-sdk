@@ -1552,11 +1552,12 @@
   }
 
   .table-cards td[data-mobile-role]:empty {
-  display: none;
+    display: none;
   }
 
   .table-cards td[data-mobile-role]:has(.table-cell-link) {
-  position: relative;
+    position: relative;
+    min-height: 2.5rem;
   }
 
   .table-cards td[data-mobile-role="primary"] {

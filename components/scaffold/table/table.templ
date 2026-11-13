@@ -371,6 +371,9 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			x-data={ fmt.Sprintf("tableConfig('%s')", config.ID) }
 		}
 	>
+		if config.UsesCards() {
+			@mobileSortBar(config, pageCtx)
+		}
 		{{ headAttrs := templ.Attributes{} }}
 		{{
 			if config.Editable.Enabled {
@@ -1101,4 +1104,39 @@ func requestQuery(ctx context.Context) url.Values {
 		return pageCtx.GetURL().Query()
 	}
 	return url.Values{}
+}
+
+// mobileSortBar replaces the hidden table header in the card layout: one button
+// per sortable column, using the header's own sort request and swap.
+templ mobileSortBar(config *TableConfig, pageCtx types.PageContext) {
+	{{ cols := config.sortableColumns() }}
+	if len(cols) > 0 {
+		<div
+			class="flex flex-wrap items-center gap-2 px-4 pb-3 sm:hidden"
+			role="group"
+			aria-label={ pageCtx.T("Scaffold.Table.SortBy") }
+			data-mobile-sort
+		>
+			for _, col := range cols {
+				<button
+					type="button"
+					class="inline-flex h-8 items-center gap-1 rounded-full border border-default bg-surface-500 px-3 text-sm text-100 cursor-pointer"
+					hx-get={ col.SortURL() }
+					hx-target="#sortable-table-container"
+					hx-swap="outerHTML"
+					hx-include="closest form"
+					aria-pressed={ strconv.FormatBool(!col.SortDir().IsNone()) }
+				>
+					<span>{ col.Label() }</span>
+					if col.SortDir().IsAsc() {
+						@icons.CaretDown(icons.Props{Size: "14"})
+					} else if col.SortDir().IsDesc() {
+						@icons.CaretUp(icons.Props{Size: "14"})
+					} else {
+						@icons.CaretUpDown(icons.Props{Size: "14", Class: "opacity-30"})
+					}
+				</button>
+			}
+		</div>
+	}
 }

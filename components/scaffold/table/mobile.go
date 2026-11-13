@@ -128,7 +128,7 @@ func (c *TableConfig) primaryColumnKey() string {
 		}
 	}
 	for _, col := range c.Columns {
-		if columnMobileRole(col) != MobileRoleAuto || isActionsColumn(col) || !col.StickyPos().Unknown() && !col.StickyPos().None() {
+		if columnMobileRole(col) != MobileRoleAuto || isActionsColumn(col) || !col.StickyPos().Unknown() && !col.StickyPos().None() || col.Priority() >= 2 || col.DefaultHidden() {
 			continue
 		}
 		return col.Key()
@@ -264,4 +264,16 @@ func (c *TableConfig) splitMobileActions() (templ.Component, []templ.Component) 
 		}
 	}
 	return c.Actions[primary], more
+}
+
+// sortableColumns are the columns a user can sort by. In the card layout the
+// header is hidden, so they get their own control (mobileSortBar).
+func (c *TableConfig) sortableColumns() []TableColumn {
+	var cols []TableColumn
+	for _, col := range c.Columns {
+		if col.Sortable() && col.SortURL() != "" && col.Label() != "" {
+			cols = append(cols, col)
+		}
+	}
+	return cols
 }

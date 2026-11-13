@@ -1032,6 +1032,7 @@
       "NothingFound": "未找到任何内容",
       "NothingFoundDescription": "请尝试更改搜索或筛选条件。",
       "MoreActions": "更多操作",
+      "SortBy": "排序方式",
       "TableSettings": "表格设置",
       "ResetSettings": "重置设置",
       "Columns": "列",

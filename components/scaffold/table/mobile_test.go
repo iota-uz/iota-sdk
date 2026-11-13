@@ -251,3 +251,33 @@ func TestCellLinkIsStretchedOverTheCell(t *testing.T) {
 	out := renderIn(t, ctx, cell.Component(Column("a", "A"), false, true, templ.Attributes{}))
 	assert.Contains(t, out, "table-cell-link")
 }
+
+func TestPrimaryColumnSkipsPriorityHiddenAndDefaultHiddenColumns(t *testing.T) {
+	cfg := NewTableConfig("Employees", "/employees")
+	cfg.AddCols(
+		Column("id", "ID", WithPriority(3)),
+		Column("code", "Code", WithDefaultHidden()),
+		Column("name", "Name"),
+	)
+	assert.Equal(t, MobileRoleHidden, cfg.resolvedMobileRole(cfg.Columns[0]))
+	assert.Equal(t, MobileRoleHidden, cfg.resolvedMobileRole(cfg.Columns[1]))
+	assert.Equal(t, MobileRolePrimary, cfg.resolvedMobileRole(cfg.Columns[2]))
+}
+
+func TestCardLayoutKeepsSortControls(t *testing.T) {
+	ctx := testPageCtx(t, "/transfers")
+	cfg := NewTableConfig("Transfers", "/transfers")
+	cfg.Configurable = false
+	cfg.AddCols(
+		Column("date", "Date", WithSortable(), WithSortURL("/transfers?sort=date&order=asc"), WithSortDir(SortDirectionAsc)),
+		Column("note", "Note"),
+	)
+
+	out := renderIn(t, ctx, Table(cfg))
+	assert.Contains(t, out, "data-mobile-sort")
+	assert.Contains(t, out, `hx-get="/transfers?sort=date&amp;order=asc"`)
+	assert.Contains(t, out, `aria-pressed="true"`)
+
+	cfg.MobileLayout = MobileLayoutTable
+	assert.NotContains(t, renderIn(t, ctx, Table(cfg)), "data-mobile-sort")
+}

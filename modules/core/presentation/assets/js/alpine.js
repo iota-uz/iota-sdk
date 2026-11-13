@@ -2568,6 +2568,16 @@ function isFilterField(el) {
 }
 
 function clearFilterField(el) {
+  // A multi-select dropdown keeps its selection in Alpine state; flipping the
+  // checkbox through its change handler would toggle it back.
+  let dropdown = el.closest('[x-data="filtersDropdown"]');
+  if (dropdown) {
+    let data = Alpine.$data(dropdown);
+    data.selected = data.selected.filter((value) => value !== el.value);
+    data.dirty = false;
+    el.checked = false;
+    return;
+  }
   if (el.tagName === 'SELECT') {
     let blank = Array.from(el.options).find((o) => o.defaultSelected && o.disabled) ||
       Array.from(el.options).find((o) => o.value === '');
@@ -2614,7 +2624,7 @@ let activeFilterChips = () => ({
     let form = root.closest('form');
     if (!form) return;
     this.removeLabel = root.dataset.removeLabel || '';
-    let sheetFields = () => Array.from(form.querySelectorAll('[data-filter-fields] ' + filterFieldSelector)).filter(isFilterField);
+    let sheetFields = () => Array.from(form.querySelectorAll('[data-filter-fields] :is(select, input, textarea)')).filter(isFilterField);
     let labelOf = (el) => {
       let holder = el.closest('label');
       let text = holder && holder.querySelector('[data-filter-label]');

@@ -24,6 +24,7 @@ var testMessageIDs = []string{
 	"Scaffold.Table.NothingFound",
 	"Scaffold.Table.NothingFoundDescription",
 	"Scaffold.Table.MoreActions",
+	"Scaffold.Table.SortBy",
 	"Scaffold.Table.TableSettings",
 	"Scaffold.Table.ResetSettings",
 	"Scaffold.Table.Columns",
