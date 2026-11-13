@@ -78,8 +78,14 @@ func TestPackageVisibleChecksEveryResource(t *testing.T) {
 	require.False(t, reference.PackageVisible(reader("en"), m, none))
 	require.True(t, reference.PackageVisible(reader("en", "Vault.Use"), m, none))
 	require.True(t, reference.PackageVisible(admin(), m, none))
-	m.Resources = append(m.Resources, manifest.Resource{ID: "acme.vault.guide", Kind: manifest.ResPermission})
-	require.True(t, reference.PackageVisible(reader("en"), m, none), "one open resource opens the package")
+	// Declarations carry no permission of their own: they do not open the package.
+	for _, k := range []manifest.ResourceKind{manifest.ResPermission, manifest.ResEvent, manifest.ResNotice, manifest.ResDomainError} {
+		decl := m
+		decl.Resources = append(append([]manifest.Resource(nil), m.Resources...), manifest.Resource{ID: "acme.vault.decl", Kind: k})
+		require.False(t, reference.PackageVisible(reader("en"), decl, none), "a %s does not open the package", k)
+	}
+	m.Resources = append(m.Resources, manifest.Resource{ID: "acme.vault.status", Kind: manifest.ResQuery})
+	require.True(t, reference.PackageVisible(reader("en"), m, none), "one open query opens the package")
 	require.False(t, reference.PackageVisible(reader("en"), manifest.Manifest{}, none), "a package without resources is visible to Extensions.Read only")
 	require.True(t, reference.PackageVisible(admin(), manifest.Manifest{}, none))
 }

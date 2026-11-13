@@ -1027,13 +1027,13 @@ permission: acme.loyalty.manage # only holders of this permission see the docume
   A reader without it gets *not found*, and the document is not in their sidebar. Holders of `Extensions.Read` see
   every document, as they see every resource of the reference.
 
-**Who sees a package's documentation.** The same people who see the package in the reference: a reader sees the
-documentation of a package when at least one of its resources is visible to them (a command they may run, an entity
-whose rows they may read, a route or a declared event or permission that needs no permission), or when they hold
-`Extensions.Read`. A package whose only resources are gated is invisible to readers without those permissions, and so
-is its documentation. Declaring a permission, an event or a route makes the package visible to everyone, because
-those resources have no permission of their own: gate a document with `permission`, not with the package's visibility,
-when it must stay private.
+**Who sees a package's documentation.** The same people who can use the package: a reader sees its documentation when
+they can use at least one of its resources — run a command or query, read an entity's rows, open a page or route, start a
+workflow, or see a column, slot, cell or shell it contributes — or when they hold `Extensions.Read`. Declarations
+(permissions, events, notices, issues, domain errors, operations, navigation, resolvers, policies) do not count: they carry
+no permission of their own. A package whose usable resources are all gated is invisible to readers without those
+permissions, and so is its documentation; a package with one open page or query is visible to every signed-in reader. Use
+a document's `permission` to keep one document private inside a visible package.
 
 **Links.** Markdown links are written against the source tree and checked at build time:
 

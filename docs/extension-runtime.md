@@ -871,7 +871,7 @@ it follows the same visibility rule.
   it. The mount sits beside the Help Center's own tree and the developer area (`extensions`); it is end-user facing.
   The tree is one category per visible active package (labelled with the namespace: a manifest carries no display name), its
   documents ordered by `order`, then title. **Visibility**: `reference.Builder.VisiblePackages` — `Extensions.Read` sees every
-  active package, anyone else a package with at least one resource `reference.Visible` to them (`reference.PackageVisible`) — and
+  active package, anyone else a package with at least one *usable* resource (command, query, entity/overlay, page/route, workflow, column, slot, cell, shell — not declarations) `reference.Visible` to them (`reference.PackageVisible`) — and
   per document `permission` (held, or `Extensions.Read`). Forbidden and absent are both `helpdocs.ErrNotFound`. The content
   is the **active** version's: the package list comes from the catalog snapshot the reference follows (generation-cached), the
   text from the version's artifact (an immutable file, so cached by artifact hash and path). Locale: exact tag, language, `en`.

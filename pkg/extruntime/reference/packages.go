@@ -11,15 +11,18 @@ import (
 
 // PackageVisible is the visibility rule of a package as a whole, which is
 // what its end-user documentation follows: a reader holding Extensions.Read
-// sees every package; any other reader sees a package if it sees at least one
-// of its resources under Visible. lookup resolves any resource of the catalog
-// (an overlay's base may be native or another package's).
+// sees every package; any other reader sees a package if it can use at least
+// one of its resources under Visible. Only resources a person uses count
+// (usable): declarations such as permissions, events, notices or error codes
+// carry no permission of their own and would open every package to everyone.
+// lookup resolves any resource of the catalog (an overlay's base may be native
+// or another package's).
 func PackageVisible(sub spi.Subject, m manifest.Manifest, lookup Lookup) bool {
 	if CanReadAll(sub) {
 		return true
 	}
 	for _, r := range m.Resources {
-		if Visible(sub, r, lookup) {
+		if usable(r.Kind) && Visible(sub, r, lookup) {
 			return true
 		}
 	}
@@ -46,4 +49,20 @@ func (b *Builder) VisiblePackages(ctx context.Context, sub spi.Subject) ([]catal
 		}
 	}
 	return out, nil
+}
+
+// usable reports whether a resource kind is something a person reads, runs
+// or sees in the interface, as opposed to a declaration other resources use.
+func usable(k manifest.ResourceKind) bool {
+	switch k {
+	case manifest.ResEntity, manifest.ResOverlay, manifest.ResQuery, manifest.ResCommand,
+		manifest.ResWorkflow, manifest.ResPage, manifest.ResRoute, manifest.ResColumn,
+		manifest.ResSlot, manifest.ResCell, manifest.ResShell:
+		return true
+	case manifest.ResOperation, manifest.ResEvent, manifest.ResNotice, manifest.ResPermission,
+		manifest.ResIssue, manifest.ResDomainError, manifest.ResNavigation,
+		manifest.ResContactResolver, manifest.ResDeliveryPolicy:
+		return false
+	}
+	return false
 }
