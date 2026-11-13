@@ -173,6 +173,7 @@
     }
   },
   "Common": {
+    "ShowPassword": "显示密码",
     "CloseNotification": "关闭通知",
     "TabNavigation": "标签导航",
     "Loading": "加载中...",
@@ -517,6 +518,25 @@
     "Error": {
       "ValidationError": "验证错误"
     }
+  },
+  "Currencies": {
+    "USD": "美元",
+    "EUR": "欧元",
+    "TRY": "土耳其里拉",
+    "GBP": "英镑",
+    "RUB": "俄罗斯卢布",
+    "JPY": "日元",
+    "CNY": "人民币",
+    "UZS": "乌兹别克斯坦苏姆",
+    "AUD": "澳大利亚元",
+    "CAD": "加拿大元",
+    "CHF": "瑞士法郎"
+  },
+  "FormValidation": {
+    "Required": "请填写此字段。",
+    "InvalidEmail": "请输入有效的电子邮箱地址。",
+    "InvalidUrl": "请输入有效的网址。",
+    "InvalidFormat": "请使用所需的格式。"
   },
   "Login": {
     "Meta": {
@@ -962,6 +982,8 @@
   },
   "Remove": "移除",
   "Resources": {
+    "department": "部门",
+    "notification_rules": "通知设置",
     "bichat": "BI-聊天",
     "user": "用户",
     "role": "角色",

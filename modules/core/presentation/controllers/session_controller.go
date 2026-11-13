@@ -116,7 +116,7 @@ func (c *SessionController) List(
 		}
 
 		userVM := mappers.UserToViewModel(user)
-		sessionVM := viewmodels.NewAdminSessionViewModel(sess, userVM, currentToken)
+		sessionVM := viewmodels.NewAdminSessionViewModelContext(r.Context(), sess, userVM, currentToken)
 
 		adminSessions = append(adminSessions, sessionVM)
 	}

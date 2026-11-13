@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add optional application default language (bootstrap.WithDefaultLanguage) and application time zone (bootstrap.WithTimezone); language-select lists only enabled languages; 404 renders inside the authenticated shell; login keeps the email out of the URL and sets autocomplete; password reveal toggle fixed; localized currency names, filter labels, module/resource labels and browser validation messages; sessions show application-zone time and host-only IPs; profile heading/avatar preview; notification settings layout and checkboxes."
+}

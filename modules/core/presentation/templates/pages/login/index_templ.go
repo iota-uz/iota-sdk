@@ -641,8 +641,11 @@ func Index(p *LoginProps) templ.Component {
 					templ_7745c5c3_Err = input.Email(&input.Props{
 						Label: pageCtx.T("Login.Email"),
 						Attrs: templ.Attributes{
-							"name":  "Email",
-							"value": p.Email,
+							"name":           "Email",
+							"value":          p.Email,
+							"autocomplete":   "username",
+							"autocapitalize": "none",
+							"spellcheck":     "false",
 						},
 						Error: p.ErrorsMap["Email"],
 					}).Render(ctx, templ_7745c5c3_Buffer)
@@ -656,7 +659,8 @@ func Index(p *LoginProps) templ.Component {
 					templ_7745c5c3_Err = input.Password(&input.Props{
 						Label: pageCtx.T("Login.Password"),
 						Attrs: templ.Attributes{
-							"name": "Password",
+							"name":         "Password",
+							"autocomplete": "current-password",
 						},
 						Error: p.ErrorsMap["Password"],
 					}).Render(ctx, templ_7745c5c3_Buffer)
@@ -682,7 +686,7 @@ func Index(p *LoginProps) templ.Component {
 						var templ_7745c5c3_Var30 string
 						templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Login.Login"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/login/index.templ`, Line: 223, Col: 37}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/login/index.templ`, Line: 227, Col: 37}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 						if templ_7745c5c3_Err != nil {

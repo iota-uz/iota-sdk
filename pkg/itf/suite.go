@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -188,7 +189,7 @@ func (s *Suite) newRequest(method, path string) *Request {
 
 func (s *Suite) setupMiddleware() {
 	// Use the standard middleware for i18n/localizer setup
-	s.router.Use(middleware.ProvideLocalizer(s.env.App.Bundle(), s.env.App.GetSupportedLanguages()))
+	s.router.Use(middleware.ProvideLocalizer(s.env.App.Bundle(), s.env.App.GetSupportedLanguages(), middleware.LocaleOptions{DefaultLanguage: application.DefaultLanguageOf(s.env.App)}))
 
 	s.router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

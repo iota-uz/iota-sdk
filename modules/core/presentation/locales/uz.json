@@ -173,6 +173,7 @@
     }
   },
   "Common": {
+    "ShowPassword": "Parolni ko'rsatish",
     "CloseNotification": "Bildirishnomani yopish",
     "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
     "Loading": "Yuklanmoqda...",
@@ -517,6 +518,25 @@
     "Error": {
       "ValidationError": "Tekshirish xatosi"
     }
+  },
+  "Currencies": {
+    "USD": "AQSh dollari",
+    "EUR": "Yevro",
+    "TRY": "Turk lirasi",
+    "GBP": "Britaniya funt sterlingi",
+    "RUB": "Rossiya rubli",
+    "JPY": "Yapon iyenasi",
+    "CNY": "Xitoy yuani",
+    "UZS": "O'zbek so'mi",
+    "AUD": "Avstraliya dollari",
+    "CAD": "Kanada dollari",
+    "CHF": "Shveytsariya franki"
+  },
+  "FormValidation": {
+    "Required": "Bu maydonni to'ldiring.",
+    "InvalidEmail": "To'g'ri elektron pochta manzilini kiriting.",
+    "InvalidUrl": "To'g'ri havolani kiriting.",
+    "InvalidFormat": "So'ralgan formatda kiriting."
   },
   "Login": {
     "Meta": {
@@ -958,6 +978,8 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "department": "Bo'lim",
+    "notification_rules": "Bildirishnoma sozlamalari",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",

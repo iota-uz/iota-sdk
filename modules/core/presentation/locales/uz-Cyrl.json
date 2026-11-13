@@ -173,6 +173,7 @@
     }
   },
   "Common": {
+    "ShowPassword": "Паролни кўрсатиш",
     "CloseNotification": "Билдиришномани ёпиш",
     "TabNavigation": "Ички бўлимлар навигацияси",
     "Loading": "Yuklanmoqda...",
@@ -517,6 +518,25 @@
     "Error": {
       "ValidationError": "Tekshirish xatosi"
     }
+  },
+  "Currencies": {
+    "USD": "АҚШ доллари",
+    "EUR": "Евро",
+    "TRY": "Турк лираси",
+    "GBP": "Британия фунт стерлинги",
+    "RUB": "Россия рубли",
+    "JPY": "Япон иенаси",
+    "CNY": "Хитой юани",
+    "UZS": "Ўзбек сўми",
+    "AUD": "Австралия доллари",
+    "CAD": "Канада доллари",
+    "CHF": "Швейцария франки"
+  },
+  "FormValidation": {
+    "Required": "Бу майдонни тўлдиринг.",
+    "InvalidEmail": "Тўғри электрон почта манзилини киритинг.",
+    "InvalidUrl": "Тўғри ҳаволани киритинг.",
+    "InvalidFormat": "Сўралган форматда киритинг."
   },
   "Login": {
     "Meta": {
@@ -958,6 +978,8 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "department": "Бўлим",
+    "notification_rules": "Билдиришнома созламалари",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",

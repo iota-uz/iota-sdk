@@ -2,6 +2,7 @@ package notification_settings
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -40,7 +41,7 @@ templ UserChannels(props *UserChannelsProps) {
 
 templ UserChannelsContent(props *UserChannelsProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<main id="notification-user-channels" class="p-4 md:p-8 max-w-4xl mx-auto">
+	<main id="notification-user-channels" class="p-6 md:p-8 max-w-4xl mx-auto">
 		<a href="/settings/notifications" class="text-sm text-200 hover:text-100">{ pageCtx.T("NotificationSettings.Title") }</a>
 		<header class="mb-4 mt-2">
 			<h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.UserChannels") }</h1>
@@ -50,7 +51,7 @@ templ UserChannelsContent(props *UserChannelsProps) {
 			}
 		</header>
 		<form method="get" action="/settings/notifications/users" class="mb-4 flex gap-2">
-			<input type="search" name="q" value={ props.Search } maxlength="100" placeholder={ pageCtx.T("NotificationSettings.SearchPeople") } class="block w-full rounded-lg border border-secondary bg-surface-300 p-2"/>
+			<input type="search" name="q" value={ props.Search } maxlength="100" placeholder={ pageCtx.T("NotificationSettings.SearchPeople") } class="block w-full rounded-lg border border-secondary bg-surface-300 px-3 py-2"/>
 			@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
 				{ pageCtx.T("NotificationSettings.Search") }
 			}
@@ -68,10 +69,12 @@ templ UserChannelsContent(props *UserChannelsProps) {
 					}
 				</span>
 				for _, channel := range props.Channels {
-					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" name="channels" value={ string(channel) } checked?={ channelEnabled(row, channel) } disabled?={ !props.CanManage }/>
-						{ pageCtx.T("NotificationSettings.Channel" + channelKey(channel)) }
-					</label>
+					@input.Checkbox(&input.CheckboxProps{
+						Label:   pageCtx.T("NotificationSettings.Channel" + channelKey(channel)),
+						Class:   templ.Classes("text-sm font-normal"),
+						Checked: channelEnabled(row, channel),
+						Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
+					})
 				}
 				if props.CanManage {
 					@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {

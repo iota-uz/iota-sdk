@@ -289,7 +289,12 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	email := r.URL.Query().Get("email")
+	emailFlash, err := composables.UseFlash(w, r, "email")
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		return
+	}
+	email := string(emailFlash)
 	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
@@ -552,7 +557,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMapContext(r.Context(), w, "errorsMap", errorsMap)
-		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
+		http.Redirect(w, r, flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
@@ -568,11 +573,11 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
-		http.Redirect(w, r, buildLoginRedirectURL(dto.Email, nextURL, authRequestID), http.StatusFound)
+		http.Redirect(w, r, flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
-	loginRedirectURL := buildLoginRedirectURL(dto.Email, nextURL, authRequestID)
+	loginRedirectURL := flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID)
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:            postLoginRedirectURL,
 		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
@@ -659,11 +664,18 @@ func (c *LoginController) sidCookieName() string {
 	return "sid"
 }
 
-func buildLoginRedirectURL(email, nextURL, authRequestID string) string {
-	query := url.Values{"next": []string{security.GetValidatedRedirect(nextURL)}}
+// flashLoginRedirectURL returns the login page URL to redirect back to after a
+// failed attempt. The entered email travels in a one-shot flash cookie so it
+// never shows up in the URL, browser history or access logs.
+func flashLoginRedirectURL(w http.ResponseWriter, email, nextURL, authRequestID string) string {
 	if email != "" {
-		query.Set("email", email)
+		shared.SetFlash(w, "email", []byte(email))
 	}
+	return buildLoginRedirectURL(nextURL, authRequestID)
+}
+
+func buildLoginRedirectURL(nextURL, authRequestID string) string {
+	query := url.Values{"next": []string{security.GetValidatedRedirect(nextURL)}}
 	if authRequestID != "" {
 		query.Set("auth_request", authRequestID)
 	}

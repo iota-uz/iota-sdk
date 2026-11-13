@@ -53,7 +53,7 @@ func buildSessionsTable(ctx context.Context, userID string, sessions []session.S
 	tcfg.AddCols(cols...)
 
 	for _, sess := range sessions {
-		vm := viewmodels.SessionToViewModel(sess, "")
+		vm := viewmodels.SessionToViewModelContext(ctx, sess, "")
 		cells := []sfui.TableCell{
 			sfui.Cell(users.SessionDeviceCell(vm), vm.Device),
 			sfui.Cell(escapedText(vm.Browser), vm.Browser),

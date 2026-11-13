@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -35,17 +36,59 @@ func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	return tag, nil
 }
 
-func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
+func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported []language.Tag, fallbackToDefault bool) language.Tag {
 	tags, _, err := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
 	if err != nil || len(tags) == 0 {
 		return defaultLocale
 	}
 	matcher := language.NewMatcher(supported)
-	_, idx, _ := matcher.Match(tags...)
+	_, idx, confidence := matcher.Match(tags...)
+	if fallbackToDefault && confidence == language.No {
+		return defaultLocale
+	}
 	return supported[idx]
 }
 
-func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
+// withDefaultFirst moves the configured default language to the front of the
+// supported list. The language matcher falls back to its first entry when the
+// request matches nothing, so this makes the default the fallback.
+func withDefaultFirst(configured string, supported []language.Tag) []language.Tag {
+	if configured == "" {
+		return supported
+	}
+	tag, err := language.Parse(configured)
+	if err != nil {
+		return supported
+	}
+	idx := slices.Index(supported, tag)
+	if idx <= 0 {
+		return supported
+	}
+	ordered := make([]language.Tag, 0, len(supported))
+	ordered = append(ordered, tag)
+	ordered = append(ordered, supported[:idx]...)
+	return append(ordered, supported[idx+1:]...)
+}
+
+// resolveDefaultLocale picks the fallback locale: the configured default when
+// it is enabled (explicit), otherwise English when enabled, otherwise the first
+// enabled language.
+func resolveDefaultLocale(configured string, supported []language.Tag) (language.Tag, bool) {
+	if len(supported) == 0 {
+		return language.English, false
+	}
+	if configured != "" {
+		if tag, err := language.Parse(configured); err == nil && slices.Contains(supported, tag) {
+			return tag, true
+		}
+	}
+	if slices.Contains(supported, language.English) {
+		return language.English, false
+	}
+	return supported[0], false
+}
+
+func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag, fallbackToDefault bool) language.Tag {
 	tag, err := useLocaleFromUser(r.Context())
 	if err == nil {
 		matcher := language.NewMatcher(supported)
@@ -54,11 +97,16 @@ func useLocale(r *http.Request, defaultLocale language.Tag, supported []language
 			return supported[idx]
 		}
 	}
-	return useLocaleFromHeader(r, defaultLocale, supported)
+	return useLocaleFromHeader(r, defaultLocale, supported, fallbackToDefault)
 }
 
 type LocaleOptions struct {
 	AcceptLanguageHighPriority bool
+	// DefaultLanguage is the language code used when neither the user's saved
+	// preference nor Accept-Language selects an enabled language. When empty
+	// or not enabled, English is used if enabled, otherwise the first enabled
+	// language.
+	DefaultLanguage string
 }
 
 // ProvideLocalizer returns middleware that resolves the request locale and
@@ -80,18 +128,22 @@ func ProvideLocalizer(bundle *i18n.Bundle, supportedLanguageCodes []string, opts
 	supportedLanguages := languageTagsFromCodes(supportedLanguageCodes)
 
 	acceptLanguageHighPriority := false
+	configuredDefault := ""
 	if len(opts) > 0 {
 		acceptLanguageHighPriority = opts[0].AcceptLanguageHighPriority
+		configuredDefault = opts[0].DefaultLanguage
 	}
+	supportedLanguages = withDefaultFirst(configuredDefault, supportedLanguages)
+	defaultLocale, fallbackToDefault := resolveDefaultLocale(configuredDefault, supportedLanguages)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
 				var locale language.Tag
 				if acceptLanguageHighPriority {
-					locale = useLocaleFromHeader(r, language.English, supportedLanguages)
+					locale = useLocaleFromHeader(r, defaultLocale, supportedLanguages, fallbackToDefault)
 				} else {
-					locale = useLocale(r, language.English, supportedLanguages)
+					locale = useLocale(r, defaultLocale, supportedLanguages, fallbackToDefault)
 				}
 				ctx := intl.WithLocalizer(
 					r.Context(),

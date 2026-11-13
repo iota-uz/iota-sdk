@@ -173,6 +173,7 @@
     }
   },
   "Common": {
+    "ShowPassword": "Show password",
     "CloseNotification": "Close notification",
     "TabNavigation": "Tab navigation",
     "Loading": "Loading...",
@@ -517,6 +518,25 @@
     "Error": {
       "ValidationError": "Validation Error"
     }
+  },
+  "Currencies": {
+    "USD": "US Dollar",
+    "EUR": "Euro",
+    "TRY": "Turkish Lira",
+    "GBP": "British Pound",
+    "RUB": "Russian Ruble",
+    "JPY": "Japanese Yen",
+    "CNY": "Chinese Yuan",
+    "UZS": "Uzbekistani Som",
+    "AUD": "Australian Dollar",
+    "CAD": "Canadian Dollar",
+    "CHF": "Swiss Franc"
+  },
+  "FormValidation": {
+    "Required": "Please fill out this field.",
+    "InvalidEmail": "Enter a valid email address.",
+    "InvalidUrl": "Enter a valid URL.",
+    "InvalidFormat": "Match the requested format."
   },
   "Login": {
     "Meta": {
@@ -958,6 +978,8 @@
   },
   "Remove": "Remove",
   "Resources": {
+    "department": "Department",
+    "notification_rules": "Notification settings",
     "bichat": "BI-Chat",
     "user": "Users",
     "role": "Roles",

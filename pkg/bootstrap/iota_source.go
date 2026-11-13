@@ -186,6 +186,8 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				Logger:             rt.Logger,
 				Meili:              meiliCfg,
 				SupportedLanguages: supportedLanguages,
+				DefaultLanguage:    o.defaultLanguage,
+				Timezone:           o.timezone,
 				Huber: application.NewHub(&application.HuberOptions{
 					Backend:        backend,
 					Pool:           rt.Pool,

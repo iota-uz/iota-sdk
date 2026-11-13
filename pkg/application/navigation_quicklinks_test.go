@@ -132,3 +132,35 @@ func typesProviderScope() spotlight.ProviderScope {
 		Language: "en",
 	}
 }
+
+func TestNew_DefaultLanguageAndTimezone(t *testing.T) {
+	t.Run("default language must be enabled", func(t *testing.T) {
+		_, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"ru"}, DefaultLanguage: "en"})
+		require.Error(t, err)
+	})
+
+	t.Run("exposes default language and timezone", func(t *testing.T) {
+		app, err := New(&ApplicationOptions{
+			Bundle:             LoadBundle(),
+			SupportedLanguages: []string{"ru"},
+			DefaultLanguage:    "ru",
+			Timezone:           "Asia/Tashkent",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "ru", DefaultLanguageOf(app))
+		require.NotNil(t, LocationOf(app))
+		require.Equal(t, "Asia/Tashkent", LocationOf(app).String())
+	})
+
+	t.Run("unset options keep legacy behavior", func(t *testing.T) {
+		app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+		require.NoError(t, err)
+		require.Empty(t, DefaultLanguageOf(app))
+		require.Nil(t, LocationOf(app))
+	})
+
+	t.Run("invalid timezone is rejected", func(t *testing.T) {
+		_, err := New(&ApplicationOptions{Bundle: LoadBundle(), Timezone: "Mars/Olympus"})
+		require.Error(t, err)
+	})
+}

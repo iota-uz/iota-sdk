@@ -62,7 +62,7 @@ Label = "Телефон"
 Placeholder = "+998 (__) ___ __ __"
 [Employees.Public.Email]
 Label = "Электронная почта"
-Placeholder = "jodoe@gmail.com"
+Placeholder = "name@example.com"
 [Employees.Public.BirthDate]
 Label = "Дата рождения"
 [Employees.Public.Position]

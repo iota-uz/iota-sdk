@@ -9,6 +9,7 @@ import (
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -49,9 +50,7 @@ templ RoleRow(role *viewmodels.Role, rowProps *base.TableRowProps) {
 			{ role.Name }
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
-				<span x-text={ fmt.Sprintf("format('%s')", role.UpdatedAt) }></span>
-			</div>
+			@corecomponents.LocalDateTime(role.UpdatedAt)
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
