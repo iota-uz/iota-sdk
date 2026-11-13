@@ -289,12 +289,7 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	emailFlash, err := composables.UseFlash(w, r, "email")
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-	email := string(emailFlash)
+	email := readLoginEmailFlash(w, r)
 	errorsMap, err := composables.UseFlashMap[string, string](w, r, "errorsMap")
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
@@ -557,7 +552,8 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMapContext(r.Context(), w, "errorsMap", errorsMap)
-		http.Redirect(w, r, flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID), http.StatusFound)
+		setLoginEmailFlash(w, dto.Email)
+		http.Redirect(w, r, buildLoginRedirectURL(nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
@@ -573,17 +569,19 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
-		http.Redirect(w, r, flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID), http.StatusFound)
+		setLoginEmailFlash(w, dto.Email)
+		http.Redirect(w, r, buildLoginRedirectURL(nextURL, authRequestID), http.StatusFound)
 		return
 	}
 
-	loginRedirectURL := flashLoginRedirectURL(w, dto.Email, nextURL, authRequestID)
+	loginRedirectURL := buildLoginRedirectURL(nextURL, authRequestID)
 	finalizeResult, err := c.authFlowService.FinalizeAuthentication(r.Context(), authResult, services.FinalizeAuthenticationOptions{
 		NextURL:            postLoginRedirectURL,
 		SessionCookieValue: sessionCookieValue(r, c.sidCookieName()),
 		AccessCheck:        c.runLoginAccessCheck,
 	})
 	if err != nil {
+		setLoginEmailFlash(w, dto.Email)
 		c.handleFinalizeError(w, r, loginRedirectURL, err)
 		return
 	}
@@ -664,14 +662,27 @@ func (c *LoginController) sidCookieName() string {
 	return "sid"
 }
 
-// flashLoginRedirectURL returns the login page URL to redirect back to after a
-// failed attempt. The entered email travels in a one-shot flash cookie so it
-// never shows up in the URL, browser history or access logs.
-func flashLoginRedirectURL(w http.ResponseWriter, email, nextURL, authRequestID string) string {
+const loginEmailFlash = "email"
+
+// setLoginEmailFlash keeps the entered email in a one-shot flash cookie so a
+// failed attempt can prefill the form without putting the email in the URL,
+// browser history or access logs.
+func setLoginEmailFlash(w http.ResponseWriter, email string) {
 	if email != "" {
-		shared.SetFlash(w, "email", []byte(email))
+		shared.SetFlash(w, loginEmailFlash, []byte(email))
 	}
-	return buildLoginRedirectURL(nextURL, authRequestID)
+}
+
+// readLoginEmailFlash returns the email to prefill (flash cookie first, then the
+// legacy ?email= query). The prefill is optional: an undecodable cookie is
+// expired and ignored instead of failing the login page.
+func readLoginEmailFlash(w http.ResponseWriter, r *http.Request) string {
+	flash, err := composables.UseFlash(w, r, loginEmailFlash)
+	if err != nil {
+		http.SetCookie(w, &http.Cookie{Name: loginEmailFlash, MaxAge: -1, Expires: time.Unix(1, 0)})
+		return ""
+	}
+	return string(flash)
 }
 
 func buildLoginRedirectURL(nextURL, authRequestID string) string {

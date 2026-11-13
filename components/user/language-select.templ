@@ -35,12 +35,32 @@ func enabledLanguages(ctx context.Context) []intl.SupportedLanguage {
 // It displays supported languages with their verbose names.
 // If Languages is nil or empty, it defaults to the languages enabled on the
 // application, or every SDK language when no application is in the context.
+// withSavedLanguage keeps the currently saved language selectable even when it
+// is no longer enabled, so saving an unrelated change does not silently require
+// picking a new language.
+func withSavedLanguage(languages []intl.SupportedLanguage, saved string) []intl.SupportedLanguage {
+	if saved == "" {
+		return languages
+	}
+	for _, lang := range languages {
+		if lang.Code == saved {
+			return languages
+		}
+	}
+	known := intl.GetSupportedLanguages([]string{saved})
+	if len(known) == 0 {
+		return languages
+	}
+	return append(append([]intl.SupportedLanguage(nil), languages...), known[0])
+}
+
 templ LanguageSelect(props *LanguageSelectProps) {
 	{{ languages := props.Languages }}
 	{{
 		if len(languages) == 0 {
 			languages = enabledLanguages(ctx)
 		}
+		languages = withSavedLanguage(languages, props.Value)
 	}}
 	@base.Select(&base.SelectProps{
 		Label:       props.Label,

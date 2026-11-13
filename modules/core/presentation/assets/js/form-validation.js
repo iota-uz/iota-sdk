@@ -37,9 +37,23 @@
     true
   );
 
+  // A required radio group fires "invalid" on every radio, so picking one must
+  // clear the message on the whole group, not only on the selected radio.
+  function controlsToReset(el) {
+    if (el.type === "radio" && el.form && el.name) {
+      return Array.prototype.filter.call(el.form.elements, function (control) {
+        return control.type === "radio" && control.name === el.name;
+      });
+    }
+    return [el];
+  }
+
   function reset(event) {
     var el = event.target;
-    if (el && typeof el.setCustomValidity === "function") el.setCustomValidity("");
+    if (!el || typeof el.setCustomValidity !== "function") return;
+    controlsToReset(el).forEach(function (control) {
+      control.setCustomValidity("");
+    });
   }
   document.addEventListener("input", reset, true);
   document.addEventListener("change", reset, true);

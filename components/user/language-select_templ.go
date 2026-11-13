@@ -46,6 +46,25 @@ func enabledLanguages(ctx context.Context) []intl.SupportedLanguage {
 // It displays supported languages with their verbose names.
 // If Languages is nil or empty, it defaults to the languages enabled on the
 // application, or every SDK language when no application is in the context.
+// withSavedLanguage keeps the currently saved language selectable even when it
+// is no longer enabled, so saving an unrelated change does not silently require
+// picking a new language.
+func withSavedLanguage(languages []intl.SupportedLanguage, saved string) []intl.SupportedLanguage {
+	if saved == "" {
+		return languages
+	}
+	for _, lang := range languages {
+		if lang.Code == saved {
+			return languages
+		}
+	}
+	known := intl.GetSupportedLanguages([]string{saved})
+	if len(known) == 0 {
+		return languages
+	}
+	return append(append([]intl.SupportedLanguage(nil), languages...), known[0])
+}
+
 func LanguageSelect(props *LanguageSelectProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -72,6 +91,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 		if len(languages) == 0 {
 			languages = enabledLanguages(ctx)
 		}
+		languages = withSavedLanguage(languages, props.Value)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -93,7 +113,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(lang.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 53, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 73, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -106,7 +126,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(lang.VerboseName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 54, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 74, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -124,7 +144,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(lang.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 57, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 77, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -137,7 +157,7 @@ func LanguageSelect(props *LanguageSelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(lang.VerboseName)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 58, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/user/language-select.templ`, Line: 78, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {

@@ -349,6 +349,10 @@ func New(opts *ApplicationOptions) (Application, error) {
 	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
 	spotlight.WithQuickLinks(quickLinks)(spotlightService)
 
+	if located, ok := opts.Huber.(interface{ SetLocation(*time.Location) }); ok {
+		located.SetLocation(location)
+	}
+
 	app := &application{
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
