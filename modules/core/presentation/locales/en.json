@@ -1055,6 +1055,9 @@
       "NoDataTitle": "No data available",
       "NoDataDescription": "There is no data available for this table.",
       "NothingFound": "Nothing found",
+      "NothingFoundDescription": "Try changing the search or filters.",
+      "MoreActions": "More actions",
+      "SortBy": "Sort by",
       "TableSettings": "Table settings",
       "ResetSettings": "Reset settings",
       "Columns": "Columns",
@@ -1064,7 +1067,11 @@
     },
     "Filters": {
       "Title": "Filters",
-      "SelectAll": "Select All"
+      "SelectAll": "Select All",
+      "Apply": "Apply",
+      "Reset": "Reset",
+      "Active": "Active filters",
+      "RemoveChip": "Remove filter"
     },
     "FilterBuilder": {
       "AddFilter": "Add filter",

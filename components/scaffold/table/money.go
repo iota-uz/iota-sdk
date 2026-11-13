@@ -70,9 +70,11 @@ func minorDecimal(minor int64, fraction int) string {
 }
 
 // MoneyColumn is a right-aligned money column. The sort indicator of a
-// sortable header is aligned with it; options may add sorting, priority and so on.
+// sortable header is aligned with it; options may add sorting, priority and so
+// on. In the mobile card layout it takes the amount role unless an option sets
+// another one.
 func MoneyColumn(key, label string, opts ...ColumnOpt) TableColumn {
-	return Column(key, label, append([]ColumnOpt{WithClass(moneyColumnClass)}, opts...)...)
+	return Column(key, label, append([]ColumnOpt{WithClass(moneyColumnClass), WithMobileRole(MobileRoleAmount)}, opts...)...)
 }
 
 // MoneyCell is a right-aligned cell holding amount, for use under MoneyColumn.

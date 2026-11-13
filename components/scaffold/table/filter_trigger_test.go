@@ -1,35 +1,22 @@
 package table
 
 import (
-	"context"
 	"html"
-	"net/url"
 	"regexp"
 	"strings"
 	"testing"
 
-	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/text/language"
 )
 
-// A control inside a filter-builder popover is only a draft until Apply: a request
-// fired by it would send the old filters and swap the open popover away. hx-trigger
-// from:<selector> listens on the matching elements directly, so each clause that
-// can match such a control needs its own guard.
-func TestFormTriggerIgnoresFilterBuilderEditors(t *testing.T) {
-	bundle := i18n.NewBundle(language.English)
-	for _, key := range []string{"Scaffold.Filters.Title", "Scaffold.Table.NoDataTitle", "Scaffold.Table.NoDataDescription", "Search"} {
-		bundle.MustAddMessages(language.English, &i18n.Message{ID: key, Other: key})
-	}
-	ctx := composables.WithPageCtx(context.Background(), types.NewPageContext(
-		language.English,
-		&url.URL{},
-		i18n.NewLocalizer(bundle, "en"),
-	))
+// Every control of the form submits it through events that bubble to the form
+// itself. A listener bound with from:<selector> would also hear same-named
+// fields elsewhere on the page (a theme switch, another table's filter), so none
+// may be left, and each clause that can come from a filter-builder popover needs
+// the guard.
+func TestFormTriggerListensOnlyToItsOwnForm(t *testing.T) {
+	ctx := testPageCtx(t, "/accounts")
 
 	cfg := NewTableConfig("Accounts", "/accounts")
 	cfg.Configurable = false
@@ -41,16 +28,41 @@ func TestFormTriggerIgnoresFilterBuilderEditors(t *testing.T) {
 	require.Len(t, match, 2, "the table form declares hx-trigger")
 
 	clauses := strings.Split(html.UnescapeString(match[1]), ", ")
-	var fromControl []string
-	for _, clause := range clauses {
-		if strings.Contains(clause, "from:") {
-			fromControl = append(fromControl, clause)
-		}
-	}
-	require.NotEmpty(t, fromControl)
-
-	for _, clause := range fromControl {
-		assert.Contains(t, clause, "[!target.closest('[data-fb-popover]')]", clause)
-	}
+	require.NotEmpty(t, clauses)
 	assert.Contains(t, clauses, "filter-changed", "Apply still submits the form")
+
+	for _, clause := range clauses {
+		assert.NotContains(t, clause, "from:", clause)
+		assert.NotContains(t, clause, "changed delay", "htmx compares the form's own value for the changed modifier: "+clause)
+		if clause == "filter-changed" {
+			continue
+		}
+		assert.Contains(t, clause, "!target.closest('[data-fb-popover]')", clause)
+		assert.Contains(t, clause, "detail.silent", clause)
+	}
+}
+
+func TestCustomHxTriggerIsKept(t *testing.T) {
+	cfg := NewTableConfig("Accounts", "/accounts")
+	cfg.HxTrigger = "load"
+	assert.Equal(t, "load", cfg.ResolvedHxTrigger())
+}
+
+func TestFormPushURL(t *testing.T) {
+	ctx := testPageCtx(t, "/accounts")
+	for name, tc := range map[string]struct {
+		opts []TableConfigOpt
+		want string
+	}{
+		"default":  {nil, "true"},
+		"disabled": {[]TableConfigOpt{WithoutPushURL()}, "false"},
+		"host url": {[]TableConfigOpt{WithPushURL("/finance/overview")}, "/finance/overview"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := NewTableConfig("Accounts", "/accounts", tc.opts...)
+			var output strings.Builder
+			require.NoError(t, TableSection(cfg).Render(ctx, &output))
+			assert.Contains(t, output.String(), `<form hx-get="/accounts" hx-push-url="`+tc.want+`"`)
+		})
+	}
 }

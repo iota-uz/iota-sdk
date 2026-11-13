@@ -1059,6 +1059,9 @@
       "NoDataTitle": "无可用数据",
       "NoDataDescription": "此表没有可用数据。",
       "NothingFound": "未找到任何内容",
+      "NothingFoundDescription": "请尝试更改搜索或筛选条件。",
+      "MoreActions": "更多操作",
+      "SortBy": "排序方式",
       "TableSettings": "表格设置",
       "ResetSettings": "重置设置",
       "Columns": "列",
@@ -1068,7 +1071,11 @@
     },
     "Filters": {
       "Title": "筛选器",
-      "SelectAll": "全选"
+      "SelectAll": "全选",
+      "Apply": "应用",
+      "Reset": "重置",
+      "Active": "已启用的筛选器",
+      "RemoveChip": "移除筛选器"
     },
     "FilterBuilder": {
       "AddFilter": "添加筛选",

@@ -1055,6 +1055,9 @@
       "NoDataTitle": "Ma'lumotlar yo'q",
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
       "NothingFound": "Hech narsa topilmadi",
+      "NothingFoundDescription": "Қидирув ёки филтрларни ўзгартириб кўринг.",
+      "MoreActions": "Бошқа амаллар",
+      "SortBy": "Саралаш",
       "TableSettings": "Jadval sozlamalari",
       "ResetSettings": "Sozlamalarni tiklash",
       "Columns": "Ustunlar",
@@ -1064,7 +1067,11 @@
     },
     "Filters": {
       "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
+      "SelectAll": "Barchasini tanlash",
+      "Apply": "Қўллаш",
+      "Reset": "Тозалаш",
+      "Active": "Фаол филтрлар",
+      "RemoveChip": "Филтрни олиб ташлаш"
     },
     "FilterBuilder": {
       "AddFilter": "Филтр қўшиш",

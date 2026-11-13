@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Scaffold table on phones: card layout with column mobile roles (WithMobileRole, WithMobileLayout), primary action plus \"more\" menu in EmbeddedContent, form-scoped hx-trigger with WithoutPushURL/WithPushURL, filter bottom sheet with Apply/Reset, active filter chips, distinct empty states, and unlinked placeholder cells."}

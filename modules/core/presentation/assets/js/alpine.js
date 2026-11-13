@@ -2591,6 +2591,118 @@ let emptyStateCentering = () => ({
 });
 Alpine.data("emptyStateCentering", emptyStateCentering);
 
+// Filter fields inside the mobile filter sheet. Programmatic edits (Reset, chip
+// removal) send their input/change events with detail.silent so the table form's
+// hx-trigger ignores them and the form is submitted once, by "filter-changed".
+const filterFieldSelector = 'select, input, textarea';
+
+function isFilterField(el) {
+  if (el.closest('[data-fb-popover]') || el.disabled) return false;
+  return !['hidden', 'button', 'submit', 'reset', 'file'].includes(el.type);
+}
+
+function clearFilterField(el) {
+  // A multi-select dropdown keeps its selection in Alpine state; flipping the
+  // checkbox through its change handler would toggle it back.
+  let dropdown = el.closest('[x-data="filtersDropdown"]');
+  if (dropdown) {
+    let data = Alpine.$data(dropdown);
+    data.selected = data.selected.filter((value) => value !== el.value);
+    data.dirty = false;
+    el.checked = false;
+    return;
+  }
+  if (el.tagName === 'SELECT') {
+    let blank = Array.from(el.options).find((o) => o.defaultSelected && o.disabled) ||
+      Array.from(el.options).find((o) => o.value === '');
+    if (blank) blank.selected = true;
+    else el.selectedIndex = 0;
+  } else if (el.type === 'checkbox' || el.type === 'radio') {
+    el.checked = false;
+  } else {
+    el.value = '';
+  }
+  for (let type of ['input', 'change']) {
+    el.dispatchEvent(new CustomEvent(type, { bubbles: true, detail: { silent: true } }));
+  }
+}
+
+function submitFilters(el) {
+  el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+}
+
+// filtersSheet drives the Apply and Reset buttons of the mobile filter sheet.
+let filtersSheet = () => ({
+  apply() {
+    submitFilters(this.$el);
+    this.toggle();
+  },
+  reset() {
+    let fields = Array.from(this.$root.querySelectorAll(filterFieldSelector)).filter(isFilterField);
+    fields.forEach(clearFilterField);
+    submitFilters(this.$el);
+  },
+});
+Alpine.data("filtersSheet", filtersSheet);
+
+// activeFilterChips mirrors the filled fields of the filter sheet as removable
+// chips above the table. The fields stay the single source of truth; the DOM
+// nodes live outside Alpine's reactive state.
+const chipFields = new WeakMap();
+
+let activeFilterChips = () => ({
+  chips: [],
+  removeLabel: '',
+  init() {
+    let root = this.$el;
+    let form = root.closest('form');
+    if (!form) return;
+    this.removeLabel = root.dataset.removeLabel || '';
+    let sheetFields = () => Array.from(form.querySelectorAll('[data-filter-fields] :is(select, input, textarea)')).filter(isFilterField);
+    let labelOf = (el) => {
+      let holder = el.closest('label');
+      let text = holder && holder.querySelector('[data-filter-label]');
+      return (text && text.textContent.trim()) || el.getAttribute('aria-label') || '';
+    };
+    let compute = () => {
+      let elements = [];
+      let chips = [];
+      let add = (el, value) => {
+        let label = labelOf(el);
+        elements.push(el);
+        chips.push({ id: elements.length - 1, text: label ? label + ': ' + value : value });
+      };
+      for (let el of sheetFields()) {
+        if (el.tagName === 'SELECT') {
+          for (let opt of el.selectedOptions) {
+            if (opt.value !== '' && !opt.disabled) add(el, opt.textContent.trim());
+          }
+        } else if (el.type === 'checkbox' || el.type === 'radio') {
+          if (!el.checked) continue;
+          let text = el.closest('label')?.textContent.trim() || el.value;
+          add(el, text);
+        } else if (el.value.trim() !== '') {
+          add(el, el.value.trim());
+        }
+      }
+      chipFields.set(root, elements);
+      this.chips = chips;
+    };
+    let refresh = () => this.$nextTick(compute);
+    for (let type of ['input', 'change', 'filter-changed', 'htmx:afterSettle']) {
+      form.addEventListener(type, refresh);
+    }
+    compute();
+  },
+  remove(chip) {
+    let el = (chipFields.get(this.$root) || [])[chip.id];
+    if (!el) return;
+    clearFilterField(el);
+    submitFilters(el.closest('form'));
+  },
+});
+Alpine.data("activeFilterChips", activeFilterChips);
+
 // notificationRule powers the recipient picker of a notification rule form:
 // chips for chosen users/groups/roles, a searchable list for the rest, and
 // hidden inputs that keep the posted form fields unchanged.
