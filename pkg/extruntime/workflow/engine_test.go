@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 )
@@ -137,6 +138,82 @@ export const flow = async (wf, input) => {
 	require.Equal(t, 1, second.drain())
 	require.Equal(t, workflow.StatusCompleted, second.status(id))
 	require.JSONEq(t, `{"outcome":"decided","decision":{"approved":true},"by":"7"}`, string(second.instance(id).Result))
+}
+
+// A task assigned to a permission is decided by anyone who holds it now, by the task admin, and by nobody else (not even
+// the user who started the workflow); the stored kind and permission are what the management read models show.
+func TestHumanTaskAssignedToAPermissionIsDecidedByItsHolders(t *testing.T) {
+	env := hosttest.New(t)
+	im := newImpls()
+	const committee = "acme.reinsurance.committee"
+	env.Catalog.Add(spi.ResolvedResource{Package: "acme.a", Version: "1.0.0", Resource: manifest.Resource{ID: committee, Kind: manifest.ResPermission}})
+	publishFlow(t, env, im, "acme.a", "1.0.0", `
+export const flow = async (wf, input) => {
+  return wf.task("approve", {
+    subject: { entity: "acme.test.item", key: "1" },
+    assignee: { permission: "`+committee+`" },
+    decision: { type: { kind: "object", properties: [{ name: "approved", type: { kind: "bool" } }] } },
+  });
+};`)
+	im.Activate(flowID, "acme.a", "1.0.0")
+	env.Subjects.Grant(7)                     // starts the workflow
+	env.Subjects.Grant(8, committee)          // a committee member
+	env.Subjects.Grant(9, "acme.other.thing") // holds other permissions
+	env.Subjects.Grant(10, "tasks.admin")     // the task admin
+	st := newStack(t, env, im)
+	id := st.start(7, "k", `{"who":"w"}`)
+	require.Equal(t, 1, st.drain())
+	require.Equal(t, workflow.StatusWaiting, st.status(id))
+
+	tasks := st.history(id).Tasks
+	require.Len(t, tasks, 1)
+	require.Equal(t, workflow.TaskAssigneePermission, tasks[0].AssigneeKind)
+	require.Equal(t, committee, tasks[0].AssigneePermission)
+	require.Zero(t, tasks[0].AssigneeUserID, "no user is the assignee")
+
+	decide := func(user int64, doc string) error {
+		return st.engine.DecideTask(context.Background(), env.Subject(user), tasks[0].ID, json.RawMessage(doc))
+	}
+	require.ErrorIs(t, decide(7, `{"approved":true}`), workflow.ErrForbidden, "the user who started it is not a member")
+	err := decide(9, `{"approved":true}`)
+	require.ErrorIs(t, err, workflow.ErrForbidden)
+	require.ErrorContains(t, err, committee, "the refusal names the permission")
+	require.ErrorIs(t, decide(8, `{"approved":"yes"}`), workflow.ErrInvalid, "the schema still applies")
+
+	// Rights are judged now: a member who lost the permission is refused, the task admin is not.
+	env.Subjects.Grant(8)
+	require.ErrorIs(t, decide(8, `{"approved":true}`), workflow.ErrForbidden)
+	env.Subjects.Grant(8, committee)
+	require.NoError(t, decide(8, `{"approved":true}`))
+	require.ErrorIs(t, decide(10, `{"approved":false}`), workflow.ErrTaskClosed)
+
+	require.Equal(t, 1, st.drain())
+	require.JSONEq(t, `{"outcome":"decided","decision":{"approved":true},"by":"8"}`, string(st.instance(id).Result), "the decider is the member")
+
+	// The task admin may decide a permission task too.
+	other := st.start(7, "k2", `{"who":"w"}`)
+	require.Equal(t, 1, st.drain())
+	require.NoError(t, st.engine.DecideTask(context.Background(), env.Subject(10, "tasks.admin"), st.history(other).Tasks[0].ID, json.RawMessage(`{"approved":false}`)))
+}
+
+func TestTaskAssignedToAnUndeclaredPermissionFailsTheCall(t *testing.T) {
+	env := hosttest.New(t)
+	im := newImpls()
+	publishFlow(t, env, im, "acme.a", "1.0.0", `
+export const flow = async (wf) => {
+  let code = "";
+  try {
+    await wf.task("approve", { subject: { entity: "acme.test.item", key: "1" }, assignee: { permission: "acme.nope.committee" }, decision: { type: { kind: "bool" } } });
+  } catch (e) { code = e.code; }
+  return { code };
+};`)
+	im.Activate(flowID, "acme.a", "1.0.0")
+	env.Subjects.Grant(7)
+	st := newStack(t, env, im)
+	id := st.start(7, "k", `{"who":"w"}`)
+	require.Equal(t, 1, st.drain())
+	require.JSONEq(t, `{"code":"workflow.invalidAssignee"}`, string(st.instance(id).Result))
+	require.Empty(t, st.history(id).Tasks, "no task was created")
 }
 
 func TestTimerContinuesAfterEngineRestart(t *testing.T) {

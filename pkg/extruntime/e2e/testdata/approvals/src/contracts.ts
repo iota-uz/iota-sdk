@@ -1,4 +1,4 @@
-import { command, entity, field, query, t, workflow } from "@iota-uz/sdk/runtime"
+import { command, entity, field, permission, query, t, workflow } from "@iota-uz/sdk/runtime"
 
 export const Request = entity("e2e.approvals.request", {
   title: field.text(),
@@ -18,4 +18,17 @@ export const Submit = command("e2e.approvals.submit", {
 export const StatusOf = query("e2e.approvals.statusOf", {
   input: t.object({ request: t.ref(Request) }),
   output: t.object({ status: t.string() }).nullable(),
+})
+
+// A committee: any holder of the permission decides.
+export const Committee = permission("e2e.approvals.committee", { label: { en: "Approvals committee" } })
+
+export const CommitteeReview = workflow("e2e.approvals.committeeReview", {
+  input: t.object({ request: t.ref(Request) }),
+  output: t.object({ outcome: t.string(), by: t.string().optional() }),
+})
+
+export const SubmitToCommittee = command("e2e.approvals.submitToCommittee", {
+  input: t.object({ title: t.string() }),
+  output: t.object({ request: t.ref(Request), instance: t.string() }),
 })

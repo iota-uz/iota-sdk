@@ -69,6 +69,9 @@ void recipient.user(ref(kit.User, '42'))
 void wf.task('t', { subject: policyRef, assignee: customerRef, decision: t.object({}) })
 void wf.task('t', { subject: policyRef, assignee: userRef, decision: t.object({}) })
 void wf.task('t', { subject: policyRef, assignee: wf.user, decision: t.object({}) })
+void wf.task('t', { subject: policyRef, assignee: { permission: c.ReadPolicies }, decision: t.object({}) })
+// @ts-expect-error a permission assignee names a declared permission, not a string
+void wf.task('t', { subject: policyRef, assignee: { permission: 'acme.insurance.readPolicies' }, decision: t.object({}) })
 // $.user only matches refs to core.user
 void q.find(c.Customer, { where: { owner: $.user } })
 // @ts-expect-error holder is a ref to Customer, not to core.user

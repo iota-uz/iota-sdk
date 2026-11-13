@@ -210,7 +210,7 @@ var routes = []route{
 	{method: http.MethodPost, path: "/workflows/{id}/resolve", handle: (*API).resolveOccurrence, id: "manage.resolveOccurrence", summary: "Resolve a stuck occurrence with a result", perm: "operate", audit: manage.ActionWorkflowResolve, in: typeOf[occurrenceRequest](), status: 204},
 	{method: http.MethodPost, path: "/workflows/{id}/retry", handle: (*API).retryOccurrence, id: "manage.retryOccurrence", summary: "Retry a failed occurrence", perm: "operate", audit: manage.ActionWorkflowRetry, in: typeOf[retryRequest](), status: 204},
 	{method: http.MethodPost, path: "/workflows/{id}/resume", handle: (*API).resumeWorkflow, id: "manage.resumeWorkflow", summary: "Resume a blocked instance", perm: "operate", audit: manage.ActionWorkflowResume, status: 204},
-	{method: http.MethodPost, path: "/tasks/{id}/decide", handle: (*API).decideTask, id: "manage.decideTask", summary: "Decide a human task", perm: "operate", alt: "you are the assignee of the task", in: typeOf[decideRequest](), status: 204},
+	{method: http.MethodPost, path: "/tasks/{id}/decide", handle: (*API).decideTask, id: "manage.decideTask", summary: "Decide a human task", perm: "operate", alt: "you are the assignee of the task, or hold the permission it is assigned to", in: typeOf[decideRequest](), status: 204},
 	{method: http.MethodPost, path: "/subscriptions/{subscription}/requeue", handle: (*API).requeueReceipts, id: "manage.requeueReceipts", summary: "Give dead-lettered and blocked deliveries a fresh start", perm: "operate", audit: manage.ActionEventsRequeue, in: typeOf[requeueRequest](), inOptional: true, status: 200, out: typeOf[requeuedResponse]()},
 }
 

@@ -53,6 +53,18 @@ const fail = (code: string, message: string): never => {
   throw new TestHostError(code, message)
 }
 
+/** A task's assignee as the runtime records it: a user as given, a permission as `{ permission: <id> }`. */
+const assigneeOf = (assignee: unknown): unknown => {
+  const permission = (assignee as { permission?: { id?: unknown } } | null)?.permission
+  return typeof permission === 'object' && permission !== null && typeof permission.id === 'string' ? { permission: permission.id } : assignee
+}
+
+/** The permission a task is assigned to, if it is assigned by permission. */
+const permissionOf = (assignee: unknown): string | undefined => {
+  const permission = (assignee as { permission?: unknown } | null)?.permission
+  return typeof permission === 'string' ? permission : undefined
+}
+
 interface TestingState {
   cases: { name: string; fn: () => unknown; timeoutMs?: number }[]
   http: { request(request: never): Promise<unknown> } | null
@@ -179,6 +191,11 @@ export interface TestHostOptions {
   contacts?: (record: Ref) => ContactTargets | undefined | Promise<ContactTargets | undefined>
   guards?: readonly TestGuard[]
   user?: { id?: string; permissions?: readonly string[]; locale?: string; kind?: 'initiator' | 'owner' }
+  /**
+   * The permissions other users hold, by user id: who may decide a task assigned to a permission
+   * (`wf.task({ assignee: { permission } })`, see `WorkflowRun.decide`). The acting `user` is always known.
+   */
+  users?: Readonly<Record<string, readonly string[]>>
   secrets?: Readonly<Record<string, string>>
   /** Start of the host clock. */
   now?: ISODateTime
@@ -204,6 +221,7 @@ export interface OpenTask {
   readonly name: string
   readonly n: number
   readonly subject: Ref
+  /** The ref of a user task, or `{ permission }` (the permission's ID) of a task for anyone holding it. */
   readonly assignee: unknown
   readonly status: 'open' | 'decided' | 'expired'
 }
@@ -212,7 +230,11 @@ export interface OpenTask {
 export interface WorkflowRun<W extends AnyWorkflow = AnyWorkflow> {
   readonly instance: string
   run(): Promise<WorkflowOutcome<W['output'] extends AnySchema ? Infer<W['output']> : void>>
-  /** Decides the open task `name` (validated against its decision schema). */
+  /**
+   * Decides the open task `name` (validated against its decision schema), as `by` (default: the acting user). A task assigned
+   * to a permission is refused with `workflow.forbidden` unless `by` holds it (the acting user's `user.permissions`, or
+   * `users[by]`), as the engine refuses a decision by a user without the permission.
+   */
   decide(name: string, decision: unknown, options?: { by?: string; n?: number }): void
   /** Delivers a signal; `signal` is `Workflow.signals.<name>` or the signal name. The payload is validated against its schema. */
   signal<N extends keyof W['signals'] & string>(signal: W['signals'][N] | N, payload: SignalPayload<W, N>): void
@@ -398,6 +420,9 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       return id === '' || permissions.has(id)
     },
   }
+
+  const holds = (userId: string, permission: string): boolean =>
+    userId === user.userId ? permissions.has(permission) : (options.users?.[userId]?.includes(permission) ?? false)
 
   let store = new Store()
   const defs = new Map<string, Def>()
@@ -1196,7 +1221,7 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
           let task = tasks.find((t) => t.name === name && t.n === n)
           if (task === undefined) {
             task = {
-              name, n, subject: spec.subject, assignee: spec.assignee, status: 'open', mutableStatus: 'open', schema: spec.decision,
+              name, n, subject: spec.subject, assignee: assigneeOf(spec.assignee), status: 'open', mutableStatus: 'open', schema: spec.decision,
               ...(spec.timeout === undefined ? {} : { due: clockMs + durationMs(spec.timeout) }),
             }
             tasks.push(task)
@@ -1261,6 +1286,10 @@ export function createTestHost(options: TestHostOptions = {}): TestHost {
       decide(name: string, decision: unknown, opts: { by?: string; n?: number } = {}) {
         const task = tasks.find((t) => t.name === name && t.mutableStatus === 'open' && (opts.n === undefined || t.n === opts.n))
         if (task === undefined) return fail('workflow.noOpenTask', `no open task "${name}" in ${instance}`)
+        const required = permissionOf(task.assignee)
+        if (required !== undefined && !holds(opts.by ?? user.userId, required)) {
+          return fail('workflow.forbidden', `user ${opts.by ?? user.userId} does not hold permission ${required}, which task "${name}" is assigned to`)
+        }
         try {
           encode(task.schema, decision as never)
         } catch (e) {

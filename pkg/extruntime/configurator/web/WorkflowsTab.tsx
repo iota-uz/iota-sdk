@@ -102,7 +102,7 @@ export const WorkflowsTab: Component<{ namespace: string }> = (props) => {
           <ul>
             <For each={hist().Tasks ?? []}>{(task) => (
               <li>
-                <span class="mono">{task.Name}</span> · {task.Status} · #{task.AssigneeUserID}
+                <span class="mono">{task.Name}</span> · {task.Status} · <span class="mono" data-testid="task-assignee">{task.AssigneeKind === 'permission' ? task.AssigneePermission : `#${task.AssigneeUserID}`}</span>
                 <Show when={task.Status === 'open' || task.Status === 'pending'}>
                   <button type="button" disabled={busy()} onClick={() => {
                     const raw = window.prompt(t('Decision'), JSON.stringify(task.DecisionSchema ?? null))
