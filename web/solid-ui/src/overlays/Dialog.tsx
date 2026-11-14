@@ -42,11 +42,13 @@ export function Dialog(props: DialogProps) {
         if (!element.isConnected || !expanded()) return
         const preferred = local.initialFocus?.()
         if (preferred) { preferred.focus(); return }
+        // Below md the heading takes focus: showModal() skips it (tabindex=-1) and would focus the first control.
+        const heading = compactViewport(element) ? element.querySelector<HTMLElement>(headingSelector) : null
+        if (heading) { heading.focus({ preventScroll: true }); return }
         // showModal() already moved focus into the dialog; a second script focus() would
         // paint a focus ring on the first control, which the templ dialog does not have.
         if (element.contains(element.ownerDocument.activeElement)) return
-        const heading = compactViewport(element) ? element.querySelector<HTMLElement>(headingSelector) : null
-        ;(heading ?? element.querySelector<HTMLElement>(focusableSelector) ?? element).focus()
+        ;(element.querySelector<HTMLElement>(focusableSelector) ?? element).focus()
       })
     } else if (!expanded() && element.open) {
       if (typeof element.close === 'function') element.close()
