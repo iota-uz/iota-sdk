@@ -2,6 +2,7 @@ package filters_test
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -24,7 +25,13 @@ func TestDrawerIsABottomSheetAsTallAsItsContent(t *testing.T) {
 	assert.Contains(t, out, "dialog-btt")
 	assert.Contains(t, out, "max-h-[85dvh]")
 	assert.NotContains(t, out, "w-3/4")
-	assert.NotContains(t, out, "h-full max-h-full w-full", "the sheet itself must not fill the screen")
+	// The <dialog> covers the screen; the sheet inside it must not. twmerge returns the
+	// dialog's classes in a group order of its own, so look at the sheet's class tokens.
+	sheet := regexp.MustCompile(`<div class="([^"]*)" x-data="filtersSheet"`).FindStringSubmatch(out)
+	require.Len(t, sheet, 2, "the sheet element")
+	tokens := strings.Fields(sheet[1])
+	assert.NotContains(t, tokens, "h-full", "the sheet itself must not fill the screen")
+	assert.NotContains(t, tokens, "max-h-full", "the sheet itself must not fill the screen")
 	assert.Contains(t, out, `name="category"`)
 }
 
