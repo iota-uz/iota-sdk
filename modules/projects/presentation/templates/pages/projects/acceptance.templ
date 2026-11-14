@@ -72,6 +72,7 @@ templ AcceptancePanel(props *AcceptanceProps) {
 					"hx-get":       acceptanceDrawerURL(props.ProjectID, ""),
 					"hx-target":    "body",
 					"hx-swap":      "beforeend",
+					"hx-sync":      "body:drop",
 					"data-test-id": "acceptance-new",
 				},
 			}) {
@@ -111,6 +112,7 @@ templ AcceptancePanel(props *AcceptanceProps) {
 									"hx-get":       acceptanceDrawerURL(props.ProjectID, document.ID),
 									"hx-target":    "body",
 									"hx-swap":      "beforeend",
+									"hx-sync":      "body:drop",
 									"data-test-id": "acceptance-edit",
 								},
 							}) {

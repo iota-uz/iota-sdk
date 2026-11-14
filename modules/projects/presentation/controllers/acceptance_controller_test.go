@@ -78,7 +78,7 @@ func TestAcceptanceController_Panel_OpensTheDrawer(t *testing.T) {
 	suite, _, p := newAcceptanceSuite(t)
 
 	html := suite.GET(acceptancePath(p.ID())).HTMX().Expect(t).Status(200).HTML()
-	html.Element("//button[@data-test-id='acceptance-new' and @hx-get='" + acceptanceDrawerPath(p.ID()) + "']").Exists()
+	html.Element("//button[@data-test-id='acceptance-new' and @hx-get='" + acceptanceDrawerPath(p.ID()) + "' and @hx-sync='body:drop']").Exists()
 	require.Empty(t, html.Elements("//form"), "the panel has no inline form: the drawer is the one form")
 }
 
