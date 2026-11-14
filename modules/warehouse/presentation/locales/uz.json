@@ -98,6 +98,7 @@
       "DeleteConfirmation": "Ushbu mahsulotni o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Mahsulotlar",
       "Created": {
         "Title": "Mahsulot yaratildi",
         "Summary": "Omborga mahsulot qo'shildi"
@@ -202,6 +203,7 @@
       "Submit": "Yuklash"
     },
     "History": {
+      "Resource": "Nomlar",
       "Created": {
         "Title": "Nom yaratildi",
         "Summary": "Ombor nomi qo'shildi"
@@ -252,6 +254,7 @@
       "DeleteConfirmation": "Ushbu o'lchov birligini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "O'lchov birliklari",
       "Created": {
         "Title": "O'lchov birligi yaratildi",
         "Summary": "O'lchov birligi qo'shildi"
@@ -337,6 +340,7 @@
       "DeleteConfirmation": "Ushbu buyurtmani o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Nakladnoylar",
       "Created": {
         "Title": "Nakladnoy yaratildi",
         "Summary": "Ombor nakladnoyi rasmiylashtirildi"
@@ -411,6 +415,7 @@
       "DeleteConfirmation": "Ushbu inventarizatsiyani o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Inventarizatsiyalar",
       "Created": {
         "Title": "Inventarizatsiya yaratildi",
         "Summary": "Inventarizatsiya o'tkazildi"

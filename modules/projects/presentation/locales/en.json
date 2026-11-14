@@ -83,6 +83,7 @@
       },
       "Status": "Status",
       "History": {
+        "Resource": "Acceptance documents",
         "Created": {
           "Title": "Acceptance document created",
           "Summary": "A draft acceptance document was added to the project"
@@ -118,6 +119,7 @@
       }
     },
     "History": {
+      "Resource": "Projects",
       "Created": {
         "Title": "Project created",
         "Summary": "A new project was added"
@@ -175,6 +177,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this project stage?"
     },
     "History": {
+      "Resource": "Project stages",
       "Created": {
         "Title": "Project stage created",
         "Summary": "A new stage was added to the project"

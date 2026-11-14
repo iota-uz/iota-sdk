@@ -95,6 +95,11 @@ Not recorded, by design:
 Actor is the execution actor (the user for UI and import, `job:<kind>` with the user as initiator
 for jobs, `system` for scheduled and CLI runs). Channels are those of the entry points above.
 
+Every resource named by an event needs a translated plural label in all locales: it names the resource
+in the history page's filters and in event subjects. `history.Lifecycle` sets `Resource.LabelKey` to
+`<KeyPrefix>.Resource`; other resources set `LabelKey` themselves. `TestBusinessHistoryResources_HaveDistinctTranslatedLabels`
+fails on a missing, untranslated or duplicate label.
+
 | event_type | Business name | Resource | Fields | Service.Method | Test |
 |---|---|---|---|---|---|
 | `import.item` | Import item rejected | `import.item` | — (outcome `failed` / `denied`) | `history.ImportItem; warehouse/PositionRowHandler` | `TestPositionRowHandler_PartialImport`, `TestPositionRowHandler_RecordRejectedRows` |
@@ -178,6 +183,7 @@ for jobs, `system` for scheduled and CLI runs). Channels are those of the entry 
 | `projects.project_stage.updated` | Project stage changed | `projects.project_stage` | same | `projects/ProjectStageService.Update`, `projects/ProjectStageService.Save (existing ID)` | `TestProjectsHistory_RecordsServiceMutations` |
 | `projects.project_stage.deleted` | Project stage deleted | `projects.project_stage` | same | `projects/ProjectStageService.Delete` | `TestProjectsHistory_RecordsServiceMutations` |
 | `projects.acceptance.created` | Acceptance document created | `projects.acceptance` | project_id, kind, number, date, amount, status, description | `projects/AcceptanceService.Create` | `TestProjectsHistory_RecordsServiceMutations` |
+| `projects.acceptance.updated` | Acceptance document updated | `projects.acceptance` | same | `projects/AcceptanceService.Update` | `TestProjectsHistory_RecordsServiceMutations` |
 | `projects.acceptance.signed` | Acceptance document signed | `projects.acceptance` | same (status changes) | `projects/AcceptanceService.Sign` | `TestProjectsHistory_RecordsServiceMutations` |
 | `projects.acceptance.cancelled` | Acceptance document cancelled | `projects.acceptance` | same (status changes) | `projects/AcceptanceService.Cancel` | `TestProjectsHistory_RecordsServiceMutations` |
 | `projects.acceptance.deleted` | Acceptance document deleted | `projects.acceptance` | same | `projects/AcceptanceService.Delete` | `TestProjectsHistory_RecordsServiceMutations` |

@@ -105,6 +105,9 @@ Placeholder = "1234567"
 Label = "PIN (Número de Identificação Pessoal)"
 Placeholder = "123456789192121"
 
+[Employees.History]
+Resource = "Funcionários"
+
 [Employees.History.Created]
 Title = "Funcionário adicionado"
 Summary = "Um novo funcionário foi contratado"
@@ -118,6 +121,9 @@ Summary = "O funcionário foi removido do quadro de pessoal"
 Label = "Nome do cargo"
 [Positions.Single.Description]
 Label = "Descrição"
+[Positions.History]
+Resource = "Cargos"
+
 [Positions.History.Created]
 Title = "Cargo criado"
 Summary = "Um novo cargo foi adicionado"

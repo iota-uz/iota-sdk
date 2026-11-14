@@ -343,3 +343,17 @@ func TestNewRegistryDeduplicatesKeys(t *testing.T) {
 
 	assert.Len(t, reg.Schema().Fields, 2, "Schema() must not emit duplicate fields")
 }
+
+func TestPopoversStayInsideNarrowScreens(t *testing.T) {
+	fs := filterq.FilterSet{{Field: "status", Op: filterq.OpIs, Values: []string{"1"}}}
+	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
+
+	// Below the sm breakpoint a popover spans the builder row instead of a fixed 20rem
+	// column anchored to its button, which would run off the right edge.
+	popovers := strings.Count(html, "data-fb-popover")
+	require.Positive(t, popovers)
+	assert.Equal(t, popovers, strings.Count(html, "w-full sm:w-80"), "every popover is full width on mobile")
+	assert.NotContains(t, html, " w-80 ", "a fixed popover width overflows phones")
+	assert.Contains(t, html, `class="relative flex flex-wrap`, "the builder row anchors the popovers on mobile")
+	assert.Contains(t, html, `class="sm:relative"`, "button wrappers only anchor popovers from sm up")
+}

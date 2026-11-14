@@ -101,7 +101,7 @@ func builderRoot(props Props, oob bool) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		var templ_7745c5c3_Var4 = []any{"flex flex-wrap items-center gap-2", props.Class}
+		var templ_7745c5c3_Var4 = []any{"relative flex flex-wrap items-center gap-2", props.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -218,7 +218,7 @@ func addFilterButton(props Props) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"relative\" x-on:click.outside=\"if (adding) closeAll()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"sm:relative\" x-on:click.outside=\"if (adding) closeAll()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -260,7 +260,7 @@ func addFilterButton(props Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button><div x-cloak x-show=\"adding\" x-transition.opacity.duration.100ms role=\"dialog\" data-fb-popover class=\"absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm\"><!-- Stage 1: field picker --><div x-show=\"draftField === null\"><div class=\"flex items-center gap-2 border-b border-secondary px-3 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button><div x-cloak x-show=\"adding\" x-transition.opacity.duration.100ms role=\"dialog\" data-fb-popover class=\"absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm\"><!-- Stage 1: field picker --><div x-show=\"draftField === null\"><div class=\"flex items-center gap-2 border-b border-secondary px-3 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

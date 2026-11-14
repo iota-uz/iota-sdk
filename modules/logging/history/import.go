@@ -24,7 +24,7 @@ func ImportItemDefinition() Definition {
 		Category:       businessevent.CategoryBusiness,
 		TitleKey:       "BusinessHistory.Events.ImportItem.Title",
 		DescriptionKey: "BusinessHistory.Events.ImportItem.Summary",
-		Resources:      []Resource{{Name: ImportItemResource}},
+		Resources:      []Resource{{Name: ImportItemResource, LabelKey: "BusinessHistory.Resources.ImportItem"}},
 	}
 }
 

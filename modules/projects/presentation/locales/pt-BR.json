@@ -83,6 +83,7 @@
       },
       "Status": "Status",
       "History": {
+        "Resource": "Documentos de aceite",
         "Created": {
           "Title": "Documento de aceite criado",
           "Summary": "Um rascunho de documento de aceite foi adicionado ao projeto"
@@ -118,6 +119,7 @@
       }
     },
     "History": {
+      "Resource": "Projetos",
       "Created": {
         "Title": "Projeto criado",
         "Summary": "Um novo projeto foi adicionado"
@@ -175,6 +177,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta etapa de projeto?"
     },
     "History": {
+      "Resource": "Etapas do projeto",
       "Created": {
         "Title": "Etapa do projeto criada",
         "Summary": "Uma nova etapa foi adicionada ao projeto"

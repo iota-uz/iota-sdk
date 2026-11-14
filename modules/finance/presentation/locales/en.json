@@ -91,6 +91,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this expense category?"
     },
     "History": {
+      "Resource": "Expense categories",
       "Created": {
         "Title": "Expense category created",
         "Summary": "A new expense category was added"
@@ -148,6 +149,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this payment?"
     },
     "History": {
+      "Resource": "Payments",
       "Created": {
         "Title": "Payment created",
         "Summary": "A payment was recorded"
@@ -212,6 +214,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this expense?"
     },
     "History": {
+      "Resource": "Expenses",
       "Created": {
         "Title": "Expense created",
         "Summary": "An expense was recorded"
@@ -283,6 +286,7 @@
       "SOLE_PROPRIETORSHIP": "Sole Proprietorship"
     },
     "History": {
+      "Resource": "Counterparties",
       "Created": {
         "Title": "Counterparty created",
         "Summary": "A new counterparty was added"
@@ -345,6 +349,7 @@
       "Loading": "Loading…"
     },
     "History": {
+      "Resource": "Accounts",
       "Created": {
         "Title": "Account created",
         "Summary": "A money account was opened with its starting balance"
@@ -406,6 +411,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this payment category?"
     },
     "History": {
+      "Resource": "Payment categories",
       "Created": {
         "Title": "Payment category created",
         "Summary": "A new payment category was added"
@@ -457,6 +463,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this inventory item?"
     },
     "History": {
+      "Resource": "Inventory items",
       "Created": {
         "Title": "Inventory item created",
         "Summary": "An inventory item was added"
@@ -531,6 +538,7 @@
       "ADJUSTMENT": "Adjustment"
     },
     "History": {
+      "Resource": "Transactions",
       "Created": {
         "Title": "Transfer recorded",
         "Summary": "Money was transferred or exchanged between accounts"
@@ -681,6 +689,7 @@
       "WrittenOff": "Debt written off successfully"
     },
     "History": {
+      "Resource": "Debts",
       "Created": {
         "Title": "Debt created",
         "Summary": "A debt was recorded"

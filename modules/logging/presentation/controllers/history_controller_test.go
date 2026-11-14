@@ -1,10 +1,15 @@
 package controllers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/antchfx/htmlquery"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -62,18 +67,23 @@ func newHistorySuite(t *testing.T, perms ...permission.Permission) *itf.Suite {
 	return suite
 }
 
-func TestHistoryController_RendersScopeAndFilters(t *testing.T) {
+func TestHistoryController_RendersScopeAndChips(t *testing.T) {
 	t.Parallel()
 	suite := newHistorySuite(t, permissions.ViewLogs)
 
-	html := suite.GET("/admin/history?resource=payment&id=104&channel=mcp&from=2026-10-01").Expect(t).Status(http.StatusOK).HTML()
+	html := suite.GET("/admin/history?resource=payment&id=104&fb=1&f=channel:is:mcp&f=period:after:2026-09-01").Expect(t).Status(http.StatusOK).HTML()
 	require.Equal(t, "payment #104", html.Element(`//h1`).Text())
-	require.Equal(t, "mcp", html.Element(`//select[@name="channel"]/option[@selected]`).Attr("value"))
-	require.Equal(t, "2026-10-01", html.Element(`//input[@name="from"]`).Attr("value"))
 	require.Equal(t, "104", html.Element(`//input[@name="id"]`).Attr("value"))
-	require.Contains(t, html.Element(`//div[@id="history-events"]`).Attr("hx-get"), "/admin/history/events?resource=payment&id=104&channel=mcp")
+	require.Equal(t, "payment", html.Element(`//input[@name="resource"]`).Attr("value"))
+	require.Equal(t, "channel:is:mcp", html.Element(`//input[@name="f"][@data-fb-chip="0"]`).Attr("value"))
+	require.Equal(t, "period:after:2026-09-01", html.Element(`//input[@name="f"][@data-fb-chip="1"]`).Attr("value"))
+	require.Equal(t, "1", html.Element(`//input[@name="fb"]`).Attr("value"))
+	require.Contains(t, html.Element(`//div[@id="history-events"]`).Attr("hx-get"), "/admin/history/events?resource=payment&id=104&fb=1&f=channel:is:mcp")
+	html.Element(`//select[@name="channel"]`).NotExists()
+	html.Element(`//form[@action="/admin/history"]//button[@type="submit"]`).NotExists()
+	require.Empty(t, html.Elements(`//*[@data-fb-label="Resource"]`), "an object page is pinned to its resource")
 
-	suite.GET("/admin/history/events?resource=payment&id=104&channel=mcp").Expect(t).Status(http.StatusOK).
+	suite.GET("/admin/history/events?resource=payment&id=104&fb=1&f=channel:is:mcp").Expect(t).Status(http.StatusOK).
 		Contains(`data-state="ready"`).
 		Contains("Primerova Anna").
 		Contains("Service payment for September").
@@ -81,6 +91,67 @@ func TestHistoryController_RendersScopeAndFilters(t *testing.T) {
 
 	suite.GET("/admin/history/events?resource=payment&id=105").Expect(t).Status(http.StatusOK).Contains(`data-state="empty"`)
 	suite.GET("/admin/history/events?resource=users").Expect(t).Status(http.StatusOK).Contains(`data-state="invalid"`)
+	suite.GET("/admin/history/events?fb=1&f=resource:is:users").Expect(t).Status(http.StatusOK).Contains(`data-state="invalid"`)
+}
+
+func TestHistoryController_ListsFiltersWithTranslatedLabels(t *testing.T) {
+	t.Parallel()
+	suite := newHistorySuite(t, permissions.ViewLogs)
+
+	html := suite.GET("/admin/history?fb=1&f=resource:is:finance.expense,finance.payment").Expect(t).Status(http.StatusOK).HTML()
+	for _, field := range []string{"Period", "Resource", "Action", "Channel", "Result"} {
+		require.NotEmpty(t, html.Elements(`//*[@data-fb-label="`+field+`"]`), field)
+	}
+	require.Equal(t, "resource:is:finance.expense,finance.payment", html.Element(`//input[@name="f"][@data-fb-chip="0"]`).Attr("value"))
+	require.Contains(t, html.Element(`//input[@name="f"][@data-fb-chip="0"]/following-sibling::div`).Text(), "Expenses, Payments")
+
+	resources := html.Elements(`//option[starts-with(@value, "core.") or starts-with(@value, "finance.")][string-length(@value) - string-length(translate(@value, ".", "")) = 1]`)
+	require.NotEmpty(t, resources)
+	for _, option := range resources {
+		label := strings.TrimSpace(htmlquery.InnerText(option))
+		require.NotContains(t, label, ".", "%s is listed by its raw key", htmlquery.SelectAttr(option, "value"))
+	}
+	groups := html.Elements(`//option[@data-fb-header]`)
+	require.NotEmpty(t, groups, "actions are grouped by resource")
+	require.Equal(t, "Departments", strings.TrimSpace(htmlquery.InnerText(html.Elements(`//option[@value="__group:Departments"]`)[0])))
+}
+
+func TestHistoryController_LegacyResourceLinkBecomesAChip(t *testing.T) {
+	t.Parallel()
+	suite := newHistorySuite(t, permissions.ViewLogs)
+
+	html := suite.GET("/admin/history?resource=payment").Expect(t).Status(http.StatusOK).HTML()
+	require.Equal(t, "resource:is:payment", html.Element(`//input[@name="f"][@data-fb-chip="0"]`).Attr("value"))
+	suite.GET("/admin/history/events?resource=payment").Expect(t).Status(http.StatusOK).Contains(`data-state="ready"`)
+	suite.GET("/admin/history/events?resource=payment&resource=ignored&fb=1&f=resource:is:payment,payment").Expect(t).Status(http.StatusOK).Contains(`data-state="ready"`)
+}
+
+func TestHistoryController_ShowsTimeInTheApplicationZone(t *testing.T) {
+	t.Parallel()
+	suite := newHistorySuite(t, permissions.ViewLogs)
+	tashkent, err := time.LoadLocation("Asia/Tashkent")
+	require.NoError(t, err)
+	suite.BeforeEach(func(ctx context.Context) context.Context { return composables.WithLocation(ctx, tashkent) })
+
+	page := suite.GET("/admin/history/events?resource=payment&id=104").Expect(t).Status(http.StatusOK).HTML()
+	shown := strings.TrimSpace(page.Element(`//time`).Text())
+	datetime := page.Element(`//time`).Attr("datetime")
+	occurred, err := time.Parse(time.RFC3339, datetime)
+	require.NoError(t, err)
+	require.Equal(t, occurred.In(tashkent).Format("2006-01-02 15:04"), shown)
+	require.NotContains(t, shown, "UTC")
+}
+
+func TestHistoryController_FiltersByPeriodInTheApplicationZone(t *testing.T) {
+	t.Parallel()
+	suite := newHistorySuite(t, permissions.ViewLogs)
+	tashkent, err := time.LoadLocation("Asia/Tashkent")
+	require.NoError(t, err)
+	suite.BeforeEach(func(ctx context.Context) context.Context { return composables.WithLocation(ctx, tashkent) })
+
+	today := time.Now().In(tashkent).Format(time.DateOnly)
+	suite.GET("/admin/history/events?fb=1&f=period:on:" + today).Expect(t).Status(http.StatusOK).Contains(`data-state="ready"`)
+	suite.GET("/admin/history/events?fb=1&f=period:before:2000-01-01").Expect(t).Status(http.StatusOK).Contains(`data-state="empty"`)
 }
 
 func TestHistoryController_DeniesWithoutPermission(t *testing.T) {

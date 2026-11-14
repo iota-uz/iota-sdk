@@ -484,6 +484,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Guruhlar",
       "Created": {
         "Title": "Guruh yaratildi",
         "Summary": "Guruh yaratildi"
@@ -1027,6 +1028,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Rollar",
       "Created": {
         "Title": "Rol yaratildi",
         "Summary": "Rol yaratildi"
@@ -1347,6 +1349,7 @@
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
     },
     "History": {
+      "Resource": "Foydalanuvchilar",
       "Created": {
         "Title": "Foydalanuvchi yaratildi",
         "Summary": "Foydalanuvchi hisobi yaratildi"
@@ -1582,6 +1585,7 @@
       "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
     },
     "History": {
+      "Resource": "Bo'limlar",
       "Created": {
         "Title": "Bo'lim yaratildi",
         "Summary": "Tashkiliy tuzilmaga bo'lim qo'shildi"
@@ -1717,6 +1721,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Foydalanuvchi lavozimlari",
       "Created": {
         "Title": "Lavozim yaratildi",
         "Summary": "Foydalanuvchiga bo'limda lavozim tayinlandi"
