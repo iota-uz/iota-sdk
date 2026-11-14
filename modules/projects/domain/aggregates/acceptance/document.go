@@ -30,10 +30,10 @@ type KindOption struct {
 // DefaultKinds are the kinds every installation offers.
 func DefaultKinds() []KindOption {
 	return []KindOption{
-		{Value: KindAct},
-		{Value: KindDeliveryNote},
-		{Value: KindProtocol},
-		{Value: KindOther},
+		{Value: KindAct, Label: ""},
+		{Value: KindDeliveryNote, Label: ""},
+		{Value: KindProtocol, Label: ""},
+		{Value: KindOther, Label: ""},
 	}
 }
 
@@ -149,6 +149,7 @@ func New(projectID uuid.UUID, kind Kind, number string, date time.Time, amount *
 		kind:        kind,
 		number:      number,
 		date:        date,
+		signedOn:    time.Time{},
 		amount:      amount,
 		status:      StatusDraft,
 		description: "",
