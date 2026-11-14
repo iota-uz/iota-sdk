@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Document the projects.acceptance.updated history event in the business history matrix."
+    },
+    {
+      "bump": "minor",
+      "summary": "Projects: one universal acceptance form. Documents are created, edited and deleted in a drawer built on DrawerHeader/DrawerBody/DrawerFooter (44px close, sticky footer, confirmed delete, MoneyInput amounts), a signing day signs a document, and a protocol kind joins act and delivery note. Applications plug in through the AcceptanceKinds, AcceptanceCurrencyPolicy and AcceptanceSaveHook interfaces. Adds project_acceptance_documents.signed_on, opens the kind column to application kinds, and Repository.Update/Document.Revise; the inline form of the acceptance tab is replaced by the drawer."
+    }
+  ],
+  "source": "b0d14c727d2c76c7190b01bd3c449c7de3ba7684",
+  "version": "0.42.0"
+}
