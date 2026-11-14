@@ -14,19 +14,24 @@ import (
 
 const (
 	findAcceptanceQuery = `
-		SELECT id, tenant_id, project_id, kind, number, document_date, amount,
+		SELECT id, tenant_id, project_id, kind, number, document_date, signed_on, amount,
 			currency_id, status, description, created_at, updated_at
 		FROM project_acceptance_documents`
 	insertAcceptanceQuery = `
 		INSERT INTO project_acceptance_documents (
-			tenant_id, project_id, kind, number, document_date, amount,
+			tenant_id, project_id, kind, number, document_date, signed_on, amount,
 			currency_id, status, description, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`
+	updateAcceptanceQuery = `
+		UPDATE project_acceptance_documents
+		SET kind = $1, number = $2, document_date = $3, signed_on = $4, amount = $5,
+			currency_id = $6, status = $7, description = $8, updated_at = $9
+		WHERE id = $10 AND tenant_id = $11 AND status <> 'CANCELLED'`
 	updateAcceptanceStatusQuery = `
 		UPDATE project_acceptance_documents
-		SET status = $1, updated_at = $2
-		WHERE id = $3 AND tenant_id = $4 AND status = ANY($5)`
+		SET status = $1, signed_on = $2, updated_at = $3
+		WHERE id = $4 AND tenant_id = $5 AND status = ANY($6)`
 	deleteAcceptanceQuery    = `DELETE FROM project_acceptance_documents WHERE id = $1 AND tenant_id = $2`
 	signedAcceptanceSumQuery = `
 		SELECT currency_id, SUM(amount)::bigint
@@ -104,6 +109,7 @@ func (r *AcceptanceRepository) Create(ctx context.Context, document acceptance.D
 		string(document.Kind()),
 		document.Number(),
 		document.Date(),
+		signedOnValue(document),
 		document.Amount().Amount(),
 		document.Amount().Currency().Code,
 		string(document.Status()),
@@ -118,6 +124,42 @@ func (r *AcceptanceRepository) Create(ctx context.Context, document acceptance.D
 		return nil, serrors.Wrap(op, err)
 	}
 	return created, nil
+}
+
+func (r *AcceptanceRepository) Update(ctx context.Context, document acceptance.Document) (acceptance.Document, error) {
+	const op serrors.Op = "AcceptanceRepository.Update"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	tag, err := tx.Exec(ctx, updateAcceptanceQuery,
+		string(document.Kind()),
+		document.Number(),
+		document.Date(),
+		signedOnValue(document),
+		document.Amount().Amount(),
+		document.Amount().Currency().Code,
+		string(document.Status()),
+		mapping.ValueToSQLNullString(document.Description()),
+		document.UpdatedAt(),
+		document.ID(),
+		tenantID,
+	)
+	if err != nil {
+		return nil, serrors.FromDB(op, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, serrors.Wrap(op, acceptance.ErrStatus)
+	}
+	updated, err := r.GetByID(ctx, document.ID())
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return updated, nil
 }
 
 func (r *AcceptanceRepository) UpdateStatus(
@@ -137,7 +179,7 @@ func (r *AcceptanceRepository) UpdateStatus(
 		statuses = append(statuses, string(status))
 	}
 	tag, err := tx.Exec(ctx, updateAcceptanceStatusQuery,
-		string(document.Status()), document.UpdatedAt(), document.ID(), tenantID, statuses,
+		string(document.Status()), signedOnValue(document), document.UpdatedAt(), document.ID(), tenantID, statuses,
 	)
 	if err != nil {
 		return nil, serrors.FromDB(op, err)
@@ -184,7 +226,7 @@ func (r *AcceptanceRepository) query(ctx context.Context, query string, args ...
 	for rows.Next() {
 		var m models.AcceptanceDocument
 		if err := rows.Scan(
-			&m.ID, &m.TenantID, &m.ProjectID, &m.Kind, &m.Number, &m.DocumentDate, &m.Amount,
+			&m.ID, &m.TenantID, &m.ProjectID, &m.Kind, &m.Number, &m.DocumentDate, &m.SignedOn, &m.Amount,
 			&m.CurrencyID, &m.Status, &m.Description, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
 			return nil, serrors.FromDB(op, err)
@@ -224,4 +266,12 @@ func sumByCurrency(ctx context.Context, query string, tenantID uuid.UUID, projec
 		return nil, serrors.FromDB(op, err)
 	}
 	return totals, nil
+}
+
+// signedOnValue is the signing day to store: NULL until the document is signed.
+func signedOnValue(document acceptance.Document) any {
+	if document.SignedOn().IsZero() {
+		return nil
+	}
+	return document.SignedOn()
 }

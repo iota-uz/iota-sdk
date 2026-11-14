@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "Bajarilgan ishlar dalolatnomasi",
         "_DELIVERY_NOTE": "Yuk xati",
+        "_PROTOCOL": "Qabul qilish bayonnomasi",
         "_OTHER": "Boshqa hujjat"
       },
       "Statuses": {
@@ -86,6 +87,10 @@
           "Title": "Qabul hujjati yaratildi",
           "Summary": "Loyihaga qabul hujjati qoralamasi qo'shildi"
         },
+        "Updated": {
+          "Title": "Qabul hujjati o'zgartirildi",
+          "Summary": "Hujjat maydonlari o'zgartirildi"
+        },
         "Signed": {
           "Title": "Qabul hujjati imzolandi",
           "Summary": "Hujjat imzolandi, uning summasi tushum sifatida tan olindi"
@@ -98,6 +103,18 @@
           "Title": "Qabul hujjati o'chirildi",
           "Summary": "Hujjat loyihadan o'chirildi"
         }
+      },
+      "Documents": "Hujjatlar",
+      "Edit": "Tahrirlash",
+      "EditTitle": "Hujjatni tahrirlash",
+      "SignedOn": "Imzolangan sana",
+      "SignedOnHint": "Imzolangan sana summani daromad sifatida tan oladi. Hujjat imzolanmaguncha uni bo'sh qoldiring: u qoralama bo'lib qoladi.",
+      "NumberPlaceholder": "AKT-001",
+      "CurrencyLocked": "Loyihaning barcha hujjatlari bitta valyutada.",
+      "Toasts": {
+        "created": "Hujjat qo'shildi",
+        "updated": "Hujjat saqlandi",
+        "deleted": "Hujjat o'chirildi"
       }
     },
     "History": {

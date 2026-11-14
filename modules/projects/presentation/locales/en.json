@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "Acceptance act",
         "_DELIVERY_NOTE": "Delivery note",
+        "_PROTOCOL": "Acceptance protocol",
         "_OTHER": "Other document"
       },
       "Statuses": {
@@ -86,6 +87,10 @@
           "Title": "Acceptance document created",
           "Summary": "A draft acceptance document was added to the project"
         },
+        "Updated": {
+          "Title": "Acceptance document updated",
+          "Summary": "The document fields were changed"
+        },
         "Signed": {
           "Title": "Acceptance document signed",
           "Summary": "The document was signed and its amount is recognised as revenue"
@@ -98,6 +103,18 @@
           "Title": "Acceptance document deleted",
           "Summary": "The document was removed from the project"
         }
+      },
+      "Documents": "Documents",
+      "Edit": "Edit",
+      "EditTitle": "Edit document",
+      "SignedOn": "Signed on",
+      "SignedOnHint": "The signing date recognises the amount as revenue. Leave it empty while the document is not signed: it stays a draft.",
+      "NumberPlaceholder": "ACT-001",
+      "CurrencyLocked": "All documents of this project are in one currency.",
+      "Toasts": {
+        "created": "Document added",
+        "updated": "Document saved",
+        "deleted": "Document deleted"
       }
     },
     "History": {

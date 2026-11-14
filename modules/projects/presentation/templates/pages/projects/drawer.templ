@@ -174,7 +174,7 @@ templ EditDrawer(props *DrawerEditProps) {
 						id={ fmt.Sprintf("project-acceptance-%s", props.Project.ID) }
 						class="p-6"
 						hx-get={ fmt.Sprintf("/projects/%s/acceptance", props.Project.ID) }
-						hx-trigger="load"
+						hx-trigger="load, iota:refresh"
 						hx-swap="innerHTML"
 					>
 						@table.DefaultPanelSkeleton()
