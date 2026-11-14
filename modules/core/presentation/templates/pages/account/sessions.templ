@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -57,9 +58,7 @@ templ SessionRow(session *viewmodels.Session) {
 			{ session.IPAddress }
 		</td>
 		<td class="px-6 py-4 text-gray-900 dark:text-white">
-			<div x-data="dateTimeFormat">
-				<span x-text={ fmt.Sprintf("format('%s')", session.CreatedAt) }></span>
-			</div>
+			@corecomponents.LocalDateTime(session.CreatedAtISO)
 		</td>
 		<td class="px-6 py-4 text-right">
 			if !session.IsCurrent {
@@ -84,33 +83,35 @@ templ SessionsList(props *SessionsPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	<div class="overflow-x-auto">
+	<div>
 		@card.Card(card.Props{
-			Class: "p-0",
+			Class: "p-0 overflow-hidden",
 		}) {
-			<table class="min-w-full divide-y divide-subtle">
-				<thead class="bg-gray-50 dark:bg-gray-800">
-					<tr>
-						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-							{ pageCtx.T("Account.Sessions.Device") }
-						</th>
-						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-							{ pageCtx.T("Account.Sessions.IPAddress") }
-						</th>
-						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-							{ pageCtx.T("Account.Sessions.CreatedAt") }
-						</th>
-						<th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-							{ pageCtx.T("Account.Sessions.Actions") }
-						</th>
-					</tr>
-				</thead>
-				<tbody class="bg-white dark:bg-gray-900 divide-y divide-subtle" id="sessions-table-body">
-					for _, session := range props.Sessions {
-						@SessionRow(session)
-					}
-				</tbody>
-			</table>
+			<div class="overflow-x-auto">
+				<table class="min-w-full divide-y divide-subtle">
+					<thead class="bg-gray-50 dark:bg-gray-800">
+						<tr>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								{ pageCtx.T("Account.Sessions.Device") }
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								{ pageCtx.T("Account.Sessions.IPAddress") }
+							</th>
+							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								{ pageCtx.T("Account.Sessions.CreatedAt") }
+							</th>
+							<th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								{ pageCtx.T("Account.Sessions.Actions") }
+							</th>
+						</tr>
+					</thead>
+					<tbody class="bg-white dark:bg-gray-900 divide-y divide-subtle" id="sessions-table-body">
+						for _, session := range props.Sessions {
+							@SessionRow(session)
+						}
+					</tbody>
+				</table>
+			</div>
 		}
 	</div>
 }

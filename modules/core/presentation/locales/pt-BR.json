@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Mostrar senha",
     "CloseNotification": "Fechar notificação",
     "TabNavigation": "Navegação por abas",
     "Loading": "Carregando...",
     "LoadFailed": "Não foi possível carregar os dados",
-    "Retry": "Tentar novamente"
+    "Retry": "Tentar novamente",
+    "Close": "Fechar",
+    "SaveFailed": "Não foi possível salvar",
+    "NetworkError": "Sem conexão com o servidor",
+    "NetworkErrorHint": "Verifique a conexão e tente novamente.",
+    "TogglePassword": "Mostrar senha"
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
   "Countries": {
@@ -518,6 +524,25 @@
       "ValidationError": "Erro de validação"
     }
   },
+  "Currencies": {
+    "USD": "Dólar americano",
+    "EUR": "Euro",
+    "TRY": "Lira turca",
+    "GBP": "Libra esterlina",
+    "RUB": "Rublo russo",
+    "JPY": "Iene japonês",
+    "CNY": "Yuan chinês",
+    "UZS": "Som uzbeque",
+    "AUD": "Dólar australiano",
+    "CAD": "Dólar canadense",
+    "CHF": "Franco suíço"
+  },
+  "FormValidation": {
+    "Required": "Preencha este campo.",
+    "InvalidEmail": "Informe um endereço de e-mail válido.",
+    "InvalidUrl": "Informe uma URL válida.",
+    "InvalidFormat": "Use o formato solicitado."
+  },
   "Login": {
     "Meta": {
       "Title": "Entrar"
@@ -674,9 +699,11 @@
 			"Logout": "Sair",
 			"CurrentAccount": "Conta atual",
 			"AddAccount": "Adicionar conta",
-			"LogoutCurrent": "Sair da conta atual",
+			"LogoutCurrent": "Sair",
 			"LogoutAll": "Sair de todas as contas",
-      "Settings": "Configurações"
+      "Settings": "Configurações",
+      "Theme": "Tema",
+      "OpenMenu": "Abrir menu"
     },
     "Departments": "Departamentos",
     "CRM": "CRM",
@@ -991,6 +1018,8 @@
   "Remove": "Remover",
   "Resources": {
     "extension": "Extensões",
+    "department": "Departamento",
+    "notification_rules": "Configurações de notificações",
     "bichat": "BI-Chat",
     "user": "Usuários",
     "role": "Papéis",
@@ -1059,6 +1088,9 @@
       "NoDataTitle": "Nenhum dado disponível",
       "NoDataDescription": "Não há dados disponíveis para esta tabela.",
       "NothingFound": "Nada encontrado",
+      "NothingFoundDescription": "Tente alterar a busca ou os filtros.",
+      "MoreActions": "Mais ações",
+      "SortBy": "Ordenar por",
       "TableSettings": "Configurações da tabela",
       "ResetSettings": "Redefinir configurações",
       "Columns": "Colunas",
@@ -1068,7 +1100,11 @@
     },
     "Filters": {
       "Title": "Filtros",
-      "SelectAll": "Selecionar tudo"
+      "SelectAll": "Selecionar tudo",
+      "Apply": "Aplicar",
+      "Reset": "Redefinir",
+      "Active": "Filtros ativos",
+      "RemoveChip": "Remover filtro"
     },
     "FilterBuilder": {
       "AddFilter": "Adicionar filtro",

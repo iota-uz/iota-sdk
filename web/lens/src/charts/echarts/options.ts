@@ -1330,6 +1330,24 @@ export function categoryLabelLimit(plotWidth: number | undefined): number {
   return Math.max(8, Math.round(categoryLabelWidth(plotWidth) / 6.5))
 }
 
+/** Plot width (px) at which a horizontal bar hangs its names above the bars. */
+export const stackedBarLabelWidth = 480
+
+/**
+ * Whether a horizontal bar chart prints each name above its bar instead of in a
+ * left-hand column.
+ *
+ * In a phone-width plot the column either takes a third of the width and
+ * clips every name («Расчётны…») or leaves the bars a sliver. Above the bar the
+ * name has the whole plot to itself, and the axis keeps only the figures. Only
+ * a single plain series qualifies: a stack or a group of series has no one
+ * bar to hang a name over.
+ */
+export function namesAboveBars(input: ChartInput, stackedOrGrouped: boolean): boolean {
+  return input.kind === 'hbar' && !stackedOrGrouped
+    && input.viewportWidth !== undefined && input.viewportWidth > 0 && input.viewportWidth < stackedBarLabelWidth
+}
+
 function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const points = rowPoints(input)
   const categories = [...new Set(points.map((point) => point.category))]
@@ -1440,6 +1458,38 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ? `${name ? `${name} · ` : ''}${input.labels?.current ?? 'Current period'}`
     : name || undefined
   const namedLineSeries = new Set([...lineSeries].flatMap((name) => [name, currentName(name) ?? name, `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`]))
+  const labelsAbove = namesAboveBars(input, stacked || seriesNames.length > 1)
+  const aboveLimit = Math.max(12, Math.round(((input.viewportWidth ?? 0) - 32) / 6.5))
+  const nameAboveLabel = () => ({
+    show: true,
+    // Relative to the bar's own top-left corner, so the name sits just above
+    // its bar whatever the band height turns out to be.
+    position: [0, -3] as [number, number],
+    align: 'left' as const,
+    verticalAlign: 'bottom' as const,
+    color: theme.mutedText,
+    fontSize: theme.type.sm,
+    formatter: (params: { name?: string; value?: unknown }) => {
+      const label = middleEllipsis(text(params.name), aboveLimit)
+      return dataLabels ? `${label} · ${compactFormatter(tooltipValue(params.value))}` : label
+    },
+  })
+  const valueLabel = (index: number) => ({
+    show: true,
+    // Neighbouring line series often carry close values at the same
+    // category. Alternating sides preserves both readings instead of
+    // painting two formatted values on top of each other.
+    position: isBar
+      ? (horizontal ? 'right' as const : 'top' as const)
+      : (index % 2 === 0 ? 'top' as const : 'bottom' as const),
+    color: theme.text,
+    formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
+  })
+  const dataLabelOption = (index: number, isLine: boolean) => {
+    if (isLine) return undefined
+    if (labelsAbove) return nameAboveLabel()
+    return dataLabels ? valueLabel(index) : undefined
+  }
   const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: currentName(name),
@@ -1447,27 +1497,15 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
     barMaxWidth: isBar && !lineSeries.has(name) && !barWidth ? maximumBarWidth : undefined,
-    barCategoryGap: isBar && !lineSeries.has(name) ? barCategoryGap : undefined,
+    barCategoryGap: isBar && !lineSeries.has(name) ? (labelsAbove ? '55%' : barCategoryGap) : undefined,
     // Bar length on a logarithmic axis communicates order of magnitude, not
     // the literal value. Print that value on the mark so restoring the scale
     // never makes the chart less informative than its linear counterpart.
-    label: dataLabels && !lineSeries.has(name)
-      ? {
-        show: true,
-        // Neighbouring line series often carry close values at the same
-        // category. Alternating sides preserves both readings instead of
-        // painting two formatted values on top of each other.
-        position: isBar
-          ? (horizontal ? 'right' as const : 'top' as const)
-          : (index % 2 === 0 ? 'top' as const : 'bottom' as const),
-        color: theme.text,
-        formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
-      }
-      : undefined,
+    label: dataLabelOption(index, lineSeries.has(name)),
     // With the mark count capped above, `hideOverlap` is a last resort against
     // two labels that still touch rather than the rule that decides which
     // values the reader is shown.
-    labelLayout: dataLabels && !lineSeries.has(name) ? { hideOverlap: true } : undefined,
+    labelLayout: dataLabels && !lineSeries.has(name) && !labelsAbove ? { hideOverlap: true } : undefined,
     // The panel's resolver knows about colours pinned to the n-th series of
     // this panel; ECharts' own palette does not, and left to itself it walks a
     // default sequence that has nothing to do with the legend beside it.
@@ -1752,6 +1790,16 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   // The names a horizontal bar hangs in the plot's left margin get a share of
   // the plot, not a constant, and the string is shortened to that share.
   const nameWidth = categoryLabelWidth(input.viewportWidth)
+  const horizontalCategoryLabels = namesAboveBars(input, stacked || seriesNames.length > 1)
+    ? { axisLabel: { show: false }, axisTick: { show: false } }
+    : {
+      axisLabel: {
+        color: theme.mutedText,
+        width: nameWidth,
+        formatter: (value: string) => middleEllipsis(String(value), categoryLabelLimit(input.viewportWidth)),
+        overflow: 'truncate' as const,
+      },
+    }
   const categoryAxis = {
     type: 'category' as const,
     data: categories,
@@ -1779,16 +1827,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // ECharts passes the category index as the formatter's second argument;
     // passing middleEllipsis directly therefore treated the index as a width
     // and mangled already-short labels such as "Apr".
-    ...(horizontal
-      ? {
-        axisLabel: {
-          color: theme.mutedText,
-          width: nameWidth,
-          formatter: (value: string) => middleEllipsis(String(value), categoryLabelLimit(input.viewportWidth)),
-          overflow: 'truncate' as const,
-        },
-      }
-      : {}),
+    ...(horizontal ? horizontalCategoryLabels : {}),
   }
   const temporalAxis = {
     type: 'time' as const,
@@ -1832,6 +1871,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     logBase: logarithmic ? (input.valueAxis?.logBase || 10) : undefined,
     min: clamped?.min,
     max: logMaximum ?? clamped?.max,
+    // A phone-width plot holds three labelled ticks, not five: the default
+    // split printed labels that overlapped and `hideOverlap` then kept two.
+    ...(!logarithmic && input.viewportWidth ? { splitNumber: Math.max(2, Math.min(5, Math.floor(input.viewportWidth / 96))) } : {}),
     ...(input.valueUnit
       ? {
         name: input.valueUnit,
@@ -1840,7 +1882,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         nameTextStyle: {
           color: theme.mutedText,
           fontSize: theme.type.xs,
-          align: horizontal ? ('center' as const) : ('right' as const),
+          // Ending at the axis end, never centred on it: a name centred on the
+          // last tick hangs half outside the grid and a phone clips it («UZ»).
+          align: 'right' as const,
         },
       }
       : {}),

@@ -58,6 +58,7 @@ import { QueryError, SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { navigateTo } from './navigate'
+import { builtinMessage } from './messages'
 import { X } from '../icons'
 import { reportPlacementAvailable, reportPlacementUnavailable, useReportPlacementHost } from '../reports/placementHost'
 import { reportUnavailableCopy, reportUnavailableTitle } from '../reports/unavailable'
@@ -467,9 +468,12 @@ function translation(
   key: string,
   fallback: string,
   vars?: TranslationVars,
+  locale?: string,
 ): string {
   const value = messages[key]
-  const text = typeof value === 'string' && value.trim() !== '' ? value : fallback
+  // Host catalogue first, then the runtime's own text for the reader's
+  // language, then the English call-site fallback.
+  const text = typeof value === 'string' && value.trim() !== '' ? value : builtinMessage(locale, key) ?? fallback
   if (!vars) return text
   // Placeholders keep word order translatable: a catalogue can move {name}
   // wherever its language needs it.
@@ -1073,7 +1077,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       applyFilters(values)
     }
   }
-  const translate = (key: string, fallback: string): string => translation(resolvedDoc.i18n, key, fallback)
+  const translate = (key: string, fallback: string): string => translation(resolvedDoc.i18n, key, fallback, undefined, resolvedDoc.meta.locale)
   const driftNotice = (): string => translate(
     'drill.reset',
     'The previous drill path is no longer available. Lens returned to the root view.',
@@ -2270,7 +2274,8 @@ function RuntimeNotice(props: { notice: string; onDismiss: () => void }): JSX.El
 
 export function useTranslate(): (key: string, fallback: string, vars?: TranslationVars) => string {
   const messages = useI18nMessages()
-  return (key: string, fallback: string, vars?: TranslationVars) => translation(messages(), key, fallback, vars)
+  const locale = useLocale()
+  return (key: string, fallback: string, vars?: TranslationVars) => translation(messages(), key, fallback, vars, locale())
 }
 
 export function useDocumentState(): DocumentContextValue {

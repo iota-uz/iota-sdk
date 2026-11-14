@@ -67,7 +67,7 @@ Placeholder = "+998 (__) ___ __ __"
 
 [Employees.Public.Email]
 Label = "E-mail"
-Placeholder = "jodoe@gmail.com"
+Placeholder = "name@example.com"
 
 [Employees.Public.BirthDate]
 Label = "Data de nascimento"

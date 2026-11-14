@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Lens on phones: a stat tile's header is one row at every width and folds export/expand into a «⋯» menu (new key panel.actions) when the tile is narrow; KPI tiles form a 2×2 grid on a phone; the dashboard freshness label truncates instead of pushing Export onto a second row; horizontal bars hang names above the bars on narrow plots and keep the unit inside the grid; a pie legend folds to a few rows without the per-row eye and bulk controls; the sr-only chart mark buttons no longer overlap; the drill arrow stays beside the figure; the runtime ships built-in Russian (and a Latin Uzbek subset) chrome messages chosen by the document locale, with the host catalogue still winning; compact money carries the host grapheme (FieldFormat.symbol is now set for abbreviated money) so tiles and charts print one currency format."
+}

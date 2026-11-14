@@ -165,7 +165,7 @@
     },
     "Filters": {
       "All": "Все",
-      "AllTime": "Все время",
+      "AllTime": "Всё время",
       "Apply": "Применить",
       "CustomRange": "Произвольный диапазон",
       "DefaultRange": "Стандартный диапазон",
@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Показать пароль",
     "CloseNotification": "Закрыть уведомление",
     "TabNavigation": "Навигация по вкладкам",
     "Loading": "Загрузка...",
     "LoadFailed": "Не удалось загрузить данные",
-    "Retry": "Повторить"
+    "Retry": "Повторить",
+    "Close": "Закрыть",
+    "SaveFailed": "Не удалось сохранить",
+    "NetworkError": "Нет связи с сервером",
+    "NetworkErrorHint": "Проверьте подключение и повторите попытку.",
+    "TogglePassword": "Показать пароль"
   },
   "ConfirmDelete": "Вы уверены, что хотите удалить этот элемент?",
   "Countries": {
@@ -426,14 +432,14 @@
   },
   "Filters": {
     "CreatedAt": {
-      "AllTime": "Все время",
+      "AllTime": "Всё время",
       "Today": "Сегодня",
       "Yesterday": "Вчера",
       "Ereyesterday": "Позавчера",
-      "ThisWeek": "На этой неделе",
-      "LastWeek": "Прошлой неделе",
-      "ThisMonth": "В этом месяце",
-      "LastMonth": "В прошлом месяце"
+      "ThisWeek": "Эта неделя",
+      "LastWeek": "Прошлая неделя",
+      "ThisMonth": "Этот месяц",
+      "LastMonth": "Прошлый месяц"
     }
   },
   "Groups": {
@@ -517,6 +523,25 @@
     "Error": {
       "ValidationError": "Ошибка валидации"
     }
+  },
+  "Currencies": {
+    "USD": "Доллар США",
+    "EUR": "Евро",
+    "TRY": "Турецкая лира",
+    "GBP": "Британский фунт",
+    "RUB": "Российский рубль",
+    "JPY": "Японская иена",
+    "CNY": "Китайский юань",
+    "UZS": "Узбекский сум",
+    "AUD": "Австралийский доллар",
+    "CAD": "Канадский доллар",
+    "CHF": "Швейцарский франк"
+  },
+  "FormValidation": {
+    "Required": "Заполните это поле.",
+    "InvalidEmail": "Введите корректный адрес электронной почты.",
+    "InvalidUrl": "Введите корректный адрес ссылки.",
+    "InvalidFormat": "Введите значение в запрошенном формате."
   },
   "Login": {
     "Meta": {
@@ -675,9 +700,11 @@
 			"Logout": "Выйти",
 			"CurrentAccount": "Текущий аккаунт",
 			"AddAccount": "Добавить аккаунт",
-			"LogoutCurrent": "Выйти из текущего",
+			"LogoutCurrent": "Выйти",
 			"LogoutAll": "Выйти из всех аккаунтов",
-      "Settings": "Настройки"
+      "Settings": "Настройки",
+      "Theme": "Тема",
+      "OpenMenu": "Открыть меню"
     },
     "Departments": "Отделы"
   },
@@ -988,6 +1015,8 @@
   "Remove": "Удалить",
   "Resources": {
     "extension": "Расширения",
+    "department": "Отдел",
+    "notification_rules": "Настройки уведомлений",
     "bichat": "BI-Чат",
     "user": "Пользователи",
     "role": "Роли",
@@ -1056,6 +1085,9 @@
       "NoDataTitle": "Данные недоступны",
       "NoDataDescription": "Для этой таблицы нет доступных данных.",
       "NothingFound": "Ничего не найдено",
+      "NothingFoundDescription": "Попробуйте изменить поиск или фильтры.",
+      "MoreActions": "Ещё действия",
+      "SortBy": "Сортировка",
       "TableSettings": "Настройки таблицы",
       "ResetSettings": "Сбросить настройки",
       "Columns": "Колонки",
@@ -1065,7 +1097,11 @@
     },
     "Filters": {
       "Title": "Фильтры",
-      "SelectAll": "Выбрать все"
+      "SelectAll": "Выбрать все",
+      "Apply": "Применить",
+      "Reset": "Сбросить",
+      "Active": "Активные фильтры",
+      "RemoveChip": "Убрать фильтр"
     },
     "FilterBuilder": {
       "AddFilter": "Добавить фильтр",

@@ -10,8 +10,11 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
+	"time"
+	_ "time/tzdata" // application time zones must resolve on images without system zoneinfo
 	"unicode"
 
 	"github.com/BurntSushi/toml"
@@ -188,12 +191,23 @@ func validateSeedSignature(fn interface{}) error {
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
-	Pool               *pgxpool.Pool
-	EventBus           eventbus.EventBus
-	Logger             *logrus.Logger
-	Bundle             *i18n.Bundle
-	Huber              Huber
+	Pool     *pgxpool.Pool
+	EventBus eventbus.EventBus
+	Logger   *logrus.Logger
+	Bundle   *i18n.Bundle
+	Huber    Huber
+	// SupportedLanguages lists the enabled UI language codes. Empty means every
+	// language the SDK ships.
 	SupportedLanguages []string
+	// DefaultLanguage is the UI language used when neither the user's saved
+	// preference nor the Accept-Language header selects an enabled language.
+	// Empty keeps the legacy behavior (English when enabled). It must be one of
+	// SupportedLanguages when that list is set.
+	DefaultLanguage string
+	// Timezone is the IANA name of the application time zone (for example
+	// "Asia/Tashkent") used to render server-side timestamps. Empty keeps
+	// timestamps in the viewer's browser time zone.
+	Timezone string
 	// Meili holds MeiliSearch settings. When nil or empty URL, the application
 	// uses a no-op search engine.
 	Meili *meiliconfig.Config
@@ -219,6 +233,62 @@ func DefaultSupportedLanguages() []string {
 		string(coreuser.UILanguagePTBR),
 		string(coreuser.UILanguageZH),
 	}
+}
+
+// LocationProvider is implemented by applications that expose a configured
+// application time zone.
+type LocationProvider interface {
+	GetLocation() *time.Location
+}
+
+// LocationOf returns the application time zone configured on app, or nil when
+// the application does not configure one.
+func LocationOf(app Application) *time.Location {
+	if provider, ok := app.(LocationProvider); ok {
+		return provider.GetLocation()
+	}
+	return nil
+}
+
+// loadLocation resolves an optional IANA time zone name; an empty name yields
+// a nil location, meaning no application time zone is configured.
+func loadLocation(name string) (*time.Location, error) {
+	var loc *time.Location
+	if name == "" {
+		return loc, nil
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("invalid application time zone %q: %w", name, err)
+	}
+	return loc, nil
+}
+
+// DefaultLanguageProvider is implemented by applications that expose a
+// configured default UI language.
+type DefaultLanguageProvider interface {
+	GetDefaultLanguage() string
+}
+
+// DefaultLanguageOf returns the default UI language code configured on app, or
+// an empty string when the application does not configure one.
+func DefaultLanguageOf(app Application) string {
+	if provider, ok := app.(DefaultLanguageProvider); ok {
+		return provider.GetDefaultLanguage()
+	}
+	return ""
+}
+
+// ValidateDefaultLanguage checks that the default language is one of the
+// enabled languages when such a list is given.
+func ValidateDefaultLanguage(defaultLanguage string, supported []string) error {
+	if defaultLanguage == "" {
+		return nil
+	}
+	if len(supported) > 0 && !slices.Contains(supported, defaultLanguage) {
+		return fmt.Errorf("default language %q is not in the enabled languages %v", defaultLanguage, supported)
+	}
+	return nil
 }
 
 // LoadBundleFromLocaleFiles creates a bundle and loads all message files from the given embed.FS slices.
@@ -250,6 +320,13 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("application options are required")
 	}
+	if err := ValidateDefaultLanguage(opts.DefaultLanguage, opts.SupportedLanguages); err != nil {
+		return nil, err
+	}
+	location, err := loadLocation(opts.Timezone)
+	if err != nil {
+		return nil, err
+	}
 
 	var engine spotlight.IndexEngine
 	serviceOpts := make([]spotlight.ServiceOption, 0, 1)
@@ -272,6 +349,10 @@ func New(opts *ApplicationOptions) (Application, error) {
 	// Inject QuickLinks into the service for in-memory fuzzy search in the fast stage.
 	spotlight.WithQuickLinks(quickLinks)(spotlightService)
 
+	if located, ok := opts.Huber.(interface{ SetLocation(*time.Location) }); ok {
+		located.SetLocation(location)
+	}
+
 	app := &application{
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
@@ -281,6 +362,8 @@ func New(opts *ApplicationOptions) (Application, error) {
 		bundle:             opts.Bundle,
 		migrations:         newMigrationManager(opts.Pool, opts.DBConfig, opts.Logger),
 		supportedLanguages: opts.SupportedLanguages,
+		defaultLanguage:    opts.DefaultLanguage,
+		location:           location,
 		appletRegistry:     applets.NewRegistry(),
 	}
 	return app, nil
@@ -308,6 +391,8 @@ type application struct {
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
 	supportedLanguages []string
+	defaultLanguage    string
+	location           *time.Location
 	appletRegistry     applets.Registry
 	runtimeSource      RuntimeSource
 }
@@ -491,6 +576,18 @@ func (app *application) Bundle() *i18n.Bundle {
 
 func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
+}
+
+// GetDefaultLanguage returns the configured default UI language code, or an
+// empty string when none was configured.
+func (app *application) GetDefaultLanguage() string {
+	return app.defaultLanguage
+}
+
+// GetLocation returns the configured application time zone, or nil when none
+// was configured.
+func (app *application) GetLocation() *time.Location {
+	return app.location
 }
 
 func (app *application) AppletRegistry() applets.Registry {

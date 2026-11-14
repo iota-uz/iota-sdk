@@ -9,16 +9,26 @@ import (
 type DrawerProps struct {
 	Heading string
 	Action  string
+	// ApplyLabel and ResetLabel add a footer with Apply and Reset buttons. A
+	// button is left out when its label is empty. Apply submits the enclosing
+	// form and closes the sheet; Reset clears the sheet's fields first.
+	ApplyLabel string
+	ResetLabel string
 }
 
+// Drawer is the filter sheet. On phones it slides up from the bottom and is as
+// tall as its content, up to 85% of the screen; from md up it is a side panel.
 templ Drawer(props DrawerProps) {
 	@dialog.Drawer(dialog.DrawerProps{
-		Direction: dialog.RTL,
+		Direction: dialog.BTT,
 		Action:    props.Action,
-		Classes:   templ.Classes("flex items-stretch"),
+		Classes:   templ.Classes("flex items-end md:items-stretch"),
 	}) {
-		<div class="flex flex-col gap-3 bg-white w-3/4 ml-auto p-4">
-			<div class="flex justify-between">
+		<div
+			class="flex w-full max-h-[85dvh] flex-col gap-4 overflow-y-auto rounded-t-2xl bg-white p-4 md:ml-auto md:h-full md:max-h-full md:w-96 md:rounded-none"
+			x-data="filtersSheet"
+		>
+			<div class="flex items-center justify-between gap-3">
 				<h3 class="text-2xl font-medium">{ props.Heading }</h3>
 				<div>
 					@button.Secondary(button.Props{
@@ -30,6 +40,28 @@ templ Drawer(props DrawerProps) {
 				</div>
 			</div>
 			{ children... }
+			if props.ApplyLabel != "" || props.ResetLabel != "" {
+				<div class="sticky bottom-0 -mx-4 -mb-4 flex gap-3 border-t border-subtle bg-white p-4">
+					if props.ResetLabel != "" {
+						@button.Secondary(button.Props{
+							Size:  button.SizeNormal,
+							Class: "flex-1 justify-center",
+							Attrs: templ.Attributes{"type": "button", "@click": "reset()"},
+						}) {
+							{ props.ResetLabel }
+						}
+					}
+					if props.ApplyLabel != "" {
+						@button.Primary(button.Props{
+							Size:  button.SizeNormal,
+							Class: "flex-1 justify-center",
+							Attrs: templ.Attributes{"type": "button", "@click": "apply()"},
+						}) {
+							{ props.ApplyLabel }
+						}
+					}
+				</div>
+			}
 		</div>
 	}
 }

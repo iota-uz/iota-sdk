@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Parolni ko'rsatish",
     "CloseNotification": "Bildirishnomani yopish",
     "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Ma'lumotlarni yuklab bo'lmadi",
-    "Retry": "Qayta urinish"
+    "Retry": "Qayta urinish",
+    "Close": "Yopish",
+    "SaveFailed": "Saqlab bo'lmadi",
+    "NetworkError": "Serverga ulanish yo'q",
+    "NetworkErrorHint": "Ulanishni tekshirib, qayta urinib ko'ring.",
+    "TogglePassword": "Parolni ko'rsatish"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -518,6 +524,25 @@
       "ValidationError": "Tekshirish xatosi"
     }
   },
+  "Currencies": {
+    "USD": "AQSh dollari",
+    "EUR": "Yevro",
+    "TRY": "Turk lirasi",
+    "GBP": "Britaniya funt sterlingi",
+    "RUB": "Rossiya rubli",
+    "JPY": "Yapon iyenasi",
+    "CNY": "Xitoy yuani",
+    "UZS": "O'zbek so'mi",
+    "AUD": "Avstraliya dollari",
+    "CAD": "Kanada dollari",
+    "CHF": "Shveytsariya franki"
+  },
+  "FormValidation": {
+    "Required": "Bu maydonni to'ldiring.",
+    "InvalidEmail": "To'g'ri elektron pochta manzilini kiriting.",
+    "InvalidUrl": "To'g'ri havolani kiriting.",
+    "InvalidFormat": "So'ralgan formatda kiriting."
+  },
   "Login": {
     "Meta": {
       "Title": "Tizimga kirish"
@@ -675,9 +700,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Joriy akkaunt",
 			"AddAccount": "Akkaunt qo‘shish",
-			"LogoutCurrent": "Joriy akkauntdan chiqish",
+			"LogoutCurrent": "Chiqish",
 			"LogoutAll": "Barcha akkauntlardan chiqish",
-      "Settings": "Sozlamalar"
+      "Settings": "Sozlamalar",
+      "Theme": "Mavzu",
+      "OpenMenu": "Menyuni ochish"
     },
     "Departments": "Bo'limlar"
   },
@@ -988,6 +1015,8 @@
   "Remove": "O'chirish",
   "Resources": {
     "extension": "Kengaytmalar",
+    "department": "Bo'lim",
+    "notification_rules": "Bildirishnoma sozlamalari",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",
@@ -1056,6 +1085,9 @@
       "NoDataTitle": "Ma'lumotlar yo'q",
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
       "NothingFound": "Hech narsa topilmadi",
+      "NothingFoundDescription": "Qidiruv yoki filtrlarni o'zgartirib ko'ring.",
+      "MoreActions": "Boshqa amallar",
+      "SortBy": "Saralash",
       "TableSettings": "Jadval sozlamalari",
       "ResetSettings": "Sozlamalarni tiklash",
       "Columns": "Ustunlar",
@@ -1065,7 +1097,11 @@
     },
     "Filters": {
       "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
+      "SelectAll": "Barchasini tanlash",
+      "Apply": "Qo'llash",
+      "Reset": "Tozalash",
+      "Active": "Faol filtrlar",
+      "RemoveChip": "Filtrni olib tashlash"
     },
     "FilterBuilder": {
       "AddFilter": "Filtr qoʻshish",

@@ -1,7 +1,10 @@
 package account
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
@@ -35,6 +38,17 @@ templ ProfileForm(props *ProfilePageProps) {
 			@card.Card(card.Props{
 				Class: "grid grid-cols-1 md:grid-cols-3 gap-4",
 			}) {
+				<div class="md:col-span-3 flex items-center gap-4">
+					@avatar.Avatar(avatar.Props{
+						ImageURL: avatarURL(props.User),
+						Initials: props.User.Initials(),
+						Class:    templ.Classes("!size-20 text-2xl cursor-default"),
+					})
+					<div class="min-w-0">
+						<div class="truncate text-lg font-semibold text-100">{ displayName(props.User) }</div>
+						<div class="truncate text-sm text-200">{ props.User.Email }</div>
+					</div>
+				</div>
 				if props.User.Avatar == nil {
 					@components.UploadInput(&components.UploadInputProps{
 						Label:   pageCtx.T("Account.BrowseFilesystem"),
@@ -170,12 +184,24 @@ templ PasswordForm(postPath string, errors map[string]string) {
 	</form>
 }
 
+func displayName(user *viewmodels.User) string {
+	return strings.TrimSpace(user.FirstName + " " + user.LastName)
+}
+
+func avatarURL(user *viewmodels.User) string {
+	if user == nil || user.Avatar == nil {
+		return ""
+	}
+	return user.Avatar.URL
+}
+
 templ Index(props *ProfilePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Index.Title")},
 	}) {
 		<div class="flex flex-col">
+			<h1 class="px-4 pt-4 text-2xl font-bold text-100 md:px-6 md:pt-6">{ pageCtx.T("Account.Meta.Index.Title") }</h1>
 			@ProfileForm(props)
 			@PasswordForm(props.PostPath+"/password", map[string]string{})
 		</div>

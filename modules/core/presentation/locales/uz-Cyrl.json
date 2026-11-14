@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Паролни кўрсатиш",
     "CloseNotification": "Билдиришномани ёпиш",
     "TabNavigation": "Ички бўлимлар навигацияси",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Маълумотларни юклаб бўлмади",
-    "Retry": "Қайта уриниш"
+    "Retry": "Қайта уриниш",
+    "Close": "Ёпиш",
+    "SaveFailed": "Сақлаб бўлмади",
+    "NetworkError": "Серверга уланиш йўқ",
+    "NetworkErrorHint": "Уланишни текшириб, қайта уриниб кўринг.",
+    "TogglePassword": "Паролни кўрсатиш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -518,6 +524,25 @@
       "ValidationError": "Tekshirish xatosi"
     }
   },
+  "Currencies": {
+    "USD": "АҚШ доллари",
+    "EUR": "Евро",
+    "TRY": "Турк лираси",
+    "GBP": "Британия фунт стерлинги",
+    "RUB": "Россия рубли",
+    "JPY": "Япон иенаси",
+    "CNY": "Хитой юани",
+    "UZS": "Ўзбек сўми",
+    "AUD": "Австралия доллари",
+    "CAD": "Канада доллари",
+    "CHF": "Швейцария франки"
+  },
+  "FormValidation": {
+    "Required": "Бу майдонни тўлдиринг.",
+    "InvalidEmail": "Тўғри электрон почта манзилини киритинг.",
+    "InvalidUrl": "Тўғри ҳаволани киритинг.",
+    "InvalidFormat": "Сўралган форматда киритинг."
+  },
   "Login": {
     "Meta": {
       "Title": "Tizimga kirish"
@@ -675,9 +700,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Жорий аккаунт",
 			"AddAccount": "Аккаунт қўшиш",
-			"LogoutCurrent": "Жорий аккаунтдан чиқиш",
+			"LogoutCurrent": "Чиқиш",
 			"LogoutAll": "Барча аккаунтлардан чиқиш",
-      "Settings": "Созламалар"
+      "Settings": "Созламалар",
+      "Theme": "Мавзу",
+      "OpenMenu": "Менюни очиш"
     },
     "Departments": "Бўлимлар"
   },
@@ -988,6 +1015,8 @@
   "Remove": "O'chirish",
   "Resources": {
     "extension": "Кенгайтмалар",
+    "department": "Бўлим",
+    "notification_rules": "Билдиришнома созламалари",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",
@@ -1056,6 +1085,9 @@
       "NoDataTitle": "Ma'lumotlar yo'q",
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
       "NothingFound": "Hech narsa topilmadi",
+      "NothingFoundDescription": "Қидирув ёки филтрларни ўзгартириб кўринг.",
+      "MoreActions": "Бошқа амаллар",
+      "SortBy": "Саралаш",
       "TableSettings": "Jadval sozlamalari",
       "ResetSettings": "Sozlamalarni tiklash",
       "Columns": "Ustunlar",
@@ -1065,7 +1097,11 @@
     },
     "Filters": {
       "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
+      "SelectAll": "Barchasini tanlash",
+      "Apply": "Қўллаш",
+      "Reset": "Тозалаш",
+      "Active": "Фаол филтрлар",
+      "RemoveChip": "Филтрни олиб ташлаш"
     },
     "FilterBuilder": {
       "AddFilter": "Филтр қўшиш",

@@ -35,7 +35,7 @@ func ProvideLocalizerFromAppContext() mux.MiddlewareFunc {
 				cached.(http.Handler).ServeHTTP(w, r)
 				return
 			}
-			handler := middleware.ProvideLocalizer(app.Bundle(), app.GetSupportedLanguages())(next)
+			handler := middleware.ProvideLocalizer(app.Bundle(), app.GetSupportedLanguages(), middleware.LocaleOptions{DefaultLanguage: application.DefaultLanguageOf(app)})(next)
 			actual, _ := cache.LoadOrStore(app, handler)
 			actual.(http.Handler).ServeHTTP(w, r)
 		})

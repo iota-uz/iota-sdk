@@ -629,6 +629,43 @@ describe('buildChartOption', () => {
     expect(categoryLabelLimit(407)).not.toBe(categoryLabelLimit(900))
   })
 
+  it('hangs horizontal-bar names above their bars on a phone-width plot', () => {
+    const single = (width: number): ChartInput => {
+      const base = input('hbar')
+      return {
+        ...base,
+        frame: { columns: base.frame.columns, rows: base.frame.rows.filter((row) => row[2] === 'Revenue') },
+        encoding: { ...base.encoding, series: undefined },
+        viewportWidth: width,
+      }
+    }
+    const narrow = single(390)
+    const option = buildChartOption(narrow, theme) as unknown as {
+      yAxis: { axisLabel: { show?: boolean } }
+      series: Array<{ label?: { show?: boolean, position?: unknown, formatter: (params: { name: string, value: number }) => string } }>
+    }
+    expect(option.yAxis.axisLabel.show).toBe(false)
+    const label = option.series[0]?.label
+    expect(label?.show).toBe(true)
+    expect(Array.isArray(label?.position)).toBe(true)
+    expect(label?.formatter({ name: 'Расчётный счёт', value: 1 })).toContain('Расчётный счёт')
+
+    const wide = buildChartOption(single(900), theme) as unknown as typeof option
+    expect(wide.yAxis.axisLabel.show).not.toBe(false)
+    expect(Array.isArray(wide.series[0]?.label?.position)).toBe(false)
+
+    // Several series share one band, so there is no single bar to name.
+    const grouped = buildChartOption({ ...input('hbar'), viewportWidth: 390 }, theme) as unknown as typeof option
+    expect(grouped.yAxis.axisLabel.show).not.toBe(false)
+  })
+
+  it('keeps the unit name inside the grid, ending at the axis end', () => {
+    const chartInput = { ...input('hbar'), valueUnit: 'UZS', viewportWidth: 390 }
+    const option = buildChartOption(chartInput, theme) as unknown as { xAxis: { nameTextStyle: { align: string }, splitNumber: number } }
+    expect(option.xAxis.nameTextStyle.align).toBe('right')
+    expect(option.xAxis.splitNumber).toBe(4)
+  })
+
   it('states the value unit once on the axis instead of on every tick', () => {
     const chartInput = input('bar')
     chartInput.valueUnit = 'UZS'

@@ -1,8 +1,11 @@
 package components
 
 import (
+	"context"
+
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type CurrencySelectProps struct {
@@ -12,6 +15,12 @@ type CurrencySelectProps struct {
 	Error       string
 	Currencies  []*viewmodels.Currency
 	Attrs       templ.Attributes
+}
+
+// CurrencyName returns the localized currency name (Currencies.<CODE>) and falls
+// back to the stored name for codes without a translation.
+func CurrencyName(ctx context.Context, currency *viewmodels.Currency) string {
+	return intl.TWithDefault(ctx, "Currencies."+currency.Code, currency.Name)
 }
 
 templ CurrencySelect(props *CurrencySelectProps) {
@@ -25,12 +34,12 @@ templ CurrencySelect(props *CurrencySelectProps) {
 			if currency.Code == props.Value {
 				<option value={ currency.Code } selected>
 					{ currency.Symbol }
-					{ currency.Name }
+					{ CurrencyName(ctx, currency) }
 				</option>
 			} else {
 				<option value={ currency.Code }>
 					{ currency.Symbol }
-					{ currency.Name }
+					{ CurrencyName(ctx, currency) }
 				</option>
 			}
 		}

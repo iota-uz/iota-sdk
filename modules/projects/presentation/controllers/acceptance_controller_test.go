@@ -221,7 +221,7 @@ func TestProjectController_Update_Contract(t *testing.T) {
 		Status(200).
 		HTML()
 	require.Len(t, html.Elements("//small[@data-testid='field-error']"), 1)
-	html.Element("//input[@name='ContractAmount' and @value='2500.5']").Exists()
+	html.Element("//input[@name='ContractAmount' and @value='2\u00a0500.50']").Exists()
 
 	unchanged, err := projectService.GetByID(env.Ctx, p.ID())
 	require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestProjectController_Update_Contract(t *testing.T) {
 		Expect(t).
 		Status(200).
 		HTML().
-		Element("//input[@name='ContractAmount' and @value='2500.5']").Exists()
+		Element("//input[@name='ContractAmount' and @value='2\u00a0500.50']").Exists()
 
 	form.Set("ContractAmount", "")
 	form.Set("ContractCurrency", "")
@@ -254,4 +254,94 @@ func TestProjectController_Update_Contract(t *testing.T) {
 	cleared, err := projectService.GetByID(env.Ctx, p.ID())
 	require.NoError(t, err)
 	require.Nil(t, cleared.Contract())
+}
+
+func TestProjectController_Update_ContractAmountNotations(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+	suite.Register(controllers.NewProjectController())
+	projectService := itf.GetService[services.ProjectService](env)
+
+	tests := []struct {
+		name  string
+		input string
+		want  int64
+	}{
+		{"spaces and comma", "15 000 000,50", 1500000050},
+		{"no-break spaces and dot", "15\u00a0000\u00a0000.50", 1500000050},
+		{"comma groups and dot decimal", "15,000,000.50", 1500000050},
+		{"plain", "12000", 1200000},
+	}
+	for _, tt := range tests {
+		form := url.Values{}
+		form.Set("Name", p.Name())
+		form.Set("CounterpartyID", p.CounterpartyID().String())
+		form.Set("ContractAmount", tt.input)
+		form.Set("ContractCurrency", "USD")
+		suite.POST(fmt.Sprintf("%s/%s", ProjectBasePath, p.ID())).Form(form).Expect(t).Status(302)
+
+		updated, err := projectService.GetByID(env.Ctx, p.ID())
+		require.NoError(t, err, tt.name)
+		require.Equal(t, tt.want, updated.Contract().Amount(), tt.name)
+	}
+}
+
+func TestProjectController_Update_InvalidContractAmountShowsFieldError(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+	suite.Register(controllers.NewProjectController())
+
+	form := url.Values{}
+	form.Set("Name", p.Name())
+	form.Set("CounterpartyID", p.CounterpartyID().String())
+	form.Set("ContractAmount", "12 abc")
+	form.Set("ContractCurrency", "USD")
+	html := suite.POST(fmt.Sprintf("%s/%s", ProjectBasePath, p.ID())).
+		Form(form).
+		Header("HX-Target", "project-edit-drawer").
+		Expect(t).
+		Status(200).
+		HTML()
+
+	require.Len(t, html.Elements("//small[@data-testid='field-error']"), 1)
+	html.Element("//input[@name='ContractAmount' and @value='12 abc']").Exists()
+
+	unchanged, err := itf.GetService[services.ProjectService](env).GetByID(env.Ctx, p.ID())
+	require.NoError(t, err)
+	require.Equal(t, int64(100000), unchanged.Contract().Amount())
+}
+
+func TestAcceptanceController_Create_FormattedAmount(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+
+	suite.POST(acceptancePath(p.ID())).Form(actForm("A-1", "1 500,50", "USD")).HTMX().Expect(t).Status(200)
+
+	documents, err := itf.GetService[services.AcceptanceService](env).GetByProjectID(env.Ctx, p.ID())
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	require.Equal(t, int64(150050), documents[0].Amount().Amount())
+}
+
+func TestAcceptanceController_Create_InvalidAmountShowsFieldError(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+
+	html := suite.POST(acceptancePath(p.ID())).Form(actForm("A-1", "ten", "USD")).HTMX().Expect(t).Status(200).HTML()
+
+	require.Len(t, html.Elements("//small[@data-testid='field-error']"), 1)
+	html.Element("//input[@name='Amount' and @value='ten']").Exists()
+
+	documents, err := itf.GetService[services.AcceptanceService](env).GetByProjectID(env.Ctx, p.ID())
+	require.NoError(t, err)
+	require.Empty(t, documents)
+}
+
+func TestAcceptanceController_Panel_DatesNewDocumentToday(t *testing.T) {
+	t.Parallel()
+	suite, _, p := newAcceptanceSuite(t)
+
+	today := time.Now().Format(time.DateOnly)
+	suite.GET(acceptancePath(p.ID())).HTMX().Expect(t).Status(200).HTML().
+		Element("//input[@name='Date' and @value='" + today + "']").Exists()
 }
