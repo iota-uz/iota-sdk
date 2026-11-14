@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Mobile audit leftovers: edit button on the user page, zero salary accepted for new employees, labelled \"New\" buttons for positions and departments, translated permission labels (notification rules, BiChat) and humanized module/resource names on the roles page, BiChat stream errors, mobile layout and owner initials."
+    }
+  ],
+  "source": "c30a10824af6bd8faff90356af3aa135afecf2a2",
+  "version": "0.43.1"
+}
