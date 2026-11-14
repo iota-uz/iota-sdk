@@ -389,8 +389,7 @@ transaction receipts and per-instance artifact pinning.
 * `workflow_signals(id, instance_id, name, payload, consumed_name, consumed_n, created_at)`
 * `human_tasks(id, tenant_id, instance_id, name, n, subject_entity, subject_key,
   assignee_kind user|permission, assignee_user_id (null for a permission), assignee_permission, decision_schema,
-  status open|decided|expired|cancelled, decision, decided_by, due_at)` (migration `changes-1794700000.sql` added the
-  assignee kind; exactly one of user and permission is set)
+  status open|decided|expired|cancelled, decision, decided_by, due_at)` (exactly one of user and permission is set)
 * `outbox_events(seq bigserial, id uuid, tenant_id, event, subject_entity, subject_key,
   payload, initiator_user_id, occurred_at)`; `subscription_cursors(subscription, from_seq)`;
   `subscription_receipts(subscription, event_id, invocation_id, PK(subscription,event_id))`;
