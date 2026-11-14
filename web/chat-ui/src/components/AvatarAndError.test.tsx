@@ -5,6 +5,7 @@ import type { IotaContext } from '../types/iota';
 import type { ConversationTurn } from '../types';
 import { StreamError } from './StreamError';
 import { UserAvatar } from './UserAvatar';
+import { UserMessage } from './UserMessage';
 import { UserTurnView } from './UserTurnView';
 
 vi.mock('../context/ChatContext', () => ({ useChatMessaging: () => ({ handleCopy: () => {}, handleEdit: () => {} }) }));
@@ -39,5 +40,9 @@ describe('avatar initials', () => {
   const view = render(() => <UserAvatar firstName="" lastName=""/>);
   expect(view.getByText('?')).toBeTruthy();
   expect(view.queryByText('U')).toBeNull();
+ });
+ it('passes the placeholder to a custom avatar slot when initials are omitted', () => {
+  const view = render(() => <IotaContextProvider context={context()}><UserMessage turn={turn().userTurn} slots={{ avatar: (props) => <span data-testid="custom-avatar">{props.initials}</span> }}/></IotaContextProvider>);
+  expect(view.getByTestId('custom-avatar').textContent).toBe('?');
  });
 });

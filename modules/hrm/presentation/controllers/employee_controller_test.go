@@ -40,12 +40,13 @@ func setupEmployees(t *testing.T) (*itf.Suite, *services.EmployeeService) {
 func createEmployee(t *testing.T, suite *itf.Suite, service *services.EmployeeService, firstName string, resignation string) employee.Employee {
 	t.Helper()
 
+	salary := 1000.0
 	dto := &employee.CreateDTO{
 		FirstName: firstName,
 		LastName:  "Doe",
 		Email:     fmt.Sprintf("%s@example.com", firstName),
 		Phone:     fmt.Sprintf("+99890%07d", len(firstName)),
-		Salary:    1000,
+		Salary:    &salary,
 		HireDate:  shared.DateOnly(time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)),
 	}
 	if resignation != "" {

@@ -21,6 +21,9 @@ func TestModuleLabel(t *testing.T) {
 	ctx := labelContext{messages: map[string]string{"Modules.Core": "Администрирование"}}
 	assert.Equal(t, "Администрирование", roles.ModuleLabel(ctx, "Core"))
 	assert.Equal(t, "Администрирование", roles.ModuleLabel(ctx, "core"))
+	assert.Equal(t, "Администрирование", roles.ModuleLabel(ctx, "CORE"))
+	assert.Equal(t, "Администрирование", roles.ModuleLabel(ctx, "cOrE"))
+	assert.Equal(t, "Custom", roles.ModuleLabel(labelContext{messages: map[string]string{"Modules.Custom": "Custom"}}, "Custom"))
 	assert.Equal(t, "Logistics", roles.ModuleLabel(ctx, "logistics"))
 	assert.Empty(t, roles.ModuleLabel(ctx, ""))
 }
@@ -30,5 +33,8 @@ func TestResourceLabel(t *testing.T) {
 
 	ctx := labelContext{messages: map[string]string{"Resources.user": "Пользователи"}}
 	assert.Equal(t, "Пользователи", roles.ResourceLabel(ctx, "user"))
+	assert.Equal(t, "Пользователи", roles.ResourceLabel(ctx, "User"))
+	assert.Equal(t, "Пользователи", roles.ResourceLabel(ctx, "USER"))
+	assert.Equal(t, "Пользователи", roles.ResourceLabel(ctx, "uSeR"))
 	assert.Equal(t, "Notification rules", roles.ResourceLabel(ctx, "notification_rules"))
 }

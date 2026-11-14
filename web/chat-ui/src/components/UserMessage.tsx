@@ -372,7 +372,7 @@ export function UserMessage(solidProps2Input: UserMessageProps) {
     const timestamp = createMemo(() => formatRelativeTime(solidProps2.turn.createdAt, solidState3.t));
     // Slot props
     const avatarSlotProps: UserMessageAvatarSlotProps = { get initials() {
-            return solidProps2.initials;
+            return solidProps2.initials || UNKNOWN_INITIALS;
         } };
     const contentSlotProps = createMemo<UserMessageContentSlotProps>(() => ({ content: solidProps2.turn.content }));
     const attachmentsSlotProps = createMemo<UserMessageAttachmentsSlotProps>(() => ({
