@@ -162,9 +162,10 @@ templ GroupsContent(props *IndexPageProps) {
 						Size: button.SizeNormal,
 						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 						Attrs: templ.Attributes{
-							"type":   "button",
-							"x-data": "",
-							"@click": "$dispatch('new-group')",
+							"type":       "button",
+							"x-data":     "",
+							"@click":     "$dispatch('new-group')",
+							"aria-label": pageCtx.T("Groups.List.New"),
 						},
 					})
 				}

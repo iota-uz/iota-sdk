@@ -903,6 +903,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Билдиришнома созламаларини кўриш",
+      "Manage": "Билдиришнома созламаларини бошқариш"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -1278,6 +1282,7 @@
 			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
 			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
       "EditUser": "Foydalanuvchini tahrirlash",
+      "Edit": "Таҳрирлаш",
       "FirstName": "Ism",
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",

@@ -58,12 +58,13 @@ func setupHRMHistory(t *testing.T) hrmHistoryFixture {
 }
 
 func employeeDTO(firstName string) *employee.CreateDTO {
+	salary := 1500.5
 	return &employee.CreateDTO{
 		FirstName: firstName,
 		LastName:  "Karimov",
 		Email:     firstName + "@example.com",
 		Phone:     "+99890" + strconv.Itoa(1000000+len(firstName)*7919),
-		Salary:    1500.5,
+		Salary:    &salary,
 		Pin:       "12345678901234",
 		BirthDate: shared.DateOnly(time.Date(1992, 3, 4, 0, 0, 0, 0, time.UTC)),
 		HireDate:  shared.DateOnly(time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC)),

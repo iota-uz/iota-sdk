@@ -76,7 +76,7 @@ templ EditForm(props *EditFormProps) {
 					}) {
 						for _, moduleGroup := range props.ModulePermissionGroups {
 							@tab.Button(moduleGroup.Module) {
-								{ tOrKey(pageCtx, fmt.Sprintf("Modules.%s", moduleGroup.Module)) }
+								{ ModuleLabel(pageCtx, moduleGroup.Module) }
 							}
 						}
 					}
@@ -89,7 +89,7 @@ templ EditForm(props *EditFormProps) {
 									}) {
 										<div class="space-y-3">
 											<h3 class="text-lg font-medium text-gray-900">
-												{ tOrKey(pageCtx, fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
+												{ ResourceLabel(pageCtx, resourceGroup.Resource) }
 											</h3>
 											for setIndex, permissionSet := range resourceGroup.PermissionSets {
 												@PermissionSet(PermissionSetProps{

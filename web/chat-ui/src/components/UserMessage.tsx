@@ -9,6 +9,7 @@ import AttachmentGrid from './AttachmentGrid';
 import ImageModal from './ImageModal';
 import type { Attachment, ImageAttachment, UserTurn } from '../types';
 import { useTranslation } from '../hooks/useTranslation';
+import { UNKNOWN_INITIALS } from '../utils/initials';
 /* -------------------------------------------------------------------------------------------------
  * Slot Props Types
  * -----------------------------------------------------------------------------------------------*/
@@ -174,7 +175,7 @@ function EditForm(solidProps1: EditFormProps) {
  * Component
  * -----------------------------------------------------------------------------------------------*/
 export function UserMessage(solidProps2Input: UserMessageProps) {
-    const solidProps2 = mergeProps({ initials: 'U', hideAvatar: false, hideActions: false, hideTimestamp: false, allowEdit: true } as const, solidProps2Input);
+    const solidProps2 = mergeProps({ initials: '', hideAvatar: false, hideActions: false, hideTimestamp: false, allowEdit: true } as const, solidProps2Input);
     const solidState3 = useTranslation();
     const [selectedImageIndex, setSelectedImageIndex] = createSignal<number | null>(null);
     const [isEditing, setIsEditing] = createSignal(false);
@@ -371,7 +372,7 @@ export function UserMessage(solidProps2Input: UserMessageProps) {
     const timestamp = createMemo(() => formatRelativeTime(solidProps2.turn.createdAt, solidState3.t));
     // Slot props
     const avatarSlotProps: UserMessageAvatarSlotProps = { get initials() {
-            return solidProps2.initials;
+            return solidProps2.initials || UNKNOWN_INITIALS;
         } };
     const contentSlotProps = createMemo<UserMessageContentSlotProps>(() => ({ content: solidProps2.turn.content }));
     const attachmentsSlotProps = createMemo<UserMessageAttachmentsSlotProps>(() => ({
@@ -438,7 +439,7 @@ export function UserMessage(solidProps2Input: UserMessageProps) {
 
       {/* Avatar */}
       {!solidProps2.hideAvatar && (<div class={classes().avatar}>
-          {renderSlot(solidProps2.slots?.avatar, avatarSlotProps, solidProps2.initials)}
+          {renderSlot(solidProps2.slots?.avatar, avatarSlotProps, solidProps2.initials || UNKNOWN_INITIALS)}
         </div>)}
 
       {/* Image modal */}

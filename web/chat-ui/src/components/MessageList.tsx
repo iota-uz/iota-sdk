@@ -8,6 +8,7 @@ import { type JSX, mergeProps, createSignal, createMemo, createEffect, on, onMou
 import { useChatSession, useChatMessaging } from '../context/ChatContext';
 import { ConversationTurn } from '../types';
 import { TurnBubble } from './TurnBubble';
+import { StreamError } from './StreamError';
 import { TypingIndicator } from './TypingIndicator';
 import { ActivityTrace } from './ActivityTrace';
 import StreamingCursor from './StreamingCursor';
@@ -88,6 +89,11 @@ export function MessageList(solidProps2: MessageListProps) {
         } });
     const normalizedStreaming = createMemo(() => (solidState5.streamingContent ? normalizeStreamingMarkdown(solidState5.streamingContent) : ''));
     const showAuthorNames = createMemo(() => Boolean(solidState4.session?.isGroup));
+    createEffect(on(() => solidState5.streamError, (error) => {
+        if (error) {
+            queueMicrotask(() => solidState6.handleScrollToBottom());
+        }
+    }, { defer: true }));
     const showEphemeral = createMemo(() => solidState5.showActivityTrace || solidState5.showTypingIndicator);
     return (<div class="relative flex-1 min-w-0 min-h-0">
       <div ref={element => solidState6.containerRef.current = element} data-testid="bichat-message-list" class="h-full overflow-y-auto overflow-x-hidden px-4 py-6">
@@ -106,6 +112,9 @@ export function MessageList(solidProps2: MessageListProps) {
             return (<>
                 {showDateSeparator() && <DateSeparator date={turnDate}/>}
                 <TurnBubble turn={turn} isLastTurn={isLast()} renderUserTurn={solidProps2.renderUserTurn} renderAssistantTurn={solidProps2.renderAssistantTurn} userTurnProps={userTurnProps()} assistantTurnProps={solidProps2.readOnly ? { allowRegenerate: false } : undefined}/>
+                {isLast() && solidState5.streamError && (<div class="min-w-0" data-testid="bichat-turn-error">
+                    <StreamError error={solidState5.streamError} compact onRetry={solidState5.streamErrorRetryable ? () => void solidState5.retryLastMessage() : undefined} onDismiss={solidState5.clearStreamError}/>
+                  </div>)}
               </>);
         })}
 

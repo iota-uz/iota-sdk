@@ -7,6 +7,7 @@
  *
  * @internal — Not part of the public API. Consumed by HttpDataSource modules.
  */
+import { deriveInitials } from "../utils/initials";
 import type { Session as RPCSession } from "./rpc.generated";
 import type { PendingQuestion as RPCPendingQuestion } from "./rpc.generated";
 import type { Session, SessionUser, SessionAccess, ConversationTurn, Artifact as DownloadArtifact, SessionArtifact, PendingQuestion, Question, Attachment, AssistantTurn, RenderTableData, } from "../types";
@@ -123,9 +124,11 @@ function mapSessionUser(rawUser: unknown): SessionUser | undefined {
     }
     const firstName = readString(rawUser.firstName);
     const lastName = readString(rawUser.lastName);
-    const initials = readNonEmptyString(rawUser.initials) ||
-        `${firstName.charAt(0)}${lastName.charAt(0)}`.trim().toUpperCase() ||
-        "U";
+    const initials = deriveInitials({
+        initials: readNonEmptyString(rawUser.initials),
+        firstName,
+        lastName,
+    });
     return {
         id,
         firstName,

@@ -36,9 +36,9 @@ type CreateDTO struct {
 	FirstName         string `validate:"required"`
 	LastName          string `validate:"required"`
 	MiddleName        string
-	Email             string  `validate:"required,email"`
-	Phone             string  `validate:"required"`
-	Salary            float64 `validate:"required"`
+	Email             string   `validate:"required,email"`
+	Phone             string   `validate:"required"`
+	Salary            *float64 `validate:"required,gte=0"`
 	Tin               string
 	Pin               string
 	BirthDate         shared.DateOnly
@@ -48,6 +48,15 @@ type CreateDTO struct {
 	SecondaryLanguage string
 	AvatarID          uint
 	Notes             string
+}
+
+// SalaryAmount returns the submitted salary, or 0 when none was submitted.
+// A nil Salary is rejected by Ok; zero itself is a valid salary.
+func (d *CreateDTO) SalaryAmount() float64 {
+	if d.Salary == nil {
+		return 0
+	}
+	return *d.Salary
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -144,7 +153,7 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 		d.MiddleName,
 		d.Phone,
 		mail,
-		money.NewFromFloat(d.Salary, string(currency.UsdCode)),
+		money.NewFromFloat(d.SalaryAmount(), string(currency.UsdCode)),
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),

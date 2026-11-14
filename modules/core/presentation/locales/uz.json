@@ -903,6 +903,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Bildirishnoma sozlamalarini ko‘rish",
+      "Manage": "Bildirishnoma sozlamalarini boshqarish"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -1278,6 +1282,7 @@
 			"TemporaryPasswordPlaceholder": "Yaratish uchun bo'sh qoldiring",
 			"TemporaryPasswordHint": "Foydalanuvchi u bilan bir marta kiradi va o'z parolini o'rnatadi. 72 soat amal qiladi.",
       "EditUser": "Foydalanuvchini tahrirlash",
+      "Edit": "Tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",

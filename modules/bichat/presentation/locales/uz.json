@@ -1,4 +1,11 @@
 {
+  "Permissions": {
+    "BiChat": {
+      "Access": "BI-chatga kirish",
+      "ReadAll": "Barcha sessiyalarni ko'rish",
+      "Export": "Ma'lumotlarni eksport qilish"
+    }
+  },
   "NavigationLinks": {
     "BiChat": "BI-Chat"
   },
@@ -431,6 +438,10 @@
   "StreamError": {
     "Retry": "Qayta urinish",
     "Regenerate": "Qayta yaratish",
+    "Failed": {
+      "Title": "Javob olib bo‘lmadi",
+      "Details": "So‘rovni qayta ishlashda xatolik yuz berdi. Qayta urinib ko‘ring."
+    },
     "AdminAction": "Muammoni tizim administratori hal qilishi kerak.",
     "OpenBilling": "OpenAI billingini ochish",
     "OpenAPIKeys": "API kalitlarini ochish",

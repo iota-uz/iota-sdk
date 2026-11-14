@@ -142,6 +142,15 @@ func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(employees.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
+// salaryFieldValue is the salary text for re-rendering the form; an unsubmitted
+// salary stays blank so that it cannot turn into a valid 0.00 on resubmission.
+func salaryFieldValue(dto *employee.CreateDTO) string {
+	if dto.Salary == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*dto.Salary, 'f', 2, 64)
+}
+
 func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 	dto, err := composables.UseForm(&employee.CreateDTO{}, r)
 	if err != nil {
@@ -157,7 +166,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 				LastName:        dto.LastName,
 				Email:           dto.Email,
 				Phone:           dto.Phone,
-				Salary:          strconv.FormatFloat(dto.Salary, 'f', 2, 64),
+				Salary:          salaryFieldValue(dto),
 				BirthDate:       time.Time(dto.BirthDate).Format(time.DateOnly),
 				HireDate:        time.Time(dto.HireDate).Format(time.DateOnly),
 				ResignationDate: time.Time(dto.ResignationDate).Format(time.DateOnly),
@@ -211,7 +220,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 				LastName:        dto.LastName,
 				Email:           dto.Email,
 				Phone:           dto.Phone,
-				Salary:          strconv.FormatFloat(dto.Salary, 'f', 2, 64),
+				Salary:          salaryFieldValue(dto),
 				BirthDate:       time.Time(dto.BirthDate).Format(time.DateOnly),
 				HireDate:        time.Time(dto.HireDate).Format(time.DateOnly),
 				ResignationDate: time.Time(dto.ResignationDate).Format(time.DateOnly),

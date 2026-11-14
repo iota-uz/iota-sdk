@@ -142,7 +142,9 @@ templ DepartmentsContent(props *IndexPageProps) {
 							"x-data": "",
 							"@click": "$dispatch('new-department')",
 						},
-					})
+					}) {
+						{ pageCtx.T("Departments.List.New") }
+					}
 				}
 			</div>
 		</div>
