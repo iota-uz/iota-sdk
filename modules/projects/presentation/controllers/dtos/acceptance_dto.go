@@ -98,6 +98,9 @@ func (dto *AcceptanceCreateDTO) ToRevision() acceptance.Revision {
 	}
 }
 
+// money is the exact amount typed into the form in the minor units of the
+// currency; it never passes through float64, which would round a long amount.
 func (dto *AcceptanceCreateDTO) money() *money.Money {
-	return money.NewFromFloat(dto.Amount.Float64(), dto.CurrencyCode)
+	fraction := money.New(0, dto.CurrencyCode).Currency().Fraction
+	return money.NewFromBigInt(dto.Amount.Decimal().Shift(int32(fraction)).BigInt(), dto.CurrencyCode)
 }

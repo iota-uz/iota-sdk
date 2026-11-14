@@ -131,7 +131,7 @@ func AcceptanceDocumentToForm(d acceptance.Document) dtos.AcceptanceCreateDTO {
 		Number:       d.Number(),
 		Date:         shared.DateOnly(d.Date()),
 		SignedOn:     shared.DateOnly(d.SignedOn()),
-		Amount:       shared.NewAmount(decimal.NewFromFloat(d.Amount().AsMajorUnits())),
+		Amount:       shared.NewAmount(decimal.NewFromBigInt(d.Amount().BigAmount(), -int32(d.Amount().Currency().Fraction))),
 		CurrencyCode: d.Amount().Currency().Code,
 		Description:  d.Description(),
 	}

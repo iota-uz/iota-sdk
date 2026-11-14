@@ -29,8 +29,13 @@ type AcceptanceDrawerProps struct {
 	Errors         map[string]string
 }
 
-func acceptanceDrawerID(projectID string) string {
-	return fmt.Sprintf("acceptance-drawer-%s", projectID)
+// acceptanceDrawerID is unique per document, so two drawers that are open at
+// once never share an ID: saving or closing one cannot act on the other.
+func acceptanceDrawerID(projectID, documentID string) string {
+	if documentID == "" {
+		documentID = "new"
+	}
+	return fmt.Sprintf("acceptance-drawer-%s-%s", projectID, documentID)
 }
 
 // acceptanceSaveURL is where the drawer form posts: the collection for a new
@@ -44,7 +49,7 @@ func acceptanceSaveURL(props *AcceptanceDrawerProps) string {
 // document and makes its amount revenue; without one it stays a draft.
 templ AcceptanceDrawer(props *AcceptanceDrawerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ container := acceptanceDrawerID(props.ProjectID) }}
+	{{ container := acceptanceDrawerID(props.ProjectID, props.DocumentID) }}
 	{{ title := pageCtx.T("Projects.Acceptance.New") }}
 	if props.DocumentID != "" {
 		{{ title = pageCtx.T("Projects.Acceptance.EditTitle") }}
