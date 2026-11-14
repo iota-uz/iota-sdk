@@ -38,7 +38,7 @@ type CreateDTO struct {
 	MiddleName        string
 	Email             string  `validate:"required,email"`
 	Phone             string  `validate:"required"`
-	Salary            float64 `validate:"required"`
+	Salary            float64 `validate:"gte=0"`
 	Tin               string
 	Pin               string
 	BirthDate         shared.DateOnly

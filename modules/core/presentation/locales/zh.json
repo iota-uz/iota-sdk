@@ -907,6 +907,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "查看通知设置",
+      "Manage": "管理通知设置"
+    },
     "User": {
       "Create": "创建用户",
       "Read": "查看用户",
@@ -1282,6 +1286,7 @@
 			"TemporaryPasswordPlaceholder": "留空则自动生成",
 			"TemporaryPasswordHint": "用户使用它登录一次后设置自己的密码。有效期 72 小时。",
       "EditUser": "编辑用户",
+      "Edit": "编辑",
       "FirstName": "名",
       "LastName": "姓",
       "MiddleName": "中间名",

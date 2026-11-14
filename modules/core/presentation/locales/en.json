@@ -903,6 +903,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Read notification settings",
+      "Manage": "Manage notification settings"
+    },
     "User": {
       "Create": "Create users",
       "Read": "View users",
@@ -1279,6 +1283,7 @@
 			"TemporaryPasswordPlaceholder": "Leave empty to generate",
 			"TemporaryPasswordHint": "The user signs in with it once, then sets their own password. Valid for 72 hours.",
       "EditUser": "Edit user",
+      "Edit": "Edit",
       "FirstName": "First name",
       "LastName": "Last name",
       "MiddleName": "Middle name",

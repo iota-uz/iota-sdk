@@ -542,9 +542,10 @@ func GroupsContent(props *IndexPageProps) templ.Component {
 				Size: button.SizeNormal,
 				Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				Attrs: templ.Attributes{
-					"type":   "button",
-					"x-data": "",
-					"@click": "$dispatch('new-group')",
+					"type":       "button",
+					"x-data":     "",
+					"@click":     "$dispatch('new-group')",
+					"aria-label": pageCtx.T("Groups.List.New"),
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -592,7 +593,7 @@ func GroupsContent(props *IndexPageProps) templ.Component {
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Groups.List.New"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/groups.templ`, Line: 206, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/groups.templ`, Line: 207, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {

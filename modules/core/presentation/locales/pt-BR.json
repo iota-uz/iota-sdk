@@ -906,6 +906,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Ver configurações de notificações",
+      "Manage": "Gerenciar configurações de notificações"
+    },
     "User": {
       "Create": "Criar usuários",
       "Read": "Visualizar usuários",
@@ -1283,6 +1287,7 @@
 			"TemporaryPasswordPlaceholder": "Deixe vazio para gerar",
 			"TemporaryPasswordHint": "O usuário entra com ela uma vez e define a própria senha. Válida por 72 horas.",
       "EditUser": "Editar usuário",
+      "Edit": "Editar",
       "FirstName": "Nome",
       "LastName": "Sobrenome",
       "MiddleName": "Nome do meio",
