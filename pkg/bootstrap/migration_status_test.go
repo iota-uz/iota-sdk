@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -64,15 +65,25 @@ func TestMigrationOperationsReleaseConnections(t *testing.T) {
 			if operation == "rollback" {
 				require.NoError(t, manager.Run())
 			}
-			var before, after int
-			require.NoError(t, env.Pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, name).Scan(&before))
+			count := func() (int, error) {
+				var n int
+				err := env.Pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, name).Scan(&n)
+				return n, err
+			}
+			before, err := count()
+			require.NoError(t, err)
 			if operation == "run" {
 				require.NoError(t, manager.Run())
 			} else {
 				require.NoError(t, manager.Rollback())
 			}
-			require.NoError(t, env.Pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, name).Scan(&after))
-			require.Equal(t, before, after)
+			// Closing a client connection returns before the server backend leaves
+			// pg_stat_activity, so a leak is a count that never settles, not one
+			// that differs on the first read.
+			require.Eventually(t, func() bool {
+				after, err := count()
+				return err == nil && after == before
+			}, 5*time.Second, 25*time.Millisecond, "migration %s must release its connections", operation)
 		})
 	}
 }
