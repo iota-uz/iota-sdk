@@ -260,3 +260,20 @@ func TestAcceptanceController_Drawer_ApplicationExtensionPoints(t *testing.T) {
 	// The panel names a kind by the label the application gave it.
 	suite.GET(acceptancePath(p.ID())).HTMX().Expect(t).Status(200).Contains("Completion certificate")
 }
+
+func TestAcceptanceController_Panel_EditOpensTheDrawerOnce(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+
+	document, err := itf.GetService[services.AcceptanceService](env).Create(env.Ctx, acceptance.New(
+		p.ID(), acceptance.KindAct, "A-1", time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC), money.New(40000, "USD"),
+		acceptance.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+
+	// A second open request is dropped while the first is in flight, so a double
+	// click cannot insert two drawers with one ID.
+	editURL := fmt.Sprintf("%s/%s/drawer", acceptancePath(p.ID()), document.ID())
+	suite.GET(acceptancePath(p.ID())).HTMX().Expect(t).Status(200).HTML().
+		Element("//button[@data-test-id='acceptance-edit' and @hx-get='" + editURL + "' and @hx-sync='body:drop']").Exists()
+}
