@@ -58,11 +58,12 @@ describe('overlay primitives', () => {
   })
 
   it('keeps native focus on desktop instead of focusing a control again', async () => {
-    const focusSpy = vi.fn()
-    HTMLDialogElement.prototype.showModal = function () { this.open = true; const first = this.querySelector<HTMLElement>('button')!; first.focus(); first.addEventListener('focus', focusSpy) }
+    let focusSpy: ReturnType<typeof vi.spyOn> | undefined
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; const first = this.querySelector<HTMLElement>('button')!; first.focus(); focusSpy = vi.spyOn(first, 'focus') }
     render(() => <ConfirmationDialog defaultOpen heading="Delete product?" confirmText="Delete" />)
     await Promise.resolve()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    expect(focusSpy).toBeDefined()
     expect(focusSpy).not.toHaveBeenCalled()
   })
 
