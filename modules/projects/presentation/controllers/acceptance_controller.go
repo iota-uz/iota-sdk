@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -20,6 +22,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
@@ -27,18 +31,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// AcceptanceController serves the acceptance tab of the project drawer. Every
+// AcceptanceController serves the acceptance tab of the project drawer and the
+// drawer that creates, edits and deletes an acceptance document. Every tab
 // action answers with the whole tab, so the revenue figures stay in step with
-// the documents.
+// the documents; the drawer answers by closing itself and telling the browser
+// what to refresh (see AcceptanceSaveHook).
 type AcceptanceController struct {
 	basePath string
 }
 
 type acceptancePanel struct {
-	documents  *projectServices.AcceptanceService
-	revenue    *projectServices.RevenueService
-	currencies *coreservices.CurrencyService
-	projects   *projectServices.ProjectService
+	documents *projectServices.AcceptanceService
+	revenue   *projectServices.RevenueService
+	forms     *projectServices.AcceptanceFormService
 }
 
 func NewAcceptanceController() application.Controller {
@@ -59,6 +64,11 @@ func (c *AcceptanceController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", di.H(c.Panel)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/drawer", di.H(c.NewDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("/drawer", di.H(c.SaveDrawer)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", di.H(c.EditDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", di.H(c.SaveDrawer)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", di.H(c.DeleteDrawer)).Methods(http.MethodDelete)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/sign", di.H(c.Sign)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/cancel", di.H(c.Cancel)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
@@ -70,28 +80,29 @@ func (c *AcceptanceController) Panel(
 	logger *logrus.Entry,
 	acceptanceService *projectServices.AcceptanceService,
 	revenueService *projectServices.RevenueService,
-	currencyService *coreservices.CurrencyService,
-	projectService *projectServices.ProjectService,
+	formService *projectServices.AcceptanceFormService,
 ) {
-	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
+	panel := acceptancePanel{acceptanceService, revenueService, formService}
 	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
-	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
+	panel.render(w, r, logger, projectID)
 }
 
+// Create adds a document from the form fields and answers with the tab. The
+// drawer is the form people use; this route stays for clients that post the
+// fields directly, and answers a form that does not validate with 422.
 func (c *AcceptanceController) Create(
 	w http.ResponseWriter,
 	r *http.Request,
 	logger *logrus.Entry,
 	acceptanceService *projectServices.AcceptanceService,
 	revenueService *projectServices.RevenueService,
-	currencyService *coreservices.CurrencyService,
-	projectService *projectServices.ProjectService,
+	formService *projectServices.AcceptanceFormService,
 ) {
-	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
+	panel := acceptancePanel{acceptanceService, revenueService, formService}
 	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
@@ -102,8 +113,13 @@ func (c *AcceptanceController) Create(
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
-	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		panel.render(w, r, logger, projectID, *dto, errorsMap)
+	rules, ok := c.rules(w, r, logger, formService, projectID)
+	if !ok {
+		return
+	}
+	applyRules(dto, rules)
+	if errorsMap, ok := dto.Check(r.Context(), kindValues(rules)); !ok {
+		http.Error(w, joinErrors(errorsMap), http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -114,10 +130,10 @@ func (c *AcceptanceController) Create(
 	}
 	if _, err := acceptanceService.Create(r.Context(), dto.ToEntity(tenantID, projectID)); err != nil {
 		logger.WithError(err).Error("Error creating acceptance document")
-		http.Error(w, "Error creating acceptance document", http.StatusInternalServerError)
+		http.Error(w, "Error creating acceptance document", acceptanceErrorStatus(err))
 		return
 	}
-	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
+	panel.render(w, r, logger, projectID)
 }
 
 func (c *AcceptanceController) Sign(
@@ -126,10 +142,9 @@ func (c *AcceptanceController) Sign(
 	logger *logrus.Entry,
 	acceptanceService *projectServices.AcceptanceService,
 	revenueService *projectServices.RevenueService,
-	currencyService *coreservices.CurrencyService,
-	projectService *projectServices.ProjectService,
+	formService *projectServices.AcceptanceFormService,
 ) {
-	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
+	panel := acceptancePanel{acceptanceService, revenueService, formService}
 	c.change(w, r, logger, panel, acceptanceService.Sign)
 }
 
@@ -139,10 +154,9 @@ func (c *AcceptanceController) Cancel(
 	logger *logrus.Entry,
 	acceptanceService *projectServices.AcceptanceService,
 	revenueService *projectServices.RevenueService,
-	currencyService *coreservices.CurrencyService,
-	projectService *projectServices.ProjectService,
+	formService *projectServices.AcceptanceFormService,
 ) {
-	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
+	panel := acceptancePanel{acceptanceService, revenueService, formService}
 	c.change(w, r, logger, panel, acceptanceService.Cancel)
 }
 
@@ -152,10 +166,9 @@ func (c *AcceptanceController) Delete(
 	logger *logrus.Entry,
 	acceptanceService *projectServices.AcceptanceService,
 	revenueService *projectServices.RevenueService,
-	currencyService *coreservices.CurrencyService,
-	projectService *projectServices.ProjectService,
+	formService *projectServices.AcceptanceFormService,
 ) {
-	panel := acceptancePanel{acceptanceService, revenueService, currencyService, projectService}
+	panel := acceptancePanel{acceptanceService, revenueService, formService}
 	projectID, id, ok := c.ids(w, r)
 	if !ok {
 		return
@@ -165,7 +178,168 @@ func (c *AcceptanceController) Delete(
 		http.Error(w, "Error deleting acceptance document", acceptanceErrorStatus(err))
 		return
 	}
-	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
+	panel.render(w, r, logger, projectID)
+}
+
+// NewDrawer opens the drawer of a new document, dated today and in the
+// currency the project starts with.
+func (c *AcceptanceController) NewDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	formService *projectServices.AcceptanceFormService,
+	currencyService *coreservices.CurrencyService,
+) {
+	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
+		return
+	}
+	rules, ok := c.rules(w, r, logger, formService, projectID)
+	if !ok {
+		return
+	}
+	c.renderDrawer(w, r, logger, currencyService, projectID, uuid.Nil, rules, blankForm(), map[string]string{})
+}
+
+// EditDrawer opens the drawer of a stored document.
+func (c *AcceptanceController) EditDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	acceptanceService *projectServices.AcceptanceService,
+	formService *projectServices.AcceptanceFormService,
+	currencyService *coreservices.CurrencyService,
+) {
+	projectID, id, ok := c.ids(w, r)
+	if !ok {
+		return
+	}
+	document, err := acceptanceService.ProjectDocument(r.Context(), projectID, id)
+	if err == nil && document.Status() == acceptance.StatusCancelled {
+		err = acceptance.ErrStatus
+	}
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving acceptance document")
+		http.Error(w, "Error retrieving acceptance document", acceptanceErrorStatus(err))
+		return
+	}
+	rules, ok := c.rules(w, r, logger, formService, projectID)
+	if !ok {
+		return
+	}
+	c.renderDrawer(w, r, logger, currencyService, projectID, id, keepKind(rules, document.Kind()), mappers.AcceptanceDocumentToForm(document), map[string]string{})
+}
+
+// SaveDrawer creates a document, or saves the edited one when the route names
+// it. A form that does not validate comes back in the drawer with the errors
+// at its fields; a saved one closes the drawer and refreshes what the hook
+// names.
+func (c *AcceptanceController) SaveDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	acceptanceService *projectServices.AcceptanceService,
+	formService *projectServices.AcceptanceFormService,
+	currencyService *coreservices.CurrencyService,
+	hook AcceptanceSaveHook,
+) {
+	projectID, err := uuid.Parse(mux.Vars(r)["projectId"])
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
+		return
+	}
+	id := uuid.Nil
+	if raw, editing := mux.Vars(r)["id"]; editing {
+		if id, err = uuid.Parse(raw); err != nil {
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
+			return
+		}
+	}
+	dto, err := composables.UseForm(&dtos.AcceptanceCreateDTO{}, r)
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
+		return
+	}
+	rules, ok := c.rules(w, r, logger, formService, projectID)
+	if !ok {
+		return
+	}
+	if id != uuid.Nil {
+		// A document keeps the kind it has even when the form no longer offers it.
+		stored, err := acceptanceService.ProjectDocument(r.Context(), projectID, id)
+		if err != nil {
+			logger.WithError(err).Error("Error retrieving acceptance document")
+			http.Error(w, "Error retrieving acceptance document", acceptanceErrorStatus(err))
+			return
+		}
+		rules = keepKind(rules, stored.Kind())
+	}
+	applyRules(dto, rules)
+	if errorsMap, ok := dto.Check(r.Context(), kindValues(rules)); !ok {
+		c.renderDrawer(w, r, logger, currencyService, projectID, id, rules, *dto, errorsMap)
+		return
+	}
+
+	var saved acceptance.Document
+	outcome := AcceptanceChangeUpdated
+	if id == uuid.Nil {
+		outcome = AcceptanceChangeCreated
+		tenantID, err := composables.UseTenantID(r.Context())
+		if err != nil {
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+			return
+		}
+		saved, err = acceptanceService.Create(r.Context(), dto.ToEntity(tenantID, projectID))
+		if err != nil {
+			logger.WithError(err).Error("Error creating acceptance document")
+			http.Error(w, "Error creating acceptance document", acceptanceErrorStatus(err))
+			return
+		}
+	} else {
+		saved, err = acceptanceService.Update(r.Context(), projectID, id, dto.ToRevision())
+		if err != nil {
+			logger.WithError(err).Error("Error updating acceptance document")
+			http.Error(w, "Error updating acceptance document", acceptanceErrorStatus(err))
+			return
+		}
+	}
+	c.finish(w, r, hook, AcceptanceOutcome{
+		Change: outcome, ProjectID: projectID, DocumentID: saved.ID(), Document: saved,
+	})
+}
+
+// DeleteDrawer deletes the document of the open drawer.
+func (c *AcceptanceController) DeleteDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	acceptanceService *projectServices.AcceptanceService,
+	hook AcceptanceSaveHook,
+) {
+	projectID, id, ok := c.ids(w, r)
+	if !ok {
+		return
+	}
+	if err := acceptanceService.Delete(r.Context(), projectID, id); err != nil {
+		logger.WithError(err).Error("Error deleting acceptance document")
+		http.Error(w, "Error deleting acceptance document", acceptanceErrorStatus(err))
+		return
+	}
+	c.finish(w, r, hook, AcceptanceOutcome{Change: AcceptanceChangeDeleted, ProjectID: projectID, DocumentID: id})
+}
+
+// finish answers a drawer request that succeeded: the empty body replaces the
+// drawer, so it closes, and the reaction says what the page does next.
+func (c *AcceptanceController) finish(w http.ResponseWriter, r *http.Request, hook AcceptanceSaveHook, outcome AcceptanceOutcome) {
+	reaction := hook.Saved(r.Context(), outcome)
+	if reaction.Redirect != "" {
+		htmx.Redirect(w, reaction.Redirect)
+		return
+	}
+	title := intl.TWithDefault(r.Context(), "Projects.Acceptance.Toasts."+string(outcome.Change), "")
+	htmx.ToastSuccessAndRefresh(w, title, "", reaction.RefreshTargets...)
+	w.WriteHeader(http.StatusOK)
 }
 
 func (c *AcceptanceController) change(
@@ -184,7 +358,7 @@ func (c *AcceptanceController) change(
 		http.Error(w, "Error changing acceptance document status", acceptanceErrorStatus(err))
 		return
 	}
-	panel.render(w, r, logger, projectID, blankForm(), map[string]string{})
+	panel.render(w, r, logger, projectID)
 }
 
 // acceptanceErrorStatus answers a document of another project as not found and
@@ -220,27 +394,111 @@ func blankForm() dtos.AcceptanceCreateDTO {
 	return dtos.AcceptanceCreateDTO{Date: shared.DateOnly(time.Now())}
 }
 
-// render answers with the tab; an empty form currency defaults to the
-// contract currency.
-func (p acceptancePanel) render(
+// applyRules fills what the project decides: the starting currency, and the
+// currency itself when the project locks it.
+func applyRules(dto *dtos.AcceptanceCreateDTO, rules projectServices.AcceptanceRules) {
+	if rules.Currency.Locked || dto.CurrencyCode == "" {
+		dto.CurrencyCode = rules.Currency.Code
+	}
+	if dto.Kind == "" && len(rules.Kinds) > 0 {
+		dto.Kind = string(rules.Kinds[0].Value)
+	}
+}
+
+// keepKind adds the kind of a stored document to the kinds the form offers, so
+// editing the document does not silently change its kind.
+func keepKind(rules projectServices.AcceptanceRules, kind acceptance.Kind) projectServices.AcceptanceRules {
+	if rules.AllowsKind(kind) {
+		return rules
+	}
+	kinds := append(append([]acceptance.KindOption{}, rules.Kinds...), acceptance.KindOption{Value: kind})
+	rules.Kinds = kinds
+	return rules
+}
+
+// rules reads what the form of the project allows; it has answered when it
+// returns false.
+func (c *AcceptanceController) rules(
 	w http.ResponseWriter,
 	r *http.Request,
 	logger *logrus.Entry,
+	formService *projectServices.AcceptanceFormService,
 	projectID uuid.UUID,
+) (projectServices.AcceptanceRules, bool) {
+	rules, err := formService.Rules(r.Context(), projectID)
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving acceptance form rules")
+		http.Error(w, "Error retrieving acceptance form rules", acceptanceErrorStatus(err))
+		return projectServices.AcceptanceRules{}, false
+	}
+	return rules, true
+}
+
+func kindValues(rules projectServices.AcceptanceRules) []acceptance.Kind {
+	kinds := make([]acceptance.Kind, 0, len(rules.Kinds))
+	for _, option := range rules.Kinds {
+		kinds = append(kinds, option.Value)
+	}
+	return kinds
+}
+
+func joinErrors(errorsMap map[string]string) string {
+	fields := make([]string, 0, len(errorsMap))
+	for field := range errorsMap {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	lines := make([]string, 0, len(fields))
+	for _, field := range fields {
+		lines = append(lines, errorsMap[field])
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderDrawer answers with the drawer of the document (a new one when id is
+// nil), showing the form as it stands and the errors at its fields.
+func (c *AcceptanceController) renderDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	currencyService *coreservices.CurrencyService,
+	projectID, id uuid.UUID,
+	rules projectServices.AcceptanceRules,
 	form dtos.AcceptanceCreateDTO,
 	errorsMap map[string]string,
 ) {
 	ctx := r.Context()
-	if form.CurrencyCode == "" {
-		project, err := p.projects.GetByID(ctx, projectID)
+	applyRules(&form, rules)
+	props := &projects.AcceptanceDrawerProps{
+		ProjectID:      projectID.String(),
+		Form:           form,
+		Kinds:          rules.Kinds,
+		CurrencyLocked: rules.Currency.Locked,
+		Errors:         errorsMap,
+	}
+	if id != uuid.Nil {
+		props.DocumentID = id.String()
+	}
+	if !rules.Currency.Locked {
+		currencies, err := currencyService.GetAll(ctx)
 		if err != nil {
-			logger.WithError(err).Error("Error retrieving project")
-			http.Error(w, "Error retrieving project", http.StatusInternalServerError)
+			logger.WithError(err).Error("Error retrieving currencies")
+			http.Error(w, "Error retrieving currencies", http.StatusInternalServerError)
 			return
 		}
-		if contract := project.Contract(); contract != nil {
-			form.CurrencyCode = contract.Currency().Code
-		}
+		props.Currencies = mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel)
+	}
+	templ.Handler(projects.AcceptanceDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// render answers with the tab.
+func (p acceptancePanel) render(w http.ResponseWriter, r *http.Request, logger *logrus.Entry, projectID uuid.UUID) {
+	ctx := r.Context()
+	rules, err := p.forms.Rules(ctx, projectID)
+	if err != nil {
+		logger.WithError(err).Error("Error retrieving acceptance form rules")
+		http.Error(w, "Error retrieving acceptance form rules", http.StatusInternalServerError)
+		return
 	}
 	documents, err := p.documents.GetByProjectID(ctx, projectID)
 	if err != nil {
@@ -254,20 +512,12 @@ func (p acceptancePanel) render(
 		http.Error(w, "Error retrieving project revenue", http.StatusInternalServerError)
 		return
 	}
-	currencies, err := p.currencies.GetAll(ctx)
-	if err != nil {
-		logger.WithError(err).Error("Error retrieving currencies")
-		http.Error(w, "Error retrieving currencies", http.StatusInternalServerError)
-		return
-	}
 
 	props := &projects.AcceptanceProps{
-		ProjectID:  projectID.String(),
-		Revenue:    mapping.MapViewModels(revenue, financemappers.RevenueToViewModel),
-		Documents:  mapping.MapViewModels(documents, mappers.AcceptanceDocumentToViewModel),
-		Form:       form,
-		Currencies: mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel),
-		Errors:     errorsMap,
+		ProjectID: projectID.String(),
+		Revenue:   mapping.MapViewModels(revenue, financemappers.RevenueToViewModel),
+		Documents: mapping.MapViewModels(documents, mappers.AcceptanceDocumentToViewModel),
+		Kinds:     rules.Kinds,
 	}
 	templ.Handler(projects.AcceptancePanel(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

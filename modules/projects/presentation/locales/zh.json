@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "验收单",
         "_DELIVERY_NOTE": "送货单",
+        "_PROTOCOL": "验收协议",
         "_OTHER": "其他单据"
       },
       "Statuses": {
@@ -86,6 +87,10 @@
           "Title": "验收文件已创建",
           "Summary": "项目中已添加验收文件草稿"
         },
+        "Updated": {
+          "Title": "验收文件已更新",
+          "Summary": "文件字段已更改"
+        },
         "Signed": {
           "Title": "验收文件已签署",
           "Summary": "文件已签署，其金额确认为收入"
@@ -98,6 +103,18 @@
           "Title": "验收文件已删除",
           "Summary": "文件已从项目中移除"
         }
+      },
+      "Documents": "文件",
+      "Edit": "编辑",
+      "EditTitle": "编辑文件",
+      "SignedOn": "签署日期",
+      "SignedOnHint": "签署日期会将该金额确认为收入。文件尚未签署时请留空：它将保持为草稿。",
+      "NumberPlaceholder": "ACT-001",
+      "CurrencyLocked": "该项目的所有文件均使用同一种货币。",
+      "Toasts": {
+        "created": "文件已添加",
+        "updated": "文件已保存",
+        "deleted": "文件已删除"
       }
     },
     "History": {

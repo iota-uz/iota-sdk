@@ -22,6 +22,7 @@ const (
 	ProjectStageUpdated = "projects.project_stage.updated"
 	ProjectStageDeleted = "projects.project_stage.deleted"
 	AcceptanceCreated   = "projects.acceptance.created"
+	AcceptanceUpdated   = "projects.acceptance.updated"
 	AcceptanceSigned    = "projects.acceptance.signed"
 	AcceptanceCancelled = "projects.acceptance.cancelled"
 	AcceptanceDeleted   = "projects.acceptance.deleted"
@@ -50,12 +51,14 @@ func HistoryDefinitions() []history.Definition {
 		{Name: "kind", LabelKey: "Projects.Acceptance.Kind", Type: history.ValueString},
 		{Name: "number", LabelKey: "Projects.Acceptance.Number", Type: history.ValueString},
 		{Name: "date", LabelKey: "Projects.Acceptance.Date", Type: history.ValueDate},
+		{Name: "signed_on", LabelKey: "Projects.Acceptance.SignedOn", Type: history.ValueDate},
 		{Name: "amount", LabelKey: "Projects.Acceptance.Amount", Type: history.ValueMoney},
 		{Name: "status", LabelKey: "Projects.Acceptance.Status", Type: history.ValueString},
 		{Name: "description", LabelKey: "Projects.Acceptance._Description", Type: history.ValueString},
 	}}
 	for _, a := range []struct{ eventType, key string }{
 		{AcceptanceCreated, "Created"},
+		{AcceptanceUpdated, "Updated"},
 		{AcceptanceSigned, "Signed"},
 		{AcceptanceCancelled, "Cancelled"},
 		{AcceptanceDeleted, "Deleted"},
@@ -99,10 +102,18 @@ func acceptanceSnapshot(d acceptance.Document) history.Snapshot {
 		"kind":        string(d.Kind()),
 		"number":      d.Number(),
 		"date":        history.Date(d.Date()),
+		"signed_on":   signedOnValue(d),
 		"amount":      history.Money(d.Amount()),
 		"status":      string(d.Status()),
 		"description": d.Description(),
 	}
+}
+
+func signedOnValue(d acceptance.Document) any {
+	if d.SignedOn().IsZero() {
+		return nil
+	}
+	return history.Date(d.SignedOn())
 }
 
 func optionalDate(t *time.Time) any {
