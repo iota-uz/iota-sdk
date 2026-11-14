@@ -1,4 +1,11 @@
 {
+  "Permissions": {
+    "BiChat": {
+      "Access": "Acessar BI Chat",
+      "ReadAll": "Ler todas as sessões",
+      "Export": "Exportar dados"
+    }
+  },
   "NavigationLinks": {
     "BiChat": "BI-Chat"
   },
@@ -430,7 +437,11 @@
     },
     "StreamError": {
       "Retry": "Tentar novamente",
-      "Regenerate": "Regenerar"
+      "Regenerate": "Regenerar",
+      "Failed": {
+        "Title": "Não foi possível obter uma resposta",
+        "Details": "Ocorreu um erro ao processar a solicitação. Tente novamente."
+      }
     },
     "Chart": {
       "NoData": "Nenhum dado disponível",

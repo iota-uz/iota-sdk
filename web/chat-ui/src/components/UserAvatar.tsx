@@ -3,6 +3,7 @@ import { type JSX, mergeProps, createSignal, createMemo, createEffect, on, onMou
  * UserAvatar Component
  * Displays user initials with deterministic color from a color palette
  */
+import { deriveInitials, UNKNOWN_INITIALS } from '../utils/initials';
 export interface UserAvatarProps {
     /** User's first name */
     firstName: string;
@@ -57,13 +58,7 @@ const sizeClasses = {
 function UserAvatar(solidProps1Input: UserAvatarProps) {
     const solidProps1 = mergeProps({ size: 'md', className: '' } as const, solidProps1Input);
     // Generate initials if not provided
-    const derivedInitials = createMemo(() => (() => {
-        const firstChar = solidProps1.firstName?.trim()?.charAt(0) || '';
-        const lastChar = solidProps1.lastName?.trim()?.charAt(0) || '';
-        const combined = `${firstChar}${lastChar}`.trim();
-        return combined || 'U';
-    })());
-    const initials = createMemo(() => (solidProps1.initials?.trim() || derivedInitials()).toUpperCase());
+    const initials = createMemo(() => deriveInitials(solidProps1) || UNKNOWN_INITIALS);
     // Select color based on full name hash (deterministic)
     const fullName = createMemo(() => `${solidProps1.firstName}${solidProps1.lastName}`);
     const colorIndex = createMemo(() => hashString(fullName()) % colorPalette.length);

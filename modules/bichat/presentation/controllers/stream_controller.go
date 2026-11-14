@@ -740,7 +740,6 @@ func (c *StreamController) sendSSEComment(w http.ResponseWriter, flusher http.Fl
 }
 
 func (c *StreamController) streamClientErrorMessage(err error, chunkType bichatservices.ChunkType) string {
-	const generic = "An error occurred while processing your request"
 	if err == nil {
 		return ""
 	}
@@ -752,7 +751,7 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 	if normalized := bichatmodsvcs.NormalizeProviderError(code, err.Error()); normalized != "" {
 		return normalized
 	}
-	return generic
+	return bichatmodsvcs.StreamFailedError
 }
 
 func sanitizeErrorString(err error) string {

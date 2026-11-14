@@ -23,6 +23,10 @@ export function IotaContextProvider(solidProps1: IotaContextProviderProps) {
       {solidProps1.children}
     </IotaContext.Provider>);
 }
+/** Like useIotaContext, but returns null when no provider is mounted. */
+export function useOptionalIotaContext(): IotaContextType | null {
+    return useContext(IotaContext);
+}
 export function useIotaContext(): IotaContextType {
     const context = useContext(IotaContext);
     if (!context) {
