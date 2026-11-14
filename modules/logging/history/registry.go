@@ -41,7 +41,9 @@ type Field struct {
 
 type Resource struct {
 	Name string
-	// LabelKey names the resource in the history UI; the name is shown when it is empty.
+	// LabelKey is the translation key of the resource's plural name, shown in the history filters and
+	// event subjects. At least one definition naming the resource must set it; Lifecycle defaults it
+	// to keyPrefix.Resource.
 	LabelKey string
 	// ReadPermission hides events about the resource, and its subjects in other events, from readers without it.
 	ReadPermission *permission.Permission
@@ -111,10 +113,11 @@ type definitionKey struct {
 type Registry struct {
 	mu          sync.RWMutex
 	definitions map[definitionKey]Definition
+	labelKeys   map[string]string
 }
 
 func NewRegistry() *Registry {
-	return &Registry{definitions: make(map[definitionKey]Definition)}
+	return &Registry{definitions: make(map[definitionKey]Definition), labelKeys: make(map[string]string)}
 }
 
 func (r *Registry) Register(defs ...Definition) error {
@@ -127,6 +130,16 @@ func (r *Registry) Register(defs ...Definition) error {
 		key := definitionKey{d.Type, d.Version}
 		if _, exists := r.definitions[key]; exists {
 			return fmt.Errorf("business event already registered: %s v%d", d.Type, d.Version)
+		}
+		for _, res := range d.Resources {
+			if known := r.labelKeys[res.Name]; res.LabelKey != "" && known != "" && known != res.LabelKey {
+				return fmt.Errorf("resource %q of business event %s v%d is labelled %q, already %q", res.Name, d.Type, d.Version, res.LabelKey, known)
+			}
+		}
+		for _, res := range d.Resources {
+			if res.LabelKey != "" {
+				r.labelKeys[res.Name] = res.LabelKey
+			}
 		}
 		r.definitions[key] = cloneDefinition(d)
 	}
@@ -163,9 +176,7 @@ func (r *Registry) Resources() []Resource {
 	byName := map[string]Resource{}
 	for _, d := range r.definitions {
 		for _, res := range d.Resources {
-			if known, ok := byName[res.Name]; !ok || known.LabelKey == "" {
-				byName[res.Name] = Resource{Name: res.Name, LabelKey: res.LabelKey}
-			}
+			byName[res.Name] = Resource{Name: res.Name, LabelKey: r.labelKeys[res.Name]}
 		}
 	}
 	result := make([]Resource, 0, len(byName))
@@ -203,8 +214,12 @@ func cloneDefinition(d Definition) Definition {
 
 // Lifecycle defines the created, updated and deleted events of one resource: types are
 // typePrefix.created, .updated and .deleted, and translation keys are
-// keyPrefix.Created.Title, keyPrefix.Created.Summary and so on.
+// keyPrefix.Created.Title, keyPrefix.Created.Summary and so on. The resource is named by
+// keyPrefix.Resource unless it sets its own LabelKey.
 func Lifecycle(typePrefix, keyPrefix string, resource Resource) []Definition {
+	if resource.LabelKey == "" {
+		resource.LabelKey = keyPrefix + ".Resource"
+	}
 	actions := []struct{ suffix, key string }{{"created", "Created"}, {"updated", "Updated"}, {"deleted", "Deleted"}}
 	defs := make([]Definition, len(actions))
 	for i, a := range actions {

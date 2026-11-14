@@ -46,14 +46,14 @@ func Chip(props Props, idx int, c filterq.Condition) templ.Component {
 		pageCtx := composables.UsePageCtx(ctx)
 		field, ok := props.Registry.Field(c.Field)
 		if ok {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"relative\" data-fb-chip-wrapper x-on:click.outside=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"sm:relative\" data-fb-chip-wrapper x-on:click.outside=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("if (editing === %d) closeAll()", idx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 22, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/chip.templ`, Line: 22, Col: 119}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -268,7 +268,7 @@ func Chip(props Props, idx int, c filterq.Condition) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" x-transition.opacity.duration.100ms role=\"dialog\" data-fb-popover class=\"absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" x-transition.opacity.duration.100ms role=\"dialog\" data-fb-popover class=\"absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

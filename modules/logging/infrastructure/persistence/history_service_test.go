@@ -105,6 +105,9 @@ func TestHistoryService_Filters(t *testing.T) {
 		{"resource", history.Query{Scope: history.Scope{Kind: history.ScopeResource, Resource: "employee"}}, 5},
 		{"entity", history.Query{Scope: history.Scope{Kind: history.ScopeEntity, Resource: "employee", ID: "3"}}, 1},
 		{"event type", history.Query{Scope: all(), EventTypes: []string{"hrm.contract.signed"}}, 1},
+		{"any of the event types", history.Query{Scope: all(), EventTypes: []string{"hrm.contract.signed", "hrm.employee.updated"}}, 6},
+		{"any of the resources", history.Query{Scope: all(), Resources: []string{"contract", "employee"}}, 6},
+		{"one of the resources", history.Query{Scope: all(), Resources: []string{"contract"}}, 1},
 		{"deleted actor, legacy record loses its user", history.Query{Scope: all(), ActorID: h.actor}, 6},
 		{"channel", history.Query{Scope: all(), Channels: []string{"ui"}}, 6},
 		{"legacy channel", history.Query{Scope: all(), Channels: []string{history.LegacyChannel}}, 1},
@@ -188,6 +191,9 @@ func TestHistoryService_RejectsInvalidInput(t *testing.T) {
 		"empty event types":   {Scope: all(), EventTypes: []string{}},
 		"unknown event type":  {Scope: all(), EventTypes: []string{"hrm.employee.fired"}},
 		"unknown channel":     {Scope: all(), Channels: []string{"email"}},
+		"empty resources":     {Scope: all(), Resources: []string{}},
+		"unknown resource":    {Scope: all(), Resources: []string{"users"}},
+		"resources in scope":  {Scope: history.Scope{Kind: history.ScopeResource, Resource: "employee"}, Resources: []string{"employee"}},
 		"unknown outcome":     {Scope: all(), Outcomes: []businessevent.Outcome{"applied"}},
 		"from not before to":  {Scope: all(), From: "2026-10-02T00:00:00Z", To: "2026-10-01T00:00:00Z"},
 		"time is not rfc3339": {Scope: all(), From: "yesterday"},
@@ -208,6 +214,8 @@ func TestHistoryService_AppliesPermissionsBeforePagination(t *testing.T) {
 	reader := h.as(permissions.ViewLogs)
 	_, err = h.service.History(reader, history.Query{Scope: history.Scope{Kind: history.ScopeResource, Resource: "contract"}})
 	require.ErrorIs(t, err, history.ErrForbidden)
+	_, err = h.service.History(reader, history.Query{Scope: all(), Resources: []string{"employee", "contract"}})
+	require.ErrorIs(t, err, history.ErrForbidden, "a resource the reader cannot see cannot be listed among the others")
 
 	result, err := h.service.History(reader, history.Query{Scope: all(), Limit: 6})
 	require.NoError(t, err)

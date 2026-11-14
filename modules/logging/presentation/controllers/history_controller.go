@@ -4,11 +4,13 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"net/url"
+	"slices"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
@@ -17,8 +19,11 @@ import (
 	historypage "github.com/iota-uz/iota-sdk/modules/logging/presentation/templates/pages/history"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
 const DefaultHistoryBasePath = "/admin/history"
@@ -69,23 +74,24 @@ func (c *HistoryController) Index(w http.ResponseWriter, r *http.Request) {
 		templ.Handler(error_pages.Forbidden()).ServeHTTP(w, r)
 		return
 	}
-	filters := parseFilters(r.URL.Query())
+	registry := c.filterRegistry(r)
+	filters := historypage.ParseFilters(r.URL.Query(), registry.Schema())
 	props := &historypage.PageProps{
 		BasePath:  c.basePath,
 		EventsURL: c.basePath + "/events?" + r.URL.RawQuery,
 		Filters:   filters,
 		Scope:     c.scopeTitle(r, filters),
-		Resources: c.resourceOptions(r),
-		Types:     c.typeOptions(r),
+		Builder:   filterbuilder.Props{Registry: registry, Filters: filters.Conditions, ID: "history-filters", Class: nil, ShowResetAlways: false},
 	}
 	templ.Handler(historypage.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 // Events renders the timeline. It only reads, so the error state may retry it freely.
 func (c *HistoryController) Events(w http.ResponseWriter, r *http.Request) {
-	filters := parseFilters(r.URL.Query())
+	filters := historypage.ParseFilters(r.URL.Query(), c.filterRegistry(r).Schema())
 	props := &historypage.EventsProps{BasePath: c.basePath, RetryURL: r.URL.RequestURI(), Filters: filters}
-	result, err := c.service.History(r.Context(), filters.Query())
+	loc, _ := composables.UseLocation(r.Context())
+	result, err := c.service.History(r.Context(), filters.Query(loc, time.Now()))
 	props.Groups = historypage.Group(result.Items, c.fieldLabels(r))
 	if result.NextCursor != nil {
 		next := r.URL.Query()
@@ -106,31 +112,45 @@ func (c *HistoryController) Events(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(historypage.Events(props)).ServeHTTP(w, r)
 }
 
-func parseFilters(values url.Values) historypage.Filters {
-	return historypage.Filters{
-		Resource:  values.Get("resource"),
-		ID:        values.Get("id"),
-		Actor:     values.Get("actor"),
-		ActorName: values.Get("actor_name"),
-		EventType: values.Get("event_type"),
-		Channel:   values.Get("channel"),
-		Outcome:   values.Get("outcome"),
-		From:      values.Get("from"),
-		To:        values.Get("to"),
-		Cursor:    values.Get("cursor"),
+// filterRegistry lists the chip builder's fields. A page pinned to one object has no resource field.
+func (c *HistoryController) filterRegistry(r *http.Request) *filterbuilder.Registry {
+	t := func(key string) string { return intl.MustT(r.Context(), key) }
+	is := []filterq.Operator{filterq.OpIs}
+	fields := []filterbuilder.FieldDef{{
+		Key:       historypage.FieldPeriod,
+		Type:      filterq.FieldTypeDate,
+		Label:     t("BusinessHistory.Filters.Period"),
+		Operators: []filterq.Operator{filterq.OpBetween, filterq.OpOn, filterq.OpAfter, filterq.OpBefore},
+		Presets:   []filterq.DatePreset{filterq.PresetThisMonth, filterq.PresetLastMonth, filterq.PresetLast30D, filterq.PresetThisYear, filterq.PresetLastYear},
+	}}
+	if r.URL.Query().Get("id") == "" {
+		fields = append(fields, filterbuilder.FieldDef{
+			Key: historypage.FieldResource, Type: filterq.FieldTypeReference, Label: t("BusinessHistory.Filters.Resource"),
+			Operators: is, Options: c.resourceOptions(r),
+		})
 	}
+	return filterbuilder.NewRegistry(append(fields,
+		filterbuilder.FieldDef{
+			Key: historypage.FieldEventType, Type: filterq.FieldTypeReference, Label: t("BusinessHistory.Filters.Action"),
+			Operators: is, Options: c.actionOptions(r),
+		},
+		filterbuilder.FieldDef{
+			Key: historypage.FieldChannel, Type: filterq.FieldTypeReference, Label: t("BusinessHistory.Filters.Channel"),
+			Operators: is, Options: c.channelOptions(r),
+		},
+		filterbuilder.FieldDef{
+			Key: historypage.FieldOutcome, Type: filterq.FieldTypeReference, Label: t("BusinessHistory.Filters.Outcome"),
+			Operators: is, Options: c.outcomeOptions(r),
+		},
+	)...)
 }
 
 func (c *HistoryController) scopeTitle(r *http.Request, f historypage.Filters) string {
 	ctx := r.Context()
-	if f.Resource == "" {
+	if f.ID == "" {
 		return intl.MustT(ctx, "BusinessHistory.Meta.Title")
 	}
-	label := c.resourceLabel(r, f.Resource)
-	if f.ID != "" {
-		return label + " #" + f.ID
-	}
-	return label
+	return c.resourceLabel(r, f.Resource) + " #" + f.ID
 }
 
 func (c *HistoryController) resourceLabel(r *http.Request, name string) string {
@@ -142,29 +162,79 @@ func (c *HistoryController) resourceLabel(r *http.Request, name string) string {
 	return name
 }
 
-func (c *HistoryController) resourceOptions(r *http.Request) []historypage.Option {
+func (c *HistoryController) resourceOptions(r *http.Request) []filterbuilder.Option {
 	resources := c.registry.Resources()
-	options := make([]historypage.Option, 0, len(resources))
+	options := make([]filterbuilder.Option, 0, len(resources))
 	for _, res := range resources {
 		if c.service.Visible(r.Context(), res.Name) {
-			options = append(options, historypage.Option{Value: res.Name, Label: c.resourceLabel(r, res.Name)})
+			options = append(options, filterbuilder.Opt(res.Name, c.resourceLabel(r, res.Name)))
 		}
 	}
+	c.sortOptions(r, options)
 	return options
 }
 
-func (c *HistoryController) typeOptions(r *http.Request) []historypage.Option {
+// actionOptions lists the event types, grouped under the resource they are about.
+func (c *HistoryController) actionOptions(r *http.Request) []filterbuilder.Option {
+	ctx := r.Context()
+	other := intl.MustT(ctx, "BusinessHistory.Filters.OtherActions")
 	seen := map[string]bool{}
 	definitions := c.registry.Definitions()
-	options := make([]historypage.Option, 0, len(definitions))
+	options := make([]filterbuilder.Option, 0, len(definitions))
 	for _, d := range definitions {
 		if seen[d.Type] || d.Category == businessevent.CategoryLegacy {
 			continue
 		}
 		seen[d.Type] = true
-		options = append(options, historypage.Option{Value: d.Type, Label: intl.TWithDefault(r.Context(), d.TitleKey, d.Type)})
+		group := other
+		if len(d.Resources) > 0 {
+			i := slices.IndexFunc(d.Resources, func(res history.Resource) bool { return c.service.Visible(ctx, res.Name) })
+			if i < 0 {
+				continue
+			}
+			group = c.resourceLabel(r, d.Resources[i].Name)
+		}
+		option := filterbuilder.Opt(d.Type, intl.TWithDefault(ctx, d.TitleKey, d.Type))
+		option.Group = group
+		options = append(options, option)
+	}
+	collator := c.collator(r)
+	slices.SortStableFunc(options, func(a, b filterbuilder.Option) int {
+		if a.Group != b.Group {
+			return collator.CompareString(a.Group, b.Group)
+		}
+		return collator.CompareString(a.Label, b.Label)
+	})
+	return options
+}
+
+func (c *HistoryController) channelOptions(r *http.Request) []filterbuilder.Option {
+	options := make([]filterbuilder.Option, len(historypage.Channels))
+	for i, channel := range historypage.Channels {
+		options[i] = filterbuilder.Opt(channel, intl.MustT(r.Context(), "BusinessHistory.Channels."+channel))
 	}
 	return options
+}
+
+func (c *HistoryController) outcomeOptions(r *http.Request) []filterbuilder.Option {
+	options := make([]filterbuilder.Option, len(historypage.Outcomes))
+	for i, outcome := range historypage.Outcomes {
+		options[i] = filterbuilder.Opt(string(outcome), intl.MustT(r.Context(), "BusinessHistory.Outcomes."+string(outcome)))
+	}
+	return options
+}
+
+func (c *HistoryController) sortOptions(r *http.Request, options []filterbuilder.Option) {
+	collator := c.collator(r)
+	slices.SortStableFunc(options, func(a, b filterbuilder.Option) int { return collator.CompareString(a.Label, b.Label) })
+}
+
+func (c *HistoryController) collator(r *http.Request) *collate.Collator {
+	tag := language.Russian
+	if locale, ok := intl.UseLocale(r.Context()); ok {
+		tag = locale
+	}
+	return collate.New(tag)
 }
 
 // fieldLabels resolves the localized field label of a change, keyed by event type, version, resource and field.

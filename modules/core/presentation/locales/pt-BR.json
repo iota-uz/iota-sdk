@@ -484,6 +484,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este grupo?"
     },
     "History": {
+      "Resource": "Grupos",
       "Created": {
         "Title": "Grupo criado",
         "Summary": "Um grupo foi criado"
@@ -1030,6 +1031,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este papel?"
     },
     "History": {
+      "Resource": "Funções",
       "Created": {
         "Title": "Função criada",
         "Summary": "Uma função foi criada"
@@ -1352,6 +1354,7 @@
       "RevokeFailed": "Falha ao revogar a sessão"
     },
     "History": {
+      "Resource": "Usuários",
       "Created": {
         "Title": "Usuário criado",
         "Summary": "Uma conta de usuário foi criada"
@@ -1587,6 +1590,7 @@
       "ParentNotFound": "O departamento superior selecionado não foi encontrado."
     },
     "History": {
+      "Resource": "Departamentos",
       "Created": {
         "Title": "Departamento criado",
         "Summary": "Um departamento foi adicionado à estrutura organizacional"
@@ -1722,6 +1726,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Cargos de usuários",
       "Created": {
         "Title": "Cargo criado",
         "Summary": "Um usuário recebeu um cargo em um departamento"

@@ -98,6 +98,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este produto?"
     },
     "History": {
+      "Resource": "Produtos",
       "Created": {
         "Title": "Produto criado",
         "Summary": "Um produto foi adicionado ao armazém"
@@ -202,6 +203,7 @@
       "Submit": "Importar"
     },
     "History": {
+      "Resource": "Posições do estoque",
       "Created": {
         "Title": "Posição criada",
         "Summary": "Uma posição de armazém foi adicionada"
@@ -252,6 +254,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta unidade do armazém?"
     },
     "History": {
+      "Resource": "Unidades de medida",
       "Created": {
         "Title": "Unidade criada",
         "Summary": "Uma unidade de medida foi adicionada"
@@ -337,6 +340,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta ordem?"
     },
     "History": {
+      "Resource": "Pedidos do armazém",
       "Created": {
         "Title": "Ordem criada",
         "Summary": "Uma ordem de armazém foi criada"
@@ -411,6 +415,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta verificação de inventário?"
     },
     "History": {
+      "Resource": "Inventários",
       "Created": {
         "Title": "Inventário criado",
         "Summary": "Um inventário foi registrado"

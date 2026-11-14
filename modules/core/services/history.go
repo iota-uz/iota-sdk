@@ -84,7 +84,7 @@ func HistoryDefinitions() []history.Definition {
 	userRef := history.Resource{Name: UserResource}
 	roleRef := history.Resource{Name: RoleResource}
 	groupRef := history.Resource{Name: GroupResource}
-	permissionRef := history.Resource{Name: PermissionResource}
+	permissionRef := history.Resource{Name: PermissionResource, LabelKey: "BusinessHistory.Resources.Permission"}
 
 	defs := make([]history.Definition, 0, 30)
 	defs = append(defs, securityLifecycle("core.user", "Users.History", userResource)...)

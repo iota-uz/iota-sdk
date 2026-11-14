@@ -150,8 +150,10 @@ type Position struct {
 // FindParams narrows the timeline; zero values do not filter. An event is visible when it
 // concerns at least one of Readable resources or none at all.
 type FindParams struct {
-	Resource   string
-	SubjectID  string
+	Resource  string
+	SubjectID string
+	// Resources keeps events that concern at least one of them.
+	Resources  []string
 	ActorID    string
 	EventTypes []string
 	Channels   []Channel

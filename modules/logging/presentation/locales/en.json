@@ -8,6 +8,11 @@
 		}
 	},
 	"BusinessHistory": {
+		"Resources": {
+			"Permission": "Permissions",
+			"Upload": "Files",
+			"ImportItem": "Import items"
+		},
 		"Events": {
 			"LegacyActionLog": {
 				"Title": "Action from the former log",
@@ -30,15 +35,13 @@
 			"Subtitle": "Business actions across the resources you can access"
 		},
 		"Filters": {
-			"From": "From",
-			"To": "To",
+			"Period": "Period",
+			"OtherActions": "Other actions",
 			"Resource": "Resource",
 			"Action": "Action",
 			"Channel": "Channel",
 			"Outcome": "Result",
 			"Actor": "Performed by",
-			"Any": "Any",
-			"Apply": "Apply",
 			"Clear": "Clear filters"
 		},
 		"Channels": {

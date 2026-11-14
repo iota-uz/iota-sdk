@@ -8,6 +8,11 @@
 		}
 	},
 	"BusinessHistory": {
+		"Resources": {
+			"Permission": "Рухсатлар",
+			"Upload": "Файллар",
+			"ImportItem": "Импорт элементлари"
+		},
 		"Events": {
 			"LegacyActionLog": {
 				"Title": "Аввалги журналдаги амал",
@@ -30,15 +35,13 @@
 			"Subtitle": "Сизга очиқ ресурслар бўйича бизнес амаллар"
 		},
 		"Filters": {
-			"From": "Дан",
-			"To": "Гача",
+			"Period": "Давр",
+			"OtherActions": "Бошқа ҳаракатлар",
 			"Resource": "Ресурс",
 			"Action": "Амал",
 			"Channel": "Канал",
 			"Outcome": "Натижа",
 			"Actor": "Бажарувчи",
-			"Any": "Исталган",
-			"Apply": "Қўллаш",
 			"Clear": "Филтрларни тозалаш"
 		},
 		"Channels": {

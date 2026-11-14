@@ -484,6 +484,7 @@
       "DeleteConfirmation": "您确定要删除此组吗？"
     },
     "History": {
+      "Resource": "组",
       "Created": {
         "Title": "已创建组",
         "Summary": "已创建一个组"
@@ -1031,6 +1032,7 @@
       "DeleteConfirmation": "您确定要删除此角色吗？"
     },
     "History": {
+      "Resource": "角色",
       "Created": {
         "Title": "已创建角色",
         "Summary": "已创建一个角色"
@@ -1351,6 +1353,7 @@
       "RevokeFailed": "撤销会话失败"
     },
     "History": {
+      "Resource": "用户",
       "Created": {
         "Title": "已创建用户",
         "Summary": "已创建一个用户账户"
@@ -1586,6 +1589,7 @@
       "ParentNotFound": "未找到所选的上级部门。"
     },
     "History": {
+      "Resource": "部门",
       "Created": {
         "Title": "已创建部门",
         "Summary": "组织结构中已添加一个部门"
@@ -1721,6 +1725,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "用户职位",
       "Created": {
         "Title": "已创建职位",
         "Summary": "已为用户在部门中设置职位"

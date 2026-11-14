@@ -83,6 +83,7 @@
       },
       "Status": "状态",
       "History": {
+        "Resource": "验收文件",
         "Created": {
           "Title": "验收文件已创建",
           "Summary": "项目中已添加验收文件草稿"
@@ -118,6 +119,7 @@
       }
     },
     "History": {
+      "Resource": "项目",
       "Created": {
         "Title": "项目已创建",
         "Summary": "已添加新项目"
@@ -175,6 +177,7 @@
       "DeleteConfirmation": "您确定要删除此项目阶段吗？"
     },
     "History": {
+      "Resource": "项目阶段",
       "Created": {
         "Title": "项目阶段已创建",
         "Summary": "项目中已添加新阶段"

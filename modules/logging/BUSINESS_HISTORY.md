@@ -95,6 +95,11 @@ Not recorded, by design:
 Actor is the execution actor (the user for UI and import, `job:<kind>` with the user as initiator
 for jobs, `system` for scheduled and CLI runs). Channels are those of the entry points above.
 
+Every resource named by an event needs a translated plural label in all locales: it names the resource
+in the history page's filters and in event subjects. `history.Lifecycle` sets `Resource.LabelKey` to
+`<KeyPrefix>.Resource`; other resources set `LabelKey` themselves. `TestBusinessHistoryResources_HaveDistinctTranslatedLabels`
+fails on a missing, untranslated or duplicate label.
+
 | event_type | Business name | Resource | Fields | Service.Method | Test |
 |---|---|---|---|---|---|
 | `import.item` | Import item rejected | `import.item` | — (outcome `failed` / `denied`) | `history.ImportItem; warehouse/PositionRowHandler` | `TestPositionRowHandler_PartialImport`, `TestPositionRowHandler_RecordRejectedRows` |
