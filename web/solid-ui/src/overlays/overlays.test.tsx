@@ -44,6 +44,29 @@ describe('overlay primitives', () => {
     expect(dialog.open).toBe(false)
   })
 
+  it('focuses the heading on phones even when showModal already focused a control', async () => {
+    const matchMedia = window.matchMedia
+    window.matchMedia = ((query: string) => ({ matches: query === '(max-width: 767px)', media: query })) as unknown as typeof window.matchMedia
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; this.querySelector<HTMLElement>('button')?.focus() }
+    try {
+      render(() => <ConfirmationDialog defaultOpen heading="Delete product?" confirmText="Delete" />)
+      await Promise.resolve()
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Delete product?' }))
+    } finally {
+      window.matchMedia = matchMedia
+    }
+  })
+
+  it('keeps native focus on desktop instead of focusing a control again', async () => {
+    let focusSpy: ReturnType<typeof vi.spyOn> | undefined
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; const first = this.querySelector<HTMLElement>('button')!; first.focus(); focusSpy = vi.spyOn(first, 'focus') }
+    render(() => <ConfirmationDialog defaultOpen heading="Delete product?" confirmText="Delete" />)
+    await Promise.resolve()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close' }))
+    expect(focusSpy).toBeDefined()
+    expect(focusSpy).not.toHaveBeenCalled()
+  })
+
   it('reopens after native close when a controlled owner refuses the change', async () => {
     const changed = vi.fn()
     render(() => <Dialog open onOpenChange={changed} aria-label="Pinned"><button>Inside</button></Dialog>)

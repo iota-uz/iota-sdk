@@ -105,15 +105,34 @@ func ProjectStageViewModelToUpdateDTO(vm viewmodels.ProjectStageViewModel) dtos.
 }
 
 func AcceptanceDocumentToViewModel(d acceptance.Document) *viewmodels.AcceptanceDocument {
+	signedOn := ""
+	if !d.SignedOn().IsZero() {
+		signedOn = d.SignedOn().Format(time.DateOnly)
+	}
 	return &viewmodels.AcceptanceDocument{
 		ID:          d.ID().String(),
 		Kind:        string(d.Kind()),
 		Number:      d.Number(),
 		Date:        d.Date().Format(time.DateOnly),
+		SignedOn:    signedOn,
 		Amount:      d.Amount().Display(),
 		Status:      string(d.Status()),
 		Description: d.Description(),
 		CanSign:     d.Status() == acceptance.StatusDraft,
 		CanCancel:   d.Status() != acceptance.StatusCancelled,
+		CanEdit:     d.Status() != acceptance.StatusCancelled,
+	}
+}
+
+// AcceptanceDocumentToForm fills the acceptance form with a stored document.
+func AcceptanceDocumentToForm(d acceptance.Document) dtos.AcceptanceCreateDTO {
+	return dtos.AcceptanceCreateDTO{
+		Kind:         string(d.Kind()),
+		Number:       d.Number(),
+		Date:         shared.DateOnly(d.Date()),
+		SignedOn:     shared.DateOnly(d.SignedOn()),
+		Amount:       shared.NewAmount(decimal.NewFromBigInt(d.Amount().BigAmount(), -int32(d.Amount().Currency().Fraction))),
+		CurrencyCode: d.Amount().Currency().Code,
+		Description:  d.Description(),
 	}
 }

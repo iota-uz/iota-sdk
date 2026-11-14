@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "Termo de aceite",
         "_DELIVERY_NOTE": "Nota de entrega",
+        "_PROTOCOL": "Protocolo de aceite",
         "_OTHER": "Outro documento"
       },
       "Statuses": {
@@ -86,6 +87,10 @@
           "Title": "Documento de aceite criado",
           "Summary": "Um rascunho de documento de aceite foi adicionado ao projeto"
         },
+        "Updated": {
+          "Title": "Documento de aceite alterado",
+          "Summary": "Os campos do documento foram alterados"
+        },
         "Signed": {
           "Title": "Documento de aceite assinado",
           "Summary": "O documento foi assinado e seu valor foi reconhecido como receita"
@@ -98,6 +103,18 @@
           "Title": "Documento de aceite excluído",
           "Summary": "O documento foi removido do projeto"
         }
+      },
+      "Documents": "Documentos",
+      "Edit": "Editar",
+      "EditTitle": "Editar documento",
+      "SignedOn": "Assinado em",
+      "SignedOnHint": "A data de assinatura reconhece o valor como receita. Deixe vazia enquanto o documento não estiver assinado: ele continua como rascunho.",
+      "NumberPlaceholder": "ACT-001",
+      "CurrencyLocked": "Todos os documentos deste projeto estão em uma única moeda.",
+      "Toasts": {
+        "created": "Documento adicionado",
+        "updated": "Documento salvo",
+        "deleted": "Documento excluído"
       }
     },
     "History": {
