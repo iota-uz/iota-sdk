@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/clientsync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.clientsync", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

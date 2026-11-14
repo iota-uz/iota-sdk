@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/board",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.board", "contracts": "./src/contracts.ts", "client": "./src/client.tsx" }
+}

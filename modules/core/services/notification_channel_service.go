@@ -20,15 +20,27 @@ const (
 	notificationChannelSendLimit = 30 * time.Second
 )
 
-// NotificationChannelService owns external-channel delivery: it persists one
-// delivery per event/recipient/channel inside the producer's transaction and
-// calls provider adapters only after that transaction committed.
+// NotificationChannelService owns external-channel delivery. It persists a
+// delivery intent per notice, recipient and channel inside the producer's
+// transaction. After commit its worker expands each intent into targets (the
+// user's addresses and devices, a record's contacts, a direct address), applies
+// policy, renders the content with the pinned definition and calls provider
+// adapters, recording every attempt. No step holds a database transaction while
+// it calls a resolver, renderer or provider.
 type NotificationChannelService struct {
 	repo     notifications.DeliveryRepository
 	prefs    notifications.PreferenceRepository
 	adapters map[notifications.Channel]notifications.ChannelAdapter
 	resolver notifications.AddressResolver
+	platform *NotificationPlatform
 	logger   *logrus.Logger
+}
+
+// WithPlatform installs the notice store, renderers, contact resolvers, device
+// registry and policies the worker needs to turn recipients into targets.
+func (s *NotificationChannelService) WithPlatform(platform *NotificationPlatform) *NotificationChannelService {
+	s.platform = platform
+	return s
 }
 
 func NewNotificationChannelService(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, adapters []notifications.ChannelAdapter, resolver notifications.AddressResolver, logger *logrus.Logger) *NotificationChannelService {
@@ -116,14 +128,48 @@ func (s *NotificationChannelService) Stats(ctx context.Context) ([]notifications
 	return s.repo.Stats(ctx)
 }
 
-// Process attempts one batch of due external deliveries for the tenant in ctx.
-// The claim commits before any provider call, so no transaction is open while
-// providers run. Delivery is at-least-once: a crash between a provider
-// accepting a message and the outcome being stored repeats that one message.
+// RegisterDevice stores or refreshes a push device of a user.
+func (s *NotificationChannelService) RegisterDevice(ctx context.Context, device notifications.PushDevice) error {
+	const op serrors.Op = "NotificationChannelService.RegisterDevice"
+	if s.platform == nil || s.platform.Devices == nil {
+		return serrors.New(serrors.FailedPrecondition, "push device registry is not configured").WithOp(op)
+	}
+	if device.UserID == 0 || !device.Platform.Valid() || device.DeviceID == "" || device.Token == "" || len(device.DeviceID) > 200 || len(device.Token) > 4096 {
+		return serrors.New(serrors.Invalid, "invalid push device").WithOp(op)
+	}
+	return s.platform.Devices.Register(ctx, device)
+}
+
+// RevokeDevice stops pushes to one device of a user.
+func (s *NotificationChannelService) RevokeDevice(ctx context.Context, userID uint, deviceID string) error {
+	const op serrors.Op = "NotificationChannelService.RevokeDevice"
+	if s.platform == nil || s.platform.Devices == nil {
+		return serrors.New(serrors.FailedPrecondition, "push device registry is not configured").WithOp(op)
+	}
+	return s.platform.Devices.Revoke(ctx, userID, deviceID)
+}
+
+// Attempts lists the provider attempts of one delivery.
+func (s *NotificationChannelService) Attempts(ctx context.Context, deliveryID uuid.UUID) ([]notifications.Attempt, error) {
+	return s.repo.Attempts(ctx, deliveryID)
+}
+
+// Process runs one batch of the external-channel worker for the tenant in ctx:
+// it resolves due recipients into targets, then attempts due target deliveries.
+// Every claim commits before any resolver, renderer or provider call, so no
+// transaction is open while they run. Delivery is at-least-once: a crash between
+// a provider accepting a message and the outcome being stored repeats that one
+// message after the lease expires, and the earlier attempt is recorded as
+// ambiguous. It returns the number of provider attempts made.
 func (s *NotificationChannelService) Process(ctx context.Context) (int, error) {
 	const op serrors.Op = "NotificationChannelService.Process"
 	if ctx.Value(constants.TxKey) != nil {
 		return 0, serrors.New(serrors.FailedPrecondition, "Channel processing requires its own transaction").WithOp(op)
+	}
+	notices := map[uuid.UUID]notifications.Notice{}
+	var errs []error
+	if err := s.resolve(ctx, notices); err != nil {
+		errs = append(errs, err)
 	}
 	var claimed []notifications.Delivery
 	if err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -131,69 +177,105 @@ func (s *NotificationChannelService) Process(ctx context.Context) (int, error) {
 		claimed, err = s.repo.Claim(txCtx, notificationChannelBatchSize, notificationChannelLease)
 		return err
 	}); err != nil {
-		return 0, serrors.Wrap(op, err)
+		return 0, serrors.Wrap(op, errors.Join(append(errs, err)...))
 	}
-	var errs []error
 	for _, d := range claimed {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := s.attempt(ctx, d); err != nil {
+		if err := s.attempt(ctx, d, notices); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return len(claimed), errors.Join(errs...)
 }
 
-func (s *NotificationChannelService) attempt(ctx context.Context, d notifications.Delivery) error {
+func (s *NotificationChannelService) notice(ctx context.Context, id uuid.UUID, cache map[uuid.UUID]notifications.Notice) (notifications.Notice, error) {
+	if n, ok := cache[id]; ok {
+		return n, nil
+	}
+	if s.platform == nil || s.platform.Notices == nil {
+		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured")
+	}
+	n, err := s.platform.Notices.Get(ctx, id)
+	if err != nil {
+		return n, err
+	}
+	cache[id] = n
+	return n, nil
+}
+
+func retryBackoff(attempts int) time.Duration {
+	return time.Duration(min(300, 1<<min(max(attempts, 0), 8))) * time.Second
+}
+
+func (s *NotificationChannelService) attempt(ctx context.Context, d notifications.Delivery, notices map[uuid.UUID]notifications.Notice) error {
 	const op serrors.Op = "NotificationChannelService.attempt"
-	out := s.send(ctx, d)
+	result := s.send(ctx, d, notices)
 	record, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	if err := s.repo.Record(record, d.ID, d.Attempts, out.status, out.receipt, out.lastError, out.retryIn); err != nil {
+	if err := s.repo.Record(record, d.ID, d.Attempts, result); err != nil {
 		return serrors.WrapContext(op, err, "failed to record notification delivery outcome")
 	}
 	return nil
 }
 
-type deliveryOutcome struct {
-	status    notifications.DeliveryStatus
-	receipt   string
-	lastError string
-	retryIn   time.Duration
+func (s *NotificationChannelService) failedAttempt(d notifications.Delivery, code string) notifications.AttemptResult {
+	if d.Attempts >= d.AttemptLimit {
+		return notifications.AttemptResult{Outcome: notifications.AttemptFailed, Status: notifications.DeliveryFailed, ErrorCode: code}
+	}
+	return notifications.AttemptResult{Outcome: notifications.AttemptFailed, Status: notifications.DeliveryPending, ErrorCode: code, RetryIn: retryBackoff(d.Attempts)}
 }
 
-func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery) deliveryOutcome {
-	retry := func(reason string) deliveryOutcome {
-		if d.Attempts >= notifications.MaxDeliveryAttempts {
-			return deliveryOutcome{status: notifications.DeliveryFailed, lastError: reason}
-		}
-		return deliveryOutcome{status: notifications.DeliveryPending, lastError: reason + "; retry scheduled", retryIn: time.Duration(min(300, 1<<min(d.Attempts, 8))) * time.Second}
-	}
-	noAddress := deliveryOutcome{status: notifications.DeliveryNoAddress, lastError: "recipient has no address for channel"}
+func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery, notices map[uuid.UUID]notifications.Notice) notifications.AttemptResult {
 	adapter, ok := s.adapters[d.Channel]
 	if !ok {
-		return retry("channel adapter is not installed")
+		return s.failedAttempt(d, notifications.ErrorCodeAdapterMissing)
 	}
-	if s.resolver == nil {
-		return noAddress
+	notice, err := s.notice(ctx, d.NoticeID, notices)
+	if err != nil {
+		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, notificationChannelSendLimit)
 	defer cancel()
-	address, err := s.resolver.Resolve(sendCtx, d.TenantID, d.UserID, d.Channel)
-	if errors.Is(err, notifications.ErrNoAddress) || (err == nil && address == "") {
-		return noAddress
+	message := notifications.Message{
+		DeliveryID: d.ID, IdempotencyKey: d.ID.String(), Attempt: d.Attempts, TenantID: d.TenantID, NoticeID: d.NoticeID,
+		EventKey: notice.EventKey, EventID: notice.EventID, SnapshotRef: notice.SnapshotRef, ContentVersion: d.ContentVersion,
+		Producer: notice.Producer, Subject: notice.Subject, RecipientKind: d.RecipientKind, UserID: d.UserID,
+		Channel: d.Channel, Address: d.TargetAddress, DeviceID: d.TargetDeviceID, Language: d.Language, Level: d.Level,
+		Title: d.Title, Body: d.Body, ActionURL: d.ActionURL,
+		EmailSubject: d.Content.Subject, HTML: d.Content.HTML, Text: d.Content.Text, Data: d.Content.Data,
 	}
-	if err != nil {
-		return retry("address lookup failed")
+	if d.Record != nil {
+		message.Recipient = *d.Record
 	}
-	result, err := adapter.Send(sendCtx, notifications.Message{DeliveryID: d.ID, TenantID: d.TenantID, EventKey: d.EventKey, EventID: d.EventID, ContentVersion: d.ContentVersion, UserID: d.UserID, Channel: d.Channel, Address: address, Language: d.Language, Level: d.Level, Title: d.Title, Body: d.Body, ActionURL: d.ActionURL})
+	receipt, err := adapter.Send(sendCtx, message)
 	switch {
 	case err == nil:
-		return deliveryOutcome{status: notifications.DeliverySent, receipt: result.ProviderMessageID}
+		return notifications.AttemptResult{Outcome: notifications.AttemptSent, Status: notifications.DeliverySent, Receipt: receipt.ProviderMessageID}
 	case errors.Is(err, notifications.ErrPermanent):
-		return deliveryOutcome{status: notifications.DeliveryFailed, lastError: "provider rejected the message"}
+		if errors.Is(err, notifications.ErrTargetGone) {
+			s.revokeGoneDevice(ctx, d)
+		}
+		return notifications.AttemptResult{Outcome: notifications.AttemptPermanent, Status: notifications.DeliveryFailed, ErrorCode: notifications.ErrorCodeProviderRejected}
+	case errors.Is(err, notifications.ErrAmbiguous) || errors.Is(err, context.DeadlineExceeded):
+		// The provider may have accepted the message. Retrying automatically
+		// could send it twice, so an operator decides.
+		return notifications.AttemptResult{Outcome: notifications.AttemptAmbiguous, Status: notifications.DeliveryAmbiguous, ErrorCode: notifications.ErrorCodeProviderAmbiguous}
 	default:
-		return retry("provider failure")
+		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
+	}
+}
+
+// revokeGoneDevice stops pushes to a registered device its provider reported as
+// gone. Failing to revoke only means the next notice learns the same thing.
+func (s *NotificationChannelService) revokeGoneDevice(ctx context.Context, d notifications.Delivery) {
+	if d.RecipientKind != notifications.RecipientUser || d.TargetDeviceID == "" || s.platform == nil || s.platform.Devices == nil {
+		return
+	}
+	revoke, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if err := s.platform.Devices.Revoke(revoke, d.UserID, d.TargetDeviceID); err != nil && s.logger != nil {
+		s.logger.WithError(err).Warn("failed to revoke a push device its provider reported as gone")
 	}
 }

@@ -1,0 +1,610 @@
+package runtime
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
+
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
+)
+
+// APIPrefix is where the management API is mounted.
+const APIPrefix = "/_ext/manage"
+
+const (
+	maxJSONBody = 1 << 20
+	maxTreeBody = 64 << 20
+	maxFileBody = 9 << 20
+)
+
+// SubjectFunc identifies the acting user of a request (the session user for
+// the SDK controller, a credential's user for other transports).
+type SubjectFunc func(r *http.Request) (spi.Subject, error)
+
+// API is the JSON transport of manage.Service: every route decodes its input,
+// calls exactly one service method and encodes the result. Rights, validation
+// and audit live in the service.
+type API struct {
+	svc     *manage.Service
+	subject SubjectFunc
+	log     *slog.Logger
+	origins *originguard.Guard
+	ref     *reference.Builder
+}
+
+// WithOriginGuard sets who may make state-changing requests from another
+// origin (default: nobody; see package originguard). It returns the API.
+func (a *API) WithOriginGuard(g *originguard.Guard) *API {
+	a.origins = g
+	return a
+}
+
+// WithReference makes the API serve the reference from b (default: one built
+// over the service's catalog). It returns the API.
+func (a *API) WithReference(b *reference.Builder) *API {
+	a.ref = b
+	return a
+}
+
+// NewAPI builds the handler tree rooted at APIPrefix.
+func NewAPI(svc *manage.Service, subject SubjectFunc, log *slog.Logger) *API {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &API{svc: svc, subject: subject, log: log, ref: reference.New(svc.Catalog())}
+}
+
+type handler func(w http.ResponseWriter, r *http.Request, actor spi.Subject) (status int, body any, err error)
+
+// wrap serves one route: it checks the origin, identifies the actor, enforces
+// the permission the route declares and only then runs the handler. The
+// permission comes from the routes table, so what the table (and with it the
+// OpenAPI document) says is what the API enforces. A refusal is audited the
+// way the service audits its own.
+func (a *API) wrap(rt route, h handler) http.HandlerFunc {
+	perm := rt.permission()
+	return func(w http.ResponseWriter, r *http.Request) {
+		// The session cookie rides along on a request any site makes: a
+		// state-changing call must come from this origin (or a trusted one).
+		if err := a.origins.Check(r); err != nil {
+			a.log.Warn("extruntime manage: cross-site request refused", "method", r.Method, "path", r.URL.Path, "error", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": originguard.Code, "message": "cross-site request refused"}})
+			return
+		}
+		actor, err := a.subject(r)
+		if err != nil {
+			a.fail(w, err)
+			return
+		}
+		// A route with an alternative way in (the assignee of a task) leaves the
+		// decision to the service, which knows the alternative.
+		if perm != "" && rt.alt == "" && !actor.Has(perm) {
+			a.fail(w, a.svc.Deny(r.Context(), actor, perm, rt.denied(w, r)))
+			return
+		}
+		status, body, err := h(w, r, actor)
+		if err != nil {
+			a.fail(w, err)
+			return
+		}
+		if body == nil {
+			w.WriteHeader(status)
+			return
+		}
+		if raw, ok := body.(rawResponse); ok {
+			w.Header().Set("Content-Type", raw.contentType)
+			for k, v := range raw.headers {
+				w.Header().Set(k, v)
+			}
+			w.WriteHeader(status)
+			_, _ = w.Write(raw.data)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(withEmptySlices(body))
+	}
+}
+
+// deniedTarget names what a refused request was after, for the audit row: the
+// first of the path variables that identify a target.
+func deniedTarget(r *http.Request) string {
+	if slot := vars(r, "slot"); slot != "" {
+		return slot + ":" + vars(r, "target")
+	}
+	for _, name := range []string{"path", "trigger", "subscription", "id", "module"} {
+		if v := vars(r, name); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+type rawResponse struct {
+	contentType string
+	headers     map[string]string
+	data        []byte
+}
+
+// errorBody is the wire form of a failure.
+type errorBody struct {
+	Error struct {
+		Code        string `json:"code"`
+		Message     string `json:"message"`
+		Diagnostics any    `json:"diagnostics,omitempty"`
+	} `json:"error"`
+}
+
+func leafMessage(err error) string {
+	parts := strings.Split(err.Error(), ": ")
+	for len(parts) > 1 && !strings.ContainsAny(parts[0], " ") && strings.Contains(parts[0], ".") {
+		parts = parts[1:]
+	}
+	return strings.Join(parts, ": ")
+}
+
+func (a *API) fail(w http.ResponseWriter, err error) {
+	var body errorBody
+	code := serrors.CodeOf(err)
+	body.Error.Code = strings.ToLower(code.String())
+	body.Error.Message = leafMessage(err)
+	if code == serrors.Internal {
+		a.log.Error("extruntime manage API", "error", err)
+		body.Error.Message = "internal error"
+	}
+	var de *manage.DiagnosticsError
+	var se *data.SchemaError
+	switch {
+	case errors.As(err, &de):
+		body.Error.Diagnostics = de.Diagnostics
+	case errors.As(err, &se):
+		body.Error.Diagnostics = se.Diagnostics
+	}
+	status := serrorhttp.Status(err)
+	encoded, marshalErr := json.Marshal(body)
+	if marshalErr != nil {
+		encoded = []byte(`{"error":{"code":"internal","message":"internal error"}}`)
+		status = http.StatusInternalServerError
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = w.Write(append(encoded, '\n'))
+}
+
+func decode(r *http.Request, w http.ResponseWriter, into any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBody)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(into); err != nil {
+		return serrors.New(serrors.Invalid, "invalid request body: "+err.Error())
+	}
+	return nil
+}
+
+func readBody(r *http.Request, w http.ResponseWriter, limit int64) ([]byte, error) {
+	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
+		return nil, serrors.New(serrors.Invalid, "cannot read request body: "+err.Error())
+	}
+	return b, nil
+}
+
+func vars(r *http.Request, name string) string {
+	v := mux.Vars(r)[name]
+	if u, err := url.PathUnescape(v); err == nil {
+		return u
+	}
+	return v
+}
+
+// Handler returns the routes, registered from the same table the OpenAPI
+// document is generated from (see routes). Mount it so that requests reach it
+// with the APIPrefix intact.
+func (a *API) Handler() http.Handler {
+	root := mux.NewRouter()
+	r := root.PathPrefix(APIPrefix).Subrouter()
+	for _, rt := range routes {
+		r.HandleFunc(rt.path, a.wrap(rt, rt.bind(a))).Methods(rt.method)
+	}
+	return root
+}
+
+func (a *API) listPackages(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListPackages(r.Context(), actor)
+	return http.StatusOK, out, err
+}
+
+func (a *API) createPackage(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in createPackageRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.CreatePackage(r.Context(), actor, in.Namespace, in.NPMName)
+	return http.StatusCreated, out, err
+}
+
+func (a *API) getPackage(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.GetPackage(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) listFiles(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListFiles(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) getFile(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	content, f, err := a.svc.GetFile(r.Context(), actor, vars(r, "ns"), vars(r, "path"))
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, rawResponse{contentType: "application/octet-stream", headers: map[string]string{"ETag": `"` + f.Hash + `"`}, data: content}, nil
+}
+
+// putFile takes the raw file as body. If-Match: "<hash>" requires the
+// current content hash, If-None-Match: * requires a new file.
+func (a *API) putFile(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	body, err := readBody(r, w, maxFileBody)
+	if err != nil {
+		return 0, nil, err
+	}
+	var expect *string
+	if m := strings.Trim(r.Header.Get("If-Match"), `"`); m != "" {
+		expect = &m
+	} else if r.Header.Get("If-None-Match") == "*" {
+		empty := ""
+		expect = &empty
+	}
+	out, err := a.svc.PutFile(r.Context(), actor, vars(r, "ns"), vars(r, "path"), body, expect)
+	return http.StatusOK, out, err
+}
+
+func (a *API) deleteFile(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	return http.StatusNoContent, nil, a.svc.DeleteFile(r.Context(), actor, vars(r, "ns"), vars(r, "path"))
+}
+
+func (a *API) moveFile(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in moveRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.MoveFile(r.Context(), actor, vars(r, "ns"), in.From, in.To)
+}
+
+func (a *API) check(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.Check(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) build(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.Build(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) test(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.Test(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) publish(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in versionRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, w, &in); err != nil && !errors.Is(err, io.EOF) {
+			return 0, nil, err
+		}
+	}
+	out, err := a.svc.Publish(r.Context(), actor, vars(r, "ns"), in.Version)
+	return http.StatusCreated, out, err
+}
+
+func (a *API) listVersions(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListVersions(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) getVersion(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.GetVersion(r.Context(), actor, vars(r, "ns"), vars(r, "version"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) review(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in reviewRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.ReviewExact(r.Context(), actor, vars(r, "ns"), vars(r, "version"), manage.ReviewInput{
+		Approve: in.Approve, Comment: in.Comment, ExpectSourceHash: in.ExpectSourceHash, ExpectArtifactHash: in.ExpectArtifactHash,
+	})
+	return http.StatusCreated, out, err
+}
+
+func (a *API) activate(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.Activate(r.Context(), actor, vars(r, "ns"), vars(r, "version"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) deactivate(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	return http.StatusNoContent, nil, a.svc.Deactivate(r.Context(), actor, vars(r, "ns"))
+}
+
+func (a *API) purge(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	return http.StatusNoContent, nil, a.svc.Purge(r.Context(), actor, vars(r, "ns"))
+}
+
+func (a *API) listActivations(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListActivations(r.Context(), actor, vars(r, "ns"))
+	return http.StatusOK, out, err
+}
+
+func (a *API) export(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	format := manage.ExportFormat(r.URL.Query().Get("format"))
+	var arc manage.Archive
+	var err error
+	if v := r.URL.Query().Get("version"); v != "" {
+		arc, err = a.svc.ExportVersion(r.Context(), actor, vars(r, "ns"), v, format)
+	} else {
+		arc, err = a.svc.ExportDraft(r.Context(), actor, vars(r, "ns"), format)
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, rawResponse{contentType: arc.ContentType, data: arc.Data, headers: map[string]string{
+		"Content-Disposition": `attachment; filename="` + arc.Filename + `"`, "X-Tree-Hash": arc.TreeHash,
+	}}, nil
+}
+
+func (a *API) importGit(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in importGitRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.ImportGit(r.Context(), actor, in.RepoURL, in.Commit, in.Subdir)
+	return http.StatusOK, out, err
+}
+
+// importTree takes an uploaded tar or zip archive as the body.
+func (a *API) importTree(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	body, err := readBody(r, w, maxTreeBody)
+	if err != nil {
+		return 0, nil, err
+	}
+	tree, err := manage.UnpackArchive(body)
+	if err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.ImportTree(r.Context(), actor, tree, manage.ImportMeta{Provenance: manage.ProvenanceRuntime})
+	return http.StatusOK, out, err
+}
+
+func (a *API) listBindings(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListBindings(r.Context(), actor, r.URL.Query().Get("history") == "true")
+	return http.StatusOK, out, err
+}
+
+func (a *API) bind(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in bindRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.Bind(r.Context(), actor, in.SlotKind, in.TargetID, in.Package, in.Version, in.Export)
+	return http.StatusCreated, out, err
+}
+
+func (a *API) unbind(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	return http.StatusNoContent, nil, a.svc.Unbind(r.Context(), actor, vars(r, "slot"), vars(r, "target"))
+}
+
+func (a *API) listOwners(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	out, err := a.svc.ListOwners(r.Context(), actor)
+	return http.StatusOK, out, err
+}
+
+func (a *API) assignOwner(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in assignOwnerRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.AssignOwner(r.Context(), actor, vars(r, "trigger"), in.UserID)
+	return http.StatusOK, out, err
+}
+
+func (a *API) removeOwner(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	return http.StatusNoContent, nil, a.svc.RemoveOwner(r.Context(), actor, vars(r, "trigger"))
+}
+
+func (a *API) kit(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	hash, modules, err := a.svc.KitModules(r.Context(), actor)
+	return http.StatusOK, map[string]any{"hash": hash, "modules": modules}, err
+}
+
+// nativeCatalog serves the snapshot of the application's native contracts, the
+// offline input of `iota-ext kit generate --catalog`.
+func (a *API) nativeCatalog(_ http.ResponseWriter, _ *http.Request, actor spi.Subject) (int, any, error) {
+	snap, err := a.svc.NativeSnapshot(actor)
+	return http.StatusOK, snap, err
+}
+
+func (a *API) kitModule(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	module := strings.TrimSuffix(vars(r, "module"), ".tgz")
+	arc, err := a.svc.KitTarball(r.Context(), actor, r.URL.Query().Get("hash"), module)
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusOK, rawResponse{contentType: arc.ContentType, data: arc.Data, headers: map[string]string{
+		"Content-Disposition": `attachment; filename="` + arc.Filename + `"`,
+	}}, nil
+}
+
+func (a *API) audit(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	q := r.URL.Query()
+	f := manage.AuditFilter{Namespace: q.Get("namespace"), Action: q.Get("action")}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid limit")
+		}
+		f.Limit = n
+	}
+	if v := q.Get("before"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid before")
+		}
+		f.BeforeID = n
+	}
+	out, err := a.svc.ListAudit(r.Context(), actor, f)
+	return http.StatusOK, out, err
+}
+
+func uuidVar(r *http.Request, name string) (uuid.UUID, error) {
+	id, err := uuid.Parse(vars(r, name))
+	if err != nil {
+		return uuid.Nil, serrors.New(serrors.Invalid, "invalid "+name)
+	}
+	return id, nil
+}
+
+func (a *API) listWorkflows(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	q := r.URL.Query()
+	f := workflow.ListFilter{Status: q.Get("status"), Workflow: q.Get("workflow")}
+	var err error
+	if v := q.Get("limit"); v != "" {
+		if f.Limit, err = strconv.Atoi(v); err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid limit")
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if f.Offset, err = strconv.Atoi(v); err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid offset")
+		}
+	}
+	out, err := a.svc.ListWorkflows(r.Context(), actor, f)
+	return http.StatusOK, out, err
+}
+
+func (a *API) getWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	out, err := a.svc.GetWorkflow(r.Context(), actor, id)
+	return http.StatusOK, out, err
+}
+
+func (a *API) signalWorkflow(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in signalRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.SignalWorkflow(r.Context(), actor, id, in.Name, in.Payload, in.Key)
+}
+
+func (a *API) terminateWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.TerminateWorkflow(r.Context(), actor, id)
+}
+
+func (a *API) startWorkflowV2(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in versionRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, w, &in); err != nil {
+			return 0, nil, err
+		}
+	}
+	out, err := a.svc.StartWorkflowV2(r.Context(), actor, id, in.Version)
+	return http.StatusCreated, map[string]string{"instance": out.String()}, err
+}
+
+func (a *API) resolveOccurrence(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in occurrenceRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.ResolveWorkflowOccurrence(r.Context(), actor, id, in.Name, in.N, in.Result)
+}
+
+func (a *API) retryOccurrence(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in retryRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.RetryWorkflowOccurrence(r.Context(), actor, id, in.Name, in.N)
+}
+
+func (a *API) resumeWorkflow(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.ResumeWorkflow(r.Context(), actor, id)
+}
+
+// requeueReceipts gives the dead-lettered and blocked deliveries of a
+// subscription (or of one event, {"event": "<id>"}) a fresh start.
+func (a *API) requeueReceipts(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	var in requeueRequest
+	if r.ContentLength != 0 {
+		if err := decode(r, w, &in); err != nil {
+			return 0, nil, err
+		}
+	}
+	n, err := a.svc.RequeueReceipts(r.Context(), actor, vars(r, "subscription"), in.Event)
+	return http.StatusOK, map[string]int64{"requeued": n}, err
+}
+
+func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in decideRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.DecideTask(r.Context(), actor, id, in.Decision)
+}
+
+// reference serves the live API reference to the configurator. The route
+// requires Extensions.Read, so the model is the full one; it is still built
+// for the actor, which keeps the reader's locale. The Help Center and the MCP
+// tools serve the filtered reference to everyone else.
+func (a *API) reference(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	m, err := a.ref.Model(r.Context(), actor, r.URL.Query().Get("locale"))
+	return http.StatusOK, m, err
+}

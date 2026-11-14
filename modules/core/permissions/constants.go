@@ -16,9 +16,40 @@ const (
 	ResourceDepartment        permission.Resource = "department"
 	ResourcePosition          permission.Resource = "position"
 	ResourceNotificationRules permission.Resource = "notification_rules"
+	ResourceExtension         permission.Resource = "extension"
+)
+
+// Extension runtime management. Author edits drafts and runs check/build/test;
+// Review approves an exact version; Publish publishes and activates versions
+// and manages bindings; Operate executes and terminates running work.
+const (
+	ActionAuthor  permission.Action = "author"
+	ActionReview  permission.Action = "review"
+	ActionPublish permission.Action = "publish"
+	ActionOperate permission.Action = "operate"
 )
 
 var (
+	ExtensionsRead = permission.MustCreate(
+		uuid.MustParse("5b0f1a42-2f0c-4e5e-9a52-6a0f3cf1d001"),
+		"Extensions.Read", ResourceExtension, permission.ActionRead, permission.ModifierAll,
+	)
+	ExtensionsAuthor = permission.MustCreate(
+		uuid.MustParse("5b0f1a42-2f0c-4e5e-9a52-6a0f3cf1d002"),
+		"Extensions.Author", ResourceExtension, ActionAuthor, permission.ModifierAll,
+	)
+	ExtensionsReview = permission.MustCreate(
+		uuid.MustParse("5b0f1a42-2f0c-4e5e-9a52-6a0f3cf1d003"),
+		"Extensions.Review", ResourceExtension, ActionReview, permission.ModifierAll,
+	)
+	ExtensionsPublish = permission.MustCreate(
+		uuid.MustParse("5b0f1a42-2f0c-4e5e-9a52-6a0f3cf1d004"),
+		"Extensions.Publish", ResourceExtension, ActionPublish, permission.ModifierAll,
+	)
+	ExtensionsOperate = permission.MustCreate(
+		uuid.MustParse("5b0f1a42-2f0c-4e5e-9a52-6a0f3cf1d005"),
+		"Extensions.Operate", ResourceExtension, ActionOperate, permission.ModifierAll,
+	)
 	NotificationRulesRead = permission.MustCreate(
 		uuid.MustParse("c196d78b-c653-4783-af32-87d7a823440b"),
 		"NotificationRules.Read", ResourceNotificationRules, permission.ActionRead, permission.ModifierAll,
@@ -233,6 +264,11 @@ var (
 )
 
 var Permissions = []permission.Permission{
+	ExtensionsRead,
+	ExtensionsAuthor,
+	ExtensionsReview,
+	ExtensionsPublish,
+	ExtensionsOperate,
 	NotificationRulesRead,
 	NotificationRulesManage,
 	UserCreate,

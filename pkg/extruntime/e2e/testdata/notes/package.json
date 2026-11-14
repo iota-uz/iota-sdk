@@ -1,0 +1,12 @@
+{
+  "name": "@e2e/notes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "e2e.notes",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts",
+    "client": "./src/client.tsx"
+  }
+}

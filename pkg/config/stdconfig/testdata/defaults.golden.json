@@ -46,6 +46,39 @@
       "ConnectTimeout": 10000000000
     }
   },
+  "ExtRuntime": {
+    "Enabled": false,
+    "NodeBinary": "node",
+    "PoolSize": 2,
+    "AppRoot": "",
+    "DistDir": "",
+    "CacheDir": "",
+    "WorkflowConcurrency": 0,
+    "DisableBackground": false,
+    "TrustedOrigins": "",
+    "UI": {
+      "HostManifest": "",
+      "SourceTTL": 2000000000
+    },
+    "Configurator": {
+      "Enabled": false,
+      "Path": "",
+      "TypesDir": ""
+    },
+    "Endpoints": {
+      "PublicTenant": "",
+      "PublicTenantByHost": false,
+      "MaxBodyBytes": 0,
+      "Timeout": 0
+    },
+    "Git": {
+      "AllowedSchemes": "",
+      "AllowedHosts": "",
+      "AllowPrivateNetworks": false,
+      "Binary": "",
+      "Timeout": 0
+    }
+  },
   "GoogleOAuth": {
     "RedirectURL": "",
     "ClientID": "",

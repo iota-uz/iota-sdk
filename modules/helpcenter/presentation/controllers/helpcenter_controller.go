@@ -66,6 +66,11 @@ func (c *HelpCenterController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 		middleware.NavItems(),
 	)
+	c.routes(router)
+}
+
+// routes registers the Help Center handlers on router.
+func (c *HelpCenterController) routes(router *mux.Router) {
 	router.HandleFunc("", c.index).Methods(http.MethodGet)
 	router.HandleFunc("/", c.index).Methods(http.MethodGet)
 	router.HandleFunc("/search", c.search).Methods(http.MethodGet)
@@ -149,12 +154,21 @@ func (c *HelpCenterController) search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	props := help.SearchResultsProps{BasePath: c.basePath, Query: q, Available: c.searchAvailable()}
 	if props.Available && q != "" {
-		results, err := c.searcher.Search(r.Context(), q, kb.SearchOptions{TopK: c.searchFetchLimit()})
+		tree, err := c.contentService.Tree(r.Context())
 		if err != nil {
-			c.renderError(w, r, err)
-			return
+			// The documents of the sources are listed from the tree; without it
+			// the search still answers from the file index.
+			logrus.WithError(serrors.Wrap("HelpCenterController.search", err)).Warn("help center search ran without the documentation sources")
 		}
-		props.Results = c.searchHits(r.Context(), results)
+		props.Results = c.sourceHits(tree, q)
+		if c.indexAvailable() {
+			results, err := c.searcher.Search(r.Context(), q, kb.SearchOptions{TopK: c.searchFetchLimit()})
+			if err != nil {
+				c.renderError(w, r, err)
+				return
+			}
+			props.Results = append(props.Results, c.searchHits(r.Context(), tree, results, searchResultLimit-len(props.Results))...)
+		}
 	}
 	templ.Handler(help.SearchResults(props)).ServeHTTP(w, r)
 }
@@ -203,6 +217,9 @@ func (c *HelpCenterController) toDocView(doc *services.Document, tree []viewmode
 	html, err := c.renderer.Render(doc.Content)
 	if err != nil {
 		return nil, err
+	}
+	if doc.SourceMount != "" {
+		html = resolveRelativeLinks(html, c.basePath+"/doc/"+doc.Path)
 	}
 	nav, _ := services.Locate(tree, doc.Path)
 	return &viewmodels.DocView{
@@ -253,7 +270,13 @@ func (c *HelpCenterController) tasksWithReadingTime(ctx context.Context) []viewm
 	return result
 }
 
+// searchAvailable reports whether the search box has anything to search: the
+// full-text index of the file content, or the titles of contributed sources.
 func (c *HelpCenterController) searchAvailable() bool {
+	return c.indexAvailable() || c.contentService.HasSources()
+}
+
+func (c *HelpCenterController) indexAvailable() bool {
 	return c.searcher != nil && c.searcher.IsAvailable()
 }
 

@@ -1,0 +1,177 @@
+// Package listcolumns renders the columns extension packages contribute to a
+// native list: a standard cell renderer per scalar type and the filter and
+// sort controls. It is generic; native lists pass in a *listext.View.
+package listcolumns
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
+	"github.com/iota-uz/iota-sdk/pkg/shellext"
+	"strings"
+)
+
+// Headers are the table headers of the view's columns.
+func Headers(view *listext.View) []*base.TableColumn {
+	if view == nil {
+		return nil
+	}
+	out := make([]*base.TableColumn, len(view.Columns))
+	for i, col := range view.Columns {
+		out[i] = &base.TableColumn{Label: view.Title(col), Key: col.ID}
+	}
+	return out
+}
+
+// Cells renders one table cell per contributed column of a row.
+templ Cells(cells []listext.Cell) {
+	for _, cell := range cells {
+		@base.TableCell(base.TableCellProps{}) {
+			@Cell(cell)
+		}
+	}
+}
+
+// Cell renders one value. A package renderer contributed for the column mounts
+// in the browser as an island; the standard renderer below is the server
+// output either way, so the list reads the same without JavaScript and while
+// the package module loads. Exports never use a renderer.
+templ Cell(cell listext.Cell) {
+	if cell.Column.Cell != nil {
+		@shellext.CellIsland(ctx, shellext.Cell{Renderer: *cell.Column.Cell, Value: cell.Value.WireJSON(), Row: cell.Row}, standard(cell))
+	} else {
+		@standard(cell)
+	}
+}
+
+// standard is the standard renderer of one value, chosen by its declared type.
+// Text is escaped by templ; JSON values are shown as text, never as markup.
+templ standard(cell listext.Cell) {
+	switch  {
+		case cell.Value.Null():
+			<span class="text-300" data-ext-cell={ cell.Column.ID }>—</span>
+		case cell.Column.Type.Kind == manifest.KindBool:
+			{{ yes, _ := cell.Value.Bool() }}
+			<span class={ "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium", templ.KV("border-green bg-badge-green text-green", yes), templ.KV("border-subtle bg-badge-gray text-200", !yes) } data-ext-cell={ cell.Column.ID }>
+				if yes {
+					{ composables.UsePageCtx(ctx).T("Yes") }
+				} else {
+					{ composables.UsePageCtx(ctx).T("No") }
+				}
+			</span>
+		case cell.Column.Type.Kind == manifest.KindEnum:
+			<span class="inline-flex items-center rounded-md border border-subtle bg-badge-gray px-2 py-0.5 text-xs font-medium text-200" data-ext-cell={ cell.Column.ID }>{ cell.Value.Text() }</span>
+		case cell.Column.Type.Kind == manifest.KindInt, cell.Column.Type.Kind == manifest.KindInt64, cell.Column.Type.Kind == manifest.KindDecimal:
+			<span class="block text-right tabular-nums" data-ext-cell={ cell.Column.ID }>{ cell.Value.Text() }</span>
+		case cell.Column.Type.Kind == manifest.KindDate:
+			<span data-ext-cell={ cell.Column.ID }>{ cell.Value.Text() }</span>
+		case cell.Column.Type.Kind == manifest.KindDateTime:
+			<time datetime={ cell.Value.Text() } data-ext-cell={ cell.Column.ID }>{ strings.Replace(strings.TrimSuffix(cell.Value.Text(), "Z"), "T", " ", 1) } UTC</time>
+		case cell.Column.Type.Kind == manifest.KindUUID, cell.Column.Type.Kind == manifest.KindRef, cell.Column.Type.Kind == manifest.KindJSON:
+			<code class="text-xs break-all" data-ext-cell={ cell.Column.ID }>{ truncate(cell.Value.Text(), 80) }</code>
+		default:
+			<span data-ext-cell={ cell.Column.ID }>{ cell.Value.Text() }</span>
+	}
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
+}
+
+// Controls renders the filter inputs of filterable columns and the sort
+// selector. Place it inside the list's filter form: it submits with the form.
+templ Controls(view *listext.View) {
+	if view != nil {
+		for _, col := range view.Columns {
+			if col.Filterable {
+				@filter(view, col)
+			}
+		}
+		@sortSelect(view)
+	}
+}
+
+templ filter(view *listext.View, col listext.Column) {
+	switch col.Type.Kind {
+		case manifest.KindEnum:
+			@base.Select(&base.SelectProps{
+				Prefix: view.Title(col),
+				Attrs:  templ.Attributes{"name": listext.ParamPrefix + col.ID},
+			}) {
+				<option value="">—</option>
+				for _, v := range col.Type.Values {
+					<option value={ v } selected?={ view.FilterValue(col, listext.OpEq) == v }>{ v }</option>
+				}
+			}
+		case manifest.KindBool:
+			@base.Select(&base.SelectProps{
+				Prefix: view.Title(col),
+				Attrs:  templ.Attributes{"name": listext.ParamPrefix + col.ID},
+			}) {
+				<option value="">—</option>
+				<option value="true" selected?={ view.FilterValue(col, listext.OpEq) == "true" }>{ composables.UsePageCtx(ctx).T("Yes") }</option>
+				<option value="false" selected?={ view.FilterValue(col, listext.OpEq) == "false" }>{ composables.UsePageCtx(ctx).T("No") }</option>
+			}
+		case manifest.KindDate, manifest.KindDateTime:
+			@input.Date(&input.Props{
+				Label: view.Title(col),
+				Attrs: templ.Attributes{"name": listext.ParamFrom + col.ID, "value": view.FilterValue(col, listext.OpGte)},
+			})
+			@input.Date(&input.Props{
+				Attrs: templ.Attributes{"name": listext.ParamTo + col.ID, "value": view.FilterValue(col, listext.OpLte), "aria-label": view.Title(col)},
+			})
+		case manifest.KindInt:
+			@input.Number(&input.Props{
+				Label:       view.Title(col),
+				Placeholder: view.Title(col),
+				Attrs:       templ.Attributes{"name": listext.ParamPrefix + col.ID, "value": view.FilterValue(col, listext.OpEq)},
+			})
+		case manifest.KindString, manifest.KindUUID, manifest.KindInt64, manifest.KindDecimal:
+			@input.Text(&input.Props{
+				Label:       view.Title(col),
+				Placeholder: view.Title(col),
+				Attrs:       templ.Attributes{"name": listext.ParamPrefix + col.ID, "value": view.FilterValue(col, listext.OpEq)},
+			})
+	}
+}
+
+templ sortSelect(view *listext.View) {
+	{{ sortable := sortableColumns(view) }}
+	if len(sortable) > 0 {
+		@base.Select(&base.SelectProps{
+			Prefix: composables.UsePageCtx(ctx).T("SortBy"),
+			Attrs:  templ.Attributes{"name": listext.ParamSort},
+		}) {
+			<option value="">—</option>
+			for _, col := range sortable {
+				<option value={ col.ID } selected?={ view.SortDir(col) != "" }>{ view.Title(col) }</option>
+			}
+		}
+		@base.Select(&base.SelectProps{
+			Attrs: templ.Attributes{"name": listext.ParamDir, "aria-label": composables.UsePageCtx(ctx).T("SortBy")},
+		}) {
+			<option value="asc" selected?={ !isDesc(view) }>↑</option>
+			<option value="desc" selected?={ isDesc(view) }>↓</option>
+		}
+	}
+}
+
+func sortableColumns(view *listext.View) []listext.Column {
+	var out []listext.Column
+	for _, col := range view.Columns {
+		if col.Sortable {
+			out = append(out, col)
+		}
+	}
+	return out
+}
+
+func isDesc(view *listext.View) bool {
+	return view.Request.Sort != nil && view.Request.Sort.Desc
+}

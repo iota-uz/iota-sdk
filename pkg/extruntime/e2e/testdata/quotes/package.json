@@ -1,0 +1,12 @@
+{
+  "name": "@e2e/quotes",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "e2e.quotes",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts",
+    "capabilities": { "network": ["127.0.0.1"] }
+  }
+}

@@ -6,6 +6,8 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -21,6 +23,10 @@ const searchResultLimit = 8
 // searchExcerptRunes bounds the fallback excerpt taken from document content.
 const searchExcerptRunes = 180
 
+// sourceHitLimit caps the contributed-source title matches in the dropdown so
+// they never crowd out the full-text hits of the file content.
+const sourceHitLimit = searchResultLimit / 2
+
 // searchFetchLimit over-fetches from the index. The KB index is shared: it
 // holds every content locale and documents the Help Center hides, so cutting
 // the index answer to the display limit first lets other-language and hidden
@@ -29,13 +35,12 @@ func (c *HelpCenterController) searchFetchLimit() int {
 	return searchResultLimit * (len(c.contentService.Locales()) + 2)
 }
 
-// searchHits keeps the hits a reader can open, in index order, up to the
-// display limit: the reader's content locale only, never a hidden path.
-func (c *HelpCenterController) searchHits(ctx context.Context, results []kb.SearchResult) []viewmodels.SearchHit {
+// searchHits keeps the hits a reader can open, in index order, up to limit:
+// the reader's content locale only, never a hidden path.
+func (c *HelpCenterController) searchHits(ctx context.Context, tree []viewmodels.CategoryNode, results []kb.SearchResult, limit int) []viewmodels.SearchHit {
 	locale := c.contentService.Locale(ctx)
-	tree, _ := c.contentService.Tree(ctx)
-	hits := make([]viewmodels.SearchHit, 0, searchResultLimit)
-	seen := make(map[string]struct{}, searchResultLimit)
+	hits := make([]viewmodels.SearchHit, 0, limit)
+	seen := make(map[string]struct{}, limit)
 	for _, result := range results {
 		rel, ok := localeRelPath(result.Document.Path, locale)
 		if !ok || c.contentService.IsHidden(rel) {
@@ -52,11 +57,83 @@ func (c *HelpCenterController) searchHits(ctx context.Context, results []kb.Sear
 			Excerpt: c.sanitizeSearchExcerpt(result),
 			Score:   result.Score,
 		})
-		if len(hits) == searchResultLimit {
+		if len(hits) == limit {
 			break
 		}
 	}
 	return hits
+}
+
+// Title-match scores of sourceHits, best first.
+const (
+	sourceScorePhrase   = 1.0 // the whole query is part of the document title
+	sourceScoreTitle    = 0.8 // every query word is part of the document title
+	sourceScoreCategory = 0.5 // every query word is part of the title or of a category above it
+)
+
+// sourceHits matches the query against the titles of contributed-source
+// documents and of the categories above them, in the tree the reader was
+// served. Source documents are dynamic and differ per reader, so they are
+// never put into the shared full-text index: matching the reader's own tree
+// per request cannot reveal a document the reader may not see, and only titles
+// are matched, not document bodies.
+func (c *HelpCenterController) sourceHits(tree []viewmodels.CategoryNode, query string) []viewmodels.SearchHit {
+	query = strings.ToLower(strings.Join(strings.Fields(query), " "))
+	words := strings.Fields(query)
+	if len(words) == 0 || !c.contentService.HasSources() {
+		return nil
+	}
+	var hits []viewmodels.SearchHit
+	var walk func(nodes []viewmodels.CategoryNode, categories []string)
+	walk = func(nodes []viewmodels.CategoryNode, categories []string) {
+		for _, node := range nodes {
+			if node.Path == "" {
+				walk(node.Children, append(slices.Clip(categories), node.Title))
+				continue
+			}
+			if !c.contentService.IsSourcePath(node.Path) {
+				continue
+			}
+			score := sourceMatchScore(query, words, node.Title, categories)
+			if score == 0 {
+				continue
+			}
+			section := ""
+			if len(categories) > 0 {
+				section = help.CategoryDisplayTitle(categories[len(categories)-1])
+			}
+			hits = append(hits, viewmodels.SearchHit{Title: node.Title, Path: node.Path, Section: section, Score: score})
+		}
+	}
+	walk(tree, nil)
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
+	if len(hits) > sourceHitLimit {
+		hits = hits[:sourceHitLimit]
+	}
+	return hits
+}
+
+func sourceMatchScore(query string, words []string, title string, categories []string) float64 {
+	lowerTitle := strings.ToLower(title)
+	if strings.Contains(lowerTitle, query) {
+		return sourceScorePhrase
+	}
+	if containsAll(lowerTitle, words) {
+		return sourceScoreTitle
+	}
+	if containsAll(strings.ToLower(strings.Join(append(slices.Clone(categories), title), " ")), words) {
+		return sourceScoreCategory
+	}
+	return 0
+}
+
+func containsAll(text string, words []string) bool {
+	for _, word := range words {
+		if !strings.Contains(text, word) {
+			return false
+		}
+	}
+	return true
 }
 
 // localeRelPath returns the document path inside <locale>/, or false when the

@@ -45,6 +45,21 @@ func newArticleRenderer() markdown.Renderer {
 	return markdown.NewRendererWithOptions(markdown.WithAllowedClasses(articleClassPattern, "a", "div", "span"))
 }
 
+// NewComponent serves the Help Center from config's markdown tree and from the
+// documentation sources other components contribute with
+// composition.ContributeHelpSources (see pkg/helpdocs).
+//
+// A source is a category at its mount in the sidebar and its documents open at
+// /help/doc/<mount>/<path>, rendered by the same markdown renderer as file
+// documents. Sources are asked per request, so each reader sees only what the
+// source lists for them and a source can change without a restart. A mount
+// that overlaps another source or the file tree fails the build.
+//
+// Search limitation: /help/search runs the shared full-text index over the
+// file content only. Source documents are dynamic and differ per reader, so
+// they are never indexed; their titles (and the titles of the categories above
+// them) are matched per request against the tree the reader may see. The
+// bodies of source documents are not searchable.
 func NewComponent(config ContentConfig) composition.Component {
 	return &component{config: config.Normalized()}
 }
@@ -73,6 +88,12 @@ func (c *component) Build(builder *composition.Builder) error {
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
 			contentService, err := composition.Resolve[*services.ContentService](container)
+			if err != nil {
+				return nil, err
+			}
+			// Documentation contributed by other components is served next to
+			// the file content. A mount collision fails the build here.
+			contentService, err = contentService.WithSources(container.HelpSources())
 			if err != nil {
 				return nil, err
 			}

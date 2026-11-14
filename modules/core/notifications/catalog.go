@@ -3,6 +3,7 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -17,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
+
+// MaxPayloadBytes bounds the raw JSON payload of one event.
+const MaxPayloadBytes = 64 * 1024
 
 const TestEventKey = "core.notification.test.v1"
 
@@ -41,6 +45,12 @@ type Event struct {
 	// It is persisted with queued dispatch jobs, so pending deliveries keep
 	// resolving the definition they were enqueued with.
 	SnapshotRef string `json:"snapshot_ref,omitempty"`
+	// Payload is the typed payload of a runtime producer as raw JSON. Data is
+	// the flat form used by native producers; renderers may read either.
+	Payload json.RawMessage `json:"payload,omitempty"`
+	// Producer identifies the invocation, event or workflow occurrence that
+	// produced the event.
+	Producer Producer `json:"producer,omitempty"`
 }
 
 type Content struct{ Title, Body, ActionURL string }
@@ -211,14 +221,18 @@ func (c *Catalog) prepare(d Definition) (Definition, error) {
 	if _, exists := c.definitions[d.Key]; exists {
 		return Definition{}, fmt.Errorf("notification event already registered: %s", d.Key)
 	}
-	if _, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" {
+	// A snapshot is immutable: the same source may register it again when an
+	// already seen version is re-activated; another source may not claim it.
+	if prev, exists := c.snapshots[snapshotID(d.Key, d.SnapshotRef)]; exists && d.SnapshotRef != "" && prev.Source != d.Source {
 		return Definition{}, fmt.Errorf("notification snapshot already registered: %s", snapshotID(d.Key, d.SnapshotRef))
 	}
 	// A runtime key stays reserved after its source is deactivated: changing a
-	// definition's meaning requires a new key version.
+	// definition's meaning requires a new key version. The same source may
+	// register a new snapshot of an unchanged meaning (a new package version
+	// with new templates, or the re-activation of a known version).
 	if d.SnapshotRef != "" {
 		for _, snapshot := range c.snapshots {
-			if snapshot.Key == d.Key {
+			if snapshot.Key == d.Key && (snapshot.Source != d.Source || !sameMeaning(snapshot, d)) {
 				return Definition{}, fmt.Errorf("notification event key already used by a previous definition: %s", d.Key)
 			}
 		}
@@ -306,6 +320,12 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 	if event.Version != version || event.TenantID == uuid.Nil || strings.TrimSpace(event.ID) == "" || len(event.ID) > 200 || len(event.DedupeKey) > 200 {
 		return event, fmt.Errorf("invalid notification event envelope")
 	}
+	if len(event.Payload) > MaxPayloadBytes || (len(event.Payload) > 0 && !json.Valid(event.Payload)) {
+		return event, fmt.Errorf("invalid notification payload")
+	}
+	if err := event.Producer.Validate(); err != nil {
+		return event, err
+	}
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = time.Now().UTC()
 	}
@@ -363,4 +383,32 @@ func cloneDefinition(d Definition) Definition {
 		d.RecipientKeys[i].Name = cloneMap(d.RecipientKeys[i].Name)
 	}
 	return d
+}
+
+// sameMeaning reports whether two definitions of one key describe the same
+// event: module, level, payload fields and recipient keys. Names,
+// descriptions and rendering may change between snapshots.
+func sameMeaning(a, b Definition) bool {
+	if a.Module != b.Module || a.DefaultLevel != b.DefaultLevel || len(a.PayloadFields) != len(b.PayloadFields) || len(a.RecipientKeys) != len(b.RecipientKeys) {
+		return false
+	}
+	fields := make(map[string]bool, len(a.PayloadFields))
+	for _, f := range a.PayloadFields {
+		fields[f.Key] = f.Required
+	}
+	for _, f := range b.PayloadFields {
+		if required, ok := fields[f.Key]; !ok || required != f.Required {
+			return false
+		}
+	}
+	keys := make(map[string]bool, len(a.RecipientKeys))
+	for _, r := range a.RecipientKeys {
+		keys[r.Key] = true
+	}
+	for _, r := range b.RecipientKeys {
+		if !keys[r.Key] {
+			return false
+		}
+	}
+	return true
 }

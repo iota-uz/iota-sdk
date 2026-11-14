@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": { "@iota-uz/sdk/client-host": ["../client-host/dist/solid-index.d.ts"] }
+  },
+  "include": ["src"],
+  "exclude": ["src/host", "src/cli", "src/build", "src/client-host/**/*.test.ts", "src/client-host/fixtures.ts"]
+}

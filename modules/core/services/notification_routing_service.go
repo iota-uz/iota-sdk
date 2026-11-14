@@ -38,6 +38,7 @@ type NotificationRoutingService struct {
 	audience  notifications.AudienceRepository
 	directory notifications.RecipientDirectory
 	channels  *NotificationChannelService
+	platform  *NotificationPlatform
 }
 
 // WithChannels enables external channels; without it every rule is in-app only.
@@ -251,7 +252,49 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	}
 	return rule, unique, nil
 }
+
+// DeliverRecipients delivers a rule-mode event to user recipients.
 func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint) (int, error) {
+	return s.deliverUsers(ctx, event, rule, ids, notifications.NoticeRule)
+}
+
+// WithPlatform installs the notice store, renderers, contact resolvers and
+// access hooks. It is required for delivery.
+func (s *NotificationRoutingService) WithPlatform(platform *NotificationPlatform) *NotificationRoutingService {
+	s.platform = platform
+	return s
+}
+
+// eventIdentity is the dedupe identity of an event within its key.
+func eventIdentity(event notifications.Event) string {
+	if event.DedupeKey != "" {
+		return event.DedupeKey
+	}
+	return event.ID
+}
+
+// ensureNotice stores the notice instance in the current transaction.
+func (s *NotificationRoutingService) ensureNotice(ctx context.Context, event notifications.Event, mode notifications.NoticeMode) (notifications.Notice, error) {
+	if s.platform == nil || s.platform.Notices == nil || s.platform.Renderers == nil {
+		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp("NotificationRoutingService.ensureNotice")
+	}
+	return s.platform.Notices.Ensure(ctx, notifications.Notice{
+		TenantID: event.TenantID, EventKey: event.Key, Version: event.Version, SnapshotRef: event.SnapshotRef, EventID: eventIdentity(event),
+		Mode: mode, Subject: event.Subject.Ref(), Producer: event.Producer, Event: event,
+	})
+}
+
+func (s *NotificationRoutingService) levelFor(rule notifications.Rule, definition notifications.Definition) notification.Level {
+	switch {
+	case rule.Level != "":
+		return rule.Level
+	case definition.DefaultLevel != "":
+		return definition.DefaultLevel
+	}
+	return notification.LevelInfo
+}
+
+func (s *NotificationRoutingService) deliverUsers(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint, mode notifications.NoticeMode) (int, error) {
 	const op = "NotificationRoutingService.DeliverRecipients"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -269,17 +312,8 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
 	}
-	level := rule.Level
-	if level == "" {
-		level = definition.DefaultLevel
-	}
-	if level == "" {
-		level = notification.LevelInfo
-	}
-	dedupe := event.DedupeKey
-	if dedupe == "" {
-		dedupe = event.ID
-	}
+	level := s.levelFor(rule, definition)
+	dedupe := eventIdentity(event)
 	dedupe = event.Key + ":" + dedupe
 	if len(dedupe) > 300 {
 		dedupe = fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(dedupe)))
@@ -300,6 +334,10 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 		if !c.Valid() {
 			return 0, serrors.New(serrors.Invalid, "invalid notification channel").WithOp(op)
 		}
+	}
+	notice, err := s.ensureNotice(ctx, event, mode)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
 	}
 	for _, u := range users {
 		if seen[u.ID()] || u.TenantID() != tenant || u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive || (definition.RequiredPermission != nil && !u.Can(definition.RequiredPermission)) {
@@ -326,51 +364,130 @@ func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, even
 		if language == "" {
 			language = "en"
 		}
-		content, err := definition.Render(event, language)
-		if err != nil {
-			return delivered, serrors.Wrap(op, err)
-		}
-		if definition.ActionURL != nil {
-			content.ActionURL, err = definition.ActionURL(event)
+		recipient := notifications.UserAddressee(u.ID())
+		base := notifications.Delivery{TenantID: tenant, NoticeID: notice.ID, EventKey: event.Key, EventID: notice.EventID, ContentVersion: event.Version, RecipientKind: notifications.RecipientUser, UserID: u.ID(), RecipientKey: recipient.Key(), Language: language, Level: level}
+		if !event.Subject.IsZero() && s.platform.SubjectAccess != nil {
+			allowed, err := s.platform.SubjectAccess.CanAccess(ctx, tenant, u, event.Subject.Ref())
 			if err != nil {
 				return delivered, serrors.Wrap(op, err)
 			}
+			if !allowed {
+				// Visible per channel, never an inbox row or a provider call.
+				denied := make([]notifications.Delivery, 0, len(userChannels))
+				for _, channel := range userChannels {
+					d := base
+					d.Channel, d.Status, d.ErrorCode = channel, notifications.DeliverySkipped, notifications.ErrorCodeSubjectAccessDenied
+					denied = append(denied, d)
+				}
+				if err := s.recordDeliveries(ctx, denied); err != nil {
+					return delivered, serrors.Wrap(op, err)
+				}
+				continue
+			}
 		}
-		// Every channel, not only in-app, must carry a safe internal link.
-		if _, err := notification.New(u.ID(), "validation", "", notification.WithActionURL(content.ActionURL)); err != nil {
-			return delivered, serrors.Wrap(op, err)
-		}
-		identity := event.DedupeKey
-		if identity == "" {
-			identity = event.ID
-		}
-		var userDeliveries []notifications.Delivery
+		userDeliveries := make([]notifications.Delivery, 0, len(userChannels))
 		for _, channel := range userChannels {
-			d := notifications.Delivery{TenantID: tenant, EventKey: event.Key, EventID: identity, ContentVersion: event.Version, UserID: u.ID(), Channel: channel, Language: language, Level: level, Title: truncateRunes(content.Title, 300), Body: content.Body, ActionURL: content.ActionURL}
+			d := base
+			d.Channel = channel
 			if channel != notifications.ChannelInApp {
+				// Targets, policy and content are resolved by the channel
+				// worker after this transaction commits.
+				d.Status = notifications.DeliveryUnresolved
 				userDeliveries = append(userDeliveries, d)
 				continue
 			}
+			content, err := s.platform.Renderers.Render(ctx, notifications.RenderRequest{Event: event, Channel: channel, Language: language})
+			if err != nil {
+				return delivered, serrors.Wrap(op, err)
+			}
+			// Every channel, not only in-app, must carry a safe internal link.
 			n, err := notification.New(u.ID(), content.Title, content.Body, notification.WithTenantID(tenant), notification.WithEventKey(event.Key), notification.WithActionURL(content.ActionURL), notification.WithLevel(level), notification.WithDedupeKey(dedupe))
 			if err != nil {
 				return delivered, serrors.Wrap(op, err)
 			}
-			if _, err = s.delivery.Deliver(ctx, n); err != nil {
+			saved, err := s.delivery.Deliver(ctx, n)
+			if err != nil {
 				return delivered, serrors.Wrap(op, err)
 			}
-			d.Status = notifications.DeliverySent
+			d.Status, d.Content, d.InboxNotificationID = notifications.DeliverySent, content, saved.ID()
+			d.Title, d.Body, d.ActionURL = truncateRunes(content.Title, 300), content.Body, content.ActionURL
 			userDeliveries = append(userDeliveries, d)
 		}
 		// Recorded with the recipient's inbox write so a later failure cannot
 		// leave a saved message without its delivery rows.
-		if len(userDeliveries) > 0 && s.channels != nil {
-			if err := s.channels.Record(ctx, userDeliveries); err != nil {
-				return delivered, serrors.Wrap(op, err)
-			}
+		if err := s.recordDeliveries(ctx, userDeliveries); err != nil {
+			return delivered, serrors.Wrap(op, err)
 		}
 		delivered++
 	}
 	return delivered, nil
+}
+
+func (s *NotificationRoutingService) recordDeliveries(ctx context.Context, deliveries []notifications.Delivery) error {
+	if len(deliveries) == 0 || s.channels == nil {
+		return nil
+	}
+	return s.channels.Record(ctx, deliveries)
+}
+
+// deliverAddressees plans an explicit send to record and address recipients.
+// It only stores intents: contacts, policy, content and providers are handled
+// by the channel worker after commit. Missing addresses are recorded as visible
+// no_address outcomes. Non-user recipients have no inbox, so in-app is skipped.
+func (s *NotificationRoutingService) deliverAddressees(ctx context.Context, event notifications.Event, rule notifications.Rule, list []notifications.Addressee) (int, error) {
+	const op = "NotificationRoutingService.deliverAddressees"
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	event, err = s.catalog.Normalize(event)
+	if err != nil || tenant != event.TenantID {
+		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
+	}
+	if !rule.Enabled || s.channels == nil {
+		return 0, nil
+	}
+	definition, _ := s.catalog.For(event)
+	level := s.levelFor(rule, definition)
+	var external []notifications.Channel
+	for _, c := range rule.EffectiveChannels() {
+		if c.External() {
+			external = append(external, c)
+		}
+	}
+	notice, err := s.ensureNotice(ctx, event, notifications.NoticeExplicit)
+	if err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	var deliveries []notifications.Delivery
+	for _, a := range list {
+		if err := a.Validate(); err != nil || a.Kind == notifications.RecipientUser {
+			return 0, serrors.New(serrors.Invalid, "invalid notification recipient").WithOp(op)
+		}
+		base := notifications.Delivery{TenantID: tenant, NoticeID: notice.ID, EventKey: event.Key, EventID: notice.EventID, ContentVersion: event.Version, RecipientKind: a.Kind, Record: a.Record, RecipientKey: a.Key(), Language: a.Language, Level: level}
+		for _, channel := range external {
+			d := base
+			d.Channel = channel
+			if a.Kind == notifications.RecipientRecord {
+				d.Status = notifications.DeliveryUnresolved
+				deliveries = append(deliveries, d)
+				continue
+			}
+			address, ok := a.Addresses[channel]
+			if !ok {
+				d.Status, d.ErrorCode = notifications.DeliveryNoAddress, notifications.ErrorCodeNoAddress
+				deliveries = append(deliveries, d)
+				continue
+			}
+			target := notifications.Target{Channel: channel, Address: address}
+			d.Status, d.TargetKey, d.TargetAddress = notifications.DeliveryUnresolved, target.Key(), address
+			deliveries = append(deliveries, d)
+		}
+	}
+	if err := s.recordDeliveries(ctx, deliveries); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
+	return len(list), nil
 }
 
 func (s *NotificationRoutingService) validateActor(ctx context.Context, event notifications.Event) error {

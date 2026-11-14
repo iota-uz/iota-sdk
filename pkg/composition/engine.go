@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/helpdocs"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -281,6 +282,7 @@ type Container struct {
 	hashFSFactories       []namedFactory[[]*hashfs.FS]
 	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
 	spotlightFactories    []namedFactory[[]spotlight.SearchProvider]
+	helpSourceFactories   []namedFactory[[]helpdocs.Source]
 	spotlightAgentFactory *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
@@ -306,6 +308,7 @@ type Container struct {
 	hashFSAssets       []*hashfs.FS
 	quickLinks         []*spotlight.QuickLink
 	spotlightProviders []spotlight.SearchProvider
+	helpSources        []helpdocs.Source
 	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
@@ -383,6 +386,11 @@ func (c *Container) QuickLinks() []*spotlight.QuickLink {
 
 func (c *Container) SpotlightProviders() []spotlight.SearchProvider {
 	return append([]spotlight.SearchProvider(nil), c.spotlightProviders...)
+}
+
+// HelpSources lists the documentation sources contributed by components.
+func (c *Container) HelpSources() []helpdocs.Source {
+	return append([]helpdocs.Source(nil), c.helpSources...)
 }
 
 func (c *Container) SpotlightAgent() spotlight.Agent {
@@ -614,6 +622,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.hashFSFactories = append(c.hashFSFactories, builder.hashFSFactories...)
 	c.quickLinkFactories = append(c.quickLinkFactories, builder.quickLinkFactories...)
 	c.spotlightFactories = append(c.spotlightFactories, builder.spotlightFactories...)
+	c.helpSourceFactories = append(c.helpSourceFactories, builder.helpSourceFactories...)
 	if builder.spotlightAgent != nil {
 		if c.spotlightAgentFactory != nil {
 			return fmt.Errorf("composition: duplicate spotlight agent contribution from %q", builder.descriptor.Name)
@@ -643,6 +652,11 @@ func (c *Container) instantiateAll() error {
 }
 
 func (c *Container) materialize() error {
+	// Help sources are collected before controllers so the Help Center's
+	// controller factory sees them in Container.HelpSources.
+	if err := collectInto(c, c.helpSourceFactories, &c.helpSources); err != nil {
+		return err
+	}
 	controllerContributions, err := collectControllerContributions(c, c.controllerFactories)
 	if err != nil {
 		return err

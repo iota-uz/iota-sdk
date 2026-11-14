@@ -6,6 +6,7 @@ import (
 	"embed"
 	"errors"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications/webpush"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -64,8 +66,24 @@ type ModuleOptions struct {
 	// In-app delivery is always available. Without an adapter its channel cannot
 	// be selected on a rule.
 	NotificationChannels []notifications.ChannelAdapter
+	// NotificationWebPush enables browser push: it installs a Web Push (VAPID)
+	// adapter on the push channel and the user-facing device registration API
+	// under /notifications/push. Nil (the default) leaves both off. Build the
+	// options from secrets, for example with webpush.FromEnv(os.LookupEnv).
+	NotificationWebPush *webpush.Options
 	// NotificationAddressResolver finds a recipient's email, phone or device.
 	NotificationAddressResolver notifications.AddressResolver
+	// NotificationContactResolvers maps an entity ID to the resolver that turns
+	// a record of that entity into channel contacts, so a customer without an
+	// ERP account can receive notices. More can be registered at runtime on
+	// *notifications.ContactResolvers.
+	NotificationContactResolvers map[string]notifications.ContactResolver
+	// NotificationSubjectAccess decides whether a user recipient may see the
+	// subject of a notice. Nil allows every user.
+	NotificationSubjectAccess notifications.SubjectAccess
+	// NotificationDeliveryPolicy is the business policy (consent, opt-out)
+	// applied to record and address recipients. Nil allows every delivery.
+	NotificationDeliveryPolicy notifications.DeliveryPolicy
 	// NotificationEvents registers application-owned events in the settings catalog.
 	NotificationEvents []notifications.Definition
 	// NotificationRecipientGroups limits individually pickable notification
@@ -121,6 +139,15 @@ func (c *component) LocaleFS() []*embed.FS {
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 	composition.AddHashFS(builder, assets.HashFS)
+	channelAdapters := slices.Clone(c.options.NotificationChannels)
+	var webPush *webpush.Adapter
+	if c.options.NotificationWebPush != nil {
+		var err error
+		if webPush, err = webpush.New(*c.options.NotificationWebPush); err != nil {
+			return serrors.Wrap(op, err)
+		}
+		channelAdapters = append(channelAdapters, webPush)
+	}
 	if !c.options.SkipAdminControllers {
 		composition.AddNavNodes(builder, AdministrationLink)
 		if c.options.SkipAdminNavItems {
@@ -176,11 +203,31 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
 	composition.ProvideFunc(builder, persistence.NewNotificationDeliveryRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationPreferenceRepository)
-	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, logger *logrus.Logger) *services.NotificationChannelService {
-		return services.NewNotificationChannelService(repo, prefs, c.options.NotificationChannels, c.options.NotificationAddressResolver, logger)
+	composition.ProvideFunc(builder, persistence.NewNotificationNoticeRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationPushDeviceRepository)
+	composition.ProvideFunc(builder, notifications.NewContentRenderers)
+	composition.ProvideFunc(builder, func() (*notifications.ContactResolvers, error) {
+		registry := notifications.NewContactResolvers()
+		for entity, resolver := range c.options.NotificationContactResolvers {
+			if err := registry.Register(entity, resolver); err != nil {
+				return nil, err
+			}
+		}
+		return registry, nil
 	})
-	composition.ProvideFunc(builder, func(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery services.NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory, channels *services.NotificationChannelService) *services.NotificationRoutingService {
-		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels)
+	// The Go-configured policy is the first member of the composition; runtime
+	// sources (extension packages) register more on *notifications.DeliveryPolicies.
+	composition.ProvideFunc(builder, func() *notifications.DeliveryPolicies {
+		return notifications.NewDeliveryPolicies(c.options.NotificationDeliveryPolicy)
+	})
+	composition.ProvideFunc(builder, func(notices notifications.NoticeRepository, renderers *notifications.ContentRenderers, contacts *notifications.ContactResolvers, devices notifications.PushDeviceRepository, policies *notifications.DeliveryPolicies) *services.NotificationPlatform {
+		return &services.NotificationPlatform{Notices: notices, Renderers: renderers, Contacts: contacts, Devices: devices, SubjectAccess: c.options.NotificationSubjectAccess, Policy: policies}
+	})
+	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, platform *services.NotificationPlatform, logger *logrus.Logger) *services.NotificationChannelService {
+		return services.NewNotificationChannelService(repo, prefs, channelAdapters, c.options.NotificationAddressResolver, logger).WithPlatform(platform)
+	})
+	composition.ProvideFunc(builder, func(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery services.NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory, channels *services.NotificationChannelService, platform *services.NotificationPlatform) *services.NotificationRoutingService {
+		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels).WithPlatform(platform)
 	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
@@ -380,6 +427,9 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewLogoutController(httpCfg, browserSessions),
 				controllers.NewOnboardingController(app, userService, uploadService, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),
+			}
+			if webPush != nil {
+				ctrls = append(ctrls, controllers.NewNotificationPushController(webPush))
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
 				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadsCfg, uploadAPIControllerOpts(opts)...))

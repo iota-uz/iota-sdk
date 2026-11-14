@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Islands</title></head>
+<body>
+<main>
+  <h1>Client (legacy Templ page)</h1>
+  <button id="legacy-button" type="button" onclick="this.textContent='clicked ' + (++window.__clicks)">click me</button>
+  <button id="swap" type="button" onclick="document.getElementById('sidebar').innerHTML = document.getElementById('next-sidebar').innerHTML">swap sidebar</button>
+  <div id="sidebar"><div data-iota-slot="crm.slots.clientSidebar" data-iota-slot-config='{"props":{"clientId":7},"contributions":[{"id":"acme.badge","package":"@acme/insurance","version":"v1","module":"/_ext/assets/i1i1i1i1/client/islands.tsx","export":"badge"},{"id":"acme.second","package":"@acme/insurance","version":"v1","module":"/_ext/assets/i1i1i1i1/client/islands.tsx","export":"second"}],"env":{"rpc":"/_ext/rpc","locale":"en","protocolVersion":"1.0.0","sdkReleaseVersion":"0.5.6","sdkCommit":"__IOTA_SDK_SOURCE_COMMIT__"}}' hx-disable></div></div>
+  <template id="next-sidebar"><div data-iota-slot="crm.slots.clientSidebar" data-iota-slot-config='{"props":{"clientId":8},"contributions":[{"id":"acme.second","package":"@acme/insurance","version":"v1","module":"/_ext/assets/i1i1i1i1/client/islands.tsx","export":"second"}],"env":{"rpc":"/_ext/rpc","locale":"en","protocolVersion":"1.0.0","sdkReleaseVersion":"0.5.6","sdkCommit":"__IOTA_SDK_SOURCE_COMMIT__"}}' hx-disable></div></template>
+  <table><tbody>
+    <tr><td><span data-iota-cell="acme.tierCell" data-iota-cell-config='{"contribution":{"id":"acme.tierCell","package":"@acme/insurance","version":"v1","module":"/_ext/assets/i1i1i1i1/client/islands.tsx","export":"tier"},"value":"gold","row":{"ref":{"entity":"crm.client","key":"5"}},"env":{"rpc":"/_ext/rpc","locale":"en","protocolVersion":"1.0.0","sdkReleaseVersion":"0.5.6","sdkCommit":"__IOTA_SDK_SOURCE_COMMIT__"}}' hx-disable><span data-ext-cell="acme.tier" data-testid="tier-fallback">gold</span></span></td></tr>
+    <tr><td><span data-ext-cell="acme.tier" data-testid="tier-plain">standard</span></td></tr>
+  </tbody></table>
+</main>
+<script>window.__clicks = 0</script>
+<script type="module" src="/runtime-host.ts"></script>
+</body></html>

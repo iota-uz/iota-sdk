@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/clientwatch",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.clientwatch", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}
