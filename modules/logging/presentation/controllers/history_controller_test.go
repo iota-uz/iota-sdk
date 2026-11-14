@@ -51,20 +51,28 @@ func newHistorySuite(t *testing.T, perms ...permission.Permission) *itf.Suite {
 			{Name: "purpose", LabelKey: "Payments.Fields.Purpose", Type: history.ValueString},
 		}}},
 	}))
+	recordPurposeChange(t, suite, "104", "demo_op_104", time.Time{})
+	suite.Register(controllers.NewHistoryController("", service, registry))
+	return suite
+}
+
+// recordPurposeChange stores a payment purpose change by the test actor; a zero at means now.
+func recordPurposeChange(t *testing.T, suite *itf.Suite, id, operation string, at time.Time) {
+	t.Helper()
+	env := suite.Env()
+	registry := itf.GetService[history.Registry](env)
 	email, err := internet.NewEmail("history-ui-actor@example.com")
 	require.NoError(t, err)
 	actor := user.New("Anna", "Primerova", email, user.UILanguageEN, user.WithID(42))
-	ctx := history.WithExecution(composables.WithUser(env.Ctx, actor), history.Execution{Channel: businessevent.ChannelMCP, OperationID: "demo_op_104"})
+	ctx := history.WithExecution(composables.WithUser(env.Ctx, actor), history.Execution{Channel: businessevent.ChannelMCP, OperationID: operation})
 	_, err = history.NewWriter(registry, persistence.NewBusinessEventRepository()).Record(ctx, history.Input{
-		Type: "finance.payment.purpose_changed", Version: 1, Outcome: businessevent.OutcomeSucceeded,
-		Subjects: []businessevent.Subject{{Resource: "payment", ID: "104"}},
-		Changes: []businessevent.Change{{Resource: "payment", ID: "104", Fields: []fielddiff.Diff{
+		Type: "finance.payment.purpose_changed", Version: 1, Outcome: businessevent.OutcomeSucceeded, OccurredAt: at,
+		Subjects: []businessevent.Subject{{Resource: "payment", ID: id}},
+		Changes: []businessevent.Change{{Resource: "payment", ID: id, Fields: []fielddiff.Diff{
 			{Field: "purpose", Before: fielddiff.Present(json.RawMessage(`"Service payment"`)), After: fielddiff.Present(json.RawMessage(`"Service payment for September"`))},
 		}}},
 	})
 	require.NoError(t, err)
-	suite.Register(controllers.NewHistoryController("", service, registry))
-	return suite
 }
 
 func TestHistoryController_RendersScopeAndChips(t *testing.T) {
@@ -149,8 +157,22 @@ func TestHistoryController_FiltersByPeriodInTheApplicationZone(t *testing.T) {
 	require.NoError(t, err)
 	suite.BeforeEach(func(ctx context.Context) context.Context { return composables.WithLocation(ctx, tashkent) })
 
-	today := time.Now().In(tashkent).Format(time.DateOnly)
-	suite.GET("/admin/history/events?fb=1&f=period:on:" + today).Expect(t).Status(http.StatusOK).Contains(`data-state="ready"`)
+	// 2026-10-01T20:00Z is already October 2 in Tashkent (UTC+5) but still October 1 in UTC.
+	recordPurposeChange(t, suite, "201", "op_201", time.Date(2026, 10, 1, 18, 59, 0, 0, time.UTC))
+	recordPurposeChange(t, suite, "202", "op_202", time.Date(2026, 10, 1, 20, 0, 0, 0, time.UTC))
+	recordPurposeChange(t, suite, "203", "op_203", time.Date(2026, 10, 2, 18, 59, 0, 0, time.UTC))
+	recordPurposeChange(t, suite, "204", "op_204", time.Date(2026, 10, 2, 19, 0, 0, 0, time.UTC))
+
+	suite.GET("/admin/history/events?fb=1&f=period:on:2026-10-02").Expect(t).Status(http.StatusOK).
+		Contains(`data-state="ready"`).
+		Contains("payment #202").
+		Contains("payment #203").
+		NotContains("payment #201").
+		NotContains("payment #204").
+		NotContains("payment #104")
+	suite.GET("/admin/history/events?fb=1&f=period:between:2026-10-01,2026-10-01").Expect(t).Status(http.StatusOK).
+		Contains("payment #201").
+		NotContains("payment #202")
 	suite.GET("/admin/history/events?fb=1&f=period:before:2000-01-01").Expect(t).Status(http.StatusOK).Contains(`data-state="empty"`)
 }
 
