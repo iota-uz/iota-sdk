@@ -2692,6 +2692,112 @@
     box-shadow: var(--lens-shadow-popover);
   }
 
+  /* The ƒ methodology bubble is wider than a note: a typeset formula needs the
+     room, and the variable list reads as a small table beneath it. */
+  .lens-formula-bubble {
+    @apply lens:w-96 lens:max-w-[min(26rem,90vw)];
+  }
+
+  .lens-formula-body {
+    @apply lens:gap-2;
+  }
+
+  .lens-formula-title,
+  .lens-formula-subtitle {
+    @apply lens:m-0 lens:text-xs lens:font-semibold lens:text-muted;
+  }
+
+  .lens-formula {
+    @apply lens:relative lens:min-w-0;
+  }
+
+  .lens-formula-math {
+    @apply lens:overflow-x-auto lens:overflow-y-hidden lens:py-1;
+  }
+
+  .lens-formula-math .katex-display {
+    @apply lens:my-1;
+  }
+
+  .lens-formula-shimmer {
+    @apply lens:block lens:h-8 lens:w-full lens:rounded;
+  }
+
+  .lens-formula-error {
+    @apply lens:m-0 lens:text-sm;
+
+    color: var(--lens-neg);
+  }
+
+  /* A tagged symbol: dotted underline says "ask me", the focus ring is the same
+     one every other control in the runtime draws. */
+  .lens-formula-var {
+    @apply lens:cursor-help lens:rounded-sm;
+
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+  }
+
+  .lens-formula-var:hover {
+    background: color-mix(in srgb, var(--lens-accent-500) 14%, transparent);
+  }
+
+  .lens-formula-var:focus-visible {
+    outline: var(--lens-focus-ring-width) solid var(--lens-focus-ring-color);
+    outline-offset: 1px;
+  }
+
+  .lens-formula-tip {
+    @apply lens:pointer-events-none lens:fixed lens:z-tooltip lens:flex lens:-translate-x-1/2 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:py-1 lens:text-xs;
+
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-formula-tip-label {
+    @apply lens:text-muted;
+  }
+
+  .lens-formula-tip-value {
+    @apply lens:font-semibold lens:tabular-nums;
+  }
+
+  .lens-formula-value-line {
+    @apply lens:m-0 lens:text-sm lens:tabular-nums;
+  }
+
+  .lens-formula-variable-list {
+    @apply lens:m-0 lens:flex lens:flex-col lens:gap-1.5;
+  }
+
+  .lens-formula-variable {
+    @apply lens:grid lens:grid-cols-[1fr_auto] lens:gap-x-3 lens:text-xs;
+  }
+
+  .lens-formula-variable dt {
+    @apply lens:m-0;
+  }
+
+  .lens-formula-variable dd {
+    @apply lens:m-0;
+  }
+
+  .lens-formula-variable-value {
+    @apply lens:font-semibold lens:tabular-nums;
+  }
+
+  .lens-formula-variable-source {
+    @apply lens:col-span-2 lens:text-muted;
+  }
+
+  .lens-formula-version {
+    @apply lens:m-0 lens:text-xs lens:text-muted;
+  }
+
+  /* Print and PDF: the methodology block is an ordinary, unbreakable figure. */
+  .lens-print-methodology {
+    break-inside: avoid;
+  }
+
   .lens-info-tip-body {
     @apply lens:flex lens:min-h-0 lens:flex-col lens:gap-1.5 lens:overflow-y-auto;
   }

@@ -164,6 +164,8 @@ const storyIds = [
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
+  'formula--formula-states--dark',
+  'formula--formula-states--light',
   'metric-composition--full',
   'metric-composition--full-dark',
   'metric-composition--narrow',
@@ -446,6 +448,9 @@ const staticStories = [
   // The calendar's dense light-theme glyph raster differs across otherwise
   // identical Chromium captures; keep this tolerance local to that surface.
   ['filter-controls--popover-open-light', 0, 50],
+  // Hover focus + KaTeX font raster: keep a small local tolerance.
+  ['formula--formula-states--dark', 0, 50],
+  ['formula--formula-states--light', 0, 50],
   ['metric-composition--full-dark', 0],
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],

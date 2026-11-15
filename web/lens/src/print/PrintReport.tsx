@@ -18,7 +18,7 @@ import {
 } from '../runtime'
 import type { PrintReport as PrintReportModel, PrintSection } from '../runtime/print'
 import { buildChapterFootnotes, type FigureFootnotes } from './footnotes'
-import { PrintFormula } from './formula'
+import { PrintFormula, PrintMethodology } from './formula'
 import { headlineReadings, narrativeFact } from './narrative'
 import { buildOutline, type PrintChapter, type PrintDetail, type PrintFigure, type PrintOutline } from './outline'
 import { buildLabelPalette, printTheme } from './palette'
@@ -1190,6 +1190,7 @@ function Methodology(props: {
           </dl>
         </div>
       </Show>
+      <PrintMethodology sections={props.report.sections} />
       <Show when={props.outline.notes.length > 0}>
         <dl class="lens-print-notes">
           <For each={props.outline.notes}>

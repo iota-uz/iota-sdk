@@ -14,6 +14,8 @@ export {
 
 export { LensDashboard, type LensDashboardProps, type LensToolbarContext } from './LensDashboard'
 export { LensDashboardElement, registerLensDashboardElement } from './element'
+export { LensFormulaElement, registerLensFormulaElement } from './formula/element'
+export { FormulaView } from './formula/FormulaView'
 export {
   CONTRACT_VERSION,
   ContractVersionMismatchError,

@@ -12,6 +12,8 @@ import {
 import { relationshipSentence } from '../panels/MetricRelationshipPanel'
 import { formatFieldValue, useTranslate } from '../runtime'
 import type { PrintSection } from '../runtime/print'
+import { FormulaVariables, FormulaView } from '../formula/FormulaView'
+import { formulaValueLine, resolveFormulaVariables } from '../formula/values'
 import { PrintQualityChip } from './quality'
 import { columnUnit } from './units'
 import { sectionPanel } from './values'
@@ -201,4 +203,46 @@ export function PrintFormula(props: { section: PrintSection }): JSX.Element | nu
   if (panel().kind === 'metric_flow') return <FlowFormula join={join} locale={locale} panel={panel()} />
   if (panel().kind === 'metric_hierarchy') return <HierarchyFormula join={join} locale={locale} panel={panel()} />
   return null
+}
+
+/**
+ * «Calculation methodology»: every printed figure that carries a formula, typeset
+ * through the same module the screen uses, with its variables and their values
+ * in this report's slice. Until KaTeX arrives the server's MathML stands in, so
+ * a page captured early still reads.
+ */
+export function PrintMethodology(props: { sections: ReadonlyArray<PrintSection> }): JSX.Element | null {
+  const translate = useTranslate()
+  const entries = createMemo(() => {
+    const seen = new Set<string>()
+    return props.sections.filter((section) => {
+      const panel = sectionPanel(section)
+      if (!panel.formula || seen.has(panel.id)) return false
+      seen.add(panel.id)
+      return true
+    })
+  })
+  return (
+    <Show when={entries().length > 0}>
+      <div class="lens-print-methodology">
+        <h3>{translate('print.methodology', 'Calculation methodology')}</h3>
+        <For each={entries()}>
+          {(section) => {
+            const panel = sectionPanel(section)
+            const locale = section.document.meta.locale
+            const variables = resolveFormulaVariables(panel.formula!, panel, section.frame, locale)
+            const value = formulaValueLine(panel, section.frame, locale)
+            return (
+              <section class="lens-print-methodology-item">
+                <h4>{panel.title}</h4>
+                <FormulaView formula={panel.formula!} variables={variables} />
+                <Show when={value}><p class="lens-formula-value-line">{panel.title} = <strong>{value}</strong></p></Show>
+                <FormulaVariables variables={variables} />
+              </section>
+            )
+          }}
+        </For>
+      </div>
+    </Show>
+  )
 }

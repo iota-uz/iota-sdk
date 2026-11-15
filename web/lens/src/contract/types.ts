@@ -305,6 +305,31 @@ export type FocusMode = "canvas"
 
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"
 
+export interface Formula {
+  latex: string
+  alt?: string
+  markup?: string
+  variables?: Array<FormulaVariable>
+  version?: string
+  date?: string
+  error?: boolean
+}
+
+export interface FormulaRef {
+  kind: FormulaRefKind
+  name: string
+}
+
+export type FormulaRefKind = "field" | "measure" | "stage"
+
+export interface FormulaVariable {
+  key: string
+  label: string
+  ref?: FormulaRef
+  source?: string
+  value?: string
+}
+
 export interface Frame {
   columns: Array<Column>
   rows: Array<Array<unknown>>
@@ -495,6 +520,7 @@ export interface PanelBase {
   status?: PanelStatus
   caption?: string
   info?: string
+  formula?: Formula
   headline?: number
   trend?: PanelTrend
   sparkline?: Sparkline

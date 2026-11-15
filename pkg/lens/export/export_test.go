@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -359,4 +360,31 @@ func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSe
 	fs, err := frame.NewFrameSet(fr)
 	require.NoError(t, err)
 	return fs
+}
+
+func TestExporterWrite_MethodologySheet(t *testing.T) {
+	t.Parallel()
+	stat := mustFrames(t, "stat", frame.Field{Name: "roe", Values: []any{12.5}}, frame.Field{Name: "net", Values: []any{300.0}})
+	spec := panel.Spec{
+		ID: "roe", Title: "ROE", Kind: panel.KindStat, Dataset: "stat",
+		Fields: panel.FieldMapping{Value: panel.Ref("roe")},
+		Formula: &formula.Spec{
+			Latex:   `\mathrm{ROE} = \frac{\htmlData{var=N}{N}}{E}`,
+			Version: "2", Date: "2026-01-01",
+			Variables: []formula.Variable{{Key: "N", Label: "Net profit", Ref: &formula.Ref{Kind: formula.RefField, Name: "net"}, Source: "GL 90"}},
+		},
+	}
+	result := &lensruntime.DashboardResult{SnapshotID: "s", Spec: lens.DashboardSpec{Title: "D", Datasets: []lens.DatasetSpec{{Name: "stat"}}}, Datasets: map[string]*lensruntime.DatasetResult{"stat": {Frames: stat}}, Panels: map[string]*lensruntime.PanelResult{"roe": {Panel: spec, Frames: stat}}}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "roe"}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+	require.Contains(t, book.GetSheetList(), "Methodology")
+	name, _ := book.GetCellValue("Methodology", "A2")
+	require.Equal(t, "ROE", name)
+	val, _ := book.GetCellValue("Methodology", "D2")
+	require.Equal(t, "300", val)
+	src, _ := book.GetCellValue("Methodology", "E2")
+	require.Equal(t, "GL 90", src)
 }

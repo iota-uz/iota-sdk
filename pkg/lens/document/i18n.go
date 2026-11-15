@@ -359,6 +359,14 @@ const (
 	I18nPanelExpand                = "panel.expand"
 	I18nPanelInfo                  = "panel.info"
 	I18nPanelInfoAbout             = "panel.infoAbout"
+	I18nPanelFormula               = "panel.formula"
+	I18nPanelFormulaShow           = "panel.formula.show"
+	I18nPanelFormulaError          = "panel.formula.error"
+	I18nPanelFormulaVariables      = "panel.formula.variables"
+	I18nPanelFormulaSource         = "panel.formula.source"
+	I18nPanelFormulaVersion        = "panel.formula.version"
+	I18nPanelFormulaNoValue        = "panel.formula.noValue"
+	I18nPrintMethodology           = "print.methodology"
 	I18nPanelMissing               = "panel.missing"
 	I18nPanelOpenMetric            = "panel.openMetric"
 	I18nPanelRetry                 = "panel.retry"
@@ -714,7 +722,9 @@ func RuntimeI18nKeys() []string {
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
-		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelFormula, I18nPanelFormulaShow, I18nPanelFormulaError,
+		I18nPanelFormulaVariables, I18nPanelFormulaSource, I18nPanelFormulaVersion,
+		I18nPanelFormulaNoValue, I18nPrintMethodology, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,

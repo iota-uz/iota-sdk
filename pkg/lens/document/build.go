@@ -299,6 +299,7 @@ func appendPanelTree(
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
+		Formula:  BuildFormula(spec.ID, spec.Formula),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		ValueAxis: buildValueAxis(spec.ValueAxis),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec), Temporal: buildTemporal(spec),

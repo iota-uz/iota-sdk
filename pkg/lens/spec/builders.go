@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -315,6 +316,10 @@ func (b *PanelBuilder) Description(text string) *PanelBuilder {
 }
 func (b *PanelBuilder) Info(text string) *PanelBuilder {
 	b.panel.Info = LiteralText(text)
+	return b
+}
+func (b *PanelBuilder) Formula(spec formula.Spec) *PanelBuilder {
+	b.panel.Formula = &spec
 	return b
 }
 func (b *PanelBuilder) ClassName(name string) *PanelBuilder { b.panel.ClassName = name; return b }

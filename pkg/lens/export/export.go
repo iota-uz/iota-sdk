@@ -31,10 +31,11 @@ type Labels struct {
 	Explorer, Branch, Perspective, Node, Path, ExportMode                                                    string
 	Snapshot, Drill                                                                                          string
 	AllTime, Yes, No                                                                                         string
+	Methodology, Formula, Variable, Version, Date                                                            string
 }
 
 func DefaultLabels() Labels {
-	return Labels{Summary: "Summary", ChartData: "Chart data", Breakdown: "Breakdown", Parameters: "Parameters", Sources: "Sources", Metric: "Metric", Value: "Value", Parameter: "Parameter", Dataset: "Dataset", Source: "Source", DependsOn: "Depends on", Explorer: "Explorer", Branch: "Branch", Perspective: "Perspective", Node: "Node", Path: "Path", ExportMode: "Export mode", Snapshot: "Snapshot", Drill: "Drill", AllTime: "All time", Yes: "Yes", No: "No"}
+	return Labels{Summary: "Summary", ChartData: "Chart data", Breakdown: "Breakdown", Parameters: "Parameters", Sources: "Sources", Metric: "Metric", Value: "Value", Parameter: "Parameter", Dataset: "Dataset", Source: "Source", DependsOn: "Depends on", Explorer: "Explorer", Branch: "Branch", Perspective: "Perspective", Node: "Node", Path: "Path", ExportMode: "Export mode", Snapshot: "Snapshot", Drill: "Drill", AllTime: "All time", Yes: "Yes", No: "No", Methodology: "Methodology", Formula: "Formula", Variable: "Variable", Version: "Version", Date: "Date"}
 }
 
 func LabelsForLocale(locale string) Labels {
@@ -45,6 +46,7 @@ func LabelsForLocale(locale string) Labels {
 		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от"
 		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Исследование", "Раздел", "Представление", "Узел", "Путь", "Режим экспорта", "Снимок", "Детализация"
 		labels.AllTime, labels.Yes, labels.No = "За всё время", "Да", "Нет"
+		labels.Methodology, labels.Formula, labels.Variable, labels.Version, labels.Date = "Методология", "Формула", "Переменная", "Версия", "Дата"
 		return labels
 	case "uz-cyrl", "uz-cyrl-uz", "oz":
 		labels := DefaultLabels()
@@ -52,6 +54,7 @@ func LabelsForLocale(locale string) Labels {
 		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ"
 		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Таҳлил", "Бўлим", "Кўриниш", "Тугун", "Йўл", "Экспорт режими", "Сурат", "Тафсилот"
 		labels.AllTime, labels.Yes, labels.No = "Бутун давр", "Ҳа", "Йўқ"
+		labels.Methodology, labels.Formula, labels.Variable, labels.Version, labels.Date = "Методология", "Формула", "Ўзгарувчи", "Версия", "Сана"
 		return labels
 	case "uz", "uz-latn", "uz-latn-uz":
 		labels := DefaultLabels()
@@ -59,6 +62,7 @@ func LabelsForLocale(locale string) Labels {
 		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq"
 		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Tahlil", "Bo‘lim", "Ko‘rinish", "Tugun", "Yo‘l", "Eksport rejimi", "Surat", "Tafsilot"
 		labels.AllTime, labels.Yes, labels.No = "Butun davr", "Ha", "Yo‘q"
+		labels.Methodology, labels.Formula, labels.Variable, labels.Version, labels.Date = "Metodologiya", "Formula", "O‘zgaruvchi", "Versiya", "Sana"
 		return labels
 	case "pt", "pt-br", "pt_br":
 		labels := DefaultLabels()
@@ -66,6 +70,7 @@ func LabelsForLocale(locale string) Labels {
 		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Métrica", "Valor", "Parâmetro", "Conjunto de dados", "Fonte", "Depende de"
 		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Exploração", "Ramo", "Perspectiva", "Nó", "Caminho", "Modo de exportação", "Instantâneo", "Detalhamento"
 		labels.AllTime, labels.Yes, labels.No = "Todo o período", "Sim", "Não"
+		labels.Methodology, labels.Formula, labels.Variable, labels.Version, labels.Date = "Metodologia", "Fórmula", "Variável", "Versão", "Data"
 		return labels
 	default:
 		return DefaultLabels()
@@ -252,6 +257,15 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err err
 	}
 	if err := setSheetDimension(file, summary, dashboardRow-2, dashboardColumns); err != nil {
 		return err
+	}
+	if rows := methodologyRows(labels, panels); rows != nil {
+		methodology, err := newSheet(labels.Methodology)
+		if err != nil {
+			return err
+		}
+		if err := book.writeRows(methodology, rows); err != nil {
+			return err
+		}
 	}
 	if includeLineage {
 		sourceRows := [][]any{{labels.Dataset, labels.Source, labels.DependsOn}}

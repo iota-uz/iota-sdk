@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
@@ -710,11 +711,13 @@ type Spec struct {
 	Renderer      *HostRenderer
 	// Unavailable marks a grid container whose content cannot be shown; the
 	// value is the document wire reason (document.GroupUnavailable).
-	Unavailable     string
-	ID              string
-	Title           string
-	Description     string
-	Info            string
+	Unavailable string
+	ID          string
+	Title       string
+	Description string
+	Info        string
+	// Formula optionally describes how the panel's figure is calculated.
+	Formula         *formula.Spec
 	Kind            Kind
 	Dataset         string
 	Span            int
@@ -1247,6 +1250,9 @@ func (b *Builder) ComparisonUnsupported() *Builder {
 }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
+
+// Formula attaches the methodology formula shown behind the panel's ƒ affordance.
+func (b *Builder) Formula(spec formula.Spec) *Builder { b.spec.Formula = &spec; return b }
 func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
 	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
 	return b
