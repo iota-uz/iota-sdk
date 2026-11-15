@@ -108,10 +108,15 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 func exportable(value any, spec panel.Spec, field frame.Field) (any, bool) {
 	switch f := value.(type) {
 	case frame.Formula:
+		if f.Result == nil {
+			return "", true
+		}
 		value = f.Result
 	case *frame.Formula:
-		if f == nil {
-			return nil, false
+		// A formula cell that has no computed result is an empty cell, not a
+		// reason to fall back to a supplied value for a different slice.
+		if f == nil || f.Result == nil {
+			return "", true
 		}
 		value = f.Result
 	}
@@ -137,6 +142,13 @@ func stageUnavailable(spec panel.Spec, primary *frame.Frame, key string, row int
 		for _, stage := range spec.FlowStages {
 			if stage.Key == key {
 				declared = stage.Availability
+			}
+		}
+	}
+	if declared == "" {
+		for _, row := range spec.HierarchyRows {
+			if row.Key == key {
+				declared = row.Availability
 			}
 		}
 	}

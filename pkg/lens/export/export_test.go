@@ -451,3 +451,22 @@ func TestMethodologyUnavailableStageSuppressesFallbackValue(t *testing.T) {
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
 	require.Equal(t, "", rows[1][3])
 }
+
+func TestMethodologyHierarchyRowAvailabilityAndEmptyFormulaFallback(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "h",
+		frame.Field{Name: "row_id", Values: []any{"gone"}},
+		frame.Field{Name: "amount", Values: []any{0.0}},
+		frame.Field{Name: "f", Values: []any{&frame.Formula{Expression: "A1"}}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P",
+		Fields:        panel.FieldMapping{ID: panel.Ref("row_id"), Value: panel.Ref("amount")},
+		HierarchyRows: []panel.HierarchyRow{{Key: "gone", Availability: panel.AvailabilityUnavailable}},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+			{Key: "g", Value: "99", Ref: &formula.Ref{Kind: formula.RefStage, Name: "gone"}},
+			{Key: "f", Value: "77", Ref: &formula.Ref{Kind: formula.RefField, Name: "f"}},
+		}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.Equal(t, "", rows[1][3])
+	require.Equal(t, "", rows[2][3])
+}
