@@ -87,6 +87,9 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 		if match < 0 || match >= len(valueField.Values) {
 			return nil, false
 		}
+		if stageUnavailable(result.Panel, primary, variable.Ref.Name, match) {
+			return nil, false
+		}
 		return exportable(valueField.Values[match], result.Panel, *valueField), true
 	}
 	field, ok := primary.Field(variable.Ref.Name)
@@ -101,4 +104,29 @@ func exportable(value any, spec panel.Spec, field frame.Field) any {
 		value = f.Result
 	}
 	return formattedValue{Value: value, Format: panelFormats(spec)(field)}
+}
+
+// stageUnavailable applies the browser's precedence (frame column, then the
+// stage's own declaration, then the panel default): a stage that cannot have a
+// number must not export one, even if the frame carries a zero.
+func stageUnavailable(spec panel.Spec, primary *frame.Frame, key string, row int) bool {
+	declared := panel.Availability("")
+	if name := spec.Fields.Availability.Name(); name != "" {
+		if field, ok := primary.Field(name); ok && field != nil && row < len(field.Values) {
+			if text, isText := field.Values[row].(string); isText {
+				declared = panel.Availability(text)
+			}
+		}
+	}
+	if declared == "" {
+		for _, stage := range spec.FlowStages {
+			if stage.Key == key {
+				declared = stage.Availability
+			}
+		}
+	}
+	if declared == "" {
+		declared = spec.Availability
+	}
+	return declared != "" && declared != panel.AvailabilityAvailable
 }
