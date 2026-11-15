@@ -944,3 +944,26 @@ func (s *paramSource) Run(_ context.Context, req datasource.QueryRequest) (*fram
 func (s *paramSource) Capabilities() datasource.CapabilitySet {
 	return datasource.CapabilitySet{datasource.CapabilityParameterizedQueries: true}
 }
+
+func TestResolveDateRange_ExplicitDatesBeatRetainedAllTimeMode(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.DateRangeVariable("period", "Period", 24*time.Hour)
+
+	bounded := resolveDateRange(spec, url.Values{"period": {"all"}, "period-start": {"2026-04-01"}, "period-end": {"2026-06-30"}}, "")
+	require.Equal(t, "bounded", bounded.Mode)
+	require.Equal(t, "all", resolveDateRange(spec, url.Values{"period": {"all"}}, "").Mode)
+}
+
+func TestResolveDateRange_EndOfDayFollowsTheCalendarAcrossDST(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.DateRangeVariable("period", "Period", 24*time.Hour)
+
+	// Europe/Zurich skips an hour on 2023-03-26: the day is 23 hours long, and
+	// its exclusive bound is local midnight, not 01:00 the next day.
+	value := resolveDateRange(spec, url.Values{"period-start": {"2023-03-20"}, "period-end": {"2023-03-26"}}, "Europe/Zurich")
+	until, ok := lens.ResolveRangePart(value, lens.RangeUntil)
+	require.True(t, ok)
+	location, err := time.LoadLocation("Europe/Zurich")
+	require.NoError(t, err)
+	require.True(t, until.(time.Time).Equal(time.Date(2023, 3, 27, 0, 0, 0, 0, location)), "got %v", until)
+}

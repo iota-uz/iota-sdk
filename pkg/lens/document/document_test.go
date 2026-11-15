@@ -737,6 +737,27 @@ func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 		doc.Drill.Edges["root"] = level
 		require.NoError(t, doc.Validate())
 	})
+	t.Run("level table rejects an action the client does not know", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindTable
+		level.Table = &LevelTable{Actions: []Action{{Kind: "invalid"}}}
+		doc.Drill.Edges["root"] = level
+		require.Error(t, doc.Validate())
+	})
+	t.Run("level table columns and formats must name the level frame's fields", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindTable
+		level.Frame = "mixed"
+		doc.Frames["mixed"] = Frame{Columns: []Column{{Name: "label", Type: ColumnString}}, Rows: [][]any{}}
+		level.Table = &LevelTable{Columns: []TableColumn{{Field: "missing", Label: "Missing"}}, Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), `references missing field "missing"`)
+		level.Table = &LevelTable{Format: map[string]FieldFormat{"gone": {}}, Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), `table format references missing field "gone"`)
+	})
 	t.Run("level table needs the table view", func(t *testing.T) {
 		doc := testDocument()
 		level := bareLevel()

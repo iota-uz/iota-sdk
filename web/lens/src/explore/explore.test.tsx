@@ -691,6 +691,38 @@ describe('explore navigation', () => {
     expect(links[0]).toHaveAttribute('href', expect.stringContaining('/transactions/TX-1042'))
   })
 
+  it('does not leak the host chart formats onto a table level', async () => {
+    const key = 'profitability/operating-margin/composition/transactions'
+    const level = fixture.drill.edges[key as keyof typeof fixture.drill.edges]
+    const tableDocument = parseDocument({
+      ...fixture,
+      drill: {
+        ...fixture.drill,
+        edges: {
+          ...fixture.drill.edges,
+          [key]: {
+            ...level,
+            label: 'Source transactions',
+            view: 'table',
+            table: {
+              columns: [{ field: 'label', label: 'Transaction', cell: { kind: 'plain' } }, { field: 'value', label: 'Count', cell: { kind: 'plain' } }],
+              actions: [],
+            },
+          },
+        },
+      },
+    })
+    window.history.replaceState(null, '', navigationToURL({
+      path: level.path,
+      perspectiveId: 'profitability/operating-margin/composition',
+    }, new URL(window.location.href)))
+    renderExplore(tableDocument.panels[0], tableDocument)
+
+    const region = await screen.findByRole('region', { name: 'Source transactions' })
+    expect(within(region).queryByText('$284,000')).toBeNull()
+    expect(within(region).getByText('284,000')).toBeInTheDocument()
+  })
+
   it('does not attach a row action when the ID does not match a declared child', async () => {
     const evidence = fixture.drill.edges['profitability/operating-margin/evidence/root']
     const mismatchedDocument = parseDocument({

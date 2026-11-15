@@ -237,6 +237,9 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 		if len(n.DynamicTargets) > 0 {
 			return fmt.Errorf("explorer %s branch %s perspective %s node %s table view is terminal and cannot have dynamic targets", explorerID, branchKey, perspectiveKey, n.Key)
 		}
+		if n.DynamicChildren != nil && n.DynamicChildren.Target != nil {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s table view is terminal and cannot have a dynamic child target", explorerID, branchKey, perspectiveKey, n.Key)
+		}
 		for _, edge := range n.Edges {
 			if edge.ToNode != "" {
 				return fmt.Errorf("explorer %s branch %s perspective %s node %s table view is terminal and cannot lead to node %q", explorerID, branchKey, perspectiveKey, n.Key, edge.ToNode)

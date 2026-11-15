@@ -144,7 +144,9 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
       title: current?.label.trim() || panel.title,
       semantics: semantics(),
       encoding,
-      format: { ...formatsForEncoding(panel, encoding), ...table?.format },
+      // A table level formats its own fields: the host chart's formats belong
+      // to the host's columns and would leak onto same-named table fields.
+      format: table ? { ...table.format } : formatsForEncoding(panel, encoding),
       ...(table ? { columns: table.columns, actions: table.actions } : {}),
     } as Panel
   })

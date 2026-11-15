@@ -121,6 +121,17 @@ func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 			wantErr: "table view is terminal",
 		},
 		{
+			name: "table view with a dynamic child target",
+			mutate: func(spec *Spec) {
+				records := panel.Table("records", "Records", "detail-data").IDField("id").Terminal().Build()
+				target := action.LiteralValue("root")
+				node := PanelNode("detail", "Detail", records).WithView(panel.KindTable).
+					WithDynamicChildren(DynamicChildren{Key: action.FieldValue("id"), Label: action.FieldValue("id"), Target: &target})
+				spec.Branches[0].Perspectives[0].Nodes[1] = node
+			},
+			wantErr: "cannot have a dynamic child target",
+		},
+		{
 			name: "source data without a panel id",
 			mutate: func(spec *Spec) {
 				audit := panel.Table("", "Audit", "root-data").Terminal().Build()

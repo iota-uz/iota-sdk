@@ -1466,8 +1466,13 @@ func (d *DashboardDocument) validateDrill() error {
 		if level.View != "" && !validLevelView(level.View) {
 			return fmt.Errorf("%s view must be a chart kind or table, got %q", owner, level.View)
 		}
-		if level.Table != nil && level.View != PanelKindTable {
-			return fmt.Errorf("%s declares a table but its view is %q", owner, level.View)
+		if level.Table != nil {
+			if level.View != PanelKindTable {
+				return fmt.Errorf("%s declares a table but its view is %q", owner, level.View)
+			}
+			if err := d.validateLevelTable(owner, key, level); err != nil {
+				return err
+			}
 		}
 		if err := validatePresentation(owner, level.Presentation); err != nil {
 			return err
@@ -2098,3 +2103,28 @@ func validateRenderer(panel Panel) error {
 }
 
 var rendererName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+
+// validateLevelTable holds a table level to what the client schema accepts:
+// valid actions always, and, once the level's frame is known, columns and
+// formats that name its fields. A lazy level has no frame yet; its rows are
+// checked when they arrive.
+func (d DashboardDocument) validateLevelTable(owner string, key NodeKey, level Level) error {
+	for index, action := range level.Table.Actions {
+		if err := validateAction(fmt.Sprintf("%s table action %d", owner, index), action); err != nil {
+			return err
+		}
+	}
+	if level.Frame == "" {
+		return nil
+	}
+	frame := d.Frames[level.Frame]
+	if err := validateTableColumns(Panel{ID: string(key), Columns: level.Table.Columns}, frame); err != nil {
+		return err
+	}
+	for field := range level.Table.Format {
+		if !frameHasColumn(frame, field) {
+			return fmt.Errorf("%s table format references missing field %q", owner, field)
+		}
+	}
+	return nil
+}

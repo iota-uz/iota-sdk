@@ -1239,6 +1239,31 @@ func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) 
 	}
 }
 
+func TestHandlers_InlineLevelKeepsStaticEdgesBesideDynamicChildren(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	spec := handlers.spec
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	root.DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.LiteralValue("detail")),
+	}
+	handlers.spec = spec
+	executor.frames["root-panel"] = dynamicFrames(t, "month-12", "December")
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	stored := doc.Frames["explore:metric/focus/composition:root"]
+	keys := make([]document.NodeKey, 0, len(stored.Children))
+	for _, child := range stored.Children {
+		keys = append(keys, child.Key)
+	}
+	require.Contains(t, keys, document.NodeKey("metric/focus/composition/root/a"), "the declared static edge stays")
+	require.Contains(t, keys, document.NodeKey("month-12"), "the resolved row joins it")
+}
+
 func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)

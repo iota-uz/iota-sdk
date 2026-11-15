@@ -1410,6 +1410,22 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 					level.Presentation = convertPresentation(*nodeSpec.Presentation)
 				}
 				level.Status = convertStatus(nodeSpec.Status)
+				// Static transitions come first: resolving dynamic children below
+				// keeps them, and the frame stored in the document carries both.
+				for _, edge := range nodeSpec.Edges {
+					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
+					childPath := appendPath(nodePath, pointKey)
+					child := Node{Key: pointKey, Path: childPath, Label: ""}
+					if edge.ToNode != "" {
+						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
+					}
+					if edge.Action != nil {
+						if converted, ok := convertAction(*edge.Action, true); ok {
+							child.Action = &converted
+						}
+					}
+					level.Children = append(level.Children, child)
+				}
 				if nodeSpec.DynamicChildren != nil {
 					level.DynamicChildren = &DynamicChildren{
 						Key:   convertSource(nodeSpec.DynamicChildren.Key),
@@ -1484,20 +1500,6 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 							Format:  buildFormats(nodeSpec.SourceData.Panel),
 						}
 					}
-				}
-				for _, edge := range nodeSpec.Edges {
-					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
-					childPath := appendPath(nodePath, pointKey)
-					child := Node{Key: pointKey, Path: childPath, Label: ""}
-					if edge.ToNode != "" {
-						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
-					}
-					if edge.Action != nil {
-						if converted, ok := convertAction(*edge.Action, true); ok {
-							child.Action = &converted
-						}
-					}
-					level.Children = append(level.Children, child)
 				}
 				doc.Drill.Edges[nodeKey] = level
 			}
