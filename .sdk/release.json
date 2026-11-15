@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Lens: DynamicChildren no longer loops level queries and resolves in nested root levels; quarter period presets; table levels in explorers (WithView(KindTable), Level.table); serve.Config.DocumentOptions, automatic period filter and RangeParam binding for date_range variables; theme=\"auto\" for LensDashboard (and drawers restored from the address take the board theme); 12-colour category palette (color.Categories, Positive/Negative) and literal row colours without ColorByCategory."
+    }
+  ],
+  "source": "0d9463be5d0909691ad784b27ce7d2ef340871a2",
+  "version": "0.44.0"
+}
