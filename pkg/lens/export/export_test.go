@@ -415,7 +415,7 @@ func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
 		frame.Field{Name: "amount", Values: []any{0.0}},
 	)
 	spec := panel.Spec{ID: "p", Title: "P", Availability: panel.AvailabilityUnavailable,
-		Fields: panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
 		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
 	require.Equal(t, "", rows[1][3])
