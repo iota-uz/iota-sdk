@@ -956,7 +956,16 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // The drawer portals to body and stacks above an expanded panel, so it carries
   // the theme of the root it opened from — captured from the opener when the
   // drawer opens, mirroring PanelFrame's overlay theme capture.
-  const drawerTheme: { theme?: string; dark: boolean } = { dark: false }
+  const [drawerTheme, setDrawerTheme] = createSignal<{ theme?: string; dark: boolean }>({ dark: false })
+  // A drawer restored from the address (a reload, a shared link) never went
+  // through `open`, so nothing captured its theme and it came up light on a dark
+  // board. Once it is on screen, read the theme from the board the same way
+  // `open` does.
+  createEffect(() => {
+    if (!dashboard.navigation.drawer || drawerTheme().theme !== undefined) return
+    const root = globalThis.document.querySelector<HTMLElement>('.lens-root[data-theme]:not(.lens-drawer-root)')
+    if (root?.dataset.theme) setDrawerTheme({ theme: root.dataset.theme, dark: root.dataset.theme === 'dark' || root.classList.contains('dark') })
+  })
   const drawerKeySources = new Map<string, string>()
   const drawerKeyResolvers = new Map<string, Promise<string>>()
   const drawerCache = createMemo<Pick<DocumentCache, 'configure' | 'get' | 'load' | 'prefetch'>>(() => {
@@ -1849,8 +1858,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
           ? globalThis.document.querySelector<HTMLElement>('.lens-root')
           : null)
       const theme = root?.dataset.theme
-      drawerTheme.theme = theme
-      drawerTheme.dark = theme === 'dark' || root?.classList.contains('dark') === true
+      setDrawerTheme({ theme, dark: theme === 'dark' || root?.classList.contains('dark') === true })
       dispatch(navigationActions.openDrawer(
         src,
         drawerNavigationFromSource(src, new URL(window.location.href)),
@@ -1864,8 +1872,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
           ?? globalThis.document.querySelector<HTMLElement>('.lens-root')
         drawerOpener = opener
         const theme = root?.dataset.theme
-        drawerTheme.theme = theme
-        drawerTheme.dark = theme === 'dark' || root?.classList.contains('dark') === true
+        setDrawerTheme({ theme, dark: theme === 'dark' || root?.classList.contains('dark') === true })
         const current = new URL(window.location.href)
         dispatch(navigationActions.openDrawer(relative, drawerNavigationFromSource(relative, current)))
       }).catch((cause: unknown) => setNotice(cause instanceof Error ? cause.message : 'drawer resolver failed'))
@@ -1953,12 +1960,12 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
                             <DocumentProvider src={drawer().src} csrf={props.csrf} fetcher={props.fetcher} cache={drawerCache()}>
                               <LensDrawer
                                 closeLabel={translate('drawer.close', 'Close details')}
-                                dark={drawerTheme.dark}
+                                dark={drawerTheme().dark}
                                 eyebrow={translate('drawer.eyebrow', 'Detail view')}
                                 label={translate('drawer.label', 'Drill details')}
                                 onClose={closeDrawer}
                                 restoreFocus={drawerOpener}
-                                theme={drawerTheme.theme}
+                                theme={drawerTheme().theme}
                               >
                                 <DashboardRuntimeProvider
                                   controlledNavigation={nestedDrawerState(drawer(), dashboard.navigation.history)}

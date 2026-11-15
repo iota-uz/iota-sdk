@@ -891,4 +891,27 @@ describe('DashboardRuntimeProvider', () => {
     expect(dialog.closest('.lens-root')).toHaveAttribute('data-theme', 'dark')
     expect(dialog.closest('.lens-root')).toHaveClass('dark')
   })
+
+  it('themes a drawer restored from the address like the board it sits in', async () => {
+    window.history.replaceState(null, '', '/?drawer=%2Flens%2Fdrawer%3Fpath%3Droot')
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(document), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    render(() =>
+      <div class="lens-root" data-theme="dark">
+        <div class="lens-root" data-theme="dark">
+          <DocumentProvider initialDocument={document} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
+              <Controls />
+              )</>)}</DashboardRuntimeProvider>
+          </DocumentProvider>
+        </div>
+      </div>,
+    )
+
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(dialog).toHaveAttribute('data-theme', 'dark'))
+    expect(dialog).toHaveClass('dark')
+  })
 })
