@@ -32,6 +32,7 @@
     "vr-update": "pnpm --dir ../sdk build:testing && node ./scripts/vr.mjs --update"
   },
   "dependencies": {
+    "@iota-uz/sdk-math-internal": "workspace:*",
     "echarts": "^6.1.0",
     "solid-js": "^1.9.5",
     "zod": "3.24.1"

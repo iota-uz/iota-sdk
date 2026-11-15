@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -99,6 +100,8 @@ type MeasureSpec struct {
 	Override     *lens.DatasetSpec
 	Action       *action.Spec
 	InvertTrend  bool
+	// Formula optionally describes how the measure is calculated.
+	Formula *formula.Spec
 }
 
 type LeafSpec struct {

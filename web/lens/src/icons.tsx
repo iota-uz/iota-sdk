@@ -341,6 +341,24 @@ export const Info = glyph(
 )
 
 /**
+ * The ƒ affordance of a figure that carries a methodology formula. A drawn
+ * italic f, not a text glyph, so it sits at the same optical weight as ⓘ.
+ */
+export const FormulaMark = glyph(
+  () => <>
+    <path
+      d="M168 48c-24-8-44 4-44 32v128c0 24-12 36-40 28M92 120h72"
+      fill="none"
+      stroke="currentColor"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="18"
+    />
+  </>,
+  14,
+)
+
+/**
  * A legend row that is on the plot.
  *
  * The pair below replaces a `◎` — the one glyph in the runtime that was a

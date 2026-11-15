@@ -40,6 +40,12 @@ describe('chart bundle boundary', () => {
     const echartsEntries = Object.keys(manifest).filter((key) => key.includes('echarts'))
 
     expect(echartsEntries.every((key) => dynamicGraph.has(key))).toBe(true)
+
+    // KaTeX is reached only through the shared math module's dynamic import.
+    const katexEntries = Object.keys(manifest).filter((key) => /katex/i.test(key) && !key.endsWith('.css') && !/\.(woff2?|ttf)$/.test(key))
+    expect(katexEntries.length).toBeGreaterThan(0)
+    expect([...staticGraph].some((key) => /katex/i.test(key))).toBe(false)
+    expect(katexEntries.every((key) => dynamicGraph.has(key))).toBe(true)
     const optionalInstallers = echartsEntries.filter((key) => key.endsWith('/install.js'))
     expect(optionalInstallers).toHaveLength(4)
     expect(new Set(optionalInstallers.map((key) => manifest[key]!.file)).size).toBe(4)

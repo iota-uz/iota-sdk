@@ -1,0 +1,16 @@
+{
+  "name": "@iota-uz/sdk-math-internal",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "katex": "^0.16.28"
+  },
+  "devDependencies": {
+    "@types/katex": "0.16.8"
+  }
+}

@@ -328,6 +328,31 @@ export const FocusModeSchema: z.ZodType<Contract.FocusMode> = z.enum(["canvas"])
 
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
 
+export const FormulaSchema: z.ZodType<Contract.Formula> = z.lazy(() => z.object({
+  latex: z.string(),
+  alt: z.string().optional(),
+  markup: z.string().optional(),
+  variables: z.array(z.lazy(() => FormulaVariableSchema)).optional(),
+  version: z.string().optional(),
+  date: z.string().optional(),
+  error: z.boolean().optional(),
+}).strict())
+
+export const FormulaRefSchema: z.ZodType<Contract.FormulaRef> = z.lazy(() => z.object({
+  kind: z.lazy(() => FormulaRefKindSchema),
+  name: z.string(),
+}).strict())
+
+export const FormulaRefKindSchema: z.ZodType<Contract.FormulaRefKind> = z.enum(["field", "measure", "stage"])
+
+export const FormulaVariableSchema: z.ZodType<Contract.FormulaVariable> = z.object({
+  key: z.string(),
+  label: z.string(),
+  ref: z.lazy(() => FormulaRefSchema).optional(),
+  source: z.string().optional(),
+  value: z.string().optional(),
+}).strict()
+
 export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
   columns: z.array(z.lazy(() => ColumnSchema)),
   rows: z.array(z.array(z.unknown())),
@@ -528,6 +553,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   status: z.lazy(() => PanelStatusSchema).optional(),
   caption: z.string().optional(),
   info: z.string().optional(),
+  formula: z.lazy(() => FormulaSchema).optional(),
   headline: z.number().optional(),
   trend: z.lazy(() => PanelTrendSchema).optional(),
   sparkline: z.lazy(() => SparklineSchema).optional(),

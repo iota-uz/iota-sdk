@@ -15,6 +15,7 @@ import (
 	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -299,6 +300,7 @@ func appendPanelTree(
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
+		Formula:  BuildFormula(spec.ID, spec.Formula),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		ValueAxis: buildValueAxis(spec.ValueAxis),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec), Temporal: buildTemporal(spec),
@@ -1180,6 +1182,15 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		addDependency(action.FieldValue(spec.Presentation.RowGroupField))
 	}
 	addActionDependencies(spec.Action)
+	// A formula's variables are read from the served frame; keep their columns
+	// even when the table does not show them.
+	if spec.Formula != nil {
+		for _, variable := range spec.Formula.Variables {
+			if variable.Ref != nil && variable.Ref.Kind != formula.RefStage {
+				addDependency(action.FieldValue(variable.Ref.Name))
+			}
+		}
+	}
 	for _, dependencies := range extra {
 		for _, source := range dependencies.sources {
 			addDependency(source)

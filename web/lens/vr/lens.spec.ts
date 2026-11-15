@@ -177,6 +177,8 @@ const storyIds = [
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
+  'formula--formula-states--dark',
+  'formula--formula-states--light',
   'metric-composition--full',
   'metric-composition--full-dark',
   'metric-composition--narrow',
@@ -473,6 +475,9 @@ const staticStories = [
   // The calendar's dense light-theme glyph raster differs across otherwise
   // identical Chromium captures; keep this tolerance local to that surface.
   ['filter-controls--popover-open-light', 0, 50],
+  // Hover focus + KaTeX font raster: keep a small local tolerance.
+  ['formula--formula-states--dark', 0, 50],
+  ['formula--formula-states--light', 0, 50],
   ['metric-composition--full-dark', 0],
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
@@ -684,6 +689,12 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       if (storyId.includes('created')) await expect(section).toContainText('Press Add to put it on the dashboard')
       if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
       if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
+    }
+    if (storyId.startsWith('formula--formula-states')) {
+      // KaTeX loads lazily and the hover card focuses its variable on a timer;
+      // the loading and invalid-LaTeX cards are meant to stay unready.
+      await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
+      await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
     }
     await screenshot(page, storyId, { maxDiffPixels })
   })

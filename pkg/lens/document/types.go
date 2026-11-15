@@ -643,6 +643,9 @@ type Panel struct {
 	// screen it costs nothing until asked for; on paper there is nothing to ask,
 	// so a printed report carries it as the figure's footnote.
 	Info string `json:"info,omitempty"`
+	// Formula is the figure's methodology: a typeset formula with the variables
+	// whose values the client joins from the same frame as the figure itself.
+	Formula *Formula `json:"formula,omitempty"`
 	// Headline overrides a coverage panel's computed headline value.
 	Headline *float64 `json:"headline,omitempty"`
 	// Trend is a signed change chip rendered in the panel footer, e.g.

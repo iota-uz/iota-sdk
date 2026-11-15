@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -117,6 +118,7 @@ type MeasureSpec struct {
 	Override     *DatasetSpec     `json:"override,omitempty"`
 	Action       *action.Spec     `json:"action,omitempty"`
 	InvertTrend  bool             `json:"invertTrend,omitempty"`
+	Formula      *formula.Spec    `json:"formula,omitempty"`
 }
 
 type DatasetSpec struct {
@@ -150,13 +152,14 @@ type RowSpec struct {
 }
 
 type PanelSpec struct {
-	ID          string     `json:"id"`
-	Title       Text       `json:"title"`
-	Description Text       `json:"description"`
-	Info        Text       `json:"info"`
-	Kind        panel.Kind `json:"kind"`
-	Dataset     string     `json:"dataset,omitempty"`
-	Span        int        `json:"span,omitempty"`
+	ID          string        `json:"id"`
+	Title       Text          `json:"title"`
+	Description Text          `json:"description"`
+	Info        Text          `json:"info"`
+	Formula     *formula.Spec `json:"formula,omitempty"`
+	Kind        panel.Kind    `json:"kind"`
+	Dataset     string        `json:"dataset,omitempty"`
+	Span        int           `json:"span,omitempty"`
 	// Height is retained for wire compatibility with existing server-side Lens
 	// specs. Renderers that do not support an explicit height safely ignore it.
 	Height          string               `json:"height,omitempty"`

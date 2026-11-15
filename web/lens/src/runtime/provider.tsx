@@ -2126,7 +2126,7 @@ export function usePrint(): PrintContextValue {
   return context
 }
 
-function useLocale(): Accessor<string> {
+export function useLocale(): Accessor<string> {
   return useContext(LocaleContext) ?? (() => 'en')
 }
 
