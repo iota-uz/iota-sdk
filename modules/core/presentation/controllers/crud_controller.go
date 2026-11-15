@@ -756,7 +756,13 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	// Add actions column if edit or delete is enabled (not sortable)
 	if c.enableEdit || c.enableDelete {
 		actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
-		columns = append(columns, table.Column("actions", actionsLabel))
+		actionsOpts := []table.ColumnOpt{}
+		if len(c.customRowActions) > 0 {
+			// The details drawer repeats Edit and Delete but not custom actions,
+			// so keep the column on phones.
+			actionsOpts = append(actionsOpts, table.WithMobileRole(table.MobileRoleSecondary))
+		}
+		columns = append(columns, table.Column("actions", actionsLabel, actionsOpts...))
 	}
 
 	cfg.AddCols(columns...)

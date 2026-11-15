@@ -41,6 +41,15 @@ const storyIds = [
   'report-picker--preview-dark',
   'report-picker--loading-light',
   'report-picker--loading-dark',
+  'report-picker--ai-closed-light',
+  'report-picker--ai-open-light',
+  'report-picker--ai-open-dark',
+  'report-picker--ai-working-light',
+  'report-picker--ai-working-dark',
+  'report-picker--ai-created-light',
+  'report-picker--ai-created-dark',
+  'report-picker--ai-failed-light',
+  'report-picker--ai-failed-dark',
   'report-picker--empty-light',
   'report-picker--empty-dark',
   'report-picker--no-matches-light',
@@ -134,6 +143,10 @@ const storyIds = [
   'explore-focus--lens-switched-to-trend',
   'explore-focus--narrow-container-collapses-context',
   'explore--drill-overlay--dark',
+  'theme-auto--auto-follows-a-dark-application',
+  'theme-auto--auto-follows-a-light-application',
+  'explore--table-as-the-last-level--light',
+  'explore--table-as-the-last-level--dark',
   'explore--level-fork-awaits-a-view--dark',
   'explore--level-fork-awaits-a-view--light',
   'explore--drill-overlay--light',
@@ -171,6 +184,7 @@ const storyIds = [
   'metric-composition--narrow',
   'metric-composition--quality-chips',
   'metric-composition--relationship-variants',
+  'mobile-tiles--phone-board',
   'panel-failure--failure-reasons--dark',
   'panel-failure--failure-reasons--light',
   'panel-matrix--all-kinds-and-states--dark',
@@ -301,6 +315,15 @@ const staticStories = [
   ['report-picker--preview-dark', 0, 16],
   ['report-picker--loading-light', 0, 16],
   ['report-picker--loading-dark', 0, 16],
+  ['report-picker--ai-closed-light', 0, 16],
+  ['report-picker--ai-open-light', 0, 16],
+  ['report-picker--ai-open-dark', 0, 16],
+  ['report-picker--ai-working-light', 0, 16],
+  ['report-picker--ai-working-dark', 0, 16],
+  ['report-picker--ai-created-light', 0, 16],
+  ['report-picker--ai-created-dark', 0, 16],
+  ['report-picker--ai-failed-light', 0, 16],
+  ['report-picker--ai-failed-dark', 0, 16],
   ['report-picker--empty-light', 0, 16],
   ['report-picker--empty-dark', 0, 16],
   ['report-picker--no-matches-light', 0, 16],
@@ -420,6 +443,10 @@ const staticStories = [
   ['explore--keyboard-walkthrough', 0, 300],
   ['explore--narrow-card-deepest-path--dark', 1],
   ['explore--narrow-card-deepest-path--light', 1],
+  ['explore--table-as-the-last-level--dark', 0],
+  ['explore--table-as-the-last-level--light', 0],
+  ['theme-auto--auto-follows-a-dark-application', 6],
+  ['theme-auto--auto-follows-a-light-application', 6],
   ['explore--segment-overlay-statistics--dark', 0],
   ['explore--segment-overlay-statistics--light', 0],
   ['dashboard-header--header-dark', 0],
@@ -455,6 +482,8 @@ const staticStories = [
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
   ['metric-composition--relationship-variants', 0],
+  // A phone-width board: two-up tiles with folded toolbars, a legend folded to a few rows, names above the bars.
+  ['mobile-tiles--phone-board', 2],
   // What a panel says once the server names the kind of failure. Card-edge
   // antialiasing alternates between two stable rasters here the same way it
   // does across the matrices below (#932).
@@ -652,6 +681,14 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
         ])
         return trigger && popover ? Math.round(popover.x - trigger.x) : undefined
       }).toBe(0)
+    }
+    // The AI stories reach their state through timers; capture only once it is on screen.
+    if (storyId.startsWith('report-picker--ai-')) {
+      const section = page.getByTestId('report-picker-generate')
+      if (storyId.includes('working')) await expect(section).toContainText('Building the report…')
+      if (storyId.includes('created')) await expect(section).toContainText('Press Add to put it on the dashboard')
+      if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
+      if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
     }
     await screenshot(page, storyId, { maxDiffPixels })
   })

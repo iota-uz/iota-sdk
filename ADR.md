@@ -2,6 +2,12 @@
 
 ## Platform
 
+- **Один renderer оболочки получает существующий outlet и откатывается на стандартную оболочку** — [запись](adr/platform/shell-renderer-owns-outlet-and-falls-back.md) · accepted · 2026-11-10 (#953)
+
+- **Базовая навигация оболочки публикуется layouts.Authenticated и читается одним реестром документа** — [запись](adr/platform/shell-context-is-published-by-authenticated-layout.md) · accepted · 2026-11-10 (#953)
+
+- **Навигация и регионы оболочки описываются реестром с владельцами и диагностикой** — [запись](adr/platform/shell-registry-navigation-and-region-contributions.md) · accepted · 2026-11-10 (#953)
+
 - **Проценты в Excel округляются до двух знаков в процентных пунктах** — [запись](adr/platform/excel-percent-points-rounding.md) · accepted · 2026-10-29
 
 - **Контекст фильтров вычисляется до исполнения отчёта** — [запись](adr/platform/scoped-report-filter-context.md) · accepted · 2026-10-13 (#1057)
@@ -17,3 +23,4 @@
 - **Проекции вариантов назначения в формах пользователя** — [запись](adr/core/user-form-assignment-options.md) · superseded · 2026-09-11
 - **Проекции назначений в существующем query-слое** — [запись](adr/core/assignment-query-projections.md) · accepted · 2026-09-11
 - **Онбординг пользователя через временный пароль** — [запись](adr/core/user-onboarding-temporary-password.md) · accepted · 2026-09-29
+- **Каналы доставки уведомлений и состояние по каждому каналу** — [запись](adr/core/notification-delivery-channels.md) · accepted · 2026-11-09

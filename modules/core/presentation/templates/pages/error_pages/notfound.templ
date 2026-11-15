@@ -6,24 +6,49 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
-templ NotFoundContent() {
-	@layouts.Base(&layouts.BaseProps{Title: "Not found", WebsocketURL: "/ws"}) {
-		<div class="flex flex-col items-center justify-center h-screen w-full">
-			<div class="flex flex-col items-center">
-				<img src="/assets/images/search.svg" class="w-32 h-32" alt="404"/>
-				<h1 class="text-2xl font-bold text-primary">404</h1>
-				<h2 class="text-lg font-bold text-primary">
-					{ intl.MustT(ctx, "ErrorPages.NotFound.Message") }
-				</h2>
-				<div class="mt-4">
-					@button.Primary(button.Props{
-						Href: "/",
-					}) {
-						{ intl.MustT(ctx, "ErrorPages.NotFound.Home") }
-					}
-				</div>
-				<p class="text-lg text-gray-300 mt-4"></p>
+// NotFoundBody renders the 404 message without any layout wrapper.
+templ NotFoundBody() {
+	<div class="flex flex-col items-center justify-center w-full h-full min-h-[calc(100vh-4rem)]">
+		<div class="flex flex-col items-center px-4 text-center">
+			<img src="/assets/images/search.svg" class="w-32 h-32" alt="404"/>
+			<h1 class="text-2xl font-bold text-primary">404</h1>
+			<h2 class="text-lg font-bold text-primary">
+				{ intl.MustT(ctx, "ErrorPages.NotFound.Message") }
+			</h2>
+			<div class="mt-4">
+				@button.Primary(button.Props{
+					Href: "/",
+				}) {
+					{ intl.MustT(ctx, "ErrorPages.NotFound.Home") }
+				}
 			</div>
+		</div>
+	</div>
+}
+
+// NotFound renders the 404 page inside the authenticated layout (sidebar and
+// navbar) when sidebar context is available, otherwise falls back to the
+// standalone page.
+templ NotFound() {
+	{{
+		_, sidebarErr := layouts.UseSidebarProps(ctx)
+	}}
+	if sidebarErr == nil {
+		@layouts.Authenticated(layouts.AuthenticatedProps{
+			BaseProps: layouts.BaseProps{Title: intl.MustT(ctx, "ErrorPages.NotFound.Title"), WebsocketURL: "/ws"},
+		}) {
+			@NotFoundBody()
+		}
+	} else {
+		@NotFoundContent()
+	}
+}
+
+// NotFoundContent renders the standalone 404 page (no sidebar/navbar).
+templ NotFoundContent() {
+	@layouts.Base(&layouts.BaseProps{Title: intl.MustT(ctx, "ErrorPages.NotFound.Title"), WebsocketURL: "/ws"}) {
+		<div class="flex flex-col items-center justify-center h-screen w-full">
+			@NotFoundBody()
 		</div>
 	}
 }

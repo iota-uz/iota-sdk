@@ -104,9 +104,6 @@
       "Read(**/*.pem)",
       "Read(**/credentials*)",
       "Bash(sudo:*)"
-    ],
-    "ask": [
-      "Bash(rm:*)"
     ]
   },
   "hooks": {

@@ -99,6 +99,62 @@ publication/subscription logs. Settings show a single delivery status line:
 everything is being delivered, or how many jobs are retrying with a retry action
 for managers. Event payloads are not displayed in diagnostics.
 
+## Delivery channels
+
+Rules select channels (`Rule.Channels`: `in_app`, `email`, `sms`, `push`); an empty
+selection keeps the previous in-app-only behaviour. The settings page shows the
+picker once an adapter is installed. Install providers in the application:
+
+```go
+core.NewComponent(&core.ModuleOptions{
+    NotificationChannels:        []notifications.ChannelAdapter{emailAdapter, smsAdapter, pushAdapter},
+    NotificationAddressResolver: addresses, // email, phone or device token per user
+})
+```
+
+The SDK ships the contract, not providers. Applications wire their own senders
+and decide where addresses and device tokens live. `ChannelAdapter.Send` must
+not assume a transaction and should wrap `notifications.ErrPermanent` for errors
+that cannot succeed on retry; `AddressResolver` returns `notifications.ErrNoAddress`
+when a recipient is unreachable.
+
+Each event/recipient/channel is one row in `core.notification_deliveries`
+(unique per tenant, event identity, user and channel) with status `pending`,
+`sent`, `failed` or `no_address`, attempts, a generic last error, the provider
+receipt, and the rendered localized content with its event version. In-app
+delivery records `sent` next to its inbox row; read/unread stays on the inbox
+row. Rows are created in the same worker transaction as the in-app write and
+checkpoint. Workers then claim due external rows in a short transaction and
+call providers with no transaction open. Failed attempts back off exponentially
+up to five attempts, then become `failed`. Provider error text and credentials
+are never stored. `NotificationChannelService.Retry` reopens one `failed` or
+`no_address` row without touching other channels. Delivery is at-least-once: a
+crash between a provider accepting a message and its outcome being stored
+repeats that one message after the two-minute lease expires.
+
+A producer that names recipients itself calls
+`NotificationDispatchService.EnqueueAddressed`. It uses the same durable queue and
+per-recipient eligibility checks but ignores the administrator's rule for the
+event, so a disabled rule does not suppress it and settings cannot change its
+audience or channels. Other deliveries of the same event are unaffected when
+one recipient or channel fails. Addressed jobs use their own identity namespace
+(`addressed:<id>`), so a rule-based job for the same event ID does not absorb them.
+External deliveries run in their own worker loop, so slow providers never delay
+in-app dispatch. Eligibility is checked when content is rendered; a recipient who
+loses access afterwards can still receive the already rendered message until it
+is sent.
+
+### Personal channel choices
+
+Under **Channels per person** (`/settings/notifications/users`) a manager turns a
+channel on or off for one person. A channel switched off is skipped for that
+person in every event, rule-based or addressed; their other channels and other
+recipients are unaffected, and a person with every channel off gets nothing.
+Choices are stored as opt-outs in `core.notification_channel_preferences`
+(tenant-scoped), so people without a row keep everything the rule selects, and an
+opt-out for a channel whose adapter is not installed is kept. The page needs
+`NotificationRules.Read`; saving needs `NotificationRules.Manage`.
+
 ## Validation
 
 ```sh
@@ -116,6 +172,28 @@ SDK replica with the same PostgreSQL and Redis to check cross-instance delivery.
 It covers saved settings, overlapping/group/role audiences, severity toast,
 realtime dropdown/history, read persistence, membership removal and disabling.
 
-Email, SMS, Telegram, browser push, administrator-authored expressions/templates,
+Telegram, administrator-authored expressions/templates,
 quiet hours, per-user preferences, retention jobs and durable domain-event replay
 remain outside these notification tasks.
+
+## Runtime definition sources
+
+Definitions that do not come from native composition (for example a TypeScript
+extension activated from an immutable snapshot) implement
+`notifications.DefinitionSource` and are added with `Catalog.RegisterSource`.
+
+- Every definition carries `Source` (the source name) and a non-empty
+  `SnapshotRef`. Registration is atomic: one invalid or duplicate definition
+  rejects the whole source.
+- Keys stay versioned (`...v1`). Registering an existing key fails, so an update
+  is published as a new version (`...v2`), never as a silent overwrite.
+- Events produced from a runtime definition set `Event.SnapshotRef`. It is part
+  of the queued dispatch job's event JSON, so no schema change is needed, and
+  `Catalog.For(event)` resolves exactly that snapshot.
+- `Catalog.Deactivate(source)` removes the source's definitions from the active
+  catalog and the settings list. Pending deliveries keep rendering through their
+  snapshot. The catalog is in memory: after a restart the source re-supplies
+  the snapshots that still have pending deliveries.
+- Definitions are metadata plus simple localized templates; recipients are
+  resolved by Go from descriptors. Computing text, payload or explicit recipients
+  stays in the author's code before enqueue.

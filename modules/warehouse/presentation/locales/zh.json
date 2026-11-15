@@ -98,6 +98,7 @@
       "DeleteConfirmation": "您确定要删除此产品吗？"
     },
     "History": {
+      "Resource": "产品",
       "Created": {
         "Title": "已创建产品",
         "Summary": "仓库中新增了一件产品"
@@ -202,6 +203,7 @@
       "Submit": "导入"
     },
     "History": {
+      "Resource": "仓位",
       "Created": {
         "Title": "已创建仓位",
         "Summary": "新增了一个仓库仓位"
@@ -252,6 +254,7 @@
       "DeleteConfirmation": "您确定要删除此仓库单位吗？"
     },
     "History": {
+      "Resource": "计量单位",
       "Created": {
         "Title": "已创建计量单位",
         "Summary": "新增了一个计量单位"
@@ -337,6 +340,7 @@
       "DeleteConfirmation": "您确定要删除此订单吗？"
     },
     "History": {
+      "Resource": "仓库订单",
       "Created": {
         "Title": "已创建订单",
         "Summary": "已创建一张仓库订单"
@@ -411,6 +415,7 @@
       "DeleteConfirmation": "您确定要删除此库存检查吗？"
     },
     "History": {
+      "Resource": "盘点",
       "Created": {
         "Title": "已创建盘点",
         "Summary": "已登记一次库存盘点"

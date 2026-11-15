@@ -201,15 +201,19 @@ templ Index(p *LoginProps) {
 										@input.Email(&input.Props{
 											Label: pageCtx.T("Login.Email"),
 											Attrs: templ.Attributes{
-												"name":  "Email",
-												"value": p.Email,
+												"name":           "Email",
+												"value":          p.Email,
+												"autocomplete":   "username",
+												"autocapitalize": "none",
+												"spellcheck":     "false",
 											},
 											Error: p.ErrorsMap["Email"],
 										})
 										@input.Password(&input.Props{
 											Label: pageCtx.T("Login.Password"),
 											Attrs: templ.Attributes{
-												"name": "Password",
+												"name":         "Password",
+												"autocomplete": "current-password",
 											},
 											Error: p.ErrorsMap["Password"],
 										})

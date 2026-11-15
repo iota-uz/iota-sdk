@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Fix the project edit drawer showing an empty counterparty; accept amounts typed with spaces, no-break spaces and a decimal comma (money.ParseAmount, shared.Amount form type); add core MoneyInput component, field error for CounterpartySelect, responsive acceptance rows and a default document date. ProjectCreateDTO/ProjectUpdateDTO.ContractAmount and AcceptanceCreateDTO.Amount are now shared.Amount."
+}

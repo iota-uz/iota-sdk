@@ -117,7 +117,7 @@ func sanitizeChunkError(chunk bichatservices.StreamChunk) string {
 	}
 	// For terminal error chunks, return a generic safe message to avoid
 	// leaking provider internals. The applet only needs to know the run failed.
-	return "An error occurred while processing your request"
+	return StreamFailedError
 }
 
 // encodeRunEventFromChunk is the internal shim used by the Redis event-log

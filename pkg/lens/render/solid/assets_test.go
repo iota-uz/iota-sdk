@@ -264,6 +264,25 @@ func TestLensDashboardRendersAssetsAndAttributes(t *testing.T) {
 	}
 }
 
+func TestLensDashboardThemeAttribute(t *testing.T) {
+	for name, tc := range map[string]struct {
+		options []Option
+		want    string
+	}{
+		"default is light":      {nil, `theme="light"`},
+		"dark":                  {[]Option{WithTheme(ThemeDark)}, `theme="dark"`},
+		"auto follows the host": {[]Option{WithTheme(ThemeAuto)}, `theme="auto"`},
+		"unknown falls back":    {[]Option{WithTheme(Theme("sepia"))}, `theme="light"`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var output bytes.Buffer
+			options := append([]Option{WithoutAssets()}, tc.options...)
+			require.NoError(t, LensDashboard("/lens/document", options...).Render(context.Background(), &output))
+			assert.Contains(t, output.String(), tc.want)
+		})
+	}
+}
+
 func TestLensDashboardCanOmitAssetTags(t *testing.T) {
 	useAssetSource(t, t.TempDir())
 

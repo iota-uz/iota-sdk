@@ -5,6 +5,7 @@ import (
 	"embed"
 
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
+	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
@@ -42,6 +43,16 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewProjectStageService)
 	composition.ProvideFunc(builder, services.NewAcceptanceService)
 	composition.ProvideDefault[services.InvoiceSource](builder, services.NewNoInvoices())
+	composition.ProvideDefault[services.AcceptanceKinds](builder, services.NewDefaultAcceptanceKinds())
+	composition.ProvideDefault[services.AcceptanceCurrencyPolicy](builder, func(container *composition.Container) (services.AcceptanceCurrencyPolicy, error) {
+		projects, err := composition.Resolve[project.Repository](container)
+		if err != nil {
+			return nil, err
+		}
+		return services.NewContractCurrencyPolicy(projects), nil
+	})
+	composition.ProvideDefault[controllers.AcceptanceSaveHook](builder, controllers.NewAcceptanceTabRefresh())
+	composition.ProvideFunc(builder, services.NewAcceptanceFormService)
 	composition.ProvideFunc(builder, services.NewRevenueService)
 	composition.ProvideFunc(builder, services.NewClientRevenue)
 	composition.ProvideFunc(builder, services.NewProjectDirectory)

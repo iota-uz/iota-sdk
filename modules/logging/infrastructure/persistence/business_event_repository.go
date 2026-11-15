@@ -171,6 +171,9 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 	} else if params.Resource != "" {
 		where = append(where, "resources @> ARRAY["+arg(params.Resource)+"::text]")
 	}
+	if len(params.Resources) > 0 {
+		where = append(where, "resources && "+arg(params.Resources)+"::text[]")
+	}
 	if params.ActorID != "" {
 		where = append(where, "COALESCE(actor_id, user_id::text) = "+arg(params.ActorID))
 	}

@@ -51,6 +51,33 @@ func (s *AcceptanceService) Create(ctx context.Context, document acceptance.Docu
 	return created, nil
 }
 
+// Update saves what a person edited. A signing day signs the document and no
+// day makes it a draft again; a cancelled document stays as it is and answers
+// acceptance.ErrStatus.
+func (s *AcceptanceService) Update(
+	ctx context.Context, projectID, id uuid.UUID, revision acceptance.Revision,
+) (acceptance.Document, error) {
+	var updated acceptance.Document
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		document, err := s.projectDocument(txCtx, projectID, id)
+		if err != nil {
+			return err
+		}
+		updated, err = s.repo.Update(txCtx, document.Revise(revision))
+		if err != nil {
+			return err
+		}
+		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+			Type: AcceptanceUpdated, Version: 1, Resource: AcceptanceResource, ID: id.String(),
+			Before: acceptanceSnapshot(document), After: acceptanceSnapshot(updated),
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
 // Sign makes a draft document recognise its amount.
 func (s *AcceptanceService) Sign(ctx context.Context, projectID, id uuid.UUID) (acceptance.Document, error) {
 	return s.changeStatus(ctx, projectID, id, AcceptanceSigned, acceptance.StatusSigned, acceptance.StatusDraft)
@@ -75,6 +102,11 @@ func (s *AcceptanceService) Delete(ctx context.Context, projectID, id uuid.UUID)
 			Before: acceptanceSnapshot(document),
 		})
 	})
+}
+
+// ProjectDocument finds the document only among the project's documents.
+func (s *AcceptanceService) ProjectDocument(ctx context.Context, projectID, id uuid.UUID) (acceptance.Document, error) {
+	return s.projectDocument(ctx, projectID, id)
 }
 
 // projectDocument finds the document only among the project's documents.

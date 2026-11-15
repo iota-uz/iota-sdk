@@ -9,6 +9,15 @@ import (
 
 type Option func(t *TableFilter)
 
+// WithLabel sets the caption shown above a single-select field in the mobile
+// filter sheet. Without it the placeholder is used. The desktop toolbar shows
+// no caption.
+func WithLabel(label string) Option {
+	return func(t *TableFilter) {
+		t.label = label
+	}
+}
+
 func WithPlaceholder(placeholder string) Option {
 	return func(t *TableFilter) {
 		t.placeholder = placeholder
@@ -47,6 +56,7 @@ type OptionItem struct {
 
 type TableFilter struct {
 	Name               string
+	label              string
 	placeholder        string
 	multiSelectClasses templ.CSSClasses
 	options            []OptionItem
@@ -66,6 +76,14 @@ func NewFilter(name string, opts ...Option) *TableFilter {
 func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
 	t.options = append(t.options, opts...)
 	return t
+}
+
+// caption is the label shown above the field in the mobile filter sheet.
+func (t *TableFilter) caption() string {
+	if t.label != "" {
+		return t.label
+	}
+	return t.placeholder
 }
 
 func isOptionChecked(ctx context.Context, name string, opt OptionItem) bool {

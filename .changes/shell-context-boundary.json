@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Publish the server-resolved shell navigation from layouts.Authenticated and read it into one shared ShellRegistry per document."}

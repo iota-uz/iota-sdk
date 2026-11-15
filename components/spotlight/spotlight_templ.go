@@ -276,7 +276,7 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><button @click=\"open()\" class=\"flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-secondary bg-surface-300 px-3 text-300 shadow-sm transition-colors duration-150 hover:bg-surface-300/80 hover:text-100\" type=\"button\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\"><button @click=\"open()\" class=\"hidden h-10 cursor-pointer items-center gap-2 rounded-xl border border-secondary bg-surface-300 px-3 text-300 shadow-sm transition-colors duration-150 hover:bg-surface-300/80 hover:text-100 lg:flex\" type=\"button\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -289,7 +289,7 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" :aria-controls=\"$id(&#39;spotlight-panel&#39;)\" :aria-expanded=\"isOpen.toString()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" :aria-controls=\"$id(&#39;spotlight-panel&#39;)\" :aria-expanded=\"isOpen.toString()\" data-testid=\"spotlight-trigger\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -304,26 +304,26 @@ func Spotlight() templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 81, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 82, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span> <kbd class=\"text-[11px] font-medium\">&#8984;K</kbd></button><div @keydown.window=\"handleShortcut($event)\"></div><div @keydown.escape.window=\"handleEscape()\" class=\"fixed inset-0 z-50 flex w-screen items-center justify-center bg-slate-950/45 px-4 pb-[8vh] pt-[12vh] backdrop-blur-sm\" x-show=\"isOpen\" x-cloak><div class=\"flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-secondary bg-surface-300 shadow-2xl\" @click.away=\"close()\" :id=\"$id(&#39;spotlight-panel&#39;)\" role=\"dialog\" aria-modal=\"true\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</span> <kbd class=\"text-[11px] font-medium\">&#8984;K</kbd></button> <button @click=\"open()\" class=\"flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gray-200 text-black transition-colors hover:bg-gray-300 dark:bg-black-950 dark:text-white dark:hover:bg-black-800 lg:hidden\" type=\"button\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 97, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 89, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" x-transition:enter=\"transition ease-out duration-150\" x-transition:enter-start=\"opacity-0 translate-y-2 scale-[0.985]\" x-transition:enter-end=\"opacity-100 translate-y-0 scale-100\" x-transition:leave=\"transition ease-in duration-100\" x-transition:leave-start=\"opacity-100 translate-y-0 scale-100\" x-transition:leave-end=\"opacity-0 translate-y-1 scale-[0.99]\"><!-- Header --><div class=\"border-b border-secondary px-5 py-4\"><div class=\"flex items-center gap-3\"><div class=\"flex shrink-0 items-center text-300\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" :aria-controls=\"$id(&#39;spotlight-panel&#39;)\" :aria-expanded=\"isOpen.toString()\" data-testid=\"spotlight-trigger-mobile\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -331,20 +331,41 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div><div class=\"min-w-0 flex-1\"><input type=\"text\" x-model=\"query\" @keydown.up.prevent=\"!aiMode &amp;&amp; highlightPrevious()\" @keydown.down.prevent=\"!aiMode &amp;&amp; highlightNext()\" @keydown.enter.prevent=\"aiMode ? submitAIQuery() : goToLink()\" @keydown.tab.prevent=\"switchMode(!aiMode)\" class=\"w-full bg-transparent text-base font-medium text-100 placeholder:text-300/80 focus:outline-none\" :placeholder=\"aiMode ? localizedText(&#39;aiPlaceholder&#39;, &#39;Ask AI anything...&#39;) : localizedText(&#39;searchPlaceholder&#39;, &#39;Search...&#39;)\" autocomplete=\"off\" x-ref=\"input\"></div><div class=\"flex shrink-0 items-center\"><div class=\"flex rounded-lg border border-secondary bg-surface-400 p-0.5 text-[11px] font-medium\"><button type=\"button\" class=\"cursor-pointer rounded-md px-2.5 py-1 transition-colors\" :class=\"!aiMode ? &#39;bg-white text-gray-900 shadow-sm dark:bg-surface-300 dark:text-100&#39; : &#39;text-300 hover:text-200&#39;\" @click=\"switchMode(false)\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</button><div @keydown.window=\"handleShortcut($event)\"></div><div @keydown.escape.window=\"handleEscape()\" class=\"fixed inset-0 z-[90] flex w-screen items-stretch justify-center bg-slate-950/45 backdrop-blur-sm sm:items-center sm:px-4 sm:pb-[8vh] sm:pt-[12vh]\" x-show=\"isOpen\" x-cloak><div class=\"flex h-full w-full max-w-3xl flex-col overflow-hidden bg-surface-300 shadow-2xl sm:h-auto sm:max-h-full sm:rounded-2xl sm:border sm:border-secondary\" @click.away=\"close()\" :id=\"$id(&#39;spotlight-panel&#39;)\" role=\"dialog\" aria-modal=\"true\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 133, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 109, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</button> <button type=\"button\" class=\"flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 transition-colors\" :class=\"aiMode ? &#39;bg-white text-gray-900 shadow-sm dark:bg-surface-300 dark:text-100&#39; : &#39;text-300 hover:text-200&#39;\" @click=\"switchMode(true)\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" x-transition:enter=\"transition ease-out duration-150\" x-transition:enter-start=\"opacity-0 translate-y-2 scale-[0.985]\" x-transition:enter-end=\"opacity-100 translate-y-0 scale-100\" x-transition:leave=\"transition ease-in duration-100\" x-transition:leave-start=\"opacity-100 translate-y-0 scale-100\" x-transition:leave-end=\"opacity-0 translate-y-1 scale-[0.99]\"><!-- Header --><div class=\"border-b border-secondary px-4 py-3 sm:px-5 sm:py-4\"><div class=\"flex items-center gap-3\"><div class=\"flex shrink-0 items-center text-300\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.MagnifyingGlass(icons.Props{Size: "20"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div><div class=\"min-w-0 flex-1\"><input type=\"text\" x-model=\"query\" @keydown.up.prevent=\"!aiMode &amp;&amp; highlightPrevious()\" @keydown.down.prevent=\"!aiMode &amp;&amp; highlightNext()\" @keydown.enter.prevent=\"aiMode ? submitAIQuery() : goToLink()\" @keydown.tab.prevent=\"switchMode(!aiMode)\" class=\"w-full bg-transparent text-base font-medium text-100 placeholder:text-300/80 focus:outline-none\" enterkeyhint=\"search\" :placeholder=\"aiMode ? localizedText(&#39;aiPlaceholder&#39;, &#39;Ask AI anything...&#39;) : localizedText(&#39;searchPlaceholder&#39;, &#39;Search...&#39;)\" autocomplete=\"off\" x-ref=\"input\"></div><div class=\"flex shrink-0 items-center\"><div class=\"flex rounded-lg border border-secondary bg-surface-400 p-0.5 text-[11px] font-medium\"><button type=\"button\" class=\"min-h-8 cursor-pointer rounded-md px-2.5 py-1 transition-colors\" :class=\"!aiMode ? &#39;bg-white text-gray-900 shadow-sm dark:bg-surface-300 dark:text-100&#39; : &#39;text-300 hover:text-200&#39;\" @click=\"switchMode(false)\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var21 string
+		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Search"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 146, Col: 36}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</button> <button type=\"button\" class=\"flex min-h-8 cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 transition-colors\" :class=\"aiMode ? &#39;bg-white text-gray-900 shadow-sm dark:bg-surface-300 dark:text-100&#39; : &#39;text-300 hover:text-200&#39;\" @click=\"switchMode(true)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -352,20 +373,41 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "AI</button></div></div></div></div><!-- Scrollable results area --><div class=\"min-h-0 flex-1 overflow-y-auto overscroll-contain\"><!-- Search mode content --><div x-show=\"!aiMode\"><!-- Empty state --><div class=\"px-5 py-8 text-center\" x-show=\"query === &#39;&#39;\"><p class=\"text-sm text-300\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "AI</button></div><button type=\"button\" class=\"drawer-close -mr-2 ml-1 sm:hidden\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var21 string
-		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Body"))
+		var templ_7745c5c3_Var22 string
+		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.Close", "Close"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 155, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 161, Col: 68}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</p></div><!-- Search results --><div x-show=\"query !== &#39;&#39;\"><ul class=\"px-2 py-2\" x-ref=\"results\" :id=\"$id(&#39;spotlight&#39;)\"></ul><div class=\"px-5 pb-4\" x-show=\"isLoading &amp;&amp; !hasResults()\" :id=\"$id(&#39;spinner&#39;)\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" @click=\"close()\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.X(icons.Props{Size: "20"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</button></div></div></div><!-- Scrollable results area --><div class=\"min-h-0 flex-1 overflow-y-auto overscroll-contain\"><!-- Search mode content --><div x-show=\"!aiMode\"><!-- Empty state --><div class=\"px-5 py-8 text-center\" x-show=\"query === &#39;&#39;\"><p class=\"text-sm text-300\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var23 string
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Body"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 176, Col: 49}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</p></div><!-- Search results --><div x-show=\"query !== &#39;&#39;\"><ul class=\"px-2 py-2\" x-ref=\"results\" :id=\"$id(&#39;spotlight&#39;)\"></ul><div class=\"px-5 pb-4\" x-show=\"isLoading &amp;&amp; !hasResults()\" :id=\"$id(&#39;spinner&#39;)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -375,20 +417,20 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div></div></div><!-- AI mode content --><div x-show=\"aiMode\" x-cloak><!-- AI empty state --><div class=\"px-5 py-8 text-center\" x-show=\"!aiActive &amp;&amp; !aiLoading\"><p class=\"text-sm text-300\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div></div></div><!-- AI mode content --><div x-show=\"aiMode\" x-cloak><!-- AI empty state --><div class=\"px-5 py-8 text-center\" x-show=\"!aiActive &amp;&amp; !aiLoading\"><p class=\"text-sm text-300\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var22 string
-		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.EmptyHint"))
+		var templ_7745c5c3_Var24 string
+		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.EmptyHint"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 181, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 202, Col: 51}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</p></div><!-- AI progress + chips --><div class=\"px-3 pt-3\" x-show=\"aiActive || aiLoading\"><!-- Progress indicator - collapses when candidates arrive --><div class=\"flex items-center gap-3 rounded-xl bg-surface-400/60 px-4 py-3\" x-show=\"aiLoading\" x-transition:leave=\"transition ease-in duration-150\" x-transition:leave-start=\"opacity-100 max-h-16\" x-transition:leave-end=\"opacity-0 max-h-0\"><div class=\"flex items-center gap-1\"><span class=\"h-1.5 w-1.5 rounded-full bg-primary-400 animate-bounce\" style=\"animation-delay: 0ms\"></span> <span class=\"h-1.5 w-1.5 rounded-full bg-primary-400/70 animate-bounce\" style=\"animation-delay: 150ms\"></span> <span class=\"h-1.5 w-1.5 rounded-full bg-primary-400/50 animate-bounce\" style=\"animation-delay: 300ms\"></span></div><span class=\"spotlight-shimmer text-sm font-medium text-200\" x-text=\"currentProgressVerb\"></span></div><!-- Candidate chips - horizontal scrollable row --><div class=\"mt-2 flex flex-wrap gap-2\" x-show=\"aiCandidates.length &gt; 0\"><template x-for=\"candidate in aiCandidates\" :key=\"candidate.id\"><button type=\"button\" class=\"group flex items-center gap-2 rounded-full border px-3 py-1.5 text-left text-xs font-medium transition-all duration-150\" :class=\"expandedChip === candidate.id\n\t\t\t\t\t\t\t\t\t\t\t? &#39;border-primary-400/40 bg-primary-500/12 text-primary-200 shadow-sm&#39;\n\t\t\t\t\t\t\t\t\t\t\t: &#39;border-secondary bg-surface-400 text-200 hover:border-primary-300/30 hover:bg-surface-300&#39;\" @click=\"toggleChip(candidate.id)\"><span class=\"inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold uppercase leading-none\" :class=\"entityChipClass(candidate)\" x-text=\"entityChipIcon(candidate)\"></span> <span class=\"truncate max-w-[140px]\" x-text=\"candidate.title\"></span> <span class=\"h-1.5 w-1.5 shrink-0 rounded-full\" :class=\"confidenceDot(candidate)\"></span></button></template></div><!-- Expanded chip detail --><div x-show=\"expandedChip !== null\" x-collapse x-cloak><template x-for=\"candidate in aiCandidates\" :key=\"&#39;detail-&#39; + candidate.id\"><div x-show=\"expandedChip === candidate.id\" class=\"mt-2 rounded-lg border-l-2 border-primary-400 bg-surface-400/50 py-3 pl-4 pr-3\"><div class=\"flex items-start justify-between gap-3\"><div class=\"min-w-0 flex-1\"><div class=\"flex flex-wrap items-center gap-2\"><p class=\"text-sm font-semibold text-100\" x-text=\"candidate.title\"></p><span class=\"rounded-full border border-secondary bg-surface-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300\" x-show=\"candidate.entity_label\" x-text=\"candidate.entity_label\"></span></div><p class=\"mt-1 text-xs text-300\" x-show=\"candidate.subtitle\" x-text=\"candidate.subtitle\"></p><ul class=\"mt-2 space-y-1\" x-show=\"candidate.evidence &amp;&amp; candidate.evidence.length &gt; 0\"><template x-for=\"ev in candidate.evidence\" :key=\"`${candidate.id}-${ev.label}-${ev.value}`\"><li class=\"flex items-start gap-2 text-xs text-300\"><span class=\"mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-300\"></span> <span><span x-show=\"ev.label\" class=\"font-medium text-200\" x-text=\"ev.label + &#39;: &#39;\"></span> <span x-text=\"ev.value\"></span></span></li></template></ul><p class=\"mt-2 text-[11px] text-300\" x-show=\"candidate.confidence\" x-text=\"candidate.confidence\"></p></div><a class=\"inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary-400/30 bg-primary-500/10 px-3 py-1.5 text-xs font-semibold text-primary-200 transition-colors hover:bg-primary-500/20\" x-show=\"candidate.url\" :href=\"candidate.url\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</p></div><!-- AI progress + chips --><div class=\"px-3 pt-3\" x-show=\"aiActive || aiLoading\"><!-- Progress indicator - collapses when candidates arrive --><div class=\"flex items-center gap-3 rounded-xl bg-surface-400/60 px-4 py-3\" x-show=\"aiLoading\" x-transition:leave=\"transition ease-in duration-150\" x-transition:leave-start=\"opacity-100 max-h-16\" x-transition:leave-end=\"opacity-0 max-h-0\"><div class=\"flex items-center gap-1\"><span class=\"h-1.5 w-1.5 rounded-full bg-primary-400 animate-bounce\" style=\"animation-delay: 0ms\"></span> <span class=\"h-1.5 w-1.5 rounded-full bg-primary-400/70 animate-bounce\" style=\"animation-delay: 150ms\"></span> <span class=\"h-1.5 w-1.5 rounded-full bg-primary-400/50 animate-bounce\" style=\"animation-delay: 300ms\"></span></div><span class=\"spotlight-shimmer text-sm font-medium text-200\" x-text=\"currentProgressVerb\"></span></div><!-- Candidate chips - horizontal scrollable row --><div class=\"mt-2 flex flex-wrap gap-2\" x-show=\"aiCandidates.length &gt; 0\"><template x-for=\"candidate in aiCandidates\" :key=\"candidate.id\"><button type=\"button\" class=\"group flex items-center gap-2 rounded-full border px-3 py-1.5 text-left text-xs font-medium transition-all duration-150\" :class=\"expandedChip === candidate.id\n\t\t\t\t\t\t\t\t\t\t\t? &#39;border-primary-400/40 bg-primary-500/12 text-primary-200 shadow-sm&#39;\n\t\t\t\t\t\t\t\t\t\t\t: &#39;border-secondary bg-surface-400 text-200 hover:border-primary-300/30 hover:bg-surface-300&#39;\" @click=\"toggleChip(candidate.id)\"><span class=\"inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold uppercase leading-none\" :class=\"entityChipClass(candidate)\" x-text=\"entityChipIcon(candidate)\"></span> <span class=\"truncate max-w-[140px]\" x-text=\"candidate.title\"></span> <span class=\"h-1.5 w-1.5 shrink-0 rounded-full\" :class=\"confidenceDot(candidate)\"></span></button></template></div><!-- Expanded chip detail --><div x-show=\"expandedChip !== null\" x-collapse x-cloak><template x-for=\"candidate in aiCandidates\" :key=\"&#39;detail-&#39; + candidate.id\"><div x-show=\"expandedChip === candidate.id\" class=\"mt-2 rounded-lg border-l-2 border-primary-400 bg-surface-400/50 py-3 pl-4 pr-3\"><div class=\"flex items-start justify-between gap-3\"><div class=\"min-w-0 flex-1\"><div class=\"flex flex-wrap items-center gap-2\"><p class=\"text-sm font-semibold text-100\" x-text=\"candidate.title\"></p><span class=\"rounded-full border border-secondary bg-surface-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-300\" x-show=\"candidate.entity_label\" x-text=\"candidate.entity_label\"></span></div><p class=\"mt-1 text-xs text-300\" x-show=\"candidate.subtitle\" x-text=\"candidate.subtitle\"></p><ul class=\"mt-2 space-y-1\" x-show=\"candidate.evidence &amp;&amp; candidate.evidence.length &gt; 0\"><template x-for=\"ev in candidate.evidence\" :key=\"`${candidate.id}-${ev.label}-${ev.value}`\"><li class=\"flex items-start gap-2 text-xs text-300\"><span class=\"mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-300\"></span> <span><span x-show=\"ev.label\" class=\"font-medium text-200\" x-text=\"ev.label + &#39;: &#39;\"></span> <span x-text=\"ev.value\"></span></span></li></template></ul><p class=\"mt-2 text-[11px] text-300\" x-show=\"candidate.confidence\" x-text=\"candidate.confidence\"></p></div><a class=\"inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary-400/30 bg-primary-500/10 px-3 py-1.5 text-xs font-semibold text-primary-200 transition-colors hover:bg-primary-500/20\" x-show=\"candidate.url\" :href=\"candidate.url\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -396,68 +438,68 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.Open"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 251, Col: 50}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</a></div><div class=\"mt-3 flex flex-wrap gap-2\" x-show=\"candidate.related_links &amp;&amp; candidate.related_links.length &gt; 0\"><template x-for=\"link in candidate.related_links\" :key=\"`${candidate.id}-${link.url}`\"><a class=\"rounded-full border border-secondary bg-surface-300 px-2.5 py-1 text-[11px] font-medium text-200 transition-colors hover:bg-surface-300/80\" :href=\"link.url\" x-text=\"link.label\"></a></template></div></div></template></div><!-- AI Error --><p class=\"mt-2 rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-300 dark:bg-danger-500/10\" x-show=\"aiError\" x-text=\"aiError\"></p></div></div></div><!-- Footer --><div class=\"border-t border-secondary bg-surface-400/50 px-5 py-3\"><!-- Search mode footer --><div class=\"flex items-center justify-between gap-4\" x-show=\"!aiMode\"><div class=\"min-w-0 flex-1\"><p class=\"text-[11px] text-300\" x-show=\"query === &#39;&#39;\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var24 string
-		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Footer"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 273, Col: 51}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</p><span class=\"inline-flex items-center gap-1.5 text-[11px] font-medium text-300\" x-show=\"query !== &#39;&#39;\" x-cloak><span class=\"h-1.5 w-1.5 rounded-full\" :class=\"isLoading ? &#39;bg-amber-400 dark:bg-amber-300 animate-pulse&#39; : &#39;bg-emerald-400 dark:bg-emerald-300&#39;\"></span> <span x-text=\"statusLabel()\"></span></span></div><div class=\"hidden items-center gap-3 text-[11px] text-300 xl:flex\"><span>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
 		var templ_7745c5c3_Var25 string
-		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Navigate"))
+		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.Open"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 281, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 272, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</span> <span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</a></div><div class=\"mt-3 flex flex-wrap gap-2\" x-show=\"candidate.related_links &amp;&amp; candidate.related_links.length &gt; 0\"><template x-for=\"link in candidate.related_links\" :key=\"`${candidate.id}-${link.url}`\"><a class=\"rounded-full border border-secondary bg-surface-300 px-2.5 py-1 text-[11px] font-medium text-200 transition-colors hover:bg-surface-300/80\" :href=\"link.url\" x-text=\"link.label\"></a></template></div></div></template></div><!-- AI Error --><p class=\"mt-2 rounded-lg bg-danger-50 px-3 py-2 text-sm text-danger-300 dark:bg-danger-500/10\" x-show=\"aiError\" x-text=\"aiError\"></p></div></div></div><!-- Footer --><div class=\"border-t border-secondary bg-surface-400/50 px-5 py-3\"><!-- Search mode footer --><div class=\"flex items-center justify-between gap-4\" x-show=\"!aiMode\"><div class=\"min-w-0 flex-1\"><p class=\"text-[11px] text-300\" x-show=\"query === &#39;&#39;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
-		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Open"))
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Empty.Footer"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 282, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 294, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</p><span class=\"inline-flex items-center gap-1.5 text-[11px] font-medium text-300\" x-show=\"query !== &#39;&#39;\" x-cloak><span class=\"h-1.5 w-1.5 rounded-full\" :class=\"isLoading ? &#39;bg-amber-400 dark:bg-amber-300 animate-pulse&#39; : &#39;bg-emerald-400 dark:bg-emerald-300&#39;\"></span> <span x-text=\"statusLabel()\"></span></span></div><div class=\"hidden items-center gap-3 text-[11px] text-300 xl:flex\"><span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
-		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Close"))
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Navigate"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 283, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 302, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span></div></div><!-- AI mode footer --><div x-show=\"aiMode\" x-cloak><!-- Follow-up input (shown when AI session is active and not loading) --><div class=\"flex items-center gap-3\" x-show=\"aiActive &amp;&amp; !aiLoading\"><div class=\"min-w-0 flex-1\"><input type=\"text\" class=\"w-full bg-transparent text-sm text-100 placeholder:text-300 focus:outline-none\" :placeholder=\"localizedText(&#39;aiFollowUpHint&#39;, &#39;Ask a follow-up...&#39;)\" x-model=\"aiInput\" x-ref=\"aiFollowUpInput\" @keydown.enter.prevent=\"sendAIMessage()\"></div><button type=\"button\" class=\"inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary-400/30 bg-primary-500/10 px-3 text-xs font-semibold text-primary-200 transition-colors hover:bg-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50\" @click=\"sendAIMessage()\" :disabled=\"!canSendAI()\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</span> <span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var28 string
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Open"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 303, Col: 53}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span> <span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var29 string
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.Hint.Close"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 304, Col: 54}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</span></div></div><!-- AI mode footer --><div x-show=\"aiMode\" x-cloak><!-- Follow-up input (shown when AI session is active and not loading) --><div class=\"flex items-center gap-3\" x-show=\"aiActive &amp;&amp; !aiLoading\"><div class=\"min-w-0 flex-1\"><input type=\"text\" class=\"w-full bg-transparent text-sm text-100 placeholder:text-300 focus:outline-none\" :placeholder=\"localizedText(&#39;aiFollowUpHint&#39;, &#39;Ask a follow-up...&#39;)\" x-model=\"aiInput\" x-ref=\"aiFollowUpInput\" @keydown.enter.prevent=\"sendAIMessage()\"></div><button type=\"button\" class=\"inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary-400/30 bg-primary-500/10 px-3 text-xs font-semibold text-primary-200 transition-colors hover:bg-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50\" @click=\"sendAIMessage()\" :disabled=\"!canSendAI()\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -465,7 +507,7 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</button></div><!-- AI status (shown when loading or idle) --><div class=\"flex items-center justify-between gap-4\" x-show=\"!aiActive || aiLoading\"><span class=\"inline-flex items-center gap-1.5 text-[11px] font-medium text-300\" x-show=\"aiLoading\" x-cloak>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</button></div><!-- AI status (shown when loading or idle) --><div class=\"flex items-center justify-between gap-4\" x-show=\"!aiActive || aiLoading\"><span class=\"inline-flex items-center gap-1.5 text-[11px] font-medium text-300\" x-show=\"aiLoading\" x-cloak>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -473,20 +515,20 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<span x-text=\"currentProgressVerb || localizedText(&#39;aiStatusComplete&#39;)\"></span></span> <span class=\"text-[11px] text-300\" x-show=\"!aiActive &amp;&amp; !aiLoading\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<span x-text=\"currentProgressVerb || localizedText(&#39;aiStatusComplete&#39;)\"></span></span> <span class=\"text-[11px] text-300\" x-show=\"!aiActive &amp;&amp; !aiLoading\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.EmptyHint"))
+		var templ_7745c5c3_Var30 string
+		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.AI.EmptyHint"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 316, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 337, Col: 51}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</span></div></div></div></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</span></div></div></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -510,43 +552,43 @@ func ResultBadgeItem(badge ResultBadge) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var29 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var29 == nil {
-			templ_7745c5c3_Var29 = templ.NopComponent
+		templ_7745c5c3_Var31 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var31 == nil {
+			templ_7745c5c3_Var31 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var30 = []any{badgeClass(badge.Tone)}
-		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var30...)
+		var templ_7745c5c3_Var32 = []any{badgeClass(badge.Tone)}
+		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var32...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "<span class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<span class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var31 string
-		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var30).String())
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var32).String())
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 1, Col: 0}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var32 string
-		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(badge.Label)
+		var templ_7745c5c3_Var34 string
+		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(badge.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 327, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 348, Col: 53}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -570,39 +612,39 @@ func LinkItem(props LinkItemProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var33 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var33 == nil {
-			templ_7745c5c3_Var33 = templ.NopComponent
+		templ_7745c5c3_Var35 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var35 == nil {
+			templ_7745c5c3_Var35 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<a href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<a href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var34 templ.SafeURL = templ.SafeURL(props.Link)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var34)))
+		var templ_7745c5c3_Var36 templ.SafeURL = templ.SafeURL(props.Link)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var36)))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" class=\"group flex w-full items-start gap-3\" data-spotlight-key=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\" class=\"group flex w-full items-start gap-3\" data-spotlight-key=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var35 string
-		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(props.Key)
+		var templ_7745c5c3_Var37 string
+		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(props.Key)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 334, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 355, Col: 32}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if props.Icon != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<span class=\"mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-secondary bg-surface-400 text-300 transition-colors duration-150 group-hover:bg-surface-200\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<span class=\"mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-secondary bg-surface-400 text-300 transition-colors duration-150 group-hover:bg-surface-200\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -610,72 +652,72 @@ func LinkItem(props LinkItemProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<div class=\"min-w-0 flex-1\"><div class=\"flex items-start justify-between gap-3\"><div class=\"min-w-0 flex-1\"><div class=\"truncate text-sm font-semibold leading-5 text-100\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"min-w-0 flex-1\"><div class=\"flex items-start justify-between gap-3\"><div class=\"min-w-0 flex-1\"><div class=\"truncate text-sm font-semibold leading-5 text-100\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var36 string
-		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
+		var templ_7745c5c3_Var38 string
+		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 344, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 365, Col: 81}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if props.Subtitle != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<div class=\"mt-0.5 truncate text-xs leading-5 text-300\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"mt-0.5 truncate text-xs leading-5 text-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var37 string
-			templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(props.Subtitle)
+			var templ_7745c5c3_Var39 string
+			templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(props.Subtitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 346, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 367, Col: 78}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if props.Meta != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"mt-1 truncate text-[11px] leading-5 text-300/85\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<div class=\"mt-1 truncate text-[11px] leading-5 text-300/85\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var38 string
-			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(props.Meta)
+			var templ_7745c5c3_Var40 string
+			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(props.Meta)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 349, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 370, Col: 79}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(props.Badges) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<div class=\"flex max-w-[42%] flex-wrap justify-end gap-1\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<div class=\"flex max-w-[42%] flex-wrap justify-end gap-1\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -685,12 +727,12 @@ func LinkItem(props LinkItemProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</div></div></a>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "</div></div></a>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -715,33 +757,33 @@ func SpotlightItem(i int) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var39 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var39 == nil {
-			templ_7745c5c3_Var39 = templ.NopComponent
+		templ_7745c5c3_Var41 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var41 == nil {
+			templ_7745c5c3_Var41 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<li data-spotlight-item class=\"mx-1.5 my-1 rounded-xl border border-transparent bg-transparent px-3 py-3 text-100 transition-all duration-100 hover:border-secondary hover:bg-surface-100/70\" :class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "<li data-spotlight-item class=\"mx-1.5 my-1 rounded-xl border border-transparent bg-transparent px-3 py-3 text-100 transition-all duration-100 hover:border-secondary hover:bg-surface-100/70\" :class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var40 string
-		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'border-primary-300/30 bg-primary-500/8 shadow-sm': highlightedIndex === %d }", i))
+		var templ_7745c5c3_Var42 string
+		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'border-primary-300/30 bg-primary-500/8 shadow-sm': highlightedIndex === %d }", i))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 369, Col: 107}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 390, Col: 107}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ_7745c5c3_Var39.Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</li>")
+		templ_7745c5c3_Err = templ_7745c5c3_Var41.Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</li>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -766,12 +808,12 @@ func NotFound() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var41 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var41 == nil {
-			templ_7745c5c3_Var41 = templ.NopComponent
+		templ_7745c5c3_Var43 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var43 == nil {
+			templ_7745c5c3_Var43 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<li class=\"px-5 py-8 text-center\"><div class=\"text-300\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<li class=\"px-5 py-8 text-center\"><div class=\"text-300\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -779,33 +821,33 @@ func NotFound() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "</div><p class=\"mt-2 text-sm font-medium text-200\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</div><p class=\"mt-2 text-sm font-medium text-200\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var42 string
-		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFound"))
+		var templ_7745c5c3_Var44 string
+		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFound"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 381, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 402, Col: 90}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</p><p class=\"mt-1 text-xs text-300\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var43 string
-		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFoundBody"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 382, Col: 82}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "</p><p class=\"mt-1 text-xs text-300\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</p></li>")
+		var templ_7745c5c3_Var45 string
+		templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(intl.MustT(ctx, "Spotlight.NothingFoundBody"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 403, Col: 82}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</p></li>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -830,9 +872,9 @@ func SpotlightResults(items []templ.Component) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var44 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var44 == nil {
-			templ_7745c5c3_Var44 = templ.NopComponent
+		templ_7745c5c3_Var46 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var46 == nil {
+			templ_7745c5c3_Var46 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		for _, item := range items {
@@ -862,13 +904,13 @@ func SpotlightItems(items []templ.Component, startIdx int) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var45 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var45 == nil {
-			templ_7745c5c3_Var45 = templ.NopComponent
+		templ_7745c5c3_Var47 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var47 == nil {
+			templ_7745c5c3_Var47 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		for i, item := range items {
-			templ_7745c5c3_Var46 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Var48 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -886,7 +928,7 @@ func SpotlightItems(items []templ.Component, startIdx int) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = SpotlightItem(startIdx+i).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SpotlightItem(startIdx+i).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -911,29 +953,29 @@ func SpotlightGroup(title string) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var47 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var47 == nil {
-			templ_7745c5c3_Var47 = templ.NopComponent
+		templ_7745c5c3_Var49 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var49 == nil {
+			templ_7745c5c3_Var49 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<li class=\"sticky top-0 z-10 mx-1.5 mt-2 rounded-lg bg-surface-300/95 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-300 backdrop-blur\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "<li class=\"sticky top-0 z-10 mx-1.5 mt-2 rounded-lg bg-surface-300/95 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-300 backdrop-blur\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var48 string
-		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(title)
+		var templ_7745c5c3_Var50 string
+		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 404, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 425, Col: 9}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "</li>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ_7745c5c3_Var47.Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</li>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templ_7745c5c3_Var49.Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -963,13 +1005,13 @@ func SpotlightItemsCollapsible(
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var49 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var49 == nil {
-			templ_7745c5c3_Var49 = templ.NopComponent
+		templ_7745c5c3_Var51 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var51 == nil {
+			templ_7745c5c3_Var51 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		for i, item := range exactItems {
-			templ_7745c5c3_Var50 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Var52 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -987,31 +1029,31 @@ func SpotlightItemsCollapsible(
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = SpotlightItem(exactIndices[i]).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SpotlightItem(exactIndices[i]).Render(templ.WithChildren(ctx, templ_7745c5c3_Var52), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if len(moreItems) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "<li x-data=\"{ expanded: false }\" x-id=\"[&#39;spotlight-more&#39;]\" class=\"mx-1.5 list-none\"><button type=\"button\" x-show=\"!expanded\" @click=\"expanded = true\" :aria-expanded=\"expanded\" :aria-controls=\"$id(&#39;spotlight-more&#39;)\" class=\"w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "<li x-data=\"{ expanded: false }\" x-id=\"[&#39;spotlight-more&#39;]\" class=\"mx-1.5 list-none\"><button type=\"button\" x-show=\"!expanded\" @click=\"expanded = true\" :aria-expanded=\"expanded\" :aria-controls=\"$id(&#39;spotlight-more&#39;)\" class=\"w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var51 string
-			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(moreLabel)
+			var templ_7745c5c3_Var53 string
+			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(moreLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 435, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 456, Col: 15}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</button><ul :id=\"$id(&#39;spotlight-more&#39;)\" x-show=\"expanded\" x-collapse x-cloak data-spotlight-more role=\"region\" class=\"list-none m-0 p-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "</button><ul :id=\"$id(&#39;spotlight-more&#39;)\" x-show=\"expanded\" x-collapse x-cloak data-spotlight-more role=\"region\" class=\"list-none m-0 p-0\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for i, item := range moreItems {
-				templ_7745c5c3_Var52 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_Var54 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 					if !templ_7745c5c3_IsBuffer {
@@ -1029,12 +1071,12 @@ func SpotlightItemsCollapsible(
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = SpotlightItem(moreIndices[i]).Render(templ.WithChildren(ctx, templ_7745c5c3_Var52), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = SpotlightItem(moreIndices[i]).Render(templ.WithChildren(ctx, templ_7745c5c3_Var54), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 64, "</ul></li>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</ul></li>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

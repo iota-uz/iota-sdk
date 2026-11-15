@@ -119,7 +119,15 @@ func (r *BillingRepository) GetPaginated(ctx context.Context, params *billing.Fi
 }
 
 func (r *BillingRepository) GetByID(ctx context.Context, id uuid.UUID) (billing.Transaction, error) {
-	transactions, err := r.queryTransactions(ctx, selectTransactionQuery+" WHERE bt.id = $1", id)
+	return r.getOne(ctx, selectTransactionQuery+" WHERE bt.id = $1", id)
+}
+
+func (r *BillingRepository) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (billing.Transaction, error) {
+	return r.getOne(ctx, selectTransactionQuery+" WHERE bt.id = $1 FOR UPDATE", id)
+}
+
+func (r *BillingRepository) getOne(ctx context.Context, query string, id uuid.UUID) (billing.Transaction, error) {
+	transactions, err := r.queryTransactions(ctx, query, id)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get transaction with id %s", id)
 	}

@@ -983,7 +983,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
 	require.Equal(t, FieldFormat{
-		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true,
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true, Symbol: "so’m",
 	}, doc.Panels[0].Format["value"])
 }
 
@@ -1173,6 +1173,44 @@ func TestPanelFrameColorsUseGenericScaleAndPreserveLiteralColors(t *testing.T) {
 	spec.ColorField = ""
 	spec.Colors = []string{"#123456", "#abcdef"}
 	require.Equal(t, spec.Colors, panelFrameColors(spec, rows))
+}
+
+func TestBuildPresentation_LiteralRowColorsPaintEachBar(t *testing.T) {
+	t.Parallel()
+	build := func(b *panel.Builder) *Presentation { return buildPresentation(b.Build()) }
+	literal := func(b *panel.Builder) *panel.Builder { return b.SemanticColors("literal", "color") }
+
+	t.Run("bar and horizontal bar colour each row without ColorByCategory", func(t *testing.T) {
+		for _, builder := range []*panel.Builder{
+			literal(panel.Bar("bar", "Bar", "rows").IDField("id").LabelField("label").ValueField("value")),
+			literal(panel.HorizontalBar("hbar", "Bar", "rows").IDField("id").LabelField("label").ValueField("value")),
+		} {
+			presentation := build(builder)
+			require.NotNil(t, presentation)
+			require.Equal(t, ColorByCategory, presentation.ColorBy)
+		}
+	})
+	t.Run("named scales keep their previous behaviour", func(t *testing.T) {
+		presentation := build(panel.HorizontalBar("hbar", "Bar", "rows").
+			LabelField("label").ValueField("value").SemanticColors("PRODUCT", "color"))
+		require.Nil(t, presentation)
+	})
+	t.Run("a stacked bar is coloured by series, not by row", func(t *testing.T) {
+		presentation := build(literal(panel.StackedBar("bar", "Bar", "rows").
+			LabelField("label").SeriesField("series").ValueField("value")))
+		require.NotNil(t, presentation)
+		require.Empty(t, presentation.ColorBy)
+	})
+	t.Run("an explicit sequence ramp keeps priority", func(t *testing.T) {
+		hinted := literal(panel.Bar("bar", "Bar", "rows").LabelField("label").ValueField("value")).Build()
+		hinted.Presentation.ColorBySequence = true
+		presentation := buildPresentation(hinted)
+		require.NotNil(t, presentation)
+		require.Equal(t, ColorBySequence, presentation.ColorBy)
+	})
+	t.Run("other kinds are untouched", func(t *testing.T) {
+		require.Nil(t, build(literal(panel.Pie("pie", "Pie", "rows").LabelField("label").ValueField("value"))))
+	})
 }
 
 // A series panel positions its colors by series, not by row: the n-th color is

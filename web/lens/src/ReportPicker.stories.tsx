@@ -46,6 +46,18 @@ const selectWithAnother = () => {
   when('[data-report-id="report-01"] button[aria-pressed]', (button) => button.click())
 }
 const preview = () => when('[data-report-id="report-01"] button[aria-label^="Preview"]', (button) => button.click())
+const typePrompt = (text: string) => () => when('[data-testid="report-picker-generate"] button[aria-expanded]', (toggle) => {
+  toggle.click()
+  when('textarea', (area) => {
+    const input = area as HTMLTextAreaElement
+    input.value = text
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+})
+const generate = (text: string) => () => {
+  typePrompt(text)()
+  when('[data-testid="report-picker-generate-submit"]:not([disabled])', (button) => button.click())
+}
 const addFailing = () => {
   select('report-02')()
   when('[data-report-id="report-02"][data-selected]', () => when('[data-testid="report-picker-confirm"]:not([disabled])', (button) => button.click()))
@@ -67,6 +79,17 @@ export const LoadFailedLight = () => <Picker theme="light" host={memoryCatalog({
 export const LoadFailedDark = () => <Picker theme="dark" host={memoryCatalog({ failures: 1 })} />
 export const AddFailedLight = () => <Picker theme="light" after={addFailing} confirm={() => Promise.reject(new Error('Draft rejected'))} />
 export const AddFailedDark = () => <Picker theme="dark" after={addFailing} confirm={() => Promise.reject(new Error('Draft rejected'))} />
+
+const aiPrompt = 'Policies sold per region over the last quarter, as a bar chart'
+export const AiClosedLight = () => <Picker host={memoryCatalog({ generate: {} })} theme="light" />
+export const AiOpenLight = () => <Picker after={typePrompt(aiPrompt)} host={memoryCatalog({ generate: {} })} theme="light" />
+export const AiOpenDark = () => <Picker after={typePrompt(aiPrompt)} host={memoryCatalog({ generate: {} })} theme="dark" />
+export const AiWorkingLight = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stages: ['starting', 'schema', 'generating'], hang: true } })} theme="light" />
+export const AiWorkingDark = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stages: ['starting', 'schema', 'generating'], hang: true } })} theme="dark" />
+export const AiCreatedLight = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stageDelayMs: 10 } })} theme="light" />
+export const AiCreatedDark = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stageDelayMs: 10 } })} theme="dark" />
+export const AiFailedLight = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stageDelayMs: 10, failWith: 'The data you described is not available to you.' } })} theme="light" />
+export const AiFailedDark = () => <Picker after={generate(aiPrompt)} host={memoryCatalog({ generate: { stageDelayMs: 10, failWith: 'The data you described is not available to you.' } })} theme="dark" />
 
 function Destination(props: { theme: LensThemeMode }): JSX.Element {
   const host = memoryDestinations()

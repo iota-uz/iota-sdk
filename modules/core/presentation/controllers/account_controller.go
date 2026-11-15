@@ -262,7 +262,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	// Map sessions to ViewModels
 	sessionVMs := make([]*viewmodels.Session, 0, len(sessions))
 	for _, s := range sessions {
-		sessionVMs = append(sessionVMs, viewmodels.SessionToViewModel(s, currentToken))
+		sessionVMs = append(sessionVMs, viewmodels.SessionToViewModelContext(r.Context(), s, currentToken))
 	}
 
 	// Render sessions page
@@ -308,7 +308,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	// Find the session to revoke by comparing token hash (TokenID) from URL
 	var sessionToRevoke string
 	for _, s := range sessions {
-		sessionVM := viewmodels.SessionToViewModel(s, currentToken)
+		sessionVM := viewmodels.SessionToViewModelContext(r.Context(), s, currentToken)
 		if sessionVM.TokenID == tokenHash {
 			sessionToRevoke = s.Token()
 			break

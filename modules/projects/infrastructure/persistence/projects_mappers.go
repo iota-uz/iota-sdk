@@ -3,6 +3,7 @@ package persistence
 
 import (
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
@@ -94,6 +95,10 @@ func ProjectStageDomainToModel(domain projectstage.ProjectStage) models.ProjectS
 }
 
 func AcceptanceModelToDomain(model models.AcceptanceDocument) acceptance.Document {
+	var signedOn time.Time
+	if model.SignedOn.Valid {
+		signedOn = model.SignedOn.Time
+	}
 	return acceptance.New(
 		uuid.MustParse(model.ProjectID),
 		acceptance.Kind(model.Kind),
@@ -103,6 +108,7 @@ func AcceptanceModelToDomain(model models.AcceptanceDocument) acceptance.Documen
 		acceptance.WithID(uuid.MustParse(model.ID)),
 		acceptance.WithTenantID(uuid.MustParse(model.TenantID)),
 		acceptance.WithStatus(acceptance.Status(model.Status)),
+		acceptance.WithSignedOn(signedOn),
 		acceptance.WithDescription(nullStringToString(model.Description)),
 		acceptance.WithCreatedAt(model.CreatedAt),
 		acceptance.WithUpdatedAt(model.UpdatedAt),

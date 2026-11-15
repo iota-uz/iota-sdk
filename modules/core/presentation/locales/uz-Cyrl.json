@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Паролни кўрсатиш",
     "CloseNotification": "Билдиришномани ёпиш",
     "TabNavigation": "Ички бўлимлар навигацияси",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Маълумотларни юклаб бўлмади",
-    "Retry": "Қайта уриниш"
+    "Retry": "Қайта уриниш",
+    "Close": "Ёпиш",
+    "SaveFailed": "Сақлаб бўлмади",
+    "NetworkError": "Серверга уланиш йўқ",
+    "NetworkErrorHint": "Уланишни текшириб, қайта уриниб кўринг.",
+    "TogglePassword": "Паролни кўрсатиш"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -478,6 +484,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Гуруҳлар",
       "Created": {
         "Title": "Гуруҳ яратилди",
         "Summary": "Гуруҳ яратилди"
@@ -517,6 +524,25 @@
     "Error": {
       "ValidationError": "Tekshirish xatosi"
     }
+  },
+  "Currencies": {
+    "USD": "АҚШ доллари",
+    "EUR": "Евро",
+    "TRY": "Турк лираси",
+    "GBP": "Британия фунт стерлинги",
+    "RUB": "Россия рубли",
+    "JPY": "Япон иенаси",
+    "CNY": "Хитой юани",
+    "UZS": "Ўзбек сўми",
+    "AUD": "Австралия доллари",
+    "CAD": "Канада доллари",
+    "CHF": "Швейцария франки"
+  },
+  "FormValidation": {
+    "Required": "Бу майдонни тўлдиринг.",
+    "InvalidEmail": "Тўғри электрон почта манзилини киритинг.",
+    "InvalidUrl": "Тўғри ҳаволани киритинг.",
+    "InvalidFormat": "Сўралган форматда киритинг."
   },
   "Login": {
     "Meta": {
@@ -674,9 +700,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Жорий аккаунт",
 			"AddAccount": "Аккаунт қўшиш",
-			"LogoutCurrent": "Жорий аккаунтдан чиқиш",
+			"LogoutCurrent": "Чиқиш",
 			"LogoutAll": "Барча аккаунтлардан чиқиш",
-      "Settings": "Созламалар"
+      "Settings": "Созламалар",
+      "Theme": "Мавзу",
+      "OpenMenu": "Менюни очиш"
     },
     "Departments": "Бўлимлар"
   },
@@ -875,6 +903,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Билдиришнома созламаларини кўриш",
+      "Manage": "Билдиришнома созламаларини бошқариш"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -958,6 +990,8 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "department": "Бўлим",
+    "notification_rules": "Билдиришнома созламалари",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",
@@ -998,6 +1032,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Роллар",
       "Created": {
         "Title": "Рол яратилди",
         "Summary": "Рол яратилди"
@@ -1026,6 +1061,9 @@
       "NoDataTitle": "Ma'lumotlar yo'q",
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
       "NothingFound": "Hech narsa topilmadi",
+      "NothingFoundDescription": "Қидирув ёки филтрларни ўзгартириб кўринг.",
+      "MoreActions": "Бошқа амаллар",
+      "SortBy": "Саралаш",
       "TableSettings": "Jadval sozlamalari",
       "ResetSettings": "Sozlamalarni tiklash",
       "Columns": "Ustunlar",
@@ -1035,7 +1073,11 @@
     },
     "Filters": {
       "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
+      "SelectAll": "Barchasini tanlash",
+      "Apply": "Қўллаш",
+      "Reset": "Тозалаш",
+      "Active": "Фаол филтрлар",
+      "RemoveChip": "Филтрни олиб ташлаш"
     },
     "FilterBuilder": {
       "AddFilter": "Филтр қўшиш",
@@ -1240,6 +1282,7 @@
 			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
 			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
       "EditUser": "Foydalanuvchini tahrirlash",
+      "Edit": "Таҳрирлаш",
       "FirstName": "Ism",
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",
@@ -1311,6 +1354,7 @@
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
     },
     "History": {
+      "Resource": "Фойдаланувчилар",
       "Created": {
         "Title": "Фойдаланувчи яратилди",
         "Summary": "Фойдаланувчи ҳисоби яратилди"
@@ -1546,6 +1590,7 @@
       "ParentNotFound": "Танланган ота-бўлим топилмади."
     },
     "History": {
+      "Resource": "Бўлимлар",
       "Created": {
         "Title": "Бўлим яратилди",
         "Summary": "Ташкилий тузилмага бўлим қўшилди"
@@ -1640,6 +1685,19 @@
     "PermissionManageDescription": "Воқеаларни ёқиш, олувчиларни танлаш ва синов юбориш",
     "Level": "Муҳимлик",
     "DefaultLevel": "Воқеа учун стандарт",
+    "Channels": "Етказиб бериш каналлари",
+    "Channel": "Канал",
+    "ChannelInApp": "Иловада",
+    "ChannelEmail": "Э-почта",
+    "ChannelSMS": "SMS",
+    "ChannelPush": "Push-билдиришнома",
+    "UserChannels": "Ходимлар бўйича каналлар",
+    "UserChannelsIntro": "Аниқ бир киши учун етказиб бериш каналини ёқинг ёки ўчиринг. Ўчирилган каналлар у учун барча воқеаларда ўтказиб юборилади.",
+    "SearchPeople": "Исм бўйича қидириш",
+    "Search": "Қидириш",
+    "NoPeople": "Ҳеч ким топилмади.",
+    "UserChannelsSaved": "Каналлар сақланди.",
+    "InvalidChannels": "Каналларни сақлаб бўлмади.",
     "DynamicRecipients": "Шунингдек хабар бериш",
     "Unavailable": "Мавжуд эмас",
     "Queued": "{{.Count}} олувчи учун навбатга қўйилди.",
@@ -1668,6 +1726,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Фойдаланувчи лавозимлари",
       "Created": {
         "Title": "Лавозим яратилди",
         "Summary": "Фойдаланувчига бўлимда лавозим тайинланди"

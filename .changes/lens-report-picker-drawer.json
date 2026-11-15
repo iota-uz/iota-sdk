@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Lens report picker opens as a right-side drawer with whole-row selection, an optional ReportCatalogHost.generate that creates one report from a plain-language description, new report.picker.generate.* runtime strings, and a zero-specificity pointer cursor for every enabled interactive control in the Lens stylesheet."}

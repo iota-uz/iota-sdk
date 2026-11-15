@@ -45,6 +45,7 @@ type AcceptanceDocument struct {
 	Kind         string
 	Number       string
 	DocumentDate time.Time
+	SignedOn     sql.NullTime
 	Amount       int64
 	CurrencyID   string
 	Status       string

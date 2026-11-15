@@ -2,11 +2,22 @@
 import { createSignal } from 'solid-js'
 import { Show } from 'solid-js'
 import { Portal } from 'solid-js/web'
-import { CaretDown, CircleNotch, DownloadSimple } from '../icons'
+import { CaretDown, CircleNotch, DotsThree, DownloadSimple } from '../icons'
 import { downloadPanelImage, useDashboard, useExport, useTranslate, type PanelImageFormat } from '../runtime'
 import { useMenuButton } from './useMenuButton'
 
-export function PanelExportMenu(props: { panelId: string; title: string }) {
+export interface PanelExportMenuProps {
+  panelId: string
+  title: string
+  /**
+   * A tile too narrow for two controls beside its title folds them into one
+   * «⋯» trigger. The expand verb joins the export items there, so folding
+   * never takes an action away.
+   */
+  compact?: { expanded: boolean; onExpand: () => void }
+}
+
+export function PanelExportMenu(props: PanelExportMenuProps) {
   const exportState = useExport(props.panelId)
   const translate = useTranslate()
   const { document } = useDashboard()
@@ -21,7 +32,9 @@ export function PanelExportMenu(props: { panelId: string; title: string }) {
   const {
     closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, overlay, setOpen, trigger,
   } = useMenuButton('end')
-  const label = translate('export.panel', 'Export panel')
+  const label = () => props.compact
+    ? translate('panel.actions', 'Panel actions')
+    : translate('export.panel', 'Export panel')
 
   const image = async (format: PanelImageFormat) => {
     setOpen(false)
@@ -52,16 +65,18 @@ export function PanelExportMenu(props: { panelId: string; title: string }) {
         aria-busy={busy()}
         aria-expanded={open()}
         aria-haspopup="menu"
-        aria-label={label}
-        class="lens-export-button lens-icon-button lens-panel-export-button"
+        aria-label={label()}
+        class={`lens-export-button lens-icon-button lens-panel-export-button${props.compact ? ' lens-panel-actions-trigger' : ''}`}
         disabled={busy()}
         onClick={() => setOpen((current) => !current)}
         ref={(el) => { trigger.current = el }}
-        title={label}
+        title={label()}
         type="button"
       >
-        {busy() ? <CircleNotch className="lens-icon-spin" /> : <DownloadSimple />}
-        {!busy() && <CaretDown className="lens-export-caret" />}
+        {busy()
+          ? <CircleNotch className="lens-icon-spin" />
+          : props.compact ? <DotsThree /> : <DownloadSimple />}
+        {!busy() && !props.compact && <CaretDown className="lens-export-caret" />}
       </button>
       <Show when={open() && overlay()}>
         <Portal mount={overlay()}>
@@ -96,6 +111,19 @@ export function PanelExportMenu(props: { panelId: string; title: string }) {
                   thing. */}
               {translate('export.svg', 'Image (SVG)')}
             </button>
+            <Show when={props.compact}>
+              {(compact) => (
+                <button
+                  class="lens-export-menu-item"
+                  onClick={() => { setOpen(false); compact().onExpand() }}
+                  ref={(el) => itemRef('expand')(el)}
+                  role="menuitem"
+                  type="button"
+                >
+                  {compact().expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')}
+                </button>
+              )}
+            </Show>
           </div>
         </Portal>
       </Show>

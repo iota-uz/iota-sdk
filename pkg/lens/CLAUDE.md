@@ -231,6 +231,34 @@ Use `runtime.PanelScope(panelID)` only inside a generic document/query mechanism
 when one panel can be executed independently. Do not add renderer-specific panel
 URLs or reintroduce `PanelBasePath`.
 
+## Document chrome, date ranges and themes
+
+- `serve.Config.DocumentOptions` returns the per-request `document.BuildOptions`
+  (drawer header, page header, translations, theme). It receives the request the
+  engine runs, so a host reads the same range and tenant the document uses.
+  `BuildOptions.Filters`, when non-nil, replaces the filters derived from the
+  dashboard's variables.
+- A `date_range` variable (`build.DateRangeVariable`) becomes a period filter
+  automatically. Bind it into SQL with `lens.RangeParam(variable, part)`:
+  `RangeStart`, `RangeEnd` (inclusive) or `RangeUntil` (the first instant after
+  the range, for `< @until`). An all-time range resolves to NULL.
+- `LensDashboard` mounted with `solid.WithTheme(solid.ThemeAuto)` follows the
+  `dark` class on `<html>` (or the system scheme when the page declares
+  neither); `ThemeLight` and `ThemeDark` stay fixed.
+
+## Explorer levels
+
+- A level draws a table of source records with
+  `explore.PanelNode(key, label, tableSpec).WithView(panel.KindTable)`. It is
+  terminal, receives the selected path like a chart level, paginates, and ships
+  its columns, formats and row action as `Level.table`.
+- `DynamicChildren.Action` URLs substitute only `{name}` placeholders matching
+  the action's own params; params are never appended to the address.
+- Colour a company's own categories from `color.Categories()` (twelve colours
+  without red, grey or green) and use `color.Positive`, `color.Negative` and
+  `color.Neutral` for meaning. `SemanticColors("literal", field)` on a bar or
+  horizontal bar paints each row in its own colour without `ColorByCategory`.
+
 ## Performance Profiling
 
 Runtime payload preflights follow `runtime.Options.MaxEntryBytes`. When omitted,

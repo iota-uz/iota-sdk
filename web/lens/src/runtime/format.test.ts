@@ -81,6 +81,13 @@ describe('compact formatting', () => {
     expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe(`230.31 млрд\u00A0UZS`)
   })
 
+  it('prints compact money with the pinned grapheme too, so one board has one currency format', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, symbol: 'so’m', decimalSeparator: '.',
+    }
+    expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe(`230.31 млрд\u00A0so’m`)
+  })
+
   it('renders the pinned currency grapheme instead of the ISO code', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, symbol: 'so’m', decimalSeparator: '.',

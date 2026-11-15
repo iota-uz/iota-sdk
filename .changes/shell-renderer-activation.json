@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add ShellHost for a single app-wide shell renderer with outlet handoff and standard-shell fallback, publish the signed-in user in the shell context, and move the Lens drawer onto the shared document portal registry."}

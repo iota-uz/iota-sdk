@@ -23,7 +23,7 @@ templ RevenueSummary(lines []*viewmodels.Revenue) {
 						<th class="py-2 font-medium">{ pageCtx.T("Finance.Revenue.Paid") }</th>
 					</tr>
 				</thead>
-				<tbody class="tabular-nums">
+				<tbody class="tabular-nums whitespace-nowrap">
 					for _, line := range lines {
 						<tr class="border-t border-primary">
 							<td class="py-2 pr-4">{ line.CurrencyCode }</td>

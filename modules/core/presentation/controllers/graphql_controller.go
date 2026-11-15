@@ -80,7 +80,10 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		middleware.ProvideLocalizer(
 			g.app.Bundle(),
 			g.app.GetSupportedLanguages(),
-			middleware.LocaleOptions{AcceptLanguageHighPriority: true},
+			middleware.LocaleOptions{
+				AcceptLanguageHighPriority: true,
+				DefaultLanguage:            application.DefaultLanguageOf(g.app),
+			},
 		),
 	)
 

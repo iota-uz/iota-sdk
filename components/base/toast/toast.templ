@@ -4,6 +4,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // Container renders the toast notification container that should be placed once in the layout
@@ -28,6 +29,11 @@ templ Container() {
 		@remove-notification.window="removeNotification($event.detail)"
 		class="fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none"
 		aria-live="assertive"
+		data-toast-container
+		data-error-load-failed={ intl.TWithDefault(ctx, "Common.LoadFailed", "Could not load data") }
+		data-error-save-failed={ intl.TWithDefault(ctx, "Common.SaveFailed", "Could not save changes") }
+		data-error-network={ intl.TWithDefault(ctx, "Common.NetworkError", "No connection to the server") }
+		data-error-network-hint={ intl.TWithDefault(ctx, "Common.NetworkErrorHint", "Check your connection and try again.") }
 	>
 		<template x-for="notification in notifications" :key="notification.id">
 			<div

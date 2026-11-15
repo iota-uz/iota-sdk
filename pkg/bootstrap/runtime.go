@@ -110,6 +110,8 @@ type options struct {
 	bundleFactory      func(context.Context, any) (*i18n.Bundle, error)
 	appFactory         func(context.Context, *Runtime) (application.Application, error)
 	supportedLanguages []string
+	defaultLanguage    string
+	timezone           string
 }
 
 func WithLoggerFactory(factory func(context.Context, any) (*logrus.Logger, func() error, error)) Option {
@@ -142,6 +144,25 @@ func WithSupportedLanguages(languages []string) Option {
 	configured := append([]string(nil), languages...)
 	return func(o *options) {
 		o.supportedLanguages = append([]string(nil), configured...)
+	}
+}
+
+// WithDefaultLanguage sets the UI language used when neither the user's saved
+// preference nor the Accept-Language header selects an enabled language. It
+// must be one of the languages enabled through WithSupportedLanguages (or of
+// the SDK defaults when none are set).
+func WithDefaultLanguage(code string) Option {
+	return func(o *options) {
+		o.defaultLanguage = code
+	}
+}
+
+// WithTimezone sets the application time zone (IANA name, for example
+// "Asia/Tashkent") used to render server-side timestamps such as the session
+// list. When unset, timestamps keep rendering in the viewer's browser zone.
+func WithTimezone(name string) Option {
+	return func(o *options) {
+		o.timezone = name
 	}
 }
 

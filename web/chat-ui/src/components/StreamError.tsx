@@ -115,6 +115,13 @@ function providerErrorPresentation(error: string): ProviderErrorPresentation | n
             retryable: true,
         };
     }
+    if (error.includes('stream_failed') || error.includes('an error occurred while processing your request')) {
+        return {
+            titleKey: 'BiChat.StreamError.Failed.Title',
+            descriptionKey: 'BiChat.StreamError.Failed.Details',
+            retryable: true,
+        };
+    }
     return null;
 }
 interface StreamErrorProps {

@@ -16,14 +16,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/stretchr/testify/require"
 )
 
-func newAcceptanceSuite(t *testing.T) (*itf.Suite, *itf.TestEnvironment, project.Project) {
+func newAcceptanceSuite(t *testing.T, extensions ...composition.Component) (*itf.Suite, *itf.TestEnvironment, project.Project) {
 	t.Helper()
-	suite := newProjectStageSuiteBuilder(t).Build().AsUser(itf.User())
+	suite := newProjectStageSuiteBuilder(t).WithComponents(extensions...).Build().AsUser(itf.User())
 	suite.Register(controllers.NewAcceptanceController())
 	env := suite.Environment()
 
@@ -68,27 +69,39 @@ func actForm(number, amount, currencyCode string) url.Values {
 	return form
 }
 
-func TestAcceptanceController_Panel_DefaultsToContractCurrency(t *testing.T) {
+func acceptanceDrawerPath(projectID uuid.UUID) string {
+	return acceptancePath(projectID) + "/drawer"
+}
+
+func TestAcceptanceController_Panel_OpensTheDrawer(t *testing.T) {
 	t.Parallel()
 	suite, _, p := newAcceptanceSuite(t)
 
 	html := suite.GET(acceptancePath(p.ID())).HTMX().Expect(t).Status(200).HTML()
-	html.Element("//select[@name='CurrencyCode']/option[@value='USD' and @selected]").Exists()
-	html.Element("//form[@hx-post='" + acceptancePath(p.ID()) + "']").Exists()
+	html.Element("//button[@data-test-id='acceptance-new' and @hx-get='" + acceptanceDrawerPath(p.ID()) + "' and @hx-sync='body:drop']").Exists()
+	require.Empty(t, html.Elements("//form"), "the panel has no inline form: the drawer is the one form")
 }
 
-func TestAcceptanceController_Create_ValidationErrorKeepsInput(t *testing.T) {
+func TestAcceptanceController_Drawer_NewDefaultsToContractCurrency(t *testing.T) {
+	t.Parallel()
+	suite, _, p := newAcceptanceSuite(t)
+
+	html := suite.GET(acceptanceDrawerPath(p.ID())).HTMX().Expect(t).Status(200).HTML()
+	html.Element("//select[@name='CurrencyCode']/option[@value='USD' and @selected]").Exists()
+	html.Element("//form[@hx-post='" + acceptanceDrawerPath(p.ID()) + "']").Exists()
+	html.Element("//select[@name='Kind']/option[@value='PROTOCOL']").Exists()
+	html.Element("//input[@name='Date' and @value='" + time.Now().Format(time.DateOnly) + "']").Exists()
+	html.Element("//input[@name='SignedOn']").Exists()
+	html.Element("//input[@name='Amount']").Exists()
+}
+
+func TestAcceptanceController_Create_LegacyRouteRejectsInvalidForm(t *testing.T) {
 	t.Parallel()
 	suite, env, p := newAcceptanceSuite(t)
 
 	form := actForm("A-1", "400", "EUR")
 	form.Del("Date")
-	html := suite.POST(acceptancePath(p.ID())).Form(form).HTMX().Expect(t).Status(200).HTML()
-
-	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
-	html.Element("//input[@name='Number' and @value='A-1']").Exists()
-	html.Element("//input[@name='Amount' and @value='400']").Exists()
-	html.Element("//select[@name='CurrencyCode']/option[@value='EUR' and @selected]").Exists()
+	suite.POST(acceptancePath(p.ID())).Form(form).HTMX().Expect(t).Status(422)
 
 	documents, err := itf.GetService[services.AcceptanceService](env).GetByProjectID(env.Ctx, p.ID())
 	require.NoError(t, err)
@@ -221,7 +234,7 @@ func TestProjectController_Update_Contract(t *testing.T) {
 		Status(200).
 		HTML()
 	require.Len(t, html.Elements("//small[@data-testid='field-error']"), 1)
-	html.Element("//input[@name='ContractAmount' and @value='2500.5']").Exists()
+	html.Element("//input[@name='ContractAmount' and @value='2\u00a0500.50']").Exists()
 
 	unchanged, err := projectService.GetByID(env.Ctx, p.ID())
 	require.NoError(t, err)
@@ -242,7 +255,7 @@ func TestProjectController_Update_Contract(t *testing.T) {
 		Expect(t).
 		Status(200).
 		HTML().
-		Element("//input[@name='ContractAmount' and @value='2500.5']").Exists()
+		Element("//input[@name='ContractAmount' and @value='2\u00a0500.50']").Exists()
 
 	form.Set("ContractAmount", "")
 	form.Set("ContractCurrency", "")
@@ -254,4 +267,71 @@ func TestProjectController_Update_Contract(t *testing.T) {
 	cleared, err := projectService.GetByID(env.Ctx, p.ID())
 	require.NoError(t, err)
 	require.Nil(t, cleared.Contract())
+}
+
+func TestProjectController_Update_ContractAmountNotations(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+	suite.Register(controllers.NewProjectController())
+	projectService := itf.GetService[services.ProjectService](env)
+
+	tests := []struct {
+		name  string
+		input string
+		want  int64
+	}{
+		{"spaces and comma", "15 000 000,50", 1500000050},
+		{"no-break spaces and dot", "15\u00a0000\u00a0000.50", 1500000050},
+		{"comma groups and dot decimal", "15,000,000.50", 1500000050},
+		{"plain", "12000", 1200000},
+	}
+	for _, tt := range tests {
+		form := url.Values{}
+		form.Set("Name", p.Name())
+		form.Set("CounterpartyID", p.CounterpartyID().String())
+		form.Set("ContractAmount", tt.input)
+		form.Set("ContractCurrency", "USD")
+		suite.POST(fmt.Sprintf("%s/%s", ProjectBasePath, p.ID())).Form(form).Expect(t).Status(302)
+
+		updated, err := projectService.GetByID(env.Ctx, p.ID())
+		require.NoError(t, err, tt.name)
+		require.Equal(t, tt.want, updated.Contract().Amount(), tt.name)
+	}
+}
+
+func TestProjectController_Update_InvalidContractAmountShowsFieldError(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+	suite.Register(controllers.NewProjectController())
+
+	form := url.Values{}
+	form.Set("Name", p.Name())
+	form.Set("CounterpartyID", p.CounterpartyID().String())
+	form.Set("ContractAmount", "12 abc")
+	form.Set("ContractCurrency", "USD")
+	html := suite.POST(fmt.Sprintf("%s/%s", ProjectBasePath, p.ID())).
+		Form(form).
+		Header("HX-Target", "project-edit-drawer").
+		Expect(t).
+		Status(200).
+		HTML()
+
+	require.Len(t, html.Elements("//small[@data-testid='field-error']"), 1)
+	html.Element("//input[@name='ContractAmount' and @value='12 abc']").Exists()
+
+	unchanged, err := itf.GetService[services.ProjectService](env).GetByID(env.Ctx, p.ID())
+	require.NoError(t, err)
+	require.Equal(t, int64(100000), unchanged.Contract().Amount())
+}
+
+func TestAcceptanceController_Create_FormattedAmount(t *testing.T) {
+	t.Parallel()
+	suite, env, p := newAcceptanceSuite(t)
+
+	suite.POST(acceptancePath(p.ID())).Form(actForm("A-1", "1 500,50", "USD")).HTMX().Expect(t).Status(200)
+
+	documents, err := itf.GetService[services.AcceptanceService](env).GetByProjectID(env.Ctx, p.ID())
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	require.Equal(t, int64(150050), documents[0].Amount().Amount())
 }

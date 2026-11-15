@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Mostrar senha",
     "CloseNotification": "Fechar notificação",
     "TabNavigation": "Navegação por abas",
     "Loading": "Carregando...",
     "LoadFailed": "Não foi possível carregar os dados",
-    "Retry": "Tentar novamente"
+    "Retry": "Tentar novamente",
+    "Close": "Fechar",
+    "SaveFailed": "Não foi possível salvar",
+    "NetworkError": "Sem conexão com o servidor",
+    "NetworkErrorHint": "Verifique a conexão e tente novamente.",
+    "TogglePassword": "Mostrar senha"
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
   "Countries": {
@@ -478,6 +484,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este grupo?"
     },
     "History": {
+      "Resource": "Grupos",
       "Created": {
         "Title": "Grupo criado",
         "Summary": "Um grupo foi criado"
@@ -517,6 +524,25 @@
     "Error": {
       "ValidationError": "Erro de validação"
     }
+  },
+  "Currencies": {
+    "USD": "Dólar americano",
+    "EUR": "Euro",
+    "TRY": "Lira turca",
+    "GBP": "Libra esterlina",
+    "RUB": "Rublo russo",
+    "JPY": "Iene japonês",
+    "CNY": "Yuan chinês",
+    "UZS": "Som uzbeque",
+    "AUD": "Dólar australiano",
+    "CAD": "Dólar canadense",
+    "CHF": "Franco suíço"
+  },
+  "FormValidation": {
+    "Required": "Preencha este campo.",
+    "InvalidEmail": "Informe um endereço de e-mail válido.",
+    "InvalidUrl": "Informe uma URL válida.",
+    "InvalidFormat": "Use o formato solicitado."
   },
   "Login": {
     "Meta": {
@@ -673,9 +699,11 @@
 			"Logout": "Sair",
 			"CurrentAccount": "Conta atual",
 			"AddAccount": "Adicionar conta",
-			"LogoutCurrent": "Sair da conta atual",
+			"LogoutCurrent": "Sair",
 			"LogoutAll": "Sair de todas as contas",
-      "Settings": "Configurações"
+      "Settings": "Configurações",
+      "Theme": "Tema",
+      "OpenMenu": "Abrir menu"
     },
     "Departments": "Departamentos",
     "CRM": "CRM",
@@ -878,6 +906,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Ver configurações de notificações",
+      "Manage": "Gerenciar configurações de notificações"
+    },
     "User": {
       "Create": "Criar usuários",
       "Read": "Visualizar usuários",
@@ -961,6 +993,8 @@
   },
   "Remove": "Remover",
   "Resources": {
+    "department": "Departamento",
+    "notification_rules": "Configurações de notificações",
     "bichat": "BI-Chat",
     "user": "Usuários",
     "role": "Papéis",
@@ -1001,6 +1035,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este papel?"
     },
     "History": {
+      "Resource": "Funções",
       "Created": {
         "Title": "Função criada",
         "Summary": "Uma função foi criada"
@@ -1029,6 +1064,9 @@
       "NoDataTitle": "Nenhum dado disponível",
       "NoDataDescription": "Não há dados disponíveis para esta tabela.",
       "NothingFound": "Nada encontrado",
+      "NothingFoundDescription": "Tente alterar a busca ou os filtros.",
+      "MoreActions": "Mais ações",
+      "SortBy": "Ordenar por",
       "TableSettings": "Configurações da tabela",
       "ResetSettings": "Redefinir configurações",
       "Columns": "Colunas",
@@ -1038,7 +1076,11 @@
     },
     "Filters": {
       "Title": "Filtros",
-      "SelectAll": "Selecionar tudo"
+      "SelectAll": "Selecionar tudo",
+      "Apply": "Aplicar",
+      "Reset": "Redefinir",
+      "Active": "Filtros ativos",
+      "RemoveChip": "Remover filtro"
     },
     "FilterBuilder": {
       "AddFilter": "Adicionar filtro",
@@ -1245,6 +1287,7 @@
 			"TemporaryPasswordPlaceholder": "Deixe vazio para gerar",
 			"TemporaryPasswordHint": "O usuário entra com ela uma vez e define a própria senha. Válida por 72 horas.",
       "EditUser": "Editar usuário",
+      "Edit": "Editar",
       "FirstName": "Nome",
       "LastName": "Sobrenome",
       "MiddleName": "Nome do meio",
@@ -1316,6 +1359,7 @@
       "RevokeFailed": "Falha ao revogar a sessão"
     },
     "History": {
+      "Resource": "Usuários",
       "Created": {
         "Title": "Usuário criado",
         "Summary": "Uma conta de usuário foi criada"
@@ -1551,6 +1595,7 @@
       "ParentNotFound": "O departamento superior selecionado não foi encontrado."
     },
     "History": {
+      "Resource": "Departamentos",
       "Created": {
         "Title": "Departamento criado",
         "Summary": "Um departamento foi adicionado à estrutura organizacional"
@@ -1645,6 +1690,19 @@
     "PermissionManageDescription": "Ativar eventos, escolher destinatários e enviar testes",
     "Level": "Importância",
     "DefaultLevel": "Padrão do evento",
+    "Channels": "Canais de entrega",
+    "Channel": "Canal",
+    "ChannelInApp": "No aplicativo",
+    "ChannelEmail": "E-mail",
+    "ChannelSMS": "SMS",
+    "ChannelPush": "Notificação push",
+    "UserChannels": "Canais por pessoa",
+    "UserChannelsIntro": "Ative ou desative um canal de entrega para uma pessoa específica. Canais desmarcados são ignorados para ela em todos os eventos.",
+    "SearchPeople": "Buscar por nome",
+    "Search": "Buscar",
+    "NoPeople": "Ninguém encontrado.",
+    "UserChannelsSaved": "Canais salvos.",
+    "InvalidChannels": "Não foi possível salvar os canais.",
     "DynamicRecipients": "Notificar também",
     "Unavailable": "Indisponível",
     "Queued": "Entrega enfileirada para {{.Count}} destinatários.",
@@ -1673,6 +1731,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Cargos de usuários",
       "Created": {
         "Title": "Cargo criado",
         "Summary": "Um usuário recebeu um cargo em um departamento"

@@ -354,7 +354,7 @@ function LeafItem(props: {
     )
   }
   return (
-    <div class="lens-grid-item" style={spanStyle(props.item.span)}>
+    <div class="lens-grid-item" data-tile={panel.kind === 'stat' || undefined} style={spanStyle(props.item.span)}>
       <PanelSlot panel={panel} registry={props.registry} />
     </div>
   )

@@ -131,6 +131,22 @@ const (
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportPickerAddNone = "report.picker.addNone"
 
+	// Report picker: AI card creation.
+	I18nReportPickerGenerateTitle           = "report.picker.generate.title"
+	I18nReportPickerGenerateHint            = "report.picker.generate.hint"
+	I18nReportPickerGenerateLabel           = "report.picker.generate.label"
+	I18nReportPickerGeneratePlaceholder     = "report.picker.generate.placeholder"
+	I18nReportPickerGenerateSubmit          = "report.picker.generate.submit"
+	I18nReportPickerGenerateStop            = "report.picker.generate.stop"
+	I18nReportPickerGenerateFailed          = "report.picker.generate.failed"
+	I18nReportPickerGenerateRetry           = "report.picker.generate.retry"
+	I18nReportPickerGenerateCreated         = "report.picker.generate.created"
+	I18nReportPickerGenerateNew             = "report.picker.generate.new"
+	I18nReportPickerGenerateStageStarting   = "report.picker.generate.stage.starting"
+	I18nReportPickerGenerateStageSchema     = "report.picker.generate.stage.schema"
+	I18nReportPickerGenerateStageGenerating = "report.picker.generate.stage.generating"
+	I18nReportPickerGenerateStageValidating = "report.picker.generate.stage.validating"
+
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportDestinationConfirm      = "report.destination.confirm"
 	I18nReportDestinationDescription  = "report.destination.description"
@@ -336,14 +352,17 @@ const (
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
-	// 12 months, current fiscal year (yearToDate), then last month and last
-	// fiscal year (lastYear).
+	// 12 months, current quarter, current fiscal year (yearToDate), then last
+	// month, last quarter and last fiscal year (lastYear).
 	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
 	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
 	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
 	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
 	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
+	I18nFilterPresetThisQuarter  = "filter.period.preset.thisQuarter"
+	I18nFilterPresetLastQuarter  = "filter.period.preset.lastQuarter"
+	I18nPanelActions             = "panel.actions"
 	I18nPanelCollapse            = "panel.collapse"
 	I18nPanelCalculation         = "panel.calculation"
 	I18nPanelCacheHit            = "panel.cacheHit"
@@ -628,6 +647,20 @@ func RuntimeI18nKeys() []string {
 		I18nReportProposalTitle,
 
 		I18nReportPickerAddNone,
+		I18nReportPickerGenerateTitle,
+		I18nReportPickerGenerateHint,
+		I18nReportPickerGenerateLabel,
+		I18nReportPickerGeneratePlaceholder,
+		I18nReportPickerGenerateSubmit,
+		I18nReportPickerGenerateStop,
+		I18nReportPickerGenerateFailed,
+		I18nReportPickerGenerateRetry,
+		I18nReportPickerGenerateCreated,
+		I18nReportPickerGenerateNew,
+		I18nReportPickerGenerateStageStarting,
+		I18nReportPickerGenerateStageSchema,
+		I18nReportPickerGenerateStageGenerating,
+		I18nReportPickerGenerateStageValidating,
 
 		I18nReportDestinationConfirm,
 		I18nReportDestinationDescription,
@@ -690,6 +723,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
+		I18nFilterPresetThisQuarter, I18nFilterPresetLastQuarter,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartCollapseOther, I18nChartDrillHint, I18nChartFilterHint, I18nChartCrossFilterSource, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartAllSeriesHidden, I18nChartShowAllSeries,
@@ -721,7 +755,7 @@ func RuntimeI18nKeys() []string {
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
-		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
+		I18nPanelActions, I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
 		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelFormula, I18nPanelFormulaShow, I18nPanelFormulaError,
 		I18nPanelFormulaVariables, I18nPanelFormulaSource, I18nPanelFormulaVersion,
 		I18nPanelFormulaNoValue, I18nPrintMethodology, I18nPanelMissing, I18nPanelOpenMetric,

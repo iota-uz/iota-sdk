@@ -333,3 +333,43 @@ func TestLocation_EmptyTargetUnchanged(t *testing.T) {
 
 	assert.Equal(t, "/policies/1", headerOnWire(t, rec, "Hx-Location"))
 }
+
+func TestRefreshTargets_SingleJSONHeader(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	RefreshTargets(rec, "#orders-table", "#totals")
+
+	var got map[string]struct {
+		Targets []string `json:"targets"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(headerOnWire(t, rec, "Hx-Trigger")), &got))
+	assert.Equal(t, []string{"#orders-table", "#totals"}, got[RefreshEvent].Targets)
+}
+
+func TestToastSuccessAndRefresh_CombinesEventsInOneHeader(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	ToastSuccessAndRefresh(rec, "Сохранено", `Запись "A" обновлена`, "#orders-table")
+
+	values := rec.Header().Values("Hx-Trigger")
+	require.Len(t, values, 1)
+	raw := headerOnWire(t, rec, "Hx-Trigger")
+	for _, r := range raw {
+		assert.Less(t, r, rune(0x80), "header must stay ASCII")
+	}
+	var got struct {
+		Notify struct {
+			Variant string `json:"variant"`
+			Title   string `json:"title"`
+			Message string `json:"message"`
+		} `json:"notify"`
+		Refresh struct {
+			Targets []string `json:"targets"`
+		} `json:"iota:refresh"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &got))
+	assert.Equal(t, "success", got.Notify.Variant)
+	assert.Equal(t, "Сохранено", got.Notify.Title)
+	assert.Equal(t, `Запись "A" обновлена`, got.Notify.Message)
+	assert.Equal(t, []string{"#orders-table"}, got.Refresh.Targets)
+}

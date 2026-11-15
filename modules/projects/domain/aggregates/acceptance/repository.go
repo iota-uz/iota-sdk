@@ -22,6 +22,10 @@ type Repository interface {
 	// currency.
 	SignedTotals(ctx context.Context, projectIDs []uuid.UUID) ([]*money.Money, error)
 	Create(ctx context.Context, document Document) (Document, error)
+	// Update saves the fields of Revision and the status that follows from
+	// them, only while the stored status is not CANCELLED, and returns
+	// ErrStatus otherwise.
+	Update(ctx context.Context, document Document) (Document, error)
 	// UpdateStatus saves the document status only while the stored status is
 	// one of from, and returns ErrStatus otherwise.
 	UpdateStatus(ctx context.Context, document Document, from ...Status) (Document, error)

@@ -1,9 +1,10 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch, untrack, type JSX } from 'solid-js'
 import type { DashboardDocument } from '../contract/types'
 import { LensDashboard } from '../LensDashboard'
+import { CaretDown, CaretRight, Sparkle } from '../icons'
 import { LensMessagesProvider, useTranslate, type LensThemeMode } from '../runtime'
 import type { CatalogEntry, CatalogScope } from './contract/types'
-import { createReportPickerSelection, type ReportCatalogHost, type ReportPickerConfirmation } from './picker'
+import { createReportPickerSelection, type ReportCardGenerateStage, type ReportCatalogHost, type ReportPickerConfirmation } from './picker'
 import { ReportDialog } from './ReportDialog'
 
 export interface ReportPickerProps {
@@ -37,7 +38,12 @@ const searchDelay = 200
 
 type ListState = 'loading' | 'ready' | 'error'
 
-/** Searches the host catalog, previews a report and adds the chosen ones to a draft. */
+/**
+ * Searches the host catalog, previews a report and adds the chosen ones to a
+ * draft. It is a drawer that slides in from the inline end, so the dashboard
+ * being edited stays in view beside it. When the host can generate, the reader
+ * may also describe a new report in words.
+ */
 export function ReportPicker(props: ReportPickerProps): JSX.Element {
   return (
     <LensMessagesProvider messages={props.messages}>
@@ -60,6 +66,10 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
   const [moreFailed, setMoreFailed] = createSignal(false)
   const [reload, setReload] = createSignal(0)
   const [previewing, setPreviewing] = createSignal<CatalogEntry>()
+  // Reports made here live apart from fetched pages: a search that finishes (or fails) after the
+  // reader generated one must neither remove the selected row nor reorder it.
+  const [generated, setGenerated] = createSignal<CatalogEntry[]>([])
+  const created = () => new Set(generated().map((entry) => entry.id))
   const [confirming, setConfirming] = createSignal(false)
   const [confirmFailed, setConfirmFailed] = createSignal(false)
   let searchRef: HTMLInputElement | undefined
@@ -136,6 +146,26 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
     }
   }
 
+  const adopt = (entry: CatalogEntry) => {
+    setGenerated([entry, ...generated().filter((known) => known.id !== entry.id)])
+    if (!selection.selected(entry.id)) selection.toggle(entry)
+    // The new report is the reader's own and the reader has just asked for it: show it, rather than
+    // leave it hidden behind a filter that cannot contain it.
+    if (scope() === 'shared') setScope('all')
+    if (query() && !matchesQuery(entry)) {
+      setSearch('')
+      setQuery('')
+    }
+  }
+  const matchesQuery = (entry: CatalogEntry) => entry.title.toLowerCase().includes(query().toLowerCase())
+  // A generated report is pinned while the filters allow it; a host search that returns it under a
+  // filter the title does not match (description, source) is shown as the host's own result.
+  const pinned = () => generated().filter((entry) => scope() !== 'shared' && matchesQuery(entry))
+  const fetched = () => {
+    const shown = new Set(pinned().map((entry) => entry.id))
+    return entries().filter((entry) => !shown.has(entry.id))
+  }
+
   const closePreview = () => {
     const entry = previewing()
     setPreviewing(undefined)
@@ -172,6 +202,20 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
 
   const selectedRestrictions = () => selection.picks().filter((pick) => pick.entry.restriction)
   const emptyCatalog = () => query() === '' && scope() === 'all'
+
+  const renderRow = (entry: CatalogEntry) => (
+    <PickerRow
+      created={created().has(entry.id)}
+      entry={entry}
+      onAddAnother={() => selection.addAnother(entry)}
+      onPreview={props.host.preview ? () => setPreviewing(entry) : undefined}
+      onToggle={() => selection.toggle(entry)}
+      ownership={ownership(entry)}
+      placed={placedCount(entry)}
+      previewRef={(element) => previewButtons.set(entry.id, element)}
+      selected={selection.selected(entry.id)}
+    />
+  )
 
   const footer = (
     <div class="lens-report-picker-footer">
@@ -227,12 +271,16 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
         else if (!confirming()) props.onClose()
       }}
       restoreFocus={props.restoreFocus}
-      size="wide"
       testId="report-picker"
       theme={props.theme}
+      variant="drawer"
+      willClose={() => !confirming() && !previewing()}
       title={translate('report.picker.title', 'Add reports to {target}', { target: props.target.title })}
     >
       <div class="lens-report-picker" hidden={Boolean(previewing())}>
+        <Show when={typeof props.host.generate === 'function'}>
+          <PickerGenerate host={props.host} onCreated={adopt} target={props.target.id} />
+        </Show>
         <div class="lens-report-picker-filters">
           <input
             aria-label={translate('report.picker.search', 'Search reports')}
@@ -264,6 +312,11 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
           </div>
         </div>
         <div aria-busy={state() === 'loading' || undefined} class="lens-report-picker-results" id="lens-report-picker-results" role="tabpanel">
+          <Show when={pinned().length > 0}>
+            <ul aria-label={translate('report.picker.list', 'Reports')} class="lens-report-picker-list" data-generated>
+              <For each={pinned()}>{renderRow}</For>
+            </ul>
+          </Show>
           <Switch>
             <Match when={state() === 'loading'}>
               <p class="lens-report-picker-state" role="status">{translate('report.picker.loading', 'Loading reports…')}</p>
@@ -276,42 +329,31 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
                 </button>
               </div>
             </Match>
-            <Match when={entries().length === 0}>
+            <Match when={fetched().length === 0 && pinned().length === 0 && !next()}>
               <p class="lens-report-picker-state" data-state={emptyCatalog() ? 'empty' : 'no-matches'} role="status">
                 {emptyCatalog()
                   ? translate('report.picker.empty', 'There are no reports to add yet.')
                   : translate('report.picker.noMatches', 'No reports match this search.')}
               </p>
             </Match>
-            <Match when={true}>
+            <Match when={fetched().length > 0}>
               <ul aria-label={translate('report.picker.list', 'Reports')} class="lens-report-picker-list">
-                <For each={entries()}>
-                  {(entry) => (
-                    <PickerRow
-                      entry={entry}
-                      onAddAnother={() => selection.addAnother(entry)}
-                      onPreview={props.host.preview ? () => setPreviewing(entry) : undefined}
-                      onToggle={() => selection.toggle(entry)}
-                      ownership={ownership(entry)}
-                      placed={placedCount(entry)}
-                      previewRef={(element) => previewButtons.set(entry.id, element)}
-                      selected={selection.selected(entry.id)}
-                    />
-                  )}
-                </For>
+                <For each={fetched()}>{renderRow}</For>
               </ul>
-              <Show when={next()}>
-                <div class="lens-report-picker-more">
-                  <button aria-busy={loadingMore() || undefined} class="lens-context-action" disabled={loadingMore()} onClick={loadMore} type="button">
-                    {translate('report.picker.loadMore', 'Show more reports')}
-                  </button>
-                  <Show when={moreFailed()}>
-                    <p class="lens-report-picker-error" role="alert">{translate('report.picker.loadFailed', 'The reports could not be loaded.')}</p>
-                  </Show>
-                </div>
-              </Show>
             </Match>
           </Switch>
+          {/* Outside the switch: a page made only of reports already pinned above leaves nothing to list,
+              and the next cursor must stay reachable all the same. */}
+          <Show when={state() === 'ready' && next()}>
+            <div class="lens-report-picker-more">
+              <button aria-busy={loadingMore() || undefined} class="lens-context-action" disabled={loadingMore()} onClick={loadMore} type="button">
+                {translate('report.picker.loadMore', 'Show more reports')}
+              </button>
+              <Show when={moreFailed()}>
+                <p class="lens-report-picker-error" role="alert">{translate('report.picker.loadFailed', 'The reports could not be loaded.')}</p>
+              </Show>
+            </div>
+          </Show>
         </div>
       </div>
       <Show when={previewing()}>
@@ -332,6 +374,7 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
 }
 
 function PickerRow(props: {
+  created: boolean
   entry: CatalogEntry
   ownership: string
   placed: number
@@ -345,8 +388,26 @@ function PickerRow(props: {
   const id = () => `lens-report-pick-${props.entry.id}`
   const placed = () => props.placed > 0
   const meta = () => [props.entry.source, props.ownership].filter(Boolean).join(' · ')
+  // The whole row is a target for the pointer; the checkbox stays its one
+  // keyboard and assistive-technology control. A click that already reached a
+  // control (the label, the checkbox, Preview, Add another) is theirs, and a
+  // click that ends a text selection is not a choice.
+  const onRowClick = (event: MouseEvent) => {
+    if (placed()) return
+    if ((event.target as Element).closest('input, label, button, a, select, textarea')) return
+    if (globalThis.getSelection?.()?.toString()) return
+    props.onToggle()
+  }
   return (
-    <li class="lens-report-picker-item" data-placed={placed() || undefined} data-report-id={props.entry.id} data-selected={props.selected || undefined}>
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- pointer-only widening of the row's hit area; the checkbox inside is the keyboard and assistive-technology control.
+    <li
+      class="lens-report-picker-item"
+      data-created={props.created || undefined}
+      data-placed={placed() || undefined}
+      data-report-id={props.entry.id}
+      data-selected={props.selected || undefined}
+      onClick={onRowClick}
+    >
       <input
         aria-describedby={`${id()}-meta`}
         checked={placed() || props.selected}
@@ -365,6 +426,9 @@ function PickerRow(props: {
           <span>{meta()}</span>
           <Show when={(props.entry.members ?? 0) > 1}>
             <span class="lens-report-picker-badge">{translate('report.picker.compound', 'One block · {count} panels', { count: props.entry.members ?? 0 })}</span>
+          </Show>
+          <Show when={props.created}>
+            <span class="lens-report-picker-badge" data-tone="new">{translate('report.picker.generate.new', 'New')}</span>
           </Show>
           <Show when={placed()}>
             <span class="lens-report-picker-badge" data-tone="placed">{translate('report.picker.placed', 'Already on this dashboard')}</span>
@@ -462,6 +526,141 @@ function PickerPreview(props: {
           <p class="lens-report-picker-state" role="status">{translate('report.picker.previewLoading', 'Loading preview…')}</p>
         </Match>
       </Switch>
+    </section>
+  )
+}
+
+type GenerateState = { kind: 'idle' } | { kind: 'running'; stage: ReportCardGenerateStage } | { kind: 'failed'; message: string } | { kind: 'done'; title: string }
+
+/** The "Create with AI" section: one description becomes one new report, selected here for the reader to add. */
+function PickerGenerate(props: {
+  host: ReportCatalogHost
+  target: string
+  onCreated: (entry: CatalogEntry) => void
+}): JSX.Element {
+  const translate = useTranslate()
+  const [open, setOpen] = createSignal(false)
+  const [prompt, setPrompt] = createSignal('')
+  const [state, setState] = createSignal<GenerateState>({ kind: 'idle' })
+  let controller: AbortController | undefined
+  let inputRef: HTMLTextAreaElement | undefined
+  onCleanup(() => controller?.abort())
+
+  const running = () => state().kind === 'running'
+  const stageLabel = (stage: ReportCardGenerateStage) => {
+    switch (stage) {
+      case 'starting': return translate('report.picker.generate.stage.starting', 'Starting…')
+      case 'schema': return translate('report.picker.generate.stage.schema', 'Reading the available data…')
+      case 'generating': return translate('report.picker.generate.stage.generating', 'Building the report…')
+      case 'validating': return translate('report.picker.generate.stage.validating', 'Checking the result…')
+    }
+  }
+
+  const submit = () => {
+    const text = prompt().trim()
+    if (!text || running()) return
+    controller?.abort()
+    const current = new AbortController()
+    controller = current
+    setState({ kind: 'running', stage: 'starting' })
+    props.host.generate!({ prompt: text, target: props.target }, {
+      signal: current.signal,
+      onStage: (stage) => {
+        if (!current.signal.aborted && untrack(running)) setState({ kind: 'running', stage })
+      },
+    }).then((entry) => {
+      if (current.signal.aborted) return
+      props.onCreated(entry)
+      setPrompt('')
+      setState({ kind: 'done', title: entry.title })
+    }, (cause: unknown) => {
+      if (current.signal.aborted || (cause instanceof DOMException && cause.name === 'AbortError')) return
+      console.error('[lens] report generation failed', cause)
+      const message = cause instanceof Error ? cause.message.trim() : ''
+      setState({ kind: 'failed', message: message || translate('report.picker.generate.failed', 'The report could not be created. Rephrase the description or try again.') })
+    })
+  }
+
+  const stop = () => {
+    controller?.abort()
+    setState({ kind: 'idle' })
+    requestAnimationFrame(() => inputRef?.focus())
+  }
+
+  return (
+    <section class="lens-report-picker-generate" data-open={open() || undefined} data-testid="report-picker-generate">
+      <button
+        aria-controls="lens-report-picker-generate-body"
+        aria-expanded={open()}
+        class="lens-report-picker-generate-toggle"
+        onClick={() => {
+          setOpen(!open())
+          if (open()) requestAnimationFrame(() => inputRef?.focus())
+        }}
+        type="button"
+      >
+        <Sparkle className="lens-report-picker-generate-icon" />
+        <span class="lens-report-picker-generate-title">{translate('report.picker.generate.title', 'Create with AI')}</span>
+        {open() ? <CaretDown /> : <CaretRight />}
+      </button>
+      <Show when={open()}>
+        <div class="lens-report-picker-generate-body" id="lens-report-picker-generate-body">
+          <p class="lens-report-picker-generate-hint">
+            {translate('report.picker.generate.hint', 'Describe the report you need. It is saved as your own report and selected here; nothing reaches the dashboard until you add it.')}
+          </p>
+          <textarea
+            aria-label={translate('report.picker.generate.label', 'Describe the report')}
+            class="lens-report-picker-generate-input"
+            disabled={running()}
+            maxLength={2000}
+            onInput={(event) => setPrompt(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                submit()
+              }
+            }}
+            placeholder={translate('report.picker.generate.placeholder', 'For example: policies sold per region over the last quarter, as a bar chart')}
+            ref={(element) => { inputRef = element; requestAnimationFrame(() => element.focus()) }}
+            rows={3}
+            value={prompt()}
+          />
+          <div class="lens-report-picker-generate-actions">
+            <Show
+              when={running()}
+              fallback={
+                <button class="lens-context-action lens-report-primary" data-testid="report-picker-generate-submit" disabled={prompt().trim() === ''} onClick={submit} type="button">
+                  {state().kind === 'failed' ? translate('report.picker.generate.retry', 'Try again') : translate('report.picker.generate.submit', 'Generate')}
+                </button>
+              }
+            >
+              <button class="lens-context-action" data-testid="report-picker-generate-stop" onClick={stop} type="button">
+                {translate('report.picker.generate.stop', 'Stop')}
+              </button>
+            </Show>
+            <Show when={state()}>
+              {(current) => (
+                <Switch>
+                  <Match when={current().kind === 'running'}>
+                    <p aria-live="polite" class="lens-report-picker-generate-status" data-state="running" role="status">
+                      <span aria-hidden="true" class="lens-report-picker-generate-spinner" />
+                      {stageLabel((current() as { stage: ReportCardGenerateStage }).stage)}
+                    </p>
+                  </Match>
+                  <Match when={current().kind === 'failed'}>
+                    <p class="lens-report-picker-error" data-state="failed" role="alert">{(current() as { message: string }).message}</p>
+                  </Match>
+                  <Match when={current().kind === 'done'}>
+                    <p class="lens-report-picker-generate-status" data-state="done" role="status">
+                      {translate('report.picker.generate.created', 'Created “{title}” and selected it. Press Add to put it on the dashboard.', { title: (current() as { title: string }).title })}
+                    </p>
+                  </Match>
+                </Switch>
+              )}
+            </Show>
+          </div>
+        </div>
+      </Show>
     </section>
   )
 }

@@ -654,7 +654,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			return builder.Build().Component()
 		}
 	}
-	if c.link != "" {
+	if c.link != "" && !hasPlaceholderValue(c.value) {
 		return cellLink(c.link, c.component)
 	}
 	return c.component
@@ -685,6 +685,7 @@ type tableColumnImpl struct {
 	truncate          bool
 	truncateWidth     int
 	priority          int
+	mobileRole        MobileRole
 }
 
 func (c *tableColumnImpl) Key() string                              { return c.key }
@@ -701,6 +702,7 @@ func (c *tableColumnImpl) DefaultHidden() bool                      { return c.d
 func (c *tableColumnImpl) Truncate() bool                           { return c.truncate }
 func (c *tableColumnImpl) TruncateWidth() int                       { return c.truncateWidth }
 func (c *tableColumnImpl) Priority() int                            { return c.priority }
+func (c *tableColumnImpl) MobileRole() MobileRole                   { return c.mobileRole }
 func (c *tableColumnImpl) EditableField() crud.Field                { return c.editableField }
 func (c *tableColumnImpl) RendererRegistry() *crud.RendererRegistry { return c.rendererRegistery }
 
@@ -1202,13 +1204,22 @@ type TableConfig struct {
 	ScrollbarGutter      bool   // scrollbar-gutter: stable + hide SDK cover div
 	SearchClearable      bool   // Show clear (X) button on search input
 	HxTrigger            string // Custom hx-trigger (overrides default)
-	FullHeight           bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
-	ContentID            string // ID for content wrapper div (HTMX swap target)
-	HxTarget             string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
-	HxSwap               string // Custom hx-swap; defaults to "innerHTML"
-	HxIndicator          string // Custom hx-indicator; defaults to "#table-body"
-	SearchValue          string // Current search input value (for HTMX re-render)
-	SearchParamName      string // Query/form field name used for the search value
+	// PushURL is the form's hx-push-url: "" or "true" pushes the request URL,
+	// "false" keeps the address bar untouched (a table embedded in another
+	// page), any other value is pushed as is. See WithoutPushURL, WithPushURL.
+	PushURL string
+	// MobileLayout selects the layout below 640px; see MobileLayout.
+	MobileLayout MobileLayout
+	// MobilePrimaryAction is the index in Actions of the action kept as a
+	// button below md; the rest go to a "more" menu.
+	MobilePrimaryAction int
+	FullHeight          bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
+	ContentID           string // ID for content wrapper div (HTMX swap target)
+	HxTarget            string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
+	HxSwap              string // Custom hx-swap; defaults to "innerHTML"
+	HxIndicator         string // Custom hx-indicator; defaults to "#table-body"
+	SearchValue         string // Current search input value (for HTMX re-render)
+	SearchParamName     string // Query/form field name used for the search value
 
 	// StackedToolbar renders the portfolio-style layout: page Actions move to
 	// the title row (desktop), and the search bar + filter chips stack

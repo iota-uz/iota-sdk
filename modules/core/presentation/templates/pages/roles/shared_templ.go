@@ -413,9 +413,9 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(tOrKey(props.PageContext, fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)))
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(ResourceLabel(props.PageContext, props.ResourceGroup.Resource))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 221, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 221, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {

@@ -56,6 +56,10 @@ func (r *testBillingRepo) GetByID(_ context.Context, _ uuid.UUID) (billing.Trans
 	return nil, errors.New("not implemented")
 }
 
+func (r *testBillingRepo) GetByIDForUpdate(_ context.Context, _ uuid.UUID) (billing.Transaction, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (r *testBillingRepo) GetByDetailsFields(
 	ctx context.Context,
 	gateway billing.Gateway,

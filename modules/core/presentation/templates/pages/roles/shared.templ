@@ -218,7 +218,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 	>
 		<div class="flex items-center mb-2">
 			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
-				<span>{ tOrKey(props.PageContext,fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
+				<span>{ ResourceLabel(props.PageContext, props.ResourceGroup.Resource) }</span>
 				{{ toggleClasses := "bg-gray-200 after:border-default" }}
 				{{
 					if allChecked {

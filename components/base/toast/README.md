@@ -63,6 +63,30 @@ func (c *Controller) SaveData(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
+### 4. Failed requests
+
+A global listener turns `htmx:responseError`, `htmx:sendError` and `htmx:timeout`
+into an error toast, so a 4xx/5xx after a save is never silent. The toast shows
+the plain-text or JSON (`message`/`error`/`detail`) body when there is one, and a
+generic "Could not save changes" / "Could not load data" title otherwise. Opt a
+request out with `data-htmx-error-toast="off"` on the element or an ancestor, or
+call `event.preventDefault()` from an earlier listener.
+
+### 5. Refreshing only the changed region
+
+```go
+// One HX-Trigger header: success toast + reload of the matching regions.
+htmx.ToastSuccessAndRefresh(w, "Saved", "Order updated.", "#orders-table")
+// or, without a toast
+htmx.RefreshTargets(w, "#orders-table")
+```
+
+```html
+<div id="orders-table" hx-get="/orders/table" hx-trigger="iota:refresh" hx-swap="outerHTML">…</div>
+```
+
+The region re-runs its own request, so scroll position and open drawers stay put.
+
 ## Available Variants
 
 - `success` - Green checkmark icon

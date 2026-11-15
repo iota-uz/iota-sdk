@@ -91,6 +91,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta categoria de despesa?"
     },
     "History": {
+      "Resource": "Categorias de despesas",
       "Created": {
         "Title": "Categoria de despesa criada",
         "Summary": "Uma nova categoria de despesa foi adicionada"
@@ -148,6 +149,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este pagamento?"
     },
     "History": {
+      "Resource": "Pagamentos",
       "Created": {
         "Title": "Pagamento criado",
         "Summary": "Um pagamento foi registrado"
@@ -212,6 +214,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta despesa?"
     },
     "History": {
+      "Resource": "Despesas",
       "Created": {
         "Title": "Despesa criada",
         "Summary": "Uma despesa foi registrada"
@@ -283,6 +286,7 @@
       "SOLE_PROPRIETORSHIP": "Empresário Individual"
     },
     "History": {
+      "Resource": "Contrapartes",
       "Created": {
         "Title": "Contraparte criada",
         "Summary": "Uma nova contraparte foi adicionada"
@@ -345,6 +349,7 @@
       "Loading": "Carregando…"
     },
     "History": {
+      "Resource": "Contas",
       "Created": {
         "Title": "Conta criada",
         "Summary": "Uma conta foi aberta com o saldo inicial"
@@ -406,6 +411,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir esta categoria de pagamento?"
     },
     "History": {
+      "Resource": "Categorias de pagamentos",
       "Created": {
         "Title": "Categoria de pagamento criada",
         "Summary": "Uma nova categoria de pagamento foi adicionada"
@@ -457,6 +463,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este item de estoque?"
     },
     "History": {
+      "Resource": "Itens de estoque",
       "Created": {
         "Title": "Item de estoque criado",
         "Summary": "Um item de estoque foi adicionado"
@@ -531,6 +538,7 @@
       "ADJUSTMENT": "Ajuste"
     },
     "History": {
+      "Resource": "Transações",
       "Created": {
         "Title": "Transferência registrada",
         "Summary": "Dinheiro transferido ou trocado entre contas"
@@ -681,6 +689,7 @@
       "WrittenOff": "Dívida baixada com sucesso"
     },
     "History": {
+      "Resource": "Dívidas",
       "Created": {
         "Title": "Dívida criada",
         "Summary": "Uma dívida foi registrada"

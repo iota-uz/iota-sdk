@@ -1,4 +1,11 @@
 {
+  "Permissions": {
+    "BiChat": {
+      "Access": "BI-chatga kirish",
+      "ReadAll": "Barcha sessiyalarni ko'rish",
+      "Export": "Ma'lumotlarni eksport qilish"
+    }
+  },
   "NavigationLinks": {
     "BiChat": "BI-Chat"
   },
@@ -431,6 +438,10 @@
   "StreamError": {
     "Retry": "Қайта уриниш",
     "Regenerate": "Қайта яратиш",
+    "Failed": {
+      "Title": "Жавоб олиб бўлмади",
+      "Details": "Сўровни қайта ишлашда хатолик юз берди. Қайта уриниб кўринг."
+    },
     "AdminAction": "Муаммони тизим администратори ҳал қилиши керак.",
     "OpenBilling": "OpenAI биллингини очиш",
     "OpenAPIKeys": "API калитларини очиш",

@@ -98,6 +98,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this product?"
     },
     "History": {
+      "Resource": "Products",
       "Created": {
         "Title": "Product created",
         "Summary": "A product was added to the warehouse"
@@ -202,6 +203,7 @@
       "Submit": "Import"
     },
     "History": {
+      "Resource": "Warehouse positions",
       "Created": {
         "Title": "Position created",
         "Summary": "A warehouse position was added"
@@ -252,6 +254,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this warehouse unit?"
     },
     "History": {
+      "Resource": "Units of measure",
       "Created": {
         "Title": "Unit created",
         "Summary": "A unit of measure was added"
@@ -337,6 +340,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this order?"
     },
     "History": {
+      "Resource": "Warehouse orders",
       "Created": {
         "Title": "Order created",
         "Summary": "A warehouse order was created"
@@ -411,6 +415,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this inventory check?"
     },
     "History": {
+      "Resource": "Inventory counts",
       "Created": {
         "Title": "Inventory check created",
         "Summary": "An inventory check was recorded"

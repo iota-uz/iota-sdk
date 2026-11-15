@@ -1,6 +1,6 @@
 import fixture from '../../fixtures/report-catalog.json'
 import { parseDocument, type DashboardDocument } from '../contract'
-import { parseCatalogPage, parseDestinations, type ReportCatalogHost, type ReportDestinationHost } from '../reports/picker'
+import { parseCatalogPage, parseDestinations, type ReportCardGenerateStage, type ReportCatalogHost, type ReportDestinationHost } from '../reports/picker'
 import { parseReportComposition } from '../reports/draft'
 import type { CatalogEntry } from '../reports/contract/types'
 
@@ -23,6 +23,8 @@ export interface MemoryCatalogOptions {
   pending?: boolean
   /** Previews that fail before one succeeds. */
   previewFailures?: number
+  /** Turns on "Create with AI": the host walks through these stages, then fails or yields a new personal report. */
+  generate?: { stages?: ReportCardGenerateStage[]; stageDelayMs?: number; failWith?: string; hang?: boolean }
 }
 
 /** An in-memory host: substring search, owner scope and offset cursors. */
@@ -30,6 +32,7 @@ export function memoryCatalog(options: MemoryCatalogOptions = {}): ReportCatalog
   const entries = options.entries ?? catalogEntries()
   let failures = options.failures ?? 0
   let previewFailures = options.previewFailures ?? 0
+  let generated = 0
   const host = {
     searches: 0,
     search(query, { signal }) {
@@ -56,7 +59,33 @@ export function memoryCatalog(options: MemoryCatalogOptions = {}): ReportCatalog
       return signal.aborted ? never(signal) : Promise.resolve(catalogPreview())
     },
   } satisfies ReportCatalogHost & { searches: number }
-  return host
+  const generate = options.generate
+  if (!generate) return host
+  return Object.assign(host, {
+    async generate(request, { signal, onStage }) {
+      const stages = generate.stages ?? ['starting', 'schema', 'generating', 'validating']
+      for (const stage of stages) {
+        onStage?.(stage)
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, generate.stageDelayMs ?? 400)
+          signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) })
+        })
+      }
+      if (generate.hang) return never(signal)
+      if (generate.failWith) throw new Error(generate.failWith)
+      const created: CatalogEntry = {
+        ...structuredClone(entries[1]!),
+        id: `generated-report-${++generated}`,
+        revision: '1',
+        title: request.prompt.length > 48 ? `${request.prompt.slice(0, 47)}…` : request.prompt,
+        ownership: 'personal',
+        owner: undefined,
+        placed: 0,
+      }
+      entries.unshift(created)
+      return structuredClone(created)
+    },
+  } satisfies Pick<ReportCatalogHost, 'generate'>) as ReportCatalogHost & { searches: number }
 }
 
 export function memoryDestinations(options: { failures?: number } = {}): ReportDestinationHost {

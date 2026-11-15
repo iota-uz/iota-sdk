@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"fmt"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"net/url"
 	"strconv"
 
@@ -88,9 +89,7 @@ templ SessionRow(session *viewmodels.AdminSessionViewModel) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="dateTimeFormat">
-				<span x-text={ fmt.Sprintf("format('%s')", session.CreatedAt) }></span>
-			</div>
+			@corecomponents.LocalDateTime(session.CreatedAtISO)
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			if !session.IsCurrent {

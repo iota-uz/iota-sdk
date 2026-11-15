@@ -135,14 +135,29 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const viewPanel = createMemo<Panel>(() => {
     const current = level()
     const encoding = current?.encoding ?? panel.encoding
+    const view = retargetPanel(panel, kind())
+    // A table level brings its own columns, formats and row action: the host
+    // panel is a chart and has none of them to retarget.
+    const table = kind() === 'table' ? current?.table : undefined
     return {
-      ...retargetPanel(panel, kind()),
+      ...view,
       title: current?.label.trim() || panel.title,
       semantics: semantics(),
       encoding,
-      format: formatsForEncoding(panel, encoding),
-    }
+      // A table level formats its own fields: the host chart's formats belong
+      // to the host's columns and would leak onto same-named table fields.
+      format: table ? { ...table.format } : formatsForEncoding(panel, encoding),
+      ...(table ? { columns: table.columns, actions: table.actions } : {}),
+    } as Panel
   })
+  // The header figure is the selected mark's value from the host frame, in the
+  // host's units: a table level without a format of its own for that field
+  // must not print it raw.
+  const headerValueFormat = (): FieldFormat | undefined => {
+    const field = viewPanel().encoding.value
+    if (!field) return undefined
+    return viewPanel().format[field] ?? formatsForEncoding(panel, viewPanel().encoding)[field]
+  }
   const breadcrumbs = createMemo(() => breadcrumbsForNavigation(document, panel, navigation))
   let focusRef: HTMLDivElement | undefined
   let exploreRef: HTMLButtonElement | undefined
@@ -471,7 +486,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
               onCrumb={jumpToCrumb}
               onParent={focusParent() ? () => jumpToCrumb(focusParent()!.pathIndex) : undefined}
               periodLabel={document.header?.subtitle?.trim() || undefined}
-              valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
+              valueFormat={headerValueFormat()}
             />
             <Show when={positionPerspectives().length > 1}>
               <LensSelector
@@ -587,7 +602,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
             selectedPerspectiveId={navigation.perspectiveId}
             target={value().target}
             theme={overlayTheme().theme}
-            valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
+            valueFormat={headerValueFormat()}
           />
         )}
       </Show>

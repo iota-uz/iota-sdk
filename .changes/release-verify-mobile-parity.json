@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Release verification after the mobile PRs: the Solid ConfirmationDialog and ViewDrawer follow the templ header (44px drawer-close target, X icon, bottom-safe footer, stacked 44px buttons, bg-surface-300 drawer panel), Solid Dialog keeps the native showModal focus instead of re-focusing the first control (and focuses the heading on phones), ConfirmationDialog gains `danger`; Lens Linux baselines are refreshed for the intentional #1264 mobile-tile and built-in Russian chrome changes; the scaffold select-filter E2E reads the default trigger from TableConfig.ResolvedHxTrigger; the migration connection-release test waits for the server backend to leave pg_stat_activity (#1265); the filters drawer test checks the sheet's own class tokens instead of a substring that depends on twmerge's class order."
+}

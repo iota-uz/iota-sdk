@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -105,6 +106,28 @@ type huber struct {
 	connectionsMetaMu sync.RWMutex
 	connectionsMeta   map[*ws.Connection]*MetaInfo
 	userRepo          user.Repository
+	location          atomic.Pointer[time.Location]
+}
+
+// SetLocation sets the application time zone that server-rendered websocket
+// fragments use for timestamps. A nil location keeps browser-zone rendering.
+func (h *huber) SetLocation(loc *time.Location) {
+	h.location.Store(loc)
+}
+
+// connectionContext builds the per-connection render context for usr: the
+// user, their localizer and locale, and the application time zone.
+func (h *huber) connectionContext(ctx context.Context, usr user.User) context.Context {
+	localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
+	connCtx := intl.WithLocalizer(composables.WithUser(ctx, usr), localizer)
+	connCtx = composables.WithPageCtx(connCtx, types.NewPageContext(language.English, MustParseURL("/"), localizer))
+	if tag, err := language.Parse(string(usr.UILanguage())); err == nil {
+		connCtx = intl.WithLocale(connCtx, tag)
+	}
+	if loc := h.location.Load(); loc != nil {
+		connCtx = composables.WithLocation(connCtx, loc)
+	}
+	return connCtx
 }
 
 func (h *huber) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -190,9 +213,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 			h.logger.WithError(err).Error("failed to get user by ID")
 			continue
 		}
-		localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
-		connCtx := intl.WithLocalizer(composables.WithUser(userCtx, usr), localizer)
-		connCtx = composables.WithPageCtx(connCtx, types.NewPageContext(language.English, MustParseURL("/"), localizer))
+		connCtx := h.connectionContext(userCtx, usr)
 		if err := f(connCtx, &connection{
 			user: usr,
 			conn: conn,

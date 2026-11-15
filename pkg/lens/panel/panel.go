@@ -370,7 +370,8 @@ type PresentationHints struct {
 	FillPlot bool
 	// BarWidthPx pins the rendered bar thickness in CSS pixels.
 	BarWidthPx int
-	// ColorByCategory gives every category its own palette color.
+	// ColorByCategory gives every category its own palette color. A bar panel
+	// whose SemanticColors scale is "literal" already implies it.
 	ColorByCategory bool
 	// ColorBySequence shades an ordered dimension along one hue. Use it where
 	// the categories are ranked — age bands, tenure buckets, rating grades —
@@ -1280,6 +1281,13 @@ func (b *Builder) DistributedColors() *Builder {
 	b.spec.Distributed = true
 	return b
 }
+
+// SemanticColors takes each row's colour from field. With scale "literal" the
+// column holds the colour itself (a hex value or a palette name), and a bar or
+// horizontal bar paints every row in its own colour without ColorByCategory.
+// Any other scale names a category vocabulary and derives the colour from the
+// row's value; the panel then colours per row only when ColorByCategory or
+// DistributedColors asks for it.
 func (b *Builder) SemanticColors(scale string, field FieldRef) *Builder {
 	b.spec.ColorScale = strings.TrimSpace(scale)
 	b.spec.ColorField = field

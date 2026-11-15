@@ -12,6 +12,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // Container renders the toast notification container that should be placed once in the layout
@@ -37,7 +38,59 @@ func Container() templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\tnotifications: [],\n\t\t\tdisplayDuration: 8000,\n\t\t\taddNotification(notification) {\n\t\t\t\tnotification.id = Date.now();\n\t\t\t\tthis.notifications.unshift(notification);\n\t\t\t\tif (this.notifications.length &gt; 20) {\n\t\t\t\t\tthis.notifications = this.notifications.slice(0, 20);\n\t\t\t\t}\n\t\t\t},\n\t\t\tremoveNotification(id) {\n\t\t\t\tthis.notifications = this.notifications.filter(n =&gt; n.id !== id);\n\t\t\t}\n\t\t}\" @notify.window=\"addNotification($event.detail)\" @remove-notification.window=\"removeNotification($event.detail)\" class=\"fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none\" aria-live=\"assertive\"><template x-for=\"notification in notifications\" :key=\"notification.id\"><div x-data=\"{\n\t\t\t\t\tisVisible: false,\n\t\t\t\t\ttimeout: null,\n\t\t\t\t\tisPaused: false,\n\t\t\t\t\tremainingTime: 8000,\n\t\t\t\t\tstartTime: null,\n\t\t\t\t\tinit() {\n\t\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\t\tthis.isVisible = true;\n\t\t\t\t\t\t\tthis.startDismissTimer();\n\t\t\t\t\t\t});\n\t\t\t\t\t},\n\t\t\t\t\tstartDismissTimer() {\n\t\t\t\t\t\tthis.startTime = Date.now();\n\t\t\t\t\t\tthis.timeout = setTimeout(() =&gt; {\n\t\t\t\t\t\t\tthis.dismiss();\n\t\t\t\t\t\t}, this.remainingTime);\n\t\t\t\t\t},\n\t\t\t\t\tpauseTimer() {\n\t\t\t\t\t\tif (!this.isPaused &amp;&amp; this.timeout) {\n\t\t\t\t\t\t\tclearTimeout(this.timeout);\n\t\t\t\t\t\t\tthis.remainingTime -= Date.now() - this.startTime;\n\t\t\t\t\t\t\tthis.isPaused = true;\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t\tresumeTimer() {\n\t\t\t\t\t\tif (this.isPaused) {\n\t\t\t\t\t\t\tthis.isPaused = false;\n\t\t\t\t\t\t\tthis.startDismissTimer();\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t\tdismiss() {\n\t\t\t\t\t\tthis.isVisible = false;\n\t\t\t\t\t\tsetTimeout(() =&gt; {\n\t\t\t\t\t\t\tthis.$dispatch(&#39;remove-notification&#39;, notification.id);\n\t\t\t\t\t\t}, 300);\n\t\t\t\t\t}\n\t\t\t\t}\" @mouseenter=\"pauseTimer()\" @mouseleave=\"resumeTimer()\" x-show=\"isVisible\" x-transition:enter=\"transition ease-out duration-300\" x-transition:enter-start=\"opacity-0 translate-x-full\" x-transition:enter-end=\"opacity-100 translate-x-0\" x-transition:leave=\"transition ease-in duration-300\" x-transition:leave-start=\"opacity-100 translate-x-0\" x-transition:leave-end=\"opacity-0 translate-x-full\" class=\"pointer-events-auto\"><!-- Success Variant --><div x-show=\"notification.variant === &#39;success&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"status\"><div class=\"flex-shrink-0 w-5 h-5 text-green-500\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"{\n\t\t\tnotifications: [],\n\t\t\tdisplayDuration: 8000,\n\t\t\taddNotification(notification) {\n\t\t\t\tnotification.id = Date.now();\n\t\t\t\tthis.notifications.unshift(notification);\n\t\t\t\tif (this.notifications.length &gt; 20) {\n\t\t\t\t\tthis.notifications = this.notifications.slice(0, 20);\n\t\t\t\t}\n\t\t\t},\n\t\t\tremoveNotification(id) {\n\t\t\t\tthis.notifications = this.notifications.filter(n =&gt; n.id !== id);\n\t\t\t}\n\t\t}\" @notify.window=\"addNotification($event.detail)\" @remove-notification.window=\"removeNotification($event.detail)\" class=\"fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none\" aria-live=\"assertive\" data-toast-container data-error-load-failed=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var2 string
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.LoadFailed", "Could not load data"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 33, Col: 93}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" data-error-save-failed=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.SaveFailed", "Could not save changes"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 34, Col: 96}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" data-error-network=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.NetworkError", "No connection to the server"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 35, Col: 99}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" data-error-network-hint=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(intl.TWithDefault(ctx, "Common.NetworkErrorHint", "Check your connection and try again."))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 36, Col: 117}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><template x-for=\"notification in notifications\" :key=\"notification.id\"><div x-data=\"{\n\t\t\t\t\tisVisible: false,\n\t\t\t\t\ttimeout: null,\n\t\t\t\t\tisPaused: false,\n\t\t\t\t\tremainingTime: 8000,\n\t\t\t\t\tstartTime: null,\n\t\t\t\t\tinit() {\n\t\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\t\tthis.isVisible = true;\n\t\t\t\t\t\t\tthis.startDismissTimer();\n\t\t\t\t\t\t});\n\t\t\t\t\t},\n\t\t\t\t\tstartDismissTimer() {\n\t\t\t\t\t\tthis.startTime = Date.now();\n\t\t\t\t\t\tthis.timeout = setTimeout(() =&gt; {\n\t\t\t\t\t\t\tthis.dismiss();\n\t\t\t\t\t\t}, this.remainingTime);\n\t\t\t\t\t},\n\t\t\t\t\tpauseTimer() {\n\t\t\t\t\t\tif (!this.isPaused &amp;&amp; this.timeout) {\n\t\t\t\t\t\t\tclearTimeout(this.timeout);\n\t\t\t\t\t\t\tthis.remainingTime -= Date.now() - this.startTime;\n\t\t\t\t\t\t\tthis.isPaused = true;\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t\tresumeTimer() {\n\t\t\t\t\t\tif (this.isPaused) {\n\t\t\t\t\t\t\tthis.isPaused = false;\n\t\t\t\t\t\t\tthis.startDismissTimer();\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t\tdismiss() {\n\t\t\t\t\t\tthis.isVisible = false;\n\t\t\t\t\t\tsetTimeout(() =&gt; {\n\t\t\t\t\t\t\tthis.$dispatch(&#39;remove-notification&#39;, notification.id);\n\t\t\t\t\t\t}, 300);\n\t\t\t\t\t}\n\t\t\t\t}\" @mouseenter=\"pauseTimer()\" @mouseleave=\"resumeTimer()\" x-show=\"isVisible\" x-transition:enter=\"transition ease-out duration-300\" x-transition:enter-start=\"opacity-0 translate-x-full\" x-transition:enter-end=\"opacity-100 translate-x-0\" x-transition:leave=\"transition ease-in duration-300\" x-transition:leave-start=\"opacity-100 translate-x-0\" x-transition:leave-end=\"opacity-0 translate-x-full\" class=\"pointer-events-auto\"><!-- Success Variant --><div x-show=\"notification.variant === &#39;success&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"status\"><div class=\"flex-shrink-0 w-5 h-5 text-green-500\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -45,20 +98,20 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 100, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 106, Col: 93}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -66,7 +119,7 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</button></div><!-- Error/Danger Variant --><div x-show=\"notification.variant === &#39;error&#39; || notification.variant === &#39;danger&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"alert\"><div class=\"flex-shrink-0 w-5 h-5 text-red-500\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</button></div><!-- Error/Danger Variant --><div x-show=\"notification.variant === &#39;error&#39; || notification.variant === &#39;danger&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"alert\"><div class=\"flex-shrink-0 w-5 h-5 text-red-500\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -74,20 +127,20 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 122, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 128, Col: 93}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -95,7 +148,7 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</button></div><!-- Warning Variant --><div x-show=\"notification.variant === &#39;warning&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"alert\"><div class=\"flex-shrink-0 w-5 h-5 text-yellow-500\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</button></div><!-- Warning Variant --><div x-show=\"notification.variant === &#39;warning&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"alert\"><div class=\"flex-shrink-0 w-5 h-5 text-yellow-500\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -103,20 +156,20 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
+		var templ_7745c5c3_Var8 string
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 144, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 150, Col: 93}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -124,7 +177,7 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</button></div><!-- Info Variant --><div x-show=\"notification.variant === &#39;info&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"status\"><div class=\"flex-shrink-0 w-5 h-5 text-blue-500\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</button></div><!-- Info Variant --><div x-show=\"notification.variant === &#39;info&#39;\" class=\"flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle\" role=\"status\"><div class=\"flex-shrink-0 w-5 h-5 text-blue-500\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -132,20 +185,20 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div class=\"flex-1 min-w-0\"><p x-show=\"notification.title\" x-text=\"notification.title\" class=\"text-sm font-semibold text-neutral-900 dark:text-white\"></p><p x-show=\"notification.message\" x-text=\"notification.message\" class=\"text-sm text-neutral-600 dark:text-neutral-400 mt-1\"></p></div><button @click=\"dismiss()\" type=\"button\" class=\"flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 166, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/toast/toast.templ`, Line: 172, Col: 93}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -153,7 +206,7 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button></div></div></template></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</button></div></div></template></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

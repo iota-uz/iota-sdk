@@ -112,6 +112,8 @@ const presetGlyphs: Readonly<Record<string, (props: IconProps) => JSX.Element>> 
   lastMonth: CalendarBlank,
   last30days: Clock,
   last12months: ChartLine,
+  thisQuarter: CalendarBlank,
+  lastQuarter: CalendarBlank,
   yearToDate: ChartLine,
   lastYear: ChartLine,
 }

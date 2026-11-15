@@ -75,5 +75,16 @@ DROP TABLE IF EXISTS mcp.approvals;
 
 DROP TABLE IF EXISTS mcp.plans;
 
-DROP SCHEMA IF EXISTS mcp;
+-- The schema may hold objects owned by the host application (views, functions);
+-- drop it only when nothing else lives in it.
+-- +migrate StatementBegin
+DO $$
+BEGIN
+    DROP SCHEMA IF EXISTS mcp RESTRICT;
+EXCEPTION
+    WHEN dependent_objects_still_exist THEN
+        RAISE NOTICE 'schema mcp kept: it still contains objects not created by this migration';
+END
+$$;
+-- +migrate StatementEnd
 

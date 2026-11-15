@@ -9,8 +9,11 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"context"
+
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type CurrencySelectProps struct {
@@ -20,6 +23,12 @@ type CurrencySelectProps struct {
 	Error       string
 	Currencies  []*viewmodels.Currency
 	Attrs       templ.Attributes
+}
+
+// CurrencyName returns the localized currency name (Currencies.<CODE>) and falls
+// back to the stored name for codes without a translation.
+func CurrencyName(ctx context.Context, currency *viewmodels.Currency) string {
+	return intl.TWithDefault(ctx, "Currencies."+currency.Code, currency.Name)
 }
 
 func CurrencySelect(props *CurrencySelectProps) templ.Component {
@@ -64,7 +73,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var3 string
 					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 26, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 35, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
@@ -77,7 +86,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 27, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 36, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
@@ -88,9 +97,9 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(CurrencyName(ctx, currency))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 28, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 37, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -108,7 +117,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Code)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 31, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 40, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -121,7 +130,7 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Symbol)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 32, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 41, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -132,9 +141,9 @@ func CurrencySelect(props *CurrencySelectProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var8 string
-					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(currency.Name)
+					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(CurrencyName(ctx, currency))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 33, Col: 20}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/components/currencyselect.templ`, Line: 42, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {

@@ -20,6 +20,7 @@ const (
 	HeadKey         ContextKey = "head"
 	SidebarPropsKey ContextKey = "sidebarProps"
 	RequestStart    ContextKey = "requestStart"
+	LocationKey     ContextKey = "location"
 
 	PageContext ContextKey = "pageContext"
 	TenantIDKey ContextKey = "tenant"

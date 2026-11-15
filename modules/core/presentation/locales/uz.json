@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "Parolni ko'rsatish",
     "CloseNotification": "Bildirishnomani yopish",
     "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
     "Loading": "Yuklanmoqda...",
     "LoadFailed": "Ma'lumotlarni yuklab bo'lmadi",
-    "Retry": "Qayta urinish"
+    "Retry": "Qayta urinish",
+    "Close": "Yopish",
+    "SaveFailed": "Saqlab bo'lmadi",
+    "NetworkError": "Serverga ulanish yo'q",
+    "NetworkErrorHint": "Ulanishni tekshirib, qayta urinib ko'ring.",
+    "TogglePassword": "Parolni ko'rsatish"
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
@@ -478,6 +484,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Guruhlar",
       "Created": {
         "Title": "Guruh yaratildi",
         "Summary": "Guruh yaratildi"
@@ -517,6 +524,25 @@
     "Error": {
       "ValidationError": "Tekshirish xatosi"
     }
+  },
+  "Currencies": {
+    "USD": "AQSh dollari",
+    "EUR": "Yevro",
+    "TRY": "Turk lirasi",
+    "GBP": "Britaniya funt sterlingi",
+    "RUB": "Rossiya rubli",
+    "JPY": "Yapon iyenasi",
+    "CNY": "Xitoy yuani",
+    "UZS": "O'zbek so'mi",
+    "AUD": "Avstraliya dollari",
+    "CAD": "Kanada dollari",
+    "CHF": "Shveytsariya franki"
+  },
+  "FormValidation": {
+    "Required": "Bu maydonni to'ldiring.",
+    "InvalidEmail": "To'g'ri elektron pochta manzilini kiriting.",
+    "InvalidUrl": "To'g'ri havolani kiriting.",
+    "InvalidFormat": "So'ralgan formatda kiriting."
   },
   "Login": {
     "Meta": {
@@ -674,9 +700,11 @@
 			"Logout": "Chiqish",
 			"CurrentAccount": "Joriy akkaunt",
 			"AddAccount": "Akkaunt qo‘shish",
-			"LogoutCurrent": "Joriy akkauntdan chiqish",
+			"LogoutCurrent": "Chiqish",
 			"LogoutAll": "Barcha akkauntlardan chiqish",
-      "Settings": "Sozlamalar"
+      "Settings": "Sozlamalar",
+      "Theme": "Mavzu",
+      "OpenMenu": "Menyuni ochish"
     },
     "Departments": "Bo'limlar"
   },
@@ -875,6 +903,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "Bildirishnoma sozlamalarini ko‘rish",
+      "Manage": "Bildirishnoma sozlamalarini boshqarish"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -958,6 +990,8 @@
   },
   "Remove": "O'chirish",
   "Resources": {
+    "department": "Bo'lim",
+    "notification_rules": "Bildirishnoma sozlamalari",
     "bichat": "BI-Chat",
     "user": "Foydalanuvchilar",
     "role": "Rollar",
@@ -998,6 +1032,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Rollar",
       "Created": {
         "Title": "Rol yaratildi",
         "Summary": "Rol yaratildi"
@@ -1026,6 +1061,9 @@
       "NoDataTitle": "Ma'lumotlar yo'q",
       "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
       "NothingFound": "Hech narsa topilmadi",
+      "NothingFoundDescription": "Qidiruv yoki filtrlarni o'zgartirib ko'ring.",
+      "MoreActions": "Boshqa amallar",
+      "SortBy": "Saralash",
       "TableSettings": "Jadval sozlamalari",
       "ResetSettings": "Sozlamalarni tiklash",
       "Columns": "Ustunlar",
@@ -1035,7 +1073,11 @@
     },
     "Filters": {
       "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
+      "SelectAll": "Barchasini tanlash",
+      "Apply": "Qo'llash",
+      "Reset": "Tozalash",
+      "Active": "Faol filtrlar",
+      "RemoveChip": "Filtrni olib tashlash"
     },
     "FilterBuilder": {
       "AddFilter": "Filtr qoʻshish",
@@ -1240,6 +1282,7 @@
 			"TemporaryPasswordPlaceholder": "Yaratish uchun bo'sh qoldiring",
 			"TemporaryPasswordHint": "Foydalanuvchi u bilan bir marta kiradi va o'z parolini o'rnatadi. 72 soat amal qiladi.",
       "EditUser": "Foydalanuvchini tahrirlash",
+      "Edit": "Tahrirlash",
       "FirstName": "Ism",
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",
@@ -1311,6 +1354,7 @@
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
     },
     "History": {
+      "Resource": "Foydalanuvchilar",
       "Created": {
         "Title": "Foydalanuvchi yaratildi",
         "Summary": "Foydalanuvchi hisobi yaratildi"
@@ -1546,6 +1590,7 @@
       "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
     },
     "History": {
+      "Resource": "Bo'limlar",
       "Created": {
         "Title": "Bo'lim yaratildi",
         "Summary": "Tashkiliy tuzilmaga bo'lim qo'shildi"
@@ -1640,6 +1685,19 @@
     "PermissionManageDescription": "Voqealarni yoqish, oluvchilarni tanlash va sinov yuborish",
     "Level": "Muhimlik",
     "DefaultLevel": "Voqea uchun standart",
+    "Channels": "Yetkazib berish kanallari",
+    "Channel": "Kanal",
+    "ChannelInApp": "Ilovada",
+    "ChannelEmail": "E-pochta",
+    "ChannelSMS": "SMS",
+    "ChannelPush": "Push-bildirishnoma",
+    "UserChannels": "Xodimlar bo'yicha kanallar",
+    "UserChannelsIntro": "Aniq bir kishi uchun yetkazib berish kanalini yoqing yoki o'chiring. O'chirilgan kanallar uning uchun barcha voqealarda o'tkazib yuboriladi.",
+    "SearchPeople": "Ism bo'yicha qidirish",
+    "Search": "Qidirish",
+    "NoPeople": "Hech kim topilmadi.",
+    "UserChannelsSaved": "Kanallar saqlandi.",
+    "InvalidChannels": "Kanallarni saqlab bo'lmadi.",
     "DynamicRecipients": "Shuningdek xabar berish",
     "Unavailable": "Mavjud emas",
     "Queued": "{{.Count}} oluvchi uchun navbatga qo‘yildi.",
@@ -1668,6 +1726,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Foydalanuvchi lavozimlari",
       "Created": {
         "Title": "Lavozim yaratildi",
         "Summary": "Foydalanuvchiga bo'limda lavozim tayinlandi"

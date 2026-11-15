@@ -23,7 +23,7 @@ export {
   parseDocument,
   type DashboardDocument,
 } from './contract'
-export type { LensThemeMode } from './runtime'
+export type { LensThemeMode, LensThemeSetting } from './runtime'
 export { LensMessagesProvider } from './runtime'
 
 export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition, ReportRevisionConflictError, reportDraftToken } from './reports/draft'
@@ -48,6 +48,7 @@ export { ReportPicker, type ReportPickerProps } from './reports/ReportPicker'
 export { ReportDestinationPicker, type ReportDestinationPickerProps } from './reports/ReportDestinationPicker'
 export { appendReportPicks, createReportPickerSelection, parseCatalogPage, parseDestinations } from './reports/picker'
 export type {
+  ReportCardGenerateOptions, ReportCardGenerateRequest, ReportCardGenerateStage,
   ReportCatalogEntry, ReportCatalogHost, ReportCatalogPage, ReportCatalogQuery, ReportCatalogScope, ReportDestination,
   ReportDestinationChoice, ReportDestinationConfirmation, ReportDestinationHost, ReportPick, ReportPickerConfirmation,
 } from './reports/picker'

@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -118,6 +119,44 @@ func TestBillingRepository_GetByID(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		_, err := repo.GetByID(f.Ctx, uuid.New())
+		require.ErrorIs(t, err, persistence.ErrTransactionNotFound)
+	})
+}
+
+func TestBillingRepository_GetByIDForUpdate(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repo := persistence.NewBillingRepository()
+
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	created, err := repo.Save(f.Ctx, createTestClickTransaction("click-merchant-lock", tenant))
+	require.NoError(t, err)
+	f.CommitTx(t)
+
+	t.Run("found", func(t *testing.T) {
+		fetched, err := repo.GetByIDForUpdate(f.Ctx, created.ID())
+		require.NoError(t, err)
+		assert.Equal(t, created.ID(), fetched.ID())
+	})
+
+	t.Run("holds the row until the transaction ends", func(t *testing.T) {
+		other, err := f.Pool.Begin(f.Ctx)
+		require.NoError(t, err)
+		defer func() { _ = other.Rollback(f.Ctx) }()
+
+		_, err = other.Exec(f.Ctx, "SET LOCAL lock_timeout = '100ms'")
+		require.NoError(t, err)
+		_, err = other.Exec(f.Ctx, "SELECT 1 FROM billing_transactions WHERE id = $1 FOR UPDATE", created.ID())
+
+		var pgErr *pgconn.PgError
+		require.ErrorAs(t, err, &pgErr)
+		assert.Equal(t, "55P03", pgErr.Code, "a second locker must wait for the row")
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := repo.GetByIDForUpdate(f.Ctx, uuid.New())
 		require.ErrorIs(t, err, persistence.ErrTransactionNotFound)
 	})
 }

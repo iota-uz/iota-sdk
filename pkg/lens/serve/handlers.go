@@ -46,7 +46,12 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be GET")
 		return
 	}
-	doc, err := h.BuildDocument(r.Context(), h.runtimeRequest(r), document.BuildOptions{})
+	req := h.runtimeRequest(r)
+	var opts document.BuildOptions
+	if h.documentOpts != nil {
+		opts = h.documentOpts(r, req)
+	}
+	doc, err := h.BuildDocument(r.Context(), req, opts)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
 		return

@@ -118,6 +118,7 @@
       "DeleteConfirmation": "Haqiqatan ham ushbu mijozni o'chirib tashlamoqchimisiz?"
     },
     "History": {
+      "Resource": "Мижозлар",
       "Created": {
         "Title": "Мижоз яратилди",
         "Summary": "Янги мижоз қўшилди"

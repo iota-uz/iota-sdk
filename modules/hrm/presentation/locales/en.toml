@@ -62,7 +62,7 @@
       Placeholder = "+998 (__) ___ __ __"
     [Employees.Public.Email]
       Label = "Email"
-      Placeholder = "jodoe@gmail.com"
+      Placeholder = "name@example.com"
     [Employees.Public.BirthDate]
       Label = "Birth date"
     [Employees.Public.Position]
@@ -92,7 +92,10 @@
       Label = "Pin (Personal Identification Number)"
       Placeholder = "123456789192121"
 
-    [Employees.History.Created]
+    [Employees.History]
+Resource = "Employees"
+
+[Employees.History.Created]
       Title = "Employee added"
       Summary = "A new employee was hired"
     [Employees.History.Updated]
@@ -105,7 +108,10 @@
       Label = "Position name"
     [Positions.Single.Description]
       Label = "Description"
-    [Positions.History.Created]
+    [Positions.History]
+Resource = "Positions"
+
+[Positions.History.Created]
       Title = "Position created"
       Summary = "A new position was added"
     [Positions.History.Updated]

@@ -311,7 +311,7 @@ export default function AllChatsList(solidProps1: AllChatsListProps) {
                         id: '',
                         firstName: '',
                         lastName: '',
-                        initials: 'U',
+                        initials: '',
                     };
                     const ownerName = [owner.firstName, owner.lastName].filter(Boolean).join(' ');
                     return (<div>

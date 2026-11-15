@@ -193,7 +193,22 @@ func TestProjectsHistory_RecordsServiceMutations(t *testing.T) {
 				return document.ID().String()
 			},
 			eventType: services.AcceptanceCreated, resource: services.AcceptanceResource,
-			fields: []string{"amount", "date", "description", "kind", "number", "project_id", "status"},
+			fields: []string{"amount", "date", "description", "kind", "number", "project_id", "signed_on", "status"},
+		},
+		{
+			name: "acceptance document updated",
+			act: func(t *testing.T, ctx context.Context) string {
+				t.Helper()
+				document := f.newDocument(t)
+				_, err := f.acceptances.Update(ctx, document.ProjectID(), document.ID(), acceptance.Revision{
+					Kind: acceptance.KindProtocol, Number: "A-2", Date: document.Date(), SignedOn: document.Date(),
+					Amount: money.New(50000, "USD"), Description: "Phase two",
+				})
+				require.NoError(t, err)
+				return document.ID().String()
+			},
+			eventType: services.AcceptanceUpdated, resource: services.AcceptanceResource,
+			fields: []string{"amount", "description", "kind", "number", "signed_on", "status"},
 		},
 		{
 			name: "acceptance document signed",
@@ -205,7 +220,7 @@ func TestProjectsHistory_RecordsServiceMutations(t *testing.T) {
 				return document.ID().String()
 			},
 			eventType: services.AcceptanceSigned, resource: services.AcceptanceResource,
-			fields: []string{"status"},
+			fields: []string{"signed_on", "status"},
 		},
 		{
 			name: "acceptance document cancelled",
@@ -228,7 +243,7 @@ func TestProjectsHistory_RecordsServiceMutations(t *testing.T) {
 				return document.ID().String()
 			},
 			eventType: services.AcceptanceDeleted, resource: services.AcceptanceResource,
-			fields: []string{"amount", "date", "description", "kind", "number", "project_id", "status"},
+			fields: []string{"amount", "date", "description", "kind", "number", "project_id", "signed_on", "status"},
 		},
 	}
 	for _, tt := range tests {

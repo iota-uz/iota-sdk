@@ -31,7 +31,7 @@ templ builderRoot(props Props, oob bool) {
 		x-data="filterBuilder"
 		x-on:fb-apply.stop="onApply($event.detail)"
 		x-on:keydown.esc.window="closeAll()"
-		class={ "flex flex-wrap items-center gap-2", props.Class }
+		class={ "relative flex flex-wrap items-center gap-2", props.Class }
 	>
 		<input type="hidden" name={ filterq.PresenceParam } value="1"/>
 		for i, c := range props.Filters {
@@ -52,7 +52,7 @@ templ builderRoot(props Props, oob bool) {
 
 templ addFilterButton(props Props) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="relative" x-on:click.outside="if (adding) closeAll()">
+	<div class="sm:relative" x-on:click.outside="if (adding) closeAll()">
 		<button
 			type="button"
 			x-on:click="openAdd()"
@@ -70,7 +70,7 @@ templ addFilterButton(props Props) {
 			x-transition.opacity.duration.100ms
 			role="dialog"
 			data-fb-popover
-			class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm"
+			class="absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm"
 		>
 			<!-- Stage 1: field picker -->
 			<div x-show="draftField === null">

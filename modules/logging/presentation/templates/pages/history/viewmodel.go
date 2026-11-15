@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/fielddiff"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 )
 
 type State string
@@ -22,64 +24,135 @@ const (
 	StateError   State = "error"
 )
 
-// Filters are the page's URL parameters; dates are whole days, to inclusive.
+// Filter field keys of the page's chip builder; they are also the `f` parameter field names.
+const (
+	FieldPeriod    = "period"
+	FieldResource  = "resource"
+	FieldEventType = "event_type"
+	FieldChannel   = "channel"
+	FieldOutcome   = "outcome"
+)
+
+// Filters are the page's URL parameters. Resource and ID pin the page to one resource or object
+// and come from links; the chip builder owns the rest as Conditions.
 type Filters struct {
-	Resource  string
-	ID        string
-	Actor     string
-	ActorName string
-	EventType string
-	Channel   string
-	Outcome   string
-	From      string
-	To        string
-	Cursor    string
+	Resource   string
+	ID         string
+	Actor      string
+	ActorName  string
+	Conditions filterq.FilterSet
+	Cursor     string
 }
 
-func (f Filters) Query() history.Query {
-	q := history.Query{Scope: history.Scope{Kind: history.ScopeAll}, ActorID: f.Actor, Cursor: f.Cursor}
+// ParseFilters reads the page's URL parameters; schema is the chip builder's. A bare resource
+// parameter, as linked from lists, becomes a resource condition.
+func ParseFilters(values url.Values, schema filterq.Schema) Filters {
+	f := Filters{
+		ID:         values.Get("id"),
+		Actor:      values.Get("actor"),
+		ActorName:  values.Get("actor_name"),
+		Conditions: filterq.Decode(values, schema),
+		Cursor:     values.Get("cursor"),
+	}
+	resource := values.Get("resource")
 	switch {
 	case f.ID != "":
+		f.Resource = resource
+	case resource != "" && !f.Conditions.Has(FieldResource):
+		f.Conditions = append(filterq.FilterSet{{Field: FieldResource, Op: filterq.OpIs, Values: []string{resource}}}, f.Conditions...)
+	}
+	return f
+}
+
+// Query turns the filters into a history query; days start and end in loc, the application time zone.
+func (f Filters) Query(loc *time.Location, now time.Time) history.Query {
+	if loc == nil {
+		loc = time.UTC
+	}
+	q := history.Query{Scope: history.Scope{Kind: history.ScopeAll}, ActorID: f.Actor, Cursor: f.Cursor}
+	if f.ID != "" {
 		q.Scope = history.Scope{Kind: history.ScopeEntity, Resource: f.Resource, ID: f.ID}
-	case f.Resource != "":
-		q.Scope = history.Scope{Kind: history.ScopeResource, Resource: f.Resource}
 	}
-	if f.EventType != "" {
-		q.EventTypes = []string{f.EventType}
+	var from, to time.Time
+	for _, c := range f.Conditions {
+		switch c.Field {
+		case FieldResource:
+			if f.ID == "" {
+				q.Resources = c.Values
+			}
+		case FieldEventType:
+			q.EventTypes = c.Values
+		case FieldChannel:
+			q.Channels = c.Values
+		case FieldOutcome:
+			q.Outcomes = make([]businessevent.Outcome, len(c.Values))
+			for i, v := range c.Values {
+				q.Outcomes[i] = businessevent.Outcome(v)
+			}
+		case FieldPeriod:
+			lo, hi, ok := dayRange(c, loc, now.In(loc))
+			if !ok {
+				continue
+			}
+			if !lo.IsZero() && lo.After(from) {
+				from = lo
+			}
+			if !hi.IsZero() && (to.IsZero() || hi.Before(to)) {
+				to = hi
+			}
+		}
 	}
-	if f.Channel != "" {
-		q.Channels = []string{f.Channel}
+	if !from.IsZero() {
+		q.From = from.Format(time.RFC3339)
 	}
-	if f.Outcome != "" {
-		q.Outcomes = []businessevent.Outcome{businessevent.Outcome(f.Outcome)}
+	if !to.IsZero() {
+		q.To = to.Format(time.RFC3339)
 	}
-	q.From = dayStart(f.From, 0)
-	q.To = dayStart(f.To, 1)
 	return q
 }
 
-// dayStart turns a date into an RFC 3339 time; anything else is passed on for the service to reject.
-func dayStart(date string, offset int) string {
-	if date == "" {
-		return ""
+// dayRange resolves a period condition to a half-open time range whose bounds are day starts in
+// loc; a zero bound is open.
+func dayRange(c filterq.Condition, loc *time.Location, now time.Time) (time.Time, time.Time, bool) {
+	day := func(i int) (time.Time, bool) {
+		if i >= len(c.Values) {
+			return time.Time{}, false
+		}
+		d, err := time.ParseInLocation(filterq.DateLayout, c.Values[i], loc)
+		return d, err == nil
 	}
-	day, err := time.Parse(time.DateOnly, date)
-	if err != nil {
-		return date
+	switch c.Op {
+	case filterq.OpOn:
+		d, ok := day(0)
+		return d, d.AddDate(0, 0, 1), ok
+	case filterq.OpBefore:
+		d, ok := day(0)
+		return time.Time{}, d, ok
+	case filterq.OpAfter:
+		d, ok := day(0)
+		return d.AddDate(0, 0, 1), time.Time{}, ok
+	case filterq.OpBetween:
+		lo, hi, ok := c.DateRange(now)
+		return lo, hi.AddDate(0, 0, 1), ok
+	case filterq.OpIs, filterq.OpIsNot, filterq.OpEq, filterq.OpGt, filterq.OpLt:
 	}
-	return day.AddDate(0, 0, offset).Format(time.RFC3339)
+	return time.Time{}, time.Time{}, false
 }
 
 // URL keeps the scope and filters while replacing the given parameters; an empty value removes one.
 func (f Filters) URL(basePath string, set ...string) string {
 	values := url.Values{}
-	for key, value := range map[string]string{
-		"resource": f.Resource, "id": f.ID, "actor": f.Actor, "actor_name": f.ActorName, "event_type": f.EventType,
-		"channel": f.Channel, "outcome": f.Outcome, "from": f.From, "to": f.To,
-	} {
+	for key, value := range map[string]string{"id": f.ID, "actor": f.Actor, "actor_name": f.ActorName} {
 		if value != "" {
 			values.Set(key, value)
 		}
+	}
+	if f.ID != "" && f.Resource != "" {
+		values.Set("resource", f.Resource)
+	}
+	if len(f.Conditions) > 0 {
+		values.Set(filterq.PresenceParam, "1")
+		filterq.EncodeTo(f.Conditions, values)
 	}
 	for i := 0; i+1 < len(set); i += 2 {
 		if set[i+1] == "" {
@@ -94,13 +167,13 @@ func (f Filters) URL(basePath string, set ...string) string {
 	return basePath + "?" + values.Encode()
 }
 
-func (f Filters) Filtered() bool {
-	return f.Actor != "" || f.EventType != "" || f.Channel != "" || f.Outcome != "" || f.From != "" || f.To != ""
+// Scope drops everything but the pinned resource and object.
+func (f Filters) Scope() Filters {
+	return Filters{Resource: f.Resource, ID: f.ID}
 }
 
-type Option struct {
-	Value string
-	Label string
+func (f Filters) Filtered() bool {
+	return f.Actor != "" || len(f.Conditions) > 0
 }
 
 type PageProps struct {
@@ -108,8 +181,7 @@ type PageProps struct {
 	EventsURL string
 	Filters   Filters
 	Scope     string
-	Resources []Option
-	Types     []Option
+	Builder   filterbuilder.Props
 }
 
 type EventsProps struct {
@@ -206,6 +278,7 @@ func Value(v fielddiff.FieldValue) string {
 	return string(v.Value)
 }
 
-func FormatTime(t time.Time) string {
-	return t.Format("02.01.2006 15:04 MST")
+// TimeValue is the RFC 3339 form of an event time, rendered by components.LocalDateTime.
+func TimeValue(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
 }

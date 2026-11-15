@@ -1390,3 +1390,28 @@ func TestMoney_JSON_RoundTrip(t *testing.T) {
 		assert.Equal(t, int64(123), m.Amount())
 	})
 }
+
+func TestNewFromFloat_DecimalMinorUnits(t *testing.T) {
+	cases := []struct {
+		name     string
+		amount   float64
+		currency string
+		want     int64
+	}{
+		{"expense", 19.99, USD, 1999},
+		{"twenty-nine cents", 0.29, USD, 29},
+		{"fifty-seven cents", 0.57, USD, 57},
+		{"one dollar thirteen", 1.13, USD, 113},
+		{"negative cents", -0.29, USD, -29},
+		{"truncate positive", 0.125, USD, 12},
+		{"truncate negative", -0.125, USD, -12},
+		{"no rounding up", 19.999, USD, 1999},
+		{"zero fraction", 19.99, JPY, 19},
+		{"three fractions", 1.001, KWD, 1001},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, NewFromFloat(tc.amount, tc.currency).Amount())
+		})
+	}
+}

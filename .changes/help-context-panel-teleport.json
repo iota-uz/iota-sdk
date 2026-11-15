@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Render the help.Context panel through x-teleport to the body with fixed positioning, so it no longer ends up inside a heading that contains the trigger."}

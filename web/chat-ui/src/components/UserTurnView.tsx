@@ -10,6 +10,8 @@ import { type JSX, mergeProps, createSignal, createMemo, createEffect, on, onMou
  */
 import { useChatMessaging } from '../context/ChatContext';
 import { UserMessage, type UserMessageSlots, type UserMessageClassNames } from './UserMessage';
+import { useOptionalIotaContext } from '../context/IotaContext';
+import { deriveInitials } from '../utils/initials';
 import type { ConversationTurn } from '../types';
 export interface UserTurnViewProps {
     /** The conversation turn containing the user message */
@@ -37,7 +39,10 @@ export function UserTurnView(solidProps1Input: UserTurnViewProps) {
     const author = createMemo(() => solidProps1.turn.userTurn.author);
     const fullName = createMemo(() => [author()?.firstName || '', author()?.lastName || ''].join(' ').trim());
     const authorName = createMemo(() => solidProps1.showAuthorName && fullName().length > 0 ? fullName() : undefined);
-    const resolvedInitials = createMemo(() => solidProps1.initials ?? author()?.initials ?? 'U');
+    const iota = useOptionalIotaContext();
+    // A turn without an author (for example one that was just sent) belongs to the viewer.
+    const resolvedInitials = createMemo(() => solidProps1.initials ||
+        (author() ? deriveInitials(author()) : deriveInitials(iota?.user)));
     return (<UserMessage turn={solidProps1.turn.userTurn} turnId={solidProps1.turn.id} initials={resolvedInitials()} authorName={authorName()} slots={solidProps1.slots} classNames={solidProps1.classNames} onCopy={solidState2.handleCopy} onEdit={solidState2.handleEdit} hideAvatar={solidProps1.hideAvatar} hideActions={solidProps1.hideActions} hideTimestamp={solidProps1.hideTimestamp} allowEdit={solidProps1.allowEdit}/>);
 }
 export default UserTurnView;

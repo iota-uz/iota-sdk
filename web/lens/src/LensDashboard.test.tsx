@@ -20,6 +20,28 @@ describe('LensDashboard', () => {
     expect(view.container.querySelector('[style*="--lens-panel-span: 4"]')).not.toBeNull()
   })
 
+  it('follows the host application theme when theme is auto', async () => {
+    const root = globalThis.document.documentElement
+    root.classList.remove('dark')
+    const view = render(() =><LensDashboard locale="en" theme="auto" />)
+    const board = view.container.querySelector('.lens-root')
+    expect(board).toHaveAttribute('data-theme', 'light')
+
+    root.classList.add('dark')
+    await waitFor(() => expect(board).toHaveAttribute('data-theme', 'dark'))
+    root.classList.remove('dark')
+    await waitFor(() => expect(board).toHaveAttribute('data-theme', 'light'))
+  })
+
+  it('keeps a fixed theme when the host application changes its own', async () => {
+    const root = globalThis.document.documentElement
+    const view = render(() =><LensDashboard locale="en" theme="light" />)
+    root.classList.add('dark')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(view.container.querySelector('.lens-root')).toHaveAttribute('data-theme', 'light')
+    root.classList.remove('dark')
+  })
+
   it('renders optional facet filters and loads only human-readable options', async () => {
     window.history.replaceState({}, '', '/report?_f=product%3Aone&_f=product%3Atwo&_f=region%3Atashkent')
     // Keep this contract test independent from chart rendering. ECharts owns

@@ -1,5 +1,5 @@
 
-import type { JSX } from 'solid-js'
+import { createEffect, createSignal, onCleanup, type JSX } from 'solid-js'
 import { FilterDefaultsProvider, type FilterDefaultsHost } from './reports/filterHost'
 import { ReportPlacementProvider, type ReportPlacementHost } from './reports/placementHost'
 import fixture from '../fixtures/panels-v1.json'
@@ -8,7 +8,7 @@ import { DashboardPanels } from './DashboardPanels'
 import { HostRenderersProvider, type HostPanelRenderers } from './panels/hostRenderers'
 import type { PanelRegistry } from './panels/registry'
 import type { CalendarDate } from './controls'
-import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
+import { DashboardRuntimeProvider, DocumentProvider, detectAppTheme, observeAppTheme, type LensThemeSetting } from './runtime'
 import type { LensDashboardChrome, LensDashboardEditing } from './reports/dashboardEditTypes'
 
 export interface LensDashboardProps {
@@ -34,7 +34,12 @@ export interface LensDashboardProps {
    */
   fallbackHTML?: string
   locale?: string
-  theme?: LensThemeMode
+  /**
+   * `light` or `dark` fixes the board's theme. `auto` follows the host
+   * application: the `dark` class on `<html>`, or the system colour scheme when
+   * the page declares neither, and switches without a reload.
+   */
+  theme?: LensThemeSetting
   csrf?: string
   fetcher?: typeof fetch
   initialDocument?: DashboardDocument
@@ -58,7 +63,13 @@ const bundledFixture = parseDocument(fixture)
 
 export function LensDashboard(props: LensDashboardProps) {
   const locale = () => props.locale ?? 'en'
-  const theme = () => props.theme ?? 'light'
+  const [appTheme, setAppTheme] = createSignal(detectAppTheme())
+  createEffect(() => {
+    if (props.theme !== 'auto') return
+    setAppTheme(detectAppTheme())
+    onCleanup(observeAppTheme(setAppTheme))
+  })
+  const theme = () => (props.theme === 'auto' ? appTheme() : props.theme ?? 'light')
   const document = () => props.initialDocument ?? (props.src ? undefined : bundledFixture)
   // The fallback is this application's own server-rendered skeleton, echoed
   // back verbatim; it never carries request data.

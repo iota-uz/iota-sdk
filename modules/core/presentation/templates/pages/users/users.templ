@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"fmt"
+	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"maps"
 	"net/http"
 
@@ -177,14 +178,10 @@ templ rolesCell(user *viewmodels.User) {
 	}
 }
 
-// createdAtCell keeps the pre-existing Alpine `dateTimeFormat` formatting
-// (user.CreatedAt is a pre-formatted string, not a time.Time) rather than
-// switching to sfui's table.DateTime, which takes a time.Time and would
-// silently change the display format.
+// createdAtCell shows the absolute creation time, in the application time zone
+// when one is configured (user.CreatedAt is an RFC 3339 string, not a time.Time).
 templ createdAtCell(user *viewmodels.User) {
-	<div x-data="dateTimeFormat">
-		<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
-	</div>
+	@corecomponents.LocalDateTime(user.CreatedAt)
 }
 
 templ actionsCell(user *viewmodels.User) {

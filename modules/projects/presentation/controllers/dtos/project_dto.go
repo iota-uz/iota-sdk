@@ -12,24 +12,25 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/money"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 // ProjectCreateDTO gives the project a contract only when both its amount and
 // currency are given.
 type ProjectCreateDTO struct {
-	CounterpartyID   string  `validate:"required,uuid"`
-	Name             string  `validate:"required,min=2,max=255"`
-	Description      string  `validate:"max=1000"`
-	ContractAmount   float64 `validate:"gte=0"`
-	ContractCurrency string  `validate:"omitempty,len=3"`
+	CounterpartyID   string `validate:"required,uuid"`
+	Name             string `validate:"required,min=2,max=255"`
+	Description      string `validate:"max=1000"`
+	ContractAmount   shared.Amount
+	ContractCurrency string `validate:"omitempty,len=3"`
 }
 
 type ProjectUpdateDTO struct {
-	CounterpartyID   string  `validate:"required,uuid"`
-	Name             string  `validate:"required,min=2,max=255"`
-	Description      string  `validate:"max=1000"`
-	ContractAmount   float64 `validate:"gte=0"`
-	ContractCurrency string  `validate:"omitempty,len=3"`
+	CounterpartyID   string `validate:"required,uuid"`
+	Name             string `validate:"required,min=2,max=255"`
+	Description      string `validate:"max=1000"`
+	ContractAmount   shared.Amount
+	ContractCurrency string `validate:"omitempty,len=3"`
 }
 
 func validationErrors(l *i18n.Localizer, fields string, errs error) map[string]string {
@@ -54,18 +55,30 @@ func fieldError(l *i18n.Localizer, fields, field, tag string) string {
 	})
 }
 
-// contractErrors asks for the currency once a contract amount is given.
-func contractErrors(l *i18n.Localizer, amount float64, currency string, errorMessages map[string]string) {
-	if amount > 0 && currency == "" {
+// amountErrors reports an amount that is not a number or is below zero.
+func amountErrors(l *i18n.Localizer, fields, field string, amount shared.Amount, errorMessages map[string]string) {
+	switch {
+	case amount.Err() != nil:
+		errorMessages[field] = l.MustLocalize(&i18n.LocalizeConfig{MessageID: "Projects.Errors.InvalidAmount"})
+	case amount.IsNegative():
+		errorMessages[field] = fieldError(l, fields, field, "gte")
+	}
+}
+
+// contractErrors checks the contract amount and asks for the currency once
+// an amount is given.
+func contractErrors(l *i18n.Localizer, amount shared.Amount, currency string, errorMessages map[string]string) {
+	amountErrors(l, "Projects.Single", "ContractAmount", amount, errorMessages)
+	if amount.IsPositive() && currency == "" {
 		errorMessages["ContractCurrency"] = fieldError(l, "Projects.Single", "ContractCurrency", "required")
 	}
 }
 
-func contract(amount float64, currency string) *money.Money {
-	if amount == 0 || currency == "" {
+func contract(amount shared.Amount, currency string) *money.Money {
+	if !amount.IsPositive() || currency == "" {
 		return nil
 	}
-	return money.NewFromFloat(amount, currency)
+	return money.NewFromFloat(amount.Float64(), currency)
 }
 
 func (dto *ProjectCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {

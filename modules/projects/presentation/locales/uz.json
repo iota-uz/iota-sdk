@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "Bajarilgan ishlar dalolatnomasi",
         "_DELIVERY_NOTE": "Yuk xati",
+        "_PROTOCOL": "Qabul qilish bayonnomasi",
         "_OTHER": "Boshqa hujjat"
       },
       "Statuses": {
@@ -82,9 +83,14 @@
       },
       "Status": "Holat",
       "History": {
+        "Resource": "Qabul hujjatlari",
         "Created": {
           "Title": "Qabul hujjati yaratildi",
           "Summary": "Loyihaga qabul hujjati qoralamasi qo'shildi"
+        },
+        "Updated": {
+          "Title": "Qabul hujjati o'zgartirildi",
+          "Summary": "Hujjat maydonlari o'zgartirildi"
         },
         "Signed": {
           "Title": "Qabul hujjati imzolandi",
@@ -98,9 +104,22 @@
           "Title": "Qabul hujjati o'chirildi",
           "Summary": "Hujjat loyihadan o'chirildi"
         }
+      },
+      "Documents": "Hujjatlar",
+      "Edit": "Tahrirlash",
+      "EditTitle": "Hujjatni tahrirlash",
+      "SignedOn": "Imzolangan sana",
+      "SignedOnHint": "Imzolangan sana summani daromad sifatida tan oladi. Hujjat imzolanmaguncha uni bo'sh qoldiring: u qoralama bo'lib qoladi.",
+      "NumberPlaceholder": "AKT-001",
+      "CurrencyLocked": "Loyihaning barcha hujjatlari bitta valyutada.",
+      "Toasts": {
+        "created": "Hujjat qo'shildi",
+        "updated": "Hujjat saqlandi",
+        "deleted": "Hujjat o'chirildi"
       }
     },
     "History": {
+      "Resource": "Loyihalar",
       "Created": {
         "Title": "Loyiha yaratildi",
         "Summary": "Yangi loyiha qo'shildi"
@@ -113,6 +132,9 @@
         "Title": "Loyiha o'chirildi",
         "Summary": "Loyiha hisobdan o'chirildi"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "Raqam kiriting, masalan 15 000 000,50"
     }
   },
   "ProjectStages": {
@@ -155,6 +177,7 @@
       "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Loyiha bosqichlari",
       "Created": {
         "Title": "Loyiha bosqichi yaratildi",
         "Summary": "Loyihaga yangi bosqich qo'shildi"

@@ -13,6 +13,14 @@ export interface DialogProps extends Omit<JSX.DialogHtmlAttributes<HTMLDialogEle
 
 const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
+const headingSelector = '[data-dialog-title]'
+
+// Below md a focused control opens the on-screen keyboard, so the heading takes focus (as in the templ dialog).
+function compactViewport(element: HTMLElement) {
+  const view = element.ownerDocument.defaultView
+  return typeof view?.matchMedia === 'function' && view.matchMedia('(max-width: 767px)').matches
+}
+
 export function Dialog(props: DialogProps) {
   const [local, native] = splitProps(props, ['open', 'defaultOpen', 'onOpenChange', 'onEscape', 'initialFocus', 'canonicalClass', 'class', 'children', 'ref', 'onKeyDown'])
   const [internal, setInternal] = createSignal(local.defaultOpen ?? false)
@@ -31,7 +39,16 @@ export function Dialog(props: DialogProps) {
       if (typeof element.showModal === 'function') element.showModal()
       else element.open = true
       queueMicrotask(() => {
-        if (element.isConnected && expanded()) (local.initialFocus?.() ?? element.querySelector<HTMLElement>(focusableSelector) ?? element).focus()
+        if (!element.isConnected || !expanded()) return
+        const preferred = local.initialFocus?.()
+        if (preferred) { preferred.focus(); return }
+        // Below md the heading takes focus: showModal() skips it (tabindex=-1) and would focus the first control.
+        const heading = compactViewport(element) ? element.querySelector<HTMLElement>(headingSelector) : null
+        if (heading) { heading.focus({ preventScroll: true }); return }
+        // showModal() already moved focus into the dialog; a second script focus() would
+        // paint a focus ring on the first control, which the templ dialog does not have.
+        if (element.contains(element.ownerDocument.activeElement)) return
+        ;(element.querySelector<HTMLElement>(focusableSelector) ?? element).focus()
       })
     } else if (!expanded() && element.open) {
       if (typeof element.close === 'function') element.close()
@@ -76,7 +93,7 @@ export function Dialog(props: DialogProps) {
 }
 
 function CloseIcon() {
-  return <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="20" height="20" viewBox="0 0 256 256"><rect width="256" height="256" fill="none" /><line x1="160" y1="96" x2="96" y2="160" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="96" y1="96" x2="160" y2="160" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /></svg>
+  return <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="20" height="20" viewBox="0 0 256 256"><rect width="256" height="256" fill="none" /><line x1="200" y1="56" x2="56" y2="200" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /><line x1="200" y1="200" x2="56" y2="56" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" /></svg>
 }
 
 export interface ConfirmationDialogProps extends DialogProps {
@@ -86,12 +103,14 @@ export interface ConfirmationDialogProps extends DialogProps {
   cancelText?: JSX.Element
   confirmText?: JSX.Element
   closeLabel?: string
+  /** Renders the confirm button as destructive. */
+  danger?: boolean
   onCancel?: () => void
   onConfirm?: () => void
 }
 
 export function ConfirmationDialog(props: ConfirmationDialogProps) {
-  const [local, dialogProps] = splitProps(props, ['heading', 'text', 'icon', 'cancelText', 'confirmText', 'closeLabel', 'onCancel', 'onConfirm', 'children', 'open', 'defaultOpen', 'onOpenChange'])
+  const [local, dialogProps] = splitProps(props, ['heading', 'text', 'icon', 'cancelText', 'confirmText', 'closeLabel', 'danger', 'onCancel', 'onConfirm', 'children', 'open', 'defaultOpen', 'onOpenChange'])
   const [internal, setInternal] = createSignal(local.defaultOpen ?? false)
   const expanded = () => local.open ?? internal()
   const setOpen = (open: boolean) => {
@@ -103,18 +122,18 @@ export function ConfirmationDialog(props: ConfirmationDialogProps) {
     <div>
       <Dialog {...dialogProps} open={expanded()} onOpenChange={setOpen}>
         <form method="dialog">
-          <header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle">
-            <h3 class="font-medium">{local.heading}</h3>
-            <Button type="button" variant="secondary" size="sm" fixed rounded aria-label={local.closeLabel ?? 'Close'} onClick={() => { local.onCancel?.(); close() }}><CloseIcon /></Button>
+          <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
+            <h3 class="font-medium" data-dialog-title tabindex="-1">{local.heading}</h3>
+            <button type="button" value="cancel" class="drawer-close" aria-label={local.closeLabel ?? 'Close'} onClick={() => { local.onCancel?.(); close() }}><CloseIcon /></button>
           </header>
           <article class="py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36">
             {local.icon && <div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">{local.icon}</div>}
             {local.text && <p class="text-center">{local.text}</p>}
             {local.children}
           </article>
-          <footer class="px-4 py-3"><menu class="flex gap-3">
-            <Button type="button" variant="secondary" class="flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" onClick={(event) => { event.preventDefault(); local.onCancel?.(); close() }}>{local.cancelText ?? 'Cancel'}</Button>
-            <Button type="button" variant="primary" class="flex-1 justify-center" value="confirm" data-test-id="dialog-confirm-btn" onClick={(event) => { event.preventDefault(); local.onConfirm?.(); close() }}>{local.confirmText ?? 'Confirm'}</Button>
+          <footer class="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><menu class="flex flex-col-reverse gap-3 sm:flex-row">
+            <Button type="button" variant="secondary" class="min-h-11 flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" onClick={(event) => { event.preventDefault(); local.onCancel?.(); close() }}>{local.cancelText ?? 'Cancel'}</Button>
+            <Button type="button" variant={local.danger ? 'danger' : 'primary'} class="min-h-11 flex-1 justify-center" value="confirm" data-test-id="dialog-confirm-btn" onClick={(event) => { event.preventDefault(); local.onConfirm?.(); close() }}>{local.confirmText ?? 'Confirm'}</Button>
           </menu></footer>
         </form>
       </Dialog>

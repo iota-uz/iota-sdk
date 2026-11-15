@@ -715,6 +715,26 @@ func TestDashboardDocumentValidate_Radial(t *testing.T) {
 	}
 }
 
+func TestDashboardDocumentValidate_TableLevelSkipsPartitionValueCheck(t *testing.T) {
+	t.Parallel()
+
+	doc := testDocument()
+	doc.Perspectives = []Perspective{{
+		ID: "p", ExplorerID: "e", BranchKey: "b", Key: "p", Label: "P", Semantics: SemanticsPartition, Root: "root",
+	}}
+	doc.Frames["records"] = Frame{
+		Columns: []Column{{Name: "id", Type: ColumnString}, {Name: "policy", Type: ColumnString}},
+		Rows:    [][]any{{"1", "P-1"}},
+	}
+	doc.Drill.Edges["root"] = Level{
+		Path: NodePath{"root"}, Children: []Node{}, Perspectives: []PerspectiveRef{{ID: "p"}},
+		Frame: "records", View: PanelKindTable, Encoding: &Encoding{ID: "id"},
+		Table: &LevelTable{Columns: []TableColumn{{Field: "policy", Label: "Policy", Cell: TableCell{Kind: TableCellPlain}}}, Actions: []Action{}},
+	}
+
+	require.NoError(t, doc.Validate(), "a records table has no value field to partition by")
+}
+
 func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 	t.Parallel()
 
@@ -722,12 +742,49 @@ func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 		return Level{Path: NodePath{"root"}, Children: []Node{}, Perspectives: []PerspectiveRef{}}
 	}
 
-	t.Run("level view must be a chart kind", func(t *testing.T) {
+	t.Run("level view must be a chart kind or table", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindStat
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), "view must be a chart kind or table")
+	})
+	t.Run("level table view accepted with its table", func(t *testing.T) {
 		doc := testDocument()
 		level := bareLevel()
 		level.View = PanelKindTable
+		level.Table = &LevelTable{Actions: []Action{}}
 		doc.Drill.Edges["root"] = level
-		require.ErrorContains(t, doc.Validate(), "view must be a chart kind")
+		require.NoError(t, doc.Validate())
+	})
+	t.Run("level table rejects an action the client does not know", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindTable
+		level.Table = &LevelTable{Actions: []Action{{Kind: "invalid"}}}
+		doc.Drill.Edges["root"] = level
+		require.Error(t, doc.Validate())
+	})
+	t.Run("level table columns and formats must name the level frame's fields", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindTable
+		level.Frame = "mixed"
+		doc.Frames["mixed"] = Frame{Columns: []Column{{Name: "label", Type: ColumnString}}, Rows: [][]any{}}
+		level.Table = &LevelTable{Columns: []TableColumn{{Field: "missing", Label: "Missing"}}, Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), `references missing field "missing"`)
+		level.Table = &LevelTable{Format: map[string]FieldFormat{"gone": {}}, Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), `table format references missing field "gone"`)
+	})
+	t.Run("level table needs the table view", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindBar
+		level.Table = &LevelTable{Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), "declares a table but its view is")
 	})
 	t.Run("level chart view accepted", func(t *testing.T) {
 		doc := testDocument()

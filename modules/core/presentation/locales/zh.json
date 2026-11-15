@@ -173,11 +173,17 @@
     }
   },
   "Common": {
+    "ShowPassword": "显示密码",
     "CloseNotification": "关闭通知",
     "TabNavigation": "标签导航",
     "Loading": "加载中...",
     "LoadFailed": "无法加载数据",
-    "Retry": "重试"
+    "Retry": "重试",
+    "Close": "关闭",
+    "SaveFailed": "无法保存",
+    "NetworkError": "无法连接到服务器",
+    "NetworkErrorHint": "请检查网络连接后重试。",
+    "TogglePassword": "显示密码"
   },
   "ConfirmDelete": "您确定要删除此项吗？",
   "Countries": {
@@ -478,6 +484,7 @@
       "DeleteConfirmation": "您确定要删除此组吗？"
     },
     "History": {
+      "Resource": "组",
       "Created": {
         "Title": "已创建组",
         "Summary": "已创建一个组"
@@ -517,6 +524,25 @@
     "Error": {
       "ValidationError": "验证错误"
     }
+  },
+  "Currencies": {
+    "USD": "美元",
+    "EUR": "欧元",
+    "TRY": "土耳其里拉",
+    "GBP": "英镑",
+    "RUB": "俄罗斯卢布",
+    "JPY": "日元",
+    "CNY": "人民币",
+    "UZS": "乌兹别克斯坦苏姆",
+    "AUD": "澳大利亚元",
+    "CAD": "加拿大元",
+    "CHF": "瑞士法郎"
+  },
+  "FormValidation": {
+    "Required": "请填写此字段。",
+    "InvalidEmail": "请输入有效的电子邮箱地址。",
+    "InvalidUrl": "请输入有效的网址。",
+    "InvalidFormat": "请使用所需的格式。"
   },
   "Login": {
     "Meta": {
@@ -678,9 +704,11 @@
 			"Logout": "退出登录",
 			"CurrentAccount": "当前账户",
 			"AddAccount": "添加账户",
-			"LogoutCurrent": "退出当前账户",
+			"LogoutCurrent": "退出登录",
 			"LogoutAll": "退出所有账户",
-      "Settings": "设置"
+      "Settings": "设置",
+      "Theme": "主题",
+      "OpenMenu": "打开菜单"
     },
     "Departments": "部门"
   },
@@ -879,6 +907,10 @@
     }
   },
   "Permissions": {
+    "NotificationRules": {
+      "Read": "查看通知设置",
+      "Manage": "管理通知设置"
+    },
     "User": {
       "Create": "创建用户",
       "Read": "查看用户",
@@ -962,6 +994,8 @@
   },
   "Remove": "移除",
   "Resources": {
+    "department": "部门",
+    "notification_rules": "通知设置",
     "bichat": "BI-聊天",
     "user": "用户",
     "role": "角色",
@@ -1002,6 +1036,7 @@
       "DeleteConfirmation": "您确定要删除此角色吗？"
     },
     "History": {
+      "Resource": "角色",
       "Created": {
         "Title": "已创建角色",
         "Summary": "已创建一个角色"
@@ -1030,6 +1065,9 @@
       "NoDataTitle": "无可用数据",
       "NoDataDescription": "此表没有可用数据。",
       "NothingFound": "未找到任何内容",
+      "NothingFoundDescription": "请尝试更改搜索或筛选条件。",
+      "MoreActions": "更多操作",
+      "SortBy": "排序方式",
       "TableSettings": "表格设置",
       "ResetSettings": "重置设置",
       "Columns": "列",
@@ -1039,7 +1077,11 @@
     },
     "Filters": {
       "Title": "筛选器",
-      "SelectAll": "全选"
+      "SelectAll": "全选",
+      "Apply": "应用",
+      "Reset": "重置",
+      "Active": "已启用的筛选器",
+      "RemoveChip": "移除筛选器"
     },
     "FilterBuilder": {
       "AddFilter": "添加筛选",
@@ -1244,6 +1286,7 @@
 			"TemporaryPasswordPlaceholder": "留空则自动生成",
 			"TemporaryPasswordHint": "用户使用它登录一次后设置自己的密码。有效期 72 小时。",
       "EditUser": "编辑用户",
+      "Edit": "编辑",
       "FirstName": "名",
       "LastName": "姓",
       "MiddleName": "中间名",
@@ -1315,6 +1358,7 @@
       "RevokeFailed": "撤销会话失败"
     },
     "History": {
+      "Resource": "用户",
       "Created": {
         "Title": "已创建用户",
         "Summary": "已创建一个用户账户"
@@ -1550,6 +1594,7 @@
       "ParentNotFound": "未找到所选的上级部门。"
     },
     "History": {
+      "Resource": "部门",
       "Created": {
         "Title": "已创建部门",
         "Summary": "组织结构中已添加一个部门"
@@ -1644,6 +1689,19 @@
     "PermissionManageDescription": "启用事件、选择接收者并发送测试通知",
     "Level": "重要程度",
     "DefaultLevel": "事件默认值",
+    "Channels": "投递渠道",
+    "Channel": "渠道",
+    "ChannelInApp": "应用内",
+    "ChannelEmail": "电子邮件",
+    "ChannelSMS": "短信",
+    "ChannelPush": "推送",
+    "UserChannels": "按人员设置渠道",
+    "UserChannelsIntro": "为特定人员开启或关闭投递渠道。取消勾选的渠道在所有事件中都会对其跳过。",
+    "SearchPeople": "按姓名搜索",
+    "Search": "搜索",
+    "NoPeople": "未找到人员。",
+    "UserChannelsSaved": "渠道已保存。",
+    "InvalidChannels": "无法保存渠道。",
     "DynamicRecipients": "同时通知",
     "Unavailable": "不可用",
     "Queued": "已加入发送队列，共 {{.Count}} 位接收者。",
@@ -1672,6 +1730,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "用户职位",
       "Created": {
         "Title": "已创建职位",
         "Summary": "已为用户在部门中设置职位"

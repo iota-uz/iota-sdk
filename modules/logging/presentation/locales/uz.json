@@ -8,6 +8,11 @@
 		}
 	},
 	"BusinessHistory": {
+		"Resources": {
+			"Permission": "Ruxsatlar",
+			"Upload": "Fayllar",
+			"ImportItem": "Import elementlari"
+		},
 		"Events": {
 			"LegacyActionLog": {
 				"Title": "Avvalgi jurnaldagi amal",
@@ -30,15 +35,13 @@
 			"Subtitle": "Sizga ochiq resurslar bo'yicha biznes amallar"
 		},
 		"Filters": {
-			"From": "Dan",
-			"To": "Gacha",
+			"Period": "Davr",
+			"OtherActions": "Boshqa harakatlar",
 			"Resource": "Resurs",
 			"Action": "Amal",
 			"Channel": "Kanal",
 			"Outcome": "Natija",
 			"Actor": "Bajaruvchi",
-			"Any": "Istalgan",
-			"Apply": "Qo'llash",
 			"Clear": "Filtrlarni tozalash"
 		},
 		"Channels": {

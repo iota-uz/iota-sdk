@@ -73,6 +73,7 @@
       "Kinds": {
         "_ACT": "Acceptance act",
         "_DELIVERY_NOTE": "Delivery note",
+        "_PROTOCOL": "Acceptance protocol",
         "_OTHER": "Other document"
       },
       "Statuses": {
@@ -82,9 +83,14 @@
       },
       "Status": "Status",
       "History": {
+        "Resource": "Acceptance documents",
         "Created": {
           "Title": "Acceptance document created",
           "Summary": "A draft acceptance document was added to the project"
+        },
+        "Updated": {
+          "Title": "Acceptance document updated",
+          "Summary": "The document fields were changed"
         },
         "Signed": {
           "Title": "Acceptance document signed",
@@ -98,9 +104,22 @@
           "Title": "Acceptance document deleted",
           "Summary": "The document was removed from the project"
         }
+      },
+      "Documents": "Documents",
+      "Edit": "Edit",
+      "EditTitle": "Edit document",
+      "SignedOn": "Signed on",
+      "SignedOnHint": "The signing date recognises the amount as revenue. Leave it empty while the document is not signed: it stays a draft.",
+      "NumberPlaceholder": "ACT-001",
+      "CurrencyLocked": "All documents of this project are in one currency.",
+      "Toasts": {
+        "created": "Document added",
+        "updated": "Document saved",
+        "deleted": "Document deleted"
       }
     },
     "History": {
+      "Resource": "Projects",
       "Created": {
         "Title": "Project created",
         "Summary": "A new project was added"
@@ -113,6 +132,9 @@
         "Title": "Project deleted",
         "Summary": "The project was removed"
       }
+    },
+    "Errors": {
+      "InvalidAmount": "Enter a number, for example 15 000 000.50"
     }
   },
   "ProjectStages": {
@@ -155,6 +177,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this project stage?"
     },
     "History": {
+      "Resource": "Project stages",
       "Created": {
         "Title": "Project stage created",
         "Summary": "A new stage was added to the project"

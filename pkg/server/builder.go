@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
@@ -119,7 +120,8 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, rt.Pool),
-		middleware.ProvideLocalizer(rt.App.Bundle(), rt.App.GetSupportedLanguages()),
+		middleware.ProvideLocalizer(rt.App.Bundle(), rt.App.GetSupportedLanguages(), middleware.LocaleOptions{DefaultLanguage: application.DefaultLanguageOf(rt.App)}),
+		middleware.ProvideLocation(application.LocationOf(rt.App)),
 		middleware.TracedMiddleware("cors"),
 		middleware.Cors(cfg.corsOrigins...),
 	)

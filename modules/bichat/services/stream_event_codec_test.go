@@ -127,3 +127,13 @@ func TestEncodeRunEventFromChunk_EmptyTypeFallsBackToChunk(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &decoded))
 	assert.Equal(t, "chunk", decoded.Type, "payload.Type must equal the resolved event name including the fallback")
 }
+
+func TestSanitizeChunkError_UnknownTerminalErrorUsesStableCode(t *testing.T) {
+	t.Parallel()
+
+	chunk := bichatservices.StreamChunk{
+		Type:  bichatservices.ChunkTypeError,
+		Error: errors.New("Executor.Execute: internal failure"),
+	}
+	assert.Equal(t, StreamFailedError, sanitizeChunkError(chunk))
+}

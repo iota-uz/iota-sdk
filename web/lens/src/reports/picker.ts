@@ -18,6 +18,29 @@ export type ReportDestination = Destination
 export interface ReportCatalogHost {
   search(query: CatalogQuery, options: { signal: AbortSignal }): Promise<CatalogPage>
   preview?(entry: CatalogEntry, options: { signal: AbortSignal }): Promise<DashboardDocument>
+  /**
+   * Builds one new report from a plain-language description and stores it as
+   * the reader's personal report; resolves with its catalog entry. Providing it
+   * turns on the picker's "Create with AI" section. A rejection's message is
+   * shown to the reader, so it must be presentable; an abort (the reader
+   * pressed Stop or left) is not an error. The picker adds nothing to the draft
+   * itself: it selects the entry and the reader confirms as for any report.
+   */
+  generate?(request: ReportCardGenerateRequest, options: ReportCardGenerateOptions): Promise<CatalogEntry>
+}
+
+/** What the reader described, and the composition the card would join. */
+export interface ReportCardGenerateRequest {
+  prompt: string
+  target: string
+}
+
+/** The host's progress, in order; any may be skipped. */
+export type ReportCardGenerateStage = 'starting' | 'schema' | 'generating' | 'validating'
+
+export interface ReportCardGenerateOptions {
+  signal: AbortSignal
+  onStage?: (stage: ReportCardGenerateStage) => void
 }
 
 /** One chosen report. duplicate marks a deliberate second card of a report the target already places. */
