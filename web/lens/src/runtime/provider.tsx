@@ -30,6 +30,7 @@ import {
 import {
   dynamicParentPath,
   isPerspectiveFork,
+  isTableLevel,
   levelForPath,
   panelForNavigation,
   pathResolves,
@@ -780,6 +781,11 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // is the reactive mirror the UI reads. `docVersion` fires on every swap.
   let resolvedDoc = withInlineFrameChildren(props.document)
   const [docVersion, bumpDocVersion] = createSignal(0, { equals: false })
+  // Fires only when the host swaps the source document. Merging a lazy level's
+  // children also bumps `docVersion`, but must not replace the query client:
+  // a fresh client has an empty cache, so the level is asked again, answers
+  // again, merges again — an endless request loop.
+  const [sourceVersion, bumpSourceVersion] = createSignal(0, { equals: false })
   // The store's document is a detached copy: store setters (reconcile in
   // particular) write into their raw object, and the raw must never be the
   // caller's document, whose objects are shared with hosts and caches. Plain
@@ -801,6 +807,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   })
   createEffect(on(() => props.document, (source) => {
     resolvedDoc = withInlineFrameChildren(source)
+    bumpSourceVersion(0)
     bumpDocVersion(0)
     setDashboard('document', reconcile(resolvedDoc))
   }))
@@ -1097,7 +1104,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const endpoint = resolvedDoc.endpoints.query
     const csrf = props.csrf
     const fetcher = props.fetcher
-    void docVersion()
+    void sourceVersion()
     return endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined
   })
   const panelClient = createMemo(() => {
@@ -1137,7 +1144,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const request: QueryRequest = {
       ...requestFor(source, queryView),
       prefetch: true,
-      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' || isTableLevel(source, queryView.path) ? { page: 1 } : {}),
     }
     const controller = new AbortController()
     void client.query(request, { signal: controller.signal }).then((response) => {
@@ -1393,7 +1400,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const perspective = doc.perspectives.find(({ id }) => id === currentNavigation.perspectiveId)
     const request = {
       ...requestFor(doc, currentNavigation),
-      ...(panel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+      ...(panel.kind === 'table' || perspective?.semantics === 'evidence' || isTableLevel(doc, currentNavigation.path) ? { page: 1 } : {}),
     }
     const force = forceRetry
     forceRetry = false

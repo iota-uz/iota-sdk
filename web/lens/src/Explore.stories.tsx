@@ -194,6 +194,62 @@ export const AwaitingPerspectiveDark = () => <AtFork theme="dark" />
 AwaitingPerspectiveDark.storyName = 'Level fork awaits a view - dark'
 
 /**
+ * A table as the last level of a chart perspective: the source records behind
+ * the selected slice, with their own columns and the row action, reached
+ * through the same path as the chart levels above it.
+ */
+const tableLevelKey = 'profitability/operating-margin/composition/transactions'
+const tableLevelPath = [
+  'profitability',
+  'profitability/operating-margin',
+  'profitability/operating-margin/composition',
+  tableLevelKey,
+]
+
+const tableLevelDocument = parseDocument({
+  ...fixture,
+  drill: {
+    ...fixture.drill,
+    edges: {
+      ...fixture.drill.edges,
+      [tableLevelKey]: {
+        ...fixture.drill.edges[tableLevelKey as keyof typeof fixture.drill.edges],
+        label: 'Source transactions',
+        view: 'table',
+        table: {
+          columns: [
+            { field: 'label', label: 'Transaction', cell: { kind: 'plain' } },
+            { field: 'value', label: 'Amount', align: 'right', total: true, cell: { kind: 'plain' } },
+          ],
+          format: { value: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 } },
+          actions: fixture.panels[0]!.actions,
+        },
+      },
+    },
+  },
+})
+
+function AtTableLevel(props: { theme: 'light' | 'dark' }): JSX.Element {
+  window.history.replaceState(null, '', navigationToURL(
+    { panelId: tableLevelDocument.panels[0]!.id, path: tableLevelPath, perspectiveId: 'profitability/operating-margin/composition' },
+    new URL(window.location.href),
+  ))
+  return (
+    <div class="lens-root" data-theme={props.theme}>
+      <DocumentProvider initialDocument={tableLevelDocument}>
+        <DashboardRuntimeProvider locale="en">{() => <DashboardPanels />}</DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const TableLevelLight = () => <AtTableLevel theme="light" />
+TableLevelLight.storyName = 'Table as the last level - light'
+
+export const TableLevelDark = () => <AtTableLevel theme="dark" />
+TableLevelDark.storyName = 'Table as the last level - dark'
+
+/**
  * The contextual card as it stands when a chart segment is clicked: the
  * statistics header (color swatch, value, share of the total), the promoted
  * expansion, the quiet copy control, the perspective pills, and the caret that

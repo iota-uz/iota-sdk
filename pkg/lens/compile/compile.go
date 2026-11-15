@@ -682,6 +682,7 @@ func resolveQuerySpec(spec lens.QuerySpec, values map[string]any) (lens.QuerySpe
 func resolveParamValue(spec lens.ParamValue, values map[string]any) (lens.ParamValue, error) {
 	resolved := lens.ParamValue{
 		Variable: resolveString(spec.Variable, values),
+		Part:     spec.Part,
 	}
 	if !isNilValue(spec.Literal) {
 		value, err := resolveValueRefs(spec.Literal, values)

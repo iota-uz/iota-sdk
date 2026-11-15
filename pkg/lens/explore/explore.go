@@ -53,10 +53,11 @@ type Node struct {
 	DynamicTargets  []string         `json:"dynamicTargets,omitempty"`
 	DynamicChildren *DynamicChildren `json:"dynamicChildren,omitempty"`
 	Check           *BalanceCheck    `json:"check,omitempty"`
-	// View, when set, names the chart kind the wire runtime should render this
-	// level with, instead of the drill host panel's own kind. Empty keeps
-	// today's host-kind rendering; the document contract restricts it to chart
-	// kinds (no tables or metric panels).
+	// View, when set, names the kind the wire runtime should render this level
+	// with, instead of the drill host panel's own kind. Empty keeps today's
+	// host-kind rendering. The document contract restricts it to chart kinds
+	// and to table: a table level (panel.KindTable) lists the source records
+	// behind the selected path. It needs a table panel and is terminal.
 	View panel.Kind `json:"view,omitempty"`
 	// Presentation, when set, carries opt-in rendering hints for this level.
 	Presentation *panel.PresentationHints `json:"presentation,omitempty"`
@@ -79,6 +80,16 @@ type SourceData struct {
 	Panel panel.Spec `json:"panel"`
 }
 
+// DynamicChildren derives a level's drill targets from the rows it loads: one
+// child per row, keyed and labelled by the Key and Label fields.
+//
+// A row either drills deeper (Target names the node) or is terminal (Action is
+// followed). A terminal Action's URL is a template: only `{name}` placeholders
+// matching the action's own params are substituted, and params are never
+// appended to the URL on their own, so a link without `{name}` for a param
+// silently drops that value. Carry a slice in the address as
+//
+//	open := action.Navigate("/records?slice={slice}", action.FieldParam("slice", "slice"))
 type DynamicChildren struct {
 	Key    action.ValueSource  `json:"key"`
 	Label  action.ValueSource  `json:"label"`
@@ -217,6 +228,19 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 		case "", "GET", "POST":
 		default:
 			return fmt.Errorf("explorer %s branch %s perspective %s node %s load has unsupported method %q", explorerID, branchKey, perspectiveKey, n.Key, n.Load.Method)
+		}
+	}
+	if n.View == panel.KindTable {
+		if n.Panel == nil || n.Panel.Kind != panel.KindTable {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s table view requires a table panel", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if len(n.DynamicTargets) > 0 {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s table view is terminal and cannot have dynamic targets", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		for _, edge := range n.Edges {
+			if edge.ToNode != "" {
+				return fmt.Errorf("explorer %s branch %s perspective %s node %s table view is terminal and cannot lead to node %q", explorerID, branchKey, perspectiveKey, n.Key, edge.ToNode)
+			}
 		}
 	}
 	if n.Check != nil {

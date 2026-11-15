@@ -1464,7 +1464,10 @@ func (d *DashboardDocument) validateDrill() error {
 		}
 		owner := fmt.Sprintf("drill level %q", key)
 		if level.View != "" && !validLevelView(level.View) {
-			return fmt.Errorf("%s view must be a chart kind, got %q", owner, level.View)
+			return fmt.Errorf("%s view must be a chart kind or table, got %q", owner, level.View)
+		}
+		if level.Table != nil && level.View != PanelKindTable {
+			return fmt.Errorf("%s declares a table but its view is %q", owner, level.View)
 		}
 		if err := validatePresentation(owner, level.Presentation); err != nil {
 			return err
@@ -1917,15 +1920,16 @@ func validPanelKind(kind PanelKind) bool {
 }
 
 // validLevelView reports whether a drill level may declare kind as its own
-// visualization: only chart kinds qualify. Tables live behind LevelSource, and
-// stat/metric kinds carry configs a level cannot supply.
+// visualization: chart kinds and table qualify. A table level carries its
+// columns in Level.Table; stat/metric kinds carry configs a level cannot
+// supply.
 func validLevelView(kind PanelKind) bool {
 	switch kind {
 	case PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindGauge, PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap,
-		PanelKindCascade, PanelKindCoverage:
+		PanelKindCascade, PanelKindCoverage, PanelKindTable:
 		return true
-	case PanelKindStat, PanelKindTable, PanelKindMetricFlow, PanelKindMetricHierarchy,
+	case PanelKindStat, PanelKindMetricFlow, PanelKindMetricHierarchy,
 		PanelKindMetricRelationship, PanelKindMap:
 		return false
 	}

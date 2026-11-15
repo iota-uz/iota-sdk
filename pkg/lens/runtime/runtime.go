@@ -969,6 +969,10 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values, timezone string
 	startKey, endKey := dateRangeRequestKeys(spec)
 	startRaw := values.Get(startKey)
 	endRaw := values.Get(endKey)
+	// The period widget's "all time" is both boundaries submitted but empty.
+	if spec.AllowAllTime && startRaw == "" && endRaw == "" && values.Has(startKey) && values.Has(endKey) {
+		return lens.DateRangeValue{Mode: "all"}
+	}
 	if startRaw != "" && endRaw != "" {
 		location := requestLocation(timezone)
 		start, startErr := time.ParseInLocation("2006-01-02", startRaw, location)
@@ -1055,6 +1059,12 @@ func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) m
 	for key, spec := range specs {
 		if spec.Variable != "" {
 			value := variables[spec.Variable]
+			if spec.Part != "" {
+				if part, ok := lens.ResolveRangePart(value, spec.Part); ok {
+					out[key] = part
+					continue
+				}
+			}
 			if comparison, ok := value.(lens.CompareValue); ok {
 				value = comparison.Range
 			}

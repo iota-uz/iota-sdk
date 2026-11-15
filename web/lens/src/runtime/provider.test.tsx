@@ -719,6 +719,35 @@ describe('DashboardRuntimeProvider', () => {
     expect(await screen.findByText('2,025')).toBeInTheDocument()
   })
 
+  it('asks a lazy dynamic level once and settles after merging its children', async () => {
+    window.history.replaceState(null, '', '/?panel=total&path=root')
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
+      frames: {
+        root: {
+          columns: [
+            { name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'target', type: 'string' },
+          ],
+          rows: [['year-2025', '2025', 'detail']],
+          children: [{ key: 'year-2025', path: ['root', 'year-2025'], label: '2025', target: 'detail' }],
+        },
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+    render(() =>
+      <div class="lens-root">
+        <DocumentProvider initialDocument={dynamicDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => (<>(
+            <Controls />
+            <StatPanel panel={dynamicDocument.panels[0]!} />
+            )</>)}</DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('restores the in-app history stack stored in browser history', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
     render(() =><RuntimeFixture fetcher={fetcher} />)

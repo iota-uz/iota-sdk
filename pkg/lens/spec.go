@@ -261,9 +261,83 @@ func ResolveCompareMode(spec VariableSpec, values url.Values) CompareMode {
 	return CompareOff
 }
 
+// RangePart names the piece of a date-range variable a query parameter reads.
+type RangePart string
+
+const (
+	// RangeStart is the first instant of the range.
+	RangeStart RangePart = "start"
+	// RangeEnd is the last instant of the range, inclusive. Databases that
+	// store microseconds round the end of a day up to the next midnight, so a
+	// SQL upper bound should use RangeUntil.
+	RangeEnd RangePart = "end"
+	// RangeUntil is the first instant after the range: the exclusive upper
+	// bound for `column >= @since AND column < @until`.
+	RangeUntil RangePart = "until"
+)
+
+// ParamValue is one named query parameter: a literal, or the value of a
+// dashboard variable. A date-range variable is a structure the database driver
+// cannot take, so name the part the query needs with Part (RangeParam); an
+// all-time range, which has no bounds, resolves to NULL.
 type ParamValue struct {
 	Literal  any
 	Variable string
+	Part     RangePart `json:"Part,omitempty"`
+}
+
+// VariableParam binds a query parameter to a scalar variable.
+func VariableParam(variable string) ParamValue { return ParamValue{Variable: variable} }
+
+// RangeParam binds a query parameter to one end of a date-range variable:
+//
+//	Params: map[string]lens.ParamValue{
+//		"since": lens.RangeParam("period", lens.RangeStart),
+//		"until": lens.RangeParam("period", lens.RangeUntil),
+//	}
+func RangeParam(variable string, part RangePart) ParamValue {
+	return ParamValue{Variable: variable, Part: part}
+}
+
+// ResolveRangePart reads one end of a date-range value (or of a comparison's
+// range). It returns nil for an unbounded end, so the parameter reaches SQL as
+// NULL and `@since IS NULL OR ...` expresses "all time". The second result is
+// false when value is not a date range or part is unknown.
+func ResolveRangePart(value any, part RangePart) (any, bool) {
+	if comparison, ok := value.(CompareValue); ok {
+		value = comparison.Range
+	}
+	var dateRange DateRangeValue
+	switch typed := value.(type) {
+	case DateRangeValue:
+		dateRange = typed
+	case *DateRangeValue:
+		if typed == nil {
+			return nil, false
+		}
+		dateRange = *typed
+	default:
+		return nil, false
+	}
+	switch part {
+	case RangeStart:
+		if dateRange.Start == nil {
+			return nil, true
+		}
+		return *dateRange.Start, true
+	case RangeEnd:
+		if dateRange.End == nil {
+			return nil, true
+		}
+		return *dateRange.End, true
+	case RangeUntil:
+		if dateRange.End == nil {
+			return nil, true
+		}
+		return dateRange.End.Add(time.Nanosecond), true
+	default:
+		return nil, false
+	}
 }
 
 type QuerySpec struct {

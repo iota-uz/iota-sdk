@@ -247,6 +247,11 @@ func makeTarget(explorerID, branchKey string, perspective explore.Perspective, n
 
 func isEvidence(perspective explore.Perspective, node explore.Node) bool {
 	leaf := !node.DynamicEdges
+	if node.View == panel.KindTable && len(node.DynamicTargets) == 0 {
+		// A table level whose dynamic children only carry a row action is still
+		// terminal: nothing below it to drill into.
+		leaf = true
+	}
 	for _, edge := range node.Edges {
 		if edge.ToNode != "" {
 			leaf = false

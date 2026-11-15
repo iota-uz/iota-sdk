@@ -8,6 +8,7 @@ import {
   dayLabel,
   dayOfWeek,
   daysInMonth,
+  defaultPeriodPresets,
   firstDayOfWeek,
   formatISODate,
   keyboardTarget,
@@ -239,6 +240,21 @@ describe('period presets', () => {
     expect(bounds('thisQuarter', date(2026, 5, 15))).toEqual({ start: date(2026, 4, 1), end: date(2026, 5, 15) })
     expect(bounds('thisQuarter', date(2026, 1, 1))).toEqual({ start: date(2026, 1, 1), end: date(2026, 1, 1) })
     expect(bounds('thisQuarter', date(2026, 12, 31))).toEqual({ start: date(2026, 10, 1), end: date(2026, 12, 31) })
+  })
+
+  it('resolves the previous full quarter, across the year boundary too', () => {
+    expect(bounds('lastQuarter', today)).toEqual({ start: date(2026, 4, 1), end: date(2026, 6, 30) })
+    expect(bounds('lastQuarter', date(2026, 1, 10))).toEqual({ start: date(2025, 10, 1), end: date(2025, 12, 31) })
+    expect(bounds('lastQuarter', date(2026, 12, 31))).toEqual({ start: date(2026, 7, 1), end: date(2026, 9, 30) })
+    expect(bounds('lastQuarter', date(2026, 4, 1))).toEqual({ start: date(2026, 1, 1), end: date(2026, 3, 31) })
+  })
+
+  it('lists both quarters in the built-in catalogue', () => {
+    const ids = defaultPeriodPresets.map(({ id }) => id)
+    expect(ids).toContain('thisQuarter')
+    expect(ids).toContain('lastQuarter')
+    expect(defaultPeriodPresets.find(({ id }) => id === 'thisQuarter')?.past).toBeFalsy()
+    expect(defaultPeriodPresets.find(({ id }) => id === 'lastQuarter')?.past).toBe(true)
   })
 
   it('clamps last-12-months across a month-overflow origin', () => {

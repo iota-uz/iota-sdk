@@ -284,6 +284,7 @@ export type PeriodPresetId =
   | 'last30days'
   | 'last12months'
   | 'thisQuarter'
+  | 'lastQuarter'
   | 'yearToDate'
   | 'thisYear'
   | 'lastYear'
@@ -329,6 +330,10 @@ export function resolvePreset(id: PeriodPresetId, today: CalendarDate): PeriodBo
       const quarterStartMonth = Math.floor((today.month - 1) / 3) * 3 + 1
       return { start: { year: today.year, month: quarterStartMonth, day: 1 }, end: today }
     }
+    case 'lastQuarter': {
+      const quarterStart = addMonths({ year: today.year, month: Math.floor((today.month - 1) / 3) * 3 + 1, day: 1 }, -3)
+      return { start: quarterStart, end: addDays(addMonths(quarterStart, 3), -1) }
+    }
     case 'yearToDate':
       return { start: { year: today.year, month: 1, day: 1 }, end: today }
     case 'thisYear':
@@ -354,8 +359,9 @@ export interface PeriodPresetDef {
 /**
  * The built-in preset catalog rendered when a document declares no server
  * presets. It is the legacy HTMX picker's `DefaultQuickRanges` verbatim:
- * to-date periods first (current month, 30 days, 12 months, current fiscal
- * year), then the completed past periods (last month, last fiscal year).
+ * to-date periods first (current month, 30 days, 12 months, current quarter,
+ * current fiscal year), then the completed past periods (last month, last
+ * quarter, last fiscal year). The quarters are an addition to that catalogue.
  * `allTime` is intentionally absent: the control surfaces it through its own
  * rail entry, gated on the filter's `allowEmpty`.
  */
@@ -363,8 +369,10 @@ export const defaultPeriodPresets: ReadonlyArray<PeriodPresetDef> = [
   { id: 'thisMonth', labelKey: 'filter.period.preset.thisMonth', fallback: 'Current month' },
   { id: 'last30days', labelKey: 'filter.period.preset.last30days', fallback: '30 days' },
   { id: 'last12months', labelKey: 'filter.period.preset.last12months', fallback: '12 months' },
+  { id: 'thisQuarter', labelKey: 'filter.period.preset.thisQuarter', fallback: 'Current quarter' },
   { id: 'yearToDate', labelKey: 'filter.period.preset.yearToDate', fallback: 'Current fiscal year' },
   { id: 'lastMonth', labelKey: 'filter.period.preset.lastMonth', fallback: 'Last month', past: true },
+  { id: 'lastQuarter', labelKey: 'filter.period.preset.lastQuarter', fallback: 'Last quarter', past: true },
   { id: 'lastYear', labelKey: 'filter.period.preset.lastYear', fallback: 'Last fiscal year', past: true },
 ]
 

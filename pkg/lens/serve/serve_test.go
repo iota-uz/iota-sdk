@@ -1149,6 +1149,96 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 	require.Equal(t, document.NodeKey("month-11"), snapshot.Frames["explore:metric/focus/composition:detail@2024"].Children[0].Key)
 }
 
+func TestHandlers_InlineRootLevelShipsResolvedDynamicChildren(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	spec := handlers.spec
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.Edges = nil
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	root.DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.LiteralValue("detail")),
+	}
+	handlers.spec = spec
+	executor.frames["root-panel"] = dynamicFrames(t, "month-12", "December")
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	ref := document.FrameRef("explore:metric/focus/composition:root")
+	stored, ok := doc.Frames[ref]
+	require.True(t, ok, "the root level of the perspective is inlined at depth zero")
+	require.Len(t, stored.Children, 1, "the stored frame must carry the drill targets resolved from its rows")
+	require.Equal(t, document.NodeKey("month-12"), stored.Children[0].Key)
+	require.Equal(t, "December", stored.Children[0].Label)
+	require.Equal(t, document.NodeKey("metric/focus/composition/detail"), stored.Children[0].Target)
+	require.NoError(t, doc.Validate())
+}
+
+func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 1)
+	spec := handlers.spec
+	view := &spec.Explorers[0].Branches[0].Perspectives[0]
+	recordFrames := dynamicFrames(t, "r-1", "Salary")
+	records := panel.Table("records-panel", "Records", "records-data").
+		IDField("row_id").
+		Columns(
+			panel.TableColumn{Field: "child_label", Label: "Record"},
+			panel.TableColumn{Field: "value", Label: "Amount", Total: true},
+		).
+		Action(action.Navigate("").WithFieldURL("url")).
+		Build()
+	spec.Datasets = append(spec.Datasets, staticDataset("records-data", recordFrames))
+
+	// The detail level lists the months; picking one opens the record table.
+	view.Nodes[1].Edges = nil
+	view.Nodes[1].DynamicEdges = true
+	view.Nodes[1].DynamicTargets = []string{"records"}
+	view.Nodes[1].DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"), Target: sourcePtr(action.LiteralValue("records")),
+	}
+	leaf := action.Navigate("/records/{id}", action.FieldParam("id", "row_id"))
+	view.Nodes[2] = explore.PanelNode("records", "Source records", records).
+		WithView(panel.KindTable).
+		WithDynamicChildren(explore.DynamicChildren{
+			Key: action.FieldValue("row_id"), Label: action.FieldValue("child_label"), Action: &leaf,
+		})
+	require.NoError(t, lensruntime.Validate(spec))
+	handlers.spec = spec
+	executor.frames["records-panel"] = recordFrames
+	executor.frames["detail-panel"] = dynamicFrames(t, "month-12", "December")
+	executor.pageFrames = map[string]map[int]*frame.FrameSet{"records-panel": {1: recordFrames}}
+	executor.pageHasMore = map[string]map[int]bool{"records-panel": {1: false}}
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	level := doc.Drill.Edges["metric/focus/composition/records"]
+	require.Equal(t, document.PanelKindTable, level.View)
+	require.NotNil(t, level.Table)
+	require.Equal(t, "child_label", level.Table.Columns[0].Field)
+	require.True(t, level.Table.Columns[1].Total)
+	require.NotEmpty(t, level.Table.Actions, "the table's row action travels with the level")
+	require.NoError(t, doc.Validate())
+
+	response := queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Perspective: "composition", Page: 1,
+		Path: document.NodePath{"root", "2025", "detail", "month-12", "records"},
+	})
+
+	require.NotNil(t, response.Page, "a table level is paginated like evidence")
+	require.Equal(t, 1, response.Page.Number)
+	call := executor.lastCall("records-panel")
+	require.Equal(t, "1", call.request.Request.Get(lensruntime.TablePaginationPageQuery))
+	require.Equal(t, []string{"root", "2025", "detail", "month-12", "records"}, call.request.Request["lens_explore_path"],
+		"the selected points reach the level's query")
+	for _, wire := range response.Frames {
+		require.Len(t, wire.Children, 1)
+		require.NotNil(t, wire.Children[0].Action, "each record row opens its own address")
+	}
+}
+
 func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)

@@ -122,4 +122,17 @@ describe('withFrameChildren', () => {
     const merged = withFrameChildren(dynamicDocument, ['root'], frame)
     expect(withFrameChildren(merged, ['root'], frame)).toBe(merged)
   })
+
+  it('is an identity no-op when a new array carries the same children', () => {
+    const merged = withFrameChildren(dynamicDocument, ['root'], frame)
+    const again = { ...frame, children: frame.children.map((child) => ({ ...child, path: [...child.path] })) }
+    expect(again.children).not.toBe(frame.children)
+    expect(withFrameChildren(merged, ['root'], again)).toBe(merged)
+  })
+
+  it('replaces the children when their content changes', () => {
+    const merged = withFrameChildren(dynamicDocument, ['root'], frame)
+    const changed = { ...frame, children: [{ ...frame.children[0]!, label: '2026' }] }
+    expect(withFrameChildren(merged, ['root'], changed)).not.toBe(merged)
+  })
 })

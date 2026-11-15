@@ -650,6 +650,47 @@ describe('explore navigation', () => {
     expect(screen.getByText('$284,000')).toBeInTheDocument()
   })
 
+  it('renders a table level with its own columns, formats and row action', async () => {
+    const key = 'profitability/operating-margin/composition/transactions'
+    const level = fixture.drill.edges[key as keyof typeof fixture.drill.edges]
+    const tableDocument = parseDocument({
+      ...fixture,
+      drill: {
+        ...fixture.drill,
+        edges: {
+          ...fixture.drill.edges,
+          [key]: {
+            ...level,
+            label: 'Source transactions',
+            view: 'table',
+            table: {
+              columns: [
+                { field: 'label', label: 'Transaction', cell: { kind: 'plain' } },
+                { field: 'value', label: 'Amount', align: 'right', cell: { kind: 'plain' } },
+              ],
+              format: { value: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 } },
+              actions: fixture.panels[0]!.actions,
+            },
+          },
+        },
+      },
+    })
+    const url = navigationToURL({
+      path: level.path,
+      perspectiveId: 'profitability/operating-margin/composition',
+    }, new URL(window.location.href))
+    window.history.replaceState(null, '', url)
+    renderExplore(tableDocument.panels[0], tableDocument)
+
+    const region = await screen.findByRole('region', { name: 'Source transactions' })
+    expect(region).toHaveAttribute('data-panel-kind', 'table')
+    expect(within(region).getByRole('columnheader', { name: 'Transaction' })).toBeInTheDocument()
+    expect(within(region).getByRole('columnheader', { name: 'Amount' })).toBeInTheDocument()
+    expect(within(region).getByText('$284,000')).toBeInTheDocument()
+    const links = within(region).getAllByRole('link', { name: 'Open record' })
+    expect(links[0]).toHaveAttribute('href', expect.stringContaining('/transactions/TX-1042'))
+  })
+
   it('does not attach a row action when the ID does not match a declared child', async () => {
     const evidence = fixture.drill.edges['profitability/operating-margin/evidence/root']
     const mismatchedDocument = parseDocument({

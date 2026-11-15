@@ -42,6 +42,18 @@ func TestNodeBuilder_FocusCanvasLevelDeclarations(t *testing.T) {
 	require.NoError(t, spec.Validate())
 }
 
+func TestSpecValidate_AcceptsATableLevelAsTheTerminalLevel(t *testing.T) {
+	t.Parallel()
+
+	records := panel.Table("records", "Records", "detail-data").IDField("id").
+		Columns(panel.TableColumn{Field: "label", Label: "Record"}).Terminal().Build()
+	spec := testSpec()
+	spec.Branches[0].Perspectives[0].Nodes[1] = PanelNode("detail", "Detail", records).WithView(panel.KindTable)
+
+	require.NoError(t, spec.Validate())
+	require.Equal(t, panel.KindTable, spec.Branches[0].Perspectives[0].Nodes[1].View)
+}
+
 func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 	t.Parallel()
 
@@ -92,6 +104,21 @@ func TestSpecValidate_RejectsInvalidGraphs(t *testing.T) {
 				spec.Branches[0].Perspectives[0].Nodes[0].SourceData = &SourceData{Label: "Source", Panel: audit}
 			},
 			wantErr: "source data requires a table panel",
+		},
+		{
+			name: "table view on a chart panel",
+			mutate: func(spec *Spec) {
+				spec.Branches[0].Perspectives[0].Nodes[1].View = panel.KindTable
+			},
+			wantErr: "table view requires a table panel",
+		},
+		{
+			name: "table view that leads deeper",
+			mutate: func(spec *Spec) {
+				records := panel.Table("records", "Records", "detail-data").IDField("id").Terminal().Build()
+				spec.Branches[0].Perspectives[0].Nodes[1] = PanelNode("detail", "Detail", records, ToNode("deeper", "root")).WithView(panel.KindTable)
+			},
+			wantErr: "table view is terminal",
 		},
 		{
 			name: "source data without a panel id",

@@ -135,13 +135,18 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const viewPanel = createMemo<Panel>(() => {
     const current = level()
     const encoding = current?.encoding ?? panel.encoding
+    const view = retargetPanel(panel, kind())
+    // A table level brings its own columns, formats and row action: the host
+    // panel is a chart and has none of them to retarget.
+    const table = kind() === 'table' ? current?.table : undefined
     return {
-      ...retargetPanel(panel, kind()),
+      ...view,
       title: current?.label.trim() || panel.title,
       semantics: semantics(),
       encoding,
-      format: formatsForEncoding(panel, encoding),
-    }
+      format: { ...formatsForEncoding(panel, encoding), ...table?.format },
+      ...(table ? { columns: table.columns, actions: table.actions } : {}),
+    } as Panel
   })
   const breadcrumbs = createMemo(() => breadcrumbsForNavigation(document, panel, navigation))
   let focusRef: HTMLDivElement | undefined

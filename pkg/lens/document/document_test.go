@@ -722,12 +722,28 @@ func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 		return Level{Path: NodePath{"root"}, Children: []Node{}, Perspectives: []PerspectiveRef{}}
 	}
 
-	t.Run("level view must be a chart kind", func(t *testing.T) {
+	t.Run("level view must be a chart kind or table", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindStat
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), "view must be a chart kind or table")
+	})
+	t.Run("level table view accepted with its table", func(t *testing.T) {
 		doc := testDocument()
 		level := bareLevel()
 		level.View = PanelKindTable
+		level.Table = &LevelTable{Actions: []Action{}}
 		doc.Drill.Edges["root"] = level
-		require.ErrorContains(t, doc.Validate(), "view must be a chart kind")
+		require.NoError(t, doc.Validate())
+	})
+	t.Run("level table needs the table view", func(t *testing.T) {
+		doc := testDocument()
+		level := bareLevel()
+		level.View = PanelKindBar
+		level.Table = &LevelTable{Actions: []Action{}}
+		doc.Drill.Edges["root"] = level
+		require.ErrorContains(t, doc.Validate(), "declares a table but its view is")
 	})
 	t.Run("level chart view accepted", func(t *testing.T) {
 		doc := testDocument()

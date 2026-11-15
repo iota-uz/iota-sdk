@@ -21,7 +21,7 @@ export {
   parseDocument,
   type DashboardDocument,
 } from './contract'
-export type { LensThemeMode } from './runtime'
+export type { LensThemeMode, LensThemeSetting } from './runtime'
 export { LensMessagesProvider } from './runtime'
 
 export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition, ReportRevisionConflictError, reportDraftToken } from './reports/draft'
