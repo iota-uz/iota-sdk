@@ -438,3 +438,16 @@ func TestMethodologyFormulaCells(t *testing.T) {
 	require.Equal(t, "", rows[2][3])
 	require.Equal(t, "", rows[3][3])
 }
+
+func TestMethodologyUnavailableStageSuppressesFallbackValue(t *testing.T) {
+	t.Parallel()
+	flow := mustFrames(t, "flow",
+		frame.Field{Name: "stage_id", Values: []any{"net"}},
+		frame.Field{Name: "amount", Values: []any{5.0}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Availability: panel.AvailabilityUnavailable,
+		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
+	require.Equal(t, "", rows[1][3])
+}

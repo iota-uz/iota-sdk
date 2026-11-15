@@ -88,7 +88,9 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 			return nil, false
 		}
 		if stageUnavailable(result.Panel, primary, variable.Ref.Name, match) {
-			return nil, false
+			// An empty cell that wins over a supplied fallback value: the
+			// stage cannot have a number in this slice.
+			return "", true
 		}
 		return exportable(valueField.Values[match], result.Panel, *valueField)
 	}
