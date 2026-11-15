@@ -400,7 +400,7 @@
     "version": "0.45.0",
     "source": "f25759be0abe946d61f62cf375e23557e5d22a22",
     "sha": "d1ef3a9e70305de6c47ada98f1fc629c54816773",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "43766946466"
   },
   "ready": {
