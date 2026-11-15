@@ -403,9 +403,9 @@ func TestMethodologyStageVariableByKey(t *testing.T) {
 		}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
 	require.Len(t, rows, 4)
-	require.Equal(t, 300.0, rows[1][3].(formattedValue).Value)
-	require.Equal(t, 1000.0, rows[2][3].(formattedValue).Value)
-	require.Equal(t, "", rows[3][3])
+	require.InDelta(t, 300.0, rows[1][3].(formattedValue).Value, 1e-9)
+	require.InDelta(t, 1000.0, rows[2][3].(formattedValue).Value, 1e-9)
+	require.Empty(t, rows[3][3])
 }
 
 func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
@@ -418,7 +418,7 @@ func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
 		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
 		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
-	require.Equal(t, "", rows[1][3])
+	require.Empty(t, rows[1][3])
 }
 
 func TestMethodologyFormulaCells(t *testing.T) {
@@ -434,9 +434,9 @@ func TestMethodologyFormulaCells(t *testing.T) {
 		{Key: "c", Ref: &formula.Ref{Kind: formula.RefField, Name: "c"}},
 	}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
-	require.Equal(t, 7.0, rows[1][3].(formattedValue).Value)
-	require.Equal(t, "", rows[2][3])
-	require.Equal(t, "", rows[3][3])
+	require.InDelta(t, 7.0, rows[1][3].(formattedValue).Value, 1e-9)
+	require.Empty(t, rows[2][3])
+	require.Empty(t, rows[3][3])
 }
 
 func TestMethodologyUnavailableStageSuppressesFallbackValue(t *testing.T) {
@@ -449,7 +449,7 @@ func TestMethodologyUnavailableStageSuppressesFallbackValue(t *testing.T) {
 		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
 		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
-	require.Equal(t, "", rows[1][3])
+	require.Empty(t, rows[1][3])
 }
 
 func TestMethodologyHierarchyRowAvailabilityAndEmptyFormulaFallback(t *testing.T) {
@@ -467,6 +467,6 @@ func TestMethodologyHierarchyRowAvailabilityAndEmptyFormulaFallback(t *testing.T
 			{Key: "f", Value: "77", Ref: &formula.Ref{Kind: formula.RefField, Name: "f"}},
 		}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
-	require.Equal(t, "", rows[1][3])
-	require.Equal(t, "", rows[2][3])
+	require.Empty(t, rows[1][3])
+	require.Empty(t, rows[2][3])
 }

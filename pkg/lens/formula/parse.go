@@ -297,7 +297,7 @@ func (p *parser) htmlData() (*node, error) {
 		return nil, fmt.Errorf("\\htmlData needs key=value")
 	}
 	for _, r := range key {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-') {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' {
 			return nil, fmt.Errorf("\\htmlData key %q is not allowed", key)
 		}
 	}
