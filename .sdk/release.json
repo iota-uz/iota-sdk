@@ -1,0 +1,14 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add Lens methodology formulas: optional LaTeX formula on measures and panels with per-calculation variable values, shared lazy KaTeX module, \u003clens-formula\u003e element, print methodology block and Excel Methodology sheet."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens: a table level of an explorer returns and draws its footer total (QueryResponse.Summary, runtime.PanelResult.TableTotals / ApplyTableTotals); screen-reader labels (period steps, quality chips, export errors) are translated in the built-in ru and uz catalogues, and the SDK's English baseline no longer hides built-in translations for those locales (document.RuntimeI18nDefaultsFor); tables narrow and wrap to their container before they scroll."
+    }
+  ],
+  "source": "f25759be0abe946d61f62cf375e23557e5d22a22",
+  "version": "0.45.0"
+}
