@@ -486,7 +486,6 @@ function SummaryVoid() {
   return (
     <span class="lens-table-summary-void">
       <span aria-hidden="true">—</span>
-      {/* TODO(i18n): register `table.notSummable` (en «Not summable», ru «Не суммируется»). */}
       <span class="lens:sr-only">{translate('table.notSummable', 'Not summable')}</span>
     </span>
   )
@@ -674,8 +673,10 @@ export function TablePanel(props: TablePanelProps) {
       const tableWidth = table?.scrollWidth || scroller.scrollWidth
       // The trailing spacer is part of the table's real scroll box, but must
       // not create overflow on a table whose data columns fit. Remove its
-      // known width when deciding whether the spacer remains necessary.
-      const contentWidth = Math.max(0, tableWidth - (untrack(hasHorizontalOverflow) ? stickyWidth : 0))
+      // measured width when deciding whether the spacer remains necessary, or
+      // the spacer's own width would read as overflow and keep it on forever.
+      const spacerWidth = scroller.querySelector<HTMLElement>('thead th.lens-table-scroll-spacer')?.offsetWidth ?? 0
+      const contentWidth = Math.max(0, tableWidth - spacerWidth)
       const overflowing = contentWidth > scroller.clientWidth + 1
       setHasHorizontalOverflow((current) => current === overflowing ? current : overflowing)
       // A translated sticky first column contributes its width to Chromium's

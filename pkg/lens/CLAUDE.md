@@ -252,12 +252,31 @@ URLs or reintroduce `PanelBasePath`.
   `explore.PanelNode(key, label, tableSpec).WithView(panel.KindTable)`. It is
   terminal, receives the selected path like a chart level, paginates, and ships
   its columns, formats and row action as `Level.table`.
+- A column declared with `Total: true` gets a footer under the level table. The
+  `/lens/query` response carries it as `summary`. When the host returned every
+  row of the selection, Lens sums them; when the host loads one page at a time
+  (`TablePagination` with more rows or a page after the first), the page's sum
+  is not the selection's, so the footer shows a total only for columns the host
+  supplies with `runtime.ApplyTableTotals(result, panelID, map[string]float64{"amount": total})`
+  and the other totalled columns show an em dash.
 - `DynamicChildren.Action` URLs substitute only `{name}` placeholders matching
   the action's own params; params are never appended to the address.
 - Colour a company's own categories from `color.Categories()` (twelve colours
   without red, grey or green) and use `color.Positive`, `color.Negative` and
   `color.Neutral` for meaning. `SemanticColors("literal", field)` on a bar or
   horizontal bar paints each row in its own colour without `ColorByCategory`.
+
+## Runtime translations
+
+Chrome text (including every `aria-label`, `title` and screen-reader-only string)
+is looked up as host `document.i18n`, then the runtime's built-in catalogue for
+the document locale (`web/lens/src/runtime/messages.ts`: `ru`, `uz`), then the
+English call-site text. A new key needs a Go constant in `document/i18n.go`, its
+entry in `RuntimeI18nKeys`, and `ru` and `uz` entries in `messages.ts`.
+`serve` seeds `document.i18n` with `RuntimeI18nDefaults()` only for locales the
+runtime cannot translate itself (`RuntimeI18nDefaultsFor`); seeding English into
+a `ru` document would hide the built-in Russian text. A host that passes its own
+`BuildOptions.I18n` replaces the seed and owns the wording.
 
 ## Performance Profiling
 

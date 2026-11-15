@@ -1,6 +1,9 @@
 package document
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -48,4 +51,35 @@ func TestRuntimeI18nDefaultsCoverReportPickerAndEditor(t *testing.T) {
 	require.Contains(t, defaults[I18nReportEditorAdded], "{count}")
 	require.Contains(t, defaults[I18nReportEditorImpactCount], "{count}")
 	require.Contains(t, defaults[I18nReportEditorMoved], "{position}")
+}
+
+func TestRuntimeI18nDefaultsForSkipsLocalesTheRuntimeTranslates(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []string{"ru", "ru-RU", "ru_RU", "RU", "uz", "uz-Latn", "uz-UZ"} {
+		require.Truef(t, HasRuntimeBuiltinCatalogue(locale), locale)
+		require.Emptyf(t, RuntimeI18nDefaultsFor(locale), locale)
+	}
+	for _, locale := range []string{"", "en", "en-US", "zh", "pt-BR", "uz-Cyrl", "uz_cyrl_UZ"} {
+		require.Falsef(t, HasRuntimeBuiltinCatalogue(locale), locale)
+		require.Equalf(t, RuntimeI18nDefaults(), RuntimeI18nDefaultsFor(locale), locale)
+	}
+}
+
+// TestRuntimeBuiltinLocalesMatchRuntimeCatalogues keeps the Go list of
+// translated languages equal to the catalogues the React runtime registers.
+func TestRuntimeBuiltinLocalesMatchRuntimeCatalogues(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile(filepath.Join("..", "..", "..", "web", "lens", "src", "runtime", "messages.ts"))
+	if err != nil {
+		t.Skipf("runtime sources are unavailable: %v", err)
+	}
+	match := regexp.MustCompile(`const catalogues[^=]*=\s*\{([^}]*)\}`).FindSubmatch(source)
+	require.NotNil(t, match, "messages.ts no longer registers catalogues in one literal")
+	registered := make([]string, 0)
+	for _, name := range strings.Split(string(match[1]), ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			registered = append(registered, name)
+		}
+	}
+	require.ElementsMatch(t, registered, RuntimeBuiltinLocales())
 }

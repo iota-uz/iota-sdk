@@ -68,7 +68,6 @@ func (h *Handlers) BuildDocument(ctx context.Context, req lensruntime.Request, o
 	}
 	defaults := document.BuildOptions{
 		Locale: result.Locale, InlineDepth: h.inlineDepth,
-		I18n: document.RuntimeI18nDefaults(),
 		Endpoints: document.Endpoints{
 			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
 			Release: h.endpoint("/lens/release"),
@@ -95,6 +94,7 @@ func (h *Handlers) BuildDocument(ctx context.Context, req lensruntime.Request, o
 	if opts.Locale != "" {
 		defaults.Locale = opts.Locale
 	}
+	defaults.I18n = document.RuntimeI18nDefaultsFor(defaults.Locale)
 	if opts.I18n != nil {
 		defaults.I18n = opts.I18n
 	}

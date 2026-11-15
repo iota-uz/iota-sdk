@@ -1437,6 +1437,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryFrame,
+        summary: result.response.summary,
       })
     }).catch((cause: unknown) => {
       const error = cause instanceof Error ? cause : new Error('query request failed')
@@ -1486,6 +1487,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       isLoading: true,
       error: null,
       retry: retryPage,
+      summary: previousState?.summary,
     })
     const currentNavigation = { ...view, path: [...view.path] }
     try {
@@ -1509,6 +1511,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryPage,
+        summary: result.response.summary,
       })
     } catch (cause: unknown) {
       frames.set(panelId, {
@@ -1518,6 +1521,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: cause instanceof Error ? cause : new Error('query request failed'),
         retry: retryPage,
+        summary: previousState?.summary,
       })
     }
   }
@@ -1612,12 +1616,12 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
             status: 'retry', message: translate('export.retryHint', 'Snapshot refreshed. Retry export.'),
           }))
         } catch (refreshCause: unknown) {
-          const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
+          const message = refreshCause instanceof Error ? refreshCause.message : translate('export.refreshFailed', 'Snapshot refresh failed')
           setExportStates(scope, reconcile({ status: 'error', message }))
         }
         return
       }
-      const message = cause instanceof Error ? cause.message : 'Export failed'
+      const message = cause instanceof Error ? cause.message : translate('export.failed', 'Export failed')
       setExportStates(scope, reconcile({ status: 'error', message }))
     }
   }

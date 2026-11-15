@@ -379,11 +379,11 @@ function periodFetcher(calls: Array<string>): typeof fetch {
   }
 }
 
-function FiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
+function FiltersFixture({ fetcher, locale = 'en' }: { fetcher: typeof fetch; locale?: string }) {
   return (
     <div class="lens-root" data-theme="light">
       <DocumentProvider fetcher={fetcher} src="/lens/document">
-        <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
+        <DashboardRuntimeProvider fetcher={fetcher} locale={locale}>{() => (<>(
           <FilterBar today={{ year: 2026, month: 7, day: 22 }} />
           )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
@@ -621,6 +621,19 @@ describe('FilterBar runtime integration', () => {
     // a December that has not happened.
     expect(await screen.findByRole('button', { name: /Next period/ }))
       .toHaveAccessibleName('Next period: 01.01.2026 – 22.07.2026')
+  })
+
+  it.each([
+    ['ru', 'Предыдущий период: 01.01.2025 – 31.12.2025', 'Следующий период: 01.01.2026 – 22.07.2026'],
+    ['uz', 'Oldingi davr: 01.01.2025 – 31.12.2025', 'Keyingi davr: 01.01.2026 – 22.07.2026'],
+  ])('names the period steps for a screen reader in %s', async (locale, previous, next) => {
+    window.history.replaceState(null, '', '/dash')
+    render(() =><FiltersFixture fetcher={periodFetcher([])} locale={locale} />)
+
+    expect(await screen.findByRole('button', { name: previous })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: previous }))
+    expect(await screen.findByRole('button', { name: next })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /period:/ })).not.toBeInTheDocument()
   })
 
   it('steps a hand-drawn range by its own length', async () => {

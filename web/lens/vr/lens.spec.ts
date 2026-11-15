@@ -227,6 +227,10 @@ const storyIds = [
   'temporal-overlays--time-annotations',
   'sharing--panel-image-formats',
   'sharing--slice-link',
+  'table-fit--drawer1280',
+  'table-fit--full-width',
+  'table-fit--half-width-panel',
+  'table-fit--phone390',
   'table-readability--narrow',
   'table-readability--wide',
   'parity--clickable-panels',
@@ -545,6 +549,10 @@ const staticStories = [
   // allowance local so layout and missing-item changes still fail.
   ['sharing--panel-image-formats', 0, 6],
   ['sharing--slice-link', 0],
+  ['table-fit--drawer1280', 0],
+  ['table-fit--full-width', 0],
+  ['table-fit--half-width-panel', 0],
+  ['table-fit--phone390', 0],
   ['table-readability--narrow', 0],
   ['table-readability--wide', 0],
   ['print-report--composed-report', 2],
@@ -755,6 +763,50 @@ async function loadingMetricBoxes(page: Page) {
     }
   }))
 }
+
+/** The table's scroll box: how much room it has, how much its columns want, and whether the trailing spacer is drawn. */
+async function tableFit(page: Page) {
+  return page.getByTestId('table-fit').locator('.lens-table-scroll-frame > div').first().evaluate((scroller) => ({
+    client: scroller.clientWidth,
+    scroll: scroller.scrollWidth,
+    spacer: scroller.querySelector('.lens-table-scroll-spacer') !== null,
+    actionWraps: (scroller.querySelector('tbody .lens-leaf-action')?.getBoundingClientRect().height ?? 0) > 30,
+  }))
+}
+
+// A table narrows and wraps its text to the room it is given. It scrolls
+// sideways only when its columns cannot narrow any further, and the trailing
+// spacer that clears the sticky column never causes that overflow itself.
+for (const [storyId, width, scrolls] of [
+  ['table-fit--drawer1280', 1280, false],
+  ['table-fit--full-width', 1280, false],
+  ['table-fit--half-width-panel', 1280, true],
+  ['table-fit--phone390', 390, true],
+] as const) {
+  test(`${storyId} ${scrolls ? 'scrolls only because its columns cannot narrow further' : 'fits without scrolling'}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, storyId, 0)
+    await expect(page.getByTestId('table-fit').locator('tfoot')).toBeVisible()
+    const fit = await tableFit(page)
+    if (scrolls) {
+      expect(fit.scroll).toBeGreaterThan(fit.client + 1)
+      expect(fit.spacer).toBe(true)
+    } else {
+      expect(fit.scroll).toBeLessThanOrEqual(fit.client + 1)
+      expect(fit.spacer).toBe(false)
+    }
+  })
+}
+
+test('the wide drawer shows every column, the action included, at 1280px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openStory(page, 'table-fit--drawer1280', 0)
+  const table = page.getByTestId('table-fit')
+  const frame = await table.locator('.lens-table-scroll-frame').boundingBox()
+  const action = await table.locator('tbody .lens-leaf-action').first().boundingBox()
+  expect(frame && action && action.x + action.width <= frame.x + frame.width).toBe(true)
+  expect((await tableFit(page)).actionWraps).toBe(true)
+})
 
 test('a loading KPI cell shows a placeholder the size of the figure it stands in for', async ({ page }) => {
   await openStory(page, 'parity--metric-group-loading', 0)

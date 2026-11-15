@@ -725,6 +725,7 @@ export interface QueryRequest {
 export interface QueryResponse {
   frames: Record<FrameRef, Frame>
   page?: QueryPage
+  summary?: TableSummary
 }
 
 export interface RadialConfig {

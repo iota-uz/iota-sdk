@@ -718,10 +718,11 @@ export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() =>
   sort: z.lazy(() => TableSortSchema).optional(),
 }).strict())
 
-export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.object({
+export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.lazy(() => z.object({
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
   page: z.lazy(() => QueryPageSchema).optional(),
-}).strict()
+  summary: z.lazy(() => TableSummarySchema).optional(),
+}).strict())
 
 export const RadialConfigSchema: z.ZodType<Contract.RadialConfig> = z.lazy(() => z.object({
   mode: z.lazy(() => RadialModeSchema),

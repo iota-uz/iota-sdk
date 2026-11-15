@@ -319,6 +319,8 @@ const (
 	I18nExportRetryHint            = "export.retryHint"
 	I18nExportSVG                  = "export.svg"
 	I18nExportImageError           = "export.imageError"
+	I18nExportFailed               = "export.failed"
+	I18nExportRefreshFailed        = "export.refreshFailed"
 	I18nFilterBarLabel             = "filter.bar.label"
 	I18nFilterFacetApply           = "filter.facet.apply"
 	I18nFilterFacetClear           = "filter.facet.clear"
@@ -346,6 +348,8 @@ const (
 	I18nFilterDuration             = "filter.period.duration"
 	I18nFilterFrom                 = "filter.period.from"
 	I18nFilterOpen                 = "filter.period.open"
+	I18nFilterPrevious             = "filter.period.previous"
+	I18nFilterNext                 = "filter.period.next"
 	I18nFilterQuickSelect          = "filter.period.quickSelect"
 	I18nFilterTo                   = "filter.period.to"
 
@@ -712,7 +716,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterCompareCustom, I18nFilterCompareStart, I18nFilterCompareEnd,
 		I18nFilterCompleted, I18nFilterCustom,
 		I18nFilterDateFormat, I18nFilterDuration,
-		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
+		I18nFilterFrom, I18nFilterOpen, I18nFilterPrevious, I18nFilterNext, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nFilterPresetThisQuarter, I18nFilterPresetLastQuarter,
@@ -745,7 +749,7 @@ func RuntimeI18nKeys() []string {
 		I18nFocusSourceData, I18nFocusSourceLoad, I18nFocusSourceRows, I18nFocusSourceUnav,
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
-		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
+		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError, I18nExportFailed, I18nExportRefreshFailed,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
 		I18nPanelActions, I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
 		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
