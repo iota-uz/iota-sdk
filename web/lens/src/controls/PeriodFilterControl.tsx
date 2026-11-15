@@ -459,8 +459,8 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
   }
   const stepBack = () => step(-1)
   const stepForward = () => step(1)
-  const stepLabel = (target: { start: CalendarDate; end: CalendarDate } | undefined, key: string, fallback: string) =>
-    target ? `${translate(key, fallback)}: ${compactRangeLabel(target.start, target.end)}` : translate(key, fallback)
+  const stepLabel = (target: { start: CalendarDate; end: CalendarDate } | undefined, label: string) =>
+    target ? `${label}: ${compactRangeLabel(target.start, target.end)}` : label
 
   return (
     <div
@@ -474,7 +474,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
           ~210px instead of ~600, and they keep working on a range a reader drew
           by hand or on a dashboard that declares no presets at all. */}
       <button
-        aria-label={stepLabel(stepBack(), 'filter.period.previous', 'Previous period')}
+        aria-label={stepLabel(stepBack(), translate('filter.period.previous', 'Previous period'))}
         class="lens-filter-step"
         disabled={!stepBack()}
         onClick={() => stepBack() && applyValue({ start: formatISODate(stepBack()!.start), end: formatISODate(stepBack()!.end) })}
@@ -501,7 +501,7 @@ export function PeriodFilterControl(props: PeriodFilterControlProps) {
         <CaretDown className="lens-filter-trigger-caret" size={11} />
       </button>
       <button
-        aria-label={stepLabel(stepForward(), 'filter.period.next', 'Next period')}
+        aria-label={stepLabel(stepForward(), translate('filter.period.next', 'Next period'))}
         class="lens-filter-step"
         disabled={!stepForward()}
         onClick={() => stepForward() && applyValue({ start: formatISODate(stepForward()!.start), end: formatISODate(stepForward()!.end) })}

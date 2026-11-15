@@ -1437,6 +1437,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryFrame,
+        summary: result.response.summary,
       })
     }).catch((cause: unknown) => {
       const error = cause instanceof Error ? cause : new Error('query request failed')
@@ -1486,6 +1487,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       isLoading: true,
       error: null,
       retry: retryPage,
+      summary: previousState?.summary,
     })
     const currentNavigation = { ...view, path: [...view.path] }
     try {
@@ -1501,6 +1503,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         setNotice(driftNotice())
         return
       }
+      // A newer page request or navigation has stored its own frame (and its
+      // own retry) since this one started; this answer is no longer the
+      // panel's to write.
+      if (frames.get(panelId)?.retry !== retryPage) return
       const frame = Object.values(result.response.frames)[0]
       frames.set(panelId, {
         data: frame ?? previous,
@@ -1509,8 +1515,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryPage,
+        summary: result.response.summary,
       })
     } catch (cause: unknown) {
+      if (frames.get(panelId)?.retry !== retryPage) return
       frames.set(panelId, {
         data: previous,
         page: previousState?.page,
@@ -1518,6 +1526,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: cause instanceof Error ? cause : new Error('query request failed'),
         retry: retryPage,
+        summary: previousState?.summary,
       })
     }
   }
@@ -1612,12 +1621,12 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
             status: 'retry', message: translate('export.retryHint', 'Snapshot refreshed. Retry export.'),
           }))
         } catch (refreshCause: unknown) {
-          const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
+          const message = refreshCause instanceof Error ? refreshCause.message : translate('export.refreshFailed', 'Snapshot refresh failed')
           setExportStates(scope, reconcile({ status: 'error', message }))
         }
         return
       }
-      const message = cause instanceof Error ? cause.message : 'Export failed'
+      const message = cause instanceof Error ? cause.message : translate('export.failed', 'Export failed')
       setExportStates(scope, reconcile({ status: 'error', message }))
     }
   }

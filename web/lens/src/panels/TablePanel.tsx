@@ -465,6 +465,19 @@ function TableSummaryCell(props: { panel: Panel; field: string; value: unknown }
 }
 
 /**
+ * The first cell of a totals row names the row. When that column is itself
+ * totalled, the figure follows the label instead of being replaced by it.
+ */
+function SummaryLead(props: { panel: Panel; column: TableColumn; label: string; value: unknown }) {
+  return (
+    <>
+      {props.label}
+      {props.column.total === true && props.value !== undefined && <>{': '}<TableSummaryCell field={props.column.field} panel={props.panel} value={props.value} /></>}
+    </>
+  )
+}
+
+/**
  * What a totals row says about a column it cannot total.
  *
  * «Средняя тяжесть» left its Итого cell empty, which reads as data that failed
@@ -486,7 +499,6 @@ function SummaryVoid() {
   return (
     <span class="lens-table-summary-void">
       <span aria-hidden="true">—</span>
-      {/* TODO(i18n): register `table.notSummable` (en «Not summable», ru «Не суммируется»). */}
       <span class="lens:sr-only">{translate('table.notSummable', 'Not summable')}</span>
     </span>
   )
@@ -674,8 +686,10 @@ export function TablePanel(props: TablePanelProps) {
       const tableWidth = table?.scrollWidth || scroller.scrollWidth
       // The trailing spacer is part of the table's real scroll box, but must
       // not create overflow on a table whose data columns fit. Remove its
-      // known width when deciding whether the spacer remains necessary.
-      const contentWidth = Math.max(0, tableWidth - (untrack(hasHorizontalOverflow) ? stickyWidth : 0))
+      // measured width when deciding whether the spacer remains necessary, or
+      // the spacer's own width would read as overflow and keep it on forever.
+      const spacerWidth = scroller.querySelector<HTMLElement>('thead th.lens-table-scroll-spacer')?.offsetWidth ?? 0
+      const contentWidth = Math.max(0, tableWidth - spacerWidth)
       const overflowing = contentWidth > scroller.clientWidth + 1
       setHasHorizontalOverflow((current) => current === overflowing ? current : overflowing)
       // A translated sticky first column contributes its width to Chromium's
@@ -928,9 +942,9 @@ export function TablePanel(props: TablePanelProps) {
                               class={`lens-table-cell${frame.data && isRightAligned(column, frame.data) ? ' lens-table-col-right' : ''}`}
                             >
                               {index() === 0
-                                ? frame.summary?.fullValues
+                                ? <SummaryLead column={column} label={frame.summary?.fullValues
                                   ? translate('table.filteredTotal', 'Filtered total')
-                                  : translate('table.total', 'Total')
+                                  : translate('table.total', 'Total')} panel={panel} value={frame.summary?.values[column.field]} />
                                 : column.total === true
                                   ? <TableSummaryCell field={column.field} panel={panel} value={frame.summary?.values[column.field]} />
                                   : <SummaryVoid />}
@@ -946,7 +960,7 @@ export function TablePanel(props: TablePanelProps) {
                             {(column, index) => (
                               <td class={`lens-table-cell${frame.data && isRightAligned(column, frame.data) ? ' lens-table-col-right' : ''}`}>
                                 {index() === 0
-                                  ? translate('table.allRowsTotal', 'All rows total')
+                                  ? <SummaryLead column={column} label={translate('table.allRowsTotal', 'All rows total')} panel={panel} value={frame.summary?.fullValues?.[column.field]} />
                                   : column.total === true
                                     ? <TableSummaryCell field={column.field} panel={panel} value={frame.summary?.fullValues?.[column.field]} />
                                     : <SummaryVoid />}

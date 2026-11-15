@@ -1400,6 +1400,9 @@ func (p QueryPage) MarshalJSON() ([]byte, error) {
 type QueryResponse struct {
 	Frames map[FrameRef]Frame `json:"frames"`
 	Page   *QueryPage         `json:"page,omitempty"`
+	// Summary carries the footer totals of a table level, computed over the
+	// whole selection the level represents rather than the page on screen.
+	Summary *TableSummary `json:"summary,omitempty"`
 }
 
 type PanelRequest struct {

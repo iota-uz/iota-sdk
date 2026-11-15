@@ -57,6 +57,7 @@ type fakeExecutor struct {
 	blockOnce   sync.Once
 	cacheHit    bool
 	pageHasMore map[string]map[int]bool
+	tableTotals map[string]map[string]float64
 	panelSpecs  map[string]panel.Spec
 }
 
@@ -201,6 +202,7 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 			Page: page, PerPage: len(frames.Primary().Rows()), HasMore: pages[page],
 		}
 	}
+	result.Panels[panelID].TableTotals = f.tableTotals[panelID]
 	result.Panels[panelID].Error = panelErr
 	return result, nil
 }
@@ -1176,8 +1178,10 @@ func TestHandlers_InlineRootLevelShipsResolvedDynamicChildren(t *testing.T) {
 	require.NoError(t, doc.Validate())
 }
 
-func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) {
-	t.Parallel()
+// tableLevelHandlers builds a chart perspective whose last level is a record
+// table with a totalled amount column.
+func tableLevelHandlers(t *testing.T) (*Handlers, *fakeExecutor) {
+	t.Helper()
 	handlers, executor, _ := newTestHandlers(t, 1)
 	spec := handlers.spec
 	view := &spec.Explorers[0].Branches[0].Perspectives[0]
@@ -1211,6 +1215,12 @@ func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) 
 	executor.frames["detail-panel"] = dynamicFrames(t, "month-12", "December")
 	executor.pageFrames = map[string]map[int]*frame.FrameSet{"records-panel": {1: recordFrames}}
 	executor.pageHasMore = map[string]map[int]bool{"records-panel": {1: false}}
+	return handlers, executor
+}
+
+func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) {
+	t.Parallel()
+	handlers, executor := tableLevelHandlers(t)
 
 	doc := requestDocument(t, handlers, "/dash/document")
 
@@ -1229,6 +1239,8 @@ func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) 
 
 	require.NotNil(t, response.Page, "a table level is paginated like evidence")
 	require.Equal(t, 1, response.Page.Number)
+	require.NotNil(t, response.Summary, "the level's totalled column reaches the wire")
+	require.InDelta(t, 1.0, response.Summary.Values["value"], 1e-9)
 	call := executor.lastCall("records-panel")
 	require.Equal(t, "1", call.request.Request.Get(lensruntime.TablePaginationPageQuery))
 	require.Equal(t, []string{"root", "2025", "detail", "month-12", "records"}, call.request.Request["lens_explore_path"],
@@ -1898,4 +1910,78 @@ func TestHandlers_QueryBoundsPathAndPage(t *testing.T) {
 		handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", marshal(t, request)))
 		require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	}
+}
+
+func TestHandlers_TableLevelFooterTotalsCoverTheWholeSelection(t *testing.T) {
+	t.Parallel()
+	path := document.NodePath{"root", "2025", "detail", "month-12", "records"}
+	rows := func(t *testing.T, values ...float64) *frame.FrameSet {
+		t.Helper()
+		ids := make([]any, len(values))
+		labels := make([]any, len(values))
+		amounts := make([]any, len(values))
+		for index, value := range values {
+			ids[index], labels[index], amounts[index] = "row-"+strconv.Itoa(index), "Record", value
+		}
+		primary, err := frame.New("records",
+			frame.Field{Name: "row_id", Type: frame.FieldTypeString, Values: ids},
+			frame.Field{Name: "child_label", Type: frame.FieldTypeString, Values: labels},
+			frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: amounts},
+		)
+		require.NoError(t, err)
+		set, err := frame.NewFrameSet(primary)
+		require.NoError(t, err)
+		return set
+	}
+
+	tests := []struct {
+		name     string
+		page     int
+		more     bool
+		totals   map[string]float64
+		want     float64
+		hasTotal bool
+	}{
+		{name: "the host returned every row", page: 1, want: 60, hasTotal: true},
+		{name: "a page of a longer selection has no total of its own", page: 1, more: true},
+		{name: "a later page has no total of its own", page: 2},
+		{name: "the host supplies the selection total", page: 2, more: true, totals: map[string]float64{"value": 600}, want: 600, hasTotal: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			handlers, executor := tableLevelHandlers(t)
+			executor.pageFrames = map[string]map[int]*frame.FrameSet{"records-panel": {tt.page: rows(t, 10, 20, 30)}}
+			executor.pageHasMore = map[string]map[int]bool{"records-panel": {tt.page: tt.more}}
+			executor.tableTotals = map[string]map[string]float64{"records-panel": tt.totals}
+			doc := requestDocument(t, handlers, "/dash/document")
+
+			response := queryLevel(t, handlers, QueryRequest{
+				SnapshotID: doc.SnapshotID, Perspective: "composition", Page: tt.page, Path: path,
+			})
+
+			if !tt.hasTotal {
+				require.Nil(t, response.Summary)
+				return
+			}
+			require.NotNil(t, response.Summary)
+			require.InDelta(t, tt.want, response.Summary.Values["value"], 1e-9)
+		})
+	}
+}
+
+func TestHandlers_DocumentSeedsEnglishBaselineOnlyWhereTheRuntimeCannotTranslate(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+
+	english := requestDocument(t, handlers, "/dash/document?locale=en")
+	require.Equal(t, "Open {name}", english.I18n[document.I18nChartOpenMark])
+
+	russian := requestDocument(t, handlers, "/dash/document?locale=ru")
+	require.NotContains(t, russian.I18n, document.I18nChartOpenMark,
+		"an English baseline in the document would hide the runtime's built-in Russian text")
+	require.Empty(t, russian.I18n)
+
+	chinese := requestDocument(t, handlers, "/dash/document?locale=zh")
+	require.Equal(t, "Open {name}", chinese.I18n[document.I18nChartOpenMark])
 }

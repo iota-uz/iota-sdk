@@ -87,6 +87,17 @@ func ApplyTablePagination(result *Result, panelID string, offset, limit, loadedR
 	}
 }
 
+// ApplyTableTotals records the authoritative per-column totals of the whole
+// selection behind a paginated table panel. Keys are the field names of columns
+// declared with Total.
+func ApplyTableTotals(result *Result, panelID string, totals map[string]float64) {
+	panel := result.Panel(panelID)
+	if panel == nil {
+		return
+	}
+	panel.TableTotals = totals
+}
+
 func positiveInt(raw string, fallback int) int {
 	if fallback < 1 {
 		fallback = 1

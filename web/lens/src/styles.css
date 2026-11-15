@@ -5749,6 +5749,7 @@
 
   .lens-table-scroll-frame {
     @apply lens:relative lens:flex lens:min-h-0 lens:flex-1;
+    container: lens-table / inline-size;
   }
 
   /* A column cut mid-glyph («74 357 UZ») reads as a rendering fault, not as a
@@ -5858,23 +5859,19 @@
     @apply lens:w-full lens:border-collapse lens:text-left lens:text-md;
   }
 
-  .lens-table-wide {
-    min-width: max(100%, 48rem);
-  }
+  /* A table takes the width it is given and wraps its text to fit it; it
+     scrolls sideways only when its columns cannot narrow any further than their
+     longest word. A fixed floor here (48rem) made a wide table overflow a
+     694px drawer and a half-width card that its columns fit without it.
 
-  /* The spacer must extend the table instead of competing with data columns
-     for the existing width. Otherwise its width reflows the sticky column,
-     which changes the spacer again and creates a two-state ResizeObserver
-     loop with intermittently clipped values. */
+     The spacer extends the table instead of competing with data columns for
+     the existing width. Otherwise its width reflows the sticky column, which
+     changes the spacer again and creates a two-state ResizeObserver loop with
+     intermittently clipped values. It exists only while the data columns
+     really overflow, and the overflow check discounts its own width, so it
+     never keeps itself alive. */
   .lens-table:has(.lens-table-scroll-spacer) {
     width: calc(100% + var(--lens-table-sticky-width, 0px) + 2rem);
-  }
-
-  .lens-table-wide:has(.lens-table-scroll-spacer) {
-    min-width: max(
-      calc(100% + var(--lens-table-sticky-width, 0px) + 2rem),
-      calc(48rem + var(--lens-table-sticky-width, 0px) + 2rem)
-    );
   }
 
   .lens-table th {
@@ -6290,6 +6287,16 @@
 
   .lens-table .lens-leaf-action {
     @apply lens:bg-transparent lens:px-2 lens:py-1 lens:text-base lens:text-accent-700;
+  }
+
+  /* In the room a wide drawer or a half-width card leaves, the row action is
+     one more column that may narrow: its label wraps instead of holding the
+     whole table wider than the container. A wide container keeps the label on
+     one line in a column that is exactly as wide as the label. */
+  @container lens-table (max-width: 48rem) {
+    .lens-table-action-cell {
+      @apply lens:w-auto lens:whitespace-normal;
+    }
   }
 
   .lens-table-empty {

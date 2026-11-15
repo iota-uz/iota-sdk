@@ -50,6 +50,12 @@ type PanelResult struct {
 	Request         url.Values
 	Drill           *cube.DrillContext
 	TablePagination *TablePagination
+	// TableTotals are the authoritative column totals of the whole selection a
+	// paginated table shows one page of, keyed by field name. A host that loads
+	// a page at a time sets them (see ApplyTableTotals); without them the footer
+	// of a table whose rows are not all in hand omits the total instead of
+	// printing the page's sum under a "Total" label.
+	TableTotals map[string]float64
 }
 
 type DashboardResult struct {
