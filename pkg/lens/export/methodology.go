@@ -1,10 +1,14 @@
 package export
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
@@ -35,12 +39,8 @@ func methodologyRows(labels Labels, panels []*lensruntime.PanelResult) [][]any {
 				head, version, date = []any{result.Panel.Title, text}, spec.Version, spec.Date
 			}
 			var value any = variable.Value
-			if variable.Ref != nil && result.Frames != nil {
-				if primary := result.Frames.Primary(); primary != nil {
-					if field, ok := primary.Field(variable.Ref.Name); ok && field != nil && len(field.Values) > 0 {
-						value = formattedValue{Value: field.Values[0], Format: panelFormats(result.Panel)(*field)}
-					}
-				}
+			if resolved, ok := variableValue(result, variable); ok {
+				value = resolved
 			}
 			label := strings.TrimSpace(variable.Label)
 			if label == "" {
@@ -53,4 +53,52 @@ func methodologyRows(labels Labels, panels []*lensruntime.PanelResult) [][]any {
 		return nil
 	}
 	return rows
+}
+
+// variableValue reads a variable from the frame the figure came from, the way
+// the browser does: a stage by its key through the ID and value columns (a
+// duplicated key has no single value), a measure or field by column name. A
+// frame formula contributes its computed result — replaying the expression on
+// the Methodology sheet would point at that sheet's cells, not the data's.
+func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (any, bool) {
+	if variable.Ref == nil || result.Frames == nil {
+		return nil, false
+	}
+	primary := result.Frames.Primary()
+	if primary == nil {
+		return nil, false
+	}
+	if variable.Ref.Kind == formula.RefStage {
+		idField, okID := primary.Field(result.Panel.Fields.ID.Name())
+		valueField, okValue := primary.Field(result.Panel.Fields.Value.Name())
+		if !okID || !okValue || idField == nil || valueField == nil {
+			return nil, false
+		}
+		match := -1
+		for i, id := range idField.Values {
+			if fmt.Sprint(id) != variable.Ref.Name {
+				continue
+			}
+			if match >= 0 {
+				return nil, false
+			}
+			match = i
+		}
+		if match < 0 || match >= len(valueField.Values) {
+			return nil, false
+		}
+		return exportable(valueField.Values[match], result.Panel, *valueField), true
+	}
+	field, ok := primary.Field(variable.Ref.Name)
+	if !ok || field == nil || len(field.Values) == 0 {
+		return nil, false
+	}
+	return exportable(field.Values[0], result.Panel, *field), true
+}
+
+func exportable(value any, spec panel.Spec, field frame.Field) any {
+	if f, ok := value.(frame.Formula); ok {
+		value = f.Result
+	}
+	return formattedValue{Value: value, Format: panelFormats(spec)(field)}
 }

@@ -58,6 +58,7 @@ func (p *parser) peek() (rune, bool) {
 func (p *parser) sequence(depth int) (*node, error) {
 	seq := &node{kind: "seq"}
 	for {
+		p.skipSpace()
 		r, ok := p.peek()
 		if !ok {
 			if depth > 0 {
@@ -97,6 +98,7 @@ func (p *parser) hasPrefix(s string) bool {
 func (p *parser) scripts(base *node) (*node, error) {
 	var sub, sup *node
 	for {
+		p.skipSpace()
 		r, ok := p.peek()
 		if !ok || (r != '^' && r != '_') {
 			break
@@ -147,6 +149,11 @@ func (p *parser) argument() (*node, error) {
 	}
 	if r == '}' || r == '^' || r == '_' {
 		return nil, fmt.Errorf("unexpected %q", string(r))
+	}
+	// An unbraced argument is exactly one token: \frac12 is 1 over 2.
+	if unicode.IsDigit(r) {
+		p.pos++
+		return &node{kind: "num", value: string(r)}, nil
 	}
 	return p.atom()
 }
@@ -225,6 +232,10 @@ func (p *parser) command() (*node, error) {
 		}
 		return &node{kind: "frac", children: []*node{a, b}}, nil
 	case "sqrt":
+		p.skipSpace()
+		if r, ok := p.peek(); ok && r == '[' {
+			return nil, fmt.Errorf("\\sqrt with an index is not supported")
+		}
 		a, err := p.argument()
 		if err != nil {
 			return nil, fmt.Errorf("\\sqrt: %w", err)
@@ -314,7 +325,7 @@ func (p *parser) fenced() (*node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &node{kind: "fenced", value: open + closeDelim, children: []*node{body}}, nil
+	return &node{kind: "fenced", value: open + "\x00" + closeDelim, children: []*node{body}}, nil
 }
 
 func (p *parser) delimiter() (string, error) {
@@ -403,14 +414,8 @@ func (n *node) mathml(b *strings.Builder) {
 
 // fence splits the stored open+close pair (each is 0 or 1 rune).
 func fence(v string) (string, string) {
-	rs := []rune(v)
-	switch len(rs) {
-	case 2:
-		return string(rs[0]), string(rs[1])
-	case 1:
-		return string(rs[0]), ""
-	}
-	return "", ""
+	open, closeD, _ := strings.Cut(v, "\x00")
+	return open, closeD
 }
 
 var spoken = map[string]string{
@@ -457,9 +462,17 @@ func (n *node) text(b *strings.Builder) {
 		b.WriteString(") ")
 	case "subsup":
 		n.children[0].text(b)
-		b.WriteString(" from (")
+		if n.children[0].kind == "bigop" {
+			b.WriteString(" from (")
+			n.children[1].text(b)
+			b.WriteString(") to (")
+			n.children[2].text(b)
+			b.WriteString(") ")
+			break
+		}
+		b.WriteString(" sub (")
 		n.children[1].text(b)
-		b.WriteString(") to (")
+		b.WriteString(") to the power of (")
 		n.children[2].text(b)
 		b.WriteString(") ")
 	case "fenced":

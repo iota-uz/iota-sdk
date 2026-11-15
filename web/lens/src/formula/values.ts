@@ -1,5 +1,6 @@
 import type { Frame, Panel, Formula } from '../contract'
 import { buildKeyedJoin, columnIndex, finiteNumber, panelField } from '../panels/data'
+import { elementQuality } from '../panels/metricViews'
 import { formatFieldValue } from '../runtime/format'
 
 /** One variable of a formula, ready to show: its text, source and value. */
@@ -39,7 +40,12 @@ export function resolveFormulaVariables(
       const resolved = stageJoin()
       if (resolved?.kind === 'ok') {
         const element = resolved.resolve(ref.name)
-        if (element.value.kind === 'value') {
+        const structural = panel.metricFlow?.stages.find((stage) => stage.key === ref.name)
+          ?? panel.metricHierarchy?.rows.find((row) => row.key === ref.name)
+          ?? {}
+        // An unavailable stage prints a dash on the panel; it must not print a
+        // number here.
+        if (element.value.kind === 'value' && !elementQuality(element, structural, panel).showDash) {
           const field = panelField(panel, 'value')
           view.value = formatFieldValue(element.value.value, field ? panel.format[field] : undefined, locale)
         }
@@ -59,6 +65,18 @@ export function resolveFormulaVariables(
 export function formulaValueLine(panel: Panel, frame: Frame | undefined, locale: string, row = 0): string | undefined {
   const field = panelField(panel, 'value')
   if (!frame || !field) return undefined
+  // A flow's figure is its declared result stage, not whichever row comes
+  // first; with none (or several) there is no single figure to state.
+  if (panel.kind === 'metric_flow') {
+    const results = panel.metricFlow?.stages.filter((stage) => stage.role === 'result') ?? []
+    if (results.length !== 1) return undefined
+    const join = buildKeyedJoin(panel, frame, { missingColumn: String, duplicateKey: String })
+    if (join.kind !== 'ok') return undefined
+    const element = join.resolve(results[0]!.key)
+    if (element.value.kind !== 'value' || elementQuality(element, results[0]!, panel).showDash) return undefined
+    return formatFieldValue(element.value.value, panel.format[field], locale)
+  }
+  if (panel.kind === 'metric_hierarchy' || panel.kind === 'metric_relationship') return undefined
   const index = columnIndex(frame, field)
   const cell = index >= 0 ? frame.rows[row]?.[index] : undefined
   if (cell === undefined || cell === null) return undefined

@@ -73,3 +73,29 @@ describe('PanelFormula', () => {
     expect(await screen.findByTestId('lens-formula-value')).toHaveTextContent('ROE = 12.5')
   })
 })
+
+describe('value rules', () => {
+  const flow = {
+    ...panel, kind: 'metric_flow', encoding: { id: 'id', value: 'amount' },
+    metricFlow: { stages: [
+      { key: 'rev', label: 'Revenue', role: 'input' },
+      { key: 'net', label: 'Net', role: 'result' },
+      { key: 'gone', label: 'Gone', role: 'input', availability: 'unavailable' },
+    ] },
+    formula: { latex: 'a', variables: [
+      { key: 'N', label: 'Net', ref: { kind: 'stage', name: 'net' } },
+      { key: 'G', label: 'Gone', ref: { kind: 'stage', name: 'gone' } },
+    ] },
+  } as unknown as Panel
+  const flowFrame: Frame = {
+    columns: [{ name: 'id', type: 'string' }, { name: 'amount', type: 'number' }],
+    rows: [['rev', 100], ['net', 30], ['gone', 0]],
+  }
+
+  it('states a flow by its result stage and dashes unavailable stages', () => {
+    expect(formulaValueLine(flow, flowFrame, 'en')).toBe('30')
+    const vars = resolveFormulaVariables(flow.formula!, flow, flowFrame, 'en')
+    expect(vars[0]?.value).toBe('30')
+    expect(vars[1]?.value).toBeUndefined()
+  })
+})

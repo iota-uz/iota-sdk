@@ -59,3 +59,26 @@ func TestHTMLData(t *testing.T) {
 		t.Fatal("bad key accepted")
 	}
 }
+
+func TestParserEdgeCases(t *testing.T) {
+	for _, src := range []string{"a ", "{a }", "a ^2", `\frac12`, `\sqrt2`, `\left.x\right|`} {
+		if err := (Spec{Latex: src}).Validate(); err != nil {
+			t.Errorf("%q: %v", src, err)
+		}
+	}
+	if (Spec{Latex: `\sqrt[3]{x}`}).Validate() == nil {
+		t.Error("indexed root must be rejected")
+	}
+	m, _ := Spec{Latex: `\frac12`}.Markup()
+	if !strings.Contains(m, "<mn>1</mn></mrow><mrow><mn>2</mn>") {
+		t.Errorf("frac12: %s", m)
+	}
+	m, _ = Spec{Latex: `\left.x\right|`}.Markup()
+	if strings.Index(m, "<mi>x</mi>") > strings.Index(m, `fence="true">|`) {
+		t.Errorf("closing delimiter before body: %s", m)
+	}
+	alt, _ := Spec{Latex: `x_i^2`}.TextAlternative()
+	if strings.Contains(alt, "from") {
+		t.Errorf("alt: %s", alt)
+	}
+}

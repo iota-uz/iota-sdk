@@ -19,7 +19,11 @@ export function loadKatex(): Promise<KatexModule> {
   katexPromise ??= Promise.all([
     import('katex'),
     import('katex/dist/katex.min.css'),
-  ]).then(([module]) => module.default)
+  ]).then(([module]) => module.default, (error: unknown) => {
+    // A failed load must not poison every later render: let the next call retry.
+    katexPromise = undefined
+    throw error
+  })
   return katexPromise
 }
 

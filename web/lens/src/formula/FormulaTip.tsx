@@ -77,9 +77,11 @@ export function FormulaTip(props: FormulaTipProps) {
     if (!open()) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        // Focus first: the trigger's onFocus opens the preview, and the reset
+        // below must be the last word.
+        button?.focus()
         setPinned(false)
         setHovered(false)
-        button?.focus()
       }
     }
     const onPointerDown = (event: PointerEvent) => {

@@ -388,3 +388,22 @@ func TestExporterWrite_MethodologySheet(t *testing.T) {
 	src, _ := book.GetCellValue("Methodology", "E2")
 	require.Equal(t, "GL 90", src)
 }
+
+func TestMethodologyStageVariableByKey(t *testing.T) {
+	t.Parallel()
+	flow := mustFrames(t, "flow",
+		frame.Field{Name: "stage_id", Values: []any{"revenue", "net"}},
+		frame.Field{Name: "amount", Values: []any{frame.Formula{Expression: "A1", Result: 1000.0}, 300.0}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Fields: panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+			{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}},
+			{Key: "r", Label: "Rev", Ref: &formula.Ref{Kind: formula.RefStage, Name: "revenue"}},
+			{Key: "x", Label: "Missing", Ref: &formula.Ref{Kind: formula.RefStage, Name: "nope"}},
+		}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
+	require.Len(t, rows, 4)
+	require.Equal(t, 300.0, rows[1][3].(formattedValue).Value)
+	require.Equal(t, 1000.0, rows[2][3].(formattedValue).Value)
+	require.Equal(t, "", rows[3][3])
+}

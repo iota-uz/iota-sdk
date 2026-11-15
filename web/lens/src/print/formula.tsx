@@ -217,8 +217,11 @@ export function PrintMethodology(props: { sections: ReadonlyArray<PrintSection> 
     const seen = new Set<string>()
     return props.sections.filter((section) => {
       const panel = sectionPanel(section)
-      if (!panel.formula || seen.has(panel.id)) return false
-      seen.add(panel.id)
+      // One entry per printed calculation: a drill level or perspective has its
+      // own frame, and aliased drawer copies share all of these.
+      const key = JSON.stringify([section.document.snapshotId, panel.id, section.path, section.perspective?.id ?? ''])
+      if (!panel.formula || seen.has(key)) return false
+      seen.add(key)
       return true
     })
   })

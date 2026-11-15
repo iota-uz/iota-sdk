@@ -72,6 +72,9 @@ export class LensFormulaElement extends HTMLElement {
     const subject = this.getAttribute('label') ?? ''
     const value = this.getAttribute('value') ?? undefined
     const block = this.getAttribute('mode') === 'block'
+    // Solid appends to existing children: drop the server-rendered no-JS
+    // fallback now that the component replaces it.
+    this.replaceChildren()
     this.dispose = render(() => block
       ? (
         <div class="lens-formula-block">

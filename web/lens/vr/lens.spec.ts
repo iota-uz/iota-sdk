@@ -690,6 +690,12 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
       if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
     }
+    if (storyId.startsWith('formula--formula-states')) {
+      // KaTeX loads lazily and the hover card focuses its variable on a timer;
+      // the loading and invalid-LaTeX cards are meant to stay unready.
+      await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
+      await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
+    }
     await screenshot(page, storyId, { maxDiffPixels })
   })
 }

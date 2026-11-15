@@ -38,7 +38,9 @@ templ Formula(props FormulaProps) {
 		mode={ string(formulaMode(props.Mode)) }
 	>
 		if wire != nil && wire.Markup != "" {
-			@templ.Raw(wire.Markup)
+			<span role="math" aria-label={ wire.Alt }>
+				@templ.Raw(wire.Markup)
+			</span>
 		} else if wire != nil && wire.Error {
 			<span role="alert">…</span>
 		}
