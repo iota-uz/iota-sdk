@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Lens: the methodology formula chrome (panel.formula, .show, .error, .variables, .source, .version, .noValue) is translated in the built-in ru and uz catalogues; Linux visual baselines cover the formula and table-fit stories and the narrow-container table in the panel matrix."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add Lens methodology formulas: optional LaTeX formula on measures and panels with per-calculation variable values, shared lazy KaTeX module, \u003clens-formula\u003e element, print methodology block and Excel Methodology sheet."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens: a table level of an explorer returns and draws its footer total (QueryResponse.Summary, runtime.PanelResult.TableTotals / ApplyTableTotals); screen-reader labels (period steps, quality chips, export errors) are translated in the built-in ru and uz catalogues, and the SDK's English baseline no longer hides built-in translations for those locales (document.RuntimeI18nDefaultsFor); tables narrow and wrap to their container before they scroll."
+    }
+  ],
+  "source": "e8ba5d2f045750fb2669fe04b5d11a9a94d4f262",
+  "version": "0.45.0"
+}
