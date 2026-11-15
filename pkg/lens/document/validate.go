@@ -119,7 +119,7 @@ func (d *DashboardDocument) Validate() error {
 				return serrors.Wrap(op, fmt.Errorf("drill level %q references missing perspective %q", key, ref.ID))
 			}
 			perspective := findPerspective(d.Perspectives, ref.ID)
-			if perspective.Semantics == SemanticsPartition && level.Frame != "" {
+			if perspective.Semantics == SemanticsPartition && level.Frame != "" && level.View != PanelKindTable {
 				if level.Encoding == nil {
 					return serrors.Wrap(op, fmt.Errorf("partition drill level %q requires an encoding", key))
 				}

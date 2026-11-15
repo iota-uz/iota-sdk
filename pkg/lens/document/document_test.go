@@ -715,6 +715,26 @@ func TestDashboardDocumentValidate_Radial(t *testing.T) {
 	}
 }
 
+func TestDashboardDocumentValidate_TableLevelSkipsPartitionValueCheck(t *testing.T) {
+	t.Parallel()
+
+	doc := testDocument()
+	doc.Perspectives = []Perspective{{
+		ID: "p", ExplorerID: "e", BranchKey: "b", Key: "p", Label: "P", Semantics: SemanticsPartition, Root: "root",
+	}}
+	doc.Frames["records"] = Frame{
+		Columns: []Column{{Name: "id", Type: ColumnString}, {Name: "policy", Type: ColumnString}},
+		Rows:    [][]any{{"1", "P-1"}},
+	}
+	doc.Drill.Edges["root"] = Level{
+		Path: NodePath{"root"}, Children: []Node{}, Perspectives: []PerspectiveRef{{ID: "p"}},
+		Frame: "records", View: PanelKindTable, Encoding: &Encoding{ID: "id"},
+		Table: &LevelTable{Columns: []TableColumn{{Field: "policy", Label: "Policy", Cell: TableCell{Kind: TableCellPlain}}}, Actions: []Action{}},
+	}
+
+	require.NoError(t, doc.Validate(), "a records table has no value field to partition by")
+}
+
 func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 	t.Parallel()
 

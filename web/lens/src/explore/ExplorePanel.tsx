@@ -150,6 +150,14 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
       ...(table ? { columns: table.columns, actions: table.actions } : {}),
     } as Panel
   })
+  // The header figure is the selected mark's value from the host frame, in the
+  // host's units: a table level without a format of its own for that field
+  // must not print it raw.
+  const headerValueFormat = (): FieldFormat | undefined => {
+    const field = viewPanel().encoding.value
+    if (!field) return undefined
+    return viewPanel().format[field] ?? formatsForEncoding(panel, viewPanel().encoding)[field]
+  }
   const breadcrumbs = createMemo(() => breadcrumbsForNavigation(document, panel, navigation))
   let focusRef: HTMLDivElement | undefined
   let exploreRef: HTMLButtonElement | undefined
@@ -478,7 +486,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
               onCrumb={jumpToCrumb}
               onParent={focusParent() ? () => jumpToCrumb(focusParent()!.pathIndex) : undefined}
               periodLabel={document.header?.subtitle?.trim() || undefined}
-              valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
+              valueFormat={headerValueFormat()}
             />
             <Show when={positionPerspectives().length > 1}>
               <LensSelector
@@ -594,7 +602,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
             selectedPerspectiveId={navigation.perspectiveId}
             target={value().target}
             theme={overlayTheme().theme}
-            valueFormat={viewPanel().encoding.value ? viewPanel().format[viewPanel().encoding.value!] : undefined}
+            valueFormat={headerValueFormat()}
           />
         )}
       </Show>
