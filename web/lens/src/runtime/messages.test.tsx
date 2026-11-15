@@ -91,6 +91,7 @@ describe('built-in catalogue coverage', () => {
     'table.openRecord', 'table.notSummable', 'table.scrollLeft', 'table.scrollRight', 'table.search', 'table.actions',
     'panel.openMetric', 'chart.openMark', 'cascade.openStage', 'explore.copyValue', 'filter.facet.remove',
     'availability.config_required', 'confidence.verified', 'export.failed',
+    'panel.formula', 'panel.formula.show', 'panel.formula.error', 'panel.formula.variables', 'panel.formula.source',
   ])('translates the screen-reader label %s into Uzbek too', (key) => {
     expect(builtinMessage('uz', key)).toBeTruthy()
     expect(builtinMessage('uz', key)).not.toBe(builtinMessage('ru', key))
