@@ -413,6 +413,7 @@ export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   presentation: z.lazy(() => PresentationSchema).optional(),
   status: z.lazy(() => PanelStatusSchema).optional(),
   source: z.lazy(() => LevelSourceSchema).optional(),
+  table: z.lazy(() => LevelTableSchema).optional(),
 }).strict())
 
 export const LevelSourceSchema: z.ZodType<Contract.LevelSource> = z.lazy(() => z.object({
@@ -420,6 +421,12 @@ export const LevelSourceSchema: z.ZodType<Contract.LevelSource> = z.lazy(() => z
   frame: z.lazy(() => FrameRefSchema),
   columns: z.array(z.lazy(() => TableColumnSchema)).optional(),
   format: z.record(z.string(), z.lazy(() => FieldFormatSchema)).optional(),
+}).strict())
+
+export const LevelTableSchema: z.ZodType<Contract.LevelTable> = z.lazy(() => z.object({
+  columns: z.array(z.lazy(() => TableColumnSchema)).optional(),
+  format: z.record(z.string(), z.lazy(() => FieldFormatSchema)).optional(),
+  actions: z.array(z.lazy(() => ActionSchema)),
 }).strict())
 
 export const MapConfigSchema: z.ZodType<Contract.MapConfig> = z.object({

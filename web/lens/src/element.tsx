@@ -1,7 +1,7 @@
 import { render } from 'solid-js/web'
 import { LensDashboard } from './LensDashboard'
 import { parseDocument, type DashboardDocument } from './contract'
-import { normalizeLensTheme } from './runtime'
+import { parseLensThemeSetting } from './runtime'
 
 const tagName = 'lens-dashboard'
 
@@ -46,7 +46,7 @@ export class LensDashboardElement extends HTMLElement {
       <LensDashboard
         src={this.getAttribute('src') ?? undefined}
         locale={this.getAttribute('locale') ?? undefined}
-        theme={normalizeLensTheme(this.getAttribute('theme'))}
+        theme={parseLensThemeSetting(this.getAttribute('theme'))}
         csrf={this.getAttribute('csrf') ?? undefined}
         fallbackHTML={this.fallbackHTML}
         initialDocument={this.initialDocument()}

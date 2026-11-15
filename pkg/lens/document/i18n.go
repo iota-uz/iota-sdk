@@ -352,14 +352,16 @@ const (
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
-	// 12 months, current fiscal year (yearToDate), then last month and last
-	// fiscal year (lastYear).
+	// 12 months, current quarter, current fiscal year (yearToDate), then last
+	// month, last quarter and last fiscal year (lastYear).
 	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
 	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
 	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
 	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
 	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
+	I18nFilterPresetThisQuarter  = "filter.period.preset.thisQuarter"
+	I18nFilterPresetLastQuarter  = "filter.period.preset.lastQuarter"
 	I18nPanelActions             = "panel.actions"
 	I18nPanelCollapse            = "panel.collapse"
 	I18nPanelCalculation         = "panel.calculation"
@@ -713,6 +715,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
+		I18nFilterPresetThisQuarter, I18nFilterPresetLastQuarter,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartCollapseOther, I18nChartDrillHint, I18nChartFilterHint, I18nChartCrossFilterSource, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartAllSeriesHidden, I18nChartShowAllSeries,

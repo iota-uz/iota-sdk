@@ -790,8 +790,17 @@ describe('FilterBar runtime integration', () => {
     expect(within(dialog).getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Last month' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Current quarter' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last quarter' })).toBeInTheDocument()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Current month' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Last quarter' }))
+    // today = 2026-07-22 → the previous full quarter is 2026-04-01..2026-06-30.
+    expect(window.location.search).toBe('?ActualRangeStart=2026-04-01&ActualRangeEnd=2026-06-30')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-04-01&ActualRangeEnd=2026-06-30')
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Current month' }))
     // today = 2026-07-22 → this month resolves to 2026-07-01..2026-07-22.
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {

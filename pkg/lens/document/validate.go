@@ -119,7 +119,7 @@ func (d *DashboardDocument) Validate() error {
 				return serrors.Wrap(op, fmt.Errorf("drill level %q references missing perspective %q", key, ref.ID))
 			}
 			perspective := findPerspective(d.Perspectives, ref.ID)
-			if perspective.Semantics == SemanticsPartition && level.Frame != "" {
+			if perspective.Semantics == SemanticsPartition && level.Frame != "" && level.View != PanelKindTable {
 				if level.Encoding == nil {
 					return serrors.Wrap(op, fmt.Errorf("partition drill level %q requires an encoding", key))
 				}
@@ -1464,7 +1464,15 @@ func (d *DashboardDocument) validateDrill() error {
 		}
 		owner := fmt.Sprintf("drill level %q", key)
 		if level.View != "" && !validLevelView(level.View) {
-			return fmt.Errorf("%s view must be a chart kind, got %q", owner, level.View)
+			return fmt.Errorf("%s view must be a chart kind or table, got %q", owner, level.View)
+		}
+		if level.Table != nil {
+			if level.View != PanelKindTable {
+				return fmt.Errorf("%s declares a table but its view is %q", owner, level.View)
+			}
+			if err := d.validateLevelTable(owner, key, level); err != nil {
+				return err
+			}
 		}
 		if err := validatePresentation(owner, level.Presentation); err != nil {
 			return err
@@ -1917,15 +1925,16 @@ func validPanelKind(kind PanelKind) bool {
 }
 
 // validLevelView reports whether a drill level may declare kind as its own
-// visualization: only chart kinds qualify. Tables live behind LevelSource, and
-// stat/metric kinds carry configs a level cannot supply.
+// visualization: chart kinds and table qualify. A table level carries its
+// columns in Level.Table; stat/metric kinds carry configs a level cannot
+// supply.
 func validLevelView(kind PanelKind) bool {
 	switch kind {
 	case PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindGauge, PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap,
-		PanelKindCascade, PanelKindCoverage:
+		PanelKindCascade, PanelKindCoverage, PanelKindTable:
 		return true
-	case PanelKindStat, PanelKindTable, PanelKindMetricFlow, PanelKindMetricHierarchy,
+	case PanelKindStat, PanelKindMetricFlow, PanelKindMetricHierarchy,
 		PanelKindMetricRelationship, PanelKindMap:
 		return false
 	}
@@ -2094,3 +2103,28 @@ func validateRenderer(panel Panel) error {
 }
 
 var rendererName = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
+
+// validateLevelTable holds a table level to what the client schema accepts:
+// valid actions always, and, once the level's frame is known, columns and
+// formats that name its fields. A lazy level has no frame yet; its rows are
+// checked when they arrive.
+func (d DashboardDocument) validateLevelTable(owner string, key NodeKey, level Level) error {
+	for index, action := range level.Table.Actions {
+		if err := validateAction(fmt.Sprintf("%s table action %d", owner, index), action); err != nil {
+			return err
+		}
+	}
+	if level.Frame == "" {
+		return nil
+	}
+	frame := d.Frames[level.Frame]
+	if err := validateTableColumns(Panel{ID: string(key), Columns: level.Table.Columns}, frame); err != nil {
+		return err
+	}
+	for field := range level.Table.Format {
+		if !frameHasColumn(frame, field) {
+			return fmt.Errorf("%s table format references missing field %q", owner, field)
+		}
+	}
+	return nil
+}

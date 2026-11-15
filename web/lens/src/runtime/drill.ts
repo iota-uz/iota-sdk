@@ -141,6 +141,11 @@ export function replayNavigation(document: DashboardDocument, view: NavigationVi
   return { panelId: panel?.id, path: [...view.path], perspectiveId }
 }
 
+/** Whether the level at `path` draws a table, so its first request asks for page one. */
+export function isTableLevel(document: DashboardDocument, path: NodePath): boolean {
+  return levelForPath(document, path)?.view === 'table'
+}
+
 export function dynamicParentPath(document: DashboardDocument, path: NodePath): NodePath | undefined {
   if (pathResolves(document, path)) return undefined
   for (let length = path.length - 1; length > 0; length -= 1) {
@@ -159,10 +164,11 @@ export function withFrameChildren(document: DashboardDocument, path: NodePath, f
   if (!entry) return document
   const [key, level] = entry
   // Identity no-op: the runtime re-applies the merge every time the resolved
-  // document changes, and the query cache hands back the same frame object.
-  // Returning the same document here is what lets the render settle instead
-  // of looping merge → new document → effect → merge forever.
-  if (level.children === frame.children) return document
+  // document changes. A level that is asked again answers with a new array of
+  // the same children, so equality is by content, not by reference; returning
+  // the same document is what lets the render settle instead of looping
+  // merge → new document → effect → query → merge forever.
+  if (level.children === frame.children || sameChildren(level.children, frame.children)) return document
   return {
     ...document,
     drill: {
@@ -170,6 +176,10 @@ export function withFrameChildren(document: DashboardDocument, path: NodePath, f
       edges: { ...document.drill.edges, [key]: { ...level, children: frame.children } },
     },
   }
+}
+
+function sameChildren(current: Level['children'], next: Level['children']): boolean {
+  return current.length === next.length && JSON.stringify(current) === JSON.stringify(next)
 }
 
 export function withInlineFrameChildren(document: DashboardDocument): DashboardDocument {

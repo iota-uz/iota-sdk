@@ -390,6 +390,7 @@ export interface Level {
   presentation?: Presentation
   status?: PanelStatus
   source?: LevelSource
+  table?: LevelTable
 }
 
 export interface LevelSource {
@@ -397,6 +398,12 @@ export interface LevelSource {
   frame: FrameRef
   columns?: Array<TableColumn>
   format?: Record<string, FieldFormat>
+}
+
+export interface LevelTable {
+  columns?: Array<TableColumn>
+  format?: Record<string, FieldFormat>
+  actions: Array<Action>
 }
 
 export interface MapConfig {

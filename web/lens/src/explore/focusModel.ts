@@ -13,13 +13,14 @@ import { levelForPath } from '../runtime'
 import { drillTargetForLevel, drillTargetForNode, labelForNode, rowForNode } from './model'
 
 /**
- * The chart kinds a drill level may claim as its own visualization. Mirrors the
- * Go-side `validLevelView`: table lives behind `Level.source`, and stat/metric
- * kinds carry configs a level cannot supply. An unknown value degrades to the
+ * The kinds a drill level may claim as its own visualization. Mirrors the
+ * Go-side `validLevelView`: the chart kinds, and `table` for a level that lists
+ * source records (its columns arrive in `Level.table`); stat/metric kinds carry
+ * configs a level cannot supply. An unknown value degrades to the
  * semantics-derived view instead of an unsupported-panel card.
  */
 const levelViewKinds: ReadonlySet<PanelKind> = new Set([
-  'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage',
+  'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table',
 ])
 
 /** The view a level declares for itself, when it is a renderable chart kind. */

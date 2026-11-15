@@ -866,3 +866,104 @@ func TestQueryCacheKeyRejectsUnsafeInputs(t *testing.T) {
 	_, err = New(Options{}).queryCacheKey(datasource.QueryRequest{Text: "select 1", TimeRange: datasource.TimeRange{Start: &now}})
 	require.NoError(t, err)
 }
+
+func TestResolveParams_BindsDateRangeParts(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 6, 30, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC)
+	specs := map[string]lens.ParamValue{
+		"since":  lens.RangeParam("period", lens.RangeStart),
+		"last":   lens.RangeParam("period", lens.RangeEnd),
+		"until":  lens.RangeParam("period", lens.RangeUntil),
+		"tenant": {Literal: "t-1"},
+		"plain":  lens.VariableParam("flag"),
+	}
+	variables := map[string]any{
+		"period": lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end},
+		"flag":   true,
+	}
+
+	params := resolveParams(specs, variables)
+	require.Equal(t, start, params["since"])
+	require.Equal(t, end, params["last"])
+	require.Equal(t, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), params["until"], "until is the first instant after the range")
+	require.Equal(t, "t-1", params["tenant"])
+	require.Equal(t, true, params["plain"])
+
+	params = resolveParams(specs, map[string]any{"period": lens.DateRangeValue{Mode: "all"}})
+	require.Nil(t, params["since"], "an all-time range has no bounds, so the parameter is NULL")
+	require.Nil(t, params["until"])
+}
+
+func TestResolveParams_BindsComparisonRangeParts(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2025, 6, 30, 23, 59, 59, 0, time.UTC)
+	variables := map[string]any{
+		"previous": lens.CompareValue{Mode: lens.ComparePreviousPeriod, Range: lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}},
+	}
+	params := resolveParams(map[string]lens.ParamValue{"since": lens.RangeParam("previous", lens.RangeStart)}, variables)
+	require.Equal(t, start, params["since"])
+}
+
+func TestRuntime_DateRangePartReachesTheQuery(t *testing.T) {
+	t.Parallel()
+	source := &paramSource{}
+	spec := lensbuild.Dashboard("d", "D", lensbuild.Row(panel.Table("rows", "Rows", "rows").Build())).
+		Variables(lensbuild.DateRangeVariable("period", "Period", 24*time.Hour)).
+		Datasets(lens.DatasetSpec{
+			Name: "rows", Kind: lens.DatasetKindQuery, Source: "primary",
+			Query: &lens.QuerySpec{
+				Text: "SELECT 1", Kind: datasource.QueryKindRaw,
+				Params: map[string]lens.ParamValue{
+					"since": lens.RangeParam("period", lens.RangeStart),
+					"until": lens.RangeParam("period", lens.RangeUntil),
+				},
+			},
+		}).Build()
+	values := url.Values{"period-start": {"2026-04-01"}, "period-end": {"2026-06-30"}}
+	_, err := execute(t.Context(), spec, Request{
+		DataSources: map[string]datasource.DataSource{"primary": source}, Request: values,
+	})
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), source.params["since"])
+	require.Equal(t, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), source.params["until"])
+}
+
+type paramSource struct{ params map[string]any }
+
+func (s *paramSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
+	s.params = req.Params
+	fr, err := frame.New(req.Source, frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0}})
+	if err != nil {
+		return nil, err
+	}
+	return frame.NewFrameSet(fr)
+}
+
+func (s *paramSource) Capabilities() datasource.CapabilitySet {
+	return datasource.CapabilitySet{datasource.CapabilityParameterizedQueries: true}
+}
+
+func TestResolveDateRange_ExplicitDatesBeatRetainedAllTimeMode(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.DateRangeVariable("period", "Period", 24*time.Hour)
+
+	bounded := resolveDateRange(spec, url.Values{"period": {"all"}, "period-start": {"2026-04-01"}, "period-end": {"2026-06-30"}}, "")
+	require.Equal(t, "bounded", bounded.Mode)
+	require.Equal(t, "all", resolveDateRange(spec, url.Values{"period": {"all"}}, "").Mode)
+}
+
+func TestResolveDateRange_EndOfDayFollowsTheCalendarAcrossDST(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.DateRangeVariable("period", "Period", 24*time.Hour)
+
+	// Europe/Zurich skips an hour on 2023-03-26: the day is 23 hours long, and
+	// its exclusive bound is local midnight, not 01:00 the next day.
+	value := resolveDateRange(spec, url.Values{"period-start": {"2023-03-20"}, "period-end": {"2023-03-26"}}, "Europe/Zurich")
+	until, ok := lens.ResolveRangePart(value, lens.RangeUntil)
+	require.True(t, ok)
+	location, err := time.LoadLocation("Europe/Zurich")
+	require.NoError(t, err)
+	require.True(t, until.(time.Time).Equal(time.Date(2023, 3, 27, 0, 0, 0, 0, location)), "got %v", until)
+}
