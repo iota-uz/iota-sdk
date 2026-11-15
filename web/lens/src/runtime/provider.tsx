@@ -1503,6 +1503,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         setNotice(driftNotice())
         return
       }
+      // A newer page request or navigation has stored its own frame (and its
+      // own retry) since this one started; this answer is no longer the
+      // panel's to write.
+      if (frames.get(panelId)?.retry !== retryPage) return
       const frame = Object.values(result.response.frames)[0]
       frames.set(panelId, {
         data: frame ?? previous,
@@ -1514,6 +1518,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         summary: result.response.summary,
       })
     } catch (cause: unknown) {
+      if (frames.get(panelId)?.retry !== retryPage) return
       frames.set(panelId, {
         data: previous,
         page: previousState?.page,

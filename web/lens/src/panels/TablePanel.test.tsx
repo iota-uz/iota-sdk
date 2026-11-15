@@ -856,4 +856,41 @@ describe('TablePanel explorer level footer', () => {
     expect(screen.getAllByRole('link', { name: 'Открыть запись' })).not.toHaveLength(0)
     expect(screen.queryByText('Open record')).toBeNull()
   })
+
+  it('keeps the figure of a totalled first column beside the footer label', async () => {
+    const firstTotalled: Panel = {
+      ...levelPanel,
+      columns: [{ field: 'amount', label: 'Amount', cell: { kind: 'plain' }, total: true }, { field: 'name', label: 'Name', cell: { kind: 'plain' } }],
+    }
+    window.history.replaceState(null, '', '/?path=evidence&panel=evidence')
+    render(() =>
+      <div class="lens-root">
+        <DocumentProvider initialDocument={{ ...levelDocument, panels: [firstTotalled] }}>
+          <DashboardRuntimeProvider locale="en" fetcher={() => Promise.resolve(levelResponse(1, { values: { amount: 600 }, filteredRows: 2, totalRows: 2 }))}>
+            {() => <TablePanel panel={firstTotalled} />}
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+    expect(document.querySelector('tfoot')).toHaveTextContent('Total: $600')
+  })
+
+  it('keeps the page and the total on screen when the next page fails to load', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const { page } = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { page: number }
+      if (page === 2) return Promise.reject(new Error('page failed'))
+      return Promise.resolve(levelResponse(1, { values: { amount: 600 }, filteredRows: 3, totalRows: 3 }))
+    })
+    renderLevel('en', fetcher)
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).not.toBeDisabled())
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(document.querySelector('tfoot')).toHaveTextContent('$600')
+  })
 })
