@@ -99,3 +99,18 @@ describe('value rules', () => {
     expect(vars[1]?.value).toBeUndefined()
   })
 })
+
+describe('supplied values', () => {
+  const stageFormula: Formula = { latex: 'a', variables: [{ key: 'G', label: 'Gone', value: '99', ref: { kind: 'stage', name: 'gone' } }] }
+  const base = {
+    ...panel, kind: 'metric_flow', encoding: { id: 'id', value: 'amount' },
+    metricFlow: { stages: [{ key: 'gone', label: 'Gone', role: 'input', availability: 'unavailable' }] },
+    formula: stageFormula,
+  } as unknown as Panel
+  const f: Frame = { columns: [{ name: 'id', type: 'string' }, { name: 'amount', type: 'number' }], rows: [['gone', 0]] }
+
+  it('clears a supplied value for an unavailable stage but keeps it without a frame', () => {
+    expect(resolveFormulaVariables(stageFormula, base, f, 'en')[0]?.value).toBeUndefined()
+    expect(resolveFormulaVariables(stageFormula, base, undefined, 'en')[0]?.value).toBe('99')
+  })
+})

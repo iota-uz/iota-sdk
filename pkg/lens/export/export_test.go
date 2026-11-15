@@ -420,3 +420,21 @@ func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
 	require.Equal(t, "", rows[1][3])
 }
+
+func TestMethodologyFormulaCells(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "f",
+		frame.Field{Name: "a", Values: []any{&frame.Formula{Expression: "A1+B1", Result: 7.0}}},
+		frame.Field{Name: "b", Values: []any{frame.Formula{Expression: "A1+B1"}}},
+		frame.Field{Name: "c", Values: []any{(*frame.Formula)(nil)}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+		{Key: "a", Ref: &formula.Ref{Kind: formula.RefField, Name: "a"}},
+		{Key: "b", Ref: &formula.Ref{Kind: formula.RefField, Name: "b"}},
+		{Key: "c", Ref: &formula.Ref{Kind: formula.RefField, Name: "c"}},
+	}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.Equal(t, 7.0, rows[1][3].(formattedValue).Value)
+	require.Equal(t, "", rows[2][3])
+	require.Equal(t, "", rows[3][3])
+}

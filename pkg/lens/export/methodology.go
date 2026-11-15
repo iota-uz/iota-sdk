@@ -90,20 +90,33 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 		if stageUnavailable(result.Panel, primary, variable.Ref.Name, match) {
 			return nil, false
 		}
-		return exportable(valueField.Values[match], result.Panel, *valueField), true
+		return exportable(valueField.Values[match], result.Panel, *valueField)
 	}
 	field, ok := primary.Field(variable.Ref.Name)
 	if !ok || field == nil || len(field.Values) == 0 {
 		return nil, false
 	}
-	return exportable(field.Values[0], result.Panel, *field), true
+	return exportable(field.Values[0], result.Panel, *field)
 }
 
-func exportable(value any, spec panel.Spec, field frame.Field) any {
-	if f, ok := value.(frame.Formula); ok {
+// exportable turns a frame cell into the Methodology sheet's value. A formula
+// cell (by value or by pointer) contributes its computed result; its expression
+// is never copied, since on this sheet its references would address the wrong
+// cells. A formula with no result has no value to show.
+func exportable(value any, spec panel.Spec, field frame.Field) (any, bool) {
+	switch f := value.(type) {
+	case frame.Formula:
+		value = f.Result
+	case *frame.Formula:
+		if f == nil {
+			return nil, false
+		}
 		value = f.Result
 	}
-	return formattedValue{Value: value, Format: panelFormats(spec)(field)}
+	if value == nil {
+		return nil, false
+	}
+	return formattedValue{Value: value, Format: panelFormats(spec)(field)}, true
 }
 
 // stageUnavailable applies the browser's precedence (frame column, then the

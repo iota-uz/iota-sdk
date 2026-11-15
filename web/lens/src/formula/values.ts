@@ -45,7 +45,11 @@ export function resolveFormulaVariables(
           ?? {}
         // An unavailable stage prints a dash on the panel; it must not print a
         // number here.
-        if (element.value.kind === 'value' && !elementQuality(element, structural, panel).showDash) {
+        if (elementQuality(element, structural, panel).showDash) {
+          // Unavailable in this slice: neither the frame nor a server-supplied
+          // fallback may state a number for it.
+          view.value = undefined
+        } else if (element.value.kind === 'value') {
           const field = panelField(panel, 'value')
           view.value = formatFieldValue(element.value.value, field ? panel.format[field] : undefined, locale)
         }
