@@ -96,20 +96,34 @@ const readerVariables: FormulaVariableView[] = [
 ]
 
 /**
- * What a reader is told around the figures: the panel's note (the ⓘ it
- * replaced), the hint that a click lists the variables, and the pinned list
- * with an operand in full and one whose reason replaces «no data».
+ * What a reader is told around the figures: the real ƒ popover, opened the way
+ * Tab opens it, with the panel's note (the ⓘ it replaced) and the hint that a
+ * click lists the variables; beside it the pinned list with an operand in full
+ * and one whose reason replaces «no data».
  */
 function ReaderAids(props: { theme: 'light' | 'dark' }): JSX.Element {
+  let tipCell: HTMLDivElement | undefined
+  onMount(() => {
+    const id = globalThis.setInterval(() => {
+      const trigger = tipCell?.querySelector<HTMLElement>('[data-testid="lens-formula-button"]')
+      if (!trigger) return
+      globalThis.clearInterval(id)
+      trigger.focus()
+    }, 100)
+  })
   return (
-    <div class="lens-root lens-story-matrix" data-theme={props.theme} style={{ display: 'grid', gap: '16px', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))' }}>
-      <Card label="preview: note and hint">
-        <strong class="lens-formula-title">How it is calculated</strong>
-        <FormulaView formula={formula} variables={readerVariables} />
-        <p class="lens-formula-value-line">ROE = <strong>12.5%</strong></p>
-        <p class="lens-formula-note">Net of reinsurance; equity is the average of the opening and closing balance.</p>
-        <p class="lens-formula-hint">Click ƒ to see the variables and their sources</p>
-      </Card>
+    <div class="lens-root lens-story-matrix" data-theme={props.theme} style={{ display: 'grid', gap: '16px', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))', 'min-height': '420px' }}>
+      <div class="lens-story-cell" ref={(el) => { tipCell = el }}>
+        <span class="lens-story-cell-label">ƒ preview: note and hint</span>
+        <span>
+          ROE{' '}
+          <PanelFormula
+            frame={{ columns: [{ name: 'value', type: 'number' }], rows: [[12.5]] }}
+            note="Net of reinsurance; equity is the average of the opening and closing balance."
+            panel={panel(true)}
+          />
+        </span>
+      </div>
       <Card label="pinned: exact operand, reason for a gap">
         <FormulaView formula={formula} variables={readerVariables} />
         <FormulaVariables variables={readerVariables} />

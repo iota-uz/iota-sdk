@@ -703,6 +703,10 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
     }
     if (storyId.startsWith('formula--formula-reader-aids')) {
+      // The ƒ opens on a timer once its trigger mounts; wait for the real
+      // popover with the note and hint, and for both formulas to typeset.
+      await expect(page.getByTestId('lens-formula-note')).toBeVisible()
+      await expect(page.getByTestId('lens-formula-hint')).toBeVisible()
       await expect(page.locator('.lens-formula[data-state="ready"]')).toHaveCount(2)
     }
     if (storyId.startsWith('formula--formula-states')) {
