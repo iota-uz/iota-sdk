@@ -1,4 +1,11 @@
 {
+  "Permissions": {
+    "BiChat": {
+      "Access": "Access BI Chat",
+      "ReadAll": "Read All Sessions",
+      "Export": "Export Data"
+    }
+  },
   "NavigationLinks": {
     "BiChat": "BI-Chat"
   },
@@ -431,6 +438,10 @@
   "StreamError": {
     "Retry": "Retry",
     "Regenerate": "Regenerate",
+    "Failed": {
+      "Title": "Could not get a response",
+      "Details": "Something went wrong while processing your request. Try again."
+    },
     "AdminAction": "A system administrator must resolve this issue.",
     "OpenBilling": "Open OpenAI billing",
     "OpenAPIKeys": "Open API keys",

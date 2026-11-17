@@ -46,7 +46,12 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be GET")
 		return
 	}
-	doc, err := h.BuildDocument(r.Context(), h.runtimeRequest(r), document.BuildOptions{})
+	req := h.runtimeRequest(r)
+	var opts document.BuildOptions
+	if h.documentOpts != nil {
+		opts = h.documentOpts(r, req)
+	}
+	doc, err := h.BuildDocument(r.Context(), req, opts)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
 		return
@@ -653,8 +658,11 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		// The cache key carries the path's point selections: a level entered
 		// through year 2024 must not be served the frame cached for 2025.
 		if cached, ok := snapshot.Frames[target.cacheRef()]; ok {
-			cached, _ = tableFrameView(target.panel, cached, "", req.Sort)
-			writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: cached}})
+			cached, summary := tableFrameView(target.panel, cached, "", req.Sort)
+			writeJSON(w, http.StatusOK, QueryResponse{
+				Frames:  map[document.FrameRef]document.Frame{target.ref: cached},
+				Summary: levelTableSummary(target.panel, summary, nil, nil),
+			})
 			if !req.Prefetch {
 				h.observeMetric(r.Context(), Metric{Name: MetricPrefetchHit, Value: boolMetric(session.wasPrefetched(key))})
 				h.observeMetric(r.Context(), Metric{Name: MetricTimeToFirstChild, Value: float64(time.Since(started).Microseconds()) / 1000})
@@ -680,7 +688,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
 	}
-	wire, _ = tableFrameView(target.panel, wire, "", req.Sort)
+	wire, summary := tableFrameView(target.panel, wire, "", req.Sort)
 	if err := document.ResolveDynamicChildren(&wire, snapshot.Levels[target.levelKey]); err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "dynamic children resolution failed", err)
 		return
@@ -695,8 +703,9 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, QueryResponse{
-		Frames: map[document.FrameRef]document.Frame{target.ref: wire},
-		Page:   &Page{Number: page, Size: h.pageSize, HasNext: hasNext},
+		Frames:  map[document.FrameRef]document.Frame{target.ref: wire},
+		Page:    &Page{Number: page, Size: h.pageSize, HasNext: hasNext},
+		Summary: levelTableSummary(target.panel, summary, panelResult.TablePagination, panelResult.TableTotals),
 	})
 }
 
@@ -751,11 +760,14 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 			h.writeInternalError(ctx, w, "lens/serve.Query", "level execution failed", fmt.Errorf("level execution returned %T", loaded.value))
 			return
 		}
-		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
+		frame, summary := tableFrameView(target.panel, frame, "", req.Sort)
 		if req.Prefetch {
 			session.markPrefetched(key)
 		}
-		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
+		writeJSON(w, http.StatusOK, QueryResponse{
+			Frames:  map[document.FrameRef]document.Frame{target.ref: frame},
+			Summary: levelTableSummary(target.panel, summary, nil, nil),
+		})
 		if !req.Prefetch {
 			h.observeMetric(ctx, Metric{Name: MetricPrefetchHit, Value: boolMetric(session.wasPrefetched(key))})
 			h.observeMetric(ctx, Metric{Name: MetricTimeToFirstChild, Value: float64(time.Since(started).Microseconds()) / 1000})

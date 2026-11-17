@@ -231,6 +231,53 @@ Use `runtime.PanelScope(panelID)` only inside a generic document/query mechanism
 when one panel can be executed independently. Do not add renderer-specific panel
 URLs or reintroduce `PanelBasePath`.
 
+## Document chrome, date ranges and themes
+
+- `serve.Config.DocumentOptions` returns the per-request `document.BuildOptions`
+  (drawer header, page header, translations, theme). It receives the request the
+  engine runs, so a host reads the same range and tenant the document uses.
+  `BuildOptions.Filters`, when non-nil, replaces the filters derived from the
+  dashboard's variables.
+- A `date_range` variable (`build.DateRangeVariable`) becomes a period filter
+  automatically. Bind it into SQL with `lens.RangeParam(variable, part)`:
+  `RangeStart`, `RangeEnd` (inclusive) or `RangeUntil` (the first instant after
+  the range, for `< @until`). An all-time range resolves to NULL.
+- `LensDashboard` mounted with `solid.WithTheme(solid.ThemeAuto)` follows the
+  `dark` class on `<html>` (or the system scheme when the page declares
+  neither); `ThemeLight` and `ThemeDark` stay fixed.
+
+## Explorer levels
+
+- A level draws a table of source records with
+  `explore.PanelNode(key, label, tableSpec).WithView(panel.KindTable)`. It is
+  terminal, receives the selected path like a chart level, paginates, and ships
+  its columns, formats and row action as `Level.table`.
+- A column declared with `Total: true` gets a footer under the level table. The
+  `/lens/query` response carries it as `summary`. When the host returned every
+  row of the selection, Lens sums them; when the host loads one page at a time
+  (`TablePagination` with more rows or a page after the first), the page's sum
+  is not the selection's, so the footer shows a total only for columns the host
+  supplies with `runtime.ApplyTableTotals(result, panelID, map[string]float64{"amount": total})`
+  and the other totalled columns show an em dash.
+- `DynamicChildren.Action` URLs substitute only `{name}` placeholders matching
+  the action's own params; params are never appended to the address.
+- Colour a company's own categories from `color.Categories()` (twelve colours
+  without red, grey or green) and use `color.Positive`, `color.Negative` and
+  `color.Neutral` for meaning. `SemanticColors("literal", field)` on a bar or
+  horizontal bar paints each row in its own colour without `ColorByCategory`.
+
+## Runtime translations
+
+Chrome text (including every `aria-label`, `title` and screen-reader-only string)
+is looked up as host `document.i18n`, then the runtime's built-in catalogue for
+the document locale (`web/lens/src/runtime/messages.ts`: `ru`, `uz`), then the
+English call-site text. A new key needs a Go constant in `document/i18n.go`, its
+entry in `RuntimeI18nKeys`, and `ru` and `uz` entries in `messages.ts`.
+`serve` seeds `document.i18n` with `RuntimeI18nDefaults()` only for locales the
+runtime cannot translate itself (`RuntimeI18nDefaultsFor`); seeding English into
+a `ru` document would hide the built-in Russian text. A host that passes its own
+`BuildOptions.I18n` replaces the seed and owns the wording.
+
 ## Performance Profiling
 
 Runtime payload preflights follow `runtime.Options.MaxEntryBytes`. When omitted,

@@ -97,5 +97,5 @@ func TestStreamClientErrorMessage_UnknownProviderErrorReturnsGeneric(t *testing.
 	controller := &StreamController{}
 	err := errors.New("Executor.Execute: internal failure")
 	got := controller.streamClientErrorMessage(err, bichatservices.ChunkTypeError)
-	assert.Equal(t, "An error occurred while processing your request", got)
+	assert.Equal(t, bichatmodsvcs.StreamFailedError, got)
 }

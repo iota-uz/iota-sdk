@@ -74,7 +74,7 @@ const (
 // HistoryDefinitions are the business history event types of the finance module.
 func HistoryDefinitions() []history.Definition {
 	defs := make([]history.Definition, 0, 40)
-	defs = append(defs, history.Lifecycle("finance.payment", "Payments.History", history.Resource{Name: PaymentResource, LabelKey: "NavigationLinks.Payments", Fields: []history.Field{
+	defs = append(defs, history.Lifecycle("finance.payment", "Payments.History", history.Resource{Name: PaymentResource, Fields: []history.Field{
 		{Name: "amount", LabelKey: "Payments.Single.Amount", Type: history.ValueMoney},
 		{Name: "account_id", LabelKey: "Payments.Single.AccountID", Type: history.ValueString},
 		{Name: "category_id", LabelKey: "Payments.Single.CategoryID", Type: history.ValueString},
@@ -175,7 +175,7 @@ func fileDefinition(eventType, keyPrefix, resource string) history.Definition {
 		Category:       businessevent.CategoryBusiness,
 		TitleKey:       keyPrefix + ".Title",
 		DescriptionKey: keyPrefix + ".Summary",
-		Resources:      []history.Resource{{Name: resource}, {Name: UploadResource}},
+		Resources:      []history.Resource{{Name: resource}, {Name: UploadResource, LabelKey: "BusinessHistory.Resources.Upload"}},
 	}
 }
 

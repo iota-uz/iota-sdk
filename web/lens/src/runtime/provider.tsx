@@ -30,6 +30,7 @@ import {
 import {
   dynamicParentPath,
   isPerspectiveFork,
+  isTableLevel,
   levelForPath,
   panelForNavigation,
   pathResolves,
@@ -780,6 +781,11 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // is the reactive mirror the UI reads. `docVersion` fires on every swap.
   let resolvedDoc = withInlineFrameChildren(props.document)
   const [docVersion, bumpDocVersion] = createSignal(0, { equals: false })
+  // Fires only when the host swaps the source document. Merging a lazy level's
+  // children also bumps `docVersion`, but must not replace the query client:
+  // a fresh client has an empty cache, so the level is asked again, answers
+  // again, merges again — an endless request loop.
+  const [sourceVersion, bumpSourceVersion] = createSignal(0, { equals: false })
   // The store's document is a detached copy: store setters (reconcile in
   // particular) write into their raw object, and the raw must never be the
   // caller's document, whose objects are shared with hosts and caches. Plain
@@ -801,6 +807,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   })
   createEffect(on(() => props.document, (source) => {
     resolvedDoc = withInlineFrameChildren(source)
+    bumpSourceVersion(0)
     bumpDocVersion(0)
     setDashboard('document', reconcile(resolvedDoc))
   }))
@@ -949,7 +956,16 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // The drawer portals to body and stacks above an expanded panel, so it carries
   // the theme of the root it opened from — captured from the opener when the
   // drawer opens, mirroring PanelFrame's overlay theme capture.
-  const drawerTheme: { theme?: string; dark: boolean } = { dark: false }
+  const [drawerTheme, setDrawerTheme] = createSignal<{ theme?: string; dark: boolean }>({ dark: false })
+  // A drawer restored from the address (a reload, a shared link) never went
+  // through `open`, so nothing captured its theme and it came up light on a dark
+  // board. Once it is on screen, read the theme from the board the same way
+  // `open` does.
+  createEffect(() => {
+    if (!dashboard.navigation.drawer || drawerTheme().theme !== undefined) return
+    const root = globalThis.document.querySelector<HTMLElement>('.lens-root[data-theme]:not(.lens-drawer-root)')
+    if (root?.dataset.theme) setDrawerTheme({ theme: root.dataset.theme, dark: root.dataset.theme === 'dark' || root.classList.contains('dark') })
+  })
   const drawerKeySources = new Map<string, string>()
   const drawerKeyResolvers = new Map<string, Promise<string>>()
   const drawerCache = createMemo<Pick<DocumentCache, 'configure' | 'get' | 'load' | 'prefetch'>>(() => {
@@ -1097,7 +1113,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const endpoint = resolvedDoc.endpoints.query
     const csrf = props.csrf
     const fetcher = props.fetcher
-    void docVersion()
+    void sourceVersion()
     return endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined
   })
   const panelClient = createMemo(() => {
@@ -1137,7 +1153,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const request: QueryRequest = {
       ...requestFor(source, queryView),
       prefetch: true,
-      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' || isTableLevel(source, queryView.path) ? { page: 1 } : {}),
     }
     const controller = new AbortController()
     void client.query(request, { signal: controller.signal }).then((response) => {
@@ -1393,7 +1409,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const perspective = doc.perspectives.find(({ id }) => id === currentNavigation.perspectiveId)
     const request = {
       ...requestFor(doc, currentNavigation),
-      ...(panel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+      ...(panel.kind === 'table' || perspective?.semantics === 'evidence' || isTableLevel(doc, currentNavigation.path) ? { page: 1 } : {}),
     }
     const force = forceRetry
     forceRetry = false
@@ -1421,6 +1437,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryFrame,
+        summary: result.response.summary,
       })
     }).catch((cause: unknown) => {
       const error = cause instanceof Error ? cause : new Error('query request failed')
@@ -1470,6 +1487,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       isLoading: true,
       error: null,
       retry: retryPage,
+      summary: previousState?.summary,
     })
     const currentNavigation = { ...view, path: [...view.path] }
     try {
@@ -1485,6 +1503,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         setNotice(driftNotice())
         return
       }
+      // A newer page request or navigation has stored its own frame (and its
+      // own retry) since this one started; this answer is no longer the
+      // panel's to write.
+      if (frames.get(panelId)?.retry !== retryPage) return
       const frame = Object.values(result.response.frames)[0]
       frames.set(panelId, {
         data: frame ?? previous,
@@ -1493,8 +1515,10 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: null,
         retry: retryPage,
+        summary: result.response.summary,
       })
     } catch (cause: unknown) {
+      if (frames.get(panelId)?.retry !== retryPage) return
       frames.set(panelId, {
         data: previous,
         page: previousState?.page,
@@ -1502,6 +1526,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: false,
         error: cause instanceof Error ? cause : new Error('query request failed'),
         retry: retryPage,
+        summary: previousState?.summary,
       })
     }
   }
@@ -1596,12 +1621,12 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
             status: 'retry', message: translate('export.retryHint', 'Snapshot refreshed. Retry export.'),
           }))
         } catch (refreshCause: unknown) {
-          const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
+          const message = refreshCause instanceof Error ? refreshCause.message : translate('export.refreshFailed', 'Snapshot refresh failed')
           setExportStates(scope, reconcile({ status: 'error', message }))
         }
         return
       }
-      const message = cause instanceof Error ? cause.message : 'Export failed'
+      const message = cause instanceof Error ? cause.message : translate('export.failed', 'Export failed')
       setExportStates(scope, reconcile({ status: 'error', message }))
     }
   }
@@ -1842,8 +1867,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
           ? globalThis.document.querySelector<HTMLElement>('.lens-root')
           : null)
       const theme = root?.dataset.theme
-      drawerTheme.theme = theme
-      drawerTheme.dark = theme === 'dark' || root?.classList.contains('dark') === true
+      setDrawerTheme({ theme, dark: theme === 'dark' || root?.classList.contains('dark') === true })
       dispatch(navigationActions.openDrawer(
         src,
         drawerNavigationFromSource(src, new URL(window.location.href)),
@@ -1857,8 +1881,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
           ?? globalThis.document.querySelector<HTMLElement>('.lens-root')
         drawerOpener = opener
         const theme = root?.dataset.theme
-        drawerTheme.theme = theme
-        drawerTheme.dark = theme === 'dark' || root?.classList.contains('dark') === true
+        setDrawerTheme({ theme, dark: theme === 'dark' || root?.classList.contains('dark') === true })
         const current = new URL(window.location.href)
         dispatch(navigationActions.openDrawer(relative, drawerNavigationFromSource(relative, current)))
       }).catch((cause: unknown) => setNotice(cause instanceof Error ? cause.message : 'drawer resolver failed'))
@@ -1946,12 +1969,12 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
                             <DocumentProvider src={drawer().src} csrf={props.csrf} fetcher={props.fetcher} cache={drawerCache()}>
                               <LensDrawer
                                 closeLabel={translate('drawer.close', 'Close details')}
-                                dark={drawerTheme.dark}
+                                dark={drawerTheme().dark}
                                 eyebrow={translate('drawer.eyebrow', 'Detail view')}
                                 label={translate('drawer.label', 'Drill details')}
                                 onClose={closeDrawer}
                                 restoreFocus={drawerOpener}
-                                theme={drawerTheme.theme}
+                                theme={drawerTheme().theme}
                               >
                                 <DashboardRuntimeProvider
                                   controlledNavigation={nestedDrawerState(drawer(), dashboard.navigation.history)}
@@ -2112,7 +2135,7 @@ export function usePrint(): PrintContextValue {
   return context
 }
 
-function useLocale(): Accessor<string> {
+export function useLocale(): Accessor<string> {
   return useContext(LocaleContext) ?? (() => 'en')
 }
 

@@ -118,6 +118,7 @@
       "DeleteConfirmation": "您确定要删除此客户吗？"
     },
     "History": {
+      "Resource": "客户",
       "Created": {
         "Title": "已创建客户",
         "Summary": "添加了新客户"

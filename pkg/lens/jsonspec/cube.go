@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -109,6 +110,7 @@ type MeasureSpec struct {
 	Override     *DatasetSpec     `json:"override"`
 	Action       *action.Spec     `json:"action"`
 	InvertTrend  bool             `json:"invertTrend"`
+	Formula      *formula.Spec    `json:"formula"`
 }
 
 type DatasetSpec struct {
@@ -336,6 +338,7 @@ func (s MeasureSpec) resolve(opts ResolveOptions) (cube.MeasureSpec, error) {
 		Info:         resolveText(s.Info, opts),
 		RequiresJoin: resolveStringSlice(s.RequiresJoin, opts.Values),
 		InvertTrend:  s.InvertTrend,
+		Formula:      s.Formula,
 	}
 	if s.Override != nil {
 		dataset, err := s.Override.resolve(opts)
@@ -413,6 +416,7 @@ func resolveQuerySpec(spec lens.QuerySpec, values map[string]any) (lens.QuerySpe
 func resolveParamValue(spec lens.ParamValue, values map[string]any) (lens.ParamValue, error) {
 	resolved := lens.ParamValue{
 		Variable: resolveString(spec.Variable, values),
+		Part:     spec.Part,
 	}
 	if !isNilValue(spec.Literal) {
 		value, err := resolveValueRefs(spec.Literal, values)

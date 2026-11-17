@@ -4,11 +4,14 @@ import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	descriptionlist "github.com/iota-uz/iota-sdk/components/base/description-list"
 	"github.com/iota-uz/iota-sdk/components/base/slot"
 	sfui "github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -104,10 +107,21 @@ templ Single(props *SingleProps) {
 }
 
 templ UserInfoHeader(user *viewmodels.User) {
-	<div class="flex justify-between items-center border-b border-subtle p-4">
-		<span class="font-medium">
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex justify-between items-center gap-3 border-b border-subtle p-4">
+		<span class="font-medium min-w-0 truncate">
 			{ user.Title() }
 		</span>
+		if user.CanUpdate && composables.CanUser(ctx, permissions.UserUpdate) == nil {
+			@button.Secondary(button.Props{
+				Size:  button.SizeSM,
+				Href:  fmt.Sprintf("/users/%s/edit", user.ID),
+				Icon:  icons.PencilSimple(icons.Props{Size: "16"}),
+				Attrs: templ.Attributes{"data-testid": "user-edit-button"},
+			}) {
+				{ pageCtx.T("Users.Single.Edit") }
+			}
+		}
 	</div>
 }
 
@@ -208,7 +222,7 @@ templ UserAccessInfo(user *viewmodels.User, groups []*viewmodels.ResourcePermiss
 					setItems[i] = descriptionlist.NewItem(mapping.Or(pageCtx.TSafe(set.Label), set.Label), setOpts...)
 				}
 				groupItems[i] = descriptionlist.NewItem(
-					mapping.Or(pageCtx.TSafe(fmt.Sprintf("Resources.%s", group.Resource)), group.Resource),
+					roles.ResourceLabel(pageCtx, group.Resource),
 					descriptionlist.WithItemDetails(
 						descriptionlist.New(descriptionlist.WithListItems(setItems...)),
 					),

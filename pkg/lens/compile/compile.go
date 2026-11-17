@@ -433,6 +433,7 @@ func compileMeasure(item lensspec.MeasureSpec, opts Options) (cube.MeasureSpec, 
 		Info:         resolveText(item.Info, opts),
 		RequiresJoin: resolveStringSlice(item.RequiresJoin, opts.Values),
 		InvertTrend:  item.InvertTrend,
+		Formula:      item.Formula,
 	}
 	if item.Override != nil {
 		override, err := compileDataset(*item.Override, opts)
@@ -520,6 +521,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Title:                 resolveText(item.Title, opts),
 		Description:           resolveText(item.Description, opts),
 		Info:                  resolveText(item.Info, opts),
+		Formula:               item.Formula,
 		Kind:                  item.Kind,
 		Dataset:               resolveString(item.Dataset, opts.Values),
 		Span:                  item.Span,
@@ -682,6 +684,7 @@ func resolveQuerySpec(spec lens.QuerySpec, values map[string]any) (lens.QuerySpe
 func resolveParamValue(spec lens.ParamValue, values map[string]any) (lens.ParamValue, error) {
 	resolved := lens.ParamValue{
 		Variable: resolveString(spec.Variable, values),
+		Part:     spec.Part,
 	}
 	if !isNilValue(spec.Literal) {
 		value, err := resolveValueRefs(spec.Literal, values)

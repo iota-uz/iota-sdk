@@ -319,6 +319,8 @@ const (
 	I18nExportRetryHint            = "export.retryHint"
 	I18nExportSVG                  = "export.svg"
 	I18nExportImageError           = "export.imageError"
+	I18nExportFailed               = "export.failed"
+	I18nExportRefreshFailed        = "export.refreshFailed"
 	I18nFilterBarLabel             = "filter.bar.label"
 	I18nFilterFacetApply           = "filter.facet.apply"
 	I18nFilterFacetClear           = "filter.facet.clear"
@@ -346,20 +348,24 @@ const (
 	I18nFilterDuration             = "filter.period.duration"
 	I18nFilterFrom                 = "filter.period.from"
 	I18nFilterOpen                 = "filter.period.open"
+	I18nFilterPrevious             = "filter.period.previous"
+	I18nFilterNext                 = "filter.period.next"
 	I18nFilterQuickSelect          = "filter.period.quickSelect"
 	I18nFilterTo                   = "filter.period.to"
 
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
 	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
-	// 12 months, current fiscal year (yearToDate), then last month and last
-	// fiscal year (lastYear).
+	// 12 months, current quarter, current fiscal year (yearToDate), then last
+	// month, last quarter and last fiscal year (lastYear).
 	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
 	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
 	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
 	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
 	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
+	I18nFilterPresetThisQuarter  = "filter.period.preset.thisQuarter"
+	I18nFilterPresetLastQuarter  = "filter.period.preset.lastQuarter"
 	I18nPanelActions             = "panel.actions"
 	I18nPanelCollapse            = "panel.collapse"
 	I18nPanelCalculation         = "panel.calculation"
@@ -376,6 +382,15 @@ const (
 	I18nPanelExpand                = "panel.expand"
 	I18nPanelInfo                  = "panel.info"
 	I18nPanelInfoAbout             = "panel.infoAbout"
+	I18nPanelFormula               = "panel.formula"
+	I18nPanelFormulaShow           = "panel.formula.show"
+	I18nPanelFormulaError          = "panel.formula.error"
+	I18nPanelFormulaVariables      = "panel.formula.variables"
+	I18nPanelFormulaSource         = "panel.formula.source"
+	I18nPanelFormulaVersion        = "panel.formula.version"
+	I18nPanelFormulaNoValue        = "panel.formula.noValue"
+	I18nPanelFormulaMore           = "panel.formula.more"
+	I18nPrintMethodology           = "print.methodology"
 	I18nPanelMissing               = "panel.missing"
 	I18nPanelOpenMetric            = "panel.openMetric"
 	I18nPanelRetry                 = "panel.retry"
@@ -710,9 +725,10 @@ func RuntimeI18nKeys() []string {
 		I18nFilterCompareCustom, I18nFilterCompareStart, I18nFilterCompareEnd,
 		I18nFilterCompleted, I18nFilterCustom,
 		I18nFilterDateFormat, I18nFilterDuration,
-		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
+		I18nFilterFrom, I18nFilterOpen, I18nFilterPrevious, I18nFilterNext, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
+		I18nFilterPresetThisQuarter, I18nFilterPresetLastQuarter,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartCollapseOther, I18nChartDrillHint, I18nChartFilterHint, I18nChartCrossFilterSource, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartAllSeriesHidden, I18nChartShowAllSeries,
@@ -742,10 +758,12 @@ func RuntimeI18nKeys() []string {
 		I18nFocusSourceData, I18nFocusSourceLoad, I18nFocusSourceRows, I18nFocusSourceUnav,
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
-		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
+		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError, I18nExportFailed, I18nExportRefreshFailed,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss,
 		I18nPanelActions, I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
-		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelFormula, I18nPanelFormulaShow, I18nPanelFormulaError,
+		I18nPanelFormulaVariables, I18nPanelFormulaSource, I18nPanelFormulaVersion,
+		I18nPanelFormulaNoValue, I18nPanelFormulaMore, I18nPrintMethodology, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,

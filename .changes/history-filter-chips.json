@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Rework the business history page (/admin/history): filters are now a chip builder (period, resource, action, channel, result) with searchable multi-select for resources and actions, grouped by resource; history queries accept several resources (history.Query.Resources); every history resource has a translated label in all locales (history.Lifecycle defaults it to <KeyPrefix>.Resource, other resources set Resource.LabelKey, and the registry rejects two different labels for one resource); event times and period filters follow the application time zone; filterbuilder popovers fit narrow screens."
+}

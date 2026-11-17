@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
 func tableFrameView(spec panel.Spec, source document.Frame, search string, ordering *document.TableSort) (document.Frame, *document.TableSummary) {
@@ -50,6 +51,40 @@ func tableFrameView(spec panel.Spec, source document.Frame, search string, order
 	return view, &document.TableSummary{
 		Values: values, FullValues: fullValues, FilteredRows: len(view.Rows), TotalRows: len(full.Rows),
 	}
+}
+
+// levelTableSummary is the footer of a table level. A level whose rows are all
+// in hand (the host returned the whole selection, even if the wire trims it to a
+// page afterwards) keeps the sum computed over them. A level the host loaded one
+// page of cannot total the selection from that page, so each column takes the
+// host's authoritative total or goes without one; the runtime then prints an
+// em dash instead of the page's sum under a "Total" label.
+func levelTableSummary(
+	spec panel.Spec,
+	summary *document.TableSummary,
+	pagination *lensruntime.TablePagination,
+	totals map[string]float64,
+) *document.TableSummary {
+	if summary == nil {
+		return nil
+	}
+	partial := pagination != nil && (pagination.Page > 1 || pagination.HasMore)
+	values := make(map[string]any, len(summary.Values))
+	for _, column := range spec.Columns {
+		if !column.Total {
+			continue
+		}
+		name := column.Field.Name()
+		if total, ok := totals[name]; ok {
+			values[name] = total
+		} else if value, ok := summary.Values[name]; ok && !partial {
+			values[name] = value
+		}
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return &document.TableSummary{Values: values, FilteredRows: summary.FilteredRows, TotalRows: summary.TotalRows}
 }
 
 func tableTotals(spec panel.Spec, source document.Frame) map[string]any {

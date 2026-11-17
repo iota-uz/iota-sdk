@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
@@ -369,7 +370,8 @@ type PresentationHints struct {
 	FillPlot bool
 	// BarWidthPx pins the rendered bar thickness in CSS pixels.
 	BarWidthPx int
-	// ColorByCategory gives every category its own palette color.
+	// ColorByCategory gives every category its own palette color. A bar panel
+	// whose SemanticColors scale is "literal" already implies it.
 	ColorByCategory bool
 	// ColorBySequence shades an ordered dimension along one hue. Use it where
 	// the categories are ranked — age bands, tenure buckets, rating grades —
@@ -710,11 +712,13 @@ type Spec struct {
 	Renderer      *HostRenderer
 	// Unavailable marks a grid container whose content cannot be shown; the
 	// value is the document wire reason (document.GroupUnavailable).
-	Unavailable     string
-	ID              string
-	Title           string
-	Description     string
-	Info            string
+	Unavailable string
+	ID          string
+	Title       string
+	Description string
+	Info        string
+	// Formula optionally describes how the panel's figure is calculated.
+	Formula         *formula.Spec
 	Kind            Kind
 	Dataset         string
 	Span            int
@@ -1247,6 +1251,9 @@ func (b *Builder) ComparisonUnsupported() *Builder {
 }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
+
+// Formula attaches the methodology formula shown behind the panel's ƒ affordance.
+func (b *Builder) Formula(spec formula.Spec) *Builder { b.spec.Formula = &spec; return b }
 func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
 	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
 	return b
@@ -1274,6 +1281,13 @@ func (b *Builder) DistributedColors() *Builder {
 	b.spec.Distributed = true
 	return b
 }
+
+// SemanticColors takes each row's colour from field. With scale "literal" the
+// column holds the colour itself (a hex value or a palette name), and a bar or
+// horizontal bar paints every row in its own colour without ColorByCategory.
+// Any other scale names a category vocabulary and derives the colour from the
+// row's value; the panel then colours per row only when ColorByCategory or
+// DistributedColors asks for it.
 func (b *Builder) SemanticColors(scale string, field FieldRef) *Builder {
 	b.spec.ColorScale = strings.TrimSpace(scale)
 	b.spec.ColorField = field

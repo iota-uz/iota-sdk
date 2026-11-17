@@ -2956,6 +2956,130 @@
     box-shadow: var(--lens-shadow-popover);
   }
 
+  /* The ƒ methodology bubble is wider than a note: a typeset formula needs the
+     room, and the variable list reads as a small table beneath it. */
+  .lens-formula-bubble {
+    @apply lens:w-96 lens:max-w-[min(26rem,90vw)];
+  }
+
+  .lens-formula-body {
+    @apply lens:gap-2;
+  }
+
+  .lens-formula-title,
+  .lens-formula-subtitle {
+    @apply lens:m-0 lens:text-xs lens:font-semibold lens:text-muted;
+  }
+
+  .lens-formula {
+    @apply lens:relative lens:min-w-0;
+  }
+
+  .lens-formula-math {
+    @apply lens:overflow-x-auto lens:overflow-y-hidden lens:py-1;
+  }
+
+  .lens-formula-math .katex-display {
+    @apply lens:my-1;
+  }
+
+  .lens-formula-shimmer {
+    @apply lens:block lens:h-8 lens:w-full lens:rounded;
+  }
+
+  .lens-formula-error {
+    @apply lens:m-0 lens:text-sm;
+
+    color: var(--lens-neg);
+  }
+
+  /* A tagged symbol: dotted underline says "ask me", the focus ring is the same
+     one every other control in the runtime draws. */
+  .lens-formula-var {
+    @apply lens:cursor-help lens:rounded-sm;
+
+    text-decoration: underline dotted;
+    text-underline-offset: 0.2em;
+  }
+
+  .lens-formula-var:hover {
+    background: color-mix(in srgb, var(--lens-accent-500) 14%, transparent);
+  }
+
+  .lens-formula-var:focus-visible {
+    outline: var(--lens-focus-ring-width) solid var(--lens-focus-ring-color);
+    outline-offset: 1px;
+  }
+
+  .lens-formula-tip {
+    @apply lens:pointer-events-none lens:fixed lens:z-tooltip lens:flex lens:-translate-x-1/2 lens:flex-col lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:py-1 lens:text-xs;
+
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-formula-tip-label {
+    @apply lens:text-muted;
+  }
+
+  .lens-formula-tip-value {
+    @apply lens:font-semibold lens:tabular-nums;
+  }
+
+  .lens-formula-tip-source {
+    @apply lens:max-w-60 lens:text-muted;
+  }
+
+  /* A value the data cannot state reads as a remark, not as a figure. */
+  .lens-formula-tip-value[data-missing],
+  .lens-formula-variable-value[data-missing] {
+    @apply lens:font-normal lens:text-muted;
+  }
+
+  .lens-formula-hint {
+    @apply lens:m-0 lens:text-xs lens:text-muted;
+  }
+
+  .lens-formula-value-line {
+    @apply lens:m-0 lens:text-sm lens:tabular-nums;
+  }
+
+  .lens-formula-note {
+    @apply lens:m-0 lens:whitespace-pre-line lens:text-xs lens:leading-relaxed lens:text-muted;
+  }
+
+  .lens-formula-variable-list {
+    @apply lens:m-0 lens:flex lens:flex-col lens:gap-1.5;
+  }
+
+  .lens-formula-variable {
+    @apply lens:grid lens:grid-cols-[1fr_auto] lens:gap-x-3 lens:text-xs;
+  }
+
+  .lens-formula-variable dt {
+    @apply lens:m-0;
+  }
+
+  .lens-formula-variable dd {
+    @apply lens:m-0;
+  }
+
+  .lens-formula-variable-value {
+    @apply lens:font-semibold lens:tabular-nums;
+  }
+
+  .lens-formula-variable-source {
+    @apply lens:col-span-2 lens:text-muted;
+  }
+
+  .lens-formula-version {
+    @apply lens:m-0 lens:text-xs lens:text-muted;
+  }
+
+  /* Print and PDF: the methodology block is an ordinary, unbreakable figure. */
+  .lens-print-methodology {
+    break-inside: avoid;
+  }
+
   .lens-info-tip-body {
     @apply lens:flex lens:min-h-0 lens:flex-col lens:gap-1.5 lens:overflow-y-auto;
   }
@@ -5643,6 +5767,7 @@
 
   .lens-table-scroll-frame {
     @apply lens:relative lens:flex lens:min-h-0 lens:flex-1;
+    container: lens-table / inline-size;
   }
 
   /* A column cut mid-glyph («74 357 UZ») reads as a rendering fault, not as a
@@ -5752,23 +5877,19 @@
     @apply lens:w-full lens:border-collapse lens:text-left lens:text-md;
   }
 
-  .lens-table-wide {
-    min-width: max(100%, 48rem);
-  }
+  /* A table takes the width it is given and wraps its text to fit it; it
+     scrolls sideways only when its columns cannot narrow any further than their
+     longest word. A fixed floor here (48rem) made a wide table overflow a
+     694px drawer and a half-width card that its columns fit without it.
 
-  /* The spacer must extend the table instead of competing with data columns
-     for the existing width. Otherwise its width reflows the sticky column,
-     which changes the spacer again and creates a two-state ResizeObserver
-     loop with intermittently clipped values. */
+     The spacer extends the table instead of competing with data columns for
+     the existing width. Otherwise its width reflows the sticky column, which
+     changes the spacer again and creates a two-state ResizeObserver loop with
+     intermittently clipped values. It exists only while the data columns
+     really overflow, and the overflow check discounts its own width, so it
+     never keeps itself alive. */
   .lens-table:has(.lens-table-scroll-spacer) {
     width: calc(100% + var(--lens-table-sticky-width, 0px) + 2rem);
-  }
-
-  .lens-table-wide:has(.lens-table-scroll-spacer) {
-    min-width: max(
-      calc(100% + var(--lens-table-sticky-width, 0px) + 2rem),
-      calc(48rem + var(--lens-table-sticky-width, 0px) + 2rem)
-    );
   }
 
   .lens-table th {
@@ -6184,6 +6305,16 @@
 
   .lens-table .lens-leaf-action {
     @apply lens:bg-transparent lens:px-2 lens:py-1 lens:text-base lens:text-accent-700;
+  }
+
+  /* In the room a wide drawer or a half-width card leaves, the row action is
+     one more column that may narrow: its label wraps instead of holding the
+     whole table wider than the container. A wide container keeps the label on
+     one line in a column that is exactly as wide as the label. */
+  @container lens-table (max-width: 48rem) {
+    .lens-table-action-cell {
+      @apply lens:w-auto lens:whitespace-normal;
+    }
   }
 
   .lens-table-empty {

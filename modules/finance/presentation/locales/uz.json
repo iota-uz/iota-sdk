@@ -91,6 +91,7 @@
       "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Xarajat kategoriyalari",
       "Created": {
         "Title": "Xarajat kategoriyasi yaratildi",
         "Summary": "Yangi xarajat kategoriyasi qo'shildi"
@@ -148,6 +149,7 @@
       "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "To'lovlar",
       "Created": {
         "Title": "To'lov yaratildi",
         "Summary": "To'lov qayd etildi"
@@ -212,6 +214,7 @@
       "DeleteConfirmation": "Ushbu xarajatni o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Xarajatlar",
       "Created": {
         "Title": "Xarajat yaratildi",
         "Summary": "Xarajat qayd etildi"
@@ -283,6 +286,7 @@
       "SOLE_PROPRIETORSHIP": "Yakka tadbirkor"
     },
     "History": {
+      "Resource": "Kontragentlar",
       "Created": {
         "Title": "Kontragent yaratildi",
         "Summary": "Yangi kontragent qo'shildi"
@@ -345,6 +349,7 @@
       "Loading": "Yuklanmoqda…"
     },
     "History": {
+      "Resource": "Hisoblar",
       "Created": {
         "Title": "Hisob yaratildi",
         "Summary": "Boshlang'ich qoldiq bilan pul hisobi ochildi"
@@ -406,6 +411,7 @@
       "DeleteConfirmation": "Ushbu to'lov kategoriyasini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "To'lov kategoriyalari",
       "Created": {
         "Title": "To'lov kategoriyasi yaratildi",
         "Summary": "Yangi to'lov kategoriyasi qo'shildi"
@@ -457,6 +463,7 @@
       "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Ombor",
       "Created": {
         "Title": "Tovar yaratildi",
         "Summary": "Tovar qo'shildi"
@@ -531,6 +538,7 @@
       "ADJUSTMENT": "Tuzatish"
     },
     "History": {
+      "Resource": "Tranzaksiyalar",
       "Created": {
         "Title": "O'tkazma amalga oshirildi",
         "Summary": "Pul hisoblar o'rtasida o'tkazildi yoki ayirboshlandi"
@@ -681,6 +689,7 @@
       "WrittenOff": "Qarz muvaffaqiyatli hisobdan chiqarildi"
     },
     "History": {
+      "Resource": "Qarzlar",
       "Created": {
         "Title": "Qarz yaratildi",
         "Summary": "Qarz qayd etildi"

@@ -5,6 +5,7 @@ import type { Frame, Panel } from '../contract'
 import { clampedDeltaPercent, type PanelFrameState, useDashboard, useFormat, useTranslate } from '../runtime'
 import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
+import { PanelFormula } from '../formula/PanelFormula'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
 import { useExportAllowed } from './drillGate'
@@ -245,7 +246,7 @@ export function PanelFrame(props: PanelFrameProps) {
   // the name (a tab label naming its only panel) suppresses it entirely.
   const titleNode = (): JSX.Element => chrome?.trail
     ?? (chrome?.titleIsRedundant ? undefined : <h3 class="lens-panel-title" title={props.panel.title}>{props.panel.title}</h3>)
-  const showHeading = () => Boolean(chrome?.trail) || !chrome?.titleIsRedundant || Boolean(infoText())
+  const showHeading = () => Boolean(chrome?.trail) || !chrome?.titleIsRedundant || Boolean(infoText()) || Boolean(props.panel.formula)
 
   const toggleExpanded = () => setExpanded(true)
 
@@ -311,9 +312,10 @@ export function PanelFrame(props: PanelFrameProps) {
         <Show when={showHeading()}>
           <div class="lens-panel-heading">
             {titleNode()}
-            <Show when={infoText()}>
+            <Show when={infoText() && !props.panel.formula}>
               <InfoTip subject={props.panel.title} text={infoText()} />
             </Show>
+            <PanelFormula frame={props.frame.data} note={infoText()} panel={props.panel} />
           </div>
         </Show>
         {chrome?.explore}

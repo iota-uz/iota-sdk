@@ -55,8 +55,11 @@ func (n Node) WithBalance(expected, actual, tolerance float64) Node {
 	return n
 }
 
-// WithView declares the chart kind the wire runtime should render this level
-// with, instead of the drill host panel's own kind.
+// WithView declares the kind the wire runtime should render this level with,
+// instead of the drill host panel's own kind. A chart kind draws the level as a
+// chart; panel.KindTable draws the node's table panel — columns, formats and
+// row actions — over the rows loaded for the selected path, which is how the
+// source records behind a figure become the last level of an exploration.
 func (n Node) WithView(kind panel.Kind) Node {
 	n.View = kind
 	return n

@@ -643,6 +643,9 @@ type Panel struct {
 	// screen it costs nothing until asked for; on paper there is nothing to ask,
 	// so a printed report carries it as the figure's footnote.
 	Info string `json:"info,omitempty"`
+	// Formula is the figure's methodology: a typeset formula with the variables
+	// whose values the client joins from the same frame as the figure itself.
+	Formula *Formula `json:"formula,omitempty"`
 	// Headline overrides a coverage panel's computed headline value.
 	Headline *float64 `json:"headline,omitempty"`
 	// Trend is a signed change chip rendered in the panel footer, e.g.
@@ -1253,6 +1256,18 @@ type Level struct {
 	// Source, when set, declares this level's audit table: the source rows
 	// behind the level's aggregate, rendered behind a collapsed disclosure.
 	Source *LevelSource `json:"source,omitempty"`
+	// Table declares how a View=table level draws its rows: columns, formats and
+	// the row action. Its rows are loaded for the selected path like any level.
+	Table *LevelTable `json:"table,omitempty"`
+}
+
+// LevelTable is the table half of a level whose View is table. The columns,
+// formats and actions mirror a table panel's, so the runtime renders the level
+// exactly like a table panel body.
+type LevelTable struct {
+	Columns []TableColumn          `json:"columns,omitempty"`
+	Format  map[string]FieldFormat `json:"format,omitempty"`
+	Actions []Action               `json:"actions"`
 }
 
 // LevelSource declares a drill level's audit table. Frame references the
@@ -1385,6 +1400,9 @@ func (p QueryPage) MarshalJSON() ([]byte, error) {
 type QueryResponse struct {
 	Frames map[FrameRef]Frame `json:"frames"`
 	Page   *QueryPage         `json:"page,omitempty"`
+	// Summary carries the footer totals of a table level, computed over the
+	// whole selection the level represents rather than the page on screen.
+	Summary *TableSummary `json:"summary,omitempty"`
 }
 
 type PanelRequest struct {

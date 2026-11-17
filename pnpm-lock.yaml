@@ -51,6 +51,9 @@ importers:
 
   web/chat-ui:
     dependencies:
+      '@iota-uz/sdk-math-internal':
+        specifier: workspace:*
+        version: link:../math
       apexcharts:
         specifier: ^3.45.0
         version: 3.54.1
@@ -160,6 +163,9 @@ importers:
 
   web/lens:
     dependencies:
+      '@iota-uz/sdk-math-internal':
+        specifier: workspace:*
+        version: link:../math
       echarts:
         specifier: ^6.1.0
         version: 6.1.0
@@ -233,6 +239,16 @@ importers:
       vitest:
         specifier: 2.1.9
         version: 2.1.9(@types/node@22.10.2)(jsdom@25.0.1)(lightningcss@1.32.0)(msw@2.15.0(@types/node@22.10.2)(typescript@5.7.2))
+
+  web/math:
+    dependencies:
+      katex:
+        specifier: ^0.16.28
+        version: 0.16.47
+    devDependencies:
+      '@types/katex':
+        specifier: 0.16.8
+        version: 0.16.8
 
   web/runtime:
     devDependencies:

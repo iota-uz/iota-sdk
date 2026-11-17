@@ -118,6 +118,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este cliente?"
     },
     "History": {
+      "Resource": "Clientes",
       "Created": {
         "Title": "Cliente criado",
         "Summary": "Um novo cliente foi adicionado"

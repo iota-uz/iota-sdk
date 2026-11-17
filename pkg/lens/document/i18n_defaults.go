@@ -1,5 +1,45 @@
 package document
 
+import (
+	"slices"
+	"strings"
+)
+
+// RuntimeBuiltinLocales lists the languages whose runtime chrome the React
+// runtime translates itself (web/lens/src/runtime/messages.ts). The runtime
+// looks the document catalogue up first, so an English baseline shipped in that
+// catalogue would hide every built-in translation.
+func RuntimeBuiltinLocales() []string {
+	return []string{"ru", "uz"}
+}
+
+// HasRuntimeBuiltinCatalogue reports whether the runtime ships its own
+// translations for locale. A Cyrillic Uzbek reader is not served the Latin
+// catalogue, mirroring the runtime's own lookup.
+func HasRuntimeBuiltinCatalogue(locale string) bool {
+	parts := strings.FieldsFunc(locale, func(r rune) bool { return r == '-' || r == '_' })
+	if len(parts) == 0 {
+		return false
+	}
+	for _, subtag := range parts[1:] {
+		if strings.EqualFold(subtag, "cyrl") {
+			return false
+		}
+	}
+	return slices.Contains(RuntimeBuiltinLocales(), strings.ToLower(parts[0]))
+}
+
+// RuntimeI18nDefaultsFor returns the catalogue a document is seeded with for
+// locale. English and languages the runtime cannot translate get the SDK
+// baseline; a language with a built-in catalogue gets none, so the built-in
+// text is what the reader sees and a host overlay still wins over it.
+func RuntimeI18nDefaultsFor(locale string) map[string]string {
+	if HasRuntimeBuiltinCatalogue(locale) {
+		return make(map[string]string)
+	}
+	return RuntimeI18nDefaults()
+}
+
 // RuntimeI18nDefaults returns the SDK-owned English baseline for runtime
 // chrome. Hosts can overlay translated values, but a new SDK consumer no
 // longer has to redeclare these keys just to avoid component-local literals.
@@ -166,6 +206,10 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nChartFilterHint:                     "Select to filter the page",
 		I18nChartCrossFilterSource:              "All categories shown — the filter applies to the other panels",
 		I18nTableNotSummable:                    "Not summable",
+		I18nFilterPrevious:                      "Previous period",
+		I18nFilterNext:                          "Next period",
+		I18nExportFailed:                        "Export failed",
+		I18nExportRefreshFailed:                 "Snapshot refresh failed",
 		I18nChartData:                           "Chart data for {name}",
 		I18nChartOpenMark:                       "Open {name}",
 		I18nChartLabel:                          "{name}",
@@ -192,6 +236,15 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nPanelErrorTimeout:                   "There is too much data in the selected period to load it in time. Pick a shorter period, or try again.",
 		I18nPanelErrorCanceled:                  "Loading stopped before it finished. Try again when you are ready.",
 		I18nPanelInfoAbout:                      "About {name}",
+		I18nPanelFormula:                        "How it is calculated",
+		I18nPanelFormulaShow:                    "Show how {name} is calculated",
+		I18nPanelFormulaError:                   "The formula could not be displayed.",
+		I18nPanelFormulaVariables:               "Variables",
+		I18nPanelFormulaSource:                  "Source",
+		I18nPanelFormulaVersion:                 "Methodology v{version} · {date}",
+		I18nPanelFormulaNoValue:                 "no data",
+		I18nPanelFormulaMore:                    "Click ƒ to see the variables and their sources",
+		I18nPrintMethodology:                    "Calculation methodology",
 		I18nChartBoxplotMin:                     "Minimum",
 		I18nChartBoxplotQ1:                      "Q1",
 		I18nChartBoxplotMedian:                  "Median",

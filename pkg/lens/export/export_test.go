@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -359,4 +360,135 @@ func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSe
 	fs, err := frame.NewFrameSet(fr)
 	require.NoError(t, err)
 	return fs
+}
+
+func TestExporterWrite_MethodologySheet(t *testing.T) {
+	t.Parallel()
+	stat := mustFrames(t, "stat", frame.Field{Name: "roe", Values: []any{12.5}}, frame.Field{Name: "net", Values: []any{300.0}})
+	spec := panel.Spec{
+		ID: "roe", Title: "ROE", Kind: panel.KindStat, Dataset: "stat",
+		Fields: panel.FieldMapping{Value: panel.Ref("roe")},
+		Formula: &formula.Spec{
+			Latex:   `\mathrm{ROE} = \frac{\htmlData{var=N}{N}}{E}`,
+			Version: "2", Date: "2026-01-01",
+			Variables: []formula.Variable{{Key: "N", Label: "Net profit", Ref: &formula.Ref{Kind: formula.RefField, Name: "net"}, Source: "GL 90"}},
+		},
+	}
+	result := &lensruntime.DashboardResult{SnapshotID: "s", Spec: lens.DashboardSpec{Title: "D", Datasets: []lens.DatasetSpec{{Name: "stat"}}}, Datasets: map[string]*lensruntime.DatasetResult{"stat": {Frames: stat}}, Panels: map[string]*lensruntime.PanelResult{"roe": {Panel: spec, Frames: stat}}}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "roe"}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+	require.Contains(t, book.GetSheetList(), "Methodology")
+	name, _ := book.GetCellValue("Methodology", "A2")
+	require.Equal(t, "ROE", name)
+	val, _ := book.GetCellValue("Methodology", "D2")
+	require.Equal(t, "300", val)
+	src, _ := book.GetCellValue("Methodology", "E2")
+	require.Equal(t, "GL 90", src)
+}
+
+func TestMethodologyStageVariableByKey(t *testing.T) {
+	t.Parallel()
+	flow := mustFrames(t, "flow",
+		frame.Field{Name: "stage_id", Values: []any{"revenue", "net"}},
+		frame.Field{Name: "amount", Values: []any{frame.Formula{Expression: "A1", Result: 1000.0}, 300.0}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Fields: panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+			{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}},
+			{Key: "r", Label: "Rev", Ref: &formula.Ref{Kind: formula.RefStage, Name: "revenue"}},
+			{Key: "x", Label: "Missing", Ref: &formula.Ref{Kind: formula.RefStage, Name: "nope"}},
+		}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
+	require.Len(t, rows, 4)
+	require.InDelta(t, 300.0, rows[1][3].(formattedValue).Value, 1e-9)
+	require.InDelta(t, 1000.0, rows[2][3].(formattedValue).Value, 1e-9)
+	require.Empty(t, rows[3][3])
+}
+
+func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
+	t.Parallel()
+	flow := mustFrames(t, "flow",
+		frame.Field{Name: "stage_id", Values: []any{"net"}},
+		frame.Field{Name: "amount", Values: []any{0.0}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Availability: panel.AvailabilityUnavailable,
+		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
+	require.Empty(t, rows[1][3])
+}
+
+func TestMethodologyFieldUnavailableExportsNothing(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "f",
+		frame.Field{Name: "net", Values: []any{0.0}},
+		frame.Field{Name: "net_state", Values: []any{"config_required"}},
+		frame.Field{Name: "rev", Values: []any{5.0}},
+		frame.Field{Name: "rev_state", Values: []any{"available"}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+		{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefField, Name: "net", Availability: "net_state"}},
+		{Key: "r", Label: "Rev", Ref: &formula.Ref{Kind: formula.RefField, Name: "rev", Availability: "rev_state"}},
+	}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.Empty(t, rows[1][3])
+	require.InDelta(t, 5.0, rows[2][3].(formattedValue).Value, 1e-9)
+
+	// Without the value column at all, the availability still decides.
+	gated := mustFrames(t, "f", frame.Field{Name: "net_state", Values: []any{"config_required"}})
+	rows = methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: gated}})
+	require.Empty(t, rows[1][3])
+}
+
+func TestMethodologyFormulaCells(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "f",
+		frame.Field{Name: "a", Values: []any{&frame.Formula{Expression: "A1+B1", Result: 7.0}}},
+		frame.Field{Name: "b", Values: []any{frame.Formula{Expression: "A1+B1"}}},
+		frame.Field{Name: "c", Values: []any{(*frame.Formula)(nil)}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+		{Key: "a", Ref: &formula.Ref{Kind: formula.RefField, Name: "a"}},
+		{Key: "b", Ref: &formula.Ref{Kind: formula.RefField, Name: "b"}},
+		{Key: "c", Ref: &formula.Ref{Kind: formula.RefField, Name: "c"}},
+	}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.InDelta(t, 7.0, rows[1][3].(formattedValue).Value, 1e-9)
+	require.Empty(t, rows[2][3])
+	require.Empty(t, rows[3][3])
+}
+
+func TestMethodologyUnavailableStageSuppressesFallbackValue(t *testing.T) {
+	t.Parallel()
+	flow := mustFrames(t, "flow",
+		frame.Field{Name: "stage_id", Values: []any{"net"}},
+		frame.Field{Name: "amount", Values: []any{5.0}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Availability: panel.AvailabilityUnavailable,
+		Fields:  panel.FieldMapping{ID: panel.Ref("stage_id"), Value: panel.Ref("amount")},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefStage, Name: "net"}}}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: flow}})
+	require.Empty(t, rows[1][3])
+}
+
+func TestMethodologyHierarchyRowAvailabilityAndEmptyFormulaFallback(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "h",
+		frame.Field{Name: "row_id", Values: []any{"gone"}},
+		frame.Field{Name: "amount", Values: []any{0.0}},
+		frame.Field{Name: "f", Values: []any{&frame.Formula{Expression: "A1"}}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P",
+		Fields:        panel.FieldMapping{ID: panel.Ref("row_id"), Value: panel.Ref("amount")},
+		HierarchyRows: []panel.HierarchyRow{{Key: "gone", Availability: panel.AvailabilityUnavailable}},
+		Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+			{Key: "g", Value: "99", Ref: &formula.Ref{Kind: formula.RefStage, Name: "gone"}},
+			{Key: "f", Value: "77", Ref: &formula.Ref{Kind: formula.RefField, Name: "f"}},
+		}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.Empty(t, rows[1][3])
+	require.Empty(t, rows[2][3])
 }

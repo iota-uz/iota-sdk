@@ -83,6 +83,7 @@
       },
       "Status": "Ҳолат",
       "History": {
+        "Resource": "Қабул ҳужжатлари",
         "Created": {
           "Title": "Қабул ҳужжати яратилди",
           "Summary": "Лойиҳага қабул ҳужжати қораламаси қўшилди"
@@ -118,6 +119,7 @@
       }
     },
     "History": {
+      "Resource": "Лойиҳалар",
       "Created": {
         "Title": "Лойиҳа яратилди",
         "Summary": "Янги лойиҳа қўшилди"
@@ -175,6 +177,7 @@
       "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Лойиҳа босқичлари",
       "Created": {
         "Title": "Лойиҳа босқичи яратилди",
         "Summary": "Лойиҳага янги босқич қўшилди"

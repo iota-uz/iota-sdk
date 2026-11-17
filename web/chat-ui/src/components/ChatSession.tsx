@@ -302,7 +302,7 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
             class="relative flex min-h-0 flex-1 overflow-clip">
         <div class="flex min-h-0 min-w-0 flex-1 flex-col">
           {showWelcome() ? (<div class="flex flex-1 flex-col overflow-auto">
-              <div class="flex flex-1 items-center justify-center px-4 py-8">
+              <div class="flex flex-1 items-end justify-center px-4 pb-3 pt-6 md:items-center md:py-8" data-testid="bichat-welcome">
                 <div class="w-full max-w-5xl">
                   {solidProps1.welcomeSlot || (<WelcomeContent onPromptSelect={handlePromptSelect} disabled={solidState4.loading || composerDisabled()}/>)}
                   {solidState4.streamError && (<div class="px-6 pt-4">
@@ -323,9 +323,6 @@ function ChatSessionCore(solidProps1Input: Omit<ChatSessionProps, 'sessionId'>) 
                     <CompactionDoodle title={solidState2.t('BiChat.Slash.CompactingTitle')} subtitle={solidState2.t('BiChat.Slash.CompactingSubtitle')}/>
                   </div>)}
               </>
-              {solidState4.streamError && (<div class="px-4 pb-2">
-                  <StreamError error={solidState4.streamError} compact onRetry={solidState4.streamErrorRetryable ? () => void solidState4.retryLastMessage() : undefined} onDismiss={solidState4.clearStreamError}/>
-                </div>)}
               {!effectiveReadOnly() && solidProps1.inputHeaderSlot}
               {!effectiveReadOnly() && (<MessageInput message={solidState5.message} loading={solidState4.loading} isStreaming={solidState4.isStreaming} fetching={solidState3.fetching} commandError={solidState5.inputError} onClearCommandError={() => solidState5.setInputError(null)} debugMode={solidState3.debugMode} debugSessionUsage={solidState3.sessionDebugUsage} debugLimits={solidState3.debugLimits} onMessageChange={solidState5.setMessage} onSubmit={solidState5.handleSubmit} messageQueue={solidState5.messageQueue} onUnqueue={solidState5.handleUnqueue} onRemoveQueueItem={solidState5.removeQueueItem} onUpdateQueueItem={solidState5.updateQueueItem} onCancelStreaming={solidState4.cancel} disabled={composerDisabled()} reasoningEffortOptions={solidState3.reasoningEffortOptions} reasoningEffort={solidState3.reasoningEffort} onReasoningEffortChange={solidState3.setReasoningEffort}/>)}
             </>)}

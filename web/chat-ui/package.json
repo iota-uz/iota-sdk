@@ -16,6 +16,7 @@
     "apexcharts": "^3.45.0",
     "date-fns": "^3.0.0",
     "fuse.js": "^7.1.0",
+    "@iota-uz/sdk-math-internal": "workspace:*",
     "katex": "^0.16.28",
     "prismjs": "^1.30.0",
     "rehype-katex": "^7.0.1",

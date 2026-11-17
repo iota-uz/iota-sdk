@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -130,6 +131,9 @@ func TestBusinessHistoryDefinitions_TranslatedInEveryLocale(t *testing.T) {
 	for _, d := range resolve[*history.Registry](t, env).Definitions() {
 		keys := []string{d.TitleKey, d.DescriptionKey}
 		for _, r := range d.Resources {
+			if r.LabelKey != "" {
+				keys = append(keys, r.LabelKey)
+			}
 			for _, f := range r.Fields {
 				keys = append(keys, f.LabelKey)
 			}
@@ -144,4 +148,43 @@ func TestBusinessHistoryDefinitions_TranslatedInEveryLocale(t *testing.T) {
 	}
 	sort.Strings(missing)
 	require.Empty(t, missing, "business history labels without a translation")
+}
+
+// TestBusinessHistoryResources_HaveDistinctTranslatedLabels keeps raw keys such as core.department
+// out of the history filters and event subjects: every resource needs a label that exists in every
+// locale, and one that tells it apart from the other resources.
+func TestBusinessHistoryResources_HaveDistinctTranslatedLabels(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	bundle := env.App.Bundle()
+	messages := bundle.Messages()
+	require.NotEmpty(t, messages)
+	resources := resolve[*history.Registry](t, env).Resources()
+	require.NotEmpty(t, resources)
+	var problems []string
+	for tag, byID := range messages {
+		localizer := i18n.NewLocalizer(bundle, tag.String())
+		byLabel := map[string]string{}
+		for _, r := range resources {
+			if r.LabelKey == "" {
+				problems = append(problems, r.Name+": no LabelKey")
+				continue
+			}
+			if _, ok := byID[r.LabelKey]; !ok {
+				problems = append(problems, tag.String()+" "+r.Name+": no translation of "+r.LabelKey)
+				continue
+			}
+			label, err := localizer.Localize(&i18n.LocalizeConfig{MessageID: r.LabelKey})
+			require.NoError(t, err)
+			if label == "" || label == r.Name || label == r.LabelKey {
+				problems = append(problems, tag.String()+" "+r.Name+": label "+label+" is not translated")
+			}
+			if other, dup := byLabel[label]; dup {
+				problems = append(problems, tag.String()+" "+r.Name+" and "+other+" share the label "+label)
+			}
+			byLabel[label] = r.Name
+		}
+	}
+	sort.Strings(problems)
+	require.Empty(t, problems)
 }

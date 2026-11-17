@@ -91,6 +91,7 @@
       "DeleteConfirmation": "您确定要删除此支出类别吗？"
     },
     "History": {
+      "Resource": "支出类别",
       "Created": {
         "Title": "已创建费用类别",
         "Summary": "已添加新的费用类别"
@@ -148,6 +149,7 @@
       "DeleteConfirmation": "您确定要删除此付款吗？"
     },
     "History": {
+      "Resource": "付款",
       "Created": {
         "Title": "已创建付款",
         "Summary": "已登记一笔付款"
@@ -212,6 +214,7 @@
       "DeleteConfirmation": "您确定要删除此支出吗？"
     },
     "History": {
+      "Resource": "支出",
       "Created": {
         "Title": "已创建支出",
         "Summary": "已登记一笔支出"
@@ -283,6 +286,7 @@
       "SOLE_PROPRIETORSHIP": "独资企业"
     },
     "History": {
+      "Resource": "交易对手",
       "Created": {
         "Title": "已创建交易对手",
         "Summary": "已添加新的交易对手"
@@ -345,6 +349,7 @@
       "Loading": "加载中…"
     },
     "History": {
+      "Resource": "账户",
       "Created": {
         "Title": "已创建账户",
         "Summary": "已开立资金账户并设定期初余额"
@@ -406,6 +411,7 @@
       "DeleteConfirmation": "您确定要删除此付款类别吗？"
     },
     "History": {
+      "Resource": "付款类别",
       "Created": {
         "Title": "已创建付款类别",
         "Summary": "已添加新的付款类别"
@@ -457,6 +463,7 @@
       "DeleteConfirmation": "您确定要删除此库存项目吗？"
     },
     "History": {
+      "Resource": "库存",
       "Created": {
         "Title": "已创建库存项目",
         "Summary": "已添加库存项目"
@@ -531,6 +538,7 @@
       "ADJUSTMENT": "调整"
     },
     "History": {
+      "Resource": "交易",
       "Created": {
         "Title": "已登记转账",
         "Summary": "资金已在账户之间转账或兑换"
@@ -681,6 +689,7 @@
       "WrittenOff": "债务核销成功"
     },
     "History": {
+      "Resource": "债务",
       "Created": {
         "Title": "已创建债务",
         "Summary": "已登记一笔债务"

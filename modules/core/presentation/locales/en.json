@@ -484,6 +484,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this group?"
     },
     "History": {
+      "Resource": "Groups",
       "Created": {
         "Title": "Group created",
         "Summary": "A group was created"
@@ -931,6 +932,10 @@
       "Publish": "Publish and activate extensions",
       "Operate": "Run and terminate extension work"
     },
+    "NotificationRules": {
+      "Read": "Read notification settings",
+      "Manage": "Manage notification settings"
+    },
     "User": {
       "Create": "Create users",
       "Read": "View users",
@@ -1057,6 +1062,7 @@
       "DeleteConfirmation": "Are you sure you want to delete this role?"
     },
     "History": {
+      "Resource": "Roles",
       "Created": {
         "Title": "Role created",
         "Summary": "A role was created"
@@ -1307,6 +1313,7 @@
 			"TemporaryPasswordPlaceholder": "Leave empty to generate",
 			"TemporaryPasswordHint": "The user signs in with it once, then sets their own password. Valid for 72 hours.",
       "EditUser": "Edit user",
+      "Edit": "Edit",
       "FirstName": "First name",
       "LastName": "Last name",
       "MiddleName": "Middle name",
@@ -1378,6 +1385,7 @@
       "RevokeFailed": "Failed to revoke session"
     },
     "History": {
+      "Resource": "Users",
       "Created": {
         "Title": "User created",
         "Summary": "A user account was created"
@@ -1613,6 +1621,7 @@
       "ParentNotFound": "The selected parent department was not found."
     },
     "History": {
+      "Resource": "Departments",
       "Created": {
         "Title": "Department created",
         "Summary": "A department was added to the org structure"
@@ -1748,6 +1757,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "User positions",
       "Created": {
         "Title": "Position created",
         "Summary": "A user was given a position in a department"

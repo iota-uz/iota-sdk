@@ -1,7 +1,7 @@
 import { Portal as HostPortal } from '@iota-uz/sdk/solid';
 import { createHorizontalSwipe, type SwipeInfo } from '../hooks/createHorizontalSwipe';
 import { type JSX, mergeProps, createSignal, createMemo, createEffect, on, onMount, onCleanup, untrack, createContext, useContext, lazy, Suspense, createUniqueId, Show, For } from "solid-js";
-import { List } from '../icons';
+import { ChatCircleDots } from '../icons';
 import SkipLink from './SkipLink';
 import { useSidebarState, type UseSidebarStateReturn } from '../hooks/useSidebarState';
 import { useKeyboardShortcuts, type ShortcutConfig } from '../hooks/useKeyboardShortcuts';
@@ -73,7 +73,7 @@ export function BiChatLayout(solidProps1Input: BiChatLayoutProps) {
       <main id="main-content" class="relative flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile menu button */}
         {solidState3.isMobile && (<button ref={element => menuButtonRef.current = element} onClick={solidState3.openMobile} class="md:hidden absolute top-3 left-3 z-[var(--bichat-z-sticky,20)] w-10 h-10 rounded-xl bg-white/90 dark:bg-gray-900/90 text-gray-700 dark:text-gray-200 border border-gray-200/60 dark:border-gray-800/80 shadow-sm flex items-center justify-center hover:bg-white dark:hover:bg-gray-900 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-primary-400/50" aria-label={solidState2.t('BiChat.Layout.OpenSidebar')} title={solidState2.t('BiChat.Layout.OpenSidebar')}>
-            <List size={20} weight="bold"/>
+            <ChatCircleDots size={20} weight="bold"/>
           </button>)}
         <div class="flex flex-1 min-w-0 min-h-0">{solidProps1.children}</div>
       </main>

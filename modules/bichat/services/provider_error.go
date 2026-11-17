@@ -29,6 +29,10 @@ const (
 	ProviderSlowDownError                 = "provider_slow_down"
 	ProviderResponseIncompleteError       = "provider_response_incomplete"
 	ProviderResponseFailedError           = "provider_response_failed"
+
+	// StreamFailedError is the stable code sent for a failed run whose cause
+	// must not reach the browser; clients map it to a translated message.
+	StreamFailedError = "stream_failed"
 )
 
 func NormalizeProviderError(code, raw string) string {

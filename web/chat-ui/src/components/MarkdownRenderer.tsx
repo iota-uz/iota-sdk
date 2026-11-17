@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
+import { baseKatexOptions } from '@iota-uz/sdk-math-internal';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import { processCitations } from '../utils/citationProcessor';
@@ -31,7 +32,7 @@ interface AstNode {
     children?: AstNode[];
     properties?: Record<string, unknown>;
 }
-const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype).use(rehypeSanitize).use(rehypeKatex, { strict: 'ignore', trust: false, output: 'mathml' });
+const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkRehype).use(rehypeSanitize).use(rehypeKatex, { ...baseKatexOptions, output: 'mathml' });
 const serializer = unified().use(rehypeStringify);
 function text(node: AstNode): string { return node.value ?? node.children?.map(text).join('') ?? ''; }
 function attributes(properties: Record<string, unknown> = {}) {

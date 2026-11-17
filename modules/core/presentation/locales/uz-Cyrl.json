@@ -484,6 +484,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Гуруҳлар",
       "Created": {
         "Title": "Гуруҳ яратилди",
         "Summary": "Гуруҳ яратилди"
@@ -931,6 +932,10 @@
       "Publish": "Кенгайтмаларни нашр этиш ва фаоллаштириш",
       "Operate": "Кенгайтма ишини ишга тушириш ва тўхтатиш"
     },
+    "NotificationRules": {
+      "Read": "Билдиришнома созламаларини кўриш",
+      "Manage": "Билдиришнома созламаларини бошқариш"
+    },
     "User": {
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
@@ -1057,6 +1062,7 @@
       "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
     },
     "History": {
+      "Resource": "Роллар",
       "Created": {
         "Title": "Рол яратилди",
         "Summary": "Рол яратилди"
@@ -1306,6 +1312,7 @@
 			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
 			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
       "EditUser": "Foydalanuvchini tahrirlash",
+      "Edit": "Таҳрирлаш",
       "FirstName": "Ism",
       "LastName": "Familiya",
       "MiddleName": "Otasining ismi",
@@ -1377,6 +1384,7 @@
       "RevokeFailed": "Sessiyani bekor qilib bo'lmadi"
     },
     "History": {
+      "Resource": "Фойдаланувчилар",
       "Created": {
         "Title": "Фойдаланувчи яратилди",
         "Summary": "Фойдаланувчи ҳисоби яратилди"
@@ -1612,6 +1620,7 @@
       "ParentNotFound": "Танланган ота-бўлим топилмади."
     },
     "History": {
+      "Resource": "Бўлимлар",
       "Created": {
         "Title": "Бўлим яратилди",
         "Summary": "Ташкилий тузилмага бўлим қўшилди"
@@ -1747,6 +1756,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Фойдаланувчи лавозимлари",
       "Created": {
         "Title": "Лавозим яратилди",
         "Summary": "Фойдаланувчига бўлимда лавозим тайинланди"

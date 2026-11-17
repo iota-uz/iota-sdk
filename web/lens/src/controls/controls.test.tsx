@@ -379,11 +379,11 @@ function periodFetcher(calls: Array<string>): typeof fetch {
   }
 }
 
-function FiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
+function FiltersFixture({ fetcher, locale = 'en' }: { fetcher: typeof fetch; locale?: string }) {
   return (
     <div class="lens-root" data-theme="light">
       <DocumentProvider fetcher={fetcher} src="/lens/document">
-        <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => (<>(
+        <DashboardRuntimeProvider fetcher={fetcher} locale={locale}>{() => (<>(
           <FilterBar today={{ year: 2026, month: 7, day: 22 }} />
           )</>)}</DashboardRuntimeProvider>
       </DocumentProvider>
@@ -623,6 +623,19 @@ describe('FilterBar runtime integration', () => {
       .toHaveAccessibleName('Next period: 01.01.2026 – 22.07.2026')
   })
 
+  it.each([
+    ['ru', 'Предыдущий период: 01.01.2025 – 31.12.2025', 'Следующий период: 01.01.2026 – 22.07.2026'],
+    ['uz', 'Oldingi davr: 01.01.2025 – 31.12.2025', 'Keyingi davr: 01.01.2026 – 22.07.2026'],
+  ])('names the period steps for a screen reader in %s', async (locale, previous, next) => {
+    window.history.replaceState(null, '', '/dash')
+    render(() =><FiltersFixture fetcher={periodFetcher([])} locale={locale} />)
+
+    expect(await screen.findByRole('button', { name: previous })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: previous }))
+    expect(await screen.findByRole('button', { name: next })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /period:/ })).not.toBeInTheDocument()
+  })
+
   it('steps a hand-drawn range by its own length', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=2026-07-06&ActualRangeEnd=2026-07-22')
     render(() =><FiltersFixture fetcher={periodFetcher([])} />)
@@ -790,8 +803,17 @@ describe('FilterBar runtime integration', () => {
     expect(within(dialog).getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Last month' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Current quarter' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last quarter' })).toBeInTheDocument()
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Current month' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Last quarter' }))
+    // today = 2026-07-22 → the previous full quarter is 2026-04-01..2026-06-30.
+    expect(window.location.search).toBe('?ActualRangeStart=2026-04-01&ActualRangeEnd=2026-06-30')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-04-01&ActualRangeEnd=2026-06-30')
+    })
+    fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Current month' }))
     // today = 2026-07-22 → this month resolves to 2026-07-01..2026-07-22.
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {

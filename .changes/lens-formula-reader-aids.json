@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Lens formula: the pinned variable list states compact figures in full so the operands add up; a field ref may name an availability column, and a variable without a value says why (configuration required, no source data); the hover preview tells the reader a click lists the variables, and a variable's hover shows its source."}

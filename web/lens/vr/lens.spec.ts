@@ -143,6 +143,10 @@ const storyIds = [
   'explore-focus--lens-switched-to-trend',
   'explore-focus--narrow-container-collapses-context',
   'explore--drill-overlay--dark',
+  'theme-auto--auto-follows-a-dark-application',
+  'theme-auto--auto-follows-a-light-application',
+  'explore--table-as-the-last-level--light',
+  'explore--table-as-the-last-level--dark',
   'explore--level-fork-awaits-a-view--dark',
   'explore--level-fork-awaits-a-view--light',
   'explore--drill-overlay--light',
@@ -173,6 +177,10 @@ const storyIds = [
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
+  'formula--formula-states--dark',
+  'formula--formula-states--light',
+  'formula--formula-reader-aids--dark',
+  'formula--formula-reader-aids--light',
   'metric-composition--full',
   'metric-composition--full-dark',
   'metric-composition--narrow',
@@ -223,6 +231,10 @@ const storyIds = [
   'temporal-overlays--time-annotations',
   'sharing--panel-image-formats',
   'sharing--slice-link',
+  'table-fit--drawer1280',
+  'table-fit--full-width',
+  'table-fit--half-width-panel',
+  'table-fit--phone390',
   'table-readability--narrow',
   'table-readability--wide',
   'parity--clickable-panels',
@@ -437,6 +449,10 @@ const staticStories = [
   ['explore--keyboard-walkthrough', 0, 300],
   ['explore--narrow-card-deepest-path--dark', 1],
   ['explore--narrow-card-deepest-path--light', 1],
+  ['explore--table-as-the-last-level--dark', 0],
+  ['explore--table-as-the-last-level--light', 0],
+  ['theme-auto--auto-follows-a-dark-application', 6],
+  ['theme-auto--auto-follows-a-light-application', 6],
   ['explore--segment-overlay-statistics--dark', 0],
   ['explore--segment-overlay-statistics--light', 0],
   ['dashboard-header--header-dark', 0],
@@ -465,6 +481,11 @@ const staticStories = [
   // The calendar's dense light-theme glyph raster differs across otherwise
   // identical Chromium captures; keep this tolerance local to that surface.
   ['filter-controls--popover-open-light', 0, 50],
+  // Hover focus + KaTeX font raster: keep a small local tolerance.
+  ['formula--formula-states--dark', 0, 50],
+  ['formula--formula-states--light', 0, 50],
+  ['formula--formula-reader-aids--dark', 0, 50],
+  ['formula--formula-reader-aids--light', 0, 50],
   ['metric-composition--full-dark', 0],
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
@@ -537,6 +558,10 @@ const staticStories = [
   // allowance local so layout and missing-item changes still fail.
   ['sharing--panel-image-formats', 0, 6],
   ['sharing--slice-link', 0],
+  ['table-fit--drawer1280', 0],
+  ['table-fit--full-width', 0],
+  ['table-fit--half-width-panel', 0],
+  ['table-fit--phone390', 0],
   ['table-readability--narrow', 0],
   ['table-readability--wide', 0],
   ['print-report--composed-report', 2],
@@ -677,6 +702,19 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
       if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
     }
+    if (storyId.startsWith('formula--formula-reader-aids')) {
+      // The ƒ opens on a timer once its trigger mounts; wait for the real
+      // popover with the note and hint, and for both formulas to typeset.
+      await expect(page.getByTestId('lens-formula-note')).toBeVisible()
+      await expect(page.getByTestId('lens-formula-hint')).toBeVisible()
+      await expect(page.locator('.lens-formula[data-state="ready"]')).toHaveCount(2)
+    }
+    if (storyId.startsWith('formula--formula-states')) {
+      // KaTeX loads lazily and the hover card focuses its variable on a timer;
+      // the loading and invalid-LaTeX cards are meant to stay unready.
+      await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
+      await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
+    }
     await screenshot(page, storyId, { maxDiffPixels })
   })
 }
@@ -747,6 +785,50 @@ async function loadingMetricBoxes(page: Page) {
     }
   }))
 }
+
+/** The table's scroll box: how much room it has, how much its columns want, and whether the trailing spacer is drawn. */
+async function tableFit(page: Page) {
+  return page.getByTestId('table-fit').locator('.lens-table-scroll-frame > div').first().evaluate((scroller) => ({
+    client: scroller.clientWidth,
+    scroll: scroller.scrollWidth,
+    spacer: scroller.querySelector('.lens-table-scroll-spacer') !== null,
+    actionWraps: (scroller.querySelector('tbody .lens-leaf-action')?.getBoundingClientRect().height ?? 0) > 30,
+  }))
+}
+
+// A table narrows and wraps its text to the room it is given. It scrolls
+// sideways only when its columns cannot narrow any further, and the trailing
+// spacer that clears the sticky column never causes that overflow itself.
+for (const [storyId, width, scrolls] of [
+  ['table-fit--drawer1280', 1280, false],
+  ['table-fit--full-width', 1280, false],
+  ['table-fit--half-width-panel', 1280, true],
+  ['table-fit--phone390', 390, true],
+] as const) {
+  test(`${storyId} ${scrolls ? 'scrolls only because its columns cannot narrow further' : 'fits without scrolling'}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, storyId, 0)
+    await expect(page.getByTestId('table-fit').locator('tfoot')).toBeVisible()
+    const fit = await tableFit(page)
+    if (scrolls) {
+      expect(fit.scroll).toBeGreaterThan(fit.client + 1)
+      expect(fit.spacer).toBe(true)
+    } else {
+      expect(fit.scroll).toBeLessThanOrEqual(fit.client + 1)
+      expect(fit.spacer).toBe(false)
+    }
+  })
+}
+
+test('the wide drawer shows every column, the action included, at 1280px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await openStory(page, 'table-fit--drawer1280', 0)
+  const table = page.getByTestId('table-fit')
+  const frame = await table.locator('.lens-table-scroll-frame').boundingBox()
+  const action = await table.locator('tbody .lens-leaf-action').first().boundingBox()
+  expect(frame && action && action.x + action.width <= frame.x + frame.width).toBe(true)
+  expect((await tableFit(page)).actionWraps).toBe(true)
+})
 
 test('a loading KPI cell shows a placeholder the size of the figure it stands in for', async ({ page }) => {
   await openStory(page, 'parity--metric-group-loading', 0)

@@ -15,6 +15,7 @@ import (
 	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -299,6 +300,7 @@ func appendPanelTree(
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
+		Formula:  BuildFormula(spec.ID, spec.Formula),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		ValueAxis: buildValueAxis(spec.ValueAxis),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec), Temporal: buildTemporal(spec),
@@ -471,13 +473,30 @@ func buildTarget(spec panel.Spec) *PanelTarget {
 
 func buildPresentation(spec panel.Spec) *Presentation {
 	hints := spec.Presentation
-	if spec.Distributed {
+	if spec.Distributed || literalRowColors(spec) {
 		hints.ColorByCategory = true
 	}
 	if spec.ShowLegend {
 		hints.LegendBelow = true
 	}
 	return presentationForKind(hints, spec.Kind)
+}
+
+// literalRowColors reports whether a bar panel takes a colour per row from its
+// own data: SemanticColors("literal", field) names the column, so the
+// producer has already said that every bar carries its own colour. Without this
+// the colours reach the frame and the bars are all painted in one. A sequence
+// or rank ramp is a different explicit choice and keeps priority; a stacked bar
+// is coloured by series and is left alone.
+func literalRowColors(spec panel.Spec) bool {
+	if spec.ColorField.Name() == "" || !strings.EqualFold(spec.ColorScale, "literal") {
+		return false
+	}
+	if spec.Kind != panel.KindBar && spec.Kind != panel.KindHorizontalBar {
+		return false
+	}
+	hints := spec.Presentation
+	return !hints.ColorBySequence && !hints.ColorByRank
 }
 
 func buildValueAxis(axis panel.ValueAxis) *ValueAxis {
@@ -1163,6 +1182,15 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		addDependency(action.FieldValue(spec.Presentation.RowGroupField))
 	}
 	addActionDependencies(spec.Action)
+	// A formula's variables are read from the served frame; keep their columns
+	// even when the table does not show them.
+	if spec.Formula != nil {
+		for _, variable := range spec.Formula.Variables {
+			if variable.Ref != nil && variable.Ref.Kind != formula.RefStage {
+				addDependency(action.FieldValue(variable.Ref.Name))
+			}
+		}
+	}
 	for _, dependencies := range extra {
 		for _, source := range dependencies.sources {
 			addDependency(source)
@@ -1393,6 +1421,22 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 					level.Presentation = convertPresentation(*nodeSpec.Presentation)
 				}
 				level.Status = convertStatus(nodeSpec.Status)
+				// Static transitions come first: resolving dynamic children below
+				// keeps them, and the frame stored in the document carries both.
+				for _, edge := range nodeSpec.Edges {
+					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
+					childPath := appendPath(nodePath, pointKey)
+					child := Node{Key: pointKey, Path: childPath, Label: ""}
+					if edge.ToNode != "" {
+						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
+					}
+					if edge.Action != nil {
+						if converted, ok := convertAction(*edge.Action, true); ok {
+							child.Action = &converted
+						}
+					}
+					level.Children = append(level.Children, child)
+				}
 				if nodeSpec.DynamicChildren != nil {
 					level.DynamicChildren = &DynamicChildren{
 						Key:   convertSource(nodeSpec.DynamicChildren.Key),
@@ -1406,6 +1450,13 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 						if converted, ok := convertAction(*nodeSpec.DynamicChildren.Action, true); ok {
 							level.DynamicChildren.Action = &converted
 						}
+					}
+				}
+				if level.View == PanelKindTable && nodeSpec.Panel != nil {
+					level.Table = &LevelTable{
+						Columns: buildTableColumns(*nodeSpec.Panel),
+						Format:  buildFormats(*nodeSpec.Panel),
+						Actions: panelActions(*nodeSpec.Panel),
 					}
 				}
 				if nodeSpec.Panel != nil {
@@ -1428,15 +1479,18 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 						if err != nil {
 							return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 						}
-						doc.Frames[frameRef] = wireFrame
-						level.Frame = frameRef
-						encoding := buildEncoding(nodeSpec.Panel.Fields, wireFrame)
-						level.Encoding = &encoding
+						// Children are resolved before the frame is stored: the map
+						// holds the frame by value, so a later resolve would leave the
+						// document's copy without its drill targets.
 						if level.DynamicChildren != nil {
 							if err := ResolveDynamicChildren(&wireFrame, level); err != nil {
 								return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 							}
 						}
+						doc.Frames[frameRef] = wireFrame
+						level.Frame = frameRef
+						encoding := buildEncoding(nodeSpec.Panel.Fields, wireFrame)
+						level.Encoding = &encoding
 					}
 				}
 				// A declared audit table ships whenever the runtime result carries
@@ -1457,20 +1511,6 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 							Format:  buildFormats(nodeSpec.SourceData.Panel),
 						}
 					}
-				}
-				for _, edge := range nodeSpec.Edges {
-					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
-					childPath := appendPath(nodePath, pointKey)
-					child := Node{Key: pointKey, Path: childPath, Label: ""}
-					if edge.ToNode != "" {
-						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
-					}
-					if edge.Action != nil {
-						if converted, ok := convertAction(*edge.Action, true); ok {
-							child.Action = &converted
-						}
-					}
-					level.Children = append(level.Children, child)
 				}
 				doc.Drill.Edges[nodeKey] = level
 			}

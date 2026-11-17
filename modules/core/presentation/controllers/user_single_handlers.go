@@ -33,6 +33,7 @@ func (c *UsersController) GetSingle(
 	userService *services.UserService,
 	groupQueryService *services.GroupQueryService,
 	sessionService *services.SessionService,
+	policy *services.PrivilegeGrantPolicy,
 ) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
@@ -51,6 +52,11 @@ func (c *UsersController) GetSingle(
 	}
 
 	userViewModel := mappers.UserToViewModel(us)
+	if actor, actorErr := composables.UseUser(ctx); actorErr == nil {
+		userViewModel.CanUpdate = userViewModel.CanUpdate && policy.CanManageUser(actor, us)
+	} else {
+		userViewModel.CanUpdate = false
+	}
 	slots := slot.NewManager()
 
 	if userViewModel.IsBlocked {

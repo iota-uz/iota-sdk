@@ -8,6 +8,11 @@
 		}
 	},
 	"BusinessHistory": {
+		"Resources": {
+			"Permission": "Права доступа",
+			"Upload": "Файлы",
+			"ImportItem": "Элементы импорта"
+		},
 		"Events": {
 			"LegacyActionLog": {
 				"Title": "Действие из прежнего журнала",
@@ -30,15 +35,13 @@
 			"Subtitle": "Бизнес-действия по доступным вам ресурсам"
 		},
 		"Filters": {
-			"From": "С",
-			"To": "По",
+			"Period": "Период",
+			"OtherActions": "Прочие действия",
 			"Resource": "Ресурс",
 			"Action": "Действие",
 			"Channel": "Канал",
 			"Outcome": "Результат",
 			"Actor": "Исполнитель",
-			"Any": "Любой",
-			"Apply": "Применить",
 			"Clear": "Сбросить фильтры"
 		},
 		"Channels": {

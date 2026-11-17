@@ -14,6 +14,8 @@ export {
 
 export { LensDashboard, type LensDashboardProps, type LensToolbarContext } from './LensDashboard'
 export { LensDashboardElement, registerLensDashboardElement } from './element'
+export { LensFormulaElement, registerLensFormulaElement } from './formula/element'
+export { FormulaView } from './formula/FormulaView'
 export {
   CONTRACT_VERSION,
   ContractVersionMismatchError,
@@ -21,7 +23,7 @@ export {
   parseDocument,
   type DashboardDocument,
 } from './contract'
-export type { LensThemeMode } from './runtime'
+export type { LensThemeMode, LensThemeSetting } from './runtime'
 export { LensMessagesProvider } from './runtime'
 
 export { createReportDraft, copyReportDefinition, duplicateReportPlacement, parseReportDefinition, parseReportComposition, ReportRevisionConflictError, reportDraftToken } from './reports/draft'

@@ -14,6 +14,11 @@ type Theme string
 const (
 	ThemeLight Theme = "light"
 	ThemeDark  Theme = "dark"
+	// ThemeAuto lets the board follow the host application in the browser: the
+	// `dark` class on <html> (or the system colour scheme when the page declares
+	// neither), switching without a reload. The server cannot know the user's
+	// theme, so a host that toggles it client-side should pass ThemeAuto.
+	ThemeAuto Theme = "auto"
 )
 
 type Option func(*dashboardOptions)
@@ -71,9 +76,12 @@ func WithLocale(locale string) Option {
 
 func WithTheme(theme Theme) Option {
 	return func(options *dashboardOptions) {
-		if theme == ThemeDark {
-			options.Theme = ThemeDark
-		} else {
+		switch theme {
+		case ThemeDark, ThemeAuto:
+			options.Theme = theme
+		case ThemeLight:
+			options.Theme = ThemeLight
+		default:
 			options.Theme = ThemeLight
 		}
 	}

@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, render, screen } from '@solidjs/testing-library'
 import { afterEach, describe, expect, it } from 'vitest'
 import fixture from '../../fixtures/small.json'
@@ -53,5 +55,45 @@ describe('built-in messages', () => {
   it('keeps the English fallback for a language without a catalogue', () => {
     renderProbe('en')
     expect(screen.getByTestId('total')).toHaveTextContent('Total')
+  })
+})
+
+// Keys whose wording belongs to the host: the report editor and the print
+// report are administrative surfaces (see the note in messages.ts), and the
+// pre-document strings have their own table.
+const hostWorded = /^(report\.|print\.|runtime\.|dashboard\.edit|dashboard\.empty\.)/
+
+function sourceFiles(directory: string): Array<string> {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return entry.name === 'test' || entry.name === 'node_modules' ? [] : sourceFiles(path)
+    return /\.tsx?$/.test(entry.name) && !/\.(test|stories)\./.test(entry.name) ? [path] : []
+  })
+}
+
+function runtimeKeys(): Array<string> {
+  const keys = new Set<string>()
+  for (const file of sourceFiles('src')) {
+    const source = readFileSync(file, 'utf8')
+    for (const match of source.matchAll(/(?:translate\(\s*|labelKey:\s*)'([a-z][A-Za-z]*(?:\.[A-Za-z_]+)+)'/g)) keys.add(match[1]!)
+  }
+  return [...keys].filter((key) => !hostWorded.test(key)).sort()
+}
+
+describe('built-in catalogue coverage', () => {
+  it('translates every chrome string the runtime looks up into Russian', () => {
+    const missing = runtimeKeys().filter((key) => builtinMessage('ru', key) === undefined)
+    expect(missing).toEqual([])
+  })
+
+  it.each([
+    'filter.period.previous', 'filter.period.next', 'filter.period.open', 'calendar.prevMonth', 'calendar.nextMonth',
+    'table.openRecord', 'table.notSummable', 'table.scrollLeft', 'table.scrollRight', 'table.search', 'table.actions',
+    'panel.openMetric', 'chart.openMark', 'cascade.openStage', 'explore.copyValue', 'filter.facet.remove',
+    'availability.config_required', 'confidence.verified', 'export.failed',
+    'panel.formula', 'panel.formula.show', 'panel.formula.error', 'panel.formula.variables', 'panel.formula.source',
+  ])('translates the screen-reader label %s into Uzbek too', (key) => {
+    expect(builtinMessage('uz', key)).toBeTruthy()
+    expect(builtinMessage('uz', key)).not.toBe(builtinMessage('ru', key))
   })
 })

@@ -92,7 +92,10 @@
       Label = "JSHSHR"
       Placeholder = "123456789192121"
 
-    [Employees.History.Created]
+    [Employees.History]
+Resource = "Ходимлар"
+
+[Employees.History.Created]
       Title = "Ходим қўшилди"
       Summary = "Янги ходим ишга қабул қилинди"
     [Employees.History.Updated]
@@ -105,7 +108,10 @@
       Label = "Лавозим номи"
     [Positions.Single.Description]
       Label = "Тавсиф"
-    [Positions.History.Created]
+    [Positions.History]
+Resource = "Лавозимлар"
+
+[Positions.History.Created]
       Title = "Лавозим яратилди"
       Summary = "Янги лавозим қўшилди"
     [Positions.History.Updated]

@@ -484,6 +484,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este grupo?"
     },
     "History": {
+      "Resource": "Grupos",
       "Created": {
         "Title": "Grupo criado",
         "Summary": "Um grupo foi criado"
@@ -934,6 +935,10 @@
       "Publish": "Publicar e ativar extensões",
       "Operate": "Executar e encerrar trabalho de extensões"
     },
+    "NotificationRules": {
+      "Read": "Ver configurações de notificações",
+      "Manage": "Gerenciar configurações de notificações"
+    },
     "User": {
       "Create": "Criar usuários",
       "Read": "Visualizar usuários",
@@ -1060,6 +1065,7 @@
       "DeleteConfirmation": "Tem certeza de que deseja excluir este papel?"
     },
     "History": {
+      "Resource": "Funções",
       "Created": {
         "Title": "Função criada",
         "Summary": "Uma função foi criada"
@@ -1311,6 +1317,7 @@
 			"TemporaryPasswordPlaceholder": "Deixe vazio para gerar",
 			"TemporaryPasswordHint": "O usuário entra com ela uma vez e define a própria senha. Válida por 72 horas.",
       "EditUser": "Editar usuário",
+      "Edit": "Editar",
       "FirstName": "Nome",
       "LastName": "Sobrenome",
       "MiddleName": "Nome do meio",
@@ -1382,6 +1389,7 @@
       "RevokeFailed": "Falha ao revogar a sessão"
     },
     "History": {
+      "Resource": "Usuários",
       "Created": {
         "Title": "Usuário criado",
         "Summary": "Uma conta de usuário foi criada"
@@ -1617,6 +1625,7 @@
       "ParentNotFound": "O departamento superior selecionado não foi encontrado."
     },
     "History": {
+      "Resource": "Departamentos",
       "Created": {
         "Title": "Departamento criado",
         "Summary": "Um departamento foi adicionado à estrutura organizacional"
@@ -1752,6 +1761,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "Cargos de usuários",
       "Created": {
         "Title": "Cargo criado",
         "Summary": "Um usuário recebeu um cargo em um departamento"

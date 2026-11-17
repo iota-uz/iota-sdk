@@ -2,6 +2,7 @@ packages:
   - web/sdk
   - web/client-host
   - web/lens
+  - web/math
   - web/solid-ui
   - web/testing
   - web/runtime

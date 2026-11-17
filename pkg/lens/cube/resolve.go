@@ -275,6 +275,9 @@ func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, 
 		if strings.TrimSpace(measure.Info) != "" {
 			builder.Info(measure.Info)
 		}
+		if measure.Formula != nil {
+			builder.Formula(*measure.Formula)
+		}
 		if strings.TrimSpace(measure.AccentColor) != "" {
 			builder.AccentColor(measure.AccentColor)
 		}

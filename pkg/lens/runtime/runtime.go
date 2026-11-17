@@ -50,6 +50,12 @@ type PanelResult struct {
 	Request         url.Values
 	Drill           *cube.DrillContext
 	TablePagination *TablePagination
+	// TableTotals are the authoritative column totals of the whole selection a
+	// paginated table shows one page of, keyed by field name. A host that loads
+	// a page at a time sets them (see ApplyTableTotals); without them the footer
+	// of a table whose rows are not all in hand omits the total instead of
+	// printing the page's sum under a "Total" label.
+	TableTotals map[string]float64
 }
 
 type DashboardResult struct {
@@ -963,18 +969,24 @@ func splitMultiSelectValues(raw []string) []string {
 
 func resolveDateRange(spec lens.VariableSpec, values url.Values, timezone string) lens.DateRangeValue {
 	rawMode := requestValue(values, spec.Name, spec.RequestKeys...)
-	if rawMode == "all" && spec.AllowAllTime {
-		return lens.DateRangeValue{Mode: "all"}
-	}
 	startKey, endKey := dateRangeRequestKeys(spec)
 	startRaw := values.Get(startKey)
 	endRaw := values.Get(endKey)
+	// Explicit dates beat a retained `period=all`: the widget keeps the mode
+	// parameter in the address while a bounded range is being picked.
+	if rawMode == "all" && spec.AllowAllTime && (startRaw == "" || endRaw == "") {
+		return lens.DateRangeValue{Mode: "all"}
+	}
+	// The period widget's "all time" is both boundaries submitted but empty.
+	if spec.AllowAllTime && startRaw == "" && endRaw == "" && values.Has(startKey) && values.Has(endKey) {
+		return lens.DateRangeValue{Mode: "all"}
+	}
 	if startRaw != "" && endRaw != "" {
 		location := requestLocation(timezone)
 		start, startErr := time.ParseInLocation("2006-01-02", startRaw, location)
 		end, endErr := time.ParseInLocation("2006-01-02", endRaw, location)
 		if startErr == nil && endErr == nil {
-			end = end.Add(24*time.Hour - time.Nanosecond)
+			end = end.AddDate(0, 0, 1).Add(-time.Nanosecond)
 			return lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}
 		}
 	}
@@ -1055,6 +1067,12 @@ func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) m
 	for key, spec := range specs {
 		if spec.Variable != "" {
 			value := variables[spec.Variable]
+			if spec.Part != "" {
+				if part, ok := lens.ResolveRangePart(value, spec.Part); ok {
+					out[key] = part
+					continue
+				}
+			}
 			if comparison, ok := value.(lens.CompareValue); ok {
 				value = comparison.Range
 			}

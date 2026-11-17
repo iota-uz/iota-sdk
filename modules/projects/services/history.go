@@ -46,7 +46,7 @@ func HistoryDefinitions() []history.Definition {
 		{Name: "planned_end_date", LabelKey: "ProjectStages.Single.PlannedEndDate", Type: history.ValueDate},
 		{Name: "factual_end_date", LabelKey: "ProjectStages.Single.FactualEndDate", Type: history.ValueDate},
 	}})...)
-	acceptanceResource := history.Resource{Name: AcceptanceResource, Fields: []history.Field{
+	acceptanceResource := history.Resource{Name: AcceptanceResource, LabelKey: "Projects.Acceptance.History.Resource", Fields: []history.Field{
 		{Name: "project_id", LabelKey: "ProjectStages.Single.ProjectID", Type: history.ValueString},
 		{Name: "kind", LabelKey: "Projects.Acceptance.Kind", Type: history.ValueString},
 		{Name: "number", LabelKey: "Projects.Acceptance.Number", Type: history.ValueString},

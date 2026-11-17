@@ -46,9 +46,11 @@ type Scope struct {
 }
 
 // Query is the input of the history read, shared by the UI and the MCP tool. Omitted (nil)
-// lists do not filter; empty ones are rejected.
+// lists do not filter; empty ones are rejected. Resources keeps events about any of the listed
+// resources and combines with the all scope only.
 type Query struct {
 	Scope      Scope                   `json:"scope"`
+	Resources  []string                `json:"resources,omitempty"`
 	ActorID    string                  `json:"actor_id,omitempty"`
 	EventTypes []string                `json:"event_types,omitempty"`
 	Channels   []string                `json:"channels,omitempty"`
@@ -119,8 +121,10 @@ func (s *Service) History(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, serrors.Wrap(op, err)
 	}
-	if params.Resource != "" && !s.registry.Readable(params.Resource, u.Can) {
-		return Result{}, serrors.Wrap(op, ErrForbidden)
+	for _, name := range append([]string{params.Resource}, params.Resources...) {
+		if name != "" && !s.registry.Readable(name, u.Can) {
+			return Result{}, serrors.Wrap(op, ErrForbidden)
+		}
 	}
 	for _, r := range s.registry.Resources() {
 		if s.registry.Readable(r.Name, u.Can) {
@@ -196,6 +200,20 @@ func (s *Service) params(q Query) (businessevent.FindParams, int, error) {
 		params.Resource, params.SubjectID = q.Scope.Resource, q.Scope.ID
 	default:
 		return params, 0, invalidInput("unknown scope %q", q.Scope.Kind)
+	}
+	if q.Resources != nil {
+		if len(q.Resources) == 0 {
+			return params, 0, invalidInput("resources must not be empty")
+		}
+		if q.Scope.Kind != ScopeAll {
+			return params, 0, invalidInput("resources apply to scope all only")
+		}
+		for _, name := range q.Resources {
+			if !known[name] {
+				return params, 0, invalidInput("unknown resource %q", name)
+			}
+		}
+		params.Resources = q.Resources
 	}
 	params.ActorID = q.ActorID
 	if q.EventTypes != nil {

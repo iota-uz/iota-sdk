@@ -83,6 +83,7 @@
       },
       "Status": "Holat",
       "History": {
+        "Resource": "Qabul hujjatlari",
         "Created": {
           "Title": "Qabul hujjati yaratildi",
           "Summary": "Loyihaga qabul hujjati qoralamasi qo'shildi"
@@ -118,6 +119,7 @@
       }
     },
     "History": {
+      "Resource": "Loyihalar",
       "Created": {
         "Title": "Loyiha yaratildi",
         "Summary": "Yangi loyiha qo'shildi"
@@ -175,6 +177,7 @@
       "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
     },
     "History": {
+      "Resource": "Loyiha bosqichlari",
       "Created": {
         "Title": "Loyiha bosqichi yaratildi",
         "Summary": "Loyihaga yangi bosqich qo'shildi"

@@ -92,7 +92,10 @@
       Label = "个人识别号码"
       Placeholder = "123456789192121"
 
-    [Employees.History.Created]
+    [Employees.History]
+Resource = "员工"
+
+[Employees.History.Created]
       Title = "已添加员工"
       Summary = "录用了新员工"
     [Employees.History.Updated]
@@ -105,7 +108,10 @@
       Label = "职位名称"
     [Positions.Single.Description]
       Label = "描述"
-    [Positions.History.Created]
+    [Positions.History]
+Resource = "职位"
+
+[Positions.History.Created]
       Title = "已创建职位"
       Summary = "添加了新职位"
     [Positions.History.Updated]

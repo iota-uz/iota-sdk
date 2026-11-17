@@ -19,7 +19,7 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 		field, ok := props.Registry.Field(c.Field)
 	}}
 	if ok {
-		<div class="relative" data-fb-chip-wrapper x-on:click.outside={ fmt.Sprintf("if (editing === %d) closeAll()", idx) }>
+		<div class="sm:relative" data-fb-chip-wrapper x-on:click.outside={ fmt.Sprintf("if (editing === %d) closeAll()", idx) }>
 			<input type="hidden" name={ filterq.ParamName } value={ filterq.EncodeCondition(c) } data-fb-chip={ strconv.Itoa(idx) }/>
 			<div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm">
 				<button
@@ -60,7 +60,7 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 					x-transition.opacity.duration.100ms
 					role="dialog"
 					data-fb-popover
-					class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
+					class="absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
 				>
 					@editorPanel(field, &c, idx)
 				</div>

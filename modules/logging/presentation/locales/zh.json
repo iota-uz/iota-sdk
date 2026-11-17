@@ -8,6 +8,11 @@
     }
   },
   "BusinessHistory": {
+    "Resources": {
+      "Permission": "权限",
+      "Upload": "文件",
+      "ImportItem": "导入项"
+    },
     "Events": {
       "LegacyActionLog": {
         "Title": "旧日志中的操作",
@@ -30,15 +35,13 @@
       "Subtitle": "您可访问资源上的业务操作"
     },
     "Filters": {
-      "From": "从",
-      "To": "至",
+      "Period": "期间",
+      "OtherActions": "其他操作",
       "Resource": "资源",
       "Action": "操作",
       "Channel": "渠道",
       "Outcome": "结果",
       "Actor": "执行人",
-      "Any": "任意",
-      "Apply": "应用",
       "Clear": "清除筛选"
     },
     "Channels": {

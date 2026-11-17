@@ -484,6 +484,7 @@
       "DeleteConfirmation": "您确定要删除此组吗？"
     },
     "History": {
+      "Resource": "组",
       "Created": {
         "Title": "已创建组",
         "Summary": "已创建一个组"
@@ -935,6 +936,10 @@
       "Publish": "发布并启用扩展",
       "Operate": "运行和终止扩展任务"
     },
+    "NotificationRules": {
+      "Read": "查看通知设置",
+      "Manage": "管理通知设置"
+    },
     "User": {
       "Create": "创建用户",
       "Read": "查看用户",
@@ -1061,6 +1066,7 @@
       "DeleteConfirmation": "您确定要删除此角色吗？"
     },
     "History": {
+      "Resource": "角色",
       "Created": {
         "Title": "已创建角色",
         "Summary": "已创建一个角色"
@@ -1310,6 +1316,7 @@
 			"TemporaryPasswordPlaceholder": "留空则自动生成",
 			"TemporaryPasswordHint": "用户使用它登录一次后设置自己的密码。有效期 72 小时。",
       "EditUser": "编辑用户",
+      "Edit": "编辑",
       "FirstName": "名",
       "LastName": "姓",
       "MiddleName": "中间名",
@@ -1381,6 +1388,7 @@
       "RevokeFailed": "撤销会话失败"
     },
     "History": {
+      "Resource": "用户",
       "Created": {
         "Title": "已创建用户",
         "Summary": "已创建一个用户账户"
@@ -1616,6 +1624,7 @@
       "ParentNotFound": "未找到所选的上级部门。"
     },
     "History": {
+      "Resource": "部门",
       "Created": {
         "Title": "已创建部门",
         "Summary": "组织结构中已添加一个部门"
@@ -1751,6 +1760,7 @@
   },
   "UserPositions": {
     "History": {
+      "Resource": "用户职位",
       "Created": {
         "Title": "已创建职位",
         "Summary": "已为用户在部门中设置职位"

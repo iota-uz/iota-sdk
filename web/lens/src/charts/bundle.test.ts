@@ -40,6 +40,12 @@ describe('chart bundle boundary', () => {
     const echartsEntries = Object.keys(manifest).filter((key) => key.includes('echarts'))
 
     expect(echartsEntries.every((key) => dynamicGraph.has(key))).toBe(true)
+
+    // KaTeX is reached only through the shared math module's dynamic import.
+    const katexEntries = Object.keys(manifest).filter((key) => /katex/i.test(key) && !key.endsWith('.css') && !/\.(woff2?|ttf)$/.test(key))
+    expect(katexEntries.length).toBeGreaterThan(0)
+    expect([...staticGraph].some((key) => /katex/i.test(key))).toBe(false)
+    expect(katexEntries.every((key) => dynamicGraph.has(key))).toBe(true)
     const optionalInstallers = echartsEntries.filter((key) => key.endsWith('/install.js'))
     expect(optionalInstallers).toHaveLength(4)
     expect(new Set(optionalInstallers.map((key) => manifest[key]!.file)).size).toBe(4)
@@ -63,9 +69,11 @@ describe('chart bundle boundary', () => {
     // after the period picker's expanded calendar, the cascade's honest
     // unknown-value gaps, and failure copy that names what broke, and 438,274
     // after filters gained tab-local placement, and 439,014 after the React
-    // and Solid runtimes began sharing the standard portal host. The cap still
+    // and Solid runtimes began sharing the standard portal host, and 440,995
+    // once the ƒ popover took over the ⓘ note, the unabbreviated operands, the
+    // availability reasons and the click hint (#1284). The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(440_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(445_000)
   })
 })

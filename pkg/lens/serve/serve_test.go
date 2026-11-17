@@ -57,6 +57,7 @@ type fakeExecutor struct {
 	blockOnce   sync.Once
 	cacheHit    bool
 	pageHasMore map[string]map[int]bool
+	tableTotals map[string]map[string]float64
 	panelSpecs  map[string]panel.Spec
 }
 
@@ -201,6 +202,7 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 			Page: page, PerPage: len(frames.Primary().Rows()), HasMore: pages[page],
 		}
 	}
+	result.Panels[panelID].TableTotals = f.tableTotals[panelID]
 	result.Panels[panelID].Error = panelErr
 	return result, nil
 }
@@ -1149,6 +1151,131 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 	require.Equal(t, document.NodeKey("month-11"), snapshot.Frames["explore:metric/focus/composition:detail@2024"].Children[0].Key)
 }
 
+func TestHandlers_InlineRootLevelShipsResolvedDynamicChildren(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	spec := handlers.spec
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.Edges = nil
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	root.DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.LiteralValue("detail")),
+	}
+	handlers.spec = spec
+	executor.frames["root-panel"] = dynamicFrames(t, "month-12", "December")
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	ref := document.FrameRef("explore:metric/focus/composition:root")
+	stored, ok := doc.Frames[ref]
+	require.True(t, ok, "the root level of the perspective is inlined at depth zero")
+	require.Len(t, stored.Children, 1, "the stored frame must carry the drill targets resolved from its rows")
+	require.Equal(t, document.NodeKey("month-12"), stored.Children[0].Key)
+	require.Equal(t, "December", stored.Children[0].Label)
+	require.Equal(t, document.NodeKey("metric/focus/composition/detail"), stored.Children[0].Target)
+	require.NoError(t, doc.Validate())
+}
+
+// tableLevelHandlers builds a chart perspective whose last level is a record
+// table with a totalled amount column.
+func tableLevelHandlers(t *testing.T) (*Handlers, *fakeExecutor) {
+	t.Helper()
+	handlers, executor, _ := newTestHandlers(t, 1)
+	spec := handlers.spec
+	view := &spec.Explorers[0].Branches[0].Perspectives[0]
+	recordFrames := dynamicFrames(t, "r-1", "Salary")
+	records := panel.Table("records-panel", "Records", "records-data").
+		IDField("row_id").
+		Columns(
+			panel.TableColumn{Field: "child_label", Label: "Record"},
+			panel.TableColumn{Field: "value", Label: "Amount", Total: true},
+		).
+		Action(action.Navigate("").WithFieldURL("url")).
+		Build()
+	spec.Datasets = append(spec.Datasets, staticDataset("records-data", recordFrames))
+
+	// The detail level lists the months; picking one opens the record table.
+	view.Nodes[1].Edges = nil
+	view.Nodes[1].DynamicEdges = true
+	view.Nodes[1].DynamicTargets = []string{"records"}
+	view.Nodes[1].DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"), Target: sourcePtr(action.LiteralValue("records")),
+	}
+	leaf := action.Navigate("/records/{id}", action.FieldParam("id", "row_id"))
+	view.Nodes[2] = explore.PanelNode("records", "Source records", records).
+		WithView(panel.KindTable).
+		WithDynamicChildren(explore.DynamicChildren{
+			Key: action.FieldValue("row_id"), Label: action.FieldValue("child_label"), Action: &leaf,
+		})
+	require.NoError(t, lensruntime.Validate(spec))
+	handlers.spec = spec
+	executor.frames["records-panel"] = recordFrames
+	executor.frames["detail-panel"] = dynamicFrames(t, "month-12", "December")
+	executor.pageFrames = map[string]map[int]*frame.FrameSet{"records-panel": {1: recordFrames}}
+	executor.pageHasMore = map[string]map[int]bool{"records-panel": {1: false}}
+	return handlers, executor
+}
+
+func TestHandlers_TableLevelIsTheTerminalLevelOfAChartPerspective(t *testing.T) {
+	t.Parallel()
+	handlers, executor := tableLevelHandlers(t)
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	level := doc.Drill.Edges["metric/focus/composition/records"]
+	require.Equal(t, document.PanelKindTable, level.View)
+	require.NotNil(t, level.Table)
+	require.Equal(t, "child_label", level.Table.Columns[0].Field)
+	require.True(t, level.Table.Columns[1].Total)
+	require.NotEmpty(t, level.Table.Actions, "the table's row action travels with the level")
+	require.NoError(t, doc.Validate())
+
+	response := queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Perspective: "composition", Page: 1,
+		Path: document.NodePath{"root", "2025", "detail", "month-12", "records"},
+	})
+
+	require.NotNil(t, response.Page, "a table level is paginated like evidence")
+	require.Equal(t, 1, response.Page.Number)
+	require.NotNil(t, response.Summary, "the level's totalled column reaches the wire")
+	require.InDelta(t, 1.0, response.Summary.Values["value"], 1e-9)
+	call := executor.lastCall("records-panel")
+	require.Equal(t, "1", call.request.Request.Get(lensruntime.TablePaginationPageQuery))
+	require.Equal(t, []string{"root", "2025", "detail", "month-12", "records"}, call.request.Request["lens_explore_path"],
+		"the selected points reach the level's query")
+	for _, wire := range response.Frames {
+		require.Len(t, wire.Children, 1)
+		require.NotNil(t, wire.Children[0].Action, "each record row opens its own address")
+	}
+}
+
+func TestHandlers_InlineLevelKeepsStaticEdgesBesideDynamicChildren(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	spec := handlers.spec
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	root.DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.LiteralValue("detail")),
+	}
+	handlers.spec = spec
+	executor.frames["root-panel"] = dynamicFrames(t, "month-12", "December")
+
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	stored := doc.Frames["explore:metric/focus/composition:root"]
+	keys := make([]document.NodeKey, 0, len(stored.Children))
+	for _, child := range stored.Children {
+		keys = append(keys, child.Key)
+	}
+	require.Contains(t, keys, document.NodeKey("metric/focus/composition/root/a"), "the declared static edge stays")
+	require.Contains(t, keys, document.NodeKey("month-12"), "the resolved row joins it")
+}
+
 func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)
@@ -1783,4 +1910,78 @@ func TestHandlers_QueryBoundsPathAndPage(t *testing.T) {
 		handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", marshal(t, request)))
 		require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	}
+}
+
+func TestHandlers_TableLevelFooterTotalsCoverTheWholeSelection(t *testing.T) {
+	t.Parallel()
+	path := document.NodePath{"root", "2025", "detail", "month-12", "records"}
+	rows := func(t *testing.T, values ...float64) *frame.FrameSet {
+		t.Helper()
+		ids := make([]any, len(values))
+		labels := make([]any, len(values))
+		amounts := make([]any, len(values))
+		for index, value := range values {
+			ids[index], labels[index], amounts[index] = "row-"+strconv.Itoa(index), "Record", value
+		}
+		primary, err := frame.New("records",
+			frame.Field{Name: "row_id", Type: frame.FieldTypeString, Values: ids},
+			frame.Field{Name: "child_label", Type: frame.FieldTypeString, Values: labels},
+			frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: amounts},
+		)
+		require.NoError(t, err)
+		set, err := frame.NewFrameSet(primary)
+		require.NoError(t, err)
+		return set
+	}
+
+	tests := []struct {
+		name     string
+		page     int
+		more     bool
+		totals   map[string]float64
+		want     float64
+		hasTotal bool
+	}{
+		{name: "the host returned every row", page: 1, want: 60, hasTotal: true},
+		{name: "a page of a longer selection has no total of its own", page: 1, more: true},
+		{name: "a later page has no total of its own", page: 2},
+		{name: "the host supplies the selection total", page: 2, more: true, totals: map[string]float64{"value": 600}, want: 600, hasTotal: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			handlers, executor := tableLevelHandlers(t)
+			executor.pageFrames = map[string]map[int]*frame.FrameSet{"records-panel": {tt.page: rows(t, 10, 20, 30)}}
+			executor.pageHasMore = map[string]map[int]bool{"records-panel": {tt.page: tt.more}}
+			executor.tableTotals = map[string]map[string]float64{"records-panel": tt.totals}
+			doc := requestDocument(t, handlers, "/dash/document")
+
+			response := queryLevel(t, handlers, QueryRequest{
+				SnapshotID: doc.SnapshotID, Perspective: "composition", Page: tt.page, Path: path,
+			})
+
+			if !tt.hasTotal {
+				require.Nil(t, response.Summary)
+				return
+			}
+			require.NotNil(t, response.Summary)
+			require.InDelta(t, tt.want, response.Summary.Values["value"], 1e-9)
+		})
+	}
+}
+
+func TestHandlers_DocumentSeedsEnglishBaselineOnlyWhereTheRuntimeCannotTranslate(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+
+	english := requestDocument(t, handlers, "/dash/document?locale=en")
+	require.Equal(t, "Open {name}", english.I18n[document.I18nChartOpenMark])
+
+	russian := requestDocument(t, handlers, "/dash/document?locale=ru")
+	require.NotContains(t, russian.I18n, document.I18nChartOpenMark,
+		"an English baseline in the document would hide the runtime's built-in Russian text")
+	require.Empty(t, russian.I18n)
+
+	chinese := requestDocument(t, handlers, "/dash/document?locale=zh")
+	require.Equal(t, "Open {name}", chinese.I18n[document.I18nChartOpenMark])
 }

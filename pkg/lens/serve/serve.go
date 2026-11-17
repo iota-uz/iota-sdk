@@ -26,6 +26,14 @@ const (
 // tenant scope. Serve fills empty transport fields from the HTTP request.
 type RequestResolver func(*http.Request) lensruntime.Request
 
+// DocumentOptionsResolver supplies the per-request document chrome: filters,
+// drawer header, page header, translations and theme. It runs for every
+// Handlers.Document request with the request the engine will execute, so a
+// host reads the same date range, tenant and locale the document is built from.
+// Zero fields keep the defaults; Filters, when non-nil, replace the filters
+// derived from the dashboard's variables.
+type DocumentOptionsResolver func(*http.Request, lensruntime.Request) document.BuildOptions
+
 type DrawerResolver func(*http.Request, document.DrawerResolveRequest, lensruntime.Request) (string, error)
 
 type ExplorationExecutor interface {
@@ -83,19 +91,21 @@ func (f ObserverFunc) OnError(ctx context.Context, op string, err error) {
 
 // Config describes one host-registered dashboard HTTP surface.
 type Config struct {
-	Spec           lens.DashboardSpec
-	Engine         engine.Executor
-	Snapshots      document.SnapshotStore
-	BasePath       string
-	InlineDepth    int
-	PageSize       int
-	WorkTimeout    time.Duration
-	Request        RequestResolver
-	Observer       Observer
-	DrawerResolver DrawerResolver
-	Exploration    ExplorationExecutor
-	ResolveLoader  ExplorationLoaderResolver
-	Sessions       *SessionRegistry
+	Spec        lens.DashboardSpec
+	Engine      engine.Executor
+	Snapshots   document.SnapshotStore
+	BasePath    string
+	InlineDepth int
+	PageSize    int
+	WorkTimeout time.Duration
+	Request     RequestResolver
+	// DocumentOptions customizes the document Handlers.Document serves.
+	DocumentOptions DocumentOptionsResolver
+	Observer        Observer
+	DrawerResolver  DrawerResolver
+	Exploration     ExplorationExecutor
+	ResolveLoader   ExplorationLoaderResolver
+	Sessions        *SessionRegistry
 	// Progressive returns a layout-only document and materialises each panel
 	// independently through Handlers.Panel.
 	Progressive bool
@@ -112,6 +122,7 @@ type Handlers struct {
 	pageSize       int
 	workTimeout    time.Duration
 	request        RequestResolver
+	documentOpts   DocumentOptionsResolver
 	observer       Observer
 	progressive    bool
 	drawerResolver DrawerResolver
@@ -179,7 +190,7 @@ func New(cfg Config) (*Handlers, error) {
 	return &Handlers{
 		spec: cfg.Spec, plan: plan, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
-		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
+		request: cfg.Request, documentOpts: cfg.DocumentOptions, observer: observer, progressive: cfg.Progressive,
 		drawerResolver: cfg.DrawerResolver, exploration: cfg.Exploration, resolveLoader: cfg.ResolveLoader,
 		sessions: sessions,
 	}, nil

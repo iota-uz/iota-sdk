@@ -305,6 +305,33 @@ export type FocusMode = "canvas"
 
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"
 
+export interface Formula {
+  latex: string
+  alt?: string
+  markup?: string
+  variables?: Array<FormulaVariable>
+  version?: string
+  date?: string
+  error?: boolean
+}
+
+export interface FormulaRef {
+  kind: FormulaRefKind
+  name: string
+  availability?: string
+}
+
+export type FormulaRefKind = "field" | "measure" | "stage"
+
+export interface FormulaVariable {
+  key: string
+  label: string
+  ref?: FormulaRef
+  source?: string
+  value?: string
+  format?: FieldFormat
+}
+
 export interface Frame {
   columns: Array<Column>
   rows: Array<Array<unknown>>
@@ -390,6 +417,7 @@ export interface Level {
   presentation?: Presentation
   status?: PanelStatus
   source?: LevelSource
+  table?: LevelTable
 }
 
 export interface LevelSource {
@@ -397,6 +425,12 @@ export interface LevelSource {
   frame: FrameRef
   columns?: Array<TableColumn>
   format?: Record<string, FieldFormat>
+}
+
+export interface LevelTable {
+  columns?: Array<TableColumn>
+  format?: Record<string, FieldFormat>
+  actions: Array<Action>
 }
 
 export interface MapConfig {
@@ -495,6 +529,7 @@ export interface PanelBase {
   status?: PanelStatus
   caption?: string
   info?: string
+  formula?: Formula
   headline?: number
   trend?: PanelTrend
   sparkline?: Sparkline
@@ -718,6 +753,7 @@ export interface QueryRequest {
 export interface QueryResponse {
   frames: Record<FrameRef, Frame>
   page?: QueryPage
+  summary?: TableSummary
 }
 
 export interface RadialConfig {
