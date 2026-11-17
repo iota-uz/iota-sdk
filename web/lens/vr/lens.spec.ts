@@ -179,6 +179,8 @@ const storyIds = [
   'filter-controls--refetch-error',
   'formula--formula-states--dark',
   'formula--formula-states--light',
+  'formula--formula-reader-aids--dark',
+  'formula--formula-reader-aids--light',
   'metric-composition--full',
   'metric-composition--full-dark',
   'metric-composition--narrow',
@@ -482,6 +484,8 @@ const staticStories = [
   // Hover focus + KaTeX font raster: keep a small local tolerance.
   ['formula--formula-states--dark', 0, 50],
   ['formula--formula-states--light', 0, 50],
+  ['formula--formula-reader-aids--dark', 0, 50],
+  ['formula--formula-reader-aids--light', 0, 50],
   ['metric-composition--full-dark', 0],
   ['metric-composition--narrow', 0],
   ['metric-composition--quality-chips', 0],
@@ -697,6 +701,9 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       if (storyId.includes('created')) await expect(section).toContainText('Press Add to put it on the dashboard')
       if (storyId.includes('failed')) await expect(section.getByRole('alert')).toBeVisible()
       if (storyId.includes('open')) await expect(section.getByRole('textbox')).toHaveValue(/Policies sold per region/)
+    }
+    if (storyId.startsWith('formula--formula-reader-aids')) {
+      await expect(page.locator('.lens-formula[data-state="ready"]')).toHaveCount(2)
     }
     if (storyId.startsWith('formula--formula-states')) {
       // KaTeX loads lazily and the hover card focuses its variable on a timer;

@@ -47,6 +47,7 @@ export function FormulaTip(props: FormulaTipProps) {
   let button: HTMLButtonElement | undefined
   let closeTimer: ReturnType<typeof globalThis.setTimeout> | undefined
   const bubbleId = createUniqueId()
+  const noteId = createUniqueId()
   const open = () => pinned() || hovered()
   const container = useOverlayContainer(open, () => wrapper, 'lens-info-tip-overlay-root')
 
@@ -130,6 +131,7 @@ export function FormulaTip(props: FormulaTipProps) {
     >
       <button
         aria-controls={open() ? bubbleId : undefined}
+        aria-describedby={props.note ? noteId : undefined}
         aria-expanded={open()}
         aria-label={label()}
         class={props.inline
@@ -144,6 +146,11 @@ export function FormulaTip(props: FormulaTipProps) {
       >
         <FormulaMark />
       </button>
+      {/* The note an ⓘ used to announce: described on the trigger itself, so
+          a screen reader hears it on focus without opening the popover. */}
+      <Show when={props.note}>
+        <span hidden id={noteId}>{props.note}</span>
+      </Show>
       <Show when={open() && container()}>
         <Portal mount={container()}>
           <section

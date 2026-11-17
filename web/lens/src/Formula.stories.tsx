@@ -90,6 +90,39 @@ function Matrix(props: { theme: 'light' | 'dark' }): JSX.Element {
   )
 }
 
+const readerVariables: FormulaVariableView[] = [
+  { key: 'N', label: 'Net profit', source: 'General ledger, account 9910', value: '4.2 bn UZS', exact: '4,213,507,880 UZS' },
+  { key: 'E', label: 'Average equity', source: 'Balance sheet, section III', availability: 'config_required' },
+]
+
+/**
+ * What a reader is told around the figures: the panel's note (the ⓘ it
+ * replaced), the hint that a click lists the variables, and the pinned list
+ * with an operand in full and one whose reason replaces «no data».
+ */
+function ReaderAids(props: { theme: 'light' | 'dark' }): JSX.Element {
+  return (
+    <div class="lens-root lens-story-matrix" data-theme={props.theme} style={{ display: 'grid', gap: '16px', 'grid-template-columns': 'repeat(2, minmax(0, 1fr))' }}>
+      <Card label="preview: note and hint">
+        <strong class="lens-formula-title">How it is calculated</strong>
+        <FormulaView formula={formula} variables={readerVariables} />
+        <p class="lens-formula-value-line">ROE = <strong>12.5%</strong></p>
+        <p class="lens-formula-note">Net of reinsurance; equity is the average of the opening and closing balance.</p>
+        <p class="lens-formula-hint">Click ƒ to see the variables and their sources</p>
+      </Card>
+      <Card label="pinned: exact operand, reason for a gap">
+        <FormulaView formula={formula} variables={readerVariables} />
+        <FormulaVariables variables={readerVariables} />
+      </Card>
+    </div>
+  )
+}
+
+export const ReaderAidsLight = () => <ReaderAids theme="light" />
+ReaderAidsLight.storyName = 'Formula reader aids - light'
+export const ReaderAidsDark = () => <ReaderAids theme="dark" />
+ReaderAidsDark.storyName = 'Formula reader aids - dark'
+
 export const Light = () => <Matrix theme="light" />
 Light.storyName = 'Formula states - light'
 export const Dark = () => <Matrix theme="dark" />

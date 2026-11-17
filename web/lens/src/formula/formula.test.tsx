@@ -122,6 +122,12 @@ describe('PanelFormula', () => {
     fireEvent.focus(screen.getByTestId('lens-formula-button'))
     expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Net of reinsurance.')
   })
+
+  it('describes the trigger with the note it replaced', () => {
+    render(() => <PanelFormula frame={frame} note="Net of reinsurance." panel={panel} />)
+    // The ⓘ named the note on focus; the ƒ must not make it silent.
+    expect(screen.getByTestId('lens-formula-button')).toHaveAccessibleDescription('Net of reinsurance.')
+  })
 })
 
 describe('value rules', () => {
