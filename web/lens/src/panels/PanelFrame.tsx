@@ -312,10 +312,10 @@ export function PanelFrame(props: PanelFrameProps) {
         <Show when={showHeading()}>
           <div class="lens-panel-heading">
             {titleNode()}
-            <Show when={infoText()}>
+            <Show when={infoText() && !props.panel.formula}>
               <InfoTip subject={props.panel.title} text={infoText()} />
             </Show>
-            <PanelFormula frame={props.frame.data} panel={props.panel} />
+            <PanelFormula frame={props.frame.data} note={infoText()} panel={props.panel} />
           </div>
         </Show>
         {chrome?.explore}

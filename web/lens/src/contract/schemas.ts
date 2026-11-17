@@ -351,6 +351,7 @@ export const FormulaVariableSchema: z.ZodType<Contract.FormulaVariable> = z.obje
   ref: z.lazy(() => FormulaRefSchema).optional(),
   source: z.string().optional(),
   value: z.string().optional(),
+  format: z.lazy(() => FieldFormatSchema).optional(),
 }).strict()
 
 export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({

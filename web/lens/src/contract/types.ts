@@ -328,6 +328,7 @@ export interface FormulaVariable {
   ref?: FormulaRef
   source?: string
   value?: string
+  format?: FieldFormat
 }
 
 export interface Frame {

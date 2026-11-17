@@ -32,6 +32,9 @@ type FormulaVariable struct {
 	// Value is a ready, formatted value for hosts without a frame (templ pages).
 	// With a frame the client resolves Ref instead.
 	Value string `json:"value,omitempty"`
+	// Format formats the value Ref resolves; without it the panel's format for
+	// that column applies.
+	Format *FieldFormat `json:"format,omitempty"`
 }
 
 // Formula is the wire form of formula.Spec. The LaTeX source is carried for the
@@ -63,6 +66,11 @@ func BuildFormula(owner string, spec *formula.Spec) *Formula {
 		variable := FormulaVariable{Key: v.Key, Label: v.Label, Source: v.Source, Value: v.Value}
 		if v.Ref != nil {
 			variable.Ref = &FormulaRef{Kind: FormulaRefKind(v.Ref.Kind), Name: v.Ref.Name}
+		}
+		if v.Format != nil {
+			if converted, ok := convertFormat(*v.Format); ok {
+				variable.Format = &converted
+			}
 		}
 		out.Variables = append(out.Variables, variable)
 	}

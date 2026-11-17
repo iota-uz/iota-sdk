@@ -10,6 +10,8 @@ package formula
 import (
 	"fmt"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 )
 
 // RefKind says where a variable's value lives in the panel's frame.
@@ -44,6 +46,11 @@ type Variable struct {
 	// has no frame passes it here; with a frame the client resolves Ref and
 	// this stays empty.
 	Value string `json:"value,omitempty"`
+	// Format formats the value Ref resolves. Without it the client uses the
+	// panel's format for that column, which a panel declares only for its own
+	// figure: a variable read from another column of the same frame (a stat
+	// whose formula names the other KPIs of its row) needs its own.
+	Format *format.Spec `json:"format,omitempty"`
 }
 
 // Spec describes how a figure is calculated.

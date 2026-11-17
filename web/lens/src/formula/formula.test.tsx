@@ -26,6 +26,16 @@ describe('formula values', () => {
     expect(vars[1]?.value).toBeUndefined()
     expect(formulaValueLine(panel, frame, 'en')).toBe('12.5')
   })
+
+  it('formats a variable read from another column with its own format', () => {
+    // A stat declares a format only for its own figure. The other KPIs of the
+    // row its formula names would otherwise print as bare numbers.
+    const withFormat: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net profit', ref: { kind: 'field', name: 'net' }, format: { kind: 'money', currency: 'UZS', precision: 0, minorUnits: false } }],
+    }
+    expect(resolveFormulaVariables(withFormat, panel, frame, 'en')[0]?.value).toBe('UZS\u00a0300')
+  })
 })
 
 describe('FormulaView', () => {
@@ -71,6 +81,12 @@ describe('PanelFormula', () => {
     const button = screen.getByTestId('lens-formula-button')
     fireEvent.focus(button)
     expect(await screen.findByTestId('lens-formula-value')).toHaveTextContent('ROE = 12.5')
+  })
+
+  it('says the panel note inside the formula', async () => {
+    render(() => <PanelFormula frame={frame} note="Net of reinsurance." panel={panel} />)
+    fireEvent.focus(screen.getByTestId('lens-formula-button'))
+    expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Net of reinsurance.')
   })
 })
 

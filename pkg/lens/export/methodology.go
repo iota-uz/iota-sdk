@@ -98,7 +98,12 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 	if !ok || field == nil || len(field.Values) == 0 {
 		return nil, false
 	}
-	return exportable(field.Values[0], result.Panel, *field)
+	value, ok := exportable(field.Values[0], result.Panel, *field)
+	if formatted, isFormatted := value.(formattedValue); isFormatted && variable.Format != nil {
+		formatted.Format = variable.Format
+		value = formatted
+	}
+	return value, ok
 }
 
 // exportable turns a frame cell into the Methodology sheet's value. A formula

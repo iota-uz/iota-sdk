@@ -60,7 +60,7 @@ export function resolveFormulaVariables(
     const cell = index >= 0 ? frame.rows[row]?.[index] : undefined
     if (cell === undefined || cell === null) return view
     const numeric = finiteNumber(cell)
-    view.value = formatFieldValue(numeric ?? cell, panel.format[ref.name], locale)
+    view.value = formatFieldValue(numeric ?? cell, variable.format ?? panel.format[ref.name], locale)
     return view
   })
 }

@@ -15,6 +15,11 @@ export interface FormulaTipProps {
   /** The figure in this calculation, formatted — shown under the formula. */
   value?: string
   variables?: ReadonlyArray<FormulaVariableView>
+  /**
+   * The panel's own explanation. A figure with a formula shows no separate ⓘ:
+   * its note is said here, under the formula, so one control explains it.
+   */
+  note?: string
   /** Compact form for a metric strip cell (see InfoTip). */
   inline?: boolean
 }
@@ -166,6 +171,9 @@ export function FormulaTip(props: FormulaTipProps) {
                 <p class="lens-formula-value-line" data-testid="lens-formula-value">
                   <span>{props.subject}</span> = <strong>{props.value}</strong>
                 </p>
+              </Show>
+              <Show when={props.note}>
+                <p class="lens-formula-note" data-testid="lens-formula-note">{props.note}</p>
               </Show>
               <Show when={pinned()}>
                 <FormulaVariables variables={props.variables ?? []} />

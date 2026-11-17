@@ -3029,6 +3029,10 @@
     @apply lens:m-0 lens:text-sm lens:tabular-nums;
   }
 
+  .lens-formula-note {
+    @apply lens:m-0 lens:whitespace-pre-line lens:text-xs lens:leading-relaxed lens:text-muted;
+  }
+
   .lens-formula-variable-list {
     @apply lens:m-0 lens:flex lens:flex-col lens:gap-1.5;
   }
