@@ -175,6 +175,11 @@ export function FormulaTip(props: FormulaTipProps) {
               <Show when={props.note}>
                 <p class="lens-formula-note" data-testid="lens-formula-note">{props.note}</p>
               </Show>
+              <Show when={!pinned() && (props.variables?.length ?? 0) > 0}>
+                <p class="lens-formula-hint" data-testid="lens-formula-hint">
+                  {translate('panel.formula.more', 'Click ƒ to see the variables and their sources')}
+                </p>
+              </Show>
               <Show when={pinned()}>
                 <FormulaVariables variables={props.variables ?? []} />
                 <Show when={version()}><p class="lens-formula-version">{version()}</p></Show>

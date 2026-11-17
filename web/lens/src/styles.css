@@ -3025,6 +3025,20 @@
     @apply lens:font-semibold lens:tabular-nums;
   }
 
+  .lens-formula-tip-source {
+    @apply lens:max-w-60 lens:text-muted;
+  }
+
+  /* A value the data cannot state reads as a remark, not as a figure. */
+  .lens-formula-tip-value[data-missing],
+  .lens-formula-variable-value[data-missing] {
+    @apply lens:font-normal lens:text-muted;
+  }
+
+  .lens-formula-hint {
+    @apply lens:m-0 lens:text-xs lens:text-muted;
+  }
+
   .lens-formula-value-line {
     @apply lens:m-0 lens:text-sm lens:tabular-nums;
   }

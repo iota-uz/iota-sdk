@@ -21,6 +21,9 @@ const (
 type FormulaRef struct {
 	Kind FormulaRefKind `json:"kind"`
 	Name string         `json:"name"`
+	// Availability names the frame column carrying the value's availability
+	// on the same row (RefField only).
+	Availability string `json:"availability,omitempty"`
 }
 
 // FormulaVariable is one symbol of a formula.
@@ -65,7 +68,7 @@ func BuildFormula(owner string, spec *formula.Spec) *Formula {
 	for _, v := range spec.Variables {
 		variable := FormulaVariable{Key: v.Key, Label: v.Label, Source: v.Source, Value: v.Value}
 		if v.Ref != nil {
-			variable.Ref = &FormulaRef{Kind: FormulaRefKind(v.Ref.Kind), Name: v.Ref.Name}
+			variable.Ref = &FormulaRef{Kind: FormulaRefKind(v.Ref.Kind), Name: v.Ref.Name, Availability: v.Ref.Availability}
 		}
 		if v.Format != nil {
 			if converted, ok := convertFormat(*v.Format); ok {

@@ -30,6 +30,12 @@ const (
 type Ref struct {
 	Kind RefKind `json:"kind"`
 	Name string  `json:"name"`
+	// Availability names a frame column, on the same row, that says whether the
+	// value can be stated ("available", "unavailable", "config_required",
+	// "empty_source" — the panel Availability values). A field read from a row
+	// whose metric is not configured is then explained, not just blank. Only
+	// for RefField: a stage already carries its availability in the flow.
+	Availability string `json:"availability,omitempty"`
 }
 
 // Variable is one symbol of the formula.
@@ -93,6 +99,9 @@ func (s Spec) Validate() error {
 			}
 			if strings.TrimSpace(v.Ref.Name) == "" {
 				return fmt.Errorf("formula variable %q ref name is required", key)
+			}
+			if v.Ref.Availability != "" && v.Ref.Kind != RefField {
+				return fmt.Errorf("formula variable %q: an availability column applies to a field ref only", key)
 			}
 		}
 	}

@@ -36,6 +36,30 @@ describe('formula values', () => {
     }
     expect(resolveFormulaVariables(withFormat, panel, frame, 'en')[0]?.value).toBe('UZS\u00a0300')
   })
+
+  it('keeps the unabbreviated value of a compact figure for the variable list', () => {
+    // «4.2B − 1.1B = 3.0B» reads as wrong arithmetic; the list states the
+    // operands in full so a reader can check the sum.
+    const compact: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net', ref: { kind: 'field', name: 'net' }, format: { kind: 'number', compact: true, minorUnits: false } }],
+    }
+    const big: Frame = { columns: [{ name: 'net', type: 'number' }], rows: [[4213507880]] }
+    const [view] = resolveFormulaVariables(compact, panel, big, 'en')
+    expect(view?.value).not.toBe(view?.exact)
+    expect(view?.exact).toBe('4,213,507,880')
+  })
+
+  it('says why a field cannot be stated when its row says so', () => {
+    const gated: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net', value: '99', ref: { kind: 'field', name: 'net', availability: 'net_state' } }],
+    }
+    const row: Frame = { columns: [{ name: 'net', type: 'number' }, { name: 'net_state', type: 'string' }], rows: [[null, 'config_required']] }
+    const [view] = resolveFormulaVariables(gated, panel, row, 'en')
+    expect(view?.value).toBeUndefined()
+    expect(view?.availability).toBe('config_required')
+  })
 })
 
 describe('FormulaView', () => {
@@ -83,6 +107,16 @@ describe('PanelFormula', () => {
     expect(await screen.findByTestId('lens-formula-value')).toHaveTextContent('ROE = 12.5')
   })
 
+  it('tells a hover reader that a click lists the variables', async () => {
+    render(() => <PanelFormula frame={frame} panel={panel} />)
+    const button = screen.getByTestId('lens-formula-button')
+    fireEvent.focus(button)
+    expect(await screen.findByTestId('lens-formula-hint')).toBeInTheDocument()
+    fireEvent.click(button)
+    await waitFor(() => expect(screen.queryByTestId('lens-formula-hint')).toBeNull())
+    expect(screen.getByText('Equity').nextElementSibling).toHaveTextContent('no data')
+  })
+
   it('says the panel note inside the formula', async () => {
     render(() => <PanelFormula frame={frame} note="Net of reinsurance." panel={panel} />)
     fireEvent.focus(screen.getByTestId('lens-formula-button'))
@@ -113,6 +147,7 @@ describe('value rules', () => {
     const vars = resolveFormulaVariables(flow.formula!, flow, flowFrame, 'en')
     expect(vars[0]?.value).toBe('30')
     expect(vars[1]?.value).toBeUndefined()
+    expect(vars[1]?.availability).toBe('unavailable')
   })
 })
 

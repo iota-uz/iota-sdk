@@ -60,6 +60,20 @@ func methodologyRows(labels Labels, panels []*lensruntime.PanelResult) [][]any {
 // duplicated key has no single value), a measure or field by column name. A
 // frame formula contributes its computed result — replaying the expression on
 // the Methodology sheet would point at that sheet's cells, not the data's.
+// fieldUnavailable reports a field variable whose availability column says the
+// value cannot be stated on the first row.
+func fieldUnavailable(primary *frame.Frame, column string) bool {
+	if column == "" {
+		return false
+	}
+	field, ok := primary.Field(column)
+	if !ok || field == nil || len(field.Values) == 0 {
+		return false
+	}
+	state, _ := field.Values[0].(string)
+	return state != "" && state != string(panel.AvailabilityAvailable)
+}
+
 func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (any, bool) {
 	if variable.Ref == nil || result.Frames == nil {
 		return nil, false
@@ -97,6 +111,9 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 	field, ok := primary.Field(variable.Ref.Name)
 	if !ok || field == nil || len(field.Values) == 0 {
 		return nil, false
+	}
+	if fieldUnavailable(primary, variable.Ref.Availability) {
+		return "", true
 	}
 	value, ok := exportable(field.Values[0], result.Panel, *field)
 	if formatted, isFormatted := value.(formattedValue); isFormatted && variable.Format != nil {

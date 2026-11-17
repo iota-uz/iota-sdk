@@ -47,6 +47,10 @@ func TestValidateVariables(t *testing.T) {
 	if err := s.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	s.Variables = []Variable{{Key: "a", Ref: &Ref{Kind: RefStage, Name: "x", Availability: "x_state"}}}
+	if s.Validate() == nil {
+		t.Fatal("availability column on a stage ref accepted")
+	}
 }
 
 func TestHTMLData(t *testing.T) {

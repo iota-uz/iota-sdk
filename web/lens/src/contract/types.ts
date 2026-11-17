@@ -318,6 +318,7 @@ export interface Formula {
 export interface FormulaRef {
   kind: FormulaRefKind
   name: string
+  availability?: string
 }
 
 export type FormulaRefKind = "field" | "measure" | "stage"

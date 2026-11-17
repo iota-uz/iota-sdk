@@ -35,3 +35,10 @@ func TestBuildFormulaCarriesVariableFormat(t *testing.T) {
 	require.Equal(t, "UZS", got.Variables[0].Format.Currency)
 	require.Nil(t, got.Variables[1].Format)
 }
+
+func TestBuildFormulaCarriesAvailabilityColumn(t *testing.T) {
+	got := BuildFormula("p", &formula.Spec{Latex: `a`, Variables: []formula.Variable{
+		{Key: "a", Label: "A", Ref: &formula.Ref{Kind: formula.RefField, Name: "a", Availability: "a_state"}},
+	}})
+	require.Equal(t, "a_state", got.Variables[0].Ref.Availability)
+}

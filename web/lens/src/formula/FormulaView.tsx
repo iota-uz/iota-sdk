@@ -50,7 +50,7 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
 
   const alt = () => props.formula.alt?.trim() || ''
   const variable = (key: string) => props.variables?.find((candidate) => candidate.key === key)
-  const noValue = () => translate('panel.formula.noValue', 'no data')
+  const valueText = (entry: FormulaVariableView | undefined) => entry?.value ?? missingText(translate, entry)
 
   createEffect(() => {
     const formula = props.formula
@@ -90,7 +90,7 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
       element.tabIndex = 0
       element.classList.add('lens-formula-var')
       element.setAttribute('role', 'button')
-      element.setAttribute('aria-label', `${entry?.label ?? key}: ${entry?.value ?? noValue()}`)
+      element.setAttribute('aria-label', `${entry?.label ?? key}: ${valueText(entry)}`)
       element.setAttribute('aria-describedby', tipId)
       const show = () => {
         const rect = element.getBoundingClientRect()
@@ -155,12 +155,28 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
             style={{ left: `${current().left}px`, top: `${current().top + 6}px` }}
           >
             <span class="lens-formula-tip-label">{current().entry?.label ?? current().key}</span>
-            <span class="lens-formula-tip-value">{current().entry?.value ?? noValue()}</span>
+            <span class="lens-formula-tip-value" data-missing={current().entry?.value === undefined || undefined}>{valueText(current().entry)}</span>
+            <Show when={current().entry?.source}>
+              <span class="lens-formula-tip-source">{current().entry?.source}</span>
+            </Show>
           </div>
         )}
       </Show>
     </div>
   )
+}
+
+/**
+ * What a variable without a value says: the reason when the data gives one
+ * («Требуется настройка»), otherwise a plain «no data».
+ */
+function missingText(translate: ReturnType<typeof useTranslate>, entry: FormulaVariableView | undefined): string {
+  switch (entry?.availability) {
+    case 'config_required': return translate('availability.config_required', 'Configuration required')
+    case 'empty_source': return translate('availability.empty_source', 'No source data')
+    case 'unavailable': return translate('availability.unavailable', 'Unavailable')
+    default: return translate('panel.formula.noValue', 'no data')
+  }
 }
 
 /** The variable list of the «How it is calculated» panel. */
@@ -175,7 +191,9 @@ export function FormulaVariables(props: { variables: ReadonlyArray<FormulaVariab
             {(entry) => (
               <div class="lens-formula-variable">
                 <dt>{entry.label}</dt>
-                <dd class="lens-formula-variable-value">{entry.value ?? translate('panel.formula.noValue', 'no data')}</dd>
+                <dd class="lens-formula-variable-value" data-missing={entry.value === undefined || undefined}>
+                  {entry.exact ?? entry.value ?? missingText(translate, entry)}
+                </dd>
                 <Show when={entry.source}>
                   <dd class="lens-formula-variable-source">
                     {translate('panel.formula.source', 'Source')}: {entry.source}
