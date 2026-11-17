@@ -165,3 +165,18 @@ describe('supplied values', () => {
     expect(resolveFormulaVariables(stageFormula, base, undefined, 'en')[0]?.value).toBe('99')
   })
 })
+
+describe('<lens-formula>', () => {
+  it('says the note inside the ƒ', async () => {
+    const { registerLensFormulaElement } = await import('./element')
+    registerLensFormulaElement()
+    const host = document.createElement('lens-formula')
+    host.setAttribute('formula', JSON.stringify({ latex: 'a' }))
+    host.setAttribute('label', 'ROE')
+    host.setAttribute('note', 'Net of reinsurance.')
+    document.body.append(host)
+    fireEvent.focus(host.querySelector('[data-testid="lens-formula-button"]')!)
+    expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Net of reinsurance.')
+    host.remove()
+  })
+})

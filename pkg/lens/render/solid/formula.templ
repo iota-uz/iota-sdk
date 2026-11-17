@@ -21,7 +21,10 @@ type FormulaProps struct {
 	Spec formula.Spec
 	// Label names the figure ("ROE"); Value is its formatted value.
 	Label, Value string
-	Values       map[string]string
+	// Note is the figure's plain-language explanation, said inside the ƒ. A
+	// figure with a formula shows no separate ⓘ: pass the hint text here.
+	Note   string
+	Values map[string]string
 	Mode         FormulaMode
 }
 
@@ -35,6 +38,9 @@ templ Formula(props FormulaProps) {
 		formula={ formulaJSON(wire) }
 		label={ props.Label }
 		value={ props.Value }
+		if props.Note != "" {
+			note={ props.Note }
+		}
 		mode={ string(formulaMode(props.Mode)) }
 	>
 		if wire != nil && wire.Markup != "" {
