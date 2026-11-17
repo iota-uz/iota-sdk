@@ -436,6 +436,11 @@ func TestMethodologyFieldUnavailableExportsNothing(t *testing.T) {
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
 	require.Empty(t, rows[1][3])
 	require.InDelta(t, 5.0, rows[2][3].(formattedValue).Value, 1e-9)
+
+	// Without the value column at all, the availability still decides.
+	gated := mustFrames(t, "f", frame.Field{Name: "net_state", Values: []any{"config_required"}})
+	rows = methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: gated}})
+	require.Empty(t, rows[1][3])
 }
 
 func TestMethodologyFormulaCells(t *testing.T) {

@@ -108,12 +108,14 @@ func variableValue(result *lensruntime.PanelResult, variable formula.Variable) (
 		}
 		return exportable(valueField.Values[match], result.Panel, *valueField)
 	}
+	// The row's availability wins over the value column, present or not: a
+	// figure the data says cannot be stated exports as an empty cell.
+	if fieldUnavailable(primary, variable.Ref.Availability) {
+		return "", true
+	}
 	field, ok := primary.Field(variable.Ref.Name)
 	if !ok || field == nil || len(field.Values) == 0 {
 		return nil, false
-	}
-	if fieldUnavailable(primary, variable.Ref.Availability) {
-		return "", true
 	}
 	value, ok := exportable(field.Values[0], result.Panel, *field)
 	if formatted, isFormatted := value.(formattedValue); isFormatted && variable.Format != nil {
