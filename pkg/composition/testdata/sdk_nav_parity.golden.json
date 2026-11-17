@@ -291,7 +291,7 @@
         {
           "key": "core.settings",
           "name": "NavigationLinks.Settings",
-          "href": "/settings/logo",
+          "href": "/settings",
           "order": 5,
           "logic": "all"
         },
@@ -731,7 +731,7 @@
     },
     {
       "tr_key": "NavigationLinks.Settings",
-      "link": "/settings/logo",
+      "link": "/settings",
       "access": {
         "visibility": "public",
         "owner_id": "",

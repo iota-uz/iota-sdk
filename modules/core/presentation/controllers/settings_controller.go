@@ -96,8 +96,11 @@ func (c *SettingsLogoController) Descriptor() application.ControllerDescriptor {
 			ID:       "core.settings",
 			Parent:   "core.administration",
 			TitleKey: "NavigationLinks.Settings",
-			Path:     c.basePath,
-			Order:    60,
+			// The sidebar entry opens the hub, which lists the logo page among
+			// the others; it keeps the visibility of the logo route it used to open.
+			Path:       "/settings",
+			Order:      60,
+			Visibility: navAuthPolicy(c.navPermissions),
 		})
 }
 
