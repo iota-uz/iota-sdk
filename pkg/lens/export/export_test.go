@@ -430,7 +430,7 @@ func TestMethodologyFieldUnavailableExportsNothing(t *testing.T) {
 		frame.Field{Name: "rev_state", Values: []any{"available"}},
 	)
 	spec := panel.Spec{ID: "p", Title: "P", Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
-		{Key: "n", Label: "Net", Ref: &formula.Ref{Kind: formula.RefField, Name: "net", Availability: "net_state"}},
+		{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefField, Name: "net", Availability: "net_state"}},
 		{Key: "r", Label: "Rev", Ref: &formula.Ref{Kind: formula.RefField, Name: "rev", Availability: "rev_state"}},
 	}}}
 	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
