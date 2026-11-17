@@ -185,6 +185,7 @@ type Builder struct {
 	spotlightAgent        *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
+	settingsFactories     []namedFactory[[]types.SettingsSection]
 
 	// Removals are recorded here and processed after every builder has
 	// contributed, so a downstream component can cleanly replace upstream
@@ -196,6 +197,8 @@ type Builder struct {
 	navItemRemovals  []string // matched against NavigationItem.Key
 	navItemOverrides []types.NavigationItem
 	hookRemovals     []string // matched against Hook.Name
+
+	settingsPageRemovals []string // matched against SettingsPage.Key
 
 	eventHandlerSeq int // monotonic counter for unique event-handler hook names
 }

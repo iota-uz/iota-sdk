@@ -18,16 +18,25 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
+	settingsreg "github.com/iota-uz/iota-sdk/pkg/settings"
 )
 
 type SettingsHubController struct {
 	basePath string
+	source   settingsreg.Source
 }
 
-func NewSettingsHubController() application.Controller {
-	return &SettingsHubController{basePath: "/settings"}
+// NewSettingsHubController renders the settings hub from source, or from the
+// composition container in the request context when no source is given.
+func NewSettingsHubController(source ...settingsreg.Source) application.Controller {
+	c := &SettingsHubController{basePath: "/settings"}
+	if len(source) > 0 {
+		c.source = source[0]
+	}
+	return c
 }
 
 func (c *SettingsHubController) Descriptor() application.ControllerDescriptor {
@@ -48,7 +57,17 @@ func (c *SettingsHubController) Register(r *mux.Router) {
 }
 
 func (c *SettingsHubController) GetHub(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, c.basePath+"/logo", http.StatusFound)
+	source := c.source
+	if source == nil {
+		container, err := composition.UseContainer(r.Context())
+		if err != nil {
+			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+			return
+		}
+		source = container
+	}
+	props := &settings.HubPageProps{Sections: settingsreg.Resolve(r.Context(), source)}
+	templ.Handler(settings.Hub(props)).ServeHTTP(w, r)
 }
 
 type SettingsLogoController struct {

@@ -284,6 +284,7 @@ type Container struct {
 	spotlightAgentFactory *namedFactory[spotlight.Agent]
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
+	settingsFactories     []namedFactory[[]types.SettingsSection]
 
 	// Hook removal intents are collected from builders during addBuilder and
 	// applied as post-collect filters inside materialize.
@@ -292,6 +293,7 @@ type Container struct {
 	pendingHookRemovals     []string
 	pendingNavItemRemovals  []string
 	pendingNavItemOverrides []types.NavigationItem
+	pendingSettingsRemovals []string
 
 	controllers        []application.Controller
 	navCatalogNodes    []navNodeContribution
@@ -309,6 +311,7 @@ type Container struct {
 	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
+	settingsSections   []types.SettingsSection
 	runningStops       []namedStop
 	started            bool
 }
@@ -391,6 +394,18 @@ func (c *Container) SpotlightAgent() spotlight.Agent {
 
 func (c *Container) Middleware() []mux.MiddlewareFunc {
 	return append([]mux.MiddlewareFunc(nil), c.middleware...)
+}
+
+// SettingsSections returns the merged settings registry: contributions with
+// the same section key combined, removed pages dropped, empty sections
+// omitted, sections ordered by Priority then Key and pages by Order then Key.
+// Names and descriptions are untranslated i18n message IDs and no permission
+// filtering is applied; use pkg/settings.Resolve for a user-facing view.
+func (c *Container) SettingsSections() []types.SettingsSection {
+	if c == nil {
+		return nil
+	}
+	return cloneSettingsSections(c.settingsSections)
 }
 
 func (c *Container) Hooks() []Hook {
@@ -622,6 +637,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
+	c.settingsFactories = append(c.settingsFactories, builder.settingsFactories...)
 
 	// Hook removals cannot be applied here because materialize hasn't run yet
 	// — the contributions they target are still factory closures. Stash them on
@@ -630,6 +646,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
 	c.pendingNavItemRemovals = append(c.pendingNavItemRemovals, builder.navItemRemovals...)
 	c.pendingNavItemOverrides = append(c.pendingNavItemOverrides, builder.navItemOverrides...)
+	c.pendingSettingsRemovals = append(c.pendingSettingsRemovals, builder.settingsPageRemovals...)
 	return nil
 }
 
@@ -708,6 +725,15 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
 		return err
 	}
+	var settingsContributions []types.SettingsSection
+	if err := collectInto(c, c.settingsFactories, &settingsContributions); err != nil {
+		return err
+	}
+	sections, err := mergeSettingsSections(settingsContributions, c.pendingSettingsRemovals)
+	if err != nil {
+		return err
+	}
+	c.settingsSections = sections
 	// Filter hooks by Name against any pending RemoveHook intents. Done
 	// after materialization so the removal catches hooks contributed by
 	// ContributeHooks and the higher-level Contribute* wrappers

@@ -416,7 +416,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					controllers.NewDepartmentsController(app),
 					controllers.NewPositionsController(app),
 					controllers.NewWebSocketController(app),
-					controllers.NewSettingsHubController(),
+					controllers.NewSettingsHubController(container),
 					controllers.NewSettingsLogoController(tenantService, uploadService, opts.SettingsLinkPermissions),
 					controllers.NewSessionController("/settings/sessions", cookiesCfg),
 					buildSystemInfoController(container, app.DB(), appCfg),
@@ -434,6 +434,9 @@ func (c *component) Build(builder *composition.Builder) error {
 
 			return ctrls, nil
 		})
+		if !opts.SkipAdminControllers {
+			composition.AddSettings(builder, coreSettingsSections(coreUserBasePath(opts.UserControllerOptions), opts.SettingsLinkPermissions)...)
+		}
 	}
 
 	return nil

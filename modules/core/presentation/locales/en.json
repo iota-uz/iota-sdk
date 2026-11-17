@@ -1543,7 +1543,45 @@
   "Settings": {
     "Hub": {
       "Title": "Settings",
-      "BackToApp": "Back to app"
+      "BackToApp": "Back to app",
+      "SearchPlaceholder": "Search settings",
+      "Empty": {
+        "Title": "No settings available",
+        "Hint": "You do not have access to any settings pages. Ask an administrator for access."
+      },
+      "NoResults": {
+        "Title": "Nothing found",
+        "Hint": "No settings match your search. Try a different word."
+      },
+      "Sections": {
+        "General": "General",
+        "Access": "Users and access",
+        "Organization": "Organization"
+      },
+      "Pages": {
+        "General": {
+          "Name": "General",
+          "Summary": "Company logo, phone and email"
+        },
+        "Notifications": {
+          "Summary": "Notification rules and delivery channels"
+        },
+        "Users": {
+          "Summary": "Manage user accounts and their access"
+        },
+        "Roles": {
+          "Summary": "Configure roles and their permissions"
+        },
+        "Groups": {
+          "Summary": "Organize users into groups"
+        },
+        "Departments": {
+          "Summary": "Maintain the department structure"
+        },
+        "Positions": {
+          "Summary": "Manage job positions"
+        }
+      }
     }
   },
   "Departments": {

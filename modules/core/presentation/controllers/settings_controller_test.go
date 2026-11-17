@@ -15,15 +15,21 @@ import (
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance"
+	"github.com/iota-uz/iota-sdk/modules/logging"
+	loggingpermissions "github.com/iota-uz/iota-sdk/modules/logging/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	settingsreg "github.com/iota-uz/iota-sdk/pkg/settings"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,11 +68,15 @@ func setupSettingsLogoControllerTest(t *testing.T) (*itf.Suite, *services.Tenant
 	return suite, tenantService, uploadService
 }
 
-func TestSettingsHubController_GetHub(t *testing.T) {
-	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewComponent()).Build().
-		AsUser(user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN))
+func setupSettingsHubTest(t *testing.T, u user.User) *itf.Suite {
+	t.Helper()
+	suite := itf.NewSuiteBuilder(t).WithComponents(
+		logging.NewComponent(),
+		core.NewComponent(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}),
+		finance.NewComponent(),
+	).Build().AsUser(u)
 
 	suite.WithMiddleware(func(ctx context.Context, r *http.Request) context.Context {
 		props := sidebar.Props{
@@ -80,11 +90,63 @@ func TestSettingsHubController_GetHub(t *testing.T) {
 		}
 		return context.WithValue(ctx, constants.SidebarPropsKey, props)
 	})
+	return suite
+}
 
+func settingsCardXPath(key string) string {
+	return fmt.Sprintf(`//a[@data-testid="settings-card" and @data-page-key="%s"]`, key)
+}
+
+func settingsSectionXPath(key string) string {
+	return fmt.Sprintf(`//section[@data-testid="settings-section" and @data-section-key="%s"]`, key)
+}
+
+// TestSettingsHubController_GetHub_RendersContributedEntries is falsely green
+// if the hub rendered every contributed page regardless of permissions; it
+// asserts hidden pages and an omitted section alongside the visible ones.
+func TestSettingsHubController_GetHub_RendersContributedEntries(t *testing.T) {
+	suite := setupSettingsHubTest(t, itf.User(corepermissions.UserRead, loggingpermissions.ViewLogs))
 	suite.Register(controllers.NewSettingsHubController())
 
-	resp := suite.GET("/settings").Expect(t).Status(http.StatusFound)
-	assert.Equal(t, "/settings/logo", resp.Header("Location"))
+	html := suite.GET("/settings").Expect(t).Status(http.StatusOK).HTML()
+
+	html.Element(`//*[@data-testid="settings-search"]`).Exists()
+	html.Element(settingsSectionXPath(settingsreg.SectionGeneral)).Exists()
+	html.Element(settingsSectionXPath(settingsreg.SectionAccess)).Exists()
+	html.Element(settingsSectionXPath(settingsreg.SectionOrganization)).NotExists()
+
+	html.Element(settingsCardXPath(core.SettingsPageGeneral)).Exists()
+	users := html.Element(settingsCardXPath(core.SettingsPageUsers)).Exists()
+	assert.Equal(t, "/users", users.Attr("href"))
+	assert.Contains(t, users.Attr("data-search"), "manage user accounts", "search text includes the description")
+	history := html.Element(settingsCardXPath(logging.SettingsPageHistory)).Exists()
+	assert.Equal(t, "/admin/history", history.Attr("href"))
+
+	html.Element(settingsCardXPath(core.SettingsPageRoles)).NotExists()
+	html.Element(settingsCardXPath(core.SettingsPageNotifications)).NotExists()
+	html.Element(settingsCardXPath(core.SettingsPageDepartments)).NotExists()
+	html.Element(`//*[@data-testid="settings-empty"]`).NotExists()
+	html.Element(`//*[@data-testid="settings-no-results"]`).Exists()
+}
+
+// TestSettingsHubController_GetHub_EmptyState is falsely green if the empty
+// state were always rendered; the source holds a page the user cannot see.
+func TestSettingsHubController_GetHub_EmptyState(t *testing.T) {
+	suite := setupSettingsHubTest(t, itf.User())
+	suite.Register(controllers.NewSettingsHubController(settingsreg.SourceFunc(func() []types.SettingsSection {
+		return []types.SettingsSection{settingsreg.AccessSection(types.SettingsPage{
+			Key:         "restricted",
+			Name:        "Restricted",
+			Href:        "/restricted",
+			Permissions: []permission.Permission{corepermissions.RoleRead},
+		})}
+	})))
+
+	html := suite.GET("/settings").Expect(t).Status(http.StatusOK).HTML()
+
+	html.Element(`//*[@data-testid="settings-empty"]`).Exists()
+	html.Element(`//*[@data-testid="settings-section"]`).NotExists()
+	html.Element(`//*[@data-testid="settings-search"]`).NotExists()
 }
 
 func TestSettingsLogoController_GetLogo(t *testing.T) {
