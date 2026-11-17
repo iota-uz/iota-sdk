@@ -15,6 +15,11 @@ export interface FormulaTipProps {
   /** The figure in this calculation, formatted — shown under the formula. */
   value?: string
   variables?: ReadonlyArray<FormulaVariableView>
+  /**
+   * The panel's own explanation. A figure with a formula shows no separate ⓘ:
+   * its note is said here, under the formula, so one control explains it.
+   */
+  note?: string
   /** Compact form for a metric strip cell (see InfoTip). */
   inline?: boolean
 }
@@ -42,6 +47,7 @@ export function FormulaTip(props: FormulaTipProps) {
   let button: HTMLButtonElement | undefined
   let closeTimer: ReturnType<typeof globalThis.setTimeout> | undefined
   const bubbleId = createUniqueId()
+  const noteId = createUniqueId()
   const open = () => pinned() || hovered()
   const container = useOverlayContainer(open, () => wrapper, 'lens-info-tip-overlay-root')
 
@@ -125,6 +131,7 @@ export function FormulaTip(props: FormulaTipProps) {
     >
       <button
         aria-controls={open() ? bubbleId : undefined}
+        aria-describedby={props.note ? noteId : undefined}
         aria-expanded={open()}
         aria-label={label()}
         class={props.inline
@@ -139,6 +146,11 @@ export function FormulaTip(props: FormulaTipProps) {
       >
         <FormulaMark />
       </button>
+      {/* The note an ⓘ used to announce: described on the trigger itself, so
+          a screen reader hears it on focus without opening the popover. */}
+      <Show when={props.note}>
+        <span hidden id={noteId}>{props.note}</span>
+      </Show>
       <Show when={open() && container()}>
         <Portal mount={container()}>
           <section
@@ -165,6 +177,14 @@ export function FormulaTip(props: FormulaTipProps) {
               <Show when={props.value}>
                 <p class="lens-formula-value-line" data-testid="lens-formula-value">
                   <span>{props.subject}</span> = <strong>{props.value}</strong>
+                </p>
+              </Show>
+              <Show when={props.note}>
+                <p class="lens-formula-note" data-testid="lens-formula-note">{props.note}</p>
+              </Show>
+              <Show when={!pinned() && (props.variables?.length ?? 0) > 0}>
+                <p class="lens-formula-hint" data-testid="lens-formula-hint">
+                  {translate('panel.formula.more', 'Click ƒ to see the variables and their sources')}
                 </p>
               </Show>
               <Show when={pinned()}>

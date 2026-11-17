@@ -26,3 +26,14 @@ func TestFormulaComponentRendersMarkupAndValues(t *testing.T) {
 	require.Contains(t, html, "<mfrac>")
 	require.Contains(t, html, "300")
 }
+
+func TestFormulaComponentCarriesTheNote(t *testing.T) {
+	render := func(note string) string {
+		var out bytes.Buffer
+		err := Formula(FormulaProps{Spec: formula.Spec{Latex: `a`}, Label: "ROE", Note: note}).Render(context.Background(), &out)
+		require.NoError(t, err)
+		return out.String()
+	}
+	require.Contains(t, render("Net of reinsurance."), `note="Net of reinsurance."`)
+	require.NotContains(t, render(""), "note=")
+}

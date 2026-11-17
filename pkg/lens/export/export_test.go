@@ -421,6 +421,28 @@ func TestMethodologyStageUnavailableExportsNothing(t *testing.T) {
 	require.Empty(t, rows[1][3])
 }
 
+func TestMethodologyFieldUnavailableExportsNothing(t *testing.T) {
+	t.Parallel()
+	fr := mustFrames(t, "f",
+		frame.Field{Name: "net", Values: []any{0.0}},
+		frame.Field{Name: "net_state", Values: []any{"config_required"}},
+		frame.Field{Name: "rev", Values: []any{5.0}},
+		frame.Field{Name: "rev_state", Values: []any{"available"}},
+	)
+	spec := panel.Spec{ID: "p", Title: "P", Formula: &formula.Spec{Latex: "a", Variables: []formula.Variable{
+		{Key: "n", Label: "Net", Value: "99", Ref: &formula.Ref{Kind: formula.RefField, Name: "net", Availability: "net_state"}},
+		{Key: "r", Label: "Rev", Ref: &formula.Ref{Kind: formula.RefField, Name: "rev", Availability: "rev_state"}},
+	}}}
+	rows := methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: fr}})
+	require.Empty(t, rows[1][3])
+	require.InDelta(t, 5.0, rows[2][3].(formattedValue).Value, 1e-9)
+
+	// Without the value column at all, the availability still decides.
+	gated := mustFrames(t, "f", frame.Field{Name: "net_state", Values: []any{"config_required"}})
+	rows = methodologyRows(DefaultLabels(), []*lensruntime.PanelResult{{Panel: spec, Frames: gated}})
+	require.Empty(t, rows[1][3])
+}
+
 func TestMethodologyFormulaCells(t *testing.T) {
 	t.Parallel()
 	fr := mustFrames(t, "f",

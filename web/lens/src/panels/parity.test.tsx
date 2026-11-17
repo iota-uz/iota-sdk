@@ -113,6 +113,23 @@ describe('stat panels', () => {
     expect(tooltip.closest('.lens-panel')).toBeNull()
   })
 
+  it('moves the note into the formula when the metric has one', async () => {
+    const panel: Panel = {
+      ...statPanel,
+      info: 'Claims paid divided by earned premium.',
+      formula: { latex: 'a', variables: [] },
+    }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      () => (<div class="lens-panel"><StatMetric panel={panel} /></div>),
+    )
+
+    // One control explains the figure: the ƒ, not an ⓘ beside it.
+    expect(container.querySelector('.lens-info-tip-button-inline:not(.lens-formula-button)')).toBeNull()
+    fireEvent.focus(screen.getByTestId('lens-formula-button'))
+    expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Claims paid divided by earned premium.')
+  })
+
   it('keeps the portaled info tip open while the pointer crosses the visual gap', async () => {
     const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
     const { container } = renderDocument(

@@ -10,6 +10,8 @@ package formula
 import (
 	"fmt"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 )
 
 // RefKind says where a variable's value lives in the panel's frame.
@@ -28,6 +30,12 @@ const (
 type Ref struct {
 	Kind RefKind `json:"kind"`
 	Name string  `json:"name"`
+	// Availability names a frame column, on the same row, that says whether the
+	// value can be stated ("available", "unavailable", "config_required",
+	// "empty_source" — the panel Availability values). A field read from a row
+	// whose metric is not configured is then explained, not just blank. Only
+	// for RefField: a stage already carries its availability in the flow.
+	Availability string `json:"availability,omitempty"`
 }
 
 // Variable is one symbol of the formula.
@@ -44,6 +52,11 @@ type Variable struct {
 	// has no frame passes it here; with a frame the client resolves Ref and
 	// this stays empty.
 	Value string `json:"value,omitempty"`
+	// Format formats the value Ref resolves. Without it the client uses the
+	// panel's format for that column, which a panel declares only for its own
+	// figure: a variable read from another column of the same frame (a stat
+	// whose formula names the other KPIs of its row) needs its own.
+	Format *format.Spec `json:"format,omitempty"`
 }
 
 // Spec describes how a figure is calculated.
@@ -86,6 +99,9 @@ func (s Spec) Validate() error {
 			}
 			if strings.TrimSpace(v.Ref.Name) == "" {
 				return fmt.Errorf("formula variable %q ref name is required", key)
+			}
+			if v.Ref.Availability != "" && v.Ref.Kind != RefField {
+				return fmt.Errorf("formula variable %q: an availability column applies to a field ref only", key)
 			}
 		}
 	}

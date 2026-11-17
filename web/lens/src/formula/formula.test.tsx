@@ -26,6 +26,40 @@ describe('formula values', () => {
     expect(vars[1]?.value).toBeUndefined()
     expect(formulaValueLine(panel, frame, 'en')).toBe('12.5')
   })
+
+  it('formats a variable read from another column with its own format', () => {
+    // A stat declares a format only for its own figure. The other KPIs of the
+    // row its formula names would otherwise print as bare numbers.
+    const withFormat: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net profit', ref: { kind: 'field', name: 'net' }, format: { kind: 'money', currency: 'UZS', precision: 0, minorUnits: false } }],
+    }
+    expect(resolveFormulaVariables(withFormat, panel, frame, 'en')[0]?.value).toBe('UZS\u00a0300')
+  })
+
+  it('keeps the unabbreviated value of a compact figure for the variable list', () => {
+    // «4.2B − 1.1B = 3.0B» reads as wrong arithmetic; the list states the
+    // operands in full so a reader can check the sum.
+    const compact: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net', ref: { kind: 'field', name: 'net' }, format: { kind: 'number', compact: true, minorUnits: false } }],
+    }
+    const big: Frame = { columns: [{ name: 'net', type: 'number' }], rows: [[4213507880]] }
+    const [view] = resolveFormulaVariables(compact, panel, big, 'en')
+    expect(view?.value).not.toBe(view?.exact)
+    expect(view?.exact).toBe('4,213,507,880')
+  })
+
+  it('says why a field cannot be stated when its row says so', () => {
+    const gated: Formula = {
+      latex: 'a',
+      variables: [{ key: 'N', label: 'Net', value: '99', ref: { kind: 'field', name: 'net', availability: 'net_state' } }],
+    }
+    const row: Frame = { columns: [{ name: 'net', type: 'number' }, { name: 'net_state', type: 'string' }], rows: [[null, 'config_required']] }
+    const [view] = resolveFormulaVariables(gated, panel, row, 'en')
+    expect(view?.value).toBeUndefined()
+    expect(view?.availability).toBe('config_required')
+  })
 })
 
 describe('FormulaView', () => {
@@ -72,6 +106,28 @@ describe('PanelFormula', () => {
     fireEvent.focus(button)
     expect(await screen.findByTestId('lens-formula-value')).toHaveTextContent('ROE = 12.5')
   })
+
+  it('tells a hover reader that a click lists the variables', async () => {
+    render(() => <PanelFormula frame={frame} panel={panel} />)
+    const button = screen.getByTestId('lens-formula-button')
+    fireEvent.focus(button)
+    expect(await screen.findByTestId('lens-formula-hint')).toBeInTheDocument()
+    fireEvent.click(button)
+    await waitFor(() => expect(screen.queryByTestId('lens-formula-hint')).toBeNull())
+    expect(screen.getByText('Equity').nextElementSibling).toHaveTextContent('no data')
+  })
+
+  it('says the panel note inside the formula', async () => {
+    render(() => <PanelFormula frame={frame} note="Net of reinsurance." panel={panel} />)
+    fireEvent.focus(screen.getByTestId('lens-formula-button'))
+    expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Net of reinsurance.')
+  })
+
+  it('describes the trigger with the note it replaced', () => {
+    render(() => <PanelFormula frame={frame} note="Net of reinsurance." panel={panel} />)
+    // The ⓘ named the note on focus; the ƒ must not make it silent.
+    expect(screen.getByTestId('lens-formula-button')).toHaveAccessibleDescription('Net of reinsurance.')
+  })
 })
 
 describe('value rules', () => {
@@ -97,6 +153,7 @@ describe('value rules', () => {
     const vars = resolveFormulaVariables(flow.formula!, flow, flowFrame, 'en')
     expect(vars[0]?.value).toBe('30')
     expect(vars[1]?.value).toBeUndefined()
+    expect(vars[1]?.availability).toBe('unavailable')
   })
 })
 
@@ -112,5 +169,20 @@ describe('supplied values', () => {
   it('clears a supplied value for an unavailable stage but keeps it without a frame', () => {
     expect(resolveFormulaVariables(stageFormula, base, f, 'en')[0]?.value).toBeUndefined()
     expect(resolveFormulaVariables(stageFormula, base, undefined, 'en')[0]?.value).toBe('99')
+  })
+})
+
+describe('<lens-formula>', () => {
+  it('says the note inside the ƒ', async () => {
+    const { registerLensFormulaElement } = await import('./element')
+    registerLensFormulaElement()
+    const host = document.createElement('lens-formula')
+    host.setAttribute('formula', JSON.stringify({ latex: 'a' }))
+    host.setAttribute('label', 'ROE')
+    host.setAttribute('note', 'Net of reinsurance.')
+    document.body.append(host)
+    fireEvent.focus(host.querySelector('[data-testid="lens-formula-button"]')!)
+    expect(await screen.findByTestId('lens-formula-note')).toHaveTextContent('Net of reinsurance.')
+    host.remove()
   })
 })

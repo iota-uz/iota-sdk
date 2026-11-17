@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/formula"
 )
 
@@ -21,4 +22,23 @@ func TestBuildFormulaInvalidDoesNotFail(t *testing.T) {
 	got := BuildFormula("p", &formula.Spec{Latex: `\frac{a}`})
 	require.True(t, got.Error)
 	require.Empty(t, got.Markup)
+}
+
+func TestBuildFormulaCarriesVariableFormat(t *testing.T) {
+	money := format.MoneyCompact("UZS")
+	got := BuildFormula("p", &formula.Spec{Latex: `a-b`, Variables: []formula.Variable{
+		{Key: "a", Label: "A", Ref: &formula.Ref{Kind: formula.RefField, Name: "a"}, Format: &money},
+		{Key: "b", Label: "B", Ref: &formula.Ref{Kind: formula.RefField, Name: "b"}},
+	}})
+	require.NotNil(t, got.Variables[0].Format)
+	require.Equal(t, FormatMoney, got.Variables[0].Format.Kind)
+	require.Equal(t, "UZS", got.Variables[0].Format.Currency)
+	require.Nil(t, got.Variables[1].Format)
+}
+
+func TestBuildFormulaCarriesAvailabilityColumn(t *testing.T) {
+	got := BuildFormula("p", &formula.Spec{Latex: `a`, Variables: []formula.Variable{
+		{Key: "a", Label: "A", Ref: &formula.Ref{Kind: formula.RefField, Name: "a", Availability: "a_state"}},
+	}})
+	require.Equal(t, "a_state", got.Variables[0].Ref.Availability)
 }

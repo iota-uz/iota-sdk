@@ -10,6 +10,8 @@ interface PanelFormulaProps {
   subject?: string
   inline?: boolean
   row?: number
+  /** The note an ⓘ would carry; shown inside the formula instead. */
+  note?: string
 }
 
 function Resolved(props: PanelFormulaProps & { formula: Formula }) {
@@ -20,6 +22,7 @@ function Resolved(props: PanelFormulaProps & { formula: Formula }) {
     <FormulaTip
       formula={props.formula}
       inline={props.inline}
+      note={props.note || undefined}
       subject={props.subject ?? props.panel.title}
       value={value()}
       variables={variables()}

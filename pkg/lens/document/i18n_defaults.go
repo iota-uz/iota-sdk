@@ -243,6 +243,7 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nPanelFormulaSource:                  "Source",
 		I18nPanelFormulaVersion:                 "Methodology v{version} · {date}",
 		I18nPanelFormulaNoValue:                 "no data",
+		I18nPanelFormulaMore:                    "Click ƒ to see the variables and their sources",
 		I18nPrintMethodology:                    "Calculation methodology",
 		I18nChartBoxplotMin:                     "Minimum",
 		I18nChartBoxplotQ1:                      "Q1",

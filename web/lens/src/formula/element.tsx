@@ -35,7 +35,7 @@ const formulaSchema = z.object({
  * Any children are kept as the no-JS fallback until the element mounts.
  */
 export class LensFormulaElement extends HTMLElement {
-  static readonly observedAttributes = ['formula', 'value', 'label', 'mode']
+  static readonly observedAttributes = ['formula', 'value', 'label', 'mode', 'note']
   private dispose?: () => void
 
   connectedCallback() {
@@ -72,6 +72,7 @@ export class LensFormulaElement extends HTMLElement {
     const subject = this.getAttribute('label') ?? ''
     const value = this.getAttribute('value') ?? undefined
     const block = this.getAttribute('mode') === 'block'
+    const note = this.getAttribute('note') || undefined
     // Solid appends to existing children: drop the server-rendered no-JS
     // fallback now that the component replaces it.
     this.replaceChildren()
@@ -80,10 +81,11 @@ export class LensFormulaElement extends HTMLElement {
         <div class="lens-formula-block">
           <FormulaView formula={formula} variables={variables} />
           {value ? <p class="lens-formula-value-line"><span>{subject}</span> = <strong>{value}</strong></p> : null}
+          {note ? <p class="lens-formula-note">{note}</p> : null}
           <FormulaVariables variables={variables} />
         </div>
       )
-      : <FormulaTip formula={formula} subject={subject} value={value} variables={variables} />, this)
+      : <FormulaTip formula={formula} note={note} subject={subject} value={value} variables={variables} />, this)
   }
 }
 

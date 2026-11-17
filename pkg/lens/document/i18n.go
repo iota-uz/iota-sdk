@@ -389,6 +389,7 @@ const (
 	I18nPanelFormulaSource         = "panel.formula.source"
 	I18nPanelFormulaVersion        = "panel.formula.version"
 	I18nPanelFormulaNoValue        = "panel.formula.noValue"
+	I18nPanelFormulaMore           = "panel.formula.more"
 	I18nPrintMethodology           = "print.methodology"
 	I18nPanelMissing               = "panel.missing"
 	I18nPanelOpenMetric            = "panel.openMetric"
@@ -762,7 +763,7 @@ func RuntimeI18nKeys() []string {
 		I18nPanelActions, I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelErrorTimeout, I18nPanelErrorCanceled,
 		I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelFormula, I18nPanelFormulaShow, I18nPanelFormulaError,
 		I18nPanelFormulaVariables, I18nPanelFormulaSource, I18nPanelFormulaVersion,
-		I18nPanelFormulaNoValue, I18nPrintMethodology, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelFormulaNoValue, I18nPanelFormulaMore, I18nPrintMethodology, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,

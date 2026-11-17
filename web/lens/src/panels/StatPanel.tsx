@@ -238,8 +238,8 @@ export function StatMetric(props: StatPanelProps) {
             explains how a figure is obtained. A metric that carries that note
             keeps it here, next to the name it belongs to; the caption below
             stays visible prose. */}
-          <Show when={note()}><InfoTip inline subject={caption()} text={note()} /></Show>
-          <PanelFormula frame={frame.data} inline panel={panel} subject={caption()} />
+          <Show when={note() && !panel.formula}><InfoTip inline subject={caption()} text={note()} /></Show>
+          <PanelFormula frame={frame.data} inline note={note()} panel={panel} subject={caption()} />
         </p>
         <div class="lens-stat-metric-main">
           <p class="lens-stat-metric-value" title={formatValueExact(cell(frame.data, valueField))}>{figure()}</p>
