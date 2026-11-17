@@ -95,7 +95,7 @@ templ hubCard(page settingsreg.ResolvedPage) {
 		data-search={ hubCardSearchText(page) }
 		x-show="matches($el)"
 	>
-		<div class="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary-50 text-primary-600">
+		<div class="flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary-500/10 text-primary-600">
 			if page.Icon != nil {
 				@page.Icon
 			} else {
@@ -121,7 +121,7 @@ templ hubEmptyState(title, description, testID string, attrs templ.Attributes) {
 		data-testid={ testID }
 		{ attrs... }
 	>
-		<div class="flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-50 text-primary-600">
+		<div class="flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-500/10 text-primary-600">
 			@icons.MagnifyingGlass(icons.Props{Size: "22"})
 		</div>
 		<h2 class="text-base font-medium text-gray-900">{ title }</h2>

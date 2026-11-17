@@ -264,7 +264,7 @@ func hubCard(page settingsreg.ResolvedPage) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" x-show=\"matches($el)\"><div class=\"flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary-50 text-primary-600\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" x-show=\"matches($el)\"><div class=\"flex items-center justify-center w-10 h-10 shrink-0 rounded-full bg-primary-500/10 text-primary-600\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -365,7 +365,7 @@ func hubEmptyState(title, description, testID string, attrs templ.Attributes) te
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "><div class=\"flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-50 text-primary-600\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "><div class=\"flex items-center justify-center w-12 h-12 mb-3 rounded-full bg-primary-500/10 text-primary-600\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
