@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "\u003clens-formula\u003e and solid.FormulaProps take a note: a templ page shows the figure's explanation inside the ƒ instead of a separate ⓘ."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens formula: the pinned variable list states compact figures in full so the operands add up; a field ref may name an availability column, and a variable without a value says why (configuration required, no source data); the hover preview tells the reader a click lists the variables, and a variable's hover shows its source."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens formula variables carry their own format for Ref-resolved values; a panel with a formula shows its note inside the ƒ instead of a separate ⓘ."
+    }
+  ],
+  "source": "b5625c0b818a482a4abfde454214d56ef72dbfc7",
+  "version": "0.46.0"
+}
