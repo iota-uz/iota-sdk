@@ -1,11 +1,12 @@
 package serrorlog
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAttributesBoundLongTrace(t *testing.T) {

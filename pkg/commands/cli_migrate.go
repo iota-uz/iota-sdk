@@ -65,7 +65,7 @@ func newMigrateUpCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return RunMigration(cfg, "up")
+			return RunMigrationWithOptions(cmd.Context(), cfg, "up", MigrationOptions{})
 		},
 	}
 }
@@ -104,7 +104,7 @@ func newMigrateRedoCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return RunMigration(cfg, "redo")
+			return RunMigrationWithOptions(cmd.Context(), cfg, "redo", MigrationOptions{})
 		},
 	}
 }
@@ -119,7 +119,7 @@ func newMigrateStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return RunMigration(cfg, "status")
+			return RunMigrationWithOptions(cmd.Context(), cfg, "status", MigrationOptions{})
 		},
 	}
 }

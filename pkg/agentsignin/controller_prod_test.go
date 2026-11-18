@@ -3,8 +3,9 @@
 package agentsignin
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Falsely green if enabled production configuration is not exercised.

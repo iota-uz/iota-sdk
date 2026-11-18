@@ -2,9 +2,10 @@
 package serrorlog
 
 import (
-	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"log/slog"
 	"unicode/utf8"
+
+	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Attribute strings are limited to 256 UTF-8 bytes; traces retain 32 outer frames.

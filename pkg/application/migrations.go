@@ -3,13 +3,13 @@ package application
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-gorp/gorp/v3"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	migrate "github.com/rubenv/sql-migrate"
@@ -28,13 +28,21 @@ type MigrationStatus struct {
 
 // MigrationManager is an interface for handling database migrations.
 //
-// Run, Rollback and RollbackAll hold a Postgres session advisory lock for the
-// whole plan-and-apply cycle, so concurrent callers (for example several
-// replicas starting at once) apply each migration exactly once.
+// Run, Rollback and RollbackAll execute on one dedicated database session that
+// holds a Postgres advisory lock for the whole plan-and-apply cycle. Concurrent
+// callers (for example several replicas starting at once) therefore never plan
+// or run the same migration at the same time, and if that session is lost the
+// run stops at its next statement instead of continuing unlocked.
 //
 // Migrations marked with "-- +migrate Up notransaction" or
 // "-- +migrate Down notransaction" run outside a transaction, which is
-// required for statements such as CREATE INDEX CONCURRENTLY.
+// required for statements such as CREATE INDEX CONCURRENTLY. For those, the
+// SQL and the tracking-table write are separate steps: an interruption between
+// them leaves the schema changed but the migration still pending, and a failed
+// concurrent build can leave an INVALID index. The lock serializes attempts; it
+// does not make such a migration atomic. Write them to be re-runnable (for
+// example CREATE INDEX CONCURRENTLY IF NOT EXISTS) and see the migrations guide
+// for recovery.
 type MigrationManager interface {
 	// Run applies all pending migrations to the database.
 	Run(ctx context.Context) error
@@ -111,91 +119,39 @@ type migrationManager struct {
 	advisoryLockKey int64
 }
 
-// newTxError annotates err with the failing migration and keeps it
-// unwrappable, so callers can inspect the underlying *pgconn.PgError.
-func newTxError(migration *migrate.PlannedMigration, err error) error {
-	return fmt.Errorf("migration %s: %w", migration.Id, err)
+// migrationTable is the tracking table shared with sql-migrate (used by Status).
+const migrationTable = "gorp_migrations"
+
+type migrationDirection int
+
+const (
+	migrationUp migrationDirection = iota
+	migrationDown
+)
+
+func (d migrationDirection) String() string {
+	if d == migrationDown {
+		return "down"
+	}
+	return "up"
 }
 
-func (m *migrationManager) applyMigrations(
-	ctx context.Context,
-	dir migrate.MigrationDirection,
-	migrations []*migrate.PlannedMigration,
-	dbMap *gorp.DbMap,
-) (int, error) {
-	applied := 0
-	for _, migration := range migrations {
-		if err := applyMigration(ctx, dir, migration, dbMap); err != nil {
-			return applied, err
-		}
-		applied++
-	}
-	return applied, nil
+type plannedMigration struct {
+	id            string
+	queries       []string
+	noTransaction bool
 }
 
-func applyMigration(
-	ctx context.Context,
-	dir migrate.MigrationDirection,
-	migration *migrate.PlannedMigration,
-	dbMap *gorp.DbMap,
-) error {
-	var executor gorp.SqlExecutor
-	var tx *gorp.Transaction
-	if migration.DisableTransaction {
-		executor = dbMap.WithContext(ctx)
-	} else {
-		t, err := dbMap.Begin()
-		if err != nil {
-			return newTxError(migration, err)
-		}
-		tx = t
-		executor = tx.WithContext(ctx)
-	}
-	fail := func(err error) error {
-		if tx != nil {
-			_ = tx.Rollback()
-		}
-		return newTxError(migration, err)
-	}
-
-	for _, stmt := range migration.Queries {
-		stmt = strings.TrimSuffix(stmt, "\n")
-		stmt = strings.TrimSuffix(stmt, " ")
-		stmt = strings.TrimSuffix(stmt, ";")
-		if _, err := executor.Exec(stmt); err != nil {
-			return fail(err)
-		}
-	}
-
-	switch dir {
-	case migrate.Up:
-		if err := executor.Insert(&migrate.MigrationRecord{
-			Id:        migration.Id,
-			AppliedAt: time.Now(),
-		}); err != nil {
-			return fail(err)
-		}
-	case migrate.Down:
-		if _, err := executor.Delete(&migrate.MigrationRecord{
-			Id: migration.Id,
-		}); err != nil {
-			return fail(err)
-		}
-	default:
-		return fail(fmt.Errorf("unsupported migration direction %d", dir))
-	}
-
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return newTxError(migration, err)
-		}
+func validateRollbackSteps(steps int) error {
+	if steps < 1 {
+		return serrors.New(serrors.Invalid, fmt.Sprintf("rollback steps must be at least 1, got %d; use RollbackAll to roll back every migration", steps)).WithOp(opMigrationsRollback)
 	}
 	return nil
 }
 
-// openDB opens a database/sql handle for sql-migrate. Every connection of
-// the handle carries the configured lock_timeout.
-func (m *migrationManager) openDB() *sql.DB {
+// connect opens the dedicated session for one migration run. It carries the
+// configured lock_timeout as a session default.
+func (m *migrationManager) connect(ctx context.Context) (*pgx.Conn, error) {
 	connConfig := m.pool.Config().ConnConfig.Copy()
 	if connConfig.RuntimeParams == nil {
 		connConfig.RuntimeParams = map[string]string{}
@@ -205,75 +161,199 @@ func (m *migrationManager) openDB() *sql.DB {
 		lockTimeout = max(m.lockTimeout.Milliseconds(), 1)
 	}
 	connConfig.RuntimeParams["lock_timeout"] = strconv.FormatInt(lockTimeout, 10)
-	return stdlib.OpenDB(*connConfig)
+	return pgx.ConnectConfig(ctx, connConfig)
 }
 
-// acquireLock takes the migration advisory lock on a dedicated session and
-// returns a function that releases it. The wait is bounded by ctx only:
-// another process may legitimately hold the lock for a long migration.
-func (m *migrationManager) acquireLock(ctx context.Context, db *sql.DB) (func(), error) {
-	conn, err := db.Conn(ctx)
-	if err != nil {
-		return nil, serrors.Wrap(opMigrationsLock, err)
-	}
-	release := func() { _ = conn.Close() }
-
-	if _, err := conn.ExecContext(ctx, "SET lock_timeout = 0"); err != nil {
-		release()
-		return nil, serrors.Wrap(opMigrationsLock, err)
-	}
+// acquireLock takes the migration advisory lock on conn. The wait is bounded
+// by ctx only: another process may legitimately hold the lock for a long
+// migration, so lock_timeout and statement_timeout are lifted for the wait and
+// restored to the session defaults afterwards.
+func (m *migrationManager) acquireLock(ctx context.Context, conn *pgx.Conn) error {
 	var locked bool
-	if err := conn.QueryRowContext(ctx, "SELECT pg_try_advisory_lock($1)", m.advisoryLockKey).Scan(&locked); err != nil {
-		release()
-		return nil, serrors.Wrap(opMigrationsLock, err)
+	if err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", m.advisoryLockKey).Scan(&locked); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
 	}
-	if !locked {
-		m.logger.Infof("Waiting for another process to finish migrations (advisory lock %d)", m.advisoryLockKey)
-		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", m.advisoryLockKey); err != nil {
-			release()
-			return nil, serrors.Wrap(opMigrationsLock, err)
-		}
+	if locked {
+		return nil
 	}
-
-	return func() {
-		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		if _, err := conn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock($1)", m.advisoryLockKey); err != nil {
-			// Closing the handle ends the session, which releases the lock.
-			m.logger.Warnf("Failed to release migration advisory lock: %v", err)
-		}
-		release()
-	}, nil
+	m.logger.Infof("Waiting for another process to finish migrations (advisory lock %d)", m.advisoryLockKey)
+	if _, err := conn.Exec(ctx, "SET lock_timeout = 0"); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
+	}
+	if _, err := conn.Exec(ctx, "SET statement_timeout = 0"); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
+	}
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", m.advisoryLockKey); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
+	}
+	if _, err := conn.Exec(ctx, "RESET lock_timeout"); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
+	}
+	if _, err := conn.Exec(ctx, "RESET statement_timeout"); err != nil {
+		return serrors.Wrap(opMigrationsLock, err)
+	}
+	return nil
 }
 
-// migrate plans and applies at most limit migrations in dir (0 means all)
-// while holding the migration advisory lock.
-func (m *migrationManager) migrate(ctx context.Context, dir migrate.MigrationDirection, limit int) (int, error) {
+func (m *migrationManager) releaseLock(ctx context.Context, conn *pgx.Conn) {
+	unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	if _, err := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", m.advisoryLockKey); err != nil {
+		// Closing the connection ends the session, which releases the lock.
+		m.logger.Warnf("Failed to release migration advisory lock: %v", err)
+	}
+}
+
+// appliedMigrationIDs creates the tracking table if needed and returns the
+// recorded migration ids.
+func appliedMigrationIDs(ctx context.Context, conn *pgx.Conn) (map[string]struct{}, error) {
+	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS `+migrationTable+` (id varchar(255) NOT NULL PRIMARY KEY, applied_at timestamp with time zone)`); err != nil {
+		return nil, err
+	}
+	rows, err := conn.Query(ctx, `SELECT id FROM `+migrationTable)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, err
+	}
+	applied := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		applied[id] = struct{}{}
+	}
+	return applied, nil
+}
+
+// planMigrations builds the plan from the source and the tracking table.
+// Up applies every pending migration in order, including older ones added
+// after newer ones were applied. Down only ever touches applied migrations,
+// newest first; limit 0 means all, otherwise exactly limit are required.
+func planMigrations(source []*migrate.Migration, applied map[string]struct{}, dir migrationDirection, limit int) ([]plannedMigration, error) {
+	known := make(map[string]struct{}, len(source))
+	for _, mig := range source {
+		known[mig.Id] = struct{}{}
+	}
+	for id := range applied {
+		if _, ok := known[id]; !ok {
+			return nil, fmt.Errorf("unknown migration %s in database", id)
+		}
+	}
+
+	var plan []plannedMigration
+	switch dir {
+	case migrationUp:
+		for _, mig := range source {
+			if _, ok := applied[mig.Id]; !ok {
+				plan = append(plan, plannedMigration{id: mig.Id, queries: mig.Up, noTransaction: mig.DisableTransactionUp})
+			}
+		}
+	case migrationDown:
+		for i := len(source) - 1; i >= 0; i-- {
+			mig := source[i]
+			if _, ok := applied[mig.Id]; ok {
+				plan = append(plan, plannedMigration{id: mig.Id, queries: mig.Down, noTransaction: mig.DisableTransactionDown})
+			}
+		}
+		if limit > 0 {
+			if len(plan) < limit {
+				return nil, serrors.New(serrors.Invalid, fmt.Sprintf("cannot roll back %d migrations: only %d applied", limit, len(plan)))
+			}
+			plan = plan[:limit]
+		}
+	}
+	return plan, nil
+}
+
+type migrationExecer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func applyMigration(ctx context.Context, conn *pgx.Conn, dir migrationDirection, mig plannedMigration) (err error) {
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("migration %s (%s): %w", mig.id, dir, err)
+		}
+	}()
+
+	var exec migrationExecer = conn
+	var tx pgx.Tx
+	if !mig.noTransaction {
+		if tx, err = conn.Begin(ctx); err != nil {
+			return err
+		}
+		defer func() {
+			if err != nil {
+				_ = tx.Rollback(context.WithoutCancel(ctx))
+			}
+		}()
+		exec = tx
+	}
+
+	for _, stmt := range mig.queries {
+		stmt = strings.TrimSuffix(stmt, "\n")
+		stmt = strings.TrimSuffix(stmt, " ")
+		stmt = strings.TrimSuffix(stmt, ";")
+		if _, err = exec.Exec(ctx, stmt); err != nil {
+			return err
+		}
+	}
+
+	if dir == migrationUp {
+		_, err = exec.Exec(ctx, `INSERT INTO `+migrationTable+` (id, applied_at) VALUES ($1, $2)`, mig.id, time.Now())
+	} else {
+		_, err = exec.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = $1`, mig.id)
+	}
+	if err != nil {
+		return err
+	}
+
+	if tx != nil {
+		return tx.Commit(ctx)
+	}
+	return nil
+}
+
+// migrate plans and applies migrations in dir (limit 0 means all) on one
+// session that holds the migration advisory lock throughout.
+func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, limit int) (int, error) {
 	if m.pool == nil {
 		return 0, serrors.New(serrors.Invalid, "migration manager requires a database pool")
 	}
-	db := m.openDB()
-	defer func() { _ = db.Close() }()
+	source, err := (&migrate.FileMigrationSource{Dir: m.migrationsDir}).FindMigrations()
+	if err != nil {
+		return 0, fmt.Errorf("failed to find migrations: %w", err)
+	}
 
-	unlock, err := m.acquireLock(ctx, db)
+	conn, err := m.connect(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defer unlock()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 
-	migrationSource := &migrate.FileMigrationSource{
-		Dir: m.migrationsDir,
+	if err := m.acquireLock(ctx, conn); err != nil {
+		return 0, err
 	}
-	ms := migrate.MigrationSet{}
-	plannedMigrations, dbMap, err := ms.PlanMigration(db, "postgres", migrationSource, dir, limit)
+	defer m.releaseLock(ctx, conn)
+
+	applied, err := appliedMigrationIDs(ctx, conn)
 	if err != nil {
 		return 0, err
 	}
-	return m.applyMigrations(ctx, dir, plannedMigrations, dbMap)
+	plan, err := planMigrations(source, applied, dir, limit)
+	if err != nil {
+		return 0, err
+	}
+	for i, mig := range plan {
+		if err := applyMigration(ctx, conn, dir, mig); err != nil {
+			return i, err
+		}
+	}
+	return len(plan), nil
 }
 
 func (m *migrationManager) Run(ctx context.Context) error {
-	applied, err := m.migrate(ctx, migrate.Up, 0)
+	applied, err := m.migrate(ctx, migrationUp, 0)
 	if err != nil {
 		return serrors.Wrap(opMigrationsRun, err)
 	}
@@ -282,10 +362,10 @@ func (m *migrationManager) Run(ctx context.Context) error {
 }
 
 func (m *migrationManager) Rollback(ctx context.Context, steps int) error {
-	if steps < 1 {
-		return serrors.New(serrors.Invalid, fmt.Sprintf("rollback steps must be at least 1, got %d; use RollbackAll to roll back every migration", steps)).WithOp(opMigrationsRollback)
+	if err := validateRollbackSteps(steps); err != nil {
+		return err
 	}
-	rolledBack, err := m.migrate(ctx, migrate.Down, steps)
+	rolledBack, err := m.migrate(ctx, migrationDown, steps)
 	if err != nil {
 		return serrors.Wrap(opMigrationsRollback, err)
 	}
@@ -294,7 +374,7 @@ func (m *migrationManager) Rollback(ctx context.Context, steps int) error {
 }
 
 func (m *migrationManager) RollbackAll(ctx context.Context) error {
-	rolledBack, err := m.migrate(ctx, migrate.Down, 0)
+	rolledBack, err := m.migrate(ctx, migrationDown, 0)
 	if err != nil {
 		return serrors.Wrap(opMigrationsRollbackAll, err)
 	}
@@ -351,9 +431,11 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 // noopMigrationManager is a no-op implementation used when no DB config is provided.
 type noopMigrationManager struct{}
 
-func (n *noopMigrationManager) Run(_ context.Context) error             { return nil }
-func (n *noopMigrationManager) Rollback(_ context.Context, _ int) error { return nil }
-func (n *noopMigrationManager) RollbackAll(_ context.Context) error     { return nil }
+func (n *noopMigrationManager) Run(_ context.Context) error { return nil }
+func (n *noopMigrationManager) Rollback(_ context.Context, steps int) error {
+	return validateRollbackSteps(steps)
+}
+func (n *noopMigrationManager) RollbackAll(_ context.Context) error { return nil }
 func (n *noopMigrationManager) Status(_ context.Context) ([]MigrationStatus, error) {
 	return nil, nil
 }

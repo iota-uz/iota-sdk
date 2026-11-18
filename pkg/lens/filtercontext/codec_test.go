@@ -2,10 +2,11 @@ package filtercontext_test
 
 import (
 	"encoding/base64"
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // False green: structural JSON acceptance alone would forward unknown fields or unsupported leaf constraints.

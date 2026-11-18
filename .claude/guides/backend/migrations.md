@@ -48,6 +48,18 @@ Use migrations for:
 | `-- +migrate StatementEnd`   | End complex statement   | Close the block                    |
 | `-- +migrate Up notransaction` | Run Up outside a transaction | `CREATE INDEX CONCURRENTLY` only; same for `Down notransaction` |
 
+### Recovering a failed `notransaction` migration
+
+In a `notransaction` migration the SQL and the `gorp_migrations` insert are separate steps, so an
+interrupted or failed run is not rolled back. Before retrying:
+
+- Check the index: `SELECT indexrelid::regclass, indisvalid FROM pg_index WHERE indexrelid = 'my_index'::regclass;`.
+  An `INVALID` index must be dropped (`DROP INDEX CONCURRENTLY my_index;`) or rebuilt with
+  `REINDEX INDEX CONCURRENTLY my_index;`.
+- A valid index whose migration is still pending: confirm the schema matches the migration, then record it with
+  `INSERT INTO gorp_migrations (id, applied_at) VALUES ('<file>.sql', now());` and rerun `migrate up`.
+- Prefer re-runnable statements, e.g. `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, so a retry does not fail.
+
 ### PL/pgSQL Functions
 
 Use `StatementBegin/End` for functions containing semicolons:
