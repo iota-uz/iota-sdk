@@ -532,7 +532,7 @@ func SameOriginValidator(httpCfg *httpconfig.Config, appCfg *appconfig.Config) f
 			}
 		}
 
-		if appCfg.IsDev() {
+		if appCfg.Env().IsLocal() {
 			port := strconv.Itoa(httpCfg.Port)
 			for _, host := range []string{"localhost", "127.0.0.1", "::1"} {
 				if origin == "http://"+net.JoinHostPort(host, port) ||

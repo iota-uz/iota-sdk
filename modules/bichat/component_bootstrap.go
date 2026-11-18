@@ -181,7 +181,7 @@ func buildModuleConfig(
 			origin+"/"+uploadsPath+"/bichat",
 		),
 		withAppletSettings(
-			appCfg.IsDev(),
+			appCfg.IsDevelopment(),
 			bichatCfg.Applet.ViteURL,
 			bichatCfg.Applet.Entry,
 			bichatCfg.Applet.Client,
