@@ -322,20 +322,19 @@ func canPermissions(d *ast.Directive) ([]string, error) {
 		return nil, errors.New("@can requires permissions")
 	}
 	var perms []string
-	switch arg.Value.Kind {
-	case ast.ListValue:
+	if kind := arg.Value.Kind; kind == ast.ListValue {
 		for _, child := range arg.Value.Children {
 			if child.Value == nil || child.Value.Kind != ast.StringValue || child.Value.Raw == "" {
 				return nil, errors.New("@can permissions must be non-empty string literals")
 			}
 			perms = append(perms, child.Value.Raw)
 		}
-	case ast.StringValue:
+	} else if kind == ast.StringValue {
 		// GraphQL input coercion allows a single value for a list argument.
 		if arg.Value.Raw != "" {
 			perms = append(perms, arg.Value.Raw)
 		}
-	default:
+	} else {
 		return nil, errors.New("@can permissions must be string literals")
 	}
 	if len(perms) == 0 {
@@ -445,12 +444,11 @@ func isNil(v any) bool {
 		return true
 	}
 	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
+	nillable := map[reflect.Kind]bool{
+		reflect.Chan: true, reflect.Func: true, reflect.Interface: true,
+		reflect.Map: true, reflect.Pointer: true, reflect.Slice: true,
 	}
+	return nillable[rv.Kind()] && rv.IsNil()
 }
 
 // depthLimit rejects operations whose selection depth exceeds limit before any

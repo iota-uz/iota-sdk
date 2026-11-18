@@ -156,6 +156,14 @@ func fieldCtx(t *testing.T, schema *ast.Schema, typeName, fieldName string, pare
 	}
 }
 
+// withFieldChain nests each field context under the previous one.
+func withFieldChain(ctx context.Context, chain []*gqlgraphql.FieldContext) context.Context {
+	if len(chain) == 0 {
+		return ctx
+	}
+	return withFieldChain(gqlgraphql.WithFieldContext(ctx, chain[0]), chain[1:])
+}
+
 func TestAuthExtension_InterceptField(t *testing.T) {
 	schema := loadSchema(t, `
 		type Policy { id: ID!, premium: Int @can(permissions: ["Policy.Finance"]), note: String }
@@ -179,11 +187,7 @@ func TestAuthExtension_InterceptField(t *testing.T) {
 	run := func(ext authExtension, chain ...*gqlgraphql.FieldContext) func(value any) (any, error) {
 		return func(value any) (any, error) {
 			resolved = 0
-			ctx := context.Background()
-			for _, fc := range chain {
-				ctx = gqlgraphql.WithFieldContext(ctx, fc)
-			}
-			return ext.InterceptField(ctx, next(value))
+			return ext.InterceptField(withFieldChain(context.Background(), chain), next(value))
 		}
 	}
 	root := func(name string) *gqlgraphql.FieldContext { return fieldCtx(t, schema, "Query", name, nil) }
