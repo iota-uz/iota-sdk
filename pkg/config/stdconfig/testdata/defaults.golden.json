@@ -90,7 +90,17 @@
     "OriginOverride": "",
     "AllowedOrigins": [
       "http://localhost:3000"
-    ]
+    ],
+    "Timeouts": {
+      "ReadHeader": 10000000000,
+      "Read": 300000000000,
+      "Write": 300000000000,
+      "Idle": 120000000000
+    },
+    "Shutdown": {
+      "Timeout": 25000000000,
+      "DrainDelay": 0
+    }
   },
   "Headers": {
     "RequestID": "X-Request-ID",

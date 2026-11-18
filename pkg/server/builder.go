@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -155,18 +156,38 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	stack = append(stack, cfg.after...)
 	rt.Container().AppendMiddleware(stack...)
 
-	return NewHTTPServer(
+	srv := NewHTTPServer(
 		rt.App,
 		cfg.notFoundHandler,
 		cfg.methodNotAllowedHandler,
-	), nil
+	)
+	srv.Logger = cfg.logger
+	srv.runDefaults = append(srv.runDefaults, WithRuntime(rt))
+	if httpCfg, resolveErr := composition.Resolve[*httpconfig.Config](rt.Container()); resolveErr == nil && httpCfg != nil {
+		srv.Timeouts = Timeouts{
+			ReadHeader: httpCfg.Timeouts.ReadHeader,
+			Read:       httpCfg.Timeouts.Read,
+			Write:      httpCfg.Timeouts.Write,
+			Idle:       httpCfg.Timeouts.Idle,
+		}
+		srv.runDefaults = append(srv.runDefaults,
+			WithShutdownTimeout(httpCfg.Shutdown.Timeout),
+			WithDrainDelay(httpCfg.Shutdown.DrainDelay),
+		)
+	}
+	return srv, nil
 }
 
+// Shutdown gracefully stops a server started with Start: readiness paths
+// report 503, the listener closes and in-flight requests finish until ctx
+// expires. It does not run stop hooks; Run does that.
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
-	if s.httpServer == nil {
+	srv := s.currentHTTPServer()
+	if srv == nil {
 		return nil
 	}
-	return s.httpServer.Shutdown(ctx)
+	s.draining.Store(true)
+	return srv.Shutdown(ctx)
 }
 
 func (s *HTTPServer) Handler() http.Handler {

@@ -98,8 +98,10 @@ func run() error {
 
 	socketAddr := appCfg.SocketAddress(httpCfg.Port)
 	log.Printf("Listening on: %s\n", httpCfg.Origin(appCfg))
-	if err := serverInstance.Start(socketAddr); err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
+	// Run blocks until SIGTERM/SIGINT, drains in-flight requests and then
+	// shuts the runtime down (stop hooks, realtime bus, database pool).
+	if err := serverInstance.Run(context.Background(), socketAddr); err != nil {
+		return fmt.Errorf("server stopped with error: %w", err)
 	}
 	return nil
 }
