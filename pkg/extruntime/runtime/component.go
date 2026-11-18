@@ -3,8 +3,9 @@ package runtime
 import (
 	"context"
 	"embed"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/endpoint"
 	"net/http"
+
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/endpoint"
 
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"

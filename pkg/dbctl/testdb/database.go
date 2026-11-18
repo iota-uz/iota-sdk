@@ -6,13 +6,14 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	_ "github.com/lib/pq"
 	"log"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	_ "github.com/lib/pq"
 )
 
 const createDatabaseAdvisoryLockKey int64 = 6_073_120_419_784_512_302

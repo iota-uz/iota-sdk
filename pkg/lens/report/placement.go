@@ -1,8 +1,9 @@
 package report
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"reflect"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 )
 
 // PlaceAnalysis preserves the opened selection locally, including relative periods.

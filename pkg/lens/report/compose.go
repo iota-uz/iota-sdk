@@ -6,10 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"

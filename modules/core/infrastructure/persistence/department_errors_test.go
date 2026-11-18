@@ -1,11 +1,12 @@
 package persistence
 
 import (
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestDepartmentConstraintPreservesIdentityAndPublicField(t *testing.T) {

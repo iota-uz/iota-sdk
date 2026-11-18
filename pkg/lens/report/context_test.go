@@ -2,6 +2,11 @@ package report_test
 
 import (
 	"context"
+	"net/url"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
@@ -11,10 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/report"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/require"
-	"net/url"
-	"sync"
-	"testing"
-	"time"
 )
 
 // False green: metadata-only assertions cannot detect a query executing with another card's period.

@@ -4,6 +4,7 @@ package agentsignin
 
 import (
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
