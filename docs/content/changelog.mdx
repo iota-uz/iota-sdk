@@ -4,6 +4,12 @@ title: Development Changelog
 
 # IOTA SDK Development Changelog
 
+## November 2026
+
+| Change | Type | Date |
+|------------------|------|------|
+| `appconfig.Environment` enum (`development`, `test`, `staging`, `production`) with `Config.Env()`, `IsDevelopment()`, `IsTest()`, `IsStaging()`; `IsDev()` is deprecated because it is also true on staging, preprod and test. `APP_ENVIRONMENT` is now matched case-insensitively, `preprod`/`stage` count as staging, and GraphQL accepts localhost origins only in development and test, no longer on staging | Feature | 2026-11-18 |
+
 ## October 2026
 
 | Change | Type | Date |

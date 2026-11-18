@@ -5,8 +5,6 @@ package appconfig
 
 import "fmt"
 
-const production = "production"
-
 // Config holds app-level settings shared across the application.
 //
 // Env prefix: "app" (e.g. APP_ENVIRONMENT → app.environment,
@@ -21,14 +19,34 @@ type Config struct {
 // ConfigPrefix returns the koanf prefix for appconfig ("app").
 func (Config) ConfigPrefix() string { return "app" }
 
-// IsProduction reports whether the environment is "production".
-func (c *Config) IsProduction() bool {
-	return c.Environment == production
+// Env returns the parsed deployment environment. Unrecognised values yield
+// EnvironmentUnknown; see ParseEnvironment for the accepted spellings.
+func (c *Config) Env() Environment {
+	env, _ := ParseEnvironment(c.Environment)
+	return env
 }
 
-// IsDev reports whether the environment is not "production".
+// IsDevelopment reports whether the environment is development.
+// It is false on staging, test and production.
+func (c *Config) IsDevelopment() bool { return c.Env().IsDevelopment() }
+
+// IsTest reports whether the environment is test.
+func (c *Config) IsTest() bool { return c.Env().IsTest() }
+
+// IsStaging reports whether the environment is staging.
+func (c *Config) IsStaging() bool { return c.Env().IsStaging() }
+
+// IsProduction reports whether the environment is production.
+func (c *Config) IsProduction() bool { return c.Env().IsProduction() }
+
+// IsDev reports whether the environment is not production.
+//
+// Deprecated: IsDev is also true on staging, preprod and test, which enables
+// development behaviour on shared deployments. Use IsDevelopment for
+// development only, Env().IsLocal() for development or test, or
+// !IsProduction() to keep the old meaning explicitly.
 func (c *Config) IsDev() bool {
-	return c.Environment != production
+	return !c.IsProduction()
 }
 
 // Scheme returns "https" in production, "http" otherwise.
