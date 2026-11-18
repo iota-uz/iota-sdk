@@ -39,6 +39,7 @@ func RemoveSettingsPagesByKey(builder *Builder, keys ...string) {
 		panic("composition: builder is nil")
 	}
 	for _, key := range keys {
+		key = strings.TrimSpace(key)
 		if key == "" {
 			continue
 		}
@@ -138,8 +139,24 @@ func clonePage(page types.SettingsPage) types.SettingsPage {
 	if page.Permissions != nil {
 		page.Permissions = append(page.Permissions[:0:0], page.Permissions...)
 	}
-	if page.Children != nil {
-		page.Children = append(page.Children[:0:0], page.Children...)
-	}
+	page.Children = cloneNavItems(page.Children)
 	return page
+}
+
+func cloneNavItems(items []types.NavigationItem) []types.NavigationItem {
+	if items == nil {
+		return nil
+	}
+	out := make([]types.NavigationItem, len(items))
+	for i, item := range items {
+		if item.Permissions != nil {
+			item.Permissions = append(item.Permissions[:0:0], item.Permissions...)
+		}
+		if item.Keywords != nil {
+			item.Keywords = append(item.Keywords[:0:0], item.Keywords...)
+		}
+		item.Children = cloneNavItems(item.Children)
+		out[i] = item
+	}
+	return out
 }

@@ -26,12 +26,12 @@ type HubPageProps struct {
 const hubSearchState = `{
 	search: '',
 	query() { return this.search.trim().toLowerCase() },
-	matches(el) { const q = this.query(); return q === '' || el.dataset.search.includes(q) },
+	matches(el) { const q = this.query(); return q === '' || el.dataset.search.toLowerCase().includes(q) },
 	anyMatch(scope) { return Array.from(scope.querySelectorAll('[data-testid="settings-card"]')).some((card) => this.matches(card)) },
 }`
 
 func hubCardSearchText(page settingsreg.ResolvedPage) string {
-	return strings.ToLower(strings.TrimSpace(page.Name + " " + page.Description))
+	return strings.TrimSpace(page.Name + " " + page.Description)
 }
 
 func Hub(props *HubPageProps) templ.Component {
