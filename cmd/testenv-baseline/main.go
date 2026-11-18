@@ -91,7 +91,7 @@ func run() error {
 	defer pool.Close()
 	logger := logrus.New()
 	logger.SetOutput(os.Stderr)
-	if err := application.NewMigrationManager(pool, db, logger).Run(); err != nil {
+	if err := application.NewMigrationManager(pool, db, logger).Run(ctx); err != nil {
 		return err
 	}
 	if err := e2e.SeedPool(ctx, pool, logger); err != nil {

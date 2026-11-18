@@ -78,7 +78,7 @@ func contract(amount shared.Amount, currency string) *money.Money {
 	if !amount.IsPositive() || currency == "" {
 		return nil
 	}
-	return money.NewFromFloat(amount.Float64(), currency)
+	return money.NewFromDecimal(amount.Decimal(), currency, money.DefaultRoundingMode)
 }
 
 func (dto *ProjectCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {

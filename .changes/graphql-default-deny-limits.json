@@ -1,0 +1,4 @@
+{
+  "bump": "major",
+  "summary": "GraphQL handler denies by default: every Query/Mutation/Subscription root field must carry @public, @authenticated or @can(permissions), otherwise NewHandler/AddExecutor fail at startup (AuthDirectivesWarn for a transition window; ValidateAuthDirectives for CI). Adds Authorizer and ObjectAuthorizer (ownership hook) options, depth (15), complexity (1000) and JSON body (1 MiB) limits checked before resolvers, GET transport off by default, a per-executor query cache, and rejection of Origin-less cross-site browser requests. Core users/user queries now require a session. Breaking for consumers serving unannotated schemas; see docs/graphql-security.md."
+}

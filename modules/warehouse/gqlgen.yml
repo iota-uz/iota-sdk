@@ -68,6 +68,15 @@ skip_mod_tidy: true
 autobind:
 #  - "github.com/iota-uz/iota-sdk/graph/model"
 
+# Auth directives are enforced by pkg/graphql.Handler, not by generated code.
+directives:
+  public:
+    skip_runtime: true
+  authenticated:
+    skip_runtime: true
+  can:
+    skip_runtime: true
+
 # This section declares type mapping between the GraphQL and go type systems
 #
 # The first line in each type will be used as defaults for resolver arguments and

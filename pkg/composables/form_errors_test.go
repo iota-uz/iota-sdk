@@ -1,13 +1,14 @@
 package composables_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMalformedRequestInputIsInvalidWithoutInventedFieldViolations(t *testing.T) {

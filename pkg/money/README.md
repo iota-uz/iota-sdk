@@ -71,6 +71,30 @@ Or initialize Money using the direct amount.
 ```go
 quarterEuro := money.NewFromFloat(0.25, money.EUR)
 ```
+
+Digits beyond the currency's precision (`Currency.Fraction`) are rounded, never
+silently dropped. `NewFromFloat` uses `money.DefaultRoundingMode`, which is
+`RoundHalfUp` (half away from zero): `NewFromFloat(0.125, money.UZS)` is 13
+tiyin and `-0.125` is -13. Computed amounts are best built from
+`decimal.Decimal` with an explicit mode:
+
+```go
+premium := decimal.RequireFromString("1234.57")
+due := money.NewFromDecimal(premium.Mul(rate), money.UZS, money.RoundHalfUp)
+legacy := money.NewFromFloatRounded(0.129, money.UZS, money.RoundDown) // 12 tiyin, truncated
+```
+
+Modes: `RoundHalfUp` (default), `RoundHalfEven`, `RoundDown` (toward zero),
+`RoundUp` (away from zero), `RoundFloor`, `RoundCeiling`. `Money.Round()` rounds
+to whole major units with the default mode; `RoundWith(mode)` takes another.
+`AsDecimal()` returns the amount in major units as an exact decimal.
+
+The zero value `Money{}` is a usable zero amount with an empty currency code:
+comparisons, arithmetic, formatting and JSON do not panic on it.
+
+JSON amounts are minor units and must be whole numbers: `123`, `123.0` and
+`1.23e2` decode to 123, while `123.7` is rejected with
+`ErrInvalidJSONUnmarshal`.
 Comparison
 -
 **Go-money** provides base compare operations like:

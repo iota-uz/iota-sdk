@@ -12,6 +12,6 @@ type PaginatedWarehousePositions {
 }
 
 extend type Query {
-    warehousePosition(id: ID!): WarehousePosition
-    warehousePositions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedWarehousePositions!
+    warehousePosition(id: ID!): WarehousePosition @authenticated
+    warehousePositions(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedWarehousePositions! @authenticated
 }

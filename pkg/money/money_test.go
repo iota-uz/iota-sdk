@@ -820,8 +820,8 @@ func TestNewFromFloat(t *testing.T) {
 
 	m = NewFromFloat(-0.125, EUR)
 
-	if m.Amount() != -12 {
-		t.Errorf("Expected %d got %d", -12, m.Amount())
+	if m.Amount() != -13 {
+		t.Errorf("Expected %d got %d", -13, m.Amount())
 	}
 }
 
@@ -1383,11 +1383,31 @@ func TestMoney_JSON_RoundTrip(t *testing.T) {
 		assert.Equal(t, int64(123), m.Amount())
 	})
 
-	t.Run("unmarshal float number string", func(t *testing.T) {
+	t.Run("unmarshal fractional amount is rejected", func(t *testing.T) {
 		var m Money
 		err := json.Unmarshal([]byte(`{"amount": 123.7, "currency":"USD"}`), &m)
-		require.NoError(t, err)
-		assert.Equal(t, int64(123), m.Amount())
+		require.ErrorIs(t, err, ErrInvalidJSONUnmarshal)
+	})
+
+	t.Run("unmarshal whole amount written as float", func(t *testing.T) {
+		for _, raw := range []string{"123.0", "1.23e2", "12300e-2"} {
+			var m Money
+			err := json.Unmarshal([]byte(`{"amount": `+raw+`, "currency":"USD"}`), &m)
+			require.NoError(t, err, raw)
+			assert.Equal(t, int64(123), m.Amount(), raw)
+		}
+	})
+
+	t.Run("unmarshal rejects huge exponent", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": 1e999999999, "currency":"USD"}`), &m)
+		require.ErrorIs(t, err, ErrInvalidJSONUnmarshal)
+	})
+
+	t.Run("unmarshal rejects string amount", func(t *testing.T) {
+		var m Money
+		err := json.Unmarshal([]byte(`{"amount": "123", "currency":"USD"}`), &m)
+		require.ErrorIs(t, err, ErrInvalidJSONUnmarshal)
 	})
 }
 
@@ -1403,10 +1423,13 @@ func TestNewFromFloat_DecimalMinorUnits(t *testing.T) {
 		{"fifty-seven cents", 0.57, USD, 57},
 		{"one dollar thirteen", 1.13, USD, 113},
 		{"negative cents", -0.29, USD, -29},
-		{"truncate positive", 0.125, USD, 12},
-		{"truncate negative", -0.125, USD, -12},
-		{"no rounding up", 19.999, USD, 1999},
-		{"zero fraction", 19.99, JPY, 19},
+		{"half rounds up", 0.125, USD, 13},
+		{"negative half rounds away from zero", -0.125, USD, -13},
+		{"below half rounds down", 0.124, USD, 12},
+		{"third decimal rounds up", 19.999, USD, 2000},
+		{"zero fraction", 19.99, JPY, 20},
+		{"zero fraction below half", 19.49, JPY, 19},
+		{"UZS half tiyin", 0.125, UZS, 13},
 		{"three fractions", 1.001, KWD, 1001},
 	}
 	for _, tc := range cases {

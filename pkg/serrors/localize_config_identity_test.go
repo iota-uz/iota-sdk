@@ -1,10 +1,11 @@
 package serrors_test
 
 import (
+	"testing"
+
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestMessageFromConfigRejectsMismatchedIdentity(t *testing.T) {

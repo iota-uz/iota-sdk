@@ -70,7 +70,10 @@ func InstallStaticFilesController() Installer {
 	})
 }
 
-func InstallCoreControllers() Installer {
+// InstallCoreControllers registers the static files and GraphQL controllers.
+// graphqlOpts configure the GraphQL controller, e.g.
+// controllers.WithGraphQLHandlerOptions(graphql.WithObjectAuthorizer(...)).
+func InstallCoreControllers(graphqlOpts ...controllers.GraphQLControllerOption) Installer {
 	return InstallerFunc(func(_ context.Context, rt *Runtime) error {
 		const op serrors.Op = "bootstrap.InstallCoreControllers"
 
@@ -115,7 +118,7 @@ func InstallCoreControllers() Installer {
 		}
 		container.AppendControllers(
 			controllers.NewStaticFilesController(container.HashFSAssets()),
-			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, browserSessions, httpCfg, cookiesCfg, appCfg, uploadsCfg),
+			controllers.NewGraphQLController(rt.App, userService, uploadService, authService, browserSessions, httpCfg, cookiesCfg, appCfg, uploadsCfg, graphqlOpts...),
 		)
 		return nil
 	})

@@ -61,11 +61,11 @@ input UploadFileOpts {
 }
 
 extend type Mutation {
-  uploadFile(file: File, opts: UploadFileOpts): Upload!
-  uploadFileWithSlug(file: File, slug: String!, opts: UploadFileOpts): Upload!
-  deleteUpload(id: ID!): Boolean!
+  uploadFile(file: File, opts: UploadFileOpts): Upload! @public
+  uploadFileWithSlug(file: File, slug: String!, opts: UploadFileOpts): Upload! @authenticated
+  deleteUpload(id: ID!): Boolean! @authenticated
 }
 
 extend type Query {
-  uploads(filter: UploadFilter!): [Upload!]!
+  uploads(filter: UploadFilter!): [Upload!]! @authenticated
 }

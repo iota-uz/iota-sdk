@@ -9,6 +9,9 @@ title: Development Changelog
 | Change | Type | Date |
 |------------------|------|------|
 | Graceful shutdown: `HTTPServer.Run` handles SIGTERM/SIGINT, drains in-flight requests, then runs stop hooks in reverse order and closes the realtime bus and DB pool. Default HTTP server timeouts. See [Runtime lifecycle](#runtime-lifecycle-and-graceful-shutdown) | Feature | 2026-11-18 |
+| `appconfig.Environment` enum (`development`, `test`, `staging`, `production`) with `Config.Env()`, `IsDevelopment()`, `IsTest()`, `IsStaging()`; `IsDev()` is deprecated because it is also true on staging, preprod and test. `APP_ENVIRONMENT` is now matched case-insensitively, `preprod`/`stage` count as staging, and GraphQL accepts localhost origins only in development and test, no longer on staging | Feature | 2026-11-18 |
+| CRUD: `crud.TenantScoped()` schema option scopes reads, writes and deletes by the context tenant; `CrudController` no longer accepts `Hidden` field values from forms | Security | 2026-11-18 |
+| **Breaking:** `MigrationManager.Rollback(ctx, steps)` rolls back `steps` migrations (`migrate down` defaults to one); rolling back everything now needs `RollbackAll` / `migrate down --all`. `Run` takes a `ctx`. Migrations run under a Postgres advisory lock with a default `lock_timeout` of 30s, and `notransaction` migrations run outside a transaction | Bug Fix | 2026-11-18 |
 
 ### Runtime lifecycle and graceful shutdown
 

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "pkg/money gains an explicit RoundingMode (RoundHalfUp default, RoundHalfEven, RoundDown, RoundUp, RoundFloor, RoundCeiling), NewFromDecimal, NewFromFloatRounded, RoundWith and AsDecimal. NewFromFloat now rounds half-up instead of truncating (0.125 UZS is 13 tiyin, was 12), Round is half-up instead of half-down, the zero value Money{} no longer panics, and JSON rejects fractional minor-unit amounts instead of truncating them."
+}

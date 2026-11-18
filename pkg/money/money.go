@@ -31,12 +31,24 @@ var (
 	ErrInvalidJSONUnmarshal = errors.New("invalid json unmarshal")
 )
 
-// bigIntFromFloat safely converts a float64 to *big.Int using big.Float
-// to avoid int64 overflow.
-func bigIntFromFloat(f float64) *big.Int {
-	bf := new(big.Float).SetFloat64(f)
-	bi, _ := bf.Int(nil)
-	return bi
+// maxJSONAmountExponent bounds the decimal exponent accepted for a JSON
+// amount such as 1e30, so a hostile 1e999999999 cannot make the decoder
+// build an enormous integer.
+const maxJSONAmountExponent = 100
+
+// parseJSONAmount reads a JSON amount in minor units. The amount must be a
+// whole number: 123, 123.0 and 1.23e2 are 123 minor units, while 123.7 is
+// rejected rather than silently truncated, since a fraction of a minor unit
+// means the sender used another unit.
+func parseJSONAmount(n json.Number) (*big.Int, error) {
+	if amount, ok := new(big.Int).SetString(n.String(), 10); ok {
+		return amount, nil
+	}
+	d, err := decimal.NewFromString(n.String())
+	if err != nil || !d.IsInteger() || d.Exponent() > maxJSONAmountExponent {
+		return nil, ErrInvalidJSONUnmarshal
+	}
+	return d.BigInt(), nil
 }
 
 const opUnmarshalJSON = serrors.Op("money.defaultUnmarshalJSON")
@@ -51,22 +63,15 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 
 	var amount *big.Int
 	if amountRaw, ok := data["amount"]; ok {
-		switch v := amountRaw.(type) {
-		case json.Number:
-			amount = new(big.Int)
-			if _, ok := amount.SetString(v.String(), 10); !ok {
-				// Try parsing as float
-				f, err := v.Float64()
-				if err != nil {
-					return serrors.Wrap(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
-				}
-				amount = bigIntFromFloat(f)
-			}
-		case float64:
-			amount = bigIntFromFloat(v)
-		default:
+		v, ok := amountRaw.(json.Number)
+		if !ok {
 			return serrors.Wrap(opUnmarshalJSON, ErrInvalidJSONUnmarshal)
 		}
+		parsed, err := parseJSONAmount(v)
+		if err != nil {
+			return serrors.Wrap(opUnmarshalJSON, err)
+		}
+		amount = parsed
 	}
 
 	var currency string
@@ -98,12 +103,11 @@ func defaultUnmarshalJSON(m *Money, b []byte) error {
 }
 
 func defaultMarshalJSON(m Money) ([]byte, error) {
-	if m.amount == nil {
-		m = *New(0, "")
+	code, err := json.Marshal(m.Currency().Code)
+	if err != nil {
+		return nil, err
 	}
-
-	buff := bytes.NewBufferString(fmt.Sprintf(`{"amount":%s,"currency":"%s"}`, m.amount.String(), m.Currency().Code))
-	return buff.Bytes(), nil
+	return []byte(fmt.Sprintf(`{"amount":%s,"currency":%s}`, amountOrZero(m.amount).String(), code)), nil
 }
 
 // Money represents monetary value information, stores
@@ -121,16 +125,16 @@ func New(amount int64, code string) *Money {
 	}
 }
 
-// NewFromFloat creates and returns new instance of Money from a float64.
-// Trailing decimals are truncated toward zero.
+// NewFromFloat creates and returns new instance of Money from a float64
+// amount in major units.
+//
+// The float is read as its shortest decimal representation (19.99 is 1999
+// cents), and digits beyond the currency's Fraction are rounded with
+// DefaultRoundingMode, half away from zero: 0.125 UZS is 13 tiyin and
+// -0.125 UZS is -13 tiyin. Use NewFromFloatRounded or NewFromDecimal to pick
+// another mode, for example RoundDown to truncate.
 func NewFromFloat(amount float64, code string) *Money {
-	currency := newCurrency(code).get()
-	scaled := decimal.NewFromFloat(amount).Shift(int32(currency.Fraction))
-
-	return &Money{
-		amount:   scaled.BigInt(),
-		currency: currency,
-	}
+	return NewFromFloatRounded(amount, code, DefaultRoundingMode)
 }
 
 // NewFromBigInt creates and returns new instance of Money from a *big.Int (minor units).
@@ -153,9 +157,23 @@ func amountOrZero(a *big.Int) *big.Int {
 	return a
 }
 
-// Currency returns the currency used by Money.
-func (m *Money) Currency() *Currency {
+// zeroCurrency is the currency of the zero value Money{}: an empty code with
+// the default formatting.
+var zeroCurrency = newCurrency("").get()
+
+// cur returns the currency of m, or the empty-code currency for the zero
+// value Money{}, so operations on Money{} do not dereference nil.
+func (m *Money) cur() *Currency {
+	if m.currency == nil {
+		return zeroCurrency
+	}
 	return m.currency
+}
+
+// Currency returns the currency used by Money. For the zero value Money{} it
+// is a currency with an empty Code.
+func (m *Money) Currency() *Currency {
+	return m.cur()
 }
 
 // Amount returns a copy of the internal monetary value as an int64.
@@ -183,7 +201,7 @@ func (m *Money) BigAmount() *big.Int {
 
 // SameCurrency check if given Money is equals by currency.
 func (m *Money) SameCurrency(om *Money) bool {
-	return m.currency.equals(om.currency)
+	return m.cur().equals(om.cur())
 }
 
 func (m *Money) assertSameCurrency(om *Money) error {
@@ -260,12 +278,12 @@ func (m *Money) IsNegative() bool {
 
 // Absolute returns new Money struct from given Money using absolute monetary value.
 func (m *Money) Absolute() *Money {
-	return &Money{amount: mutate.calc.absolute(m.amount), currency: m.currency}
+	return &Money{amount: mutate.calc.absolute(m.amount), currency: m.cur()}
 }
 
 // Negative returns new Money struct from given Money using negative monetary value.
 func (m *Money) Negative() *Money {
-	return &Money{amount: mutate.calc.negative(m.amount), currency: m.currency}
+	return &Money{amount: mutate.calc.negative(m.amount), currency: m.cur()}
 }
 
 // Add returns new Money struct with value representing sum of Self and Other Money.
@@ -274,7 +292,7 @@ func (m *Money) Add(ms ...*Money) (*Money, error) {
 		return m, nil
 	}
 
-	k := New(0, m.currency.Code)
+	k := New(0, m.cur().Code)
 
 	for _, m2 := range ms {
 		if err := m.assertSameCurrency(m2); err != nil {
@@ -284,7 +302,7 @@ func (m *Money) Add(ms ...*Money) (*Money, error) {
 		k.amount = mutate.calc.add(k.amount, m2.amount)
 	}
 
-	return &Money{amount: mutate.calc.add(m.amount, k.amount), currency: m.currency}, nil
+	return &Money{amount: mutate.calc.add(m.amount, k.amount), currency: m.cur()}, nil
 }
 
 // Subtract returns new Money struct with value representing difference of Self and Other Money.
@@ -293,7 +311,7 @@ func (m *Money) Subtract(ms ...*Money) (*Money, error) {
 		return m, nil
 	}
 
-	k := New(0, m.currency.Code)
+	k := New(0, m.cur().Code)
 
 	for _, m2 := range ms {
 		if err := m.assertSameCurrency(m2); err != nil {
@@ -303,7 +321,7 @@ func (m *Money) Subtract(ms ...*Money) (*Money, error) {
 		k.amount = mutate.calc.add(k.amount, m2.amount)
 	}
 
-	return &Money{amount: mutate.calc.subtract(m.amount, k.amount), currency: m.currency}, nil
+	return &Money{amount: mutate.calc.subtract(m.amount, k.amount), currency: m.cur()}, nil
 }
 
 // Multiply returns new Money struct with value representing Self multiplied value by multiplier.
@@ -317,12 +335,20 @@ func (m *Money) Multiply(muls ...int64) *Money {
 		result.Mul(result, big.NewInt(mul))
 	}
 
-	return &Money{amount: result, currency: m.currency}
+	return &Money{amount: result, currency: m.cur()}
 }
 
-// Round returns new Money struct with value rounded to nearest zero.
+// Round returns new Money with the value rounded to whole major units
+// (1250 cents → 1300 cents) with DefaultRoundingMode, half away from zero.
 func (m *Money) Round() *Money {
-	return &Money{amount: mutate.calc.round(m.amount, m.currency.Fraction), currency: m.currency}
+	return m.RoundWith(DefaultRoundingMode)
+}
+
+// RoundWith returns new Money with the value rounded to whole major units
+// with mode.
+func (m *Money) RoundWith(mode RoundingMode) *Money {
+	c := m.cur()
+	return &Money{amount: mutate.calc.round(amountOrZero(m.amount), c.Fraction, mode), currency: c}
 }
 
 // Split returns slice of Money structs with split Self value in given number.
@@ -338,7 +364,7 @@ func (m *Money) Split(n int) ([]*Money, error) {
 	ms := make([]*Money, n)
 
 	for i := 0; i < n; i++ {
-		ms[i] = &Money{amount: new(big.Int).Set(a), currency: m.currency}
+		ms[i] = &Money{amount: new(big.Int).Set(a), currency: m.cur()}
 	}
 
 	r := mutate.calc.modulus(amt, int64(n))
@@ -383,7 +409,7 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 	for _, r := range rs {
 		party := &Money{
 			amount:   mutate.calc.allocate(amt, int64(r), sum),
-			currency: m.currency,
+			currency: m.cur(),
 		}
 
 		ms = append(ms, party)
@@ -413,7 +439,7 @@ func (m *Money) Allocate(rs ...int) ([]*Money, error) {
 
 // Display lets represent Money struct as string in given Currency value.
 func (m *Money) Display() string {
-	c := m.currency.get()
+	c := m.cur().get()
 	if m.amount != nil && !m.amount.IsInt64() {
 		return c.Formatter().FormatBigInt(m.amount)
 	}
@@ -424,7 +450,7 @@ func (m *Money) Display() string {
 // with the specified number of decimal places (e.g., 22.5M UZS with decimals=1, 22.52M UZS with decimals=2).
 // If decimals is not specified (0), defaults to 1 decimal place.
 func (m *Money) DisplayCompact(decimals ...int) string {
-	c := m.currency.get()
+	c := m.cur().get()
 	d := 1 // Default is 1 decimal place
 	if len(decimals) > 0 && decimals[0] > 0 {
 		d = decimals[0]
@@ -440,7 +466,7 @@ func (m *Money) AsMajorUnits() float64 {
 	if m.amount == nil {
 		return 0
 	}
-	c := m.currency.get()
+	c := m.cur().get()
 	v, _ := c.Formatter().ToMajorUnitsBigFloat(m.amount).Float64()
 	return v
 }

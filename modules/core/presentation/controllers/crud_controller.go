@@ -439,8 +439,11 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			continue
 		}
 
-		// Skip readonly fields - they should not be updated from form data
-		if field.Readonly() {
+		// Skip readonly fields - they should not be updated from form data.
+		// Skip hidden fields too: the form never renders them, so a submitted
+		// value can only be forged (e.g. a tenant_id). Create fills them from
+		// InitialValue and Update keeps the stored value.
+		if field.Readonly() || field.Hidden() {
 			continue
 		}
 

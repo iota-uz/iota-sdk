@@ -558,11 +558,10 @@ func newCoreTwoFactorService(
 	}
 
 	var otpSender pkgtwofactor.OTPSender
-	env := appCfg.Environment
 	switch {
 	case appCfg.EnableTestEndpoints:
 		otpSender = pkgtwofactor.NewNoopSender()
-	case env == "production" || env == "staging":
+	case appCfg.Env().IsDeployed():
 		composite := pkgtwofactor.NewCompositeSender(nil)
 		if twoFactorCfg.OTP.EnableEmail && smtpCfg.Host != "" {
 			composite.Register(

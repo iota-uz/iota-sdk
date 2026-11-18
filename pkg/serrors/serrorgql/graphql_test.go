@@ -5,6 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	gql "github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -19,16 +24,12 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"golang.org/x/text/language"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
 )
 
 type failingSchema struct{ err error }
 
 func (failingSchema) Schema() *ast.Schema {
-	return gqlparser.MustLoadSchema(&ast.Source{Input: "type Query { account: String }"})
+	return gqlparser.MustLoadSchema(&ast.Source{Input: sdkgraphql.AuthDirectivesSDL + "type Query { account: String @public }"})
 }
 func (failingSchema) Complexity(string, string, int, map[string]any) (int, bool) { return 0, false }
 func (s failingSchema) Exec(ctx context.Context) gql.ResponseHandler {

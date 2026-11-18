@@ -181,10 +181,13 @@ func TestCalculator_Round(t *testing.T) {
 		{"zero stays zero", big.NewInt(0), 2, big.NewInt(0)},
 		{"big value rounds up", setBigInt("99999999999999999975"), 2, setBigInt("100000000000000000000")},
 		{"negative rounds", big.NewInt(-175), 2, big.NewInt(-200)},
+		{"exact half rounds away from zero", big.NewInt(150), 2, big.NewInt(200)},
+		{"negative exact half rounds away from zero", big.NewInt(-150), 2, big.NewInt(-200)},
+		{"zero fraction keeps value", big.NewInt(7), 0, big.NewInt(7)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := c.round(tt.a, tt.exp)
+			result := c.round(tt.a, tt.exp, RoundHalfUp)
 			assert.Equal(t, 0, result.Cmp(tt.expected), "expected %s, got %s", tt.expected, result)
 		})
 	}
