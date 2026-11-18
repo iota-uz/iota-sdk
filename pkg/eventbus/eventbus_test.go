@@ -139,7 +139,7 @@ func TestPublisher_PanicRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("panic includes event args in log", func(t *testing.T) {
+	t.Run("panic logs event type but not payload", func(t *testing.T) {
 		logBuffer := bytes.Buffer{}
 		log := logrus.New()
 		log.SetOutput(&logBuffer)
@@ -151,13 +151,15 @@ func TestPublisher_PanicRecovery(t *testing.T) {
 			panic("test panic")
 		})
 
-		testData := &args{data: "important-data"}
+		testData := &args{data: "AB1234567-pinfl-31234567890123"}
 		publisher.Publish(testData)
 
 		output := logBuffer.String()
-		// Verify event args are included in log for debugging
-		if !strings.Contains(output, "args") {
-			t.Errorf("log should include event args for debugging, got: %q", output)
+		if !strings.Contains(output, "*eventbus.args") {
+			t.Errorf("log should include the event type, got: %q", output)
+		}
+		if strings.Contains(output, "AB1234567") {
+			t.Errorf("log must not contain the event payload, got: %q", output)
 		}
 	})
 
