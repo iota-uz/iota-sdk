@@ -3,13 +3,14 @@ package document
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"math"
 	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )

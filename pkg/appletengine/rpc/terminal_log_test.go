@@ -3,10 +3,11 @@ package rpc
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 func TestObservePermissionDenialLogsOneBoundedEvent(t *testing.T) {

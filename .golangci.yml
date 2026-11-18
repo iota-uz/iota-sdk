@@ -58,6 +58,11 @@ linters:
       - path: ".*_test\\.go"
         linters:
           - exhaustruct
+      # eventbus.EventBus.Publish is deprecated in favour of PublishCtx (#1288).
+      # In-repo callers migrate separately; keep the marker visible to consumers.
+      - linters:
+          - staticcheck
+        text: "SA1019: .*Publish is deprecated: use the package function PublishCtx"
   enable:
     - asasalint
     - asciicheck

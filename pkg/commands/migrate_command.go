@@ -25,14 +25,28 @@ func ensureDirectories() error {
 	return nil
 }
 
+// MigrationOptions controls how a migration subcommand runs.
+type MigrationOptions struct {
+	// Steps is the number of migrations "down" rolls back. Values below 1
+	// mean 1. Ignored when All is set.
+	Steps int
+	// All makes "down" roll back every applied migration.
+	All bool
+}
+
 // RunMigration executes the given migration subcommand using the provided database config.
 // cfg is resolved by the caller (typically a cobra RunE or MigrateWithSubcommand).
+// "down" and "redo" affect only the most recently applied migration; use
+// RunMigrationWithOptions to roll back more.
 func RunMigration(cfg *dbconfig.Config, subcommand string) error {
+	return RunMigrationWithOptions(context.Background(), cfg, subcommand, MigrationOptions{})
+}
+
+// RunMigrationWithOptions executes the given migration subcommand with explicit options.
+func RunMigrationWithOptions(ctx context.Context, cfg *dbconfig.Config, subcommand string, opts MigrationOptions) error {
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	switch subcommand {
 	case "up", "down", "redo", "status":
@@ -41,7 +55,7 @@ func RunMigration(cfg *dbconfig.Config, subcommand string) error {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 		defer pool.Close()
-		return handleMigrationCommands(ctx, subcommand, application.NewMigrationManager(pool, *cfg, logrus.StandardLogger()))
+		return handleMigrationCommands(ctx, subcommand, application.NewMigrationManager(pool, *cfg, logrus.StandardLogger()), opts)
 
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", subcommand)
@@ -76,21 +90,28 @@ func handleMigrationCommands(
 	ctx context.Context,
 	command string,
 	migrationManager application.MigrationManager,
+	opts MigrationOptions,
 ) error {
 	switch command {
 	case "up":
-		if err := migrationManager.Run(); err != nil {
+		if err := migrationManager.Run(ctx); err != nil {
 			return fmt.Errorf("failed to run migrations: %w", err)
 		}
 	case "down":
-		if err := migrationManager.Rollback(); err != nil {
+		var err error
+		if opts.All {
+			err = migrationManager.RollbackAll(ctx)
+		} else {
+			err = migrationManager.Rollback(ctx, max(opts.Steps, 1))
+		}
+		if err != nil {
 			return fmt.Errorf("failed to rollback migrations: %w", err)
 		}
 	case "redo":
-		if err := migrationManager.Rollback(); err != nil {
+		if err := migrationManager.Rollback(ctx, 1); err != nil {
 			return errors.Join(err, errors.New("failed to rollback migrations"))
 		}
-		if err := migrationManager.Run(); err != nil {
+		if err := migrationManager.Run(ctx); err != nil {
 			return errors.Join(err, errors.New("failed to run migrations"))
 		}
 	case "status":

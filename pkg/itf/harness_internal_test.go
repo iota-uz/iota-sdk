@@ -174,9 +174,11 @@ type countingMigrationManager struct {
 	runErr    error
 }
 
-func (m *countingMigrationManager) Rollback() error { return nil }
+func (m *countingMigrationManager) Rollback(context.Context, int) error { return nil }
 
-func (m *countingMigrationManager) Run() error {
+func (m *countingMigrationManager) RollbackAll(context.Context) error { return nil }
+
+func (m *countingMigrationManager) Run(context.Context) error {
 	m.runCalled = true
 	return m.runErr
 }

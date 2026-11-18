@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"time"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filtercontext"
 	"github.com/iota-uz/iota-sdk/pkg/lens/report"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
-	"os"
-	"time"
 )
 
 // Synthetic adapters run through the same compiler/runtime as consumer reports.

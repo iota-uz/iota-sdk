@@ -684,7 +684,7 @@ func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app ap
 		// (createHarnessState) via withMigrationAdvisoryLock on the shared
 		// "postgres" admin DB; a lock on this per-test pool would be
 		// database-local and would not serialize sibling harnesses.
-		return app.Migrations().Run()
+		return app.Migrations().Run(ctx)
 	case MigrationSkip:
 		if pool == nil {
 			return serrors.New(serrors.Invalid, "schema readiness requires a database pool").WithOp(opSchemaReadiness)

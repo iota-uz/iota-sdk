@@ -2,6 +2,7 @@ package manage
 
 import (
 	"context"
+
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"

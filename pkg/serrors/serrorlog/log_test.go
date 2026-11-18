@@ -2,11 +2,12 @@ package serrorlog_test
 
 import (
 	"errors"
+	"log/slog"
+	"testing"
+
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
 	"github.com/stretchr/testify/require"
-	"log/slog"
-	"testing"
 )
 
 func TestAttributesExcludeDiagnostics(t *testing.T) {
