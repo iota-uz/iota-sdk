@@ -1,0 +1,114 @@
+{
+  "definitions": [
+    {
+      "id": "revenue",
+      "revision": "r1",
+      "title": "Revenue",
+      "source": { "id": "sales", "version": 1 },
+      "view": "summary",
+      "parameters": { "period": 10 }
+    },
+    {
+      "id": "sales-overview",
+      "revision": "r1",
+      "title": "Sales overview",
+      "source": { "id": "orders", "version": 1 },
+      "view": "overview",
+      "parameters": { "region": "north" }
+    }
+  ],
+  "composition": {
+    "id": "board",
+    "revision": "1",
+    "title": "Board",
+    "rows": [
+      [
+        { "id": "a", "reportId": "revenue", "title": "June revenue", "span": 6, "parameters": { "period": 6 } },
+        { "id": "b", "reportId": "revenue", "span": 6 }
+      ],
+      [
+        { "id": "overview", "reportId": "sales-overview", "span": 12 }
+      ]
+    ]
+  },
+  "draft": {
+    "saved": {
+      "id": "revenue",
+      "revision": "r1",
+      "title": "Revenue",
+      "source": { "id": "sales", "version": 1 },
+      "view": "summary",
+      "parameters": { "period": 10 }
+    },
+    "edited": {
+      "id": "revenue",
+      "revision": "r1",
+      "title": "Revenue (draft)",
+      "source": { "id": "sales", "version": 1 },
+      "view": "summary",
+      "parameters": { "period": 11 }
+    }
+  },
+  "versions": [
+    {
+      "name": "same revisions",
+      "status": "current",
+      "opened": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      },
+      "latest": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      }
+    },
+    {
+      "name": "compatible source revision",
+      "status": "update-available",
+      "opened": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      },
+      "latest": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v2", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      }
+    },
+    {
+      "name": "renamed system definition",
+      "status": "update-available",
+      "opened": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      },
+      "latest": {
+        "definition": { "id": "revenue", "revision": "r2", "title": "Net revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      }
+    },
+    {
+      "name": "incompatible source contract",
+      "status": "incompatible",
+      "opened": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      },
+      "latest": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 2, "revision": "v3", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      }
+    },
+    {
+      "name": "view no longer offered",
+      "status": "incompatible",
+      "opened": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v1", "capabilities": { "filters": ["period"], "views": ["summary"], "drill": false, "save": true, "export": true } }
+      },
+      "latest": {
+        "definition": { "id": "revenue", "revision": "r1", "title": "Revenue", "source": { "id": "sales", "version": 1 }, "view": "summary" },
+        "source": { "id": "sales", "version": 1, "revision": "v2", "capabilities": { "filters": ["period"], "views": ["detail"], "drill": false, "save": true, "export": true } }
+      }
+    }
+  ]
+}

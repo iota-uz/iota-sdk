@@ -192,17 +192,36 @@ func validateParameters(params Parameters) error {
 	return nil
 }
 
+// DecodeDefinition restores a stored definition. Unknown fields, such as an
+// execution snapshot ID, are rejected rather than silently dropped.
 func DecodeDefinition(data []byte) (Definition, error) {
 	var definition Definition
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&definition); err != nil {
-		return Definition{}, serrors.New(serrors.Invalid, "invalid report definition").WithCause(err).WithOp("lens.report.Decode")
-	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		return Definition{}, invalid("unexpected trailing definition data")
+	if err := decodeStrict(data, &definition, "invalid report definition"); err != nil {
+		return Definition{}, err
 	}
 	return definition, definition.Validate()
+}
+
+// DecodeComposition restores a stored composition with the same strictness as
+// DecodeDefinition, so every host adapter reads the same placements back.
+func DecodeComposition(data []byte) (Composition, error) {
+	var composition Composition
+	if err := decodeStrict(data, &composition, "invalid report composition"); err != nil {
+		return Composition{}, err
+	}
+	return composition, composition.Validate()
+}
+
+func decodeStrict(data []byte, target any, message string) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return serrors.New(serrors.Invalid, message).WithCause(err).WithOp("lens.report.Decode")
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return invalid("unexpected trailing report data")
+	}
+	return nil
 }
 
 func CopyDefinition(definition Definition, id, revision string) (Definition, error) {
