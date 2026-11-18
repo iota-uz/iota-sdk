@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	bichatartifacts "github.com/iota-uz/iota-sdk/pkg/bichat/tools/artifacts"
 	toolskills "github.com/iota-uz/iota-sdk/pkg/bichat/tools/skills"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -219,7 +220,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		titleJobQueue:        titleJobQueue,
 		titleQueueConfig:     c.TitleQueue,
 		logger:               c.Logger,
-		sharedRedisClose:     chatServices.CloseSharedRedis,
+		sharedRedis:          composition.NewOwnedResource(chatServices.CloseSharedRedis),
 		reaperInterval:       c.ReaperInterval,
 		reaperStaleThreshold: c.ReaperStaleThreshold,
 		reaperLockTTL:        c.ReaperLockTTL,

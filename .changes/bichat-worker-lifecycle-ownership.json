@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"BiChat run/title workers and the run reaper now run under the runtime lifecycle context, and the shared BiChat Redis client is lease-owned (composition.OwnedResource): a shutdown deadline no longer closes it under an accepted generation's terminal bookkeeping."}
