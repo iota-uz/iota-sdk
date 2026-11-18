@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../fixtures/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { generateTOTPCode } from '../../helpers/totp';

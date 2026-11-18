@@ -1,27 +1,21 @@
 /**
- * Database fixtures for Playwright tests
+ * Direct SQL access for legacy specs.
  *
- * This module provides utilities for database operations in tests.
+ * Supported data setup goes through the application's test endpoints
+ * (`/__test__/reset`, `/__test__/populate`, scenario controls) on the
+ * worker-owned server. The previous TypeScript truncate/seed helpers were
+ * removed: schema and baseline lifecycle are Go-owned (cmd/testenv-baseline).
+ *
+ * `withDatabase` remains for the few specs that still prepare rows with SQL.
+ * Under worker isolation it connects to the database owned by this worker's
+ * environment (named by the run's database prefix and environment ID), never
+ * to a shared database. Replacing these calls with typed scenarios is tracked
+ * separately.
  */
-
 import { Pool, PoolClient } from 'pg';
-import { resetDatabase, seedDatabase, getEnvironmentInfo } from '../playwright.config';
-
-/**
- * Reset the database by truncating all tables
- * Use this in beforeEach hooks to ensure a clean state
- */
-export async function resetDB() {
-	await resetDatabase();
-}
-
-/**
- * Seed the database with test data
- * Use this after resetDB to populate initial test data
- */
-export async function seedDB() {
-	await seedDatabase();
-}
+import { getEnvironmentInfo } from '../playwright.config';
+import { currentWorkerEnvironment } from './environment';
+import { isolationMode } from './isolation';
 
 /**
  * Get environment configuration info for debugging
@@ -30,13 +24,24 @@ export function getEnvInfo() {
 	return getEnvironmentInfo();
 }
 
+function workerDatabase(): string {
+	const environment = currentWorkerEnvironment();
+	if (environment) {
+		return environment.databasePrefix + environment.environmentId.replace(/-/g, '');
+	}
+	if (isolationMode() === 'worker') {
+		throw new Error('withDatabase requires the worker environment fixture; import `test` from fixtures/test');
+	}
+	return getEnvironmentInfo().dbConfig.database;
+}
+
 export async function withDatabase<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
 	const env = getEnvironmentInfo().dbConfig;
 	const pool = new Pool({
 		user: env.user,
 		host: env.host,
 		port: env.port,
-		database: env.database,
+		database: workerDatabase(),
 		password: process.env.DB_PASSWORD || 'postgres',
 	});
 	const client = await pool.connect();
@@ -47,20 +52,3 @@ export async function withDatabase<T>(callback: (client: PoolClient) => Promise<
 		await pool.end();
 	}
 }
-
-/**
- * Example usage in tests:
- *
- * import { test, expect } from '@playwright/test';
- * import { resetDB, seedDB } from '../fixtures/database';
- *
- * test.beforeEach(async () => {
- *   await resetDB();
- *   await seedDB();
- * });
- *
- * test('should display users', async ({ page }) => {
- *   await page.goto('/users');
- *   // ... test code
- * });
- */

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from '../../fixtures/test';
 import { login, logout } from '../../fixtures/auth';
 import { completeOnboarding, submitNewUserForm } from '../../fixtures/onboarding';
 import { resetTestDatabase } from '../../fixtures/test-data';

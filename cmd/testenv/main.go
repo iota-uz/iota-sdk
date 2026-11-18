@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -39,10 +41,11 @@ func run() error {
 	baseline := flag.String("baseline-fingerprint", "", "actual seeded baseline fingerprint")
 	sdkERP := flag.Bool("sdk-erp", false, "enable SDK ERP isolated control routes and ownership probe")
 	tokenFile := flag.String("control-token-file", "", "local file containing SDK ERP control token")
+	prefix := flag.String("database-prefix", "te_", "prefix of owned database names (te_<environment id without dashes>)")
 	flag.Parse()
 	db := dbconfig.Config{Host: env("DB_HOST", "localhost"), Port: env("DB_PORT", "5432"), User: env("DB_USER", "postgres"), Password: env("DB_PASSWORD", "postgres")}
 	manifest := testdb.Manifest{SchemaFingerprint: *schema, BaselineFingerprint: *baseline, BuildRevision: *revision}
-	settings := process.Config{Command: flag.Args(), Directory: *directory, Artifacts: *artifacts, Revision: *revision, Manifest: manifest, ReadyPath: *ready, Resources: &process.Postgres{Config: db, Template: *template, Manifest: manifest}, Capabilities: []string{"database.clone", "process.dedicated"}}
+	settings := process.Config{Command: flag.Args(), Directory: *directory, Artifacts: *artifacts, Revision: *revision, Manifest: manifest, ReadyPath: *ready, Resources: &process.Postgres{Config: db, Template: *template, Prefix: *prefix, Manifest: manifest}, Capabilities: []string{"database.clone", "process.dedicated"}}
 	if *sdkERP {
 		bytes, err := os.ReadFile(*tokenFile)
 		if err != nil {
@@ -52,10 +55,12 @@ func run() error {
 		if len(token) < 32 {
 			return fmt.Errorf("control token must have at least 32 bytes")
 		}
-		settings.Environment = []string{"APP_ENABLETESTENDPOINTS=true", "APP_ENVIRONMENT=development"}
-		settings.Configure = func(d testenv.Descriptor) []string {
-			return []string{"TESTENV_ENVIRONMENT_ID=" + d.EnvironmentID, "TESTENV_CONTROL_TOKEN=" + token}
-		}
+		// Redis has no per-environment key namespace in SDK ERP, so isolated
+		// processes run without it (BiChat executes inline) rather than
+		// sharing streams/keys with another worker or checkout.
+		settings.Unset = []string{"REDIS_", "RATELIMIT_REDIS"}
+		settings.Environment = []string{"APP_ENABLETESTENDPOINTS=true", "APP_ENVIRONMENT=development", "RATELIMIT_STORAGE=memory"}
+		settings.Configure = sdkERPEnvironment(token, os.Getenv("OIDC_CRYPTOKEY") != "")
 		settings.Probe = func(ctx context.Context, d testenv.Descriptor) error {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, d.BaseURL+"/__test__/scenarios", nil)
 			if err != nil {
@@ -81,4 +86,23 @@ func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	return testenv.Serve(ctx, c, os.Stdin, os.Stdout)
+}
+
+// sdkERPEnvironment returns the per-environment process settings: the scoped
+// control identity, an upload root inside the environment's own artifact
+// directory and, when OIDC is enabled, an issuer bound to the allocated port.
+func sdkERPEnvironment(token string, oidc bool) func(testenv.Descriptor) []string {
+	return func(d testenv.Descriptor) []string {
+		env := []string{
+			"TESTENV_ENVIRONMENT_ID=" + d.EnvironmentID,
+			"TESTENV_CONTROL_TOKEN=" + token,
+			"UPLOADS_PATH=" + filepath.Join(d.ArtifactDirectory, "uploads"),
+		}
+		if oidc {
+			if u, err := url.Parse(d.BaseURL); err == nil {
+				env = append(env, "OIDC_ISSUERURL=https://"+u.Host+"/oidc")
+			}
+		}
+		return env
+	}
 }

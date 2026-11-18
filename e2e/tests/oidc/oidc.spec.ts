@@ -1,7 +1,11 @@
-import { test, expect, APIResponse, APIRequestContext } from '@playwright/test';
+import { test, expect, APIResponse, APIRequestContext } from '../../fixtures/test';
 
-const baseURL = process.env.BASE_URL ?? 'http://localhost:3201';
-const configuredIssuer = process.env.OIDC_ISSUERURL ?? `${baseURL}/oidc`;
+// The issuer is HTTPS on the server's own host (cmd/testenv sets it per
+// worker environment; the legacy shared server uses OIDC_ISSUERURL).
+function issuerFor(baseURL: string | undefined): string {
+	if (process.env.E2E_ISOLATION === 'shared' && process.env.OIDC_ISSUERURL) return process.env.OIDC_ISSUERURL;
+	return `https://${new URL(baseURL ?? 'http://localhost:3201').host}/oidc`;
+}
 
 function assertOIDCEnabled(response: APIResponse, endpoint: string): void {
 	expect(response.status(), `${endpoint} returned 404. Set OIDC_ISSUERURL and OIDC_CRYPTOKEY to enable OIDC.`).not.toBe(404);
@@ -22,7 +26,8 @@ function endpointPath(endpointURL: string): string {
 }
 
 test.describe('OIDC provider contracts', () => {
-	test('serves discovery metadata with consistent endpoint URLs', async ({ request }) => {
+	test('serves discovery metadata with consistent endpoint URLs', async ({ request, baseURL }) => {
+		const configuredIssuer = issuerFor(baseURL);
 		const metadata = await getDiscoveryMetadata(request);
 		expect(metadata.issuer).toBe(configuredIssuer);
 		expect(metadata.authorization_endpoint).toBe(`${configuredIssuer}/authorize`);

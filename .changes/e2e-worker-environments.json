@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"SDK ERP browser suites run with a worker-owned environment (cloned sealed baseline + dedicated server per Playwright worker) locally and in CI; testenv gains process.Config.Unset, --database-prefix, per-environment uploads/OIDC issuer for --sdk-erp and cmd/testenv-baseline --drop. The TypeScript truncate/seed helpers (resetDB/seedDB) were removed."}

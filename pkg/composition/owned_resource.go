@@ -30,9 +30,9 @@ type OwnedResource struct {
 	closeErr error
 }
 
-// NewOwnedResource wraps close. A nil close makes Close a no-op.
-func NewOwnedResource(close func() error) *OwnedResource {
-	return &OwnedResource{close: close, done: make(chan struct{})}
+// NewOwnedResource wraps closeFn. A nil closeFn makes Close a no-op.
+func NewOwnedResource(closeFn func() error) *OwnedResource {
+	return &OwnedResource{close: closeFn, done: make(chan struct{})}
 }
 
 // Acquire registers a holder. The returned release is idempotent and must be

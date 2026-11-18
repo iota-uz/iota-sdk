@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../../fixtures/test';
 import { populateTestData, resetTestDatabase } from '../../fixtures/test-data';
 
 const password = 'TestPass123!';

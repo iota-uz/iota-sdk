@@ -49,18 +49,43 @@ Before running E2E tests, ensure you have:
    pnpm --version
    ```
 
-3. **PostgreSQL** database running
-   - Local: Port 5438 (via Docker)
-   - CI: Port 5432
-   ```bash
-   docker ps  # Verify database is running
-   ```
+3. **PostgreSQL** reachable with an admin role (`DB_HOST`, `DB_PORT`,
+   `DB_USER`, `DB_PASSWORD`; `.env.e2e` defaults to port 5438 locally).
+   The suite creates and drops its own databases; it never touches an
+   existing one.
 
-4. **Go server** running on port 3201
-   ```bash
-   # From project root (or use: just e2e dev)
-   go run cmd/server/main.go
-   ```
+4. **Built web assets** (`just css`, `just lens build`, client-host build).
+   You do **not** start a server: every Playwright worker starts its own.
+
+## Environment lifecycle
+
+The same lifecycle runs locally and in CI (`E2E_ISOLATION=worker`, the default):
+
+1. `global-setup.ts` runs `go run ./cmd/testenv-baseline` once: migrations +
+   E2E seed into a fresh database, a fingerprint manifest (migrations, SDK
+   revision, seed version), then the database is sealed. It is dropped in
+   global teardown.
+2. Each worker (`fixtures/environment.ts`) starts `go run ./cmd/testenv`,
+   which clones the sealed baseline into a database owned by that worker
+   and starts a dedicated `cmd/server` process on a free port with its own
+   upload directory, no shared Redis, and an OIDC issuer bound to its port.
+   The worker's `baseURL` points at that server.
+3. `/__test__/reset`, `/__test__/populate` and scenario controls therefore
+   only change the worker's own database and sessions. A worker restarted
+   after a failure or a retry gets a new slot and a fresh environment; the
+   previous one is stopped (process group killed, database dropped).
+
+Server logs are under `test-results/environments/<run>/<environment>/server.log`.
+Specs import `test`/`expect` from `fixtures/test`, not `@playwright/test`.
+Fixtures only see the environment descriptor (URL, fingerprints, artifact
+directory); it carries no credentials.
+
+`E2E_ISOLATION=shared` keeps the legacy mode (one server at `BASE_URL`, one
+worker) for debugging against `just e2e dev`; it requires a dedicated
+database because suites reset it.
+
+Throughput is bounded by machine resources: each worker runs a Go server and
+a browser. CI uses `E2E_WORKERS` (default 3) per shard.
 
 ## Installation
 
@@ -96,18 +121,12 @@ This will install:
    just compose up
    ```
 
-3. **Start the Go server:**
-   ```bash
-   # From project root, in another terminal
-   go run cmd/server/main.go
-   ```
-
-4. **Run all tests:**
+3. **Run all tests** (workers start their own servers):
    ```bash
    pnpm test
    ```
 
-5. **Run tests in UI mode (interactive):**
+4. **Run tests in UI mode (interactive):**
    ```bash
    pnpm run test:ui
    ```
@@ -253,7 +272,7 @@ E2E tests use a dedicated database `iota_erp_e2e` to avoid conflicts with develo
 ### Database Operations
 
 ```bash
-# Reset database (truncate all tables)
+# Reset the legacy shared database (E2E_ISOLATION=shared only)
 just e2e reset
 
 # Seed database with test data
@@ -267,11 +286,13 @@ just e2e migrate down
 ### In Tests
 
 ```typescript
-import { resetDB, seedDB } from '../fixtures';
+import { test } from '../../fixtures/test';
+import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
-test.beforeEach(async () => {
-  await resetDB();   // Clean slate for each test
-  await seedDB();    // Seed with minimal data
+test.beforeAll(async ({ request }) => {
+  // Runs against this worker's own server and database.
+  await resetTestDatabase(request, { reseedMinimal: false });
+  await seedScenario(request, 'comprehensive');
 });
 ```
 
@@ -280,17 +301,16 @@ test.beforeEach(async () => {
 ### Basic Test Structure
 
 ```typescript
-import { test, expect } from '@playwright/test';
-import { login, resetDB, seedDB, setupErrorHandling } from '../fixtures';
+import { test, expect } from '../../fixtures/test';
+import { login, resetTestDatabase, setupErrorHandling } from '../../fixtures';
 
 test.describe('User Registration', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
     // Setup error handling (recommended for all tests)
     await setupErrorHandling(page);
 
-    // Reset and seed database
-    await resetDB();
-    await seedDB();
+    // Reset this worker's database to the minimal seed
+    await resetTestDatabase(request);
   });
 
   test('should register new user successfully', async ({ page }) => {
@@ -337,13 +357,11 @@ Fixtures are reusable utility functions that encapsulate common operations.
 ### Database Fixtures
 
 ```typescript
-import { resetDB, seedDB, getEnvironmentInfo } from '../fixtures';
+import { withDatabase, getEnvInfo } from '../fixtures';
 
-// Reset database (truncate all tables)
-await resetDB();
-
-// Seed database with test data
-await seedDB();
+// Legacy direct SQL; under worker isolation it targets this worker's own
+// database. Prefer test endpoints / scenario controls for new specs.
+await withDatabase(db => db.query('SELECT 1'));
 
 // Get environment info for debugging
 const info = getEnvironmentInfo();
@@ -462,9 +480,8 @@ All fixtures are re-exported from `fixtures/index.ts` for convenience:
 ```typescript
 import {
   // Database
-  resetDB,
-  seedDB,
-  getEnvironmentInfo,
+  withDatabase,
+  getEnvInfo,
 
   // Auth
   login,

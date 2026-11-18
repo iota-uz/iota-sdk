@@ -2,11 +2,15 @@
  * Centralized exports for all test fixtures
  *
  * This allows simpler imports in test files:
- * import { login, resetDB, uploadFileAndWaitForAttachment } from '../fixtures';
+ * import { login, resetTestDatabase, uploadFileAndWaitForAttachment } from '../fixtures';
  */
 
 // Database operations
-export { resetDB, seedDB, getEnvInfo, withDatabase } from './database';
+export { getEnvInfo, withDatabase } from './database';
+
+// Worker-owned environment
+export { test, expect } from './test';
+export { currentWorkerEnvironment } from './environment';
 
 // Authentication
 export { login, logout, waitForAlpine } from './auth';
