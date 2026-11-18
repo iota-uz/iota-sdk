@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame, usePanelPagination } from './provider'
 import { idleDrillPrefetchRoots } from './drillPrefetch'
 import { QueryClient } from './query'
 import { encodeFilterBoard } from '../reports/filterDraft'
@@ -913,5 +913,93 @@ describe('DashboardRuntimeProvider', () => {
     const dialog = await screen.findByRole('dialog')
     await waitFor(() => expect(dialog).toHaveAttribute('data-theme', 'dark'))
     expect(dialog).toHaveClass('dark')
+  })
+})
+
+describe('out-of-order panel answers', () => {
+  afterEach(cleanup)
+
+  const tableDocument = parseDocument({
+    ...fixture,
+    snapshotId: 'ordering-snapshot',
+    panels: [{ ...fixture.panels[0], id: 'rows', kind: 'table', title: 'Rows', frame: 'panel:rows', table: { searchable: true } }],
+    frames: { 'panel:rows': { columns: fixture.frames['panel:total'].columns, rows: [['initial', 0]] } },
+    layout: { rows: [{ panels: [{ panelId: 'rows', span: 12 }] }] },
+    endpoints: { ...fixture.endpoints, panel: '/lens/panel' },
+  })
+
+  function Probe() {
+    const frame = usePanelFrame('rows')
+    const pagination = usePanelPagination()
+    return (
+      <>
+        <output data-testid="rows">{frame.data?.rows[0]?.[0] as string | undefined}</output>
+        <output data-testid="state">{frame.isLoading ? 'loading' : frame.error ? 'error' : frame.isStale ? 'stale' : 'ready'}</output>
+        <button onClick={() => void pagination.search('rows', 'a')} type="button">search a</button>
+        <button onClick={() => void pagination.search('rows', 'ab')} type="button">search ab</button>
+        <button onClick={() => void pagination.sort('rows', { field: 'value', direction: 'asc' })} type="button">sort asc</button>
+        <button onClick={() => void pagination.sort('rows', { field: 'value', direction: 'desc' })} type="button">sort desc</button>
+      </>
+    )
+  }
+
+  /** Each request waits until the test answers it by its slice key, in any order. */
+  function controlledFetcher() {
+    const waiting = new Map<string, (response: Response) => void>()
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const body = JSON.parse(init?.body as string) as { panels: Array<{ search?: string; sort?: { direction: string } }> }
+      const request = body.panels[0]!
+      const key = request.search ?? request.sort?.direction ?? 'none'
+      return new Promise<Response>((resolve) => waiting.set(key, resolve))
+    })
+    const answer = (key: string, result: unknown) => {
+      const resolve = waiting.get(key)
+      if (!resolve) throw new Error(`no pending request for ${key}`)
+      waiting.delete(key)
+      resolve(panelStream({ rows: result }))
+    }
+    const rows = (label: string) => ({ frames: { 'panel:rows': { columns: fixture.frames['panel:total'].columns, rows: [[label, 1]] } } })
+    return { fetcher, answer, rows, waiting }
+  }
+
+  function renderProbe(fetcher: typeof fetch) {
+    render(() => (
+      <DocumentProvider initialDocument={tableDocument} fetcher={fetcher}>
+        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => <Probe />}</DashboardRuntimeProvider>
+      </DocumentProvider>
+    ))
+  }
+
+  it('keeps the latest search when an earlier one answers last', async () => {
+    const { fetcher, answer, rows, waiting } = controlledFetcher()
+    renderProbe(fetcher)
+    fireEvent.click(screen.getByRole('button', { name: 'search a' }))
+    fireEvent.click(screen.getByRole('button', { name: 'search ab' }))
+    await waitFor(() => expect(waiting.size).toBe(2))
+    expect(screen.getByTestId('state')).toHaveTextContent('stale')
+
+    answer('ab', rows('latest'))
+    await waitFor(() => expect(screen.getByTestId('rows')).toHaveTextContent('latest'))
+    expect(screen.getByTestId('state')).toHaveTextContent('ready')
+
+    answer('a', rows('superseded'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByTestId('rows')).toHaveTextContent('latest')
+    expect(screen.getByTestId('state')).toHaveTextContent('ready')
+  })
+
+  it('ignores a late failure of a superseded sort', async () => {
+    const { fetcher, answer, rows, waiting } = controlledFetcher()
+    renderProbe(fetcher)
+    fireEvent.click(screen.getByRole('button', { name: 'sort asc' }))
+    fireEvent.click(screen.getByRole('button', { name: 'sort desc' }))
+    await waitFor(() => expect(waiting.size).toBe(2))
+
+    answer('desc', rows('descending'))
+    await waitFor(() => expect(screen.getByTestId('rows')).toHaveTextContent('descending'))
+    answer('asc', { error: { error: 'internal', message: 'late failure' } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.getByTestId('state')).toHaveTextContent('ready')
+    expect(screen.getByTestId('rows')).toHaveTextContent('descending')
   })
 })
