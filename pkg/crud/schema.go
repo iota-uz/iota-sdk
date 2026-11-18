@@ -106,6 +106,13 @@ type schema[TEntity any] struct {
 	mapper     FlatMapper[TEntity]
 	validators []Validator[TEntity]
 	hooks      *hooks[TEntity]
+	// tenantField is the tenant column when the schema is tenant scoped.
+	tenantField string
+}
+
+// TenantField implements TenantScopedSchema.
+func (s *schema[TEntity]) TenantField() string {
+	return s.tenantField
 }
 
 func (s *schema[TEntity]) Name() string {
@@ -171,6 +178,11 @@ type schemaWithRelations[TEntity any] struct {
 
 func (s *schemaWithRelations[TEntity]) Relations() []RelationDescriptor {
 	return s.relations
+}
+
+// TenantField implements TenantScopedSchema by delegating to the base schema.
+func (s *schemaWithRelations[TEntity]) TenantField() string {
+	return SchemaTenantField(s.Schema)
 }
 
 // RelationMapper returns the *RelationMapper passed to NewSchemaWithRelations.

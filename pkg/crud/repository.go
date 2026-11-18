@@ -119,6 +119,14 @@ func (r *repository[TEntity]) persistableFieldNames() []string {
 }
 
 func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
+	if SchemaTenantField(r.schema) != "" {
+		params, err := r.scopeParams(ctx, nil)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to scope GetAll by tenant")
+		}
+		return r.list(ctx, params)
+	}
+
 	// Check if schema has relations that need to be loaded
 	effectiveJoins := getSchemaDefaultJoins(r.schema)
 
@@ -163,6 +171,11 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options
 	// Validate key values are provided
 	if len(keyValues) == 0 {
 		return zero, errors.New("no key values provided for Get")
+	}
+
+	keyValues, err := r.scopeKeyValues(ctx, keyValues)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to scope Get by tenant")
 	}
 
 	// Merge schema default JOINs with request JOINs
@@ -237,6 +250,11 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, opti
 	// Validate key values are provided
 	if len(keyValues) == 0 {
 		return false, errors.New("no key values provided for Exists")
+	}
+
+	keyValues, err := r.scopeKeyValues(ctx, keyValues)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to scope Exists by tenant")
 	}
 
 	// Merge schema default JOINs with request JOINs
@@ -331,6 +349,11 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	params, err = r.scopeParams(ctx, params)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to scope count by tenant")
+	}
+
 	whereClauses, args, err := r.buildFilters(params)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to build filters for count")
@@ -353,6 +376,15 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 }
 
 func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	params, err := r.scopeParams(ctx, params)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to scope list by tenant")
+	}
+	return r.list(ctx, params)
+}
+
+// list runs a List query with params as given; callers apply tenant scoping.
+func (r *repository[TEntity]) list(ctx context.Context, params *FindParams) ([]TEntity, error) {
 	if params == nil {
 		params = &FindParams{}
 	}
@@ -432,6 +464,11 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
 
+	values, err := r.scopeValues(ctx, values)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to scope create by tenant")
+	}
+
 	columns := make([]string, 0, len(values))
 	args := make([]any, 0, len(values))
 
@@ -466,6 +503,11 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
 
+	tenantField, tenantID, err := tenantScope(ctx, r.schema)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to scope update by tenant")
+	}
+
 	keyFields := r.schema.Fields().KeyFields()
 	keyValues := make(map[string]FieldValue)
 
@@ -480,6 +522,10 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 			continue
 		}
 		if field.Virtual() {
+			continue
+		}
+		if tenantField != nil && field.Name() == tenantField.Name() {
+			// The tenant column is never rewritten; it only scopes the WHERE clause.
 			continue
 		}
 		updates = append(updates, field.Name())
@@ -500,6 +546,19 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 	for i, keyField := range keyFields {
 		whereClauses[i] = fmt.Sprintf("%s = $%d", keyField.Name(), baseIdx+i+1)
 		args = append(args, keyValues[keyField.Name()].Value())
+	}
+	if tenantField != nil {
+		if tenantField.Key() {
+			// Composite key containing the tenant: bind the context tenant, not the submitted one.
+			for i, keyField := range keyFields {
+				if keyField.Name() == tenantField.Name() {
+					args[baseIdx+i] = tenantID
+				}
+			}
+		} else {
+			whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", tenantField.Name(), len(args)+1))
+			args = append(args, tenantID)
+		}
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 
@@ -528,6 +587,11 @@ func (r *repository[TEntity]) Delete(ctx context.Context, value FieldValue, opti
 	// Validate key values are provided
 	if len(keyValues) == 0 {
 		return zero, errors.New("no key values provided for Delete")
+	}
+
+	keyValues, err := r.scopeKeyValues(ctx, keyValues)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to scope Delete by tenant")
 	}
 
 	// Build WHERE clause with all key values
