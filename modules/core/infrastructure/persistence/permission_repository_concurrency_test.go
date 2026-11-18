@@ -1,14 +1,15 @@
 package persistence_test
 
 import (
+	"sync"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
-	"sync"
-	"testing"
 )
 
 func TestPermissionSaveConcurrentFirstInsertKeepsTransactionsUsable(t *testing.T) {

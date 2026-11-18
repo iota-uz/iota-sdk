@@ -230,6 +230,7 @@ func TestReusableReportContractAcrossTwoHostAdapters(t *testing.T) {
 			return &keyValueHost{records: map[string][]byte{}, sources: acceptanceSources()}
 		},
 		"directory": func(t *testing.T) storingHost {
+			t.Helper()
 			return &directoryHost{root: t.TempDir(), sources: acceptanceSources()}
 		},
 	}
@@ -258,8 +259,8 @@ func TestReusableReportContractAcrossTwoHostAdapters(t *testing.T) {
 			labels := groupLabels(doc)
 			require.Equal(t, "June revenue", labels["a"])
 			require.Equal(t, "Revenue", labels["b"])
-			require.Equal(t, 6.0, result.Panels["a::panel:amount"].Frames.Primary().Fields[0].Values[0])
-			require.Equal(t, 10.0, result.Panels["b::panel:amount"].Frames.Primary().Fields[0].Values[0])
+			require.InDelta(t, 6.0, result.Panels["a::panel:amount"].Frames.Primary().Fields[0].Values[0], 1e-9)
+			require.InDelta(t, 10.0, result.Panels["b::panel:amount"].Frames.Primary().Fields[0].Values[0], 1e-9)
 			stored, err := host.Report(context.Background(), "revenue")
 			require.NoError(t, err)
 			require.JSONEq(t, `10`, string(stored.Parameters["period"]), "A's period never writes into R")

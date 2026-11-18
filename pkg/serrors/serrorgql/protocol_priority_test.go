@@ -2,13 +2,14 @@ package serrorgql_test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorgql"
 	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
-	"testing"
 )
 
 func TestProtocolExtensionCannotBypassExecutionClassification(t *testing.T) {

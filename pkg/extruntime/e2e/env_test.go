@@ -3,13 +3,14 @@ package e2e_test
 import (
 	"context"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/helpcenter"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/helpcenter"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
