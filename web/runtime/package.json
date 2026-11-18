@@ -1,0 +1,39 @@
+{
+  "name": "@iota-uz/sdk-runtime-internal",
+  "private": true,
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/build-host.mjs && node scripts/build-worker.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.typetests.json && tsc --noEmit -p src/host/tsconfig.json && tsc --noEmit -p src/build/tsconfig.json && tsc --noEmit -p src/cli/tsconfig.json",
+    "typecheck:types": "tsc --noEmit -p tsconfig.typetests.json",
+    "test": "vitest run && pnpm test:client-host",
+    "build-host": "node scripts/build-host.mjs",
+    "build-worker": "node scripts/build-worker.mjs",
+    "test:client-host": "vitest run --config vitest.client-host.config.ts"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "7.28.5",
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "24.x",
+    "babel-preset-solid": "1.9.9",
+    "esbuild": "0.25.12",
+    "jsdom": "25.0.1",
+    "solid-js": "1.9.15",
+    "tailwindcss": "4.1.18",
+    "typescript": "5.7.2",
+    "vitest": "2.1.9"
+  }
+}

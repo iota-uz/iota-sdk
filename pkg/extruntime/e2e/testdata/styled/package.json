@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/styled",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.styled", "client": "./src/client.tsx" }
+}

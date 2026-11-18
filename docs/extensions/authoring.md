@@ -1,0 +1,1609 @@
+# Writing extension packages
+
+An **extension package** adds data, behaviour, workflows, notifications and UI to an iota-sdk application without
+touching its Go code. You write TypeScript against `@iota-uz/sdk`, test it on your machine, and publish it through the
+application's configurator UI or MCP tools. This guide is the author's manual; the implementation contract between the
+platform's own slices is [`../extension-runtime.md`](../extension-runtime.md) (read it only if you build the platform).
+Enabling the runtime in an application and operating it is [`consumer.md`](consumer.md).
+
+Everything here compiles and passes: the complete example package is [`example/`](example) (`acme.loyalty`, a loyalty
+programme for CRM clients), and the code blocks below that start with `// example/<file>` are quoted from it. CI
+typechecks, builds and tests the example with the same CLI you use.
+
+## 1. Concepts in five minutes
+
+| Term | Meaning |
+|---|---|
+| **package** | a directory with a `package.json` that has an `iota` section, and TypeScript sources |
+| **namespace** | the dotted owner prefix of every ID the package declares: `acme.loyalty`. Two or more lowercase segments; the first must not be a platform namespace (`core`, `crm`, …) |
+| **resource** | anything the package declares: entity, overlay, command, query, operation, event, notice, workflow, permission, error, route, page, column… Its ID is `<namespace>.<name>` |
+| **contract** | the *description* of a resource (`command("acme.loyalty.redeem", { input, output })`). Pure data: no handler |
+| **implementation** | a handler bound to a contract by typed reference: `implement(Redeem, async (ctx, input) => …)` |
+| **kit** | generated `@iota-kit/*` modules: typed references to what the platform and other packages publish (`@iota-kit/core`, `@iota-kit/crm`, …). References only, never handlers |
+| **version** | an immutable build of the package. One version is *active* for the whole application |
+| **binding** | which implementation serves a *replaceable* contract (a native command, a screen, the shell). One active binding per contract |
+
+A package has up to three **graphs**, each an ES module entry declared in `package.json`:
+
+| graph | file | may import | runs |
+|---|---|---|---|
+| contracts | `src/contracts.ts` | `@iota-uz/sdk/runtime`, `@iota-kit/*`, pure files, pure npm packages | everywhere (it is pure data) |
+| server | `src/server.ts` | everything above, `@iota-uz/sdk/runtime/server`, Node built-ins, npm | in the platform's Node worker pool |
+| client | `src/client.tsx` | contracts and the pure files the contracts graph reaches, `@iota-uz/sdk/runtime/client`, `@iota-uz/sdk/solid-ui`, `solid-js`, browser-safe npm | in the browser (Solid) |
+
+The registry of a package is the set of **named exports** of the three entry modules that carry the SDK brand. There is
+no `register()` call and no manifest to write: export a contract, a page or an implementation and it exists. A violated
+graph rule (the client importing the server, a contract importing Node) is a build error with a file and line.
+
+**Sharing code between the server and the browser.** The contracts graph is the shared, pure layer: whatever it reaches
+can be imported by the server *and* the client. A file that only the server graph reaches is server code, and the client
+may not import it (`graph.serverInClient`): it could carry business logic or secrets you never meant to ship to a
+browser. So a calculation both sides need (a score, a price, a verdict) lives in a pure file — no `runtime/server`, no
+Node built-ins — that `contracts.ts` imports or re-exports:
+
+```ts
+// src/calc.ts — pure: numbers in, numbers out
+export function weightedScore(scores: readonly number[], weights: readonly number[]): number { … }
+
+// src/contracts.ts
+export * as calc from "./calc"        // or `import "./calc"`: either puts calc.ts in the shared layer
+
+// src/server.ts and src/AssessmentScreen.tsx
+import { weightedScore } from "./calc"  // both graphs may import it now
+```
+
+Two things surprise newcomers:
+
+* **Data lives in Go.** Your handlers never open a database connection. They receive a *transaction handle* (`tx`) or a
+  read-only context and ask the platform to read and write. A transaction is opened and committed by Go; your Node code
+  only asks for it.
+* **Handlers replay or restart.** Workflow code is replayed from a journal; an ordinary command may be retried by an
+  operator. Write them so that effects are named (`wf.step("voucher", …)`) and idempotent where they leave the system.
+
+## 2. Quick start
+
+```sh
+npm install --save-dev @iota-uz/sdk esbuild@^0.25   # iota-ext, and the bundler its build worker loads (an optional peer)
+npx iota-ext init loyalty --namespace acme.loyalty
+cd loyalty
+npm install                                    # editor support and the lockfile publishing needs; the kit is not in node_modules
+npx iota-ext check                             # typecheck + graph rules + manifest
+npx iota-ext test                              # run *.test.ts on the in-memory test host
+npx iota-ext build                             # artifacts and manifest in .iota/build
+```
+
+`init` writes `package.json`, `tsconfig.json`, `.gitignore`, `src/contracts.ts`, `src/server.ts`, `src/server.test.ts`
+(a passing test) and, unless you pass `--no-client`, `src/client.tsx` with a page `src/NotesScreen.tsx` that uses a UI kit
+component, Tailwind utilities and `src/NotesScreen.module.css`, plus `src/css-modules.d.ts` (§13.6), and generates the kit for the SDK's own natives (`@iota-kit/core`,
+`@iota-kit/crm`) **offline** into `.iota/kit/`. Everything works before you have access to any server. When you do,
+`iota-ext kit pull` replaces the offline kit with the application's real one (see §5).
+
+`iota-ext` is the `bin` of `@iota-uz/sdk` (Node ≥ 20.19). Full reference: §16.
+
+`init` writes `"@iota-uz/sdk"` into `package.json` **exactly as you installed it**: a registry install becomes the exact
+version of the CLI that ran it (`iota-ext --version`), not a range; a tarball, `file:` or `link:` install keeps that spec,
+with a relative path rewritten for the new package directory, so the `npm install` that follows works. The extension runtime (`iota-ext`, `@iota-uz/sdk/runtime/*`) ships from that release on; earlier public builds of the
+package have no `dist/runtime`, and a caret range could resolve to one of them. Keep the dependency on a release that
+contains the runtime, and when you upgrade the SDK, upgrade it together with a fresh `kit generate`/`kit pull`.
+
+## 3. Package layout
+
+```text
+loyalty/
+├─ package.json          the iota section: namespace, entries, capabilities
+├─ package-lock.json     required to publish when the package has any dependency besides @iota-uz/sdk
+├─ tsconfig.json         for your editor (see §4)
+├─ .iota/kit/            the generated developer kit (§5): commit it
+├─ .iota/build/          `iota-ext build` output: do not commit
+├─ .gitignore            node_modules and .iota/build (never .iota/kit)
+├─ src/
+│  ├─ contracts.ts       contracts graph
+│  ├─ server.ts          server graph
+│  ├─ client.tsx         client graph (pages, navigation, cells)
+│  ├─ *.tsx              screens, loaded lazily from client.tsx
+│  └─ *.test.ts          tests (run by `iota-ext test`; never part of an artifact)
+└─ docs/<locale>/        documentation for your users, markdown (§13.5)
+```
+
+```json
+{
+  "name": "@acme/loyalty",
+  "type": "module",
+  "iota": {
+    "namespace": "acme.loyalty",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts",
+    "client": "./src/client.tsx",
+    "capabilities": { "network": ["api.partner.example"], "secrets": ["PARTNER_TOKEN"] }
+  },
+  "dependencies": { "@iota-uz/sdk": "0.5.6" }
+}
+```
+
+* Every entry is optional, but at least one is required. Paths must stay inside the package.
+* `capabilities.network` lists the hosts server code may reach with `fetch`; `capabilities.secrets` lists the secret
+  names `ctx.secrets.get("NAME")` may read. Anything undeclared is refused. Secrets are never in the source or the
+  artifact: an administrator provides their values to the application.
+* Any other dependency (npm packages for the server or client graph) needs a committed `package-lock.json`; the platform
+  installs with `npm ci --ignore-scripts`. `@iota-uz/sdk` itself is provided by the platform and never installed from
+  the registry.
+* Kit modules and npm dependencies are **bundled** into the artifacts; only `@iota-uz/sdk/runtime*` stays external.
+  Client chunks do not carry Solid either: the host shares one Solid with every package.
+
+## 4. TypeScript configuration
+
+The platform compiles with fixed options so that `iota-ext check`, the configurator and the server always agree:
+`strict`, target ES2022, `module: ESNext`, `moduleResolution: Bundler`, `jsx: preserve` with
+`jsxImportSource: "solid-js"`, libs `ES2022` + `DOM`, Node typings (`@types/node`), `skipLibCheck`. Your `tsconfig.json`
+only serves the editor and should mirror those options. The scaffold writes:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler",
+    "strict": true, "noEmit": true, "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "paths": { "@iota-kit/*": ["./.iota/kit/*"] },
+    "jsx": "preserve", "jsxImportSource": "solid-js"
+  },
+  "include": ["src"]
+}
+```
+
+* Install `typescript`, `@types/node` and (for a client graph) `solid-js` as dev dependencies; `npm install` after
+  `init` does it. The SDK's own typings come from `@iota-uz/sdk`.
+* `types: ["node"]` is what lets tests import `node:assert`; you do not need it if you use the SDK's `assert` (§14).
+* Import local files without extensions (`import * as c from "./contracts"`); the bundler resolves them.
+* `paths` is the one alias you need: it lets the editor (and your own `tsc`) resolve `@iota-kit/*` from `.iota/kit/`, where
+  the kit lives (§5). `iota-ext` does not read it: it resolves the kit itself. `iota-ext kit generate` adds the entry to a
+  `tsconfig.json` written before the kit moved out of `node_modules` (a tsconfig with comments is left alone and the
+  command prints the line to add).
+* Do not rely on other options the platform does not use (other path aliases, `experimentalDecorators`, JSX other than Solid).
+
+## 5. The developer kit
+
+Contracts you did not declare (users, CRM clients, other packages' commands) are referenced through **kit modules**:
+
+```ts
+import * as core from "@iota-kit/core"   // core.User, core.Created (the user-created event)
+import * as crm from "@iota-kit/crm"     // crm.Client, crm.ListsClients (the native list), crm.Created, crm.Updated, crm.SaveClient, crm.UpsertClient
+```
+
+A kit module is generated from a **catalog snapshot**: native entities (with fields and key types), native lists, native
+events and the Go-implemented commands, operations and queries of the application, plus the public contracts of the
+packages that are active. You get one of three ways:
+
+| how | command | when |
+|---|---|---|
+| the SDK's own natives, offline | `iota-ext kit generate` (also done by `init`) | no server yet; everything the SDK itself publishes |
+| an application's snapshot file | `iota-ext kit generate --catalog app.json` | the application exported its native catalog; works offline |
+| the live kit | `iota-ext kit pull --server https://erp.example.com --token-env IOTA_TOKEN` | you can reach the application's `/_ext/manage` API |
+
+`kit generate` and `kit pull` write the modules to **`.iota/kit/<ns>/`** (`index.js`, `index.d.ts`, `package.json`) and
+the snapshot in `.iota/kit/kit.json`: its hash and the SHA-256 of every file. The kit is deliberately **not** in
+`node_modules`: a package manager deletes what it did not install, so a generated `node_modules/@iota-kit` vanished on
+every `npm install`. `.iota/kit` is yours to commit (it pins the snapshot the package was written against and needs no
+server to restore); `iota-ext` and its build worker resolve `@iota-kit/*` from it (the application builds against its own
+kit), your editor through the `paths` entry of `tsconfig.json` (§4). A package that still has the old `node_modules/@iota-kit` layout keeps
+working (the CLI says so); the next `kit generate` or `kit pull` moves it. `iota-ext kit status` verifies the kit
+against its record: each module is `ok`, `missing` (a module or file is gone), `modified` (a file was edited) or
+`unrecorded`, and the exit code is 1 when the kit is damaged. The token is read
+from the environment variable you name (never from the command line); `--cookie-env VAR` sends a session cookie header
+instead. The user needs the extensions *read* permission. An application exports a snapshot with
+`GET /_ext/manage/catalog/natives` or `catalog.Natives(set).Snapshot()` over its composed `native.Set`; the SDK's own
+(the set of `modules.Natives()`) is committed as
+`web/runtime/catalog/sdk-natives.json` (regenerate it with `go run ./cmd/extruntime-catalog`) and ships in the
+distribution. Rerun the command whenever the application's natives or other packages change; the build pins the kit hash
+in the manifest.
+
+What a module exports:
+
+* **Native entities** (`core.User`, `crm.Client`) with their real fields and **key type** (`int64` for both; a ref's key
+  is a decimal string such as `"42"`). You can read them, reference them in fields, put an overlay on them, but not
+  write them with `tx.insert/update/delete` (§6).
+* **Native lists** (`crm.ListsClients`) that your `column(...)` contracts extend.
+* **Native routes** (`crm.Clients`, the CRM clients page) you link to or replace with a screen binding.
+* **Events** (`core.Created`, `crm.Created`, `crm.Updated`), to subscribe to. Native events are published by Go in
+  the transaction of the change they report, so a subscription sees them only after that change committed and never
+  for a change that rolled back.
+* **Native commands, operations and queries**, implemented in Go (`crm.SaveClient`, `crm.UpsertClient`). You call them,
+  guard them and — for commands — replace them (§7.4).
+* The public contracts of other active packages.
+
+Export names are the PascalCase of the last segment of the ID, a version suffix dropped; when two IDs would collide
+they take more segments (`crm.clients` the route and `crm.lists.clients` the list become `Clients` and
+`ListsClients`). The offline SDK kit and an application built on the SDK modules are generated from the same module
+registrations, so they agree on these names; an application that adds natives of its own can add names (and push an
+existing one to more segments when it collides), so pull the kit of the application you target.
+
+If an import fails, the module is not in the kit: the diagnostic is `graph.unknownKit` (once per file and module, instead of
+TS2307) and names the commands that install it (`kit generate`, `kit generate --catalog <file>`, `kit pull`). The follow-on
+type errors it causes (implicit `any`, missing properties on values typed through the missing module) are hidden, with one
+`kit.followOn` warning saying how many, so the first error you see is the cause. When the kit's files are gone or edited, the
+hint says so and points at `kit status`.
+
+## 6. Data
+
+### 6.1 Entities
+
+```ts
+// example/src/contracts.ts
+export const Reward = entity("acme.loyalty.reward", {
+  name: field.text({ maxLength: 80 }).unique(),
+  cost: field.int(),
+  active: field.bool().default(true),
+})
+```
+
+Each entity is one tenant-scoped PostgreSQL table owned by your package. Every row also has `key` (a uuid), `ref` (the
+typed pointer to itself: `row.ref`), `createdAt`, `updatedAt` and `rowVersion`. These names are reserved.
+
+Field builders: `field.text({maxLength})` (`string` is an alias), `int`, `int64` (a decimal string on the wire),
+`decimal({precision, scale})` (a string), `bool`, `date` (`"YYYY-MM-DD"`), `datetime` (RFC 3339), `uuid`,
+`enum([...])`, `json<T>()` (JSON `T` only; not filterable), `ref(Entity)`. Modifiers:
+
+* `.optional()` – nullable and may be omitted on insert: `T | null` on read, `T | null | undefined` on write.
+* `.nullable()` – a nullable column that must be given.
+* `.default(x)` – may be omitted on insert; the default is validated and recorded even when falsy.
+* `.unique()`, `.index()`, `.label({...})`, `.renamedFrom("oldKey")` (the column follows the field across renames).
+
+Use `t.*` (the same builders without column semantics) for inputs and outputs.
+
+**Money and other exact numbers.** `decimal` and `int64` travel as strings (JSON numbers lose precision), typed as
+branded `Decimal` / `Int64`. Build them with the wire helpers from `@iota-uz/sdk/runtime`; they validate the format and,
+for a decimal, precision and scale:
+
+```ts
+import { decimal, int64 } from "@iota-uz/sdk/runtime"
+
+await tx.insert(Assessment, { premium: decimal("100000.00", { precision: 18, scale: 2 }), sum: decimal("10000000") })
+const premium = Number(row.premium)                 // arithmetic is yours: the platform stores and compares exactly
+const ours = decimal((premium * share / 100).toFixed(2))
+```
+
+The platform never does arithmetic on your behalf. Converting to `Number` is fine for ratios and display; for sums that
+must stay exact, compute on integers of the smallest unit (`int64` cents) or use a decimal library in your package.
+
+### 6.2 Reading and writing
+
+```ts
+// example/src/server.ts
+export const catalog = implement(c.Catalog, async (q, input) => {
+  const rewards = await q.find(c.Reward, {
+    where: input.onlyActive === true ? { active: true } : {},
+    orderBy: [{ field: "cost" }, { field: "name" }],
+  })
+  return rewards.map((r) => ({ reward: r.ref, name: r.name, cost: r.cost, active: r.active }))
+})
+```
+
+`get(entity, ref)`, `find(entity, { where, orderBy, limit, offset })` (default limit 100, maximum 1000) and
+`count(entity, where)` exist on every context. `tx.insert`, `tx.update(entity, ref, patch, { rowVersion })`,
+`tx.delete` and `tx.put(overlay, baseRef, values)` exist on transactions only. Rules the types and the host enforce:
+
+* **Filters** are a conjunction of conditions on fields, system columns (`createdAt`, `updatedAt`, `key`) or dotted paths
+  through refs (`"holder.name"`, at most four segments). A bare value means equality. Operators: `eq ne in isNull`,
+  ranges `lt lte gt gte` on `int int64 decimal date datetime string`, `like` on strings only (`%` and `_`), `or: [...]`.
+  `null` follows SQL: `eq: null` is `IS NULL`, `ne: x` is `IS DISTINCT FROM`.
+* **Ordering** works on `int int64 decimal date datetime string` fields and `createdAt`/`updatedAt` (also through
+  refs). Nulls sort last ascending. Ordering by an enum, bool, uuid or ref field is a type error whose text says so.
+* Read **access rules** and **hidden fields** (below) apply before filtering, counting and paging.
+* `tx.update(..., { rowVersion })` fails with `data.versionConflict` unless the row is still at that version.
+* `tx.insert/update/delete` take **your package's own** entities only. A native or foreign entity gives a type error
+  that names the published operation to call instead (`tx.call(crm.UpsertClient, …)`), and a runtime `data.nativeWrite`
+  / `data.foreignWrite` denial if you cast around it.
+
+### 6.3 Access rules
+
+Rules and gates refer to **permissions**, which you declare in the contracts graph. A permission is a named capability with a
+label for the role editor; the ID lives in your namespace, and the label is a map of locale to text:
+
+```ts
+// example/src/contracts.ts
+export const Manage = permission("acme.loyalty.manage", { label: { en: "Manage loyalty", ru: "Управление лояльностью" } })
+```
+
+```ts
+// example/src/contracts.ts
+export const Redemption = entity(
+  "acme.loyalty.redemption",
+  {
+    client: field.ref(crm.Client).index(),
+    reward: field.ref(Reward),
+    cost: field.int(),
+    status: field.enum(["pending", "approved", "rejected"]).default("pending"),
+    requestedBy: field.ref(core.User),
+  },
+  // Managers see every redemption, everybody else the ones they requested.
+  { access: { read: [{ when: Manage, rows: "all" }, { rows: { requestedBy: $.user } }] } },
+)
+```
+
+`access.read` is a list of rules; a row is visible when any rule whose permission the user holds matches. `rows` is
+`"all"`, `"none"` (an explicit deny; an empty list is an error) or a filter. `$.user` stands for the acting user and
+compares only with refs to `core.user`. `access.fields` lists the permissions needed to read a field; a user who cannot
+read a field cannot write it either. These rules hold on **every surface**: handlers, the native lists, exports, MCP.
+
+> **Contract permission vs read rules.** A contract's `permission` (on a command, query or operation) is a **gate on the
+> call**: the host checks that the acting user holds it before dispatching, from the browser (`POST /_ext/rpc`), MCP,
+> workflows and triggers alike. Read rules are **row filters inside the data layer**: they decide which rows a read
+> returns, whoever calls and through whichever contract. Use the first to say who may *do* something, the second to say
+> who may *see* which records. A page's `permission` only controls whether the page and its menu entry are offered.
+
+### 6.4 Overlays and list columns
+
+```ts
+// example/src/contracts.ts
+export const ClientLoyalty = overlay(
+  "acme.loyalty.clientLoyalty",
+  crm.Client,
+  {
+    tier: field.enum(["standard", "silver", "gold"]).default("standard"),
+    points: field.int().default(0),
+    note: field.text().optional(),
+  },
+  { access: { fields: { note: [Manage] } } },
+)
+```
+
+An overlay is a separate 1:1 table keyed by the base record's key; it is how you add fields to a native entity. Every
+overlay field must be optional, nullable or defaulted, because most clients have no overlay row: `tx.get(overlay, ref)`
+returns `null` for them (absence is explicit in the type) and the defaults apply to filters and lists. Write with
+`tx.put(overlay, baseRef, { points })`; omitted fields keep their value.
+
+```ts
+// example/src/contracts.ts
+export const TierColumn = column(crm.ListsClients, {
+  id: "acme.loyalty.tier",
+  field: ClientLoyalty.fields.tier,
+  label: { en: "Loyalty tier", ru: "Уровень" },
+  filterable: true,
+  sortable: true,
+  exportable: true,
+})
+```
+
+`column` adds an overlay field to a native list: display, filter, sort and CSV/Excel export. **Its `id` must be the full
+namespaced ID** (`acme.loyalty.tier`, not `tier`); a short one fails the manifest check. A custom renderer for the cell
+is a client-graph value (§13.1).
+
+## 7. Contracts and handlers
+
+### 7.1 The four callable kinds
+
+| kind | context | transaction | callable from |
+|---|---|---|---|
+| `query` | `QueryContext` (read-only) | a read snapshot | browser, MCP, other handlers (`q.query`, `tx.query`, `ctx.query`) |
+| `command` (ordinary) | `CommandContext` | opens its own with `ctx.transaction(cb)` (zero or more times) | browser, MCP, workflows (`wf.call`), `ctx.call` |
+| `command` with `atomic: true` | `Tx` | the whole handler is one transaction | as above, and `tx.call` |
+| `operation` | `Tx` | joins the caller's | `tx.call`, `wf.transaction(name, Op, input)`; **never** from the browser |
+
+An **operation** is the reusable, atomic domain primitive: other packages and your own commands call it, and guards
+attach to it. Atomicity (`atomic: true`) is part of the public contract: a replacement implementation of an atomic
+command also receives a `Tx`.
+
+```ts
+// example/src/contracts.ts
+export const AdjustPoints = operation("acme.loyalty.adjustPoints", {
+  input: t.object({ client: t.ref(crm.Client), delta: t.int() }),
+  output: t.object({ points: t.int() }),
+  errors: [NotEnoughPoints],
+})
+```
+
+Inputs and outputs are validated against their schemas by Go on every call, independently of TypeScript. `errors` is the
+closed list of domain errors the contract may raise.
+
+### 7.2 Handlers
+
+```ts
+// example/src/server.ts
+export const adjustPoints = implement(c.AdjustPoints, async (tx, input) => {
+  const current = (await tx.get(c.ClientLoyalty, input.client))?.points ?? 0
+  const next = current + input.delta
+  if (next < 0) throw c.NotEnoughPoints.of({ have: current, need: -input.delta })
+  const row = await tx.put(c.ClientLoyalty, input.client, { points: next })
+  await tx.emit(c.PointsChanged, { subject: input.client, payload: { points: next, delta: input.delta } })
+  return { points: row.points }
+})
+```
+
+A handler may return synchronously; `async` is the norm. Each context also has `user` (the acting principal and
+`user.has(permission)`), `invocation`, and `log`. Command contexts have `secrets`.
+
+### 7.3 Transaction semantics
+
+* **A transaction is Go's.** `ctx.transaction(cb)` asks Go to open one, runs `cb(tx)`, then commits (or rolls back when
+  `cb` throws). It cannot be nested. Reads and writes inside see the transaction's own writes.
+* **An atomic command or operation is one transaction** from the first line to the return.
+* **`tx.call(Operation | AtomicCommand, input)` joins the caller's transaction**: one commit, one rollback. Ordinary
+  commands and queries are rejected at the type level with a message that names the right call
+  (`ctx.call`, `tx.query`).
+* **`tx.emit`, `tx.notify`, `tx.start`, `tx.signal` are enqueued with the data.** They take effect when the transaction
+  commits and vanish on rollback. After commit, each active subscription gets its own transaction; notices are rendered
+  and sent after commit.
+* **An ordinary command is not atomic.** Each `ctx.transaction` commits on its own, so a crash between two of them
+  leaves the first committed; the command is never retried blindly. Put work that must be all-or-nothing in one
+  transaction, or make the command atomic.
+* **Outside calls belong between transactions.** Call `fetch`, read secrets and wait *outside* `ctx.transaction`, as
+  `redeem` does below; do not hold a database transaction open across the network.
+* **One thing at a time inside a transaction.** Concurrent calls on one `tx` (`Promise.all`) fail fast; `await` them.
+* **`tx.start(Workflow, input, { key })`** needs a `key` outside subscriptions and workflows (the key dedupes the start:
+  the same key never starts a second instance). Inside a subscription or a workflow the key is derived and optional.
+  Omitting it where it is required is a compile error (`Expected 3 arguments`) and the CLI adds the hint
+  `tx.start needs a start key`.
+* **`ctx.query` reads a snapshot**; inside a transaction `tx.get/find/count/query` read that transaction's state.
+
+```ts
+// example/src/server.ts
+export const redeem = implement(c.Redeem, async (ctx, input) => {
+  const reward = await ctx.query.get(c.Reward, input.reward)
+  if (reward === null || !reward.active) throw c.RewardUnavailable.of({ reward: input.reward.key })
+  const stock = await fetch(`https://api.partner.example/stock/${encodeURIComponent(reward.name)}`, {
+    headers: { authorization: `Bearer ${await ctx.secrets.get("PARTNER_TOKEN")}` },
+  })
+  if (!stock.ok) throw c.RewardUnavailable.of({ reward: input.reward.key })
+
+  const redemption = await ctx.transaction(async (tx) => {
+    await tx.call(c.AdjustPoints, { client: input.client, delta: -reward.cost })
+    const row = await tx.insert(c.Redemption, {
+      client: input.client, reward: input.reward, cost: reward.cost, requestedBy: ref(core.User, ctx.user.userId),
+    })
+    // Outside subscriptions and workflows a start needs a key: the same key never starts a second instance.
+    await tx.start(c.Approval, { redemption: row.ref }, { key: `approval:${row.key}` })
+    return row
+  })
+  return { redemption: redemption.ref }
+})
+```
+
+### 7.4 Calling and replacing native commands
+
+Go modules publish **native contracts**: operations, atomic commands, ordinary commands and queries implemented in Go and
+visible in the kit. The CRM publishes two for its clients:
+
+* `crm.UpsertClient` (operation): the invariant behind every client write: authorization, value validation
+  (phone, e-mail, PIN, country), persistence, change history and the client events (`crm.Created` / `crm.Updated`,
+  in the same transaction, §9).
+* `crm.SaveClient` (ordinary command): the intent the client forms run; its Go default calls `UpsertClient` in one
+  transaction.
+
+You **call** a native operation like your own: `tx.call(crm.UpsertClient, { client, phone })`. A package that wants to
+change *what saving a client means* **replaces the command**: it implements `crm.SaveClient` and writes through the
+same operation, so the invariants and every guard on the operation still hold.
+
+```ts
+// example/src/server.ts
+export const saveClient = implement(crm.SaveClient, async (ctx, input) =>
+  ctx.transaction(async (tx) => {
+    const saved = await tx.call(crm.UpsertClient, input)
+    if (saved.created) await tx.call(c.AdjustPoints, { client: saved.client, delta: 50 })
+    return saved
+  }),
+)
+```
+
+Publishing this does **not** change behaviour by itself: an implementation of a contract you do not own is a
+*replacement candidate*. It runs when an administrator binds it (`ext_bind` over MCP, `POST /_ext/manage/bindings` with
+`{"slotKind":"command","targetId":"crm.commands.saveClient","package":"acme.loyalty","version":"…","export":"saveClient"}`,
+or the configurator's Bindings tab). One implementation is active per command for the whole application, there is no
+fallback if it fails, and unbinding (`ext_unbind`) returns the Go default. Rules to remember:
+
+* The replacement has the shape of the original: ordinary command → `CommandContext`, atomic → `Tx`.
+* A generic write to `crm.client` is refused (`data.nativeWrite`); the operation is the only way in.
+* A guard on `crm.UpsertClient` (yours, or another package's) applies to every caller, replacement or Go default alike.
+* In tests the Go default does not exist: bind a double of the operation (§14.4).
+
+## 8. Errors and validation
+
+Handlers signal failure by **throwing**; the host turns it into a wire error `{kind, code, params, issues}`:
+
+| you throw | kind | use for |
+|---|---|---|
+| `NotEnoughPoints.of({ have, need })` | `domain` | an expected business outcome a caller can handle; declared in the contract's `errors` (a closed list) |
+| `validation(CostMustBePositive.at(["cost"], { min: 1 }))` | `validation` | field-level problems; any number of namespaced issues |
+| *(host)* | `denied` | permission or access refusals (`data.denied`, `data.fieldNotAccessible`, `data.nativeWrite`) |
+| any other `Error` | `internal` | bugs; the message is hidden from the caller |
+
+```ts
+// example/src/contracts.ts
+export const NotEnoughPoints = domainError("acme.loyalty.notEnoughPoints", t.object({ have: t.int(), need: t.int() }))
+export const RewardUnavailable = domainError("acme.loyalty.rewardUnavailable", t.object({ reward: t.string() }))
+export const CostMustBePositive = issue("acme.loyalty.costMustBePositive", t.object({ min: t.int() }))
+```
+
+```ts
+// example/src/server.ts
+export const createReward = implement(c.CreateReward, async (tx, input) => {
+  if (input.cost <= 0) throw validation(c.CostMustBePositive.at(["cost"], { min: 1 }))
+  const row = await tx.insert(c.Reward, { name: input.name.trim(), cost: input.cost })
+  return { reward: row.ref }
+})
+```
+
+`validation()` accepts only `Issue.at(...)` results; `ContractError` has no public constructor. The host enforces the closed `errors` list: a domain error the contract does not declare is rejected. The data layer raises stable codes you can match in tests:
+`data.notFound`, `data.versionConflict` (domain), `data.unique`, `data.reference` (validation, issue path = field),
+`data.denied`, `data.fieldNotAccessible`, `data.nativeWrite`, `data.foreignWrite` (denied).
+
+In the browser, `isError(err, NotEnoughPoints)` narrows a failed call to the declared error with typed `params`, and
+`issuesOf(err, CostMustBePositive)` returns the typed issues (see `RewardsScreen.tsx`).
+
+Guards are *additive* checks that run in the same transaction regardless of who implements the contract:
+
+```ts
+// example/src/server.ts
+export const deltaLimit = guard("acme.loyalty.deltaLimit", c.AdjustPoints, async (_ctx, input) => {
+  if (Math.abs(input.delta) > 10_000) throw validation(c.DeltaTooLarge.at(["delta"], { max: 10_000 }))
+})
+```
+
+```ts
+// example/src/server.ts
+export const rewardRule = writeRule("acme.loyalty.rewardRule", c.Reward, async (_ctx, change) => {
+  if (change.proposed !== null && change.proposed.cost > 1_000_000) throw validation(c.CostMustBePositive.at(["cost"], { min: 1 }))
+})
+```
+
+* `guard(id, Operation | AtomicCommand, (ctx, input) => …)` checks an operation or atomic command call.
+* `writeRule(id, Entity, (ctx, { op, existing, proposed, changed }) => …)` runs in the writing transaction before any
+  write of that entity, whatever code path writes it.
+* `precheck(id, OrdinaryCommand, (q, input) => …)` is a *preliminary* check on a read snapshot for an ordinary command:
+  useful for early feedback, not a race-free guarantee.
+
+`change.op` is `"insert"`, `"update"` or `"delete"`; `existing` is the row before (null on insert), `proposed` the row
+after (null on delete) and `changed` the fields an update patches. That makes rules such as *append-only* or *frozen
+once published* one line each:
+
+```ts
+// an append-only log: rows are written once and never changed or removed
+export const logIsAppendOnly = writeRule("acme.reinsurance.logIsAppendOnly", c.ChangeLog, async (_ctx, change) => {
+  if (change.op !== "insert") throw validation(c.LogIsImmutable.at([], {}))
+})
+// a published parameter set is frozen
+export const publishedIsFrozen = writeRule("acme.reinsurance.publishedIsFrozen", c.ParameterSet, async (_ctx, change) => {
+  if (change.existing?.status === "published") throw validation(c.PublishedIsFrozen.at([], {}))
+})
+```
+
+A rule refuses with a validation issue (or a declared domain error); it applies to every write through the platform,
+whoever makes it. Purging a package's data (`ext_package_purge`, an administrator action that drops the package's tables)
+is not a write and runs no rules.
+
+All three get a **read-only** context (`get find count query user log`) and reject by throwing. Their IDs become the
+`source` of the issues they raise. A guard on an operation applies to every caller, including other packages and Go.
+
+## 9. Events and subscriptions
+
+```ts
+// example/src/contracts.ts
+export const PointsChanged = event("acme.loyalty.pointsChanged.v1", {
+  subject: crm.Client,
+  payload: t.object({ points: t.int(), delta: t.int() }),
+})
+```
+
+```ts
+// example/src/server.ts
+export const onPointsChanged = subscribe("acme.loyalty.onPointsChanged", c.PointsChanged, async (tx, event) => {
+  const tier = event.payload.points >= 1000 ? "gold" : event.payload.points >= 300 ? "silver" : "standard"
+  await tx.put(c.ClientLoyalty, event.subject, { tier })
+})
+```
+
+* Event IDs end in a version (`.v1`); a published payload never changes, publish `.v2` instead.
+* `tx.emit(Event, { subject, payload })` is atomic with the data. After the commit, every active subscription receives
+  the event in **its own transaction**; a receipt per `(subscription, event)` makes redelivery a no-op, and one failing
+  event is retried with back-off and finally dead-lettered without blocking the others.
+* A subscription runs as the event's initiator, or — for events without a user — as the **owner-user** an administrator
+  assigns to the trigger (`ext_owner_assign`). Without an owner the delivery is `blocked`, not lost.
+* Subscribe to platform events through the kit (`subscribe("…", core.Created, handler)`). `tx.start` inside a
+  subscription needs no key: the delivery derives one, so redelivery cannot start a second workflow.
+* Platform events are published by Go through the same outbox, **in the transaction of the change**: `core.Created`
+  (`core.user.created.v1`) when a user is created; `crm.Created` / `crm.Updated` (`crm.client.created.v1` /
+  `crm.client.updated.v1`, subject `crm.client`) by `crm.UpsertClient`, so every client write that goes through it
+  — the CRM forms, a `crm.SaveClient` replacement, your own `tx.call(crm.UpsertClient, …)` — publishes one. The
+  payload carries the client's published fields (`clientId`, `firstName`, optional `lastName`, `middleName`,
+  `phone`, `email`; never PIN or passport) and, for updates, `changed`: the `crm.client` field IDs the write changed.
+  A save that rolls back publishes nothing.
+
+```ts
+export const onClientUpdated = subscribe("acme.loyalty.onClientUpdated", crm.Updated, async (tx, event) => {
+  if (event.payload.changed.includes("phone")) tx.log.info("client phone changed", { client: event.payload.clientId })
+})
+```
+
+## 10. Workflows
+
+A workflow is a long-running function that survives restarts. The platform stores a **journal** of completed steps and
+**replays** your function from the top, answering finished primitives from the journal; a primitive that cannot finish
+yet (a sleep, a signal, a human task) *suspends* the run and frees the worker.
+
+```ts
+// example/src/contracts.ts
+export const Approval = workflow("acme.loyalty.approval", {
+  input: t.object({ redemption: t.ref(Redemption) }),
+  output: t.object({ approved: t.bool(), voucher: t.string().nullable() }),
+  signals: { withdraw: t.object({ reason: t.string() }) },
+})
+```
+
+```ts
+// example/src/server.ts
+export const approval = implement(c.Approval, async (wf, input) => {
+  const verdict = await wf.task("approve", {
+    subject: input.redemption,
+    assignee: wf.user,
+    decision: t.object({ approved: t.bool() }),
+    timeout: "3d",
+  })
+  const approved = verdict.outcome === "decided" && verdict.decision.approved
+
+  // An external effect: may run again after a crash, so it gets a provider idempotency key.
+  const voucher = approved
+    ? await wf.step("voucher", async ({ idempotencyKey }) => {
+        const res = await fetch("https://api.partner.example/vouchers", {
+          method: "POST",
+          headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+          body: JSON.stringify({ redemption: input.redemption.key }),
+        })
+        const body = (await res.json()) as { code: string }
+        return { code: body.code }
+      })
+    : null
+
+  // Data effects commit together with their journal entry. The result must be JSON.
+  await wf.transaction("settle", async (tx) => {
+    const row = await tx.get(c.Redemption, input.redemption)
+    if (row === null) return { settled: false }
+    const reward = await tx.get(c.Reward, row.reward)
+    await tx.update(c.Redemption, row.ref, { status: approved ? "approved" : "rejected" })
+    if (!approved) await tx.call(c.AdjustPoints, { client: row.client, delta: row.cost })
+    await tx.notify(c.RedemptionResult, {
+      subject: row.ref,
+      payload: { reward: reward?.name ?? "", approved },
+      to: [recipient.record(row.client)],
+      channels: ["sms", "email"],
+    })
+    return { settled: true }
+  })
+  return { approved, voucher: voucher?.code ?? null }
+})
+```
+
+| primitive | what it does |
+|---|---|
+| `wf.transaction(name, cb)` | a Go transaction; the data effects and the journal entry commit together, so a replay does not repeat them. Also `(name, { output: schema }, cb)` and `(name, Operation \| AtomicCommand, input)` |
+| `wf.step(name, effect)` | a re-runnable external effect (HTTP, e-mail). **At-least-once**: it may run again after a crash, with the same `idempotencyKey` (`<instance>:<name>:<n>`) |
+| `wf.sleep(name, "30d")` | durable timer (`ms s m h d`) |
+| `wf.waitFor(name, Signal)` | wait for a signal sent with `tx.signal` / `ctx.signal` / an endpoint; with `{ timeout }` it returns `{ outcome: "received" \| "timeout" }` |
+| `wf.task(name, { subject, assignee, decision, timeout })` | a human task; completes with `{ outcome: "decided", decision, by }` or `"timeout"`. `assignee` is one user (a `core.User` ref, or `wf.user` for the principal) or `{ permission: P }`: anyone holding `P` decides (below) |
+| `wf.call(name, Command, input)` | a new command invocation that uses the *currently active* binding; the receipt is journaled |
+| `wf.start(name, Workflow, input)` | start a child instance |
+| `wf.now(name)`, `wf.uuid(name)` | journaled clock and id, deterministic across replays |
+
+**A task for a group: assign it to a permission.** A committee, a desk or "any authorized underwriter" is a permission,
+not a person. `assignee: { permission: c.ApproveRisks }` (a `permission(...)` your package declares) makes the task
+decidable by **anyone who holds it at the time of the decision**; the first decision wins, and `by` in the result is the
+user who decided. An operator with the workflow administration right can decide any task, as for user tasks. The
+permission must be declared by an active package when the task is created (else the call fails with
+`workflow.invalidAssignee`); a replayed run does not check it again. In tests, give the host the users and their
+permissions and decide as one of them:
+
+```ts
+const host = createTestHost({ users: { "7": ["acme.reinsurance.approveRisks"], "8": [] } })
+const run = host.workflow(approval, { assessment })
+await run.run()                                              // suspended on the task
+run.decide("approve", { approved: true }, { by: "7" })       // a holder: accepted
+// { by: "8" } throws workflow.forbidden: user 8 does not hold the permission
+await run.run()                                              // completed
+```
+
+Rules for replay-safe code:
+
+* **Every primitive takes a stable `name`.** Its identity is `(instance, name, n)`, where `n` counts repeated uses of the
+  same name in one run. In a loop put the item in the name (`send:${policy.number}`), so a changed list does not
+  re-attribute results.
+* **Code between primitives must be deterministic.** Use `wf.now` / `wf.uuid` instead of `Date.now()` / `crypto`. Do not
+  branch on anything that can change between replays (the current time, random numbers, unjournaled reads); read it in a
+  `wf.transaction` or `wf.step` and branch on the recorded result.
+* **`wf.transaction` and `wf.step` results must be JSON** (strings, numbers, booleans, `null`, arrays and plain objects
+  of those). A result with a `Date`, a `Map`, a class or `undefined` fields is a type error whose text says
+  "result is not JSON"; return the fields you need, not the row object. Replays return the recorded JSON.
+* **Effects that leave the system go in `wf.step`**, with the idempotency key as the provider's idempotency header.
+  Effects on your own data go in `wf.transaction`.
+* A workflow is pinned to the package version that started it; new versions affect new instances only. An administrator
+  can terminate, resume or restart (start-v2) an instance, deliver a signal, decide a task, or resolve a blocked step
+  (`ext_workflow_*`).
+* `Promise.all` over primitives suspends sequentially in this release; prefer a loop or child workflows for fan-out.
+
+Start a workflow with `tx.start(W, input, { key })` (§7.3) or `wf.start`. Send it a signal with
+`tx.signal(instance, "name", payload)` using the handle `tx.start` returned, or `ctx.signal({ workflow: W.id, instance }, …)`.
+
+## 11. Notifications
+
+A **notice** is a typed message with a payload; **templates** turn it into SMS, e-mail, in-app or push content;
+`tx.notify` sends it to recipients over channels. Recipient, subject and channel target are three different things:
+
+* the **recipient** is who gets it: `recipient.user(ref(core.User, "42"))`, `recipient.record(clientRef)` (a record whose
+  contact data a contact resolver provides), or `recipient.address({ sms: "+998…", email: "…" })`;
+* the **subject** is the record the message is about (`subject: row.ref`);
+* the **target** is the resolved phone number, address or device.
+
+```ts
+// example/src/contracts.ts
+export const RedemptionResult = notice("acme.loyalty.redemptionResult.v1", {
+  subject: Redemption,
+  payload: t.object({ reward: t.string(), approved: t.bool() }),
+})
+```
+
+```ts
+// example/src/server.ts
+export const resultTemplates = templates(c.RedemptionResult, {
+  sms: ({ payload }) => (payload.approved ? `Your reward "${payload.reward}" is approved.` : `Your reward "${payload.reward}" was declined.`),
+  email: ({ payload, locale }) => ({
+    subject: payload.approved ? "Reward approved" : "Reward declined",
+    html: `<p lang="${locale}">${payload.reward}</p>`,
+    text: payload.reward,
+  }),
+})
+```
+
+A record recipient needs a **contact resolver**: a contract for the entity, declared in the contracts graph, and its
+implementation, bound in the server graph:
+
+```ts
+// example/src/contracts.ts
+export const ClientContacts = contactResolver("acme.loyalty.clientContacts", crm.Client)
+```
+
+```ts
+// example/src/server.ts
+export const clientContacts = implement(c.ClientContacts, async (q, record) => {
+  const client = await q.get(crm.Client, record)
+  if (client === null) return {}
+  return {
+    ...(client.phone === null ? {} : { sms: [client.phone] }),
+    ...(client.email === null ? {} : { email: [client.email] }),
+  }
+})
+```
+
+* `tx.notify(Notice, { subject, payload, to: [...], channels: [...] })` is enqueued **with the transaction**; rendering
+  (with the template version pinned when it was sent) and provider delivery happen after the commit and never roll it
+  back. A notice needs templates in some active package, or the call fails.
+* A template renderer exists per channel (`sms`, `email`, `inApp`, `push`); a channel without a renderer is skipped for
+  that notice. Renderers receive `{ payload, subject, locale }` and may be async.
+* `recipient.record(ref)` needs the **contact resolver** above for that entity (`contactResolver(id, Entity)` +
+  `implement`); it returns the targets per channel (`sms`, `email`, `push`); a `push` target is a device token and each
+  token is its own delivery with its own outcome. It has no `inApp` target: an in-app message addresses an ERP user.
+* A **delivery policy** (`deliveryPolicy(id, Entity)` + `implement`) is where consent and opt-out live: the SDK has no
+  consent schema, the package that owns the data decides. See [Delivery policies](#delivery-policies).
+* `recipient.user(...)` addresses an ERP user through the platform's notification preferences; it takes a ref to
+  `core.user`.
+* **Mixed recipients.** `channels` apply to **every** recipient of the call: the platform tries each recipient × channel
+  pair and records a skipped delivery (with the reason) for a pair that has no target, instead of failing the call. A
+  record recipient is reachable over `sms`, `email` and `push` only if its resolver returns targets; `inApp` reaches ERP users
+  only (`recipient.user`), so `to: [recipient.record(client), recipient.user(agent)], channels: ["sms", "inApp"]` sends the
+  SMS to the client, the in-app message to the agent, and records `record × inApp` and (with no phone on the user) `user × sms`
+  as skipped. That is rarely what you mean: **send one `tx.notify` per audience**, each with the channels that fit it
+  (`wf.transaction` can hold both calls), and read the skipped rows in `host.deliveries` (§14.2) when a message does not
+  arrive.
+* Use a stable `name`/key on repeated sends in workflows (`wf.transaction("send:${id}", …)`) so a replay does not notify
+  twice.
+
+### Delivery policies
+
+```ts
+// example/src/contracts.ts
+export const ClientConsent = deliveryPolicy("acme.loyalty.clientConsent", crm.Client)
+```
+
+```ts
+// example/src/server.ts
+export const clientConsent = implement(c.ClientConsent, async (q, request) => {
+  const loyalty = await q.get(c.ClientLoyalty, request.recipient.ref)
+  if (request.channel === "sms" && loyalty?.smsOptOut === true) return { allow: false, reason: "sms_opt_out" }
+  return { allow: true }
+})
+```
+
+Once per notice, channel and **target** about to be created for a record recipient of the policy's entity, the platform
+calls every active policy of that entity. The call is made after the sender's transaction committed and never inside
+any write transaction; it runs as the **trigger owner** of the policy (assign one like for a contact resolver:
+`PUT /_ext/manage/triggers/{policyId}/owner`, `ext_owner_assign`) with that user's current rights. A policy of a
+package that is not active (deactivated, replaced, never activated) is simply not consulted.
+
+The request and the answer are a **public, versioned contract**; fields are only ever added. The test host evaluates bound
+policies with the same request (§14.2).
+
+```jsonc
+// request (the second argument of the handler)
+{
+  "notice":    { "key": "acme.loyalty.redemption_result.v1", "version": 1, "snapshot": "acme.loyalty@1.4.0" },
+  "subject":   { "entity": "acme.loyalty.redemption", "key": "r-1" },   // null when the notice has none
+  "recipient": { "kind": "record", "ref": { "entity": "crm.client", "key": "c-1" }, "address": null },
+  "channel":   "sms",                                                   // "sms" | "email" | "push"
+  "target":    { "address": "+998901234567", "deviceId": null }         // deviceId only for a registered push device
+}
+// answer
+{ "allow": true }
+{ "allow": false, "reason": "sms_opt_out" }
+```
+
+* `notice.key` is the catalog key of the notice: its ID with each segment in snake_case and a trailing `.vN`.
+  `snapshot` is the package version that rendered it.
+* `recipient.kind` is `"record"` today (`ref` set, `address` null). Handle kinds you do not know by allowing; new kinds
+  will only be added with their own fields. Address recipients (a bare phone or email) have no entity to bind a policy
+  to and are governed by the application's Go-configured policy only.
+* `reason` is optional: a short machine code of `[a-z0-9_.-]`, at most 64 characters, without personal data. A denial
+  is stored per target as a **skipped** delivery with error code `policy_denied:<reason>` (or `policy_denied`); the
+  provider is not called and sibling targets (other channels, the other device) are unaffected.
+* Composition is deterministic: the Go-configured `ModuleOptions.NotificationDeliveryPolicy` is consulted first, then
+  the policies of active packages ordered by policy ID and package. **Any denial wins**; the first denial's reason is the
+  one stored and later policies are not asked.
+* A policy that cannot answer is never an implicit allow. No owner assigned, a handler that throws, or an answer that is
+  not `{ allow: boolean, reason?: string }` all leave the delivery waiting and retried (visible as `unresolved`, and
+  `failed` with `resolution_attempt_limit` when attempts run out, after which an operator can retry it). Assign the
+  owner or fix the policy and the waiting deliveries proceed.
+
+## 12. Triggers
+
+Besides calls from users and other code, a package can run on a schedule and answer HTTP requests.
+
+```ts
+// example/src/server.ts
+export const closeStale = schedule("acme.loyalty.closeStale", { cron: "0 3 * * *", timezone: "Asia/Tashkent" }, async (ctx) => {
+  const cutoff: ISODateTime = isoDateTime(new Date(Date.parse(ctx.slot) - 7 * 86_400_000).toISOString())
+  await ctx.transaction(async (tx) => {
+    const stale = await tx.find(c.Redemption, { where: { status: "pending", createdAt: { lt: cutoff } } })
+    for (const row of stale) {
+      await tx.update(c.Redemption, row.ref, { status: "rejected" })
+      await tx.call(c.AdjustPoints, { client: row.client, delta: row.cost })
+    }
+  })
+})
+```
+
+```ts
+// example/src/server.ts
+export const publicCatalog = endpoint("acme.loyalty.publicCatalog", { method: "GET", path: "/catalog", public: true }, async (ctx) => {
+  const rewards = await ctx.query.find(c.Reward, { where: { active: true }, orderBy: [{ field: "name" }] })
+  return { status: 200, body: rewards.map((r) => ({ name: r.name, cost: r.cost })) }
+})
+```
+
+* `schedule(id, cron | { cron, timezone }, handler)`: a 5-field cron expression and an optional IANA time zone (publish
+  refuses a zone the platform does not know). `ctx.slot` is the scheduled instant. A slot older than 15 minutes (after downtime) is skipped, not replayed.
+* `endpoint(id, { method, path, public }, handler)` (`method` is `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE` or
+  `OPTIONS`; `path` starts with `/` and has no spaces, control characters, backticks or backslashes — publish refuses
+  anything else) is served at `/_ext/endpoints/<namespace>/<path>`; the handler gets the
+  command context plus `ctx.request` (`method path headers query body rawBody text()`) and returns
+  `{ status, headers?, body? }`. `rawBody` is for signature checks. Response `headers` are an allowlist (content type,
+  caching, `ETag`, `Content-Disposition`, a same-origin `Location` on a redirect, your own `X-` headers); `Set-Cookie`, CORS
+  and `Content-Security-Policy` are dropped, and HTML/SVG/XML is served sandboxed (`Content-Security-Policy: sandbox`).
+* **Who runs it.** A schedule, a subscription on a user-less event and a *public* endpoint run as the trigger's
+  **owner-user**, assigned per tenant by an administrator (`ext_owner_assign`) and executed with that user's current
+  rights. An authenticated (non-public) endpoint runs as the calling user; a *public* endpoint ignores the caller's session
+  and always runs as the owner, even when it is called from a signed-in browser. A trigger without an owner is `blocked`.
+
+## 13. User interface
+
+The client graph exports Solid pages, navigation, slot contributions, cell renderers and (rarely) a shell. Pages are mounted by the canonical
+client host inside the application's authenticated layout, the same boundary as the built-in pages.
+
+```tsx
+// example/src/client.tsx
+export const rewards = page("acme.loyalty.rewards", {
+  path: "/loyalty/rewards",
+  nav: { label: { en: "Rewards", ru: "Награды" }, group: "acme.loyalty.menu", icon: "gift" },
+  permission: c.Manage,
+  component: lazy(() => import("./RewardsScreen")),
+})
+```
+
+```tsx
+// example/src/client.tsx
+export const nav = navigation({
+  groups: [{ id: "acme.loyalty.menu", label: { en: "Loyalty", ru: "Лояльность" } }],
+})
+```
+
+* **`nav.group` is the ID of a group declared by `navigation({ groups })`** (here `acme.loyalty.menu`), in this package or,
+  checked at activation, in another one. `nav.parent`, palette targets and `patches` refs must resolve the same way. An
+  unknown group is a manifest error. The page's own ID (`acme.loyalty.rewards`) is separate.
+* `page(id, { path, nav?, permission?, component })` declares a page by ID and path; `:name` segments arrive as string
+  `props.params`. `page(Route, { component })` binds a page to a typed route and gets the ID `<route id>.page`; link to a
+  route with `href(Route, { id })`, which validates and percent-encodes.
+* `navigation({ groups, patches, workspaces, palette })` — `patches` hide, rename or move existing nodes by resource ID;
+  `workspaces` and `palette` add workspaces and command-palette entries.
+* **Data from the browser**: `useQuery(Q, input)` and `useCommand(C)` from `@iota-uz/sdk/runtime/client` call
+  `POST /_ext/rpc` as the signed-in user. Queries and commands are callable from the browser; **operations never are**.
+  The contract's `permission` is checked there, and read rules filter the rows.
+* **Page for a platform route.** `page(foreignRoute, …)` with a route from the kit is a *screen replacement candidate*,
+  active only through a `screen` binding (like command replacement, §7.4); see §13.3.
+
+### 13.1 Slots
+
+A *slot* is a place in a page where other packages mount components. The **page that owns it declares it**: a stable ID,
+the typed props it passes to every contribution and, optionally, a permission. Contributions are **additive**: they need no
+binding, they are active while their package version is, and every contribution of every active package is mounted.
+
+**Slots of the platform** are declared by Go and arrive in the kit like any other contract. The CRM declares
+`crm.slots.clientSidebar` (props `{ clientId }`) on its client view page and in the client drawer; contribute to it with the
+typed reference:
+
+```tsx
+// example/src/client.tsx
+export const loyaltyCard = slot(crm.ClientSidebar, (props) => <p class="loyalty-card">Loyalty for client {props.clientId}</p>, {
+  order: 10,
+  permission: c.Manage,
+})
+```
+
+* `slot(target, Component, { order?, permission?, id? })`. `target` is the typed reference from the kit (`crm.ClientSidebar`) or
+  from your own `defineSlot`; a plain slot ID string is accepted but its props are untyped. The component receives the props of
+  the declaring page.
+* **Order.** Contributions to one slot are mounted by ascending `order` (default 0), ties broken by package namespace, then
+  contribution ID. The order is the same on every render.
+* **Permission.** The server decides who gets a contribution: the slot's own permission (set by its declaration) and the
+  contribution's `permission` must both be held by the viewer. A contribution the viewer may not have is **absent from the page
+  data / HTML**, not hidden by the browser. The permission is the same kind of name as a page's (`permission(...)`).
+* A broken contribution (its module fails to load, or its component throws) is reported to the console and leaves the page and
+  the other contributions alone. A module that arrives after the user already left the page is dropped.
+
+**Your own slots.** Declare a slot in the contracts graph (it is a contract: other packages import it through the kit) and
+render it in a page of yours with `<Slot>`:
+
+```ts
+// example/src/contracts.ts
+export const RewardActions = defineSlot("acme.loyalty.rewardActions", { props: t.object({ reward: t.string() }) })
+```
+
+```tsx
+// example/src/RewardsScreen.tsx
+{r.name}: {r.cost} <Slot slot={c.RewardActions} props={{ reward: r.name }} />
+```
+
+```tsx
+// example/src/client.tsx
+export const exportAction = slot(c.RewardActions, (props) => <button type="button">Export {props.reward}</button>)
+```
+
+`<Slot slot={…} props={…}/>` comes from `@iota-uz/sdk/runtime/client` and works in a package page and in a shell renderer. (The
+prop is `slot`, not `ref`: Solid's compiler reserves `ref` on every component.) `props` must match the declared props.
+
+**Slots in Go-rendered (Templ/HTMX) pages** use `shellext.Slot(ctx, "module.slots.name", props)` in the template. It renders a
+mount element with the props and the contributions the viewer gets; nothing when none applies. The browser runtime mounts each
+contribution into its own Solid root and releases it when the element is swapped out by HTMX or the page is left. A Go page
+declares its slot as a native resource (`manifest.Resource{ID, Kind: slot, Props, Permission}`), see
+`modules/crm/extension` for the CRM's.
+
+### 13.2 Cell renderers
+
+```tsx
+// example/src/client.tsx
+export const tierCell = cell(c.TierColumn, (props) => <span class={`tier tier-${props.value}`}>{props.value}</span>)
+```
+
+`cell(column, component)` customises how a `column(...)` renders in the native list. Without it the value is shown as text.
+
+* The list stays **server-rendered**: the cell is the standard cell for the column's type, wrapped in a mount element. Your
+  component replaces it in the browser once the module has loaded; if it never loads or throws, the standard cell stays. The
+  page reads the same without JavaScript.
+* `props.value` is the column's value as wire JSON (`int` is a number; `int64` and `decimal` are strings; `null` when absent).
+  `props.row` is the row's contributed values by column ID (only columns the viewer may read) and `ref`, the native record
+  (`{ entity, key }`). Access to the column follows the overlay field's access rules: a viewer who may not read the column gets
+  no cell and no value.
+* **Exports, filters and sorting never use the renderer**: they read the raw value.
+* One renderer serves a column. If several packages supply one, the package that declares the column wins, otherwise the first
+  by package name; the others are ignored and reported.
+
+### 13.3 Replacing a native screen
+
+`page(crm.ClientView, { component })` with a route from the kit makes your page a *screen replacement candidate* for that
+route; the CRM client view (`crm.routes.clientView`, `/crm/clients/:id`) is the reference:
+
+```tsx
+// example/src/client.tsx
+export const clientView = page(crm.ClientView, { component: lazy(() => import("./ClientScreen")) })
+```
+
+```tsx
+// example/src/ClientScreen.tsx
+export default function ClientScreen(props: PageProps<{ id: number }>) {
+```
+
+* The page is **not served** by itself. An administrator binds it: `POST /_ext/manage/bindings` with
+  `{"slotKind":"screen","targetId":"crm.routes.clientView","package":"…","version":"…","export":"clientView"}` (or `ext_bind`).
+  One package page holds a route at a time; unbinding restores the native page without a restart.
+* **Typed params.** The route declares its parameters (`id` is an `int`), so `props.params.id` is a number, decoded from the path
+  before the page renders; a path the type refuses (`/crm/clients/abc`) is a 404 and never reaches your page.
+* **Access never widens.** The replacement is served only to viewers who hold what the native screen requires (the route's
+  permission, `Client.Read` here) and what your page's own `permission` requires.
+* Only the *screen* is replaced: HTMX requests for fragments of the native page (the client drawer) still reach the native
+  handlers.
+
+### 13.4 The shell
+
+`shellRenderer((p) => <MyShell {...p} />)` replaces the whole authenticated shell (navigation, header) around every page,
+once an administrator binds it to the `shell` slot. The component receives the host-owned `outlet` element that already
+contains the current page; render it exactly once:
+
+```tsx
+export const shell = shellRenderer((p) => (
+  <div class="shell">
+    <nav><For each={p.nav.groups}>{(group) => <For each={group.items}>{(item) => <a href={item.href}>{item.label}</a>}</For>}</For></nav>
+    <header>{p.user.name}</header>
+    <main>{p.outlet}</main>
+  </div>
+))
+```
+
+Client chunks must not import the server entry, anything only the server reaches, `@iota-uz/sdk/runtime/server` or a Node
+built-in (`graph.serverInClient`); Solid and the runtime client are not bundled: the host provides them.
+
+### 13.5 Documentation for your users
+
+A package ships its own end-user documentation. It is markdown in the package tree, so it is versioned with the code,
+reviewed with it (the source and artifact hashes cover every word) and replaced by the next version when that version is
+activated. It appears in the Help Center under **Applications** (`/help/doc/apps/<namespace>/<document>`), for the
+people who use the package. It is not the developer reference: that is generated from your contracts and lives under
+**Extensions** (§19).
+
+```text
+docs/
+├─ en/                       the default locale: every document exists here
+│  ├─ getting-started.md     → /help/doc/apps/acme.loyalty/getting-started
+│  └─ admin/
+│     └─ setup.md            → /help/doc/apps/acme.loyalty/admin/setup
+└─ ru/
+   └─ getting-started.md     the Russian translation of getting-started
+```
+
+**Rules.** Everything under `docs/` follows one rule, `docs/<locale>/<path>.md`:
+
+* The first directory is the **locale**: a lowercase language tag such as `en`, `ru`, `uz` or `pt-br`. There are no
+  un-localized documents; a package with one language puts everything in `docs/en/`.
+* `<path>` is the document's address: up to five segments of lowercase letters, digits, `-` and `_`, without the
+  extension (`admin/setup`). The same path in another locale is a translation of the same document.
+* **`en` is the default locale and is complete**: a document that exists in another locale must exist in `en` too
+  (`docs.missingDefault`). A reader gets the translation for their locale (`ru-RU` → `ru`), else the English one.
+* Only `.md` files. Images and other files are **not supported** (`docs.unsupportedFile`); a relative image is refused
+  (`docs.image`). Describe in words, or link an absolute `https://` URL.
+* A document is at most 256 KiB, UTF-8, a version's documents at most 4 MiB in 200 files.
+
+**Front matter** is optional, a block of flat `key: value` lines between `---` lines at the very top (a deliberate
+subset of YAML: no lists, no nesting; quote a value with `"…"` when it contains `#` or starts with a quote):
+
+```md
+---
+title: Setting up limits        # sidebar label and heading; default: the first # heading, else the file name
+order: 2                        # position among the documents; lower first, then by title (default 0)
+audience: Managers              # a short hint of who the document is for
+permission: acme.loyalty.manage # only holders of this permission see the document
+---
+
+# Setting up limits
+```
+
+* `title` and `audience` are **plain text**: one line, no `<` or `>`. They are shown literally; markdown in them is not
+  interpreted.
+* `permission` is a permission the package declares (`permission("acme.loyalty.manage", …)`, which must be exported) or
+  a native one (`Client.Update`). A permission in the package's own namespace that the package does not declare is an
+  error (`docs.unknownPermission`); a permission of another package or a native contract is checked against the
+  catalog when you publish. All translations of a document carry the same permission (`docs.permissionMismatch`).
+  A reader without it gets *not found*, and the document is not in their sidebar. Holders of `Extensions.Read` see
+  every document, as they see every resource of the reference.
+
+**Who sees a package's documentation.** The same people who can use the package: a reader sees its documentation when
+they can use at least one of its resources — run a command or query, read an entity's rows, open a page or route, start a
+workflow, or see a column, slot, cell or shell it contributes — or when they hold `Extensions.Read`. Declarations
+(permissions, events, notices, issues, domain errors, operations, navigation, resolvers, policies) do not count: they carry
+no permission of their own. A package whose usable resources are all gated is invisible to readers without those
+permissions, and so is its documentation; a package with one open page or query is visible to every signed-in reader. Use
+a document's `permission` to keep one document private inside a visible package.
+
+**Links.** Markdown links are written against the source tree and checked at build time:
+
+```md
+Read the [limits](limits.md), or [how to set them up](admin/setup.md#cards).   <!-- another document, by file name -->
+Back to the [start](../getting-started.md).                                   <!-- relative to this file -->
+Open the [cards page](route:acme.loyalty.cards).                              <!-- a page or route of this package -->
+Pay at [the bank](https://bank.example/pay).                                  <!-- http, https, mailto, tel -->
+```
+
+* A relative link names another document by its file name with `.md`; it may end with `#section` (the fragment itself
+  is not checked, neither here nor in `helpHref`). It must stay inside
+  the locale's tree (`docs.linkEscapes`) and name a document that exists (`docs.brokenLink`). The Help Center serves
+  documents without the extension; the platform drops `.md` for you.
+* `route:<resource id>` links a `page` or `route` of the package with a fixed address (no `:param`) to its path
+  (`docs.unknownRoute`).
+* `javascript:`, `data:` and other schemes, protocol-relative `//host` links and query strings on document links are
+  refused (`docs.linkScheme`, `docs.linkTarget`). Only markdown links are rewritten; a raw HTML `<a href="x.md">` is
+  passed to the Help Center's sanitizer as written.
+* Links inside code spans and fenced blocks are text, not links.
+
+Markdown is rendered by the Help Center's sanitizer: raw HTML is cleaned like any Help Center article (scripts, event
+handlers and `javascript:` URLs never survive).
+
+**Linking from your pages.** `helpHref` gives the address of one of your documents:
+
+```tsx
+import { helpHref } from "@iota-uz/sdk/runtime/client"
+
+<a href={helpHref("getting-started")}>How does this work?</a>
+<a href={helpHref("admin/setup#cards")}>Limits</a>
+```
+
+`helpHref` always means **your** package: the build binds it to the namespace of the bundle that calls it, so a slot or a
+cell of yours links to your documents on any page, native or another package's. Pass `{ namespace: "other.pkg" }` to link
+another package's documents. A call with a string literal is checked by `iota-ext check` against
+your `docs/en` documents (`docs.unknownHelpHref`, with the file, line and column of the call), so a renamed document
+breaks the build rather than the link. A computed argument cannot be checked. `helpHref` throws on a malformed path.
+
+`iota-ext check` and `build` report every rule above with `docs/<locale>/<path>.md:line:col code message`; a document that
+passes ships in the artifact (front matter removed) and its title, order, audience and permission in the manifest
+(`docs`). Publishing re-checks the structure and the permissions against the catalog. The assistant tool `ext_docs` reads
+the same documents with the same visibility as the Help Center.
+
+### 13.6 Styling: the UI kit, Tailwind and CSS modules
+
+Packages share one page with the application and with each other, so a package styles itself with three tools, none of
+which leaks: the SDK's Solid UI kit, Tailwind utility classes and scoped CSS modules. Do not write inline `style=` attributes
+for what these provide, and do not import global stylesheets (below). A value that comes from data — the width of a bar,
+a colour per status — is the one thing classes cannot hold: pass it as a CSS custom property and let a module use it.
+
+```tsx
+// a screen of your package
+import { Button, Card, Tabs, TabsContent, TabsList, TabsTrigger } from "@iota-uz/sdk/solid-ui"
+import styles from "./RewardsScreen.module.css"
+
+export default function RewardsScreen() {
+  return (
+    <section class={`${styles.board} p-6`}>
+      <Card><Button variant="primary" onClick={save}>Save</Button></Card>
+      <Tabs defaultValue="terms">…</Tabs>
+    </section>
+  )
+}
+```
+
+```tsx
+// data-driven values: a custom property, consumed by the module (`.fill { width: calc(var(--share) * 1%) }`)
+<div class={styles.bar}><div class={styles.fill} style={{ "--share": String(share()) }} /></div>
+```
+
+* **The UI kit** is `import { … } from "@iota-uz/sdk/solid-ui"` (forms, overlays, navigation, tables, charts…). It is the **host's own
+  instance**: your bundle does not contain it, it shares the host's Solid and the host's theme (light/dark, tokens), so a `Button` looks like
+  every other button of the application. There is exactly one import path; subpaths of the kit are not importable from packages.
+  The host loads the kit **lazily**, only when a package version that imports it is mounted, together with the kit's own
+  utility stylesheet; an installation whose packages do not use it never downloads it. **Version coupling**: the kit is the
+  version of the host that serves your package, the same release as the runtime (`@iota-uz/sdk` and the Go module are one
+  release). Components added in a newer SDK are not there on an older host; `iota-ext check` typechecks against the kit of the
+  SDK you installed, so pin `@iota-uz/sdk` to the version of the instance you deploy to. Only the client graph can import it
+  (`graph.clientInServer` / `graph.impureContract` otherwise); package tests (`iota-ext test`) can import client code that uses it, as an inert stand-in.
+* **Tailwind utilities** (`class="flex gap-4 p-6 bg-primary-600 md:flex-col"`). At build the worker compiles the classes the **client
+  sources** use (string-like tokens in the files of the client graph, so write class names as whole strings; a name assembled from
+  parts such as `` `bg-${tone}-500` `` is not found, and an ordinary string that happens to be a class name, like `"block"`,
+emits that utility: harmless, a few bytes) with the SDK's design tokens: the same `tailwind.config.js` mapping the application's
+  own pipeline uses, so `bg-primary-600`, `text-gray-700`, `border-subtle` and `bg-surface-300` mean what they mean in the application, in
+  both themes. The result is `client/tailwind.css` in the version's artifact: utilities only — no `:root` variables (theme values are
+inlined), no base styles, no layer order; only the `@property` registrations some utilities need, identical to the
+  application's — and only the classes you use. There is no Tailwind config of your own and no `@apply`.
+* **Scoped CSS modules** for what utilities do not express (`*.module.css`). `import styles from "./Panel.module.css"`;
+  `styles.panel` is a class name unique to your package, file and content (`Panel_1a2b3c4d_panel`), so it cannot collide with the application or another
+  package, or with the same package's other version. Declare the type once per package, as `iota-ext init` does:
+
+  ```ts
+  // src/css-modules.d.ts
+  declare module "*.module.css" {
+    const classes: Readonly<Record<string, string>>
+    export default classes
+  }
+  ```
+
+  A module's rules are unlayered, so they win over utilities and the kit when both set a property on one element. Plain CSS (`@import` of
+  another module file, `composes: x from "./other.module.css"`, nesting, media queries) works; local `url()` assets do not: use `data:` URIs.
+* **Global stylesheets are refused.** `import "./global.css"` (or any plain `.css`, from code or from `@import` in a module) fails with
+  `graph.globalCss` at the import: every package shares one page, so a global rule would restyle the host and other packages. Use utilities
+  or a module. A stylesheet imported by the server or contracts graph is `graph.cssOutsideClient`. Malformed CSS is `css.syntax` at its line.
+
+Both stylesheets belong to the version: they are built with it, covered by its artifact hash and reviewed with it, served from the same
+immutable `/_ext/assets/<artifactHash>/client/…` URLs, and `client/manifest.json` lists them under `css`. The application links them
+before the first render of any page, slot, cell or shell of the version — in the page HTML for a package page, and in the document head for
+slots, cells and the shell (once per document, however many islands or HTMX swaps) — so nothing paints unstyled and a swap never loses
+a stylesheet a neighbour still needs. `iota-ext init` scaffolds a page that uses a kit component, a utility and a CSS module.
+
+**What the kit offers.** The authoritative list with every prop is the kit's typings in your installed SDK,
+`node_modules/@iota-uz/sdk/dist/solid-ui/index.d.ts` (your editor shows them on hover). The pieces a business screen uses most:
+
+| Need | Components | Key props |
+|---|---|---|
+| Actions | `Button` (and `PrimaryButton`, `SecondaryButton`, `DangerButton`, `GhostButton`) | `variant`: `primary` `secondary` `primary-outline` `danger` `ghost` `sidebar`; `size`: `normal` `md` `sm` `xs`; `loading`, `disabled`, `href`, `icon` |
+| Text fields | `Input` (`TextInput`, `NumberInput`, `DateInput`, …), `Textarea`, `Select`, `Checkbox`, `Radio`, `Switch`, `Toggle`, `Slider`, `DatePicker`, `Combobox`, `SearchSelect`, `PhoneInput`, `Upload` | `label`, `description`, `error`, `placeholder`; `Select`: `options: { value, label }[]`, `defaultValue` |
+| Layout | `Card`, `CardHeader`, `DescriptionList` (`DescriptionListItem`, `DescriptionListLabel`, `DescriptionListValue`), `Breadcrumbs` | |
+| Tabs | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`; `NavTabs`, `TabLink` for links | `Tabs`: `value` + `onValueChange` (controlled) or `defaultValue`; trigger and content share a `value` |
+| Tables | `Table` composed of `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`; `EmptyState`, `Pagination`, `Skeleton`, `Loader` | `TableHead`: sorting props; `EmptyState`: `title`, `description` |
+| Status | `Badge`, `Alert` (`ErrorAlert`, `SuccessAlert`), `Progress`, `Spinner`, `Toast` | `Badge.variant`: `pink` `yellow` `green` `blue` `purple` `gray`; `Alert.variant`: `error` `success` |
+| Overlays | `Dialog`, `ConfirmationDialog`, `Drawer`, `ViewDrawer`, `Dropdown` | `open` + `onOpenChange` or `defaultOpen`; `Drawer.direction`: `rtl` `ltr` `btt` `ttb` |
+| Charts | `Chart` | `options` (ApexCharts options); it draws with the `ApexCharts` the page provides (`window.ApexCharts`) or a `factory` you pass |
+
+Anything the kit does not have — a custom gauge, a layered bar — is plain Solid markup styled with utilities and a module, as
+in the snippet above.
+
+## 14. Testing
+
+`iota-ext test` runs every `*.test.ts` file against an **in-memory test host**: the real contract definitions, your
+real handlers, no database, no worker pool, no network. Tests are fast and deterministic, and run before you publish.
+
+```ts
+// example/src/server.test.ts
+import {
+  assert, createTestHost, fixture, overlayFixture, test, type TestHostOptions,
+} from "@iota-uz/sdk/runtime/testing"
+```
+
+Import everything test-related from **`@iota-uz/sdk/runtime/testing`**. (`@iota-uz/sdk/testing`, without `runtime`, is a different
+package, the Playwright helpers.)
+
+```ts
+// example/src/server.test.ts
+function host(options: TestHostOptions = {}) {
+  return createTestHost({
+    implementations: [s.adjustPoints, s.createReward, s.redeem, s.catalog, s.approval, s.reminder, s.clientContacts, s.clientConsent, s.resultTemplates, s.reminderTemplates],
+    user: { permissions: [c.Manage.id] },
+    secrets: { PARTNER_TOKEN: "token-for-tests" },
+    ...options,
+    fixtures: [ali, agent, ...(options.fixtures ?? [])],
+  })
+}
+```
+
+Register cases with `test(name, fn)` (and group with `describe(name, body)`). A case passes unless it throws or rejects.
+The command type-checks the package first and runs nothing when it does not compile; failures print the assertion
+message and the line in **your** `.ts` file (the bundles are source-mapped), `--json` gives the same as data.
+
+### 14.1 The host
+
+| `createTestHost({ … })` option | meaning |
+|---|---|
+| `fixtures` | initial rows: `fixture(Entity, values, { key })` (returns `{ key, ref, record }`) and `overlayFixture(Overlay, baseRef, values)`; defaults apply (`createdAt` / `updatedAt` default to `EPOCH` on every entity), values are validated; native entities need an explicit `key` |
+| `implementations` | handlers `tx.call` / `ctx.call` / `wf.call` dispatch to, by contract; also `templates(...)`, and the `contactResolver` and `deliveryPolicy` implementations notice delivery uses |
+| `templates` | `templates(...)` exports (alternatively list them in `implementations`) |
+| `contacts` | `(record) => ContactTargets \| undefined`: contact data of record recipients, answered before a bound resolver |
+| `guards` | `guard`, `precheck` and `writeRule` values to apply |
+| `entities` | entity definitions the host cannot learn from calls (targets of ref paths) |
+| `user` | `{ id, permissions, locale, kind }` of the acting principal; read rules and hidden fields follow `permissions` |
+| `users` | `{ "<userId>": permissions }`: other users, for tasks assigned to a permission (`run.decide(task, decision, { by })`) |
+| `secrets` | values for `ctx.secrets.get` |
+| `fakes` | your own `fakeEffects()` instance |
+| `now` | start of the host clock |
+| `snapshot` | the `package@version` that delivery policies receive as `notice.snapshot` (default `<owner>.<module>@0.0.0`) |
+
+| `host.` | meaning |
+|---|---|
+| `transaction(cb)` | runs `cb(tx)` in one transaction: commit, or rollback when it throws. `host.transaction((tx) => impl.handler(tx, input))` |
+| `command()` / `query()` | an ordinary-command context (`ctx.transaction`, `ctx.query`, `ctx.call`, secrets) / a read-only context |
+| `deliver(subscription, { subject, payload })` | deliver an event to a subscription in its own transaction |
+| `workflow(impl, input)` | a driven run: `run()`, `decide(task, decision, { by }?)` (`by` defaults to the host user and must be allowed to decide), `signal(...)`, `tasks`, `journal`; `run()` returns `completed`, `suspended` (on a sleep, signal or task) or `failed`. A `tx.start` inside a command is only recorded in `started`: drive the started run yourself with `host.workflow` |
+| `clock.advance("30d")` | move time; timers fire on the next `run()` |
+| `table(Entity)`, `overlayRow(Overlay, ref)` | committed rows, typed from the entity |
+| `emitted`, `notices`, `started`, `signals`, `logs` | what committed transactions recorded (rolled back work is not there) |
+| `deliveries` | the outcome of every notice delivery (§14.2) |
+| `fakes` | `sms`, `email`, `push`, `inApp`, `http` |
+
+What the host reproduces from the Go data layer: SQL null semantics, filters through refs, ordering with the primary-key
+tie-break, read rules before filter and paging, hidden fields (not readable, filterable, sortable or writable), overlay
+rows readable only with their base row, unique constraints (`data.unique`), `rowVersion` conflicts, native-write
+refusal (`data.nativeWrite`), the `tx.call` / `ctx.call` rules (`runtime.ordinaryCommandInTx`,
+`runtime.intentInTransaction`, `runtime.nestedTransaction`), write rules, rollback of events/notices/starts/signals.
+These semantics are pinned by a shared conformance suite (`web/runtime/tests/conformance/cases.json`) that runs the
+same package and cases on this host and on the Go host with PostgreSQL, so the two cannot drift apart. **What it does not do**: it does not check a contract's
+`permission` (you call the handler directly; test the gate in the application's end-to-end suite), it does not verify
+that a ref points at an existing row, and handlers see one logical process (no concurrency).
+
+### 14.2 Notifications in tests
+
+With any `templates` bound, a committed `tx.notify` is rendered and delivered, per recipient and channel, to the fakes:
+
+* **address** recipients are used as given (`address.sms` → `fakes.sms`);
+* **record** recipients go through `contacts`, else the `contactResolver` implementation bound for that entity;
+* **user** recipients read the `core.user` fixture: `sms` → phone, `email` → e-mail, `inApp` and `push` → the user key, and
+  `uiLanguage` becomes the template `locale`.
+
+```ts
+// example/src/server.test.ts
+const agent = fixture(core.User, { firstName: "Agent", lastName: "A", email: "agent@example.uz", uiLanguage: "en" }, { key: "42" })
+```
+
+A native entity's fixture needs an explicit `key` and the fields the entity requires (`firstName`, `lastName`, `email` and
+`uiLanguage` for `core.User`); `createdAt` and `updatedAt` default to `EPOCH` (`"2026-01-01T00:00:00Z"`, exported by the same
+module) on every entity, whether or not it declares them as fields, so you never write them. Pass them to test time-dependent
+code.
+
+```ts
+// example/src/server.test.ts
+  // Rendered with the templates, delivered per recipient and channel to the fakes.
+  assert.deepEqual(h.fakes.sms.delivered.map((m) => [m.to, m.text]), [["+998901112233", 'Your reward "Mug" is approved.']])
+  assert.deepEqual(h.fakes.email.delivered.map((m) => m.to), ["ali@example.uz"])
+  assert.deepEqual(h.deliveries.map((d) => [d.channel, d.status]), [["sms", "delivered"], ["email", "delivered"]])
+```
+
+Each `host.deliveries` entry is `{ notice, channel, recipient, target, status, reason?, content? }` with status
+`delivered`, `skipped` (no renderer for the channel, no address, no contact data, a denied policy; `reason` says which) or
+`failed` (the fake channel rejected it: `fakes.sms.failNext(new Error("down"))`, the template threw, or a policy failed).
+Delivery happens after commit, so a rolled-back transaction delivers nothing. Without any templates, `tx.notify` is only
+recorded in `host.notices`; with templates, a notice none of them covers is a `notify.noTemplates` error, as in the runtime.
+
+**Every channel is tried for every recipient** (§11, mixed recipients). The rows tell you which pair had no target:
+
+```ts
+// example/src/server.test.ts
+  assert.deepEqual(h.deliveries.map((d) => [d.recipient.kind, d.channel, d.status]), [
+    ["record", "sms", "delivered"],
+    ["record", "inApp", "skipped"], // in-app messages address ERP users, not client records
+    ["user", "sms", "skipped"], // the core.User fixture has no phone
+    ["user", "inApp", "delivered"],
+  ])
+```
+
+**Delivery policies are evaluated.** For a record recipient, before a message is sent to a target over `sms`, `email` or
+`push`, the host asks every `deliveryPolicy` implementation bound for the recipient's entity (list it in
+`implementations`), with the request shape of §11: `notice.key` and `version` derived from the notice ID, `snapshot` from
+the `snapshot` option, `target.address` the resolved phone or e-mail and `deviceId` null. Policies run in contract-ID order
+with the rights of the test host's user and the first denial wins: the delivery is `skipped` with reason
+`policy_denied:<reason>` (or `policy_denied`; a `reason` that is not `[a-z0-9_.-]{1,64}` is dropped as in production) and the
+fake channel is not called, while the other targets and channels go on. A policy that throws, or answers anything but
+`{ allow: boolean, reason?: string }`, makes the delivery `failed`: like the platform, it is never an implicit allow.
+In-app, user and address recipients have no policy.
+
+```ts
+// example/src/server.test.ts
+  const h = host({ fixtures: [mug, redemption, overlayFixture(c.ClientLoyalty, ali.ref, { smsOptOut: true })] })
+  await h.transaction((tx) =>
+    tx.notify(c.RedemptionResult, { subject: redemption.ref, payload: { reward: "Mug", approved: true }, to: [recipient.record(ali.ref)], channels: ["sms", "email"] }),
+  )
+  assert.deepEqual(h.fakes.sms.delivered, [])
+  assert.deepEqual(h.fakes.email.delivered.map((m) => m.to), ["ali@example.uz"])
+  assert.deepEqual(h.deliveries.map((d) => [d.channel, d.status, d.reason]), [["sms", "skipped", "policy_denied:sms_opt_out"], ["email", "delivered", undefined]])
+```
+
+What stays outside the host: the trigger-owner assignment (a policy with no owner is retried in production; the host just
+runs it) and the application's Go-configured policy. Unit-test a policy in isolation by calling its handler with a request
+object, as you would any query handler.
+
+### 14.3 `fetch` and the fakes
+
+Inside `iota-ext test` outbound network is blocked: `fetch`, sockets and DNS fail. The one way out is a **fake HTTP
+route**: while a test host exists, the global `fetch` in the code under test is answered by `host.fakes.http`.
+
+```ts
+// example/src/server.test.ts
+  h.fakes.http.route("GET", "https://api.partner.example/stock/Mug", { status: 200, body: { available: 3 } })
+```
+
+`route(method, url, response | (request) => response)` matches the method and the exact URL; an unrouted request throws
+`UnmatchedRequestError`; `fakes.http.calls` records method, url, headers and parsed JSON body. The other channels record
+every attempt in `calls` and every unique delivery in `delivered` (idempotency keys dedupe). Create the host *inside*
+each test (the last host created owns the routes) and call `fakes.reset()` if you share one.
+
+### 14.4 Assertions and doubles
+
+`assert` (from the same module) needs no Node typings and prints diffs: `ok`, `equal` (`Object.is`), `notEqual`,
+`deepEqual` (first differing path in the message), `partial` (the actual value contains these properties), `match`,
+`throws`, `rejects`, `fail`. `assert.rejects(promiseOrFn, matcher)` takes a message substring or RegExp, an error class,
+a **domain error contract** (`NotEnoughPoints`), or `{ code, kind, message, issue }`:
+
+```ts
+// example/src/server.test.ts
+  await assert.rejects(h.transaction((tx) => tx.call(c.AdjustPoints, { client: ali.ref, delta: 20_000 })), { kind: "validation", issue: c.DeltaTooLarge })
+```
+
+You may use `node:assert/strict` instead (install `@types/node`). A native contract has no handler in a test host: bind a
+double with `implement(crm.UpsertClient, async (tx, input) => …)` and pass it in `implementations`:
+
+```ts
+// example/src/server.test.ts
+  const upsert = implement(crm.UpsertClient, async (_tx, input) => ({ client: input.client ?? ali.ref, created: input.client === undefined }))
+```
+
+A subscription, schedule or endpoint handler is a plain function: call `sub.handler(tx, event)` inside
+`host.transaction`, or `host.deliver(sub, event)`; for a schedule or endpoint pass `{ ...host.command(), slot }` /
+`{ ...host.command(), request }`.
+
+### 14.5 What the offline tools do not cover: the client graph
+
+`iota-ext test` runs your **server** code. There is no offline surface that mounts a Solid page, slot or cell renderer: that
+needs a DOM, a browser build of Solid and the host's shared module registry, none of which the Node test host has, and a
+stub would only hide differences from the browser. What you do have offline:
+
+* `iota-ext check` / `build` typecheck the client graph (props, `useQuery` / `useCommand` inputs and results are typed from
+  your contracts), enforce its rules (no server imports, no Node built-ins, no global stylesheets), bundle it for the browser and
+  build its stylesheets (§13.6), so a screen that compiles calls your contracts correctly;
+* every query and command a screen calls is a plain contract you can test on the host (§14.1), including its permission
+  behaviour through read rules; keep screen logic that deserves a test in a pure `.ts` file and test that file;
+* the loading, error and empty states and the markup are checked in the application: activate the package on a development
+  instance, or render the component in your own Vitest + jsdom setup (below).
+
+**Rendering a screen in Vitest.** Install `vitest`, `jsdom`, `vite-plugin-solid`, `@solidjs/testing-library` and
+**`vite@^6`** (newer Vite majors require a newer esbuild than the SDK's `esbuild@^0.25` peer and npm refuses the tree):
+
+```ts
+// vitest.config.ts
+import { defineConfig } from "vitest/config"
+import solid from "vite-plugin-solid"
+import { fileURLToPath } from "node:url"
+
+export default defineConfig({
+  plugins: [solid()],
+  resolve: {
+    conditions: ["browser"],
+    // the developer kit is not in node_modules (§5): point the import at the generated modules
+    alias: [{ find: /^@iota-kit\/(.+)$/, replacement: fileURLToPath(new URL("./.iota/kit/$1/index.js", import.meta.url)) }],
+  },
+  test: { environment: "jsdom", include: ["dom/**/*.spec.tsx"], server: { deps: { inline: [/@iota-uz\/sdk/] } } },
+})
+```
+
+In a test, wrap the screen in `RuntimeProvider` (from `@iota-uz/sdk/runtime/client`) with a fake transport,
+`{ invoke: async (kind, resource, input) => … }`, which is what `useQuery` and `useCommand` call. Here the UI kit is the real
+one (imported directly, not through the host) and your `*.module.css` classes resolve through Vite. Pass `helpHref` an
+explicit `{ namespace }` in such tests, or the page context it otherwise reads is missing.
+
+## 15. Errors the tools print
+
+Every diagnostic is `file:line:col code message` and points at **your** source.
+
+| code | meaning |
+|---|---|
+| `ts.<n>` | a TypeScript error (the number is the compiler's). Messages for the usual mistakes name the fix: a write to a native entity → "use a published operation (`tx.call`)"; ordering by an enum → "cannot order by 'status'"; a range on a non-orderable field; a filter on a `json` field; `tx.call` of an ordinary command → "use `ctx.call`"; a keyless `tx.start` → "needs a start key" |
+| `graph.impureContract` | the contracts graph imported `@iota-uz/sdk/runtime/server\|client`, Solid or a Node built-in |
+| `graph.clientInServer` / `graph.serverInClient` | a graph reached the other one (the message names the file and, for npm, "through …"); the UI kit (`@iota-uz/sdk/solid-ui`) counts as client-only. For a local file only the server reaches, the message names the fix: put shared pure code in the contracts layer (§1) |
+| `graph.globalCss` | client code (or one of its stylesheets) imported a global stylesheet: use utilities or a `*.module.css` (§13.6) |
+| `graph.cssOutsideClient` | the server or contracts graph imported a stylesheet |
+| `css.syntax` / `css.tailwind` | a malformed stylesheet (located in the file) / the Tailwind compiler failed on the package's styles |
+| `graph.unknownKit` | an `@iota-kit/<ns>` module is not in the kit: `iota-ext kit generate` or `kit pull` (reported once per file and module; the type errors it causes are hidden and counted by the `kit.followOn` warning) |
+| `manifest.duplicateId` / `outsideNamespace` / `invalidId` | an ID is declared twice, outside the namespace, or malformed. Entities, routes and workflows share one ID space: give them different names |
+| `manifest.undeclaredReference` | a resource refers to a contract that is not exported from the contracts graph |
+| `manifest.wrongGraph` | a contract exported from the server graph, a server value from the client one, … |
+| `manifest.duplicateImplementation` / `duplicateTemplates` | two exports implement one contract / one notice |
+| `manifest.invalidDeclaration` | an invalid cron expression, endpoint path, guard target, … |
+| `manifest.import` | importing a bundle failed (a top-level error in your code) |
+| `build.unresolved` / `build.error` / `build.jsx` | a bundling error at the import in your source: a missing module, a JSX problem; a UI kit subpath (`@iota-uz/sdk/solid-ui/forms/Button`) is unresolved by rule: import from `@iota-uz/sdk/solid-ui` |
+| `docs.*` | a problem in `docs/` (§13.5): `frontMatter`, `title`, `audience`, `badPermission` / `unknownPermission` / `permissionMismatch`, `noLocale` / `badLocale` / `badPath` / `unsupportedFile` / `missingDefault` / `tooLarge` / `encoding` / `symlink`, `brokenLink` / `linkEscapes` / `linkTarget` / `linkScheme` / `unknownRoute` / `image`, `unknownHelpHref` |
+| `package.*` | `package.json` problems: missing `iota` section, a bad namespace, an entry that does not exist |
+| `npm.lockfileMissing` | published packages with dependencies need `package-lock.json` |
+
+Export resources as **top-level named exports**: a contract nested inside an exported object or array is an error
+("export resources as top-level named exports"). A client export's implicit ID lowers the first letter of the export
+name (`PolicyBadge` → `<namespace>.policyBadge`).
+
+## 16. The `iota-ext` command
+
+```text
+iota-ext init <dir> --namespace <owner.module> [--name <npm name>] [--no-client] [--no-kit] [--force]
+iota-ext kit generate [--catalog <file|sdk>]...        # offline; default: the SDK natives
+iota-ext kit pull --server <url> [--token-env VAR] [--cookie-env VAR]
+iota-ext kit status [--json]                            # verify .iota/kit: modules, files, hashes, tsconfig paths; exit 1 when damaged
+iota-ext check [--json]
+iota-ext build [--out <dir>] [--json]                   # default .iota/build: artifacts/ and manifest.json
+iota-ext test [filter...] [--json]
+```
+
+All commands except `init` take `--dir <package dir>` (default: the current directory). Output is for people; `--json`
+prints one JSON document for machines:
+
+| command | `--json` document |
+|---|---|
+| `check` | `{ ok, diagnostics: [{ file, line?, column?, severity, code, message }], manifest }` |
+| `build` | `{ ok, out, diagnostics, artifacts: [path], manifest }` |
+| `test` | `{ ok, passed, failed, diagnostics, cases: [{ name, file, passed, durationMs, message?, location?: { file, line, column }, frames? }] }` |
+| `kit generate` / `kit pull` | `{ ok, hash, modules, dir, editor }` (`editor`: `present`, `added`, `manual` or `absent`, the state of the tsconfig `paths` entry) |
+| `kit status` | `{ ok, installed, dir, location, hash, source, modules: [{ name, state, problems }], editor }` (`state`: `ok`, `missing`, `modified`, `unrecorded`) |
+
+**Exit codes**: `0` success; `1` the package has errors or a test failed; `2` usage (unknown option, bad namespace, not a
+package directory); `3` environment (the network, the build worker, an unreadable catalog file, an HTTP 401/403 from
+`kit pull`).
+
+`check` typechecks, enforces the graph rules, builds all three graphs and extracts the manifest, writing nothing.
+`build` does the same and writes `artifacts/` (`contracts.mjs`, `server.mjs`, `client/…`) and `manifest.json`; the
+artifacts are what the platform would build from your sources, byte for byte. `test` compiles first and refuses to run a
+package with type errors.
+
+## 17. Publishing and operating
+
+The CLI is for the loop on your machine. A package goes live through the application, by the configurator UI
+(`/extensions`, with a Monaco editor, versions and workflows) or by MCP tools / the HTTP API under `/_ext/manage`.
+Both do the same things:
+
+1. **Create a draft** (`ext_package_create`) and put your files in it: write them (`ext_file_write`), upload the tree, or
+   import a Git commit (`ext_import_git`). Include `package-lock.json` when you have dependencies.
+2. **Check, test, build** (`ext_check`, `ext_test`, `ext_build`): the same worker and rules as the CLI, against the
+   application's *real* kit.
+3. **Publish** (`ext_publish`): an immutable version with source and artifact hashes, the manifest and the kit snapshot it
+   resolved against. Foreign references are validated against that snapshot.
+4. **Review** (`ext_review`): a reviewer approves a version, bound to its exact source and artifact hashes. A version runs
+   only while its newest review is an approval.
+5. **Activate** (`ext_activate`): the version becomes the live one for the whole application: its schema is applied
+   (new fields and tables; incompatible changes are refused), its resources, subscriptions, schedules and endpoints
+   start. Assign **trigger owners** for user-less triggers (`ext_owner_assign`) and **bind** replacement candidates
+   (`ext_bind`: a native command, a screen, the shell).
+6. **Operate**: `ext_workflow_*` (inspect, signal, decide tasks, terminate, restart, resolve), `ext_audit_list`,
+   `ext_deactivate`, `ext_purge` (deletes the package's data).
+
+Permissions: *read* (kit, versions), *author* (drafts), *review*, *publish* (activate, deactivate, purge, bind, owners), *operate* (execute, workflow actions, requeue).
+Source control is yours: `ext_export` returns the draft as a tree to commit.
+
+What is installed documents itself. In the application's Help Center, *Extensions → Reference* lists every namespace you may
+see with its entities, commands, queries, events, workflows, endpoints and the JSON Schemas and examples of their inputs and
+outputs, taken from the live catalog (your own package appears there as soon as it is active); the same reference is the
+**Reference** tab of the configurator and the `ext_reference` MCP tool. You see the resources your permissions allow, and
+`Extensions.Read` shows everything. `GET /_ext/openapi.json` serves the HTTP interface as an OpenAPI 3.1 document, and
+operators can export one offline for Swagger UI (see [`consumer.md`](consumer.md), §9).
+
+## 18. Building a business module: patterns
+
+The platform gives you entities, contracts, rules, workflows and screens; a real module — say, reinsurance underwriting:
+assessments of offered risks, a verdict against limits, approval by a committee, a contract booked in the host
+application — is a combination of a few patterns. Each is built from what the sections above describe.
+
+**Rules that change over time: a versioned parameter set.** Limits, thresholds and weights live in an entity, not in
+code, so an administrator changes them without a release. Keep every version, and pin each assessment to the version it
+was judged on, so a verdict never changes behind the user's back:
+
+```ts
+export const ParameterSet = entity("acme.reinsurance.parameterSet", {
+  label: field.text({ maxLength: 40 }),                         // "v1 of 01.10.2026"
+  status: field.enum(["draft", "published", "retired"]).default("draft"),
+  maxScore: field.decimal({ precision: 4, scale: 2 }),
+  authorityLimit: field.decimal({ precision: 18, scale: 2 }),
+})
+export const Assessment = entity("acme.reinsurance.assessment", {
+  parameters: field.ref(ParameterSet),                          // the version this assessment is judged on
+  /* … */
+})
+```
+
+A `writeRule` freezes a published set (§8); publishing a new version is a command that inserts it and retires the old one
+in one transaction. **Before** an administrator publishes, show the impact: a query that recomputes every open assessment
+with the draft and counts the verdicts that would change, using the same calculation module as the verdict itself.
+
+**One calculation, everywhere.** Put the formulas (score, our share of the loss, the price check, the verdict) in a pure
+module the contracts layer reaches (§1). The server queries return the authoritative verdict; the screen imports the same
+module and recalculates as the user types, with no round trip and no second implementation to drift.
+
+**An audit trail nobody can edit.** A log entity written by your commands (who, when, what, the version of the
+parameters) and an append-only `writeRule` (§8). The runtime also records every invocation and every management action
+(§17); your log is the business history users read on the screen.
+
+**Approval by a committee.** A workflow started by the "submit" command: a human task assigned to a permission (§10), a
+timeout that escalates, and the status change plus a log line in one `wf.transaction` when the decision arrives. A notice
+tells the approvers that a task is waiting (§11).
+
+**What the host application owns.** Offers, cedents and their contracts, a blacklist, currency rates, document approval,
+booking a contract: these are the application's data and commands. You reach them through the developer kit
+(`@iota-kit/<namespace>`) as native contracts the application publishes (§7.4), never through its tables. If the
+application does not publish one yet, that is a contract to add on the application side (consumer guide), not a reason to
+copy its data into your package.
+
+**Screens that look native.** The UI kit for controls and tables, Tailwind utilities for layout, a CSS module for the one
+custom visualization, and custom properties for data-driven sizes (§13.6). Link each screen to its user documentation
+with `helpHref` (§13.5).
+
+## 19. Reference: where to look
+
+* The API by import path: `@iota-uz/sdk/runtime` (contracts, `t`, `field`, `entity`, `overlay`, `column`, `defineSlot`, `ref`, `$`,
+  `href`, wire helpers), `@iota-uz/sdk/runtime/server` (`implement`, `subscribe`, `guard`, `precheck`, `writeRule`, `schedule`,
+  `endpoint`, `templates`, `recipient`, context types), `@iota-uz/sdk/runtime/client` (`page`, `navigation`, `slot`, `Slot`, `cell`,
+  `shellRenderer`, `useQuery`, `useCommand`, `isError`, `issuesOf`, `helpHref`), `@iota-uz/sdk/runtime/testing` (everything in §14: the test
+  host, `fixture`, `EPOCH`, `assert`, the fakes; **not** `@iota-uz/sdk/testing`, which is the Playwright package).
+  `@iota-uz/sdk/runtime/kit` is internal to generated modules; never import it.
+* The complete working package: [`example/`](example). More real packages (an overlay with columns, a custom cell, slot contributions and a slot of your own, a replacement
+  client view, a campaign workflow with an SMS gateway endpoint, a replacement shell, versioned packages) are in `pkg/extruntime/e2e/testdata/`.
+* The platform contract: [`../extension-runtime.md`](../extension-runtime.md), §9.1 onwards.
+* Documentation for your own users: §13.5. It lands in the Help Center under *Applications*, next to (not inside) the developer
+  reference below.
+* The live API reference of the application you publish to: *Extensions → Reference* in the Help Center (`/help`), the
+  configurator's Reference tab, `ext_reference` over MCP, and `GET /_ext/openapi.json` (OpenAPI 3.1).

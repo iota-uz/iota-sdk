@@ -18,6 +18,7 @@ import (
 	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/testenv"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,6 +26,12 @@ import (
 
 func main() {
 	bootstrap.Main(run)
+}
+
+// serverComponents is the component set of the server: the SDK modules, BiChat
+// and the extension runtime, which stays off until EXTRUNTIME_ENABLED is set.
+func serverComponents() []composition.Component {
+	return append(modules.Components(), bichat.NewComponent(), wiring.NewComponent(wiring.Options{Natives: modules.Natives()}))
 }
 
 func run() error {
@@ -42,7 +49,7 @@ func run() error {
 			rt.Logger.WithError(err).Warn("failed to clean up runtime")
 		}
 	}()
-	components := append(modules.Components(), bichat.NewComponent())
+	components := serverComponents()
 	if scopeID := os.Getenv("TESTENV_ENVIRONMENT_ID"); scopeID != "" {
 		components = append(components, testkit.NewScenarioComponent(func(pool *pgxpool.Pool) (*testenv.Registry, string, error) {
 			registry := testenv.NewEnvironmentRegistry([]string{"postgres"}, true, scopeID)

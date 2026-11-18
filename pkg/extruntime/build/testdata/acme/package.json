@@ -1,0 +1,13 @@
+{
+  "name": "@acme/insurance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "acme.insurance",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts",
+    "client": "./src/client.tsx",
+    "capabilities": { "network": ["quotes.example.uz"], "secrets": ["SMS_TOKEN"] }
+  }
+}

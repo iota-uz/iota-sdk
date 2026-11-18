@@ -2,6 +2,8 @@
 
 ## Platform
 
+- **Расширения — обычные TS-пакеты с чистыми контрактами, общий Node pool и транзакции, которыми владеет Go** — [запись](adr/platform/extension-runtime-platform.md) · accepted · 2026-11-11 (#411)
+- **UI расширений читает один снимок активации, страницы и замены отдаёт один контроллер** — [запись](adr/platform/extension-ui-reads-one-activated-snapshot.md) · accepted · 2026-11-11 (#416, #953)
 - **Один renderer оболочки получает существующий outlet и откатывается на стандартную оболочку** — [запись](adr/platform/shell-renderer-owns-outlet-and-falls-back.md) · accepted · 2026-11-10 (#953)
 
 - **Базовая навигация оболочки публикуется layouts.Authenticated и читается одним реестром документа** — [запись](adr/platform/shell-context-is-published-by-authenticated-layout.md) · accepted · 2026-11-10 (#953)
@@ -24,3 +26,4 @@
 - **Проекции назначений в существующем query-слое** — [запись](adr/core/assignment-query-projections.md) · accepted · 2026-09-11
 - **Онбординг пользователя через временный пароль** — [запись](adr/core/user-onboarding-temporary-password.md) · accepted · 2026-09-29
 - **Каналы доставки уведомлений и состояние по каждому каналу** — [запись](adr/core/notification-delivery-channels.md) · accepted · 2026-11-09
+- **Получатель, субъект и канальная цель уведомления** — [запись](adr/core/notification-recipients-targets.md) · accepted · 2026-11-11

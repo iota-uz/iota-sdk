@@ -1,0 +1,1736 @@
+{
+  "$comment": "Host conformance cases: run by web/runtime/tests/conformance.test.ts (TS test host) and pkg/extruntime/e2e/conformance_test.go (Go host + PostgreSQL). A step is one invocation of e2e.conformance.write|read|flow; {\"$ref\": label} is the ref of a seeded row; an error expectation is the error code (\"*\" = any error).",
+  "cases": [
+    {
+      "name": "filters follow SQL null semantics",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": "public"
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": {
+                "ne": "public"
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "b"
+              },
+              {
+                "name": "c"
+              }
+            ]
+          },
+          "note": "ne is IS DISTINCT FROM: a null tag matches"
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": {
+                "eq": null
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "b"
+              }
+            ]
+          },
+          "note": "eq null is IS NULL"
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": {
+                "isNull": false
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "c"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "rank": {
+                "gt": 1
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "b"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          },
+          "note": "a range never matches null"
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": {
+                "in": []
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": []
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": {
+                "in": [
+                  "public",
+                  "private"
+                ]
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "c"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "or": [
+                {
+                  "rank": 1
+                },
+                {
+                  "tag": "private"
+                }
+              ]
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "c"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "tag": "public",
+              "or": [
+                {
+                  "name": "a"
+                },
+                {
+                  "name": "b"
+                }
+              ]
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "name": {
+                "like": "%c"
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "c"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "count",
+            "entity": "item",
+            "where": {
+              "tag": "public"
+            }
+          },
+          "expect": {
+            "ok": 2
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "nope": 1
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "error": "data.unknownField"
+          }
+        }
+      ]
+    },
+    {
+      "name": "ordering puts nulls last ascending and first descending, then pages",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "rank"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "b"
+              },
+              {
+                "name": "d"
+              },
+              {
+                "name": "c"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "rank",
+                "desc": true
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "c"
+              },
+              {
+                "name": "d"
+              },
+              {
+                "name": "b"
+              },
+              {
+                "name": "a"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "tag"
+              },
+              {
+                "field": "name",
+                "desc": true
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "c"
+              },
+              {
+                "name": "d"
+              },
+              {
+                "name": "a"
+              },
+              {
+                "name": "b"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "rank"
+              }
+            ],
+            "limit": 2,
+            "offset": 1
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "b"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ],
+            "limit": -1
+          },
+          "expect": {
+            "error": "data.invalidQuery"
+          }
+        }
+      ]
+    },
+    {
+      "name": "read access applies before filters and paging",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readPublic"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ],
+            "limit": 1
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ],
+            "limit": 1,
+            "offset": 1
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "d"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "count",
+            "entity": "item"
+          },
+          "expect": {
+            "ok": 2
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "get",
+            "entity": "item",
+            "key": {
+              "$ref": "b"
+            },
+            "select": [
+              "name"
+            ]
+          },
+          "expect": {
+            "ok": null
+          },
+          "note": "an unreadable row reads as missing"
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "get",
+            "entity": "item",
+            "key": {
+              "$ref": "a"
+            },
+            "select": [
+              "name"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "name": "a"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a hidden field is neither readable, filterable, sortable nor writable",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name",
+              "secret"
+            ],
+            "where": {
+              "name": "a"
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a",
+                "secret": "<absent>"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "get",
+            "entity": "item",
+            "key": {
+              "$ref": "a"
+            },
+            "select": [
+              "name",
+              "secret"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "name": "a",
+              "secret": "<absent>"
+            }
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "where": {
+              "secret": "s-a"
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "error": "data.fieldNotAccessible"
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name"
+            ],
+            "orderBy": [
+              {
+                "field": "secret"
+              }
+            ]
+          },
+          "expect": {
+            "error": "data.fieldNotAccessible"
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "insert",
+            "entity": "item",
+            "values": {
+              "name": "e",
+              "secret": "x"
+            },
+            "select": [
+              "name"
+            ]
+          },
+          "expect": {
+            "error": "data.fieldNotAccessible"
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "update",
+            "entity": "item",
+            "key": {
+              "$ref": "a"
+            },
+            "patch": {
+              "secret": "x"
+            },
+            "select": [
+              "name"
+            ]
+          },
+          "expect": {
+            "error": "data.fieldNotAccessible"
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "update",
+            "entity": "item",
+            "key": {
+              "$ref": "a"
+            },
+            "patch": {
+              "rank": 7
+            },
+            "select": [
+              "name",
+              "rank",
+              "secret"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "name": "a",
+              "rank": 7,
+              "secret": "<absent>"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "a permitted hidden field reads, filters and writes",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "item",
+            "select": [
+              "name",
+              "secret"
+            ],
+            "where": {
+              "secret": {
+                "isNull": false
+              }
+            },
+            "orderBy": [
+              {
+                "field": "name"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "name": "a",
+                "secret": "s-a"
+              },
+              {
+                "name": "c",
+                "secret": "s-c"
+              }
+            ]
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "update",
+            "entity": "item",
+            "key": {
+              "$ref": "b"
+            },
+            "patch": {
+              "secret": "s-b"
+            },
+            "select": [
+              "name",
+              "secret"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "name": "b",
+              "secret": "s-b"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ref paths are left joins",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        },
+        {
+          "label": "x",
+          "entity": "child",
+          "values": {
+            "label": "x",
+            "item": {
+              "$ref": "a"
+            }
+          }
+        },
+        {
+          "label": "y",
+          "entity": "child",
+          "values": {
+            "label": "y",
+            "item": {
+              "$ref": "c"
+            }
+          }
+        },
+        {
+          "label": "z",
+          "entity": "child",
+          "values": {
+            "label": "z",
+            "item": null
+          }
+        },
+        {
+          "label": "w",
+          "entity": "child",
+          "values": {
+            "label": "w",
+            "item": {
+              "$ref": "b"
+            }
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "child",
+            "select": [
+              "label"
+            ],
+            "where": {
+              "item.tag": "public"
+            },
+            "orderBy": [
+              {
+                "field": "label"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "label": "x"
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "child",
+            "select": [
+              "label"
+            ],
+            "where": {
+              "item.tag": {
+                "isNull": true
+              }
+            },
+            "orderBy": [
+              {
+                "field": "label"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "label": "w"
+              },
+              {
+                "label": "z"
+              }
+            ]
+          },
+          "note": "no item and an item without a tag both read null"
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "child",
+            "select": [
+              "label",
+              "item"
+            ],
+            "where": {
+              "item": {
+                "$ref": "c"
+              }
+            },
+            "orderBy": [
+              {
+                "field": "label"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "label": "y",
+                "item": {
+                  "$ref": "c"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "find",
+            "entity": "child",
+            "select": [
+              "label"
+            ],
+            "orderBy": [
+              {
+                "field": "item.name",
+                "desc": true
+              },
+              {
+                "field": "label"
+              }
+            ]
+          },
+          "expect": {
+            "ok": [
+              {
+                "label": "z"
+              },
+              {
+                "label": "y"
+              },
+              {
+                "label": "w"
+              },
+              {
+                "label": "x"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "an absent overlay row reads null and a put creates it with defaults",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        },
+        {
+          "overlay": "itemExtra",
+          "base": {
+            "$ref": "b"
+          },
+          "values": {
+            "note": "seeded",
+            "score": 5
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "getOverlay",
+            "overlay": "itemExtra",
+            "base": {
+              "$ref": "a"
+            },
+            "select": [
+              "note",
+              "score"
+            ]
+          },
+          "expect": {
+            "ok": null
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "getOverlay",
+            "overlay": "itemExtra",
+            "base": {
+              "$ref": "b"
+            },
+            "select": [
+              "note",
+              "score"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "note": "seeded",
+              "score": 5
+            }
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "put",
+            "overlay": "itemExtra",
+            "base": {
+              "$ref": "a"
+            },
+            "values": {
+              "note": "n"
+            },
+            "select": [
+              "note",
+              "score"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "note": "n",
+              "score": 0
+            }
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "getOverlay",
+            "overlay": "itemExtra",
+            "base": {
+              "$ref": "a"
+            },
+            "select": [
+              "note",
+              "score"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "note": "n",
+              "score": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "an overlay is readable only with its base row",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readPublic"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        },
+        {
+          "overlay": "itemExtra",
+          "base": {
+            "$ref": "b"
+          },
+          "values": {
+            "note": "hidden base"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "read",
+          "step": {
+            "op": "getOverlay",
+            "overlay": "itemExtra",
+            "base": {
+              "$ref": "b"
+            },
+            "select": [
+              "note"
+            ]
+          },
+          "expect": {
+            "ok": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "tx.call accepts operations and atomic commands only; intents stay outside transactions",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [],
+      "steps": [
+        {
+          "via": "write",
+          "step": {
+            "op": "call",
+            "target": "operation",
+            "input": {
+              "name": "one"
+            }
+          },
+          "expect": {
+            "ok": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "count",
+            "entity": "child",
+            "where": {
+              "label": "touched one"
+            }
+          },
+          "expect": {
+            "ok": 1
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "call",
+            "target": "ordinary",
+            "input": {}
+          },
+          "expect": {
+            "error": "runtime.ordinaryCommandInTx"
+          }
+        },
+        {
+          "via": "flow",
+          "step": {
+            "op": "call"
+          },
+          "expect": {
+            "ok": {
+              "ok": true
+            }
+          }
+        },
+        {
+          "via": "flow",
+          "step": {
+            "op": "nested-transaction"
+          },
+          "expect": {
+            "error": "runtime.nestedTransaction"
+          }
+        },
+        {
+          "via": "flow",
+          "step": {
+            "op": "call-in-transaction"
+          },
+          "expect": {
+            "error": "runtime.intentInTransaction"
+          }
+        }
+      ]
+    },
+    {
+      "name": "generic writes: native entities are read-only, unique and missing rows are typed, failures roll back",
+      "user": {
+        "permissions": [
+          "e2e.conformance.readAll",
+          "e2e.conformance.seeSecret"
+        ]
+      },
+      "seed": [
+        {
+          "label": "a",
+          "entity": "item",
+          "values": {
+            "name": "a",
+            "rank": 1,
+            "tag": "public",
+            "secret": "s-a"
+          }
+        },
+        {
+          "label": "b",
+          "entity": "item",
+          "values": {
+            "name": "b",
+            "rank": 2,
+            "tag": null
+          }
+        },
+        {
+          "label": "c",
+          "entity": "item",
+          "values": {
+            "name": "c",
+            "rank": null,
+            "tag": "private",
+            "secret": "s-c"
+          }
+        },
+        {
+          "label": "d",
+          "entity": "item",
+          "values": {
+            "name": "d",
+            "rank": 3,
+            "tag": "public"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "via": "write",
+          "step": {
+            "op": "update",
+            "entity": "user",
+            "key": {
+              "entity": "core.user",
+              "key": "1"
+            },
+            "patch": {
+              "firstName": "X"
+            },
+            "select": []
+          },
+          "expect": {
+            "error": "data.nativeWrite"
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "insert",
+            "entity": "item",
+            "values": {
+              "name": "a"
+            },
+            "select": [
+              "name"
+            ]
+          },
+          "expect": {
+            "error": "data.unique"
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "then-fail",
+            "first": {
+              "op": "insert",
+              "entity": "item",
+              "values": {
+                "name": "e"
+              },
+              "select": []
+            }
+          },
+          "expect": {
+            "error": "*"
+          }
+        },
+        {
+          "via": "read",
+          "step": {
+            "op": "count",
+            "entity": "item",
+            "where": {
+              "name": "e"
+            }
+          },
+          "expect": {
+            "ok": 0
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "delete",
+            "entity": "item",
+            "key": {
+              "$ref": "d"
+            }
+          },
+          "expect": {
+            "ok": null
+          }
+        },
+        {
+          "via": "write",
+          "step": {
+            "op": "update",
+            "entity": "item",
+            "key": {
+              "$ref": "d"
+            },
+            "patch": {
+              "rank": 1
+            },
+            "select": []
+          },
+          "expect": {
+            "error": "data.notFound"
+          }
+        },
+        {
+          "via": "flow",
+          "step": {
+            "op": "insert",
+            "entity": "item",
+            "values": {
+              "name": "f",
+              "rank": 9
+            },
+            "select": [
+              "name",
+              "rank",
+              "tag"
+            ]
+          },
+          "expect": {
+            "ok": {
+              "name": "f",
+              "rank": 9,
+              "tag": null
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

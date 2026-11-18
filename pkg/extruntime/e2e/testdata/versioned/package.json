@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/versioned",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.versioned", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

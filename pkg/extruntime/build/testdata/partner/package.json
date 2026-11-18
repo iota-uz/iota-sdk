@@ -1,0 +1,11 @@
+{
+  "name": "@partner/loyalty",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "partner.loyalty",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts"
+  }
+}

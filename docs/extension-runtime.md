@@ -1,0 +1,944 @@
+# Extension runtime platform — implementation contract
+
+Canonical requirements: iota-sdk #411 (epic) and #412–#420, #947/#953, #920/#925–#927,
+EAI-UZ/granite#3780. This file is the **shared implementation contract** between the
+owners of the slices below. A slice owner may not invent a second registry, transport,
+query API or workflow engine; changes to anything in this file go through its owner
+(the orchestrator) first. Enabling the runtime in an application (configuration, composition, operations) is the
+integrator's guide [`extensions/consumer.md`](extensions/consumer.md).
+
+## 0. Vocabulary
+
+| Term | Meaning |
+|---|---|
+| package | an extension: `package.json` with an `iota` section, ESM sources, optional npm deps |
+| namespace | stable dotted owner prefix of every resource ID (`acme.insurance`) |
+| resource ID | `<namespace>.<name>`; declared exactly once, in a contract value |
+| contract | pure value describing a resource (no handler). Lives in the **contracts graph** |
+| implementation | server value bound to a contract by typed reference: `implement(Contract, handler)` |
+| version | immutable build of a package: source hash, lockfile, artifacts, manifest, contract resolution snapshot |
+| activation | which version of a package is live; one active version per package |
+| binding | which implementation is active for a command contract; **one per application** |
+| invocation | one execution of a command/query/operation/subscription; records selected binding |
+| occurrence | one durable workflow primitive call: `(instance, name, n)` where `n` counts repeats of `name` |
+
+## 1. Package layout and graphs
+
+```jsonc
+// package.json
+{
+  "name": "@acme/insurance",
+  "version": "0.1.0",
+  "type": "module",
+  "iota": {
+    "namespace": "acme.insurance",
+    "contracts": "./src/contracts.ts",   // pure graph: may import only @iota-uz/sdk/runtime, kits, other pure files, pure npm
+    "server": "./src/server.ts",         // server graph: implementations; Node/npm allowed
+    "client": "./src/client.tsx",        // browser graph: pages/slots/columns/shell (Solid)
+    "capabilities": { "network": ["sms.example.uz"], "secrets": ["SMS_TOKEN"] }
+  },
+  "dependencies": { "@iota-uz/sdk": "*" }
+}
+```
+
+* Three ESM graphs built separately. The registry is the set of **exported values** of the
+  three entry modules carrying the SDK brand (`Symbol.for("iota.resource")`). No global
+  `register()`, no hand-written list.
+* Client graph build fails (source-located diagnostic) when it reaches: the server entry,
+  any file reachable only from server, `@iota-uz/sdk/runtime/server`, or a Node builtin.
+  There is **no** handler stripping.
+* Contracts graph build fails if it reaches `@iota-uz/sdk/runtime/server`, `.../client`,
+  Node builtins or `solid-js`.
+* Own draft imports its own local contracts (`./contracts`). Core and foreign packages are
+  imported from the developer kit: `@iota-kit/<namespace>` (generated `.d.ts` + pure JS refs,
+  never handlers). Kit = catalog snapshot exported by the management backend.
+
+## 2. TypeScript public API (`@iota-uz/sdk/runtime*`)
+
+> **Superseded where it differs.** The examples in this section are the original design sketch. §9 and §9.1 (and the
+> author-facing manual [`extensions/authoring.md`](extensions/authoring.md)) are authoritative; the examples below are
+> stale in places: write rules are `writeRule(id, Entity, …)`, operation guards `guard(id, Operation, …)` and ordinary
+> command prechecks `precheck(id, Command, …)` (not `guard(Policy, "write", …)`); errors are thrown as `Err.of(params)` or
+> `validation(Issue.at(path, params))` (there is no `tx.issue`); native lists and entities come from the generated kit
+> (`crm.ListsClients`, `core.User`, whose names depend on the catalog) rather than `crm.lists.Clients`; `tx.start` needs
+> `{ key }` outside subscriptions and workflows; `tx.get(overlay, ref)` and `tx.put(overlay, ref, values)` replace
+> overlay reads/writes; `column`'s `id` is the full namespaced ID; `t.ref`/`field.ref` take entities only.
+
+Subpaths (published inside the single `@iota-uz/sdk` distribution):
+
+* `@iota-uz/sdk/runtime` — pure: `t` (value schema), `entity`, `overlay`, `field`, `query`,
+  `command`, `operation`, `event`, `workflow`, `notice`, `route`, `permission`, `issue`,
+  `domainError`, `column`, types `Ref<E>`, `Infer<S>`.
+* `@iota-uz/sdk/runtime/server` — `implement`, `subscribe`, `guard`, `schedule`,
+  `endpoint`, `templates`, context/tx/wf types.
+* `@iota-uz/sdk/runtime/client` — `page`, `navigation`, `slot`, `shell`, `useCommand`,
+  `useQuery`, `cell` renderers; Solid.
+* `@iota-uz/sdk/runtime/testing` — synthetic fixtures + fake effects harness.
+
+### 2.1 Values (`t`) and wire
+
+`t.string() t.int() t.int64() t.decimal({precision,scale}) t.bool() t.date() t.datetime()
+t.uuid() t.enum([...]) t.json<T>() t.ref(Entity) t.object({...}) t.array(s)` with
+`.optional()` (key may be absent) and `.nullable()`.
+
+Wire (JSON) is exact: `int` = JSON number, must be a safe integer; `int64` = decimal
+**string** (TS type `bigint`-free branded `Int64 = string & {__int64}`); `decimal` = string
+(`Decimal = string & {__decimal}`); `date` = `"YYYY-MM-DD"` (`ISODate`); `datetime` = RFC3339
+with offset (`ISODateTime`); `ref` = `{"entity":"<id>","key":"<string>"}`. Every schema
+serializes into the manifest (§4) so Go validates input/output independently of TS.
+
+### 2.2 Entities, overlays, refs
+
+```ts
+export const Policy = entity("acme.insurance.policy", {
+  number:    field.text({ unique: true }),
+  holder:    field.ref(Customer),
+  premium:   field.decimal({ precision: 18, scale: 2 }),
+  expiresOn: field.date().index(),
+  status:    field.enum(["draft", "active", "expired"]).default("draft"),
+  notes:     field.text().optional(),
+  extra:     field.json<{ tags: string[] }>().optional(),   // JSONB only when declared
+}, {
+  access: {
+    read:  [{ when: ManagePolicies, rows: "all" }, { rows: { holder: { owner: $.user } } }],
+  },
+});
+export type Policy = typeof Policy;
+```
+
+* One PostgreSQL table per entity (§5); field key = stable field ID; rename only with
+  `field.text().renamedFrom("oldKey")`.
+* `Ref<typeof Policy>` = `{ entity: "acme.insurance.policy"; key: string }` branded by the
+  entity ID literal; refs to different entities are not assignable to each other.
+* Native (core/Granite) entities come from the kit: `core.User`, `crm.Client` — kind
+  `"native"`. Generic `tx.insert/update/delete` accept only kind `"own"` (type error +
+  runtime rejection). Native writes go through published operations (`core.users.rename`).
+* `overlay("acme.insurance.clientExtra", crm.Client, { loyaltyTier: field.enum([...]).optional() })`
+  — separate 1:1 typed table keyed by base key. `tx.get(ClientExtra, clientRef)` returns
+  `Overlay | null` — absence is explicit in the type. Overlay fields default-read as declared
+  default or `null`; same semantics in query/filter/sort/list/export.
+* `column(crm.lists.Clients, { id: "loyaltyTier", field: ClientExtra.fields.loyaltyTier,
+  label: {en,ru,uz}, filterable, sortable, exportable })` — pure contract consumed by Go
+  native list + export (§7). Optional client `cell` renderer lives in client graph.
+
+### 2.3 Commands, operations, queries, errors
+
+```ts
+// contracts
+export const NotActive = domainError("acme.insurance.notActive", t.object({ status: t.string() }));
+export const ExtendExpiry = operation("acme.insurance.extendExpiry", {
+  input: t.object({ policy: t.ref(Policy), months: t.int() }),
+  output: t.object({ expiresOn: t.date() }),
+  errors: [NotActive],
+});
+export const RenewPolicy = command("acme.insurance.renewPolicy", { input, output, errors });          // ordinary intent
+export const ActivatePolicy = command("acme.insurance.activatePolicy", { atomic: true, input, output });
+export const Expiring = query("acme.insurance.expiring", { input, output });
+
+// server
+export const extendExpiry = implement(ExtendExpiry, async (tx, input) => { ... });       // (Tx, In) => Out
+export const renew = implement(RenewPolicy, async (ctx, input) => {                     // (CommandContext, In) => Out
+  const quote = await fetch(...);                    // normal Node/npm, no tx open
+  return ctx.transaction(async (tx) => tx.call(ExtendExpiry, {...}));
+});
+export const activate = implement(ActivatePolicy, async (tx, input) => { ... });        // atomic: whole handler in one Go tx
+export const expiring = implement(Expiring, async (q, input) => q.find(Policy, {...}));  // read-only QueryContext
+```
+
+* `Tx` (Go-owned transaction handle): `get find count insert update delete call emit notify
+  start issue`. `tx.call` accepts **only** `Operation | AtomicCommand` (type-level + runtime).
+  Nested `ctx.transaction` inside a tx is rejected.
+* `CommandContext`: `user`, `invocation`, `transaction(cb)`, `query` (read-only),
+  `call(Command)` (new invocation), `secrets`, `log`. No `ctx.base`, no around-chain.
+* Atomicity is part of the PUBLIC contract (`atomic: true`). Any replacement implementation
+  of an atomic command gets `Tx`; ordinary replacement gets `CommandContext`.
+* Errors: `throw NotActive.of({status})` — declared domain errors (closed per contract);
+  validation issues are extensible and namespaced: `issue("acme.insurance.tooLong",
+  t.object({max:t.int()}))`, raised as `tx.issue(TooLong, {path:["notes"], params:{max:10}})`
+  / `throw validation([...])`. Wire: `{kind:"domain"|"validation"|"denied"|"internal",
+  code, params, issues:[{code, phase:"input"|"write", source, path, params}]}`.
+* `guard(ExtendExpiry, async (tx, input) => ...)` — additive transactional guard on an
+  operation (same tx). `guard(RenewPolicy, async (q, input) => ...)` on an ordinary command —
+  **preliminary** input check (read snapshot), named so. `guard(Policy, "write", async (tx,
+  { existing, proposed, changed }) => ...)` — entity write rule in the writing tx.
+  Guards are independent of the active command implementation.
+* `implement(core.commands.RejectIncoming, ...)` from a package = replacement candidate;
+  becomes active only through an explicit binding (§6). One active binding per command per
+  application; no fallback on error.
+
+### 2.4 Events and subscriptions
+
+```ts
+export const PolicyRenewed = event("acme.insurance.policyRenewed.v1", { subject: Policy, payload: t.object({...}) });
+// server
+export const onRenewed = subscribe("acme.insurance.onRenewed", PolicyRenewed, async (tx, e) => {
+  await tx.start(RenewalFollowUp, { policy: e.subject });
+});
+```
+
+* `tx.emit` enqueues atomically with the data (outbox row in the same Go tx).
+* After commit, each active subscription gets its own transaction; receipt
+  `(subscription_id, event_id)` is written in that tx; re-delivery after commit is a no-op.
+  `tx.start` inside it writes a start-intent keyed `(subscription, event)`, so no duplicate
+  workflow. Core events are published by Go modules through the same outbox (`events.Publish
+  (ctx, tx, ...)`), declared in the native catalog with a versioned payload.
+* Subscription runs as the event initiator (current rights); events without a user run as
+  the subscription's explicit owner-user assigned at activation.
+
+### 2.5 Workflows
+
+```ts
+export const RenewalCampaign = workflow("acme.insurance.renewalCampaign", {
+  input: t.object({ before: t.date() }),
+  signals: { decision: t.object({ approved: t.bool() }) },
+});
+// server
+export const renewalCampaign = implement(RenewalCampaign, async (wf, input) => {
+  const targets = await wf.transaction("load", (tx) => tx.find(Policy, {...}));   // DB effect + receipt, one Go tx
+  for (const p of targets) {
+    await wf.step("sms", async ({ idempotencyKey }) => sms.send(..., idempotencyKey)); // re-runnable effect, occurrence n
+  }
+  const d = await wf.task("approve", { subject: p, assignee: user, decision: t.object({approved: t.bool()}), timeout: "3d" });
+  await wf.sleep("cooldown", "1d");
+  const r = await wf.call("renew", RenewPolicy, {...});   // new command invocation → active binding, receipt
+});
+```
+
+* Replay engine (Go-owned journal). Every durable primitive takes a stable `name`; the
+  occurrence key is `(instance, name, n)`. Completed occurrences return the recorded result
+  without executing. `sleep`/`waitFor`/`task` on an unmet condition **suspend**: the Node
+  invocation ends, worker and tx are released; Go timers/signals resume by replaying.
+* The instance pins its package version (code/npm/templates). `wf.call` creates a new
+  invocation that selects the **current** active binding and records it; replay returns
+  the receipt and never re-dispatches.
+* `wf.transaction` writes DB effects + occurrence receipt in one Go tx (dedupe of committed
+  DB effects, not exactly-once network). `wf.step` may repeat; receives a stable provider
+  idempotency key `"<instance>:<name>:<n>"`.
+* Terminate stops future steps (does not compensate). Start v2 = new instance with
+  `predecessor_id`. Current rights checked on each new action; session expiry does not stop
+  instances; denied → `blocked` outcome with diagnostic.
+
+### 2.6 Notifications
+
+```ts
+export const RenewalReminder = notice("acme.insurance.renewalReminder.v1", { subject: Policy, payload: t.object({...}) });
+// server
+export const reminderTemplates = templates(RenewalReminder, {
+  sms: ({ payload, locale }) => `...`,
+  email: ({ payload }) => ({ subject: "...", html: "...", text: "..." }),
+  inApp: ({ payload }) => ({ title: "...", body: "..." }),
+});
+await tx.notify(RenewalReminder, {
+  subject: policyRef, payload,
+  to: [recipient.user(userRef), recipient.record(customerRef), recipient.address({ sms: "+998..." })],
+  channels: ["sms", "email"],
+});
+```
+
+Recipient (user / record via published contact resolver / direct address) ≠ subject ≠
+resolved channel target/device. Enqueue is atomic with the tx; render (pinned template
+version) and provider delivery run after commit through the **core notification service**
+(#920/#925/#926). Rule-mode publication uses the same notice IDs via the core catalog
+(`DefinitionSource`).
+
+### 2.7 UI
+
+```ts
+// contracts (only when the route is shared with server/foreign packages)
+export const PolicyRoute = route("acme.insurance.policy", { path: "/insurance/policies/:id", params: t.object({ id: t.uuid() }) });
+// client.tsx
+export const policies = page("acme.insurance.policies", {
+  path: "/insurance/policies", nav: { label: {...}, group: "acme.insurance", icon: "shield" },
+  permission: ReadPolicies, component: lazy(() => import("./PoliciesScreen")),
+});
+export const policy = page(PolicyRoute, { component: lazy(() => import("./PolicyScreen")) });
+export const nav = navigation({ groups: [...], patches: [{ ref: "core.users", hide: true }] });
+export const clientTierCell = cell(ClientsTierColumn, (p) => <Badge>{p.value}</Badge>);
+export const clientCard = slot(crm.ClientSidebar, (p) => <Card client={p.clientId} />, { order: 10, permission: Manage });
+export const shell = shellRenderer((p) => <MyShell {...p} />);  // whole authenticated shell
+// contracts.ts: a slot of the package's own page — <Slot slot={Widgets} props={{ title }} /> in a client page
+export const Widgets = defineSlot("acme.insurance.widgets", { props: t.object({ title: t.string() }) });
+```
+
+Pages are mounted by the canonical client host inside `layouts.Authenticated` (same
+boundary as legacy pages). Nav is projected by Go from the activated manifest; Node is not
+used per render.
+
+## 3. Wire protocol Go ⇄ Node (pool)
+
+Transport: worker stdio, frames = 4-byte big-endian length + UTF-8 JSON. Protocol version
+`iota.runtime/1`; mismatch → worker rejected.
+
+```
+Go → Node  {"t":"hello","protocol":"iota.runtime/1"}
+Node → Go  {"t":"ready","protocol":"iota.runtime/1","pid":123}
+Go → Node  {"t":"invoke","id":"inv-…","artifact":{"hash":"…","dir":"/cache/…"},"kind":"command|atomic|operation|query|subscription|workflow|guard|template|endpoint|build|extract",
+            "export":"renew","resource":"acme.insurance.renewPolicy","input":…,"ctx":{tenant,user,invocation,occurrence?,deadline,tx?}}
+Node → Go  {"t":"call","inv":"inv-…","id":7,"method":"tx.begin|tx.end|tx.get|tx.find|…|wf.step.begin|…","args":…}
+Go → Node  {"t":"reply","inv":"inv-…","id":7,"ok":true,"value":…} | {"ok":false,"error":{…}}
+Node → Go  {"t":"done","id":"inv-…","ok":true,"value":…} | {"ok":false,"error":{kind,code,message,params,issues,suspend?}}
+Go → Node  {"t":"cancel","id":"inv-…"}
+Node → Go  {"t":"log","inv":"…","level":"info","msg":"…"}
+```
+
+* Go serializes calls per tx handle and owns deadline/commit/rollback.
+* As implemented (host slice): invoke kinds `command|atomic|operation|query|subscription|
+  workflow|guard|template|endpoint|schedule` (build/extract run in a separate build worker).
+  `ctx` carries `tenant, user{id (int64 string), kind, locale, permissions[]}, invocation,
+  deadline, tx?, trigger, parent, instance`. Host methods: `tx.begin|end|get|find|count|insert|
+  update|delete|putOverlay|call|emit|notify|start|signal|query`, `q.get|find|count|query` (lazy REPEATABLE READ
+  READ ONLY snapshot), `invoke.command`, `invoke.signal`, `secrets.get`, `wf.step.begin|end`,
+  `wf.transaction.begin|end|call`, `wf.sleep|waitFor|task|call|start|now|uuid`. Replies:
+  `tx.start`/`wf.start` → `{instance}`, `wf.waitFor` → `{outcome, payload}`. Nested invocations
+  (`tx.call`, `ctx.call`) run on the parent's worker without taking a pool slot. Stray console
+  output becomes `log` frames; closing stdin shuts a worker down.
+
+* Artifacts are immutable directories addressed by content hash; a worker `import()`s
+  `<dir>/server.mjs` once per hash. Two versions = two module instances in the same worker.
+* Worker env is minimal (`PATH`, `NODE_ENV`, `TZ`, `IOTA_RUNTIME_*`); secrets only through
+  host calls for declared capabilities.
+
+## 4. Manifest (build output, stored per version)
+
+`manifest.json` extracted by running the contracts + server + client graphs' exports in the
+build worker:
+
+```jsonc
+{ "schema": "iota.manifest/1", "namespace": "acme.insurance",
+  "resources": [
+    {"id":"acme.insurance.policy","kind":"entity","fields":[{"id":"number","type":{"kind":"string"},"unique":true}, …],"access":{…}},
+    {"id":"acme.insurance.renewPolicy","kind":"command","atomic":false,"input":{…},"output":{…},"errors":["acme.insurance.notActive"]},
+    {"id":"acme.insurance.policies","kind":"page","path":"/insurance/policies","nav":{…},"chunk":"client/policies-…js"}
+  ],
+  "implementations": [{"export":"renew","implements":"acme.insurance.renewPolicy","kind":"command"}],
+  "subscriptions": [...], "guards": [...], "templates": [...], "dependencies": {"core":"<kit hash>"} }
+```
+
+Go types live in `pkg/extruntime/manifest` (single owner) and are the **only** Go
+representation of resources.
+
+## 5. Persistence (schema `extruntime`, PostgreSQL)
+
+Owned by slice owners but all DDL in one migration set:
+
+* management: `packages`, `package_files` (draft tree), `versions` (immutable, hashes,
+  provenance git|runtime, manifest jsonb, resolution snapshot, review), `artifacts` (hash →
+  bytea), `activations` (history), `command_bindings` (command id → package version export,
+  one active), `owners` (trigger owner-user per subscription/schedule).
+* data: tenant-scoped tables per entity in schema `x_<namespace with _>`:
+  `tenant_id uuid, id uuid pk, <typed columns>, created_at, updated_at, row_version`;
+  overlays: `tenant_id, base_key <base key type>, <columns>, PK(tenant_id, base_key)`.
+  `entity_schemas` (applied field IDs/types per version + migration history).
+* execution: `invocations` (contract, selected binding/version, subject user, outcome,
+  partial-commit flag), `occurrences` (receipts: instance/name/n/result, input hash),
+  `outbox_events`, `subscription_receipts`, `workflow_instances` (pinned version, owner,
+  predecessor, status), `workflow_timers`, `workflow_signals`, `human_tasks`.
+
+## 6. Go host (`pkg/extruntime/...`)
+
+| Package | Owner slice | Responsibility |
+|---|---|---|
+| `manifest` | contracts | manifest Go types, schema validation of wire values |
+| `pool` | runtime | Node worker pool, protocol, supervisor, generations |
+| `host` | runtime | invocation dispatch, tx handles, host-call router, bindings |
+| `data` | data | DDL from manifest, typed query compiler w/ access, overlays, native adapters |
+| `events` | workflows | outbox, subscriptions, receipts |
+| `workflow` | workflows | replay engine, timers, signals, tasks, terminate/start-v2 |
+| `notify` | notifications | adapter to core notifications |
+| `manage` | management | drafts, build, check, fake-test, review, publish, activate; kit export |
+| `ui` | UI | page route host, nav projection, native column/export providers, shell activation |
+| `mcp` | Granite/MCP | MCP tools over `manage` |
+
+The Node side lives in `web/runtime` (workspace package, built into `@iota-uz/sdk` subpaths
+`./runtime`, `./runtime/server`, `./runtime/client`, `./runtime/testing`, and the
+`runtime-host` worker entry).
+
+## 7. Guarantees and honest limits
+
+* Shared Node pool is a trusted domain; no memory sandbox between packages.
+* `wf.transaction` dedupes committed DB effects; external network is never exactly-once.
+* Ordinary command may commit partially before a lost reply; it is not blindly retried.
+* Old instances keep their pinned artifacts; Go host/native operation implementations may
+  change under a compatible public contract; old Go binaries are not retained.
+
+## 8. Durable engine and events (design for the workflows slice)
+
+### Engine qualification
+
+DBOS (TS and Go) was qualified **by analysis** against the author API (no experiment run yet):
+* DBOS transactions run on DBOS's own data source connection; `wf.transaction` requires the
+  occurrence receipt to commit in the **Go-owned** tx together with DB effects — not expressible.
+* DBOS recovers workflows by application version per process; the shared pool runs v1 and v2
+  of several packages side by side and selects artifacts per instance.
+* Waiting in DBOS Go keeps the workflow goroutine/Node invocation alive or requires our own
+  re-entry journal anyway.
+
+Decision: a Go-owned **replay journal engine** over PostgreSQL (not a queue): deterministic
+re-execution of the pinned TS function, journal of completed occurrences, durable timers,
+signals, human tasks, leases and crash recovery. Revisit if a candidate supports external
+transaction receipts and per-instance artifact pinning.
+
+### Tables (`extruntime`)
+
+* `workflow_instances(id, tenant_id, workflow, package, version, artifact_hash, export, input,
+  status running|waiting|completed|failed|terminated|blocked, result, error, subject_user_id,
+  subject_kind initiator|owner, predecessor_id, start_key unique, wake_at, lease_owner,
+  lease_until, run_count, created_at, updated_at)`
+* `workflow_occurrences(instance_id, name, n, kind, status started|completed|failed|waiting,
+  input_hash, result, error, attempts, wake_at, invocation_id, PK(instance_id,name,n))`
+* `workflow_signals(id, instance_id, name, payload, consumed_name, consumed_n, created_at)`
+* `human_tasks(id, tenant_id, instance_id, name, n, subject_entity, subject_key,
+  assignee_kind user|permission, assignee_user_id (null for a permission), assignee_permission, decision_schema,
+  status open|decided|expired|cancelled, decision, decided_by, due_at)` (exactly one of user and permission is set)
+* `outbox_events(seq bigserial, id uuid, tenant_id, event, subject_entity, subject_key,
+  payload, initiator_user_id, occurred_at)`; `subscription_cursors(subscription, from_seq)`;
+  `subscription_receipts(subscription, event_id, invocation_id, PK(subscription,event_id))`;
+  `trigger_owners(trigger_id, tenant_id, user_id)`; `schedule_runs(schedule, slot)`.
+
+### Primitive semantics (occurrence = (instance, name, n), n = per-run counter of `name`)
+
+| Call | First execution | Replay |
+|---|---|---|
+| `wf.transaction(name, cb)` | Go tx; cb data calls; receipt row inserted **in the same tx**; commit | return stored result |
+| `wf.step(name, fx)` | short tx marks `started`, attempts++; fx runs in Node with key `instance:name:n`; result recorded | completed → stored; `started` → fx runs again (at-least-once, same key) |
+| `wf.sleep(name, d)` | record `wake_at`; suspend | `now ≥ wake_at` → complete |
+| `wf.waitFor(name, signal, {timeout})` | consume unconsumed signal or suspend | consumed → payload |
+| `wf.task(name, spec)` | create `human_tasks` row (the assignee is a `core.user` ref, or `{permission}`: any holder of a permission an active package declares, else `workflow.invalidAssignee`); suspend | decided → `{outcome:"decided", decision, by}`; due → `{outcome:"timeout"}` |
+| `wf.call(name, command, input)` | new invocation selecting the **current** active binding (recorded); atomic: receipt in the command tx; ordinary: `started` recorded before dispatch | completed → stored; `started` without result → instance `blocked` (`ambiguous`, manual review) |
+| `wf.start(name, workflow, input)` | instance row with `start_key=instance:name:n` | stored instance ref |
+
+* A different kind at the same (name, n) → `nondeterminism`, instance `blocked`.
+* Suspend ends the Node invocation (worker freed, no tx held). A scheduler wakes instances on
+  `wake_at`/signal/task decision; runs are claimed with `FOR UPDATE SKIP LOCKED` + lease;
+  expired leases are re-claimed after restart and replayed.
+* Each run loads the subject's **current** permissions; disabled/denied → `blocked` with a
+  diagnostic. Session expiry is irrelevant.
+* Terminate: status `terminated`, in-flight run cancelled, further host calls rejected; done
+  effects stay. Start v2: new instance (any version) with `predecessor_id`; history linked.
+
+### Events
+
+* `tx.emit` / Go `events.Publish(ctx, tx, …)` insert into `outbox_events` in the caller's tx.
+* Dispatcher (after commit; LISTEN/NOTIFY + poll) delivers to each **active** subscription in
+  `seq` order from its cursor (cursor initialized at activation → no automatic replay of the
+  journal on handler update). Each delivery = own tx: handler (Tx) + receipt; duplicate
+  receipt → skipped. `tx.start` inside uses `start_key = subscription:event_id#n` (n = order of
+  the keyless `tx.start` calls inside the delivery).
+* Subject: event initiator's current rights; no initiator → `trigger_owners` owner-user
+  (assigned at activation; activation fails without one).
+
+## 9. Revisions after architecture review (2026-11-11, Opus 5.5) — supersede §2–§8 where they differ
+
+**Persistence identities (decided now to avoid a second schema change)**
+* Single `extruntime.bindings(id, slot_kind command|screen|shell, target_id, package, version,
+  export, activated_by, active_from, active_to)` — one open row per (slot_kind, target_id)
+  application-wide. Replaces `command_bindings`; shell/screen replacement and revert use it.
+* Activation is **application-wide**; per-tenant trigger owners in `trigger_owners(trigger_id,
+  tenant_id, user_id)`. A tenant without an owner gets a `blocked` trigger run, not a failed
+  activation. `activations` carry `state active|disabled|purged`.
+* **Write rules and purge (intended).** Entity `writeRule`s run in the data `Store` for every row write it makes for a caller
+  (`insert`/`update`/`delete`/overlay `put`: a package command, `ext_invoke`, a workflow, an operator's `execute`); no administrative
+  path writes rows another way. `Purge` (`Extensions.Publish`, audited, refused while the package is active or live instances pin it)
+  is a **teardown, not a write**: it drops the deactivated package's entity tables whole (`DROP TABLE … CASCADE`) and deletes its recorded
+  schema state, so no write rule runs for the rows that go with it — a rule that refuses every delete does not stop a purge. Schema
+  application at activation is additive DDL and never rewrites rows. (E2E scenario 24 pins both halves.)
+* Fields: `entity_schemas` assigns each field an immutable **physical column** at first apply;
+  field keys (and `renamedFrom` aliases) map to it per package version. DataStore calls carry
+  `spi.Scope{Subject, Caller{Package, Version}}` and resolve keys through the caller version's
+  map. Activation is blocked when a running instance's pinned schema is incompatible.
+* `Resource.ContractHash` (Go `manifest.ContractHashOf`) recorded in `invocations`,
+  `workflow_occurrences`, bindings; kit snapshots in `catalog_snapshots(hash, content)`.
+* `invocations` add `parent_invocation_id, root_id, trigger_kind ui|mcp|endpoint|schedule|
+  subscription|workflow, trigger_ref, binding_id, contract_hash, result, committed_tx_count`.
+* `workflow_instances` add `parent_instance_id, start_invocation_id, blocked_reason,
+  lease_epoch`; `start_key` unique per `(tenant_id, start_key)`; start-v2 has `start_key=null`.
+  `workflow_signals` add `sender_user_id, signal_key unique`. `outbox_events` add
+  `producer_invocation_id`. `schedule_runs(tenant_id, schedule, slot)`; `Schedule.Timezone`.
+* Single table list: no `workflow_timers` table (wake_at columns), `trigger_owners` (not `owners`).
+
+**Events**: no seq cursor. Every committed (visible) event lacking a done/dead receipt of the
+subscription is eligible, so late-committing lower-seq events are never skipped and no long
+transaction elsewhere in the cluster delays delivery (an earlier xmin-horizon gate was removed for
+that reason, 2026-11-11). Delivery order is by seq among visible rows, not a strict commit order;
+the activation watermark only excludes events older than activation. Per-row delivery state:
+`subscription_receipts(subscription, event_id, status pending|done|failed|dead, attempts,
+next_at, last_error, invocation_id)` with retry/backoff and dead-letter; one poisoned event
+does not block the subscription.
+
+**Engine**: every state write is fenced `WHERE id=$1 AND lease_epoch=$e` in the same tx as
+the occurrence write (stale runner cannot record). `invoke` for a workflow run carries the
+journal of completed occurrences so replay is answered inside Node (no O(n²) host calls);
+fan-out via child `wf.start`. Concurrent primitives (`Promise.all`) get `n` at call time; the
+run suspends only after in-flight steps record. Signal consumption + occurrence completion
+commit in one tx; task decision vs timeout is a compare-and-set on `human_tasks.status`.
+`wf.call` of an ordinary command: host increments `committed_tx_count` inside each
+`ctx.transaction`; on replay an existing outcome is returned, otherwise `blocked: ambiguous`
+showing the commit count. Management actions for blocked occurrences: `resolve(occurrence,
+result)`, `retry(occurrence)`, `resume`. Terminate cancels open tasks/timers, rejects signals,
+does not cascade to children. `wf.transaction(name, cb | Operation | AtomicCommand, input?)`
+stores `input_hash`; mismatch on replay → `blocked: nondeterminism`. `wf.now(name)`,
+`wf.uuid(name)` journaled helpers. Step/transaction results must be JSON (`Json` type) or
+declare `{output: schema}`.
+
+**Author API**: `precheck(id, OrdinaryCommand, (q, input) => …)` (preliminary snapshot),
+`guard(id, Operation|AtomicCommand, (tx, input) => …)`, `writeRule(id, Entity, (tx, {existing,
+proposed, changed}) => …)`; guards have stable IDs used as issue `source`. One error path:
+`throw Err.of(params)` for declared domain errors and `throw validation(Issue.at(path,
+params), …)` for issues (no `tx.issue`). `tx.start(W, input, {key})` — key required outside
+subscriptions/workflows. Overlay write `tx.put(Overlay, baseRef, values)`. Templates include
+`push`. Resource kinds `contactResolver` / `deliveryPolicy` for #926 public contracts.
+Endpoints get `EndpointContext` (ordinary ctx + `request`, returns `{status, headers, body}`);
+authenticated → actual user, public → trigger owner. Filter keys may be ref paths
+(`"holder.owner"`), compiled to explicit joins. Navigation adds `workspaces` and `palette`.
+Build/extract run in a separate build worker, not the invocation pool.
+
+**UI host (as implemented)**: `bindings.target_id` for `slot_kind='screen'` is a native route
+ID (a `native.Route` of the application's `native.Set`, which the runtime hands to `ui.Config.NativeRoutes`; see §9.4) or
+a package page ID; for
+`slot_kind='shell'` the newest open row wins. Browser endpoints: `POST /_ext/rpc` (commands and
+queries as the session user; operations are never callable from the browser) and
+`GET /_ext/assets/<artifactHash>/<path>` (immutable). Client bundles externalize `solid-js`,
+`solid-js/web` and `@iota-uz/sdk/runtime/client`, resolved from the host's shared module
+registry (`globalThis[Symbol.for("iota.runtime.shared")]`) so there is one Solid and one
+runtime context per document; `@iota-uz/sdk/solid-ui` is shared the same way but lazily (§9.7),
+and a version's stylesheets are linked before its first render (§9.7). Native list columns: `pkg/listext` (reference consumer: CRM
+clients list + CSV/Excel export).
+
+**Slots, cells and screen replacement (as implemented)**
+* **A slot is declared by its host page**: `manifest.Resource{Kind: slot}` without `target` (stable ID, typed `props`,
+  optional `permission`). Native pages declare theirs as plain native resources (CRM: `crm.slots.clientSidebar`, props
+  `{clientId: int}`, permission `Client.Read`, in `modules/crm/extension`); packages declare theirs with `defineSlot` in the
+  *contracts* graph, so other packages reach them through the kit (`slotRef(id, propsSchema)` types the contributions).
+* **Contributions are additive**: `slot(ref, Component, {order?, permission?})` is a client resource with `target`, `order`,
+  `permission`; no `bindings` row. The index orders a slot's contributions by (order, package, ID). For a viewer the server
+  keeps the ones whose own permission the viewer holds, and none at all when the slot's declaration requires a permission the
+  viewer lacks. Props passed by the host page are validated against the declared type before they are emitted.
+* **Rendering.** Go pages call `shellext.Slot(ctx, id, props)`: a mount element
+  `<div data-iota-slot=ID data-iota-slot-config={props, contributions[{id,package,version,module,export}], env} hx-disable>`
+  and, once per request, the runtime host entry; with no applicable contribution nothing is rendered. Solid pages and the
+  shell renderer get the same contributions from `PageData.slots` / `RuntimeContext.slots` and mount them with
+  `<Slot slot={…} props={…}/>` (`@iota-uz/sdk/runtime/client`; `ref` is not usable as a prop name, Solid reserves it). The
+  browser host (`client-host/islands.ts`) mounts each element into its own Solid root and disposes it when the element leaves
+  the document (HTMX swap, boosted navigation, `pagehide`); a module that resolves after disposal is dropped.
+* **Cells.** `cell(column, Component)` is a client resource with `target` = column ID. The native list renders the standard
+  cell for the column's type either way and wraps it in `<span data-iota-cell=… data-iota-cell-config={contribution, value,
+  row, env} hx-disable>`; the host replaces the fallback once the component has rendered. `value` is wire JSON, `row` the
+  readable contributed values by column ID plus `ref`. Filters, sorting and exports never use the renderer. One renderer per
+  column (the declaring package wins, then the first by package name).
+* **Screens.** A native route is a `route` resource (CRM: `crm.routes.clientView`, `/crm/clients/:id`, params `{id: int}`,
+  permission `Client.Read`) published like any native resource and resolved through the catalog, so a package page for it
+  (`page(crm.ClientView, …)`) gets typed params. Such a page is a candidate: it is not served until a `screen` binding exists,
+  the replacement requires the route's permission as well as its own, and HTMX partial requests (not boosted) keep reaching
+  the native handler. A request routed by the previous snapshot finishes on it (no 404 while a binding is reverted).
+* The CRM contributes them through its native contributor (`crm.Natives` → `extension.Items`): the slot with `native.Declare`, the route with `native.RouteWith` (typed params and the permission the screen requires; `native.Route` carries a path only). `modules.Natives()` composes them, so the runtime and `cmd/extruntime-catalog` (offline kit) see the same set.
+
+**Data access, execution and assets (as implemented, post-audit)**
+* Overlay rows are readable (Get/Find/Count, filters, `NativeOverlayJoin` for native lists and
+  exports) only together with their base row: the native `ReadPermission`, or the base entity's
+  read rules; `PutOverlay` demands the same. Field access is symmetric: a field a subject cannot
+  read cannot be written by it (`ErrFieldNotAccessible`, no value in the error), which also closes
+  the "patch changes nothing" equality oracle. A required hidden field therefore cannot be
+  supplied on insert by a subject without the permission.
+* Ref-path filters into an entity whose own read rule uses a ref path group the rule's joins with
+  the joined table (`LEFT JOIN (t AS j1 LEFT JOIN … AS j2 …) ON …`); aliases come from one counter.
+* A version runs only while its newest review is an approval bound to its exact source and artifact
+  hashes. `manage.Service.ResolveArtifact` (the only door to the pool: invocations, workflow
+  start-v2 and pinned instances, guards, subscriptions, schedules, endpoints, notifications)
+  enforces it on every call, not only `Activate`. A rejection after activation stops delivery:
+  event/schedule/endpoint sources skip the version, `Implementations.Active` fails.
+* `GET /_ext/assets/<hash>/<path>` serves only `client/**`, and only for hashes of the artifacts of
+  currently activated versions (screen and shell bindings resolve only into those). `UIArtifacts`
+  repeats the `client/` confinement.
+* `AssignOwner` (needs `extensions.publish`) accepts the caller, or a user whose every current
+  permission (`manage.Config.Subjects`, direct/role/group) the caller holds; without a rights
+  source only self-assignment. Refusals are audited.
+
+**Engine/events (as implemented)**: `subscription_receipts.status` ∈ `done|failed|dead|blocked`
+(`blocked` = missing owner / refused subject, re-checked later). `workflow_occurrences.status`
+adds `cancelled` (set by Terminate). Activation stores `events.Watermark()` as the
+subscription's `AfterSeq`. The management slice supplies `workflow.Implementations`,
+`events.SubscriptionSource`, `events.ScheduleSource`. The workflow journal travels in
+`InvokeContext.Occurrence.journal`. Known limits: concurrent waits in `Promise.all` suspend
+sequentially; `wf.user.has()` reads current rights and is not journaled; event delivery is not strictly
+commit-ordered across concurrent producers; schedule slots older
+than `Lookback` (15 min) are skipped.
+
+**Engine/events hardening (as implemented)**:
+* `tx.start` without an explicit key derives `base#n`: inside `wf.transaction` / an atomic `wf.call` the
+  base is the occurrence `instance:name:n`, inside an ordinary command called by `wf.call` it is
+  `wf.call:<invocationId>`, inside subscriptions and schedules `subscription:event` / `schedule:id:slot`;
+  `n` counts the keyless starts of that unit, so a replay yields the same keys and a later occurrence can
+  never collide with an earlier child.
+* `DecideTask` locks the instance row before the task (same order as every run write) and wakes it under
+  that lock, like `deliverSignal`; `Resolve`/`Retry` read `blocked` under `FOR UPDATE` in the tx that edits
+  the journal.
+* Infrastructure failures (database/connection errors, lost worker, closed or full pool, cancelled run)
+  are `host.InfraError`: a host call that hits one aborts the workflow run (further calls get
+  `workflow.runAborted`), the lease is released and the run is replayed after the backoff
+  (`failures` counts; `MaxRunFailures` blocks with `failing`). They are never journaled as `OccFailed`;
+  an ordinary `wf.call` that hit one stays `started`, its invocation is recorded `unknown`, and the replay
+  blocks it `ambiguous` (resolve/retry) like a lost worker. Events and schedules retry such a failure after
+  the backoff without counting an attempt, so an outage cannot dead-letter anything.
+* `events.RequeueReceipts` (`Service.RequeueReceipts`, `POST /_ext/manage/subscriptions/{id}/requeue`,
+  operate permission, audited as `events.requeue`) turns `dead` and `blocked` receipts of the tenant back
+  into due `failed` ones with no attempts counted. Schedule runs have no requeue: a dead slot is outside the
+  15 min lookback anyway.
+* `tx.start` / `wf.start` check the workflow contract's `Permission` against the subject (`tx.start`:
+  reloaded current rights, `workflow.startDenied`; `wf.start`: the run's subject, instance `blocked: denied`).
+* A run of an instance whose package has no active version blocks it with `packageDeactivated`
+  (`workflow.PackageGate`, implemented by `manage` over the catalog); `Resume` continues it once the package
+  is active again. Subscriptions and schedules of a deactivated package are not listed by the sources, so
+  nothing is delivered or fired for them. A schedule never fires slots older than its activation
+  (`ScheduleDef.ActiveFrom`).
+* A transaction cannot commit while an invocation joined to it (`tx.call`, `tx.query`) is still running or
+  was cut short because its caller finished: an un-awaited `tx.call` rolls the transaction back with
+  `runtime.nestedInFlight` instead of committing half of it.
+
+### 9.1 TypeScript authoring API audit (supersedes §2 where it differs)
+
+**Kit entry.** `@iota-uz/sdk/runtime/kit` (`foreign`, `nativeEntity`, `nativeList`) is internal: only generated
+`@iota-kit/*` modules import it. The author-facing `@iota-uz/sdk/runtime` has no way to mint a contract outside the
+package namespace, and `contract()` is not exported. `collectManifest` rejects any contract whose ID is outside the
+namespace unless it was issued by the kit; a locally built `operation('core.x', …)` that is only implemented is an error,
+and so is a kit contract inside the package's own namespace. Go still re-validates every foreign reference and
+implementation against the catalog snapshot at publish (separate slice).
+
+**Rows and refs.** Every entity row from `get/find/insert/update` has `ref: Ref<E>` (attached in the host context
+layer; overlay rows have none). `recipient.user` and `wf.task({assignee})` take `UserRef` (`Ref` to `core.user`; a
+`Principal` is still accepted as an assignee; `{ permission }` assigns the task to anyone holding that declared permission — a committee: `DecideTask` authorizes a holder judged by their current rights, the task admin (operate) as before, nobody else). `$.user` only types/validates against `core.user` refs. `t.ref` /
+`field.ref` take entities only; `ref(entity, key)` checks the key against the key type. A union of entities in
+`tx.get/update/delete/put` is a type error. `ref` is a reserved field key.
+
+**Fields.** `.optional()` is optional+nullable: `T | null` on read, `T | null | undefined` on write. `.default(x)` is
+validated against the column and emitted in the manifest even when falsy (`false`, `0`, `""`, `[]`, `null`); it reads `T`
+only for a non-nullable column. `access.read: []` is an error; `rows: 'none'` is the explicit deny. `t.json<T>` needs a
+JSON `T` and rejects `null` unless `.nullable()` (as Go does); `NaN`/`±Infinity` fail `encode`.
+`t.row(Entity|Overlay)` and `t.fields(Entity, pick?)` describe rows/fields for command outputs.
+
+**Filters.** Ranges only on int/int64/decimal/date/datetime/string, `like` only on strings, nothing on json; `key` takes
+`eq`/`in`; `createdAt`/`updatedAt` filter and order (also through ref paths). `orderBy` takes orderable paths only.
+
+**Routes.** `route(id, {path, params})`: `params` must be exactly the `:name` segments (each a literal or whole
+segment), required, kind string/uuid/int/int64 — types and runtime. `href` validates, percent-encodes and refuses
+empty/`.`/`..`. `page(foreignRoute, …)` (route from the kit) is a screen replacement candidate: ID
+`<namespace>.<exportName>`, `route` = replaced route; it is active only through a `screen` binding.
+
+**Manifest.** Implicit client IDs lower the first character of the export name (`PolicyBadge` → `ns.policyBadge`).
+In-package `nav.group`, `nav.parent`, palette `target` and nav patch refs must resolve; foreign ones are checked at
+activation. A branded value nested in an exported plain object/array is an error ("export resources as top-level
+named exports").
+
+**Errors.** `validation()` accepts only `Issue.at(...)` instances; `ContractError` has no public constructor. Client:
+`isError(err, DomainErr)` / `issuesOf(err, Issue)` narrow `CallError` / `RemoteError` with typed params.
+
+**Server contexts.** `tx.query / q.query / ctx.query(Q, input)` run a query in the same snapshot/tx (host methods
+`tx.query`, `q.query`). `tx.start` returns `WorkflowInstance<W>`; `tx.signal(instance, name, payload)` and
+`ctx.signal(…)` are typed by the workflow (host methods `tx.signal`, `invoke.signal`; args
+`{workflow, instance, name, payload}`). `wf.secrets` and `log` on Tx/Command/Query/Workflow contexts. `precheck`,
+`guard` and `writeRule` get a read-only `GuardContext` (get/find/count/query/user/invocation/log; reject by throwing).
+Endpoint requests have `body` (parsed), `rawBody: Uint8Array`, `text()`; the invoke input carries `rawBody` as base64.
+Handlers may be sync. `tx.call(ordinaryCommand)` etc. fail with a readable message in the type error.
+`Tx<'plain'>` is not assignable to `Tx<'derived'>`.
+
+**Build (as implemented)**: one Node build process per operation (`check|build|test|kit`). Kit
+modules (`@iota-kit/*`) are **bundled** into artifacts (self-contained, reproducible from tree +
+kit hash); only `@iota-uz/sdk/runtime*` stays external for server/contracts graphs and is
+resolved by the worker loader. Client bundles externalize `solid-js`, `solid-js/web`,
+`solid-js/store` and `@iota-uz/sdk/runtime/client` through the shared registry. Generic
+writes are allowed only to the caller package's own entities/overlays (`ErrForeignWrite`
+otherwise); other packages' data is changed through their published operations. Native
+entities carry `keyType`; slot declarations carry `props`.
+
+**Host rules (as implemented)**: guard and query invocations may only call read methods
+(`tx.get|find|count|query`, `q.*`, `secrets.get`); any write or `wf.*` call returns
+`runtime.readOnlyContext` — enforced by the Go router, not only by the TS context.
+`invoke.command`, `invoke.signal` and `wf.call` return `runtime.intentInTransaction` while a Go tx
+is open in the invocation. `tx.query`/`q.query` return `runtime.nativeQueryUnavailable` for a
+query with no implementation at all (neither a Go default nor a bound package export; Go-implemented
+native queries run, see §9.3).
+`wf.step`/`wf.transaction` results are JSON-normalized on first execution. HTTP endpoints:
+`/_ext/endpoints/<namespace>/<path>` (sync response; the session user for a non-public endpoint — a
+state-changing cross-site request is refused, `originguard` — and always the trigger owner for `public` endpoints, whose
+browser session is ignored; tenant of such a request via `runtime.Config.Endpoints.PublicTenant`, `TenantByHost` trusts
+the `Host` the proxy forwards; response headers are an allowlist, `nosniff` always and `Content-Security-Policy: sandbox`
+for HTML/SVG/XML; see `docs/extensions/consumer.md` §5). `POST /_ext/rpc` and the state-changing `/_ext/manage` calls
+refuse cross-site requests with `runtime.crossSite` (`runtime.Config.TrustedOrigins` / `EXTRUNTIME_TRUSTEDORIGINS`
+allow-list another origin).
+
+### 9.2 Integration notes from the end-to-end suite
+
+* **Native lists** are declared by Go (`native.List` in the module's registration; the CRM contributes `crm.lists.clients`),
+  carried to the kit as `KitSource.Lists` and published as a reference owned by the namespace the list ID extends. An author
+  writes `column(crm.ListsClients, {...})` (the name is the PascalCase of the last non-clashing ID segments: the route
+  `crm.clients` already holds `Clients`). A list is not discovered from columns any more.
+* `overlay(id, base, fields, { access })` accepts `access` (`fields` permissions and `read` rules), compiled into the overlay
+  resource; the native list and the export hide a field the viewer may not read.
+* The composition root passes the workflow engine as `host.Config.Signals`, so `tx.signal` / `ctx.signal` (including from a
+  public endpoint) reach instances.
+* `pkg/extruntime/e2e` drives the composed `runtime.Component` (real Node pool, real Node build worker built from
+  `web/runtime`, real PostgreSQL through `pkg/itf`, real session middleware) through `/_ext/manage`, `/_ext/rpc`, page
+  routes, the CRM clients list/export and `/_ext/endpoints`. Its packages are real TypeScript trees in `testdata/`, written
+  with the public author API only. The scenarios are numbered once each: 01 new module, 02 overlay, 03 replacement, 04 ordinary
+  commands, 05 core event, 06 restart, 07 versions, 08 `wf.call`, 09 terminate, 10 Git, 11 shell, 12 campaign, 13 native
+  replacement, 14 notice channels, 15 slots, 16 cell renderers, 17 CRM client events, 18 screen replacement, 19 native defaults from
+  background roots. Prerequisites: `pnpm install` and `pnpm --filter @iota-uz/sdk-client-host-internal build`
+  (the SDK emit type-checks `src/client-host/entry.ts` against the client-host declarations). Run with
+  `go test -p 1 ./pkg/extruntime/e2e/`.
+
+### 9.3 Native command boundary (as implemented)
+
+* **Authoring (`pkg/extruntime/native`).** A module declares a native contract once, as an immutable package-level value:
+  `native.Operation | AtomicCommand | Command | Query[In, Out](id, native.Spec{...}, impl)`, and adds it to the
+  application's `native.Set` from its registration function (§9.4). The wire contract is derived from the Go structs by `native.TypeOf`
+  (explicit `json` names; `wire:"int64|decimal,precision=P,scale=S|date|datetime|uuid|enum=a|b|ref=<entity>|string,maxLength=N"`;
+  int64 fields need `wire:"int64"` + `,string`; a pointer field is an optional key and needs `omitempty`; floats, maps,
+  interfaces, embedded and recursive types fail loudly) or given explicitly in `Spec.Input/Output`. `impl` is a factory over
+  `native.Deps` (the composition container) returning the typed Go default (`OperationFunc(ctx, native.Tx, in)`,
+  `CommandFunc(ctx, native.CommandContext, in)`, `QueryFunc(ctx, native.QueryContext, in)`); it is instantiated per
+  application on first use (`native.Bind`). `Spec.Permission` is an RBAC permission name: it is not a catalog resource, so
+  it is not published in the contract; the host enforces it from the definition on every invocation, whichever
+  implementation is bound. Native contracts reach the catalog and the kit through the `native.Set` (§9.4).
+* **Dispatch.** A native contract without an open `slot_kind='command'` binding runs its Go default
+  (`host.Config.Natives`, `Binding.Native`, recorded with an empty package/version/export); with a binding the package
+  export runs instead — one active implementation, no fallback on error; unbinding restores the Go default. Everything
+  else is the package path: input/output validation, permission, prechecks and operation guards of packages
+  (`Catalog.Guards`), invocation records, nesting limit, closed domain errors. Operations and atomic commands run inside
+  the caller's transaction (`tx.call`) or one the host opens; queries in the caller's transaction/snapshot (`tx.query`,
+  `q.query`) or a read-only snapshot; ordinary commands get `CommandContext.Transaction` / `Call` / `Query`. The handler's
+  `ctx` carries the transaction (`composables.UseTx`, so repositories join it), the subject's tenant and the pool, plus the
+  root request's values (user, session) when the root came from HTTP. `Tx.AfterCommit` runs callbacks after the
+  transaction commits (module events published post-commit); it is refused in a caller-owned transaction (subscription
+  delivery, schedule slot). A package invocation nested under a Go frame runs on the worker of the nearest package
+  ancestor, or takes a pool slot under a Go root.
+* **Entry points.** Go code calls `Def.Dispatch(ctx, dispatcher, in)`. The runtime component provides
+  `native.Dispatcher` (`runtime.HostDispatcher`: root invocation as the session user, trigger `ui`); without the runtime
+  `native.ResolveDispatcher(container, fallback)` falls back to `native.Direct` over the calling module's contracts (Go
+  defaults in-process, `Spec.Permission`/`Authorize` checked against the request user). Direct and the host share one
+  implementation of the contract rules (`native.CheckInput|CheckOutput|CheckPermissions|CheckCall`, `MaxNesting`), so
+  they return the same error codes; Direct lacks only what needs the runtime (replacements, package guards, records). Reference consumer: CRM — `crm.operations.upsertClient`
+  (authorization Client.Create/Client.Update, value-object validation as issues `crm.invalidPhone|invalidEmail|invalidPin|
+  invalidCountry|clientNotFound`, repository save + history in the caller's transaction, `crm.client.created.v1` /
+  `crm.client.updated.v1` through `events.Publish` in that transaction, the module's eventbus events after commit) and
+  `crm.commands.saveClient` (ordinary; Go default = one transaction around `upsertClient`). The client create form, the four
+  edit forms and the chat "new chat" form dispatch `saveClient`; `ClientService.Create/Update` remain as Go API. A
+  dispatch error renders 422 (validation) / 403 (denied) / 409 (domain).
+* **Error mapping.** Data-layer failures reaching package code map to stable kinds instead of `runtime.hostCall`:
+  unique → validation `data.unique` (issue phase `write`, path = field), reference → validation `data.reference`,
+  invalid value → validation `data.invalidValue`, unknown field / invalid query → internal `data.unknownField` /
+  `data.invalidQuery`, native/foreign generic write → denied `data.nativeWrite` (also for a generic write the router
+  refuses before the store, which used to say `runtime.notWritable`) / `data.foreignWrite`, read denied → denied `data.denied`,
+  hidden field → denied `data.fieldNotAccessible` (no field values), not found → domain `data.notFound`, row version
+  conflict → domain `data.versionConflict`. The two `data.*` domain codes pass the closed-errors check of every contract.
+  A Go default's own error is returned to Go callers unchanged (its chain intact) and recorded as internal.
+* **Limits.** Package code nested under a Go default shares the Go frame's hold of the transaction: concurrent host calls
+  from it (`Promise.all`) fail fast (`repo.ErrTxInUse`) instead of queueing — the same rule as write-rule guards.
+  `upsertClient` runs from every root (HTTP request, subscription delivery, schedule slot, workflow step, endpoint):
+  `host.Config.NativeContext` (`runtime.HistoryExecution`) gives every native handler the business-history execution derived
+  from the invocation — a request of the acting user keeps its own; any other root records the runtime as the service
+  actor (`extruntime:<trigger kind>`) and the invocation's subject (initiator or trigger owner) as the initiator, channel
+  from the trigger (`mcp`→mcp, `endpoint`→api, schedule/subscription/workflow→job, `ui`→ui), operation = the native
+  invocation, run = its root. `native.Tx.Subject()` is the subject `Authorize` checks; the client events name it as their
+  initiator (not the HTTP user of ctx). After-commit callbacks (`Tx.AfterCommit`, e.g. the module's eventbus events) in a
+  caller-owned transaction are handed back to the caller: `host.Result.AfterCommit`, which the subscription dispatcher and
+  the scheduler call after their own commit (a rolled-back delivery drops them); a caller that ignores it loses them.
+  Other writers of CRM clients (inbound Twilio messages, `ClientService.Create` callers) do not go through the command and
+  therefore publish no `crm.client.*.v1` event.
+
+### 9.4 Composition boundary (as implemented)
+
+* **One native set.** `native.Set` is the only carrier of native resources: entities (`native.Entity(data.NativeEntity)`),
+  lists (`native.List`), events with Go payload types (`native.Event[P](id, native.EventSpec{Subject, ...})`, payload type
+  derived by `native.TypeOf`), Go-implemented operations/commands/queries with their defaults (`*native.Def`), routes
+  (`native.Route(id, path)`) and plain declarations (`native.Declare(manifest.Resource)` — slots with `props`, pages,
+  permissions, …; entities, events, contracts and routes are refused there because their consumers need more than the
+  resource). IDs are unique across all kinds; the same contract/event value added twice is a no-op. Each module exports a
+  `native.Contributor` (`func(*native.Set) error`): `coreservices.Natives` (core.user, core.user.created.v1),
+  `crm.Natives` (crm.client, crm.lists.clients, crm.client.created/updated.v1, upsertClient, saveClient, route
+  crm.clients). `modules.Natives()` lists the SDK modules' contributors next to `modules.Components()`.
+* **Injected once.** `runtime.Config.Natives` (required) is the composed set:
+  `native.Compose(append(modules.Natives(), app.Natives)...)`. From it the runtime derives the catalog view
+  (`catalog.Natives(set)`: resources, kit sources, `Reserved`, `Snapshot`), the data store's and the management
+  service's entity index (`set.EntityRegistry()`), the Go defaults (`native.Bind(set, deps)`) and the UI slice's
+  replaceable native routes (`ui.Config.NativeRoutes`). The removed channels are `runtime.Config.NativeResources`,
+  `NativeContracts`, `NativeLists`, `runtime.UIConfig.NativeRoutes`, the entity registry field `Natives
+  *data.NativeRegistry`, and the process globals `native.Default` / `native.MustRegister` and `events.Default` /
+  `events.MustRegisterNative` / `events.NativeEvent`. `events.Publish[P](ctx, tx, scope, def, subject, payload)` takes the
+  event definition itself, so publishing needs no registry. `cmd/extruntime-catalog` renders the snapshot of
+  `native.Compose(modules.Natives()...)` — the same registrations a running SDK application has — so the offline kit and
+  an application's kit agree on export names (`crm.Clients` is the route, `crm.ListsClients` the list).
+  `catalog.NewNativeSet(*data.NativeRegistry)` remains as an entities-only view for tools and tests.
+* **Worker delivery.** `runtime.Config.WorkerScript` and `Builder`/`Kits` are optional. When absent, `runtime.ResolveDist`
+  takes them from the installed `@iota-uz/sdk` package — `runtime.Config.Dist.Dir`, else `$IOTA_SDK_DIST`, else
+  `<Dist.AppRoot or cwd>/node_modules/@iota-uz/sdk` — namely `dist/runtime/host/worker.mjs` and
+  `dist/runtime/build/worker.mjs` (a `build.NodeBuilder` working under `CacheDir/build`). It fails with a diagnostic naming
+  the file read and the fix unless `package.json` names `@iota-uz/sdk` at exactly `sdkidentity.ReleaseVersion`,
+  `dist/sdk-identity.json` passes `sdkidentity.Identity.Validate` (same release, full source commit, same protocol major)
+  and both workers exist. The workers are deliberately **not** `//go:embed`ded: they are generated JS (bundled TypeScript
+  compiler, Babel, Solid typings) that is not committed, the build worker needs the native `esbuild` package resolved from
+  `node_modules`, and the release model (`docs/client-host-release-train.md`, `docs/sdk-releases.md`) ships JavaScript only
+  through the npm package of the same release, verified by identity, never from the Go module cache; embedding would
+  commit build output to the Go module and create a second, unverified copy of each worker.
+* **Host conformance.** `web/runtime/tests/conformance/` holds one probe package (entities with read rules and a hidden
+  field, a child with a ref, an overlay, an operation and an ordinary command) and `cases.json` (filters and SQL null
+  semantics, ordering with nulls, paging after read access, hidden fields on read/filter/sort/write, ref paths as left
+  joins, overlay absence and base readability, `tx.call` / `ctx.call` / nested transactions, native writes, unique and
+  missing rows, rollback). `tests/conformance.test.ts` runs every case on the TS test host; `pkg/extruntime/e2e`
+  `TestHostConformance` builds the same package with the real build worker and runs the same cases on the Go host with
+  the PostgreSQL store, so a drift fails one side. The first run aligned the test host with the Go host on
+  `data.unique` (was `data.uniqueViolation`), `runtime.ordinaryCommandInTx` (was `runtime.callNotAtomic`), writes of
+  hidden fields (refused), overlay rows of unreadable bases (null) and `ctx.call` inside `ctx.transaction` (refused), and
+  the Go host with the documented `data.nativeWrite`, `data.unknownField`, `data.invalidQuery`. Error *kinds* are not
+  compared (the test host raises every rejection as an error with a `code`).
+
+* **Configuration-driven enablement.** `pkg/config/stdconfig/extruntimeconfig` is the `EXTRUNTIME_*` section (disabled by
+  default). `pkg/extruntime/wiring.NewComponent(wiring.Options{Natives: ...})` reads it at build: disabled it contributes
+  nothing; enabled it verifies the `@iota-uz/sdk` distribution (`ResolveDist`), loads the client-host manifest
+  (`UI.HostManifest`), maps the section to `runtime.Config` (`wiring.RuntimeConfig`) and composes `runtime.NewComponent`.
+  `cmd/server` and `cmd/worker` append it to their components; `cmd/server`'s `serverComponents` is the set the smoke test
+  boots. Public-endpoint tenants resolve from a configured ID or `runtime.TenantByHost` (`tenants.domain`). MCP tools are
+  registered only into an application-provided `*mcp.Registry` (`wiring.Options.MCPRegistry`): the SDK servers host no MCP
+  gateway.
+
+### 9.5 Documentation as part of the product (as implemented)
+
+* **One model.** `pkg/extruntime/reference` builds the reference from the catalog (`catalog.Active()` manifests and
+  `Natives()`): per namespace the entities and overlays (fields, key type, read access), commands, operations, queries
+  (atomic, input, output, errors, permission), events, workflows (signals), notices, issues and domain errors, routes,
+  pages, navigation, slots, cells, columns, the shell, endpoints, schedules, subscriptions and the guards on each target,
+  with package and version. It carries no implementation source, template bodies, secrets or capability declarations. Wire
+  types render as JSON Schema 2020-12 with the exact rules of `manifest.ValidateValue` (`reference.TypeSchema`, with
+  `Example`; tests validate every example with both) — `int` is a safe integer, `int64` and `decimal` strings with
+  patterns, `ref` an `{entity, key}` pair, `object` closed with its non-optional properties required, `nullable` a type
+  union with null.
+* **One visibility rule** (`reference.Visible`, `EndpointVisible`, `FieldVisible`): `Extensions.Read` sees everything;
+  otherwise a resource is shown if its `permission` is empty or held and, for an entity or overlay,
+  `data.EntityReadable` (the same read-rule predicate the query builder compiles, `data.RuleGrantsRows`, including the base
+  of an overlay) lets the reader see rows; a column is shown only with the overlay field it shows. A field the reader
+  cannot read is absent everywhere: the field list, the record's signature, schema and example, and the cross-references
+  derived from the entity. Package endpoints, schedules, subscriptions and the packages' guard lists (on a target as well
+  as per namespace) are shown to `Extensions.Read` readers only: endpoints are for integrators, and listing them would
+  reveal packages whose contracts the reader may not see. The reader is the session subject
+  (`runtime.SubjectFromContext`).
+* **Surfaces.** `reference.NewSource` is the `helpdocs.Source` mounted at `extensions`, contributed by
+  `runtime.NewComponent` with `composition.ContributeHelpSources`. `reference/index` and `reference/<namespace>` follow
+  the visibility rule; the developer documentation — `guides/*` (from the embedded `docs/extensions` guides with links
+  rewritten) and `api` — is shown to `Extensions.Read` readers only. A reader with nothing visible gets an empty tree,
+  so the mount disappears for them. The guides need no catalog and are served when it fails. The documents link
+  `/_ext/openapi.json` only where the build serves it (the API capability composed the controllers —
+  `SourceConfig.APIServed`); otherwise they omit the link and say the HTTP API is not served by this deployment.
+  `GET /_ext/manage/reference` serves the full model as JSON to the configurator tab and therefore requires
+  `Extensions.Read`; the MCP tool `ext_reference` serves a namespace as markdown, filtered per reader.
+* **Package text is data.** Every string a package declares is rendered through one escaping function (`reference.text`:
+  no HTML, no markdown syntax, no autolinks, one line) or a table-safe code span; at publish `manifest.Validate` refuses
+  values outside the closed domains the reference prints (endpoint method and path, schedule time zone, template
+  channels, guard phase, resource kind, key type).
+* **Schema parity.** `reference.TypeSchema` and `manifest.ValidateValue` agree on every wire rule the schema can state
+  (`TestSchemaAndServerAgreeOnWireRules`); the places where it cannot are stated in the schema's `description` and pinned
+  by `TestSchemaAndServerKnownDivergences`: an `int` written `1.0` or `1e2` (JSON Schema validates the parsed number), a
+  decimal over its `precision` (significant digits ignore leading zeros), and the RFC 3339 `format` being stricter than
+  Go for a comma fraction or a `+24:00` offset. An array type without an item type accepts nothing, as on the server.
+* **OpenAPI 3.1** (`pkg/extruntime/openapi`: builder, Go-type schema registry, validator). `GET /_ext/openapi.json`
+  (`runtime.OpenAPI`) composes `reference.AddContracts` (the RPC as a `oneOf` per visible command/query discriminated by
+  `resource`, value schemas per contract, endpoints as untyped operations) with, for `Extensions.Read` holders,
+  `runtime.ManageOperations`. The management API is registered from the `routes` table in `runtime/api_routes.go`, the
+  same table the spec is generated from, **and enforced from it**: a route's `perm` is checked in `API.wrap` before the
+  handler runs (a refusal is audited under the route's `audit` action with the fields the service would record), so the
+  table cannot say one thing and the handler do another. A route with an alternative way in (`/tasks/{id}/decide`: the
+  task's assignee or, for a task assigned to a permission, a holder of it, or `Extensions.Operate`) leaves the decision to the service and says so in the document. The service
+  keeps checking the same permission. Empty lists are encoded as `[]`. Each operation group documents its own default
+  error: the management envelope on `/_ext/manage`, `RpcFailure` on `/_ext/rpc`, none on package endpoints.
+  `go run ./cmd/extruntime-catalog -openapi out.json` exports the native catalog's document offline.
+
+### 9.6 Package documentation (as implemented)
+
+A package ships its own end-user documentation; it is a second documentation channel next to §9.5's generated reference, and
+it follows the same visibility rule.
+
+* **Authoring** (`docs/extensions/authoring.md` §13.5). `docs/<locale>/<path>.md` in the package tree: the first directory is
+  the locale (lowercase tag; `en` is the default and every document must exist in it), `<path>` is up to five segments of
+  `[a-z0-9_-]`. Optional flat front matter (`title`, `order`, `audience`, `permission`; a deliberate YAML subset). Only
+  `.md`; images are not supported. Relative links name documents by file name (`other.md#section`), `route:<id>` links a page or
+  route of the package.
+* **Build** (`web/runtime/src/build/docs.ts`, hooked into `runBuild` after manifest extraction). Each file becomes
+  `manifest.Doc{Path, Locale, Title, Order, Audience, Permission}` (`Manifest.Docs`) and the artifact file
+  `docs/<locale>/<path>.md` with the front matter removed. The source tree, the artifact and therefore both hashes cover the
+  documentation, so the version review covers it. Diagnostics carry `docs/<locale>/<path>.md:line:col`: `docs.frontMatter`,
+  `docs.title`, `docs.audience`, `docs.badPermission` / `unknownPermission` / `permissionMismatch`, `docs.noLocale` /
+  `badLocale` / `badPath` / `unsupportedFile` / `missingDefault` / `tooLarge` / `encoding` / `symlink`, `docs.brokenLink` /
+  `linkEscapes` / `linkTarget` / `linkScheme` / `unknownRoute` / `image`, and `docs.unknownHelpHref` for a literal
+  `helpHref("…")` call of the package's sources that names no document.
+* **Validation in Go** (nothing is trusted from the artifact). `Manifest.Validate` (`manifest/docs.go`) checks path, locale,
+  title and audience (plain text: no control characters, no `<` `>`, bounded), order, permission shape, uniqueness, an `en`
+  version of every path, one permission per path, and that a permission in the package's own namespace is declared by it.
+  `manifest.ValidateDocFiles` (publish, and activation against the stored artifact) requires exactly the listed files under
+  `docs/`, each valid UTF-8 within 256 KiB (4 MiB in all). `manage.checkDocPermissions` (publish and activation) resolves a
+  permission of another package or a native contract in the catalog; a native RBAC name (`Client.Read`) is accepted as written.
+* **Serving** (`pkg/extruntime/pkgdocs`). `pkgdocs.Library` answers `List` and `Read` for a reader; the Help Center source
+  (`pkgdocs.NewSourceOf`, mount `apps`, order 150, contributed by `runtime.NewComponent`) and the MCP tool `ext_docs` are views of
+  it. The mount sits beside the Help Center's own tree and the developer area (`extensions`); it is end-user facing.
+  The tree is one category per visible active package (labelled with the namespace: a manifest carries no display name), its
+  documents ordered by `order`, then title. **Visibility**: `reference.Builder.VisiblePackages` — `Extensions.Read` sees every
+  active package, anyone else a package with at least one *usable* resource (command, query, entity/overlay, page/route, workflow, column, slot, cell, shell — not declarations) `reference.Visible` to them (`reference.PackageVisible`) — and
+  per document `permission` (held, or `Extensions.Read`). Forbidden and absent are both `helpdocs.ErrNotFound`. The content
+  is the **active** version's: the package list comes from the catalog snapshot the reference follows (generation-cached), the
+  text from the version's artifact (an immutable file, so cached by artifact hash and path). Locale: exact tag, language, `en`.
+  `pkgdocs.RewriteLinks` drops `.md` from document links (the Help Center resolves relative links against the extension-less
+  document address) and resolves `route:` links to the route's path from the active manifest; a route it cannot resolve becomes
+  `#`. Titles and audiences are re-sanitised to plain text when listed. The markdown body goes through the Help Center's renderer
+  and sanitizer.
+* **Linking.** `helpHref(path, {namespace?, base?})` (`@iota-uz/sdk/runtime/client`, `web/runtime/src/help.ts`) returns
+  `/help/doc/apps/<namespace>/<path>`. In a package bundle the namespace defaults to **the package the bundle belongs to**: the client graph's
+  shim for the shared `@iota-uz/sdk/runtime/client` (`sharedShim` in `build/graphs.ts`) exports a `helpHref` bound to the package being built, so
+  a slot or cell of package B rendered on package A's page or on a native page links to B's documents; an explicit `{namespace}` wins. The page
+  context (`PageData.page.package`) is only the fallback of code the build did not bind.
+
+### 9.7 Package styles and the UI kit (as implemented)
+
+A package styles its client without inline styles. Three tools, none of which can leak into the host or into another package:
+
+* **The Solid UI kit** — `import { Button, Tabs, … } from "@iota-uz/sdk/solid-ui"`, the one import path (no narrower subpaths; the
+  kit's stylesheet and typings are not importable by packages). It is shared like Solid (`SHARED_SPECIFIERS` in
+  `build/graphs.ts`): the client graph replaces the import with a generated shim and the bundle carries none of the kit, so the
+  package renders with the host's Solid instance and theme. **It is the host's version**: the kit is part of the host bundle, i.e. of the
+  SDK release the Go module and the npm package share; the package builds against the typings of the SDK it installed
+  (`dist/solid-ui`, resolved by the CLI's tsconfig and, in the build worker, mounted next to the runtime typings; the configurator
+  serves them with the rest of `@iota-uz/sdk`, Monaco resolves `@iota-uz/sdk/solid-ui` through its `@iota-uz/sdk/*` path
+  rule) and runs on whichever kit the serving host has.
+* **Lazy host loading.** The registry has two parts: `globalThis[Symbol.for("iota.runtime.shared")]` (eager: Solid, the runtime
+  client) and `globalThis[Symbol.for("iota.runtime.shared.loaders")]` (async loaders of lazily shared modules). The kit shim of a package bundle
+  is `const m = await load()` (top-level await in the ESM chunk), so the version's entry or page chunk settles only when the host
+  has loaded the kit; `client-host/shared.ts` publishes the loader as `import('./kit.ts')`, which a code-splitting bundler (Vite, esbuild
+  with `splitting`) emits as its own chunk. A host whose packages do not import the kit never downloads or evaluates it; the browser suite
+  asserts it. The kit's utilities (`web/solid-ui/src/embedded.css`: the utilities the kit's sources use on the SDK token mapping, no preflight and no tokens, which
+  the host page carries) are built to `embedded-css.js`, a string module in the same chunk, and installed once per document as a constructed
+  stylesheet (a `<style>` element where unsupported); they are never a separate request and never a different release from the kit. Where a
+  bundle is only evaluated in Node (manifest extraction, `iota-ext test`) the specifier resolves to an inert stub with the same export names
+  (`shared-exports.json`, generated from the kit's sources by `build-worker.mjs`); the server and contracts graphs reject it
+  (`graph.clientInServer`, `graph.impureContract`).
+* **Package CSS, part of the immutable version artifact** (so hash-covered and reviewed with the version):
+  * `client/tailwind.css` — Tailwind v4 compiled **in the build worker** with its pure-JS compiler (no CLI subprocess, no native scanner) over the
+    author files of the client graph, with the host's own token mapping (`tailwind.config.js` of the repository root, copied verbatim into
+    `build/theme/` by `build-worker.mjs`, the same file the host's `just css` pipeline reads) plus Tailwind's `theme` and `utilities` layers only.
+    Utilities only: no preflight, no base, no `:root`/`:host` theme variables (theme values are inlined into the utilities with `theme(inline)`),
+    no `@layer` order statement and no `properties` fallback layer (the host owns the layer order and the theme); only the `utilities` layer, the
+    `@keyframes` an animation utility uses and the `@property` registrations of the `--tw-*` variables a utility composes (identical to the host's,
+    required because the host registers only what its own sources use). Class candidates are every string token of the sources (an ordinary
+    `"block"` string also yields `.block{}`; deliberate, see `web/runtime/src/build/README.md`); unused classes are not emitted; with no
+    utility there is no file. Output is minified and deterministic.
+  * `*.module.css` imports — esbuild's `local-css` loader, with the class prefix made unique per package namespace, path and content
+    (`Board_1a2b3c4d_panel`), emitted into the entry's stylesheet (`client/index-<hash>.css`; the per-chunk copies esbuild also writes are dropped).
+    Module rules are unlayered and so beat the layered utilities and kit whatever the link order.
+  * A plain `.css` import from client code (or from `@import` in a module) is `graph.globalCss`; any stylesheet in the server or contracts graph is
+    `graph.cssOutsideClient`; malformed CSS is `css.syntax` (esbuild only warns; the build makes it an error); a failure of the Tailwind step is `css.tailwind`.
+    All are located in the author's file (`iota-ext check` / `build`). CSS `url()` assets are not supported (`data:` URIs are).
+  * `client/manifest.json` (`iota.client/1`) lists them in `css`, utilities first, and the shared modules in `shared`.
+* **Linking.** `ui.Runtime.Index` reads the `css` list of each activated artifact's client manifest once (artifacts are immutable; a failed
+  read is not cached and the version renders without styles, logged) and stores the immutable URLs (`/_ext/assets/<hash>/client/…`) on the page,
+  slot contribution, cell renderer and shell renderer of that version (`shellext.Module.Styles`, `PageRef.Styles`, `ShellRef.Styles`). A runtime
+  page's HTML links them before the mount element (`page.templ`, `data-iota-ext-css`). The browser host (`client-host/styles.ts`
+  `ensureStyles`) makes sure each URL is linked **once per document** — reusing a link the HTML already carries, otherwise appending one to
+  `<head>` — and resolves when it loaded; the page, `createSlotSource` (slots, cells) and the shell wait for it together with the module's import,
+  so nothing renders unstyled. Island links live in the head, not in the swapped fragment: an HTMX swap that removes an island does not remove its
+  neighbours' stylesheet, a fragment that brings the island back finds the link, and several islands of a version share it. The stylesheet is
+  per version; it is not removed when a version deactivates (a document reload drops it).
+

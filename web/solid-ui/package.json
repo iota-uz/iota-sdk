@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "pnpm --dir ../sdk build:testing && tsc --noEmit && vite build",
-    "build:package": "vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && pnpm exec tailwindcss --input src/standalone.css --output package-dist/standalone.css --minify && node scripts/package-assets.mjs && node scripts/ssr-smoke.mjs",
+    "build:package": "vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && pnpm exec tailwindcss --input src/standalone.css --output package-dist/standalone.css --minify && pnpm exec tailwindcss --input src/embedded.css --output package-dist/embedded.css --minify && node scripts/package-assets.mjs && node scripts/ssr-smoke.mjs",
     "typecheck": "pnpm --dir ../sdk build:testing && tsc --noEmit",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test",

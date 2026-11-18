@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -199,6 +200,9 @@ func installStdconfigFromSource(container *Container, ctx *BuildContext) error {
 		func() error { return registerAuto[appconfig.Config](reg, container, ctx, "auto:appconfig") },
 		func() error {
 			return registerAuto[bichatconfig.Config](reg, container, ctx, "auto:bichatconfig")
+		},
+		func() error {
+			return registerAuto[extruntimeconfig.Config](reg, container, ctx, "auto:extruntimeconfig")
 		},
 	}
 

@@ -1,0 +1,11 @@
+{
+  "name": "@e2e/clientextra",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "e2e.clientextra",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts"
+  }
+}

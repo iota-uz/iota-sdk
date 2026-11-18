@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/approvals",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.approvals", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

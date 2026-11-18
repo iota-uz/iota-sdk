@@ -1,0 +1,11 @@
+/*
+ * The utilities the kit's own sources use, for a host page that already carries the SDK stylesheet (preflight, tokens and the
+ * component classes of styles/tailwind/iota.css): the runtime host installs this sheet when an extension package imports the
+ * kit. Same token mapping as the host's pipeline (tailwind.config.js); no preflight, no tokens, no fonts.
+ * Built to package-dist/embedded.css and shipped as the string module `@iota-uz/sdk/solid-ui/embedded-css`.
+ */
+@config "../../../tailwind.config.js";
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "./**/*.{ts,tsx}";

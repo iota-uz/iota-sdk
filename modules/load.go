@@ -4,6 +4,7 @@ package modules
 import (
 	"github.com/iota-uz/iota-sdk/modules/billing"
 	"github.com/iota-uz/iota-sdk/modules/core"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/hrm"
@@ -16,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
 var (
@@ -39,4 +41,13 @@ func Components() []composition.Component {
 		jobs.NewComponent(),
 		testkit.NewComponent(),
 	}
+}
+
+// Natives lists the native registrations (extension runtime resources) of the
+// SDK modules Components enables. An application composes them, with its own,
+// into the one native.Set it passes to the extension runtime:
+//
+//	set, err := native.Compose(append(modules.Natives(), app.Natives)...)
+func Natives() []native.Contributor {
+	return []native.Contributor{coreservices.Natives, crm.Natives}
 }

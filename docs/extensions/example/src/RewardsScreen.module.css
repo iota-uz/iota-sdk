@@ -1,0 +1,13 @@
+/* Scoped: the build makes these class names unique to this package, so they cannot leak into the host or other packages. */
+.board {
+  display: grid;
+  gap: 1rem;
+}
+
+.reward {
+  align-items: center;
+  border-bottom: 1px solid currentcolor;
+  display: flex;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+}

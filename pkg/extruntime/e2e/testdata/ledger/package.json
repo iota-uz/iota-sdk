@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/ledger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.ledger", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

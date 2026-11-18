@@ -1,0 +1,14 @@
+{
+  "name": "@acme/pricing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "iota": {
+    "namespace": "acme.pricing",
+    "contracts": "./src/contracts.ts",
+    "server": "./src/server.ts"
+  },
+  "dependencies": {
+    "pure-lib": "file:./vendor/pure-lib"
+  }
+}

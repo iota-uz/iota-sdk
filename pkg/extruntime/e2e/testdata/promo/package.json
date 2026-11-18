@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/promo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.promo", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

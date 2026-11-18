@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/limits",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "iota": { "namespace": "e2e.limits", "contracts": "./src/contracts.ts", "server": "./src/server.ts" }
+}

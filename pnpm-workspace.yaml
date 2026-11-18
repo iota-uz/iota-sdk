@@ -5,4 +5,6 @@ packages:
   - web/math
   - web/solid-ui
   - web/testing
+  - web/runtime
   - web/chat-ui
+  - pkg/extruntime/configurator/web

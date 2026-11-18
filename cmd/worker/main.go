@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 )
 
 func main() {
@@ -44,7 +45,7 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityWorker},
-			append(modules.Components(), bichat.NewComponent())...,
+			append(modules.Components(), bichat.NewComponent(), wiring.NewComponent(wiring.Options{Natives: modules.Natives()}))...,
 		),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
 			SessionConfig: applets.DefaultSessionConfig,

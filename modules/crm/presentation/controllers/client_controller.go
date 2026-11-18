@@ -37,8 +37,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -112,6 +114,10 @@ type TabDefinition struct {
 }
 
 type ClientControllerConfig struct {
+	// Dispatcher runs the published client commands (crm.commands.saveClient);
+	// with the extension runtime it is the host's, so a package replacement
+	// and package guards apply to the forms. Nil: the Go defaults in-process.
+	Dispatcher  native.Dispatcher
 	BasePath    string
 	Middleware  []mux.MiddlewareFunc
 	Tabs        []TabDefinition
@@ -129,6 +135,7 @@ func DefaultClientControllerConfig() ClientControllerConfig {
 
 type ClientController struct {
 	app           application.Application
+	dispatcher    native.Dispatcher
 	clientService *services.ClientService
 	chatService   *services.ChatService
 	config        ClientControllerConfig
@@ -142,6 +149,32 @@ type ClientsPaginatedResponse struct {
 	Page    int
 	PerPage int
 	HasMore bool
+	// Extensions holds the columns extension packages contribute to the list.
+	Extensions *listext.View
+}
+
+// withExtensions reads the extension columns of entities and attaches each
+// row's cells to its view model.
+func withExtensions(
+	ctx context.Context,
+	clientService *services.ClientService,
+	params *client.FindParams,
+	purpose listext.Purpose,
+	entities []client.Client,
+	models []*viewmodels.Client,
+) (*listext.View, error) {
+	ids := make([]uint, len(entities))
+	for i, e := range entities {
+		ids[i] = e.ID()
+	}
+	view, err := clientService.ExtensionView(ctx, params, purpose, ids)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving extension columns")
+	}
+	for _, m := range models {
+		m.Extensions = view.Cells(m.ID)
+	}
+	return view, nil
 }
 
 func NewClientController(
@@ -158,8 +191,13 @@ func NewClientController(
 	}
 
 	// Initialize controller
+	dispatcher := cfg.Dispatcher
+	if dispatcher == nil {
+		dispatcher = services.DirectClientDispatcher(clientService)
+	}
 	controller := &ClientController{
 		app:           app,
+		dispatcher:    dispatcher,
 		clientService: clientService,
 		chatService:   chatService,
 		config:        cfg,
@@ -288,10 +326,12 @@ func (c *ClientController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	// The client view: a page of its own for a document request (the native
+	// screen of crm.routes.clientView) and the drawer fragment for HTMX.
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
 
 	hxRouter := r.PathPrefix(c.config.BasePath).Subrouter()
 	hxRouter.Use(commonMiddleware...)
-	hxRouter.HandleFunc("/{id:[0-9]+}", di.H(c.View)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/personal", di.H(c.GetPersonalEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.GetPassportEdit)).Methods(http.MethodGet)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.GetTaxEdit)).Methods(http.MethodGet)
@@ -308,12 +348,13 @@ func (c *ClientController) Register(r *mux.Router) {
 	}
 }
 
-func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *services.ClientService) ([]*viewmodels.Client, error) {
+func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *services.ClientService) ([]*viewmodels.Client, *listext.View, error) {
 	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving tenant")
+		return nil, nil, errors.Wrap(err, "Error retrieving tenant")
 	}
 	params := &client.FindParams{
+		Extra: listext.ParseQuery(r.URL.Query()),
 		SortBy: client.SortBy{
 			Fields: []client.SortByField{{
 				Field:     client.CreatedAt,
@@ -352,10 +393,15 @@ func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *s
 
 	clientEntities, err := clientService.GetPaginated(r.Context(), params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving clients")
+		return nil, nil, errors.Wrap(err, "Error retrieving clients")
 	}
 
-	return mapping.MapViewModels(clientEntities, mappers.ClientToViewModel), nil
+	models := mapping.MapViewModels(clientEntities, mappers.ClientToViewModel)
+	view, err := withExtensions(r.Context(), clientService, params, listext.PurposeExport, clientEntities, models)
+	if err != nil {
+		return nil, nil, err
+	}
+	return models, view, nil
 }
 
 func (c *ClientController) viewModelClients(
@@ -366,6 +412,7 @@ func (c *ClientController) viewModelClients(
 	params := &client.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
+		Extra:  listext.ParseQuery(r.URL.Query()),
 		SortBy: client.SortBy{
 			Fields: []client.SortByField{{
 				Field:     client.CreatedAt,
@@ -405,23 +452,34 @@ func (c *ClientController) viewModelClients(
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving tenant")
 	}
+	// The total uses the same filters as the page, so paging stops where the
+	// filtered list ends.
 	total, err := clientService.Count(r.Context(), &client.FindParams{
-		Filters: []client.Filter{
+		Search: params.Search,
+		Extra:  params.Extra,
+		Filters: append([]client.Filter{
 			{
 				Column: client.TenantID,
 				Filter: repo.Eq(tenant),
 			},
-		},
+		}, params.Filters...),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting clients")
 	}
 
+	models := mapping.MapViewModels(clientEntities, mappers.ClientToViewModel)
+	view, err := withExtensions(r.Context(), clientService, params, listext.PurposeList, clientEntities, models)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ClientsPaginatedResponse{
-		Clients: mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
-		Page:    paginationParams.Page,
-		PerPage: params.Limit,
-		HasMore: int64(paginationParams.Page*params.Limit) < total,
+		Clients:    models,
+		Page:       paginationParams.Page,
+		PerPage:    params.Limit,
+		HasMore:    int64(paginationParams.Page*params.Limit) < total,
+		Extensions: view,
 	}, nil
 }
 
@@ -448,11 +506,13 @@ func (c *ClientController) List(
 		return
 	}
 	props := &clients.IndexPageProps{
-		NewURL:  fmt.Sprintf("%s/new", c.config.BasePath),
-		Clients: paginated.Clients,
-		Page:    paginated.Page,
-		PerPage: paginated.PerPage,
-		HasMore: paginated.HasMore,
+		NewURL:     fmt.Sprintf("%s/new", c.config.BasePath),
+		Clients:    paginated.Clients,
+		Page:       paginated.Page,
+		PerPage:    paginated.PerPage,
+		HasMore:    paginated.HasMore,
+		Extensions: paginated.Extensions,
+		Query:      r.URL.Query(),
 	}
 	if isHxRequest {
 		// For infinite scroll pagination (page > 1), return only rows
@@ -494,28 +554,15 @@ func (c *ClientController) Export(
 		return
 	}
 	ctx := r.Context()
-	pgCtx := composables.UsePageCtx(ctx)
+	headers, rows, err := c.exportTable(r, clientService)
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		return
+	}
 	switch format {
 	case export.ExportFormatExcel:
-		upload, err := excelService.ExportFromDataSource(ctx, excel.NewFunctionDataSource([]string{
-			pgCtx.T("Clients.List.FullName"),
-			pgCtx.T("Clients.List.Phone"),
-			pgCtx.T("UpdatedAt"),
-		}, func(ctx context.Context) ([][]interface{}, error) {
-			clients, err := c.viewModelClientsAll(r, clientService)
-			if err != nil {
-				return nil, err
-			}
-
-			out := make([][]interface{}, len(clients))
-			for i, client := range clients {
-				out[i] = []interface{}{
-					client.FullName(),
-					client.Phone,
-					client.UpdatedAt,
-				}
-			}
-			return out, nil
+		upload, err := excelService.ExportFromDataSource(ctx, excel.NewFunctionDataSource(headers, func(ctx context.Context) ([][]interface{}, error) {
+			return rows, nil
 		}), exportconfig.New(exportconfig.WithFilename("clients_export.xlsx")))
 
 		if err != nil {
@@ -538,22 +585,13 @@ func (c *ClientController) Export(
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
-		if err := writer.WriteHeader([]string{
-			pgCtx.T("Clients.List.FullName"),
-			pgCtx.T("Clients.List.Phone"),
-			pgCtx.T("UpdatedAt"),
-		}); err != nil {
-			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-			return
-		}
-		clients, err := c.viewModelClientsAll(r, clientService)
-		if err != nil {
+		if err := writer.WriteHeader(headers); err != nil {
 			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 			return
 		}
 
-		for _, client := range clients {
-			if err := writer.WriteRow([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+		for _, row := range rows {
+			if err := writer.WriteRow(row); err != nil {
 				serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 				return
 			}
@@ -580,6 +618,49 @@ func (c *ClientController) Export(
 	default:
 		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	}
+}
+
+// exportTable builds the exported table: the standard columns followed by the
+// exportable columns extension packages contribute, for the rows the current
+// list filters select.
+func (c *ClientController) exportTable(r *http.Request, clientService *services.ClientService) ([]string, [][]interface{}, error) {
+	pgCtx := composables.UsePageCtx(r.Context())
+	clients, extensions, err := c.viewModelClientsAll(r, clientService)
+	if err != nil {
+		return nil, nil, err
+	}
+	headers := []string{
+		pgCtx.T("Clients.List.FullName"),
+		pgCtx.T("Clients.List.Phone"),
+		pgCtx.T("UpdatedAt"),
+	}
+	headers = append(headers, extensionHeaders(extensions)...)
+	rows := make([][]interface{}, len(clients))
+	for i, client := range clients {
+		rows[i] = append([]interface{}{client.FullName(), client.Phone, client.UpdatedAt}, extensionValues(client)...)
+	}
+	return headers, rows, nil
+}
+
+// extensionHeaders are the titles of the exported extension columns.
+func extensionHeaders(view *listext.View) []string {
+	if view == nil {
+		return nil
+	}
+	out := make([]string, len(view.Columns))
+	for i, col := range view.Columns {
+		out[i] = view.Title(col)
+	}
+	return out
+}
+
+// extensionValues are the exported extension cells of one row.
+func extensionValues(client *viewmodels.Client) []interface{} {
+	out := make([]interface{}, len(client.Extensions))
+	for i, cell := range client.Extensions {
+		out[i] = cell.Value.Export()
+	}
+	return out
 }
 
 func (c *ClientController) Create(
@@ -623,26 +704,32 @@ func (c *ClientController) Create(
 		return
 	}
 
-	tenant, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	logger.Infof("Creating client with tenant ID: %s", tenant)
-
-	clientEntity, err := dto.ToEntity(tenant)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err = clientService.Create(r.Context(), clientEntity); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		FirstName: &dto.FirstName, LastName: &dto.LastName, MiddleName: &dto.MiddleName, Phone: &dto.Phone,
+		Email: &dto.Email, Address: &dto.Address, PassportSeries: &dto.PassportSeries, PassportNumber: &dto.PassportNumber,
+		Pin: &dto.Pin, CountryCode: &dto.CountryCode,
+	}); err != nil {
+		logger.WithError(err).Info("client was not created")
+		writeDispatchError(w, r, err)
 		return
 	}
 
 	shared.Redirect(w, r, c.config.BasePath)
+}
+
+// writeDispatchError answers a failed client command: structured runtime
+// errors (validation issues, denied, domain) with their status and message,
+// anything else as an internal error.
+func writeDispatchError(w http.ResponseWriter, r *http.Request, err error) {
+	if we, ok := native.AsError(err); ok {
+		msg := we.Message
+		if msg == "" {
+			msg = we.Code
+		}
+		http.Error(w, msg, native.HTTPStatus(err))
+		return
+	}
+	serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 }
 
 func (c *ClientController) tabToComponent(
@@ -698,7 +785,15 @@ func (c *ClientController) View(
 		return
 	}
 
+	// The drawer names its client in the query (?view=); the view page in
+	// the path (/{id}).
+	fullPage := (htmx.WantsFullPage(r) || htmx.IsBoosted(r)) && r.URL.Query().Get("view") == ""
 	clientID, err := clientIDFromQ(r.URL)
+	if err != nil {
+		var id uint
+		id, err = shared.ParseID(r)
+		clientID = id
+	}
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
@@ -732,6 +827,11 @@ func (c *ClientController) View(
 		return
 	}
 
+	if fullPage {
+		c.viewPage(w, r, entity, qTab, component)
+		return
+	}
+
 	hxCurrentURL, err := url.Parse(htmx.CurrentURL(r))
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
@@ -742,23 +842,11 @@ func (c *ClientController) View(
 		SelectedTab: r.URL.RequestURI(),
 		CallbackURL: hxCurrentURL.Path,
 		Tabs:        []clients.ClientTab{},
+		ClientID:    entity.ID(),
 	}
 
 	// Build tabs from configured tabs
-	for _, tabDef := range c.tabsOrder {
-		// Check permissions if needed here
-		if len(tabDef.Permissions) > 0 {
-			// Convert permission pointers to rbac.Permission types
-			perms := make([]rbac.Permission, 0, len(tabDef.Permissions))
-			for _, p := range tabDef.Permissions {
-				perms = append(perms, rbac.Perm(p))
-			}
-
-			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
-				continue // Skip this tab if user doesn't have permission
-			}
-		}
-
+	for _, tabDef := range c.visibleTabs(r) {
 		q := url.Values{}
 		q.Set("view", strconv.Itoa(int(entity.ID())))
 		q.Set("tab", tabDef.ID)
@@ -781,6 +869,43 @@ func (c *ClientController) View(
 		ctx := templ.WithChildren(r.Context(), component)
 		templ.Handler(clients.ViewDrawer(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// visibleTabs are the configured tabs the request user may open.
+func (c *ClientController) visibleTabs(r *http.Request) []TabDefinition {
+	out := make([]TabDefinition, 0, len(c.tabsOrder))
+	for _, tabDef := range c.tabsOrder {
+		if len(tabDef.Permissions) > 0 {
+			// Convert permission pointers to rbac.Permission types
+			perms := make([]rbac.Permission, 0, len(tabDef.Permissions))
+			for _, p := range tabDef.Permissions {
+				perms = append(perms, rbac.Perm(p))
+			}
+			if err := composables.CanUserAny(r.Context(), rbac.Or(perms...)); err != nil {
+				continue // Skip this tab if user doesn't have permission
+			}
+		}
+		out = append(out, tabDef)
+	}
+	return out
+}
+
+// viewPage renders the client view as a page of its own, with the selected
+// tab beside the sidebar slot extension packages contribute to.
+func (c *ClientController) viewPage(w http.ResponseWriter, r *http.Request, entity client.Client, selected string, tab templ.Component) {
+	props := clients.ViewPageProps{
+		Title:    mappers.ClientToViewModel(entity).FullName(),
+		ClientID: entity.ID(),
+	}
+	for _, tabDef := range c.visibleTabs(r) {
+		props.Tabs = append(props.Tabs, clients.ViewPageTab{
+			Name:     intl.MustT(r.Context(), tabDef.NameKey),
+			Href:     fmt.Sprintf("%s/%d?tab=%s", c.config.BasePath, entity.ID(), url.QueryEscape(tabDef.ID)),
+			Selected: tabDef.ID == selected,
+		})
+	}
+	ctx := templ.WithChildren(r.Context(), tab)
+	templ.Handler(clients.ViewPage(props), templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
 }
 
 func (c *ClientController) GetPersonalEdit(
@@ -938,25 +1063,17 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, FirstName: &dto.FirstName, LastName: &dto.LastName, MiddleName: &dto.MiddleName,
+		Phone: &dto.Phone, Email: &dto.Email, Address: &dto.Address,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1010,25 +1127,16 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, PassportSeries: &dto.PassportSeries, PassportNumber: &dto.PassportNumber,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1082,25 +1190,16 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, Pin: &dto.Pin, CountryCode: &dto.CountryCode,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1153,25 +1252,16 @@ func (c *ClientController) UpdateNotes(
 		templ.Handler(clients.NotesInfoEditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
+	ref := services.ClientRef(id)
+	if _, err := services.SaveClient.Dispatch(r.Context(), c.dispatcher, services.SaveClientInput{
+		Client: &ref, Comments: &dto.Comments,
+	}); err != nil {
+		logger.WithError(err).Info("client was not updated")
+		writeDispatchError(w, r, err)
+		return
+	}
+
 	entity, err := clientService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v", err)
-		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
-		return
-	}
-
-	updated, err := dto.Apply(entity)
-	if err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	if err := clientService.Update(r.Context(), updated); err != nil {
-		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-		return
-	}
-
-	entity, err = clientService.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)

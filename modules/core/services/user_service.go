@@ -119,7 +119,10 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		}); err != nil {
 			return err
 		}
-		return recordUserAccess(txCtx, s.historyWriter, nil, createdUser)
+		if err := recordUserAccess(txCtx, s.historyWriter, nil, createdUser); err != nil {
+			return err
+		}
+		return publishUserCreated(txCtx, createdUser)
 	})
 	if err != nil {
 		return nil, err
