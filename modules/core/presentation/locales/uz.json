@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "Boshqaruv paneli"
     },
+    "Finance": {
+      "Title": "Moliyaviy sharh",
+      "Period": "Davr",
+      "Summary": "Valyutalar bo'yicha qoldiqlar",
+      "Currency": "Valyuta",
+      "Opening": "Boshlang'ich qoldiq",
+      "Inflow": "Kirim",
+      "Outflow": "Chiqim",
+      "Closing": "Yakuniy qoldiq",
+      "Operations": "Operatsiyalar",
+      "DailyBalance": "Kunlik balans",
+      "ExpensesByCategory": "Toifalar bo'yicha xarajatlar",
+      "IncomeByCounterparty": "Kontragentlar bo'yicha kirim",
+      "RecentOperations": "So'nggi operatsiyalar",
+      "Date": "Sana",
+      "Type": "Turi",
+      "Account": "Hisob",
+      "Counterpart": "Toifa / kontragent",
+      "Comment": "Izoh",
+      "Amount": "Summa",
+      "OperationsDrawer": "Hisob operatsiyalari"
+    },
     "Welcome": "Boshqaruv paneliga xush kelibsiz"
   },
   "Delete": "O'chirish",

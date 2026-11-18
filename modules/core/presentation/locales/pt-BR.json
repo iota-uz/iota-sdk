@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "Painel"
     },
+    "Finance": {
+      "Title": "Visão financeira",
+      "Period": "Período",
+      "Summary": "Saldos por moeda",
+      "Currency": "Moeda",
+      "Opening": "Saldo inicial",
+      "Inflow": "Entradas",
+      "Outflow": "Saídas",
+      "Closing": "Saldo final",
+      "Operations": "Operações",
+      "DailyBalance": "Saldo diário",
+      "ExpensesByCategory": "Despesas por categoria",
+      "IncomeByCounterparty": "Receitas por contraparte",
+      "RecentOperations": "Operações recentes",
+      "Date": "Data",
+      "Type": "Tipo",
+      "Account": "Conta",
+      "Counterpart": "Categoria / contraparte",
+      "Comment": "Comentário",
+      "Amount": "Valor",
+      "OperationsDrawer": "Operações das contas"
+    },
     "Welcome": "Bem-vindo ao painel"
   },
   "Delete": "Excluir",

@@ -894,3 +894,44 @@ describe('TablePanel explorer level footer', () => {
     expect(document.querySelector('tfoot')).toHaveTextContent('$600')
   })
 })
+
+describe('TablePanel row drawer action', () => {
+  it('opens the row drawer in place instead of navigating to the document URL', async () => {
+    window.history.replaceState(null, '', '/?period-start=2026-06-01&period-end=2026-06-30')
+    const panel: Panel = {
+      ...columnsPanel,
+      id: 'summary',
+      columns: [{ field: 'name', label: 'Client', cell: { kind: 'plain' } }],
+      actions: [{
+        kind: 'open_drawer',
+        method: 'GET',
+        urlTemplate: '/drill/document?client={client}',
+        params: [{ name: 'client', source: { kind: 'field', name: 'client_id' } }],
+        payload: {},
+        preserveQuery: true,
+      }],
+    }
+    const document: DashboardDocument = { ...columnsDocument, panels: [panel], layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] } }
+    const child: DashboardDocument = { ...columnsDocument, snapshotId: 'drill-child', meta: { ...columnsDocument.meta, title: 'Client operations' } }
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(new Response(JSON.stringify(child), { status: 200 })))
+    const background = globalThis.document.createElement('main')
+    globalThis.document.body.append(background)
+    render(() => (
+      <div class="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => <TablePanel panel={panel} />}</DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>
+    ), { container: background })
+
+    const link = screen.getAllByRole('link', { name: 'Open record' })[0]!
+    expect(link).toHaveAttribute('href', expect.stringContaining('/drill/document?client=1&period-start=2026-06-01&period-end=2026-06-30'))
+    const notPrevented = fireEvent.click(link)
+
+    expect(notPrevented).toBe(false)
+    await waitFor(() => expect(fetcher).toHaveBeenCalled())
+    const requested = fetcher.mock.calls.map(([input]) => typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+    expect(requested.some((url) => url.includes('/drill/document?client=1&period-start=2026-06-01'))).toBe(true)
+    expect(window.location.pathname).toBe('/')
+  })
+})
