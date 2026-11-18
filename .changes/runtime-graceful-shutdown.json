@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add HTTPServer.Run with graceful SIGTERM shutdown (drain in-flight requests, stop hooks in reverse order, close bus and pool), Runtime lifecycle context and default HTTP server timeouts."}

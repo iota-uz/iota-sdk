@@ -8,9 +8,25 @@ title: Development Changelog
 
 | Change | Type | Date |
 |------------------|------|------|
+| Graceful shutdown: `HTTPServer.Run` handles SIGTERM/SIGINT, drains in-flight requests, then runs stop hooks in reverse order and closes the realtime bus and DB pool. Default HTTP server timeouts. See [Runtime lifecycle](#runtime-lifecycle-and-graceful-shutdown) | Feature | 2026-11-18 |
 | `appconfig.Environment` enum (`development`, `test`, `staging`, `production`) with `Config.Env()`, `IsDevelopment()`, `IsTest()`, `IsStaging()`; `IsDev()` is deprecated because it is also true on staging, preprod and test. `APP_ENVIRONMENT` is now matched case-insensitively, `preprod`/`stage` count as staging, and GraphQL accepts localhost origins only in development and test, no longer on staging | Feature | 2026-11-18 |
 | CRUD: `crud.TenantScoped()` schema option scopes reads, writes and deletes by the context tenant; `CrudController` no longer accepts `Hidden` field values from forms | Security | 2026-11-18 |
 | **Breaking:** `MigrationManager.Rollback(ctx, steps)` rolls back `steps` migrations (`migrate down` defaults to one); rolling back everything now needs `RollbackAll` / `migrate down --all`. `Run` takes a `ctx`. Migrations run under a Postgres advisory lock with a default `lock_timeout` of 30s, and `notransaction` migrations run outside a transaction | Bug Fix | 2026-11-18 |
+
+### Runtime lifecycle and graceful shutdown
+
+**What changes for consumers**
+
+- Replace `srv.Start(addr)` with `srv.Run(ctx, addr)`. `Run` blocks until SIGTERM/SIGINT (or `ctx` cancellation), then:
+  1. `/health` answers `503 {"status":"shutting_down"}` and, after `HTTP_SHUTDOWN_DRAINDELAY` (default `0s`), the listener closes;
+  2. in-flight requests get `HTTP_SHUTDOWN_TIMEOUT` (default `25s`) to finish; connections still open after it are closed;
+  3. stop hooks registered with `server.WithStopHook` run in reverse registration order;
+  4. the bootstrap runtime shuts down: `Runtime.Context()` is cancelled, composition stop hooks run in reverse order, then the realtime hub/Redis bus and the database pool close.
+  A second signal during shutdown kills the process immediately.
+- `server.New` wires the runtime automatically. A server built with `server.NewHTTPServer` (for example an application that assembles its own middleware stack) passes it explicitly: `srv.Run(ctx, addr, server.WithRuntime(rt))`. The middleware registered on the application is used unchanged.
+- The HTTP server now has timeouts by default: `ReadHeaderTimeout 10s`, `ReadTimeout 5m`, `WriteTimeout 5m`, `IdleTimeout 2m` (`HTTP_TIMEOUTS_READHEADER`, `HTTP_TIMEOUTS_READ`, `HTTP_TIMEOUTS_WRITE`, `HTTP_TIMEOUTS_IDLE`; a negative value such as `-1s` disables one; or set `HTTPServer.Timeouts`). Server-Sent Events responses (`Content-Type: text/event-stream`) and websocket connections are exempt from the write timeout. A handler that streams a regular response for longer than 5 minutes must extend its deadline with `http.NewResponseController(w).SetWriteDeadline`.
+- `bootstrap.Runtime` gains `Context()` (the lifecycle context) and an idempotent `Shutdown(ctx)`; the cleanup func returned by `NewRuntime` now calls `Shutdown`, so keeping `defer cleanup()` is safe. Hooks read the lifecycle context with `composition.LifecycleContext(ctx)` inside `Hook.Start` and should bind periodic tasks to it instead of the short-lived start context.
+- Set the platform grace period (for example Kubernetes `terminationGracePeriodSeconds`, Railway `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`) above `HTTP_SHUTDOWN_DRAINDELAY + HTTP_SHUTDOWN_TIMEOUT + 10s`.
 
 ## October 2026
 

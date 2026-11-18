@@ -209,6 +209,6 @@ func StartComposition() Installer {
 	return InstallerFunc(func(ctx context.Context, rt *Runtime) error {
 		startCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
-		return rt.Start(startCtx)
+		return rt.Start(composition.WithLifecycleContext(startCtx, rt.Context()))
 	})
 }

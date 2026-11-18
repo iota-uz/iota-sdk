@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -25,6 +26,59 @@ type Runtime struct {
 	CapabilityRegistry health.CapabilityRegistry // optional; set via WithCapabilityRegistry
 
 	container *composition.Container
+
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	cleanups        []func() error
+	shutdownOnce    sync.Once
+	shutdownErr     error
+}
+
+// Context returns the runtime lifecycle context. It lives for the whole
+// process and is cancelled when Shutdown begins, before stop hooks run.
+// Periodic tasks and long-lived goroutines should derive from it instead of
+// context.Background so they stop accepting new work on SIGTERM.
+func (rt *Runtime) Context() context.Context {
+	if rt == nil || rt.lifecycleCtx == nil {
+		return context.Background()
+	}
+	return rt.lifecycleCtx
+}
+
+// Shutdown tears the runtime down in a fixed order:
+//
+//  1. cancels the lifecycle context (Context) so background loops stop;
+//  2. runs composition stop hooks in reverse registration order;
+//  3. closes the realtime hub (websocket connections and the Redis bus) and
+//     detaches the runtime source from the application;
+//  4. runs factory cleanups (database pool, logger/tracing) in reverse order.
+//
+// Shutdown is idempotent and safe to call from several places (for example
+// from server.Run and from the cleanup func returned by NewRuntime): only the
+// first call does the work, later calls return its result.
+func (rt *Runtime) Shutdown(ctx context.Context) error {
+	if rt == nil {
+		return nil
+	}
+	rt.shutdownOnce.Do(func() {
+		if rt.lifecycleCancel != nil {
+			rt.lifecycleCancel()
+		}
+		var err error
+		if rt.container != nil {
+			err = errors.Join(err, rt.Stop(ctx))
+		}
+		if rt.App != nil {
+			if rt.App.Websocket() != nil {
+				err = errors.Join(err, rt.App.Websocket().Close())
+			}
+			if binder, ok := rt.App.(application.RuntimeBinder); ok {
+				binder.DetachRuntimeSource()
+			}
+		}
+		rt.shutdownErr = errors.Join(err, runCleanup(rt.cleanups))
+	})
+	return rt.shutdownErr
 }
 
 type Installer interface {
@@ -189,62 +243,58 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 		return nil, nil, errors.New("bootstrap runtime requires an application factory")
 	}
 
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.WithoutCancel(ctx))
 	rt := &Runtime{
 		Source:             cfg.source,
 		CapabilityRegistry: cfg.capabilityRegistry,
+		lifecycleCtx:       lifecycleCtx,
+		lifecycleCancel:    lifecycleCancel,
 	}
-
-	var cleanup []func() error
+	fail := func(err error) (*Runtime, func() error, error) {
+		lifecycleCancel()
+		return nil, nil, errors.Join(err, runCleanup(rt.cleanups))
+	}
 
 	logger, loggerCleanup, err := cfg.loggerFactory(ctx, nil)
 	if err != nil {
-		return nil, nil, serrors.WrapContext(op, err, "build logger")
+		return fail(serrors.WrapContext(op, err, "build logger"))
 	}
 	rt.Logger = logger
 	if loggerCleanup != nil {
-		cleanup = append(cleanup, loggerCleanup)
+		rt.cleanups = append(rt.cleanups, loggerCleanup)
 	}
 
 	pool, poolCleanup, err := cfg.poolFactory(ctx, nil, logger)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build pool"), runCleanup(cleanup))
+		return fail(serrors.WrapContext(op, err, "build pool"))
 	}
 	rt.Pool = pool
 	if poolCleanup != nil {
-		cleanup = append(cleanup, poolCleanup)
+		rt.cleanups = append(rt.cleanups, poolCleanup)
 	}
 
 	bundle, err := cfg.bundleFactory(ctx, nil)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build bundle"), runCleanup(cleanup))
+		return fail(serrors.WrapContext(op, err, "build bundle"))
 	}
 	rt.Bundle = bundle
 
 	app, err := cfg.appFactory(ctx, rt)
 	if err != nil {
-		return nil, nil, errors.Join(serrors.WrapContext(op, err, "build application"), runCleanup(cleanup))
+		return fail(serrors.WrapContext(op, err, "build application"))
 	}
 	rt.App = app
 
 	return rt, func() error {
-		var cleanupErr error
-		if rt.container != nil {
-			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cleanupErr = errors.Join(cleanupErr, rt.Stop(stopCtx))
-		}
-		if rt.App != nil {
-			if rt.App.Websocket() != nil {
-				cleanupErr = errors.Join(cleanupErr, rt.App.Websocket().Close())
-			}
-			if binder, ok := rt.App.(application.RuntimeBinder); ok {
-				binder.DetachRuntimeSource()
-			}
-		}
-		cleanupErr = errors.Join(cleanupErr, runCleanup(cleanup))
-		return cleanupErr
+		stopCtx, cancel := context.WithTimeout(context.Background(), DefaultStopTimeout)
+		defer cancel()
+		return rt.Shutdown(stopCtx)
 	}, nil
 }
+
+// DefaultStopTimeout bounds runtime teardown when it runs through the cleanup
+// func returned by NewRuntime.
+const DefaultStopTimeout = 10 * time.Second
 
 func runCleanup(cleanups []func() error) error {
 	var err error

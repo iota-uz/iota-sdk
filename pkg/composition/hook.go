@@ -23,3 +23,31 @@ type Hook struct {
 // StopFn is the teardown closure returned by Hook.Start. The engine invokes
 // each StopFn in reverse registration order during composition.Stop.
 type StopFn func(ctx context.Context) error
+
+type lifecycleContextKey struct{}
+
+// WithLifecycleContext attaches the application lifecycle context to ctx.
+//
+// The context passed to Hook.Start is short-lived (it carries the startup
+// timeout), so a hook that launches a background loop must not bind that loop
+// to it. The bootstrap runtime attaches its lifecycle context here; it stays
+// alive for the whole process and is cancelled as soon as graceful shutdown
+// begins, before the stop closures run.
+func WithLifecycleContext(ctx, lifecycle context.Context) context.Context {
+	if lifecycle == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, lifecycleContextKey{}, lifecycle)
+}
+
+// LifecycleContext returns the application lifecycle context attached with
+// WithLifecycleContext. Periodic tasks started from Hook.Start should select on
+// its Done channel to stop accepting new work once shutdown begins. When no
+// lifecycle context is attached, it returns ctx without its cancellation and
+// deadline, so the caller still gets a context that outlives startup.
+func LifecycleContext(ctx context.Context) context.Context {
+	if lifecycle, ok := ctx.Value(lifecycleContextKey{}).(context.Context); ok && lifecycle != nil {
+		return lifecycle
+	}
+	return context.WithoutCancel(ctx)
+}

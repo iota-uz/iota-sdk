@@ -87,8 +87,8 @@ func run() error {
 	rt.Logger.Info("Core auth/upload controllers and superadmin controllers loaded")
 	rt.Logger.Info("SuperAdmin authentication required for all routes")
 
-	if err := serverInstance.Start(socketAddr); err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
+	if err := serverInstance.Run(context.Background(), socketAddr); err != nil {
+		return fmt.Errorf("server stopped with error: %w", err)
 	}
 	return nil
 }
