@@ -66,6 +66,7 @@
 //   - ContributeHooks
 //   - ContributeApplets
 //   - ContributeEventHandler / ContributeEventHandlerFunc
+//   - ContributeSettings / AddSettings / RemoveSettingsPagesByKey (settings hub)
 //
 // The *Func variants accept a reflection-injected constructor whose parameter
 // types are resolved from the container at materialization time.

@@ -1,4 +1,13 @@
 {
+	"Settings": {
+		"Hub": {
+			"Pages": {
+				"BusinessHistory": {
+					"Summary": "Просмотр изменений в системе"
+				}
+			}
+		}
+	},
 	"Resources": {
 		"logs": "Логи"
 	},

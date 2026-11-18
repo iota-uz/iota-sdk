@@ -100,7 +100,7 @@ func Migrate(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	defer pool.Close()
 
 	migrations := application.NewMigrationManager(pool, *cfg, logger)
-	if err := migrations.Run(); err != nil {
+	if err := migrations.Run(context.Background()); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 

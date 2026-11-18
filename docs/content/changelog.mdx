@@ -9,6 +9,7 @@ title: Development Changelog
 | Change | Type | Date |
 |------------------|------|------|
 | CRUD: `crud.TenantScoped()` schema option scopes reads, writes and deletes by the context tenant; `CrudController` no longer accepts `Hidden` field values from forms | Security | 2026-11-18 |
+| **Breaking:** `MigrationManager.Rollback(ctx, steps)` rolls back `steps` migrations (`migrate down` defaults to one); rolling back everything now needs `RollbackAll` / `migrate down --all`. `Run` takes a `ctx`. Migrations run under a Postgres advisory lock with a default `lock_timeout` of 30s, and `notransaction` migrations run outside a transaction | Bug Fix | 2026-11-18 |
 
 ## October 2026
 

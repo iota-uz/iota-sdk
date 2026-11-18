@@ -161,6 +161,16 @@ func WithUserControllerConfigureSingleSlots(slotFunc SingleSlotFunc) UserControl
 	}
 }
 
+// UserControllerBasePath returns the base path the options mount the users
+// controller at.
+func UserControllerBasePath(opts ...UserControllerOption) string {
+	o := &userControllerOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o.basePath
+}
+
 func NewUsersController(
 	_ application.Application,
 	opts ...UserControllerOption,
