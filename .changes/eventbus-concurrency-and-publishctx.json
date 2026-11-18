@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"eventbus: guard subscribers with a RWMutex, stop logging event payloads (types only), add PublishCtx(ctx, ...) error via ContextPublisher and eventbus.PublishCtx, and deprecate EventBus.Publish."}
