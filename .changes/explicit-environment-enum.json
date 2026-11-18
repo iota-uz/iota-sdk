@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add appconfig.Environment (development, test, staging, production) with Config.Env(), IsDevelopment(), IsTest() and IsStaging(); deprecate IsDev(), which is also true on staging, preprod and test. APP_ENVIRONMENT is matched case-insensitively and preprod/stage count as staging. GraphQL accepts localhost origins only in development and test, and BiChat enables Vite dev assets and exposed internal errors only in development."
+}
