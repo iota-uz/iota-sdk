@@ -1,6 +1,13 @@
 scalar Time
 scalar Int64
 
+"""Field is reachable without a session."""
+directive @public on FIELD_DEFINITION
+"""Field requires an authenticated caller."""
+directive @authenticated on FIELD_DEFINITION
+"""Field requires an authenticated caller that holds every listed permission."""
+directive @can(permissions: [String!]!) on FIELD_DEFINITION
+
 type Query {
-    hello(name: String): String
+    hello(name: String): String @public
 }

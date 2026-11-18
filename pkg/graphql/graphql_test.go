@@ -150,8 +150,8 @@ func TestMergedIntrospectionIncludesTypesFromAllExecutors(t *testing.T) {
 
 	_, hasCoreType := typeNames["User"]
 	_, hasWarehouseType := typeNames["InventoryPosition"]
-	require.True(t, hasCoreType)
-	require.True(t, hasWarehouseType)
+	require.True(t, hasCoreType, res.Body.String())
+	require.True(t, hasWarehouseType, res.Body.String())
 }
 
 func TestSameOriginValidator(t *testing.T) {

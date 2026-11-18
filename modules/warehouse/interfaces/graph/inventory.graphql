@@ -10,9 +10,9 @@ input InventoryItem {
 }
 
 extend type Query {
-    inventory: [InventoryPosition!]!
+    inventory: [InventoryPosition!]! @authenticated
 }
 
 extend type Mutation {
-    completeInventoryCheck(items: [InventoryItem!]!): Boolean!
+    completeInventoryCheck(items: [InventoryItem!]!): Boolean! @authenticated
 }
