@@ -1577,7 +1577,45 @@
   "Settings": {
     "Hub": {
       "Title": "Configurações",
-      "BackToApp": "Voltar para o aplicativo"
+      "BackToApp": "Voltar para o aplicativo",
+      "SearchPlaceholder": "Pesquisar configurações",
+      "Empty": {
+        "Title": "Nenhuma configuração disponível",
+        "Hint": "Você não tem acesso a nenhuma página de configurações. Peça acesso a um administrador."
+      },
+      "NoResults": {
+        "Title": "Nada encontrado",
+        "Hint": "Nenhuma configuração corresponde à sua pesquisa. Tente outra palavra."
+      },
+      "Sections": {
+        "General": "Geral",
+        "Access": "Usuários e acesso",
+        "Organization": "Organização"
+      },
+      "Pages": {
+        "General": {
+          "Name": "Geral",
+          "Summary": "Logotipo, telefone e e-mail da empresa"
+        },
+        "Notifications": {
+          "Summary": "Regras de notificação e canais de entrega"
+        },
+        "Users": {
+          "Summary": "Gerencie contas de usuário e seus acessos"
+        },
+        "Roles": {
+          "Summary": "Configure funções e suas permissões"
+        },
+        "Groups": {
+          "Summary": "Organize usuários em grupos"
+        },
+        "Departments": {
+          "Summary": "Mantenha a estrutura de departamentos"
+        },
+        "Positions": {
+          "Summary": "Gerencie cargos"
+        }
+      }
     }
   },
   "Departments": {

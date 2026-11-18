@@ -1576,7 +1576,45 @@
   "Settings": {
     "Hub": {
       "Title": "设置",
-      "BackToApp": "返回应用"
+      "BackToApp": "返回应用",
+      "SearchPlaceholder": "搜索设置",
+      "Empty": {
+        "Title": "没有可用的设置",
+        "Hint": "您无权访问任何设置页面。请联系管理员获取权限。"
+      },
+      "NoResults": {
+        "Title": "未找到结果",
+        "Hint": "没有与搜索匹配的设置。请尝试其他关键词。"
+      },
+      "Sections": {
+        "General": "常规",
+        "Access": "用户与访问",
+        "Organization": "组织"
+      },
+      "Pages": {
+        "General": {
+          "Name": "常规",
+          "Summary": "公司标志、电话和电子邮件"
+        },
+        "Notifications": {
+          "Summary": "通知规则和发送渠道"
+        },
+        "Users": {
+          "Summary": "管理用户账户及其访问权限"
+        },
+        "Roles": {
+          "Summary": "配置角色及其权限"
+        },
+        "Groups": {
+          "Summary": "将用户分组"
+        },
+        "Departments": {
+          "Summary": "维护部门结构"
+        },
+        "Positions": {
+          "Summary": "管理职位"
+        }
+      }
     }
   },
   "Departments": {

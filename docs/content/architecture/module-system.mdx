@@ -160,6 +160,8 @@ classDiagram
 | `composition.AddNavNodes(b, nodes...)` | Descriptor-backed navigation catalog (grouping nodes) | Presentation |
 | `composition.AddNavProviders(b, providers...)` | Request-scoped runtime navigation (tenant/role/data-driven) | Navigation / actions |
 | `composition.AddQuickLinks(b, links...)` | Spotlight quick links (legacy; derived nodes generate these automatically) | Navigation / actions |
+| `composition.ContributeSettings(b, fn)` / `composition.AddSettings(b, sections...)` | Settings hub sections and pages (`/settings`) | Presentation |
+| `composition.RemoveSettingsPagesByKey(b, keys...)` | Hide an upstream settings hub page by key | Presentation |
 | `composition.AddHashFS(b, fs...)` | Hashed static assets | Presentation |
 | `composition.AddAssets(b, fs...)` | Raw embed.FS asset bundles | Presentation |
 | `composition.AddControllers(b, ctrls...)` | Pre-built controller instances | Presentation |
@@ -319,6 +321,32 @@ func (c *ExpenseCategoriesController) Descriptor() application.ControllerDescrip
   contributed through `application.NavProvider` via
   `composition.AddNavProviders`; their nodes are validated against the route
   registry when emitted and dropped with a log on invalid output — never a panic.
+
+#### Settings hub
+
+`GET /settings` (controller ID `core.settings`) renders one card per settings
+page contributed through `composition.ContributeSettings` or
+`composition.AddSettings`. Contributions are merged at composition time:
+
+- Sections with the same `Key` merge, so modules can add pages to a shared
+  section. `pkg/settings` exposes the SDK sections (`GeneralSection`,
+  `AccessSection`, `OrganizationSection`). The first contribution of a key sets
+  its `Name` and `Priority`.
+- Every page needs a `Key` that is unique across the registry and an `Href`;
+  violations abort the build. Sections sort by `Priority` then `Key`, pages by
+  `Order` then `Key`, and sections without pages are omitted.
+- `Name` and `Description` are i18n message IDs translated at render time; a
+  value without a translation renders as is.
+- A page without `Permissions` is visible to every signed-in user. `Logic`
+  selects all-of (default) or any-of.
+- `composition.RemoveSettingsPagesByKey` hides a page. To move one, remove its
+  key and contribute a page under a new key.
+
+`settings.Resolve(ctx, source)` returns the permission-filtered, translated
+sections for the user in `ctx`; `*composition.Container` is a `settings.Source`
+and `settings.ResolveFromContext(ctx)` uses the request's container. Apps that
+need their own page keep replacing `core.settings` and can still render
+`settings.Hub` with the resolved sections.
 
 #### Ordering guarantees
 

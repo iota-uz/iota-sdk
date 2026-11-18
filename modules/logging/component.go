@@ -5,13 +5,18 @@ import (
 	"embed"
 
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/logging/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/logging/permissions"
 	"github.com/iota-uz/iota-sdk/modules/logging/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/health"
+	"github.com/iota-uz/iota-sdk/pkg/settings"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.json
@@ -44,6 +49,25 @@ func (c *component) Descriptor() composition.Descriptor {
 
 func (c *component) LocaleFS() []*embed.FS {
 	return []*embed.FS{&localeFiles}
+}
+
+// SettingsPageHistory is the settings hub page key of the business history page.
+const SettingsPageHistory = "logging.history"
+
+func (c *component) historySettingsPage() types.SettingsPage {
+	path := c.historyBasePath
+	if path == "" {
+		path = controllers.DefaultHistoryBasePath
+	}
+	return types.SettingsPage{
+		Key:         SettingsPageHistory,
+		Name:        "NavigationLinks.BusinessHistory",
+		Description: "Settings.Hub.Pages.BusinessHistory.Summary",
+		Href:        path,
+		Icon:        icons.ClockCounterClockwise(icons.Props{Size: "20"}),
+		Order:       100,
+		Permissions: []permission.Permission{permissions.ViewLogs},
+	}
 }
 
 func (c *component) Build(builder *composition.Builder) error {
@@ -83,6 +107,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeControllersFunc(builder, func(service *history.Service, registry *history.Registry) []application.Controller {
 			return []application.Controller{controllers.NewHistoryController(c.historyBasePath, service, registry)}
 		})
+		composition.AddSettings(builder, settings.AccessSection(c.historySettingsPage()))
 	}
 	return nil
 }

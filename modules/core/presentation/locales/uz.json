@@ -1572,7 +1572,45 @@
   "Settings": {
     "Hub": {
       "Title": "Sozlamalar",
-      "BackToApp": "Orqaga"
+      "BackToApp": "Orqaga",
+      "SearchPlaceholder": "Sozlamalarni qidirish",
+      "Empty": {
+        "Title": "Mavjud sozlamalar yo'q",
+        "Hint": "Sizda hech qaysi sozlamalar sahifasiga ruxsat yo'q. Administratorga murojaat qiling."
+      },
+      "NoResults": {
+        "Title": "Hech narsa topilmadi",
+        "Hint": "Qidiruvingizga mos sozlamalar yo'q. Boshqa so'z bilan urinib ko'ring."
+      },
+      "Sections": {
+        "General": "Umumiy",
+        "Access": "Foydalanuvchilar va ruxsatlar",
+        "Organization": "Tashkilot"
+      },
+      "Pages": {
+        "General": {
+          "Name": "Umumiy",
+          "Summary": "Kompaniya logotipi, telefon va email"
+        },
+        "Notifications": {
+          "Summary": "Bildirishnoma qoidalari va yetkazish kanallari"
+        },
+        "Users": {
+          "Summary": "Foydalanuvchi hisoblari va ularning ruxsatlarini boshqarish"
+        },
+        "Roles": {
+          "Summary": "Rollar va ularning huquqlarini sozlash"
+        },
+        "Groups": {
+          "Summary": "Foydalanuvchilarni guruhlarga birlashtirish"
+        },
+        "Departments": {
+          "Summary": "Bo'limlar tuzilmasini yuritish"
+        },
+        "Positions": {
+          "Summary": "Lavozimlarni boshqarish"
+        }
+      }
     }
   },
   "Departments": {
