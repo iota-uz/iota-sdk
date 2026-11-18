@@ -46,7 +46,7 @@ Use migrations for:
 | `-- +migrate Down`           | Rollback migration      | MUST exactly reverse Up            |
 | `-- +migrate StatementBegin` | Start complex statement | PL/pgSQL functions with semicolons |
 | `-- +migrate StatementEnd`   | End complex statement   | Close the block                    |
-| `-- +migrate notransaction`  | Disable transaction     | Concurrent indexes only            |
+| `-- +migrate Up notransaction` | Run Up outside a transaction | `CREATE INDEX CONCURRENTLY` only; same for `Down notransaction` |
 
 ### PL/pgSQL Functions
 
@@ -288,7 +288,7 @@ fi
 # Apply migrations
 make db migrate up
 
-# Rollback migrations
+# Roll back the last migration (--steps N for more, --all for everything)
 make db migrate down
 
 # Check status

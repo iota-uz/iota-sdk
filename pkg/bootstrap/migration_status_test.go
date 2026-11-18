@@ -63,7 +63,7 @@ func TestMigrationOperationsReleaseConnections(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "9999999999.sql"), []byte("-- +migrate Up\nCREATE TABLE migration_connection_test (id int);\n-- +migrate Down\nDROP TABLE migration_connection_test;\n"), 0600))
 			manager := application.NewMigrationManager(pool, dbconfig.Config{MigrationsDir: dir}, logrus.New())
 			if operation == "rollback" {
-				require.NoError(t, manager.Run())
+				require.NoError(t, manager.Run(ctx))
 			}
 			count := func() (int, error) {
 				var n int
@@ -83,9 +83,9 @@ func TestMigrationOperationsReleaseConnections(t *testing.T) {
 			}
 			requireNoConnections("before the measured operation")
 			if operation == "run" {
-				require.NoError(t, manager.Run())
+				require.NoError(t, manager.Run(ctx))
 			} else {
-				require.NoError(t, manager.Rollback())
+				require.NoError(t, manager.Rollback(ctx, 1))
 			}
 			requireNoConnections("after the measured operation")
 		})

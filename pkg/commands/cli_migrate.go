@@ -2,6 +2,8 @@
 package commands
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -20,6 +22,12 @@ func NewMigrateCommand() *cobra.Command {
 
   # Rollback last migration
   command migrate down
+
+  # Rollback the last 3 migrations
+  command migrate down --steps 3
+
+  # Rollback every applied migration
+  command migrate down --all
 
   # Rollback and reapply last migration
   command migrate redo
@@ -63,18 +71,27 @@ func newMigrateUpCmd() *cobra.Command {
 }
 
 func newMigrateDownCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts MigrationOptions
+	cmd := &cobra.Command{
 		Use:   "down",
 		Short: "Rollback the last migration",
-		Long:  `Rolls back the most recently applied database migration.`,
+		Long: `Rolls back the most recently applied database migration.
+Use --steps to roll back several migrations, or --all to roll back every applied migration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.Steps < 1 {
+				return fmt.Errorf("--steps must be at least 1, got %d", opts.Steps)
+			}
 			cfg, err := resolveDBConfig()
 			if err != nil {
 				return err
 			}
-			return RunMigration(cfg, "down")
+			return RunMigrationWithOptions(cmd.Context(), cfg, "down", opts)
 		},
 	}
+	cmd.Flags().IntVarP(&opts.Steps, "steps", "n", 1, "number of migrations to roll back")
+	cmd.Flags().BoolVar(&opts.All, "all", false, "roll back every applied migration")
+	cmd.MarkFlagsMutuallyExclusive("steps", "all")
+	return cmd
 }
 
 func newMigrateRedoCmd() *cobra.Command {
