@@ -541,10 +541,10 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 	}
 
 	// Build WHERE clause with all key fields
-	whereClauses := make([]string, len(keyFields))
+	whereClauses := make([]string, 0, len(keyFields)+1)
 	baseIdx := len(args)
 	for i, keyField := range keyFields {
-		whereClauses[i] = fmt.Sprintf("%s = $%d", keyField.Name(), baseIdx+i+1)
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", keyField.Name(), baseIdx+i+1))
 		args = append(args, keyValues[keyField.Name()].Value())
 	}
 	if tenantField != nil {

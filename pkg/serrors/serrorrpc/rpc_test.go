@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/appletengine/rpc"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorrpc"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
 )
 
 func TestProjectApplicationCodes(t *testing.T) {

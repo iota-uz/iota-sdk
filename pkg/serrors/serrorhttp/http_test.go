@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/sirupsen/logrus"
 	"html"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/sirupsen/logrus"
 
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"

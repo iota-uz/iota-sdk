@@ -2,9 +2,10 @@ package composables
 
 import (
 	"context"
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestAuthErrorsRetainSentinelsAndClassification(t *testing.T) {

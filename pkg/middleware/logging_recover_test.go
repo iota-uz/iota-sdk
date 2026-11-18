@@ -3,12 +3,13 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoggerRecoverSafeSingleEvent(t *testing.T) {

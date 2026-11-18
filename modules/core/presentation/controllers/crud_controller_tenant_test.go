@@ -185,10 +185,11 @@ func TestCrudController_TenantScoped(t *testing.T) {
 	})
 
 	t.Run("update of foreign record is rejected", func(t *testing.T) {
-		resp := suite.POST(fmt.Sprintf("/notes/%s", foreignID)).
+		// The scoped lookup finds nothing, so the handler fails before saving.
+		suite.POST(fmt.Sprintf("/notes/%s", foreignID)).
 			Form(url.Values{"title": {"hijacked"}}).
-			Expect(t)
-		assert.NotEqual(t, http.StatusSeeOther, resp.Raw().StatusCode)
+			Expect(t).
+			Status(http.StatusInternalServerError)
 
 		tenantID, title := tenantOf(t, foreignID)
 		assert.Equal(t, foreignTenant, tenantID)
@@ -196,8 +197,9 @@ func TestCrudController_TenantScoped(t *testing.T) {
 	})
 
 	t.Run("delete of foreign record is rejected", func(t *testing.T) {
-		resp := suite.DELETE(fmt.Sprintf("/notes/%s", foreignID)).Expect(t)
-		assert.NotEqual(t, http.StatusSeeOther, resp.Raw().StatusCode)
+		suite.DELETE(fmt.Sprintf("/notes/%s", foreignID)).
+			Expect(t).
+			Status(http.StatusInternalServerError)
 
 		tenantID, _ := tenantOf(t, foreignID)
 		assert.Equal(t, foreignTenant, tenantID)

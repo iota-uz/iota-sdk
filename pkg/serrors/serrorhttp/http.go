@@ -4,11 +4,12 @@ package serrorhttp
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	serrors "github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorlog"
-	"net/http"
 )
 
 func Status(err error) int {
