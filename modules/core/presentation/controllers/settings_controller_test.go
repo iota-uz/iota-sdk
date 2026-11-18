@@ -118,7 +118,7 @@ func TestSettingsHubController_GetHub_RendersContributedEntries(t *testing.T) {
 	html.Element(settingsCardXPath(core.SettingsPageGeneral)).Exists()
 	users := html.Element(settingsCardXPath(core.SettingsPageUsers)).Exists()
 	assert.Equal(t, "/users", users.Attr("href"))
-	assert.Contains(t, users.Attr("data-search"), "manage user accounts", "search text includes the description")
+	assert.Contains(t, users.Attr("data-search"), "Manage user accounts", "search text includes the description")
 	history := html.Element(settingsCardXPath(logging.SettingsPageHistory)).Exists()
 	assert.Equal(t, "/admin/history", history.Attr("href"))
 
