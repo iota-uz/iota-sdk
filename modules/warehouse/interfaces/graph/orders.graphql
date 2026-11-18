@@ -26,7 +26,7 @@ input OrderQuery {
 }
 
 extend type Query {
-    order(id: ID!): Order
-    orders(query: OrderQuery!): PaginatedOrders!
-    completeOrder(id: ID!): Order
+    order(id: ID!): Order @authenticated
+    orders(query: OrderQuery!): PaginatedOrders! @authenticated
+    completeOrder(id: ID!): Order @authenticated
 }

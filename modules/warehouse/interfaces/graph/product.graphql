@@ -24,8 +24,8 @@ type ValidateProductsResult {
 }
 
 extend type Query {
-    product(id: ID!): Product
-    products(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedProducts!
-    createProductsFromTags(input: CreateProductsFromTags!): [Product!]!
-    validateProducts(tags: [String!]!): ValidateProductsResult!
+    product(id: ID!): Product @authenticated
+    products(offset: Int!, limit: Int!, sortBy: [String!]): PaginatedProducts! @authenticated
+    createProductsFromTags(input: CreateProductsFromTags!): [Product!]! @authenticated
+    validateProducts(tags: [String!]!): ValidateProductsResult! @authenticated
 }

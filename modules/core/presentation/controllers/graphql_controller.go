@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
+	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/authorizers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
@@ -36,6 +37,7 @@ type GraphQLController struct {
 	appCfg          *appconfig.Config
 	uploadsCfg      *uploadsconfig.Config
 	resolverOptions []graph.ResolverOption
+	handlerOptions  []graphql.HandlerOption
 }
 
 // GraphQLControllerOption is a functional option for configuring the GraphQLController.
@@ -48,6 +50,27 @@ func WithResolverOptions(opts ...graph.ResolverOption) GraphQLControllerOption {
 	}
 }
 
+// WithGraphQLHandlerOptions appends pkg/graphql handler options applied to the
+// merged /query endpoint and to every per-schema endpoint. They run after the
+// defaults (same-origin check, session-backed directive authorizer), so they can
+// override them, e.g. graphql.WithAuthorizer, graphql.WithObjectAuthorizer,
+// graphql.WithAuthDirectivesMode(graphql.AuthDirectivesWarn) or the limits.
+func WithGraphQLHandlerOptions(opts ...graphql.HandlerOption) GraphQLControllerOption {
+	return func(c *GraphQLController) {
+		c.handlerOptions = append(c.handlerOptions, opts...)
+	}
+}
+
+var _ graphql.Authorizer = authorizers.SessionDirectiveAuthorizer{}
+
+func (g *GraphQLController) graphQLHandlerOptions() []graphql.HandlerOption {
+	opts := []graphql.HandlerOption{
+		graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
+		graphql.WithAuthorizer(authorizers.NewSessionDirectiveAuthorizer()),
+	}
+	return append(opts, g.handlerOptions...)
+}
+
 func (g *GraphQLController) Descriptor() application.ControllerDescriptor {
 	return application.Descriptor("core.graphql", 0, application.Route("", "/graphql/core"))
 }
@@ -58,11 +81,8 @@ func (g *GraphQLController) Register(r *mux.Router) {
 			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.browserSessions, g.httpCfg, g.cookiesCfg, g.appCfg, g.resolverOptions...),
 		},
 	)
-	srv := graphql.NewBaseServer(
-		schema,
-		g.uploadsCfg,
-		graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
-	)
+	handlerOpts := g.graphQLHandlerOptions()
+	srv := graphql.NewBaseServer(schema, g.uploadsCfg, handlerOpts...)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -96,11 +116,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		}
 		router.Handle(
 			path.Join("/query", schema.BasePath),
-			graphql.NewHandler(
-				exec,
-				g.uploadsCfg,
-				graphql.WithOriginValidator(graphql.SameOriginValidator(g.httpCfg, g.appCfg)),
-			),
+			graphql.NewHandler(exec, g.uploadsCfg, handlerOpts...),
 		)
 	}
 }

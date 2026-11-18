@@ -28,7 +28,7 @@ import (
 type failingSchema struct{ err error }
 
 func (failingSchema) Schema() *ast.Schema {
-	return gqlparser.MustLoadSchema(&ast.Source{Input: "type Query { account: String }"})
+	return gqlparser.MustLoadSchema(&ast.Source{Input: sdkgraphql.AuthDirectivesSDL + "type Query { account: String @public }"})
 }
 func (failingSchema) Complexity(string, string, int, map[string]any) (int, bool) { return 0, false }
 func (s failingSchema) Exec(ctx context.Context) gql.ResponseHandler {

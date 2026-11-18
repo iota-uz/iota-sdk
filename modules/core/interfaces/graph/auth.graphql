@@ -8,12 +8,12 @@ type Session {
 }
 
 extend type Mutation {
-    authenticate(email: String!, password: String!): Session!
-    googleAuthenticate: String!
+    authenticate(email: String!, password: String!): Session! @public
+    googleAuthenticate: String! @public
 
-    deleteSession(token: String!): Boolean!
+    deleteSession(token: String!): Boolean! @authenticated
 }
 
 extend type Subscription {
-    sessionDeleted: ID!
+    sessionDeleted: ID! @authenticated
 }

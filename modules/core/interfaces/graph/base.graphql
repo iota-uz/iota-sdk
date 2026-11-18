@@ -1,6 +1,13 @@
 scalar Time
 scalar Int64
 
+"""Field is reachable without a session."""
+directive @public on FIELD_DEFINITION
+"""Field requires an authenticated caller."""
+directive @authenticated on FIELD_DEFINITION
+"""Field requires an authenticated caller that holds every listed permission."""
+directive @can(permissions: [String!]!) on FIELD_DEFINITION
+
 directive @goModel(
     model: String
     models: [String!]
@@ -11,13 +18,13 @@ directive @goEnum(
 ) on ENUM_VALUE
 
 type Query {
-    hello(name: String): String
+    hello(name: String): String @public
 }
 
 type Mutation {
-    add(a: Int!, b: Int!): Int!
+    add(a: Int!, b: Int!): Int! @public
 }
 
 type Subscription {
-    counter: Int!
+    counter: Int! @public
 }

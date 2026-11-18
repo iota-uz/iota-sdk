@@ -20,6 +20,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/99designs/gqlgen/graphql/executor"
+	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -28,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorgql"
+	"github.com/sirupsen/logrus"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/parser"
@@ -82,8 +84,17 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 		End:   graphql.Now(),
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	body := io.Reader(r.Body)
+	if h.maxBodyBytes > 0 {
+		body = http.MaxBytesReader(w, r.Body, h.maxBodyBytes)
+	}
+	bodyBytes, err := io.ReadAll(body)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			sendErrorf(w, http.StatusRequestEntityTooLarge, "request body exceeds %d bytes", tooLarge.Limit)
+			return
+		}
 		gqlErr := gqlerror.Errorf("could not read request body: %+v", err)
 		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
 		writeJSON(w, resp)
@@ -93,11 +104,7 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	bodyReader := bytes.NewReader(bodyBytes)
 	if err := jsonDecode(bodyReader, &params); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		gqlErr := gqlerror.Errorf(
-			"json request body could not be decoded: %+v body:%s",
-			err,
-			string(bodyBytes),
-		)
+		gqlErr := gqlerror.Errorf("json request body could not be decoded: %+v", err)
 		resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
 		writeJSON(w, resp)
 		return
@@ -414,6 +421,8 @@ type MyPOST struct {
 	// originAllowed rejects cross-origin POSTs before they reach an executor.
 	// Nil allows every origin.
 	originAllowed func(*http.Request) bool
+	// maxBodyBytes caps the JSON body. Zero or negative disables the cap.
+	maxBodyBytes int64
 }
 
 var _ graphql.Transport = MyPOST{}
@@ -483,7 +492,19 @@ type Handler struct {
 	execs         []*executor.Executor
 	transports    []graphql.Transport
 	originAllowed func(*http.Request) bool
+
+	authorizer       Authorizer
+	objectAuthorizer ObjectAuthorizer
+	authMode         AuthDirectivesMode
+	logger           Logger
+	complexityLimit  int
+	depthLimit       int
+	maxBodyBytes     int64
+	enableGET        bool
 }
+
+// queryCacheSize is the number of parsed query documents kept per executor.
+const queryCacheSize = 1000
 
 // defaultUploadsConfig returns a Config with documented defaults applied.
 // Used when NewHandler or NewBaseServer receives a nil *uploadsconfig.Config.
@@ -507,14 +528,21 @@ func WithOriginValidator(validate func(*http.Request) bool) HandlerOption {
 }
 
 // SameOriginValidator builds an origin validator from the HTTP and app
-// configuration. A request without an Origin header is allowed; otherwise the
+// configuration. A request without an Origin header is allowed only when it is
+// not a cross-site browser request (Sec-Fetch-Site absent, "same-origin" or
+// "none"), so non-browser API clients keep working; otherwise the
 // origin must match the configured Origin, one of AllowedOrigins, or — outside
 // production — localhost, 127.0.0.1 or [::1] on the configured HTTP port.
 func SameOriginValidator(httpCfg *httpconfig.Config, appCfg *appconfig.Config) func(*http.Request) bool {
 	return func(r *http.Request) bool {
 		rawOrigin := r.Header.Get("Origin")
 		if rawOrigin == "" {
-			return true
+			switch r.Header.Get("Sec-Fetch-Site") {
+			case "", "same-origin", "none":
+				return true
+			default:
+				return false
+			}
 		}
 
 		parsed, err := url.Parse(rawOrigin)
@@ -551,11 +579,16 @@ func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config, opts
 		d := defaultUploadsConfig()
 		cfg = &d
 	}
-	server := &Handler{}
+	server := &Handler{
+		complexityLimit: DefaultComplexityLimit,
+		depthLimit:      DefaultDepthLimit,
+		maxBodyBytes:    DefaultMaxBodyBytes,
+		logger:          logrus.StandardLogger(),
+	}
 	for _, opt := range opts {
 		opt(server)
 	}
-	rootExecutor.SetErrorPresenter(serrorgql.Presenter(func(ctx context.Context) *i18n.Localizer { l, _ := intl.UseLocalizer(ctx); return l }))
+	server.prepareExecutor(rootExecutor)
 	server.execs = append(server.execs, rootExecutor)
 
 	checkOrigin := func(r *http.Request) bool {
@@ -571,15 +604,14 @@ func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config, opts
 		},
 	})
 	server.AddTransport(transport.Options{})
-	server.AddTransport(transport.GET{})
-	server.AddTransport(MyPOST{originAllowed: checkOrigin})
+	if server.enableGET {
+		server.AddTransport(transport.GET{})
+	}
+	server.AddTransport(MyPOST{originAllowed: checkOrigin, maxBodyBytes: server.maxBodyBytes})
 	server.AddTransport(transport.MultipartForm{
 		MaxUploadSize: cfg.MaxSize,
 		MaxMemory:     cfg.MaxMemory,
 	})
-
-	// TODO: make LRU work
-	// srv.SetQueryCache(lru.New(1000))
 
 	registerIntrospection(server, rootExecutor)
 	return server
@@ -591,10 +623,31 @@ func (s *Handler) AddExecutor(execs ...*executor.Executor) {
 			continue
 		}
 
-		exec.SetErrorPresenter(serrorgql.Presenter(func(ctx context.Context) *i18n.Localizer { l, _ := intl.UseLocalizer(ctx); return l }))
+		s.prepareExecutor(exec)
 		s.execs = append(s.execs, exec)
 		registerIntrospection(s, exec)
 	}
+}
+
+// prepareExecutor installs the error presenter, query cache, operation limits
+// and auth directive enforcement. It panics when the schema violates the auth
+// directive contract in AuthDirectivesEnforce mode, so a misconfigured schema
+// fails at startup instead of serving public fields.
+func (s *Handler) prepareExecutor(exec *executor.Executor) {
+	exec.SetErrorPresenter(serrorgql.Presenter(func(ctx context.Context) *i18n.Localizer { l, _ := intl.UseLocalizer(ctx); return l }))
+	exec.SetQueryCache(lru.New[*ast.QueryDocument](queryCacheSize))
+	if s.depthLimit > 0 {
+		exec.Use(depthLimit{limit: s.depthLimit})
+	}
+	if s.complexityLimit > 0 {
+		exec.Use(&complexityLimit{limit: s.complexityLimit})
+	}
+	exec.Use(authExtension{
+		authorizer:       s.authorizer,
+		objectAuthorizer: s.objectAuthorizer,
+		mode:             s.authMode,
+		logger:           s.logger,
+	})
 }
 
 func (s *Handler) AddTransport(transport graphql.Transport) {
