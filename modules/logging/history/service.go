@@ -206,9 +206,10 @@ func (s *Service) Subject(ctx context.Context, resource, id string) (Subject, bo
 
 // access lists the resources the reader may see and the object restrictions of those that limit it.
 func (s *Service) access(ctx context.Context, can func(permission.Permission) bool) ([]string, []businessevent.Restriction, error) {
-	var readable []string
+	resources := s.registry.Resources()
+	readable := make([]string, 0, len(resources))
 	var restricted []businessevent.Restriction
-	for _, r := range s.registry.Resources() {
+	for _, r := range resources {
 		if !s.registry.Readable(r.Name, can) {
 			continue
 		}

@@ -69,7 +69,7 @@ func TestRegistry_ValueTranslationOnlyForCodes(t *testing.T) {
 
 func TestWithResource_ConfiguresOneResourceOfEveryDefinition(t *testing.T) {
 	t.Parallel()
-	labels := func(context.Context, []string) (map[string]string, error) { return nil, nil }
+	labels := func(context.Context, []string) (map[string]string, error) { return map[string]string{}, nil }
 	visible := func(context.Context) (history.Visibility, error) { return history.VisibleIDs("1"), nil }
 	defs := history.Lifecycle("hrm.contract", "Contracts.History", history.Resource{Name: "hrm.contract"})
 	configured := history.WithResource(defs, "hrm.contract", func(r *history.Resource) {
