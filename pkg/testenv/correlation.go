@@ -38,6 +38,9 @@ func CorrelationFrom(ctx context.Context) (Correlation, bool) {
 // QueueNamespace derives an owned queue/stream/key namespace for a scope.
 // Consumers dispose that namespace from a scope resource registered with
 // Registry.OnDispose.
+//
+// The encoding is lossless (percent-escapes "%", ":" and "/"), so distinct
+// scope IDs never share a namespace.
 func QueueNamespace(prefix, scopeID string) string {
-	return prefix + ":" + strings.NewReplacer(":", "_", "/", "_").Replace(scopeID)
+	return prefix + ":" + strings.NewReplacer("%", "%25", ":", "%3A", "/", "%2F").Replace(scopeID)
 }

@@ -2,12 +2,12 @@ package testenv
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // ScopeResource owns state that a scope may create outside the scenario's
@@ -17,12 +17,35 @@ type ScopeResource interface {
 	ForgetScope(ctx context.Context, scopeID string) error
 }
 
+// ScopeStopper owns running work (jobs, workers) of a scope. StopScope cancels
+// it and returns only after it has exited; until then no destructive cleanup
+// runs, so work cannot write after its records are removed.
+type ScopeStopper interface {
+	StopScope(ctx context.Context, scopeID string) error
+}
+
+// RestorePhase says when replay restores a snapshot part: before the scenario
+// callback (state the callback consumes) or after it (state for later work).
+type RestorePhase int
+
+const (
+	RestoreBeforePrepare RestorePhase = iota
+	RestoreAfterPrepare
+)
+
 // SnapshotResource can also be captured in a replay manifest and restored in a
-// fresh environment. Snapshots must not contain credentials.
+// fresh environment. Snapshots must not contain credentials: refuse export of
+// state that does.
 type SnapshotResource interface {
 	ScopeResource
 	SnapshotScope(scopeID string) (json.RawMessage, error)
-	RestoreScope(ctx context.Context, scopeID string, snapshot json.RawMessage) error
+	RestoreScope(ctx context.Context, scopeID string, snapshot json.RawMessage, phase RestorePhase) error
+}
+
+// prepareObserver is told right before a scenario callback runs, so it can
+// record which of its state existed at the start of preparation.
+type prepareObserver interface {
+	beforePrepare(scopeID string)
 }
 
 type namedResource struct {
@@ -38,12 +61,17 @@ func (f cleanupResource) ForgetScope(ctx context.Context, scopeID string) error 
 
 // Attach registers a resource disposed together with every scope of r.
 // Resources are forgotten in reverse attach order before scenario cleanup.
+// Attach before allowing any scope: a resource attached later could miss a
+// scope's disposal.
 func (r *Registry) Attach(name string, resource ScopeResource) error {
 	if name == "" || resource == nil {
 		return failure("invalid_input", "resource name and implementation required")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if len(r.scopes) > 0 {
+		return failure("scope_conflict", "attach resources before allowing scopes")
+	}
 	for _, existing := range r.resources {
 		if existing.name == name {
 			return failure("scope_conflict", "resource already attached: "+name)
@@ -66,6 +94,26 @@ func (r *Registry) attached() []namedResource {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return append([]namedResource(nil), r.resources...)
+}
+
+func (r *Registry) stopResources(ctx context.Context, scopeID string) error {
+	var errs []error
+	for _, resource := range r.attached() {
+		if stopper, ok := resource.resource.(ScopeStopper); ok {
+			if err := stopper.StopScope(ctx, scopeID); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", resource.name, err))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (r *Registry) markPrepared(scopeID string) {
+	for _, resource := range r.attached() {
+		if observer, ok := resource.resource.(prepareObserver); ok {
+			observer.beforePrepare(scopeID)
+		}
+	}
 }
 
 func (r *Registry) forgetResources(ctx context.Context, scopeID string) error {
@@ -98,18 +146,22 @@ func NewScopedFiles(r *Registry, root string) (*ScopedFiles, error) {
 	return files, nil
 }
 
+// path names the directory by the hex encoding of the scope ID: lossless,
+// separator-free and distinct on case-insensitive volumes.
 func (f *ScopedFiles) path(scopeID string) (string, error) {
-	if scopeID == "" || strings.ContainsAny(scopeID, "/\\\x00") || scopeID == "." || scopeID == ".." {
-		return "", failure("invalid_input", "scope cannot name a directory")
+	if scopeID == "" {
+		return "", failure("invalid_input", "empty scope")
 	}
-	return filepath.Join(f.root, scopeID), nil
+	return filepath.Join(f.root, "scope-"+hex.EncodeToString([]byte(scopeID))), nil
 }
 
 // Dir creates and returns the directory of a live scope.
 func (f *ScopedFiles) Dir(scopeID string) (string, error) {
-	if err := f.registry.owned(scopeID); err != nil {
+	release, err := f.registry.admit(scopeID)
+	if err != nil {
 		return "", err
 	}
+	defer release()
 	dir, err := f.path(scopeID)
 	if err != nil {
 		return "", err

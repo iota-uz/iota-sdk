@@ -32,22 +32,20 @@ func (r *Registry) UseClock(clock *ManualClock) {
 // AdvanceClock moves the environment clock for the scope that holds the
 // dedicated lease. Shared environments refuse: the clock is global state.
 func (r *Registry) AdvanceClock(scopeID string, d time.Duration) (time.Time, error) {
-	if err := r.owned(scopeID); err != nil {
+	// The lease check and the mutation share Registry.mu, the lock that hands
+	// the lease over, so an advance finishes under its lease or fails.
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ownedLocked(scopeID); err != nil {
 		return time.Time{}, err
 	}
-	r.mu.Lock()
-	clock, dedicated, holder := r.clock, r.dedicated, r.exclusiveScope
-	r.mu.Unlock()
-	if clock == nil || !dedicated {
+	if r.clock == nil || !r.dedicated {
 		return time.Time{}, failure("missing_capability", "clock control requires a dedicated environment with a manual clock")
 	}
-	if holder != scopeID {
+	if r.exclusiveScope != scopeID {
 		return time.Time{}, failure("scope_conflict", "clock control requires the dedicated scenario lease")
 	}
-	if err := clock.Advance(d); err != nil {
-		return time.Time{}, err
-	}
-	return clock.Now(), nil
+	return r.clock.advance(d)
 }
 
 // ClockNow returns the environment clock, or false when none is controlled.
@@ -62,13 +60,20 @@ func (r *Registry) ClockNow() (time.Time, bool) {
 }
 
 func (c *ManualClock) Advance(d time.Duration) error {
+	_, err := c.advance(d)
+	return err
+}
+
+// advance returns the time produced by this advance, read in the same
+// critical section as the increment.
+func (c *ManualClock) advance(d time.Duration) (time.Time, error) {
 	if d < 0 {
-		return failure("invalid_input", "clock cannot move backwards")
+		return time.Time{}, failure("invalid_input", "clock cannot move backwards")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = c.now.Add(d)
-	return nil
+	return c.now, nil
 }
 
 // Gate makes races deterministic without wall-clock delays. Releasing a gate

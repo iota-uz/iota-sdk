@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -303,6 +304,7 @@ func TestPostgresScenarioControlsEndToEnd(t *testing.T) {
 	}
 	wg.Wait()
 	for _, body := range bodies {
+		require.True(t, strings.HasPrefix(body, "200"), "every concurrent prepare succeeds: %s", body)
 		require.Equal(t, bodies[0], body)
 	}
 	var prepared Result

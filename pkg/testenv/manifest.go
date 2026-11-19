@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sort"
 	"time"
 )
 
@@ -82,6 +84,10 @@ func (r *Registry) Manifest(ctx context.Context, scopeID string) (Manifest, erro
 		}
 		snapshot, err := snapshotter.SnapshotScope(scopeID)
 		if err != nil {
+			var typed *Error
+			if errors.As(err, &typed) {
+				return Manifest{}, typed
+			}
 			return Manifest{}, failure("execution_failed", resource.name+": "+err.Error())
 		}
 		if len(snapshot) == 0 {
@@ -110,9 +116,13 @@ func manifestDigest(m Manifest) (string, error) {
 }
 
 // Replay prepares the manifest's scenario in a new physical scope with the
-// same logical seed, params and time, then restores clock and controls. A
-// repeated identical replay returns the same result without re-applying
-// controls. Restoration failure disposes the scope's state and reports it.
+// same logical seed, params and time, restoring controls inside that single
+// preparation: scripts present before the original callback are restored
+// before it, later scripts and the clock after it. The result is published
+// only when everything succeeded; any failure compensates the scope, which then
+// stays unready until disposed. Replaying the same manifest into the same scope
+// again returns the same result; replay into a scope prepared otherwise
+// conflicts.
 func (r *Registry) Replay(ctx context.Context, scopeID string, m Manifest) (Result, error) {
 	if m.Format != ManifestFormat {
 		return Result{}, failure("invalid_input", "unsupported manifest format")
@@ -122,7 +132,7 @@ func (r *Registry) Replay(ctx context.Context, scopeID string, m Manifest) (Resu
 	clock := r.clock
 	r.mu.Unlock()
 	if mismatch(m.Environment.BuildRevision, build.BuildRevision) || mismatch(m.Environment.SchemaFingerprint, build.SchemaFingerprint) || mismatch(m.Environment.BaselineFingerprint, build.BaselineFingerprint) {
-		return Result{}, failure("version_mismatch", "manifest was recorded on another build or baseline")
+		return Result{}, failure("version_mismatch", "manifest and environment must both declare the same build revision, schema and baseline fingerprints")
 	}
 	var at time.Time
 	if m.Controls.Clock != "" {
@@ -141,59 +151,36 @@ func (r *Registry) Replay(ctx context.Context, scopeID string, m Manifest) (Resu
 			resources[resource.name] = snapshotter
 		}
 	}
+	names := make([]string, 0, len(m.Controls.Resources))
 	for name := range m.Controls.Resources {
 		if resources[name] == nil {
 			return Result{}, failure("missing_capability", "manifest requires control "+name)
 		}
+		names = append(names, name)
 	}
+	sort.Strings(names)
 	digest, err := manifestDigest(m)
 	if err != nil {
 		return Result{}, err
 	}
-	input := m.Scenario
-	input.ScopeID = scopeID
-	result, err := r.Prepare(ctx, input)
-	if err != nil {
-		return Result{}, err
-	}
-	r.mu.Lock()
-	sc := r.scopes[scopeID]
-	r.mu.Unlock()
-	if err := sc.lock(ctx); err != nil {
-		return Result{}, failure("timeout", err.Error())
-	}
-	defer sc.unlock()
-	if sc.disposed.Load() {
-		return Result{}, failure("scope_conflict", "scope disposed")
-	}
-	if sc.replayed == digest {
-		return result, nil
-	}
-	if sc.replayed != "" {
-		return Result{}, failure("scope_conflict", "scope replayed another manifest")
-	}
-	var restoreErr error
-	for name, snapshot := range m.Controls.Resources {
-		if err := resources[name].RestoreScope(ctx, scopeID, snapshot); err != nil {
-			restoreErr = errors.Join(restoreErr, err)
+	restore := func(phase RestorePhase) func(context.Context) error {
+		return func(ctx context.Context) error {
+			for _, name := range names {
+				if err := resources[name].RestoreScope(ctx, scopeID, m.Controls.Resources[name], phase); err != nil {
+					return fmt.Errorf("restore %s: %w", name, err)
+				}
+			}
+			if phase == RestoreAfterPrepare && !at.IsZero() {
+				if _, err := r.advanceTo(scopeID, at); err != nil {
+					return fmt.Errorf("restore clock: %w", err)
+				}
+			}
+			return nil
 		}
 	}
-	if restoreErr == nil && !at.IsZero() {
-		_, restoreErr = r.advanceTo(scopeID, at)
-	}
-	if restoreErr != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		defer cancel()
-		// A half-restored scope is never handed out as ready: compensate its
-		// controls and records; Prepare then reports the failed preparation
-		// until the scope is disposed.
-		cleanupErr := errors.Join(r.forgetResources(cleanupCtx, scopeID), sc.scenario.cleanup(cleanupCtx, scopeID))
-		sc.replayed = "failed"
-		sc.result = nil
-		return Result{}, lifecycleError(restoreErr, "execution_failed", "replay", Descriptor{EnvironmentID: r.environmentID}, cleanupErr)
-	}
-	sc.replayed = digest
-	return result, nil
+	input := m.Scenario
+	input.ScopeID = scopeID
+	return r.prepare(ctx, input, &replayPlan{digest: digest, before: restore(RestoreBeforePrepare), after: restore(RestoreAfterPrepare)})
 }
 
 func (r *Registry) advanceTo(scopeID string, at time.Time) (time.Time, error) {
@@ -207,8 +194,8 @@ func (r *Registry) advanceTo(scopeID string, at time.Time) (time.Time, error) {
 	return r.AdvanceClock(scopeID, at.Sub(now))
 }
 
-// mismatch treats an unknown current fingerprint as drift: an environment that
-// cannot prove its build/baseline cannot claim to reproduce the manifest.
+// mismatch requires both sides to declare the fingerprint: an empty value is
+// never a wildcard, so neither side can claim compatibility it cannot prove.
 func mismatch(recorded, current string) bool {
-	return recorded != "" && recorded != current
+	return recorded == "" || recorded != current
 }

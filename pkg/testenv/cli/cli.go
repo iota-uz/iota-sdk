@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -60,7 +61,7 @@ func Run(ctx context.Context, control testenv.Control, args []string, stdin io.R
 			return err
 		}
 		var input testenv.Input
-		if err := readJSON(*inputPath, stdin, &input); err != nil {
+		if err := readJSON(ctx, *inputPath, stdin, &input); err != nil {
 			return err
 		}
 		input.ScopeID = *scope
@@ -106,7 +107,7 @@ func Run(ctx context.Context, control testenv.Control, args []string, stdin io.R
 			return fmt.Errorf("--manifest is required\n%s", usage)
 		}
 		var manifest testenv.Manifest
-		if err := readJSON(*manifestPath, stdin, &manifest); err != nil {
+		if err := readJSON(ctx, *manifestPath, stdin, &manifest); err != nil {
 			return err
 		}
 		if err := control.ReserveScope(ctx, *scope); err != nil {
@@ -121,7 +122,12 @@ func Run(ctx context.Context, control testenv.Control, args []string, stdin io.R
 	return fmt.Errorf("unknown command %q\n%s", command, usage)
 }
 
-func readJSON(path string, stdin io.Reader, target any) error {
+const inputLimit = 4 << 20
+
+// readJSON reads exactly one JSON document (trailing whitespace allowed) of
+// at most inputLimit bytes. It returns when ctx ends, even if the input stays
+// open without completing.
+func readJSON(ctx context.Context, path string, stdin io.Reader, target any) error {
 	reader := stdin
 	if path != "-" {
 		file, err := os.Open(path)
@@ -131,10 +137,36 @@ func readJSON(path string, stdin io.Reader, target any) error {
 		defer func() { _ = file.Close() }()
 		reader = file
 	}
-	decoder := json.NewDecoder(io.LimitReader(reader, 4<<20))
+	type read struct {
+		data []byte
+		err  error
+	}
+	done := make(chan read, 1)
+	go func() {
+		data, err := io.ReadAll(io.LimitReader(reader, inputLimit+1))
+		done <- read{data, err}
+	}()
+	var data []byte
+	select {
+	case <-ctx.Done():
+		return &testenv.Error{Code: "timeout", Message: "input not read: " + ctx.Err().Error()}
+	case got := <-done:
+		if got.err != nil {
+			return got.err
+		}
+		data = got.data
+	}
+	if len(data) > inputLimit {
+		return &testenv.Error{Code: "invalid_input", Message: "input exceeds 4 MiB"}
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return &testenv.Error{Code: "invalid_input", Message: err.Error()}
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return &testenv.Error{Code: "invalid_input", Message: "expected exactly one JSON document"}
 	}
 	return nil
 }

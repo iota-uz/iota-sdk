@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"time"
 )
@@ -184,6 +185,10 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 		}
 		if err := decode(w, r, 4096, &input); err != nil {
 			write(w, nil, err)
+			return
+		}
+		if input.DurationMs < 0 || input.DurationMs > math.MaxInt64/int64(time.Millisecond) {
+			write(w, nil, failure("invalid_input", "durationMs must be a non-negative duration"))
 			return
 		}
 		now, err := registry.AdvanceClock(r.PathValue("scopeId"), time.Duration(input.DurationMs)*time.Millisecond)

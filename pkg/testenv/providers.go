@@ -30,10 +30,14 @@ var (
 )
 
 // ProviderDefinition is declared by the consumer's fake adapter. ResponseSchema
-// (JSON Schema 2020-12) validates each scripted step's response.
+// (JSON Schema 2020-12) validates each scripted step's response; success steps
+// must carry one. Set CredentialResponses when responses carry credentials
+// (tokens, secrets): such scripts work in the scope but manifest export of a
+// scope that has them is refused instead of serializing the credential.
 type ProviderDefinition struct {
-	Name           string `json:"name"`
-	ResponseSchema any    `json:"responseSchema"`
+	Name                string `json:"name"`
+	ResponseSchema      any    `json:"responseSchema"`
+	CredentialResponses bool   `json:"credentialResponses,omitempty"`
 }
 
 // ProviderStep is one scripted answer. Operation, when set, matches only that
@@ -79,10 +83,20 @@ type providerDefinition struct {
 
 type providerState struct {
 	scripts []json.RawMessage
-	queue   []ProviderStep
-	calls   []ProviderCall
-	gates   map[string]*Gate
+	// prepared counts scripts submitted before the scenario callback ran.
+	prepared int
+	queue    []ProviderStep
+	calls    []ProviderCall
+	gates    map[string]*Gate
+	// holding counts calls currently blocked at each gate.
+	holding map[string]int
 	done    chan struct{}
+}
+
+// providerSnapshot splits scripts by replay phase.
+type providerSnapshot struct {
+	BeforePrepare []json.RawMessage `json:"beforePrepare,omitempty"`
+	AfterPrepare  []json.RawMessage `json:"afterPrepare,omitempty"`
 }
 
 // Providers holds scoped scripts for consumer fake providers.
@@ -118,6 +132,8 @@ func (d ProviderDefinition) PayloadSchema() map[string]any {
 			"type": "array", "minItems": 1,
 			"items": map[string]any{
 				"type": "object", "required": []any{"outcome"}, "additionalProperties": false,
+				"if":   map[string]any{"properties": map[string]any{"outcome": map[string]any{"const": OutcomeSuccess}}},
+				"then": map[string]any{"required": []any{"response"}},
 				"properties": map[string]any{
 					"operation": map[string]any{"type": "string"},
 					"outcome":   map[string]any{"enum": []any{OutcomeSuccess, OutcomeRefusal, OutcomeTimeout}},
@@ -129,10 +145,18 @@ func (d ProviderDefinition) PayloadSchema() map[string]any {
 	}
 }
 
-// Register declares a provider fake.
+// Register declares a provider fake. The schema is snapshotted, so discovery
+// and validation always agree.
 func (p *Providers) Register(definition ProviderDefinition) error {
 	if definition.Name == "" {
 		return failure("invalid_input", "provider name required")
+	}
+	if definition.ResponseSchema != nil {
+		snapshot, err := jsonCopy(definition.ResponseSchema)
+		if err != nil {
+			return failure("invalid_input", "provider response schema: "+err.Error())
+		}
+		definition.ResponseSchema = snapshot
 	}
 	schema, err := compileSchema(definition.PayloadSchema())
 	if err != nil {
@@ -153,7 +177,12 @@ func (p *Providers) Definitions() []map[string]any {
 	defer p.mu.Unlock()
 	out := make([]map[string]any, 0, len(p.definitions))
 	for name, d := range p.definitions {
-		out = append(out, map[string]any{"name": name, "payloadSchema": d.definition.PayloadSchema()})
+		// Each caller gets an independent copy of the registered snapshot.
+		schema, err := jsonCopy(d.definition.PayloadSchema())
+		if err != nil {
+			continue
+		}
+		out = append(out, map[string]any{"name": name, "payloadSchema": schema, "credentialResponses": d.definition.CredentialResponses})
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a]["name"].(string) < out[b]["name"].(string) })
 	return out
@@ -167,7 +196,7 @@ func (p *Providers) stateLocked(scopeID, provider string) *providerState {
 	}
 	state := byProvider[provider]
 	if state == nil {
-		state = &providerState{gates: map[string]*Gate{}, done: make(chan struct{})}
+		state = &providerState{gates: map[string]*Gate{}, holding: map[string]int{}, done: make(chan struct{})}
 		byProvider[provider] = state
 	}
 	return state
@@ -183,9 +212,11 @@ func (p *Providers) Script(ctx context.Context, scopeID, provider string, payloa
 	if err := ctx.Err(); err != nil {
 		return failure("timeout", err.Error())
 	}
-	if err := p.registry.owned(scopeID); err != nil {
+	release, err := p.registry.admit(scopeID)
+	if err != nil {
 		return err
 	}
+	defer release()
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return failure("invalid_input", err.Error())
@@ -230,11 +261,14 @@ func (p *Providers) Calls(scopeID, provider string) ([]ProviderCall, error) {
 	return append([]ProviderCall{}, state.calls...), nil
 }
 
-// Release opens a hold gate. Releasing before the call arrives lets it pass.
+// Release opens a hold gate. Releasing before the call arrives lets it pass
+// without being held.
 func (p *Providers) Release(scopeID, provider, gate string) error {
-	if err := p.registry.owned(scopeID); err != nil {
+	release, err := p.registry.admit(scopeID)
+	if err != nil {
 		return err
 	}
+	defer release()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.definitions[provider] == nil {
@@ -250,30 +284,37 @@ func (p *Providers) Release(scopeID, provider, gate string) error {
 	return nil
 }
 
-// WaitHeld blocks until a call is held at gate, so a test can act while the
-// provider call is in flight.
+// WaitHeld blocks until a call is blocked at gate right now, so a test can
+// act while the provider call is in flight. The wait stays bound to the
+// provider state it started with: if that state is forgotten, it fails.
 func (p *Providers) WaitHeld(ctx context.Context, scopeID, provider, gate string) error {
-	if err := p.registry.owned(scopeID); err != nil {
+	release, err := p.registry.admit(scopeID)
+	if err != nil {
 		return err
 	}
+	p.mu.Lock()
+	if p.definitions[provider] == nil {
+		p.mu.Unlock()
+		release()
+		return failure("unknown_scenario", "unknown provider: "+provider)
+	}
+	state := p.stateLocked(scopeID, provider)
+	p.mu.Unlock()
+	release()
 	for {
 		p.mu.Lock()
-		if p.definitions[provider] == nil {
-			p.mu.Unlock()
-			return failure("unknown_scenario", "unknown provider: "+provider)
-		}
-		state := p.stateLocked(scopeID, provider)
-		g := state.gates[gate]
-		if g == nil {
-			g = NewGate()
-			state.gates[gate] = g
-		}
-		changed, done := p.changed, state.done
+		current := p.scopes[scopeID][provider]
+		held := state.holding[gate] > 0
+		changed := p.changed
 		p.mu.Unlock()
-		select {
-		case <-g.Entered():
+		if current != state {
+			return failure("scope_conflict", "provider state forgotten")
+		}
+		if held {
 			return nil
-		case <-done:
+		}
+		select {
+		case <-state.done:
 			return failure("scope_conflict", "provider state forgotten")
 		case <-ctx.Done():
 			return failure("timeout", ctx.Err().Error())
@@ -283,19 +324,22 @@ func (p *Providers) WaitHeld(ctx context.Context, scopeID, provider, gate string
 }
 
 // Call is used by the consumer's fake provider. It takes the scope from ctx,
-// records the call, consumes the next matching step and honors its gate.
+// records the call, consumes the first queued step whose operation is empty
+// or equal to operation, and honors its gate.
 func (p *Providers) Call(ctx context.Context, provider, operation, key string) (ProviderStep, error) {
 	correlation, ok := CorrelationFrom(ctx)
 	if !ok {
 		return ProviderStep{}, ErrUncorrelated
 	}
 	scopeID := correlation.ScopeID
-	if err := p.registry.owned(scopeID); err != nil {
+	release, err := p.registry.admit(scopeID)
+	if err != nil {
 		return ProviderStep{}, err
 	}
 	p.mu.Lock()
 	if p.definitions[provider] == nil {
 		p.mu.Unlock()
+		release()
 		return ProviderStep{}, failure("unknown_scenario", "unknown provider: "+provider)
 	}
 	state := p.stateLocked(scopeID, provider)
@@ -312,10 +356,14 @@ func (p *Providers) Call(ctx context.Context, provider, operation, key string) (
 		state.calls = append(state.calls, call)
 		p.notifyLocked()
 		p.mu.Unlock()
+		release()
 		return ProviderStep{}, ErrUnscripted
 	}
 	step := state.queue[index]
-	state.queue = append(state.queue[:index:index], state.queue[index+1:]...)
+	// Remove in place: no reallocation per call, order of the rest kept.
+	copy(state.queue[index:], state.queue[index+1:])
+	state.queue[len(state.queue)-1] = ProviderStep{}
+	state.queue = state.queue[:len(state.queue)-1]
 	call.Outcome, call.Hold = step.Outcome, step.Hold
 	var gate *Gate
 	if step.Hold != "" {
@@ -324,19 +372,25 @@ func (p *Providers) Call(ctx context.Context, provider, operation, key string) (
 			gate = NewGate()
 			state.gates[step.Hold] = gate
 		}
-		call.Outcome = "held"
+		select {
+		case <-gate.release:
+			gate = nil // released before arrival: passes without being held
+		default:
+			call.Outcome = "held"
+			state.holding[step.Hold]++
+		}
 	}
 	position := len(state.calls)
 	state.calls = append(state.calls, call)
 	done := state.done
+	p.notifyLocked()
 	p.mu.Unlock()
+	// Admission covers recording only; blocking at a gate must not delay disposal.
+	release()
 	if gate == nil {
 		return step, nil
 	}
 	gate.enterOnce.Do(func() { close(gate.entered) })
-	p.mu.Lock()
-	p.notifyLocked()
-	p.mu.Unlock()
 	outcome, err := step.Outcome, error(nil)
 	select {
 	case <-gate.release:
@@ -346,6 +400,7 @@ func (p *Providers) Call(ctx context.Context, provider, operation, key string) (
 		outcome, err = "canceled", ctx.Err()
 	}
 	p.mu.Lock()
+	state.holding[step.Hold]--
 	if position < len(state.calls) && state.calls[position].Sequence == call.Sequence {
 		state.calls[position].Outcome = outcome
 	}
@@ -369,14 +424,31 @@ func (p *Providers) ForgetScope(_ context.Context, scopeID string) error {
 	return nil
 }
 
-// SnapshotScope captures submitted scripts (not consumption) for replay.
+func (p *Providers) beforePrepare(scopeID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, state := range p.scopes[scopeID] {
+		state.prepared = len(state.scripts)
+	}
+}
+
+// SnapshotScope captures submitted scripts (not consumption) for replay,
+// split into those present before the scenario callback and those after.
+// Scopes holding scripts of a CredentialResponses provider are refused.
 func (p *Providers) SnapshotScope(scopeID string) (json.RawMessage, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	snapshot := map[string][]json.RawMessage{}
+	snapshot := map[string]providerSnapshot{}
 	for provider, state := range p.scopes[scopeID] {
-		if len(state.scripts) > 0 {
-			snapshot[provider] = append([]json.RawMessage(nil), state.scripts...)
+		if len(state.scripts) == 0 {
+			continue
+		}
+		if d := p.definitions[provider]; d != nil && d.definition.CredentialResponses {
+			return nil, failure("invalid_input", "provider "+provider+" scripts carry credentials; manifest export refused")
+		}
+		snapshot[provider] = providerSnapshot{
+			BeforePrepare: append([]json.RawMessage(nil), state.scripts[:state.prepared]...),
+			AfterPrepare:  append([]json.RawMessage(nil), state.scripts[state.prepared:]...),
 		}
 	}
 	if len(snapshot) == 0 {
@@ -385,9 +457,9 @@ func (p *Providers) SnapshotScope(scopeID string) (json.RawMessage, error) {
 	return json.Marshal(snapshot)
 }
 
-// RestoreScope re-submits captured scripts to a fresh scope.
-func (p *Providers) RestoreScope(ctx context.Context, scopeID string, snapshot json.RawMessage) error {
-	var scripts map[string][]json.RawMessage
+// RestoreScope re-submits the scripts of one replay phase to a fresh scope.
+func (p *Providers) RestoreScope(ctx context.Context, scopeID string, snapshot json.RawMessage, phase RestorePhase) error {
+	var scripts map[string]providerSnapshot
 	if err := json.Unmarshal(snapshot, &scripts); err != nil {
 		return failure("invalid_input", "provider snapshot: "+err.Error())
 	}
@@ -397,11 +469,27 @@ func (p *Providers) RestoreScope(ctx context.Context, scopeID string, snapshot j
 	}
 	sort.Strings(providers)
 	for _, provider := range providers {
-		for _, script := range scripts[provider] {
+		part := scripts[provider].AfterPrepare
+		if phase == RestoreBeforePrepare {
+			part = scripts[provider].BeforePrepare
+		}
+		for _, script := range part {
 			if err := p.Script(ctx, scopeID, provider, script); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func jsonCopy(value any) (any, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var copied any
+	if err := json.Unmarshal(encoded, &copied); err != nil {
+		return nil, err
+	}
+	return copied, nil
 }

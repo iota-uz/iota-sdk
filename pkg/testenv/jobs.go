@@ -150,28 +150,38 @@ func (j *Jobs) Run(ctx context.Context, scopeID, job string, refs map[string]Ent
 	if err := ctx.Err(); err != nil {
 		return "", failure("timeout", err.Error())
 	}
-	if err := j.registry.owned(scopeID); err != nil {
+	release, err := j.registry.admit(scopeID)
+	if err != nil {
 		return "", err
 	}
+	defer release()
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	registered, ok := j.jobs[job]
 	if !ok {
 		return "", failure("unknown_scenario", "unknown job: "+job)
 	}
-	if registered.definition.Dedicated && !j.registry.dedicated {
-		return "", failure("missing_capability", "job requires a dedicated environment")
+	if registered.definition.Dedicated {
+		if !j.registry.dedicated {
+			return "", failure("missing_capability", "job requires a dedicated environment")
+		}
+		// Environment-wide work runs only under its scope's dedicated lease;
+		// the lease lasts until that scope is disposed, which joins the job.
+		j.registry.mu.Lock()
+		holder := j.registry.exclusiveScope
+		j.registry.mu.Unlock()
+		if holder != scopeID {
+			return "", failure("scope_conflict", "dedicated job requires the scope's dedicated scenario lease")
+		}
 	}
-	copied := make(map[string]EntityRef, len(refs))
-	for name, ref := range refs {
-		copied[name] = ref
-	}
-	request := JobRequest{ExecutionID: uuid.NewString(), ScopeID: scopeID, Job: job, Refs: copied}
+	request := JobRequest{ExecutionID: uuid.NewString(), ScopeID: scopeID, Job: job, Refs: copyRefs(refs)}
 	runCtx, cancel := context.WithCancel(WithCorrelation(context.Background(), Correlation{ScopeID: scopeID, ExecutionID: request.ExecutionID}))
 	e := &execution{request: request, cancel: cancel, done: make(chan struct{}), status: ExecutionStatus{ExecutionID: request.ExecutionID, ScopeID: scopeID, Job: job, State: "running", StartedAt: time.Now().UTC()}}
 	j.executions[request.ExecutionID] = e
+	handlerRequest := request
+	handlerRequest.Refs = copyRefs(request.Refs)
 	go func() {
-		err := runJob(runCtx, registered.run, request)
+		err := runJob(runCtx, registered.run, handlerRequest)
 		finished := time.Now().UTC()
 		j.mu.Lock()
 		e.status.FinishedAt = &finished
@@ -188,6 +198,16 @@ func (j *Jobs) Run(ctx context.Context, scopeID, job string, refs map[string]Ent
 		close(e.done)
 	}()
 	return request.ExecutionID, nil
+}
+
+// copyRefs gives each callback its own map, so a handler that adds derived
+// refs never races with a condition reading them.
+func copyRefs(refs map[string]EntityRef) map[string]EntityRef {
+	copied := make(map[string]EntityRef, len(refs))
+	for name, ref := range refs {
+		copied[name] = ref
+	}
+	return copied
 }
 
 func runJob(ctx context.Context, run JobFunc, request JobRequest) (err error) {
@@ -236,17 +256,15 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 		poll = 10 * time.Millisecond
 	}
 	started := time.Now()
-	deadline := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
-	defer deadline.Stop()
+	waitCtx, cancelWait := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	defer cancelWait()
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
 	result := WaitResult{Condition: condition}
-	finish := func(outcome string) (WaitResult, error) {
+	finish := func(outcome string, status ExecutionStatus) (WaitResult, error) {
 		result.Outcome = outcome
 		result.ElapsedMs = time.Since(started).Milliseconds()
-		j.mu.Lock()
-		result.Execution = e.status
-		j.mu.Unlock()
+		result.Execution = status
 		switch outcome {
 		case "failed":
 			return result, &Error{Code: "execution_failed", Message: "condition " + condition + " failed", Details: result}
@@ -263,26 +281,36 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 			finished = true
 		default:
 		}
-		state := j.state(e)
-		if state == "failed" || state == "canceled" {
-			return finish("failed")
+		status := j.status(e)
+		if status.State == "failed" || status.State == "canceled" {
+			return finish("failed", status)
 		}
 		if condition == ConditionCompleted {
-			if state == "succeeded" {
-				return finish("reached")
+			if status.State == "succeeded" {
+				return finish("reached", status)
 			}
 		} else {
 			result.Checks++
-			reached, err := check(WithCorrelation(ctx, Correlation{ScopeID: scopeID, ExecutionID: executionID}), e.request)
-			if err != nil {
-				if ctx.Err() != nil {
-					return finish("canceled")
-				}
+			request := e.request
+			request.Refs = copyRefs(e.request.Refs)
+			// The condition gets the wait deadline, so context-aware checks
+			// stop when timeoutMs expires.
+			reached, err := check(WithCorrelation(waitCtx, Correlation{ScopeID: scopeID, ExecutionID: executionID}), request)
+			// Decide on one snapshot taken after the check: a job that failed
+			// meanwhile is never reported as reached.
+			status = j.status(e)
+			switch {
+			case ctx.Err() != nil:
+				return finish("canceled", status)
+			case waitCtx.Err() != nil:
+				return finish("timeout", status)
+			case status.State == "failed" || status.State == "canceled":
+				return finish("failed", status)
+			case err != nil:
 				result.LastConditionError = err.Error()
-				return finish("failed")
-			}
-			if reached {
-				return finish("reached")
+				return finish("failed", status)
+			case reached:
+				return finish("reached", status)
 			}
 		}
 		if finished {
@@ -292,23 +320,25 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 		}
 		select {
 		case <-ctx.Done():
-			return finish("canceled")
-		case <-deadline.C:
-			return finish("timeout")
+			return finish("canceled", j.status(e))
+		case <-waitCtx.Done():
+			return finish("timeout", j.status(e))
 		case <-done:
 		case <-ticker.C:
 		}
 	}
 }
 
-func (j *Jobs) state(e *execution) string {
+func (j *Jobs) status(e *execution) ExecutionStatus {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	return e.status.State
+	return e.status
 }
 
-// ForgetScope cancels the scope's executions and waits for them to exit.
-func (j *Jobs) ForgetScope(ctx context.Context, scopeID string) error {
+// StopScope cancels the scope's executions and returns once all have exited.
+// The registry calls it before any destructive cleanup; on error, cleanup is
+// deferred and disposal stays retryable.
+func (j *Jobs) StopScope(ctx context.Context, scopeID string) error {
 	j.mu.Lock()
 	var owned []*execution
 	for _, e := range j.executions {
@@ -325,9 +355,19 @@ func (j *Jobs) ForgetScope(ctx context.Context, scopeID string) error {
 			return failure("cleanup_failed", "job "+e.request.Job+" did not stop: "+ctx.Err().Error())
 		}
 	}
+	return nil
+}
+
+// ForgetScope stops the scope's executions and drops their records.
+func (j *Jobs) ForgetScope(ctx context.Context, scopeID string) error {
+	if err := j.StopScope(ctx, scopeID); err != nil {
+		return err
+	}
 	j.mu.Lock()
-	for _, e := range owned {
-		delete(j.executions, e.request.ExecutionID)
+	for id, e := range j.executions {
+		if e.request.ScopeID == scopeID {
+			delete(j.executions, id)
+		}
 	}
 	j.mu.Unlock()
 	return nil

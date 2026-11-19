@@ -30,6 +30,7 @@ test('scoped jobs, provider gates, clock and replay use the owned routes and typ
       case 'GET /__test__/scopes/env-1/manifest': return reply(200, { format: 'iota.testenv.manifest/v1', environment: {}, scenario: { name: 'n', version: '1', scopeId: 'env-1', seed: 's', now: '2026-10-02T00:00:00Z', params: {} }, result: {}, controls: { clock: '2026-10-03T00:00:00Z' } })
       case 'POST /__test__/scopes': return reply(200, { scopeId: body.scopeId })
       case 'POST /__test__/scopes/env-2/replay': return reply(200, { scopeId: 'env-2', data: { replayed: true } })
+      case 'GET /__test__/scopes/broken/manifest': response.statusCode = 200; response.end(''); return
     }
     reply(404, { code: 'unknown_scenario', message: 'unexpected route' })
   })
@@ -53,6 +54,7 @@ test('scoped jobs, provider gates, clock and replay use the owned routes and typ
     await expect(controls.clock.advance('shared', 1)).rejects.toBeInstanceOf(ScenarioControlError)
     const manifest = await controls.manifest('env-1')
     expect(await controls.replay('env-2', manifest)).toMatchObject({ scopeId: 'env-2' })
-    expect(calls.slice(-2).map(call => call.split(' ').slice(0, 2).join(' '))).toEqual(['POST /__test__/scopes', 'POST /__test__/scopes/env-2/replay'])
+    await expect(controls.manifest('broken')).rejects.toMatchObject({ code: 'invalid_response' })
+    expect(calls.slice(-3, -1).map(call => call.split(' ').slice(0, 2).join(' '))).toEqual(['POST /__test__/scopes', 'POST /__test__/scopes/env-2/replay'])
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) }
 })

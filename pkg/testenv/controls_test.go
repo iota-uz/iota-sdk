@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -228,11 +230,21 @@ func TestProviderGatesReproduceRaceDeterministically(t *testing.T) {
 
 	// Forget ends held calls and removes only this scope's scripts and calls.
 	require.NoError(t, providers.Script(context.Background(), "a", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeSuccess, Hold: "never", Response: map[string]any{"receipt": "r-2"}}}}))
+	bounded, stop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stop()
 	held := make(chan error, 1)
-	go func() { _, err := fake.Charge(scopeA, "idem-2"); held <- err }()
-	require.NoError(t, providers.WaitHeld(context.Background(), "a", "payments", "never"))
+	go func() {
+		_, err := fake.Charge(WithCorrelation(bounded, Correlation{ScopeID: "a", ExecutionID: "x1"}), "idem-2")
+		held <- err
+	}()
+	require.NoError(t, providers.WaitHeld(bounded, "a", "payments", "never"), "the call reaches the gate")
 	require.Equal(t, 200, request(t, handler, "DELETE", "/__test__/scopes/a/providers", nil, testToken).Code)
-	require.Equal(t, "scope_conflict", controlCode(t, <-held))
+	select {
+	case err := <-held:
+		require.Equal(t, "scope_conflict", controlCode(t, err), "Forget ends the held call")
+	case <-bounded.Done():
+		t.Fatal("Forget did not end the held call")
+	}
 	calls, err = providers.Calls("a", "payments")
 	require.NoError(t, err)
 	require.Empty(t, calls)
@@ -325,7 +337,7 @@ func TestScopeCleanupCoversFilesQueuesAndFakes(t *testing.T) {
 
 	err = r.Dispose(context.Background(), "a")
 	require.Equal(t, "cleanup_failed", controlCode(t, err))
-	require.NoError(t, r.owned("a"), "a failed cleanup leaves the scope retryable, not disposed")
+	require.Equal(t, "scope_conflict", controlCode(t, r.owned("a")), "admission closes before cleanup and stays closed")
 	require.NoError(t, r.Dispose(context.Background(), "a"))
 	require.NoError(t, r.Dispose(context.Background(), "a"))
 
@@ -379,10 +391,8 @@ func TestManifestReplayRestoresScenarioAndControls(t *testing.T) {
 
 	fresh, providers, clock, handler := newEnvironment()
 	require.Equal(t, 200, request(t, handler, "POST", "/__test__/scopes", map[string]string{"scopeId": "env-2"}, testToken).Code)
-	for range 2 { // a repeated replay after a lost response re-applies nothing
-		w = request(t, handler, "POST", "/__test__/scopes/env-2/replay", manifest, testToken)
-		require.Equal(t, 200, w.Code, w.Body.String())
-	}
+	w = request(t, handler, "POST", "/__test__/scopes/env-2/replay", manifest, testToken)
+	require.Equal(t, 200, w.Code, w.Body.String())
 	var replayed Result
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &replayed))
 	require.Equal(t, "env-2", replayed.ScopeID)
@@ -393,8 +403,27 @@ func TestManifestReplayRestoresScenarioAndControls(t *testing.T) {
 	scoped := WithCorrelation(ctx, Correlation{ScopeID: "env-2"})
 	_, err = fake.Charge(scoped, "k")
 	require.ErrorIs(t, err, ErrProviderRefused)
+	_, err = fresh.AdvanceClock("env-2", time.Hour)
+	require.NoError(t, err)
+	// A repeated replay after a lost response re-applies nothing: the consumed
+	// script stays consumed and the advanced clock is not reset.
+	retry := request(t, handler, "POST", "/__test__/scopes/env-2/replay", manifest, testToken)
+	require.Equal(t, 200, retry.Code, retry.Body.String())
+	require.JSONEq(t, w.Body.String(), retry.Body.String())
 	_, err = fake.Charge(scoped, "k")
 	require.ErrorIs(t, err, ErrUnscripted, "scripts were restored exactly once")
+	require.Equal(t, "2026-10-02T02:30:00Z", clock.Now().Format(time.RFC3339))
+
+	// Replay never lands in a scope that was prepared otherwise.
+	require.NoError(t, fresh.ReserveScope("env-6"))
+	_, err = fresh.Prepare(ctx, func() Input { i := manifest.Scenario; i.ScopeID = "env-6"; return i }())
+	require.Equal(t, "scope_conflict", controlCode(t, err), "env-2 holds the dedicated lease")
+	require.NoError(t, fresh.Dispose(ctx, "env-2"))
+	_, err = fresh.Prepare(ctx, func() Input { i := manifest.Scenario; i.ScopeID = "env-6"; return i }())
+	require.NoError(t, err)
+	_, err = fresh.Replay(ctx, "env-6", manifest)
+	require.Equal(t, "scope_conflict", controlCode(t, err))
+	require.NoError(t, fresh.Dispose(ctx, "env-6"))
 
 	// A control that cannot be restored compensates the replayed scope; it is
 	// never handed out as ready afterwards.
@@ -427,12 +456,287 @@ func TestManifestReplayRestoresScenarioAndControls(t *testing.T) {
 	require.NoError(t, unknown.ReserveScope("env-4"))
 	_, err = unknown.Replay(ctx, "env-4", manifest)
 	require.Equal(t, "version_mismatch", controlCode(t, err), "an environment that cannot prove its build refuses replay")
+	blank := manifest
+	blank.Environment = BuildInfo{}
+	require.NoError(t, fresh.ReserveScope("env-7"))
+	_, err = fresh.Replay(ctx, "env-7", blank)
+	require.Equal(t, "version_mismatch", controlCode(t, err), "an empty recorded fingerprint is not a wildcard")
+}
+
+func TestReplayRestoresScriptsTheScenarioConsumes(t *testing.T) {
+	// Falsely green if replay restored every script after the callback: a
+	// scenario that calls its provider during preparation would then fail.
+	build := BuildInfo{BuildRevision: "r", SchemaFingerprint: "s", BaselineFingerprint: "b"}
+	newEnvironment := func() (*Registry, *Providers) {
+		r := NewEnvironmentRegistry(nil, false, "env")
+		r.SetBuildInfo(build)
+		providers := paymentProviders(t, r)
+		d := testDefinition()
+		d.Isolation = "shared"
+		require.NoError(t, r.Register(d, func(ctx context.Context, i Input) (Result, error) {
+			receipt, err := paymentFake{providers}.Charge(ctx, "setup")
+			if err != nil {
+				return Result{}, err
+			}
+			return Result{Data: map[string]any{"id": receipt}}, nil
+		}, func(context.Context, string) error { return nil }))
+		return r, providers
+	}
+	ctx := context.Background()
+	source, providers := newEnvironment()
+	require.NoError(t, source.ReserveScope("env-1"))
+	require.NoError(t, providers.Script(ctx, "env-1", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeSuccess, Response: map[string]any{"receipt": "setup-1"}}}}))
+	_, err := source.Prepare(ctx, testInput("env-1"))
+	require.NoError(t, err)
+	require.NoError(t, providers.Script(ctx, "env-1", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeRefusal}}}))
+	manifest, err := source.Manifest(ctx, "env-1")
+	require.NoError(t, err)
+
+	fresh, freshProviders := newEnvironment()
+	require.NoError(t, fresh.ReserveScope("env-2"))
+	result, err := fresh.Replay(ctx, "env-2", manifest)
+	require.NoError(t, err)
+	require.Equal(t, "setup-1", result.Data["id"])
+	_, err = paymentFake{freshProviders}.Charge(WithCorrelation(ctx, Correlation{ScopeID: "env-2"}), "later")
+	require.ErrorIs(t, err, ErrProviderRefused, "post-preparation scripts are restored after the callback")
+}
+
+func TestReviewRegressions(t *testing.T) {
+	ctx := context.Background()
+	t.Run("success steps require a schema-valid response", func(t *testing.T) {
+		// Falsely green if a success step without response reached a fake that
+		// reads it: the fake would panic instead of the script being refused.
+		r := NewRegistry(nil, false)
+		providers := paymentProviders(t, r)
+		require.NoError(t, r.AllowScope("a"))
+		err := providers.Script(ctx, "a", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeSuccess}}})
+		require.Equal(t, "invalid_input", controlCode(t, err))
+		require.NoError(t, providers.Script(ctx, "a", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeTimeout}}}))
+	})
+	t.Run("discovery cannot mutate validation", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		providers := paymentProviders(t, r)
+		definitions := providers.Definitions()
+		definitions[0]["payloadSchema"].(map[string]any)["properties"] = nil
+		require.NotNil(t, providers.Definitions()[0]["payloadSchema"].(map[string]any)["properties"])
+	})
+	t.Run("credential responses are never exported", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		echoScenario(t, r, "shared")
+		providers, err := NewProviders(r)
+		require.NoError(t, err)
+		require.NoError(t, providers.Register(ProviderDefinition{Name: "auth", CredentialResponses: true}))
+		require.NoError(t, r.AllowScope("a"))
+		_, err = r.Prepare(ctx, testInput("a"))
+		require.NoError(t, err)
+		require.NoError(t, providers.Script(ctx, "a", "auth", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeSuccess, Response: map[string]any{"accessToken": "secret-token"}}}}))
+		_, err = r.Manifest(ctx, "a")
+		require.Equal(t, "invalid_input", controlCode(t, err))
+	})
+	t.Run("a canceled hold is no longer reported as held", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		providers := paymentProviders(t, r)
+		require.NoError(t, r.AllowScope("a"))
+		require.NoError(t, providers.Script(ctx, "a", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeRefusal, Hold: "g"}}}))
+		callCtx, cancel := context.WithCancel(WithCorrelation(ctx, Correlation{ScopeID: "a"}))
+		done := make(chan error, 1)
+		go func() { _, err := providers.Call(callCtx, "payments", "charge", "k"); done <- err }()
+		bounded, stop := context.WithTimeout(ctx, 5*time.Second)
+		defer stop()
+		require.NoError(t, providers.WaitHeld(bounded, "a", "payments", "g"))
+		cancel()
+		require.ErrorIs(t, <-done, context.Canceled)
+		short, stopShort := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer stopShort()
+		require.Equal(t, "timeout", controlCode(t, providers.WaitHeld(short, "a", "payments", "g")))
+	})
+	t.Run("released-before-arrival passes without holding", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		providers := paymentProviders(t, r)
+		require.NoError(t, r.AllowScope("a"))
+		require.NoError(t, providers.Release("a", "payments", "g"))
+		require.NoError(t, providers.Script(ctx, "a", "payments", ProviderScript{Steps: []ProviderStep{{Outcome: OutcomeRefusal, Hold: "g"}}}))
+		_, err := paymentFake{providers}.Charge(WithCorrelation(ctx, Correlation{ScopeID: "a"}), "k")
+		require.ErrorIs(t, err, ErrProviderRefused)
+		calls, err := providers.Calls("a", "payments")
+		require.NoError(t, err)
+		require.Equal(t, OutcomeRefusal, calls[0].Outcome)
+	})
+	t.Run("queue namespaces are lossless", func(t *testing.T) {
+		require.NotEqual(t, QueueNamespace("jobs", "a:b"), QueueNamespace("jobs", "a_b"))
+		require.NotEqual(t, QueueNamespace("jobs", "a/b"), QueueNamespace("jobs", "a%2Fb"))
+	})
+	t.Run("case variants get distinct directories", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		files, err := NewScopedFiles(r, t.TempDir())
+		require.NoError(t, err)
+		require.NoError(t, r.AllowScope("case-a"))
+		require.NoError(t, r.AllowScope("CASE-A"))
+		lower, err := files.Dir("case-a")
+		require.NoError(t, err)
+		upper, err := files.Dir("CASE-A")
+		require.NoError(t, err)
+		require.NotEqual(t, strings.ToLower(lower), strings.ToLower(upper))
+	})
+	t.Run("resources attach before scopes", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		require.NoError(t, r.AllowScope("a"))
+		require.Equal(t, "scope_conflict", controlCode(t, r.OnDispose("late", func(context.Context, string) error { return nil })))
+	})
+	t.Run("clock advance overflow is refused", func(t *testing.T) {
+		r := NewRegistry(nil, true)
+		r.UseClock(NewManualClock(time.Unix(0, 0)))
+		echoScenario(t, r, "dedicated")
+		require.NoError(t, r.AllowScope("a"))
+		handler, err := NewHandler(r, testToken)
+		require.NoError(t, err)
+		require.Equal(t, 200, request(t, handler, "POST", "/__test__/scenarios/prepare", testInput("a"), testToken).Code)
+		before, _ := r.ClockNow()
+		require.Equal(t, 400, request(t, handler, "POST", "/__test__/scopes/a/clock/advance", map[string]int64{"durationMs": -18446744073709}, testToken).Code)
+		after, _ := r.ClockNow()
+		require.Equal(t, before, after)
+	})
+	t.Run("failed dedicated preparation restores server time", func(t *testing.T) {
+		r := NewRegistry(nil, true)
+		start := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+		r.UseClock(NewManualClock(start))
+		require.NoError(t, r.Register(testDefinition(), func(context.Context, Input) (Result, error) { return Result{}, errors.New("boom") }, func(context.Context, string) error { return nil }))
+		require.NoError(t, r.AllowScope("a"))
+		_, err := r.Prepare(ctx, testInput("a"))
+		require.Error(t, err)
+		now, _ := r.ClockNow()
+		require.Equal(t, start, now)
+	})
+	t.Run("dedicated jobs need their scope's lease", func(t *testing.T) {
+		// Falsely green if a scope without the lease could run environment-wide work.
+		r := NewRegistry(nil, true)
+		echoScenario(t, r, "dedicated")
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		require.NoError(t, jobs.Register(JobDefinition{Name: "global", Dedicated: true}, func(context.Context, JobRequest) error { return nil }))
+		for _, id := range []string{"owner", "other"} {
+			require.NoError(t, r.AllowScope(id))
+		}
+		_, err = jobs.Run(ctx, "owner", "global", nil)
+		require.Equal(t, "scope_conflict", controlCode(t, err), "no lease before preparation")
+		_, err = r.Prepare(ctx, testInput("owner"))
+		require.NoError(t, err)
+		_, err = jobs.Run(ctx, "other", "global", nil)
+		require.Equal(t, "scope_conflict", controlCode(t, err))
+		_, err = jobs.Run(ctx, "owner", "global", nil)
+		require.NoError(t, err)
+	})
+	t.Run("a job failing during a check is not reached", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		fail := make(chan struct{})
+		require.NoError(t, jobs.Register(JobDefinition{Name: "partial"}, func(ctx context.Context, _ JobRequest) error {
+			<-fail
+			return errors.New("failed after partial output")
+		}))
+		var once sync.Once
+		require.NoError(t, jobs.RegisterCondition("partial-output", func(ctx context.Context, _ JobRequest) (bool, error) {
+			once.Do(func() { close(fail) })
+			// Wait for the job to record its failure before answering true.
+			for {
+				if status, _ := jobs.Status("a", currentExecution(jobs)); status.State == "failed" {
+					return true, nil
+				}
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				case <-time.After(time.Millisecond):
+				}
+			}
+		}))
+		require.NoError(t, r.AllowScope("a"))
+		id, err := jobs.Run(ctx, "a", "partial", nil)
+		require.NoError(t, err)
+		result, err := jobs.Wait(ctx, "a", id, "partial-output", 5000)
+		require.Equal(t, "execution_failed", controlCode(t, err))
+		require.Equal(t, "failed", result.Outcome)
+	})
+	t.Run("conditions receive the wait deadline", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		require.NoError(t, jobs.Register(JobDefinition{Name: "idle"}, func(ctx context.Context, _ JobRequest) error { <-ctx.Done(); return nil }))
+		require.NoError(t, jobs.RegisterCondition("blocking", func(ctx context.Context, _ JobRequest) (bool, error) {
+			<-ctx.Done() // a context-aware query that never answers
+			return false, ctx.Err()
+		}))
+		require.NoError(t, r.AllowScope("a"))
+		id, err := jobs.Run(ctx, "a", "idle", nil)
+		require.NoError(t, err)
+		result, err := jobs.Wait(ctx, "a", id, "blocking", 20)
+		require.Equal(t, "timeout", controlCode(t, err))
+		require.Equal(t, "timeout", result.Outcome)
+		require.NoError(t, r.Dispose(ctx, "a"))
+	})
+	t.Run("handlers and conditions get their own refs", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		require.NoError(t, jobs.Register(JobDefinition{Name: "derive"}, func(_ context.Context, req JobRequest) error {
+			for i := range 1000 {
+				req.Refs[fmt.Sprint("derived-", i)] = EntityRef{Kind: "x", ID: "y"}
+			}
+			return nil
+		}))
+		require.NoError(t, jobs.RegisterCondition("reads", func(_ context.Context, req JobRequest) (bool, error) {
+			_, ok := req.Refs["derived-999"]
+			return !ok && len(req.Refs) == 1, nil
+		}))
+		require.NoError(t, r.AllowScope("a"))
+		id, err := jobs.Run(ctx, "a", "derive", map[string]EntityRef{"invoice": {Kind: "invoice", ID: "1"}})
+		require.NoError(t, err)
+		_, err = jobs.Wait(ctx, "a", id, "reads", 5000)
+		require.NoError(t, err)
+	})
+	t.Run("stuck jobs defer destructive cleanup", func(t *testing.T) {
+		// Falsely green if records were deleted while a job could still write.
+		r := NewRegistry(nil, false)
+		var cleaned int
+		d := testDefinition()
+		d.Isolation = "shared"
+		require.NoError(t, r.Register(d, func(_ context.Context, i Input) (Result, error) {
+			return Result{Data: map[string]any{"id": i.Seed}}, nil
+		}, func(context.Context, string) error { cleaned++; return nil }))
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		unstick := make(chan struct{})
+		require.NoError(t, jobs.Register(JobDefinition{Name: "stuck"}, func(context.Context, JobRequest) error { <-unstick; return nil }))
+		require.NoError(t, r.AllowScope("a"))
+		_, err = r.Prepare(ctx, testInput("a"))
+		require.NoError(t, err)
+		_, err = jobs.Run(ctx, "a", "stuck", nil)
+		require.NoError(t, err)
+		short, stop := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer stop()
+		require.Equal(t, "cleanup_failed", controlCode(t, r.Dispose(short, "a")))
+		require.Zero(t, cleaned, "records stay until the job has exited")
+		_, err = jobs.Run(ctx, "a", "stuck", nil)
+		require.Equal(t, "scope_conflict", controlCode(t, err), "admission stays closed after a failed cleanup")
+		close(unstick)
+		require.NoError(t, r.Dispose(ctx, "a"))
+		require.Equal(t, 1, cleaned)
+	})
+}
+
+func currentExecution(j *Jobs) string {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	for id := range j.executions {
+		return id
+	}
+	return ""
 }
 
 type failingRestore struct{}
 
 func (failingRestore) ForgetScope(context.Context, string) error     { return nil }
 func (failingRestore) SnapshotScope(string) (json.RawMessage, error) { return nil, nil }
-func (failingRestore) RestoreScope(context.Context, string, json.RawMessage) error {
+func (failingRestore) RestoreScope(context.Context, string, json.RawMessage, RestorePhase) error {
 	return errors.New("provider sandbox unavailable")
 }

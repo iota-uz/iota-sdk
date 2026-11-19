@@ -53,7 +53,8 @@ export function createHttpTestControls(environment: { environmentId: string; bas
       headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body) })
     const text = await response.text()
     let payload: Record<string, unknown> = {}
-    try { payload = JSON.parse(text) } catch {}
+    let parsed = false
+    try { payload = JSON.parse(text); parsed = payload !== null && typeof payload === 'object' } catch {}
     if (!response.ok) {
       const code = typeof payload.code === 'string' ? payload.code : `http_${response.status}`
       const message = typeof payload.message === 'string' ? payload.message : `Test control returned HTTP ${response.status}`
@@ -61,6 +62,8 @@ export function createHttpTestControls(environment: { environmentId: string; bas
       throw new ScenarioControlError(code, response.status, message)
     }
     if (response.headers.get('X-Test-Environment-ID') !== environment.environmentId) throw new ScenarioControlError('environment_mismatch', response.status, 'Test control endpoint belongs to another environment')
+    // A successful control answer is always a JSON object; anything else is a broken endpoint, not an empty result.
+    if (!parsed) throw new ScenarioControlError('invalid_response', response.status, 'Test control returned a malformed JSON body')
     return payload as T
   }
   const scope = (scopeId: string) => `/__test__/scopes/${encodeURIComponent(scopeId)}`

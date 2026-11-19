@@ -132,7 +132,10 @@ waits for the execution itself.
 **Providers.** A consumer fake declares `ProviderDefinition{Name, ResponseSchema}`
 and calls `providers.Call(ctx, provider, operation, key)` from inside its adapter.
 Scripts (`{"steps":[{"operation","outcome":"success|refusal|timeout","hold","response"}]}`)
-are validated against the declared schema and consumed in order.
+are validated against the declared schema; success steps must carry a
+`response`. Each call consumes the first queued step whose `operation` is
+empty or equal to the call's operation, so steps for different operations are
+not globally ordered (`send`, `refund` queued: a `refund` call takes the second).
 `Calls` returns `sequence, operation, key, outcome, correlation`. A step with
 `hold` records the call as `held` and waits until `Release`, the call's context
 ends, or the scope is forgotten. `WaitHeld` lets a test act while that call is
