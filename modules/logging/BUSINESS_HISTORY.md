@@ -102,10 +102,10 @@ stored value).
   visibility) that needs dependencies to static definitions.
 - **Visibility by object.** `Resource.Visible` (`func(ctx) (history.Visibility, error)`) is evaluated
   once per read and returns `VisibleAll()`, `VisibleIDs(ids...)`, `VisibleWhere(sqlCondition, args...)`
-  (a condition over `{id}`, the object ID as text, with its own `$1..$n` arguments, e.g.
+  (a condition over `{id}`, the object ID as text, with its own `$1..$n` arguments, evaluated only for IDs of its own resource; `$n` and `{id}` inside quoted literals and comments are left as written, and an undeclared `$n` or a dollar-quoted string fails the read; e.g.
   `{id}::uuid IN (SELECT document_id FROM document_participants WHERE user_id = $1)`) or both IDs and
   a condition. An event naming any object of the resource outside that set is hidden as a whole,
-  including the other side of a link, in SQL before the page limit, so pages, cursors and any count
+  including the other side of a link (also when the reader may not read the restricted resource itself), in SQL before the page limit, so pages, cursors and any count
   over the same query only include visible events. `Service.Subject` (the title of an object's page)
   is empty for a hidden object. A visibility error fails the read. `Resource.ReadPermission` still
   applies first; without `Visible` every object of a readable resource is visible.

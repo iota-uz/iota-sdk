@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -232,10 +231,10 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 	return result, nil
 }
 
-var placeholderPattern = regexp.MustCompile(`\$([0-9]+)`)
-
 // restrictionClause keeps events none of whose objects of the restricted resource lies outside its
 // visible set. Resource names never contain ':', so "<resource>:" prefixes exactly its subject refs.
+// The condition runs inside CASE, so it only ever sees IDs of its own resource (a typed cast such as
+// {id}::uuid never meets another resource's ID).
 func restrictionClause(r businessevent.Restriction, arg func(any) string) string {
 	prefix := r.Resource + ":"
 	const ref = "restricted.ref"
@@ -252,23 +251,93 @@ func restrictionClause(r businessevent.Restriction, arg func(any) string) string
 		for i, a := range r.Args {
 			numbers[i] = arg(a)
 		}
-		condition := placeholderPattern.ReplaceAllStringFunc(r.Condition, func(p string) string {
-			n, err := strconv.Atoi(p[1:])
-			if err != nil || n < 1 || n > len(numbers) {
-				// An unknown placeholder fails the query instead of reading another filter's argument.
-				return "$0"
-			}
-			return numbers[n-1]
-		})
 		id := "substr(" + ref + ", " + strconv.Itoa(len(prefix)+1) + ")"
-		visible = append(visible, "("+strings.ReplaceAll(condition, "{id}", id)+")")
+		visible = append(visible, "("+rewriteCondition(r.Condition, numbers, id)+")")
 	}
 	allowed := "FALSE"
 	if len(visible) > 0 {
 		allowed = strings.Join(visible, " OR ")
 	}
-	return "NOT EXISTS (SELECT 1 FROM unnest(subject_refs) AS restricted(ref) WHERE starts_with(" + ref + ", " +
-		arg(prefix) + "::text) AND NOT COALESCE(" + allowed + ", FALSE))"
+	return "NOT EXISTS (SELECT 1 FROM unnest(subject_refs) AS restricted(ref) WHERE CASE WHEN starts_with(" + ref + ", " +
+		arg(prefix) + "::text) THEN NOT COALESCE(" + allowed + ", FALSE) ELSE FALSE END)"
+}
+
+// failPlaceholder is a parameter that never exists, so a condition that cannot be rewritten safely
+// fails the query instead of silently reading another argument.
+const failPlaceholder = "$0"
+
+// rewriteCondition renumbers the condition's $n placeholders to the query's arguments and replaces
+// {id} with id, leaving quoted literals, quoted identifiers and comments untouched. An undeclared
+// placeholder or a dollar-quoted string fails the query.
+func rewriteCondition(condition string, numbers []string, id string) string {
+	var out strings.Builder
+	n := len(condition)
+	for i := 0; i < n; {
+		c := condition[i]
+		switch {
+		case c == '\'' || c == '"':
+			// Copy a quoted literal or identifier; a doubled quote stays inside it, and an E'' literal
+			// may escape a quote with a backslash.
+			escapes := c == '\'' && i > 0 && (condition[i-1] == 'E' || condition[i-1] == 'e')
+			j := i + 1
+			for j < n {
+				if escapes && condition[j] == '\\' {
+					j += 2
+					continue
+				}
+				if condition[j] == c {
+					if j+1 < n && condition[j+1] == c {
+						j += 2
+						continue
+					}
+					break
+				}
+				j++
+			}
+			end := min(j+1, n)
+			out.WriteString(condition[i:end])
+			i = end
+		case c == '-' && i+1 < n && condition[i+1] == '-':
+			j := strings.IndexByte(condition[i:], '\n')
+			if j < 0 {
+				j = n - i
+			}
+			out.WriteString(condition[i : i+j])
+			i += j
+		case c == '/' && i+1 < n && condition[i+1] == '*':
+			j := strings.Index(condition[i+2:], "*/")
+			end := n
+			if j >= 0 {
+				end = i + 2 + j + 2
+			}
+			out.WriteString(condition[i:end])
+			i = end
+		case c == '$' && (i == 0 || !identifierByte(condition[i-1])):
+			j := i + 1
+			for j < n && condition[j] >= '0' && condition[j] <= '9' {
+				j++
+			}
+			number, err := strconv.Atoi(condition[i+1 : j])
+			if err != nil || number < 1 || number > len(numbers) {
+				// An undeclared parameter or a dollar quote ($$, $tag$).
+				out.WriteString(failPlaceholder)
+			} else {
+				out.WriteString(numbers[number-1])
+			}
+			i = j
+		case strings.HasPrefix(condition[i:], "{id}"):
+			out.WriteString(id)
+			i += len("{id}")
+		default:
+			out.WriteByte(c)
+			i++
+		}
+	}
+	return out.String()
+}
+
+func identifierByte(c byte) bool {
+	return c == '_' || c == '$' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
 }
 
 func scanBusinessEvent(row pgx.Row) (businessevent.Event, error) {

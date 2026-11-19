@@ -204,16 +204,17 @@ func (s *Service) Subject(ctx context.Context, resource, id string) (Subject, bo
 	return s.subject(ctx, resource, id, names[subjectRef(resource, id)]), true
 }
 
-// access lists the resources the reader may see and the object restrictions of those that limit it.
+// access lists the resources the reader may see and the object restrictions of every resource that
+// limits it, readable or not: an event naming a hidden object is hidden as a whole even when another
+// of its resources lets it through.
 func (s *Service) access(ctx context.Context, can func(permission.Permission) bool) ([]string, []businessevent.Restriction, error) {
 	resources := s.registry.Resources()
 	readable := make([]string, 0, len(resources))
 	var restricted []businessevent.Restriction
 	for _, r := range resources {
-		if !s.registry.Readable(r.Name, can) {
-			continue
+		if s.registry.Readable(r.Name, can) {
+			readable = append(readable, r.Name)
 		}
-		readable = append(readable, r.Name)
 		if r.Visible == nil {
 			continue
 		}

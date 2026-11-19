@@ -86,12 +86,16 @@ type documentFixture struct {
 
 // newDocumentFixture records a change of documents d1..d6 an hour apart (d6 newest and deleted since,
 // so its provider caption is gone) and, last, a link of document d2 with employee 9.
-func newDocumentFixture(t *testing.T) documentFixture {
+func newDocumentFixture(t *testing.T, configure ...func(*history.Resource)) documentFixture {
 	t.Helper()
 	f := setupTest(t)
 	reader := &documentReader{visibility: history.VisibleAll()}
+	defs := documentDefinitions(reader)
+	for _, c := range configure {
+		defs = history.WithResource(defs, "edo.document", c)
+	}
 	registry := history.NewRegistry()
-	require.NoError(t, registry.Register(append(documentDefinitions(reader), employeeV1())...))
+	require.NoError(t, registry.Register(append(defs, employeeV1())...))
 	repo := persistence.NewBusinessEventRepository()
 	writer := history.NewWriter(registry, repo)
 	actor := createUser(t, f.Ctx, "Dilnoza", "Karimova", "", "history-documents@example.com")
@@ -253,6 +257,35 @@ func TestHistoryService_VisibleHidesEventsBeforePagination(t *testing.T) {
 	result, err := d.service.History(d.ctxReader(), history.Query{Scope: history.Scope{Kind: history.ScopeEntity, Resource: "employee", ID: "9"}})
 	require.NoError(t, err)
 	require.Empty(t, result.Items)
+}
+
+func TestHistoryService_VisibleAppliesToUnreadableCompanionResources(t *testing.T) {
+	t.Parallel()
+	// The reader may not read documents at all, but may read employees: the link of employee 9 to
+	// document d2 stays visible only while d2 is.
+	d := newDocumentFixture(t, func(r *history.Resource) { r.ReadPermission = &contractRead })
+	query := history.Query{Scope: history.Scope{Kind: history.ScopeEntity, Resource: "employee", ID: "9"}}
+
+	result, err := d.service.History(d.ctxReader(), query)
+	require.NoError(t, err)
+	require.Len(t, result.Items, 1)
+	require.Equal(t, []history.Subject{{Resource: "employee", ID: "9", Label: "employee #9"}}, result.Items[0].Subjects)
+
+	d.restrict(history.VisibleIDs("d1"))
+	result, err = d.service.History(d.ctxReader(), query)
+	require.NoError(t, err)
+	require.Empty(t, result.Items)
+}
+
+func TestHistoryService_VisibleConditionOnlySeesItsOwnResource(t *testing.T) {
+	t.Parallel()
+	d := newDocumentFixture(t)
+	// The cast fails on any ID that is not "d<number>", e.g. the employee "9" of the link event,
+	// so the read only succeeds when the condition is never applied to other resources.
+	d.restrict(history.VisibleWhere(`substr({id}, 2)::int = ANY($1::int[]) AND left({id}, 1) = 'd'`, []int{2, 3}))
+	result, err := d.service.History(d.ctxReader(), history.Query{Scope: all()})
+	require.NoError(t, err)
+	require.Equal(t, []string{"d2", "d3", "d2"}, subjectIDs(result))
 }
 
 func TestHistoryService_VisibilityErrorFailsTheRead(t *testing.T) {
