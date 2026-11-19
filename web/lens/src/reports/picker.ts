@@ -52,11 +52,14 @@ export interface ReportPick {
 /**
  * What the reader confirmed. The id is stable across retries of the same
  * choice, so the caller can make adding idempotent; picks keep click order.
+ * context is the caller's slice handed to the picker, returned as a copy so
+ * the caller places the cards against what the reader saw.
  */
 export interface ReportPickerConfirmation {
   id: string
   target: string
   picks: ReportPick[]
+  context?: EffectiveContext
 }
 
 export function parseCatalogPage(value: unknown): CatalogPage {
@@ -108,11 +111,13 @@ export function createReportPickerSelection(placed: (entry: CatalogEntry) => num
     },
     clear() { setPicks([]) },
     /** The confirmation of the current choice; the same choice keeps its id until it succeeds. */
-    confirmation(target: string): ReportPickerConfirmation {
+    confirmation(target: string, context?: EffectiveContext): ReportPickerConfirmation {
       const current = picks()
       const currentKey = `${target}:${key(current)}`
       if (pending?.key !== currentKey) pending = { key: currentKey, id: confirmationId() }
-      return { id: pending.id, target, picks: current.map((pick) => ({ entry: { ...pick.entry }, duplicate: pick.duplicate })) }
+      const confirmation: ReportPickerConfirmation = { id: pending.id, target, picks: current.map((pick) => ({ entry: { ...pick.entry }, duplicate: pick.duplicate })) }
+      if (context) confirmation.context = structuredClone(context)
+      return confirmation
     },
     /** Forget the confirmation id after the caller acknowledged it. */
     settle() { pending = undefined },

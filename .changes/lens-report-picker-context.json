@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Lens ReportPicker accepts the caller's EffectiveContext and returns a copy of it in ReportPickerConfirmation.context with the ordered picks; returning from a report preview restores the list's scroll position."}

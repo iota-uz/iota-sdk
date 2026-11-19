@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
 import { createRoot, createSignal, Show } from 'solid-js'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { EffectiveContext } from '../contract/types'
 import type { CatalogEntry, CatalogPage } from './contract/types'
 import { catalogEntries, catalogTarget, memoryCatalog, memoryDestinations } from '../stories/reportCatalog'
 import { appendReportPicks, createReportPickerSelection, parseCatalogPage, type ReportCardGenerateOptions, type ReportCatalogHost, type ReportPickerConfirmation } from './picker'
@@ -79,6 +80,7 @@ function mountPicker(options: {
   host?: ReportCatalogHost
   confirm?: (confirmation: ReportPickerConfirmation) => Promise<void> | void
   placed?: (reportId: string) => number
+  context?: EffectiveContext
 } = {}) {
   const onConfirm = vi.fn(options.confirm ?? (() => undefined))
   const onClose = vi.fn()
@@ -92,6 +94,7 @@ function mountPicker(options: {
         <ReportPicker
           host={host}
           onClose={() => { onClose(); setOpen(false) }}
+          context={options.context}
           onConfirm={onConfirm}
           placed={options.placed}
           restoreFocus={trigger}
@@ -277,6 +280,34 @@ describe('ReportPicker', () => {
     await waitFor(() => expect(document.activeElement).toBe(previewButton))
     expect(screen.getByRole('searchbox', { name: 'Search reports' })).toHaveValue('Large')
     expect(checkbox('report-03')).toBeChecked()
+  })
+
+  // False green: focusing the row's Preview button scrolls it into view anyway, hiding a list that jumped to its top.
+  it('returns from a preview to the list scrolled where the reader left it', async () => {
+    mountPicker()
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    const body = dialog().querySelector<HTMLElement>('.lens-report-dialog-body')!
+    body.scrollTop = 640
+    fireEvent.click(screen.getByRole('button', { name: 'Preview Large losses' }))
+    await screen.findByRole('region', { name: 'Preview Large losses' })
+    body.scrollTop = 0
+    fireEvent.click(screen.getByRole('button', { name: 'Back to reports' }))
+    expect(body.scrollTop).toBe(640)
+  })
+
+  // False green: asserting the picks alone would pass while the caller lost the slice the reader chose under.
+  it('returns the caller context with the ordered picks, unchanged and copied', async () => {
+    const context = { identity: 'ctx-1', period: { start: '2026-06-01', end: '2026-06-30' } } as unknown as EffectiveContext
+    const { onConfirm } = mountPicker({ context })
+    await waitFor(() => expect(listed()).toHaveLength(20))
+    fireEvent.click(checkbox('report-05'))
+    fireEvent.click(checkbox('report-02'))
+    fireEvent.click(screen.getByTestId('report-picker-confirm'))
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+    const confirmation = onConfirm.mock.calls[0]![0]
+    expect(confirmation.picks.map((pick) => pick.entry.id)).toEqual(['report-05', 'report-02'])
+    expect(confirmation.context).toEqual(context)
+    expect(confirmation.context).not.toBe(context)
   })
 
   // False green: an Escape that closed the dialog would also leave the preview, but discard the selection.
