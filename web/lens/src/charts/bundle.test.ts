@@ -74,9 +74,11 @@ describe('chart bundle boundary', () => {
     // availability reasons and the click hint (#1284), and 461,733 once the
     // drill card stated the figure's provenance and ratio parts, links into
     // host pages carried the return context and an expired snapshot offered
-    // recalculation (#1061; the save form itself loads lazily). The cap still
+    // recalculation (#1061; the save form itself loads lazily), and 476,664
+    // once the built-in ru and uz catalogues translated the report composition
+    // and shared-report editors (#1060). The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(465_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(480_000)
   })
 })
