@@ -7,23 +7,45 @@ import type { ClientRouteContext } from '../../src/bootstrap'
 import './styles.css'
 
 type Product = { name: string; pricing: { factor: number; baseAmount: number } }
+type PendingSave = { snapshot: Product; resolve(saved: Product): void; reject(cause: unknown): void }
+
+const params = new URLSearchParams(location.search)
+const language = params.get('locale') ?? 'en'
+
+// Declared backend boundary: saves wait until the test answers them, so loading and stale
+// states are entered through controlled gates instead of fixed delays.
+const pendingSaves: PendingSave[] = []
+const backend = {
+  pending: () => pendingSaves.length,
+  respond(): boolean {
+    const save = pendingSaves.shift()
+    if (!save) return false
+    if (!Number.isFinite(save.snapshot.pricing.factor) || save.snapshot.pricing.factor < 1) {
+      save.reject(new HostError('field_validation', 'Review the highlighted fields', { 'pricing.factor': 'Factor must be at least 1' }))
+    } else save.resolve(save.snapshot)
+    return true
+  },
+}
+declare global { interface Window { productEditorBackend: typeof backend } }
+window.productEditorBackend = backend
 
 function ProductEditor(props: { route: ClientRouteContext<Product> }) {
   const host = useClientHost()
   const draft = createDraft(props.route.initial, { navigation: host.navigation })
-  const projectedTotal = createMemo(() => Math.round(draft.value.pricing.baseAmount * draft.value.pricing.factor))
+  const projectedTotal = createMemo(() => {
+    const { baseAmount, factor } = draft.value.pricing
+    return Number.isFinite(baseAmount) && Number.isFinite(factor) ? Math.round(baseAmount * factor) : null
+  })
   const save = async () => {
     try {
-      await draft.save(async (snapshot, signal) => {
-        if (!Number.isFinite(snapshot.pricing.factor) || snapshot.pricing.factor < 1) {
-          throw new HostError('field_validation', 'Review the highlighted fields', { 'pricing.factor': 'Factor must be at least 1' })
-        }
-        await new Promise<void>((resolve, reject) => {
-          const timer = window.setTimeout(resolve, 180)
-          signal.addEventListener('abort', () => { window.clearTimeout(timer); reject(new DOMException('Cancelled', 'AbortError')) }, { once: true })
-        })
-        return snapshot
-      })
+      await draft.save((snapshot, signal) => new Promise<Product>((resolve, reject) => {
+        const save: PendingSave = { snapshot, resolve, reject }
+        pendingSaves.push(save)
+        signal.addEventListener('abort', () => {
+          pendingSaves.splice(pendingSaves.indexOf(save), 1)
+          reject(new DOMException('Cancelled', 'AbortError'))
+        }, { once: true })
+      }))
     } catch {
       document.querySelector<HTMLElement>('[data-field-error]')?.focus()
     }
@@ -47,7 +69,13 @@ function ProductEditor(props: { route: ClientRouteContext<Product> }) {
           </div>
           <a href="#next" data-next>Continue</a>
         </section>
-        <aside aria-label="Calculated preview"><span>Calculated result</span><strong>{projectedTotal().toLocaleString()}</strong><small>updates with the draft</small></aside>
+        <aside aria-label="Calculated preview" data-empty={projectedTotal() === null}>
+          <span>Calculated result</span>
+          <Show when={projectedTotal() !== null} fallback={<p class="empty">Enter a factor and base amount to see the result</p>}>
+            <strong>{projectedTotal()!.toLocaleString(props.route.locale?.language)}</strong>
+          </Show>
+          <small>updates with the draft</small>
+        </aside>
       </div>
     </div>
   )
@@ -59,11 +87,12 @@ const context = {
   sdkReleaseVersion: SDK_IDENTITY.releaseVersion,
   sdkCommit: SDK_IDENTITY.sourceCommit,
   initial: { name: 'Standard pricing', pricing: { factor: 4, baseAmount: 2_500 } },
-  theme: new URLSearchParams(location.search).get('theme') === 'dark' ? 'dark' : 'light',
+  theme: params.get('theme') === 'dark' ? 'dark' : 'light',
   route: { id: 'fixture.product.edit', path: '/', featureId: 'fixture-product-editor' },
-  locale: { language: 'en', messages: {} },
+  locale: { language, messages: {} },
   session: { csrf: 'fixture' },
 } satisfies ClientRouteContext<Product>
 
+document.documentElement.lang = language
 document.getElementById('iota-client-context')!.textContent = JSON.stringify(context)
 mountSolidClientRouteFromDocument(ProductEditor, {})
