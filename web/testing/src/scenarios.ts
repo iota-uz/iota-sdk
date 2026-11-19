@@ -54,7 +54,7 @@ export function createHttpTestControls(environment: { environmentId: string; bas
     const text = await response.text()
     let payload: Record<string, unknown> = {}
     let parsed = false
-    try { payload = JSON.parse(text); parsed = payload !== null && typeof payload === 'object' } catch {}
+    try { payload = JSON.parse(text); parsed = payload !== null && typeof payload === 'object' && !Array.isArray(payload) } catch {}
     if (!response.ok) {
       const code = typeof payload.code === 'string' ? payload.code : `http_${response.status}`
       const message = typeof payload.message === 'string' ? payload.message : `Test control returned HTTP ${response.status}`

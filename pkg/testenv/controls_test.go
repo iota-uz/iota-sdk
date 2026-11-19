@@ -669,6 +669,50 @@ func TestReviewRegressions(t *testing.T) {
 		require.Equal(t, "canceled", result.Outcome)
 		require.NoError(t, r.Dispose(ctx, "a"))
 	})
+	t.Run("no job starts during failed-preparation cleanup", func(t *testing.T) {
+		// Falsely green if admission stayed open during compensation: a job
+		// started from inside cleanup could write after the records are gone.
+		r := NewRegistry(nil, false)
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		require.NoError(t, jobs.Register(JobDefinition{Name: "late"}, func(context.Context, JobRequest) error { return nil }))
+		var lateErr error
+		d := testDefinition()
+		d.Isolation = "shared"
+		require.NoError(t, r.Register(d, func(context.Context, Input) (Result, error) { return Result{}, errors.New("boom") },
+			func(ctx context.Context, scope string) error {
+				_, lateErr = jobs.Run(ctx, scope, "late", nil)
+				return nil
+			}))
+		require.NoError(t, r.AllowScope("a"))
+		_, err = r.Prepare(ctx, testInput("a"))
+		require.Equal(t, "execution_failed", controlCode(t, err))
+		require.Equal(t, "scope_conflict", controlCode(t, lateErr))
+	})
+	t.Run("parent cancellation between checks is canceled", func(t *testing.T) {
+		r := NewRegistry(nil, false)
+		jobs, err := NewJobs(r)
+		require.NoError(t, err)
+		require.NoError(t, jobs.Register(JobDefinition{Name: "idle"}, func(ctx context.Context, _ JobRequest) error { <-ctx.Done(); return nil }))
+		checked := make(chan struct{}, 1)
+		require.NoError(t, jobs.RegisterCondition("never", func(context.Context, JobRequest) (bool, error) {
+			select {
+			case checked <- struct{}{}:
+			default:
+			}
+			return false, nil
+		}))
+		require.NoError(t, r.AllowScope("a"))
+		id, err := jobs.Run(ctx, "a", "idle", nil)
+		require.NoError(t, err)
+		parent, cancel := context.WithCancel(ctx)
+		waited := make(chan WaitResult, 1)
+		go func() { result, _ := jobs.Wait(parent, "a", id, "never", 60000); waited <- result }()
+		<-checked // the wait is now idle between checks
+		cancel()
+		require.Equal(t, "canceled", (<-waited).Outcome)
+		require.NoError(t, r.Dispose(ctx, "a"))
+	})
 	t.Run("scope directories stay short", func(t *testing.T) {
 		r := NewEnvironmentRegistry(nil, false, "env")
 		files, err := NewScopedFiles(r, t.TempDir())

@@ -31,6 +31,7 @@ test('scoped jobs, provider gates, clock and replay use the owned routes and typ
       case 'POST /__test__/scopes': return reply(200, { scopeId: body.scopeId })
       case 'POST /__test__/scopes/env-2/replay': return reply(200, { scopeId: 'env-2', data: { replayed: true } })
       case 'GET /__test__/scopes/broken/manifest': response.statusCode = 200; response.end(''); return
+      case 'GET /__test__/scopes/array/manifest': return reply(200, [])
     }
     reply(404, { code: 'unknown_scenario', message: 'unexpected route' })
   })
@@ -55,6 +56,7 @@ test('scoped jobs, provider gates, clock and replay use the owned routes and typ
     const manifest = await controls.manifest('env-1')
     expect(await controls.replay('env-2', manifest)).toMatchObject({ scopeId: 'env-2' })
     await expect(controls.manifest('broken')).rejects.toMatchObject({ code: 'invalid_response' })
-    expect(calls.slice(-3, -1).map(call => call.split(' ').slice(0, 2).join(' '))).toEqual(['POST /__test__/scopes', 'POST /__test__/scopes/env-2/replay'])
+    await expect(controls.manifest('array')).rejects.toMatchObject({ code: 'invalid_response' })
+    expect(calls.slice(-4, -2).map(call => call.split(' ').slice(0, 2).join(' '))).toEqual(['POST /__test__/scopes', 'POST /__test__/scopes/env-2/replay'])
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())) }
 })
