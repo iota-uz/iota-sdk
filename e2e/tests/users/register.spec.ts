@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test';
 import { login, logout } from '../../fixtures/auth';
 import { loginThroughOnboarding, submitNewUserForm } from '../../fixtures/onboarding';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';

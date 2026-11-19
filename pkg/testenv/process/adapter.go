@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,9 +26,13 @@ type Resources interface {
 }
 
 type Config struct {
-	Command      []string
-	Directory    string
-	Environment  []string
+	Command     []string
+	Directory   string
+	Environment []string
+	// Unset lists key prefixes of inherited variables the application must
+	// not see (for example "REDIS_" when the environment provides no owned
+	// Redis namespace). Environment, Resources and Configure values still apply.
+	Unset        []string
 	Artifacts    string
 	Revision     string
 	Capabilities []string
@@ -105,7 +110,7 @@ func (a *Adapter) Start(ctx context.Context, spec testenv.Spec, id string) (test
 	command := exec.Command(a.config.Command[0], a.config.Command[1:]...)
 	ownProcessGroup(command)
 	command.Dir = a.config.Directory
-	command.Env = append(append(append(os.Environ(), a.config.Environment...), env...), "HTTP_PORT="+strconv.Itoa(port), "HTTP_DOMAIN=127.0.0.1", "HTTP_ORIGIN="+d.BaseURL)
+	command.Env = append(append(append(inheritedEnvironment(a.config.Unset), a.config.Environment...), env...), "HTTP_PORT="+strconv.Itoa(port), "HTTP_DOMAIN=127.0.0.1", "HTTP_ORIGIN="+d.BaseURL)
 	if a.config.Configure != nil {
 		command.Env = append(command.Env, a.config.Configure(d)...)
 	}
@@ -201,4 +206,26 @@ func (a *Adapter) Stop(ctx context.Context, d testenv.Descriptor) error {
 	}
 	a.mu.Unlock()
 	return nil
+}
+
+func inheritedEnvironment(unset []string) []string {
+	inherited := os.Environ()
+	if len(unset) == 0 {
+		return inherited
+	}
+	kept := inherited[:0:0]
+	for _, entry := range inherited {
+		key, _, _ := strings.Cut(entry, "=")
+		drop := false
+		for _, prefix := range unset {
+			if prefix != "" && strings.HasPrefix(key, prefix) {
+				drop = true
+				break
+			}
+		}
+		if !drop {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
 }

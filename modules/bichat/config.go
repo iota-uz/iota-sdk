@@ -30,6 +30,7 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatskills "github.com/iota-uz/iota-sdk/pkg/bichat/skills"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
@@ -313,11 +314,11 @@ type ServiceContainer struct {
 	titleJobQueue        *services.RedisTitleJobQueue
 	titleQueueConfig     *TitleQueueConfig
 	logger               *logrus.Logger
-	// sharedRedisClose is the single owner of the *redis.Client shared across
+	// sharedRedis is the single owner of the *redis.Client shared across
 	// all Redis-backed components (event log, active-run index, job queue).
-	// Component Close() calls are no-ops when the client was supplied externally.
-	// Call CloseSharedRedis() once during shutdown to release the connection.
-	sharedRedisClose func() error
+	// Background workers hold a lease while they run so shutdown never closes
+	// the client under an in-flight job's terminal bookkeeping.
+	sharedRedis *composition.OwnedResource
 	// Reaper tunables forwarded from ModuleConfig. Zero means use defaults.
 	reaperInterval       time.Duration
 	reaperStaleThreshold time.Duration
@@ -416,14 +417,29 @@ func (sc *ServiceContainer) CloseTitleQueue() error {
 	return err
 }
 
-// CloseSharedRedis releases the shared *redis.Client that backs the event log,
-// active-run index, and run job queue. Must be called exactly once at shutdown;
-// no-op when Redis was not configured.
+// AcquireSharedRedis leases the shared *redis.Client for a background
+// worker. Call the returned release once the worker (including any in-flight
+// job) has exited. Fails with composition.ErrResourceClosing after shutdown
+// has begun.
+func (sc *ServiceContainer) AcquireSharedRedis() (func(), error) {
+	return sc.sharedRedis.Acquire()
+}
+
+// ShutdownSharedRedis releases the shared *redis.Client that backs the event
+// log, active-run index, and run job queue once every lease is released. When
+// ctx ends first it returns composition.ErrResourceInUse and the last release
+// closes the client. No-op when Redis was not configured.
+func (sc *ServiceContainer) ShutdownSharedRedis(ctx context.Context) error {
+	return sc.sharedRedis.Close(ctx)
+}
+
+// CloseSharedRedis closes the shared *redis.Client now when no worker holds
+// it; otherwise it returns composition.ErrResourceInUse and the last lease
+// release closes it. Prefer ShutdownSharedRedis with the shutdown deadline.
 func (sc *ServiceContainer) CloseSharedRedis() error {
-	if sc.sharedRedisClose == nil {
-		return nil
-	}
-	return sc.sharedRedisClose()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return sc.ShutdownSharedRedis(ctx)
 }
 
 // NewRunReaper builds the stale-run reaper when Redis is configured.

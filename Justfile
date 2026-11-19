@@ -335,7 +335,7 @@ _e2e-run:
 [group("e2e")]
 [working-directory: "e2e"]
 _e2e-ci:
-  npx playwright test --workers=1 --reporter=list
+  npx playwright test --reporter=list
 
 [group("e2e")]
 _e2e-clean:

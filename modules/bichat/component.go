@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 //go:embed presentation/locales/*.json
@@ -338,12 +339,12 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				return nil, serrors.WrapContext(op, err, "failed to create title job worker")
 			}
 		} else if worker != nil {
-			// The worker loop runs under a dedicated context rooted at
-			// context.Background() so that the Start ctx ending (for
-			// example, the request context used to boot the engine) does
-			// not silently stop it. Teardown is via titleWorkerCancel +
-			// waiting on the done channel.
-			workerCtx, workerCancel := context.WithCancel(context.Background())
+			// The worker loop runs under the application lifecycle context
+			// rather than the short-lived Start ctx, so the engine's
+			// startup timeout does not stop it while graceful shutdown
+			// (which cancels the lifecycle context first) does. Teardown
+			// is via titleWorkerCancel + waiting on the done channel.
+			workerCtx, workerCancel := context.WithCancel(composition.LifecycleContext(ctx))
 			titleWorkerCancel = workerCancel
 			titleWorkerDone = make(chan struct{})
 			logger := b.config.Logger
@@ -368,12 +369,17 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 			return nil, serrors.WrapContext(op, err, "failed to create run reaper")
 		}
 		if reaper != nil {
-			reaperCtx, reaperCancelFn := context.WithCancel(context.Background())
+			releaseRedis, leaseErr := b.services.AcquireSharedRedis()
+			if leaseErr != nil {
+				return nil, serrors.WrapContext(op, leaseErr, "failed to lease shared redis for run reaper")
+			}
+			reaperCtx, reaperCancelFn := context.WithCancel(composition.LifecycleContext(ctx))
 			reaperCancel = reaperCancelFn
 			reaperDone = make(chan struct{})
 			logger := b.config.Logger
 			go func() {
 				defer close(reaperDone)
+				defer releaseRedis()
 				if startErr := reaper.Start(reaperCtx); startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
 					logger.WithError(startErr).Warn("bichat run reaper stopped with error")
 				}
@@ -418,7 +424,11 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				if closeErr := b.services.CloseTitleQueue(); closeErr != nil {
 					stopErr = errors.Join(stopErr, closeErr)
 				}
-				if closeErr := b.services.CloseSharedRedis(); closeErr != nil {
+				// Waits for leases held by the run worker/reaper until
+				// stopCtx ends. On expiry the close is deferred to the last
+				// release instead of yanking the client from a job that is
+				// still persisting its terminal state and ack.
+				if closeErr := b.services.ShutdownSharedRedis(stopCtx); closeErr != nil {
 					stopErr = errors.Join(stopErr, closeErr)
 				}
 			}
@@ -456,46 +466,80 @@ func newRunWorkerStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Con
 			return nil, serrors.WrapContext(op, err, "failed to create run job worker")
 		}
 
-		workerCtx, workerCancel := context.WithCancel(context.Background())
-		workerDone := make(chan struct{})
-		logger := b.config.Logger
-		go func() {
-			defer close(workerDone)
-			backoff := time.Second
-			for {
-				startErr := worker.Start(workerCtx)
-				if workerCtx.Err() != nil {
-					return
-				}
-				// Start can fail before its loop begins (consumer-group
-				// creation against a Redis that is still coming up) —
-				// retry with bounded backoff instead of silently leaving
-				// the stream without a consumer until process restart.
-				if startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
-					logger.WithError(startErr).Warn("bichat run job worker stopped; restarting")
-				} else if startErr == nil && logger != nil {
-					logger.Warn("bichat run job worker returned unexpectedly; restarting")
-				}
-				select {
-				case <-workerCtx.Done():
-					return
-				case <-time.After(backoff):
-				}
-				backoff *= 2
-				if backoff > 30*time.Second {
-					backoff = 30 * time.Second
-				}
-			}
-		}()
-
-		return func(stopCtx context.Context) error {
-			workerCancel()
-			select {
-			case <-workerDone:
-				return nil
-			case <-stopCtx.Done():
-				return stopCtx.Err()
-			}
-		}, nil
+		return superviseRunWorker(ctx, worker, b.services.AcquireSharedRedis, b.config.Logger)
 	}
+}
+
+// runWorkerLoop is the part of *services.RunJobWorker the supervisor drives.
+type runWorkerLoop interface {
+	Start(ctx context.Context) error
+}
+
+// superviseRunWorker runs worker until the application lifecycle context
+// (composition.LifecycleContext(startCtx)) is cancelled or the returned stop
+// is called, restarting it with bounded backoff when Start fails.
+//
+// The supervisor holds a lease from acquire for as long as its loop runs —
+// including an accepted job's execution, ack and terminal bookkeeping — so a
+// shutdown whose deadline expires before the job exits never closes the
+// shared Redis client underneath it. Graceful shutdown cancels the lifecycle
+// context before stop hooks run: the worker stops consuming and the in-flight
+// generation is cancelled (the executor persists it as cancelled and the
+// worker acks it, preserving the existing retry/idempotency semantics).
+func superviseRunWorker(
+	startCtx context.Context,
+	worker runWorkerLoop,
+	acquire func() (func(), error),
+	logger *logrus.Logger,
+) (composition.StopFn, error) {
+	const op serrors.Op = "bichat.superviseRunWorker"
+
+	releaseRedis, err := acquire()
+	if err != nil {
+		return nil, serrors.WrapContext(op, err, "failed to lease shared redis for run job worker")
+	}
+
+	workerCtx, workerCancel := context.WithCancel(composition.LifecycleContext(startCtx))
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		defer releaseRedis()
+		backoff := time.Second
+		for {
+			startErr := worker.Start(workerCtx)
+			if workerCtx.Err() != nil {
+				return
+			}
+			// Start can fail before its loop begins (consumer-group
+			// creation against a Redis that is still coming up) — retry
+			// with bounded backoff instead of silently leaving the stream
+			// without a consumer until process restart.
+			if startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
+				logger.WithError(startErr).Warn("bichat run job worker stopped; restarting")
+			} else if startErr == nil && logger != nil {
+				logger.Warn("bichat run job worker returned unexpectedly; restarting")
+			}
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			backoff *= 2
+			if backoff > 30*time.Second {
+				backoff = 30 * time.Second
+			}
+		}
+	}()
+
+	return func(stopCtx context.Context) error {
+		workerCancel()
+		select {
+		case <-workerDone:
+			return nil
+		case <-stopCtx.Done():
+			// The job keeps its lease; the shared client closes when it
+			// exits (see ServiceContainer.ShutdownSharedRedis).
+			return serrors.WrapContext(op, stopCtx.Err(), "run job worker still finishing an accepted job")
+		}
+	}, nil
 }

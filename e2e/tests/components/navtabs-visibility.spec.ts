@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../../fixtures/test';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 

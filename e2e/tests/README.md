@@ -26,17 +26,19 @@ Tests are organized by business module, matching the application's module struct
 ### Basic Test Template
 
 ```typescript
-import { test, expect } from '@playwright/test';
-import { login, resetDB, seedDB, setupErrorHandling } from '../../fixtures';
+// `test` is bound to this worker's own server and database.
+import { test, expect } from '../../fixtures/test';
+import { login, resetTestDatabase, setupErrorHandling } from '../../fixtures';
 
 test.describe('Feature Name', () => {
+  test.beforeAll(async ({ request }) => {
+    // Resets only this worker's database (see e2e/README.md "Environment lifecycle")
+    await resetTestDatabase(request, { reseedMinimal: true });
+  });
+
   test.beforeEach(async ({ page }) => {
     // Setup error handling for Alpine.js and ResizeObserver
     await setupErrorHandling(page);
-
-    // Reset and seed database
-    await resetDB();
-    await seedDB();
 
     // Login if needed
     await login(page, 'user@example.com', 'password');
@@ -60,8 +62,8 @@ test.describe('Feature Name', () => {
 Import fixtures from `../../fixtures` (or appropriate relative path):
 
 ```typescript
-// Database operations
-import { resetDB, seedDB, getEnvironmentInfo } from '../../fixtures';
+// Legacy direct SQL against this worker's own database (prefer test endpoints)
+import { withDatabase, getEnvInfo } from '../../fixtures';
 
 // Authentication
 import { login, logout, waitForAlpine } from '../../fixtures';
@@ -137,11 +139,10 @@ test.beforeEach(async ({ page }) => {
 });
 ```
 
-### 3. Reset Database Before Each Test
+### 3. Reset This Worker's Database Before the Suite
 ```typescript
-test.beforeEach(async ({ page }) => {
-  await resetDB();
-  await seedDB();
+test.beforeAll(async ({ request }) => {
+  await resetTestDatabase(request, { reseedMinimal: true });
 });
 ```
 

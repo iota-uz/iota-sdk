@@ -39,7 +39,14 @@ func run() error {
 	revision := flag.String("revision", "", "SDK build revision")
 	migrations := flag.String("migrations", "migrations", "migration directory")
 	seedVersion := flag.String("seed-version", "sdk-erp-v1", "baseline seed contract version")
+	drop := flag.String("drop", "", "drop a baseline previously built by this command and exit")
 	flag.Parse()
+	if *drop != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		db := dbconfig.Config{Host: env("DB_HOST", "localhost"), Port: env("DB_PORT", "5432"), User: env("DB_USER", "postgres"), Password: env("DB_PASSWORD", "postgres")}
+		return testdb.Drop(ctx, *drop, db)
+	}
 	if *name == "" || *revision == "" || *seedVersion == "" {
 		return fmt.Errorf("name, revision and seed-version required")
 	}

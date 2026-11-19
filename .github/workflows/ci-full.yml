@@ -804,12 +804,6 @@ jobs:
       - name: Build Lens compatibility assets
         run: just lens build
 
-      - name: Setup E2E database
-        env:
-          DB_NAME: iota_erp_e2e
-        run: |
-          just e2e reset
-
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile --ignore-workspace
         working-directory: e2e
@@ -832,51 +826,34 @@ jobs:
         run: npx playwright install chromium
         working-directory: e2e
 
-      - name: Start Go Server
-        env:
-          HTTP_SESSION_DURATION: 720h
-          HTTP_DOMAIN: localhost
-          HTTP_PORT: 3201
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_NAME: iota_erp_e2e
-          DB_USER: postgres
-          DB_PASSWORD: postgres
-          HTTP_COOKIES_SID: sid
-          APP_ENVIRONMENT: production
-          APP_ENABLETESTENDPOINTS: true
-          TWOFACTOR_ENCRYPTIONKEY: e2e-test-encryption-key-32bytes!!
-          OIDC_ISSUERURL: https://localhost:3201/oidc
-          OIDC_CRYPTOKEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
-        run: |
-          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
-          SERVER_PID=$!
-          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
-
-          # Leave enough time for a cold Go build on a fresh runner.
-          if ! timeout 180 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'; then
-            echo "Server did not become ready within 180 seconds"
-            cat /tmp/server.log || echo "No server logs found"
-            exit 1
-          fi
-          echo "Server started successfully"
-
+      # Each Playwright worker owns a database cloned from a sealed baseline
+      # and a dedicated server process (e2e/global-setup.ts,
+      # e2e/fixtures/environment.ts via cmd/testenv). DB_* is the admin
+      # connection used to clone; nothing resets a shared database.
       - name: Run Playwright Tests
         env:
-          BASE_URL: http://localhost:3201
-          OIDC_ISSUERURL: https://localhost:3201/oidc
+          E2E_ISOLATION: worker
+          E2E_WORKERS: "3"
+          E2E_BUILD_REVISION: ${{ inputs.sha || github.sha }}
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          HTTP_SESSION_DURATION: 720h
+          HTTP_COOKIES_SID: sid
+          TWOFACTOR_ENCRYPTIONKEY: e2e-test-encryption-key-32bytes!!
+          OIDC_CRYPTOKEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
         run: npx playwright test --shard=${{ matrix.shard }}
         working-directory: e2e
-
-      - name: Stop Go Server
-        if: always()
-        run: kill ${{ env.SERVER_PID }} || true
 
       - name: Show Server Logs
         if: failure()
         run: |
-          echo "=== Server Logs ==="
-          cat /tmp/server.log || echo "No server logs found"
+          shopt -s nullglob
+          for log in e2e/test-results/environments/*/*/server.log; do
+            echo "=== $log ==="
+            tail -n 200 "$log"
+          done
 
       - name: Upload Playwright Report
         if: always()
@@ -899,7 +876,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: server-logs-${{ matrix.shardIndex }}
-          path: /tmp/server.log
+          path: e2e/test-results/environments/**/server.log
           retention-days: 7
 
   docs-build:

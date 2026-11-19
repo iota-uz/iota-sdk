@@ -1,12 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-import { Pool } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
-import { exec as execCallback } from 'child_process';
-import { promisify } from 'util';
+import { isolationMode } from './fixtures/isolation';
 
-const exec = promisify(execCallback);
 const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 
 // Smart environment detection
@@ -32,38 +29,13 @@ function loadEnvironmentConfig() {
 	};
 }
 
-// Database reset function
-export async function resetDatabase() {
-	const config = loadEnvironmentConfig();
-	const pool = new Pool({
-		connectionString: `postgres://${config.DB_USER}:${config.DB_PASSWORD}@${config.DB_HOST}:${config.DB_PORT}/${config.DB_NAME}`,
-	});
-
-	const client = await pool.connect();
-	try {
-		const res = await client.query(
-			"SELECT tablename FROM pg_tables WHERE schemaname = 'public';",
-		);
-		for (const row of res.rows) {
-			await client.query(`TRUNCATE TABLE ${row.tablename} RESTART IDENTITY CASCADE;`);
-		}
-	} finally {
-		client.release();
-		await pool.end();
-	}
-}
-
-// Database seed function
-export async function seedDatabase() {
-	await exec('cd .. && go run cmd/command/main.go e2e seed');
-}
-
 // Get environment info for debugging
 export function getEnvironmentInfo() {
 	const envConfig = loadEnvironmentConfig();
 	return {
 		env: process.env.NODE_ENV || 'development',
-			isCI,
+		isCI,
+		isolation: isolationMode(),
 		dbConfig: {
 			host: envConfig.DB_HOST,
 			port: envConfig.DB_PORT,
@@ -86,11 +58,17 @@ export default defineConfig({
 	// Maximum time one test can run
 	timeout: 60 * 1000,
 
-	// Test execution settings
-	fullyParallel: !isCI,
+	// Builds the run's sealed baseline database; workers clone it.
+	globalSetup: './global-setup.ts',
+
+	// Test execution settings. Under worker isolation every worker owns its
+	// database and server, so files run in parallel. Tests inside a file stay
+	// in order because many suites prepare state in beforeAll. The legacy
+	// shared mode targets one dedicated server and must use a single worker.
+	fullyParallel: false,
 	forbidOnly: isCI,
 	retries: isCI ? 2 : 0,
-	workers: isCI ? 1 : undefined,
+	workers: isolationMode() === 'shared' ? 1 : isCI ? Number(process.env.E2E_WORKERS ?? 3) : undefined,
 
 	// Reporter configuration
 	reporter: 'html',

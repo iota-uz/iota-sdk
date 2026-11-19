@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test';
 import { login } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 import { withDatabase } from '../../fixtures/database';

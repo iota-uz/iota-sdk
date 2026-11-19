@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test';
 import { login } from '../../fixtures/auth';
 import { withDatabase } from '../../fixtures/database';
 import { randomUUID } from 'node:crypto';

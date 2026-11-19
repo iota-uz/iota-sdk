@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/test';
 import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';

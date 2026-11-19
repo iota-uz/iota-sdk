@@ -126,6 +126,19 @@ launcher are also stopped. Artifact logs remain for diagnosis.
 The existing SDK presets are registered as dedicated version 1 scenarios. They
 mutate baseline records and must be disposed before another scenario begins.
 Existing reset/populate consumers remain compatible inside their dedicated
-database. The full SDK ERP suite fixture migration and throughput benchmark are
-not completed by this pilot. Generic Jobs/ProviderControls and injection of the
-manual clock into production services also remain separate acceptance work.
+database. Generic Jobs/ProviderControls and injection of the manual clock into
+production services remain separate acceptance work.
+
+`--sdk-erp` also gives each environment its own upload root
+(`<artifactDirectory>/uploads`), an OIDC issuer bound to its port when
+`OIDC_CRYPTOKEY` is set, and removes inherited `REDIS_*`/`RATELIMIT_REDIS*`
+variables: SDK ERP has no per-environment Redis key namespace, so isolated
+processes run without Redis instead of sharing streams with another worker.
+`process.Config.Unset` is the generic form of that filter. `--database-prefix`
+names owned clones `<prefix><environment id without dashes>`.
+`cmd/testenv-baseline --drop <name>` drops a baseline the command built.
+
+The SDK ERP Playwright suites (`e2e/`) use this lifecycle locally and in CI:
+global setup builds one sealed baseline per run, and each worker owns a
+`cmd/testenv` driver, a cloned database and a server process. See
+`e2e/README.md` ("Environment lifecycle").
