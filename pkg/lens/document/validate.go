@@ -477,6 +477,9 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if err := validateRenderer(panel); err != nil {
 		return err
 	}
+	if err := validateRatio(panel); err != nil {
+		return err
+	}
 	if err := validateValueAxis(panel, d.Frames[panel.Frame]); err != nil {
 		return err
 	}
@@ -2086,6 +2089,21 @@ func numericValue(value any) (float64, bool) {
 // maxRendererOptionsBytes bounds the opaque options a host renderer receives,
 // so a host cannot smuggle a dataset into the document outside frames.
 const maxRendererOptionsBytes = 64 << 10
+
+func validateRatio(panel Panel) error {
+	if panel.Ratio == nil {
+		return nil
+	}
+	for name, part := range map[string]RatioPart{"numerator": panel.Ratio.Numerator, "denominator": panel.Ratio.Denominator} {
+		if strings.TrimSpace(part.Field) == "" || strings.TrimSpace(part.Label) == "" {
+			return fmt.Errorf("panel %s ratio %s needs a field and a label", panel.ID, name)
+		}
+	}
+	if panel.Ratio.Numerator.Field == panel.Ratio.Denominator.Field {
+		return fmt.Errorf("panel %s ratio numerator and denominator must be different fields", panel.ID)
+	}
+	return nil
+}
 
 func validateRenderer(panel Panel) error {
 	if panel.Renderer == nil {

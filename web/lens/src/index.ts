@@ -59,3 +59,15 @@ export { createReportLeaveGuard } from './reports/guard'
 export type { GuardedDraft, ReportLeaveChoice, ReportLeaveGuard } from './reports/guard'
 export { configurePlacement, diffCompositions, movePlacement, movePlacementBefore, removePlacement, resizePlacement } from './reports/layout'
 export type { CompositionChange, CompositionChangeKind, PlacementDirection, PlacementSettings } from './reports/layout'
+
+export {
+  backURL, decodeHostState, decodeReturnContext, encodeHostState, encodeReturnContext, hostStateParam,
+  readReturnContext, returnParam, returnProtocolVersion,
+} from './runtime/returnContext'
+export type { LensHostState, LensReturnContext } from './runtime/returnContext'
+export { investigationProposal, investigationSaveability, savedConstraints, suggestedInvestigationTitle } from './explore/investigation'
+export type {
+  InvestigationConstraint, InvestigationHost, InvestigationPlaceRequest, InvestigationProposal, InvestigationSaveability,
+  InvestigationSaveIntent, InvestigationSaveRequest, InvestigationSlice, InvestigationStep, InvestigationUnsupportedReason,
+  SavedInvestigation,
+} from './explore/investigation'

@@ -2,3 +2,10 @@
 body { margin: 0; }
 #story-root { min-height: 100vh; }
 pre[data-story-missing] { padding: 2rem; font-size: 0.85rem; }
+
+/* Investigation stories: the emulated host page and its call log. */
+.story-host-records { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; }
+.story-host-records h3 { margin: 0; font-size: 1rem; }
+.story-host-toolbar { display: flex; gap: 0.5rem; align-items: center; }
+.story-host-records td { padding: 0.25rem 1rem 0.25rem 0; font-variant-numeric: tabular-nums; }
+.story-host-log { margin: 1rem 0 0; padding-left: 1.25rem; font: 12px/1.5 ui-monospace, monospace; color: #64748b; }

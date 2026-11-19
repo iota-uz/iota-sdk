@@ -12,6 +12,47 @@ import (
 // constants are the canonical, testable spelling of every key the React
 // runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
 // sites.
+// Drill provenance, expired snapshots and saving an investigation.
+const (
+	I18nDrillExpired                     = "drill.expired"
+	I18nPanelErrorExpired                = "panel.error.expired"
+	I18nDrillRecalculate                 = "drill.recalculate"
+	I18nDrillRecalculateFailed           = "drill.recalculateFailed"
+	I18nDrillRecalculated                = "drill.recalculated"
+	I18nExploreAbout                     = "explore.about"
+	I18nExploreConstraint                = "explore.constraint"
+	I18nExploreMeasure                   = "explore.measure"
+	I18nExploreOriginDrill               = "explore.origin.drill"
+	I18nExplorePeriod                    = "explore.period"
+	I18nExploreRatio                     = "explore.ratio"
+	I18nExploreRatioOver                 = "explore.ratioOver"
+	I18nExploreSaveContextBlocked        = "explore.save.contextBlocked"
+	I18nExploreSaveDimensionUnsupported  = "explore.save.dimensionUnsupported"
+	I18nExploreSaveDrillConflict         = "explore.save.drillConflict"
+	I18nExploreSaveLevelUndeclared       = "explore.save.levelUndeclared"
+	I18nExploreSaveNotReport             = "explore.save.notReport"
+	I18nExploreSaveSourceCannot          = "explore.save.sourceCannot"
+	I18nExploreSaveInvestigation         = "explore.saveInvestigation"
+	I18nReportInvestigationAddPending    = "report.investigation.addPending"
+	I18nReportInvestigationAddRetry      = "report.investigation.addRetry"
+	I18nReportInvestigationAdded         = "report.investigation.added"
+	I18nReportInvestigationConstraints   = "report.investigation.constraints"
+	I18nReportInvestigationDescription   = "report.investigation.description"
+	I18nReportInvestigationDone          = "report.investigation.done"
+	I18nReportInvestigationDraftSaved    = "report.investigation.draftSaved"
+	I18nReportInvestigationName          = "report.investigation.name"
+	I18nReportInvestigationNoConstraints = "report.investigation.noConstraints"
+	I18nReportInvestigationPeriod        = "report.investigation.period"
+	I18nReportInvestigationPublish       = "report.investigation.publish"
+	I18nReportInvestigationPublishAdd    = "report.investigation.publishAdd"
+	I18nReportInvestigationPublished     = "report.investigation.published"
+	I18nReportInvestigationRefreshNote   = "report.investigation.refreshNote"
+	I18nReportInvestigationSaveDraft     = "report.investigation.saveDraft"
+	I18nReportInvestigationSaveFailed    = "report.investigation.saveFailed"
+	I18nReportInvestigationSource        = "report.investigation.source"
+	I18nReportInvestigationTitle         = "report.investigation.title"
+)
+
 const (
 	I18nContextBack              = "filter.context.back"
 	I18nContextDrillUnavailable  = "filter.context.drillUnavailable"
@@ -549,6 +590,43 @@ func RuntimeLocaleKey(runtimeKey string) string {
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
+		I18nDrillExpired,
+		I18nPanelErrorExpired,
+		I18nDrillRecalculate,
+		I18nDrillRecalculateFailed,
+		I18nDrillRecalculated,
+		I18nExploreAbout,
+		I18nExploreConstraint,
+		I18nExploreMeasure,
+		I18nExploreOriginDrill,
+		I18nExplorePeriod,
+		I18nExploreRatio,
+		I18nExploreRatioOver,
+		I18nExploreSaveContextBlocked,
+		I18nExploreSaveDimensionUnsupported,
+		I18nExploreSaveDrillConflict,
+		I18nExploreSaveLevelUndeclared,
+		I18nExploreSaveNotReport,
+		I18nExploreSaveSourceCannot,
+		I18nExploreSaveInvestigation,
+		I18nReportInvestigationAddPending,
+		I18nReportInvestigationAddRetry,
+		I18nReportInvestigationAdded,
+		I18nReportInvestigationConstraints,
+		I18nReportInvestigationDescription,
+		I18nReportInvestigationDone,
+		I18nReportInvestigationDraftSaved,
+		I18nReportInvestigationName,
+		I18nReportInvestigationNoConstraints,
+		I18nReportInvestigationPeriod,
+		I18nReportInvestigationPublish,
+		I18nReportInvestigationPublishAdd,
+		I18nReportInvestigationPublished,
+		I18nReportInvestigationRefreshNote,
+		I18nReportInvestigationSaveDraft,
+		I18nReportInvestigationSaveFailed,
+		I18nReportInvestigationSource,
+		I18nReportInvestigationTitle,
 		I18nContextBack,
 		I18nContextDrillUnavailable,
 		I18nContextExportUnavailable,

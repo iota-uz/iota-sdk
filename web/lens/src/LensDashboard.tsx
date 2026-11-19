@@ -10,6 +10,8 @@ import type { PanelRegistry } from './panels/registry'
 import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, detectAppTheme, observeAppTheme, type LensThemeSetting } from './runtime'
 import type { LensDashboardChrome, LensDashboardEditing } from './reports/dashboardEditTypes'
+import { DrillHostProvider } from './explore/drillHost'
+import type { InvestigationHost } from './explore/investigation'
 
 export interface LensDashboardProps {
   filterDefaultsHost?: FilterDefaultsHost
@@ -53,6 +55,18 @@ export interface LensDashboardProps {
   edit?: LensDashboardEditing
   /** Hide parts of the header a host page already renders, or collapse the toolbar. */
   chrome?: LensDashboardChrome
+  /**
+   * Saving an exploration as a report. Offered on the current drill level of
+   * a report placement whose source can save the slice; explained otherwise.
+   * The host persists the report and adds it to dashboard drafts.
+   */
+  investigation?: InvestigationHost
+  /**
+   * Adds the `lens-return` context to links that leave Lens for host pages
+   * (operational records), so the host can render a Back link that restores
+   * the levels, filters and origin. See readReturnContext and backURL.
+   */
+  returnContext?: boolean
 }
 
 export interface LensToolbarContext {
@@ -84,23 +98,25 @@ export function LensDashboard(props: LensDashboardProps) {
         <FilterDefaultsProvider host={props.filterDefaultsHost}>
           <ReportPlacementProvider host={props.reportPlacementHost}>
             <HostRenderersProvider renderers={props.renderers}>
-              <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
-                <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
-                  {() => (
-                    <DashboardPanels
-                      chrome={props.chrome}
-                      csrf={props.csrf}
-                      edit={props.edit}
-                      fetcher={props.fetcher}
-                      filterToday={props.filterToday}
-                      locale={props.locale}
-                      registry={props.registry}
-                      theme={theme()}
-                      toolbar={props.toolbar}
-                    />
-                  )}
-                </DashboardRuntimeProvider>
-              </DocumentProvider>
+              <DrillHostProvider host={{ investigation: props.investigation, returnContext: props.returnContext }}>
+                <DocumentProvider src={props.src} initialDocument={document()} csrf={props.csrf} fetcher={props.fetcher}>
+                  <DashboardRuntimeProvider locale={locale()} csrf={props.csrf} fetcher={props.fetcher} fallback={fallback()}>
+                    {() => (
+                      <DashboardPanels
+                        chrome={props.chrome}
+                        csrf={props.csrf}
+                        edit={props.edit}
+                        fetcher={props.fetcher}
+                        filterToday={props.filterToday}
+                        locale={props.locale}
+                        registry={props.registry}
+                        theme={theme()}
+                        toolbar={props.toolbar}
+                      />
+                    )}
+                  </DashboardRuntimeProvider>
+                </DocumentProvider>
+              </DrillHostProvider>
             </HostRenderersProvider>
           </ReportPlacementProvider>
         </FilterDefaultsProvider>

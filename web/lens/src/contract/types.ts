@@ -418,6 +418,7 @@ export interface Level {
   status?: PanelStatus
   source?: LevelSource
   table?: LevelTable
+  dimension?: string
 }
 
 export interface LevelSource {
@@ -509,6 +510,7 @@ export interface Node {
   label: string
   target?: NodeKey
   action?: Action
+  value?: string
 }
 
 export type NodeKey = string
@@ -543,6 +545,7 @@ export interface PanelBase {
   terminal?: boolean
   comparisonUnsupported?: boolean
   renderer?: PanelRenderer
+  ratio?: PanelRatio
 }
 
 export type Panel =
@@ -618,6 +621,12 @@ export interface PanelCalculation {
 }
 
 export type PanelKind = "area" | "bar" | "boxplot" | "cascade" | "coverage" | "donut" | "gauge" | "hbar" | "heatmap" | "histogram" | "line" | "map" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
+
+export interface PanelRatio {
+  numerator: RatioPart
+  denominator: RatioPart
+  description?: string
+}
 
 export interface PanelRenderer {
   name: string
@@ -770,6 +779,11 @@ export interface RadialRing {
   label: string
   order?: number
   total: number
+}
+
+export interface RatioPart {
+  field: string
+  label: string
 }
 
 export interface SegmentedFilter {

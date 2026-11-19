@@ -71,9 +71,12 @@ describe('chart bundle boundary', () => {
     // after filters gained tab-local placement, and 439,014 after the React
     // and Solid runtimes began sharing the standard portal host, and 440,995
     // once the ƒ popover took over the ⓘ note, the unabbreviated operands, the
-    // availability reasons and the click hint (#1284). The cap still
+    // availability reasons and the click hint (#1284), and 461,733 once the
+    // drill card stated the figure's provenance and ratio parts, links into
+    // host pages carried the return context and an expired snapshot offered
+    // recalculation (#1061; the save form itself loads lazily). The cap still
     // catches accidental bloat — it is a tripwire for a chart library wandering
     // into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(445_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(465_000)
   })
 })

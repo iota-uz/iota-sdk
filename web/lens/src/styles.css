@@ -6743,6 +6743,115 @@
     @apply lens:m-0 lens:px-1.5 lens:py-1 lens:text-md lens:text-faint;
   }
 
+  /* What the figure is: measure, period and every narrowing constraint with
+     the layer it came from. Facts, not controls: plain text on the card. */
+  /* The facts stay whole; a long breakdown below them is what scrolls. */
+  .lens-drill-context {
+    @apply lens:shrink-0 lens:overflow-visible;
+  }
+
+  .lens-drill-facts {
+    @apply lens:m-0 lens:flex lens:flex-col lens:gap-0.5 lens:text-base lens:text-text;
+  }
+
+  .lens-drill-facts > div {
+    @apply lens:flex lens:flex-wrap lens:gap-x-1.5;
+  }
+
+  .lens-drill-facts dt {
+    @apply lens:font-semibold lens:text-muted;
+  }
+
+  .lens-drill-facts dd {
+    @apply lens:m-0 lens:min-w-0;
+  }
+
+  .lens-drill-origin {
+    @apply lens:text-faint;
+  }
+
+  .lens-drill-ratio dd {
+    @apply lens:flex lens:flex-wrap lens:gap-x-1;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-drill-ratio-note {
+    @apply lens:basis-full lens:text-faint;
+  }
+
+  .lens-drill-sr-only {
+    @apply lens:absolute lens:size-px lens:overflow-hidden lens:whitespace-nowrap;
+    clip-path: inset(50%);
+  }
+
+  .lens-drill-action-save {
+    @apply lens:justify-start;
+  }
+
+  .lens-drill-save-unsupported {
+    @apply lens:m-0 lens:px-1.5 lens:py-1 lens:text-base lens:text-muted;
+  }
+
+  .lens-runtime-expired {
+    @apply lens:bg-inset lens:text-strong;
+    box-shadow: inset 3px 0 0 var(--lens-warn);
+  }
+
+  .lens-runtime-expired button {
+    @apply lens:shrink-0 lens:text-base;
+  }
+
+  .lens-investigation {
+    @apply lens:flex lens:flex-col lens:gap-4 lens:px-5 lens:py-4;
+  }
+
+  .lens-investigation-field {
+    @apply lens:flex lens:flex-col lens:gap-1;
+  }
+
+  .lens-investigation-input {
+    @apply lens:box-border lens:min-h-control-md lens:w-full lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+  }
+
+  .lens-investigation-label,
+  .lens-investigation-summary dt {
+    @apply lens:text-base lens:font-semibold lens:text-muted;
+  }
+
+  .lens-investigation-summary {
+    @apply lens:m-0 lens:grid lens:gap-x-4 lens:gap-y-2 lens:text-md lens:text-text;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .lens-investigation-summary dd {
+    @apply lens:m-0 lens:min-w-0;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-investigation-constraints {
+    @apply lens:m-0 lens:flex lens:list-none lens:flex-col lens:gap-1 lens:p-0;
+  }
+
+  .lens-investigation-origin {
+    @apply lens:text-faint;
+  }
+
+  .lens-investigation-note {
+    @apply lens:m-0 lens:rounded-control lens:bg-inset lens:p-3 lens:text-base lens:text-muted;
+  }
+
+  .lens-investigation-result {
+    @apply lens:flex lens:flex-col lens:items-start lens:gap-2 lens:text-md lens:text-strong;
+  }
+
+  .lens-investigation-result p {
+    @apply lens:m-0;
+  }
+
+  .lens-investigation-link {
+    @apply lens:font-semibold lens:text-accent-700;
+  }
+
   .lens-icon {
     @apply lens:inline-block lens:shrink-0 lens:align-middle;
   }
