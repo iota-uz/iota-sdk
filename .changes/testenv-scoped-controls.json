@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add scoped test controls to testenv: consumer jobs with condition waits, scripted provider fakes with hold/release gates, dedicated clock control, scoped file/queue cleanup, replay manifests, a Go HTTP client and a shared CLI for scenario preparation."
+}

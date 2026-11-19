@@ -13,7 +13,9 @@ type Error struct {
 	EnvironmentID     string   `json:"environmentId,omitempty"`
 	ArtifactDirectory string   `json:"artifactDirectory,omitempty"`
 	Causes            []*Error `json:"causes,omitempty"`
-	cause             error
+	// Details carries typed diagnostics, such as the WaitResult of a job wait.
+	Details any `json:"details,omitempty"`
+	cause   error
 }
 
 func (e *Error) Error() string           { return e.Code + ": " + e.Message }
@@ -50,6 +52,10 @@ type Result struct {
 	Data    map[string]any       `json:"data"`
 }
 type PrepareFunc func(context.Context, Input) (Result, error)
+
+// CleanupFunc removes a scope's records. It must be idempotent: calling it for
+// state that is already gone returns nil. The registry runs it again only
+// when an earlier call failed.
 type CleanupFunc func(context.Context, string) error
 
 type Spec struct {

@@ -113,7 +113,7 @@ func TestPartialFailureNeverBecomesReady(t *testing.T) {
 	require.ErrorAs(t, err, &control)
 	require.Equal(t, "execution_failed", control.Code)
 	require.NoError(t, r.Dispose(context.Background(), "failed"))
-	require.EqualValues(t, 2, cleanups.Load())
+	require.EqualValues(t, 1, cleanups.Load(), "compensation already completed scenario cleanup; dispose does not repeat it")
 }
 func TestClockAndGateCancellation(t *testing.T) {
 	// Falsely green if a wall-clock sleep determines when the boundary is crossed.

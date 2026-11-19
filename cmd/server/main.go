@@ -53,6 +53,11 @@ func run() error {
 	if scopeID := os.Getenv("TESTENV_ENVIRONMENT_ID"); scopeID != "" {
 		components = append(components, testkit.NewScenarioComponent(func(pool *pgxpool.Pool) (*testenv.Registry, string, error) {
 			registry := testenv.NewEnvironmentRegistry([]string{"postgres"}, true, scopeID)
+			registry.SetBuildInfo(testenv.BuildInfo{
+				BuildRevision:       os.Getenv("TESTENV_BUILD_REVISION"),
+				SchemaFingerprint:   os.Getenv("TESTENV_SCHEMA_FINGERPRINT"),
+				BaselineFingerprint: os.Getenv("TESTENV_BASELINE_FINGERPRINT"),
+			})
 			service := services.NewTestDataService(pool)
 			if err := service.RegisterScenarios(registry, func(ctx context.Context, _ string) error { return service.ResetDatabase(ctx, true) }); err != nil {
 				return nil, "", err

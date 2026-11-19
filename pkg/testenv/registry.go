@@ -3,6 +3,7 @@ package testenv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -25,6 +26,17 @@ type scope struct {
 	result   *Result
 	scenario *scenario
 	disposed atomic.Bool
+	// replayed is the digest of the manifest whose controls were restored.
+	replayed string
+	// Guarded by Registry.mu: closing stops admission of new scoped work
+	// before cleanup; inflight counts admitted mutations; idle is closed when
+	// inflight drains while closing.
+	closing  bool
+	inflight int
+	idle     chan struct{}
+	// cleaned records that scenario cleanup completed, so a retried disposal
+	// after a later resource failure does not run it again.
+	cleaned bool
 }
 
 func newScope() *scope { return &scope{mu: make(chan struct{}, 1)} }
@@ -50,6 +62,11 @@ type Registry struct {
 	environmentID  string
 	active         map[string]bool
 	exclusiveScope string
+	resources      []namedResource
+	clock          *ManualClock
+	build          BuildInfo
+	jobs           *Jobs
+	providers      *Providers
 }
 
 func NewEnvironmentRegistry(capabilities []string, dedicated bool, environmentID string) *Registry {
@@ -109,6 +126,77 @@ func (r *Registry) Register(d Definition, prepare PrepareFunc, cleanup CleanupFu
 	r.scenarios[d.Name] = &scenario{d, in, out, prepare, cleanup}
 	return nil
 }
+
+// owned reports whether id is a live scope of this registry that still
+// admits work.
+func (r *Registry) owned(id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ownedLocked(id)
+}
+
+func (r *Registry) ownedLocked(id string) error {
+	sc := r.scopes[id]
+	if sc == nil {
+		return failure("scope_conflict", "scope is not owned by this environment")
+	}
+	if sc.disposed.Load() || sc.closing {
+		return failure("scope_conflict", "scope disposed")
+	}
+	return nil
+}
+
+// admit registers a state change for a live scope. Dispose closes admission
+// first and waits for admitted changes to finish before forgetting resources,
+// so no state is created after its owner was cleaned. Callers must not block
+// on external events while admitted.
+func (r *Registry) admit(id string) (func(), error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := r.ownedLocked(id); err != nil {
+		return nil, err
+	}
+	sc := r.scopes[id]
+	sc.inflight++
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		sc.inflight--
+		if sc.inflight == 0 && sc.idle != nil {
+			close(sc.idle)
+			sc.idle = nil
+		}
+	}, nil
+}
+
+// close stops admission (permanently) and waits for admitted work to finish.
+func (r *Registry) close(ctx context.Context, sc *scope) error {
+	r.mu.Lock()
+	sc.closing = true
+	var idle chan struct{}
+	if sc.inflight > 0 {
+		if sc.idle == nil {
+			sc.idle = make(chan struct{})
+		}
+		idle = sc.idle
+	}
+	r.mu.Unlock()
+	if idle == nil {
+		return nil
+	}
+	select {
+	case <-idle:
+		return nil
+	case <-ctx.Done():
+		return failure("timeout", "admitted scope work did not finish: "+ctx.Err().Error())
+	}
+}
+
+// Dedicated reports whether this registry controls a dedicated environment.
+func (r *Registry) Dedicated() bool { return r.dedicated }
+
+// EnvironmentID returns the owning environment, empty for an unbound registry.
+func (r *Registry) EnvironmentID() string { return r.environmentID }
 
 // AllowScope is called by the environment owner, never by the HTTP client.
 func (r *Registry) AllowScope(id string) error {
@@ -171,6 +259,18 @@ func cloneResult(result Result) Result {
 	return cloned
 }
 func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
+	return r.prepare(ctx, input, nil)
+}
+
+// replayPlan restores manifest controls inside the preparation lifecycle:
+// before runs ahead of the scenario callback, after runs before the result is
+// published. The result is never visible to other callers until both succeed.
+type replayPlan struct {
+	digest        string
+	before, after func(context.Context) error
+}
+
+func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (Result, error) {
 	encoded, err := json.Marshal(input)
 	if err != nil {
 		return Result{}, failure("invalid_input", err.Error())
@@ -219,10 +319,16 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 		return Result{}, failure("scope_conflict", "scope has another input")
 	}
 	if sc.result != nil {
+		if plan != nil && sc.replayed != plan.digest {
+			return Result{}, failure("scope_conflict", "scope is already prepared; replay into a new scope")
+		}
 		return cloneResult(*sc.result), nil
 	}
 	if sc.scenario != nil {
 		return Result{}, failure("execution_failed", "previous preparation failed; dispose scope before retry")
+	}
+	if err := r.owned(input.ScopeID); err != nil {
+		return Result{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, failure("timeout", err.Error())
@@ -242,10 +348,29 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 		r.exclusiveScope = input.ScopeID
 	}
 	r.active[input.ScopeID] = true
+	clock := r.clock
+	var priorTime *time.Time
+	if clock != nil && s.definition.Isolation == "dedicated" {
+		// Scenario time becomes server time only under a dedicated lease; a
+		// shared environment never moves the clock for other scopes.
+		prior := clock.Now()
+		priorTime = &prior
+		now, _ := time.Parse(time.RFC3339, input.Now)
+		clock.Set(now)
+	}
 	r.mu.Unlock()
 	sc.request = string(encoded)
 	sc.scenario = s
-	result, err := s.prepare(ctx, input)
+	var result Result
+	err = nil
+	if plan != nil {
+		err = plan.before(ctx)
+	}
+	if err == nil {
+		r.markPrepared(input.ScopeID)
+		callbackCtx := context.WithValue(WithCorrelation(ctx, Correlation{ScopeID: input.ScopeID}), preparingKey{}, input.ScopeID)
+		result, err = s.prepare(callbackCtx, input)
+	}
 	if err == nil {
 		if result.Data == nil {
 			result.Data = map[string]any{}
@@ -260,10 +385,25 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if err == nil {
 		err = s.output.Validate(result.Data)
 	}
+	if err == nil && plan != nil {
+		err = plan.after(ctx)
+	}
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		cleanupErr := s.cleanup(cleanupCtx, input.ScopeID)
+		// Close admission first, as Dispose does, so no work is registered
+		// after the stop pass; the scope stays failed until disposed.
+		cleanupErr := r.close(cleanupCtx, sc)
+		if cleanupErr == nil {
+			cleanupErr = r.compensate(cleanupCtx, input.ScopeID, sc)
+		}
+		if priorTime != nil {
+			r.mu.Lock()
+			if r.exclusiveScope == input.ScopeID {
+				clock.Set(*priorTime)
+			}
+			r.mu.Unlock()
+		}
 		diagnostic := lifecycleError(err, "execution_failed", "prepare", Descriptor{EnvironmentID: r.environmentID}, cleanupErr)
 		if cleanupErr != nil {
 			diagnostic.Causes[len(diagnostic.Causes)-1].Operation = "dispose"
@@ -283,7 +423,28 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	}
 	cloned := cloneResult(result)
 	sc.result = &cloned
+	if plan != nil {
+		sc.replayed = plan.digest
+	}
 	return cloneResult(result), nil
+}
+
+// compensate stops the scope's running work, then removes its controls and
+// records. Destructive cleanup is skipped while work may still write. Scenario
+// cleanup runs at most once successfully per scope.
+func (r *Registry) compensate(ctx context.Context, id string, sc *scope) error {
+	if err := r.stopResources(ctx, id); err != nil {
+		return err
+	}
+	cleanupErr := r.forgetResources(ctx, id)
+	if sc.scenario != nil && !sc.cleaned {
+		if err := sc.scenario.cleanup(ctx, id); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		} else {
+			sc.cleaned = true
+		}
+	}
+	return cleanupErr
 }
 func (r *Registry) Dispose(ctx context.Context, id string) error {
 	r.mu.Lock()
@@ -299,10 +460,14 @@ func (r *Registry) Dispose(ctx context.Context, id string) error {
 	if sc.disposed.Load() {
 		return nil
 	}
-	if sc.scenario != nil {
-		if err := sc.scenario.cleanup(ctx, id); err != nil {
-			return failure("cleanup_failed", err.Error())
-		}
+	// Admission closes for good; cleanup failures stay retryable but no new
+	// scoped work is accepted. Running work is stopped and joined before any
+	// destructive cleanup of records it could still change.
+	if err := r.close(ctx, sc); err != nil {
+		return err
+	}
+	if cleanupErr := r.compensate(ctx, id, sc); cleanupErr != nil {
+		return &Error{Code: "cleanup_failed", Message: cleanupErr.Error(), Operation: "dispose", EnvironmentID: r.environmentID, cause: cleanupErr}
 	}
 	sc.disposed.Store(true)
 	sc.result = nil
