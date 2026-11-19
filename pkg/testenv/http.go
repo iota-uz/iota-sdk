@@ -164,7 +164,7 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 	})
 	mux.HandleFunc("POST /__test__/scopes/{scopeId}/replay", func(w http.ResponseWriter, r *http.Request) {
 		var manifest Manifest
-		if err := decode(w, r, 4<<20, &manifest); err != nil {
+		if err := decode(w, r, MaxManifestBytes, &manifest); err != nil {
 			write(w, nil, err)
 			return
 		}

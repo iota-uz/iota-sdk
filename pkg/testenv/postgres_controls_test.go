@@ -96,7 +96,7 @@ func newPGEnvironment(t *testing.T, db *sql.DB, environmentID string, dedicated 
 	require.NoError(t, err)
 	env.providers, err = NewProviders(env.registry)
 	require.NoError(t, err)
-	require.NoError(t, env.providers.Register(ProviderDefinition{Name: "notifier", ResponseSchema: map[string]any{
+	require.NoError(t, env.providers.Register(ProviderDefinition{Name: "notifier", CredentialFree: true, ResponseSchema: map[string]any{
 		"type": "object", "required": []any{"messageId"}, "properties": map[string]any{"messageId": map[string]any{"type": "string"}},
 	}}))
 	env.jobs, err = NewJobs(env.registry)

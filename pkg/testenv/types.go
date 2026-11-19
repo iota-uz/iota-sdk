@@ -52,6 +52,10 @@ type Result struct {
 	Data    map[string]any       `json:"data"`
 }
 type PrepareFunc func(context.Context, Input) (Result, error)
+
+// CleanupFunc removes a scope's records. It must be idempotent: calling it for
+// state that is already gone returns nil. The registry runs it again only
+// when an earlier call failed.
 type CleanupFunc func(context.Context, string) error
 
 type Spec struct {

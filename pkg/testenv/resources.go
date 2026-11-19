@@ -2,6 +2,7 @@ package testenv
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -96,7 +97,20 @@ func (r *Registry) attached() []namedResource {
 	return append([]namedResource(nil), r.resources...)
 }
 
+// scopeInterrupter ends blocking waits of a scope (provider gates) without
+// removing state, so running work can observe it and exit.
+type scopeInterrupter interface {
+	interruptScope(scopeID string)
+}
+
 func (r *Registry) stopResources(ctx context.Context, scopeID string) error {
+	// Unblock first: a job held in a fake with a detached context could never
+	// be joined while its gate stays closed.
+	for _, resource := range r.attached() {
+		if interrupter, ok := resource.resource.(scopeInterrupter); ok {
+			interrupter.interruptScope(scopeID)
+		}
+	}
 	var errs []error
 	for _, resource := range r.attached() {
 		if stopper, ok := resource.resource.(ScopeStopper); ok {
@@ -146,13 +160,15 @@ func NewScopedFiles(r *Registry, root string) (*ScopedFiles, error) {
 	return files, nil
 }
 
-// path names the directory by the hex encoding of the scope ID: lossless,
-// separator-free and distinct on case-insensitive volumes.
+// path names the directory by the SHA-256 of the scope ID in lowercase hex:
+// a fixed 70-byte basename, separator-free and distinct on case-insensitive
+// volumes (collisions are cryptographically negligible, not impossible).
 func (f *ScopedFiles) path(scopeID string) (string, error) {
 	if scopeID == "" {
 		return "", failure("invalid_input", "empty scope")
 	}
-	return filepath.Join(f.root, "scope-"+hex.EncodeToString([]byte(scopeID))), nil
+	sum := sha256.Sum256([]byte(scopeID))
+	return filepath.Join(f.root, "scope-"+hex.EncodeToString(sum[:])), nil
 }
 
 // Dir creates and returns the directory of a live scope.

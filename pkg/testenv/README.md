@@ -160,9 +160,14 @@ for hosts that register them explicitly.
 `GET /__test__/scopes/{id}/manifest` (`Registry.Manifest`) returns the logical
 seed, scenario/version/params/time, build and baseline fingerprints, actual
 result identifiers, the controlled clock, and snapshots of attached
-`SnapshotResource`s (provider scripts as submitted). Credentials are never part
-of it: control tokens and test identities go to the isolated client separately,
-and scenario params must not carry secrets.
+`SnapshotResource`s (provider scripts as submitted by the test; scripts the
+scenario callback submits itself are recreated by replay and left out).
+Credentials are never part of it: control tokens and test identities go to the
+isolated client separately, and scenario params must not carry secrets. Export
+is opt-in per provider: only providers registered with `CredentialFree: true`
+are exported; a scope holding scripts of any other provider refuses export.
+A manifest whose indented JSON exceeds `MaxManifestBytes` (4 MiB) is refused at
+export, which is also the HTTP and CLI replay limit.
 
 `POST /__test__/scopes/{id}/replay` (`Registry.Replay`) prepares the same
 logical input in a new physical scope, then restores controls and the clock.
@@ -198,8 +203,8 @@ control, scoped cleanup, manifests and Go/CLI/HTTP equivalence. With
 `TESTENV_POSTGRES_DSN`, `TestPostgresScenarioControlsEndToEnd` drives the real
 HTTP adapter over owned UUID databases. It covers version/schema/output drift, staged
 partial failure and compensation, concurrent prepares, a gated dunning race, a
-clock boundary, replay on a fresh database, and identifier collisions. CI runs it
-in the full suite's PostgreSQL job. Tests characterize the
+clock boundary, replay on a fresh database, and identifier collisions. Point the
+variable at an isolated cluster to run it; without it the test is skipped. Tests characterize the
 new API; they are not described as regressions of previously shipped endpoints.
 
 Set `TESTENV_POSTGRES_DSN` to a dedicated cluster to run

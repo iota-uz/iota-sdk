@@ -28,6 +28,12 @@ commands:
 
 // Run executes one command. Results are written to stdout as JSON; control
 // errors are returned as *testenv.Error.
+//
+// Reader lifetime: when ctx ends while Run is reading stdin, Run returns and
+// abandons that read; the goroutine keeps reading until stdin returns. A
+// canceled stdin must not be reused for another Run, because the abandoned
+// read can consume its input. Pass a fresh reader per call (cmd/testenv-scenario
+// exits after any error).
 func Run(ctx context.Context, control testenv.Control, args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
 		return errors.New(usage)
@@ -122,7 +128,9 @@ func Run(ctx context.Context, control testenv.Control, args []string, stdin io.R
 	return fmt.Errorf("unknown command %q\n%s", command, usage)
 }
 
-const inputLimit = 4 << 20
+// inputLimit matches testenv.MaxManifestBytes, so every exported manifest
+// (written indented) can be read back.
+const inputLimit = testenv.MaxManifestBytes
 
 // readJSON reads exactly one JSON document (trailing whitespace allowed) of
 // at most inputLimit bytes. It returns when ctx ends, even if the input stays

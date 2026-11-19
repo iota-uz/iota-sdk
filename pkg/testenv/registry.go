@@ -34,6 +34,9 @@ type scope struct {
 	closing  bool
 	inflight int
 	idle     chan struct{}
+	// cleaned records that scenario cleanup completed, so a retried disposal
+	// after a later resource failure does not run it again.
+	cleaned bool
 }
 
 func newScope() *scope { return &scope{mu: make(chan struct{}, 1)} }
@@ -309,8 +312,8 @@ func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (
 		return Result{}, failure("timeout", err.Error())
 	}
 	defer sc.unlock()
-	if err := r.owned(input.ScopeID); err != nil {
-		return Result{}, err
+	if sc.disposed.Load() {
+		return Result{}, failure("scope_conflict", "scope disposed")
 	}
 	if sc.request != "" && sc.request != string(encoded) {
 		return Result{}, failure("scope_conflict", "scope has another input")
@@ -323,6 +326,9 @@ func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (
 	}
 	if sc.scenario != nil {
 		return Result{}, failure("execution_failed", "previous preparation failed; dispose scope before retry")
+	}
+	if err := r.owned(input.ScopeID); err != nil {
+		return Result{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, failure("timeout", err.Error())
@@ -362,7 +368,8 @@ func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (
 	}
 	if err == nil {
 		r.markPrepared(input.ScopeID)
-		result, err = s.prepare(WithCorrelation(ctx, Correlation{ScopeID: input.ScopeID}), input)
+		callbackCtx := context.WithValue(WithCorrelation(ctx, Correlation{ScopeID: input.ScopeID}), preparingKey{}, input.ScopeID)
+		result, err = s.prepare(callbackCtx, input)
 	}
 	if err == nil {
 		if result.Data == nil {
@@ -384,7 +391,12 @@ func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		cleanupErr := r.compensate(cleanupCtx, input.ScopeID, s)
+		// Close admission first, as Dispose does, so no work is registered
+		// after the stop pass; the scope stays failed until disposed.
+		cleanupErr := r.close(cleanupCtx, sc)
+		if cleanupErr == nil {
+			cleanupErr = r.compensate(cleanupCtx, input.ScopeID, sc)
+		}
 		if priorTime != nil {
 			r.mu.Lock()
 			if r.exclusiveScope == input.ScopeID {
@@ -418,14 +430,19 @@ func (r *Registry) prepare(ctx context.Context, input Input, plan *replayPlan) (
 }
 
 // compensate stops the scope's running work, then removes its controls and
-// records. Destructive cleanup is skipped while work may still write.
-func (r *Registry) compensate(ctx context.Context, id string, s *scenario) error {
+// records. Destructive cleanup is skipped while work may still write. Scenario
+// cleanup runs at most once successfully per scope.
+func (r *Registry) compensate(ctx context.Context, id string, sc *scope) error {
 	if err := r.stopResources(ctx, id); err != nil {
 		return err
 	}
 	cleanupErr := r.forgetResources(ctx, id)
-	if s != nil {
-		cleanupErr = errors.Join(cleanupErr, s.cleanup(ctx, id))
+	if sc.scenario != nil && !sc.cleaned {
+		if err := sc.scenario.cleanup(ctx, id); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		} else {
+			sc.cleaned = true
+		}
 	}
 	return cleanupErr
 }
@@ -449,7 +466,7 @@ func (r *Registry) Dispose(ctx context.Context, id string) error {
 	if err := r.close(ctx, sc); err != nil {
 		return err
 	}
-	if cleanupErr := r.compensate(ctx, id, sc.scenario); cleanupErr != nil {
+	if cleanupErr := r.compensate(ctx, id, sc); cleanupErr != nil {
 		return &Error{Code: "cleanup_failed", Message: cleanupErr.Error(), Operation: "dispose", EnvironmentID: r.environmentID, cause: cleanupErr}
 	}
 	sc.disposed.Store(true)

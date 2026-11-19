@@ -67,6 +67,20 @@ type execution struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
 	status  ExecutionStatus
+	// closed is closed when the scope stops; waits observing it end.
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func (e *execution) close() { e.closeOnce.Do(func() { close(e.closed) }) }
+
+func (e *execution) isClosed() bool {
+	select {
+	case <-e.closed:
+		return true
+	default:
+		return false
+	}
 }
 
 // Jobs runs consumer-registered jobs inside owned scopes and waits for
@@ -176,7 +190,7 @@ func (j *Jobs) Run(ctx context.Context, scopeID, job string, refs map[string]Ent
 	}
 	request := JobRequest{ExecutionID: uuid.NewString(), ScopeID: scopeID, Job: job, Refs: copyRefs(refs)}
 	runCtx, cancel := context.WithCancel(WithCorrelation(context.Background(), Correlation{ScopeID: scopeID, ExecutionID: request.ExecutionID}))
-	e := &execution{request: request, cancel: cancel, done: make(chan struct{}), status: ExecutionStatus{ExecutionID: request.ExecutionID, ScopeID: scopeID, Job: job, State: "running", StartedAt: time.Now().UTC()}}
+	e := &execution{request: request, cancel: cancel, done: make(chan struct{}), closed: make(chan struct{}), status: ExecutionStatus{ExecutionID: request.ExecutionID, ScopeID: scopeID, Job: job, State: "running", StartedAt: time.Now().UTC()}}
 	j.executions[request.ExecutionID] = e
 	handlerRequest := request
 	handlerRequest.Refs = copyRefs(request.Refs)
@@ -258,6 +272,17 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 	started := time.Now()
 	waitCtx, cancelWait := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 	defer cancelWait()
+	// Conditions also stop when the scope closes, so a check paused on a
+	// record that cleanup is removing cannot report it as reached.
+	checkCtx, cancelCheck := context.WithCancel(waitCtx)
+	defer cancelCheck()
+	go func() {
+		select {
+		case <-e.closed:
+			cancelCheck()
+		case <-checkCtx.Done():
+		}
+	}()
 	ticker := time.NewTicker(poll)
 	defer ticker.Stop()
 	result := WaitResult{Condition: condition}
@@ -266,6 +291,9 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 		result.ElapsedMs = time.Since(started).Milliseconds()
 		result.Execution = status
 		switch outcome {
+		case "closed":
+			result.Outcome = "failed"
+			return result, &Error{Code: "scope_conflict", Message: "scope disposed while waiting for " + condition, Details: result}
 		case "failed":
 			return result, &Error{Code: "execution_failed", Message: "condition " + condition + " failed", Details: result}
 		case "timeout":
@@ -282,6 +310,9 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 		default:
 		}
 		status := j.status(e)
+		if e.isClosed() {
+			return finish("closed", status)
+		}
 		if status.State == "failed" || status.State == "canceled" {
 			return finish("failed", status)
 		}
@@ -295,11 +326,13 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 			request.Refs = copyRefs(e.request.Refs)
 			// The condition gets the wait deadline, so context-aware checks
 			// stop when timeoutMs expires.
-			reached, err := check(WithCorrelation(waitCtx, Correlation{ScopeID: scopeID, ExecutionID: executionID}), request)
+			reached, err := check(WithCorrelation(checkCtx, Correlation{ScopeID: scopeID, ExecutionID: executionID}), request)
 			// Decide on one snapshot taken after the check: a job that failed
-			// meanwhile is never reported as reached.
+			// meanwhile, or a scope that closed, is never reported as reached.
 			status = j.status(e)
 			switch {
+			case e.isClosed():
+				return finish("closed", status)
 			case ctx.Err() != nil:
 				return finish("canceled", status)
 			case waitCtx.Err() != nil:
@@ -322,7 +355,13 @@ func (j *Jobs) Wait(ctx context.Context, scopeID, executionID, condition string,
 		case <-ctx.Done():
 			return finish("canceled", j.status(e))
 		case <-waitCtx.Done():
+			// Both may be ready at once: caller cancellation wins over timeout.
+			if ctx.Err() != nil {
+				return finish("canceled", j.status(e))
+			}
 			return finish("timeout", j.status(e))
+		case <-e.closed:
+			return finish("closed", j.status(e))
 		case <-done:
 		case <-ticker.C:
 		}
@@ -344,6 +383,7 @@ func (j *Jobs) StopScope(ctx context.Context, scopeID string) error {
 	for _, e := range j.executions {
 		if e.request.ScopeID == scopeID {
 			owned = append(owned, e)
+			e.close()
 			e.cancel()
 		}
 	}

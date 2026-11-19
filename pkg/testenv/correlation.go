@@ -44,3 +44,13 @@ func CorrelationFrom(ctx context.Context) (Correlation, bool) {
 func QueueNamespace(prefix, scopeID string) string {
 	return prefix + ":" + strings.NewReplacer("%", "%25", ":", "%3A", "/", "%2F").Replace(scopeID)
 }
+
+type preparingKey struct{}
+
+// PreparingScenario reports whether ctx belongs to a scenario callback that is
+// preparing scopeID. Resources use it to tell state the callback recreates on
+// replay from state submitted by the test.
+func PreparingScenario(ctx context.Context) (string, bool) {
+	scopeID, ok := ctx.Value(preparingKey{}).(string)
+	return scopeID, ok
+}
