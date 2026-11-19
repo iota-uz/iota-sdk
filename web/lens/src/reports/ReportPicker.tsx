@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch, untrack, type JSX } from 'solid-js'
-import type { DashboardDocument } from '../contract/types'
+import type { DashboardDocument, EffectiveContext } from '../contract/types'
 import { LensDashboard } from '../LensDashboard'
 import { CaretDown, CaretRight, Sparkle } from '../icons'
 import { LensMessagesProvider, useTranslate, type LensThemeMode } from '../runtime'
@@ -23,6 +23,11 @@ export interface ReportPickerProps {
    * catalog's count, which describes the saved composition.
    */
   placed?: (reportId: string) => number
+  /**
+   * The slice the caller's editor shows (period, filters). The picker does not
+   * read or change it; it travels back to onConfirm unchanged.
+   */
+  context?: EffectiveContext
   restoreFocus?: HTMLElement
   theme?: LensThemeMode
   /** Runtime messages (document.RuntimeI18nKeys) when rendered outside a document. */
@@ -131,7 +136,7 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
 
   const confirm = async () => {
     if (confirming() || selection.count() === 0) return
-    const confirmation = selection.confirmation(props.target.id)
+    const confirmation = selection.confirmation(props.target.id, props.context)
     setConfirming(true)
     setConfirmFailed(false)
     try {
@@ -166,10 +171,20 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
     return entries().filter((entry) => !shown.has(entry.id))
   }
 
+  // The list stays mounted (hidden) under a preview, but its scroll container is the dialog body the
+  // preview replaces; remember where the reader was so Back lands on the same rows.
+  let listScroll = 0
+  const scroller = () => searchRef?.closest<HTMLElement>('.lens-report-dialog-body') ?? undefined
+  const openPreview = (entry: CatalogEntry) => {
+    listScroll = scroller()?.scrollTop ?? 0
+    setPreviewing(entry)
+  }
   const closePreview = () => {
     const entry = previewing()
     setPreviewing(undefined)
-    if (entry) requestAnimationFrame(() => previewButtons.get(entry.id)?.focus())
+    const body = scroller()
+    if (body) body.scrollTop = listScroll
+    if (entry) requestAnimationFrame(() => previewButtons.get(entry.id)?.focus({ preventScroll: true }))
   }
 
   const onTabKeyDown = (event: KeyboardEvent, current: CatalogScope) => {
@@ -208,7 +223,7 @@ function PickerDialog(props: ReportPickerProps): JSX.Element {
       created={created().has(entry.id)}
       entry={entry}
       onAddAnother={() => selection.addAnother(entry)}
-      onPreview={props.host.preview ? () => setPreviewing(entry) : undefined}
+      onPreview={props.host.preview ? () => openPreview(entry) : undefined}
       onToggle={() => selection.toggle(entry)}
       ownership={ownership(entry)}
       placed={placedCount(entry)}

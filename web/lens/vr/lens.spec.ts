@@ -1377,6 +1377,18 @@ test('report picker adds to the draft only on confirmation and returns the reade
   const search = dialog.getByRole('searchbox', { name: 'Search reports' })
   await expect(search).toBeFocused()
 
+  // Preview from deep in the 50-report list: Back must land on the same rows, not the top.
+  const body = dialog.locator('.lens-report-dialog-body')
+  const deep = dialog.locator('[data-report-id="report-18"]')
+  await deep.scrollIntoViewIfNeeded()
+  const listScroll = await body.evaluate((element) => element.scrollTop)
+  expect(listScroll).toBeGreaterThan(0)
+  await deep.getByRole('button', { name: /^Preview / }).click()
+  await expect(dialog.getByRole('button', { name: 'Back to reports' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Back to reports' }).click()
+  await expect(deep.getByRole('button', { name: /^Preview / })).toBeFocused()
+  expect(Math.abs(await body.evaluate((element) => element.scrollTop) - listScroll)).toBeLessThanOrEqual(1)
+
   await search.fill('Large')
   const large = dialog.locator('[data-report-id="report-03"]')
   await expect(dialog.locator('[data-report-id]')).toHaveCount(1)
