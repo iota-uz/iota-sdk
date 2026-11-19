@@ -67,6 +67,10 @@ type Node struct {
 	// SourceData, when set, declares this level's audit table: the source rows
 	// behind the level's aggregate, rendered behind a collapsed disclosure.
 	SourceData *SourceData `json:"sourceData,omitempty"`
+	// Dimension names the report context dimension a selected point of this
+	// node constrains, so a saved investigation can carry the drill path as
+	// constraints. Empty keeps the path unsaveable.
+	Dimension string `json:"dimension,omitempty"`
 }
 
 // SourceData declares a level's audit table. Panel must be a table spec; its

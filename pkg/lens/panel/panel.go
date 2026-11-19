@@ -707,9 +707,19 @@ type HostRenderer struct {
 	Options json.RawMessage
 }
 
+// Ratio declares a panel value as numerator/denominator computed by the host.
+type Ratio struct {
+	NumeratorField   string
+	NumeratorLabel   string
+	DenominatorField string
+	DenominatorLabel string
+	Description      string
+}
+
 type Spec struct {
 	FilterContext *filtercontext.EffectiveContext
 	Renderer      *HostRenderer
+	Ratio         *Ratio
 	// Unavailable marks a grid container whose content cannot be shown; the
 	// value is the document wire reason (document.GroupUnavailable).
 	Unavailable string
@@ -1245,6 +1255,13 @@ func (b *Builder) Renderer(name string, options json.RawMessage) *Builder {
 	b.spec.Renderer = &HostRenderer{Name: name, Options: bytes.Clone(options)}
 	return b
 }
+// Ratio declares the value a host-computed ratio of two frame fields. The
+// runtime shows both parts with the description instead of summing shares.
+func (b *Builder) Ratio(ratio Ratio) *Builder {
+	b.spec.Ratio = &ratio
+	return b
+}
+
 func (b *Builder) ComparisonUnsupported() *Builder {
 	b.spec.ComparisonUnsupported = true
 	return b

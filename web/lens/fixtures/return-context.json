@@ -1,0 +1,58 @@
+{
+  "param": "lens-return",
+  "hostParam": "lens-host",
+  "contexts": [
+    {
+      "context": {
+        "v": 1,
+        "href": "/finance/dashboard?period=2026-06&path=sales%2Fregion&path=sales%2Fregion%2Ftashkent",
+        "title": "Продажи",
+        "trail": [
+          "Регион",
+          "Ташкент",
+          "Филиал «Чиланзар»"
+        ]
+      },
+      "token": "eyJ2IjoxLCJocmVmIjoiL2ZpbmFuY2UvZGFzaGJvYXJkP3BlcmlvZD0yMDI2LTA2JnBhdGg9c2FsZXMlMkZyZWdpb24mcGF0aD1zYWxlcyUyRnJlZ2lvbiUyRnRhc2hrZW50IiwidGl0bGUiOiLQn9GA0L7QtNCw0LbQuCIsInRyYWlsIjpbItCg0LXQs9C40L7QvSIsItCi0LDRiNC60LXQvdGCIiwi0KTQuNC70LjQsNC7IMKr0KfQuNC70LDQvdC30LDRgMK7Il19"
+    },
+    {
+      "context": {
+        "v": 1,
+        "href": "/reports/7?path=a&perspective=a%2Ftrend",
+        "title": "Revenue & margin <draft>",
+        "trail": [
+          "Region"
+        ],
+        "host": "{\"sort\":\"-amount\",\"page\":3,\"scroll\":480}"
+      },
+      "token": "eyJ2IjoxLCJocmVmIjoiL3JlcG9ydHMvNz9wYXRoPWEmcGVyc3BlY3RpdmU9YSUyRnRyZW5kIiwidGl0bGUiOiJSZXZlbnVlICYgbWFyZ2luIDxkcmFmdD4iLCJ0cmFpbCI6WyJSZWdpb24iXSwiaG9zdCI6IntcInNvcnRcIjpcIi1hbW91bnRcIixcInBhZ2VcIjozLFwic2Nyb2xsXCI6NDgwfSJ9"
+    },
+    {
+      "context": {
+        "v": 1,
+        "href": "/dashboard",
+        "title": "Overview"
+      },
+      "token": "eyJ2IjoxLCJocmVmIjoiL2Rhc2hib2FyZCIsInRpdGxlIjoiT3ZlcnZpZXcifQ"
+    }
+  ],
+  "hostStates": [
+    {
+      "state": {
+        "v": 1,
+        "leaf": "/finance/records",
+        "state": "{\"sort\":\"-amount\",\"page\":3,\"scroll\":480}"
+      },
+      "token": "eyJ2IjoxLCJsZWFmIjoiL2ZpbmFuY2UvcmVjb3JkcyIsInN0YXRlIjoie1wic29ydFwiOlwiLWFtb3VudFwiLFwicGFnZVwiOjMsXCJzY3JvbGxcIjo0ODB9In0"
+    }
+  ],
+  "invalid": [
+    "",
+    "not base64!",
+    "eyJ2IjoyLCJocmVmIjoiL3giLCJ0aXRsZSI6IlQifQ",
+    "eyJ2IjoxLCJocmVmIjoiaHR0cHM6Ly9ldmlsLmV4YW1wbGUveCIsInRpdGxlIjoiVCJ9",
+    "eyJ2IjoxLCJocmVmIjoiLy9ldmlsLmV4YW1wbGUveCIsInRpdGxlIjoiVCJ9",
+    "eyJ2IjoxLCJocmVmIjoiL3giLCJ0aXRsZSI6IiJ9",
+    "eyJ2IjoxLCJocmVmIjoiL3giLCJ0aXRsZSI6IlQiLCJzbmFwc2hvdElkIjoicyJ9"
+  ]
+}

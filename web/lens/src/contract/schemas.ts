@@ -441,6 +441,7 @@ export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   status: z.lazy(() => PanelStatusSchema).optional(),
   source: z.lazy(() => LevelSourceSchema).optional(),
   table: z.lazy(() => LevelTableSchema).optional(),
+  dimension: z.string().optional(),
 }).strict())
 
 export const LevelSourceSchema: z.ZodType<Contract.LevelSource> = z.lazy(() => z.object({
@@ -532,6 +533,7 @@ export const NodeSchema: z.ZodType<Contract.Node> = z.lazy(() => z.object({
   label: z.string(),
   target: z.lazy(() => NodeKeySchema).optional(),
   action: z.lazy(() => ActionSchema).optional(),
+  value: z.string().optional(),
 }).strict())
 
 export const NodeKeySchema: z.ZodType<Contract.NodeKey> = z.string()
@@ -574,6 +576,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   terminal: z.boolean().optional(),
   comparisonUnsupported: z.boolean().optional(),
   renderer: z.lazy(() => PanelRendererSchema).optional(),
+  ratio: z.lazy(() => PanelRatioSchema).optional(),
 }).strict()).superRefine((value, ctx) => {
   const allowed = new Set<string>(PANEL_KIND_CONFIG_FIELDS[value.kind])
   const candidate = value as unknown as Record<string, unknown>
@@ -614,6 +617,12 @@ export const PanelCalculationSchema: z.ZodType<Contract.PanelCalculation> = z.ob
 }).strict()
 
 export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "boxplot", "cascade", "coverage", "donut", "gauge", "hbar", "heatmap", "histogram", "line", "map", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "radial", "stat", "table"])
+
+export const PanelRatioSchema: z.ZodType<Contract.PanelRatio> = z.lazy(() => z.object({
+  numerator: z.lazy(() => RatioPartSchema),
+  denominator: z.lazy(() => RatioPartSchema),
+  description: z.string().optional(),
+}).strict())
 
 export const PanelRendererSchema: z.ZodType<Contract.PanelRenderer> = z.lazy(() => z.object({
   name: z.string(),
@@ -766,6 +775,11 @@ export const RadialRingSchema: z.ZodType<Contract.RadialRing> = z.object({
   label: z.string(),
   order: z.number().int().optional(),
   total: z.number(),
+}).strict()
+
+export const RatioPartSchema: z.ZodType<Contract.RatioPart> = z.object({
+  field: z.string(),
+  label: z.string(),
 }).strict()
 
 export const SegmentedFilterSchema: z.ZodType<Contract.SegmentedFilter> = z.lazy(() => z.object({

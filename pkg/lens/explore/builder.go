@@ -65,6 +65,14 @@ func (n Node) WithView(kind panel.Kind) Node {
 	return n
 }
 
+// WithDimension declares the report context dimension a selected point of
+// this level constrains; the edge point keys (or dynamic child keys) are its
+// values.
+func (n Node) WithDimension(dimension string) Node {
+	n.Dimension = dimension
+	return n
+}
+
 // WithPresentation carries opt-in rendering hints onto this level.
 func (n Node) WithPresentation(hints panel.PresentationHints) Node {
 	n.Presentation = &hints

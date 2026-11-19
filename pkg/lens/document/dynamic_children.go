@@ -68,7 +68,7 @@ func ResolveDynamicChildren(frame *Frame, level Level) error {
 		if !ok || strings.TrimSpace(label) == "" {
 			return fmt.Errorf("dynamic child row %d label must be a nonblank string", rowIndex)
 		}
-		child := Node{Key: nodeKey, Path: appendPath(level.Path, nodeKey), Label: label}
+		child := Node{Key: nodeKey, Path: appendPath(level.Path, nodeKey), Label: label, Value: key}
 		if declaration.Target != nil {
 			targetValue, readErr := read(*declaration.Target, row)
 			if readErr != nil {

@@ -309,6 +309,7 @@ func appendPanelTree(
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability), Deferred: deferred,
 		Terminal: spec.Terminal, ComparisonUnsupported: spec.ComparisonUnsupported,
 		Renderer: buildRenderer(spec.Renderer),
+		Ratio:    buildRatio(spec.Ratio),
 	})
 	span := spec.Span
 	if span == 0 {
@@ -1409,7 +1410,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 			for _, nodeSpec := range view.Nodes {
 				nodeKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key)
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
-				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
+				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}, Dimension: nodeSpec.Dimension}
 				if nodeSpec.View != "" {
 					viewKind, err := PanelKindOf(nodeSpec.View)
 					if err != nil {
@@ -1426,7 +1427,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				for _, edge := range nodeSpec.Edges {
 					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
 					childPath := appendPath(nodePath, pointKey)
-					child := Node{Key: pointKey, Path: childPath, Label: ""}
+					child := Node{Key: pointKey, Path: childPath, Label: "", Value: edge.PointKey}
 					if edge.ToNode != "" {
 						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
 					}
@@ -1583,6 +1584,17 @@ func newSnapshotID() (string, error) {
 		return "", fmt.Errorf("generate snapshot id: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(raw[:]), nil
+}
+
+func buildRatio(ratio *panel.Ratio) *PanelRatio {
+	if ratio == nil {
+		return nil
+	}
+	return &PanelRatio{
+		Numerator:   RatioPart{Field: ratio.NumeratorField, Label: strings.TrimSpace(ratio.NumeratorLabel)},
+		Denominator: RatioPart{Field: ratio.DenominatorField, Label: strings.TrimSpace(ratio.DenominatorLabel)},
+		Description: strings.TrimSpace(ratio.Description),
+	}
 }
 
 func buildRenderer(renderer *panel.HostRenderer) *PanelRenderer {
