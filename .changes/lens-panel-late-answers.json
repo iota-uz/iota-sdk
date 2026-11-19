@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Lens panels keep the latest slice: a late answer to an earlier table search, sort or page, or to a panel batch superseded by one of them, no longer replaces (or marks as failed) the result the reader asked for last."
+}

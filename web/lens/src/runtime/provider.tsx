@@ -951,6 +951,19 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   // eslint-disable-next-line prefer-const -- reassigned after the closures below are defined
   let sortLoader: (panelId: string, sort: TableSort) => Promise<void>
   const tableRequestState = new Map<string, { search?: string; sort?: TableSort }>()
+  /**
+   * The latest request that owns each panel's frame. Panel answers can arrive
+   * in any order: a sort or search typed after a slow one, or a page turned
+   * while a recompute is still in flight. Each writer claims the panel when it
+   * starts and writes only while it still holds the claim, so a late answer
+   * for a previous slice never replaces the one the reader asked for last.
+   */
+  const frameClaims = new Map<string, number>()
+  const claimFrame = (panelId: string): (() => boolean) => {
+    const claim = (frameClaims.get(panelId) ?? 0) + 1
+    frameClaims.set(panelId, claim)
+    return () => frameClaims.get(panelId) === claim
+  }
   let replaceNextURL = true
   let drawerOpener: HTMLElement | undefined
   // The drawer portals to body and stacks above an expanded panel, so it carries
@@ -1213,7 +1226,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     // and a second trigger wave here would relaunch every deferred panel.
     const client = untrack(panelClient)
     if (!client) return
-    const pending: Array<{ panel: Panel; attempt: number; force: boolean; key: string; previous?: Frame; retry: () => void }> = []
+    const pending: Array<{ panel: Panel; attempt: number; force: boolean; key: string; previous?: Frame; retry: () => void; current: () => boolean }> = []
     for (const panel of source.panels) {
       const attempt = attempts[panel.id] ?? 0
       const force = panelForces.has(panel.id)
@@ -1224,6 +1237,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       panelForces.delete(panel.id)
       const previous = frames.get(panel.id)?.data
       const retry = () => schedulePanel(panel.id)
+      const current = claimFrame(panel.id)
       frames.set(panel.id, {
         data: previous,
         isStale: Boolean(previous),
@@ -1232,7 +1246,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         retry,
         calculation: frames.get(panel.id)?.calculation,
       })
-      pending.push({ panel, attempt, force, key, previous, retry })
+      pending.push({ panel, attempt, force, key, previous, retry, current })
     }
     if (pending.length === 0) return
     const pendingByID = new Map(pending.map((item) => [item.panel.id, item]))
@@ -1241,8 +1255,21 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       const item = pendingByID.get(panelId)
       if (!item) return
       received.add(panelId)
-      const { panel, attempt, key, previous, retry } = item
+      const { panel, attempt, key, previous, retry, current } = item
       if (launchedPanelAttempts.get(key) !== attempt) return
+      const loaded = response.error || !response.frames
+        ? undefined
+        : response.frames[panel.frame] ?? Object.values(response.frames)[0]
+      // The document's own frame is the panel's root data (a drill returns to
+      // it), so a successful answer hydrates it even when a newer search, sort
+      // or page has taken over what the panel shows.
+      if (loaded) {
+        setResolvedDocument((document) => {
+          if (document.snapshotId !== source.snapshotId || document.frames[panel.frame] === loaded) return document
+          return { ...document, frames: { ...document.frames, [panel.frame]: loaded } }
+        })
+      }
+      if (!current()) return
       if (response.error || !response.frames) {
         // A classified failure travels as a QueryError so the panel can say
         // what happened. A plain Error here would flatten every cause back into
@@ -1257,7 +1284,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         })
         return
       }
-      const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
       if (!loaded) {
         frames.set(panel.id, { data: previous, isStale: Boolean(previous), isLoading: false, error: new Error(`panel ${panel.id} response has no frame`), retry })
         return
@@ -1266,10 +1292,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry,
         calculation: response.calculation,
         summary: response.summary,
-      })
-      setResolvedDocument((current) => {
-        if (current.snapshotId !== source.snapshotId || current.frames[panel.frame] === loaded) return current
-        return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
       })
     }
     void client.loadBatch(pending.map(({ panel, force }) => ({
@@ -1284,9 +1306,9 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       // region map, which takes ~10s uncached while its siblings return in
       // under one, so it alone showed an error beside nine working panels.
       if (PanelClient.isAbort(cause)) return
-      for (const { panel, attempt, key, previous, retry } of pending) {
+      for (const { panel, attempt, key, previous, retry, current } of pending) {
         if (received.has(panel.id)) continue
-        if (launchedPanelAttempts.get(key) !== attempt) continue
+        if (launchedPanelAttempts.get(key) !== attempt || !current()) continue
         if (cause instanceof SnapshotGoneError) {
           void refreshDocument().catch(() => undefined)
           break
@@ -1459,15 +1481,18 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       const previousState = frames.get(panelId)
       const previous = previousState?.data ?? source.frames[sourcePanel.frame]
       const retry = () => { void pageLoader(panelId, page, true) }
+      const current = claimFrame(panelId)
       frames.set(panelId, { ...previousState, data: previous, isStale: Boolean(previous), isLoading: true, error: null, retry })
       try {
         const response = await client.load({
           snapshotId: source.snapshotId, panelId, ...tableRequestState.get(panelId), page,
         })
+        if (!current()) return
         const loaded = response.frames[sourcePanel.frame] ?? Object.values(response.frames)[0]
         if (!loaded) throw new Error(`panel ${panelId} response has no frame`)
         frames.set(panelId, { data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry, calculation: response.calculation, summary: response.summary })
       } catch (cause: unknown) {
+        if (!current()) return
         frames.set(panelId, { ...previousState, data: previous, isStale: Boolean(previous), isLoading: false, error: cause instanceof Error ? cause : new Error('panel page failed'), retry })
       }
       return
@@ -1542,12 +1567,14 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const requestState = { ...tableRequestState.get(panelId), search: search || undefined }
     tableRequestState.set(panelId, requestState)
     const retry = () => { void searchLoader(panelId, search) }
+    const current = claimFrame(panelId)
     frames.set(panelId, {
       data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry,
       calculation: previousState?.calculation, summary: previousState?.summary,
     })
     try {
       const response = await client.load({ snapshotId: props.document.snapshotId, panelId, ...requestState })
+      if (!current()) return
       const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
       if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
       frames.set(panelId, {
@@ -1555,6 +1582,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         calculation: response.calculation, summary: response.summary,
       })
     } catch (cause: unknown) {
+      if (!current()) return
       if (cause instanceof SnapshotGoneError) {
         await refreshDocument().catch(() => undefined)
         return
@@ -1578,13 +1606,16 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     const previousState = frames.get(panelId)
     const previous = previousState?.data ?? props.document.frames[panel.frame]
     const retry = () => { void sortLoader(panelId, sort) }
+    const current = claimFrame(panelId)
     frames.set(panelId, { data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry, summary: previousState?.summary })
     try {
       const response = await client.load({ snapshotId: props.document.snapshotId, panelId, ...requestState })
+      if (!current()) return
       const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
       if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
       frames.set(panelId, { data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry, calculation: response.calculation, summary: response.summary })
     } catch (cause: unknown) {
+      if (!current()) return
       frames.set(panelId, { data: previous, isStale: Boolean(previous), isLoading: false, error: cause instanceof Error ? cause : new Error('panel sort failed'), retry, summary: previousState?.summary })
     }
   }
