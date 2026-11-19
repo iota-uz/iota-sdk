@@ -134,7 +134,8 @@
                 }
               ],
               "payload": {}
-            }
+            },
+            "value": "leaf"
           }
         ],
         "perspectives": [
@@ -162,7 +163,8 @@
               "metric/focus/composition/root/a"
             ],
             "label": "",
-            "target": "metric/focus/composition/detail"
+            "target": "metric/focus/composition/detail",
+            "value": "a"
           }
         ],
         "perspectives": [

@@ -167,6 +167,20 @@ const storyIds = [
   'explore--full-drill-flow--three-levels',
   'explore--header-too-narrow-for-a-level-name',
   'explore--keyboard-walkthrough',
+  'investigation--deep-path--level-card--light',
+  'investigation--deep-path--level-card--dark',
+  'investigation--save-form--light',
+  'investigation--save-form--dark',
+  'investigation--save-failed--light',
+  'investigation--save-failed--dark',
+  'investigation--published-adding-failed--light',
+  'investigation--published-adding-failed--dark',
+  'investigation--save-unsupported--light',
+  'investigation--save-unsupported--dark',
+  'investigation--expired-snapshot--light',
+  'investigation--expired-snapshot--dark',
+  'investigation--dashboard-to-records-and-back',
+  'investigation--save-form--narrow',
   'explore--narrow-card-deepest-path--dark',
   'explore--narrow-card-deepest-path--light',
   'explore--perspective-switching-on-a-segment',
@@ -291,6 +305,21 @@ const storyIds = [
 ] as const
 
 const staticStories = [
+  // One horizontal-bar canvas per board; the level card and the save drawer open
+  // through the story's own clicks and are awaited below before the capture.
+  ['investigation--deep-path--level-card--light', 1, 40],
+  ['investigation--deep-path--level-card--dark', 1, 40],
+  ['investigation--save-form--light', 1, 40],
+  ['investigation--save-form--dark', 1, 40],
+  ['investigation--save-failed--light', 1, 40],
+  ['investigation--save-failed--dark', 1, 40],
+  ['investigation--published-adding-failed--light', 1, 40],
+  ['investigation--published-adding-failed--dark', 1, 40],
+  ['investigation--save-unsupported--light', 1, 40],
+  ['investigation--save-unsupported--dark', 1, 40],
+  ['investigation--expired-snapshot--light', 0, 40],
+  ['investigation--expired-snapshot--dark', 0, 40],
+  ['investigation--dashboard-to-records-and-back', 1, 40],
   ['scoped-filters--light', 0, 0],
   ['scoped-filters--dark', 0, 0],
   ['scoped-filters--conflict-light', 0, 0],
@@ -700,6 +729,8 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
     ...keyframeCovered,
     ...measuredStories,
     'parity--metric-group-responsive',
+    // Captured at 390px by the save-form reach test.
+    'investigation--save-form--narrow',
   ])
 
   expect(storyIds.filter((storyId) => !covered.has(storyId))).toEqual([])
@@ -741,6 +772,7 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
       await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
     }
+    if (storyId.startsWith('investigation--')) await investigationSettled(page, storyId)
     await screenshot(page, storyId, { maxDiffPixels })
   })
 }
@@ -1752,5 +1784,166 @@ for (const width of [1440, 1024, 390]) {
     })
     expect(problems).toEqual([])
     await screenshot(page, `report-definition-editor--preview-unsaved-light-${width}`, { maxDiffPixels: 16 })
+  })
+}
+
+/** The state an investigation story opens on is reached through the story's own clicks. */
+async function investigationSettled(page: Page, storyId: string): Promise<void> {
+  if (storyId.includes('level-card') || storyId.includes('unsupported')) {
+    await expect(page.getByTestId('drill-context')).toBeVisible()
+    if (storyId.includes('unsupported')) await expect(page.getByTestId('drill-save-unsupported')).toBeVisible()
+    else await expect(page.getByTestId('drill-save')).toBeVisible()
+  }
+  if (storyId.includes('save-form')) await expect(page.getByTestId('investigation-name')).toBeFocused()
+  if (storyId.includes('save-failed')) await expect(page.getByTestId('save-investigation').getByRole('alert')).toBeVisible()
+  if (storyId.includes('adding-failed')) await expect(page.getByTestId('investigation-add-failed')).toBeVisible()
+  if (storyId.includes('expired')) await expect(page.getByTestId('snapshot-expired')).toBeVisible()
+  if (storyId.includes('records-and-back')) await expect(page.locator('.lens-trail-current')).toHaveText('Regions')
+}
+
+function hostLog(page: Page) {
+  return page.getByTestId('host-log').locator('li')
+}
+
+// False green: a breadcrumb that only looks right, or a copied URL, proves nothing.
+// This walks dashboard → region → branch records → Back and checks that the
+// levels, the filters and the origin come back, and that the host's own record
+// state (sort and page) is handed back to the same records page.
+test('investigation: dashboard → group → records → Back restores the exploration and the host state', async ({ page }) => {
+  await openStory(page, 'investigation--dashboard-to-records-and-back', 1)
+  await page.locator('.lens-trail-current').click()
+  await page.locator('.lens-drill-overlay').getByRole('button', { name: /North/ }).click()
+  await expect(page.locator('.lens-trail-current')).toHaveText('North')
+  const lensURL = page.url()
+  await page.locator('.lens-trail-current').click()
+  const record = page.locator('.lens-drill-overlay a.lens-drill-row', { hasText: 'Chilanzar' })
+  await expect(record).toHaveAttribute('href', /lens-return=/)
+  await record.click()
+
+  const records = page.getByTestId('host-records')
+  await expect(records).toBeVisible()
+  await expect(page.getByTestId('host-back')).toContainText('Back to Finance overview › Margin by region › By region › Regions › North')
+  await expect(page.getByTestId('host-back')).toBeFocused()
+  await page.getByTestId('host-sort').click()
+  await page.getByTestId('host-next').click()
+  await expect(page.getByTestId('host-page')).toHaveText('Page 2 of 3')
+  await page.getByTestId('host-back').click()
+
+  // A fresh mount reads everything from the URL: the same level, perspective and filters.
+  await expect(page.locator('.lens-trail-current')).toHaveText('North')
+  const back = new URL(page.url())
+  const before = new URL(lensURL)
+  expect(back.searchParams.getAll('path')).toEqual(before.searchParams.getAll('path'))
+  expect(back.searchParams.get('perspective')).toBe(before.searchParams.get('perspective'))
+  expect(back.searchParams.get('lens-host')).toBeTruthy()
+
+  await page.locator('.lens-trail-current').click()
+  await page.locator('.lens-drill-overlay a.lens-drill-row', { hasText: 'Chilanzar' }).click()
+  await expect(page.getByTestId('host-page')).toHaveText('Page 2 of 3')
+  await expect(page.getByTestId('host-sort')).toHaveText('Amount ↑')
+})
+
+test('investigation: a deep link opens the level in a new tab without the previous tab', async ({ page, context }) => {
+  await openStory(page, 'investigation--dashboard-to-records-and-back', 1)
+  await page.locator('.lens-trail-current').click()
+  await page.locator('.lens-drill-overlay').getByRole('button', { name: /South/ }).click()
+  await expect(page.locator('.lens-trail-current')).toHaveText('South')
+  const tab = await context.newPage()
+  await tab.goto(page.url())
+  await expect(tab.locator('.lens-trail-current')).toHaveText('South')
+  await expect(tab.locator('canvas')).toHaveCount(1)
+  await tab.locator('.lens-trail-current').click()
+  await expect(tab.getByTestId('drill-context')).toContainText('Region: South')
+  await tab.close()
+})
+
+test('investigation: an expired snapshot offers recalculation and states the update', async ({ page }) => {
+  await openStory(page, 'investigation--expired-snapshot--light', 0)
+  const banner = page.getByTestId('snapshot-expired')
+  await expect(banner).toBeVisible()
+  // The parent level's bars are not shown under the North heading.
+  await expect(page.locator('.lens-explore-level')).toContainText('These figures expired')
+  await banner.getByRole('button', { name: 'Recalculate' }).click()
+  await expect(banner).toHaveCount(0)
+  await expect(page.locator('.lens-runtime-notice[role="status"]')).toContainText(/Figures recalculated at/)
+  await expect(page.locator('.lens-trail-current')).toHaveText('North')
+  await expect(page.locator('canvas')).toHaveCount(1)
+})
+
+test('investigation: the level card is keyboard operable and Escape returns focus to its opener', async ({ page }) => {
+  await openStory(page, 'investigation--deep-path--level-card--light', 1)
+  await expect(page.getByTestId('drill-save')).toBeVisible()
+  await expect(page.getByTestId('drill-context')).toContainText('Region: North')
+  await expect(page.getByTestId('drill-context')).toContainText('Exploration: Regions')
+  await expect(page.getByTestId('drill-context')).toContainText('Segment: Retail')
+  await expect(page.getByTestId('drill-ratio')).toContainText('Profit')
+  // A ratio is never summed into shares of a total.
+  await expect(page.locator('.lens-drill-row-share')).toHaveCount(0)
+  await page.keyboard.press('End')
+  await expect(page.getByTestId('drill-save')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('investigation-name')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('save-investigation')).toHaveCount(0)
+  await expect(page.locator('.lens-trail-current')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.lens-drill-overlay')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.lens-drill-overlay')).toHaveCount(0)
+  await expect(page.locator('.lens-trail-current')).toBeFocused()
+})
+
+test('investigation: a failed save keeps the form, the retry creates one report, and only adding is repeated', async ({ page }) => {
+  await openStory(page, 'investigation--save-failed--light', 1)
+  const dialog = page.getByTestId('save-investigation')
+  await expect(dialog.getByRole('alert')).toContainText('not saved')
+  await expect(page.getByTestId('investigation-name')).toHaveValue('Branch margin — North')
+  await expect(dialog.getByTestId('investigation-result')).toHaveCount(0)
+  await page.getByTestId('investigation-publish-add').click()
+
+  const picker = page.getByTestId('report-destination-picker')
+  await expect(picker).toBeVisible()
+  await picker.getByLabel('Branch network').check()
+  await picker.getByTestId('report-destination-confirm').click()
+  await expect(hostLog(page).filter({ hasText: 'opened draft of Branch network' })).toHaveCount(1)
+  await expect(page.getByTestId('investigation-result')).toContainText('Added to the dashboard draft')
+
+  const saves = await hostLog(page).filter({ hasText: /^save #/ }).allTextContents()
+  expect(saves).toHaveLength(2)
+  // The retry carried the same idempotency id, and one report exists.
+  expect(saves[0]!.split('id=')[1]).toBe(saves[1]!.split('id=')[1])
+  await expect(hostLog(page).filter({ hasText: /^created / })).toHaveCount(1)
+})
+
+test('investigation: after a failed add the published report is kept and only adding is retried', async ({ page }) => {
+  await openStory(page, 'investigation--published-adding-failed--light', 1)
+  await expect(page.getByTestId('investigation-report-link')).toHaveAttribute('href', '/demo/reports/report-1')
+  await expect(page.getByTestId('investigation-result')).not.toContainText('Added to the dashboard draft')
+  await page.getByTestId('investigation-add-retry').click()
+  const picker = page.getByTestId('report-destination-picker')
+  await picker.getByLabel('Finance overview').check()
+  await picker.getByTestId('report-destination-confirm').click()
+  await expect(page.getByTestId('investigation-result')).toContainText('Added to the dashboard draft')
+  await expect(hostLog(page).filter({ hasText: /^save #/ })).toHaveCount(1)
+  await expect(hostLog(page).filter({ hasText: /^place #/ })).toHaveCount(2)
+})
+
+test('investigation: unsupported saving is explained, never offered', async ({ page }) => {
+  await openStory(page, 'investigation--save-unsupported--light', 1)
+  await expect(page.getByTestId('drill-save-unsupported')).toContainText('does not support saving')
+  await expect(page.getByTestId('drill-save')).toHaveCount(0)
+})
+
+for (const width of [1440, 1024, 390] as const) {
+  test(`investigation save form keeps its actions in reach at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await openStory(page, width === 390 ? 'investigation--save-form--narrow' : 'investigation--save-form--light', 1)
+    await expect(page.getByTestId('investigation-name')).toBeFocused()
+    for (const action of ['investigation-save-draft', 'investigation-publish', 'investigation-publish-add']) {
+      await expect(page.getByTestId(action)).toBeInViewport()
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
+    if (width === 390) await screenshot(page, 'investigation--save-form--narrow', { maxDiffPixels: 40 })
   })
 }

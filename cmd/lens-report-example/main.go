@@ -30,6 +30,9 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "--card" {
 		return cardExamples()
 	}
+	if len(os.Args) > 1 && os.Args[1] == "--investigation" {
+		return investigationExample()
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--catalog" {
 		return catalogExamples()
 	}

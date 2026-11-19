@@ -474,9 +474,11 @@ export function ChartPanel(props: ChartPanelProps) {
   // the first legend click, which shifted the export/expand icons under the
   // pointer and gave the recomputed figure no baseline to be compared against.
   const keepTotal = () => (frame.data?.presentation ?? panel.presentation)?.keepTotalBadge === true
+  // A declared ratio is not additive: only a total the host computed (the
+  // ratio of the summed parts) may be stated, never the sum of the rows.
   const restingTotal = () => frame.data && (frame.data.rows.length > 0 || keepTotal())
     ? frame.data.total
-      ?? (keepTotal() || active() || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal() : undefined)
+      ?? (!panel.ratio && (keepTotal() || active() || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial') ? frameRowsTotal() : undefined)
       ?? panel.total
     : undefined
   // `null`, not `undefined`: this is the panel's answer, and the header badge

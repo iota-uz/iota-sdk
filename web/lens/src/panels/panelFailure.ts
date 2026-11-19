@@ -59,6 +59,11 @@ export function panelFailureCopy(error: unknown, translate: Translate): PanelFai
   const rawGeneric = translate('panel.error', missingTranslationSentinel)
   const localizedGeneric = rawGeneric === missingTranslationSentinel ? undefined : rawGeneric
   const generic = localizedGeneric ?? genericDefault
+  // The level's snapshot is gone: the board-level notice offers the
+  // recalculation and announces it, so the panel only states why it is empty.
+  if (error && typeof error === 'object' && (error as { name?: unknown }).name === 'SnapshotGoneError') {
+    return { message: translate('panel.error.expired', 'These figures expired. Recalculate the board to see this level.'), alert: false }
+  }
   switch (failureReason(error)) {
     case 'timeout': {
       const raw = translate('panel.error.timeout', missingTranslationSentinel)

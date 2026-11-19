@@ -695,6 +695,24 @@ type Panel struct {
 	// client. Without that registration the runtime shows a compatibility
 	// state rather than drawing the panel as its kind.
 	Renderer *PanelRenderer `json:"renderer,omitempty"`
+	// Ratio declares the panel's value a ratio of two host-computed parts.
+	// The runtime shows the parts and the description beside a selected
+	// value and never sums the ratio into shares of a total.
+	Ratio *PanelRatio `json:"ratio,omitempty"`
+}
+
+// PanelRatio names the frame fields holding a ratio's numerator and
+// denominator, with their display labels and a plain-language description.
+type PanelRatio struct {
+	Numerator   RatioPart `json:"numerator"`
+	Denominator RatioPart `json:"denominator"`
+	Description string    `json:"description,omitempty"`
+}
+
+// RatioPart is one side of a ratio: the frame field and its label.
+type RatioPart struct {
+	Field string `json:"field"`
+	Label string `json:"label"`
 }
 
 // PanelRenderer names a host-registered client renderer and its options.
@@ -1259,6 +1277,11 @@ type Level struct {
 	// Table declares how a View=table level draws its rows: columns, formats and
 	// the row action. Its rows are loaded for the selected path like any level.
 	Table *LevelTable `json:"table,omitempty"`
+	// Dimension names the context dimension a selected child of this level
+	// constrains (the source's own dimension key). Absent means the level's
+	// selections cannot be carried into a saved report; the runtime explains
+	// that instead of offering to save the slice.
+	Dimension string `json:"dimension,omitempty"`
 }
 
 // LevelTable is the table half of a level whose View is table. The columns,
@@ -1294,6 +1317,11 @@ type Node struct {
 	Label  string   `json:"label"`
 	Target NodeKey  `json:"target,omitempty"`
 	Action *Action  `json:"action,omitempty"`
+	// Value is the raw selection the node stands for (the edge's point key or
+	// the dynamic child's key), unqualified and unescaped. With the owning
+	// level's Dimension it is the context constraint that selecting the node
+	// adds to a saved investigation.
+	Value string `json:"value,omitempty"`
 }
 
 type PerspectiveRef struct {

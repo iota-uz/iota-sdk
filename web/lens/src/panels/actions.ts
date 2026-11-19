@@ -1,6 +1,7 @@
 import { createEffect, createMemo, onCleanup, untrack, type Accessor } from 'solid-js'
 import type { Action, Frame, Panel } from '../contract'
 import { drawerKeyFromActionURL, recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
+import { useReturnLink } from '../explore/drillHost'
 import { navigateTo } from '../runtime/navigate'
 import { useDrawer } from '../runtime'
 import { filterActionURL, useFilters } from '../runtime'
@@ -132,16 +133,18 @@ export interface ElementActionTarget {
  */
 export function useElementActionResolver(): (action: Action | undefined, fields?: Readonly<Record<string, unknown>>) => ElementActionTarget | undefined {
   const drawer = useDrawer()
+  const returnLink = useReturnLink()
   return (action, fields = {}) => {
     if (!action) return undefined
     const opensDrawer = action.kind === 'open_drawer'
     if (opensDrawer && !(drawer.depth === 0 || drawer.canOpen)) return undefined
     const location = new URL(globalThis.location.href)
-    const href = resolveActionURL(action, {
+    const resolved = resolveActionURL(action, {
       fields,
       variables: variablesFromLocation(location),
       location,
     })
+    const href = action.kind === 'navigate_to_leaf' ? returnLink(resolved) : resolved
     if (!href) return undefined
     const onClick: ((event: MouseEvent) => void) | undefined = opensDrawer
       ? (event) => {
@@ -215,6 +218,7 @@ export function usePanelNavigation(panel: Panel | Accessor<Panel>): PanelNavigat
   const resolvedPanel = of(panel)
   const candidate = createMemo(() => panelNavigateAction(resolvedPanel()))
   const activation = useActionActivation(candidate)
+  const returnLink = useReturnLink()
   const action = createMemo<Action | undefined>(() => activation.available() ? candidate() : undefined)
 
   const urlForRow = (frame: Frame | undefined, row: Array<unknown> | undefined) => {
@@ -224,11 +228,12 @@ export function usePanelNavigation(panel: Panel | Accessor<Panel>): PanelNavigat
     if ((current.kind === 'cross_filter' || current.kind === 'cube_drill') && current.filter) {
       return filterActionURL(current, frame && row ? recordForRow(frame, row) : {}, location)?.href
     }
-    return resolveActionURL(current, {
+    const resolved = resolveActionURL(current, {
       fields: frame && row ? recordForRow(frame, row) : {},
       variables: variablesFromLocation(location),
       location,
     })
+    return current.kind === 'navigate_to_leaf' ? returnLink(resolved) : resolved
   }
 
   const cardURL = (frame: Frame | undefined) => {
