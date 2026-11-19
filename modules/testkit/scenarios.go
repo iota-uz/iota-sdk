@@ -62,17 +62,18 @@ func (c *scenarioComponent) Build(builder *composition.Builder) error {
 type scenarioController struct{ handler http.Handler }
 
 func (c *scenarioController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("testkit.scenarios", 0,
-		application.Route(http.MethodGet, "/__test__/scenarios", application.Public()),
-		application.Route(http.MethodPost, "/__test__/scenarios/prepare", application.Public()),
-		application.Route(http.MethodDelete, "/__test__/scopes/{scopeId}", application.Public()),
-		application.Route(http.MethodPost, "/__test__/scopes", application.Public()),
-	)
+	routes := testenv.Routes()
+	specs := make([]application.RouteSpec, 0, len(routes))
+	for _, route := range routes {
+		specs = append(specs, application.Route(route.Method, route.Pattern, application.Public()))
+	}
+	return application.Descriptor("testkit.scenarios", 0, specs...)
 }
 
+// Register mounts every control route; the handler itself enforces the
+// runtime control credential and scope ownership.
 func (c *scenarioController) Register(router *mux.Router) {
-	router.Handle("/__test__/scenarios", c.handler).Methods(http.MethodGet)
-	router.Handle("/__test__/scenarios/prepare", c.handler).Methods(http.MethodPost)
-	router.Handle("/__test__/scopes/{scopeId}", c.handler).Methods(http.MethodDelete)
-	router.Handle("/__test__/scopes", c.handler).Methods(http.MethodPost)
+	for _, route := range testenv.Routes() {
+		router.Handle(route.Pattern, c.handler).Methods(route.Method)
+	}
 }

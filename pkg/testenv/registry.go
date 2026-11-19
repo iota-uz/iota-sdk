@@ -3,6 +3,7 @@ package testenv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -25,6 +26,8 @@ type scope struct {
 	result   *Result
 	scenario *scenario
 	disposed atomic.Bool
+	// replayed is the digest of the manifest whose controls were restored.
+	replayed string
 }
 
 func newScope() *scope { return &scope{mu: make(chan struct{}, 1)} }
@@ -50,6 +53,11 @@ type Registry struct {
 	environmentID  string
 	active         map[string]bool
 	exclusiveScope string
+	resources      []namedResource
+	clock          *ManualClock
+	build          BuildInfo
+	jobs           *Jobs
+	providers      *Providers
 }
 
 func NewEnvironmentRegistry(capabilities []string, dedicated bool, environmentID string) *Registry {
@@ -109,6 +117,26 @@ func (r *Registry) Register(d Definition, prepare PrepareFunc, cleanup CleanupFu
 	r.scenarios[d.Name] = &scenario{d, in, out, prepare, cleanup}
 	return nil
 }
+
+// owned reports whether id is a live scope of this registry.
+func (r *Registry) owned(id string) error {
+	r.mu.Lock()
+	sc := r.scopes[id]
+	r.mu.Unlock()
+	if sc == nil {
+		return failure("scope_conflict", "scope is not owned by this environment")
+	}
+	if sc.disposed.Load() {
+		return failure("scope_conflict", "scope disposed")
+	}
+	return nil
+}
+
+// Dedicated reports whether this registry controls a dedicated environment.
+func (r *Registry) Dedicated() bool { return r.dedicated }
+
+// EnvironmentID returns the owning environment, empty for an unbound registry.
+func (r *Registry) EnvironmentID() string { return r.environmentID }
 
 // AllowScope is called by the environment owner, never by the HTTP client.
 func (r *Registry) AllowScope(id string) error {
@@ -242,10 +270,17 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 		r.exclusiveScope = input.ScopeID
 	}
 	r.active[input.ScopeID] = true
+	clock := r.clock
 	r.mu.Unlock()
 	sc.request = string(encoded)
 	sc.scenario = s
-	result, err := s.prepare(ctx, input)
+	if clock != nil && s.definition.Isolation == "dedicated" {
+		// Scenario time becomes server time only under a dedicated lease; a
+		// shared environment never moves the clock for other scopes.
+		now, _ := time.Parse(time.RFC3339, input.Now)
+		clock.Set(now)
+	}
+	result, err := s.prepare(WithCorrelation(ctx, Correlation{ScopeID: input.ScopeID}), input)
 	if err == nil {
 		if result.Data == nil {
 			result.Data = map[string]any{}
@@ -263,7 +298,7 @@ func (r *Registry) Prepare(ctx context.Context, input Input) (Result, error) {
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		cleanupErr := s.cleanup(cleanupCtx, input.ScopeID)
+		cleanupErr := errors.Join(r.forgetResources(cleanupCtx, input.ScopeID), s.cleanup(cleanupCtx, input.ScopeID))
 		diagnostic := lifecycleError(err, "execution_failed", "prepare", Descriptor{EnvironmentID: r.environmentID}, cleanupErr)
 		if cleanupErr != nil {
 			diagnostic.Causes[len(diagnostic.Causes)-1].Operation = "dispose"
@@ -299,10 +334,14 @@ func (r *Registry) Dispose(ctx context.Context, id string) error {
 	if sc.disposed.Load() {
 		return nil
 	}
+	// Controls go first: cancel jobs and release gates before records they
+	// may still touch are removed. Every step runs; failures stay retryable.
+	cleanupErr := r.forgetResources(ctx, id)
 	if sc.scenario != nil {
-		if err := sc.scenario.cleanup(ctx, id); err != nil {
-			return failure("cleanup_failed", err.Error())
-		}
+		cleanupErr = errors.Join(cleanupErr, sc.scenario.cleanup(ctx, id))
+	}
+	if cleanupErr != nil {
+		return &Error{Code: "cleanup_failed", Message: cleanupErr.Error(), Operation: "dispose", EnvironmentID: r.environmentID, cause: cleanupErr}
 	}
 	sc.disposed.Store(true)
 	sc.result = nil

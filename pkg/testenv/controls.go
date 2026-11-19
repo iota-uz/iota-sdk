@@ -15,6 +15,52 @@ type ManualClock struct {
 
 func NewManualClock(now time.Time) *ManualClock { return &ManualClock{now: now} }
 func (c *ManualClock) Now() time.Time           { c.mu.RLock(); defer c.mu.RUnlock(); return c.now }
+
+// Set moves the clock to a scenario's logical time. The registry calls it when
+// a dedicated scenario is prepared.
+func (c *ManualClock) Set(now time.Time) { c.mu.Lock(); defer c.mu.Unlock(); c.now = now }
+
+// UseClock makes r control clock: dedicated scenarios set it to Input.Now and
+// the scope holding the dedicated lease may advance it. Inject the same clock
+// into the real services under test; production keeps SystemClock.
+func (r *Registry) UseClock(clock *ManualClock) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clock = clock
+}
+
+// AdvanceClock moves the environment clock for the scope that holds the
+// dedicated lease. Shared environments refuse: the clock is global state.
+func (r *Registry) AdvanceClock(scopeID string, d time.Duration) (time.Time, error) {
+	if err := r.owned(scopeID); err != nil {
+		return time.Time{}, err
+	}
+	r.mu.Lock()
+	clock, dedicated, holder := r.clock, r.dedicated, r.exclusiveScope
+	r.mu.Unlock()
+	if clock == nil || !dedicated {
+		return time.Time{}, failure("missing_capability", "clock control requires a dedicated environment with a manual clock")
+	}
+	if holder != scopeID {
+		return time.Time{}, failure("scope_conflict", "clock control requires the dedicated scenario lease")
+	}
+	if err := clock.Advance(d); err != nil {
+		return time.Time{}, err
+	}
+	return clock.Now(), nil
+}
+
+// ClockNow returns the environment clock, or false when none is controlled.
+func (r *Registry) ClockNow() (time.Time, bool) {
+	r.mu.Lock()
+	clock := r.clock
+	r.mu.Unlock()
+	if clock == nil {
+		return time.Time{}, false
+	}
+	return clock.Now(), true
+}
+
 func (c *ManualClock) Advance(d time.Duration) error {
 	if d < 0 {
 		return failure("invalid_input", "clock cannot move backwards")

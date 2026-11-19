@@ -97,6 +97,10 @@ func sdkERPEnvironment(token string, oidc bool) func(testenv.Descriptor) []strin
 			"TESTENV_ENVIRONMENT_ID=" + d.EnvironmentID,
 			"TESTENV_CONTROL_TOKEN=" + token,
 			"UPLOADS_PATH=" + filepath.Join(d.ArtifactDirectory, "uploads"),
+			// Replay manifests record these and refuse another build/baseline.
+			"TESTENV_BUILD_REVISION=" + d.BuildRevision,
+			"TESTENV_SCHEMA_FINGERPRINT=" + d.SchemaFingerprint,
+			"TESTENV_BASELINE_FINGERPRINT=" + d.BaselineFingerprint,
 		}
 		if oidc {
 			if u, err := url.Parse(d.BaseURL); err == nil {

@@ -13,7 +13,9 @@ type Error struct {
 	EnvironmentID     string   `json:"environmentId,omitempty"`
 	ArtifactDirectory string   `json:"artifactDirectory,omitempty"`
 	Causes            []*Error `json:"causes,omitempty"`
-	cause             error
+	// Details carries typed diagnostics, such as the WaitResult of a job wait.
+	Details any `json:"details,omitempty"`
+	cause   error
 }
 
 func (e *Error) Error() string           { return e.Code + ": " + e.Message }
