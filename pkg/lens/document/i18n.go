@@ -79,7 +79,6 @@ const (
 	I18nReportEditorDraft           = "report.editor.draft"
 	I18nReportEditorEditReportTitle = "report.editor.editReportTitle"
 	I18nReportEditorEditShared      = "report.editor.editShared"
-	I18nReportEditorEmpty           = "report.editor.empty"
 	I18nReportEditorImpact          = "report.editor.impact"
 	I18nReportEditorImpactCopy      = "report.editor.impactCopy"
 	I18nReportEditorImpactCount     = "report.editor.impactCount"
@@ -127,6 +126,33 @@ const (
 	I18nReportProposalRemove        = "report.proposal.remove"
 	I18nReportProposalStale         = "report.proposal.stale"
 	I18nReportProposalTitle         = "report.proposal.title"
+
+	// Shared-report editor and proposal preview.
+	I18nReportDefinitionConflict          = "report.definition.conflict"
+	I18nReportDefinitionContextHint       = "report.definition.contextHint"
+	I18nReportDefinitionDefaults          = "report.definition.defaults"
+	I18nReportDefinitionFilters           = "report.definition.filters"
+	I18nReportDefinitionName              = "report.definition.name"
+	I18nReportDefinitionNoDefaults        = "report.definition.noDefaults"
+	I18nReportDefinitionNoFilters         = "report.definition.noFilters"
+	I18nReportDefinitionOrigin            = "report.definition.origin"
+	I18nReportDefinitionParameters        = "report.definition.parameters"
+	I18nReportDefinitionParametersHint    = "report.definition.parametersHint"
+	I18nReportDefinitionPreview           = "report.definition.preview"
+	I18nReportDefinitionPreviewContext    = "report.definition.previewContext"
+	I18nReportDefinitionPreviewDefaults   = "report.definition.previewDefaults"
+	I18nReportDefinitionPreviewUnsaved    = "report.definition.previewUnsaved"
+	I18nReportDefinitionPreviewWith       = "report.definition.previewWith"
+	I18nReportDefinitionSaveSlice         = "report.definition.saveSlice"
+	I18nReportDefinitionSliceSaved        = "report.definition.sliceSaved"
+	I18nReportEditorImpactCurrent         = "report.editor.impactCurrent"
+	I18nReportEditorImpactList            = "report.editor.impactList"
+	I18nReportProposalHidePreview         = "report.proposal.hidePreview"
+	I18nReportProposalPreparing           = "report.proposal.preparing"
+	I18nReportProposalPreview             = "report.proposal.preview"
+	I18nReportProposalSharedKept          = "report.proposal.sharedKept"
+	I18nReportProposalShowPreview         = "report.proposal.showPreview"
+	I18nReportProposalStaleWhilePreparing = "report.proposal.staleWhilePreparing"
 
 	// Report picker and add-to-dashboard dialogs.
 	I18nReportPickerAddNone = "report.picker.addNone"
@@ -602,7 +628,6 @@ func RuntimeI18nKeys() []string {
 		I18nReportEditorDraft,
 		I18nReportEditorEditReportTitle,
 		I18nReportEditorEditShared,
-		I18nReportEditorEmpty,
 		I18nReportEditorImpact,
 		I18nReportEditorImpactCopy,
 		I18nReportEditorImpactCount,
@@ -650,6 +675,31 @@ func RuntimeI18nKeys() []string {
 		I18nReportProposalRemove,
 		I18nReportProposalStale,
 		I18nReportProposalTitle,
+		I18nReportDefinitionConflict,
+		I18nReportDefinitionContextHint,
+		I18nReportDefinitionDefaults,
+		I18nReportDefinitionFilters,
+		I18nReportDefinitionName,
+		I18nReportDefinitionNoDefaults,
+		I18nReportDefinitionNoFilters,
+		I18nReportDefinitionOrigin,
+		I18nReportDefinitionParameters,
+		I18nReportDefinitionParametersHint,
+		I18nReportDefinitionPreview,
+		I18nReportDefinitionPreviewContext,
+		I18nReportDefinitionPreviewDefaults,
+		I18nReportDefinitionPreviewUnsaved,
+		I18nReportDefinitionPreviewWith,
+		I18nReportDefinitionSaveSlice,
+		I18nReportDefinitionSliceSaved,
+		I18nReportEditorImpactCurrent,
+		I18nReportEditorImpactList,
+		I18nReportProposalHidePreview,
+		I18nReportProposalPreparing,
+		I18nReportProposalPreview,
+		I18nReportProposalSharedKept,
+		I18nReportProposalShowPreview,
+		I18nReportProposalStaleWhilePreparing,
 
 		I18nReportPickerAddNone,
 		I18nReportPickerGenerateTitle,

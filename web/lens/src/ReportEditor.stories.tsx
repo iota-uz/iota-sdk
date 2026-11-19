@@ -3,7 +3,7 @@ import type { LensThemeMode } from './runtime'
 import type { Composition, Placement } from './reports/contract/types'
 import { createReportDraft, parseReportComposition, reportDraftToken, ReportRevisionConflictError, type ReportDraft } from './reports/draft'
 import { createReportLeaveGuard } from './reports/guard'
-import { ReportCompositionEditor, type ReportProposal } from './reports/ReportCompositionEditor'
+import { ReportCompositionEditor, type ReportProposal, type ReportProposalRequest } from './reports/ReportCompositionEditor'
 import { catalogEntries, memoryCatalog } from './stories/reportCatalog'
 
 const entries = new Map(catalogEntries().map((entry) => [entry.id, entry]))
@@ -45,6 +45,8 @@ function Editor(props: {
   after?: () => void
   control?: StoryControl
   proposal?: (draft: ReportDraft<Composition>) => ReportProposal
+  /** Starts with a proposal being prepared against the initial draft; after then runs against it. */
+  preparing?: boolean
   guard?: boolean
 }): JSX.Element {
   const control = props.control ?? { rejectSave: false, conflictSave: false }
@@ -66,6 +68,18 @@ function Editor(props: {
   const guard = createReportLeaveGuard(draft)
   const [log, setLog] = createSignal('')
   const [proposal, setProposal] = createSignal(props.proposal?.(draft))
+  const [request, setRequest] = createSignal<ReportProposalRequest | undefined>(props.preparing ? { id: 'request-1', base: reportDraftToken(draft) } : undefined)
+  const start = () => {
+    setProposal(undefined)
+    setRequest({ id: `request-${draft.sequence()}`, base: reportDraftToken(draft) })
+  }
+  // The host prepared the proposal against the request's base, so a manual edit meanwhile makes it stale.
+  const deliver = () => {
+    const pending = request()
+    if (!pending) return
+    setProposal({ ...addFinanceProposal(draft), id: `proposal-${pending.id}`, base: pending.base })
+    setRequest(undefined)
+  }
   onMount(() => props.after?.())
   if (props.guard) onMount(() => void guard.request().then((leave) => setLog(leave ? 'Navigation allowed' : 'Navigation cancelled')))
 
@@ -80,12 +94,22 @@ function Editor(props: {
           onCopyReport={(id) => { setLog(`Host copies the report of ${id}`) }}
           onEditReport={(id) => { setLog(`Host opens ${id} for editing`) }}
           onSaveCopy={() => { setLog('Host saves an independent copy') }}
+          placements={(id) => (id === 'report-01'
+            ? [
+              { id: 'revenue', title: 'Sales board · Revenue', current: true },
+              { id: 'exec-revenue', title: 'Executive summary · Revenue' },
+              { id: 'region-revenue', title: 'Regional review · Revenue by region' },
+              { id: 'weekly-revenue', title: 'Weekly digest · Revenue' },
+            ]
+            : [{ id: 'self', title: 'Sales board', current: true }])}
           proposal={proposal()}
           proposalHandlers={{
             settled: (id, outcome) => setLog(`Proposal ${id} ${outcome}`),
             regenerate: () => setProposal(addFinanceProposal(draft)),
             openAsDraft: () => setLog('Host opens the proposal as a separate draft'),
+            restart: start,
           }}
+          proposalRequest={request()}
           renderPlacement={(placement) => <Body placement={placement} />}
           reportTitle={reportTitle}
           theme={props.theme}
@@ -98,6 +122,8 @@ function Editor(props: {
             <label><input onChange={(event) => { control.conflictSave = event.currentTarget.checked }} type="checkbox" /> Conflict on next save</label>
             <button class="lens-context-action" onClick={() => void guard.request().then((leave) => setLog(leave ? 'Navigation allowed' : 'Navigation cancelled'))} type="button">Navigate away</button>
             <button class="lens-context-action" onClick={() => setProposal(addFinanceProposal(draft))} type="button">Receive proposal</button>
+            <button class="lens-context-action" onClick={start} type="button">Request proposal</button>
+            <button class="lens-context-action" disabled={!request()} onClick={deliver} type="button">Deliver proposal</button>
           </div>
         </Show>
       </div>
@@ -143,3 +169,15 @@ export const ProposalStaleDark = () => <Editor theme="dark" proposal={(draft) =>
 /** Browser walkthrough: every host outcome is controllable from the page. */
 export const WalkthroughLight = () => <Editor theme="light" control={{ rejectSave: false, conflictSave: false }} />
 export const WalkthroughDark = () => <Editor theme="dark" control={{ rejectSave: false, conflictSave: false }} />
+/** A proposal is being prepared; nothing changed yet, so it will apply when it arrives. */
+export const ProposalPreparingLight = () => <Editor theme="light" preparing />
+export const ProposalPreparingDark = () => <Editor theme="dark" preparing />
+/** A manual edit while the proposal is being prepared: it is stale before it arrives. */
+export const ProposalPreparingStaleLight = () => <Editor theme="light" preparing after={() => requestAnimationFrame(() => when('[data-testid="report-editor-handle-portfolio"]', (element) => {
+  element.focus()
+  element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+}))} />
+export const ProposalPreparingStaleDark = () => <Editor theme="dark" preparing after={() => requestAnimationFrame(() => when('[data-testid="report-editor-handle-portfolio"]', (element) => {
+  element.focus()
+  element.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+}))} />

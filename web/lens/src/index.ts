@@ -53,7 +53,11 @@ export type {
   ReportDestinationChoice, ReportDestinationConfirmation, ReportDestinationHost, ReportPick, ReportPickerConfirmation,
 } from './reports/picker'
 export { ReportCompositionEditor } from './reports/ReportCompositionEditor'
-export type { ReportCompositionEditorProps, ReportEditorLifecycle, ReportProposal, ReportProposalHandlers } from './reports/ReportCompositionEditor'
+export type {
+  ReportCompositionEditorProps, ReportEditorLifecycle, ReportProposal, ReportProposalHandlers, ReportProposalRequest, ReportUsage,
+} from './reports/ReportCompositionEditor'
+export { ReportDefinitionEditor } from './reports/ReportDefinitionEditor'
+export type { ReportDefinitionEditorProps, ReportEditContext } from './reports/ReportDefinitionEditor'
 export type { LensDashboardChrome, LensDashboardEditing } from './reports/dashboardEditTypes'
 export { createReportLeaveGuard } from './reports/guard'
 export type { GuardedDraft, ReportLeaveChoice, ReportLeaveGuard } from './reports/guard'

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library'
-import { createRoot } from 'solid-js'
+import { createRoot, createSignal } from 'solid-js'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { memoryCatalog } from '../stories/reportCatalog'
 import type { Composition } from './contract/types'
@@ -495,5 +495,79 @@ describe('ReportCompositionEditor', () => {
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     await expect(leaving).resolves.toBe(false)
     expect(draft.value().rows[0]![0]!.title).toBe('Mine')
+  })
+})
+
+describe('ReportCompositionEditor: impact, proposal preview and a proposal in preparation', () => {
+  // False green: a count alone would pass while the reader could not tell which dashboards a shared edit reaches.
+  it('lists the host-supplied placements of a shared report, the current card first', async () => {
+    mountEditor({ props: {
+      onEditReport: vi.fn(),
+      placements: () => Promise.resolve([{ id: 'x', title: 'Executive · Revenue' }, { id: 'a', title: 'Board · Revenue', current: true }]),
+    } })
+    fireEvent.click(within(card('a')).getByRole('button', { name: 'Edit report' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Edit report: Revenue' })
+    const list = await within(dialog).findByTestId('report-usage-list')
+    expect([...list.querySelectorAll('li')].map((item) => item.textContent)).toEqual(['Board · RevenueThis card', 'Executive · Revenue'])
+    expect(within(dialog).getByTestId('report-impact-usage')).toHaveTextContent('used in 2 places')
+  })
+
+  // False green: a change list alone does not show where cards land; the preview must follow the proposal, not the draft.
+  it('previews the proposed layout without touching the draft and can hide it', () => {
+    let mounted!: Mounted
+    render(() => {
+      const draft = createReportDraft(base(), { save: (composition) => Promise.resolve(composition) })
+      mounted = { draft, save: vi.fn(), guard: createReportLeaveGuard(draft) }
+      const next = draft.value()
+      next.rows = [[{ id: 'n', reportId: 'report-07', span: 4 }, { id: 'a', reportId: 'report-01', span: 8, title: 'Revenue this year' }]]
+      return <ReportCompositionEditor draft={draft} guard={mounted.guard} lifecycle="existing" proposal={{ id: 'p', base: reportDraftToken(draft), composition: next }} reportTitle={(id) => titles[id]} />
+    })
+    const preview = screen.getByTestId('report-proposal-preview')
+    const cells = [...preview.querySelectorAll<HTMLElement>('.lens-report-proposal-preview-card')]
+    expect(cells.map((cell) => [cell.textContent, cell.dataset.kind, cell.style.getPropertyValue('--lens-editor-span')])).toEqual([
+      ['ClaimsAdd', 'add', '4'], ['Revenue this yearChange', 'change', '8'],
+    ])
+    expect(screen.getByTestId('report-proposal')).toHaveTextContent('Shared reports stay as they are')
+    expect(mounted.draft.dirty()).toBe(false)
+    expect(cardOrder()).toEqual(['a', 'b', 'c'])
+    const toggle = screen.getByTestId('report-proposal-preview-toggle')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(toggle)
+    expect(screen.queryByTestId('report-proposal-preview')).toBeNull()
+    expect(toggle).toHaveTextContent('Show preview')
+  })
+
+  // False green: checking staleness only after the proposal arrived would miss an edit made while it was prepared.
+  it('marks a proposal in preparation stale on a manual edit and refuses it when it arrives', () => {
+    const restart = vi.fn()
+    let setProposal!: (value: ReportProposal | undefined) => void
+    let request!: { id: string; base: string }
+    render(() => {
+      const draft = createReportDraft(base(), { save: (composition) => Promise.resolve(composition) })
+      request = { id: 'r1', base: reportDraftToken(draft) }
+      const [proposal, set] = createSignal<ReportProposal>()
+      setProposal = set
+      return <ReportCompositionEditor draft={draft} lifecycle="existing" proposal={proposal()} proposalHandlers={{ restart }} proposalRequest={request} reportTitle={(id) => titles[id]} />
+    })
+    const pending = screen.getByTestId('report-proposal-request')
+    expect(pending).toHaveTextContent('being prepared')
+    expect(pending).toHaveAttribute('aria-busy', 'true')
+    fireEvent.keyDown(screen.getByTestId('report-editor-handle-b'), { key: 'ArrowLeft' })
+    expect(within(pending).getByRole('alert')).toHaveTextContent('cannot be applied when it arrives')
+    fireEvent.click(within(pending).getByRole('button', { name: 'Prepare again' }))
+    expect(restart).toHaveBeenCalledWith(request)
+    setProposal({ id: 'p', base: request.base, composition: { ...base(), rows: [[{ id: 'n', reportId: 'report-07' }]] } })
+    expect(screen.queryByTestId('report-proposal-request')).toBeNull()
+    const panel = screen.getByTestId('report-proposal')
+    expect(within(panel).queryByRole('button', { name: 'Apply to draft' })).toBeNull()
+    expect(within(panel).getByRole('alert')).toHaveTextContent('can no longer be applied')
+  })
+
+  it('starts an empty editor with Add report and no assistant prompt', async () => {
+    mountEditor({ initial: { id: 'new', revision: '1', title: 'New', rows: [] }, props: { catalog: memoryCatalog() } })
+    const empty = screen.getByTestId('report-editor-empty')
+    expect(empty).not.toHaveTextContent(/AI|assistant/i)
+    fireEvent.click(within(empty).getByRole('button', { name: 'Add report' }))
+    expect(await screen.findByRole('dialog', { name: /^Add reports to/ })).toBeInTheDocument()
   })
 })
