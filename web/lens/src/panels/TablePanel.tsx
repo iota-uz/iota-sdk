@@ -2,6 +2,7 @@
 import { createContext, createEffect, createMemo, createSignal, For, onCleanup, Show, untrack, useContext, type JSX } from 'solid-js'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
+import { useReturnLink } from '../explore/drillHost'
 import { ArrowUpRight, ArrowsLeftRight, CaretDown, CaretRight } from '../icons'
 import { clampedDeltaPercent, compactReference, levelForPath, useDashboard, useFormat, useFormatAtReference, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
@@ -264,6 +265,7 @@ function ColumnCell(props: {
   max: number
 }) {
   const activation = useActionActivation(props.column.action)
+  const returnLink = useReturnLink()
   const translate = useTranslate()
   const index = props.frame.columns.findIndex((candidate) => candidate.name === props.column.field)
   const type = props.frame.columns[index]?.type ?? 'string'
@@ -302,9 +304,11 @@ function ColumnCell(props: {
     content = <span class={`lens-table-tone lens-table-tone-${tone}`}>{content}</span>
   }
 
-  const href = props.column.action && untrack(activation.available)
+  const columnHref = props.column.action && untrack(activation.available)
     ? resolveColumnActionURL(props.column.action, props.frame, props.row, props.location)
     : undefined
+  // A record opened from a drill level carries the way back to it.
+  const href = props.column.action?.kind === 'navigate_to_leaf' ? returnLink(columnHref) : columnHref
 
   if (props.column.clamp) {
     const fullText = typeof value === 'string' ? value : undefined
@@ -1099,9 +1103,13 @@ function RowLeafAction(props: {
 }) {
   const action = createMemo(() => actionForRow(props.panel, props.frame, props.row, props.level))
   const activation = useActionActivation(action)
-  const href = createMemo(() => untrack(activation.available)
-    ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
-    : undefined)
+  const returnLink = useReturnLink()
+  const href = createMemo(() => {
+    const resolved = untrack(activation.available)
+      ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
+      : undefined
+    return action()?.kind === 'navigate_to_leaf' ? returnLink(resolved) : resolved
+  })
   return (
     <Show when={href()}>
       {(value) => <a class="lens-leaf-action" href={value()} onClick={(event) => activation.onClick(value())?.(event)}>{props.label}</a>}
@@ -1121,9 +1129,13 @@ function FrameRow(props: {
 }) {
   const action = createMemo(() => actionForRow(props.panel, props.frame, props.row, props.level))
   const activation = useActionActivation(action)
-  const href = createMemo(() => untrack(activation.available)
-    ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
-    : undefined)
+  const returnLink = useReturnLink()
+  const href = createMemo(() => {
+    const resolved = untrack(activation.available)
+      ? resolveRowLeafActionURL(props.panel, props.frame, props.row, props.location, props.level)
+      : undefined
+    return action()?.kind === 'navigate_to_leaf' ? returnLink(resolved) : resolved
+  })
   return (
     <tr>
       <For each={props.frame.columns}>

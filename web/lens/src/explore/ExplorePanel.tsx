@@ -18,7 +18,13 @@ import {
 } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
-import { DrillOverlay } from './DrillOverlay'
+import { DrillOverlay, type DrillOverlayContext, type DrillOverlaySave } from './DrillOverlay'
+import { useDrillHost, useReturnLink } from './drillHost'
+import { investigationSaveability, nodeValue, placementForPanel, positionProvenance, type InvestigationSlice, type InvestigationUnsupportedReason } from './investigation'
+import { originLabel, SaveInvestigation, slicePeriodLabel } from './SaveInvestigation'
+import { useReportPlacementHost } from '../reports/placementHost'
+import { useLocale } from '../runtime'
+import { formatFieldValue } from '../runtime/format'
 import { exploreViewForLevel, focusContextForLevel, isFocusCanvas } from './focusModel'
 import { FocusContextHeader } from './FocusContextHeader'
 import { LensSelector } from './LensSelector'
@@ -94,6 +100,10 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
   const drill = useDrill()
   const drawer = useDrawer()
   const translate = useTranslate()
+  const returnLink = useReturnLink()
+  const locale = useLocale()
+  const drillHost = useDrillHost()
+  const placementHost = useReportPlacementHost()
   const frame = usePanelFrame(props.panel.id)
   const panel = props.panel
   const active = createMemo(() => navigation.panelId === panel.id && navigation.path.length > 0)
@@ -247,11 +257,12 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     if (!node.action || !source) return undefined
     const location = new URL(globalThis.location.href)
     const rows = source.frame ? document.frames[source.frame] : frame.data
-    return resolveLeafActionURL(node.action, {
+    const href = resolveLeafActionURL(node.action, {
       fields: fieldsForNode(source, rows, node, source.encoding ?? panel.encoding),
       variables: variablesFromLocation(location),
       location,
     })
+    return node.action.kind === 'navigate_to_leaf' ? returnLink(href) : href
   }
 
   const withHrefs = (rows: DrillTarget['breakdown'], owner?: Level) => (
@@ -325,10 +336,11 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     // popover's affordances. The popover keeps its job for leaves (no level to
     // enter) and forks (a real choice between perspectives).
     if (enterFocusNode(node, targetLevel)) return
+    rememberOpener()
     const target = drillTargetForNode(document, current, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
     setOverlayTheme(themeOf(focusRef ?? null))
     setOverlay({
-      target: { ...target, leafHref: leafHrefFor(node), breakdown: withHrefs(target.breakdown, targetLevel) },
+      target: withoutShares({ ...target, leafHref: leafHrefFor(node), breakdown: withHrefs(target.breakdown, targetLevel) }),
       // The swatch must match the slice on screen, so it resolves through the
       // same path the plot and legend take — positional pins by row when the
       // panel shows its own frame, by label once it is at a drill level.
@@ -344,17 +356,120 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     const current = level()
     if (!current) return
     setOverlayTheme(themeOf(exploreRef ?? null))
+    rememberOpener()
     const target = drillTargetForLevel(document, panel, current, frame.data)
     setOverlay({
-      target: { ...target, breakdown: withHrefs(target.breakdown, current) },
+      target: withoutShares({ ...target, breakdown: withHrefs(target.breakdown, current) }),
       anchor: anchorFromElement(exploreRef ?? null),
       anchorElement: exploreRef,
     })
   }
 
+  // The element that opened the overlay gets focus back when it closes: a
+  // keyboard reader who opened a mark's card lands on that mark again, not
+  // on the panel header.
+  let overlayOpener: HTMLElement | undefined
+  const rememberOpener = () => {
+    const active = globalThis.document?.activeElement
+    overlayOpener = active instanceof HTMLElement && active !== globalThis.document.body ? active : undefined
+  }
   const closeOverlay = () => {
     setOverlay(undefined)
-    exploreRef?.focus()
+    const opener = overlayOpener
+    overlayOpener = undefined
+    if (opener?.isConnected) opener.focus()
+    else (exploreRef ?? focusRef)?.focus()
+  }
+
+  // A ratio (declared, or a percent-formatted value) is not additive: its
+  // share of a summed total would be a number nobody computed.
+  const ratioValues = () => Boolean(panel.ratio) || headerValueFormat()?.kind === 'percent'
+  function withoutShares(target: DrillTarget): DrillTarget {
+    if (!ratioValues()) return target
+    return {
+      ...target, share: undefined, total: undefined,
+      breakdown: target.breakdown.map((row) => ({ ...row, share: undefined })),
+    }
+  }
+
+  // Labels of selections on ancestor levels: the producer's label, the
+  // owning frame's label column when it is inline, else the raw value.
+  const selectionLabel = (node: Node, owner: Level) => {
+    if (node.label.trim()) return node.label
+    const rows = owner.frame ? document.frames[owner.frame] : undefined
+    const encoding = owner.encoding ?? panel.encoding
+    const row = rows ? rowForNode(node, owner, rows, encoding) : undefined
+    const index = row && encoding.label ? rows!.columns.findIndex(({ name }) => name === encoding.label) : -1
+    const label = index >= 0 ? row![index] : undefined
+    return typeof label === 'string' && label.trim() ? label : nodeValue(node)
+  }
+  const dimensionLabel = (dimension: string) => document.contextEditor?.dimensionLabels?.[dimension] || dimension
+  const originNames = () => document.contextEditor?.originLabels
+  const formatRatioPart = (field: string, value: unknown) => {
+    const format = panel.format[field]
+    return value === undefined || value === null ? undefined : formatFieldValue(value, format, locale())
+  }
+
+  const overlayContext = (target: DrillTarget): DrillOverlayContext => {
+    const provenance = positionProvenance(document, panel, active() ? navigation : { path: [] }, selectionLabel)
+    const context = provenance.context
+    const subtitle = document.header?.subtitle?.trim()
+    const period = context
+      ? { label: slicePeriodLabel(context.period, translate), origin: originLabel(context.period.origin, translate, originNames()) }
+      : subtitle ? { label: subtitle } : undefined
+    const row = target.node && level() ? rowForNode(target.node, level()!, frame.data, viewPanel().encoding) : undefined
+    const cell = (field: string) => {
+      const index = frame.data?.columns.findIndex(({ name }) => name === field) ?? -1
+      return row && index >= 0 ? row[index] : undefined
+    }
+    const ratio = panel.ratio
+    return {
+      measure: panel.title,
+      ...(period ? { period } : {}),
+      constraints: provenance.constraints.map((constraint, index) => ({
+        key: `${constraint.dimension}:${index}`,
+        label: `${dimensionLabel(constraint.dimension)}: ${constraint.labels.join(', ')}`,
+        origin: originLabel(constraint.origin, translate, originNames()),
+      })),
+      ...(ratio ? {
+        ratio: {
+          numerator: { label: ratio.numerator.label, value: formatRatioPart(ratio.numerator.field, cell(ratio.numerator.field)) },
+          denominator: { label: ratio.denominator.label, value: formatRatioPart(ratio.denominator.field, cell(ratio.denominator.field)) },
+          ...(ratio.description ? { description: ratio.description } : {}),
+        },
+      } : {}),
+    }
+  }
+
+  const unsupportedCopy = (reason: InvestigationUnsupportedReason, detail?: string): string => {
+    switch (reason) {
+      case 'not-a-report': return translate('explore.save.notReport', 'Only an exploration of a saved report can be saved.')
+      case 'source-cannot-save': return translate('explore.save.sourceCannot', 'This report’s data source does not support saving explorations.')
+      case 'context-blocked': return translate('explore.save.contextBlocked', 'The current filters conflict or are not supported by this report, so the exploration cannot be saved.')
+      case 'level-undeclared': return translate('explore.save.levelUndeclared', 'The level “{level}” cannot be carried into a saved report.', { level: detail ?? '' })
+      case 'dimension-unsupported': return translate('explore.save.dimensionUnsupported', 'The report cannot be saved with a filter on “{dimension}”.', { dimension: dimensionLabel(detail ?? '') })
+      case 'drill-conflict': return translate('explore.save.drillConflict', 'This selection contradicts a filter already applied to “{dimension}”.', { dimension: dimensionLabel(detail ?? '') })
+    }
+  }
+  const [saving, setSaving] = createSignal<{ slice: InvestigationSlice; opener?: HTMLElement }>()
+  // Saving is about the position the reader stands on, so it is offered on
+  // the card that describes the current level, not on a single mark.
+  const overlaySave = (target: DrillTarget): DrillOverlaySave | undefined => {
+    const host = drillHost.investigation
+    if (!host || target.node || !active()) return undefined
+    const group = placementForPanel(document, panel.id)
+    const capabilities = group ? host.capabilities?.(group.id) ?? placementHost?.capabilities?.(group.id) : undefined
+    const result = investigationSaveability({ document, panel, navigation, capabilities, labelFor: selectionLabel })
+    if (!result.saveable) return { kind: 'unsupported', message: unsupportedCopy(result.reason, result.detail) }
+    return {
+      kind: 'available',
+      onSave: () => {
+        const opener = overlayOpener
+        overlayOpener = undefined
+        setOverlay(undefined)
+        setSaving({ slice: result.slice, opener })
+      },
+    }
   }
 
   const applyPerspective = (perspectiveId: string, target: DrillTarget) => {
@@ -568,6 +683,8 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
           <DrillOverlay
             accentColor={value().accentColor}
             anchor={value().anchor}
+            context={overlayContext(value().target)}
+            save={overlaySave(value().target)}
             anchorElement={value().anchorElement}
             path={breadcrumbs().map((crumb) => ({
               label: crumb.label,
@@ -603,6 +720,20 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
             target={value().target}
             theme={overlayTheme().theme}
             valueFormat={headerValueFormat()}
+          />
+        )}
+      </Show>
+      <Show when={saving()}>
+        {(entry) => (
+          <SaveInvestigation
+            dashboardId={document.meta.dashboardId}
+            dimensionLabels={document.contextEditor?.dimensionLabels}
+            host={drillHost.investigation!}
+            onClose={() => setSaving(undefined)}
+            originNames={originNames()}
+            restoreFocus={entry().opener?.isConnected ? entry().opener : exploreRef ?? undefined}
+            slice={entry().slice}
+            theme={overlayTheme().theme}
           />
         )}
       </Show>

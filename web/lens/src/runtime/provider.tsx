@@ -57,7 +57,6 @@ import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
 import { QueryError, SnapshotGoneError } from './query'
-import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { navigateTo } from './navigate'
 import { builtinMessage } from './messages'
@@ -872,6 +871,25 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
   createEffect(() => {
     setDashboard('notice', notice())
   })
+  // A drill or page request found its snapshot gone. The board keeps what it
+  // shows, marked stale, until the reader recalculates it as a whole.
+  const [snapshotExpired, setSnapshotExpired] = createSignal(false)
+  const [recalculating, setRecalculating] = createSignal(false)
+  const recalculate = async (): Promise<void> => {
+    if (recalculating()) return
+    setRecalculating(true)
+    try {
+      await refreshDocument()
+      setSnapshotExpired(false)
+      const time = new Intl.DateTimeFormat(props.locale || undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date())
+      setNotice(translate('drill.recalculated', 'Figures recalculated at {time}. Everything on the board is from the new calculation.', { time }))
+    } catch (cause: unknown) {
+      console.error('[lens] recalculating an expired snapshot failed', cause)
+      setNotice(translate('drill.recalculateFailed', 'The figures could not be recalculated. Try again.'))
+    } finally {
+      setRecalculating(false)
+    }
+  }
 
   createEffect(() => {
     const doc = dashboard.document
@@ -1108,7 +1126,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       applyFilters(values)
     }
   }
-  const translate = (key: string, fallback: string): string => translation(resolvedDoc.i18n, key, fallback, undefined, resolvedDoc.meta.locale)
+  const translate = (key: string, fallback: string, vars?: TranslationVars): string => translation(resolvedDoc.i18n, key, fallback, vars, resolvedDoc.meta.locale)
   const driftNotice = (): string => translate(
     'drill.reset',
     'The previous drill path is no longer available. Lens returned to the root view.',
@@ -1438,18 +1456,8 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     }
     const force = forceRetry
     forceRetry = false
-    void queryWithSnapshotRecovery({
-      request,
-      navigation: currentNavigation,
-      loadDocument: refreshDocument,
-      query: (next) => client.query(next, { force }),
-    }).then((result) => {
-      if (result.reset) {
-        replaceNextURL = true
-        dispatch(navigationActions.restore(result.navigation))
-        setNotice(driftNotice())
-        return
-      }
+    void client.query(request, { force }).then((response) => {
+      const result = { response }
       const frameEntries = Object.entries(result.response.frames)
       const frame = frameEntries[0]?.[1]
       if (frame?.children) {
@@ -1465,6 +1473,14 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         summary: result.response.summary,
       })
     }).catch((cause: unknown) => {
+      if (cause instanceof SnapshotGoneError) {
+        // The level asked a calculation that no longer exists. Re-running it
+        // silently would put freshly calculated rows under a headline from the
+        // old calculation; the reader recalculates the board as a whole.
+        frames.set(panel.id, { data: previous, isStale: Boolean(previous), isLoading: false, error: null, retry: retryFrame })
+        setSnapshotExpired(true)
+        return
+      }
       const error = cause instanceof Error ? cause : new Error('query request failed')
       frames.set(panel.id, {
         data: previous,
@@ -1519,18 +1535,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     })
     const currentNavigation = { ...view, path: [...view.path] }
     try {
-      const result = await queryWithSnapshotRecovery({
-        request: { ...requestFor(doc, currentNavigation), page },
-        navigation: currentNavigation,
-        loadDocument: refreshDocument,
-        query: (next) => qClient.query(next, { force }),
-      })
-      if (result.reset) {
-        replaceNextURL = true
-        dispatch(navigationActions.restore(result.navigation))
-        setNotice(driftNotice())
-        return
-      }
+      const result = { response: await qClient.query({ ...requestFor(doc, currentNavigation), page }, { force }) }
       // A newer page request or navigation has stored its own frame (and its
       // own retry) since this one started; this answer is no longer the
       // panel's to write.
@@ -1547,6 +1552,11 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       })
     } catch (cause: unknown) {
       if (frames.get(panelId)?.retry !== retryPage) return
+      if (cause instanceof SnapshotGoneError) {
+        frames.set(panelId, { data: previous, page: previousState?.page, isStale: Boolean(previous), isLoading: false, error: null, retry: retryPage, summary: previousState?.summary })
+        setSnapshotExpired(true)
+        return
+      }
       frames.set(panelId, {
         data: previous,
         page: previousState?.page,
@@ -1988,6 +1998,9 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
                   <ExportContext.Provider value={exportContext}>
                     <PrintContext.Provider value={printContext}>
                       <FramesContext.Provider value={frames}>
+                        <Show when={drawerDepth === 0 && snapshotExpired()}>
+                          <SnapshotExpiredNotice busy={recalculating()} onRecalculate={() => { void recalculate() }} />
+                        </Show>
                         <Show when={dashboard.notice}>
                           {(message) => <RuntimeNotice notice={message()} onDismiss={() => setNotice(undefined)} />}
                         </Show>
@@ -2111,6 +2124,11 @@ export function useDashboard(): DashboardContextValue {
   const context = useContext(DashboardContext)
   if (!context) throw new Error('useDashboard must be used inside DashboardRuntimeProvider')
   return context
+}
+
+/** The dashboard context, or undefined outside a runtime (isolated stories, previews). */
+export function useOptionalDashboard(): DashboardContextValue | undefined {
+  return useContext(DashboardContext)
 }
 
 export function useDrill(): DrillContextValue {
@@ -2309,6 +2327,18 @@ function DocumentLoading(props: { locale?: string; children: JSX.Element }): JSX
         </p>
       </Show>
       {props.children}
+    </div>
+  )
+}
+
+function SnapshotExpiredNotice(props: { busy: boolean; onRecalculate: () => void }): JSX.Element {
+  const translate = useTranslate()
+  return (
+    <div class="lens-runtime-notice lens-runtime-expired" data-testid="snapshot-expired" role="alert">
+      <span>{translate('drill.expired', 'These figures come from a calculation that has expired. Recalculate to keep exploring; the whole board is updated.')}</span>
+      <button aria-busy={props.busy || undefined} class="lens-context-action" disabled={props.busy} onClick={() => props.onRecalculate()} type="button">
+        {translate('drill.recalculate', 'Recalculate')}
+      </button>
     </div>
   )
 }

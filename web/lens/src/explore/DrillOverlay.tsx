@@ -1,7 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import type { FieldFormat } from '../contract'
-import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
+import { ArrowUpRight, CaretRight, Check, Copy, BookmarkSimple, X } from '../icons'
 import { useDrawer, useFormat, useTranslate } from '../runtime'
 import { copyText } from '../runtime/clipboard'
 import { rawValueText } from '../runtime/format'
@@ -20,8 +20,31 @@ export interface DrillPathStep {
   onSelect: () => void
 }
 
+/**
+ * What the figure is: the measure, the period it covers and every
+ * constraint narrowing it, each with the layer it came from. A ratio states
+ * its host-computed parts instead of a share of a summed total.
+ */
+export interface DrillOverlayContext {
+  measure: string
+  period?: { label: string; origin?: string }
+  constraints: Array<{ key: string; label: string; origin: string }>
+  ratio?: {
+    numerator: { label: string; value?: string }
+    denominator: { label: string; value?: string }
+    description?: string
+  }
+}
+
+/** Saving the explored slice: offered when saveable, explained when not. */
+export type DrillOverlaySave =
+  | { kind: 'available'; onSave: () => void }
+  | { kind: 'unsupported'; message: string }
+
 export interface DrillOverlayProps {
   target: DrillTarget
+  context?: DrillOverlayContext
+  save?: DrillOverlaySave
   /**
    * Live source of the anchor point, when the overlay was opened from an
    * element rather than a pointer. The element is re-measured whenever the
@@ -299,7 +322,7 @@ export function DrillOverlay(props: DrillOverlayProps): JSX.Element | null {
   // action: nothing else here leads to it, and entering it resolves the sole
   // perspective on arrival.
   const expandable = Boolean(target.node && target.target) && !(target.expandsToFork && choosable)
-  const empty = target.breakdown.length === 0 && !target.leafHref && !expandable && !choosable
+  const empty = target.breakdown.length === 0 && !target.leafHref && !expandable && !choosable && !props.save
 
   return (
     <Show when={container()}>
@@ -368,6 +391,60 @@ export function DrillOverlay(props: DrillOverlayProps): JSX.Element | null {
                 <X />
               </button>
             </header>
+
+            <Show when={props.context}>
+              {(context) => (
+                <section class="lens-drill-section lens-drill-context" data-testid="drill-context">
+                  <h4 class="lens-drill-section-label">{translate('explore.about', 'About this figure')}</h4>
+                  <dl class="lens-drill-facts">
+                    <div>
+                      <dt>{translate('explore.measure', 'Measure')}</dt>
+                      <dd>{context().measure}</dd>
+                    </div>
+                    <Show when={context().period}>
+                      {(period) => (
+                        <div>
+                          <dt>{translate('explore.period', 'Period')}</dt>
+                          <dd>
+                            {period().label}
+                            <Show when={period().origin}>
+                              <span class="lens-drill-origin"> · {period().origin}</span>
+                            </Show>
+                          </dd>
+                        </div>
+                      )}
+                    </Show>
+                    <For each={context().constraints}>
+                      {(constraint) => (
+                        <div data-testid="drill-constraint">
+                          <dt class="lens-drill-sr-only">{translate('explore.constraint', 'Constraint')}</dt>
+                          <dd>
+                            {constraint.label}
+                            <span class="lens-drill-origin"> · {constraint.origin}</span>
+                          </dd>
+                        </div>
+                      )}
+                    </For>
+                    <Show when={context().ratio}>
+                      {(ratio) => (
+                        <div class="lens-drill-ratio" data-testid="drill-ratio">
+                          <dt>{translate('explore.ratio', 'Ratio of')}</dt>
+                          <dd>
+                            <span>{ratio().numerator.label}{ratio().numerator.value !== undefined ? `: ${ratio().numerator.value}` : ''}</span>
+                            <span aria-hidden="true"> ÷ </span>
+                            <span class="lens-drill-sr-only">{translate('explore.ratioOver', 'divided by')}</span>
+                            <span>{ratio().denominator.label}{ratio().denominator.value !== undefined ? `: ${ratio().denominator.value}` : ''}</span>
+                            <Show when={ratio().description}>
+                              <span class="lens-drill-ratio-note">{ratio().description}</span>
+                            </Show>
+                          </dd>
+                        </div>
+                      )}
+                    </Show>
+                  </dl>
+                </section>
+              )}
+            </Show>
 
             <Show when={(props.path ?? []).length > 1}>
               <section class="lens-drill-section">
@@ -470,6 +547,25 @@ export function DrillOverlay(props: DrillOverlayProps): JSX.Element | null {
               </Show>
               <Show when={empty}>
                 <p class="lens-drill-empty">{translate('explore.noDetail', 'No further detail')}</p>
+              </Show>
+              <Show when={props.save}>
+                {(save) => (
+                  <Show
+                    when={save().kind === 'available' ? save() as Extract<DrillOverlaySave, { kind: 'available' }> : undefined}
+                    fallback={(
+                      <p class="lens-drill-save-unsupported" data-testid="drill-save-unsupported">
+                        {(save() as Extract<DrillOverlaySave, { kind: 'unsupported' }>).message}
+                      </p>
+                    )}
+                  >
+                    {(available) => (
+                      <button class="lens-drill-action lens-drill-action-save" data-testid="drill-save" onClick={() => available().onSave()} type="button">
+                        <BookmarkSimple />
+                        <span>{translate('explore.saveInvestigation', 'Save investigation')}</span>
+                      </button>
+                    )}
+                  </Show>
+                )}
               </Show>
             </footer>
           </div>
