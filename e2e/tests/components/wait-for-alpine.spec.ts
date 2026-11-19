@@ -46,3 +46,9 @@ test('treats x-ignore.self roots as skipped while still checking their children'
 	await expect(page.locator('span')).toHaveText('inner');
 	await waitForAlpine(page, 2000);
 });
+
+// Regression (review): falsely green if the predicate excluded descendants of an x-ignore.self root.
+test('an uninitialized child of an x-ignore.self root still blocks readiness', async ({ page }) => {
+	await serve(page, '<script>window.Alpine = { version: "3.14.1" }</script>', '<section x-data="{ outer: true }" x-ignore.self><div x-data="{ label: \'inner\' }">Pending</div></section>');
+	await expect(waitForAlpine(page, 300)).rejects.toThrow();
+});

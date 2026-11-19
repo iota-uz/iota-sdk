@@ -251,3 +251,10 @@ test('detects a request matching a submitter formmethod without formaction', asy
   await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/profile', { method: 'POST' }) }))
   await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: POST/)
 })
+
+// Regression (review): an empty formmethod is GET per HTML, but was recorded as an empty method and missed.
+test('treats an empty submitter formmethod as GET', async ({ page }) => {
+  await host(page, '<form action="/profile" method="post"><input name="email" required><button formmethod="">Save</button></form>', async () => ({ body: '' }))
+  await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/profile', { method: 'GET' }) }))
+  await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: GET/)
+})
