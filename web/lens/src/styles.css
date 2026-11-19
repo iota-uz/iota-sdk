@@ -1031,12 +1031,9 @@
     @apply lens:flex lens:flex-wrap lens:gap-2;
   }
 
+  /* The shared dashboard empty state draws its own frame. */
   .lens-report-editor-empty {
-    @apply lens:rounded-card lens:border lens:border-dashed lens:border-border lens:px-5 lens:py-8 lens:text-md lens:text-muted;
-  }
-
-  .lens-report-editor-empty p {
-    @apply lens:m-0;
+    @apply lens:min-w-0;
   }
 
   .lens-report-editor-grid {
