@@ -216,8 +216,8 @@ export async function actionAndValidationRefusal(page: Page, form: Locator, acti
     const verbs = ['post', 'put', 'patch', 'delete', 'get']
     const candidates: { url: string; method: string }[] = []
     const resolve = (path: string | null) => new URL(path ?? location.href, location.href).href
-    // HTML method attributes: POST and DIALOG are recognised; missing, empty or invalid values mean GET.
-    const method = (value: string | null) => { const v = (value ?? '').trim().toLowerCase(); return v === 'post' || v === 'dialog' ? v.toUpperCase() : 'GET' }
+    // HTML method attributes (enumerated, ASCII case-insensitive, not trimmed): POST and DIALOG are recognised; missing, empty, padded or invalid values mean GET.
+    const method = (value: string | null) => { const v = (value ?? '').toLowerCase(); return v === 'post' || v === 'dialog' ? v.toUpperCase() : 'GET' }
     for (const element of [f, ...Array.from(f.querySelectorAll('button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]'))]) {
       for (const verb of verbs) if (element.hasAttribute(`hx-${verb}`)) candidates.push({ url: resolve(element.getAttribute(`hx-${verb}`)), method: verb.toUpperCase() })
       if (element !== f && (element.hasAttribute('formaction') || element.hasAttribute('formmethod'))) candidates.push({ url: resolve(element.getAttribute('formaction') ?? f.getAttribute('action')), method: element.hasAttribute('formmethod') ? method(element.getAttribute('formmethod')) : method(f.getAttribute('method')) })

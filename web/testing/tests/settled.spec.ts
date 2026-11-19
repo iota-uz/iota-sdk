@@ -258,3 +258,11 @@ test('treats an empty submitter formmethod as GET', async ({ page }) => {
   await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/profile', { method: 'GET' }) }))
   await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: GET/)
 })
+
+// Regression (review): enumerated attributes are not trimmed, so a padded " post " is invalid and means GET.
+test('treats a whitespace-padded submitter formmethod as GET', async ({ page }) => {
+  await host(page, '<form action="/profile" method="post"><input name="email" required><button formmethod=" post ">Save</button></form>', async () => ({ body: '' }))
+  expect(await page.locator('button').evaluate(button => (button as HTMLButtonElement).formMethod)).toBe('get')
+  await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/profile', { method: 'GET' }) }))
+  await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: GET/)
+})
