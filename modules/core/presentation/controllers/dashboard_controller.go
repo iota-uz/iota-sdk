@@ -92,6 +92,7 @@ func (c *DashboardController) Register(r *mux.Router) {
 	router.HandleFunc(financeOperationsDocument, c.operations(func(h *lensserve.Handlers) http.HandlerFunc { return h.Document })).Methods(http.MethodGet)
 	router.HandleFunc(financeOperationsBasePath+"/lens/query", c.operations(func(h *lensserve.Handlers) http.HandlerFunc { return h.Query })).Methods(http.MethodPost)
 	router.HandleFunc(financeOperationsBasePath+"/export", c.operations(func(h *lensserve.Handlers) http.HandlerFunc { return h.Export })).Methods(http.MethodGet)
+	router.HandleFunc(financeOperationsBasePath+"/lens/release", c.operations(func(h *lensserve.Handlers) http.HandlerFunc { return h.Release })).Methods(http.MethodPost)
 }
 
 func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
@@ -146,7 +147,7 @@ func (c *DashboardController) lensHandlers(r *http.Request) (*lensserve.Handlers
 	if err != nil {
 		return nil, fmt.Errorf("dashboard tenant lookup: %w", err)
 	}
-	return c.serve(financeDashboardSpec(tenantID, financeText(r.Context())), dashboardLensBasePath, tenantID, nil)
+	return c.serve(financeDashboardSpec(tenantID, financeText(r.Context())), dashboardLensBasePath, "core.dashboard", tenantID, nil)
 }
 
 // operations serves the drawer document listing the account operations behind
@@ -169,9 +170,9 @@ func (c *DashboardController) operations(pick func(*lensserve.Handlers) http.Han
 		}
 		text := financeText(r.Context())
 		spec := financeOperationsSpec(tenantID, drill, text)
-		handlers, err := c.serve(spec, financeOperationsBasePath, tenantID,
+		handlers, err := c.serve(spec, financeOperationsBasePath, "core.dashboard.operations", tenantID,
 			func(_ *http.Request, req runtime.Request) lensdocument.BuildOptions {
-				return lensdocument.BuildOptions{Drawer: &lensdocument.DrawerHeader{
+				return lensdocument.BuildOptions{Endpoints: operationsEndpoints(drill), Drawer: &lensdocument.DrawerHeader{
 					Eyebrow: text.OperationsDrawer,
 					Title:   operationsDrawerTitle(drill),
 					Caption: operationsDrawerCaption(spec, req),
@@ -186,7 +187,7 @@ func (c *DashboardController) operations(pick func(*lensserve.Handlers) http.Han
 	}
 }
 
-func (c *DashboardController) serve(spec lens.DashboardSpec, basePath string, tenantID uuid.UUID, options lensserve.DocumentOptionsResolver) (*lensserve.Handlers, error) {
+func (c *DashboardController) serve(spec lens.DashboardSpec, basePath, namespace string, tenantID uuid.UUID, options lensserve.DocumentOptionsResolver) (*lensserve.Handlers, error) {
 	return lensserve.New(lensserve.Config{
 		Spec:            spec,
 		Engine:          c.runtime,
@@ -199,7 +200,7 @@ func (c *DashboardController) serve(spec lens.DashboardSpec, basePath string, te
 				DataSources:          map[string]datasource.DataSource{"primary": c.ds},
 				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
 				DataScope:            tenantID.String(),
-				Namespace:            "core.dashboard",
+				Namespace:            namespace,
 			}
 		},
 	})

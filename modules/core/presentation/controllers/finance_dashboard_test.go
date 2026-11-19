@@ -2,6 +2,9 @@ package controllers_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -15,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	lensdocument "github.com/iota-uz/iota-sdk/pkg/lens/document"
 	lenspostgres "github.com/iota-uz/iota-sdk/pkg/lens/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
@@ -236,4 +240,70 @@ func TestFinanceOperations_RejectsMalformedDrillKeys(t *testing.T) {
 		_, err := controllers.FinanceOperationsSpec(context.Background(), uuid.New(), query)
 		require.Error(t, err, query.Encode())
 	}
+}
+
+func TestFinanceOperations_FollowUpRequestsKeepTheDrill(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	fx := seedFinance(t, env)
+	controller := controllers.NewFinanceDashboardTestController(lenspostgres.NewFromPool(env.Pool))
+
+	opened := "/dashboard/operations/document?currency=UZS&category=" + fx.food.String() +
+		"&label=Food&period-start=2026-06-01&period-end=2026-06-30"
+	recorder := httptest.NewRecorder()
+	controller.OperationsDocument(recorder, httptest.NewRequest(http.MethodGet, opened, nil).WithContext(env.Ctx))
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var doc lensdocument.DashboardDocument
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &doc))
+
+	openedSpec, err := controllers.FinanceOperationsSpec(env.Ctx, env.TenantID(), mustQuery(t, opened))
+	require.NoError(t, err)
+	for name, endpoint := range map[string]string{"query": doc.Endpoints.Query, "export": doc.Endpoints.Export, "release": doc.Endpoints.Release} {
+		require.NotEmpty(t, endpoint, name)
+		query := mustQuery(t, endpoint)
+		require.Equal(t, "UZS", query.Get("currency"), name)
+		require.Equal(t, fx.food.String(), query.Get("category"), name)
+		// The follow-up route rebuilds its spec from its own URL; it must be the
+		// filtered spec the snapshot was built from, never an unfiltered one.
+		followUp, specErr := controllers.FinanceOperationsSpec(env.Ctx, env.TenantID(), query)
+		require.NoError(t, specErr, name)
+		require.Equal(t, openedSpec, followUp, name)
+	}
+
+	exported := httptest.NewRecorder()
+	exportURL := doc.Endpoints.Export + "&snapshot=" + url.QueryEscape(doc.SnapshotID)
+	controller.OperationsExport(exported, httptest.NewRequest(http.MethodGet, exportURL, nil).WithContext(env.Ctx))
+	require.Equal(t, http.StatusOK, exported.Code, exported.Body.String())
+}
+
+func TestFinanceOperations_DrawerListsTheCompleteSlice(t *testing.T) {
+	t.Parallel()
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	fx := seedFinance(t, env)
+	_, err := env.Tx.Exec(env.Ctx, `WITH cash AS (
+			SELECT id FROM money_accounts WHERE tenant_id = $1 AND account_number = 'cash'
+		), created AS (
+			INSERT INTO transactions (tenant_id, amount, origin_account_id, transaction_date, accounting_period, transaction_type)
+			SELECT $1, 100, cash.id, DATE '2026-06-20', DATE '2026-06-20', 'WITHDRAWAL'
+			FROM cash, generate_series(1, 1001)
+			RETURNING id
+		)
+		INSERT INTO expenses (tenant_id, transaction_id, category_id) SELECT $1, id, $2 FROM created`, env.TenantID(), fx.food)
+	require.NoError(t, err)
+
+	spec := controllers.FinanceDashboardSpec(env.Ctx, env.TenantID())
+	expenses := datasetRows(t, env.Ctx, spec, juneRequest(env, nil), "finance-expenses-by-category")
+	require.Len(t, expenses, 1)
+	require.InDelta(t, 1201.0, number(t, expenses[0]["amount"]), 1e-9, "200.00 plus 1001 expenses of 1.00")
+
+	total, rows := drillTotal(t, env, url.Values{"currency": {"UZS"}, "category": {fx.food.String()}})
+	require.Equal(t, 1002, rows, "no row of the slice is cut off")
+	require.InDelta(t, -number(t, expenses[0]["amount"]), total, 1e-9)
+}
+
+func mustQuery(t *testing.T, raw string) url.Values {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	require.NoError(t, err)
+	return parsed.Query()
 }

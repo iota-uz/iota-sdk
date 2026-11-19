@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -30,9 +31,9 @@ const (
 	financePeriodDefault        = 30 * 24 * time.Hour
 	financeOperationsBasePath   = dashboardLensBasePath + "/operations"
 	financeOperationsDocument   = financeOperationsBasePath + "/document"
-	financeOperationsRowLimit   = 1000
 	financeOperationsTitleLimit = 120
 	financeTopRows              = 15
+	financeRecentRows           = 20
 )
 
 // Drill parameters carry stable keys only: a currency code, an ISO day, and
@@ -278,7 +279,7 @@ func financeDashboardSpec(tenantID uuid.UUID, text financeDashboardText) lens.Da
 			GROUP BY cp.id, cp.name, l.currency
 			ORDER BY amount DESC
 			LIMIT `+fmt.Sprint(financeTopRows), params),
-		financeQuery("finance-recent-operations", operationsQuery(20), operationsParams(params, operationsDrill{}, text)),
+		financeQuery("finance-recent-operations", operationsQuery(financeRecentRows), operationsParams(params, operationsDrill{}, text)),
 	).Build()
 }
 
@@ -362,12 +363,12 @@ func operationsParams(base map[string]lens.ParamValue, drill operationsDrill, te
 	return params
 }
 
-// operationsQuery lists account legs inside the period, narrowed by the
+// operationsSelect lists account legs inside the period, narrowed by the
 // drill keys. The type is filtered and keyed by its code; @type_labels only
-// supplies the localized caption. A category keeps only the expense (outgoing) leg of its
-// transactions and a counterparty only the incoming payment leg, matching how
-// the dashboard panels aggregate them.
-func operationsQuery(limit int) string {
+// supplies the localized caption. A category keeps only the expense (outgoing)
+// leg of its transactions and a counterparty only the incoming payment leg,
+// matching how the dashboard panels aggregate them.
+func operationsSelect() string {
 	return `WITH ` + financeLegsCTE + `
 		SELECT l.transaction_id::text || ':' || l.account_id::text AS id,
 			l.day, TO_CHAR(l.day, 'YYYY-MM-DD') AS day_key, l.transaction_type,
@@ -390,7 +391,17 @@ func operationsQuery(limit int) string {
 			AND (@day::date IS NULL OR l.day = @day::date)
 			AND (@category::uuid IS NULL OR (l.delta < 0 AND e.category_id = @category::uuid))
 			AND (@counterparty::uuid IS NULL OR (l.delta > 0 AND p.counterparty_id = @counterparty::uuid))
-		ORDER BY l.day DESC, l.created_at DESC, l.transaction_id, l.account_id
+		ORDER BY l.day DESC, l.created_at DESC, l.transaction_id, l.account_id`
+}
+
+// operationsQuery bounds operationsSelect for the recent-operations panel. The
+// drawer passes 0 and lists the complete slice, so its footer total reconciles
+// with the mark it was opened from.
+func operationsQuery(limit int) string {
+	if limit <= 0 {
+		return operationsSelect()
+	}
+	return operationsSelect() + `
 		LIMIT ` + fmt.Sprint(limit)
 }
 
@@ -433,7 +444,7 @@ func financeOperationsSpec(tenantID uuid.UUID, drill operationsDrill, text finan
 	).Variables(
 		lensbuild.DateRangeVariable(financePeriodVariable, text.Period, financePeriodDefault),
 	).Datasets(
-		financeQuery("finance-operations", operationsQuery(financeOperationsRowLimit), params),
+		financeQuery("finance-operations", operationsQuery(0), params),
 	).Build()
 }
 
@@ -467,4 +478,40 @@ func operationsDrawerCaption(spec lens.DashboardSpec, req runtime.Request) strin
 		return ""
 	}
 	return from.Format("02.01.2006") + " – " + to.Format("02.01.2006")
+}
+
+// operationsDrillQuery is the canonical query string of a drill. The drawer
+// advertises its query, export and release endpoints with it, so every
+// follow-up request rebuilds the same filtered spec the document was built
+// from instead of an unfiltered one.
+func operationsDrillQuery(drill operationsDrill) string {
+	values := url.Values{}
+	if drill.Currency != "" {
+		values.Set(drillParamCurrency, drill.Currency)
+	}
+	if drill.Day != nil {
+		values.Set(drillParamDay, drill.Day.Format(time.DateOnly))
+	}
+	if drill.Category != nil {
+		values.Set(drillParamCategory, drill.Category.String())
+	}
+	if drill.Counterparty != nil {
+		values.Set(drillParamCounterparty, drill.Counterparty.String())
+	}
+	if drill.Label != "" {
+		values.Set(drillParamLabel, drill.Label)
+	}
+	return values.Encode()
+}
+
+func operationsEndpoints(drill operationsDrill) document.Endpoints {
+	suffix := ""
+	if query := operationsDrillQuery(drill); query != "" {
+		suffix = "?" + query
+	}
+	return document.Endpoints{
+		Query:   financeOperationsBasePath + "/lens/query" + suffix,
+		Export:  financeOperationsBasePath + "/export" + suffix,
+		Release: financeOperationsBasePath + "/lens/release" + suffix,
+	}
 }
