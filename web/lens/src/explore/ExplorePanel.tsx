@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, createUniqueId, onCleanup, Show, type JSX } from 'solid-js'
+import { createEffect, createMemo, createSignal, createUniqueId, lazy, onCleanup, Show, type JSX } from 'solid-js'
 import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
@@ -21,7 +21,10 @@ import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './act
 import { DrillOverlay, type DrillOverlayContext, type DrillOverlaySave } from './DrillOverlay'
 import { useDrillHost, useReturnLink } from './drillHost'
 import { investigationSaveability, nodeValue, placementForPanel, positionProvenance, type InvestigationSlice, type InvestigationUnsupportedReason } from './investigation'
-import { originLabel, SaveInvestigation, slicePeriodLabel } from './SaveInvestigation'
+import { originLabel, slicePeriodLabel } from './provenanceLabels'
+
+// The save form and its destination picker load on first use, outside the core bundle.
+const SaveInvestigation = lazy(() => import('./SaveInvestigation').then((module) => ({ default: module.SaveInvestigation })))
 import { useReportPlacementHost } from '../reports/placementHost'
 import { useLocale } from '../runtime'
 import { formatFieldValue } from '../runtime/format'
@@ -352,11 +355,12 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     })
   }
 
-  const openForLevel = () => {
+  const openForLevel = (opener?: HTMLElement) => {
     const current = level()
     if (!current) return
     setOverlayTheme(themeOf(exploreRef ?? null))
     rememberOpener()
+    if (opener) overlayOpener = opener
     const target = drillTargetForLevel(document, panel, current, frame.data)
     setOverlay({
       target: withoutShares({ ...target, breakdown: withHrefs(target.breakdown, current) }),
@@ -401,7 +405,9 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     const row = rows ? rowForNode(node, owner, rows, encoding) : undefined
     const index = row && encoding.label ? rows!.columns.findIndex(({ name }) => name === encoding.label) : -1
     const label = index >= 0 ? row![index] : undefined
-    return typeof label === 'string' && label.trim() ? label : nodeValue(node)
+    if (typeof label === 'string' && label.trim()) return label
+    const target = node.target ? document.drill.edges[node.target]?.label.trim() : ''
+    return target || nodeValue(node)
   }
   const dimensionLabel = (dimension: string) => document.contextEditor?.dimensionLabels?.[dimension] || dimension
   const originNames = () => document.contextEditor?.originLabels
@@ -410,7 +416,9 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
     return value === undefined || value === null ? undefined : formatFieldValue(value, format, locale())
   }
 
-  const overlayContext = (target: DrillTarget): DrillOverlayContext => {
+  // Stated only when it says more than the card's title: a period, a
+  // constraint with its origin, or the parts of a ratio.
+  const overlayContext = (target: DrillTarget): DrillOverlayContext | undefined => {
     const provenance = positionProvenance(document, panel, active() ? navigation : { path: [] }, selectionLabel)
     const context = provenance.context
     const subtitle = document.header?.subtitle?.trim()
@@ -423,6 +431,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
       return row && index >= 0 ? row[index] : undefined
     }
     const ratio = panel.ratio
+    if (!period && provenance.constraints.length === 0 && !ratio) return undefined
     return {
       measure: panel.title,
       ...(period ? { period } : {}),
@@ -499,7 +508,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
           aria-haspopup="dialog"
           aria-label={translate('explore.openBreakdown', 'Show breakdown')}
           class="lens-icon-button lens-explore-affordance"
-          onClick={openForLevel}
+          onClick={(event) => openForLevel(event.currentTarget)}
           ref={exploreRef}
           title={translate('explore.openBreakdown', 'Show breakdown')}
           type="button"
@@ -533,7 +542,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
             aria-current="page"
             aria-haspopup="dialog"
             class="lens-trail-current"
-            onClick={openForLevel}
+            onClick={(event) => openForLevel(event.currentTarget)}
             title={breadcrumbs().map((crumb) => crumb.label).join(' › ')}
             type="button"
           >
@@ -654,7 +663,7 @@ export function ExplorePanel(props: ExplorePanelProps): JSX.Element {
                           <p class="lens-explore-awaiting-text">
                             {translate('explore.chooseView', 'Choose a view for {name}', { name: viewPanel().title })}
                           </p>
-                          <button class="lens-explore-awaiting-action" onClick={openForLevel} type="button">
+                          <button class="lens-explore-awaiting-action" onClick={(event) => openForLevel(event.currentTarget)} type="button">
                             {translate('explore.views', '{n} views', { n: perspectives().length })}
                             <CaretRight />
                           </button>

@@ -138,6 +138,11 @@ export interface InvestigationHost {
   capabilities?: (placementId: string) => Pick<Capabilities, 'save' | 'drill' | 'export'> & Partial<Pick<Capabilities, 'dimensions' | 'operationDimensions'>> | undefined
 }
 
+/** A detached copy of plain data; store proxies cannot be structured-cloned. */
+function plain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
 /** The innermost report group around a panel whose context names a source. */
 export function placementForPanel(document: DashboardDocument, panelId: string): LayoutGroup | undefined {
   for (const row of document.layout.rows) {
@@ -224,11 +229,11 @@ export function investigationSaveability(options: {
       measure: { panelId: panel.id, title: panel.title },
       source: { ...source },
       calendar: { ...context.calendar },
-      period: structuredClone(context.period),
+      period: plain(context.period),
       constraints,
       steps: walked.steps,
       navigation: { panelId: navigation.panelId, path: [...navigation.path], perspectiveId: navigation.perspectiveId },
-      context: structuredClone(context),
+      context: plain(context),
     },
   }
 }
@@ -254,7 +259,7 @@ export function investigationProposal(slice: InvestigationSlice, options: { titl
     title: options.title.trim(),
     source: { id: slice.source.id, version: slice.source.version },
     view: slice.source.view,
-    filters: { period: structuredClone(slice.period.selection), constraints: savedConstraints(slice) },
+    filters: { period: plain(slice.period.selection), constraints: savedConstraints(slice) },
     origin: {
       dashboardId: options.dashboardId,
       placementId: slice.placementId,

@@ -1477,7 +1477,9 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         // The level asked a calculation that no longer exists. Re-running it
         // silently would put freshly calculated rows under a headline from the
         // old calculation; the reader recalculates the board as a whole.
-        frames.set(panel.id, { data: previous, isStale: Boolean(previous), isLoading: false, error: null, retry: retryFrame })
+        // The previous frame belongs to another level or calculation: it is
+        // not shown under this level's heading.
+        frames.set(panel.id, { data: undefined, isStale: false, isLoading: false, error: cause, retry: () => { void recalculate() } })
         setSnapshotExpired(true)
         return
       }
@@ -1553,7 +1555,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
     } catch (cause: unknown) {
       if (frames.get(panelId)?.retry !== retryPage) return
       if (cause instanceof SnapshotGoneError) {
-        frames.set(panelId, { data: previous, page: previousState?.page, isStale: Boolean(previous), isLoading: false, error: null, retry: retryPage, summary: previousState?.summary })
+        frames.set(panelId, { data: undefined, isStale: false, isLoading: false, error: cause, retry: () => { void recalculate() } })
         setSnapshotExpired(true)
         return
       }

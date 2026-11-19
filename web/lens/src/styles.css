@@ -6745,6 +6745,11 @@
 
   /* What the figure is: measure, period and every narrowing constraint with
      the layer it came from. Facts, not controls: plain text on the card. */
+  /* The facts stay whole; a long breakdown below them is what scrolls. */
+  .lens-drill-context {
+    @apply lens:shrink-0 lens:overflow-visible;
+  }
+
   .lens-drill-facts {
     @apply lens:m-0 lens:flex lens:flex-col lens:gap-0.5 lens:text-base lens:text-text;
   }
@@ -6802,6 +6807,10 @@
 
   .lens-investigation-field {
     @apply lens:flex lens:flex-col lens:gap-1;
+  }
+
+  .lens-investigation-input {
+    @apply lens:min-h-control-md lens:w-full lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
   }
 
   .lens-investigation-label,

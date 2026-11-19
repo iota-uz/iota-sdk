@@ -14,6 +14,7 @@
 export type MessageCatalogue = Readonly<Record<string, string>>
 
 const ru: MessageCatalogue = {
+  'panel.error.expired': 'Эти показатели устарели. Пересчитайте доску, чтобы увидеть этот уровень.',
   'drill.expired': 'Эти показатели получены из устаревшего расчёта. Пересчитайте, чтобы продолжить исследование: обновится вся доска.',
   'drill.recalculate': 'Пересчитать',
   'drill.recalculateFailed': 'Не удалось пересчитать показатели. Попробуйте ещё раз.',
@@ -297,6 +298,7 @@ const ru: MessageCatalogue = {
 }
 
 const uz: MessageCatalogue = {
+  'panel.error.expired': 'Bu ko‘rsatkichlar eskirgan. Bu darajani ko‘rish uchun panelni qayta hisoblang.',
   'drill.expired': 'Bu ko‘rsatkichlar eskirgan hisobdan olingan. Tahlilni davom ettirish uchun qayta hisoblang: butun panel yangilanadi.',
   'drill.recalculate': 'Qayta hisoblash',
   'drill.recalculateFailed': 'Ko‘rsatkichlarni qayta hisoblab bo‘lmadi. Qayta urinib ko‘ring.',

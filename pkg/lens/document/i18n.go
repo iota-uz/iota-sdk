@@ -15,6 +15,7 @@ import (
 // Drill provenance, expired snapshots and saving an investigation.
 const (
 	I18nDrillExpired                     = "drill.expired"
+	I18nPanelErrorExpired                = "panel.error.expired"
 	I18nDrillRecalculate                 = "drill.recalculate"
 	I18nDrillRecalculateFailed           = "drill.recalculateFailed"
 	I18nDrillRecalculated                = "drill.recalculated"
@@ -590,6 +591,7 @@ func RuntimeLocaleKey(runtimeKey string) string {
 func RuntimeI18nKeys() []string {
 	keys := []string{
 		I18nDrillExpired,
+		I18nPanelErrorExpired,
 		I18nDrillRecalculate,
 		I18nDrillRecalculateFailed,
 		I18nDrillRecalculated,
