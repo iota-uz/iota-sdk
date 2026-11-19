@@ -1031,12 +1031,9 @@
     @apply lens:flex lens:flex-wrap lens:gap-2;
   }
 
+  /* The shared dashboard empty state draws its own frame. */
   .lens-report-editor-empty {
-    @apply lens:rounded-card lens:border lens:border-dashed lens:border-border lens:px-5 lens:py-8 lens:text-md lens:text-muted;
-  }
-
-  .lens-report-editor-empty p {
-    @apply lens:m-0;
+    @apply lens:min-w-0;
   }
 
   .lens-report-editor-grid {
@@ -1051,9 +1048,28 @@
     box-shadow: var(--lens-shadow-card);
   }
 
+  /* A card just added from the picker is outlined, and briefly pulses so the
+     reader finds it; the outline stays until the next edit. */
   .lens-report-editor-card[data-added] {
     border-color: var(--lens-accent-500);
     box-shadow: 0 0 0 1px var(--lens-accent-500);
+    animation: lens-report-added 1.6s ease-out 1;
+  }
+
+  @keyframes lens-report-added {
+    from {
+      box-shadow: 0 0 0 6px var(--lens-accent-300);
+    }
+
+    to {
+      box-shadow: 0 0 0 1px var(--lens-accent-500);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-report-editor-card[data-added] {
+      animation: none;
+    }
   }
 
   .lens-report-editor-card[data-drop-target] {
@@ -1144,6 +1160,76 @@
 
   .lens-report-proposal-list li {
     @apply lens:flex lens:items-center lens:gap-2;
+  }
+
+  /* The proposed layout, drawn on the editor's twelve-column grid. */
+  .lens-report-proposal-preview {
+    @apply lens:m-0 lens:grid lens:gap-2 lens:rounded-control lens:border lens:border-solid lens:border-border lens:p-2;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    background: var(--lens-bg-page);
+  }
+
+  .lens-report-proposal-preview-card {
+    @apply lens:flex lens:min-h-12 lens:min-w-0 lens:items-start lens:justify-between lens:gap-2 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-2 lens:py-1.5 lens:text-base lens:text-strong;
+    grid-column: span var(--lens-editor-span, 12);
+  }
+
+  .lens-report-proposal-preview-card[data-row-start] {
+    grid-column: 1 / span var(--lens-editor-span, 12);
+  }
+
+  .lens-report-proposal-preview-card[data-kind='add'] {
+    border-color: var(--lens-pos);
+  }
+
+  .lens-report-proposal-preview-card[data-kind='change'] {
+    border-color: var(--lens-accent-500);
+  }
+
+  .lens-report-proposal-preview-title {
+    @apply lens:min-w-0;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-usage-list {
+    @apply lens:m-0 lens:flex lens:list-disc lens:flex-col lens:gap-1 lens:py-0 lens:pl-5 lens:pr-0;
+  }
+
+
+  .lens-report-usage-list li > * + * {
+    @apply lens:ml-2;
+  }
+
+  /* The shared-report editor: impact first, then filters with their origin,
+     the report's parameters, and a preview that is never the saved state. */
+  .lens-report-definition-heading {
+    @apply lens:m-0 lens:text-lg lens:font-semibold lens:text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  .lens-report-definition-section {
+    @apply lens:flex lens:flex-col lens:gap-2 lens:rounded-card lens:border lens:border-solid lens:border-border lens:bg-card lens:px-4 lens:py-3 lens:text-md;
+  }
+
+  .lens-report-definition-section p {
+    @apply lens:m-0;
+  }
+
+  .lens-report-definition-section-title {
+    @apply lens:m-0 lens:text-md lens:font-semibold lens:text-strong;
+  }
+
+  .lens-report-definition-origin {
+    @apply lens:flex lens:flex-col lens:gap-2 lens:rounded-control lens:px-3 lens:py-2;
+    background: var(--lens-accent-50);
+  }
+
+  .lens-report-definition-hint {
+    @apply lens:text-base lens:text-muted;
+  }
+
+  .lens-report-definition-preview-bar {
+    @apply lens:flex lens:flex-wrap lens:items-center lens:gap-2;
   }
 
   .lens-report-picker-badge[data-tone='add'] {

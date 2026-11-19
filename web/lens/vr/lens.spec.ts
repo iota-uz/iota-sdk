@@ -102,6 +102,19 @@ const storyIds = [
   'report-editor--proposal-stale-dark',
   'report-editor--walkthrough-light',
   'report-editor--walkthrough-dark',
+  'report-editor--proposal-preparing-light',
+  'report-editor--proposal-preparing-dark',
+  'report-editor--proposal-preparing-stale-light',
+  'report-editor--proposal-preparing-stale-dark',
+  'report-definition-editor--context-light',
+  'report-definition-editor--context-dark',
+  'report-definition-editor--standalone-light',
+  'report-definition-editor--standalone-dark',
+  'report-definition-editor--preview-unsaved-light',
+  'report-definition-editor--preview-unsaved-dark',
+  'report-definition-editor--conflict-light',
+  'report-definition-editor--conflict-dark',
+  'report-definition-editor--walkthrough-light',
   'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
@@ -414,6 +427,19 @@ const staticStories = [
   ['report-editor--proposal-stale-dark', 0, 16],
   ['report-editor--walkthrough-light', 0, 16],
   ['report-editor--walkthrough-dark', 0, 16],
+  ['report-editor--proposal-preparing-light', 0, 16],
+  ['report-editor--proposal-preparing-dark', 0, 16],
+  ['report-editor--proposal-preparing-stale-light', 0, 16],
+  ['report-editor--proposal-preparing-stale-dark', 0, 16],
+  ['report-definition-editor--context-light', 0, 16],
+  ['report-definition-editor--context-dark', 0, 16],
+  ['report-definition-editor--standalone-light', 0, 16],
+  ['report-definition-editor--standalone-dark', 0, 16],
+  ['report-definition-editor--preview-unsaved-light', 0, 16],
+  ['report-definition-editor--preview-unsaved-dark', 0, 16],
+  ['report-definition-editor--conflict-light', 0, 16],
+  ['report-definition-editor--conflict-dark', 0, 16],
+  ['report-definition-editor--walkthrough-light', 0, 16],
   ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
@@ -1651,6 +1677,113 @@ for (const width of [1440, 1024, 390]) {
     })
     expect(problems).toEqual([])
     await screenshot(page, `dashboard-edit--dirty-light-${width}`, { maxDiffPixels: 40 })
+  })
+}
+
+// False green: a stale check only after the proposal arrived, or a preview shown once, would miss an edit made
+// while the host was still preparing it.
+test('report editor proposal: stale when edited while prepared, preview before Apply, reject keeps the draft', async ({ page }) => {
+  await openStory(page, 'report-editor--walkthrough-light', 0)
+  const status = page.getByTestId('report-editor-status')
+  await page.getByRole('button', { name: 'Request proposal' }).click()
+  const pending = page.getByTestId('report-proposal-request')
+  await expect(pending).toContainText('being prepared')
+  await page.getByTestId('report-editor-handle-portfolio').focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(pending.getByRole('alert')).toContainText('cannot be applied when it arrives')
+  await page.getByRole('button', { name: 'Deliver proposal' }).click()
+  const proposal = page.getByTestId('report-proposal')
+  await expect(proposal.getByRole('button', { name: 'Apply to draft' })).toHaveCount(0)
+  await expect(proposal.getByRole('alert')).toContainText('can no longer be applied')
+  await expect(proposal.getByRole('button', { name: 'Open as a separate draft' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(status).toHaveText('No changes')
+  await page.getByRole('button', { name: 'Request proposal' }).click()
+  await page.getByRole('button', { name: 'Deliver proposal' }).click()
+  const preview = proposal.getByTestId('report-proposal-preview')
+  await expect(preview).toBeVisible()
+  await expect(preview.locator('[data-kind="add"]')).toHaveText(/Claims report 07/)
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(1)
+  await expect(status).toHaveText('No changes')
+  await proposal.getByRole('button', { name: 'Reject' }).click()
+  await expect(proposal).toHaveCount(0)
+  await expect(page.locator('[data-placement-editor="finance"]')).toHaveCount(1)
+  await expect(status).toHaveText('No changes')
+})
+
+// False green: an always-successful save, or a Cancel checked on the title alone, would pass while a
+// parameter edit or the dashboard filters leaked into the shared report.
+test('shared report editor walkthrough: provenance, preview, failure, conflict, Cancel and leave guard', async ({ page }) => {
+  await openStory(page, 'report-definition-editor--walkthrough-light', 0)
+  const status = page.getByTestId('report-definition-status')
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Edit report: Revenue by channel')
+  await expect(page.getByTestId('report-usage-list').locator('li')).toHaveCount(3)
+  await expect(page.getByTestId('report-definition-origin')).toContainText('Opened from Sales board')
+  await page.getByLabel('Report defaults').check()
+  await expect(page.getByTestId('definition-preview-table')).toContainText('Last 12 months')
+  await page.getByLabel('Filters from Sales board').check()
+  await expect(status).toHaveText('No changes')
+
+  await page.getByLabel('Rows shown').selectOption('8')
+  await expect(page.getByTestId('definition-preview-table').locator('tbody tr')).toHaveCount(8)
+  await expect(page.getByTestId('report-definition-preview')).toContainText('Not saved')
+  await expect(status).toHaveText('Unsaved changes')
+
+  await page.getByRole('checkbox', { name: 'Reject next save' }).check()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByRole('alert')).toContainText('They are kept here')
+  await expect(page.getByLabel('Rows shown')).toHaveValue('8')
+  await page.getByRole('checkbox', { name: 'Reject next save' }).uncheck()
+
+  await page.getByRole('checkbox', { name: 'Conflict on next save' }).check()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  const conflict = page.getByTestId('report-definition-conflict')
+  await expect(conflict).toContainText('Your changes are kept')
+  await conflict.getByRole('button', { name: 'Save as a separate copy' }).click()
+  await expect(page.getByTestId('definition-host-log')).toHaveText('Host saves an independent copy')
+  await conflict.getByRole('button', { name: 'Keep my changes' }).click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(status).toHaveText('All changes saved')
+
+  await page.getByLabel('Measure').selectOption('policies')
+  await page.getByLabel('Report name').fill('Policies by channel')
+  await page.getByLabel('Report name').press('Tab')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(page.getByLabel('Measure')).toHaveValue('revenue')
+  await expect(page.getByLabel('Report name')).toHaveValue('Revenue by channel')
+  await expect(page.getByLabel('Rows shown')).toHaveValue('8')
+  await expect(status).toHaveText('No changes')
+
+  await page.getByTestId('report-definition-slice').click()
+  await expect(page.getByTestId('definition-host-log')).toHaveText('Host saves a new report filtered by North+East')
+
+  await page.getByLabel('Rows shown').selectOption('3')
+  await page.getByRole('button', { name: 'Navigate away' }).click()
+  const leave = page.getByRole('alertdialog', { name: 'Save changes before leaving?' })
+  await expect(leave.getByRole('button', { name: 'Stay' })).toBeFocused()
+  await leave.getByRole('button', { name: 'Leave without saving' }).click()
+  await expect(page.getByTestId('definition-host-log')).toHaveText('Navigation allowed')
+  await expect(page.getByLabel('Rows shown')).toHaveValue('8')
+})
+
+for (const width of [1440, 1024, 390]) {
+  // False green: a 1600px baseline hides save actions or the provenance block clipped on a phone.
+  test(`shared report editor at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, 'report-definition-editor--preview-unsaved-light', 0)
+    await expect(page.getByTestId('report-definition-editor')).toBeVisible()
+    const problems = await page.evaluate(() => {
+      const found: string[] = []
+      if (document.documentElement.scrollWidth > window.innerWidth + 1) found.push('page')
+      for (const element of document.querySelectorAll<HTMLElement>('.lens-report-editor-actions button, [data-testid="report-definition-origin"], [data-testid="report-definition-impact"] button')) {
+        const rect = element.getBoundingClientRect()
+        if (rect.left < 0 || rect.right > window.innerWidth + 1) found.push(element.textContent ?? 'element')
+      }
+      return found
+    })
+    expect(problems).toEqual([])
+    await screenshot(page, `report-definition-editor--preview-unsaved-light-${width}`, { maxDiffPixels: 16 })
   })
 }
 

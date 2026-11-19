@@ -5,12 +5,14 @@ import type { ReportDraft } from './draft'
 import {
   createCompositionSession, createPlacementControls, periodText, PlacementHandle, PlacementResize, SessionAlerts, SessionDialogs, SessionProposal,
   SessionSaveActions, type CompositionSession, type ReportEditorLifecycle, type ReportProposal, type ReportProposalHandlers,
+  type ReportProposalRequest, type ReportUsage,
 } from './editing'
+import { DashboardEmptyState } from './DashboardEmptyState'
 import { createReportLeaveGuard, type ReportLeaveGuard } from './guard'
 import { spanOf } from './layout'
 import type { ReportCatalogHost } from './picker'
 
-export type { ReportEditorLifecycle, ReportProposal, ReportProposalHandlers } from './editing'
+export type { ReportEditorLifecycle, ReportProposal, ReportProposalHandlers, ReportProposalRequest, ReportUsage } from './editing'
 
 export interface ReportCompositionEditorProps {
   draft: ReportDraft<Composition>
@@ -23,6 +25,8 @@ export interface ReportCompositionEditorProps {
   renderPlacement?: (placement: Placement) => JSX.Element
   /** How many placements use a report, shown before editing the shared definition. */
   usage?: (reportId: string) => Promise<number> | number
+  /** The placements that use a report, listed before editing the shared definition. Wins over usage. */
+  placements?: (reportId: string) => Promise<ReportUsage[]> | ReportUsage[]
   /** Opens the shared report definition for editing. */
   onEditReport?: (reportId: string, placementId: string) => Promise<void> | void
   /** Replaces the placement's report with an independent copy. */
@@ -32,11 +36,15 @@ export interface ReportCompositionEditorProps {
   /** In-app navigation guard; the editor creates one with browser-unload protection when omitted. */
   guard?: ReportLeaveGuard
   proposal?: ReportProposal
+  /** A proposal the host is still preparing; a manual edit before it arrives makes it stale. */
+  proposalRequest?: ReportProposalRequest
   proposalHandlers?: ReportProposalHandlers
   /** Placement span of cards added from the picker (12 by default). */
   addSpan?: number
   theme?: LensThemeMode
   messages?: Record<string, string>
+  /** Locale of the built-in chrome translations (ru, uz); English when omitted outside a document. */
+  locale?: string
 }
 
 /**
@@ -48,7 +56,7 @@ export interface ReportCompositionEditorProps {
 export function ReportCompositionEditor(props: ReportCompositionEditorProps): JSX.Element {
   return (
     <div class="lens-root lens-root-inline" data-theme={props.theme ?? 'light'}>
-      <LensMessagesProvider messages={props.messages}>
+      <LensMessagesProvider locale={props.locale} messages={props.messages}>
         <Editor {...props} />
       </LensMessagesProvider>
     </div>
@@ -75,6 +83,11 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
               if (value) session.edit((composition) => ({ ...composition, title: value }))
               else event.currentTarget.value = draft.value().title
             }}
+            // A rename counts as unsaved while the reader types, so a leave request before blur still asks.
+            onInput={(event) => {
+              const value = event.currentTarget.value
+              if (value.trim()) session.edit((composition) => ({ ...composition, title: value }))
+            }}
             value={draft.value().title}
           />
           <p aria-live="polite" class="lens-report-editor-status" data-dirty={draft.dirty() || undefined} data-testid="report-editor-status">{session.status()}</p>
@@ -98,7 +111,7 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
       <Show
         fallback={(
           <div class="lens-report-editor-empty" data-testid="report-editor-empty">
-            <p>{translate('report.editor.empty', 'This dashboard has no reports yet.')}</p>
+            <DashboardEmptyState onAdd={props.catalog ? () => session.setPicking(true) : undefined} />
           </div>
         )}
         when={session.ids().length > 0}

@@ -24,6 +24,26 @@ export interface ReportProposalHandlers {
   regenerate?: (proposal: ReportProposal) => void
   /** Keep a stale proposal as a separate draft instead of applying it here. */
   openAsDraft?: (proposal: ReportProposal) => void
+  /** Restart a proposal still being prepared, against the current draft, after the reader changed it. */
+  restart?: (request: ReportProposalRequest) => void
+}
+
+/**
+ * A proposal the host is still preparing. base is reportDraftToken(draft) when
+ * the host started; a manual edit before the proposal arrives makes it stale.
+ */
+export interface ReportProposalRequest {
+  id: string
+  base: string
+}
+
+/** A placement of a shared report, listed before the shared definition is edited. */
+export interface ReportUsage {
+  id: string
+  /** Where the report is placed, for example the dashboard and card title. */
+  title: string
+  /** The placement the reader is editing from. */
+  current?: boolean
 }
 
 /** The host operations a composition editing session can call. Every member is read when used. */
@@ -36,6 +56,8 @@ export interface CompositionSessionHost {
   catalog?: ReportCatalogHost
   /** How many placements use a report, shown before editing the shared definition. */
   usage?: (reportId: string) => Promise<number> | number
+  /** The placements that use a report, listed before editing the shared definition. Wins over usage. */
+  placements?: (reportId: string) => Promise<ReportUsage[]> | ReportUsage[]
   /** Opens the shared report definition for editing. */
   onEditReport?: (reportId: string, placementId: string) => Promise<void> | void
   /** Replaces the placement's report with an independent copy. */
@@ -43,6 +65,8 @@ export interface CompositionSessionHost {
   /** After a revision conflict: keep the local draft as an independent object. */
   onSaveCopy?: (draft: Composition) => Promise<void> | void
   proposal?: ReportProposal
+  /** A proposal the host is still preparing; shown until proposal arrives. */
+  proposalRequest?: ReportProposalRequest
   proposalHandlers?: ReportProposalHandlers
   /** Placement span of cards added from the picker (12 by default). */
   addSpan?: number
@@ -79,12 +103,14 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const draft = host.draft
   const [picking, setPicking] = createSignal(false)
   const [configuring, setConfiguring] = createSignal<string>()
-  const [impact, setImpact] = createSignal<{ placementId: string; reportId: string; usage?: number }>()
+  const [impact, setImpact] = createSignal<{ placementId: string; reportId: string; usage?: number; placements?: ReportUsage[] }>()
   const [notice, setNotice] = createSignal('')
   const [announcement, setAnnouncement] = createSignal('')
   const [added, setAdded] = createSignal<string[]>([])
   const [saved, setSaved] = createSignal(false)
   const [settledProposal, setSettledProposal] = createSignal<string>()
+  // The request a proposal answered stays hidden after Apply or Reject, even if the host keeps passing it.
+  const [settledRequest, setSettledRequest] = createSignal<string>()
   const [copyFailed, setCopyFailed] = createSignal(false)
   const [picks, setPicks] = createSignal<Record<string, ReportPick['entry']>>({})
   const title = (placement: Placement) => placement.title ?? host.reportTitle?.(placement.reportId) ?? picks()[placement.id]?.title ?? placement.reportId
@@ -185,10 +211,14 @@ export function createCompositionSession(host: CompositionSessionHost) {
 
   const openImpact = async (placementId: string, reportId: string) => {
     setImpact({ placementId, reportId })
-    if (!host.usage) return
     try {
-      const usage = await host.usage(reportId)
-      if (impact()?.placementId === placementId) setImpact({ placementId, reportId, usage })
+      if (host.placements) {
+        const placements = await host.placements(reportId)
+        if (impact()?.placementId === placementId) setImpact({ placementId, reportId, usage: placements.length, placements })
+      } else if (host.usage) {
+        const usage = await host.usage(reportId)
+        if (impact()?.placementId === placementId) setImpact({ placementId, reportId, usage })
+      }
     } catch (cause: unknown) {
       console.error('[lens] report usage failed', cause)
     }
@@ -214,6 +244,15 @@ export function createCompositionSession(host: CompositionSessionHost) {
   }
 
   const proposal = () => (host.proposal && host.proposal.id !== settledProposal() ? host.proposal : undefined)
+  const proposalRequest = () => {
+    const request = host.proposalRequest
+    if (!request || proposal() || request.id === settledRequest()) return undefined
+    return request
+  }
+  const settle = (current: ReportProposal) => {
+    setSettledProposal(current.id)
+    setSettledRequest(host.proposalRequest?.id)
+  }
   // A proposal comes from outside the editor: it must pass the same validation as a saved
   // composition (unique placement ids, rows within twelve columns, no empty rows) and
   // target this draft, or it never reaches the draft.
@@ -227,12 +266,12 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const applyProposal = (current: ReportProposal) => {
     if (!proposalValid(current) || current.base !== reportDraftToken(draft)) return
     edit((composition) => ({ ...structuredClone(current.composition), id: composition.id, revision: composition.revision }))
-    setSettledProposal(current.id)
+    settle(current)
     setNotice(translate('report.editor.proposalApplied', 'The proposal was applied to the draft. Nothing is published until you save.'))
     host.proposalHandlers?.settled?.(current.id, 'applied')
   }
   const rejectProposal = (current: ReportProposal) => {
-    setSettledProposal(current.id)
+    settle(current)
     host.proposalHandlers?.settled?.(current.id, 'rejected')
   }
 
@@ -244,7 +283,7 @@ export function createCompositionSession(host: CompositionSessionHost) {
     /** The catalog entry each placement added in this session came from, for its preview. */
     pickedEntry: (placementId: string) => picks()[placementId],
     edit, move, moveBefore, resize, remove, addPicked, configure, save, cancel, openImpact, saveCopy,
-    conflict, saveError, status, proposal, proposalValid, applyProposal, rejectProposal,
+    conflict, saveError, status, proposal, proposalRequest, proposalValid, applyProposal, rejectProposal,
   }
 }
 
@@ -307,7 +346,7 @@ export function SessionProposal(props: { session: CompositionSession }): JSX.Ele
   const session = props.session
   const draft = session.draft
   return (
-    <Show when={session.proposal()}>
+    <Show fallback={<ProposalRequestPanel session={session} />} when={session.proposal()}>
       {(value) => (
         <ProposalPanel
           base={draft.value()}
@@ -316,6 +355,7 @@ export function SessionProposal(props: { session: CompositionSession }): JSX.Ele
           onApply={() => session.applyProposal(value())}
           onReject={() => session.rejectProposal(value())}
           proposal={value()}
+          rowTitle={(placement) => session.title(placement)}
           stale={value().base !== reportDraftToken(draft)}
           title={(placementId, reportId) => {
             const placement = [...value().composition.rows.flat(), ...draft.value().rows.flat()].find((candidate) => candidate.id === placementId)
@@ -323,6 +363,39 @@ export function SessionProposal(props: { session: CompositionSession }): JSX.Ele
           }}
         />
       )}
+    </Show>
+  )
+}
+
+/** A proposal the host is still preparing: a manual edit now makes it stale before it arrives. */
+function ProposalRequestPanel(props: { session: CompositionSession }): JSX.Element {
+  const session = props.session
+  const translate = session.translate
+  return (
+    <Show when={session.proposalRequest()}>
+      {(request) => {
+        const stale = () => request().base !== reportDraftToken(session.draft)
+        return (
+          <section aria-busy={!stale() || undefined} aria-label={translate('report.proposal.title', 'Proposed changes')} class="lens-report-proposal" data-stale={stale() || undefined} data-testid="report-proposal-request">
+            <h3 class="lens-report-proposal-title">{translate('report.proposal.title', 'Proposed changes')}</h3>
+            <Show
+              fallback={<p class="lens-report-proposal-summary" role="status">{translate('report.proposal.preparing', 'A proposal is being prepared for this draft. Editing the draft now makes it outdated.')}</p>}
+              when={stale()}
+            >
+              <p class="lens-report-proposal-stale" role="alert">
+                {translate('report.proposal.staleWhilePreparing', 'You changed the draft while the proposal was being prepared, so it cannot be applied when it arrives.')}
+              </p>
+              <Show when={session.host.proposalHandlers?.restart}>
+                <div class="lens-report-proposal-actions">
+                  <button class="lens-context-action" onClick={() => session.host.proposalHandlers?.restart?.(request())} type="button">
+                    {translate('report.proposal.regenerate', 'Prepare again')}
+                  </button>
+                </div>
+              </Show>
+            </Show>
+          </section>
+        )
+      }}
     </Show>
   )
 }
@@ -365,13 +438,14 @@ export function SessionDialogs(props: { session: CompositionSession; guard: Repo
             onEdit={() => host.onEditReport!(value().reportId, value().placementId)}
             restoreFocus={session.handles.get(value().placementId)}
             theme={host.theme}
+            placements={value().placements}
             title={host.reportTitle?.(value().reportId) ?? value().reportId}
             usage={value().usage}
           />
         )}
       </Show>
       <Show when={props.guard.pending()}>
-        <LeaveDialog guard={props.guard} lifecycle={host.lifecycle ?? 'existing'} theme={host.theme} />
+        <ReportLeaveDialog guard={props.guard} lifecycle={host.lifecycle ?? 'existing'} theme={host.theme} />
       </Show>
     </>
   )
@@ -547,10 +621,13 @@ function ProposalPanel(props: {
   invalid: boolean
   handlers?: ReportProposalHandlers
   title: (placementId: string, reportId: string) => string
+  rowTitle: (placement: Placement) => string
   onApply: () => void
   onReject: () => void
 }): JSX.Element {
   const translate = useTranslate()
+  const [previewing, setPreviewing] = createSignal(true)
+  const previewId = createUniqueId()
   const changes = () => (props.invalid ? [] : diffCompositions(props.base, props.proposal.composition))
   const blocked = () => props.stale || props.invalid
   const kind = (change: CompositionChange) => {
@@ -584,6 +661,10 @@ function ProposalPanel(props: {
             )}
           </For>
         </ul>
+        <p class="lens-report-proposal-summary">{translate('report.proposal.sharedKept', 'Only the cards of this dashboard change. Shared reports stay as they are.')}</p>
+        <Show when={previewing()}>
+          <ProposalPreview changes={changes()} id={previewId} proposal={props.proposal} title={props.rowTitle} />
+        </Show>
       </Show>
       <Show when={props.invalid}>
         <p class="lens-report-proposal-stale" role="alert">
@@ -620,8 +701,46 @@ function ProposalPanel(props: {
         <button class="lens-context-action" onClick={() => props.onReject()} type="button">
           {translate('report.proposal.reject', 'Reject')}
         </button>
+        <Show when={changes().length > 0}>
+          <button aria-controls={previewId} aria-expanded={previewing()} class="lens-context-action" data-testid="report-proposal-preview-toggle" onClick={() => setPreviewing(!previewing())} type="button">
+            {previewing() ? translate('report.proposal.hidePreview', 'Hide preview') : translate('report.proposal.showPreview', 'Show preview')}
+          </button>
+        </Show>
       </div>
     </section>
+  )
+}
+
+/** The proposed layout as it would read after Apply: each card at its width, marked when added or changed. */
+function ProposalPreview(props: { id: string; proposal: ReportProposal; changes: CompositionChange[]; title: (placement: Placement) => string }): JSX.Element {
+  const translate = useTranslate()
+  const kindOf = (id: string) => props.changes.find((change) => change.placementId === id)?.kind
+  return (
+    <figure aria-label={translate('report.proposal.preview', 'Preview of the proposed dashboard')} class="lens-report-proposal-preview" data-testid="report-proposal-preview" id={props.id}>
+      <For each={props.proposal.composition.rows}>
+        {(row) => (
+          <For each={row}>
+            {(placement, index) => (
+              <div
+                class="lens-report-proposal-preview-card"
+                data-kind={kindOf(placement.id)}
+                data-row-start={index() === 0 || undefined}
+                style={{ '--lens-editor-span': String(spanOf(placement)) }}
+              >
+                <span class="lens-report-proposal-preview-title">{props.title(placement)}</span>
+                <Show when={kindOf(placement.id)}>
+                  {(kind) => (
+                    <span class="lens-report-picker-badge" data-tone={kind()}>
+                      {kind() === 'add' ? translate('report.proposal.add', 'Add') : translate('report.proposal.change', 'Change')}
+                    </span>
+                  )}
+                </Show>
+              </div>
+            )}
+          </For>
+        )}
+      </For>
+    </figure>
   )
 }
 
@@ -726,6 +845,7 @@ function ConfigureDialog(props: {
 function ImpactDialog(props: {
   title: string
   usage?: number
+  placements?: ReportUsage[]
   restoreFocus?: HTMLElement
   theme?: LensThemeMode
   onEdit: () => Promise<void> | void
@@ -780,6 +900,9 @@ function ImpactDialog(props: {
             ? translate('report.editor.impactCount', 'This report is used in {count} places. Changes apply to all of them.', { count: props.usage })
             : translate('report.editor.impact', 'Changes apply everywhere this report is used.')}
         </p>
+        <Show when={props.placements?.length}>
+          <ReportUsageList placements={props.placements!} />
+        </Show>
         <Show when={props.onCopy}>
           <p>{translate('report.editor.impactCopy', 'To change only this card, make an independent copy instead.')}</p>
         </Show>
@@ -791,7 +914,28 @@ function ImpactDialog(props: {
   )
 }
 
-function LeaveDialog(props: { guard: ReportLeaveGuard; lifecycle: ReportEditorLifecycle; theme?: LensThemeMode }): JSX.Element {
+/** The placements a shared-report edit reaches, the reader's own first. */
+export function ReportUsageList(props: { placements: ReportUsage[] }): JSX.Element {
+  const translate = useTranslate()
+  const ordered = () => [...props.placements].sort((left, right) => Number(Boolean(right.current)) - Number(Boolean(left.current)))
+  return (
+    <ul aria-label={translate('report.editor.impactList', 'Where this report is used')} class="lens-report-usage-list" data-testid="report-usage-list">
+      <For each={ordered()}>
+        {(placement) => (
+          <li data-current={placement.current || undefined}>
+            <span>{placement.title}</span>
+            <Show when={placement.current}>
+              <span class="lens-report-picker-badge">{translate('report.editor.impactCurrent', 'This card')}</span>
+            </Show>
+          </li>
+        )}
+      </For>
+    </ul>
+  )
+}
+
+/** Save, leave without saving or stay: the choice behind a leave guard's pending request. */
+export function ReportLeaveDialog(props: { guard: ReportLeaveGuard; lifecycle: ReportEditorLifecycle; theme?: LensThemeMode }): JSX.Element {
   const translate = useTranslate()
   let stayRef: HTMLButtonElement | undefined
   const footer = (
