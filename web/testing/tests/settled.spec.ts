@@ -213,3 +213,41 @@ test('detects a request to a submitter-declared URL during a native refusal', as
   await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/submit', { method: 'POST' }) }))
   await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: POST/)
 })
+
+// Regression (review): a request sent outside the scope and retargeted into it was ignored while in flight.
+test('waits for an in-flight request that a later HX-Retarget moves into the scope', async ({ page }) => {
+  const late = gate()
+  await host(page, '<button id="a" hx-get="/a" hx-target="#scope .a">A</button><button id="b" hx-get="/b" hx-target="#outside">B</button><section id="scope"><p class="a"></p><p class="b"></p></section><section id="outside"></section>',
+    async pathname => {
+      if (pathname === '/b') { await late.opened; return { body: 'B', headers: { 'HX-Retarget': '#scope .b' } } }
+      return { body: 'A' }
+    })
+  let complete = false
+  const interaction = actionAndHtmxSettled(page, '#scope', () => page.evaluate(() => {
+    document.getElementById('a')!.click(); document.getElementById('b')!.click()
+  }), { timeoutMs: 3000 }).then(() => { complete = true })
+  try {
+    await expect(page.locator('#scope .a')).toHaveText('A')
+    await expect(page.locator('#scope .a')).not.toHaveClass(/htmx-settling/)
+    expect(complete).toBe(false)
+  } finally { late.release() }
+  await interaction
+  await expect(page.locator('#scope .b')).toHaveText('B')
+})
+
+// Regression (review): the refusal budget started before the action, so a slow action left ~1ms for the invalid event.
+test('starts the refusal budget after a slow action', async ({ page }) => {
+  await host(page, '<form hx-post="/save"><input name="name" required><button>Save</button></form>', async () => ({ body: '' }))
+  const result = await actionAndValidationRefusal(page, page.locator('form'), async () => {
+    await page.getByRole('button').click()
+    await page.waitForFunction(() => new Promise(resolve => setTimeout(() => resolve(true), 300)))
+  }, { timeoutMs: 200 })
+  expect(result.controlName).toBe('name')
+})
+
+// Regression (review): a submitter with formmethod but no formaction was not a watched submission target.
+test('detects a request matching a submitter formmethod without formaction', async ({ page }) => {
+  await host(page, '<form action="/profile" method="get"><input name="email" required><button formmethod="post">Save</button></form>', async () => ({ body: '' }))
+  await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/profile', { method: 'POST' }) }))
+  await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: POST/)
+})

@@ -25,7 +25,7 @@ export async function actionAndResponse(page: Page, match: ResponseMatch, action
   return result
 }
 
-type ObserverRecord = { url: string; method: string; status: number; settled: boolean; failed: boolean; aborted: boolean; navigated: boolean; scoped: boolean }
+type ObserverRecord = { url: string; method: string; status: number; settled: boolean; failed: boolean; aborted: boolean; navigated: boolean; scoped: boolean; decided: boolean }
 
 /**
  * Observes production HTMX lifecycle events for every request started after installation.
@@ -40,7 +40,7 @@ async function installHtmxObserver(page: Page, scope: string | null): Promise<st
   const key = `sdk-htmx-${crypto.randomUUID()}`
   await page.evaluate(({ key, scope }) => {
     if (scope !== null) document.querySelector(scope) // Throws for selectors that are not CSS.
-    type Tracked = ObserverRecord & { swapped: boolean; loaded: boolean; target: Element | null }
+    type Tracked = Omit<ObserverRecord, 'decided'> & { swapped: boolean; loaded: boolean; swapDecided: boolean; target: Element | null }
     const terminal = ['htmx:beforeSwap', 'htmx:afterSwap', 'htmx:afterOnLoad', 'htmx:afterSettle', 'htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout', 'htmx:swapError', 'htmx:onLoadError']
     const records: Tracked[] = []
     const requests = new WeakMap<object, Tracked>()
@@ -60,6 +60,7 @@ async function installHtmxObserver(page: Page, scope: string | null): Promise<st
       record.status = d.xhr.status
       if (event.type === 'htmx:afterSettle') record.settled = true
       else if (event.type === 'htmx:beforeSwap') {
+        record.swapDecided = true
         if (d.target instanceof Element) { record.target = d.target; record.scoped = inScope(d.target); observe(d.target) }
       } else if (event.type === 'htmx:afterSwap') { record.swapped = true; observe(event.target) }
       else if (event.type === 'htmx:afterOnLoad') {
@@ -72,7 +73,7 @@ async function installHtmxObserver(page: Page, scope: string | null): Promise<st
       const d = (event as CustomEvent).detail
       if (!d?.xhr || requests.has(d.xhr)) return
       const target = d.target ?? d.elt
-      const record: Tracked = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false, aborted: false, navigated: false, scoped: inScope(target), swapped: false, loaded: false, target: target instanceof Element ? target : null }
+      const record: Tracked = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false, aborted: false, navigated: false, scoped: inScope(target), swapped: false, loaded: false, swapDecided: false, target: target instanceof Element ? target : null }
       records.push(record)
       requests.set(d.xhr, record)
       observe(d.elt)
@@ -83,7 +84,9 @@ async function installHtmxObserver(page: Page, scope: string | null): Promise<st
     document.addEventListener('htmx:beforeRequest', before)
     for (const type of terminal) document.addEventListener(type, update)
     ;(window as any)[key] = {
-      records: () => records.map(r => ({ url: r.url, method: r.method, status: r.status, settled: complete(r), failed: r.failed, aborted: r.aborted, navigated: r.navigated, scoped: r.scoped })),
+      records: () => records.map(r => ({ url: r.url, method: r.method, status: r.status, settled: complete(r), failed: r.failed, aborted: r.aborted, navigated: r.navigated, scoped: r.scoped,
+        // Scope is final once beforeSwap ran or the request ended; HX-Retarget may still move it before that.
+        decided: r.swapDecided || r.loaded || r.settled || r.failed || r.aborted || r.navigated })),
       dispose: () => {
         document.removeEventListener('htmx:beforeRequest', before)
         for (const type of terminal) document.removeEventListener(type, update)
@@ -108,6 +111,9 @@ const settling = '.htmx-swapping, .htmx-settling, .htmx-added'
  * timeouts reject; so does a response that navigates (HX-Redirect/HX-Refresh/HX-Location),
  * which callers wait for with `page.waitForURL` instead. Requests started while earlier ones are
  * still pending are included; ones triggered later (delays, intersect) need their own call.
+ * Every observed request must first answer (beforeSwap or a terminal event) because HX-Retarget
+ * can move it into the scope; an unrelated slow request started during the wait (a long poll)
+ * therefore delays completion until it answers or the budget ends.
  * Afterwards at least one element must match `target`, none of the matches may carry transient
  * swap classes, and `ready` runs with the remaining budget. The budget starts after `action`.
  */
@@ -120,12 +126,16 @@ export async function actionAndHtmxSettled(page: Page, target: string, action: (
     const scopedRecords = async () => (await observedRecords(page, key))?.filter(r => r.scoped) ?? null
     try {
       await page.waitForFunction(key => {
-        const scoped = ((window as any)[key].records() as ObserverRecord[]).filter(r => r.scoped)
-        return scoped.length > 0 && (scoped.some(r => r.failed || r.navigated) || scoped.every(r => r.settled || r.aborted || r.failed))
+        const records = (window as any)[key].records() as ObserverRecord[]
+        const scoped = records.filter(r => r.scoped)
+        if (scoped.some(r => r.failed || r.navigated)) return true
+        return records.every(r => r.decided) && scoped.length > 0 && scoped.every(r => r.settled || r.aborted || r.failed)
       }, key, { timeout: remaining() })
     } catch (cause) {
       const seen = await scopedRecords()
       if (seen === null) throw new Error(`Page navigated while waiting for HTMX settlement of ${target}`, { cause })
+      const undecided = (await observedRecords(page, key))?.filter(r => !r.decided) ?? []
+      if (seen.length === 0 && undecided.length > 0) throw new Error(`HTMX requests that may still retarget into ${target} did not respond: ${JSON.stringify(undecided)}`, { cause })
       if (seen.length === 0) throw new Error(`Action issued no HTMX request targeted ${target}`, { cause })
       throw new Error(`HTMX requests for ${target} did not settle: ${JSON.stringify(seen)}`, { cause })
     }
@@ -177,7 +187,7 @@ export async function actionAndHtmxResponse(page: Page, match: ResponseMatch, ac
  * Completion does not depend on a network timeout.
  */
 export async function actionAndValidationRefusal(page: Page, form: Locator, action: () => Promise<unknown>, options: WaitOptions = {}): Promise<ValidationResult> {
-  const remaining = deadline(options)
+  timeout(options)
   const key = `sdk-validation-${crypto.randomUUID()}`
   const submission = await form.evaluate((element, key) => {
     const f = element as HTMLFormElement
@@ -208,7 +218,7 @@ export async function actionAndValidationRefusal(page: Page, form: Locator, acti
     const resolve = (path: string | null) => new URL(path ?? location.href, location.href).href
     for (const element of [f, ...Array.from(f.querySelectorAll('button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]'))]) {
       for (const verb of verbs) if (element.hasAttribute(`hx-${verb}`)) candidates.push({ url: resolve(element.getAttribute(`hx-${verb}`)), method: verb.toUpperCase() })
-      if (element !== f && element.hasAttribute('formaction')) candidates.push({ url: resolve(element.getAttribute('formaction')), method: (element.getAttribute('formmethod') ?? f.getAttribute('method') ?? 'get').toUpperCase() })
+      if (element !== f && (element.hasAttribute('formaction') || element.hasAttribute('formmethod'))) candidates.push({ url: resolve(element.getAttribute('formaction') ?? f.getAttribute('action')), method: (element.getAttribute('formmethod') ?? f.getAttribute('method') ?? 'get').toUpperCase() })
     }
     if (!verbs.some(verb => f.hasAttribute(`hx-${verb}`))) candidates.push({ url: resolve(f.getAttribute('action')), method: (f.getAttribute('method') ?? 'get').toUpperCase() })
     return candidates
@@ -221,6 +231,7 @@ export async function actionAndValidationRefusal(page: Page, form: Locator, acti
   page.on('request', observe)
   try {
     await action()
+    const remaining = deadline(options)
     try {
       await page.waitForFunction(key => (window as any)[key].state.invalid !== null || (window as any)[key].state.submitted || (window as any)[key].state.htmx, key, { timeout: remaining() })
     } catch (cause) {

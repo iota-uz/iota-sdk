@@ -39,3 +39,10 @@ test('returns promptly once production Alpine initialized every component', asyn
 	await waitForAlpine(page);
 	expect(Date.now() - start).toBeLessThan(500);
 });
+
+// Regression (review): Alpine skips the data directive of an x-ignore.self root but initializes its children.
+test('treats x-ignore.self roots as skipped while still checking their children', async ({ page }) => {
+	await serve(page, '<script type="module" src="/assets/js/alpine.js"></script>', '<section x-data="{ outer: true }" x-ignore.self><div x-data="{ label: \'inner\' }"><span x-text="label"></span></div></section>');
+	await expect(page.locator('span')).toHaveText('inner');
+	await waitForAlpine(page, 2000);
+});
