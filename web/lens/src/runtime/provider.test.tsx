@@ -931,9 +931,11 @@ describe('out-of-order panel answers', () => {
   function Probe() {
     const frame = usePanelFrame('rows')
     const pagination = usePanelPagination()
+    const { document: current } = useDashboard()
     return (
       <>
         <output data-testid="rows">{frame.data?.rows[0]?.[0] as string | undefined}</output>
+        <output data-testid="root">{current.frames['panel:rows']?.rows[0]?.[0] as string | undefined}</output>
         <output data-testid="state">{frame.isLoading ? 'loading' : frame.error ? 'error' : frame.isStale ? 'stale' : 'ready'}</output>
         <button onClick={() => void pagination.search('rows', 'a')} type="button">search a</button>
         <button onClick={() => void pagination.search('rows', 'ab')} type="button">search ab</button>
@@ -962,9 +964,9 @@ describe('out-of-order panel answers', () => {
     return { fetcher, answer, rows, waiting }
   }
 
-  function renderProbe(fetcher: typeof fetch) {
+  function renderProbe(fetcher: typeof fetch, initialDocument = tableDocument) {
     render(() => (
-      <DocumentProvider initialDocument={tableDocument} fetcher={fetcher}>
+      <DocumentProvider initialDocument={initialDocument} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>{() => <Probe />}</DashboardRuntimeProvider>
       </DocumentProvider>
     ))
@@ -1001,5 +1003,24 @@ describe('out-of-order panel answers', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(screen.getByTestId('state')).toHaveTextContent('ready')
     expect(screen.getByTestId('rows')).toHaveTextContent('descending')
+  })
+
+  it('hydrates the root frame from a batch answer a sort has superseded', async () => {
+    const deferredDocument = parseDocument({
+      ...tableDocument,
+      panels: [{ ...tableDocument.panels[0]!, deferred: true }],
+      frames: {},
+    })
+    const { fetcher, answer, rows, waiting } = controlledFetcher()
+    renderProbe(fetcher, deferredDocument)
+    await waitFor(() => expect(waiting.has('none')).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: 'sort desc' }))
+    await waitFor(() => expect(waiting.has('desc')).toBe(true))
+
+    answer('desc', rows('sorted'))
+    await waitFor(() => expect(screen.getByTestId('rows')).toHaveTextContent('sorted'))
+    answer('none', rows('root'))
+    await waitFor(() => expect(screen.getByTestId('root')).toHaveTextContent('root'))
+    expect(screen.getByTestId('rows')).toHaveTextContent('sorted')
   })
 })

@@ -1256,7 +1256,20 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
       if (!item) return
       received.add(panelId)
       const { panel, attempt, key, previous, retry, current } = item
-      if (launchedPanelAttempts.get(key) !== attempt || !current()) return
+      if (launchedPanelAttempts.get(key) !== attempt) return
+      const loaded = response.error || !response.frames
+        ? undefined
+        : response.frames[panel.frame] ?? Object.values(response.frames)[0]
+      // The document's own frame is the panel's root data (a drill returns to
+      // it), so a successful answer hydrates it even when a newer search, sort
+      // or page has taken over what the panel shows.
+      if (loaded) {
+        setResolvedDocument((document) => {
+          if (document.snapshotId !== source.snapshotId || document.frames[panel.frame] === loaded) return document
+          return { ...document, frames: { ...document.frames, [panel.frame]: loaded } }
+        })
+      }
+      if (!current()) return
       if (response.error || !response.frames) {
         // A classified failure travels as a QueryError so the panel can say
         // what happened. A plain Error here would flatten every cause back into
@@ -1271,7 +1284,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         })
         return
       }
-      const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
       if (!loaded) {
         frames.set(panel.id, { data: previous, isStale: Boolean(previous), isLoading: false, error: new Error(`panel ${panel.id} response has no frame`), retry })
         return
@@ -1280,10 +1292,6 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry,
         calculation: response.calculation,
         summary: response.summary,
-      })
-      setResolvedDocument((current) => {
-        if (current.snapshotId !== source.snapshotId || current.frames[panel.frame] === loaded) return current
-        return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
       })
     }
     void client.loadBatch(pending.map(({ panel, force }) => ({
