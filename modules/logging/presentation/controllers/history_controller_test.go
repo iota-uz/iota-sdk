@@ -185,3 +185,43 @@ func TestHistoryController_DeniesWithoutPermission(t *testing.T) {
 		Contains(`data-state="denied"`).
 		NotContains("Service payment for September")
 }
+
+func TestHistoryController_ShowsTranslatedValuesAndObjectCaptions(t *testing.T) {
+	t.Parallel()
+	suite := newHistorySuite(t, permissions.ViewLogs)
+	env := suite.Env()
+	registry := itf.GetService[history.Registry](env)
+	require.NoError(t, registry.Register(history.Definition{
+		Type: "hrm.contract.status_changed", Version: 1, Category: businessevent.CategoryBusiness,
+		TitleKey: "Contracts.History.StatusChanged", DescriptionKey: "Contracts.History.StatusChangedSummary",
+		Resources: []history.Resource{{
+			Name: "contract",
+			Labels: func(_ context.Context, ids []string) (map[string]string, error) {
+				return map[string]string{"7": "Contract A-7"}, nil
+			},
+			Fields: []history.Field{{Name: "status", LabelKey: "Contracts.Fields.Status", Type: history.ValueString, ValueKeyPrefix: "Debts.Statuses"}},
+		}},
+	}))
+	email, err := internet.NewEmail("history-ui-captions@example.com")
+	require.NoError(t, err)
+	actor := user.New("Anna", "Primerova", email, user.UILanguageEN, user.WithID(42))
+	ctx := history.WithExecution(composables.WithUser(env.Ctx, actor), history.Execution{Channel: businessevent.ChannelUI, OperationID: "op_contract_7"})
+	_, err = history.NewWriter(registry, persistence.NewBusinessEventRepository()).Record(ctx, history.Input{
+		Type: "hrm.contract.status_changed", Version: 1, Outcome: businessevent.OutcomeSucceeded,
+		Subjects: []businessevent.Subject{{Resource: "contract", ID: "7"}},
+		Changes: []businessevent.Change{{Resource: "contract", ID: "7", Fields: []fielddiff.Diff{
+			{Field: "status", Before: fielddiff.Present(json.RawMessage(`"PENDING"`)), After: fielddiff.Present(json.RawMessage(`"ON_HOLD"`))},
+		}}},
+	})
+	require.NoError(t, err)
+
+	page := suite.GET("/admin/history/events?resource=contract&id=7").Expect(t).Status(http.StatusOK).HTML()
+	translated := page.Element(`//span[@data-code="PENDING"]`)
+	require.Equal(t, "Pending", translated.Text())
+	require.Equal(t, "PENDING", translated.Attr("title"), "the stored code stays in the tooltip")
+	require.Contains(t, page.Element(`//details`).Text(), "ON_HOLD", "an unknown code is shown as stored")
+	require.Contains(t, page.Element(`//details`).Text(), "contract: Contract A-7")
+
+	html := suite.GET("/admin/history?resource=contract&id=7").Expect(t).Status(http.StatusOK).HTML()
+	require.Equal(t, "contract: Contract A-7", html.Element(`//h1`).Text())
+}

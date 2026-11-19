@@ -3,6 +3,7 @@
 package history
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sort"
@@ -37,6 +38,48 @@ type Field struct {
 	Redact bool
 	// ReadPermission hides stored values from readers without it.
 	ReadPermission *permission.Permission
+	// ValueKeyPrefix translates a stored code (an enumeration value such as a status or a type) for
+	// reading: the value v is shown as the translation of ValueKeyPrefix + "." + v. A code without a
+	// translation is shown as stored. Only string, integer and boolean fields take it.
+	ValueKeyPrefix string
+	// ValueLabel translates a stored code like ValueKeyPrefix, for codes a key cannot name. It wins
+	// over ValueKeyPrefix; an empty result falls back to it, and then to the code itself.
+	ValueLabel ValueLabelFunc
+}
+
+// ValueLabelFunc returns the reader-facing text of a stored code in the locale of ctx, or "" if it has none.
+type ValueLabelFunc func(ctx context.Context, value string) string
+
+// SubjectLabelsFunc returns the current captions of the given objects of one resource, keyed by ID,
+// such as a document number or a person's name. It is called once per resource per page with every
+// ID shown on it; IDs it omits keep the caption recorded with the event, if any, or their ID.
+type SubjectLabelsFunc func(ctx context.Context, ids []string) (map[string]string, error)
+
+// VisibilityFunc tells which objects of a resource the reader in ctx may see. It is called once per
+// read, before pagination.
+type VisibilityFunc func(ctx context.Context) (Visibility, error)
+
+// Visibility is the set of objects of one resource a reader may see: every object, the listed IDs,
+// the objects matching an SQL condition, or the union of the last two. The zero value shows none.
+type Visibility struct {
+	All bool
+	IDs []string
+	// Condition is an SQL boolean expression over {id}, the object ID as text, evaluated in the
+	// tenant's database, e.g. `{id}::uuid IN (SELECT document_id FROM participants WHERE user_id = $1)`.
+	// Its arguments are $1..$n of Args. The expression must not contain other placeholders.
+	Condition string
+	Args      []any
+}
+
+// VisibleAll lets the reader see every object of the resource.
+func VisibleAll() Visibility { return Visibility{All: true} }
+
+// VisibleIDs lets the reader see the listed objects only.
+func VisibleIDs(ids ...string) Visibility { return Visibility{IDs: ids} }
+
+// VisibleWhere lets the reader see the objects whose ID satisfies an SQL condition; see Visibility.Condition.
+func VisibleWhere(condition string, args ...any) Visibility {
+	return Visibility{Condition: condition, Args: args}
 }
 
 type Resource struct {
@@ -47,7 +90,15 @@ type Resource struct {
 	LabelKey string
 	// ReadPermission hides events about the resource, and its subjects in other events, from readers without it.
 	ReadPermission *permission.Permission
-	Fields         []Field
+	// Labels, when set, captions the objects of the resource on the history page and in its exports
+	// with one batched call per page. An object it no longer knows, e.g. a deleted one, keeps the
+	// caption recorded with its latest event shown (businessevent.Subject.Label).
+	Labels SubjectLabelsFunc
+	// Visible, when set, limits the reader to some objects of the resource: an event naming an object
+	// outside the set is hidden as a whole, before pagination, so pages and cursors only count events
+	// the reader may see. Without it every object of a readable resource is visible.
+	Visible VisibilityFunc
+	Fields  []Field
 }
 
 type Definition struct {
@@ -97,6 +148,9 @@ func (d Definition) validate() error {
 			if f.Name == "" || fields[f.Name] || f.LabelKey == "" || !f.Type.valid() {
 				return fmt.Errorf("invalid field %q of %s in business event %s v%d", f.Name, r.Name, d.Type, d.Version)
 			}
+			if (f.ValueKeyPrefix != "" || f.ValueLabel != nil) && f.Type != ValueString && f.Type != ValueInteger && f.Type != ValueBoolean {
+				return fmt.Errorf("field %q of %s in business event %s v%d is a %s and cannot translate its values", f.Name, r.Name, d.Type, d.Version, f.Type)
+			}
 			fields[f.Name] = true
 		}
 	}
@@ -114,10 +168,17 @@ type Registry struct {
 	mu          sync.RWMutex
 	definitions map[definitionKey]Definition
 	labelKeys   map[string]string
+	labels      map[string]SubjectLabelsFunc
+	visibility  map[string]VisibilityFunc
 }
 
 func NewRegistry() *Registry {
-	return &Registry{definitions: make(map[definitionKey]Definition), labelKeys: make(map[string]string)}
+	return &Registry{
+		definitions: make(map[definitionKey]Definition),
+		labelKeys:   make(map[string]string),
+		labels:      make(map[string]SubjectLabelsFunc),
+		visibility:  make(map[string]VisibilityFunc),
+	}
 }
 
 func (r *Registry) Register(defs ...Definition) error {
@@ -139,6 +200,14 @@ func (r *Registry) Register(defs ...Definition) error {
 		for _, res := range d.Resources {
 			if res.LabelKey != "" {
 				r.labelKeys[res.Name] = res.LabelKey
+			}
+			// A resource's caption provider and visibility apply to every event type naming it; the
+			// first definition that sets one provides it.
+			if _, ok := r.labels[res.Name]; !ok && res.Labels != nil {
+				r.labels[res.Name] = res.Labels
+			}
+			if _, ok := r.visibility[res.Name]; !ok && res.Visible != nil {
+				r.visibility[res.Name] = res.Visible
 			}
 		}
 		r.definitions[key] = cloneDefinition(d)
@@ -169,14 +238,15 @@ func (r *Registry) Definitions() []Definition {
 	return result
 }
 
-// Resources lists every resource named by a registered event type, sorted by name.
+// Resources lists every resource named by a registered event type, sorted by name, with its label
+// key, caption provider and visibility.
 func (r *Registry) Resources() []Resource {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	byName := map[string]Resource{}
 	for _, d := range r.definitions {
 		for _, res := range d.Resources {
-			byName[res.Name] = Resource{Name: res.Name, LabelKey: r.labelKeys[res.Name]}
+			byName[res.Name] = Resource{Name: res.Name, LabelKey: r.labelKeys[res.Name], Labels: r.labels[res.Name], Visible: r.visibility[res.Name]}
 		}
 	}
 	result := make([]Resource, 0, len(byName))
@@ -233,4 +303,20 @@ func Lifecycle(typePrefix, keyPrefix string, resource Resource) []Definition {
 		}
 	}
 	return defs
+}
+
+// WithResource applies configure to every resource named name in defs, e.g. to attach a caption
+// provider or visibility that needs dependencies the module's static definitions do not have.
+func WithResource(defs []Definition, name string, configure func(*Resource)) []Definition {
+	result := make([]Definition, len(defs))
+	for i, d := range defs {
+		d = cloneDefinition(d)
+		for j := range d.Resources {
+			if d.Resources[j].Name == name {
+				configure(&d.Resources[j])
+			}
+		}
+		result[i] = d
+	}
+	return result
 }

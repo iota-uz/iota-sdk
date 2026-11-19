@@ -439,7 +439,11 @@ func TestFinanceHistory_RecordsServiceMutations(t *testing.T) {
 			require.Len(t, events, 1)
 			e := events[0]
 			require.Equal(t, tt.eventType, e.Type)
-			require.Equal(t, []businessevent.Subject{{Resource: tt.resource, ID: id}}, e.Subjects)
+			require.Len(t, e.Subjects, 1)
+			require.Equal(t, businessevent.Subject{Resource: tt.resource, ID: id, Label: e.Subjects[0].Label}, e.Subjects[0])
+			// Counterparties and money accounts record their name, so a deleted one keeps its caption.
+			captioned := tt.resource == services.CounterpartyResource || tt.resource == services.MoneyAccountResource
+			require.Equal(t, captioned, e.Subjects[0].Label != "", "caption of %s", tt.resource)
 			require.Len(t, e.Changes, 1)
 			fields := make([]string, 0, len(e.Changes[0].Fields))
 			for _, d := range e.Changes[0].Fields {

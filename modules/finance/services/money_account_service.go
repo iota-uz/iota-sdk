@@ -71,7 +71,7 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: MoneyAccountCreated, Version: 1, Resource: MoneyAccountResource, ID: createdEntity.ID().String(),
-			After: moneyAccountSnapshot(createdEntity),
+			Label: createdEntity.Name(), After: moneyAccountSnapshot(createdEntity),
 		})
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: MoneyAccountUpdated, Version: 1, Resource: MoneyAccountResource, ID: entity.ID().String(),
-			Before: moneyAccountSnapshot(before), After: moneyAccountSnapshot(updatedEntity),
+			Label: updatedEntity.Name(), Before: moneyAccountSnapshot(before), After: moneyAccountSnapshot(updatedEntity),
 		})
 	})
 	if err != nil {
@@ -170,7 +170,7 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyac
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: MoneyAccountDeleted, Version: 1, Resource: MoneyAccountResource, ID: id.String(),
-			Before: moneyAccountSnapshot(entity),
+			Label: entity.Name(), Before: moneyAccountSnapshot(entity),
 		})
 	})
 	if err != nil {

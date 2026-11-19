@@ -98,7 +98,7 @@ func HistoryDefinitions() []history.Definition {
 		fileDefinition(ExpenseFileDetached, "Expenses.History.FileDetached", ExpenseResource),
 	)
 	defs = append(defs, history.Lifecycle("finance.transaction", "Transactions.History", history.Resource{Name: TransactionResource, Fields: []history.Field{
-		{Name: "type", LabelKey: "Transactions.Single.Type", Type: history.ValueString},
+		{Name: "type", LabelKey: "Transactions.Single.Type", Type: history.ValueString, ValueKeyPrefix: "Transactions.Types"},
 		{Name: "amount", LabelKey: "Transactions.Single.Amount", Type: history.ValueMoney},
 		{Name: "origin_account_id", LabelKey: "Transactions.Single.OriginAccount", Type: history.ValueString},
 		{Name: "destination_account_id", LabelKey: "Transactions.Single.DestinationAccount", Type: history.ValueString},
@@ -117,13 +117,13 @@ func HistoryDefinitions() []history.Definition {
 	defs = append(defs, history.Lifecycle("finance.counterparty", "Counterparties.History", history.Resource{Name: CounterpartyResource, Fields: []history.Field{
 		{Name: "name", LabelKey: "Counterparties.Single.Name", Type: history.ValueString},
 		{Name: "tin", LabelKey: "Counterparties.Single.TIN", Type: history.ValueString},
-		{Name: "type", LabelKey: "Counterparties.Single.Type", Type: history.ValueString},
-		{Name: "legal_type", LabelKey: "Counterparties.Single.LegalType", Type: history.ValueString},
+		{Name: "type", LabelKey: "Counterparties.Single.Type", Type: history.ValueString, ValueKeyPrefix: "Counterparties.Types"},
+		{Name: "legal_type", LabelKey: "Counterparties.Single.LegalType", Type: history.ValueString, ValueKeyPrefix: "Counterparties.LegalTypes"},
 		{Name: "legal_address", LabelKey: "Counterparties.Single.LegalAddress", Type: history.ValueString},
 	}})...)
 	debtResource := history.Resource{Name: DebtResource, Fields: []history.Field{
-		{Name: "type", LabelKey: "Debts.Single.Type", Type: history.ValueString},
-		{Name: "status", LabelKey: "Debts.Single.Status", Type: history.ValueString},
+		{Name: "type", LabelKey: "Debts.Single.Type", Type: history.ValueString, ValueKeyPrefix: "Debts.Types"},
+		{Name: "status", LabelKey: "Debts.Single.Status", Type: history.ValueString, ValueKeyPrefix: "Debts.Statuses"},
 		{Name: "counterparty_id", LabelKey: "Debts.Single.CounterpartyID", Type: history.ValueString},
 		{Name: "original_amount", LabelKey: "Debts.Single.OriginalAmount", Type: history.ValueMoney},
 		{Name: "outstanding_amount", LabelKey: "Debts.Single.OutstandingAmount", Type: history.ValueMoney},

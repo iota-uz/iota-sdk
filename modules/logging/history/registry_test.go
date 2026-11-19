@@ -1,6 +1,7 @@
 package history_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
@@ -49,4 +50,42 @@ func TestRegistry_RejectsTwoLabelsForOneResource(t *testing.T) {
 	require.Error(t, registry.Register(conflicting))
 	_, registered := registry.Get("hrm.contract.signed", 1)
 	require.False(t, registered)
+}
+
+func TestRegistry_ValueTranslationOnlyForCodes(t *testing.T) {
+	t.Parallel()
+	define := func(f history.Field) history.Definition {
+		return history.Definition{
+			Type: "hrm.contract.signed", Version: 1, Category: businessevent.CategoryBusiness,
+			TitleKey: "Contracts.History.Signed.Title", DescriptionKey: "Contracts.History.Signed.Summary",
+			Resources: []history.Resource{{Name: "hrm.contract", Fields: []history.Field{f}}},
+		}
+	}
+	require.NoError(t, history.NewRegistry().Register(define(history.Field{Name: "status", LabelKey: "Contracts.Status", Type: history.ValueString, ValueKeyPrefix: "Contracts.Statuses"})))
+	require.NoError(t, history.NewRegistry().Register(define(history.Field{Name: "grade", LabelKey: "Contracts.Grade", Type: history.ValueInteger,
+		ValueLabel: func(context.Context, string) string { return "" }})))
+	require.Error(t, history.NewRegistry().Register(define(history.Field{Name: "amount", LabelKey: "Contracts.Amount", Type: history.ValueMoney, ValueKeyPrefix: "Contracts.Amounts"})))
+}
+
+func TestWithResource_ConfiguresOneResourceOfEveryDefinition(t *testing.T) {
+	t.Parallel()
+	labels := func(context.Context, []string) (map[string]string, error) { return map[string]string{}, nil }
+	visible := func(context.Context) (history.Visibility, error) { return history.VisibleIDs("1"), nil }
+	defs := history.Lifecycle("hrm.contract", "Contracts.History", history.Resource{Name: "hrm.contract"})
+	configured := history.WithResource(defs, "hrm.contract", func(r *history.Resource) {
+		r.Labels, r.Visible = labels, visible
+	})
+	for i := range defs {
+		require.Nil(t, defs[i].Resources[0].Labels, "the input is not modified")
+		require.NotNil(t, configured[i].Resources[0].Labels)
+	}
+
+	registry := history.NewRegistry()
+	require.NoError(t, registry.Register(configured...))
+	resources := registry.Resources()
+	require.Len(t, resources, 1)
+	require.NotNil(t, resources[0].Labels)
+	v, err := resources[0].Visible(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{"1"}, v.IDs)
 }

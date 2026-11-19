@@ -79,6 +79,45 @@ history. Diagnostics:
 Consumers are registered with `history.ContributeConsumers`. The SDK ships none; the in-memory
 `eventbus` keeps publishing after commit as before and is not a delivery guarantee.
 
+## Reading: value translations, object captions and visibility
+
+`history.Service.History` returns each event with `Display`, its changes as a reader sees them
+(localized field labels, value texts), and `Subjects` with their captions. The history page renders
+them, and an export or an MCP tool should render the same fields instead of `Changes`. Each option
+below is optional; a resource or field without it reads exactly as before (`<Resource> #<id>`, the
+stored value).
+
+- **Value translation.** A string, integer or boolean `history.Field` may set `ValueKeyPrefix`
+  (the code `v` reads as the translation of `<ValueKeyPrefix>.<v>`) or `ValueLabel`
+  (`func(ctx, code) string`, which wins; `""` falls back to the prefix). The translated value carries
+  its code (`ValueDisplay.Code`), which the page keeps as a tooltip; a code without a translation is
+  shown as stored. Finance uses it for counterparty, transaction and debt types and statuses.
+- **Object captions.** `Resource.Labels` (`func(ctx, ids) (map[id]caption, error)`) is called once per
+  resource per page with every ID on it, never per row; the subject reads `<Resource>: <caption>`.
+  A writer may also record a caption with the event (`businessevent.Subject.Label`,
+  `history.Mutation.Label`): it is used when the provider does not know the object, so a deleted
+  object keeps its last caption shown. A provider error is logged and the page falls back to the
+  recorded captions. Finance captions counterparties and money accounts by name and records the name
+  with their events. `history.WithResource(defs, name, configure)` attaches a provider (or a
+  visibility) that needs dependencies to static definitions.
+- **Visibility by object.** `Resource.Visible` (`func(ctx) (history.Visibility, error)`) is evaluated
+  once per read and returns `VisibleAll()`, `VisibleIDs(ids...)`, `VisibleWhere(sqlCondition, args...)`
+  (a condition over `{id}`, the object ID as text, with its own `$1..$n` arguments, evaluated only for IDs of its own resource; `$n` and `{id}` inside quoted literals and comments are left as written, and an undeclared `$n` or a dollar-quoted string fails the read; e.g.
+  `{id}::uuid IN (SELECT document_id FROM document_participants WHERE user_id = $1)`) or both IDs and
+  a condition. An event naming any object of the resource outside that set is hidden as a whole,
+  including the other side of a link (also when the reader may not read the restricted resource itself), in SQL before the page limit, so pages, cursors and any count
+  over the same query only include visible events. `Service.Subject` (the title of an object's page)
+  is empty for a hidden object. A visibility error fails the read. `Resource.ReadPermission` still
+  applies first; without `Visible` every object of a readable resource is visible.
+
+A resource's `Labels` and `Visible` apply to every event type naming it; the first registered
+definition that sets one provides it.
+
+Tests: `TestHistoryService_TranslatesDeclaredValueCodes`, `TestHistoryService_CaptionsSubjectsWithOneBatchedCallPerPage`,
+`TestHistoryService_VisibleHidesEventsBeforePagination`, `TestHistoryService_VisibilityErrorFailsTheRead`
+(`infrastructure/persistence`), `TestHistoryController_ShowsTranslatedValuesAndObjectCaptions`,
+`TestRegistry_ValueTranslationOnlyForCodes`, `TestWithResource_ConfiguresOneResourceOfEveryDefinition`.
+
 ## Coverage boundary
 
 Not recorded, by design:

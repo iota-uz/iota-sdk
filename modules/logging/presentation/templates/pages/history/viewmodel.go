@@ -1,8 +1,6 @@
 package history
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/url"
 	"strings"
 	"time"
@@ -195,32 +193,13 @@ type EventsProps struct {
 
 type Event struct {
 	history.Item
-	Changes []Change
-}
-
-type Change struct {
-	Subject string
-	Fields  []Field
-}
-
-type Field struct {
-	Label  string
-	Before fielddiff.FieldValue
-	After  fielddiff.FieldValue
 }
 
 // Group joins consecutive events of one operation, so a bulk action reads as one entry.
-func Group(items []history.Item, label func(item history.Item, resource, field string) string) [][]Event {
+func Group(items []history.Item) [][]Event {
 	groups := make([][]Event, 0, len(items))
 	for _, item := range items {
 		event := Event{Item: item}
-		for _, c := range item.Changes {
-			change := Change{Subject: subjectLabel(item, c.Resource, c.ID)}
-			for _, d := range c.Fields {
-				change.Fields = append(change.Fields, Field{Label: label(item, c.Resource, d.Field), Before: d.Before, After: d.After})
-			}
-			event.Changes = append(event.Changes, change)
-		}
 		last := len(groups) - 1
 		if last >= 0 && item.OperationID != nil && groups[last][0].OperationID != nil && *groups[last][0].OperationID == *item.OperationID {
 			groups[last] = append(groups[last], event)
@@ -229,15 +208,6 @@ func Group(items []history.Item, label func(item history.Item, resource, field s
 		groups = append(groups, []Event{event})
 	}
 	return groups
-}
-
-func subjectLabel(item history.Item, resource, id string) string {
-	for _, s := range item.Subjects {
-		if s.Resource == resource && s.ID == id {
-			return s.Label
-		}
-	}
-	return resource + " #" + id
 }
 
 func ActorName(a *businessevent.ActorSnapshot) string {
@@ -256,26 +226,7 @@ func ActorName(a *businessevent.ActorSnapshot) string {
 
 // Value renders a stored field value for reading; hidden and absent values are told apart by the caller.
 func Value(v fielddiff.FieldValue) string {
-	var decoded any
-	decoder := json.NewDecoder(bytes.NewReader(v.Value))
-	decoder.UseNumber()
-	if err := decoder.Decode(&decoded); err != nil {
-		return string(v.Value)
-	}
-	switch value := decoded.(type) {
-	case nil:
-		return "—"
-	case string:
-		return value
-	case bool, json.Number:
-		return string(v.Value)
-	case map[string]any:
-		if amount, ok := value["amount"].(string); ok {
-			currency, _ := value["currency"].(string)
-			return amount + " " + currency
-		}
-	}
-	return string(v.Value)
+	return history.FormatValue(v)
 }
 
 // TimeValue is the RFC 3339 form of an event time, rendered by components.LocalDateTime.

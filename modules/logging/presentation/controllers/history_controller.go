@@ -92,7 +92,7 @@ func (c *HistoryController) Events(w http.ResponseWriter, r *http.Request) {
 	props := &historypage.EventsProps{BasePath: c.basePath, RetryURL: r.URL.RequestURI(), Filters: filters}
 	loc, _ := composables.UseLocation(r.Context())
 	result, err := c.service.History(r.Context(), filters.Query(loc, time.Now()))
-	props.Groups = historypage.Group(result.Items, c.fieldLabels(r))
+	props.Groups = historypage.Group(result.Items)
 	if result.NextCursor != nil {
 		next := r.URL.Query()
 		next.Set("cursor", *result.NextCursor)
@@ -149,6 +149,9 @@ func (c *HistoryController) scopeTitle(r *http.Request, f historypage.Filters) s
 	ctx := r.Context()
 	if f.ID == "" {
 		return intl.MustT(ctx, "BusinessHistory.Meta.Title")
+	}
+	if subject, ok := c.service.Subject(ctx, f.Resource, f.ID); ok {
+		return subject.Label
 	}
 	return c.resourceLabel(r, f.Resource) + " #" + f.ID
 }
@@ -235,25 +238,4 @@ func (c *HistoryController) collator(r *http.Request) *collate.Collator {
 		tag = locale
 	}
 	return collate.New(tag)
-}
-
-// fieldLabels resolves the localized field label of a change, keyed by event type, version, resource and field.
-func (c *HistoryController) fieldLabels(r *http.Request) func(item history.Item, resource, field string) string {
-	return func(item history.Item, resource, field string) string {
-		def, ok := c.registry.Get(item.EventType, item.SchemaVersion)
-		if !ok {
-			return field
-		}
-		for _, res := range def.Resources {
-			if res.Name != resource {
-				continue
-			}
-			for _, f := range res.Fields {
-				if f.Name == field {
-					return intl.TWithDefault(r.Context(), f.LabelKey, field)
-				}
-			}
-		}
-		return field
-	}
 }

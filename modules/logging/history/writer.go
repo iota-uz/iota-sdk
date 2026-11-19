@@ -161,7 +161,8 @@ func validateSubjects(def Definition, subjects []businessevent.Subject) ([]busin
 	}
 	result := append(make([]businessevent.Subject, 0, len(subjects)), subjects...)
 	seen := map[string]bool{}
-	for _, s := range result {
+	for i, s := range result {
+		result[i].Label = subjectLabel(s.Label)
 		if _, ok := def.resource(s.Resource); !ok || s.ID == "" {
 			return nil, schemaInvalid("subject %s/%s is not allowed for %s", s.Resource, s.ID, def.Type)
 		}
@@ -174,6 +175,18 @@ func validateSubjects(def Definition, subjects []businessevent.Subject) ([]busin
 		return subjectRef(result[i].Resource, result[i].ID) < subjectRef(result[j].Resource, result[j].ID)
 	})
 	return result, nil
+}
+
+// maxSubjectLabel bounds a recorded caption, in characters; a longer one is cut rather than failing
+// the business change.
+const maxSubjectLabel = 200
+
+func subjectLabel(label string) string {
+	label = strings.Join(strings.Fields(label), " ")
+	if runes := []rune(label); len(runes) > maxSubjectLabel {
+		label = strings.TrimSpace(string(runes[:maxSubjectLabel-1])) + "…"
+	}
+	return label
 }
 
 func validateChanges(def Definition, subjects []businessevent.Subject, changes []businessevent.Change) ([]businessevent.Change, error) {

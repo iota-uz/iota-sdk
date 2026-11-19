@@ -44,7 +44,7 @@ func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Co
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: CounterpartyCreated, Version: 1, Resource: CounterpartyResource, ID: result.ID().String(),
-			After: counterpartySnapshot(result),
+			Label: result.Name(), After: counterpartySnapshot(result),
 		})
 	})
 	return result, err
@@ -63,7 +63,7 @@ func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Co
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: CounterpartyUpdated, Version: 1, Resource: CounterpartyResource, ID: entity.ID().String(),
-			Before: counterpartySnapshot(before), After: counterpartySnapshot(result),
+			Label: result.Name(), Before: counterpartySnapshot(before), After: counterpartySnapshot(result),
 		})
 	})
 	return result, err
@@ -80,7 +80,7 @@ func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counter
 		}
 		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: CounterpartyDeleted, Version: 1, Resource: CounterpartyResource, ID: id.String(),
-			Before: counterpartySnapshot(entity),
+			Label: entity.Name(), Before: counterpartySnapshot(entity),
 		})
 	})
 	if err != nil {
