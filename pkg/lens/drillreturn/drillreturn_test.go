@@ -2,6 +2,7 @@ package drillreturn_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -72,7 +73,7 @@ func TestFromRequestAndBackURL(t *testing.T) {
 	token, err := drillreturn.Encode(context)
 	require.NoError(t, err)
 
-	request := httptest.NewRequest("GET", "/records?branch=north&"+drillreturn.Param+"="+token, nil)
+	request := httptest.NewRequest(http.MethodGet, "/records?branch=north&"+drillreturn.Param+"="+token, nil)
 	received, ok := drillreturn.FromRequest(request)
 	require.True(t, ok)
 	require.Equal(t, []string{"Region", "North"}, received.Trail)
@@ -92,7 +93,7 @@ func TestFromRequestAndBackURL(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, plain, drillreturn.HostParam)
 
-	_, ok = drillreturn.FromRequest(httptest.NewRequest("GET", "/records", nil))
+	_, ok = drillreturn.FromRequest(httptest.NewRequest(http.MethodGet, "/records", nil))
 	require.False(t, ok, "a page not opened from Lens has no return context")
 }
 
