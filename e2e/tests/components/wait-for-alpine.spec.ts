@@ -24,12 +24,18 @@ test('rejects when Alpine never initializes', async ({ page }) => {
 	await expect(waitForAlpine(page, 300)).rejects.toThrow();
 });
 
-// Characterisation: falsely green if readiness were declared before Alpine initialized the
-// component roots, or if a fixed delay were reintroduced.
-test('resolves once production Alpine initialized every component, without a fixed delay', async ({ page }) => {
+// Regression: the old predicate accepted any Alpine global. Falsely green if readiness ignored
+// whether Alpine initialized the component roots.
+test('rejects while Alpine is loaded but components are not initialized', async ({ page }) => {
+	await serve(page, '<script>window.Alpine = { version: "3.14.1" }</script>', '<div x-data="{ open: false }">Pending</div>');
+	await expect(waitForAlpine(page, 300)).rejects.toThrow();
+});
+
+// Characterisation: falsely green if a fixed delay were reintroduced after readiness.
+test('returns promptly once production Alpine initialized every component', async ({ page }) => {
 	await serve(page, '<script type="module" src="/assets/js/alpine.js"></script>', '<div x-data="{ label: \'ready\' }"><span x-text="label"></span></div>');
+	await expect(page.locator('span')).toHaveText('ready');
 	const start = Date.now();
 	await waitForAlpine(page);
-	expect(Date.now() - start).toBeLessThan(900);
-	await expect(page.locator('span')).toHaveText('ready');
+	expect(Date.now() - start).toBeLessThan(500);
 });

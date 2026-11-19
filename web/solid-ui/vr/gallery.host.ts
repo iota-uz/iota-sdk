@@ -37,12 +37,12 @@ export const galleryHost: ComponentHost<GalleryCase> = {
   cases: () => galleryCases,
   readiness: { readinessAttribute: 'data-gallery-ready' },
   async navigate(page, c) {
-    await page.emulateMedia({ reducedMotion: 'reduce' })
     const query = new URLSearchParams({ specimen: c.specimen, theme: c.theme, state: c.state })
     await page.goto(`/?${query.toString()}`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('main')).toHaveAttribute('data-specimen-id', c.specimen)
     await expect(page.locator('main')).toHaveAttribute('data-theme', c.theme)
     await prepareState(page, c.state, c.specimen)
+    await page.emulateMedia({ reducedMotion: 'reduce' })
     return page.locator('html')
   },
 }

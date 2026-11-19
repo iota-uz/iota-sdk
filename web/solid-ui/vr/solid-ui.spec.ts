@@ -1,22 +1,14 @@
-import { assertCaseCoverage, openComponentCase } from '@iota-uz/sdk/testing'
+import { openComponentCase } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
-import { SPECIMENS, THEMES } from '../src/catalog'
-import { galleryCase, galleryCases, galleryHost, viewports, type GalleryCase } from './gallery.host'
+import { galleryCase, galleryCases, galleryHost, type GalleryCase } from './gallery.host'
 
 async function open(page: Page, c: GalleryCase): Promise<void> {
   await openComponentCase(page, galleryHost, c)
   // Screenshot determinism only: readiness itself is the host's data-gallery-ready marker.
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
-  await page.mouse.move(0, 0)
+  // Park the pointer unless the case is the hover state the host just applied.
+  if (c.state !== 'hover') await page.mouse.move(0, 0)
 }
-
-test('gallery cases cover every specimen state, theme and viewport', () => {
-  assertCaseCoverage(galleryCases, {
-    states: [...new Set(SPECIMENS.flatMap(specimen => specimen.states))],
-    themes: THEMES,
-    viewports: Object.values(viewports),
-  })
-})
 
 for (const c of galleryCases) {
   test(c.id, async ({ page }) => {

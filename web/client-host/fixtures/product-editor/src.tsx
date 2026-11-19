@@ -42,7 +42,8 @@ function ProductEditor(props: { route: ClientRouteContext<Product> }) {
         const save: PendingSave = { snapshot, resolve, reject }
         pendingSaves.push(save)
         signal.addEventListener('abort', () => {
-          pendingSaves.splice(pendingSaves.indexOf(save), 1)
+          const index = pendingSaves.indexOf(save)
+          if (index >= 0) pendingSaves.splice(index, 1)
           reject(new DOMException('Cancelled', 'AbortError'))
         }, { once: true })
       }))

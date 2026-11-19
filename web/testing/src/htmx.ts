@@ -5,8 +5,8 @@ export type RequestMatch = { method: string; pathname: string }
 export type ResponseMatch = RequestMatch | ((response: Response) => boolean)
 export type ValidationResult = { controlName: string; message: string }
 export type HtmxSettledOptions = WaitOptions & {
-  /** Consumer readiness for the (possibly replaced) target, evaluated after every correlated swap settled. */
-  ready?: (target: Locator) => Promise<unknown>
+  /** Consumer readiness for the (possibly replaced) target, evaluated after every correlated swap settled; receives the remaining budget. */
+  ready?: (target: Locator, options: { timeoutMs: number }) => Promise<unknown>
 }
 
 function describe(match: ResponseMatch): string {
@@ -25,55 +25,65 @@ export async function actionAndResponse(page: Page, match: ResponseMatch, action
   return result
 }
 
-type ObserverRecord = { url: string; method: string; status: number; settled: boolean; failed: boolean; aborted: boolean; scoped: boolean }
+type ObserverRecord = { url: string; method: string; status: number; settled: boolean; failed: boolean; aborted: boolean; navigated: boolean; scoped: boolean }
 
 /**
  * Observes production HTMX lifecycle events for every request started after installation.
- * Listeners are attached to the requesting element and target as well as the document because
- * a swap that detaches either element stops its events from bubbling. A request is complete when
- * its swap settled, or when it loaded without producing swapped content (empty replacement,
- * `hx-swap="none"`), which HTMX never follows with afterSettle.
+ * Listeners are attached to the requesting element, the target and every element HTMX swapped
+ * in, as well as the document, because a node detached before its event fires no longer bubbles.
+ * The target (and scope membership) is refreshed at beforeSwap so HX-Retarget and beforeSwap
+ * overrides are followed. A request is complete when its swap settled, or when it loaded without
+ * producing swapped content (empty replacement, `hx-swap="none"`), which HTMX never follows with
+ * afterSettle. HX-Redirect, HX-Refresh and HX-Location responses are recorded as navigations.
  */
 async function installHtmxObserver(page: Page, scope: string | null): Promise<string> {
   const key = `sdk-htmx-${crypto.randomUUID()}`
   await page.evaluate(({ key, scope }) => {
+    if (scope !== null) document.querySelector(scope) // Throws for selectors that are not CSS.
     type Tracked = ObserverRecord & { swapped: boolean; loaded: boolean; target: Element | null }
-    const terminal = ['htmx:afterSwap', 'htmx:afterOnLoad', 'htmx:afterSettle', 'htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout', 'htmx:swapError']
+    const terminal = ['htmx:beforeSwap', 'htmx:afterSwap', 'htmx:afterOnLoad', 'htmx:afterSettle', 'htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout', 'htmx:swapError', 'htmx:onLoadError']
     const records: Tracked[] = []
     const requests = new WeakMap<object, Tracked>()
     const observed = new Set<Element>()
+    const observe = (element: unknown) => {
+      if (!(element instanceof Element) || observed.has(element)) return
+      observed.add(element)
+      for (const type of terminal) element.addEventListener(type, update)
+    }
     const inScope = (element: unknown) => scope === null || (element instanceof Element && (element.matches(scope) || element.closest(scope) !== null || element.querySelector(scope) !== null))
-    const update = (event: Event) => {
+    const navigation = /^(HX-Redirect|HX-Refresh|HX-Location):/im
+    function update(event: Event) {
       const d = (event as CustomEvent).detail
       const record = d?.xhr && requests.get(d.xhr)
       if (!record || record.failed || record.aborted || record.settled) return
       record.url = d.xhr.responseURL || record.url
       record.status = d.xhr.status
       if (event.type === 'htmx:afterSettle') record.settled = true
-      else if (event.type === 'htmx:afterSwap') record.swapped = true
-      else if (event.type === 'htmx:afterOnLoad') record.loaded = true
-      else if (event.type === 'htmx:sendAbort') record.aborted = true
+      else if (event.type === 'htmx:beforeSwap') {
+        if (d.target instanceof Element) { record.target = d.target; record.scoped = inScope(d.target); observe(d.target) }
+      } else if (event.type === 'htmx:afterSwap') { record.swapped = true; observe(event.target) }
+      else if (event.type === 'htmx:afterOnLoad') {
+        record.loaded = true
+        if (navigation.test(d.xhr.getAllResponseHeaders())) record.navigated = true
+      } else if (event.type === 'htmx:sendAbort') record.aborted = true
       else record.failed = true
     }
     const before = (event: Event) => {
       const d = (event as CustomEvent).detail
       if (!d?.xhr || requests.has(d.xhr)) return
       const target = d.target ?? d.elt
-      const record: Tracked = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false, aborted: false, scoped: inScope(target), swapped: false, loaded: false, target: target instanceof Element ? target : null }
+      const record: Tracked = { url: new URL(d.requestConfig.path, location.href).href, method: String(d.requestConfig.verb).toUpperCase(), status: 0, settled: false, failed: false, aborted: false, navigated: false, scoped: inScope(target), swapped: false, loaded: false, target: target instanceof Element ? target : null }
       records.push(record)
       requests.set(d.xhr, record)
-      for (const element of [d.elt, d.target]) {
-        if (!(element instanceof Element) || observed.has(element)) continue
-        observed.add(element)
-        for (const type of terminal) element.addEventListener(type, update)
-      }
+      observe(d.elt)
+      observe(d.target)
     }
     // A delayed swap keeps htmx-swapping on a connected target until it runs.
-    const complete = (r: Tracked) => r.settled || (r.loaded && !r.swapped && !(r.target?.isConnected && r.target.classList.contains('htmx-swapping')))
+    const complete = (r: Tracked) => r.settled || r.navigated || (r.loaded && !r.swapped && !(r.target?.isConnected && r.target.classList.contains('htmx-swapping')))
     document.addEventListener('htmx:beforeRequest', before)
     for (const type of terminal) document.addEventListener(type, update)
     ;(window as any)[key] = {
-      records: () => records.map(r => ({ url: r.url, method: r.method, status: r.status, settled: complete(r), failed: r.failed, aborted: r.aborted, scoped: r.scoped })),
+      records: () => records.map(r => ({ url: r.url, method: r.method, status: r.status, settled: complete(r), failed: r.failed, aborted: r.aborted, navigated: r.navigated, scoped: r.scoped })),
       dispose: () => {
         document.removeEventListener('htmx:beforeRequest', before)
         for (const type of terminal) document.removeEventListener(type, update)
@@ -86,40 +96,51 @@ async function installHtmxObserver(page: Page, scope: string | null): Promise<st
 async function disposeObserver(page: Page, key: string): Promise<void> {
   await page.evaluate(key => { (window as any)[key]?.dispose(); delete (window as any)[key] }, key).catch(() => {})
 }
+/** Records of the observer, or null when the document that held it was replaced by a navigation. */
+async function observedRecords(page: Page, key: string): Promise<ObserverRecord[] | null> {
+  return page.evaluate(key => (window as any)[key]?.records() ?? null, key).catch(() => null)
+}
 const settling = '.htmx-swapping, .htmx-settling, .htmx-added'
 
 /**
- * Waits for every HTMX request whose target is, contains, or is inside `target`: each must swap
- * and settle (failures, timeouts and send errors reject), then the target (re-resolved by
- * selector after a replacement) must be attached, free of transient swap classes and pass `ready`.
+ * Waits for every HTMX request whose target is, contains, or is inside the CSS selector `target`
+ * (after HX-Retarget): each must swap and settle. Refusals, send errors, load errors and HTMX
+ * timeouts reject; so does a response that navigates (HX-Redirect/HX-Refresh/HX-Location),
+ * which callers wait for with `page.waitForURL` instead. Requests started while earlier ones are
+ * still pending are included; ones triggered later (delays, intersect) need their own call.
+ * Afterwards at least one element must match `target`, none of the matches may carry transient
+ * swap classes, and `ready` runs with the remaining budget. The budget starts after `action`.
  */
 export async function actionAndHtmxSettled(page: Page, target: string, action: () => Promise<unknown>, options: HtmxSettledOptions = {}): Promise<void> {
-  const remaining = deadline(options)
+  timeout(options)
   const key = await installHtmxObserver(page, target)
   try {
     await action()
-    const records = () => page.evaluate(key => ((window as any)[key].records() as ObserverRecord[]).filter(r => r.scoped), key)
+    const remaining = deadline(options)
+    const scopedRecords = async () => (await observedRecords(page, key))?.filter(r => r.scoped) ?? null
     try {
       await page.waitForFunction(key => {
         const scoped = ((window as any)[key].records() as ObserverRecord[]).filter(r => r.scoped)
-        return scoped.length > 0 && (scoped.some(r => r.failed) || scoped.every(r => r.settled || r.aborted || r.failed))
+        return scoped.length > 0 && (scoped.some(r => r.failed || r.navigated) || scoped.every(r => r.settled || r.aborted || r.failed))
       }, key, { timeout: remaining() })
     } catch (cause) {
-      const seen = await records().catch(() => [])
+      const seen = await scopedRecords()
+      if (seen === null) throw new Error(`Page navigated while waiting for HTMX settlement of ${target}`, { cause })
       if (seen.length === 0) throw new Error(`Action issued no HTMX request targeted ${target}`, { cause })
       throw new Error(`HTMX requests for ${target} did not settle: ${JSON.stringify(seen)}`, { cause })
     }
-    const scoped = await records()
+    const scoped = await scopedRecords()
+    if (scoped === null) throw new Error(`Page navigated while waiting for HTMX settlement of ${target}`)
     const failure = scoped.find(r => r.failed)
     if (failure) throw new Error(`HTMX request failed: ${failure.status} ${failure.method} ${failure.url}`)
+    const navigated = scoped.find(r => r.navigated)
+    if (navigated) throw new Error(`HTMX response navigates instead of swapping ${target}: ${navigated.method} ${navigated.url}; wait for the URL instead`)
     if (!scoped.some(r => r.settled)) throw new Error(`HTMX requests for ${target} were all aborted`)
-    const locator = page.locator(target)
-    await locator.waitFor({ state: 'attached', timeout: remaining() })
     await page.waitForFunction(({ target, settling }) => {
-      const element = document.querySelector(target)
-      return element !== null && !element.matches(settling) && element.querySelector(settling) === null
+      const elements = Array.from(document.querySelectorAll(target))
+      return elements.length > 0 && elements.every(element => !element.matches(settling) && element.querySelector(settling) === null)
     }, { target, settling }, { timeout: remaining() })
-    await options.ready?.(locator)
+    await options.ready?.(page.locator(target), { timeoutMs: remaining() })
   } finally {
     await disposeObserver(page, key)
   }
@@ -180,15 +201,23 @@ export async function actionAndValidationRefusal(page: Page, form: Locator, acti
       f.removeEventListener('submit', submit)
       document.removeEventListener('htmx:beforeRequest', htmx)
     } }
-    const verb = ['post', 'put', 'patch', 'delete', 'get'].find(v => f.hasAttribute(`hx-${v}`))
-    return {
-      url: new URL((verb ? f.getAttribute(`hx-${verb}`) : f.getAttribute('action')) ?? location.href, location.href).href,
-      method: (verb ?? f.method).toUpperCase(),
+    // The form and each submitter may declare where submission goes; getAttribute avoids
+    // properties shadowed by controls named "action" or "method".
+    const verbs = ['post', 'put', 'patch', 'delete', 'get']
+    const candidates: { url: string; method: string }[] = []
+    const resolve = (path: string | null) => new URL(path ?? location.href, location.href).href
+    for (const element of [f, ...Array.from(f.querySelectorAll('button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]'))]) {
+      for (const verb of verbs) if (element.hasAttribute(`hx-${verb}`)) candidates.push({ url: resolve(element.getAttribute(`hx-${verb}`)), method: verb.toUpperCase() })
+      if (element !== f && element.hasAttribute('formaction')) candidates.push({ url: resolve(element.getAttribute('formaction')), method: (element.getAttribute('formmethod') ?? f.getAttribute('method') ?? 'get').toUpperCase() })
     }
+    if (!verbs.some(verb => f.hasAttribute(`hx-${verb}`))) candidates.push({ url: resolve(f.getAttribute('action')), method: (f.getAttribute('method') ?? 'get').toUpperCase() })
+    return candidates
   }, key)
   const path = (url: string) => url.split(/[?#]/)[0]
   let request: string | null = null
-  const observe = (r: Request) => { if (path(r.url()) === path(submission.url) && r.method() === submission.method) request ??= `${r.method()} ${r.url()}` }
+  const observe = (r: Request) => {
+    if (submission.some(candidate => path(r.url()) === path(candidate.url) && r.method() === candidate.method)) request ??= `${r.method()} ${r.url()}`
+  }
   page.on('request', observe)
   try {
     await action()

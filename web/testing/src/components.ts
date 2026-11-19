@@ -25,17 +25,24 @@ export class ReadinessError extends Error {
   }
 }
 
+/** One atomic page-side snapshot; locator reads that auto-wait could outlive the budget if the root detaches. */
 async function readinessState(page: Page, root: Locator, attribute: string, charts?: Locator): Promise<ReadinessState> {
-  const rootCount = await root.count()
-  const single = rootCount === 1
-  return {
-    rootCount,
-    readiness: single ? await root.getAttribute(attribute) : null,
-    visible: single ? await root.isVisible() : false,
-    fonts: await page.evaluate(() => document.fonts.status),
-    charts: charts ? await charts.evaluateAll(elements => elements.map(element => element.getAttribute('data-chart-ready'))) : null,
-    html: single ? (await root.evaluate(element => element.outerHTML)).slice(0, 600) : '',
-  }
+  const [snapshot, chartStates] = await Promise.all([
+    root.evaluateAll((elements, attribute) => {
+      const element = elements.length === 1 ? elements[0]! : null
+      const rect = element?.getBoundingClientRect()
+      const style = element ? getComputedStyle(element) : null
+      return {
+        rootCount: elements.length,
+        readiness: element?.getAttribute(attribute) ?? null,
+        visible: Boolean(rect && rect.width > 0 && rect.height > 0 && style?.visibility !== 'hidden'),
+        fonts: document.fonts.status,
+        html: element?.outerHTML.slice(0, 600) ?? '',
+      }
+    }, attribute),
+    charts ? charts.evaluateAll(elements => elements.map(element => element.getAttribute('data-chart-ready'))) : Promise.resolve(null),
+  ])
+  return { ...snapshot, charts: chartStates }
 }
 
 /**
@@ -50,7 +57,7 @@ export async function expectComponentReady(page: Page, root: Locator, options: R
     && (state.charts === null || (state.charts.length > 0 && state.charts.every(chart => chart === 'true')))
   let last: ReadinessState | undefined
   await waitForCondition(async () => ready(last = await readinessState(page, root, attribute, options.charts)), remaining(),
-    async () => new ReadinessError(attribute, last ?? await readinessState(page, root, attribute, options.charts)))
+    () => new ReadinessError(attribute, last!))
 }
 
 export async function expectFontsReady(page: Page, options: WaitOptions = {}): Promise<void> {

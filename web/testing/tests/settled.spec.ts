@@ -3,14 +3,14 @@ import { actionAndHtmxSettled, actionAndResponse, actionAndValidationRefusal } f
 import path from 'node:path'
 
 // All cases load the production HTMX asset; synthetic htmx:* events would make them falsely green.
-async function host(page: Page, body: string, respond: (pathname: string) => Promise<{ status?: number; body: string } | 'abort' | 'hang'>) {
+async function host(page: Page, body: string, respond: (pathname: string) => Promise<{ status?: number; body: string; headers?: Record<string, string> } | 'abort' | 'hang'>) {
   await page.route('http://fixture.test/**', async route => {
     const pathname = new URL(route.request().url()).pathname
     if (pathname === '/') return route.fulfill({ contentType: 'text/html', body })
     const result = await respond(pathname)
     if (result === 'hang') return
     if (result === 'abort') return route.abort('failed')
-    return route.fulfill({ status: result.status ?? 200, contentType: 'text/html', body: result.body })
+    return route.fulfill({ status: result.status ?? 200, contentType: 'text/html', body: result.body, headers: result.headers })
   })
   await page.goto('http://fixture.test/')
   await page.addScriptTag({ path: path.resolve('../../modules/core/presentation/assets/js/lib/htmx.min.js') })
@@ -148,4 +148,68 @@ test('completes a request that swaps nothing', async ({ page }) => {
   await host(page, '<button hx-post="/ping" hx-target="#panel" hx-swap="none">Ping</button><section id="panel">Same</section>', async () => ({ body: 'ignored' }))
   await actionAndHtmxSettled(page, '#panel', () => page.getByRole('button').click(), { timeoutMs: 2000 })
   await expect(page.locator('#panel')).toHaveText('Same')
+})
+
+// Regression: afterSettle fires on the swapped-in nodes; when a later swap detaches them first, the event never reached document.
+test('settles when a later swap detaches content an earlier swap is still settling', async ({ page }) => {
+  const outer = gate()
+  await host(page, '<button id="a" hx-get="/a" hx-target="#panel" hx-swap="outerHTML settle:200ms">A</button><button id="b" hx-get="/b" hx-target="#wrap" hx-swap="innerHTML settle:0ms">B</button><div id="wrap"><section id="panel">Before</section></div>',
+    async pathname => {
+      if (pathname === '/b') { await outer.opened; return { body: '<p>Wrapped</p>' } }
+      return { body: '<section id="panel">After</section>' }
+    })
+  const interaction = actionAndHtmxSettled(page, '#wrap', () => page.evaluate(() => {
+    document.getElementById('a')!.click(); document.getElementById('b')!.click()
+  }), { timeoutMs: 2000 })
+  await expect(page.locator('#panel')).toHaveText('After')
+  outer.release()
+  await interaction
+  await expect(page.locator('#wrap')).toHaveText('Wrapped')
+})
+
+// Regression: scope membership was frozen at beforeRequest, so an HX-Retarget into the scope counted as "no request".
+test('follows HX-Retarget into the scope', async ({ page }) => {
+  await host(page, '<button hx-post="/save" hx-target="#form">Save</button><section id="form"></section><section id="card">Old</section>',
+    async () => ({ body: '<section id="card">New</section>', headers: { 'HX-Retarget': '#card', 'HX-Reswap': 'outerHTML' } }))
+  await actionAndHtmxSettled(page, '#card', () => page.getByRole('button').click(), { timeoutMs: 2000 })
+  await expect(page.locator('#card')).toHaveText('New')
+})
+
+// Regression: a load error outside the swap (HX-Retarget to a missing element) fired only onLoadError and spent the whole budget.
+test('rejects a response HTMX cannot load promptly', async ({ page }) => {
+  await host(page, '<button hx-post="/save" hx-target="#panel">Save</button><section id="panel"></section>',
+    async () => ({ body: 'x', headers: { 'HX-Retarget': '#missing' } }))
+  const start = Date.now()
+  await expect(actionAndHtmxSettled(page, '#panel', () => page.getByRole('button').click(), { timeoutMs: 5000 })).rejects.toThrow(/HTMX request failed: 200 POST/)
+  expect(Date.now() - start).toBeLessThan(2000)
+})
+
+// Regression: an HX-Redirect response was misreported as "no HTMX request" or a destroyed context.
+test('rejects a navigating response with a navigation diagnostic', async ({ page }) => {
+  await host(page, '<button hx-post="/save" hx-target="#panel">Save</button><section id="panel"></section>',
+    async pathname => pathname === '/next' ? { body: '<p>next</p>' } : { body: '', headers: { 'HX-Redirect': '/next' } })
+  await expect(actionAndHtmxSettled(page, '#panel', () => page.getByRole('button').click(), { timeoutMs: 3000 })).rejects.toThrow(/navigat/i)
+})
+
+// Regression: a scope matching several elements failed Playwright strict mode after settling.
+test('accepts a scope selector that matches several elements', async ({ page }) => {
+  await host(page, '<div class="row"><button hx-get="/one" hx-target="closest .row">One</button></div><div class="row">Two</div>', async () => ({ body: 'Loaded' }))
+  await actionAndHtmxSettled(page, '.row', () => page.getByRole('button', { name: 'One' }).click(), {
+    ready: (rows, { timeoutMs }) => expect(rows.first()).toHaveText('Loaded', { timeout: timeoutMs }),
+  })
+})
+
+// Regression: a non-CSS scope threw inside the page listener and ended as a full-timeout "no request".
+test('rejects a non-CSS scope before running the action', async ({ page }) => {
+  await host(page, '<button>Save</button>', async () => ({ body: '' }))
+  let ran = false
+  await expect(actionAndHtmxSettled(page, 'text=Save', async () => { ran = true })).rejects.toThrow()
+  expect(ran).toBe(false)
+})
+
+// Regression: hx-post on the submit button was not a watched submission target.
+test('detects a request to a submitter-declared URL during a native refusal', async ({ page }) => {
+  await host(page, '<form><input name="method" value="x"><input name="email" required><button hx-post="/submit">Save</button></form>', async () => ({ body: '' }))
+  await page.locator('button').evaluate(button => button.addEventListener('click', () => { void fetch('/submit', { method: 'POST' }) }))
+  await expect(actionAndValidationRefusal(page, page.locator('form'), () => page.getByRole('button').click())).rejects.toThrow(/submission request: POST/)
 })

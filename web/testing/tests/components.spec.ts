@@ -10,6 +10,14 @@ test('readiness timeout rejects with the diagnostic root state', async ({ page }
   expect(error.message).toContain('data-component-ready="loading"')
 })
 
+// Regression: a root detaching between locator reads blocked on auto-waiting past the readiness budget.
+test('a root that detaches during the poll still rejects within the budget', async ({ page }) => {
+  await page.setContent('<section id="root" data-component-ready="false">x</section><script>setTimeout(() => document.getElementById("root").remove(), 60)</script>')
+  const start = Date.now()
+  await expect(expectComponentReady(page, page.locator('#root'), { timeoutMs: 400 })).rejects.toThrow(ReadinessError)
+  expect(Date.now() - start).toBeLessThan(1500)
+})
+
 // Characterisation: falsely green if chart readiness were not part of the component readiness wait.
 test('waits for declared charts after the root marker', async ({ page }) => {
   await page.setContent('<section id="root" data-component-ready="true"><canvas data-chart-ready="false"></canvas></section><script>setTimeout(() => document.querySelector("canvas").dataset.chartReady = "true", 150)</script>')
