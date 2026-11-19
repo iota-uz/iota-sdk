@@ -1255,6 +1255,7 @@ func (b *Builder) Renderer(name string, options json.RawMessage) *Builder {
 	b.spec.Renderer = &HostRenderer{Name: name, Options: bytes.Clone(options)}
 	return b
 }
+
 // Ratio declares the value a host-computed ratio of two frame fields. The
 // runtime shows both parts with the description instead of summing shares.
 func (b *Builder) Ratio(ratio Ratio) *Builder {
