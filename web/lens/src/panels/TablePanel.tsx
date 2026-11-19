@@ -1104,7 +1104,7 @@ function RowLeafAction(props: {
     : undefined)
   return (
     <Show when={href()}>
-      {(value) => <a class="lens-leaf-action" href={value()} onClick={() => activation.onClick(value())}>{props.label}</a>}
+      {(value) => <a class="lens-leaf-action" href={value()} onClick={(event) => activation.onClick(value())?.(event)}>{props.label}</a>}
     </Show>
   )
 }
@@ -1135,7 +1135,7 @@ function FrameRow(props: {
       </For>
       <td class="lens-table-action-cell">
         <Show when={href()}>
-          {(value) => <a class="lens-leaf-action" href={value()} onClick={() => activation.onClick(value())}>{props.openRecordLabel}</a>}
+          {(value) => <a class="lens-leaf-action" href={value()} onClick={(event) => activation.onClick(value())?.(event)}>{props.openRecordLabel}</a>}
         </Show>
       </td>
       {props.trailingSpacer && <td aria-hidden="true" class="lens-table-scroll-spacer" />}

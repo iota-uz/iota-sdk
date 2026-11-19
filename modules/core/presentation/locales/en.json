@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "Dashboard"
     },
+    "Finance": {
+      "Title": "Finance overview",
+      "Period": "Period",
+      "Summary": "Balances by currency",
+      "Currency": "Currency",
+      "Opening": "Opening balance",
+      "Inflow": "Inflow",
+      "Outflow": "Outflow",
+      "Closing": "Closing balance",
+      "Operations": "Operations",
+      "DailyBalance": "Daily balance",
+      "ExpensesByCategory": "Expenses by category",
+      "IncomeByCounterparty": "Income by counterparty",
+      "RecentOperations": "Recent operations",
+      "Date": "Date",
+      "Type": "Type",
+      "Account": "Account",
+      "Counterpart": "Category / counterparty",
+      "Comment": "Comment",
+      "Amount": "Amount",
+      "OperationsDrawer": "Account operations"
+    },
     "Welcome": "Welcome to the dashboard"
   },
   "Delete": "Delete",

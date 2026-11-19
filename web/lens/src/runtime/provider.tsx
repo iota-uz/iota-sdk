@@ -16,6 +16,7 @@ import {
 import { produce, reconcile, createStore } from 'solid-js/store'
 import type { CompareValue, DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PanelBatchResult, PanelCalculation, PeriodValue, QueryPage, QueryRequest, TableSort, TableSummary } from '../contract'
 import { fetchDocument } from './document'
+import { inlineTableSummary } from './tableSummary'
 import {
   compareValues,
   declaredFilters,
@@ -1061,6 +1062,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: Boolean(panel.deferred),
         error: null,
         retry: panel.deferred ? () => schedulePanel(panel.id) : retryFrame,
+        summary: inlineTableSummary(panel, source.frames[panel.frame]),
       })
     }
   }
@@ -1119,6 +1121,7 @@ function RuntimeCore(props: RuntimeCoreProps): JSX.Element {
         isLoading: Boolean(panel.deferred),
         error: null,
         retry: panel.deferred ? () => schedulePanel(panel.id) : retryFrame,
+        summary: inlineTableSummary(panel, resolvedDoc.frames[panel.frame]),
       })
     }
   }

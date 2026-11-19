@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "Boshqaruv paneli"
     },
+    "Finance": {
+      "Title": "Молиявий шарҳ",
+      "Period": "Давр",
+      "Summary": "Валюталар бўйича қолдиқлар",
+      "Currency": "Валюта",
+      "Opening": "Бошланғич қолдиқ",
+      "Inflow": "Кирим",
+      "Outflow": "Чиқим",
+      "Closing": "Якуний қолдиқ",
+      "Operations": "Операциялар",
+      "DailyBalance": "Кунлик баланс",
+      "ExpensesByCategory": "Тоифалар бўйича харажатлар",
+      "IncomeByCounterparty": "Контрагентлар бўйича кирим",
+      "RecentOperations": "Сўнгги операциялар",
+      "Date": "Сана",
+      "Type": "Тури",
+      "Account": "Ҳисоб",
+      "Counterpart": "Тоифа / контрагент",
+      "Comment": "Изоҳ",
+      "Amount": "Сумма",
+      "OperationsDrawer": "Ҳисоб операциялари"
+    },
     "Welcome": "Boshqaruv paneliga xush kelibsiz"
   },
   "Delete": "O'chirish",

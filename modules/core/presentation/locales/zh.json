@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "仪表板"
     },
+    "Finance": {
+      "Title": "财务概览",
+      "Period": "期间",
+      "Summary": "按币种余额",
+      "Currency": "币种",
+      "Opening": "期初余额",
+      "Inflow": "流入",
+      "Outflow": "流出",
+      "Closing": "期末余额",
+      "Operations": "业务笔数",
+      "DailyBalance": "每日余额",
+      "ExpensesByCategory": "按类别支出",
+      "IncomeByCounterparty": "按交易方收入",
+      "RecentOperations": "最近业务",
+      "Date": "日期",
+      "Type": "类型",
+      "Account": "账户",
+      "Counterpart": "类别 / 交易方",
+      "Comment": "备注",
+      "Amount": "金额",
+      "OperationsDrawer": "账户业务"
+    },
     "Welcome": "欢迎使用仪表板"
   },
   "Delete": "删除",

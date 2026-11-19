@@ -388,6 +388,28 @@
     "Meta": {
       "Title": "Панель управления"
     },
+    "Finance": {
+      "Title": "Финансовый обзор",
+      "Period": "Период",
+      "Summary": "Остатки по валютам",
+      "Currency": "Валюта",
+      "Opening": "Остаток на начало",
+      "Inflow": "Поступления",
+      "Outflow": "Списания",
+      "Closing": "Остаток на конец",
+      "Operations": "Операции",
+      "DailyBalance": "Дневной баланс",
+      "ExpensesByCategory": "Расходы по категориям",
+      "IncomeByCounterparty": "Поступления по контрагентам",
+      "RecentOperations": "Последние операции",
+      "Date": "Дата",
+      "Type": "Тип",
+      "Account": "Счёт",
+      "Counterpart": "Категория / контрагент",
+      "Comment": "Комментарий",
+      "Amount": "Сумма",
+      "OperationsDrawer": "Операции по счетам"
+    },
     "Welcome": "Добро пожаловать на панель управления"
   },
   "Delete": "Удалить",
