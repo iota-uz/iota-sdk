@@ -79,6 +79,9 @@ type Subject struct {
 	ID             string `json:"id"`
 	RevisionBefore string `json:"revision_before,omitempty"`
 	RevisionAfter  string `json:"revision_after,omitempty"`
+	// Label is the object's caption when the event was recorded, e.g. a document number. Readers
+	// prefer the resource's current caption and fall back to it, so a deleted object keeps its name.
+	Label string `json:"label,omitempty"`
 }
 
 type Change struct {
@@ -163,8 +166,20 @@ type FindParams struct {
 	From           time.Time
 	To             time.Time
 	Readable       []string
-	After          *Position
-	Limit          int
+	// Restricted hides events naming an object of a restricted resource outside its visible set.
+	Restricted []Restriction
+	After      *Position
+	Limit      int
+}
+
+// Restriction is the visible set of objects of one resource: the listed IDs and the objects whose ID
+// satisfies Condition, an SQL expression over {id} (the ID as text) with arguments $1..$n of Args.
+// An empty restriction shows none of the resource's objects.
+type Restriction struct {
+	Resource  string
+	IDs       []string
+	Condition string
+	Args      []any
 }
 
 // Position places the event in the timeline. Legacy events without occurred_at use the time they were recorded.

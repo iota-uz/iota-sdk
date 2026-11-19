@@ -7,9 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
 	"github.com/iota-uz/iota-sdk/modules/logging/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -62,28 +64,34 @@ type Query struct {
 }
 
 type Subject struct {
-	Resource string  `json:"resource"`
-	ID       string  `json:"id"`
-	Label    string  `json:"label"`
-	URL      *string `json:"url"`
+	Resource string `json:"resource"`
+	ID       string `json:"id"`
+	// Name is the object's caption (Resource.Labels, else the one recorded with the event); empty if unknown.
+	Name string `json:"name,omitempty"`
+	// Label names the object for reading: the resource label with Name, or with the ID when Name is empty.
+	Label string  `json:"label"`
+	URL   *string `json:"url"`
 }
 
 type Item struct {
-	EventID          string                       `json:"event_id"`
-	EventType        string                       `json:"event_type"`
-	SchemaVersion    int                          `json:"schema_version"`
-	OccurredAt       time.Time                    `json:"occurred_at"`
-	RecordedAt       time.Time                    `json:"recorded_at"`
-	Title            string                       `json:"title"`
-	Summary          string                       `json:"summary"`
-	Actor            *businessevent.ActorSnapshot `json:"actor_snapshot"`
-	Initiator        *businessevent.ActorSnapshot `json:"initiator_snapshot,omitempty"`
-	Channel          string                       `json:"channel"`
-	Outcome          businessevent.Outcome        `json:"outcome,omitempty"`
-	OperationID      *string                      `json:"operation_id"`
-	Subjects         []Subject                    `json:"subjects"`
-	Changes          []businessevent.Change       `json:"changes"`
-	LegacyIncomplete bool                         `json:"legacy_incomplete"`
+	EventID       string                       `json:"event_id"`
+	EventType     string                       `json:"event_type"`
+	SchemaVersion int                          `json:"schema_version"`
+	OccurredAt    time.Time                    `json:"occurred_at"`
+	RecordedAt    time.Time                    `json:"recorded_at"`
+	Title         string                       `json:"title"`
+	Summary       string                       `json:"summary"`
+	Actor         *businessevent.ActorSnapshot `json:"actor_snapshot"`
+	Initiator     *businessevent.ActorSnapshot `json:"initiator_snapshot,omitempty"`
+	Channel       string                       `json:"channel"`
+	Outcome       businessevent.Outcome        `json:"outcome,omitempty"`
+	OperationID   *string                      `json:"operation_id"`
+	Subjects      []Subject                    `json:"subjects"`
+	Changes       []businessevent.Change       `json:"changes"`
+	// Display is Changes as a reader sees them, in the same order: localized field labels and value
+	// texts, with codes translated as their fields declare. Pages and exports render it.
+	Display          []ChangeDisplay `json:"display"`
+	LegacyIncomplete bool            `json:"legacy_incomplete"`
 	// Correlation IDs are shown in the event details only.
 	RequestID string `json:"-"`
 	RunID     string `json:"-"`
@@ -126,10 +134,8 @@ func (s *Service) History(ctx context.Context, q Query) (Result, error) {
 			return Result{}, serrors.Wrap(op, ErrForbidden)
 		}
 	}
-	for _, r := range s.registry.Resources() {
-		if s.registry.Readable(r.Name, u.Can) {
-			params.Readable = append(params.Readable, r.Name)
-		}
+	if params.Readable, params.Restricted, err = s.access(ctx, u.Can); err != nil {
+		return Result{}, serrors.Wrap(op, err)
 	}
 	binding, err := cursorBinding(tenantID, u.ID(), q)
 	if err != nil {
@@ -147,23 +153,28 @@ func (s *Service) History(ctx context.Context, q Query) (Result, error) {
 	if err != nil {
 		return Result{}, serrors.Wrap(op, err)
 	}
-	result := Result{Items: make([]Item, 0, min(len(events), limit))}
-	size := 0
-	for i, e := range events {
-		if i == limit {
-			if result.NextCursor, err = encodeCursor(events[i-1].Position(), binding); err != nil {
-				return Result{}, serrors.Wrap(op, err)
-			}
-			break
+	page := events[:min(len(events), limit)]
+	readable := make([]businessevent.Event, len(page))
+	for i, e := range page {
+		readable[i] = s.registry.ForReader(e, u.Can)
+	}
+	names := s.subjectNames(ctx, readable)
+	result := Result{Items: make([]Item, 0, len(page))}
+	if len(events) > limit {
+		if result.NextCursor, err = encodeCursor(events[limit-1].Position(), binding); err != nil {
+			return Result{}, serrors.Wrap(op, err)
 		}
-		item := s.item(ctx, s.registry.ForReader(e, u.Can))
+	}
+	size := 0
+	for i, e := range readable {
+		item := s.item(ctx, e, names)
 		data, err := json.Marshal(item)
 		if err != nil {
 			return Result{}, serrors.Wrap(op, err)
 		}
 		if size += len(data); size > maxResultBytes && i > 0 {
 			result.Truncated = true
-			if result.NextCursor, err = encodeCursor(events[i-1].Position(), binding); err != nil {
+			if result.NextCursor, err = encodeCursor(page[i-1].Position(), binding); err != nil {
 				return Result{}, serrors.Wrap(op, err)
 			}
 			break
@@ -171,6 +182,91 @@ func (s *Service) History(ctx context.Context, q Query) (Result, error) {
 		result.Items = append(result.Items, item)
 	}
 	return result, nil
+}
+
+// Subject returns the caption of one object for the reader in ctx, e.g. for the title of its history
+// page. It is false when the reader may not see any event about the object, so a caption never
+// discloses an object hidden by Resource.Visible.
+func (s *Service) Subject(ctx context.Context, resource, id string) (Subject, bool) {
+	u, err := composables.UseUser(ctx)
+	if err != nil || u == nil || !u.Can(permissions.ViewLogs) || id == "" || !s.registry.Readable(resource, u.Can) {
+		return Subject{}, false
+	}
+	params := businessevent.FindParams{Resource: resource, SubjectID: id, Limit: 1}
+	if params.Readable, params.Restricted, err = s.access(ctx, u.Can); err != nil {
+		return Subject{}, false
+	}
+	events, err := s.repo.Find(ctx, params)
+	if err != nil || len(events) == 0 {
+		return Subject{}, false
+	}
+	names := s.subjectNames(ctx, events[:1])
+	return s.subject(ctx, resource, id, names[subjectRef(resource, id)]), true
+}
+
+// access lists the resources the reader may see and the object restrictions of those that limit it.
+func (s *Service) access(ctx context.Context, can func(permission.Permission) bool) ([]string, []businessevent.Restriction, error) {
+	var readable []string
+	var restricted []businessevent.Restriction
+	for _, r := range s.registry.Resources() {
+		if !s.registry.Readable(r.Name, can) {
+			continue
+		}
+		readable = append(readable, r.Name)
+		if r.Visible == nil {
+			continue
+		}
+		v, err := r.Visible(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("visibility of %s: %w", r.Name, err)
+		}
+		if !v.All {
+			restricted = append(restricted, businessevent.Restriction{Resource: r.Name, IDs: v.IDs, Condition: v.Condition, Args: v.Args})
+		}
+	}
+	return readable, restricted, nil
+}
+
+// subjectNames captions the subjects of the events, keyed by subjectRef: one provider call per
+// resource with every ID, then the caption recorded with the newest event naming the object.
+func (s *Service) subjectNames(ctx context.Context, events []businessevent.Event) map[string]string {
+	names := map[string]string{}
+	ids := map[string][]string{}
+	seen := map[string]bool{}
+	for _, e := range events {
+		for _, subject := range e.Subjects {
+			ref := subjectRef(subject.Resource, subject.ID)
+			if seen[ref] {
+				continue
+			}
+			seen[ref] = true
+			ids[subject.Resource] = append(ids[subject.Resource], subject.ID)
+		}
+	}
+	for _, r := range s.registry.Resources() {
+		if r.Labels == nil || len(ids[r.Name]) == 0 {
+			continue
+		}
+		labels, err := r.Labels(ctx, ids[r.Name])
+		if err != nil {
+			composables.UseLogger(ctx).WithError(err).WithField("resource", r.Name).Warn("business history: object captions are unavailable")
+			continue
+		}
+		for _, id := range ids[r.Name] {
+			if label := strings.TrimSpace(labels[id]); label != "" {
+				names[subjectRef(r.Name, id)] = label
+			}
+		}
+	}
+	for _, e := range events {
+		for _, subject := range e.Subjects {
+			ref := subjectRef(subject.Resource, subject.ID)
+			if _, ok := names[ref]; !ok && subject.Label != "" {
+				names[ref] = subject.Label
+			}
+		}
+	}
+	return names
 }
 
 // Visible reports whether the user in ctx may read history about the resource.
@@ -277,7 +373,7 @@ func (s *Service) params(q Query) (businessevent.FindParams, int, error) {
 	return params, limit, nil
 }
 
-func (s *Service) item(ctx context.Context, e businessevent.Event) Item {
+func (s *Service) item(ctx context.Context, e businessevent.Event, names map[string]string) Item {
 	item := Item{
 		EventID:       e.ID.String(),
 		EventType:     e.Type,
@@ -290,11 +386,13 @@ func (s *Service) item(ctx context.Context, e businessevent.Event) Item {
 		Outcome:       e.Outcome,
 		Subjects:      make([]Subject, len(e.Subjects)),
 		Changes:       e.Changes,
+		Display:       make([]ChangeDisplay, 0, len(e.Changes)),
 		RequestID:     e.RequestID,
 		RunID:         e.RunID,
 		ClientID:      e.ClientID,
 	}
-	if def, ok := s.registry.Get(e.Type, e.SchemaVersion); ok {
+	def, known := s.registry.Get(e.Type, e.SchemaVersion)
+	if known {
 		item.Title = intl.TWithDefault(ctx, def.TitleKey, def.TitleKey)
 		item.Summary = intl.TWithDefault(ctx, def.DescriptionKey, def.DescriptionKey)
 	} else {
@@ -307,21 +405,47 @@ func (s *Service) item(ctx context.Context, e businessevent.Event) Item {
 		item.Channel = LegacyChannel
 		item.LegacyIncomplete = e.Legacy.Incomplete
 	}
-	labels := map[string]string{}
-	for _, r := range s.registry.Resources() {
-		labels[r.Name] = r.Name
-		if r.LabelKey != "" {
-			labels[r.Name] = intl.TWithDefault(ctx, r.LabelKey, r.Name)
-		}
-	}
 	for i, subject := range e.Subjects {
-		label, ok := labels[subject.Resource]
-		if !ok {
-			label = subject.Resource
+		item.Subjects[i] = s.subject(ctx, subject.Resource, subject.ID, names[subjectRef(subject.Resource, subject.ID)])
+	}
+	for _, c := range e.Changes {
+		resource, _ := def.resource(c.Resource)
+		display := ChangeDisplay{
+			Resource: c.Resource,
+			ID:       c.ID,
+			Subject:  s.subject(ctx, c.Resource, c.ID, names[subjectRef(c.Resource, c.ID)]).Label,
+			Fields:   make([]FieldDisplay, len(c.Fields)),
 		}
-		item.Subjects[i] = Subject{Resource: subject.Resource, ID: subject.ID, Label: label + " #" + subject.ID}
+		for j, d := range c.Fields {
+			field, ok := resource.field(d.Field)
+			label := d.Field
+			if ok {
+				label = intl.TWithDefault(ctx, field.LabelKey, d.Field)
+			}
+			display.Fields[j] = FieldDisplay{
+				Field:  d.Field,
+				Label:  label,
+				Before: displayValue(ctx, field, d.Before),
+				After:  displayValue(ctx, field, d.After),
+			}
+		}
+		item.Display = append(item.Display, display)
 	}
 	return item
+}
+
+// subject captions an object as "<resource label>: <name>", or "<resource label> #<id>" without a name.
+func (s *Service) subject(ctx context.Context, resource, id, name string) Subject {
+	label := resource
+	for _, r := range s.registry.Resources() {
+		if r.Name == resource && r.LabelKey != "" {
+			label = intl.TWithDefault(ctx, r.LabelKey, resource)
+		}
+	}
+	if name == "" {
+		return Subject{Resource: resource, ID: id, Label: label + " #" + id}
+	}
+	return Subject{Resource: resource, ID: id, Name: name, Label: label + ": " + name}
 }
 
 type cursor struct {

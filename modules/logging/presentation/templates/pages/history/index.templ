@@ -210,7 +210,7 @@ templ event(props *EventsProps, e Event) {
 							if i > 0 {
 								{ ", " }
 							}
-							{ s.Label }
+							<span title={ s.Resource + " #" + s.ID }>{ s.Label }</span>
 						}
 					</span>
 				}
@@ -245,10 +245,10 @@ templ event(props *EventsProps, e Event) {
 			if e.LegacyIncomplete {
 				<p class="text-sm text-300">{ pageCtx.T("BusinessHistory.Details.LegacyIncomplete") }</p>
 			}
-			for _, c := range e.Changes {
+			for _, c := range e.Display {
 				<div class="flex flex-col gap-2">
 					<div class="flex items-center justify-between gap-2 text-sm font-medium">
-						<span>{ c.Subject }</span>
+						<span title={ c.Resource + " #" + c.ID }>{ c.Subject }</span>
 					</div>
 					<div class="overflow-hidden rounded-lg border border-primary">
 						<div class="hidden grid-cols-3 bg-surface-500 px-3 py-2 text-sm text-300 md:grid">
@@ -301,7 +301,7 @@ templ event(props *EventsProps, e Event) {
 	</details>
 }
 
-templ fieldValue(v fielddiff.FieldValue) {
+templ fieldValue(v loghistory.ValueDisplay) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	switch v.State {
 		case fielddiff.StateRedacted:
@@ -309,6 +309,10 @@ templ fieldValue(v fielddiff.FieldValue) {
 		case fielddiff.StateAbsent:
 			<span class="text-300">—</span>
 		case fielddiff.StateValue:
-			{ Value(v) }
+			if v.Code != "" {
+				<span title={ v.Code } data-code={ v.Code }>{ v.Text }</span>
+			} else {
+				{ v.Text }
+			}
 	}
 }

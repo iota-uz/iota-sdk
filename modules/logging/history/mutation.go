@@ -27,8 +27,11 @@ type Mutation struct {
 	Version  int
 	Resource string
 	ID       string
-	Before   Snapshot
-	After    Snapshot
+	// Label is the object's caption, recorded with the event so the object keeps it once deleted;
+	// see Resource.Labels.
+	Label  string
+	Before Snapshot
+	After  Snapshot
 }
 
 // RecordMutation records the mutation in the transaction carried by ctx. An update that changed
@@ -47,7 +50,7 @@ func RecordMutation(ctx context.Context, w Writer, m Mutation) error {
 		Type:     m.Type,
 		Version:  m.Version,
 		Outcome:  businessevent.OutcomeSucceeded,
-		Subjects: []businessevent.Subject{{Resource: m.Resource, ID: m.ID}},
+		Subjects: []businessevent.Subject{{Resource: m.Resource, ID: m.ID, Label: m.Label}},
 		Changes:  []businessevent.Change{change},
 	}
 	if m.Before != nil && m.After != nil {

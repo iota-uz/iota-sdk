@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -166,6 +167,9 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 		args = append(args, v)
 		return "$" + strconv.Itoa(len(args))
 	}
+	for _, restriction := range params.Restricted {
+		where = append(where, restrictionClause(restriction, arg))
+	}
 	if params.SubjectID != "" {
 		where = append(where, "subject_refs @> ARRAY["+arg(params.Resource+":"+params.SubjectID)+"::text]")
 	} else if params.Resource != "" {
@@ -226,6 +230,45 @@ func (r *PgBusinessEventRepository) Find(ctx context.Context, params businesseve
 		return nil, serrors.Wrap(op, err)
 	}
 	return result, nil
+}
+
+var placeholderPattern = regexp.MustCompile(`\$([0-9]+)`)
+
+// restrictionClause keeps events none of whose objects of the restricted resource lies outside its
+// visible set. Resource names never contain ':', so "<resource>:" prefixes exactly its subject refs.
+func restrictionClause(r businessevent.Restriction, arg func(any) string) string {
+	prefix := r.Resource + ":"
+	const ref = "restricted.ref"
+	visible := make([]string, 0, 2)
+	if len(r.IDs) > 0 {
+		refs := make([]string, len(r.IDs))
+		for i, id := range r.IDs {
+			refs[i] = prefix + id
+		}
+		visible = append(visible, ref+" = ANY("+arg(refs)+"::text[])")
+	}
+	if strings.TrimSpace(r.Condition) != "" {
+		numbers := make([]string, len(r.Args))
+		for i, a := range r.Args {
+			numbers[i] = arg(a)
+		}
+		condition := placeholderPattern.ReplaceAllStringFunc(r.Condition, func(p string) string {
+			n, err := strconv.Atoi(p[1:])
+			if err != nil || n < 1 || n > len(numbers) {
+				// An unknown placeholder fails the query instead of reading another filter's argument.
+				return "$0"
+			}
+			return numbers[n-1]
+		})
+		id := "substr(" + ref + ", " + strconv.Itoa(len(prefix)+1) + ")"
+		visible = append(visible, "("+strings.ReplaceAll(condition, "{id}", id)+")")
+	}
+	allowed := "FALSE"
+	if len(visible) > 0 {
+		allowed = strings.Join(visible, " OR ")
+	}
+	return "NOT EXISTS (SELECT 1 FROM unnest(subject_refs) AS restricted(ref) WHERE starts_with(" + ref + ", " +
+		arg(prefix) + "::text) AND NOT COALESCE(" + allowed + ", FALSE))"
 }
 
 func scanBusinessEvent(row pgx.Row) (businessevent.Event, error) {

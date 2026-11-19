@@ -48,7 +48,13 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewDebtRepository)
 	composition.ProvideFunc(builder, query.NewPgFinancialReportsQueryRepository)
 
-	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
+	historyDefinitions := history.WithResource(services.HistoryDefinitions(), services.CounterpartyResource, func(r *history.Resource) {
+		r.Labels = persistence.CounterpartyHistoryLabels
+	})
+	historyDefinitions = history.WithResource(historyDefinitions, services.MoneyAccountResource, func(r *history.Resource) {
+		r.Labels = persistence.MoneyAccountHistoryLabels
+	})
+	history.ContributeDefinitions(builder, historyDefinitions...)
 	composition.ProvideFunc(builder, services.NewMoneyAccountService)
 	composition.ProvideFunc(builder, services.NewTransactionService)
 	composition.ProvideFunc(builder, services.NewPaymentService)
