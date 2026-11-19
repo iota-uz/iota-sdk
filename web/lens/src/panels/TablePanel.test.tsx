@@ -935,3 +935,39 @@ describe('TablePanel row drawer action', () => {
     expect(window.location.pathname).toBe('/')
   })
 })
+
+describe('TablePanel inline totals', () => {
+  it('renders the footer total of a complete inline frame over every row', () => {
+    const panel: Panel = {
+      ...columnsPanel,
+      id: 'operations',
+      frame: 'operations:root',
+      encoding: { id: 'id' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 2 } },
+      columns: [
+        { field: 'id', label: 'Operation', cell: { kind: 'plain' } },
+        { field: 'amount', label: 'Amount', align: 'right', cell: { kind: 'plain' }, total: true },
+      ],
+      actions: [],
+    }
+    const rows: Array<Array<unknown>> = [['big', -200]]
+    for (let index = 0; index < 1001; index += 1) rows.push([`row-${index}`, -1])
+    const document: DashboardDocument = {
+      ...columnsDocument,
+      panels: [panel],
+      layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] },
+      frames: { 'operations:root': { columns: [{ name: 'id', type: 'string' }, { name: 'amount', type: 'number' }], rows } },
+    }
+    const { container } = render(() => (
+      <div class="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider locale="en">{() => <TablePanel panel={panel} />}</DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>
+    ))
+
+    const footer = container.querySelector('tfoot')
+    expect(footer).not.toBeNull()
+    expect(footer!.textContent).toMatch(/1,201\.00/)
+  })
+})
