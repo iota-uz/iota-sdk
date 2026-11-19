@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Finance dashboard gains one shared Lens period for all panels, a per-currency daily balance chart, and drill-down drawers listing the account operations behind each mark by stable keys; Lens table row drawer actions now open the drawer instead of navigating."}
