@@ -6810,7 +6810,7 @@
   }
 
   .lens-investigation-input {
-    @apply lens:min-h-control-md lens:w-full lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
+    @apply lens:box-border lens:min-h-control-md lens:w-full lens:min-w-0 lens:rounded-control lens:border lens:border-solid lens:border-border lens:bg-card lens:px-3 lens:font-sans lens:text-md lens:text-strong;
   }
 
   .lens-investigation-label,
