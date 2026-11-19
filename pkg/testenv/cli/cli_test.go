@@ -88,7 +88,8 @@ func TestGoCLIAndHTTPProduceEquivalentResults(t *testing.T) {
 	require.Equal(t, "scope_conflict", control.Code)
 	versionDrift := input()
 	versionDrift.Version = "2"
-	drifted, _ := json.Marshal(versionDrift)
+	drifted, err := json.Marshal(versionDrift)
+	require.NoError(t, err)
 	err = Run(ctx, client, []string{"prepare", "--scope", "env-drift"}, strings.NewReader(string(drifted)), &strings.Builder{})
 	require.ErrorAs(t, err, &control)
 	require.Equal(t, "version_mismatch", control.Code)

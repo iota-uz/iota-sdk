@@ -50,8 +50,8 @@ func (l localControl) Prepare(ctx context.Context, input Input) (Result, error) 
 	return l.r.Prepare(ctx, input)
 }
 func (l localControl) Dispose(ctx context.Context, id string) error { return l.r.Dispose(ctx, id) }
-func (l localControl) Manifest(_ context.Context, id string) (Manifest, error) {
-	return l.r.Manifest(id)
+func (l localControl) Manifest(ctx context.Context, id string) (Manifest, error) {
+	return l.r.Manifest(ctx, id)
 }
 func (l localControl) Replay(ctx context.Context, id string, m Manifest) (Result, error) {
 	return l.r.Replay(ctx, id, m)
@@ -178,8 +178,9 @@ func (c *Client) WaitJob(ctx context.Context, scopeID, executionID, condition st
 	var out WaitResult
 	err := c.do(ctx, http.MethodPost, scopePath(scopeID)+"/executions/"+url.PathEscape(executionID)+"/wait", map[string]any{"condition": condition, "timeoutMs": timeoutMs}, &out)
 	if typed, ok := err.(*Error); ok && typed.Details != nil {
-		encoded, _ := json.Marshal(typed.Details)
-		_ = json.Unmarshal(encoded, &out)
+		if encoded, encodeErr := json.Marshal(typed.Details); encodeErr == nil {
+			_ = json.Unmarshal(encoded, &out)
+		}
 	}
 	return out, err
 }

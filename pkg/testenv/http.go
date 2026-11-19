@@ -158,7 +158,7 @@ func NewHandler(registry *Registry, controlToken string) (http.Handler, error) {
 		write(w, map[string]bool{"disposed": err == nil}, err)
 	})
 	mux.HandleFunc("GET /__test__/scopes/{scopeId}/manifest", func(w http.ResponseWriter, r *http.Request) {
-		manifest, err := registry.Manifest(r.PathValue("scopeId"))
+		manifest, err := registry.Manifest(r.Context(), r.PathValue("scopeId"))
 		write(w, manifest, err)
 	})
 	mux.HandleFunc("POST /__test__/scopes/{scopeId}/replay", func(w http.ResponseWriter, r *http.Request) {

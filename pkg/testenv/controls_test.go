@@ -219,7 +219,9 @@ func TestProviderGatesReproduceRaceDeterministically(t *testing.T) {
 	require.Equal(t, "r-1", receipt)
 	w := request(t, handler, "GET", "/__test__/scopes/a/providers/payments/calls", nil, testToken)
 	require.Equal(t, 200, w.Code)
-	var reply struct{ Calls []ProviderCall }
+	var reply struct {
+		Calls []ProviderCall `json:"calls"`
+	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &reply))
 	require.Equal(t, OutcomeSuccess, reply.Calls[0].Outcome)
 	require.Equal(t, 1, reply.Calls[0].Sequence)
@@ -394,6 +396,27 @@ func TestManifestReplayRestoresScenarioAndControls(t *testing.T) {
 	_, err = fake.Charge(scoped, "k")
 	require.ErrorIs(t, err, ErrUnscripted, "scripts were restored exactly once")
 
+	// A control that cannot be restored compensates the replayed scope; it is
+	// never handed out as ready afterwards.
+	strict := NewEnvironmentRegistry(nil, true, "env")
+	strict.SetBuildInfo(build)
+	strict.UseClock(NewManualClock(time.Unix(0, 0).UTC()))
+	var strictCleanups int
+	strictDefinition := testDefinition()
+	require.NoError(t, strict.Register(strictDefinition, func(_ context.Context, i Input) (Result, error) {
+		return Result{Refs: map[string]EntityRef{"invoice": {Kind: "invoice", ID: i.Seed}}, Data: map[string]any{"id": i.Seed}}, nil
+	}, func(context.Context, string) error { strictCleanups++; return nil }))
+	require.NoError(t, strict.Attach("providers", failingRestore{}))
+	require.NoError(t, strict.ReserveScope("env-5"))
+	_, err = strict.Replay(ctx, "env-5", manifest)
+	require.Equal(t, "execution_failed", controlCode(t, err))
+	require.Equal(t, 1, strictCleanups, "prepared records are compensated")
+	_, err = strict.Prepare(ctx, func() Input { i := manifest.Scenario; i.ScopeID = "env-5"; return i }())
+	require.Equal(t, "execution_failed", controlCode(t, err), "the half-restored scope is not ready")
+	_, err = strict.Manifest(ctx, "env-5")
+	require.Equal(t, "scope_conflict", controlCode(t, err))
+	require.NoError(t, strict.Dispose(ctx, "env-5"))
+
 	drift := manifest
 	drift.Environment.BaselineFingerprint = "base-2"
 	require.NoError(t, fresh.ReserveScope("env-3"))
@@ -404,4 +427,12 @@ func TestManifestReplayRestoresScenarioAndControls(t *testing.T) {
 	require.NoError(t, unknown.ReserveScope("env-4"))
 	_, err = unknown.Replay(ctx, "env-4", manifest)
 	require.Equal(t, "version_mismatch", controlCode(t, err), "an environment that cannot prove its build refuses replay")
+}
+
+type failingRestore struct{}
+
+func (failingRestore) ForgetScope(context.Context, string) error     { return nil }
+func (failingRestore) SnapshotScope(string) (json.RawMessage, error) { return nil, nil }
+func (failingRestore) RestoreScope(context.Context, string, json.RawMessage) error {
+	return errors.New("provider sandbox unavailable")
 }

@@ -49,7 +49,7 @@ func (r *Registry) SetBuildInfo(info BuildInfo) {
 }
 
 // Manifest captures a ready scope.
-func (r *Registry) Manifest(scopeID string) (Manifest, error) {
+func (r *Registry) Manifest(ctx context.Context, scopeID string) (Manifest, error) {
 	r.mu.Lock()
 	sc := r.scopes[scopeID]
 	build, clock := r.build, r.clock
@@ -57,7 +57,7 @@ func (r *Registry) Manifest(scopeID string) (Manifest, error) {
 	if sc == nil {
 		return Manifest{}, failure("scope_conflict", "scope is not owned by this environment")
 	}
-	if err := sc.lock(context.Background()); err != nil {
+	if err := sc.lock(ctx); err != nil {
 		return Manifest{}, failure("timeout", err.Error())
 	}
 	defer sc.unlock()
@@ -95,15 +95,18 @@ func (r *Registry) Manifest(scopeID string) (Manifest, error) {
 	return manifest, nil
 }
 
-func manifestDigest(m Manifest) string {
+func manifestDigest(m Manifest) (string, error) {
 	m.Scenario.ScopeID = ""
-	encoded, _ := json.Marshal(struct {
-		Environment BuildInfo
-		Scenario    Input
-		Controls    ManifestControls
+	encoded, err := json.Marshal(struct {
+		Environment BuildInfo        `json:"environment"`
+		Scenario    Input            `json:"scenario"`
+		Controls    ManifestControls `json:"controls"`
 	}{m.Environment, m.Scenario, m.Controls})
+	if err != nil {
+		return "", failure("invalid_input", err.Error())
+	}
 	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // Replay prepares the manifest's scenario in a new physical scope with the
@@ -143,13 +146,16 @@ func (r *Registry) Replay(ctx context.Context, scopeID string, m Manifest) (Resu
 			return Result{}, failure("missing_capability", "manifest requires control "+name)
 		}
 	}
+	digest, err := manifestDigest(m)
+	if err != nil {
+		return Result{}, err
+	}
 	input := m.Scenario
 	input.ScopeID = scopeID
 	result, err := r.Prepare(ctx, input)
 	if err != nil {
 		return Result{}, err
 	}
-	digest := manifestDigest(m)
 	r.mu.Lock()
 	sc := r.scopes[scopeID]
 	r.mu.Unlock()
@@ -178,10 +184,12 @@ func (r *Registry) Replay(ctx context.Context, scopeID string, m Manifest) (Resu
 	if restoreErr != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
-		// The scope keeps its prepared records until disposed, but its
-		// controls are not ready: drop them so nothing half-restored runs.
-		cleanupErr := r.forgetResources(cleanupCtx, scopeID)
+		// A half-restored scope is never handed out as ready: compensate its
+		// controls and records; Prepare then reports the failed preparation
+		// until the scope is disposed.
+		cleanupErr := errors.Join(r.forgetResources(cleanupCtx, scopeID), sc.scenario.cleanup(cleanupCtx, scopeID))
 		sc.replayed = "failed"
+		sc.result = nil
 		return Result{}, lifecycleError(restoreErr, "execution_failed", "replay", Descriptor{EnvironmentID: r.environmentID}, cleanupErr)
 	}
 	sc.replayed = digest

@@ -120,10 +120,11 @@ func (f *ScopedFiles) Dir(scopeID string) (string, error) {
 	return dir, nil
 }
 
+// ForgetScope removes the scope directory. IDs that cannot name a directory
+// never had one, so there is nothing to remove.
 func (f *ScopedFiles) ForgetScope(_ context.Context, scopeID string) error {
-	dir, err := f.path(scopeID)
-	if err != nil {
-		return nil
+	if dir, err := f.path(scopeID); err == nil {
+		return os.RemoveAll(dir)
 	}
-	return os.RemoveAll(dir)
+	return nil
 }

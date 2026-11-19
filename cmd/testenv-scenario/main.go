@@ -26,8 +26,11 @@ func main() {
 	if err := run(); err != nil {
 		var typed *testenv.Error
 		if errors.As(err, &typed) {
-			encoded, _ := json.Marshal(typed)
-			fmt.Fprintln(os.Stderr, string(encoded))
+			if encoded, encodeErr := json.Marshal(typed); encodeErr == nil {
+				fmt.Fprintln(os.Stderr, string(encoded))
+			} else {
+				fmt.Fprintln(os.Stderr, err)
+			}
 		} else {
 			fmt.Fprintln(os.Stderr, err)
 		}

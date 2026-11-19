@@ -644,6 +644,12 @@ jobs:
           just db seed
           just db seed
 
+      - name: Run testenv PostgreSQL scenario and control tests
+        env:
+          # Owned UUID databases on this job's isolated service; never a shared DB.
+          TESTENV_POSTGRES_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+        run: go test -race -count=1 ./pkg/testenv/...
+
       - name: Run tests with coverage
         env:
           DB_HOST: localhost

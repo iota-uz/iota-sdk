@@ -122,7 +122,7 @@ func Run(ctx context.Context, control testenv.Control, args []string, stdin io.R
 }
 
 func readJSON(path string, stdin io.Reader, target any) error {
-	var reader io.Reader = stdin
+	reader := stdin
 	if path != "-" {
 		file, err := os.Open(path)
 		if err != nil {
