@@ -43,27 +43,24 @@ export async function logout(page: Page) {
 }
 
 /**
- * Wait for Alpine.js initialization
+ * Wait for Alpine.js to initialize every component on the page.
+ *
+ * Readiness is explicit: Alpine must be loaded and every `x-data` root outside `x-ignore`
+ * must carry its initialized data stack (`x-ignore.self` roots are skipped by Alpine, their children are not). A timeout fails the test; there is no fixed delay.
  *
  * @param page - Playwright page object
  * @param timeout - Maximum wait time in ms (default: 5000)
  */
 export async function waitForAlpine(page: Page, timeout: number = 5000) {
-	// Wait for Alpine.js to be available on window
 	await page.waitForFunction(
 		() => {
 			const win = window as any;
-			return win.Alpine && win.Alpine.version;
+			if (!win.Alpine?.version) return false;
+			return Array.from(document.querySelectorAll('[x-data]'))
+				.filter((element) => !element.closest('[x-ignore]') && !element.hasAttribute('x-ignore.self'))
+				.every((element) => (element as any)._x_dataStack !== undefined);
 		},
+		undefined,
 		{ timeout }
-	).catch(() => {
-		// Don't fail if Alpine isn't available, just continue
-		console.warn('Alpine.js not detected within timeout, continuing anyway');
-	});
-
-	// Wait for body to be visible
-	await page.waitForSelector('body', { state: 'visible' });
-
-	// Allow time for initialization
-	await page.waitForTimeout(1000);
+	);
 }

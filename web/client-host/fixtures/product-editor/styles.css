@@ -28,3 +28,4 @@ aside small { opacity: .8; }
 [data-theme="dark"] .form-panel { background: oklch(var(--gray-900)); color: white; border-color: oklch(var(--gray-700)); }
 [data-theme="dark"] input, [data-theme="dark"] button { background: oklch(var(--gray-800)); color: white; border-color: oklch(var(--gray-600)); }
 @media (max-width: 700px) { .editor-shell { margin: 24px auto; } header { align-items: center; } .editor-grid { grid-template-columns: 1fr; } aside { min-height: 170px; } }
+aside .empty { color: inherit; font-weight: 600; font-size: 1.1rem; line-height: 1.35; margin: 18px 0 8px; max-width: 18ch; }

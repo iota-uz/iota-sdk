@@ -215,10 +215,8 @@ test.describe('2FA OTP Setup Flow', () => {
 		const otpCode = await waitForOTP(request, userEmail);
 		await setupPage.enterOTPCode(otpCode);
 
-		// Verify redirect to nextURL (or shows success, then redirects)
-		// Implementation may vary
-		await page.waitForTimeout(1000);
-		// await expect(page).toHaveURL(new RegExp(nextURL));
+		// Setup completion leaves the setup flow for the preserved destination.
+		await expect(page).toHaveURL((url) => url.pathname === nextURL);
 	});
 
 	test('should validate OTP input format (6 digits)', async ({ page, request }) => {
