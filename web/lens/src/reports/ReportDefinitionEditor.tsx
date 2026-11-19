@@ -29,7 +29,10 @@ export interface ReportDefinitionEditorProps {
   renderParameters?: (props: { value: Parameters | undefined; onChange: (next: Parameters) => void }) => JSX.Element
   /** Saves the draft as an independent report instead of changing the shared one (impact and conflict). */
   onCopy?: (draft: Definition) => Promise<void> | void
-  /** Saves the report with the dashboard's current filters as a new, independent report. */
+  /**
+   * Saves what the preview shows, the report with the dashboard's filters, as a new independent
+   * report. It is offered while the preview uses those filters.
+   */
   onSaveSlice?: (draft: Definition, filters: ContextFilters) => Promise<void> | void
   /** A readable name for a filter dimension. */
   dimensionLabel?: (dimension: string) => string
@@ -37,6 +40,8 @@ export interface ReportDefinitionEditorProps {
   guard?: ReportLeaveGuard
   theme?: LensThemeMode
   messages?: Record<string, string>
+  /** Locale of the built-in chrome translations (ru, uz); English when omitted outside a document. */
+  locale?: string
 }
 
 /**
@@ -48,7 +53,7 @@ export interface ReportDefinitionEditorProps {
 export function ReportDefinitionEditor(props: ReportDefinitionEditorProps): JSX.Element {
   return (
     <div class="lens-root lens-root-inline" data-theme={props.theme ?? 'light'}>
-      <LensMessagesProvider messages={props.messages}>
+      <LensMessagesProvider locale={props.locale} messages={props.messages}>
         <DefinitionEditor {...props} />
       </LensMessagesProvider>
     </div>
@@ -89,6 +94,13 @@ function DefinitionEditor(props: ReportDefinitionEditorProps): JSX.Element {
     setSaved(false)
     setNotice('')
     draft.update(change)
+  }
+
+  // Rendered once: the host's controls read value as they need it, so an edit updates them in
+  // place instead of replacing the input the reader is typing in.
+  const parameterProps = {
+    get value() { return draft.value().parameters },
+    onChange: (next: Parameters) => edit((definition) => ({ ...definition, parameters: next })),
   }
 
   const save = async () => {
@@ -150,6 +162,11 @@ function DefinitionEditor(props: ReportDefinitionEditorProps): JSX.Element {
               const value = event.currentTarget.value.trim()
               if (value) edit((definition) => ({ ...definition, title: value }))
               else event.currentTarget.value = draft.value().title
+            }}
+            // A rename counts as unsaved while the reader types, so a leave request before blur still asks.
+            onInput={(event) => {
+              const value = event.currentTarget.value
+              if (value.trim()) edit((definition) => ({ ...definition, title: value }))
             }}
             value={draft.value().title}
           />
@@ -245,7 +262,7 @@ function DefinitionEditor(props: ReportDefinitionEditorProps): JSX.Element {
                 </div>
               </fieldset>
               <p class="lens-report-definition-hint">{translate('report.definition.contextHint', 'These filters only drive the preview. Saving does not copy them into the shared report.')}</p>
-              <Show when={props.onSaveSlice}>
+              <Show when={props.onSaveSlice && useContext()}>
                 <div class="lens-report-editor-alert-actions">
                   <button
                     aria-busy={busy() === 'slice' || undefined}
@@ -272,7 +289,7 @@ function DefinitionEditor(props: ReportDefinitionEditorProps): JSX.Element {
           <section aria-labelledby={`${id}-parameters`} class="lens-report-definition-section">
             <h3 class="lens-report-definition-section-title" id={`${id}-parameters`}>{translate('report.definition.parameters', 'Parameters')}</h3>
             <p class="lens-report-definition-hint">{translate('report.definition.parametersHint', 'Changes show in the preview at once and are saved only with Save changes.')}</p>
-            {render()({ value: draft.value().parameters, onChange: (next) => edit((definition) => ({ ...definition, parameters: next })) })}
+            {untrack(() => render()(parameterProps))}
           </section>
         )}
       </Show>

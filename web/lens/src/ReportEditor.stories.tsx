@@ -69,9 +69,11 @@ function Editor(props: {
   const [log, setLog] = createSignal('')
   const [proposal, setProposal] = createSignal(props.proposal?.(draft))
   const [request, setRequest] = createSignal<ReportProposalRequest | undefined>(props.preparing ? { id: 'request-1', base: reportDraftToken(draft) } : undefined)
+  let requests = 1
   const start = () => {
     setProposal(undefined)
-    setRequest({ id: `request-${draft.sequence()}`, base: reportDraftToken(draft) })
+    requests += 1
+    setRequest({ id: `request-${requests}`, base: reportDraftToken(draft) })
   }
   // The host prepared the proposal against the request's base, so a manual edit meanwhile makes it stale.
   const deliver = () => {

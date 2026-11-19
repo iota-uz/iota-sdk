@@ -174,4 +174,53 @@ describe('ReportDefinitionEditor', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Stay' }))
     await expect(leaving).resolves.toBe(false)
   })
+
+  // False green: a rename tested only after blur would pass while a keyboard leave before blur lost it.
+  it('counts a rename as unsaved while the reader is still typing', async () => {
+    const { draft, guard } = mount()
+    const title = screen.getByLabelText('Report name')
+    fireEvent.input(title, { target: { value: 'Revenue, short ' } })
+    expect(status()).toHaveTextContent('Unsaved changes')
+    expect(draft.value().title).toBe('Revenue, short ')
+    void guard.request()
+    expect(await screen.findByRole('alertdialog', { name: 'Save changes before leaving?' })).toBeInTheDocument()
+    fireEvent.change(title, { target: { value: 'Revenue, short ' } })
+    expect(draft.value().title).toBe('Revenue, short')
+  })
+
+  // False green: a select-based control survives a re-render; a text input the reader types in does not.
+  it('keeps the host parameter controls mounted while a parameter changes', () => {
+    const { draft } = mount({ props: {
+      renderParameters: (parameters) => (
+        <label>
+          Label
+          <input onInput={(event) => parameters.onChange({ ...parameters.value, label: event.currentTarget.value })} value={typeof parameters.value?.label === 'string' ? parameters.value.label : ''} />
+        </label>
+      ),
+    } })
+    const input = screen.getByLabelText('Label')
+    input.focus()
+    fireEvent.input(input, { target: { value: 'A' } })
+    fireEvent.input(input, { target: { value: 'AB' } })
+    expect(screen.getByLabelText('Label')).toBe(input)
+    expect(document.activeElement).toBe(input)
+    expect(draft.value().parameters).toEqual({ top: 5, label: 'AB' })
+  })
+
+  // False green: offering the slice while the preview shows the report defaults would save a view the reader never saw.
+  it('offers the dashboard slice only while the preview shows the dashboard filters', () => {
+    mount({ props: { onSaveSlice: vi.fn() } })
+    expect(screen.getByTestId('report-definition-slice')).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Report defaults'))
+    expect(screen.queryByTestId('report-definition-slice')).toBeNull()
+    fireEvent.click(screen.getByLabelText('Filters from Sales board'))
+    expect(screen.getByTestId('report-definition-slice')).toBeInTheDocument()
+  })
+
+  it('speaks Russian from the built-in catalogue when the host passes the locale', () => {
+    mount({ props: { locale: 'ru' } })
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Редактирование отчёта: Revenue')
+    expect(screen.getByTestId('report-definition-origin')).toHaveTextContent('Открыто из «Sales board»')
+    expect(screen.getByRole('button', { name: 'Сохранить изменения' })).toBeDisabled()
+  })
 })

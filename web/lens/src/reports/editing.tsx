@@ -109,6 +109,8 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const [added, setAdded] = createSignal<string[]>([])
   const [saved, setSaved] = createSignal(false)
   const [settledProposal, setSettledProposal] = createSignal<string>()
+  // The request a proposal answered stays hidden after Apply or Reject, even if the host keeps passing it.
+  const [settledRequest, setSettledRequest] = createSignal<string>()
   const [copyFailed, setCopyFailed] = createSignal(false)
   const [picks, setPicks] = createSignal<Record<string, ReportPick['entry']>>({})
   const title = (placement: Placement) => placement.title ?? host.reportTitle?.(placement.reportId) ?? picks()[placement.id]?.title ?? placement.reportId
@@ -242,7 +244,15 @@ export function createCompositionSession(host: CompositionSessionHost) {
   }
 
   const proposal = () => (host.proposal && host.proposal.id !== settledProposal() ? host.proposal : undefined)
-  const proposalRequest = () => (proposal() ? undefined : host.proposalRequest)
+  const proposalRequest = () => {
+    const request = host.proposalRequest
+    if (!request || proposal() || request.id === settledRequest()) return undefined
+    return request
+  }
+  const settle = (current: ReportProposal) => {
+    setSettledProposal(current.id)
+    setSettledRequest(host.proposalRequest?.id)
+  }
   // A proposal comes from outside the editor: it must pass the same validation as a saved
   // composition (unique placement ids, rows within twelve columns, no empty rows) and
   // target this draft, or it never reaches the draft.
@@ -256,12 +266,12 @@ export function createCompositionSession(host: CompositionSessionHost) {
   const applyProposal = (current: ReportProposal) => {
     if (!proposalValid(current) || current.base !== reportDraftToken(draft)) return
     edit((composition) => ({ ...structuredClone(current.composition), id: composition.id, revision: composition.revision }))
-    setSettledProposal(current.id)
+    settle(current)
     setNotice(translate('report.editor.proposalApplied', 'The proposal was applied to the draft. Nothing is published until you save.'))
     host.proposalHandlers?.settled?.(current.id, 'applied')
   }
   const rejectProposal = (current: ReportProposal) => {
-    setSettledProposal(current.id)
+    settle(current)
     host.proposalHandlers?.settled?.(current.id, 'rejected')
   }
 

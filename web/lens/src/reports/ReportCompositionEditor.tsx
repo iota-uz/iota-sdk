@@ -43,6 +43,8 @@ export interface ReportCompositionEditorProps {
   addSpan?: number
   theme?: LensThemeMode
   messages?: Record<string, string>
+  /** Locale of the built-in chrome translations (ru, uz); English when omitted outside a document. */
+  locale?: string
 }
 
 /**
@@ -54,7 +56,7 @@ export interface ReportCompositionEditorProps {
 export function ReportCompositionEditor(props: ReportCompositionEditorProps): JSX.Element {
   return (
     <div class="lens-root lens-root-inline" data-theme={props.theme ?? 'light'}>
-      <LensMessagesProvider messages={props.messages}>
+      <LensMessagesProvider locale={props.locale} messages={props.messages}>
         <Editor {...props} />
       </LensMessagesProvider>
     </div>
@@ -80,6 +82,11 @@ function Editor(props: ReportCompositionEditorProps): JSX.Element {
               const value = event.currentTarget.value.trim()
               if (value) session.edit((composition) => ({ ...composition, title: value }))
               else event.currentTarget.value = draft.value().title
+            }}
+            // A rename counts as unsaved while the reader types, so a leave request before blur still asks.
+            onInput={(event) => {
+              const value = event.currentTarget.value
+              if (value.trim()) session.edit((composition) => ({ ...composition, title: value }))
             }}
             value={draft.value().title}
           />

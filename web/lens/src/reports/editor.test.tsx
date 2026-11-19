@@ -563,6 +563,24 @@ describe('ReportCompositionEditor: impact, proposal preview and a proposal in pr
     expect(within(panel).getByRole('alert')).toHaveTextContent('can no longer be applied')
   })
 
+  // False green: a host that keeps passing the answered request would show "being prepared" after Reject.
+  it('keeps the answered request hidden after Reject and shows the next one', () => {
+    let setRequest!: (value: { id: string; base: string }) => void
+    let draft!: ReportDraft<Composition>
+    render(() => {
+      draft = createReportDraft(base(), { save: (composition) => Promise.resolve(composition) })
+      const [request, set] = createSignal({ id: 'r1', base: reportDraftToken(draft) })
+      setRequest = set
+      const proposal: ReportProposal = { id: 'p1', base: request().base, composition: { ...base(), rows: [[{ id: 'n', reportId: 'report-07' }]] } }
+      return <ReportCompositionEditor draft={draft} lifecycle="existing" proposal={proposal} proposalRequest={request()} reportTitle={(id) => titles[id]} />
+    })
+    fireEvent.click(within(screen.getByTestId('report-proposal')).getByRole('button', { name: 'Reject' }))
+    expect(screen.queryByTestId('report-proposal')).toBeNull()
+    expect(screen.queryByTestId('report-proposal-request')).toBeNull()
+    setRequest({ id: 'r2', base: reportDraftToken(draft) })
+    expect(screen.getByTestId('report-proposal-request')).toHaveTextContent('being prepared')
+  })
+
   it('starts an empty editor with Add report and no assistant prompt', async () => {
     mountEditor({ initial: { id: 'new', revision: '1', title: 'New', rows: [] }, props: { catalog: memoryCatalog() } })
     const empty = screen.getByTestId('report-editor-empty')
