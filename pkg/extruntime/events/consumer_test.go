@@ -17,11 +17,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -190,7 +192,9 @@ func (c *goConsumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope)
 	fail := c.fail
 	c.mu.Unlock()
 	if fail != nil {
-		if err := fail(ctx, ev, call); err != nil {
+		if err := fail(ctx, ev, call); errors.Is(err, errBail) {
+			return nil
+		} else if err != nil {
 			return err
 		}
 	}
@@ -212,7 +216,7 @@ func (c *goConsumer) set(f func(c *goConsumer)) {
 func TestGoConsumersAcrossTenantsAreExactlyOnceAndAFailingOneIsIsolated(t *testing.T) {
 	e := newGoEnv(t)
 	other := e.newTenant()
-	var ids []string
+	ids := make([]string, 0, 5)
 	for i, tenant := range []uuid.UUID{e.tenant, other, e.tenant, other, e.tenant} {
 		ids = append(ids, e.publish(tenant, goEventA, fmt.Sprintf("e%d", i), 0))
 	}
@@ -331,8 +335,7 @@ func TestNoSubjectBlocksTheDeliveryUntilAnOwnerIsAssigned(t *testing.T) {
 	require.Contains(t, r.Error, "no owner-user")
 
 	e.subjects.Grant(42)
-	_, err := e.db.Exec(context.Background(), `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id) VALUES ($1, $2, 42)`, c.id, e.tenant)
-	require.NoError(t, err)
+	require.NoError(t, triggerowner.Assign(context.Background(), e.db, c.id, e.tenant, 42))
 	e.drain(d)
 	require.Equal(t, events.StatusDone, e.receipt(c.id, id).Status)
 	require.Equal(t, int64(42), acted.UserID)
@@ -437,3 +440,35 @@ func TestPruneKeepsEventsWithAnUnfinishedDeliveryOfAnyConsumer(t *testing.T) {
 	require.NoError(t, rows.Err())
 	require.Equal(t, []string{pending}, left, "%s was pruned, the event another consumer still owes is kept", delivered)
 }
+
+// A delivery whose commit fails (here: the consumer swallowed a SQL error and
+// left the transaction aborted) counts as a failed attempt: it backs off and
+// dead-letters instead of being fetched first on every pass and holding back
+// the later events.
+func TestFailedCommitCountsAnAttemptAndDoesNotBlockLaterEvents(t *testing.T) {
+	e := newGoEnv(t)
+	poisoned := e.publish(e.tenant, goEventA, "poisoned", 0)
+	later := e.publish(e.tenant, goEventA, "later", 0)
+	c := newGoConsumer("acme.go.commit", goEventA.ID())
+	c.fail = func(ctx context.Context, ev events.Envelope, _ int) error {
+		if ev.ID != poisoned {
+			return nil
+		}
+		tx, err := composables.UseTx(ctx)
+		if err != nil {
+			return err
+		}
+		_, _ = tx.Exec(ctx, `SELECT * FROM no_such_table`) // error swallowed: the tx is aborted
+		return errBail
+	}
+	d := e.dispatcher(events.StaticConsumers(nil, c))
+	e.drain(d)
+	r := e.receipt(c.id, poisoned)
+	require.Equal(t, events.StatusDead, r.Status)
+	require.Equal(t, 3, r.Attempts)
+	require.Equal(t, events.StatusDone, e.receipt(c.id, later).Status)
+	require.Equal(t, map[string]string{"later": e.tenant.String()}, e.effects(c.id))
+}
+
+// errBail makes goConsumer.Deliver return nil without writing its effect.
+var errBail = errors.New("bail")

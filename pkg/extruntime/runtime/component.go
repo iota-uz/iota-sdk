@@ -129,6 +129,15 @@ func (c *component) Build(builder *composition.Builder) error {
 		return New(c.cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
 			NativeDeps: container, Dispatcher: outbox,
+			// Without the core, Go consumers contributed to the container are
+			// served by the runtime's own dispatcher.
+			Consumers: events.ConsumerSourceFunc(func(ctx context.Context) ([]events.Consumer, error) {
+				srcs, err := composition.Contributions[events.ConsumerSource](container)
+				if err != nil {
+					return nil, err
+				}
+				return events.ComposeConsumers(srcs...).Consumers(ctx)
+			}),
 		})
 	})
 	// The package subscriptions are consumers of the core dispatcher (unused

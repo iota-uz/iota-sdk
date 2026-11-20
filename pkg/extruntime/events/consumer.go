@@ -29,8 +29,9 @@ type Consumer interface {
 	// never delivered to it (see Watermark).
 	AfterSeq(ctx context.Context) (int64, error)
 	// Deliver handles one event in tx, the transaction of the receipt; tx
-	// carries the event's tenant in app.tenant_id and the consumer must work
-	// only in Envelope.TenantID. nil commits the receipt as done. An error
+	// carries the event's tenant in app.tenant_id, ctx carries tx and the
+	// tenant for repositories (composables.UseTx, UseTenantID), and the
+	// consumer must work only in Envelope.TenantID. nil commits the receipt as done. An error
 	// rolls the transaction back: the delivery is retried with backoff and
 	// dead-lettered after MaxAttempts, except an error for which
 	// host.IsInfrastructure is true (retried without counting an attempt)
@@ -66,9 +67,16 @@ type ConsumerSourceFunc func(ctx context.Context) ([]Consumer, error)
 
 func (f ConsumerSourceFunc) Consumers(ctx context.Context) ([]Consumer, error) { return f(ctx) }
 
-// StaticConsumers is a ConsumerSource of a fixed list.
+// StaticConsumers is a ConsumerSource of a fixed list; nil entries are
+// dropped.
 func StaticConsumers(list ...Consumer) ConsumerSource {
-	list = append([]Consumer(nil), list...)
+	kept := make([]Consumer, 0, len(list))
+	for _, c := range list {
+		if c != nil {
+			kept = append(kept, c)
+		}
+	}
+	list = kept
 	return ConsumerSourceFunc(func(context.Context) ([]Consumer, error) {
 		return append([]Consumer(nil), list...), nil
 	})

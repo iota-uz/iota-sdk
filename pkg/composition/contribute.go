@@ -21,8 +21,9 @@ type typedContribution struct {
 //	    composition.Contribute(b, f)
 //	}
 //
-// The factories run once, in component registration order, after every
-// provider is instantiated, so they may resolve any provider of the container.
+// The factories run once, in component order (a component after the ones it
+// Requires, otherwise in registration order), after every provider is
+// instantiated, so they may resolve any provider of the container.
 func Contribute[T any](builder *Builder, factory func(*Container) ([]T, error)) {
 	if builder == nil {
 		panic("composition: builder is nil")
@@ -51,8 +52,8 @@ func Contribute[T any](builder *Builder, factory func(*Container) ([]T, error)) 
 	})
 }
 
-// Contributions lists every value contributed with Contribute[T], in
-// component registration order. The values are collected when the container
+// Contributions lists every non-nil value contributed with Contribute[T], in
+// component order. The values are collected when the container
 // is compiled, after its providers are instantiated: a provider that needs
 // them reads them lazily (at Start or per call), never from its constructor,
 // where Contributions returns an error.
@@ -67,7 +68,9 @@ func Contributions[T any](container *Container) ([]T, error) {
 	values := container.contributions[typ]
 	out := make([]T, 0, len(values))
 	for _, v := range values {
-		out = append(out, v.(T))
+		if typed, ok := v.(T); ok {
+			out = append(out, typed) // a nil interface value is dropped
+		}
 	}
 	return out, nil
 }

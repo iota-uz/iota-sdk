@@ -153,6 +153,9 @@ type Deps struct {
 	// contributed by NewComponent). Nil: the runtime builds and serves its own
 	// over the package subscriptions, for a runtime composed without the core.
 	Dispatcher *events.Dispatcher
+	// Consumers are Go consumers the runtime's own dispatcher serves next to
+	// the package subscriptions (unused with Dispatcher).
+	Consumers events.ConsumerSource
 }
 
 // Extension is a slice that needs the finished runtime.
@@ -349,7 +352,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	if subjects != nil {
 		if rt.Dispatcher == nil {
 			dcfg := cfg.Events
-			dcfg.DB, dcfg.Consumers, dcfg.Subjects = deps.DB, rt.PackageConsumers(), subjects
+			dcfg.DB, dcfg.Consumers, dcfg.Subjects = deps.DB, events.ComposeConsumers(rt.PackageConsumers(), deps.Consumers), subjects
 			if dcfg.Logger == nil {
 				dcfg.Logger = cfg.Logger
 			}

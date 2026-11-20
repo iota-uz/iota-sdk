@@ -71,7 +71,7 @@ the outbox and its dispatcher run without Node (§2.1).
 | `EXTRUNTIME_CACHEDIR` | `<user cache dir>/iota-extruntime` | Where artifacts are materialized for the workers and the asset route. A cache rebuilt from the database: it need not persist or be shared between instances. It is created `0700` and must belong to the user running the service (another user's directory is refused, a looser mode is tightened); a directory found under an artifact's name is compared with the stored archive before it is used and replaced when it differs. Without a user cache directory (no `$HOME`) the default is `<tmp>/iota-extruntime-<uid>`. |
 | `EXTRUNTIME_WORKFLOWCONCURRENCY` | engine default | Workflow instances run at once. |
 | `EXTRUNTIME_DISABLEBACKGROUND` | `false` | Keeps the workflow engine, event dispatcher and scheduler of this process off. The API, endpoints and RPC are unaffected. Applies to the outbox dispatcher of the event core also while the runtime is disabled. |
-| `EXTRUNTIME_EVENTS_RETENTION` | `168h` | How long an outbox event is kept once no consumer has a pending, failed or blocked delivery of it. Applies also while the runtime is disabled. |
+| `EXTRUNTIME_EVENTS_RETENTION` | `168h` | Age (from when the event occurred) after which an outbox event is pruned, unless a consumer still has a pending, failed or blocked delivery of it. An event a consumer has not reached by then is pruned too. Applies also while the runtime is disabled. |
 | `EXTRUNTIME_UI_HOSTMANIFEST` | – | Path of the client-host manifest JSON of the application's frontend build. Setting it mounts the UI slice: package pages, navigation, shell bindings, `/_ext/rpc` and `/_ext/assets`. Without it the browser RPC does not exist. |
 | `EXTRUNTIME_UI_SOURCETTL` | `2s` | Cache of the activated-UI snapshot. |
 | `EXTRUNTIME_CONFIGURATOR_ENABLED` | `false` | Mounts the configurator page. Requires the host manifest. |
@@ -151,7 +151,10 @@ components := append(modules.Components(), app.Component(), wiring.NewComponent(
 construct `runtime.NewComponent(cfg)` themselves, as `pkg/extruntime/e2e` does.
 
 A `runtime.NewComponent` composed without `wiring.NewComponent` serves a dispatcher of its own over the package
-subscriptions (`runtime.Config.Events` tunes it); next to the core it reuses the core's.
+subscriptions and the contributed Go consumers (`runtime.Config.Events` tunes it). Composed next to the core it reuses
+the core's; register the core after the runtime component so the dispatcher starts after the runtime and stops before
+it (`wiring.NewComponent` does this itself). With `wiring.NewComponent`, `Options.Events` tunes the dispatcher and the
+`cfg.Events` and `cfg.DisableBackground` a `Tune` sets apply to it.
 
 The runtime builds on the `core` module (notification services, users, permissions) and resolves from the container what it
 needs: `*pgxpool.Pool`, `*services.NotificationDispatchService`, `*notifications.Catalog`, `ContentRenderers`,
@@ -161,8 +164,9 @@ needs: `*pgxpool.Pool`, `*services.NotificationDispatchService`, `*notifications
 ### 2.1 The event core and Go consumers
 
 The core needs no Node and runs whether or not the runtime is enabled. It provides `*native.Set` (composed from
-`Options.Natives`), `host.SubjectLoader` (current rights of users; `ProvideDefault`, so an application can replace it)
-and `*events.Dispatcher`, the one dispatcher of the process. It starts with the API or worker capability unless
+`Options.Natives`), `host.SubjectLoader` (current rights of users, for Go consumers; `ProvideDefault`, so an
+application can replace it; the runtime's packages, workflows and schedules keep their own loader) and
+`*events.Dispatcher`, the one dispatcher of the process. It starts with the API or worker capability unless
 `EXTRUNTIME_DISABLEBACKGROUND` is set, and prunes the outbox after `EXTRUNTIME_EVENTS_RETENTION`.
 
 Modules and applications register Go consumers of the outbox:
@@ -173,10 +177,13 @@ wiring.ContributeConsumers(builder, func(c *composition.Container) ([]events.Con
 })
 ```
 
-An `events.Consumer` names its receipt key (`ID`, stable across releases and unique in the process), the event keys it
+An `events.Consumer` names its receipt key (`ID`, stable across releases and unique in the process; it shares
+`subscription_receipts` with package subscriptions, so take it from your module's namespace, e.g.
+`crm.consumers.clientWelcome`), the event keys it
 needs now (`Events`, read on every pass) and its watermark (`AfterSeq`; `events.Watermark` gives the current position).
 `Deliver(ctx, tx, ev)` runs in one transaction with the consumer's receipt, so an event is handled exactly once per
-consumer; `tx` carries the event's tenant in `app.tenant_id` and the consumer works only in `ev.TenantID`. A returned
+consumer; `tx` carries the event's tenant in `app.tenant_id`, `ctx` carries `tx` and the tenant for repositories
+(`composables.UseTx`, `UseTenantID`), and the consumer works only in `ev.TenantID`. A returned
 error rolls back and is retried with backoff and dead-lettered after `MaxAttempts`, separately for each consumer and
 event; a `host.IsInfrastructure` error is retried without counting an attempt; an error wrapping `events.ErrNoSubject`
 blocks the delivery until it can act. `events.AfterCommit(ctx, fn)` defers work until the delivery commits.
@@ -184,7 +191,10 @@ blocks the delivery until it can act. `events.AfterCommit(ctx, fn)` defers work 
 A consumer chooses whom it acts as with `events.ResolveSubject(ctx, tx, subjects, ev, triggerID, mode)`:
 `events.RunAsInitiator` takes the initiator with current rights, else the owner of `triggerID` in the tenant
 (`extruntime.trigger_owners`); `events.RunAsOwner` always takes the owner. Without either, or for a blocked or deleted
-user, it returns `events.ErrNoSubject`. Consumer sources that change at run time register with
+user, it returns `events.ErrNoSubject`; failing to read the owner or the user is an infrastructure error (retried, no
+attempt counted). The management API assigns owners of package triggers only: a module assigns the owners of its Go
+triggers with `triggerowner.Assign(ctx, q, triggerID, tenant, userID)`, and a blocked delivery resumes on the next
+recheck. Consumer sources that change at run time register with
 `wiring.ContributeConsumerSources`. Dead and blocked receipts of a Go consumer are requeued with
 `events.RequeueReceipts(ctx, q, tenant, consumerID, eventID)`, which the management API's requeue (§6.2) also calls when
 the runtime is enabled.

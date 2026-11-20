@@ -110,19 +110,25 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	c.buildCore(b, section, natives)
 	logger := b.Context().Logger()
+	core := coreConfig{retention: section.Events.Retention, events: c.opts.Events, disableBackground: section.DisableBackground}
 	if !configured || !section.Enabled {
+		c.buildCore(b, natives, core)
 		if logger != nil {
 			logger.Info("extension runtime is disabled (EXTRUNTIME_ENABLED is not set); the event core runs without it")
 		}
-		startCore(b, section)
+		startCore(b, core)
 		return nil
 	}
 	cfg, dist, err := runtimeConfig(section, c.opts, natives)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
+	// Tune may have set the dispatcher settings and DisableBackground on the
+	// runtime configuration: the core's dispatcher is the one that applies them.
+	core.events = mergeEvents(core.events, cfg.Events)
+	core.disableBackground = cfg.DisableBackground
+	c.buildCore(b, natives, core)
 	if logger != nil {
 		logger.Infof("extension runtime is enabled: pool=%d, @iota-uz/sdk %s at %s, ui=%t, configurator=%t",
 			cfg.PoolSize, dist.Identity.ReleaseVersion, dist.Dir, cfg.UI != nil, cfg.Configurator != nil)
@@ -134,7 +140,7 @@ func (c *component) Build(b *composition.Builder) error {
 	if err := inner.Build(b); err != nil {
 		return err
 	}
-	startCore(b, section)
+	startCore(b, core)
 	return nil
 }
 

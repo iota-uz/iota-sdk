@@ -157,9 +157,10 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	}
 	// The always-on core serves the one outbox dispatcher of the process; the
 	// runtime's package subscriptions are its consumers, as in production
-	// (wiring.NewComponent with the runtime enabled).
+	// (wiring.NewComponent with the runtime enabled). The core comes after the
+	// runtime, so its dispatcher starts after the runtime and stops before it.
 	core := wiring.NewComponent(wiring.Options{Natives: modules.Natives(), Section: &extruntimeconfig.Config{}, Events: cfg.events, Logger: logger})
-	components = append(components, core, comp)
+	components = append(components, comp, core)
 	if cfg.helpCenter {
 		components = append(components, helpcenter.NewComponent(helpcenter.EmbeddedContentConfig()))
 	}

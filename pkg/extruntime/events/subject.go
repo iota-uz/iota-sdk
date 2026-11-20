@@ -33,8 +33,10 @@ var ErrNoSubject = errors.New("extruntime events: no subject")
 
 // ResolveSubject returns the subject a consumer acts as for ev: the initiator
 // (RunAsInitiator, when the event has one) or the owner of triggerID in the
-// event's tenant (extruntime.trigger_owners), with current rights from
-// subjects. q is the delivery transaction or a pool.
+// event's tenant (extruntime.trigger_owners, see triggerowner.Assign), with
+// current rights from subjects. q is the delivery transaction or a pool.
+// Failing to read the owner or the user is a *host.InfraError: the delivery
+// is retried without counting an attempt, as the handler never ran.
 func ResolveSubject(ctx context.Context, q triggerowner.Querier, subjects host.SubjectLoader, ev Envelope, triggerID string, mode RunAs) (spi.Subject, error) {
 	const op = serrors.Op("extruntime.events.ResolveSubject")
 	if subjects == nil {
@@ -49,7 +51,7 @@ func ResolveSubject(ctx context.Context, q triggerowner.Querier, subjects host.S
 		kind = spi.SubjectOwner
 		owner, found, err := triggerowner.Lookup(ctx, q, triggerID, ev.TenantID)
 		if err != nil {
-			return spi.Subject{}, serrors.Wrap(op, err)
+			return spi.Subject{}, &host.InfraError{Err: serrors.Wrap(op, err)}
 		}
 		if !found {
 			if mode == RunAsOwner {
@@ -66,7 +68,7 @@ func ResolveSubject(ctx context.Context, q triggerowner.Querier, subjects host.S
 		return spi.Subject{}, fmt.Errorf("%w: %w", ErrNoSubject, err)
 	}
 	if err != nil {
-		return spi.Subject{}, serrors.Wrap(op, err)
+		return spi.Subject{}, &host.InfraError{Err: serrors.Wrap(op, err)}
 	}
 	subject.TenantID, subject.UserID, subject.Kind = ev.TenantID, userID, kind
 	return subject, nil

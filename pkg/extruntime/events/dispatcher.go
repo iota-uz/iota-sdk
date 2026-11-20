@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -48,6 +49,9 @@ type Config struct {
 	PollInterval time.Duration
 	// BatchSize bounds events fetched per consumer and pass. Default 50.
 	BatchSize int
+	// Concurrency bounds the consumers delivering at once; each holds a
+	// connection for its delivery transaction. Default 8.
+	Concurrency int
 	// MaxAttempts before a poisoned event is dead-lettered. Default 5.
 	MaxAttempts int
 	// BackoffBase doubles per attempt up to BackoffMax. Defaults 1s and 5m.
@@ -71,6 +75,9 @@ func (c *Config) defaults() error {
 	}
 	if c.BatchSize <= 0 {
 		c.BatchSize = 50
+	}
+	if c.Concurrency <= 0 {
+		c.Concurrency = 8
 	}
 	if c.MaxAttempts <= 0 {
 		c.MaxAttempts = 5
@@ -132,9 +139,6 @@ func NewDispatcher(cfg Config) (*Dispatcher, error) {
 	return &Dispatcher{cfg: cfg}, nil
 }
 
-// Subjects is the subject loader consumers resolve run-as subjects with.
-func (d *Dispatcher) Subjects() host.SubjectLoader { return d.cfg.Subjects }
-
 type outboxRow struct {
 	Envelope
 	status   string
@@ -167,8 +171,12 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
 		total int
 		errs  []error
 		seen  = make(map[string]struct{}, len(consumers))
+		slots = make(chan struct{}, d.cfg.Concurrency)
 	)
 	for _, c := range consumers {
+		if c == nil {
+			continue
+		}
 		id := c.ID()
 		if id == "" {
 			errs = append(errs, errors.New("extruntime events: a consumer has an empty ID"))
@@ -182,6 +190,8 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
 			n, err := d.runConsumer(ctx, c)
 			mu.Lock()
 			total += n
@@ -288,16 +298,22 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	}
 
 	commits := &afterCommits{}
-	dctx := context.WithValue(ctx, afterCommitKey{}, commits)
+	// The context carries the delivery transaction and the event's tenant, so
+	// repositories that read them from the context (composables.UseTx,
+	// UseTenantID) work inside the delivery and need no second connection.
+	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
 	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
-		if err := tx.Commit(ctx); err != nil {
-			return false, serrors.FromDB(opDeliver, err)
+		runErr = tx.Commit(ctx)
+		if runErr == nil {
+			for _, fn := range commits.fns {
+				fn(ctx)
+			}
+			return true, nil
 		}
-		for _, fn := range commits.fns {
-			fn(ctx)
-		}
-		return true, nil
+		// A failed commit (a deferred constraint, a transaction the consumer
+		// left aborted) is a failed attempt like any other, so the event backs
+		// off and dead-letters instead of blocking the later ones.
 	}
 	if ctx.Err() != nil {
 		return false, ctx.Err()
@@ -364,8 +380,11 @@ func (d *Dispatcher) recordBlocked(ctx context.Context, consumer string, ev outb
 	return serrors.FromDB(opDeliver, err)
 }
 
-// Prune deletes events older than the retention that have no pending, failed
-// or blocked delivery of any consumer.
+// Prune deletes the events that occurred longer than the retention ago and
+// have no pending, failed or blocked delivery of any consumer. An event no
+// consumer has a receipt for is deleted too: a consumer that has not reached
+// it within the retention (stopped background work, a key added later) never
+// receives it.
 func (d *Dispatcher) Prune(ctx context.Context) (int64, error) {
 	tag, err := d.cfg.DB.Exec(ctx, `
 		DELETE FROM extruntime.outbox_events e
