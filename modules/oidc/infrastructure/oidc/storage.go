@@ -382,6 +382,12 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 	// consumed token stays with a link to its replacement, so a later reuse
 	// revokes the chain (TokenRequestByRefreshToken).
 	if err := s.inTx(ctx, func(ctx context.Context) error {
+		// Rotation and reuse revocation of one grant never interleave: a
+		// revoke that started first sees this replacement only after it
+		// commits, which the lock guarantees by making the revoke wait.
+		if err := s.tokenRepo.LockGrant(ctx, int(userID), clientID); err != nil {
+			return err
+		}
 		if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
 			return err
 		}
