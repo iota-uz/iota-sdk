@@ -84,7 +84,7 @@ export const emit = async (ctx, input) => {
 	require.NoError(t, err)
 	f := &fixture{t: t, env: env, host: h, subs: &subs{}, outbox: outbox}
 	cfg := events.Config{
-		DB: env.DB, Runner: h, Subscriptions: f.subs, Subjects: env.Subjects,
+		DB: env.DB, Consumers: events.PackageConsumers(f.subs, h, env.Subjects), Subjects: env.Subjects,
 		PollInterval: 100 * time.Millisecond, BackoffBase: 10 * time.Millisecond, BackoffMax: 20 * time.Millisecond,
 		MaxAttempts: 3, BlockedRecheck: 30 * time.Millisecond, Logger: env.Logger,
 	}

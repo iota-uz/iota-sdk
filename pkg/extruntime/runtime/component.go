@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
@@ -117,9 +118,30 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		// The always-on core (pkg/extruntime/wiring) serves the one outbox
+		// dispatcher of the process; without it the runtime serves its own.
+		outbox, err := composition.Resolve[*events.Dispatcher](container)
+		if err != nil && !composition.IsNotProvided(err) {
+			return nil, err
+		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
-		return New(c.cfg, Deps{DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users, NativeDeps: container})
+		return New(c.cfg, Deps{
+			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
+			NativeDeps: container, Dispatcher: outbox,
+		})
+	})
+	// The package subscriptions are consumers of the core dispatcher (unused
+	// when the runtime serves its own).
+	composition.Contribute(builder, func(container *composition.Container) ([]events.ConsumerSource, error) {
+		rt, err := composition.Resolve[*Runtime](container)
+		if err != nil {
+			return nil, err
+		}
+		if rt.ownsDispatcher {
+			return nil, nil
+		}
+		return []events.ConsumerSource{rt.PackageConsumers()}, nil
 	})
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
 	// Every Go entry of a native contract dispatches through the host.

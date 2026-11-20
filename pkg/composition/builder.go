@@ -188,6 +188,7 @@ type Builder struct {
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
 	settingsFactories     []namedFactory[[]types.SettingsSection]
+	contributions         []typedContribution
 
 	// Removals are recorded here and processed after every builder has
 	// contributed, so a downstream component can cleanly replace upstream

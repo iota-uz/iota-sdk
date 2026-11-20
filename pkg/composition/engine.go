@@ -287,6 +287,7 @@ type Container struct {
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
 	settingsFactories     []namedFactory[[]types.SettingsSection]
+	contributionFactories []typedContribution
 
 	// Hook removal intents are collected from builders during addBuilder and
 	// applied as post-collect filters inside materialize.
@@ -316,6 +317,10 @@ type Container struct {
 	hooks              []Hook
 	settingsSections   []types.SettingsSection
 	runningStops       []namedStop
+	// contributions are the Contribute[T] values by T, collected in
+	// materialize.
+	contributions          map[reflect.Type][]any
+	contributionsCollected bool
 	started            bool
 }
 
@@ -647,6 +652,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
 	c.settingsFactories = append(c.settingsFactories, builder.settingsFactories...)
+	c.contributionFactories = append(c.contributionFactories, builder.contributions...)
 
 	// Hook removals cannot be applied here because materialize hasn't run yet
 	// — the contributions they target are still factory closures. Stash them on
@@ -669,6 +675,11 @@ func (c *Container) instantiateAll() error {
 }
 
 func (c *Container) materialize() error {
+	// Open-ended contributions come first: controller, hook and other
+	// factories below may read them.
+	if err := c.collectContributions(); err != nil {
+		return err
+	}
 	// Help sources are collected before controllers so the Help Center's
 	// controller factory sees them in Container.HelpSources.
 	if err := collectInto(c, c.helpSourceFactories, &c.helpSources); err != nil {

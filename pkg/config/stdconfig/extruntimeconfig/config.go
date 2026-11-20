@@ -90,6 +90,16 @@ type GitConfig struct {
 	Timeout time.Duration `koanf:"timeout"`
 }
 
+// EventsConfig groups the outbox and its dispatcher. They are part of the
+// always-on core: these settings apply whether or not the runtime is enabled.
+//
+// Env prefix: "extruntime.events" (EXTRUNTIME_EVENTS_RETENTION).
+type EventsConfig struct {
+	// Retention is how long an outbox event is kept once no delivery of it is
+	// pending, failed or blocked. Default 168h (7 days).
+	Retention time.Duration `koanf:"retention" default:"168h"`
+}
+
 // Config holds the extension runtime settings.
 //
 // Env prefix: "extruntime" (EXTRUNTIME_ENABLED → extruntime.enabled,
@@ -123,7 +133,8 @@ type Config struct {
 	// DisableBackground keeps the workflow engine, the event dispatcher and
 	// the scheduler of this process off, for API replicas when a dedicated
 	// worker process runs them. The management API, endpoints and RPC are
-	// unaffected.
+	// unaffected. It applies to the outbox dispatcher of the always-on core
+	// too, whether or not the runtime is enabled.
 	DisableBackground bool `koanf:"disablebackground"`
 	// TrustedOrigins is the comma-separated list of origins (scheme://host
 	// [:port]) that may make state-changing requests to /_ext/rpc, /_ext/manage
@@ -133,6 +144,7 @@ type Config struct {
 	// from Host).
 	TrustedOrigins string `koanf:"trustedorigins"`
 
+	Events       EventsConfig       `koanf:"events"`
 	UI           UIConfig           `koanf:"ui"`
 	Configurator ConfiguratorConfig `koanf:"configurator"`
 	Endpoints    EndpointsConfig    `koanf:"endpoints"`
@@ -142,9 +154,13 @@ type Config struct {
 // ConfigPrefix returns the koanf prefix for extruntimeconfig ("extruntime").
 func (Config) ConfigPrefix() string { return "extruntime" }
 
-// Validate checks the settings. It is skipped while the runtime is disabled.
-// Implements config.Validatable so config.Register invokes it automatically.
+// Validate checks the settings. Only the settings of the always-on core
+// (Events) are checked while the runtime is disabled. Implements
+// config.Validatable so config.Register invokes it automatically.
 func (c *Config) Validate() error {
+	if c.Events.Retention < 0 {
+		return fmt.Errorf("extruntimeconfig: events.retention must not be negative, got %s", c.Events.Retention)
+	}
 	if !c.Enabled {
 		return nil
 	}

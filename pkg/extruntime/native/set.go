@@ -271,6 +271,18 @@ func (s *Set) Event(id string) (EventDefinition, bool) {
 	return e, ok
 }
 
+// Events lists the native events of the set sorted by ID.
+func (s *Set) Events() []EventDefinition {
+	if s == nil {
+		return nil
+	}
+	s.mu.RLock()
+	out := slices.Collect(maps.Values(s.events))
+	s.mu.RUnlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].ID() < out[j].ID() })
+	return out
+}
+
 // Entities lists the native entities sorted by ID.
 func (s *Set) Entities() []data.NativeEntity {
 	if s == nil {

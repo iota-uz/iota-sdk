@@ -35,7 +35,7 @@ func TestRolledBackEmitIsNeverDeliveredAndCommittedEventRunsEachSubscriptionOnce
 	require.ElementsMatch(t, []string{"row:kept", "got:kept:7:initiator", "b:kept"}, f.env.Items(), "each subscription ran once, as the event initiator")
 
 	// Redelivery after commit (a restarted dispatcher, a second node) is a no-op.
-	other, err := events.NewDispatcher(events.Config{DB: f.env.DB, Runner: f.host, Subscriptions: f.subs, Subjects: f.env.Subjects, Logger: f.env.Logger})
+	other, err := events.NewDispatcher(events.Config{DB: f.env.DB, Consumers: events.PackageConsumers(f.subs, f.host, f.env.Subjects), Subjects: f.env.Subjects, Logger: f.env.Logger})
 	require.NoError(t, err)
 	for i := 0; i < 3; i++ {
 		n, err := other.RunOnce(context.Background())
