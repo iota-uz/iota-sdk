@@ -3,10 +3,12 @@ package controllers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -17,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -187,6 +190,38 @@ func (c *PositionsController) deptNamesForPage(
 	return names, nil
 }
 
+// Filter chip field keys of the positions list.
+const (
+	positionFilterDepartment = "department"
+	positionFilterStatus     = "status"
+)
+
+// filterRegistry describes the chips of the positions list: the department a
+// position belongs to and whether it is active.
+func (c *PositionsController) filterRegistry(r *http.Request, departmentService *services.DepartmentService) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var departments []filterbuilder.Option
+	if opts, _, err := c.departmentPickerData(r, departmentService); err == nil {
+		for _, d := range opts {
+			departments = append(departments, filterbuilder.Opt(d.ID, d.Name))
+		}
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{
+			Key: positionFilterDepartment, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("Positions.List.Department"), Options: departments,
+		},
+		filterbuilder.FieldDef{
+			Key: positionFilterStatus, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("Positions.List.Status"), Operators: []filterq.Operator{filterq.OpIs},
+			Options: []filterbuilder.Option{
+				filterbuilder.Opt(string(userposition.StatusActive), pageCtx.T("Positions.Status.Active")),
+				filterbuilder.Opt(string(userposition.StatusInactive), pageCtx.T("Positions.Status.Inactive")),
+			},
+		},
+	)
+}
+
 func (c *PositionsController) List(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -212,6 +247,12 @@ func (c *PositionsController) List(
 			},
 		},
 	}
+	registry := c.filterRegistry(r, departmentService)
+	conditions := registry.Decode(r.URL.Query())
+	findParams.Filters = filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[userposition.Field]{
+		positionFilterDepartment: {Column: userposition.DepartmentIDField, Type: "uuid"},
+		positionFilterStatus:     {Column: userposition.StatusField},
+	}, time.Now())
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
@@ -255,13 +296,16 @@ func (c *PositionsController) List(
 		PerPage:   params.Limit,
 		Search:    search,
 		HasMore:   total > int64(params.Page*params.Limit),
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "position-filters", ShowResetAlways: true,
+		},
 	}
 
 	if htmx.IsHxRequest(r) {
 		if params.Page > 1 {
 			templ.Handler(positions.PositionRows(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			templ.Handler(positions.PositionsTable(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(positions.PositionsTableWithChips(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
 		}
 	} else {
 		templ.Handler(positions.Index(pageProps), templ.WithStreaming()).ServeHTTP(w, r)

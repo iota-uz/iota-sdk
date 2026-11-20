@@ -1,6 +1,9 @@
 package positions
 
-import "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+import (
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
 
 // IndexPageProps holds the data for rendering the positions index page.
 type IndexPageProps struct {
@@ -9,6 +12,9 @@ type IndexPageProps struct {
 	PerPage   int
 	Search    string
 	HasMore   bool
+	// Filters is the filter chip bar (department, status); a nil Registry
+	// hides it.
+	Filters filterbuilder.Props
 }
 
 // UserOption is a lightweight user choice for the user picker.
