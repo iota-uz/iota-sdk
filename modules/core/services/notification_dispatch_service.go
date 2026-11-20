@@ -35,6 +35,9 @@ func (s *NotificationDispatchService) Enqueue(ctx context.Context, event notific
 	if err != nil {
 		return 0, serrors.New(serrors.Invalid, err.Error()).WithOp(op)
 	}
+	if err := checkRuleIdentity(normalized); err != nil {
+		return 0, serrors.Wrap(op, err)
+	}
 	rule, ids, err := s.router.ResolveRecipients(ctx, normalized)
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
@@ -100,10 +103,10 @@ func (s *NotificationDispatchService) EnqueueAddressed(ctx context.Context, req 
 
 // EnqueueExplicit queues an explicit send in the transaction in ctx. See Send.
 func (s *NotificationDispatchService) EnqueueExplicit(ctx context.Context, req AddressedRequest) (AddressedReceipt, error) {
-	return s.Send(ctx, notifications.AudienceRequest{
+	return s.send(ctx, notifications.AudienceRequest{
 		Event: req.Event, Audience: notifications.Audience{Users: req.RecipientIDs, Addressees: req.Recipients},
 		Channels: req.Channels, Level: req.Level, Producer: req.Producer,
-	})
+	}, false)
 }
 
 // SendTx queues an audience send in the caller's transaction. See Send.
@@ -136,8 +139,23 @@ func (s *NotificationDispatchService) Resolve(ctx context.Context, req notificat
 // without a contact resolver or more than MaxExplicitRecipients recipients;
 // FailedPrecondition when the platform is not configured or a channel is
 // unavailable; Conflict when the identity is held by an event rule's job.
+//
+// Send needs a repository that implements notifications.DispatchFinder, so a
+// replay always returns the first receipt; without one it returns
+// FailedPrecondition.
 func (s *NotificationDispatchService) Send(ctx context.Context, req notifications.AudienceRequest) (notifications.AudienceReceipt, error) {
+	return s.send(ctx, req, true)
+}
+
+// send queues an audience send. requireFinder is false only for explicit
+// sends of users, records and addresses (EnqueueExplicit), which keep working
+// on a repository without DispatchFinder and then dedupe through Enqueue.
+func (s *NotificationDispatchService) send(ctx context.Context, req notifications.AudienceRequest, requireFinder bool) (notifications.AudienceReceipt, error) {
 	const op serrors.Op = "NotificationDispatchService.Send"
+	finder, hasFinder := s.repo.(notifications.DispatchFinder)
+	if requireFinder && !hasFinder {
+		return notifications.AudienceReceipt{}, serrors.New(serrors.FailedPrecondition, "audience sends need a dispatch repository that implements notifications.DispatchFinder").WithOp(op)
+	}
 	prepared, err := s.envelope(ctx, req)
 	if err != nil {
 		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
@@ -161,7 +179,7 @@ func (s *NotificationDispatchService) Send(ctx context.Context, req notification
 	// resolved again, so a participant that no longer resolves, or a group
 	// that emptied or grew past the limit, does not change the receipt.
 	// Concurrent first sends are still deduplicated by the upserts below.
-	if finder, ok := s.repo.(notifications.DispatchFinder); ok {
+	if hasFinder {
 		existing, found, err := finder.Find(ctx, event.Key, event.DedupeKey)
 		if err != nil {
 			return notifications.AudienceReceipt{}, serrors.Wrap(op, err)

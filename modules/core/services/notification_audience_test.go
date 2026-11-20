@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/require"
 )
@@ -338,6 +339,31 @@ func TestNotificationAudience_RuleModeCannotTakeTheAddressedIdentity(t *testing.
 	_, err = c.send(t, notifications.AudienceRequest{Event: send, Audience: notifications.Audience{Users: c.people}})
 	require.Error(t, err)
 	require.Equal(t, serrors.Conflict, serrors.CodeOf(err))
+
+	// The worker keeps delivering the rule job accepted before the upgrade.
+	c.drain(t)
+	require.Zero(t, c.count(t, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1 AND (completed_at IS NULL OR attempts>0)", c.f.TenantID()))
+	require.Equal(t, 1, c.count(t, "SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1 AND event_id='addressed:legacy' AND mode='rule'", c.f.TenantID()))
+}
+
+// legacyDispatchRepository implements only DispatchRepository, as SDK
+// repositories written before DispatchFinder do.
+type legacyDispatchRepository struct {
+	notifications.DispatchRepository
+}
+
+func TestNotificationAudience_RepositoryWithoutFinder(t *testing.T) {
+	c := setupAudience(t, 1)
+	legacy := services.NewNotificationDispatchService(c.router, legacyDispatchRepository{persistence.NewNotificationDispatchRepository()}, itf.GetService[services.NotificationService](c.f))
+	tx, err := c.f.Pool.Begin(c.committed)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(c.committed) }()
+	_, err = legacy.SendTx(c.committed, tx, notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}})
+	require.Error(t, err)
+	require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err), "audience sends cannot promise idempotent replays without a lookup")
+	receipt, err := legacy.EnqueueAddressedTx(c.committed, tx, services.AddressedRequest{Event: c.event(uuid.NewString()), RecipientIDs: c.people})
+	require.NoError(t, err, "existing explicit callers keep working")
+	require.Equal(t, 1, receipt.Recipients)
 }
 
 // The stored job is looked up before participants are resolved again, so a

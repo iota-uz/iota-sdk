@@ -298,11 +298,14 @@ audience (not its members), so a replay returns the first `NoticeID` and job eve
 after membership changed: the stored job is looked up before the audience is
 resolved again, so a group that emptied or grew past the limit, or a participant
 that no longer resolves, does not change the receipt. The lookup uses the optional
-`notifications.DispatchFinder` extension of `DispatchRepository`; a repository
-without it still deduplicates through `Enqueue`. Identities starting with
-`addressed:` belong to explicit and audience sends: rule-mode events with such a
-`DedupeKey` are rejected as `Invalid`, and a send whose identity is held by an
-older rule job returns `Conflict` instead of that job's receipt. The send neither reads nor changes the administrator's
+`notifications.DispatchFinder` extension of `DispatchRepository`, which the core
+repository implements. `SendTx` returns `FailedPrecondition` on a repository
+without it; `EnqueueExplicit` and `EnqueueAddressedTx` keep working there and
+deduplicate through `Enqueue`. Identities starting with `addressed:` belong to
+explicit and audience sends: new rule-mode events with such a `DedupeKey` are
+rejected as `Invalid` (rule jobs accepted earlier are still delivered), and a send
+whose identity is held by an older rule job returns `Conflict` instead of that
+job's receipt. The send neither reads nor changes the administrator's
 rules and is deduplicated apart from rule-mode jobs.
 
 ### What happens after commit

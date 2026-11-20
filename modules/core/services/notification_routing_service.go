@@ -179,6 +179,9 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	if err != nil {
 		return 0, serrors.New(serrors.Invalid, err.Error()).WithOp("NotificationRoutingService.Publish")
 	}
+	if err := checkRuleIdentity(event); err != nil {
+		return 0, err
+	}
 	rule, ids, err := s.ResolveRecipients(ctx, event)
 	if err != nil {
 		return 0, err
@@ -275,17 +278,22 @@ func eventIdentity(event notifications.Event) string {
 // addressedPrefix starts the identity of every explicit and audience send.
 const addressedPrefix = "addressed:"
 
-// ensureNotice stores the notice instance in the current transaction. Rule
-// mode may not use the addressed identity namespace: notices and jobs are
-// unique per event key and identity, not per mode, so a rule event with such
-// an identity could take the place of an audience send.
+// checkRuleIdentity refuses a new rule-mode event in the addressed identity
+// namespace: notices and jobs are unique per event key and identity, not per
+// mode, so such an event could take the place of an audience send. Only new
+// rule events are checked; jobs accepted earlier keep being delivered.
+func checkRuleIdentity(event notifications.Event) error {
+	if strings.HasPrefix(eventIdentity(event), addressedPrefix) {
+		return serrors.New(serrors.Invalid, "the addressed: identity prefix is reserved for explicit sends").WithOp("NotificationRoutingService.checkRuleIdentity")
+	}
+	return nil
+}
+
+// ensureNotice stores the notice instance in the current transaction.
 func (s *NotificationRoutingService) ensureNotice(ctx context.Context, event notifications.Event, mode notifications.NoticeMode) (notifications.Notice, error) {
 	const op serrors.Op = "NotificationRoutingService.ensureNotice"
 	if s.platform == nil || s.platform.Notices == nil || s.platform.Renderers == nil {
 		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp(op)
-	}
-	if mode != notifications.NoticeExplicit && strings.HasPrefix(eventIdentity(event), addressedPrefix) {
-		return notifications.Notice{}, serrors.New(serrors.Invalid, "the addressed: identity prefix is reserved for explicit sends").WithOp(op)
 	}
 	return s.platform.Notices.Ensure(ctx, notifications.Notice{
 		TenantID: event.TenantID, EventKey: event.Key, Version: event.Version, SnapshotRef: event.SnapshotRef, EventID: eventIdentity(event),
