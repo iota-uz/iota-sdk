@@ -137,8 +137,8 @@ func NewRunner(cfg Config) (*Runner, error) {
 	return &Runner{cfg: cfg, generations: make(map[string]generation)}, nil
 }
 
-// Tool registers execute itself; it is host-only so isolated code cannot
-// call execute recursively.
+// Tool registers execute itself as an entry point: transports publish it, and
+// it is host-only so isolated code cannot call execute recursively.
 func (r *Runner) Tool() mcp.Tool {
 	l := r.cfg.Limits
 	return &tool{runner: r, spec: mcp.Spec{
@@ -146,7 +146,9 @@ func (r *Runner) Tool() mcp.Tool {
 		Description: "Run Python with a typed `tools` namespace generated from the same tools you can call directly. " +
 			"Top-level await is supported: `r = await tools.<name>(...)` returns {ok, data} or {ok: false, error}. " +
 			"Only values passed to emit(value) reach you as data; stdout and stderr are returned truncated. " +
-			"Files written to ./out are returned as artifacts. Writes inside the script are separate operations, not one transaction.",
+			"Files written to ./out are returned as artifacts. Writes inside the script are separate operations, not one transaction. " +
+			"r = await tools.describe() lists the operations available to you when the application registers describe. " +
+			"Pass an argument named after a Python keyword with **, e.g. **{\"from\": \"2026-01-01\"}.",
 		Input: &jsonschema.Schema{
 			Type:                 "object",
 			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
@@ -167,7 +169,7 @@ func (r *Runner) Tool() mcp.Tool {
 			"code_bytes":       map[string]int{"max": l.MaxCodeBytes},
 			"memory_bytes":     map[string]int64{"max": l.MemoryBytes},
 		}},
-		HostOnly: true,
+		EntryPoint: true,
 	}}
 }
 

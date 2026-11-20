@@ -13,11 +13,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// Tools adapts every registered tool. Results reach the model as the same
+// Tools adapts the tools the MCP gateway publishes: the entry points when the
+// registry has any, otherwise every tool. Results reach the model as the same
 // Result JSON an MCP client receives as structuredContent.
 func Tools(engine *mcp.Engine) ([]agents.Tool, error) {
 	const op serrors.Op = "chattools.Tools"
-	specs := engine.Registry().Specs()
+	specs := engine.Registry().Published()
 	out := make([]agents.Tool, 0, len(specs))
 	for _, spec := range specs {
 		raw, err := json.Marshal(spec.Input)

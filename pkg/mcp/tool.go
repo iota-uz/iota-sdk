@@ -39,6 +39,11 @@ type Spec struct {
 	// HostOnly keeps the tool out of the Python tools namespace, e.g. execute
 	// itself, so isolated code cannot recurse into it.
 	HostOnly bool
+	// EntryPoint marks a tool transports publish, such as lookup and execute.
+	// Once a registry holds an entry point, adapters publish only entry points
+	// and every other tool is an operation reached through them. Entry points
+	// are host-only.
+	EntryPoint bool
 }
 
 type Tool interface {
