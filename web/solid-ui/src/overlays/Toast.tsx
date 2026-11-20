@@ -3,36 +3,77 @@ import { classes } from '../internal/classes'
 
 export type ToastVariant = 'success' | 'error' | 'danger' | 'warning' | 'info'
 
-export function ToastRegion(props: JSX.HTMLAttributes<HTMLDivElement>) {
-  const [local, native] = splitProps(props, ['class', 'children'])
-  return <div {...native} class={classes('fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none', local.class)} aria-live={native['aria-live'] ?? 'assertive'}>{local.children}</div>
+/**
+ * One verb that acts on the toast's subject ("Undo", "Retry"). Clicking it calls
+ * `onAction` once and closes the toast; a failure is reported by the caller.
+ */
+export interface ToastAction {
+  label: string
+  onAction(): void | Promise<void>
 }
 
+/** A toast with an action stays at least this long so the verb can be reached. */
+export const TOAST_ACTION_MIN_DURATION = 8000
+const DEFAULT_DURATION = 8000
+
+// The class strings below are shared verbatim with the templ toast
+// (components/base/toast); the templ-parity VR check compares both renderings.
+const regionClass = [
+  'fixed z-[100] pointer-events-none flex flex-col gap-3 top-0 right-0 w-full max-w-sm',
+  'p-4 pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))]',
+  // Phones: almost full width at the bottom, above a fixed bottom action bar that
+  // publishes its height as --iota-toast-offset-bottom; the newest toast is lowest.
+  'max-[480px]:top-auto max-[480px]:bottom-[var(--iota-toast-offset-bottom,0px)] max-[480px]:max-w-none max-[480px]:flex-col-reverse',
+  'max-[480px]:pt-3 max-[480px]:pl-[max(0.75rem,env(safe-area-inset-left))] max-[480px]:pr-[max(0.75rem,env(safe-area-inset-right))] max-[480px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+].join(' ')
+const surfaceClass = 'flex items-start gap-3 w-full p-4 bg-surface-300 text-100 rounded-lg shadow-lg border border-subtle'
+const actionClass = 'flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 dark:text-primary-400 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer'
+const closeClass = 'flex-shrink-0 rounded-md text-300 hover:text-100 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
+
+export function ToastRegion(props: JSX.HTMLAttributes<HTMLDivElement>) {
+  const [local, native] = splitProps(props, ['class', 'children'])
+  // Politeness lives on each toast (status vs alert), not on the region.
+  return <div {...native} class={classes(regionClass, local.class)} data-toast-region>{local.children}</div>
+}
+
+const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '16' } as const
+
+// Phosphor "regular" glyphs, identical to the icons the templ toast renders.
 function Icon(props: { children: JSX.Element }) {
-  return <svg aria-hidden="true" width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">{props.children}</svg>
+  return <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" viewBox="0 0 256 256" width="20" height="20"><rect width="256" height="256" fill="none" />{props.children}</svg>
+}
+
+const iconColor: Record<ToastVariant, string> = {
+  success: 'text-green-500',
+  error: 'text-red-500',
+  danger: 'text-red-500',
+  warning: 'text-yellow-500',
+  info: 'text-blue-500',
 }
 
 function ToastIcon(props: { variant: ToastVariant }) {
   return (
-    <span aria-hidden="true" class={classes('inline-flex items-center justify-center w-5 h-5', props.variant === 'success' && 'text-green-500', (props.variant === 'error' || props.variant === 'danger') && 'text-red-500', props.variant === 'warning' && 'text-yellow-500', props.variant === 'info' && 'text-blue-500')}>
-      {props.variant === 'success' && <Icon><circle cx="128" cy="128" r="96" /><polyline points="172 104 113.3 160 84 132" /></Icon>}
-      {(props.variant === 'error' || props.variant === 'danger') && <Icon><circle cx="128" cy="128" r="96" /><line x1="96" y1="96" x2="160" y2="160" /><line x1="160" y1="96" x2="96" y2="160" /></Icon>}
-      {props.variant === 'warning' && <Icon><path d="M114.2 40 26.6 192a16 16 0 0 0 13.9 24h175a16 16 0 0 0 13.9-24L141.8 40a16 16 0 0 0-27.6 0Z" /><line x1="128" y1="104" x2="128" y2="144" /><circle cx="128" cy="180" r="8" fill="currentColor" stroke="none" /></Icon>}
-      {props.variant === 'info' && <Icon><circle cx="128" cy="128" r="96" /><line x1="128" y1="112" x2="128" y2="176" /><circle cx="128" cy="80" r="8" fill="currentColor" stroke="none" /></Icon>}
-    </span>
+    <div class={classes('flex-shrink-0 w-5 h-5', iconColor[props.variant])}>
+      {props.variant === 'success' && <Icon><polyline points="88 136 112 160 168 104" {...stroke} /><circle cx="128" cy="128" r="96" {...stroke} /></Icon>}
+      {(props.variant === 'error' || props.variant === 'danger') && <Icon><line x1="160" y1="96" x2="96" y2="160" {...stroke} /><line x1="96" y1="96" x2="160" y2="160" {...stroke} /><circle cx="128" cy="128" r="96" {...stroke} /></Icon>}
+      {props.variant === 'warning' && <Icon><path d="M142.41,40.22l87.46,151.87C236,202.79,228.08,216,215.46,216H40.54C27.92,216,20,202.79,26.13,192.09L113.59,40.22C119.89,29.26,136.11,29.26,142.41,40.22Z" {...stroke} /><line x1="128" y1="144" x2="128" y2="104" {...stroke} /><circle cx="128" cy="180" r="12" fill="currentColor" /></Icon>}
+      {props.variant === 'info' && <Icon><circle cx="128" cy="128" r="96" {...stroke} /><path d="M120,120a8,8,0,0,1,8,8v40a8,8,0,0,0,8,8" {...stroke} /><circle cx="124" cy="84" r="12" fill="currentColor" /></Icon>}
+    </div>
   )
 }
 
 function CloseIcon() {
-  return <Icon><line x1="64" y1="64" x2="192" y2="192" /><line x1="192" y1="64" x2="64" y2="192" /></Icon>
+  return <Icon><line x1="200" y1="56" x2="56" y2="200" {...stroke} fill="currentColor" /><line x1="200" y1="200" x2="56" y2="56" {...stroke} fill="currentColor" /></Icon>
 }
 
 export interface ToastProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, 'title'> {
   variant?: ToastVariant
   title?: JSX.Element
   message?: JSX.Element
+  /** Milliseconds before the toast closes itself; 0 keeps it until dismissed. With `action` at least 8000. */
   duration?: number
   closeLabel?: string
+  action?: ToastAction
   onDismiss?: () => void
 }
 
@@ -43,6 +84,8 @@ export interface ToastNotification {
   message?: JSX.Element
   duration?: number
   closeLabel?: string
+  /** With an action the toast stays at least 8000 ms and pauses while hovered or focused. */
+  action?: ToastAction
 }
 
 export interface ToastController {
@@ -94,42 +137,77 @@ export function ToastProvider(props: ToastProviderProps) {
       owner.removeEventListener(local.removeEvent ?? 'remove-notification', remove)
     })
   })
-  return <ToastContext.Provider value={controller}>{local.children}<ToastRegion {...regionProps} ref={region}><For each={notifications()}>{(notification) => <Toast variant={notification.variant} title={notification.title} message={notification.message} duration={notification.duration ?? local.defaultDuration} closeLabel={notification.closeLabel} onDismiss={() => controller.remove(notification.id)} />}</For></ToastRegion></ToastContext.Provider>
+  return <ToastContext.Provider value={controller}>{local.children}<ToastRegion {...regionProps} ref={region}><For each={notifications()}>{(notification) => <Toast variant={notification.variant} title={notification.title} message={notification.message} duration={notification.duration ?? local.defaultDuration} closeLabel={notification.closeLabel} action={notification.action} onDismiss={() => controller.remove(notification.id)} />}</For></ToastRegion></ToastContext.Provider>
 }
 
 export const ToastContainer = ToastProvider
 
+/** Effective auto-dismiss delay: 0 never dismisses, an action keeps the toast at least 8 s. */
+export function toastDuration(duration: number | undefined, hasAction: boolean): number {
+  const base = duration ?? DEFAULT_DURATION
+  if (base <= 0) return 0
+  return hasAction ? Math.max(base, TOAST_ACTION_MIN_DURATION) : base
+}
+
 export function Toast(props: ToastProps) {
-  const [local, native] = splitProps(props, ['variant', 'title', 'message', 'duration', 'closeLabel', 'onDismiss', 'class', 'children', 'onMouseEnter', 'onMouseLeave'])
+  const [local, native] = splitProps(props, ['variant', 'title', 'message', 'duration', 'closeLabel', 'action', 'onDismiss', 'class', 'children', 'onMouseEnter', 'onMouseLeave', 'onFocusIn', 'onFocusOut'])
   const variant = () => local.variant ?? 'info'
-  const [remaining, setRemaining] = createSignal(local.duration ?? 8000)
+  const polite = () => variant() === 'success' || variant() === 'info'
+  let remaining = toastDuration(local.duration, Boolean(local.action))
   let timer: ReturnType<typeof setTimeout> | undefined
   let started = 0
-  const clear = () => { if (timer !== undefined) clearTimeout(timer); timer = undefined }
-  const start = () => {
+  let hovered = false
+  let focused = false
+  let dismissed = false
+  const dismiss = () => {
+    if (dismissed) return
+    dismissed = true
     clear()
-    if (remaining() <= 0) return
-    started = Date.now()
-    timer = setTimeout(() => local.onDismiss?.(), remaining())
+    local.onDismiss?.()
   }
-  const pause = () => { if (timer !== undefined) setRemaining(Math.max(0, remaining() - (Date.now() - started))); clear() }
-  onMount(start)
+  const clear = () => { if (timer !== undefined) clearTimeout(timer); timer = undefined }
+  const sync = () => {
+    if (hovered || focused) {
+      if (timer !== undefined) remaining = Math.max(0, remaining - (Date.now() - started))
+      clear()
+      return
+    }
+    if (timer !== undefined || remaining <= 0 || dismissed) return
+    started = Date.now()
+    timer = setTimeout(dismiss, remaining)
+  }
+  onMount(sync)
   onCleanup(clear)
+  const runAction = () => {
+    const action = local.action
+    if (!action || dismissed) return
+    try {
+      void action.onAction()
+    } finally {
+      dismiss()
+    }
+  }
   return (
     <div
       {...native}
       class={classes('pointer-events-auto', local.class)}
-      onMouseEnter={(event) => { pause(); if (typeof local.onMouseEnter === 'function') local.onMouseEnter(event) }}
-      onMouseLeave={(event) => { start(); if (typeof local.onMouseLeave === 'function') local.onMouseLeave(event) }}
+      onMouseEnter={(event) => { hovered = true; sync(); if (typeof local.onMouseEnter === 'function') local.onMouseEnter(event) }}
+      onMouseLeave={(event) => { hovered = false; sync(); if (typeof local.onMouseLeave === 'function') local.onMouseLeave(event) }}
+      onFocusIn={(event) => { focused = true; sync(); if (typeof local.onFocusIn === 'function') local.onFocusIn(event) }}
+      onFocusOut={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { focused = false; sync() }
+        if (typeof local.onFocusOut === 'function') local.onFocusOut(event)
+      }}
     >
-      <div class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle" role={variant() === 'success' || variant() === 'info' ? 'status' : 'alert'}>
-        <div class="flex-shrink-0 w-5 h-5"><ToastIcon variant={variant()} /></div>
+      <div class={surfaceClass} role={polite() ? 'status' : 'alert'} aria-live={polite() ? 'polite' : undefined} data-toast data-variant={variant()}>
+        <ToastIcon variant={variant()} />
         <div class="flex-1 min-w-0">
-          {local.title && <p class="text-sm font-semibold text-neutral-900 dark:text-white">{local.title}</p>}
-          {local.message && <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">{local.message}</p>}
+          {local.title && <p class="text-sm font-semibold text-100">{local.title}</p>}
+          {local.message && <p class="text-sm text-200 mt-1">{local.message}</p>}
           {local.children}
         </div>
-        <button type="button" class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors" aria-label={local.closeLabel ?? 'Close notification'} onClick={() => local.onDismiss?.()}><CloseIcon /></button>
+        {local.action && <button type="button" class={actionClass} data-toast-action onClick={runAction}>{local.action.label}</button>}
+        <button type="button" class={closeClass} aria-label={local.closeLabel ?? 'Close notification'} onClick={dismiss}><CloseIcon /></button>
       </div>
     </div>
   )

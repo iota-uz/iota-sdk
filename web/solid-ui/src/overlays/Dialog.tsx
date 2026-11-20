@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, splitProps, type JSX } from 'solid-js'
+import { createContext, createEffect, createSignal, onCleanup, onMount, Show, splitProps, useContext, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { Button } from '../forms/Button'
 
@@ -9,7 +9,60 @@ export interface DialogProps extends Omit<JSX.DialogHtmlAttributes<HTMLDialogEle
   onEscape?: () => void
   initialFocus?: () => HTMLElement | undefined
   canonicalClass?: string
+  /**
+   * A request started from the layer is running. Every close (✕, Esc, backdrop,
+   * Cancel) is ignored, the content marked `data-dialog-body` is dimmed and the
+   * layer carries `aria-busy="true"`. A close attempt shows `busyMessage`.
+   */
+  busy?: boolean
+  /** Status line shown when someone tries to close a busy layer. */
+  busyMessage?: JSX.Element
+  /** Clicking outside the panel (the backdrop) closes the layer, as in the templ dialog. Default true. */
+  dismissOnBackdrop?: boolean
 }
+
+export const DEFAULT_BUSY_MESSAGE = 'Please wait: the request is still running and will not be sent twice.'
+
+export interface DialogControl {
+  /** True while the layer is busy. */
+  busy(): boolean
+  /** True after a close was refused because the layer is busy; resets when busy clears. */
+  closeRefused(): boolean
+  busyMessage(): JSX.Element
+  /** Closes the layer unless it is busy; returns whether it closed. */
+  requestClose(): boolean
+  /** @internal the status line registers itself so the dialog does not render a second one. */
+  registerStatus(): () => void
+}
+
+const DialogContext = createContext<DialogControl>()
+
+/** Close control of the enclosing Dialog/Drawer, for custom close buttons inside it. */
+export function useDialog(): DialogControl | undefined {
+  return useContext(DialogContext)
+}
+
+/**
+ * Reserved status line (`role="status"`) that explains why a busy layer did not
+ * close. Place it above the layer's buttons; its height is reserved so the
+ * layout does not shift. A Dialog without one renders it after its content.
+ */
+export function DialogBusyStatus(props: { class?: string }) {
+  return <BusyStatusLine class={props.class} register />
+}
+
+function BusyStatusLine(props: { class?: string; register?: boolean }) {
+  const control = useDialog()
+  if (control && props.register) onCleanup(control.registerStatus())
+  const visible = () => Boolean(control?.busy() && control.closeRefused())
+  return (
+    <p role="status" class={classes('flex min-h-5 items-center gap-2 text-sm text-200', props.class)} data-dialog-busy-status>
+      <Show when={visible()}><span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />{control?.busyMessage()}</Show>
+    </p>
+  )
+}
+
+const busyClass = '[&[data-busy]_[data-dialog-body]]:opacity-80 [&[data-busy]_[data-dialog-body]]:pointer-events-none'
 
 const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
@@ -22,14 +75,36 @@ function compactViewport(element: HTMLElement) {
 }
 
 export function Dialog(props: DialogProps) {
-  const [local, native] = splitProps(props, ['open', 'defaultOpen', 'onOpenChange', 'onEscape', 'initialFocus', 'canonicalClass', 'class', 'children', 'ref', 'onKeyDown'])
+  const [local, native] = splitProps(props, ['open', 'defaultOpen', 'onOpenChange', 'onEscape', 'initialFocus', 'canonicalClass', 'busy', 'busyMessage', 'dismissOnBackdrop', 'class', 'children', 'ref', 'onKeyDown', 'onPointerDown', 'onClick'])
   const [internal, setInternal] = createSignal(local.defaultOpen ?? false)
+  const [closeRefused, setCloseRefused] = createSignal(false)
+  const [statusSlots, setStatusSlots] = createSignal(0)
   const expanded = () => local.open ?? internal()
+  const busy = () => Boolean(local.busy)
   let element!: HTMLDialogElement
   let restoreFocus: HTMLElement | null = null
+  let backdropPress = false
   const setOpen = (open: boolean) => {
     if (local.open === undefined) setInternal(open)
     local.onOpenChange?.(open)
+  }
+  createEffect(() => { if (!busy()) setCloseRefused(false) })
+  // Every close path goes through here, so a busy layer refuses all of them alike.
+  const requestClose = (onClosing?: () => void) => {
+    if (busy()) { setCloseRefused(true); return false }
+    onClosing?.()
+    setOpen(false)
+    return true
+  }
+  const control: DialogControl = {
+    busy,
+    closeRefused,
+    busyMessage: () => local.busyMessage ?? DEFAULT_BUSY_MESSAGE,
+    requestClose: () => requestClose(),
+    registerStatus: () => {
+      setStatusSlots((count) => count + 1)
+      return () => setStatusSlots((count) => count - 1)
+    },
   }
   const sync = () => {
     if (!element) return
@@ -63,8 +138,7 @@ export function Dialog(props: DialogProps) {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       event.preventDefault()
-      local.onEscape?.()
-      setOpen(false)
+      requestClose(local.onEscape)
     } else if (event.key === 'Tab') {
       const focusable = Array.from(element.querySelectorAll<HTMLElement>(focusableSelector))
       const first = focusable[0]
@@ -79,16 +153,37 @@ export function Dialog(props: DialogProps) {
     <dialog
       {...native}
       ref={(node) => { element = node; if (typeof local.ref === 'function') local.ref(node) }}
-      class={classes(local.canonicalClass ?? 'dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg', local.class)}
+      class={classes(local.canonicalClass ?? 'dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg', busyClass, local.class)}
       aria-modal="true"
-      onCancel={(event) => { event.preventDefault(); local.onEscape?.(); setOpen(false) }}
+      aria-busy={busy() || undefined}
+      data-busy={busy() || undefined}
+      onCancel={(event) => { event.preventDefault(); requestClose(local.onEscape) }}
       onClose={() => {
         if (!expanded()) return
-        setOpen(false)
+        // A native close (form method="dialog") of a busy layer is undone by sync().
+        if (!busy()) setOpen(false)
+        else setCloseRefused(true)
         queueMicrotask(() => { if (element.isConnected) sync() })
       }}
+      onPointerDown={(event) => {
+        backdropPress = event.target === element
+        if (typeof local.onPointerDown === 'function') local.onPointerDown(event)
+      }}
+      onClick={(event) => {
+        // Only a press that started and ended on the backdrop (the dialog element
+        // itself, outside its panel) dismisses; a drag out of a field does not.
+        const fromBackdrop = backdropPress && event.target === element
+        backdropPress = false
+        if (fromBackdrop && local.dismissOnBackdrop !== false) requestClose()
+        if (typeof local.onClick === 'function') local.onClick(event)
+      }}
       onKeyDown={onKeyDown}
-    >{local.children}</dialog>
+    >
+      <DialogContext.Provider value={control}>
+        {local.children}
+        <Show when={local.busy !== undefined && statusSlots() === 0}><BusyStatusLine class="px-4 pb-3" /></Show>
+      </DialogContext.Provider>
+    </dialog>
   )
 }
 
@@ -106,6 +201,10 @@ export interface ConfirmationDialogProps extends DialogProps {
   /** Renders the confirm button as destructive. */
   danger?: boolean
   onCancel?: () => void
+  /**
+   * Runs on confirm. When it sets `busy` (the request started), the dialog stays
+   * open with the confirm button loading; the owner closes it when the request ends.
+   */
   onConfirm?: () => void
 }
 
@@ -117,26 +216,46 @@ export function ConfirmationDialog(props: ConfirmationDialogProps) {
     if (local.open === undefined) setInternal(open)
     local.onOpenChange?.(open)
   }
-  const close = () => setOpen(false)
   return (
     <div>
       <Dialog {...dialogProps} open={expanded()} onOpenChange={setOpen}>
-        <form method="dialog">
-          <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
-            <h3 class="font-medium" data-dialog-title tabindex="-1">{local.heading}</h3>
-            <button type="button" value="cancel" class="drawer-close" aria-label={local.closeLabel ?? 'Close'} onClick={() => { local.onCancel?.(); close() }}><CloseIcon /></button>
-          </header>
-          <article class="py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36">
-            {local.icon && <div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">{local.icon}</div>}
-            {local.text && <p class="text-center">{local.text}</p>}
-            {local.children}
-          </article>
-          <footer class="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><menu class="flex flex-col-reverse gap-3 sm:flex-row">
-            <Button type="button" variant="secondary" class="min-h-11 flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" onClick={(event) => { event.preventDefault(); local.onCancel?.(); close() }}>{local.cancelText ?? 'Cancel'}</Button>
-            <Button type="button" variant={local.danger ? 'danger' : 'primary'} class="min-h-11 flex-1 justify-center" value="confirm" data-test-id="dialog-confirm-btn" onClick={(event) => { event.preventDefault(); local.onConfirm?.(); close() }}>{local.confirmText ?? 'Confirm'}</Button>
-          </menu></footer>
-        </form>
+        <ConfirmationBody {...local} busy={Boolean(dialogProps.busy)} reserveStatus={dialogProps.busy !== undefined} />
       </Dialog>
     </div>
+  )
+}
+
+function ConfirmationBody(props: Pick<ConfirmationDialogProps, 'heading' | 'text' | 'icon' | 'cancelText' | 'confirmText' | 'closeLabel' | 'danger' | 'onCancel' | 'onConfirm' | 'children'> & { busy: boolean; reserveStatus: boolean }) {
+  const dialog = useDialog()!
+  const cancel = () => {
+    if (dialog.busy()) { dialog.requestClose(); return }
+    props.onCancel?.()
+    dialog.requestClose()
+  }
+  const confirm = () => {
+    if (dialog.busy()) return
+    props.onConfirm?.()
+    // onConfirm may have started a request and turned the dialog busy: keep it open then.
+    if (!dialog.busy()) dialog.requestClose()
+  }
+  return (
+    <form method="dialog">
+      <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
+        <h3 class="font-medium" data-dialog-title tabindex="-1">{props.heading}</h3>
+        <button type="button" value="cancel" class="drawer-close" aria-label={props.closeLabel ?? 'Close'} onClick={cancel}><CloseIcon /></button>
+      </header>
+      <article class="py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36" data-dialog-body>
+        {props.icon && <div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">{props.icon}</div>}
+        {props.text && <p class="text-center">{props.text}</p>}
+        {props.children}
+      </article>
+      <footer class="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {props.reserveStatus && <DialogBusyStatus class="mb-2 -mt-1" />}
+        <menu class="flex flex-col-reverse gap-3 sm:flex-row">
+          <Button type="button" variant="secondary" class="min-h-11 flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" aria-disabled={props.busy || undefined} onClick={(event) => { event.preventDefault(); cancel() }}>{props.cancelText ?? 'Cancel'}</Button>
+          <Button type="button" variant={props.danger ? 'danger' : 'primary'} class="min-h-11 flex-1 justify-center" value="confirm" data-test-id="dialog-confirm-btn" loading={props.busy} onClick={(event) => { event.preventDefault(); confirm() }}>{props.confirmText ?? 'Confirm'}</Button>
+        </menu>
+      </footer>
+    </form>
   )
 }

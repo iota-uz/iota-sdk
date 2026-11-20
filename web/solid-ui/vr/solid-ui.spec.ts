@@ -1,5 +1,6 @@
-import { openComponentCase } from '@iota-uz/sdk/testing'
+import { expectNoA11yViolations, openComponentCase } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
+import type { SpecimenID } from '../src/catalog'
 import { galleryCase, galleryCases, galleryHost, type GalleryCase } from './gallery.host'
 
 async function open(page: Page, c: GalleryCase): Promise<void> {
@@ -8,6 +9,13 @@ async function open(page: Page, c: GalleryCase): Promise<void> {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
   // Park the pointer unless the case is the hover state the host just applied.
   if (c.state !== 'hover') await page.mouse.move(0, 0)
+}
+
+/** Finishes enter transitions so geometry and contrast are read on settled pixels (spinners keep running). */
+async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(() => document.getAnimations().forEach((animation) => {
+    if (Number.isFinite(animation.effect?.getComputedTiming().endTime ?? Number.POSITIVE_INFINITY)) animation.finish()
+  }))
 }
 
 for (const c of galleryCases) {
@@ -59,9 +67,58 @@ test.describe('interaction and accessibility contracts', () => {
     await expect(page.getByRole('heading', { name: 'Delete insurance product?' })).toBeVisible()
 
     await open(page, galleryCase('toasts', 'open', 'light'))
-    await expect(page.getByRole('status')).toHaveCount(1)
+    await expect(page.getByRole('status')).toHaveCount(2)
     await expect(page.getByRole('alert')).toHaveCount(2)
+    await expect(page.getByRole('status').first()).toHaveAttribute('aria-live', 'polite')
+    await expect(page.locator('[data-toast-region]')).not.toHaveAttribute('aria-live', /.*/)
+    await expect(page.getByRole('button', { name: 'Undo' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
+
+  test('phone toasts span the width minus gutters and stay above the fixed bottom bar', async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      await open(page, galleryCase('toasts', 'open', theme, 'mobile'))
+      const bar = await page.locator('[data-vr-target="toast-bottom-bar"]').boundingBox()
+      const toasts = page.locator('[data-toast]')
+      await expect(toasts).toHaveCount(4)
+      for (const box of await toasts.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().toJSON() as DOMRect))) {
+        expect(box.x).toBe(12)
+        expect(box.width).toBe(390 - 24)
+        expect(box.y + box.height).toBeLessThanOrEqual(bar!.y)
+      }
+    }
+  })
+
+  test('busy layers refuse to close and explain why', async ({ page }) => {
+    for (const specimen of ['dialog', 'drawer'] as const) {
+      await open(page, galleryCase(specimen, 'busy', 'light'))
+      const dialog = page.getByRole('dialog')
+      await expect(dialog).toHaveAttribute('aria-busy', 'true')
+      await expect(page.getByRole('status')).toContainText('will not be sent twice')
+      await settleAnimations(page)
+      const before = await page.locator('[data-dialog-busy-status]').boundingBox()
+      await page.getByRole('button', { name: 'Close' }).click()
+      await page.keyboard.press('Escape')
+      await expect(dialog).toBeVisible()
+      expect(await page.locator('[data-dialog-busy-status]').boundingBox()).toEqual(before)
+    }
+  })
+})
+
+// Specimens whose every state, theme and viewport must have 0 serious/critical
+// axe violations. The other specimens still carry contrast debt in shared
+// tokens (form labels, badges, outline/danger buttons in dark) and menu/combobox
+// ARIA gaps; each joins this list once its debt is fixed.
+const axeCleanSpecimens: readonly SpecimenID[] = ['gallery-shell', 'toasts', 'dialog', 'drawer']
+
+test.describe('accessibility', () => {
+  for (const c of galleryCases.filter(item => axeCleanSpecimens.includes(item.specimen))) {
+    test(`axe ${c.id}`, async ({ page }) => {
+      await open(page, c)
+      await settleAnimations(page)
+      await expectNoA11yViolations(page)
+    })
+  }
 
   test('selection controls expose combobox, listbox, and calendar semantics', async ({ page }) => {
     await open(page, galleryCase('selection', 'default', 'light'))

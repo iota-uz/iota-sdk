@@ -1,6 +1,7 @@
-import { access, lstat, readFile, readdir } from 'node:fs/promises'
+import { access, cp, lstat, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const packageJSON = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
@@ -41,6 +42,9 @@ if (!packageJSON.peerDependencies?.esbuild || packageJSON.peerDependenciesMeta?.
 }
 if (packageJSON.peerDependencies?.react || packageJSON.peerDependencies?.['react-dom']) {
   throw new Error('React must not be a public runtime dependency')
+}
+if (!packageJSON.peerDependencies?.['@axe-core/playwright'] || packageJSON.peerDependenciesMeta?.['@axe-core/playwright']?.optional !== true) {
+  throw new Error('@axe-core/playwright must be an optional peer dependency of the testing subpath')
 }
 if (!packageJSON.peerDependencies?.['solid-js']) {
   throw new Error('Solid must be a peer dependency')
@@ -170,4 +174,29 @@ if (identity.releaseVersion !== packageJSON.version) {
 }
 if (!/^[0-9a-f]{40}$/.test(identity.sourceCommit)) {
   throw new Error('generated SDK identity does not contain a full commit SHA')
+}
+
+// The testing subpath loads without the optional axe peer, and its helper names
+// the package to install. A copy outside every node_modules tree proves it.
+{
+  const isolated = await mkdtemp(path.join(os.tmpdir(), 'iota-sdk-testing-'))
+  try {
+    await cp(path.join(root, 'dist/testing'), isolated, { recursive: true })
+    await cp(path.join(root, 'package.json'), path.join(isolated, 'package.json'))
+    const testing = await import(pathToFileURL(path.join(isolated, 'index.js')).href)
+    if (typeof testing.expectNoA11yViolations !== 'function') {
+      throw new Error('@iota-uz/sdk/testing must export expectNoA11yViolations')
+    }
+    // The helper also looks for the peer from the working directory (the test
+    // project); run it from the isolated copy so no workspace install is found.
+    const previous = process.cwd()
+    process.chdir(isolated)
+    const failure = await testing.expectNoA11yViolations({}).then(() => undefined, (error) => error)
+    process.chdir(previous)
+    if (!(failure instanceof testing.A11yDependencyError) || !failure.message.includes('@axe-core/playwright')) {
+      throw new Error(`expectNoA11yViolations without @axe-core/playwright must name the missing package, got: ${failure?.message ?? 'success'}`)
+    }
+  } finally {
+    await rm(isolated, { recursive: true, force: true })
+  }
 }

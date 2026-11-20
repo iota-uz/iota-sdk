@@ -373,3 +373,22 @@ func TestToastSuccessAndRefresh_CombinesEventsInOneHeader(t *testing.T) {
 	assert.Equal(t, `Запись "A" обновлена`, got.Notify.Message)
 	assert.Equal(t, []string{"#orders-table"}, got.Refresh.Targets)
 }
+
+// The action travels in the notify detail the toast container reads; a toast
+// without an action keeps the old payload (no "action" key).
+func TestTriggerToastWithAction_CarriesTheAction(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	TriggerToastWithAction(rec, ToastVariantSuccess, "Удалено", "Строка удалена", ToastAction{Label: "Отменить", HxPost: "/rows/42/restore"})
+	value := headerOnWire(t, rec, "Hx-Trigger")
+	requireASCII(t, value)
+	detail := decodeToast(t, value)
+	require.NotNil(t, detail.Action)
+	assert.Equal(t, ToastAction{Label: "Отменить", HxPost: "/rows/42/restore"}, *detail.Action)
+	assert.NotContains(t, value, `"href"`)
+
+	plain := httptest.NewRecorder()
+	ToastSuccess(plain, "Saved", "")
+	assert.NotContains(t, headerOnWire(t, plain, "Hx-Trigger"), `"action"`)
+}

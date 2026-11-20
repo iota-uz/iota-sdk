@@ -214,22 +214,37 @@ const (
 	ToastVariantInfo    ToastVariant = "info"
 )
 
+// ToastAction is the single verb a toast offers ("Undo", "Retry"). Label is
+// the localized verb; set exactly one of HxPost (posted through HTMX without a
+// swap, so the response's HX-Trigger events still run) or Href (a link).
+type ToastAction struct {
+	Label  string `json:"label"`
+	HxPost string `json:"hxPost,omitempty"`
+	Href   string `json:"href,omitempty"`
+}
+
 type toastDetail struct {
 	Variant ToastVariant `json:"variant"`
 	Title   string       `json:"title"`
 	Message string       `json:"message"`
+	Action  *ToastAction `json:"action,omitempty"`
 }
 
 // toastPayload marshals the toast detail so that quotes, backslashes and control
 // characters in a title or message stay valid JSON instead of breaking the
 // client-side parse.
 func toastPayload(variant ToastVariant, title, message string) string {
+	return toastPayloadWithAction(variant, title, message, nil)
+}
+
+func toastPayloadWithAction(variant ToastVariant, title, message string, action *ToastAction) string {
 	// Fall back to an empty detail, which degrades to the bare event, if
 	// marshalling fails.
 	detail, err := json.Marshal(toastDetail{
 		Variant: variant,
 		Title:   title,
 		Message: message,
+		Action:  action,
 	})
 	if err != nil {
 		return ""
@@ -241,6 +256,13 @@ func toastPayload(variant ToastVariant, title, message string) string {
 // This uses the HX-Trigger header to dispatch a 'notify' event that the toast container listens for.
 func TriggerToast(w http.ResponseWriter, variant ToastVariant, title, message string) {
 	SetTrigger(w, "notify", toastPayload(variant, title, message))
+}
+
+// TriggerToastWithAction triggers a toast with one action button, for example
+// "Undo" after a reversible change or "Retry" after a failure. The toast stays
+// at least 8 seconds and pauses while hovered or focused.
+func TriggerToastWithAction(w http.ResponseWriter, variant ToastVariant, title, message string, action ToastAction) {
+	SetTrigger(w, "notify", toastPayloadWithAction(variant, title, message, &action))
 }
 
 // TriggerToastAfterSwap triggers a toast notification after the swap step.
