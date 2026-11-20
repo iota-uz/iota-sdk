@@ -973,6 +973,11 @@ This subsection states the target decision; the implementation is reported by th
   `automation.call`) on this engine. It has no claim loop, lease, heartbeat or task store of its own.
   Tables and the scheduler are still one: one engine runs in the process, and the package runtime attaches its executor
   to that same engine instead of building another.
+* **Go-only operation.** Native contracts, their engine and the Go host work with the runtime disabled
+  (`EXTRUNTIME_ENABLED=false`) and without the Node pool or the `@iota-uz/sdk` distribution: the engine is built by the
+  Go-only core, the host runs native commands, operations and queries, and a package export called without a pool fails as
+  unavailable (a package instance in such a process is `blocked`, unavailable). When the runtime is enabled, it does not
+  create a second engine: it attaches the package executor to the engine the core already built.
 * **Events without Node.** The event catalog (`native.Event`), the outbox and the dispatcher belong to the always-on Go
   core: they run without Node and without `EXTRUNTIME_ENABLED`. The dispatcher is one per process; Go consumers register
   with it on equal terms with package subscriptions, which are one source of consumers among others. Each delivery stays

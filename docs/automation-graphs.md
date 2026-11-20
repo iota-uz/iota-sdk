@@ -154,14 +154,19 @@ A node with an external effect executes in three steps:
    outcome and moves the token.
 
 If a process dies after the intent and an attempt may have executed, the next attempt is
-told so (`attempt > 1`). A non-idempotent node then ends in the outcome
-`outcome_unknown`, which the graph handles explicitly; it is never silently retried.
+told so (`attempt > 1`). For a non-idempotent node the
+attempt is ambiguous, so the engine does not repeat it. The call ends on the node's
+`failed` outcome, and the failure carries the error code `outcome_unknown`; there is no
+separate `outcome_unknown` edge. A graph that wires `failed` can branch on that code. If
+`failed` is not wired, the child `automation.call` instance and the run block, and an
+operator resolves or retries them through the engine's management API.
 
 ### Retries
 
 The engine retries only nodes that declare themselves idempotent (same key on every
-attempt) and calls that answer 429 with a `RetryAfter` inside the deadline. Everything
-else fails or ends in `outcome_unknown`.
+attempt) and calls that answer 429 with a recorded `RetryAfter` inside the deadline. A recorded 429
+is a known refusal, so it is safe to retry; an ambiguous attempt (see above) is not.
+Everything else fails, or fails with `outcome_unknown`.
 
 ### Lock order
 
@@ -187,16 +192,20 @@ finishes; later host calls are rejected.
 ### Versions and `StartV2`
 
 A published version never changes. Editing creates a new version. A run keeps the version
-it started on. `StartV2` starts a new instance on a newer version with `predecessor_id`
-set, so history stays linked (same rule as workflow start-v2 in the extension runtime).
+it started on. `StartV2` (restart) starts a new instance on the version the caller selects, with
+`predecessor_id` set so history stays linked. It does not require the target to be newer
+(same rule as workflow start-v2 in the extension runtime).
 
 ### Run-as
 
 Run-as is a property of the graph: `owner` (default) or `initiator`. `owner` runs as the
-graph's owner. `initiator` runs as the user who caused the event, with their
+human who last enabled the graph; that identity is stored as the trigger owner
+(`trigger_owners`) and changes only when a human enables the graph again. `initiator` runs as the user who caused the event, with their
 current permissions, and falls back to the owner when the event has no initiator. A
 blocked or deleted subject blocks the run; it does not silently run with different rights.
-Each run loads the subject's current permissions.
+The subject's permissions are reloaded on every step, not once per run, so a long-running
+run honors permission changes made while it waits; a subject that lost the right blocks
+the run.
 
 ## 6. Triggers and the event catalog
 
@@ -260,7 +269,7 @@ The Code node lets an author write a TypeScript function that runs in the kafig 
   direct network, file or process access.
 - Secrets are masked in logs and outputs.
 - Before a graph that contains a Code node is enabled, a human sees its code and the
-  secrets it can reach. Enabling is a human-only action (§8).
+  names of the secrets it can reach (never their values). Enabling is a human-only action (§8).
 
 **Open item:** type checking of TypeScript in the editor was a proposal before this ADR. It is not decided here and remains open.
 
