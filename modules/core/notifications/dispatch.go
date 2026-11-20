@@ -55,6 +55,9 @@ type DispatchSummary struct {
 
 type DispatchRepository interface {
 	Enqueue(context.Context, DispatchRequest) (DispatchJob, error)
+	// Find returns the job stored for an event key and dedupe identity in the
+	// current tenant; found is false when there is none.
+	Find(ctx context.Context, eventKey, eventID string) (job DispatchJob, found bool, err error)
 	Next(context.Context) (*DispatchJob, error)
 	Advance(context.Context, uuid.UUID, int, int) error
 	Fail(context.Context, uuid.UUID) error

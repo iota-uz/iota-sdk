@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -33,15 +34,12 @@ type RecipientDirectory interface {
 	GetByIDs(ctx context.Context, ids []uint) ([]Recipient, error)
 }
 
-// AudienceKind names the part of an audience a skipped member came from.
-type AudienceKind string
-
+// Kinds that only appear in SkippedRecipient: audience members that expand
+// to users and are never recipients of a delivery themselves.
 const (
-	AudienceUser        AudienceKind = "user"
-	AudienceGroup       AudienceKind = "group"
-	AudienceRole        AudienceKind = "role"
-	AudienceParticipant AudienceKind = "participant"
-	AudienceRecord      AudienceKind = "record"
+	RecipientGroup       RecipientKind = "group"
+	RecipientRole        RecipientKind = "role"
+	RecipientParticipant RecipientKind = "participant"
 )
 
 // ErrInvalidAudience marks an audience the caller must fix: an invalid record
@@ -67,15 +65,16 @@ type AudienceResolver struct {
 	contacts *ContactResolvers
 }
 
-// NewAudienceResolver builds a resolver. users may be nil when the caller has
-// already filtered Audience.Users (a rule filters them through its directory);
+// NewAudienceResolver builds a resolver. users may be nil to keep named and
+// participant users unchecked until delivery, as event rules do (they filter
+// named users through their directory);
 // contacts may be nil when no records are resolved.
 func NewAudienceResolver(catalog *Catalog, groups AudienceRepository, users AudienceUsers, contacts *ContactResolvers) *AudienceResolver {
 	return &AudienceResolver{catalog: catalog, groups: groups, users: users, contacts: contacts}
 }
 
 // Resolve expands the audience. Participants are resolved from the definition
-// of source. Unknown groups, roles and participants, unavailable users and
+// of source; a source must be registered and belong to the context's tenant. Unknown groups, roles and participants, unavailable users and
 // records without a contact resolver are reported in Skipped; malformed input
 // returns an error wrapping ErrInvalidAudience. User IDs keep the order users,
 // groups and roles, participants; repository errors are returned unchanged.
@@ -88,10 +87,10 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 		return ResolvedAudience{}, err
 	}
 	var definition Definition
-	if len(audience.Participants) > 0 {
-		if source == nil {
-			return invalid("participants need a source event")
-		}
+	if len(audience.Participants) > 0 && source == nil {
+		return invalid("participants need a source event")
+	}
+	if source != nil {
 		normalized, err := r.catalog.Normalize(*source)
 		if err != nil {
 			return invalid("unknown source event")
@@ -103,7 +102,7 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 		definition, _ = r.catalog.For(normalized)
 	}
 	result := ResolvedAudience{}
-	skip := func(kind AudienceKind, ref, reason string) {
+	skip := func(kind RecipientKind, ref, reason string) {
 		result.Skipped = append(result.Skipped, SkippedRecipient{Kind: kind, Ref: ref, Reason: reason})
 	}
 	seenUsers := map[uint]bool{}
@@ -130,12 +129,14 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 			named = append(named, a.UserID)
 		case RecipientRecord:
 			if _, ok := r.contacts.Lookup(a.Record.Entity); !ok {
-				skip(AudienceRecord, a.Record.Entity+"/"+a.Record.Key, SkipNoContactResolver)
+				skip(RecipientRecord, a.Record.Entity+"/"+a.Record.Key, SkipNoContactResolver)
 				continue
 			}
 			result.Addressees = append(result.Addressees, a)
 		case RecipientAddress:
 			result.Addressees = append(result.Addressees, a)
+		case RecipientGroup, RecipientRole, RecipientParticipant:
+			// Validate rejects these kinds above.
 		}
 	}
 	available, err := r.availableUsers(ctx, tenant, named, skip)
@@ -170,11 +171,17 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 			if err != nil {
 				return ResolvedAudience{}, err
 			}
+			// A participant callback may name anyone: drop missing, foreign
+			// and unavailable users like named ones.
+			ids, err = r.availableUsers(ctx, tenant, slices.DeleteFunc(slices.Clone(ids), func(id uint) bool { return id == 0 || seenUsers[id] }), skip)
+			if err != nil {
+				return ResolvedAudience{}, err
+			}
 			addUsers(ids)
 			break
 		}
 		if !found {
-			skip(AudienceParticipant, key, SkipUnknownParticipant)
+			skip(RecipientParticipant, key, SkipUnknownParticipant)
 		}
 	}
 	return result, nil
@@ -182,7 +189,7 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 
 // availableUsers keeps the users that exist in the tenant and can receive
 // notifications, in request order.
-func (r *AudienceResolver) availableUsers(ctx context.Context, tenant uuid.UUID, ids []uint, skip func(AudienceKind, string, string)) ([]uint, error) {
+func (r *AudienceResolver) availableUsers(ctx context.Context, tenant uuid.UUID, ids []uint, skip func(RecipientKind, string, string)) ([]uint, error) {
 	if r.users == nil || len(ids) == 0 {
 		return ids, nil
 	}
@@ -199,9 +206,9 @@ func (r *AudienceResolver) availableUsers(ctx context.Context, tenant uuid.UUID,
 		u, ok := found[id]
 		switch {
 		case !ok || u.TenantID() != tenant:
-			skip(AudienceUser, strconv.FormatUint(uint64(id), 10), SkipNotFound)
+			skip(RecipientUser, strconv.FormatUint(uint64(id), 10), SkipNotFound)
 		case u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive:
-			skip(AudienceUser, strconv.FormatUint(uint64(id), 10), SkipInactive)
+			skip(RecipientUser, strconv.FormatUint(uint64(id), 10), SkipInactive)
 		default:
 			out = append(out, id)
 		}
@@ -210,7 +217,7 @@ func (r *AudienceResolver) availableUsers(ctx context.Context, tenant uuid.UUID,
 }
 
 // existing keeps the groups and roles of the tenant, without duplicates.
-func (r *AudienceResolver) existing(ctx context.Context, groups []uuid.UUID, roles []uint, skip func(AudienceKind, string, string)) ([]uuid.UUID, []uint, error) {
+func (r *AudienceResolver) existing(ctx context.Context, groups []uuid.UUID, roles []uint, skip func(RecipientKind, string, string)) ([]uuid.UUID, []uint, error) {
 	var keptGroups []uuid.UUID
 	if len(groups) > 0 {
 		options, err := r.groups.Groups(ctx)
@@ -228,7 +235,7 @@ func (r *AudienceResolver) existing(ctx context.Context, groups []uuid.UUID, rol
 			}
 			seen[id] = true
 			if !known[id] {
-				skip(AudienceGroup, id.String(), SkipNotFound)
+				skip(RecipientGroup, id.String(), SkipNotFound)
 				continue
 			}
 			keptGroups = append(keptGroups, id)
@@ -251,7 +258,7 @@ func (r *AudienceResolver) existing(ctx context.Context, groups []uuid.UUID, rol
 			}
 			seen[id] = true
 			if !known[id] {
-				skip(AudienceRole, strconv.FormatUint(uint64(id), 10), SkipNotFound)
+				skip(RecipientRole, strconv.FormatUint(uint64(id), 10), SkipNotFound)
 				continue
 			}
 			keptRoles = append(keptRoles, id)

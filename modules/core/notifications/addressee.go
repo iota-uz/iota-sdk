@@ -39,6 +39,9 @@ func (k RecipientKind) Valid() bool {
 	switch k {
 	case RecipientUser, RecipientRecord, RecipientAddress:
 		return true
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		// Audience members that expand to users, never delivery recipients.
+		return false
 	}
 	return false
 }
@@ -165,6 +168,8 @@ func (a Addressee) Validate() error {
 				return errors.New("invalid recipient address")
 			}
 		}
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		return errors.New("invalid recipient kind")
 	default:
 		return errors.New("invalid recipient kind")
 	}
@@ -182,6 +187,8 @@ func (a Addressee) Key() string {
 		}
 	case RecipientAddress:
 		return "address:" + a.fingerprint()[:16]
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		// Not delivery recipients; keyed by kind like any unknown value.
 	}
 	return string(a.Kind)
 }

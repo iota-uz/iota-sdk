@@ -95,7 +95,7 @@ const (
 
 // SkippedRecipient is a recipient dropped while an audience was resolved.
 type SkippedRecipient struct {
-	Kind AudienceKind
+	Kind RecipientKind
 	// Ref identifies the dropped recipient: a user, group or role ID, a
 	// participant key or a record reference.
 	Ref    string

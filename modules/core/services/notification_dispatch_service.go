@@ -141,6 +141,26 @@ func (s *NotificationDispatchService) Send(ctx context.Context, req notification
 	invalid := func(message string) (notifications.AudienceReceipt, error) {
 		return notifications.AudienceReceipt{}, serrors.New(serrors.Invalid, message).WithOp(op)
 	}
+	event := prepared.event
+	// Explicit jobs have their own identity namespace, so an event rule that
+	// already queued the same event ID cannot swallow the requested audience.
+	identity := eventIdentity(event)
+	event.DedupeKey = "addressed:" + identity
+	if len(event.DedupeKey) > 200 {
+		event.DedupeKey = fmt.Sprintf("addressed:sha256:%x", sha256.Sum256([]byte(identity)))
+	}
+	// A replay returns what the first send accepted, even if the audience now
+	// resolves to nobody or to too many people. Concurrent first sends are
+	// still deduplicated atomically by the notice and job upserts below.
+	if existing, found, err := s.repo.Find(ctx, event.Key, event.DedupeKey); err != nil {
+		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
+	} else if found {
+		notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)
+		if err != nil {
+			return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
+		}
+		return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: existing.Total()}, nil
+	}
 	resolved := prepared.resolved
 	for _, skipped := range resolved.Skipped {
 		switch skipped.Reason {
@@ -158,14 +178,6 @@ func (s *NotificationDispatchService) Send(ctx context.Context, req notification
 	}
 	if resolved.Total() == 0 {
 		return notifications.AudienceReceipt{}, nil
-	}
-	event := prepared.event
-	// Explicit jobs have their own identity namespace, so an event rule that
-	// already queued the same event ID cannot swallow the requested audience.
-	identity := eventIdentity(event)
-	event.DedupeKey = "addressed:" + identity
-	if len(event.DedupeKey) > 200 {
-		event.DedupeKey = fmt.Sprintf("addressed:sha256:%x", sha256.Sum256([]byte(identity)))
 	}
 	rule := notifications.Rule{EventKey: event.Key, Configured: true, Enabled: true, Level: req.Level, Channels: prepared.channels, UserIDs: resolved.UserIDs}
 	notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)

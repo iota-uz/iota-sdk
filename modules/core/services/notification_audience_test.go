@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/require"
@@ -171,9 +172,9 @@ func TestNotificationAudience_ForeignTenantGroupIsSkipped(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, resolved.UserIDs)
 	require.ElementsMatch(t, []notifications.SkippedRecipient{
-		{Kind: notifications.AudienceGroup, Ref: foreign.String(), Reason: notifications.SkipNotFound},
-		{Kind: notifications.AudienceRole, Ref: "999999999", Reason: notifications.SkipNotFound},
-		{Kind: notifications.AudienceUser, Ref: "999999999", Reason: notifications.SkipNotFound},
+		{Kind: notifications.RecipientGroup, Ref: foreign.String(), Reason: notifications.SkipNotFound},
+		{Kind: notifications.RecipientRole, Ref: "999999999", Reason: notifications.SkipNotFound},
+		{Kind: notifications.RecipientUser, Ref: "999999999", Reason: notifications.SkipNotFound},
 	}, resolved.Skipped)
 	receipt, err := c.send(t, req)
 	require.NoError(t, err)
@@ -220,8 +221,38 @@ func TestNotificationAudience_ReplayedProducerReturnsTheFirstNotice(t *testing.T
 	first := send()
 	replay := send()
 	require.Equal(t, first.NoticeID, replay.NoticeID)
+	require.Equal(t, 2, replay.Recipients)
 	_, jobs := c.written(t)
 	require.Equal(t, 1, jobs)
+
+	// The group is emptied between the first send and the replay.
+	_, err := c.f.Pool.Exec(c.committed, "DELETE FROM group_users WHERE group_id=$1", group)
+	require.NoError(t, err)
+	emptied := send()
+	require.Equal(t, first.NoticeID, emptied.NoticeID, "a replay returns the first notice after membership changed")
+	require.Equal(t, 2, emptied.Recipients, "the receipt reports the accepted job, not the new membership")
+	_, jobs = c.written(t)
+	require.Equal(t, 1, jobs)
+}
+
+func TestNotificationAudience_ParticipantsAreFilteredToTheTenant(t *testing.T) {
+	c := setupAudience(t, 1)
+	other := uuid.New()
+	_, err := c.f.Pool.Exec(c.committed, "INSERT INTO tenants (id, name) VALUES ($1, $2)", other, "Other "+other.String())
+	require.NoError(t, err)
+	repo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	foreign, err := repo.Create(composables.WithTenantID(c.committed, other), user.New("Foreign", "User", internet.MustParseEmail(fmt.Sprintf("foreign%s@example.com", uuid.NewString()[:8])), user.UILanguageEN, user.WithTenantID(other)))
+	require.NoError(t, err)
+	for _, id := range []uint{foreign.ID(), 999999999} {
+		req := notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people, Participants: []string{"created_user"}}, Source: c.source(id)}
+		resolved, err := c.sender.Resolve(c.committed, req)
+		require.NoError(t, err)
+		require.Equal(t, c.people, resolved.UserIDs)
+		require.Equal(t, []notifications.SkippedRecipient{{Kind: notifications.RecipientUser, Ref: strconv.FormatUint(uint64(id), 10), Reason: notifications.SkipNotFound}}, resolved.Skipped)
+		receipt, err := c.send(t, req)
+		require.NoError(t, err)
+		require.Equal(t, 1, receipt.Recipients)
+	}
 }
 
 func TestNotificationAudience_RejectsInvalidRequestsBeforeWriting(t *testing.T) {
@@ -230,14 +261,15 @@ func TestNotificationAudience_RejectsInvalidRequestsBeforeWriting(t *testing.T) 
 		req  notifications.AudienceRequest
 		code serrors.Code
 	}{
-		"unknown participant":         {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"nobody"}}, Source: c.source(c.people[0])}, serrors.Invalid},
-		"participants without source": {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}}, serrors.Invalid},
-		"foreign source":              {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: func() *notifications.Event { e := c.source(c.people[0]); e.TenantID = uuid.New(); return e }()}, serrors.Invalid},
-		"unknown notice":              {notifications.AudienceRequest{Event: notifications.Event{Key: "acme.none.v1", ID: uuid.NewString(), TenantID: c.f.TenantID()}, Audience: notifications.Audience{Users: c.people}}, serrors.Invalid},
-		"address without external":    {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelSMS: "+998900000001"}}}}, serrors.Invalid},
-		"invalid address":             {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelInApp: "x"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
-		"record without resolver":     {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: "acme.unknown", Key: "1"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
-		"unavailable channel":         {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}, Channels: []notifications.Channel{"telegram"}}, serrors.Invalid},
+		"unknown participant":                 {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"nobody"}}, Source: c.source(c.people[0])}, serrors.Invalid},
+		"participants without source":         {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}}, serrors.Invalid},
+		"foreign source without participants": {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}, Source: func() *notifications.Event { e := c.source(c.people[0]); e.TenantID = uuid.New(); return e }()}, serrors.Invalid},
+		"foreign source":                      {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: func() *notifications.Event { e := c.source(c.people[0]); e.TenantID = uuid.New(); return e }()}, serrors.Invalid},
+		"unknown notice":                      {notifications.AudienceRequest{Event: notifications.Event{Key: "acme.none.v1", ID: uuid.NewString(), TenantID: c.f.TenantID()}, Audience: notifications.Audience{Users: c.people}}, serrors.Invalid},
+		"address without external":            {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelSMS: "+998900000001"}}}}, serrors.Invalid},
+		"invalid address":                     {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelInApp: "x"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
+		"record without resolver":             {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: "acme.unknown", Key: "1"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
+		"unavailable channel":                 {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}, Channels: []notifications.Channel{"telegram"}}, serrors.Invalid},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

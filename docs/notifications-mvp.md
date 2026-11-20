@@ -285,14 +285,19 @@ The limit of `MaxExplicitRecipients` (5000) counts unique recipients after
 resolution, and a larger audience rejects the whole send. `Resolve` runs the same
 resolution without writing and lists dropped members in `Skipped` (`not_found` for a
 missing or foreign user, group or role, `inactive` for a blocked or inactive user,
-`no_contact_resolver`, `unknown_participant`). `SendTx` drops `not_found` and
+`no_contact_resolver`, `unknown_participant`; `Kind` is `user`, `group`, `role`,
+`participant` or `record`). Participant callbacks may name anyone, so their users
+are filtered to the tenant like named users. A `Source` must be registered and
+belong to the context's tenant even without participants. `SendTx` drops `not_found` and
 `inactive` members and returns `Invalid` for the other two, for participants without
 `Source`, for a `Source` of another tenant, for an unknown notice, for a malformed
 recipient and for records or addresses without an external channel. It returns
 `FailedPrecondition` when the platform is not configured or a channel has no
 adapter. With a producer and no `DedupeKey`, the key is derived from the requested
 audience (not its members), so a replay returns the first `NoticeID` and job even
-after membership changed. The send neither reads nor changes the administrator's
+after membership changed: the stored job is looked up before the new resolution
+is applied, so a group that emptied or grew past the limit does not change the
+receipt. The send neither reads nor changes the administrator's
 rules and is deduplicated apart from rule-mode jobs.
 
 ### What happens after commit
