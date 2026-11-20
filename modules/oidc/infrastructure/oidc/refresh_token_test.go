@@ -371,10 +371,25 @@ func TestStorage_RevokeReused_SerializedWithRotation(t *testing.T) {
 		_, err := storage.TokenRequestByRefreshToken(detached, first)
 		revoked <- err
 	}()
-	select {
-	case err := <-revoked:
-		t.Fatalf("reuse revocation did not wait for the rotation: %v", err)
-	case <-time.After(300 * time.Millisecond):
+	// Commit the rotation only once the revoke is provably blocked on the
+	// grant lock, not after an arbitrary delay.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		select {
+		case err := <-revoked:
+			t.Fatalf("reuse revocation did not wait for the rotation: %v", err)
+		default:
+		}
+		var waiting int
+		require.NoError(t, env.Pool.QueryRow(detached, `
+			SELECT count(*) FROM pg_locks
+			WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`,
+		).Scan(&waiting))
+		if waiting > 0 {
+			break
+		}
+		require.True(t, time.Now().Before(deadline), "the revoke never waited on the grant lock")
+		time.Sleep(20 * time.Millisecond)
 	}
 	require.NoError(t, rotation.Commit(detached))
 	require.Error(t, <-revoked)
