@@ -1947,3 +1947,24 @@ for (const width of [1440, 1024, 390] as const) {
     if (width === 390) await screenshot(page, 'investigation--save-form--narrow', { maxDiffPixels: 40 })
   })
 }
+
+test('an expanded chart panel returns to its grid size on close, on every cycle', async ({ page }) => {
+  await openStory(page, 'parity--expanded-panel-light', 1)
+  const card = page.getByTestId('lens-panel-premium')
+  const canvas = card.locator('.lens-chart-canvas')
+  const box = async () => ({
+    card: Math.round((await card.boundingBox())!.height),
+    canvas: Math.round((await canvas.boundingBox())!.height),
+  })
+  const initial = await box()
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    await card.getByRole('button', { name: /Развернуть|Expand/ }).click({ force: true })
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await waitForCharts(page)
+    expect((await box()).canvas).toBeGreaterThan(initial.canvas + 100)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await waitForCharts(page)
+    await expect.poll(box).toEqual(initial)
+  }
+})
