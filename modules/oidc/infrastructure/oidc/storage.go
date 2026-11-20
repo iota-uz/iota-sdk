@@ -3,7 +3,9 @@ package oidc
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -312,45 +314,34 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 	return tokenString, expiresAt, nil
 }
 
-// CreateAccessAndRefreshTokens generates both access and refresh tokens
+// CreateAccessAndRefreshTokens generates the access token and a new refresh
+// token. currentRefreshToken is empty for the authorization code grant and
+// holds the presented token for the refresh grant; a presented token is
+// consumed (rotation), so it cannot be replayed after a successful refresh.
 func (s *Storage) CreateAccessAndRefreshTokens(
 	ctx context.Context,
 	req op.TokenRequest,
-	refreshToken string,
+	currentRefreshToken string,
 ) (string, string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessAndRefreshTokens"
 
-	// Generate access token JWT
 	accessToken, expiresAt, err := s.CreateAccessToken(ctx, req)
 	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
-	// Hash refresh token with SHA-256
-	hash := sha256.Sum256([]byte(refreshToken))
-	tokenHash := hex.EncodeToString(hash[:])
-
-	// Parse user ID from subject
 	userID, err := parseUserID(req.GetSubject())
 	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
-
-	// Get user to fetch tenant_id
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
-	// Create domain refresh token using configured lifetime
-
-	// Get auth time and AMR from request
-	// The zitadel library passes extended request objects with these methods
+	// The zitadel library passes extended request objects with these methods.
 	authTime := time.Now()
-	amr := []string{"pwd"} // Default authentication method
-	clientID := ""         // Will be extracted from audience if available
-
-	// Type assertion to get additional claims if available
+	amr := []string{"pwd"}
 	if authReq, ok := req.(interface {
 		GetAuthTime() time.Time
 		GetAMR() []string
@@ -360,14 +351,24 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 			amr = authReq.GetAMR()
 		}
 	}
-
-	// Extract client ID from audience (first element is typically the client ID)
+	// The first audience element is the client the token is issued to.
+	clientID := ""
 	if len(req.GetAudience()) > 0 {
 		clientID = req.GetAudience()[0]
 	}
 
+	if currentRefreshToken != "" {
+		if err := s.tokenRepo.DeleteByTokenHash(ctx, hashRefreshToken(currentRefreshToken)); err != nil {
+			return "", "", time.Time{}, serrors.Wrap(operation, err)
+		}
+	}
+
+	refreshToken, err := newRefreshToken()
+	if err != nil {
+		return "", "", time.Time{}, serrors.Wrap(operation, err)
+	}
 	domainToken := token.New(
-		tokenHash,
+		hashRefreshToken(refreshToken),
 		clientID,
 		int(userID),
 		u.TenantID(),
@@ -377,13 +378,26 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		token.WithAudience(req.GetAudience()),
 		token.WithAMR(amr),
 	)
-
-	// Store refresh token in repository
 	if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	return accessToken, refreshToken, expiresAt, nil
+}
+
+// newRefreshToken returns an opaque, unguessable refresh token; only its
+// SHA-256 hash is stored.
+func newRefreshToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate refresh token: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func hashRefreshToken(value string) string {
+	hash := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(hash[:])
 }
 
 // TokenRequestByRefreshToken retrieves token request data by refresh token

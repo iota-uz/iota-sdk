@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"OIDC: issue a random refresh token on the authorization code grant and rotate it on refresh; previously every grant stored the hash of an empty token, so clients got no refresh token and a second grant failed on the unique index."}
