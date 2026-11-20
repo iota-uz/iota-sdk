@@ -493,8 +493,8 @@ func TestFailingSourceDoesNotHoldBackOtherConsumers(t *testing.T) {
 	require.Len(t, list, 2, "the consumers of every readable source are returned")
 }
 
-// On a small pool the dispatcher keeps room for its LISTEN connection and for
-// a second connection of every running delivery (a package handler records
+// On a small pool the dispatcher keeps room for a second connection of every
+// running delivery (LISTEN is outside the pool) (a package handler records
 // its invocation on the pool before it runs): a backlog for several
 // consumers whose deliveries go back to the pool drains without timeouts.
 func TestSmallPoolBacklogDrainsWhenDeliveriesUseASecondConnection(t *testing.T) {
@@ -539,4 +539,44 @@ func TestSmallPoolBacklogDrainsWhenDeliveriesUseASecondConnection(t *testing.T) 
 		return n == 3*perConsumer
 	}, 30*time.Second, 50*time.Millisecond, "every consumer drained its backlog")
 	require.Zero(t, timeouts.Load(), "no delivery waited for a connection until its timeout")
+}
+
+// With a pool of one connection the core still works: LISTEN runs on a
+// dedicated connection, so fetching, delivering and pruning keep the pool's
+// only slot.
+func TestOneConnectionPoolKeepsItsSlotWhileListening(t *testing.T) {
+	e := newGoEnv(t)
+	cfg := e.db.Config().Copy()
+	cfg.MaxConns, cfg.MinConns = 1, 0
+	tiny, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(tiny.Close)
+
+	c := newGoConsumer("acme.go.tiny", goEventA.ID())
+	d, err := events.NewDispatcher(events.Config{
+		DB: tiny, Consumers: events.StaticConsumers(c), Subjects: e.subjects, PollInterval: 30 * time.Second, // NOTIFY must wake it
+		Retention: time.Millisecond, PruneInterval: time.Millisecond, Logger: e.logger,
+	})
+	require.NoError(t, err)
+	d.Start(context.Background())
+	t.Cleanup(d.Stop)
+
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, e.db.QueryRow(context.Background(),
+			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query ILIKE 'LISTEN%'`).Scan(&n))
+		return n >= 1
+	}, 10*time.Second, 20*time.Millisecond, "the dispatcher listens")
+
+	qctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var one int
+	require.NoError(t, tiny.QueryRow(qctx, `SELECT 1`).Scan(&one), "the pool's only connection is free while LISTEN runs")
+
+	e.publish(e.tenant, goEventA, "woken", 0)
+	require.Eventually(t, func() bool { return len(e.effects(c.id)) == 1 }, 10*time.Second, 20*time.Millisecond,
+		"NOTIFY wakes the dispatcher and the delivery gets the pool's connection")
+	n, err := d.Prune(qctx)
+	require.NoError(t, err, "pruning gets a connection too")
+	require.GreaterOrEqual(t, n, int64(0))
 }

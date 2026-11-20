@@ -220,19 +220,21 @@ func (c *Catalog) Listen(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// listenOnce holds LISTEN on a dedicated connection opened with the pool's
+// settings, so the listener never takes a pool slot for the process lifetime.
 func (c *Catalog) listenOnce(ctx context.Context) error {
-	conn, err := c.db.Acquire(ctx)
+	conn, err := pgx.ConnectConfig(ctx, c.db.Config().ConnConfig.Copy())
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+NotifyChannel); err != nil {
 		return err
 	}
 	// A notification may have been missed while not listening.
 	c.Invalidate()
 	for {
-		_, err := conn.Conn().WaitForNotification(ctx)
+		_, err := conn.WaitForNotification(ctx)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue

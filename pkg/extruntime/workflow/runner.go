@@ -359,19 +359,21 @@ func listen(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Dur
 	return out
 }
 
+// listenOnce holds LISTEN on a dedicated connection opened with the pool's
+// settings, so the listener never takes a pool slot for the engine's lifetime.
 func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Duration, poke func()) error {
-	conn, err := db.Acquire(ctx)
+	conn, err := pgx.ConnectConfig(ctx, db.Config().ConnConfig.Copy())
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
 		return err
 	}
 	poke()
 	for {
 		wctx, cancel := context.WithTimeout(ctx, 10*poll)
-		_, err := conn.Conn().WaitForNotification(wctx)
+		_, err := conn.WaitForNotification(wctx)
 		cancel()
 		switch {
 		case err == nil:
@@ -379,7 +381,7 @@ func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time
 		case ctx.Err() != nil:
 			return nil
 		case errors.Is(err, context.DeadlineExceeded):
-			if perr := conn.Conn().Ping(ctx); perr != nil {
+			if perr := conn.Ping(ctx); perr != nil {
 				return perr
 			}
 		default:

@@ -52,8 +52,8 @@ type Config struct {
 	// Concurrency bounds the consumers delivering at once. Default 8. It is
 	// capped by the pool (see deliverySlots): a delivery holds a connection
 	// for its transaction and may take a second one (a package handler
-	// records its invocation on the pool), and the LISTEN connection is held
-	// for the dispatcher's lifetime.
+	// records its invocation on the pool). LISTEN uses a dedicated
+	// connection outside the pool.
 	Concurrency int
 	// MaxAttempts before a poisoned event is dead-lettered. Default 5.
 	MaxAttempts int
@@ -136,10 +136,11 @@ type Dispatcher struct {
 }
 
 // deliverySlots is how many consumers deliver at once: Concurrency, capped so
-// that the LISTEN connection and two connections per delivery fit in the
-// pool, with at least one delivery.
+// that two connections per delivery fit in the pool, with at least one
+// delivery. The LISTEN connections (the dispatcher's and the catalog's) are
+// dedicated connections outside the pool.
 func deliverySlots(concurrency int, maxConns int32) int {
-	limit := max(int(maxConns-1)/2, 1)
+	limit := max(int(maxConns)/2, 1)
 	return min(concurrency, limit)
 }
 
@@ -503,19 +504,23 @@ func listen(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Dur
 	return out
 }
 
+// listenOnce holds LISTEN on a dedicated connection opened with the pool's
+// settings, never on a pooled one: a long-lived LISTEN would take a pool slot
+// for the dispatcher's lifetime, and a small pool (MaxConns=1) would have none
+// left for fetching, delivering and pruning.
 func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Duration, poke func()) error {
-	conn, err := db.Acquire(ctx)
+	conn, err := pgx.ConnectConfig(ctx, db.Config().ConnConfig.Copy())
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
 		return err
 	}
 	poke()
 	for {
 		wctx, cancel := context.WithTimeout(ctx, 10*poll)
-		_, err := conn.Conn().WaitForNotification(wctx)
+		_, err := conn.WaitForNotification(wctx)
 		cancel()
 		switch {
 		case err == nil:
@@ -524,7 +529,7 @@ func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time
 			return nil
 		case errors.Is(err, context.DeadlineExceeded):
 			// Idle: probe the connection so a dead one is noticed.
-			if perr := conn.Conn().Ping(ctx); perr != nil {
+			if perr := conn.Ping(ctx); perr != nil {
 				return perr
 			}
 		default:

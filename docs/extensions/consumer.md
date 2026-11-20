@@ -187,8 +187,10 @@ consumer; `tx` carries the event's tenant in `app.tenant_id`, `ctx` carries `tx`
 error rolls back and is retried with backoff and dead-lettered after `MaxAttempts`, separately for each consumer and
 event; a `host.IsInfrastructure` error is retried without counting an attempt; an error wrapping `events.ErrNoSubject`
 blocks the delivery until it can act. `events.AfterCommit(ctx, fn)` defers work until the delivery commits. Consumers deliver concurrently, at most
-`events.Config.Concurrency` (default 8) at once and never more than the pool leaves room for: the dispatcher keeps its
-LISTEN connection and a second connection per running delivery free. A consumer source that fails (package
+`events.Config.Concurrency` (default 8) at once and never more than the pool leaves room for: a second connection per running
+delivery stays free. LISTEN (the dispatcher's, and with the runtime the catalog's and the workflow engine's) runs on
+dedicated connections outside the pool, so the core works with a one-connection pool; count them against the
+server's `max_connections`. A consumer source that fails (package
 subscriptions unavailable, a module's source erroring) is reported without holding back the consumers of the others.
 
 A consumer chooses whom it acts as with `events.ResolveSubject(ctx, tx, subjects, ev, triggerID, mode)`:
