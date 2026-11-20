@@ -18,38 +18,38 @@
     }
   },
   "NavigationLinks": {
-    "Projects": "Loyihalar",
+    "Projects": "Лойиҳалар",
     "ProjectStages": "Loyiha bosqichlari"
   },
   "Projects": {
     "Meta": {
       "List": {
-        "Title": "Loyihalar"
+        "Title": "Лойиҳалар"
       },
       "Edit": {
-        "Title": "Loyihani tahrirlash"
+        "Title": "Лойиҳани таҳрирлаш"
       },
       "New": {
-        "Title": "Yangi loyiha"
+        "Title": "Янги лойиҳа"
       }
     },
     "List": {
-      "New": "Yangi loyiha",
-      "Name": "Nomi",
+      "New": "Янги лойиҳа",
+      "Name": "Номи",
       "Counterparty": "Kontragent",
-      "_Description": "Tavsif",
+      "_Description": "Тавсиф",
       "NoProjects": {
         "Title": "Loyihalar topilmadi",
         "_Description": "Hozircha loyihalar yo'q. Yaratish uchun 'Yangi loyiha'ni bosing."
       }
     },
     "Single": {
-      "Name": "Nomi",
+      "Name": "Номи",
       "Counterparty": "Kontragent",
       "SelectCounterparty": "Kontragentni tanlang",
       "NoCounterpartiesFound": "Kontragentlar topilmadi",
-      "_Description": "Tavsif",
-      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?",
+      "_Description": "Тавсиф",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу лойиҳани ўчирмоқчимисиз?",
       "General": "Лойиҳа",
       "ContractAmount": "Шартнома суммаси",
       "ContractCurrency": "Шартнома валютаси",

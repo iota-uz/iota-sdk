@@ -49,54 +49,54 @@
   "Account": {
     "Meta": {
       "Index": {
-        "Title": "Profil"
+        "Title": "Профил"
       },
       "Settings": {
-        "Title": "Profil sozlamalari"
+        "Title": "Профил созламалари"
       },
       "Logo": {
-        "Title": "Logo sozlamalari"
+        "Title": "Логотип созламалари"
       }
     },
-    "BrowseFilesystem": "Fayllarni ko'rish",
+    "BrowseFilesystem": "Файлларни кўриш",
     "FirstName": {
-      "Label": "Ism",
-      "Placeholder": "Ismingizni kiriting"
+      "Label": "Исм",
+      "Placeholder": "Исмингизни киритинг"
     },
     "LastName": {
-      "Label": "Familiya",
-      "Placeholder": "Familiyangizni kiriting"
+      "Label": "Фамилия",
+      "Placeholder": "Фамилиянгизни киритинг"
     },
     "MiddleName": {
-      "Label": "Otasining ismi",
-      "Placeholder": "Otangizning ismini kiriting"
+      "Label": "Отасининг исми",
+      "Placeholder": "Отангизнинг исмини киритинг"
     },
     "Email": {
       "Label": "Email",
-      "Placeholder": "Email manzilingizni kiriting"
+      "Placeholder": "Email манзилингизни киритинг"
     },
     "Phone": {
-      "Label": "Telefon",
-      "Placeholder": "Telefon raqamingizni kiriting"
+      "Label": "Телефон",
+      "Placeholder": "Телефон рақамингизни киритинг"
     },
-    "Password": "Parol",
+    "Password": "Парол",
     "ChangePassword": {"Title":"Паролни ўзгартириш","DescText":"Парол ўзгартирилгач, барча фаол сеанслар якунланади.","CurrentPassword":"Жорий парол","NewPassword":"Янги парол","ConfirmPassword":"Янги паролни тасдиқлаш","Submit":"Паролни ўзгартириш","Errors":{"CurrentRequired":"Жорий паролни киритинг.","CurrentIncorrect":"Жорий парол нотўғри.","NewTooShort":"Янги парол камида 8 та белгидан иборат бўлиши керак.","ConfirmationMismatch":"Парол тасдиғи янги паролга мос келмайди."}},
-    "Save": "Saqlash",
+    "Save": "Сақлаш",
     "Logo": {
-      "FullLogo": "To'liq logo",
-      "FullLogoDescription": "Bu logo yon panel ochiq bo'lganda ko'rsatiladi",
-      "FullLogoPlaceholder": "Kompaniyangizning to'liq logosini tanlang (PNG, JPG, SVG)",
-      "CompactLogo": "Ixcham logo",
-      "CompactLogoDescription": "Bu logo yon panel yopiq bo'lganda ko'rsatiladi",
-      "CompactLogoPlaceholder": "Kompaniyangizning ixcham logosini tanlang (PNG, JPG, SVG)"
+      "FullLogo": "Тўлиқ логотип",
+      "FullLogoDescription": "Бу логотип ёйилган ён панелда кўрсатилади",
+      "FullLogoPlaceholder": "Компаниянинг тўлиқ логотипини танланг (PNG, JPG, SVG)",
+      "CompactLogo": "Қисқа логотип",
+      "CompactLogoDescription": "Бу логотип йиғилган ён панелда кўрсатилади",
+      "CompactLogoPlaceholder": "Компаниянинг қисқа логотипини танланг (PNG, JPG, SVG)"
     },
     "Contact": {
-      "Information": "Aloqa ma'lumotlari",
-      "DescText": "Tashkilotingizning aloqa ma'lumotlarini boshqaring",
-      "Phone": "Telefon raqami",
-      "PhonePlaceholder": "Telefon raqamini kiriting (masalan +1234567890)",
-      "Email": "Elektron pochta manzili",
-      "EmailPlaceholder": "Elektron pochta manzilini kiriting"
+      "Information": "Алоқа маълумотлари",
+      "DescText": "Ташкилотингизнинг алоқа маълумотларини бошқаринг",
+      "Phone": "Телефон рақами",
+      "PhonePlaceholder": "Телефон рақамини киритинг (масалан +1234567890)",
+      "Email": "Электрон почта манзили",
+      "EmailPlaceholder": "Электрон почта манзилини киритинг"
     },
     "Sessions": {
       "Title": "Faol sessiyalar",
@@ -116,24 +116,24 @@
       "CannotRevokeCurrent": "Joriy sessiyani bekor qilish mumkin emas"
     }
   },
-  "Actions": "Harakatlar",
-  "Add": "Qo'shish",
-  "All": "Hammasi",
-  "NotFound": "Topilmadi",
+  "Actions": "Ҳаракатлар",
+  "Add": "Қўшиш",
+  "All": "Ҳаммаси",
+  "NotFound": "Топилмади",
   "Analytics": {
-    "PreviousDay": "Oldingi kun",
-    "NextDay": "Keyingi kun",
-    "Revenue": "Daromad",
-    "Count": "Soni",
-    "RevenueByCategory": "Toifalar bo'yicha daromad",
-    "CountByCategory": "Toifalar bo'yicha soni",
-    "CategoryBreakdown": "Toifalar bo'yicha taqsimlash",
-    "NoDataTitle": "Ma'lumot mavjud emas",
-    "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
-    "Categories": "Toifalar"
+    "PreviousDay": "Олдинги кун",
+    "NextDay": "Кейинги кун",
+    "Revenue": "Даромад",
+    "Count": "Сони",
+    "RevenueByCategory": "Тоифалар бўйича даромад",
+    "CountByCategory": "Тоифалар бўйича сони",
+    "CategoryBreakdown": "Тоифалар бўйича тақсимлаш",
+    "NoDataTitle": "Маълумот мавжуд эмас",
+    "NoDataDescription": "Танланган сана учун маълумот мавжуд эмас",
+    "Categories": "Тоифалар"
   },
-  "Back": "Orqaga",
-  "Cancel": "Bekor qilish",
+  "Back": "Орқага",
+  "Cancel": "Бекор қилиш",
   "Chart": {
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
@@ -185,208 +185,208 @@
     "NetworkErrorHint": "Уланишни текшириб, қайта уриниб кўринг.",
     "TogglePassword": "Паролни кўрсатиш"
   },
-  "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
+  "ConfirmDelete": "Уверинмисиз, бу элементни ўчирмоқчисиз?",
   "Countries": {
-    "AF": "Afg'oniston",
-    "AL": "Albaniya",
-    "DZ": "Jazoir",
-    "AD": "Andorra",
-    "AO": "Angola",
-    "AG": "Antigua va Barbuda",
-    "AR": "Argentina",
-    "AM": "Armaniston",
-    "AU": "Avstraliya",
-    "AT": "Avstriya",
-    "AZ": "Ozarbayjon",
-    "BS": "Bagama orollari",
-    "BH": "Bahrayn",
-    "BD": "Bangladeshi",
-    "BB": "Barbados",
-    "BY": "Belarus",
-    "BE": "Belgiya",
-    "BZ": "Beliz",
-    "BJ": "Benin",
-    "BT": "Butan",
-    "BO": "Boliviya",
-    "BA": "Bosniya va Gertsegovina",
-    "BW": "Botsvana",
-    "BR": "Braziliya",
-    "BN": "Bruney",
-    "BG": "Bolgariya",
-    "BF": "Burkina Faso",
-    "BI": "Burundi",
-    "CV": "Kabo Verde",
-    "KH": "Kambodja",
-    "CM": "Kamerun",
-    "CA": "Kanada",
-    "CF": "Markaziy Afrika Respublikasi",
-    "TD": "Chad",
-    "CL": "Chili",
-    "CN": "Xitoy",
-    "CO": "Kolumbiya",
-    "KM": "Komor orollari",
-    "CG": "Kongo (Brazzavil)",
-    "CD": "Kongo (Kinshasa)",
-    "CR": "Kosta-Rika",
-    "HR": "Xorvatiya",
-    "CU": "Kuba",
-    "CY": "Kipr",
-    "CZ": "Chexiya",
-    "DK": "Daniya",
-    "DJ": "Djibuti",
-    "DM": "Dominika",
-    "DO": "Dominikan Respublikasi",
-    "EC": "Ekvador",
-    "EG": "Misr",
-    "SV": "El Salvador",
-    "GQ": "Ekvatorial Gvineya",
-    "ER": "Eritreya",
-    "EE": "Estoniya",
-    "SZ": "Eswatini",
-    "ET": "Efiopiya",
-    "FJ": "Fiji",
-    "FI": "Finlandiya",
-    "FR": "Fransiya",
-    "GA": "Gabon",
-    "GM": "Gambiya",
-    "GE": "Gruziya",
-    "DE": "Germaniya",
-    "GH": "Gana",
-    "GR": "Gretsiya",
-    "GD": "Grenada",
-    "GT": "Gvatemala",
-    "GN": "Gvineya",
-    "GW": "Gvineya-Bissau",
-    "GY": "Guyana",
-    "HT": "Gaiti",
-    "HN": "Gonduras",
-    "HU": "Vengriya",
-    "IS": "Islandiya",
-    "IN": "Hindiston",
-    "IDN": "Indoneziya",
-    "IR": "Eron",
-    "IQ": "Iroq",
-    "IE": "Irlandiya",
-    "IL": "Isroil",
-    "IT": "Italiya",
-    "JM": "Yamayka",
-    "JP": "Yaponiya",
-    "JO": "Iordaniya",
-    "KZ": "Qozog'iston",
-    "KE": "Keniya",
-    "KI": "Kiribati",
-    "KP": "Shimoliy Koreya",
-    "KR": "Janubiy Koreya",
-    "XK": "Kosovo",
-    "KW": "Kuveyt",
-    "KG": "Qirg'iziston",
-    "LA": "Laos",
-    "LV": "Latviya",
-    "LB": "Livan",
-    "LS": "Lesoto",
-    "LR": "Liberiya",
-    "LY": "Liviya",
-    "LI": "Lixtenshteyn",
-    "LT": "Litva",
-    "LU": "Lyuksemburg",
-    "MG": "Madagaskar",
-    "MW": "Malavi",
-    "MY": "Malayziya",
-    "MV": "Maldiv orollari",
-    "ML": "Mali",
-    "MT": "Malta",
-    "MH": "Marshall orollari",
-    "MR": "Mavritaniya",
-    "MU": "Mavrikiy",
-    "MX": "Meksika",
-    "FM": "Mikroneziya",
-    "MD": "Moldova",
-    "MC": "Monako",
-    "MN": "Mongoliya",
-    "ME": "Chernogoriya",
-    "MA": "Marokash",
-    "MZ": "Mozambik",
-    "MM": "Myanma (Birma)",
-    "NA": "Namibiya",
-    "NR": "Nauru",
-    "NP": "Nepal",
-    "NL": "Niderlandlar",
-    "NZ": "Yangi Zelandiya",
-    "NI": "Nikaragua",
-    "NE": "Niger",
-    "NG": "Nigeriya",
-    "MK": "Shimoliy Makedoniya",
-    "NO": "Norvegiya",
-    "OM": "Ummon",
-    "PK": "Pokiston",
-    "PW": "Palau",
-    "PS": "Falastin",
-    "PA": "Panama",
-    "PG": "Papua Yangi Gvineya",
-    "PY": "Paragvay",
-    "PE": "Peru",
-    "PH": "Filippin",
-    "PL": "Polsha",
-    "PT": "Portugaliya",
-    "QA": "Qatar",
-    "RO": "Ruminiya",
-    "RU": "Rossiya",
-    "RW": "Ruanda",
-    "KN": "Muqaddas Kristof va Nevis",
-    "LC": "Sent Lyusiya",
-    "VC": "Sent Vinsent va Grenadin",
-    "WS": "Samoa",
-    "SM": "San Marino",
-    "ST": "Santome va Prinsipi",
-    "SA": "Saudiya Arabistoni",
-    "SN": "Senegal",
-    "RS": "Serbiya",
-    "SC": "Seyshel orollari",
-    "SL": "Sierra Leone",
-    "SG": "Singapur",
-    "SK": "Slovakiya",
-    "SI": "Sloveniya",
-    "SB": "Solomon orollari",
-    "SO": "Somaliya",
-    "ZA": "Janubiy Afrika",
-    "SS": "Janubiy Sudan",
-    "ES": "Ispaniya",
-    "LK": "Shri-Lanka",
-    "SD": "Sudan",
-    "SR": "Surinam",
-    "SE": "Shvetsiya",
-    "CH": "Shveytsariya",
-    "SY": "Suriya",
-    "TJ": "Tojikiston",
-    "TZ": "Tanzaniya",
-    "TH": "Tailand",
-    "TL": "Sharqiy Timor",
-    "TG": "Togo",
-    "TO": "Tonga",
-    "TT": "Trinidad va Tobago",
-    "TN": "Tunis",
-    "TR": "Turkiya",
-    "TM": "Turkmaniston",
-    "TV": "Tuvalu",
-    "UG": "Uganda",
-    "UA": "Ukraina",
-    "AE": "Birlashgan Arab Amirliklari",
-    "GB": "Buyuk Britaniya",
-    "US": "Qo'shma Shtatlari",
-    "UY": "Urugvay",
-    "UZ": "O'zbekiston",
-    "VU": "Vanuatu",
-    "VA": "Vatikan",
-    "VE": "Venesuela",
-    "VN": "Vetnam",
-    "YE": "Yaman",
-    "ZM": "Zambiya",
-    "ZW": "Zimbabve"
+    "AF": "Афғонистон",
+    "AL": "Албания",
+    "DZ": "Жазоир",
+    "AD": "Андорра",
+    "AO": "Ангола",
+    "AG": "Антигуа ва Барбуда",
+    "AR": "Аргентина",
+    "AM": "Арманистон",
+    "AU": "Австралия",
+    "AT": "Австрия",
+    "AZ": "Озарбайжон",
+    "BS": "Багама ороллари",
+    "BH": "Баҳрайн",
+    "BD": "Бангладеш",
+    "BB": "Барбадос",
+    "BY": "Беларус",
+    "BE": "Белгия",
+    "BZ": "Белиз",
+    "BJ": "Бенин",
+    "BT": "Бутан",
+    "BO": "Боливия",
+    "BA": "Босния ва Герцеговина",
+    "BW": "Ботсвана",
+    "BR": "Бразилия",
+    "BN": "Бруней",
+    "BG": "Болгария",
+    "BF": "Буркина Фасо",
+    "BI": "Бурунди",
+    "CV": "Кабо Верде",
+    "KH": "Камбоджа",
+    "CM": "Камерун",
+    "CA": "Канада",
+    "CF": "Марказий Африка Республикаси",
+    "TD": "Чад",
+    "CL": "Чили",
+    "CN": "Хитой",
+    "CO": "Колумбия",
+    "KM": "Комор ороллари",
+    "CG": "Конго (Браззавил)",
+    "CD": "Конго (Киншаса)",
+    "CR": "Коста-Рика",
+    "HR": "Хорватия",
+    "CU": "Куба",
+    "CY": "Кипр",
+    "CZ": "Чехия",
+    "DK": "Дания",
+    "DJ": "Джибути",
+    "DM": "Доминика",
+    "DO": "Доминикан Республикаси",
+    "EC": "Эквадор",
+    "EG": "Миср",
+    "SV": "Эл Салвадор",
+    "GQ": "Экваториал Гвинея",
+    "ER": "Эритрея",
+    "EE": "Эстония",
+    "SZ": "Эсватини",
+    "ET": "Эфиопия",
+    "FJ": "Фижи",
+    "FI": "Финландия",
+    "FR": "Франция",
+    "GA": "Габон",
+    "GM": "Гамбия",
+    "GE": "Грузия",
+    "DE": "Германия",
+    "GH": "Гана",
+    "GR": "Греция",
+    "GD": "Гренада",
+    "GT": "Гватемала",
+    "GN": "Гвинея",
+    "GW": "Гвинея-Биссау",
+    "GY": "Гуяна",
+    "HT": "Гаити",
+    "HN": "Гондурас",
+    "HU": "Венгрия",
+    "IS": "Исландия",
+    "IN": "Ҳиндистон",
+    "IDN": "Индонезия",
+    "IR": "Эрон",
+    "IQ": "Ироқ",
+    "IE": "Ирландия",
+    "IL": "Исроил",
+    "IT": "Италия",
+    "JM": "Ямайка",
+    "JP": "Япония",
+    "JO": "Иордания",
+    "KZ": "Қозоғистон",
+    "KE": "Кения",
+    "KI": "Кирибати",
+    "KP": "Шимолий Корея",
+    "KR": "Жанубий Корея",
+    "XK": "Косово",
+    "KW": "Кувайт",
+    "KG": "Қирғизистон",
+    "LA": "Лаос",
+    "LV": "Латвия",
+    "LB": "Ливан",
+    "LS": "Лесото",
+    "LR": "Либерия",
+    "LY": "Ливия",
+    "LI": "Лихтенштейн",
+    "LT": "Литва",
+    "LU": "Люксембург",
+    "MG": "Мадагаскар",
+    "MW": "Малави",
+    "MY": "Малайзия",
+    "MV": "Малдив ороллари",
+    "ML": "Мали",
+    "MT": "Малта",
+    "MH": "Маршалл ороллари",
+    "MR": "Мавритания",
+    "MU": "Маврикий",
+    "MX": "Мексика",
+    "FM": "Микронезия",
+    "MD": "Молдова",
+    "MC": "Монако",
+    "MN": "Монголия",
+    "ME": "Черногория",
+    "MA": "Марокаш",
+    "MZ": "Мозамбик",
+    "MM": "Мянма (Бирма)",
+    "NA": "Намибия",
+    "NR": "Науру",
+    "NP": "Непал",
+    "NL": "Нидерландлар",
+    "NZ": "Янги Зеландия",
+    "NI": "Никарагуа",
+    "NE": "Нигер",
+    "NG": "Нигерия",
+    "MK": "Шимолий Македония",
+    "NO": "Норвегия",
+    "OM": "Уммон",
+    "PK": "Покистон",
+    "PW": "Палау",
+    "PS": "Фаластин",
+    "PA": "Панама",
+    "PG": "Папуа Янги Гвинея",
+    "PY": "Парагвай",
+    "PE": "Перу",
+    "PH": "Филиппин",
+    "PL": "Полша",
+    "PT": "Португалия",
+    "QA": "Қатар",
+    "RO": "Руминия",
+    "RU": "Россия",
+    "RW": "Руанда",
+    "KN": "Муқаддас Кристоф ва Невис",
+    "LC": "Сент Люсия",
+    "VC": "Сент Винсент ва Гренадин",
+    "WS": "Самоа",
+    "SM": "Сан Марино",
+    "ST": "Сантоме ва Принсипи",
+    "SA": "Саудия Арабистони",
+    "SN": "Сенегал",
+    "RS": "Сербия",
+    "SC": "Сейшел ороллари",
+    "SL": "Сиерра Леоне",
+    "SG": "Сингапур",
+    "SK": "Словакия",
+    "SI": "Словения",
+    "SB": "Соломон ороллари",
+    "SO": "Сомалия",
+    "ZA": "Жанубий Африка",
+    "SS": "Жанубий Судан",
+    "ES": "Испания",
+    "LK": "Шри-Ланка",
+    "SD": "Судан",
+    "SR": "Суринам",
+    "SE": "Швеция",
+    "CH": "Швейтсария",
+    "SY": "Сурия",
+    "TJ": "Тожикистон",
+    "TZ": "Танзания",
+    "TH": "Таиланд",
+    "TL": "Шарқий Тимор",
+    "TG": "Того",
+    "TO": "Тонга",
+    "TT": "Тринидад ва Тобаго",
+    "TN": "Тунис",
+    "TR": "Туркия",
+    "TM": "Туркманистон",
+    "TV": "Тувалу",
+    "UG": "Уганда",
+    "UA": "Украина",
+    "AE": "Бирлашган Араб Амирликлари",
+    "GB": "Буюк Британия",
+    "US": "Қўшма Штатлари",
+    "UY": "Уругвай",
+    "UZ": "Ўзбекистон",
+    "VU": "Вануату",
+    "VA": "Ватикан",
+    "VE": "Венесуэла",
+    "VN": "Ветнам",
+    "YE": "Яман",
+    "ZM": "Замбия",
+    "ZW": "Зимбабве"
   },
-  "CreatedAt": "Yaratilgan sana",
+  "CreatedAt": "Яратилган сана",
   "Dashboard": {
     "Meta": {
-      "Title": "Boshqaruv paneli"
+      "Title": "Бошқарув панели"
     },
     "Finance": {
       "Title": "Молиявий шарҳ",
@@ -410,100 +410,100 @@
       "Amount": "Сумма",
       "OperationsDrawer": "Ҳисоб операциялари"
     },
-    "Welcome": "Boshqaruv paneliga xush kelibsiz"
+    "Welcome": "Бошқарув панелига хуш келибсиз"
   },
-  "Delete": "O'chirish",
-  "Edit": "Tahrirlash",
+  "Delete": "Ўчириш",
+  "Edit": "Таҳрирлаш",
   "ErrorPages": {
     "NotFound": {
       "Title": "404",
-      "Message": "Sahifa topilmadi",
-      "Home": "Bosh sahifa"
+      "Message": "Саҳифа топилмади",
+      "Home": "Бош саҳифа"
     },
     "Forbidden": {
       "Title": "403",
-      "Message": "Kirish taqiqlangan",
-      "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
-      "Home": "Bosh sahifa",
-      "GoBack": "Orqaga"
+      "Message": "Сизда ушбу саҳифага кириш рухсати йўқ",
+      "_Description": "403 - Рухсатсиз кириш",
+      "Home": "Бош саҳифа",
+      "GoBack": "Орқага"
     }
   },
   "Errors": {
-    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
+    "Internal": "Ички сервер хатоси юз берди: {{.Error}}",
     "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
-    "NotFound": "Resurs topilmadi: {{.Error}}",
-    "Unauthorized": "Ruxsatsiz: {{.Error}}",
+    "NotFound": "Ресурс топилмади: {{.Error}}",
+    "Unauthorized": "Рухсатсиз: {{.Error}}",
     "Forbidden": "Taqiqlangan: {{.Error}}",
-    "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
-    "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
-    "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
-    "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
-    "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
-    "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
-    "EntityNotFound": "Element topilmadi",
-    "InternalServer": "Ichki server xatosi",
-    "FailedToRender": "Sahifani ko'rsatishda xatolik"
+    "InvalidFormData": "Нотўғри форма маълумотлари",
+    "InvalidQueryParams": "Нотўғри сўров параметрлари",
+    "FailedToRetrieve": "Маълумотни олишда хатолик юз берди",
+    "FailedToSave": "Маълумотни сақлашда хатолик юз берди",
+    "FailedToUpdate": "Маълумотни янгилашда хатолик юз берди",
+    "FailedToDelete": "Маълумотни ўчиришда хатолик юз берди",
+    "EntityNotFound": "Элемент топилмади",
+    "InternalServer": "Ички сервер хатоси",
+    "FailedToRender": "Саҳифани шакллантиришда хатолик юз берди"
   },
   "Export": {
-    "Title": "Eksport",
-    "ToExcel": "Excel ga eksport",
-    "ToCSV": "CSV ga eksport",
-    "ToJSON": "JSON ga eksport",
-    "ToTXT": "TXT ga eksport",
+    "Title": "Экспорт",
+    "ToExcel": "Excel га экспорт",
+    "ToCSV": "CSV га экспорт",
+    "ToJSON": "JSON га экспорт",
+    "ToTXT": "TXT га экспорт",
     "Preparing": "Файл тайёрланмоқда…"
   },
   "Filters": {
     "CreatedAt": {
-      "AllTime": "Barcha vaqt",
-      "Today": "Bugun",
-      "Yesterday": "Kecha",
-      "Ereyesterday": "Ikki kun oldin",
-      "ThisWeek": "Shu hafta",
-      "LastWeek": "O'tgan hafta",
-      "ThisMonth": "Shu oy",
-      "LastMonth": "O'tgan oy"
+      "AllTime": "Барча вақт",
+      "Today": "Бугун",
+      "Yesterday": "Кеча",
+      "Ereyesterday": "Икки кун олдин",
+      "ThisWeek": "Шу ҳафта",
+      "LastWeek": "Ўтган ҳафта",
+      "ThisMonth": "Шу ой",
+      "LastMonth": "Ўтган ой"
     }
   },
   "Groups": {
     "Meta": {
       "List": {
-        "Title": "Guruhlar"
+        "Title": "Гуруҳлар"
       },
       "Edit": {
-        "Title": "Guruhni tahrirlash"
+        "Title": "Гуруҳни таҳрирлаш"
       },
       "New": {
-        "Title": "Yangi guruh"
+        "Title": "Янги гуруҳ"
       }
     },
     "Cards": {
-      "GroupInfo": "Guruh ma'lumotlari",
-      "MembershipInfo": "A'zolik ma'lumotlari"
+      "GroupInfo": "Гуруҳ маълумотлари",
+      "MembershipInfo": "Аъзолик маълумотлари"
     },
     "List": {
-      "New": "Yangi guruh",
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "Roles": "Rollar",
-      "Users": "Foydalanuvchilar",
+      "New": "Янги гуруҳ",
+      "Name": "Номи",
+      "_Description": "Тавсиф",
+      "Roles": "Роллар",
+      "Users": "Фойдаланувчилар",
       "NoGroups": {
-        "Title": "Guruhlar topilmadi",
-        "_Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+        "Title": "Гуруҳлар топилмади",
+        "_Description": "'Янги гуруҳ' тугмасини босиб биринчи гуруҳингизни яратинг"
       }
     },
     "Single": {
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "RoleIDs": "Rollar",
-      "UserIDs": "Foydalanuvchilar",
-      "SelectRole": "Rollarni tanlang",
-      "SelectUser": "Foydalanuvchilarni tanlang",
-      "SearchRoles": "Rollarni qidirish",
-      "EnterGroupName": "Guruh nomini kiriting",
-      "EnterDescription": "Tavsif kiriting",
-      "NoRoleDescription": "Tavsif mavjud emas",
-      "Delete": "Guruhni o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
+      "Name": "Номи",
+      "_Description": "Тавсиф",
+      "RoleIDs": "Роллар",
+      "UserIDs": "Фойдаланувчилар",
+      "SelectRole": "Ролларни танланг",
+      "SelectUser": "Фойдаланувчиларни танланг",
+      "SearchRoles": "Ролларни қидириш",
+      "EnterGroupName": "Гуруҳ номини киритинг",
+      "EnterDescription": "Тавсиф киритинг",
+      "NoRoleDescription": "Тавсиф мавжуд эмас",
+      "Delete": "Гуруҳни ўчириш",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу гуруҳни ўчирмоқчимисиз?"
     },
     "History": {
       "Resource": "Гуруҳлар",
@@ -544,7 +544,7 @@
   },
   "Import": {
     "Error": {
-      "ValidationError": "Tekshirish xatosi"
+      "ValidationError": "Текшириш хатоси"
     }
   },
   "Currencies": {
@@ -568,15 +568,15 @@
   },
   "Login": {
     "Meta": {
-      "Title": "Tizimga kirish"
+      "Title": "Тизимга кириш"
     },
     "Email": "Email",
-    "Password": "Parol",
-    "Login": "Kirish",
-    "WelcomeBack": "Xush kelibsiz",
+    "Password": "Парол",
+    "Login": "Кириш",
+    "WelcomeBack": "Хуш келибсиз",
     "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
-    "LoginWithGoogle": "Google orqali kirish",
-		"OrSignInWith": "Yoki quyidagi orqali kiring",
+    "LoginWithGoogle": "Google орқали кириш",
+		"OrSignInWith": "Ёки қуйидаги орқали киринг",
 		"Or": "Ёки",
 		"ChooseAccount": "Аккаунтни танланг",
 		"UseAnotherAccount": "Бошқа аккаунтдан фойдаланиш",
@@ -584,56 +584,56 @@
     "Errors": {
 			"TemporaryPasswordExpired": "Вақтинчалик парол энди амал қилмайди. Администратордан янгисини сўранг.",
 			"OnboardingRequired": "Аккаунт созлашни якунланг: администратор берган вақтинчалик парол билан киринг.",
-      "PasswordInvalid": "Email yoki parol noto'g'ri",
-      "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
-      "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
-      "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
-      "UserNotFound": "Foydalanuvchi topilmadi",
-			"AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling.",
+      "PasswordInvalid": "Email ёки парол нотўғри",
+      "OauthStateNotFound": "OAuth ҳолати топилмади. Илтимос, қайта уриниб кўринг.",
+      "OauthStateInvalid": "OAuth ҳолати яроқсиз. Илтимос, қайта уриниб кўринг.",
+      "OauthCodeNotFound": "OAuth коди топилмади. Илтимос, қайта уриниб кўринг.",
+      "UserNotFound": "Фойдаланувчи топилмади",
+			"AccountBlocked": "Ҳисоб блокланган",
 			"SessionExpired": "Бу аккаунт сессияси тугаган. Қайта киринг ёки бошқа аккаунтни танланг."
 			,"AuthorizationRequestInvalid": "Авторизация сўрови энди яроқсиз. Иловага қайтиб, қайта бошланг."
     }
   },
   "Modules": {
     "BiChat": "BI-Chat",
-    "Billing": "To'lov tizimi",
-    "Core": "Boshqaruv",
+    "Billing": "Биллинг",
+    "Core": "Асосий",
     "CRM": "CRM",
-    "Finance": "Moliya",
-    "HRM": "Kadrlar boshqaruvi",
-    "Logging": "Jurnallashtirish",
+    "Finance": "Молия",
+    "HRM": "Кадрлар",
+    "Logging": "Журнал",
     "Pipeline": "Quvur",
-    "Projects": "Loyihalar",
-    "Superadmin": "Super administrator",
-    "Testkit": "Test to'plami",
-    "Warehouse": "Ombor",
+    "Projects": "Лойиҳалар",
+    "Superadmin": "Суперадмин",
+    "Testkit": "Тесткит",
+    "Warehouse": "Омбор",
     "Website": "Veb-sayt"
   },
   "NavigationLinks": {
     "QuickLinks": "Тезкор ҳаволалар",
-    "Dashboard": "Boshqaruv paneli",
-    "Administration": "Ma'muriyat",
-    "Users": "Foydalanuvchilar",
-    "Roles": "Rollar",
-    "Groups": "Guruhlar",
-    "Settings": "Sozlamalar",
+    "Dashboard": "Бошқарув панели",
+    "Administration": "Маъмурият",
+    "Users": "Фойдаланувчилар",
+    "Roles": "Роллар",
+    "Groups": "Гуруҳлар",
+    "Settings": "Созламалар",
     "Extensions": "Кенгайтмалар",
     "SystemInfo": "Тизим маълумотлари",
-    "KnowledgeBase": "Bilimlar bazasi",
-    "Operations": "Operatsiyalar",
-    "Calendar": "Taqvim",
-    "Enums": "Ro'yxatlar",
-    "TaskTypes": "Vazifa turlari",
-    "Positions": "Lavozimlar",
-    "Finances": "Moliya",
-    "Projects": "Loyihalar",
+    "KnowledgeBase": "Билимлар базаси",
+    "Operations": "Операциялар",
+    "Calendar": "Тақвим",
+    "Enums": "Рўйхатлар",
+    "TaskTypes": "Вазифа турлари",
+    "Positions": "Лавозимлар",
+    "Finances": "Молия",
+    "Projects": "Лойиҳалар",
     "Reports": "Hisobotlar",
     "Portfolio": "Portfel",
     "SalesReport": "Sotish hisoboti",
     "OsagoReport": "OSAGO hisoboti",
     "Underwriting": "Anderrayting",
     "Submissions": "Arizalar",
-    "Policies": "Polislar",
+    "Policies": "Договорлар",
     "Files": "Fayllar",
     "Lookups": "Ma'lumotnomalar",
     "PolicyObjects": "Polis ob'ektlari",
@@ -718,9 +718,9 @@
     "RequestLogsList": "So'rov loglar ro'yxati",
     "Metrics": "Metrikalar",
     "Navbar": {
-      "Profile": "Profil",
+      "Profile": "Профил",
       "Sessions": "Sessiyalar",
-			"Logout": "Chiqish",
+			"Logout": "Чиқиш",
 			"CurrentAccount": "Жорий аккаунт",
 			"AddAccount": "Аккаунт қўшиш",
 			"LogoutCurrent": "Чиқиш",
@@ -731,8 +731,8 @@
     },
     "Departments": "Бўлимлар"
   },
-  "No": "Yo'q",
-  "PerPage": "Sahifada",
+  "No": "Йўқ",
+  "PerPage": "Саҳифада",
   "SortBy": "Саралаш",
   "PermissionSets": {
     "Core": {
@@ -757,130 +757,130 @@
         "_Description": "Кенгайтма ишини ишга тушириш ва тўхтатиш"
       },
       "UserView": {
-        "Label": "Foydalanuvchilarni ko'rish",
-        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
+        "Label": "Фойдаланувчиларни кўриш",
+        "_Description": "Фойдаланувчиларни кўриш рухсати"
       },
       "UserManage": {
-        "Label": "Foydalanuvchilarni boshqarish",
-        "_Description": "Foydalanuvchilarni to'liq boshqarish, shu jumladan bloklash"
+        "Label": "Фойдаланувчиларни бошқариш",
+        "_Description": "Фойдаланувчиларни бошқариш рухсати"
       },
       "RoleView": {
-        "Label": "Rollarni ko'rish",
-        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
+        "Label": "Ролларни кўриш",
+        "_Description": "Ролларни кўриш рухсати"
       },
       "RoleManage": {
-        "Label": "Rollarni boshqarish",
-        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
+        "Label": "Ролларни бошқариш",
+        "_Description": "Ролларни бошқариш рухсати"
       },
       "GroupView": {
-        "Label": "Guruhlarni ko'rish",
-        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
+        "Label": "Гуруҳларни кўриш",
+        "_Description": "Гуруҳларни кўриш рухсати"
       },
       "GroupManage": {
-        "Label": "Guruhlarni boshqarish",
-        "_Description": "Guruhlarni to'liq boshqarish"
+        "Label": "Гуруҳларни бошқариш",
+        "_Description": "Гуруҳларни бошқариш рухсати"
       },
       "UploadView": {
-        "Label": "Fayllarni ko'rish",
-        "_Description": "Yuklangan fayllarni faqat ko'rish"
+        "Label": "Юклашларни кўриш",
+        "_Description": "Юклашларни кўриш рухсати"
       },
       "UploadManage": {
-        "Label": "Fayllarni boshqarish",
-        "_Description": "Fayl yuklashni to'liq boshqarish"
+        "Label": "Юклашларни бошқариш",
+        "_Description": "Юклашларни бошқариш рухсати"
       }
     },
     "Finance": {
       "PaymentView": {
-        "Label": "To'lovlarni ko'rish",
-        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
+        "Label": "Тўловларни кўриш",
+        "_Description": "Тўловларни кўриш рухсати"
       },
       "PaymentManage": {
-        "Label": "To'lovlarni boshqarish",
-        "_Description": "To'lovlarni to'liq boshqarish"
+        "Label": "Тўловларни бошқариш",
+        "_Description": "Тўловларни бошқариш рухсати"
       },
       "ExpenseView": {
-        "Label": "Xarajatlarni ko'rish",
-        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
+        "Label": "Харажатларни кўриш",
+        "_Description": "Харажатларни кўриш рухсати"
       },
       "ExpenseManage": {
-        "Label": "Xarajatlarni boshqarish",
-        "_Description": "Xarajatlarni to'liq boshqarish"
+        "Label": "Харажатларни бошқариш",
+        "_Description": "Харажатларни бошқариш рухсати"
       },
       "ExpenseCategoryView": {
-        "Label": "Xarajat toifalarini ko'rish",
-        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
+        "Label": "Харажат тоифаларини кўриш",
+        "_Description": "Харажат тоифаларини кўриш рухсати"
       },
       "ExpenseCategoryManage": {
-        "Label": "Xarajat toifalarini boshqarish",
-        "_Description": "Xarajat toifalarini to'liq boshqarish"
+        "Label": "Харажат тоифаларини бошқариш",
+        "_Description": "Харажат тоифаларини бошқариш рухсати"
       },
       "DebtView": {
-        "Label": "Qarzlarni ko'rish",
-        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
+        "Label": "Қарзларни кўриш",
+        "_Description": "Қарзларни кўриш рухсати"
       },
       "DebtManage": {
-        "Label": "Qarzlarni boshqarish",
-        "_Description": "Qarzlarni to'liq boshqarish"
+        "Label": "Қарзларни бошқариш",
+        "_Description": "Қарзларни бошқариш рухсати"
       }
     },
     "Projects": {
       "ProjectView": {
-        "Label": "Loyihalarni ko'rish",
-        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
+        "Label": "Лойиҳаларни кўриш",
+        "_Description": "Лойиҳаларни кўриш рухсати"
       },
       "ProjectManage": {
-        "Label": "Loyihalarni boshqarish",
-        "_Description": "Loyihalarni to'liq boshqarish"
+        "Label": "Лойиҳаларни бошқариш",
+        "_Description": "Лойиҳаларни бошқариш рухсати"
       },
       "ProjectStageView": {
-        "Label": "Loyiha bosqichlarini ko'rish",
-        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
+        "Label": "Лойиҳа босқичларини кўриш",
+        "_Description": "Лойиҳа босқичларини кўриш рухсати"
       },
       "ProjectStageManage": {
-        "Label": "Loyiha bosqichlarini boshqarish",
-        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
+        "Label": "Лойиҳа босқичларини бошқариш",
+        "_Description": "Лойиҳа босқичларини бошқариш рухсати"
       }
     },
     "Warehouse": {
       "ProductView": {
-        "Label": "Mahsulotlarni ko'rish",
-        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
+        "Label": "Маҳсулотларни кўриш",
+        "_Description": "Маҳсулотларни кўриш рухсати"
       },
       "ProductManage": {
-        "Label": "Mahsulotlarni boshqarish",
-        "_Description": "Mahsulotlarni to'liq boshqarish"
+        "Label": "Маҳсулотларни бошқариш",
+        "_Description": "Маҳсулотларни бошқариш рухсати"
       },
       "PositionView": {
-        "Label": "Pozitsiyalarni ko'rish",
-        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
+        "Label": "Лавозимларни кўриш",
+        "_Description": "Лавозимларни кўриш рухсати"
       },
       "PositionManage": {
-        "Label": "Pozitsiyalarni boshqarish",
-        "_Description": "Pozitsiyalarni to'liq boshqarish"
+        "Label": "Лавозимларни бошқариш",
+        "_Description": "Лавозимларни бошқариш рухсати"
       },
       "OrderView": {
-        "Label": "Buyurtmalarni ko'rish",
-        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
+        "Label": "Буюртмаларни кўриш",
+        "_Description": "Буюртмаларни кўриш рухсати"
       },
       "OrderManage": {
-        "Label": "Buyurtmalarni boshqarish",
-        "_Description": "Buyurtmalarni to'liq boshqarish"
+        "Label": "Буюртмаларни бошқариш",
+        "_Description": "Буюртмаларни бошқариш рухсати"
       },
       "UnitView": {
-        "Label": "Birliklarni ko'rish",
-        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
+        "Label": "Ўлчов бирликларини кўриш",
+        "_Description": "Ўлчов бирликларини кўриш рухсати"
       },
       "UnitManage": {
-        "Label": "Birliklarni boshqarish",
-        "_Description": "Birliklarni to'liq boshqarish"
+        "Label": "Ўлчов бирликларини бошқариш",
+        "_Description": "Ўлчов бирликларини бошқариш рухсати"
       },
       "InventoryView": {
-        "Label": "Inventarni ko'rish",
-        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
+        "Label": "Инвентарни кўриш",
+        "_Description": "Инвентарни кўриш рухсати"
       },
       "InventoryManage": {
-        "Label": "Inventarni boshqarish",
-        "_Description": "Inventarni to'liq boshqarish"
+        "Label": "Инвентарни бошқариш",
+        "_Description": "Инвентарни бошқариш рухсати"
       }
     },
     "CRM": {
@@ -913,12 +913,12 @@
     },
     "HRM": {
       "EmployeeView": {
-        "Label": "Xodimlarni ko'rish",
-        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
+        "Label": "Ходимларни кўриш",
+        "_Description": "Ходимларни кўриш рухсати"
       },
       "EmployeeManage": {
-        "Label": "Xodimlarni boshqarish",
-        "_Description": "Xodimlarni to'liq boshqarish"
+        "Label": "Ходимларни бошқариш",
+        "_Description": "Ходимларни бошқариш рухсати"
       }
     },
     "BiChat": {
@@ -937,8 +937,8 @@
     },
     "Website": {
       "WebsiteView": {
-        "Label": "Veb-saytni ko'rish",
-        "_Description": "Veb-sayt ma'lumotlarini faqat ko'rish"
+        "Label": "Вебсайтни кўриш",
+        "_Description": "Вебсайтни кўриш рухсати"
       },
       "WebsiteManage": {
         "Label": "Veb-saytni boshqarish",
@@ -959,39 +959,39 @@
       "Manage": "Билдиришнома созламаларини бошқариш"
     },
     "User": {
-      "Create": "Foydalanuvchi yaratish",
-      "Read": "Foydalanuvchilarni ko'rish",
-      "Update": "Foydalanuvchini tahrirlash",
-      "Delete": "Foydalanuvchini o'chirish",
-      "UpdateBlockStatus": "Foydalanuvchilarni bloklash/blokdan chiqarish"
+      "Create": "Фойдаланувчи яратиш",
+      "Read": "Фойдаланувчини кўриш",
+      "Update": "Фойдаланувчини таҳрирлаш",
+      "Delete": "Фойдаланувчини ўчириш",
+      "UpdateBlockStatus": "Фойдаланувчи блоклаш ҳолатини янгилаш"
     },
     "Role": {
-      "Create": "Rol yaratish",
-      "Read": "Rollarni ko'rish",
-      "Update": "Rolni tahrirlash",
-      "Delete": "Rolni o'chirish"
+      "Create": "Рол яратиш",
+      "Read": "Ролни кўриш",
+      "Update": "Ролни таҳрирлаш",
+      "Delete": "Ролни ўчириш"
     },
     "Group": {
-      "Create": "Guruh yaratish",
-      "Read": "Guruhlarni ko'rish",
-      "Update": "Guruhni tahrirlash",
-      "Delete": "Guruhni o'chirish"
+      "Create": "Гуруҳ яратиш",
+      "Read": "Гуруҳни кўриш",
+      "Update": "Гуруҳни таҳрирлаш",
+      "Delete": "Гуруҳни ўчириш"
     },
     "Account": {
-      "Create": "Hisob yaratish",
-      "Read": "Hisoblarni ko'rish",
-      "Update": "Hisobni tahrirlash",
-      "Delete": "Hisobni o'chirish"
+      "Create": "Ҳисоб яратиш",
+      "Read": "Ҳисобни кўриш",
+      "Update": "Ҳисобни таҳрирлаш",
+      "Delete": "Ҳисобни ўчириш"
     },
     "Settings": {
-      "Update": "Sozlamalarni tahrirlash",
+      "Update": "Созламаларни таҳрирлаш",
       "Read": "Sozlamalarni ko'rish"
     },
     "Upload": {
-      "Create": "Yuklash yaratish",
-      "Read": "Yuklashlarni ko'rish",
-      "Update": "Yuklashni tahrirlash",
-      "Delete": "Yuklashni o'chirish"
+      "Create": "Юклаш яратиш",
+      "Read": "Юклашни кўриш",
+      "Update": "Юклашни таҳрирлаш",
+      "Delete": "Юклашни ўчириш"
     },
     "Payout": {
       "Pay": "To'lash",
@@ -1017,38 +1017,38 @@
   "Projects": {
     "Meta": {
       "List": {
-        "Title": "Loyihalar"
+        "Title": "Лойиҳалар"
       },
       "Edit": {
-        "Title": "Loyihani tahrirlash"
+        "Title": "Лойиҳани таҳрирлаш"
       },
       "New": {
-        "Title": "Yangi loyiha"
+        "Title": "Янги лойиҳа"
       }
     },
     "List": {
-      "New": "Yangi loyiha",
-      "_Description": "Tavsif",
-      "Name": "Nomi"
+      "New": "Янги лойиҳа",
+      "_Description": "Тавсиф",
+      "Name": "Номи"
     },
     "Single": {
-      "Edit": "Loyihani tahrirlash",
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "Delete": "Loyihani o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
+      "Edit": "Лойиҳани таҳрирлаш",
+      "Name": "Номи",
+      "_Description": "Тавсиф",
+      "Delete": "Лойиҳани ўчириш",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу лойиҳани ўчирмоқчимисиз?"
     }
   },
-  "Remove": "O'chirish",
+  "Remove": "Ўчириш",
   "Resources": {
     "extension": "Кенгайтмалар",
     "department": "Бўлим",
     "notification_rules": "Билдиришнома созламалари",
     "bichat": "BI-Chat",
-    "user": "Foydalanuvchilar",
-    "role": "Rollar",
-    "group": "Guruhlar",
-    "upload": "Yuklashlar",
+    "user": "Фойдаланувчи",
+    "role": "Рол",
+    "group": "Гуруҳлар",
+    "upload": "Юклаш",
     "payout_request": "To'lov so'rovi",
     "pipeline": "Quvur liniyasi",
     "website": "Veb-sayt",
@@ -1057,31 +1057,31 @@
   "Roles": {
     "Meta": {
       "List": {
-        "Title": "Rollar"
+        "Title": "Роллар"
       },
       "Edit": {
-        "Title": "Rolni tahrirlash"
+        "Title": "Ролни таҳрирлаш"
       },
       "New": {
-        "Title": "Yangi rol"
+        "Title": "Янги рол"
       }
     },
     "List": {
-      "New": "Yangi rol",
-      "Name": "Nomi"
+      "New": "Янги рол",
+      "Name": "Номи"
     },
     "Single": {
-      "Edit": "Rolni tahrirlash",
+      "Edit": "Ролни таҳрирлаш",
       "Name": {
-        "Label": "Rol nomi",
-        "Placeholder": "Rol nomini kiriting"
+        "Label": "Рол номи",
+        "Placeholder": "Рол номини киритинг"
       },
       "_Description": {
-        "Label": "Tavsif",
-        "Placeholder": "Rol uchun tavsif kiriting"
+        "Label": "Тавсиф",
+        "Placeholder": "Рол учун тавсиф киритинг"
       },
-      "Delete": "Rolni o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+      "Delete": "Ролни ўчириш",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу ролни ўчирмоқчимисиз?"
     },
     "History": {
       "Resource": "Роллар",
@@ -1107,25 +1107,25 @@
       }
     }
   },
-  "Save": "Saqlash",
+  "Save": "Сақлаш",
   "Scaffold": {
     "Table": {
-      "NoDataTitle": "Ma'lumotlar yo'q",
-      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
-      "NothingFound": "Hech narsa topilmadi",
+      "NoDataTitle": "Маълумотлар йўқ",
+      "NoDataDescription": "Бу жадвалдаги маълумотлар мавжуд эмас.",
+      "NothingFound": "Ҳеч нарса топилмади",
       "NothingFoundDescription": "Қидирув ёки филтрларни ўзгартириб кўринг.",
       "MoreActions": "Бошқа амаллар",
       "SortBy": "Саралаш",
-      "TableSettings": "Jadval sozlamalari",
-      "ResetSettings": "Sozlamalarni tiklash",
-      "Columns": "Ustunlar",
-      "Grid": "Tarmoq",
-      "GridVertical": "Vertikal chiziqlar",
-      "GridHorizontal": "Gorizontal chiziqlar"
+      "TableSettings": "Жадвал созламалари",
+      "ResetSettings": "Созламаларни тиклаш",
+      "Columns": "Устунлар",
+      "Grid": "Тармоқ",
+      "GridVertical": "Вертикал чизиқлар",
+      "GridHorizontal": "Горизонтал чизиқлар"
     },
     "Filters": {
-      "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash",
+      "Title": "Фильтрлар",
+      "SelectAll": "Барчасини танлаш",
       "Apply": "Қўллаш",
       "Reset": "Тозалаш",
       "Active": "Фаол филтрлар",
@@ -1160,21 +1160,21 @@
       }
     }
   },
-  "Search": "Qidirish",
-  "SignOut": "Chiqish",
-  "Submit": "Yuborish",
-  "UploadLabel": "Fayl yuklash",
-  "UploadPlaceholder": "Yuklash uchun faylni tanlang",
-  "DownloadTemplate": "Shablonni yuklab olish",
+  "Search": "Қидириш",
+  "SignOut": "Чиқиш",
+  "Submit": "Жўнатиш",
+  "UploadLabel": "Файл юклаш",
+  "UploadPlaceholder": "Файлни суриб туширинг ёки танланг",
+  "DownloadTemplate": "Шаблонни юклаб олиш",
   "Running": "Бажарилмоқда…",
   "Warnings": "Огоҳлантиришлар",
   "Confirm": "Тасдиқлаш",
   "Example": {
-    "Below": "Quyida misolni ko'ring"
+    "Below": "Қуйидаги мисол"
   },
   "Spotlight": {
-    "Placeholder": "Qidirish...",
-    "NothingFound": "Hech narsa topilmadi",
+    "Placeholder": "Қидириш...",
+    "NothingFound": "Ҳеч нарса топилмади",
     "NothingFoundBody": "Бошқа сўз билан қидиринг ёки ёзилишини текширинг.",
     "Match": {
       "Exact": "Аниқ мослик",
@@ -1221,13 +1221,13 @@
       "Person": "Шахс"
     },
     "Summary": {
-      "Default": "So'rovingiz uchun eng mos natijalar topildi",
-      "Help": "Bu yerda eng mos sahifalar va bilim bazasi yozuvlari keltirilgan"
+      "Default": "Сизнинг сўровингиз учун энг мос келадиган натижалар топилди",
+      "Help": "Сизнинг сўровингизга мос бўлган саҳифалар ва билимлар рўйхати"
     },
     "Actions": {
-      "Open": "Ochish",
-      "AddUser": "Foydalanuvchi qo'shish",
-      "AddAccount": "Hisob qo'shish"
+      "Open": "Очиш",
+      "AddUser": "Фойдаланувчи қўшиш",
+      "AddAccount": "Ҳисоб қўшиш"
     },
     "Group": {
       "Navigate": "Навигация",
@@ -1272,9 +1272,9 @@
       "other": "Яна {{.Count}} натижа"
     }
   },
-  "Unknown": "Noma'lum",
-  "System": "Tizim",
-  "UpdatedAt": "Yangilangan sana",
+  "Unknown": "Номаълум",
+  "System": "Тизим",
+  "UpdatedAt": "Янгиланган сана",
   "Users": {
 		"PendingOnboarding": {
 			"Notice": "Фойдаланувчи ҳали созлашни якунламаган: ўз паролини ўрнатгандан кейин кириш очилади."
@@ -1291,24 +1291,24 @@
 		},
     "Meta": {
       "List": {
-        "Title": "Foydalanuvchilar"
+        "Title": "Фойдаланувчилар"
       },
       "Edit": {
-        "Title": "Foydalanuvchini tahrirlash"
+        "Title": "Фойдаланувчини таҳрирлаш"
       },
       "New": {
-        "Title": "Yangi foydalanuvchi"
+        "Title": "Янги фойдаланувчи"
       },
       "Permissions": {
-        "Title": "Foydalanuvchi ruxsatlari"
+        "Title": "Фойдаланувчи рухсатлари"
       }
     },
     "List": {
-      "New": "Yangi foydalanuvchi",
-      "FullName": "To'liq ism",
-      "Roles": "Rollar",
+      "New": "Янги фойдаланувчи",
+      "FullName": "Тўлиқ исм",
+      "Roles": "Роллар",
       "Email": "Email",
-      "Filters": "Filterlar",
+      "Filters": "Фильтрлар",
       "FilterRole": "Rol",
       "FilterGroup": "Guruh",
       "FilterCreatedAt": "Yaratilgan sana",
@@ -1321,38 +1321,38 @@
       "FilterTypeSystem": "Тизим"
     },
     "Cards": {
-      "PersonalInfo": "Shaxsiy ma'lumotlar",
-      "UserInfo": "Foydalanuvchi ma'lumotlari"
+      "PersonalInfo": "Шахсий маълумотлар",
+      "UserInfo": "Фойдаланувчи маълумотлари"
     },
     "Tabs": {
-      "UserInfo": "Ma'lumotlar",
-      "Permissions": "Ruxsatlar",
+      "UserInfo": "Маълумотлар",
+      "Permissions": "Рухсатлар",
       "Sessions": "Sessiyalar"
     },
     "Single": {
 			"TemporaryPassword": "Вақтинчалик парол",
 			"TemporaryPasswordPlaceholder": "Яратиш учун бўш қолдиринг",
 			"TemporaryPasswordHint": "Фойдаланувчи у билан бир марта киради ва ўз паролини ўрнатади. 72 соат амал қилади.",
-      "EditUser": "Foydalanuvchini tahrirlash",
+      "EditUser": "Фойдаланувчини таҳрирлаш",
       "Edit": "Таҳрирлаш",
-      "FirstName": "Ism",
-      "LastName": "Familiya",
-      "MiddleName": "Otasining ismi",
+      "FirstName": "Исм",
+      "LastName": "Фамилия",
+      "MiddleName": "Отасининг исми",
       "Email": "Email",
-      "Phone": "Telefon",
-      "Password": "Parol",
-      "Language": "Til",
+      "Phone": "Телефон",
+      "Password": "Парол",
+      "Language": "Тил",
       "UILanguage": "uz",
-      "SelectLanguage": "Tilni tanlang",
-      "ChooseAvatar": "Avatar tanlang",
-      "RoleIDs": "Rol",
-      "GroupIDs": "Guruh",
-      "SelectRole": "Rolni tanlang",
-      "SelectGroup": "Guruhni tanlang",
-      "EnterPassword": "Parolni kiriting",
-      "Delete": "Foydalanuvchini o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
-      "Permissions": "Foydalanuvchi ruxsatlari",
+      "SelectLanguage": "Тилни танланг",
+      "ChooseAvatar": "Аватар танланг",
+      "RoleIDs": "Рол",
+      "GroupIDs": "Гуруҳ",
+      "SelectRole": "Ролни танланг",
+      "SelectGroup": "Гуруҳни танланг",
+      "EnterPassword": "Паролни киритинг",
+      "Delete": "Фойдаланувчини ўчириш",
+      "DeleteConfirmation": "Ҳақиқатан ҳам бу фойдаланувчини ўчирмоқчимисиз?",
+      "Permissions": "Фойдаланувчи рухсатлари",
       "Details": "Tafsilotlar",
       "LastAction": "Oxirgi faollik",
       "CreatedAt": "Yaratilgan sana",
@@ -1360,36 +1360,36 @@
       "Roles": "Rollar",
       "Access": "Ruxsat"
     },
-    "Blocked": "Bloklangan",
+    "Blocked": "Блокланган",
     "NoRole": "Рол бириктирилмаган",
     "Block": {
-      "Title": "Foydalanuvchini bloklash",
-      "Button": "Bloklash",
-      "Confirm": "Bloklash",
-      "Reason": "Bloklash sababi",
-      "ReasonPlaceholder": "Bloklash sababini kiriting (kamida 3 ta belgi)",
-      "ConfirmationText": "Ushbu foydalanuvchini bloklashni xohlaysizmi?",
-      "BlockedBy": "Bloklagan",
-      "BlockedAt": "Bloklangan vaqt",
+      "Title": "Фойдаланувчини блоклаш",
+      "Button": "Блоклаш",
+      "Confirm": "Фойдаланувчини блоклашни тасдиқлаш",
+      "Reason": "Сабаб",
+      "ReasonPlaceholder": "Блоклаш сабабини киритинг",
+      "ConfirmationText": "Ҳақиқатан ҳам бу фойдаланувчини блокламоқчимисиз?",
+      "BlockedBy": "Блокланган:",
+      "BlockedAt": "Блокланган сана:",
       "Errors": {
-        "ReasonRequired": "Bloklash sababi talab qilinadi",
-        "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "ReasonRequired": "Блоклаш сабаби талаб қилинади",
+        "ReasonTooShort": "Сабаб камида 3 та белгидан иборат бўлиши керак",
+        "ReasonTooLong": "Сабаб 1024 та белгидан ошмаслиги керак",
         "OperationFailed": "Фойдаланувчини блоклаб бўлмади. Илтимос, қайта уриниб кўринг."
       }
     },
     "Unblock": {
-      "Title": "Foydalanuvchini blokdan chiqarish",
-      "Button": "Blokdan chiqarish",
-      "Confirm": "Blokdan chiqarish",
-      "ConfirmationText": "Ushbu foydalanuvchini blokdan chiqarishni xohlaysizmi?"
+      "Title": "Фойдаланувчини блокдан олиш",
+      "Button": "Блокдан олиш",
+      "Confirm": "Фойдаланувчини блокдан олишни тасдиқлаш",
+      "ConfirmationText": "Ҳақиқатан ҳам бу фойдаланувчини блокдан олмоқчимисиз?"
     },
     "Errors": {
-      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
-      "EmailUnique": "Email allaqachon ishlatilgan."
+      "PhoneUnique": "Телефон рақами аллақачон фойдаланилган",
+      "EmailUnique": "Email аллақачон ишлатилган."
     },
     "Delete": {
-      "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
+      "NotAllowed": "Ўчириб бўлмайди: Сиз ушбу тенантдаги ягона фойдаланувчисиз"
     },
     "Sessions": {
       "Title": "Sessiyalar:",
@@ -1459,8 +1459,8 @@
   },
   "ValidationErrors": {
     "required": "Bu maydon to'ldirilishi shart",
-    "emptySelect": "Qiymatni tanlang",
-    "email": "Email formati noto'g'ri",
+    "emptySelect": "Қийматни танланг",
+    "email": "Email формати нотўғри",
     "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
     "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
     "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
@@ -1469,14 +1469,14 @@
     "gte": "{{.Field}} dan katta yoki teng bo'lishi kerak",
     "len": "{{.Field}} uzunligi {{.Param}} ga teng bo'lishi kerak",
     "gt": "{{.Field}} dan katta bo'lishi kerak",
-    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak.",
+    "alphanum": "{{.Field}} фақат ҳарф ва рақамлардан иборат бўлиши керак.",
     "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
-    "datetime": "{{.Field}} to'g'ri sana bo'lishi kerak",
-    "gtfield": "{{.Field}} {{.Param}}dan katta bo'lishi kerak",
-    "invalidTIN": "Noto'g'ri STIR formati: {{.Details}}",
-    "invalidPIN": "Noto'g'ri JSHSHR formati: {{.Details}}"
+    "datetime": "{{.Field}} тўғри сана бўлиши керак",
+    "gtfield": "{{.Field}} {{.Param}}дан катта бўлиши керак",
+    "invalidTIN": "ИНН формати нотўғри: {{.Details}}",
+    "invalidPIN": "ПИНФЛ формати нотўғри: {{.Details}}"
   },
-  "Yes": "Ha",
+  "Yes": "Ҳа",
   "TwoFactor": {
     "Setup": {
       "Meta": {
@@ -1564,11 +1564,11 @@
   },
   "multilang": {
     "empty": "—",
-    "no_translations": "Tarjimalar mavjud emas",
-    "add_language": "+ Til qo'shish",
-    "remove_language": "Bu tilni o'chirish",
+    "no_translations": "Таржималар мавжуд эмас",
+    "add_language": "+ Тил қўшиш",
+    "remove_language": "Бу тилни ўчириш",
     "locale_placeholder": "uz",
-    "text_placeholder": "Bu tilda matn kiriting"
+    "text_placeholder": "Бу тилда матн киритинг"
   },
   "Sessions": {
     "Meta": {
