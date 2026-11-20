@@ -77,9 +77,10 @@ confirms it when reviewing this ADR.
 
 ### Rejected alternatives for D4–D6
 
-- **`fastschema/qjs`** (Code node): its resource limits and host-function control are not
-  enough for the Code node's limits and SSRF policy without maintaining our own fork;
-  kafig is that fork.
+- **`fastschema/qjs`** (Code node): it offers memory, stack and time limits and Go function
+  binding, but the §9 requirements of per-call output-size limits, network access only
+  through an SSRF-checked host function, and secret masking are ours to enforce at the
+  sandbox boundary, which needs a fork we control; kafig is that fork.
 - **goja** (Code node): interrupt-only resource control (no memory limit) and weaker
   coverage of the ECMAScript output of esbuild.
 - **`@dschz/solid-flow`** (editor): a third-party wrapper that follows `@xyflow/system`
@@ -130,7 +131,10 @@ when the catalog is loaded and on `nodes[i].type`. A subject is `{entity, key}` 
 SDK or application entity, plus `conversation` and `none`.
 
 Expressions are CEL with strict type checking at save time. The allowed functions are the
-standard CEL functions, `ext.Strings` and `ext.Bindings`; regular expressions are RE2;
+standard CEL functions, `ext.Strings` and `ext.Bindings`, minus the overloads
+`timestamp_to_string`, `duration_to_string`, `uint64_to_int64`, `timestamp_to_int64` and
+`duration_to_int64`; the `uint` and `bytes` types are not part of the subset (so
+`string(timestamp(...))` is rejected at save time); regular expressions are RE2;
 there is no clock function — `now` is fixed per step. A reference to missing context
 produces `missing_context` (a path, not an error) and is handled by the engine, not
 treated as `false`.
