@@ -175,6 +175,10 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 				continue
 			}
 			for _, t := range i.view.graph.Triggers {
+				// A run about an entity starts only on a trigger about it (a mixed graph has several).
+				if subject.Entity != "" && subject.Entity != i.view.subject && i.view.catalog.Events[t.Event].Subject != subject.Entity {
+					continue
+				}
 				evCtx := run
 				evCtx.Event = input.Event
 				m, st := i.TriggerMismatch(t.ID, input.Event, evCtx)
@@ -205,7 +209,8 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 			if intent.Timeout == 0 {
 				continue
 			}
-			outcome, _ := i.Wake(w, nil)
+			outcome, output := i.Wake(w, nil)
+			run.Nodes[w] = NodeState{Output: output} // an earlier wake's event is not this timeout's output
 			trace = append(trace, TraceStep{Node: w, Outcome: outcome, ContextPatch: map[string]any{}})
 			waiting = ""
 			advance(w, outcome)

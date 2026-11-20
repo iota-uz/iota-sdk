@@ -380,9 +380,17 @@ func readField(dec *json.Decoder) (Field, error) {
 	var f Field
 	switch key {
 	case "enum":
-		var values []string
-		if err := dec.Decode(&values); err != nil {
+		var raw []any
+		if err := dec.Decode(&raw); err != nil {
 			return Field{}, fmt.Errorf("enum: %w", err)
+		}
+		values := make([]string, 0, len(raw))
+		for _, x := range raw {
+			s, ok := x.(string)
+			if !ok {
+				return Field{}, fmt.Errorf("enum: %v is not a string", x)
+			}
+			values = append(values, s)
 		}
 		f = Field{Kind: Enum, Enum: values}
 	case "list", "map", "optional":

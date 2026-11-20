@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // TemplateProgram is a checked `{{ }}` template.
@@ -36,40 +37,67 @@ func TemplateExpressions(text string) []TemplateExpression {
 			return out
 		}
 		raw := text[start+2 : end]
-		lead := len(raw) - len(strings.TrimLeft(raw, " \t\r\n"))
+		lead := len(raw) - len(strings.TrimLeftFunc(raw, unicode.IsSpace)) // as TrimSpace trims Source
 		out = append(out, TemplateExpression{Source: strings.TrimSpace(raw), Offset: start + 2 + lead, Start: start, End: end + 2})
 		at = end + 2
 	}
 }
 
-// expressionEnd is the index of the `}}` that closes an expression starting at from, or -1.
+// expressionEnd is the index of the `}}` that closes an expression starting at from, or -1. It follows the
+// CEL lexer: quoted, raw (r"...") and triple-quoted strings, and // comments to the end of the line.
 func expressionEnd(text string, from int) int {
 	depth := 0
-	var quote byte
 	for i := from; i < len(text); i++ {
 		c := text[i]
-		if quote != 0 {
-			if c == '\\' {
-				i++
-				continue
+		switch {
+		case c == '/' && i+1 < len(text) && text[i+1] == '/':
+			nl := strings.IndexByte(text[i:], '\n')
+			if nl < 0 {
+				return -1
 			}
-			if c == quote {
-				quote = 0
+			i += nl
+		case c == '"' || c == '\'':
+			raw := i > from && (text[i-1] == 'r' || text[i-1] == 'R') && (i-1 == from || !isIdentByte(text[i-2]))
+			end := stringEnd(text, i, raw)
+			if end < 0 {
+				return -1
 			}
-			continue
-		}
-		switch c {
-		case '"', '\'':
-			quote = c
-		case '{', '[', '(':
+			i = end
+		case c == '{' || c == '[' || c == '(':
 			depth++
-		case ']', ')':
+		case c == ']' || c == ')':
 			depth--
-		case '}':
+		case c == '}':
 			if depth <= 0 && i+1 < len(text) && text[i+1] == '}' {
 				return i
 			}
 			depth--
+		}
+	}
+	return -1
+}
+
+func isIdentByte(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
+}
+
+// stringEnd is the index of the last quote of the string literal opening at start, or -1.
+func stringEnd(text string, start int, raw bool) int {
+	q := text[start]
+	delim := string(q)
+	if strings.HasPrefix(text[start:], strings.Repeat(string(q), 3)) {
+		delim = strings.Repeat(string(q), 3)
+	}
+	for i := start + len(delim); i < len(text); i++ {
+		if !raw && text[i] == '\\' {
+			i++
+			continue
+		}
+		if len(delim) == 1 && text[i] == '\n' {
+			return -1 // a one-quote string ends on its line
+		}
+		if strings.HasPrefix(text[i:], delim) {
+			return i + len(delim) - 1
 		}
 	}
 	return -1

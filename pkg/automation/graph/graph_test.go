@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,26 @@ func TestPackagesArePure(t *testing.T) {
 		for _, banned := range []string{"github.com/jackc/pgx", "github.com/iota-uz/iota-sdk/modules/", "github.com/iota-uz/iota-sdk/pkg/extruntime"} {
 			if strings.HasPrefix(dep, banned) {
 				t.Errorf("pkg/automation depends on %s", dep)
+			}
+		}
+	}
+}
+
+// Neither package does IO or talks to a database itself: no direct import of os, network, exec or sql.
+func TestPackagesDoNoIO(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not on PATH")
+	}
+	out, err := exec.Command("go", "list", "-f", `{{.ImportPath}}{{range .Imports}} {{.}}{{end}}`, ".", "../expr").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list: %v\n%s", err, out)
+	}
+	banned := []string{"os", "os/exec", "io/fs", "io/ioutil", "net", "net/http", "database/sql", "syscall", "plugin"}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		for _, imp := range fields[1:] {
+			if slices.Contains(banned, imp) || strings.HasPrefix(imp, "database/sql/") || strings.HasPrefix(imp, "net/") {
+				t.Errorf("%s imports %s", fields[0], imp)
 			}
 		}
 	}
@@ -143,8 +164,8 @@ func TestInterpreterSteps(t *testing.T) {
 	if st.Kind != graph.StepWait || st.Wait.Event != "order.paid" || st.Wait.Timeout != 48*time.Hour {
 		t.Fatalf("pay: %+v", st)
 	}
-	if ok, _ := in.WaitMatches("pay", graph.Event{"kind": "order.paid", "amount": 10}, ctx); ok {
-		t.Fatal("a payment below the total wakes the wait")
+	if ok, st := in.WaitMatches("pay", graph.Event{"kind": "order.paid", "amount": 10}, ctx); ok || st != nil {
+		t.Fatalf("a payment below the total: ok %v, step %+v; want the filter to evaluate to false", ok, st)
 	}
 	paid := graph.Event{"kind": "order.paid", "amount": 150}
 	if ok, st := in.WaitMatches("pay", paid, ctx); !ok || st != nil {
@@ -584,5 +605,178 @@ func TestTypedParamsAreSnapshotted(t *testing.T) {
 	}
 	if st := in.Start("route", &graph.StepContext{Ctx: ctx}); st.Outcome != "fresh" {
 		t.Fatalf("route: %+v", st)
+	}
+}
+
+// Review round of the PR: what each fix guarantees.
+func TestReviewRoundFixes(t *testing.T) {
+	c := testCatalog(t)
+
+	// A typed Go list in an event matches as a list.
+	in, err := graph.NewInterpreter(c, mustDecode(t, orderGraph), graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := graph.Context{Vars: map[string]any{"order": map[string]any{"total": 1, "status": "new"}}}
+	if m, _ := in.TriggerMismatch("created", graph.Event{"kind": "order.created", "total": 200, "channel": []string{"web"}}, ctx); m != "" {
+		t.Fatalf("a []string channel: mismatch %q", m)
+	}
+
+	// An effect's done outcome is one of its outcomes.
+	bad := testCatalog(t)
+	n := bad.Nodes["notify"]
+	n.DoneOutcome, n.Outcomes = "", []string{"sent", "failed"}
+	bad.Nodes["notify"] = n
+	if err := bad.Check(nil); err == nil {
+		t.Error("Check accepts an effect whose done outcome has no edge")
+	}
+
+	// FreeID stays within 40 characters.
+	long := strings.Repeat("a", 40)
+	g := graph.Graph{Nodes: []graph.Node{{ID: long}}}
+	if id := graph.FreeID(g, long); len(id) > 40 || id == long || !graph.IsID(id) {
+		t.Errorf("free id %q", id)
+	}
+
+	// x-unique compares numbers by value; x-max-ms takes 1e3; an undeclared null is refused.
+	p := graph.MustSchemaParams(`{"type": "object", "properties": {"n": {"type": "array", "x-unique": true}, "ms": {"type": "integer", "x-max-ms": 2000}, "r": {"type": "string"}}, "additionalProperties": false}`)
+	if _, issues := p.Parse(map[string]any{"n": []any{json.Number("1"), json.Number("1.0")}}); len(issues) != 1 {
+		t.Errorf("1 and 1.0: %v", issues)
+	}
+	if _, issues := p.Parse(map[string]any{"ms": json.Number("1e3")}); len(issues) != 0 {
+		t.Errorf("1e3 ms: %v", issues)
+	}
+	if _, issues := p.Parse(map[string]any{"rr": nil, "r": nil}); len(issues) != 1 {
+		t.Errorf("an undeclared null: %v", issues)
+	}
+	schema := p.JSONSchema()
+	schema[0] = 'X'
+	if p.JSONSchema()[0] != '{' {
+		t.Error("JSONSchema returns the spec's own bytes")
+	}
+
+	// A branch expression may span lines.
+	multi := strings.Replace(orderGraph, `"order.status == \"new\""`, `"order.status == \"new\" &&\n true"`, 1)
+	if errs := graph.Validate(c, mustDecode(t, multi), graph.Options{}); len(errs) > 0 {
+		t.Errorf("a multiline expression: %v", errs)
+	}
+
+	// The interpreter keeps the hooks it validated.
+	hc := testCatalog(t)
+	e := hc.Events["order.created"]
+	e.MatchHook = "team"
+	hc.Events["order.created"] = e
+	hooks := map[string]func(map[string]any, graph.Event) bool{"team": func(map[string]any, graph.Event) bool { return true }}
+	hin, err := graph.NewInterpreter(hc, mustDecode(t, orderGraph), graph.Options{MatchHooks: hooks})
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(hooks, "team")
+	if m, _ := hin.TriggerMismatch("created", graph.Event{"kind": "order.created", "total": 200, "channel": "web"}, ctx); m != "" {
+		t.Errorf("after the caller's map changed: %q", m)
+	}
+
+	// CatalogFromJSON and FieldFromJSONSchema refuse a second value.
+	if _, err := graph.CatalogFromJSON([]byte(`{}{"nodes":{"bad":{"behavior":"unknown"}}}`), nil); err == nil {
+		t.Error("a second catalog document is accepted")
+	}
+	if _, err := expr.FieldFromJSONSchema(json.RawMessage(`{"type":"string"} {"type":"boolean"}`)); err == nil {
+		t.Error("a second schema is accepted")
+	}
+	var f expr.Field
+	if err := json.Unmarshal([]byte(`{"enum":[null]}`), &f); err == nil {
+		t.Error("a null enum member is accepted")
+	}
+}
+
+// A mixed graph's dry run about one entity starts only on that entity's triggers.
+func TestDryRunSubjectTriggers(t *testing.T) {
+	c := testCatalog(t)
+	c.Subjects["customer"] = graph.SubjectSpec{Context: expr.Fields{{Name: "customer", Field: expr.ObjectOf(expr.Fields{{Name: "name", Field: expr.StringField}})}}}
+	c.Events["customer.created"] = graph.EventSpec{Key: "customer.created", Subject: "customer"}
+	c.Subjects["any"] = graph.SubjectSpec{Context: expr.Fields{{Name: "run", Field: expr.ObjectOf(expr.Fields{{Name: "n", Field: expr.IntField}})}}}
+	c.MixedSubject = "any"
+	g := mustDecode(t, `{"name": "Mixed", "triggers": [{"id": "order", "event": "order.created"}, {"id": "customer", "event": "customer.created"}],
+		"nodes": [], "edges": [{"from": {"node": "order", "outcome": "fired"}, "to": "ignore"}, {"from": {"node": "customer", "outcome": "fired"}, "to": "ignore"}]}`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := in.DryRun(graph.Subject{Entity: "order", Key: "1"}, graph.Context{}, []graph.DryRunInput{
+		{Event: graph.Event{"kind": "customer.created"}},
+		{Event: graph.Event{"kind": "order.created", "total": 1}},
+	}, graph.DryRunOptions{})
+	if len(trace) == 0 || trace[0].Node != "order" {
+		t.Fatalf("trace: %+v", trace)
+	}
+}
+
+type bigOutput struct{}
+
+func (bigOutput) Behavior() graph.Behavior { return "big" }
+func (bigOutput) OutcomeRule(graph.NodeSpec) graph.OutcomeRule {
+	return graph.OutcomeRule{Fixed: []string{"done"}}
+}
+func (bigOutput) Validate(*graph.GraphView, graph.Node, graph.NodeSpec) []graph.GraphError {
+	return nil
+}
+func (bigOutput) Start(*graph.StepContext, graph.Node, graph.NodeSpec) graph.Step {
+	return graph.Step{Kind: graph.StepOutcome, Outcome: "done", Output: map[string]any{"s": strings.Repeat("x", 100)}}
+}
+
+// The output limit holds for registered behaviors; a wait's filter param is checked as a bool.
+func TestOutputLimitAndFilterParam(t *testing.T) {
+	b, err := graph.NewBehaviors(append(graph.DefaultBehaviorImpls(), bigOutput{})...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := testCatalog(t)
+	c.Nodes["big"] = graph.NodeSpec{Type: "big", Behavior: "big", Params: graph.MustSchemaParams(`{"type": "object"}`)}
+	g := mustDecode(t, `{"name": "Big", "triggers": [{"id": "t", "event": "order.created"}],
+		"nodes": [{"id": "b", "type": "big", "params": {}}],
+		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "b"}, {"from": {"node": "b", "outcome": "done"}, "to": "ignore"}]}`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{Behaviors: b, Limits: graph.Limits{MaxValueBytes: 64}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := in.Start("b", nil); st.Kind != graph.StepFailed || st.Code != graph.FailValueTooLarge {
+		t.Fatalf("a large output: %+v", st)
+	}
+
+	w := c.Nodes["wait"]
+	w.Expressions = nil // the filter param is not listed: it is still a bool over the waited event
+	c.Nodes["wait"] = w
+	wg := strings.Replace(orderGraph, `"event.amount >= order.total"`, `"event.amount"`, 1)
+	errs := graph.Validate(c, mustDecode(t, wg), graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[1].params.filter" {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+func TestEnvScopeAndCompletion(t *testing.T) {
+	scope := expr.Scope{Vars: map[string]expr.Field{"x": expr.IntField, "flag": expr.BoolField, "s": expr.StringField}}
+	env, err := expr.NewEnv(scope, expr.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, issues := env.Check("x + 1", expr.TypeAny)
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	scope.Vars["x"] = expr.StringField
+	env.Scope().Vars["x"] = expr.StringField
+	if v, err := p.Eval(map[string]any{"x": 7}); err != nil || v != int64(8) {
+		t.Fatalf("after the caller changed the scope: %v %v", v, err)
+	}
+	has := func(prefix, label string) bool {
+		for _, c := range env.Complete(prefix) {
+			if c.Label == label {
+				return true
+			}
+		}
+		return false
+	}
+	if has("flag.low", "lowerAscii") || !has("s.low", "lowerAscii") {
+		t.Error("member completions ignore the receiver type")
 	}
 }

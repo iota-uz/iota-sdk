@@ -3,9 +3,11 @@ package expr
 import (
 	"reflect"
 
+	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
+	"cel.dev/cel-go/interpreter"
 )
 
 // dynMap is a dyn object or a map of the context as CEL reads it. Reading a key it lacks is an unknown
@@ -17,8 +19,8 @@ import (
 // key into an error; on an Indexer it tests presence with IsSet and reads with Get.
 type dynMap struct {
 	m    map[string]any
-	path []string
-	deep bool // nested objects are dyn too (a dyn value), not declared ones (a map of objects)
+	path []segment // keys (string) and list indices (int64)
+	deep bool      // nested objects are dyn too (a dyn value), not declared ones (a map of objects)
 }
 
 var (
@@ -30,13 +32,7 @@ var (
 )
 
 func newDynMap(m map[string]any, path []segment, deep bool) *dynMap {
-	p := make([]string, 0, len(path))
-	for _, s := range path {
-		if str, ok := s.(string); ok {
-			p = append(p, str)
-		}
-	}
-	return &dynMap{m: m, path: p, deep: deep}
+	return &dynMap{m: m, path: append([]segment(nil), path...), deep: deep}
 }
 
 func (d *dynMap) base() traits.Mapper {
@@ -71,15 +67,36 @@ func (d *dynMap) Get(key ref.Val) ref.Val {
 	}
 	v, has := d.m[string(k)]
 	if !has {
-		trail := types.NewAttributeTrail(d.path[0])
+		root, _ := d.path[0].(string)
+		trail := types.NewAttributeTrail(root)
 		for _, s := range d.path[1:] {
-			types.QualifyAttribute[string](trail, s)
+			switch q := s.(type) {
+			case string:
+				types.QualifyAttribute[string](trail, q)
+			case int64:
+				types.QualifyAttribute[int64](trail, q)
+			}
 		}
 		types.QualifyAttribute[string](trail, string(k))
 		return types.NewUnknown(0, trail)
 	}
-	if nested, ok := v.(map[string]any); ok && d.deep {
-		return &dynMap{m: nested, path: append(append([]string{}, d.path...), string(k)), deep: true}
+	return d.wrap(v, appendPath(d.path, string(k)))
+}
+
+// wrap reads a nested dyn value: objects stay dynMaps with their path, lists keep their indices in it.
+func (d *dynMap) wrap(v any, path []segment) ref.Val {
+	if !d.deep {
+		return types.DefaultTypeAdapter.NativeToValue(v)
+	}
+	switch x := v.(type) {
+	case map[string]any:
+		return &dynMap{m: x, path: path, deep: true}
+	case []any:
+		items := make([]ref.Val, len(x))
+		for i, e := range x {
+			items[i] = d.wrap(e, appendPath(path, int64(i)))
+		}
+		return types.NewRefValList(types.DefaultTypeAdapter, items)
 	}
 	return types.DefaultTypeAdapter.NativeToValue(v)
 }
@@ -100,4 +117,66 @@ func (d *dynMap) Contains(key ref.Val) ref.Val {
 
 func (d *dynMap) Size() ref.Val { return types.Int(len(d.m)) }
 
-func (d *dynMap) Iterator() traits.Iterator { return d.base().Iterator() }
+// Iterator yields the keys in sorted order: a comprehension over a map is deterministic.
+func (d *dynMap) Iterator() traits.Iterator {
+	keys := sortedKeys(d.m)
+	return types.DefaultTypeAdapter.NativeToValue(keys).(traits.Lister).Iterator()
+}
+
+// plainEquality makes == and != independent of operand order: CEL asks the left operand, and a native map
+// does not recognize a dynMap, so both operands are compared as plain values.
+func plainEquality(i interpreter.InterpretableV2) (interpreter.InterpretableV2, error) {
+	call, ok := i.(interpreter.InterpretableCall)
+	if !ok || len(call.Args()) != 2 {
+		return i, nil
+	}
+	switch call.Function() {
+	case operators.Equals:
+		return &plainEq{InterpretableCall: call}, nil
+	case operators.NotEquals:
+		return &plainEq{InterpretableCall: call, negate: true}, nil
+	}
+	return i, nil
+}
+
+type plainEq struct {
+	interpreter.InterpretableCall
+	negate bool
+}
+
+func (e *plainEq) Exec(frame *interpreter.ExecutionFrame) ref.Val {
+	args := e.Args()
+	return e.compare(args[0].Exec(frame), args[1].Exec(frame))
+}
+
+func (e *plainEq) Eval(act interpreter.Activation) ref.Val {
+	args := e.Args()
+	return e.compare(args[0].Eval(act), args[1].Eval(act))
+}
+
+func (e *plainEq) compare(l, r ref.Val) ref.Val {
+	if types.IsUnknownOrError(l) {
+		return l
+	}
+	if types.IsUnknownOrError(r) {
+		return r
+	}
+	out := types.Equal(plainVal(l), plainVal(r))
+	if b, ok := out.(types.Bool); ok && e.negate {
+		return !b
+	}
+	return out
+}
+
+// plainVal turns a value holding dynMaps into native CEL values.
+func plainVal(v ref.Val) ref.Val {
+	switch v.(type) {
+	case *dynMap, traits.Lister, traits.Mapper:
+		native, err := ToNative(v)
+		if err != nil {
+			return v
+		}
+		return types.DefaultTypeAdapter.NativeToValue(native)
+	}
+	return v
+}

@@ -7,10 +7,14 @@
     "subjects": {
       "run": {
         "context": {
-          "now": "string"
+          "now": {
+            "object": {
+              "at": "string"
+            }
+          }
         }
       }
     }
   },
-  "error": "now"
+  "error": "variable of every scope"
 }

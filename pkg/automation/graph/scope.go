@@ -253,6 +253,18 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		}
 		out = append(out, nodeExpression{path: "params." + e.Param, source: s, want: want, event: event})
 	}
+	// A wait's filter param is a bool over the waited event even when Expressions does not list it.
+	if w := spec.Wait; w != nil && w.Filter.Param != "" && waited != "" {
+		listed := false
+		for _, e := range spec.Expressions {
+			listed = listed || e.Param == w.Filter.Param
+		}
+		if src, ok := paramAt(params, w.Filter.Param); ok && !listed {
+			if s, ok := src.(string); ok {
+				out = append(out, nodeExpression{path: "params." + w.Filter.Param, source: s, want: expr.TypeBool, event: waited})
+			}
+		}
+	}
 	for _, v := range spec.Values {
 		if src, ok := paramAt(params, v); ok {
 			if s, ok := src.(string); ok {

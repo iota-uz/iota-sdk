@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 )
 
@@ -111,6 +112,9 @@ func FieldFromJSONSchema(s json.RawMessage) (Field, error) {
 	var v any
 	if err := dec.Decode(&v); err != nil {
 		return Field{}, err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return Field{}, fmt.Errorf("unexpected data after the schema")
 	}
 	order, err := keyOrder(s)
 	if err != nil {
@@ -230,7 +234,7 @@ func fieldFromSchema(v any, order map[string][]string, at string) (Field, error)
 	default:
 		return Field{}, fmt.Errorf("%stype is one of object, array, string, integer, number, boolean", where(at))
 	}
-	for k := range o {
+	for _, k := range sortedKeys(o) {
 		if !allowed[k] {
 			return Field{}, fmt.Errorf("%s%s is not part of the schema subset", where(at), k)
 		}

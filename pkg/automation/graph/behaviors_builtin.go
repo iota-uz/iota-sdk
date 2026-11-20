@@ -121,7 +121,31 @@ func (effectBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 	}
 	return OutcomeRule{Fixed: []string{doneOutcome(spec)}}
 }
-func (effectBehavior) Validate(*GraphView, Node, NodeSpec) []GraphError { return nil }
+
+// Validate: an effect's done and failed outcomes are among its declared outcomes, or a run would take an
+// outcome that has no edge.
+func (effectBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphError {
+	if err := effectOutcomesError(spec); err != "" {
+		return []GraphError{{Path: v.Path(node.ID) + ".type", Code: CodeInvalid, Message: node.Type + ": " + err}}
+	}
+	return nil
+}
+
+func effectOutcomesError(spec NodeSpec) string {
+	if len(spec.Outcomes) == 0 {
+		if spec.FailedOutcome != "" && spec.FailedOutcome != doneOutcome(spec) {
+			return "failed_outcome " + spec.FailedOutcome + " is not one of its outcomes"
+		}
+		return ""
+	}
+	if !contains(spec.Outcomes, doneOutcome(spec)) {
+		return "done outcome " + doneOutcome(spec) + " is not one of its outcomes"
+	}
+	if spec.FailedOutcome != "" && !contains(spec.Outcomes, spec.FailedOutcome) {
+		return "failed_outcome " + spec.FailedOutcome + " is not one of its outcomes"
+	}
+	return ""
+}
 func (effectBehavior) Start(s *StepContext, node Node, spec NodeSpec) Step {
 	e, stop := s.Effect(node, spec)
 	if stop != nil {

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -72,14 +75,17 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		return n.value(*f.Elem, v, path)
 	case Dyn:
 		d, err := dynValue(v, path)
-		if m, ok := d.(map[string]any); ok && err == nil {
-			return newDynMap(m, path, true), true, nil
+		if err != nil {
+			return nil, false, err
 		}
-		return d, true, err
+		return wrapDyn(d, path), true, nil
 	case String, Enum:
 		s, ok := v.(string)
 		if !ok {
 			return bad("string")
+		}
+		if f.Kind == Enum && !slices.Contains(f.Enum, s) {
+			return nil, false, &InputError{Path: pathString(path), Message: fmt.Sprintf("%q is not one of %s", s, strings.Join(f.Enum, ", "))}
 		}
 		return s, true, nil
 	case Bool:
@@ -149,7 +155,8 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 			return bad("map")
 		}
 		out := make(map[string]any, len(m))
-		for k, x := range m {
+		for _, k := range sortedKeys(m) { // a stable order: the first invalid entry is always the same
+			x := m[k]
 			if x == nil {
 				continue // a null value of a map is no key
 			}
@@ -161,7 +168,7 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 				out[k] = nv
 			}
 		}
-		return newDynMap(out, path, false), true, nil
+		return newDynMap(out, path, f.Elem.Kind == Dyn), true, nil
 	case Object:
 		m, ok := v.(map[string]any)
 		if !ok {
@@ -222,7 +229,10 @@ func dynValue(v any, path []segment) (any, error) {
 		if i, ok, _ := intValue(x); ok {
 			return i, nil
 		}
-		f, _ := floatValue(x)
+		f, ok := floatValue(x)
+		if !ok || math.IsInf(f, 0) || math.IsNaN(f) {
+			return nil, &InputError{Path: pathString(path), Message: fmt.Sprintf("%v is not a representable number", x)}
+		}
 		return f, nil
 	case []any:
 		out := make([]any, len(x))
@@ -287,11 +297,18 @@ func intValue(v any) (int64, bool, error) {
 		if i, err := x.Int64(); err == nil {
 			return i, true, nil
 		}
-		f, err := x.Float64()
-		if err != nil {
+		// 1.0 and 1e0 are integers; 1.00000000000000001 is not, though it rounds to one as a double.
+		r, ok := new(big.Rat).SetString(string(x))
+		if !ok {
 			return 0, false, fmt.Errorf("%s is not a number", x)
 		}
-		return floatInt(f)
+		if !r.IsInt() {
+			return 0, false, nil
+		}
+		if !r.Num().IsInt64() {
+			return 0, false, fmt.Errorf("%s does not fit an int", x)
+		}
+		return r.Num().Int64(), true, nil
 	case float64:
 		return floatInt(x)
 	case float32:
@@ -345,6 +362,10 @@ func floatValue(v any) (float64, bool) {
 	case float64:
 		return x, true
 	case float32:
+		return float64(x), true
+	case uint:
+		return float64(x), true
+	case uint64:
 		return float64(x), true
 	}
 	if i, ok, err := intValue(v); ok && err == nil {
@@ -411,4 +432,29 @@ func UnmarshalJSON(data []byte, v any) error {
 		return fmt.Errorf("unexpected data after the JSON value")
 	}
 	return nil
+}
+
+func sortedKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// wrapDyn makes the objects of a dyn value dynMaps, through lists too, so a missing key anywhere in it is
+// missing context at its path.
+func wrapDyn(v any, path []segment) any {
+	switch x := v.(type) {
+	case map[string]any:
+		return newDynMap(x, path, true)
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = wrapDyn(e, appendPath(path, int64(i)))
+		}
+		return out
+	}
+	return v
 }

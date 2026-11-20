@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
@@ -202,7 +203,8 @@ func (c Catalog) Check(b *Behaviors) error {
 		if _, ok := e.Payload.Get("kind"); ok {
 			return fmt.Errorf("event %s: payload: kind is the event's own field", key)
 		}
-		for name, m := range e.Match {
+		for _, name := range sortedKeys(e.Match) {
+			m := e.Match[name]
 			if m.Type != MatchStrings && m.Type != MatchBool {
 				return fmt.Errorf("event %s: match %s: type is strings or bool", key, name)
 			}
@@ -232,6 +234,11 @@ func (c Catalog) Check(b *Behaviors) error {
 		}
 		if err := n.Output.Validate(); err != nil {
 			return fmt.Errorf("node %s: output: %w", typ, err)
+		}
+		if n.Behavior == BehaviorEffect {
+			if err := effectOutcomesError(n); err != "" {
+				return fmt.Errorf("node %s: %s", typ, err)
+			}
 		}
 		if a := n.Answer; a != nil {
 			if a.Choice == "" {
@@ -343,6 +350,9 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 	if err := dec.Decode(&cj); err != nil {
 		return Catalog{}, fmt.Errorf("catalog: %w", err)
 	}
+	if _, err := dec.Token(); err != io.EOF {
+		return Catalog{}, fmt.Errorf("catalog: unexpected data after the catalog")
+	}
 	c := Catalog{
 		Events:       map[string]EventSpec{},
 		Nodes:        map[string]NodeSpec{},
@@ -352,7 +362,6 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 	for entity, s := range cj.Subjects {
 		c.Subjects[entity] = SubjectSpec(s)
 	}
-	subjects := sortedKeys(c.Subjects)
 	events := sortedKeys(cj.Events)
 	for _, key := range events {
 		e := cj.Events[key]
@@ -377,10 +386,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 		if _, ok := b.impl(n.Behavior); !ok {
 			return Catalog{}, fmt.Errorf("node %s: behavior %q is not one of %s", typ, n.Behavior, joinBehaviors(b.Supported()))
 		}
-		on := n.Subjects
-		if len(on) == 0 {
-			on = subjects
-		}
+		on := n.Subjects // empty or left out: any subject, as NodeSpec.Subjects reads it
 		switch {
 		case n.Behavior == BehaviorBranch:
 			c.Nodes[typ] = withType(branchNode(on), typ)

@@ -184,11 +184,20 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Env{scope: s, limits: l, cel: env, provider: p, names: names}, nil
+	return &Env{scope: s.Clone(), limits: l, cel: env, provider: p, names: names}, nil
 }
 
 // Scope is the scope the environment was built for.
-func (e *Env) Scope() Scope { return e.scope }
+func (e *Env) Scope() Scope { return e.scope.Clone() }
+
+// Clone is a deep copy of the scope: an environment keeps the scope it was checked against.
+func (s Scope) Clone() Scope {
+	vars := make(map[string]Field, len(s.Vars))
+	for name, f := range s.Vars {
+		vars[name] = f.Clone()
+	}
+	return Scope{Vars: vars}
+}
 
 // Program is a checked expression, ready to evaluate.
 type Program struct {
@@ -228,6 +237,7 @@ func (e *Env) Check(src string, want Type) (*Program, []Issue) {
 		return nil, []Issue{{Code: IssueType, Message: fmt.Sprintf("must be of type %s, is %s", want, out), Line: 1, Column: 1}}
 	}
 	prg, err := e.cel.Program(checked,
+		cel.CustomDecoratorV2(plainEquality),
 		cel.EvalOptions(cel.OptPartialEval|cel.OptOptimize),
 		cel.CostLimit(e.limits.CostLimit),
 	)
@@ -449,7 +459,7 @@ func (e *Env) Complete(prefix string) []Completion {
 				}
 			}
 		}
-		for _, fn := range e.functions(true) {
+		for _, fn := range e.memberFunctions(f) {
 			if strings.HasPrefix(fn, partial) {
 				out = append(out, Completion{Label: fn, Kind: "function"})
 			}
@@ -495,6 +505,61 @@ func (e *Env) functions(member bool) []string {
 	}
 	sort.Strings(out)
 	return dedupe(out)
+}
+
+// memberFunctions are the member functions and macros a receiver of this field takes.
+func (e *Env) memberFunctions(recv Field) []string {
+	kind := receiverKind(recv.Unwrap())
+	accepts := func(t *types.Type) bool {
+		k := t.Kind()
+		return k == types.DynKind || k == types.AnyKind || k == types.TypeParamKind || kind == types.DynKind || k == kind
+	}
+	var out []string
+	for name, fn := range e.cel.Functions() {
+		if isOperator(name) || strings.HasPrefix(name, "@") {
+			continue
+		}
+		for _, o := range fn.OverloadDecls() {
+			if forbiddenOverloads[o.ID()] || !o.IsMemberFunction() || len(o.ArgTypes()) == 0 || !accepts(o.ArgTypes()[0]) {
+				continue
+			}
+			out = append(out, name)
+			break
+		}
+	}
+	if kind == types.ListKind || kind == types.MapKind || kind == types.DynKind {
+		for _, m := range e.cel.Macros() {
+			if m.IsReceiverStyle() {
+				out = append(out, m.Function())
+			}
+		}
+	}
+	sort.Strings(out)
+	return dedupe(out)
+}
+
+func receiverKind(f Field) types.Kind {
+	switch f.Kind {
+	case String, Enum:
+		return types.StringKind
+	case Int:
+		return types.IntKind
+	case Double:
+		return types.DoubleKind
+	case Bool:
+		return types.BoolKind
+	case Timestamp:
+		return types.TimestampKind
+	case List:
+		return types.ListKind
+	case Map:
+		return types.MapKind
+	case Object:
+		return types.StructKind
+	case Dyn, Optional:
+		return types.DynKind
+	}
+	return types.DynKind
 }
 
 func dedupe(s []string) []string {

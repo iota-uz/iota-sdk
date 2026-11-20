@@ -123,7 +123,7 @@ const graphSchema = `{
   "description": "The content of one immutable version of an automation graph.",
   "type": "object",
   "properties": {
-    "name": {"type": "string", "pattern": "^[\\t\\n\\v\\f\\r \\x{85}\\p{Z}]*[^\\t\\n\\v\\f\\r \\x{85}\\p{Z}](?:[\\s\\S]{0,118}[^\\t\\n\\v\\f\\r \\x{85}\\p{Z}])?[\\t\\n\\v\\f\\r \\x{85}\\p{Z}]*$", "description": "1 to 120 characters (code points) once whitespace at the edges is trimmed (Unicode White_Space, as Go strings.TrimSpace); the graph keeps the trimmed name. The pattern is RE2 syntax."},
+    "name": {"type": "string", "pattern": "^[\t\n\u000b\f\r \u0085   -     　]*[^\t\n\u000b\f\r \u0085   -     　](?:[\\s\\S]{0,118}[^\t\n\u000b\f\r \u0085   -     　])?[\t\n\u000b\f\r \u0085   -     　]*$", "description": "1 to 120 characters (code points; validate the pattern in Unicode mode) once whitespace at the edges is trimmed: the Unicode White_Space characters, as Go strings.TrimSpace. The graph keeps the trimmed name. The pattern uses no engine-specific escapes: the whitespace characters are literal."},
     "description": {"type": "string", "maxLength": 2000},
     "run_as": {"enum": ["owner", "initiator"], "default": "owner"},
     "triggers": {
@@ -347,7 +347,12 @@ func FreeID(g Graph, base string) string {
 		return base
 	}
 	for n := 2; ; n++ {
-		if id := fmt.Sprintf("%s_%d", base, n); !taken[id] {
+		suffix := fmt.Sprintf("_%d", n)
+		stem := base
+		if len(stem)+len(suffix) > 40 {
+			stem = stem[:40-len(suffix)] // ids are ASCII: a byte is a character
+		}
+		if id := stem + suffix; !taken[id] {
 			return id
 		}
 	}

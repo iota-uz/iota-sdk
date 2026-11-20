@@ -23,13 +23,13 @@ func buildView(c Catalog, g Graph, o Options) *GraphView {
 			continue // its own error at nodes[i].type; params of a kind this build does not run are not read
 		}
 		if p, issues := spec.Params.Parse(n.Params); len(issues) == 0 {
-			v.params[n.ID] = p
+			v.params[n.ID] = ownedParams(p)
 		}
 	}
 	for _, t := range g.Triggers {
 		if takes := triggerParamsSpec(v.catalog.Events[t.Event]); takes != nil {
 			if p, issues := takes.Parse(t.Params); len(issues) == 0 {
-				v.triggerParams[t.ID] = p
+				v.triggerParams[t.ID] = ownedParams(p)
 			}
 		}
 	}
@@ -57,6 +57,17 @@ func triggerParamsSpec(e EventSpec) ParamsSpec {
 		}
 	}
 	return nil
+}
+
+// ownedParams stores what a ParamsSpec parsed as owned JSON values: a custom spec may return typed Go
+// containers, which later copies would otherwise share.
+func ownedParams(p map[string]any) map[string]any {
+	if owned, err := jsonValue(p); err == nil {
+		if m, ok := owned.(map[string]any); ok {
+			return m
+		}
+	}
+	return copyMap(p)
 }
 
 type errorList struct{ list []GraphError }

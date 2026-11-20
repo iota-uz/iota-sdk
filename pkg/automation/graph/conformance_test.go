@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -69,6 +70,8 @@ func (l *fixtureLimits) expr() expr.Limits {
 type fixtureOptions struct {
 	CallError  string   `json:"call_error"`  // every call's request is refused with this message
 	MatchHooks []string `json:"match_hooks"` // hooks that take every event
+	// WithoutBehaviors validates with the default behaviors minus these (the catalog loads with all).
+	WithoutBehaviors []string `json:"without_behaviors"`
 }
 
 type expectedError struct {
@@ -193,6 +196,19 @@ func TestConformance(t *testing.T) {
 				if f.Options.CallError != "" {
 					msg := f.Options.CallError
 					dry.CallError = func(graph.Effect) string { return msg }
+				}
+				if len(f.Options.WithoutBehaviors) > 0 {
+					var keep []graph.BehaviorImpl
+					for _, impl := range graph.DefaultBehaviorImpls() {
+						if !slices.Contains(f.Options.WithoutBehaviors, string(impl.Behavior())) {
+							keep = append(keep, impl)
+						}
+					}
+					reduced, err := graph.NewBehaviors(keep...)
+					if err != nil {
+						t.Fatal(err)
+					}
+					opts.Behaviors = reduced
 				}
 				opts.MatchHooks = map[string]func(map[string]any, graph.Event) bool{}
 				for _, h := range f.Options.MatchHooks {

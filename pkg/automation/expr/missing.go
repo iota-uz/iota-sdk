@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"cel.dev/cel-go/common/ast"
+	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
@@ -27,10 +28,14 @@ func (e *Env) chains(a *ast.AST) []chain {
 	refs := a.ReferenceMap()
 	var visit func(x ast.NavigableExpr)
 	visit = func(x ast.NavigableExpr) {
-		if x.Kind() == ast.SelectKind && !x.AsSelect().IsTestOnly() {
+		if _, _, isStep := chainStep(x); isStep {
 			parent, ok := x.Parent()
-			top := !ok || parent.Kind() != ast.SelectKind || parent.AsSelect().IsTestOnly() ||
-				parent.AsSelect().Operand().ID() != x.ID()
+			top := true
+			if ok {
+				if operand, _, parentStep := chainStep(parent); parentStep && operand.ID() == x.ID() {
+					top = false
+				}
+			}
 			if top {
 				if c, ok := e.chainOf(a, refs, x); ok {
 					out = append(out, c)
@@ -46,15 +51,42 @@ func (e *Env) chains(a *ast.AST) []chain {
 	return out
 }
 
+// chainStep is one step of a chain: a select (not a presence test) or an index by a constant string,
+// `m.a` and `m["a"]` alike.
+func chainStep(x ast.Expr) (ast.Expr, string, bool) {
+	switch x.Kind() { //nolint:exhaustive // only selects and indexes are steps of a chain
+	case ast.SelectKind:
+		s := x.AsSelect()
+		if s.IsTestOnly() {
+			return nil, "", false
+		}
+		return s.Operand(), s.FieldName(), true
+	case ast.CallKind:
+		c := x.AsCall()
+		if c.FunctionName() != operators.Index || len(c.Args()) != 2 || c.Args()[1].Kind() != ast.LiteralKind {
+			return nil, "", false
+		}
+		key, ok := c.Args()[1].AsLiteral().(types.String)
+		if !ok {
+			return nil, "", false
+		}
+		return c.Args()[0], string(key), true
+	}
+	return nil, "", false
+}
+
 func (e *Env) chainOf(a *ast.AST, refs map[int64]*ast.ReferenceInfo, top ast.Expr) (chain, bool) {
 	var fields []string
 	ids := map[int64]bool{}
 	x := top
-	for x.Kind() == ast.SelectKind {
-		s := x.AsSelect()
+	for {
+		operand, field, ok := chainStep(x)
+		if !ok {
+			break
+		}
 		ids[x.ID()] = true
-		fields = append(fields, s.FieldName())
-		x = s.Operand()
+		fields = append(fields, field)
+		x = operand
 	}
 	if x.Kind() != ast.IdentKind {
 		return chain{}, false
@@ -117,19 +149,19 @@ func (p *Program) pathFor(id int64, pat []string) (string, int32) {
 		if len(pat) > n {
 			n = len(pat)
 		}
-		return strings.Join(c.path[:n], "."), c.offset
+		return joinPath(c.path[:n]), c.offset
 	}
 	// An unknown read from a dyn object carries no expression id: find the chain that reads its path.
 	for _, c := range p.chains {
 		if len(c.path) >= len(pat) && hasPrefix(c.path, pat) {
-			return strings.Join(pat, "."), c.offset
+			return joinPath(pat), c.offset
 		}
 	}
 	offset := int32(math.MaxInt32)
 	if r, ok := p.ast.SourceInfo().GetOffsetRange(id); ok {
 		offset = r.Start
 	}
-	return strings.Join(pat, "."), offset
+	return joinPath(pat), offset
 }
 
 func hasPrefix(path, prefix []string) bool {
@@ -218,26 +250,47 @@ func ToNative(v ref.Val) (any, error) {
 	return v.Value(), nil
 }
 
-// dynNative unwraps nested dyn maps.
+// dynNative unwraps nested dyn maps, inside maps and lists.
 func dynNative(m map[string]any) (map[string]any, error) {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		switch x := v.(type) {
-		case *dynMap:
-			n, err := dynNative(x.m)
-			if err != nil {
-				return nil, err
-			}
-			out[k] = n
-		case map[string]any:
-			n, err := dynNative(x)
-			if err != nil {
-				return nil, err
-			}
-			out[k] = n
-		default:
-			out[k] = v
+		n, err := nativeValue(v)
+		if err != nil {
+			return nil, err
 		}
+		out[k] = n
 	}
 	return out, nil
+}
+
+func nativeValue(v any) (any, error) {
+	switch x := v.(type) {
+	case *dynMap:
+		return dynNative(x.m)
+	case map[string]any:
+		return dynNative(x)
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			n, err := nativeValue(e)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = n
+		}
+		return out, nil
+	}
+	return v, nil
+}
+
+// joinPath writes a path: keys joined with dots, list indices as [i].
+func joinPath(segments []string) string {
+	var b strings.Builder
+	for i, s := range segments {
+		if i > 0 && !strings.HasPrefix(s, "[") {
+			b.WriteByte('.')
+		}
+		b.WriteString(s)
+	}
+	return b.String()
 }

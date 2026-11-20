@@ -1,0 +1,208 @@
+{
+  "name": "expressions-review-round",
+  "format": 2,
+  "kind": "expressions",
+  "description": "Equality of a dyn object does not depend on operand order; a map's keys iterate sorted; a missing key under a list index keeps the index in its path; an indexed read counts for the first missing field; a value outside its enum is invalid input; a number beyond a double is invalid input; an int field takes 1.0 and 1e0 but not 1.00000000000000001.",
+  "catalog_patch": {
+    "subjects": {
+      "card": {
+        "context": {
+          "nums": {
+            "list": "int"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{\"x\": 1, \"b\": 2, \"a\": 3} == event.data",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.data == {\"x\": 1, \"b\": 2, \"a\": 3}",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{\"x\": 1} != event.data",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.data.map(k, k)",
+      "type": null,
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "value": [
+        "a",
+        "b",
+        "x"
+      ]
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.items[1].name == \"ok\"",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "error": "missing_context",
+      "path": "event.items[1].name"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[event.data[\"z\"], event.data.y] == []",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1,
+            "b": 2,
+            "a": 3
+          },
+          "items": [
+            {
+              "name": "ok"
+            },
+            {}
+          ]
+        }
+      },
+      "error": "missing_context",
+      "path": "event.data.z"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.state == \"open\"",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "r",
+          "number": 1,
+          "title": "t",
+          "labels": [],
+          "state": "pending"
+        }
+      },
+      "error": "failed",
+      "code": "INVALID_INPUT"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.big > 0.0",
+      "type": "bool",
+      "context": {
+        "event": {
+          "big": 1e400
+        }
+      },
+      "error": "failed",
+      "code": "INVALID_INPUT"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "nums[0] + nums[1] == 2",
+      "type": "bool",
+      "context": {
+        "nums": [1.0, 1e0]
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "nums[0] == 1",
+      "type": "bool",
+      "context": {
+        "nums": [1.00000000000000001]
+      },
+      "error": "failed",
+      "code": "INVALID_INPUT"
+    }
+  ]
+}

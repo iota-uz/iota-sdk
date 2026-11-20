@@ -11,7 +11,7 @@ import (
 const MaxWaitMs = 30 * 86_400_000
 
 const (
-	expressionSchema = `{"type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^\\S(.*\\S)?$", "description": "CEL"}`
+	expressionSchema = `{"type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^\\S([\\s\\S]*\\S)?$", "description": "CEL; it may span lines"}`
 	outcomeSchema    = `{"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"}`
 	durationSchema   = `{"type": "string", "pattern": "^[1-9][0-9]{0,5}(s|m|h|d)$", "x-max-ms": 2592000000, "description": "30s, 20m, 2h or 7d; at most 30 days"}`
 )

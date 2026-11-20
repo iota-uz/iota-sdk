@@ -182,7 +182,7 @@ func (s *StepContext) Catalog() Catalog {
 	if s.in == nil {
 		return Catalog{}
 	}
-	return s.in.view.catalog
+	return s.in.view.Catalog()
 }
 
 // Eval evaluates a CEL source of a node in the graph's scope; a non-nil step is MissingContext or Failed.
@@ -326,6 +326,12 @@ type Interpreter struct {
 // NewInterpreter prepares a graph; it must be valid by the format's rules.
 // Product rules (Options.Rules) are not rechecked: a version saved before a rule started failing still runs.
 func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
+	// The interpreter keeps the hook set it validated, not the caller's map.
+	hooks := make(map[string]func(map[string]any, Event) bool, len(o.MatchHooks))
+	for name, h := range o.MatchHooks {
+		hooks[name] = h
+	}
+	o.MatchHooks = hooks
 	format := o
 	format.Rules = nil
 	if errs := Validate(c, g, format); len(errs) > 0 {
@@ -427,6 +433,11 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 			return s
 		}
 		var values []string
+		if _, isList := value.([]any); !isList && value != nil {
+			if owned, err := jsonValue(value); err == nil {
+				value = owned // a typed Go list ([]string) matches as the list its JSON is
+			}
+		}
 		switch v := value.(type) {
 		case nil:
 		case []any:
@@ -496,7 +507,13 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 		sc = *s
 	}
 	sc.in = i
-	return impl.Start(&sc, node, copyNodeSpec(spec))
+	st := impl.Start(&sc, node, copyNodeSpec(spec))
+	if st.Output != nil {
+		if big := i.tooLarge(st.Output, "the output of "+nodeID); big != nil {
+			return *big // the limit holds for every behavior, registered ones included
+		}
+	}
+	return st
 }
 
 // CallOutcome is the outcome of a call from its answer, by the node type's answer rule: the chosen value,

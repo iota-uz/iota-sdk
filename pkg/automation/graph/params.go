@@ -51,7 +51,7 @@ func MustSchemaParams(schema string) ParamsSpec {
 	return p
 }
 
-func (p *schemaParams) JSONSchema() json.RawMessage { return p.raw }
+func (p *schemaParams) JSONSchema() json.RawMessage { return append(json.RawMessage(nil), p.raw...) }
 
 func (p *schemaParams) Parse(raw map[string]any) (map[string]any, []Issue) {
 	if raw == nil {
@@ -91,8 +91,9 @@ func dropNullOptionals(schema map[string]any, obj map[string]any) {
 	}
 	props, _ := schema["properties"].(map[string]any)
 	for k, v := range obj {
-		if v == nil && !required[k] {
-			delete(obj, k)
+		_, declared := props[k]
+		if v == nil && declared && !required[k] {
+			delete(obj, k) // an undeclared key stays for additionalProperties to refuse
 			continue
 		}
 		if sub, ok := props[k].(map[string]any); ok {

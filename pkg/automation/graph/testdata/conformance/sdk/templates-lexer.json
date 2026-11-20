@@ -1,0 +1,36 @@
+{
+  "name": "templates-lexer",
+  "format": 2,
+  "kind": "templates",
+  "description": "The end of a {{ }} expression follows the CEL lexer: raw and triple-quoted strings and // comments hide }}.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ r\"\\\" }}",
+      "context": {},
+      "value": "\\"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ \"\"\"a\" }} b\"\"\" }}",
+      "context": {},
+      "value": "a\" }} b"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ 1 // }} ignored\n + 2 }}",
+      "context": {},
+      "value": "3"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ issue.nope }}",
+      "context": {},
+      "error": "type"
+    }
+  ]
+}

@@ -117,7 +117,11 @@ func fromValues(ref *ParamRef, params map[string]any) []string {
 	}
 	list, ok := params[ref.Param].([]any)
 	if !ok {
-		return nil
+		// A list built in Go ([]string, []map[string]any) is read through its JSON form.
+		owned, err := jsonValue(params[ref.Param])
+		if list, ok = owned.([]any); err != nil || !ok {
+			return nil
+		}
 	}
 	var out []string
 	for _, item := range list {

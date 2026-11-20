@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"regexp"
 	"sort"
 	"strconv"
@@ -138,16 +139,19 @@ func checkUnique(ctx *jsonschema.ValidatorContext, v any, arg any, fold bool) {
 				continue
 			}
 		}
-		key, err := json.Marshal(val)
+		k, err := canonicalJSON(val)
 		if err != nil {
 			continue
 		}
-		k := string(key)
 		if fold {
 			k = strings.ToLower(k)
 		}
 		if seen[k] {
-			ctx.AddError(&uniqueKind{Index: i, Field: field, Value: string(key)})
+			shown, err := json.Marshal(val)
+			if err != nil {
+				shown = []byte(k)
+			}
+			ctx.AddError(&uniqueKind{Index: i, Field: field, Value: string(shown)})
 			continue
 		}
 		seen[k] = true
@@ -155,6 +159,52 @@ func checkUnique(ctx *jsonschema.ValidatorContext, v any, arg any, fold bool) {
 }
 
 var durationRe = regexp.MustCompile(`^([1-9][0-9]{0,5})(s|m|h|d)$`)
+
+// canonicalJSON writes a JSON value so equal values give equal text: numbers by their exact value (1 and
+// 1.0 are the same), object keys sorted.
+func canonicalJSON(v any) (string, error) {
+	switch x := v.(type) {
+	case json.Number:
+		r, ok := new(big.Rat).SetString(string(x))
+		if !ok {
+			return "", fmt.Errorf("%s is not a number", x)
+		}
+		return "n:" + r.RatString(), nil
+	case float64:
+		r := new(big.Rat)
+		if r.SetFloat64(x) == nil {
+			return "", fmt.Errorf("%v is not a number", x)
+		}
+		return "n:" + r.RatString(), nil
+	case []any:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			p, err := canonicalJSON(e)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = p
+		}
+		return "[" + strings.Join(parts, ",") + "]", nil
+	case map[string]any:
+		keys := sortedKeys(x)
+		parts := make([]string, len(keys))
+		for i, k := range keys {
+			p, err := canonicalJSON(x[k])
+			if err != nil {
+				return "", err
+			}
+			key, err := json.Marshal(k)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = string(key) + ":" + p
+		}
+		return "{" + strings.Join(parts, ",") + "}", nil
+	}
+	b, err := json.Marshal(v)
+	return string(b), err
+}
 
 // DurationMs reads a duration param: `30s`, `20m`, `2h`, `7d` or an integer of milliseconds.
 func DurationMs(v any) (int64, bool) {
@@ -168,8 +218,13 @@ func DurationMs(v any) (int64, bool) {
 		unit := map[string]int64{"s": 1000, "m": 60_000, "h": 3_600_000, "d": 86_400_000}[m[2]]
 		return n * unit, true
 	case json.Number:
-		n, err := x.Int64()
-		return n, err == nil && n > 0
+		// 1000 and 1e3 are the same integer; 1.5 is not one.
+		r, ok := new(big.Rat).SetString(string(x))
+		if !ok || !r.IsInt() || !r.Num().IsInt64() {
+			return 0, false
+		}
+		n := r.Num().Int64()
+		return n, n > 0
 	case int:
 		return int64(x), x > 0
 	case int64:
