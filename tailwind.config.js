@@ -16,8 +16,10 @@ module.exports = {
           600: "oklch(var(--clr-surface-600))",
         },
         avatar: "oklch(var(--clr-avatar-bg))",
+        toast: "oklch(var(--clr-toast-surface))",
       },
       borderColor: {
+        toast: "oklch(var(--clr-toast-border))",
         subtle: "oklch(var(--clr-border-subtle) / <alpha-value>)",
         default: "oklch(var(--clr-border-default) / <alpha-value>)",
         strong: "oklch(var(--clr-border-strong) / <alpha-value>)",
@@ -36,6 +38,9 @@ module.exports = {
         purple: "oklch(var(--clr-border-purple))",
       },
       textColor: {
+        toast: "oklch(var(--clr-toast-text))",
+        "toast-muted": "oklch(var(--clr-toast-text-muted))",
+        "toast-icon": "oklch(var(--clr-toast-icon-muted))",
         100: "oklch(var(--clr-text-100))",
         200: "oklch(var(--clr-text-200))",
         300: "oklch(var(--clr-text-300))",

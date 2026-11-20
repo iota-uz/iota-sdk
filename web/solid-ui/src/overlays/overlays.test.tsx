@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js'
 import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConfirmationDialog, DEFAULT_BUSY_MESSAGE, Dialog } from './Dialog'
+import { ConfirmationDialog, DEFAULT_BUSY_MESSAGE, DEFAULT_BUSY_MESSAGES, defaultBusyMessage, Dialog } from './Dialog'
 import { ViewDrawer } from './Drawer'
 import { Toast, ToastProvider, ToastRegion, toastDuration } from './Toast'
 
@@ -93,7 +93,7 @@ describe('overlay primitives', () => {
     const dismissed = vi.fn()
     render(() => <ToastRegion><Toast variant="warning" title="Review" message="Missing field" duration={1000} onDismiss={dismissed} /></ToastRegion>)
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveClass('flex', 'items-start', 'gap-3', 'rounded-lg', 'bg-surface-300')
+    expect(alert).toHaveClass('flex', 'items-start', 'gap-3', 'rounded-lg', 'bg-toast', 'text-toast', 'border-toast')
     expect(alert.closest('[data-toast-region]')).not.toHaveAttribute('aria-live')
     await fireEvent.mouseEnter(alert.parentElement!)
     vi.advanceTimersByTime(1200)
@@ -184,11 +184,15 @@ describe('overlay primitives', () => {
       })
       await Promise.resolve()
       const dialog = screen.getByRole('dialog') as HTMLDialogElement
-      const status = dialog.querySelector('[data-dialog-busy-status]')!
-      expect(status).toHaveAttribute('role', 'status')
+      const line = dialog.querySelector('[data-dialog-busy-status]')!
+      const status = line.querySelector('[role="status"]')!
       expect(status).toHaveTextContent('')
+      // The hidden copy reserves the message's height before any close attempt.
+      expect(line.querySelector('[aria-hidden="true"]')).toHaveTextContent('Still deleting')
       expect(dialog).toHaveAttribute('aria-busy', 'true')
-      expect(dialog.querySelector('[data-dialog-body]')).not.toBeNull()
+      expect(dialog).toHaveAttribute('data-busy')
+      expect(screen.getByRole('button', { name: 'Close' })).toHaveAttribute('data-dialog-close')
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-dialog-close')
       expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('btn-loading')
 
       await fireEvent.keyDown(dialog, { key: 'Escape' })
@@ -241,8 +245,24 @@ describe('overlay primitives', () => {
       await Promise.resolve()
       const dialog = screen.getByRole('dialog', { name: 'Editor' })
       expect(dialog.querySelectorAll('[data-dialog-busy-status]')).toHaveLength(1)
+      expect(dialog).toHaveAttribute('data-busy')
       await fireEvent.keyDown(dialog, { key: 'Escape' })
       expect(screen.getByRole('status')).toHaveTextContent(DEFAULT_BUSY_MESSAGE)
+    })
+
+    it('defaults the busy message to the host language', async () => {
+      render(() => <div lang="ru"><Dialog open busy aria-label="Редактор"><button>Сохранить</button></Dialog></div>)
+      await Promise.resolve()
+      await fireEvent.keyDown(screen.getByRole('dialog', { name: 'Редактор' }), { key: 'Escape' })
+      expect(screen.getByRole('status')).toHaveTextContent(DEFAULT_BUSY_MESSAGES.ru)
+    })
+
+    it('maps language tags to the built-in busy messages', () => {
+      expect(defaultBusyMessage('ru-RU')).toBe(DEFAULT_BUSY_MESSAGES.ru)
+      expect(defaultBusyMessage('uz')).toBe(DEFAULT_BUSY_MESSAGES.uz)
+      expect(defaultBusyMessage('uz-Cyrl-UZ')).toBe(DEFAULT_BUSY_MESSAGES['uz-Cyrl'])
+      expect(defaultBusyMessage('de')).toBe(DEFAULT_BUSY_MESSAGES.en)
+      expect(defaultBusyMessage(undefined)).toBe(DEFAULT_BUSY_MESSAGES.en)
     })
 
     it('closes on a backdrop press unless busy or opted out', async () => {

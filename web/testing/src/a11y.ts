@@ -21,7 +21,7 @@ export const axePackage = '@axe-core/playwright'
 
 type AxeNode = { target: unknown[]; html: string; failureSummary?: string }
 type AxeViolation = { id: string; impact?: string | null; help: string; helpUrl: string; nodes: AxeNode[] }
-type AxeResults = { violations: AxeViolation[]; incomplete: unknown[]; passes: unknown[]; url: string; testEngine?: unknown }
+type AxeResults = { violations: AxeViolation[]; incomplete: unknown[]; passes: unknown[]; inapplicable: unknown[]; url: string; testEngine?: unknown; [key: string]: unknown }
 type AxeBuilderInstance = {
   include(selector: string): AxeBuilderInstance
   exclude(selector: string): AxeBuilderInstance
@@ -100,8 +100,8 @@ async function currentTestInfo(): Promise<TestInfo | undefined> {
 
 /**
  * Runs axe on the page and fails on violations with impact `serious` or
- * `critical`. The full axe report is attached to the test as JSON
- * (`a11y-report.json`) whether the check passes or fails.
+ * `critical`. The complete axe result is attached to the test as JSON
+ * (`a11y-report.json`, `{ options, results }`) whether the check passes or fails.
  */
 export async function expectNoA11yViolations(page: Page, options: A11yCheckOptions = {}): Promise<void> {
   const AxeBuilder = await loadAxeBuilder()
@@ -112,8 +112,10 @@ export async function expectNoA11yViolations(page: Page, options: A11yCheckOptio
   const results = await builder.analyze()
   const testInfo = options.testInfo ?? await currentTestInfo()
   if (testInfo) {
+    // The complete axe result (passes, inapplicable, incomplete, violations,
+    // engine and environment metadata) next to the check's scope options.
     await testInfo.attach('a11y-report.json', {
-      body: JSON.stringify({ url: results.url, options: { include: options.include, exclude: options.exclude, disableRules: options.disableRules }, testEngine: results.testEngine, violations: results.violations, incomplete: results.incomplete }, null, 2),
+      body: JSON.stringify({ options: { include: options.include, exclude: options.exclude, disableRules: options.disableRules }, results }, null, 2),
       contentType: 'application/json',
     })
   }

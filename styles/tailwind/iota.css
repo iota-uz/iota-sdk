@@ -232,6 +232,13 @@
     --clr-success: var(--green-500);
     --clr-on-sucess: var(--white);
 
+    /* Toast: a light surface in both themes (not overridden under html.dark). */
+    --clr-toast-surface: var(--white);
+    --clr-toast-text: var(--black);
+    --clr-toast-text-muted: var(--gray-600);
+    --clr-toast-icon-muted: var(--gray-500);
+    --clr-toast-border: var(--gray-200);
+
     /* Badges */
     --clr-badge-pink: var(--pink-500) / 8%;
     --clr-badge-yellow: var(--yellow-500) / 8%;
@@ -341,6 +348,19 @@
 
   button:disabled {
     opacity: 0.7;
+    pointer-events: none;
+  }
+
+  /*
+   * A busy dialog or drawer (data-busy, set by the Solid Dialog) dims its content
+   * and blocks pointer input, but keeps legible and clickable the loading action
+   * (aria-busy="true"), the close controls (data-dialog-close) and the busy status
+   * line. Only the outermost elements free of those are dimmed, so opacity never
+   * compounds and never reaches a kept element.
+   */
+  dialog[data-busy] > :not(:has([aria-busy="true"], [data-dialog-close], [data-dialog-busy-status])):not([aria-busy="true"], [data-dialog-close], [data-dialog-busy-status]),
+  dialog[data-busy] :has([aria-busy="true"], [data-dialog-close], [data-dialog-busy-status]) > :not(:has([aria-busy="true"], [data-dialog-close], [data-dialog-busy-status])):not([aria-busy="true"], [data-dialog-close], [data-dialog-busy-status]) {
+    opacity: 0.8;
     pointer-events: none;
   }
 

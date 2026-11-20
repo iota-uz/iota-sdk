@@ -11,17 +11,36 @@ export interface DialogProps extends Omit<JSX.DialogHtmlAttributes<HTMLDialogEle
   canonicalClass?: string
   /**
    * A request started from the layer is running. Every close (✕, Esc, backdrop,
-   * Cancel) is ignored, the content marked `data-dialog-body` is dimmed and the
-   * layer carries `aria-busy="true"`. A close attempt shows `busyMessage`.
+   * Cancel) is ignored and the layer carries `aria-busy="true"`. Its content is
+   * dimmed and takes no pointer input, except the loading action
+   * (`aria-busy="true"`, as Button `loading` sets it), close controls marked
+   * `data-dialog-close` and the status line. A close attempt shows `busyMessage`.
    */
   busy?: boolean
-  /** Status line shown when someone tries to close a busy layer. */
+  /** Status line shown when someone tries to close a busy layer; by default a built-in text in the host's `lang` (en, ru, uz, uz-Cyrl). */
   busyMessage?: JSX.Element
   /** Clicking outside the panel (the backdrop) closes the layer, as in the templ dialog. Default true. */
   dismissOnBackdrop?: boolean
 }
 
-export const DEFAULT_BUSY_MESSAGE = 'Please wait: the request is still running and will not be sent twice.'
+/** Built-in status line of a busy layer, by language; hosts may pass `busyMessage` instead. */
+export const DEFAULT_BUSY_MESSAGES = {
+  en: 'Please wait: the request is still running and will not be sent twice.',
+  ru: 'Подождите: запрос ещё выполняется и не будет отправлен повторно.',
+  uz: 'Kuting: soʻrov hali bajarilmoqda va qayta yuborilmaydi.',
+  'uz-Cyrl': 'Кутинг: сўров ҳали бажарилмоқда ва қайта юборилмайди.',
+} as const
+
+export const DEFAULT_BUSY_MESSAGE = DEFAULT_BUSY_MESSAGES.en
+
+/** The built-in busy message for a BCP 47 language tag (the host's `lang`); English when unknown. */
+export function defaultBusyMessage(lang: string | null | undefined): string {
+  const tag = (lang ?? '').toLowerCase()
+  if (tag.startsWith('ru')) return DEFAULT_BUSY_MESSAGES.ru
+  if (tag.startsWith('uz-cyrl')) return DEFAULT_BUSY_MESSAGES['uz-Cyrl']
+  if (tag.startsWith('uz')) return DEFAULT_BUSY_MESSAGES.uz
+  return DEFAULT_BUSY_MESSAGES.en
+}
 
 export interface DialogControl {
   /** True while the layer is busy. */
@@ -51,18 +70,22 @@ export function DialogBusyStatus(props: { class?: string }) {
   return <BusyStatusLine class={props.class} register />
 }
 
+const statusRowClass = 'col-start-1 row-start-1 flex min-h-5 items-center gap-2'
+const statusDot = () => <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />
+
 function BusyStatusLine(props: { class?: string; register?: boolean }) {
   const control = useDialog()
   if (control && props.register) onCleanup(control.registerStatus())
   const visible = () => Boolean(control?.busy() && control.closeRefused())
+  // The hidden copy of the message holds the line at its final height (also when
+  // it wraps on a phone), so showing the message never moves the buttons.
   return (
-    <p role="status" class={classes('flex min-h-5 items-center gap-2 text-sm text-200', props.class)} data-dialog-busy-status>
-      <Show when={visible()}><span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />{control?.busyMessage()}</Show>
-    </p>
+    <div class={classes('grid text-sm text-200', props.class)} data-dialog-busy-status>
+      <p aria-hidden="true" class={classes(statusRowClass, 'invisible')}>{statusDot()}{control?.busyMessage()}</p>
+      <p role="status" class={statusRowClass}><Show when={visible()}>{statusDot()}{control?.busyMessage()}</Show></p>
+    </div>
   )
 }
-
-const busyClass = '[&[data-busy]_[data-dialog-body]]:opacity-80 [&[data-busy]_[data-dialog-body]]:pointer-events-none'
 
 const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
@@ -81,6 +104,7 @@ export function Dialog(props: DialogProps) {
   const [statusSlots, setStatusSlots] = createSignal(0)
   const expanded = () => local.open ?? internal()
   const busy = () => Boolean(local.busy)
+  const [lang, setLang] = createSignal<string | null>(null)
   let element!: HTMLDialogElement
   let restoreFocus: HTMLElement | null = null
   let backdropPress = false
@@ -99,7 +123,7 @@ export function Dialog(props: DialogProps) {
   const control: DialogControl = {
     busy,
     closeRefused,
-    busyMessage: () => local.busyMessage ?? DEFAULT_BUSY_MESSAGE,
+    busyMessage: () => local.busyMessage ?? defaultBusyMessage(lang()),
     requestClose: () => requestClose(),
     registerStatus: () => {
       setStatusSlots((count) => count + 1)
@@ -133,7 +157,10 @@ export function Dialog(props: DialogProps) {
     }
   }
   createEffect(sync)
-  onMount(sync)
+  onMount(() => {
+    setLang(element.closest('[lang]')?.getAttribute('lang') ?? element.ownerDocument.documentElement.lang)
+    sync()
+  })
   onCleanup(() => restoreFocus?.focus())
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
@@ -153,7 +180,7 @@ export function Dialog(props: DialogProps) {
     <dialog
       {...native}
       ref={(node) => { element = node; if (typeof local.ref === 'function') local.ref(node) }}
-      class={classes(local.canonicalClass ?? 'dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg', busyClass, local.class)}
+      class={classes(local.canonicalClass ?? 'dialog dialog-rounded dialog-btt shadow-lg mb-0 rounded-b-none md:mb-auto md:rounded-b-lg', local.class)}
       aria-modal="true"
       aria-busy={busy() || undefined}
       data-busy={busy() || undefined}
@@ -242,7 +269,7 @@ function ConfirmationBody(props: Pick<ConfirmationDialogProps, 'heading' | 'text
     <form method="dialog">
       <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
         <h3 class="font-medium" data-dialog-title tabindex="-1">{props.heading}</h3>
-        <button type="button" value="cancel" class="drawer-close" aria-label={props.closeLabel ?? 'Close'} onClick={cancel}><CloseIcon /></button>
+        <button type="button" value="cancel" class="drawer-close" aria-label={props.closeLabel ?? 'Close'} data-dialog-close onClick={cancel}><CloseIcon /></button>
       </header>
       <article class="py-3 px-4 flex flex-col items-center justify-center gap-2 min-h-36" data-dialog-body>
         {props.icon && <div class="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center text-red-500">{props.icon}</div>}
@@ -252,7 +279,7 @@ function ConfirmationBody(props: Pick<ConfirmationDialogProps, 'heading' | 'text
       <footer class="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {props.reserveStatus && <DialogBusyStatus class="mb-2 -mt-1" />}
         <menu class="flex flex-col-reverse gap-3 sm:flex-row">
-          <Button type="button" variant="secondary" class="min-h-11 flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" aria-disabled={props.busy || undefined} onClick={(event) => { event.preventDefault(); cancel() }}>{props.cancelText ?? 'Cancel'}</Button>
+          <Button type="button" variant="secondary" class="min-h-11 flex-1 justify-center" value="cancel" data-test-id="dialog-cancel-btn" data-dialog-close aria-disabled={props.busy || undefined} onClick={(event) => { event.preventDefault(); cancel() }}>{props.cancelText ?? 'Cancel'}</Button>
           <Button type="button" variant={props.danger ? 'danger' : 'primary'} class="min-h-11 flex-1 justify-center" value="confirm" data-test-id="dialog-confirm-btn" loading={props.busy} onClick={(event) => { event.preventDefault(); confirm() }}>{props.confirmText ?? 'Confirm'}</Button>
         </menu>
       </footer>

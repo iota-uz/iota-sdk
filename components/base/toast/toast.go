@@ -25,9 +25,9 @@ const (
 		"p-4 pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] " +
 		"max-[480px]:top-auto max-[480px]:bottom-[var(--iota-toast-offset-bottom,0px)] max-[480px]:max-w-none max-[480px]:flex-col-reverse " +
 		"max-[480px]:pt-3 max-[480px]:pl-[max(0.75rem,env(safe-area-inset-left))] max-[480px]:pr-[max(0.75rem,env(safe-area-inset-right))] max-[480px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-	surfaceClass = "flex items-start gap-3 w-full p-4 bg-surface-300 text-100 rounded-lg shadow-lg border border-subtle"
-	actionClass  = "flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 dark:text-primary-400 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer"
-	closeClass   = "flex-shrink-0 rounded-md text-300 hover:text-100 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+	surfaceClass = "flex items-start gap-3 w-full p-4 bg-toast text-toast rounded-lg shadow-lg border border-toast"
+	actionClass  = "flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer"
+	closeClass   = "flex-shrink-0 rounded-md text-toast-icon hover:text-toast transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
 )
 
 // toastItemData is the Alpine state of one toast: the auto-dismiss timer

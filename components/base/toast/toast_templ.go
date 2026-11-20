@@ -181,7 +181,7 @@ func Container() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</template></div><div class=\"flex-1 min-w-0\"><template x-if=\"notification.title\"><p x-text=\"notification.title\" class=\"text-sm font-semibold text-100\"></p></template><template x-if=\"notification.message\"><p x-text=\"notification.message\" class=\"text-sm text-200 mt-1\"></p></template></div><template x-if=\"action &amp;&amp; action.href\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</template></div><div class=\"flex-1 min-w-0\"><template x-if=\"notification.title\"><p x-text=\"notification.title\" class=\"text-sm font-semibold text-toast\"></p></template><template x-if=\"notification.message\"><p x-text=\"notification.message\" class=\"text-sm text-toast-muted mt-1\"></p></template></div><template x-if=\"action &amp;&amp; action.href\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -26,9 +26,9 @@ const regionClass = [
   'max-[480px]:top-auto max-[480px]:bottom-[var(--iota-toast-offset-bottom,0px)] max-[480px]:max-w-none max-[480px]:flex-col-reverse',
   'max-[480px]:pt-3 max-[480px]:pl-[max(0.75rem,env(safe-area-inset-left))] max-[480px]:pr-[max(0.75rem,env(safe-area-inset-right))] max-[480px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
 ].join(' ')
-const surfaceClass = 'flex items-start gap-3 w-full p-4 bg-surface-300 text-100 rounded-lg shadow-lg border border-subtle'
-const actionClass = 'flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 dark:text-primary-400 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer'
-const closeClass = 'flex-shrink-0 rounded-md text-300 hover:text-100 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
+const surfaceClass = 'flex items-start gap-3 w-full p-4 bg-toast text-toast rounded-lg shadow-lg border border-toast'
+const actionClass = 'flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer'
+const closeClass = 'flex-shrink-0 rounded-md text-toast-icon hover:text-toast transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
 
 export function ToastRegion(props: JSX.HTMLAttributes<HTMLDivElement>) {
   const [local, native] = splitProps(props, ['class', 'children'])
@@ -202,8 +202,8 @@ export function Toast(props: ToastProps) {
       <div class={surfaceClass} role={polite() ? 'status' : 'alert'} aria-live={polite() ? 'polite' : undefined} data-toast data-variant={variant()}>
         <ToastIcon variant={variant()} />
         <div class="flex-1 min-w-0">
-          {local.title && <p class="text-sm font-semibold text-100">{local.title}</p>}
-          {local.message && <p class="text-sm text-200 mt-1">{local.message}</p>}
+          {local.title && <p class="text-sm font-semibold text-toast">{local.title}</p>}
+          {local.message && <p class="text-sm text-toast-muted mt-1">{local.message}</p>}
           {local.children}
         </div>
         {local.action && <button type="button" class={actionClass} data-toast-action onClick={runAction}>{local.action.label}</button>}

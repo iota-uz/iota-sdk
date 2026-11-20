@@ -44,7 +44,7 @@ function ViewDrawerPanel(props: { title: JSX.Element; closeLabel?: string; reser
         <div class="shrink-0">
           <div class="flex min-h-14 items-center justify-between gap-2 border-b border-subtle py-1 pl-4 pr-2 md:pl-6">
             <h3 class="min-w-0 flex-1 truncate font-medium" data-dialog-title tabindex="-1">{props.title}</h3>
-            <button type="button" class="drawer-close" aria-label={props.closeLabel ?? 'Close'} data-test-id="drawer-close" onClick={() => dialog.requestClose()}><CloseIcon /></button>
+            <button type="button" class="drawer-close" aria-label={props.closeLabel ?? 'Close'} data-test-id="drawer-close" data-dialog-close onClick={() => dialog.requestClose()}><CloseIcon /></button>
           </div>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto" data-dialog-body>{props.children}</div>

@@ -39,7 +39,7 @@ async function prepareState(page: Page, state: SpecimenState, specimenID: Specim
   if (state === 'busy') {
     await expect(page.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
     await page.keyboard.press('Escape')
-    await expect(page.locator('[data-dialog-busy-status]')).not.toBeEmpty()
+    await expect(page.locator('[data-dialog-busy-status] [role="status"]')).not.toBeEmpty()
   }
 }
 
