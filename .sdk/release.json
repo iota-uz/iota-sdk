@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "Lens: a chart card returns to its grid size after the fullscreen panel is closed, instead of staying at the expanded height."
+    },
+    {
+      "bump": "patch",
+      "summary": "OIDC: serialize refresh token reuse revocation with rotation of the same grant (advisory lock) so a replacement committed during a revoke is revoked too; pykernel: a tool parameter named like a Python keyword no longer kills the kernel while it builds the tools namespace."
+    },
+    {
+      "bump": "none",
+      "summary": "Remove unused Claude GitHub workflows, including the vulnerable claude-debugger workflow; CI configuration only, no runtime or public API change."
+    }
+  ],
+  "source": "8733204eaf52d5f29efda78705983ee0058a6bf9",
+  "version": "0.47.2"
+}
