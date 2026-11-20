@@ -1,6 +1,9 @@
 package table
 
 import (
+	"context"
+	"io"
+
 	"github.com/a-h/templ"
 )
 
@@ -31,6 +34,7 @@ func (r *TableRenderer) RenderFull() templ.Component {
 		Rows:       r.data.Rows(),
 	}
 	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
+	WithFilterBar(r.definition.FilterBar())(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {
@@ -63,6 +67,7 @@ func (r *TableRenderer) RenderTable() templ.Component {
 		Rows:       r.data.Rows(),
 	}
 	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
+	WithFilterBar(r.definition.FilterBar())(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {
@@ -95,6 +100,7 @@ func (r *TableRenderer) RenderEmbedded() templ.Component {
 		Rows:       r.data.Rows(),
 	}
 	WithDeferredPanels(r.definition.DeferredPanels()...)(cfg)
+	WithFilterBar(r.definition.FilterBar())(cfg)
 
 	// Always initialize Infinite config to avoid nil pointer dereference
 	if r.data != nil {
@@ -139,6 +145,18 @@ func (r *TableRenderer) RenderRows() templ.Component {
 		}
 	}
 
+	// Search and filter changes ask for the first page: the chip bar sits
+	// outside the swapped rows, so it rides along out-of-band. Infinite scroll
+	// (later pages) leaves it alone.
+	if _, oob := r.definition.FilterBar(); oob != nil && cfg.Infinite.Page <= 1 {
+		rows := Rows(cfg)
+		return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			if err := rows.Render(ctx, w); err != nil {
+				return err
+			}
+			return oob.Render(ctx, w)
+		})
+	}
 	return Rows(cfg)
 }
 

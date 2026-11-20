@@ -29,3 +29,22 @@ func TestFilterBarStaysVisibleAndOutOfDrawer(t *testing.T) {
 		})
 	}
 }
+
+func TestDefinitionFilterBarRidesAlongFirstPageRows(t *testing.T) {
+	ctx := testPageCtx(t, "/accounts")
+	def := NewTableDefinition("Accounts", "/accounts").
+		WithFilterBar(templ.Raw(`<div id="bar">chips</div>`), templ.Raw(`<div id="bar" hx-swap-oob="outerHTML">chips</div>`)).
+		Build()
+	for _, tt := range []struct {
+		page int
+		oob  bool
+	}{{1, true}, {2, false}} {
+		data := NewTableData().WithPagination(tt.page, 20, 100)
+		var out strings.Builder
+		require.NoError(t, NewTableRenderer(def, data).RenderRows().Render(ctx, &out))
+		require.Equal(t, tt.oob, strings.Contains(out.String(), "hx-swap-oob"), "page %d", tt.page)
+	}
+	var full strings.Builder
+	require.NoError(t, NewTableRenderer(def, NewTableData()).RenderTable().Render(ctx, &full))
+	require.Contains(t, full.String(), "data-filter-bar")
+}
