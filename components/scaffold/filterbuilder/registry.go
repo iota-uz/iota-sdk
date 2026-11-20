@@ -52,6 +52,9 @@ type FieldDef struct {
 	Group string
 	// Operators allowed for the field; nil → filterq.DefaultOperators(Type).
 	Operators []filterq.Operator
+	// Single makes a reference field pick one value (a plain select instead of
+	// a multi-select); conditions with several values are dropped on decode.
+	Single bool
 	// Nullable adds the "is empty" operator (filterq.OpEmpty) for a field
 	// whose value may be missing, e.g. an expense without a project.
 	Nullable bool
@@ -127,7 +130,7 @@ func (r *Registry) Field(key string) (FieldDef, bool) {
 func (r *Registry) Schema() filterq.Schema {
 	fields := make([]filterq.Field, 0, len(r.fields))
 	for _, f := range r.fields {
-		fields = append(fields, filterq.Field{Key: f.Key, Type: f.Type, Operators: f.operators()})
+		fields = append(fields, filterq.Field{Key: f.Key, Type: f.Type, Operators: f.operators(), Single: f.Single})
 	}
 	return filterq.Schema{Fields: fields}
 }

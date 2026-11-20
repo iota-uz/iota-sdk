@@ -456,7 +456,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 		}
 		switch field.Type {
 		case filterq.FieldTypeReference:
-			if usesCheckboxList(field.Options) {
+			if usesCheckboxList(field.Options) && !field.Single {
 				templ_7745c5c3_Err = CheckboxOptions(field.Options, condValues(cond)).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -481,7 +481,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 					return nil
 				})
 				templ_7745c5c3_Err = base.Combobox(base.ComboboxProps{
-					Multiple:     true,
+					Multiple:     !field.Single,
 					Searchable:   true,
 					Name:         "",
 					Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),

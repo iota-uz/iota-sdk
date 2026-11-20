@@ -3014,7 +3014,9 @@ let fbPanel = (cfg = {}) => ({
         if (checkboxes.length) {
           return Array.from(checkboxes).filter((c) => c.checked).map((c) => c.value);
         }
-        const select = this.$root.querySelector('select[multiple]');
+        // The value select: multi-select for most fields, a plain select for
+        // single-value fields; never the operator select (data-fb-op).
+        const select = this.$root.querySelector('select:not([data-fb-op])');
         return Array.from(select?.selectedOptions ?? [])
           .map((o) => o.value)
           .filter((v) => v && !v.startsWith('__group:'));

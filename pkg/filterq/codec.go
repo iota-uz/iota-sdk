@@ -118,7 +118,8 @@ func Decode(q url.Values, s Schema) FilterSet {
 			// single-valued, so merging duplicate bool params (is:true + is:false)
 			// would resurrect the match-everything case validCondition rejects —
 			// keep the first and drop later duplicates instead.
-			if (c.Op == OpIs || c.Op == OpIsNot) && field.Type != FieldTypeBool {
+			// A single-value field keeps its first condition for the same reason.
+			if (c.Op == OpIs || c.Op == OpIsNot) && field.Type != FieldTypeBool && !field.Single {
 				out[at].Values = mergeValues(out[at].Values, c.Values)
 			}
 			continue
@@ -153,6 +154,9 @@ func validCondition(f Field, c Condition) bool {
 	// match everything, so reject multi-valued bool conditions even though the
 	// is/isnot operators are otherwise one-or-more.
 	if f.Type == FieldTypeBool && len(c.Values) != 1 {
+		return false
+	}
+	if f.Single && len(c.Values) > 1 {
 		return false
 	}
 	switch arity := c.Op.Arity(); arity {

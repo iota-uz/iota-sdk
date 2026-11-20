@@ -372,3 +372,15 @@ func TestNullableFieldOffersEmptyOperator(t *testing.T) {
 	assert.Contains(t, html, "Scaffold.FilterBuilder.Operators.Empty")
 	assert.Contains(t, html, `x-show="op !== &#39;empty&#39;"`, "value controls hide for the empty operator")
 }
+
+func TestSingleReferenceFieldTakesOneValue(t *testing.T) {
+	reg := NewRegistry(FieldDef{Key: "account", Type: filterq.FieldTypeReference, Label: "Account", Single: true,
+		Options: []Option{Opt("a", "A"), Opt("b", "B")}})
+	fs := reg.Decode(url.Values{filterq.ParamName: {"account:is:a,b", "account:is:b", "account:is:a"}})
+	require.Equal(t, filterq.FilterSet{{Field: "account", Op: filterq.OpIs, Values: []string{"b"}}}, fs,
+		"a multi-value condition is dropped and duplicates are not merged for a single-value field")
+
+	html := renderComponent(t, Props{Registry: reg, Filters: fs}, false)
+	assert.NotContains(t, html, "data-fb-checkboxes", "a single-value field never uses the checkbox list")
+	assert.NotContains(t, html, " multiple", "a single-value field uses a plain select")
+}
