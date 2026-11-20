@@ -16,6 +16,7 @@ import ast
 import asyncio
 import inspect
 import json
+import keyword
 import os
 import socket
 import struct
@@ -126,13 +127,23 @@ _PY_TYPES = {"str": str, "int": int, "float": float, "bool": bool, "dict": dict,
 
 
 def _signature(params):
+    # A parameter named after a Python keyword (e.g. "from") cannot appear in a
+    # signature; the proxy still accepts it as **{"from": ...}, which the
+    # trailing **kwargs advertises.
     out = []
+    extra = False
     for p in params:
+        name = p["name"]
+        if keyword.iskeyword(name) or not name.isidentifier():
+            extra = True
+            continue
         annotation = _PY_TYPES.get(p.get("type") or "", inspect.Parameter.empty)
         default = inspect.Parameter.empty if p.get("required") else None
         out.append(inspect.Parameter(
-            p["name"], inspect.Parameter.KEYWORD_ONLY, default=default, annotation=annotation,
+            name, inspect.Parameter.KEYWORD_ONLY, default=default, annotation=annotation,
         ))
+    if extra:
+        out.append(inspect.Parameter("kwargs", inspect.Parameter.VAR_KEYWORD))
     return inspect.Signature(out)
 
 

@@ -47,6 +47,9 @@ func (r *Registry) Register(tools ...Tool) error {
 		if spec.Input == nil || spec.Input.Type != "object" {
 			return serrors.New(serrors.Invalid, "tool "+spec.Name+" input schema must be an object").WithOp(op)
 		}
+		if spec.EntryPoint {
+			spec.HostOnly = true
+		}
 		input, err := compileSchema(spec.Input)
 		if err != nil {
 			return serrors.WrapContext(op, err, "compile input schema of "+spec.Name)
@@ -73,4 +76,24 @@ func (r *Registry) lookup(name string) (*entry, bool) {
 	defer r.mu.RUnlock()
 	e, ok := r.tools[name]
 	return e, ok
+}
+
+// Spec returns the contract of one registered tool.
+func (r *Registry) Spec(name string) (Spec, bool) {
+	e, ok := r.lookup(name)
+	if !ok {
+		return Spec{}, false
+	}
+	return e.spec, true
+}
+
+// Published returns what transports expose: the entry points when any are
+// registered, otherwise every tool, ordered by name.
+func (r *Registry) Published() []Spec {
+	specs := r.Specs()
+	entries := slices.DeleteFunc(slices.Clone(specs), func(s Spec) bool { return !s.EntryPoint })
+	if len(entries) > 0 {
+		return entries
+	}
+	return specs
 }

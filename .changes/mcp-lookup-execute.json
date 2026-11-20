@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"MCP: lookup and describe entry points over the shared registry; transports publish only entry points once registered; execute is an entry point; Python bindings accept keyword-named parameters such as from."}
