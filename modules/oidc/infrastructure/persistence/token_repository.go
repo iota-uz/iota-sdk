@@ -29,6 +29,22 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
+	consumeRefreshTokenQuery = `
+		UPDATE oidc.refresh_tokens SET revoked_at = NOW(), replaced_by = $2
+		WHERE token_hash = $1 AND revoked_at IS NULL`
+	// The rotation chain starting at a consumed token: every replacement it
+	// led to, however many rotations deep.
+	revokeReusedRefreshTokenQuery = `
+		WITH RECURSIVE chain AS (
+			SELECT id, replaced_by FROM oidc.refresh_tokens
+			WHERE token_hash = $1 AND replaced_by IS NOT NULL
+			UNION
+			SELECT t.id, t.replaced_by FROM oidc.refresh_tokens t
+			JOIN chain c ON t.id = c.replaced_by
+		)
+		UPDATE oidc.refresh_tokens SET revoked_at = COALESCE(revoked_at, NOW())
+		WHERE id IN (SELECT id FROM chain)`
+
 	deleteRefreshTokenQuery                = `DELETE FROM oidc.refresh_tokens WHERE id = $1`
 	deleteRefreshTokenByHashQuery          = `DELETE FROM oidc.refresh_tokens WHERE token_hash = $1`
 	deleteRefreshTokenByUserAndClientQuery = `DELETE FROM oidc.refresh_tokens WHERE user_id = $1 AND client_id = $2`
@@ -78,7 +94,7 @@ func (r *TokenRepository) Create(ctx context.Context, t token.RefreshToken) erro
 func (r *TokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) (token.RefreshToken, error) {
 	const op serrors.Op = "TokenRepository.GetByTokenHash"
 
-	query := selectRefreshTokenQuery + " WHERE token_hash = $1"
+	query := selectRefreshTokenQuery + " WHERE token_hash = $1 AND revoked_at IS NULL"
 	tokens, err := r.queryTokens(ctx, op, query, tokenHash)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -89,6 +105,37 @@ func (r *TokenRepository) GetByTokenHash(ctx context.Context, tokenHash string) 
 	}
 
 	return tokens[0], nil
+}
+
+func (r *TokenRepository) Consume(ctx context.Context, tokenHash string, replacedBy uuid.UUID) error {
+	const op serrors.Op = "TokenRepository.Consume"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	result, err := tx.Exec(ctx, consumeRefreshTokenQuery, tokenHash, replacedBy)
+	if err != nil {
+		return serrors.FromDB(op, err)
+	}
+	if result.RowsAffected() == 0 {
+		return serrors.New(serrors.NotFound, "refresh token not found").WithOp(op)
+	}
+	return nil
+}
+
+func (r *TokenRepository) RevokeReused(ctx context.Context, tokenHash string) (bool, error) {
+	const op serrors.Op = "TokenRepository.RevokeReused"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	result, err := tx.Exec(ctx, revokeReusedRefreshTokenQuery, tokenHash)
+	if err != nil {
+		return false, serrors.FromDB(op, err)
+	}
+	return result.RowsAffected() > 0, nil
 }
 
 func (r *TokenRepository) Delete(ctx context.Context, id uuid.UUID) error {

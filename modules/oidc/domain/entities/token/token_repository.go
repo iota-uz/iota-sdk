@@ -12,8 +12,18 @@ type Repository interface {
 	// Create stores a new refresh token
 	Create(ctx context.Context, token RefreshToken) error
 
-	// GetByTokenHash retrieves a token by its SHA-256 hash
+	// GetByTokenHash retrieves an active token by its SHA-256 hash; consumed
+	// or revoked tokens are not returned
 	GetByTokenHash(ctx context.Context, tokenHash string) (RefreshToken, error)
+
+	// Consume marks an active token as used by a rotation and links it to its
+	// replacement; a token that is not active returns NotFound
+	Consume(ctx context.Context, tokenHash string, replacedBy uuid.UUID) error
+
+	// RevokeReused revokes every token issued from tokenHash by rotation when
+	// tokenHash was already consumed (refresh token reuse, RFC 9700 4.14.2);
+	// it reports whether tokenHash was a consumed token
+	RevokeReused(ctx context.Context, tokenHash string) (bool, error)
 
 	// Delete removes a refresh token (revocation)
 	Delete(ctx context.Context, id uuid.UUID) error
