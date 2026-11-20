@@ -472,3 +472,71 @@ func TestFailedCommitCountsAnAttemptAndDoesNotBlockLaterEvents(t *testing.T) {
 
 // errBail makes goConsumer.Deliver return nil without writing its effect.
 var errBail = errors.New("bail")
+
+// A failing source does not hide the consumers of the other sources: they are
+// served in the same pass and the source's error is reported.
+func TestFailingSourceDoesNotHoldBackOtherConsumers(t *testing.T) {
+	e := newGoEnv(t)
+	e.publish(e.tenant, goEventA, "x", 0)
+	good := newGoConsumer("acme.go.good", goEventA.ID())
+	broken := events.ConsumerSourceFunc(func(context.Context) ([]events.Consumer, error) {
+		return nil, errors.New("subscriptions unavailable")
+	})
+	d := e.dispatcher(events.ComposeConsumers(broken, events.StaticConsumers(good)))
+	n, err := d.RunOnce(context.Background())
+	require.ErrorContains(t, err, "subscriptions unavailable")
+	require.Equal(t, 1, n)
+	require.Len(t, e.effects(good.id), 1, "the healthy consumer was delivered to")
+
+	list, err := events.ComposeConsumers(events.StaticConsumers(good), broken, events.StaticConsumers(newGoConsumer("acme.go.other"))).Consumers(context.Background())
+	require.Error(t, err)
+	require.Len(t, list, 2, "the consumers of every readable source are returned")
+}
+
+// On a small pool the dispatcher keeps room for its LISTEN connection and for
+// a second connection of every running delivery (a package handler records
+// its invocation on the pool before it runs): a backlog for several
+// consumers whose deliveries go back to the pool drains without timeouts.
+func TestSmallPoolBacklogDrainsWhenDeliveriesUseASecondConnection(t *testing.T) {
+	e := newGoEnv(t)
+	cfg := e.db.Config().Copy()
+	cfg.MaxConns, cfg.MinConns = 4, 0
+	small, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(small.Close)
+
+	const perConsumer = 5
+	for i := 0; i < perConsumer; i++ {
+		e.publish(e.tenant, goEventA, fmt.Sprintf("e%d", i), 0)
+	}
+	var consumers []events.Consumer
+	var timeouts atomic.Int64
+	for i := 0; i < 3; i++ {
+		c := newGoConsumer(fmt.Sprintf("acme.go.pool%d", i), goEventA.ID())
+		c.fail = func(ctx context.Context, _ events.Envelope, _ int) error {
+			qctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			var one int
+			if err := small.QueryRow(qctx, `SELECT 1`).Scan(&one); err != nil { // a second connection, like host.Run's invocation record
+				timeouts.Add(1)
+				return err
+			}
+			return nil
+		}
+		consumers = append(consumers, c)
+	}
+	d, err := events.NewDispatcher(events.Config{
+		DB: small, Consumers: events.StaticConsumers(consumers...), Subjects: e.subjects, PollInterval: 50 * time.Millisecond,
+		BackoffBase: time.Millisecond, BackoffMax: 2 * time.Millisecond, Logger: e.logger,
+	})
+	require.NoError(t, err)
+	d.Start(context.Background()) // holds the LISTEN connection
+	t.Cleanup(d.Stop)
+
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, e.db.QueryRow(context.Background(), `SELECT count(*) FROM consumer_effects`).Scan(&n))
+		return n == 3*perConsumer
+	}, 30*time.Second, 50*time.Millisecond, "every consumer drained its backlog")
+	require.Zero(t, timeouts.Load(), "no delivery waited for a connection until its timeout")
+}

@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,7 +58,9 @@ type Envelope struct {
 }
 
 // ConsumerSource lists the consumers of a pass. It is read on every pass, so
-// a source may follow activations.
+// a source may follow activations. A source may return consumers together
+// with an error (a composed source one of whose parts failed): the
+// dispatcher delivers to the consumers it got and reports the error.
 type ConsumerSource interface {
 	Consumers(ctx context.Context) ([]Consumer, error)
 }
@@ -82,7 +85,9 @@ func StaticConsumers(list ...Consumer) ConsumerSource {
 	})
 }
 
-// ComposeConsumers concatenates sources in order; nil sources are skipped.
+// ComposeConsumers concatenates sources in order; nil sources are skipped. A
+// failing source does not hide the others: the consumers of every source are
+// returned with the errors of the failed ones joined.
 func ComposeConsumers(srcs ...ConsumerSource) ConsumerSource {
 	var list []ConsumerSource
 	for _, s := range srcs {
@@ -91,15 +96,18 @@ func ComposeConsumers(srcs ...ConsumerSource) ConsumerSource {
 		}
 	}
 	return ConsumerSourceFunc(func(ctx context.Context) ([]Consumer, error) {
-		var out []Consumer
+		var (
+			out  []Consumer
+			errs []error
+		)
 		for _, s := range list {
 			cs, err := s.Consumers(ctx)
 			if err != nil {
-				return nil, err
+				errs = append(errs, err)
 			}
 			out = append(out, cs...)
 		}
-		return out, nil
+		return out, errors.Join(errs...)
 	})
 }
 

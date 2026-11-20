@@ -49,8 +49,11 @@ type Config struct {
 	PollInterval time.Duration
 	// BatchSize bounds events fetched per consumer and pass. Default 50.
 	BatchSize int
-	// Concurrency bounds the consumers delivering at once; each holds a
-	// connection for its delivery transaction. Default 8.
+	// Concurrency bounds the consumers delivering at once. Default 8. It is
+	// capped by the pool (see deliverySlots): a delivery holds a connection
+	// for its transaction and may take a second one (a package handler
+	// records its invocation on the pool), and the LISTEN connection is held
+	// for the dispatcher's lifetime.
 	Concurrency int
 	// MaxAttempts before a poisoned event is dead-lettered. Default 5.
 	MaxAttempts int
@@ -132,10 +135,19 @@ type Dispatcher struct {
 	lastPrn time.Time
 }
 
+// deliverySlots is how many consumers deliver at once: Concurrency, capped so
+// that the LISTEN connection and two connections per delivery fit in the
+// pool, with at least one delivery.
+func deliverySlots(concurrency int, maxConns int32) int {
+	limit := max(int(maxConns-1)/2, 1)
+	return min(concurrency, limit)
+}
+
 func NewDispatcher(cfg Config) (*Dispatcher, error) {
 	if err := cfg.defaults(); err != nil {
 		return nil, err
 	}
+	cfg.Concurrency = deliverySlots(cfg.Concurrency, cfg.DB.Config().MaxConns)
 	return &Dispatcher{cfg: cfg}, nil
 }
 
@@ -161,18 +173,17 @@ LIMIT $4`
 // they run concurrently and one failing never holds back another. A consumer
 // ID listed twice is delivered to once and reported as an error.
 func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
-	consumers, err := d.cfg.Consumers.Consumers(ctx)
-	if err != nil {
-		return 0, serrors.Wrap(opRunOnce, err)
+	consumers, srcErr := d.cfg.Consumers.Consumers(ctx)
+	var errs []error
+	if srcErr != nil {
+		// The consumers that were read are still served: a failing source
+		// (package subscriptions, a module's Go source) does not hold back
+		// the others.
+		errs = append(errs, srcErr)
 	}
-	var (
-		wg    sync.WaitGroup
-		mu    sync.Mutex
-		total int
-		errs  []error
-		seen  = make(map[string]struct{}, len(consumers))
-		slots = make(chan struct{}, d.cfg.Concurrency)
-	)
+	// IDs are validated before any worker starts, so errs has one writer here.
+	seen := make(map[string]struct{}, len(consumers))
+	run := make([]Consumer, 0, len(consumers))
 	for _, c := range consumers {
 		if c == nil {
 			continue
@@ -187,6 +198,15 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
 			continue
 		}
 		seen[id] = struct{}{}
+		run = append(run, c)
+	}
+	var (
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		total int
+		slots = make(chan struct{}, d.cfg.Concurrency)
+	)
+	for _, c := range run {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -194,11 +214,11 @@ func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
 			defer func() { <-slots }()
 			n, err := d.runConsumer(ctx, c)
 			mu.Lock()
+			defer mu.Unlock()
 			total += n
 			if err != nil {
-				errs = append(errs, fmt.Errorf("consumer %s: %w", id, err))
+				errs = append(errs, fmt.Errorf("consumer %s: %w", c.ID(), err))
 			}
-			mu.Unlock()
 		}()
 	}
 	wg.Wait()
