@@ -401,9 +401,13 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 		return "", s
 	}
 	spec := i.view.catalog.Events[t.Event]
+	params := t.Params
+	if parsed, ok := i.view.triggerParams[t.ID]; ok {
+		params = parsed // with the defaults the event's params declare
+	}
 	for _, name := range sortedKeys(spec.Match) {
 		f := spec.Match[name]
-		want := t.Params[name]
+		want := params[name]
 		value, _ := paramAt(ev.Payload(), f.Payload)
 		if f.Type == MatchBool {
 			if b, ok := want.(bool); ok && value != b {
@@ -446,7 +450,7 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 	}
 	if spec.MatchHook != "" {
 		hook := i.opts.MatchHooks[spec.MatchHook]
-		if hook == nil || !hook(t.Params, ev) {
+		if hook == nil || !hook(copyMap(params), ev) {
 			return MismatchHook, nil
 		}
 	}
@@ -492,7 +496,7 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 		sc = *s
 	}
 	sc.in = i
-	return impl.Start(&sc, node, spec)
+	return impl.Start(&sc, node, copyNodeSpec(spec))
 }
 
 // CallOutcome is the outcome of a call from its answer, by the node type's answer rule: the chosen value,

@@ -3,6 +3,7 @@ package expr
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"strings"
@@ -406,7 +407,7 @@ func UnmarshalJSON(data []byte, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return err
 	}
-	if dec.More() {
+	if _, err := dec.Token(); err != io.EOF {
 		return fmt.Errorf("unexpected data after the JSON value")
 	}
 	return nil

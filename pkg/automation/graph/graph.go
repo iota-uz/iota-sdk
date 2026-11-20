@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"regexp"
 	"strings"
@@ -122,7 +123,7 @@ const graphSchema = `{
   "description": "The content of one immutable version of an automation graph.",
   "type": "object",
   "properties": {
-    "name": {"type": "string", "minLength": 1, "maxLength": 120, "description": "Trimmed; 1 to 120 characters."},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120, "description": "1 to 120 characters after trimming spaces at the edges; Decode trims it before these limits apply."},
     "description": {"type": "string", "maxLength": 2000},
     "run_as": {"enum": ["owner", "initiator"], "default": "owner"},
     "triggers": {
@@ -209,8 +210,14 @@ func Decode(raw []byte) (Graph, []GraphError) {
 	if err := dec.Decode(&doc); err != nil {
 		return Graph{}, []GraphError{{Path: "graph", Code: CodeInvalid, Message: "not JSON: " + err.Error()}}
 	}
-	if dec.More() {
+	if _, err := dec.Token(); err != io.EOF {
 		return Graph{}, []GraphError{{Path: "graph", Code: CodeInvalid, Message: "unexpected data after the graph"}}
+	}
+	// The name's limits apply to it trimmed, as it is stored.
+	if o, ok := doc.(map[string]any); ok {
+		if name, ok := o["name"].(string); ok {
+			o["name"] = strings.TrimSpace(name)
+		}
 	}
 	if errs := structureErrors(doc); len(errs) > 0 {
 		return Graph{}, errs

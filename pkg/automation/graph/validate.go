@@ -13,13 +13,24 @@ const maxErrors = 100
 // buildView parses the params of every node and indexes the edges.
 func buildView(c Catalog, g Graph, o Options) *GraphView {
 	v := newView(c, g, o.behaviors())
+	g = v.graph
 	for _, n := range g.Nodes {
-		spec, ok := c.Nodes[n.Type]
-		if !ok {
+		spec, ok := v.catalog.Nodes[n.Type]
+		if !ok || spec.Params == nil {
 			continue
+		}
+		if _, ok := v.behavior.impl(spec.Behavior); !ok {
+			continue // its own error at nodes[i].type; params of a kind this build does not run are not read
 		}
 		if p, issues := spec.Params.Parse(n.Params); len(issues) == 0 {
 			v.params[n.ID] = p
+		}
+	}
+	for _, t := range g.Triggers {
+		if takes := triggerParamsSpec(v.catalog.Events[t.Event]); takes != nil {
+			if p, issues := takes.Parse(t.Params); len(issues) == 0 {
+				v.triggerParams[t.ID] = p
+			}
 		}
 	}
 	for _, e := range g.Edges {
@@ -33,6 +44,19 @@ func buildView(c Catalog, g Graph, o Options) *GraphView {
 		}
 	}
 	return v
+}
+
+// triggerParamsSpec is what a trigger on an event takes: its own params, else its match fields, else nil.
+func triggerParamsSpec(e EventSpec) ParamsSpec {
+	if e.TriggerParams != nil {
+		return e.TriggerParams
+	}
+	if len(e.Match) > 0 {
+		if p, err := MatchParams(e.Match); err == nil {
+			return p
+		}
+	}
+	return nil
 }
 
 type errorList struct{ list []GraphError }
@@ -60,6 +84,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	// The structure, also for a graph built in Go rather than decoded.
 	var doc any
 	shape := g
+	shape.Name = strings.TrimSpace(g.Name) // the limits apply to the name as it is stored
 	if shape.RunAs == "" {
 		shape.RunAs = RunAsOwner // the default, as Decode gives it
 	}
@@ -174,6 +199,10 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 			errs.add(at+".type", CodeUnsupportedBehavior, "%s is a %s node, which this interpreter does not run", n.Type, spec.Behavior)
 			continue
 		}
+		if spec.Params == nil {
+			errs.add(at+".type", CodeInvalid, "%s declares no params spec", n.Type)
+			continue
+		}
 		if _, issues := spec.Params.Parse(n.Params); len(issues) > 0 {
 			for k, issue := range issues {
 				if k == 10 {
@@ -192,7 +221,9 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				errs.add(at+".params."+spec.OutputFrom.Param, CodeParams, "%v", err)
 			}
 		}
-		behaviorRules = append(behaviorRules, ruled{n, spec, impl})
+		node := n
+		node.Params = copyMap(n.Params)
+		behaviorRules = append(behaviorRules, ruled{node, copyNodeSpec(spec), impl})
 	}
 	for _, r := range behaviorRules {
 		for _, e := range r.impl.Validate(v, r.node, r.spec) {

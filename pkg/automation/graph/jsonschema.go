@@ -192,6 +192,13 @@ func formatMs(ms int64) string {
 	return fmt.Sprintf("%dms", ms)
 }
 
+// noLoader refuses every external resource; local references and the embedded drafts need none.
+type noLoader struct{}
+
+func (noLoader) Load(url string) (any, error) {
+	return nil, fmt.Errorf("%s: a schema of the format references no external resource", url)
+}
+
 // compileSchema compiles a JSON Schema (draft 2020-12 by default) with the format's keywords.
 func compileSchema(raw json.RawMessage) (*jsonschema.Schema, error) {
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
@@ -200,6 +207,7 @@ func compileSchema(raw json.RawMessage) (*jsonschema.Schema, error) {
 	}
 	c := jsonschema.NewCompiler()
 	c.DefaultDraft(jsonschema.Draft2020)
+	c.UseLoader(noLoader{}) // the format reads no files and no URLs: only the schema itself and the drafts
 	c.RegisterVocabulary(automationVocab())
 	c.AssertVocabs()
 	url := fmt.Sprintf("mem://automation/%d.json", schemaSeq.Add(1))

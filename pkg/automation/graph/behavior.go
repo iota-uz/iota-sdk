@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"sort"
 )
 
@@ -146,25 +147,27 @@ type GraphView struct {
 	where    map[string]string // id → "triggers[i]" or "nodes[i]" (the last one of a duplicate)
 	nodes    map[string]int
 	params   map[string]map[string]any
-	out      map[string][]Edge
-	in       map[string][]Edge
-	next     map[string]map[string]string // node → outcome → target (first edge)
+	// triggerParams are each trigger's params as its event parsed them (defaults applied).
+	triggerParams map[string]map[string]any
+	out           map[string][]Edge
+	in            map[string][]Edge
+	next          map[string]map[string]string // node → outcome → target (first edge)
 }
 
 // Catalog is the catalog the graph is checked against.
-func (v *GraphView) Catalog() Catalog { return v.catalog }
+func (v *GraphView) Catalog() Catalog { return copyCatalog(v.catalog) }
 
 // Graph is the graph.
-func (v *GraphView) Graph() Graph { return v.graph }
+func (v *GraphView) Graph() Graph { return copyGraph(v.graph) }
 
 // Subject is the graph's subject.
 func (v *GraphView) Subject() string { return v.subject }
 
 // Out lists the edges leaving a node or trigger.
-func (v *GraphView) Out(node string) []Edge { return v.out[node] }
+func (v *GraphView) Out(node string) []Edge { return append([]Edge(nil), v.out[node]...) }
 
 // In lists the edges entering a node.
-func (v *GraphView) In(node string) []Edge { return v.in[node] }
+func (v *GraphView) In(node string) []Edge { return append([]Edge(nil), v.in[node]...) }
 
 // Params are a node's params as its type parsed them (defaults applied), a copy the caller may change;
 // false when they are invalid.
@@ -201,7 +204,9 @@ func (v *GraphView) Node(id string) (Node, bool) {
 	if !ok {
 		return Node{}, false
 	}
-	return v.graph.Nodes[i], true
+	n := v.graph.Nodes[i]
+	n.Params = copyMap(n.Params)
+	return n, true
 }
 
 // Path is where a node or trigger is in the graph: "nodes[2]", "triggers[0]".
@@ -249,11 +254,14 @@ func (v *GraphView) Reachable(from string) map[string]bool {
 	return seen
 }
 
+// newView snapshots the catalog and the graph: neither the caller nor a behavior can change them later.
 func newView(c Catalog, g Graph, b *Behaviors) *GraphView {
+	c, g = copyCatalog(c), copyGraph(g)
 	v := &GraphView{
 		catalog: c, graph: g, behavior: b,
 		where: map[string]string{}, nodes: map[string]int{}, params: map[string]map[string]any{},
-		out: map[string][]Edge{}, in: map[string][]Edge{}, next: map[string]map[string]string{},
+		triggerParams: map[string]map[string]any{},
+		out:           map[string][]Edge{}, in: map[string][]Edge{}, next: map[string]map[string]string{},
 	}
 	for i, t := range g.Triggers {
 		v.where[t.ID] = fmt.Sprintf("triggers[%d]", i)
@@ -297,4 +305,83 @@ func sortedOutcomes(m map[string]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func copyMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	return deepCopy(m).(map[string]any)
+}
+
+func copyGraph(g Graph) Graph {
+	out := g
+	out.Triggers = make([]Trigger, len(g.Triggers))
+	for i, t := range g.Triggers {
+		t.Params = copyMap(t.Params)
+		out.Triggers[i] = t
+	}
+	out.Nodes = make([]Node, len(g.Nodes))
+	for i, n := range g.Nodes {
+		n.Params = copyMap(n.Params)
+		out.Nodes[i] = n
+	}
+	out.Edges = append([]Edge(nil), g.Edges...)
+	return out
+}
+
+func copyCatalog(c Catalog) Catalog {
+	out := c
+	out.Events = make(map[string]EventSpec, len(c.Events))
+	for k, e := range c.Events {
+		e.Payload = append(expr.Fields(nil), e.Payload...)
+		if e.Match != nil {
+			m := make(map[string]MatchField, len(e.Match))
+			for name, f := range e.Match {
+				m[name] = f
+			}
+			e.Match = m
+		}
+		out.Events[k] = e
+	}
+	out.Nodes = make(map[string]NodeSpec, len(c.Nodes))
+	for k, n := range c.Nodes {
+		out.Nodes[k] = copyNodeSpec(n)
+	}
+	out.Subjects = make(map[string]SubjectSpec, len(c.Subjects))
+	for k, s := range c.Subjects {
+		out.Subjects[k] = SubjectSpec{Context: append(expr.Fields(nil), s.Context...)}
+	}
+	return out
+}
+
+// copyNodeSpec copies a node type's slices and pointers, so a behavior cannot change the catalog.
+func copyNodeSpec(n NodeSpec) NodeSpec {
+	n.Subjects = append([]string(nil), n.Subjects...)
+	n.Outcomes = append([]string(nil), n.Outcomes...)
+	n.Expressions = append([]ExprParam(nil), n.Expressions...)
+	n.Templates = append([]string(nil), n.Templates...)
+	n.Values = append([]string(nil), n.Values...)
+	n.Output = append(expr.Fields(nil), n.Output...)
+	if n.OutcomesFrom != nil {
+		r := *n.OutcomesFrom
+		n.OutcomesFrom = &r
+	}
+	if n.OutputFrom != nil {
+		r := *n.OutputFrom
+		n.OutputFrom = &r
+	}
+	if n.Answer != nil {
+		a := *n.Answer
+		if a.Confidence != nil {
+			f := *a.Confidence
+			a.Confidence = &f
+		}
+		n.Answer = &a
+	}
+	if n.Wait != nil {
+		w := *n.Wait
+		n.Wait = &w
+	}
+	return n
 }

@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -362,5 +363,117 @@ func TestGoBuiltGraph(t *testing.T) {
 		[]graph.DryRunInput{{Event: graph.Event{"kind": "order.created", "total": 1}}}, graph.DryRunOptions{})
 	if len(trace) != 2 || trace[1].Outcome != graph.TraceEnd {
 		t.Fatalf("trace: %+v", trace)
+	}
+}
+
+// Review round 1: trigger defaults, snapshots, no external schemas, nil params, strict EOF, trimmed name.
+func TestTriggerParamsDefaults(t *testing.T) {
+	c := testCatalog(t)
+	e := c.Events["order.created"]
+	e.Match = nil
+	e.TriggerParams = graph.MustSchemaParams(`{"type": "object", "properties": {"vip": {"type": "boolean", "default": true}}, "additionalProperties": false}`)
+	e.MatchHook = "vip_only"
+	c.Events["order.created"] = e
+	var seen map[string]any
+	opts := graph.Options{MatchHooks: map[string]func(map[string]any, graph.Event) bool{
+		"vip_only": func(p map[string]any, _ graph.Event) bool { seen = p; return p["vip"] == true },
+	}}
+	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}], "nodes": [],
+		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "ignore"}]}`)
+	in, err := graph.NewInterpreter(c, g, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, st := in.TriggerMatches("t", graph.Event{"kind": "order.created", "total": 1}, graph.Context{}); !ok || st != nil {
+		t.Fatalf("the hook saw %v", seen)
+	}
+}
+
+func TestViewIsASnapshot(t *testing.T) {
+	c := testCatalog(t)
+	g := mustDecode(t, orderGraph)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Triggers[0].Event = "order.paid" // the caller's graph
+	view := in.View().Graph()
+	view.Triggers[0].Event = "order.paid"
+	view.Nodes[3].Params["reason"] = "x"
+	in.View().Out("check")[0].To = "x"
+	n, _ := in.View().Node("stop")
+	n.Params["reason"] = "x"
+	in.View().Catalog().Nodes["notify"].Outcomes[0] = "x"
+	if got := in.Graph().Triggers[0].Event; got != "order.created" {
+		t.Fatalf("trigger event %s", got)
+	}
+	if to, _ := in.Next("check", "true"); to != "pay" {
+		t.Fatalf("edge %s", to)
+	}
+	if st := in.Start("stop", nil); st.End["reason"] != "done" {
+		t.Fatalf("end %v", st.End)
+	}
+	if in.View().Catalog().Nodes["notify"].Outcomes[0] != "done" {
+		t.Fatal("the catalog changed")
+	}
+}
+
+func TestSchemasLoadNoFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/ext.json"
+	if err := os.WriteFile(path, []byte(`{"type": "string"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := graph.SchemaParams(json.RawMessage(`{"$ref": "file://` + path + `"}`)); err == nil {
+		t.Fatal("a file-backed schema compiles")
+	}
+	p, err := graph.SchemaParams(json.RawMessage(`{"$defs": {"s": {"type": "string"}}, "type": "object", "properties": {"a": {"$ref": "#/$defs/s"}}}`))
+	if err != nil {
+		t.Fatalf("a local reference: %v", err)
+	}
+	if _, issues := p.Parse(map[string]any{"a": 1}); len(issues) != 1 {
+		t.Fatalf("issues: %v", issues)
+	}
+}
+
+func TestNilParamsSpec(t *testing.T) {
+	c := testCatalog(t)
+	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "parallel"}
+	c.Nodes["bare"] = graph.NodeSpec{Type: "bare", Behavior: graph.BehaviorEnd}
+	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
+		"nodes": [{"id": "s", "type": "split", "params": {}}, {"id": "b", "type": "bare", "params": {}}],
+		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "s"}]}`)
+	errs := graph.Validate(c, g, graph.Options{})
+	paths := make([]string, 0, len(errs))
+	for _, e := range errs {
+		paths = append(paths, e.Path+" "+e.Code)
+	}
+	got := strings.Join(paths, ",")
+	if !strings.Contains(got, "nodes[0].type unsupported_behavior") || !strings.Contains(got, "nodes[1].type invalid") {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+func TestDecodeStrictEnd(t *testing.T) {
+	for _, tail := range []string{"]", "}", " {}", "x"} {
+		if _, errs := graph.Decode([]byte(orderGraph + tail)); len(errs) != 1 || errs[0].Path != "graph" {
+			t.Errorf("%q after the graph: %v", tail, errs)
+		}
+	}
+	if _, errs := graph.Decode([]byte(orderGraph + "\n  ")); len(errs) > 0 {
+		t.Fatalf("trailing space: %v", errs)
+	}
+}
+
+func TestNameTrimmedBeforeLimits(t *testing.T) {
+	name := " " + strings.Repeat("a", 120) + " "
+	raw := strings.Replace(orderGraph, `"  Big orders  "`, `"`+name+`"`, 1)
+	g, errs := graph.Decode([]byte(raw))
+	if len(errs) > 0 || len(g.Name) != 120 {
+		t.Fatalf("errors %v, name %d", errs, len(g.Name))
+	}
+	g.Name = name
+	if errs := graph.Validate(testCatalog(t), g, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("validate: %v", errs)
 	}
 }
