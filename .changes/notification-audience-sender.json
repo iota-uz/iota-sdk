@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add notifications.AudienceSender (SendTx/Resolve) to send a notice to users, groups, roles, event participants, records and addresses in the caller transaction; event rules and explicit sends share the new AudienceResolver."}
