@@ -111,3 +111,18 @@ func TestMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) { assert.Equal(t, tt.want, tt.got) })
 	}
 }
+
+func TestRepoFiltersRenderAgainstRepositoryColumn(t *testing.T) {
+	now := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	fs := Decode(url.Values{ParamName: {"account:is:a,b", "amount:between:1,2", "skipped:is:x"}}, sqlSchema)
+	filters := RepoFilters(fs, sqlSchema, map[string]RepoField[int]{
+		"account": {Column: 7, Type: "uuid"},
+		"amount":  {Column: 9},
+	}, now)
+	require.Len(t, filters, 2)
+	assert.Equal(t, 7, filters[0].Column)
+	assert.Equal(t, "(ma.account_id = ANY($4::uuid[]))", filters[0].Filter.String("ma.account_id", 4))
+	assert.Equal(t, []any{[]string{"a", "b"}}, filters[0].Filter.Value())
+	assert.Equal(t, "((ma.balance)::numeric BETWEEN SYMMETRIC $2::numeric AND $3::numeric)", filters[1].Filter.String("ma.balance", 2))
+	assert.Equal(t, []any{"1", "2"}, filters[1].Filter.Value())
+}

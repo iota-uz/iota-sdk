@@ -314,6 +314,10 @@
       }
     },
     "List": {
+      "Filters": {
+        "Currency": "币种",
+        "HasBalance": "有余额"
+      },
       "New": "添加账户",
       "Name": "名称",
       "Balance": "余额",

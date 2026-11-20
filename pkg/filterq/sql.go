@@ -29,12 +29,15 @@ type Column struct {
 // Params collects positional query arguments while predicates are rendered.
 type Params struct {
 	args []any
+	// offset shifts placeholders when the arguments are appended to a query
+	// built elsewhere (see RepoFilters).
+	offset int
 }
 
 // Add appends a value and returns its placeholder ($N).
 func (p *Params) Add(v any) string {
 	p.args = append(p.args, v)
-	return "$" + strconv.Itoa(len(p.args))
+	return "$" + strconv.Itoa(p.offset+len(p.args))
 }
 
 // Args returns every argument collected so far, in placeholder order.
