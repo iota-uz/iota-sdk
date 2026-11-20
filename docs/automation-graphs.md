@@ -80,7 +80,8 @@ confirms it when reviewing this ADR.
 - **`fastschema/qjs`** (Code node): it offers memory, stack and time limits and Go function
   binding, but the §9 requirements of per-call output-size limits, network access only
   through an SSRF-checked host function, and secret masking are ours to enforce at the
-  sandbox boundary, which needs a fork we control; kafig is that fork.
+  sandbox boundary, which we chose to do in our own fork rather than demonstrated to be impossible
+  otherwise; kafig is that fork.
 - **goja** (Code node): interrupt-only resource control (no memory limit) and weaker
   coverage of the ECMAScript output of esbuild.
 - **`@dschz/solid-flow`** (editor): a third-party wrapper that follows `@xyflow/system`
