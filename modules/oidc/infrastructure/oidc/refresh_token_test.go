@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
+	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/token"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	oidcpersistence "github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -234,4 +235,50 @@ func TestRefreshTokenRequest_SetCurrentScopesNarrows(t *testing.T) {
 	next, err := storage.TokenRequestByRefreshToken(env.Ctx, rotated)
 	require.NoError(t, err)
 	require.Equal(t, []string{"offline_access"}, next.GetScopes(), "the replacement token keeps the narrowed scopes")
+}
+
+// failingCreate stores nothing: it makes the replacement insert fail after
+// the presented token has been deleted in the same transaction.
+type failingCreate struct{ token.Repository }
+
+func (failingCreate) Create(context.Context, token.RefreshToken) error {
+	return errors.New("insert failed")
+}
+
+// Falsely green if a failed replacement insert leaves the client without
+// any refresh token: the delete of the presented token must roll back.
+func TestStorage_CreateAccessAndRefreshTokens_FailedInsertKeepsToken(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	clients := oidcpersistence.NewClientRepository()
+	tokens := oidcpersistence.NewTokenRepository()
+	storage := oidc.NewStorage(clients, nil, tokens, userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+	broken := oidc.NewStorage(clients, nil, failingCreate{tokens}, userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+
+	clientID := "mcp-" + uuid.NewString()
+	_, err := clients.Create(env.Ctx, client.New(clientID, "MCP client", "web", []string{"https://client.example.test/callback"}))
+	require.NoError(t, err)
+	email, err := internet.NewEmail("rollback-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Rollback", "Holder", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+	grant := grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}
+	_, refresh, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, "")
+	require.NoError(t, err)
+	env.CommitTx(t)
+
+	// Outside the test transaction, so the storage opens its own one.
+	detached := context.WithValue(env.Ctx, constants.TxKey, nil)
+	access, _, _, err := broken.CreateAccessAndRefreshTokens(detached, grant, refresh)
+	require.Error(t, err)
+	require.Empty(t, access)
+
+	_, err = storage.TokenRequestByRefreshToken(detached, refresh)
+	require.NoError(t, err, "the presented token stays valid when its replacement is not stored")
 }
