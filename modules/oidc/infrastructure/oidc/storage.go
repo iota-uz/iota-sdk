@@ -376,16 +376,19 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		token.WithAMR(amr),
 	)
 
-	// Consuming the presented token and storing its replacement commit
+	// Storing the replacement and consuming the presented token commit
 	// together: a failed insert keeps the presented token valid, and of two
-	// concurrent redemptions only the one that deletes the row succeeds.
+	// concurrent redemptions only the one that consumes the row succeeds. The
+	// consumed token stays with a link to its replacement, so a later reuse
+	// revokes the chain (TokenRequestByRefreshToken).
 	if err := s.inTx(ctx, func(ctx context.Context) error {
-		if currentRefreshToken != "" {
-			if err := s.tokenRepo.DeleteByTokenHash(ctx, hashRefreshToken(currentRefreshToken)); err != nil {
-				return err
-			}
+		if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
+			return err
 		}
-		return s.tokenRepo.Create(ctx, domainToken)
+		if currentRefreshToken != "" {
+			return s.tokenRepo.Consume(ctx, hashRefreshToken(currentRefreshToken), domainToken.ID())
+		}
+		return nil
 	}); err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
@@ -436,6 +439,17 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 	// Get token from repository (transaction handled by composables.UseTx in repository)
 	t, err := s.tokenRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
+		// A consumed token presented again means it leaked: whoever redeemed
+		// it first holds the replacement. Revoke the whole rotation chain
+		// (RFC 9700 4.14.2) and commit that before refusing.
+		if serrors.CodeOf(err) == serrors.NotFound {
+			if revokeErr := s.inTx(ctx, func(ctx context.Context) error {
+				_, err := s.tokenRepo.RevokeReused(ctx, tokenHash)
+				return err
+			}); revokeErr != nil {
+				return nil, serrors.Wrap(operation, revokeErr)
+			}
+		}
 		return nil, serrors.Wrap(operation, err)
 	}
 

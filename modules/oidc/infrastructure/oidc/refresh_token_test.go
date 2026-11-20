@@ -80,8 +80,10 @@ func TestStorage_CreateAccessAndRefreshTokens_IssuesAndRotates(t *testing.T) {
 	require.Error(t, err, "replaying a rotated refresh token must fail")
 	require.Empty(t, replayed)
 
+	// The replay above revoked the chain: whoever holds the replacement of a
+	// leaked token loses it too (RFC 9700 4.14.2).
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, rotated)
-	require.NoError(t, err)
+	require.Error(t, err, "reusing a consumed token must revoke its replacement")
 }
 
 // Falsely green if the access token carries no granted scopes: a resource
@@ -281,4 +283,40 @@ func TestStorage_CreateAccessAndRefreshTokens_FailedInsertKeepsToken(t *testing.
 
 	_, err = storage.TokenRequestByRefreshToken(detached, refresh)
 	require.NoError(t, err, "the presented token stays valid when its replacement is not stored")
+}
+
+// Falsely green if reuse revokes only the direct replacement: an attacker who
+// already rotated twice must lose the latest token as well.
+func TestStorage_TokenRequestByRefreshToken_ReuseRevokesWholeChain(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	clients := oidcpersistence.NewClientRepository()
+	storage := oidc.NewStorage(clients, nil, oidcpersistence.NewTokenRepository(), userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+	clientID := "mcp-" + uuid.NewString()
+	_, err := clients.Create(env.Ctx, client.New(clientID, "MCP client", "web", []string{"https://client.example.test/callback"}))
+	require.NoError(t, err)
+	email, err := internet.NewEmail("chain-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Chain", "Holder", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+	grant := grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}
+
+	_, first, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, "")
+	require.NoError(t, err)
+	_, second, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, first)
+	require.NoError(t, err)
+	_, third, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, second)
+	require.NoError(t, err)
+	_, err = storage.TokenRequestByRefreshToken(env.Ctx, third)
+	require.NoError(t, err)
+
+	_, err = storage.TokenRequestByRefreshToken(env.Ctx, first)
+	require.Error(t, err)
+	_, err = storage.TokenRequestByRefreshToken(env.Ctx, third)
+	require.Error(t, err, "the latest token of a reused chain must be revoked")
 }
