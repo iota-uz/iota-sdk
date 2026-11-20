@@ -692,6 +692,21 @@ templ TableContent(config *TableConfig) {
 				</div>
 			}
 		}
+		if config.FilterBar != nil {
+			<!-- Filter chips: on every screen width, never folded into the filters drawer. -->
+			<div
+				class={
+					templ.Classes(
+						"px-4 pb-4",
+						templ.KV("pt-4", config.WithoutSearch && len(config.Filters) == 0 && len(config.Actions) == 0 && !config.Configurable),
+						templ.KV("shrink-0", config.FullHeight),
+					),
+				}
+				data-filter-bar
+			>
+				@config.FilterBar
+			</div>
+		}
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
 				@Table(config)

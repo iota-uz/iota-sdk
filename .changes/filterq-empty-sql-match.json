@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Filter chips: a nullable field offers the \"is empty\" operator (filterq.OpEmpty, wire form `field:empty:`, filterbuilder.FieldDef.Nullable, Solid FilterBuilderField.nullable); filterq.AppendSQL renders a FilterSet as PostgreSQL predicates from a field → column map (custom predicates for computed fields), and Condition.MatchValue/MatchValues/MatchBool/MatchDate/MatchNumber apply the same semantics to lists assembled in memory."
+  "summary": "Filter chips: a nullable field offers the \"is empty\" operator (filterq.OpEmpty, wire form `field:empty:`, filterbuilder.FieldDef.Nullable, Solid FilterBuilderField.nullable); filterq.AppendSQL renders a FilterSet as PostgreSQL predicates from a field → column map (custom predicates for computed fields), and Condition.MatchValue/MatchValues/MatchBool/MatchDate/MatchNumber apply the same semantics to lists assembled in memory. Scaffold tables take a filter chip bar through table.WithFilterBar(bar, oob): it sits under the toolbar on every screen width instead of being folded into the mobile filters drawer, renders once, and re-renders out-of-band on row swaps."
 }
