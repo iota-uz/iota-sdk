@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "patch",
+      "summary": "OIDC: issue a random refresh token on the authorization code grant and rotate it on refresh (previously an empty token hash was stored and a second grant failed on the unique index); put granted scopes into the access token scope claim (RFC 9068) so resource servers such as mcpgateway can check them."
+    }
+  ],
+  "source": "1a67e319d4e3378372c03139cb5eff486cfc99b3",
+  "version": "0.47.1"
+}
