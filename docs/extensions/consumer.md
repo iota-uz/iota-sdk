@@ -189,8 +189,10 @@ event; a `host.IsInfrastructure` error is retried without counting an attempt; a
 blocks the delivery until it can act. `events.AfterCommit(ctx, fn)` defers work until the delivery commits. Consumers deliver concurrently, at most
 `events.Config.Concurrency` (default 8) at once and never more than the pool leaves room for: a second connection per running
 delivery stays free. LISTEN (the dispatcher's, and with the runtime the catalog's and the workflow engine's) runs on
-dedicated connections outside the pool, so the core works with a one-connection pool; count them against the
-server's `max_connections`. A consumer source that fails (package
+dedicated connections outside the pool, opened with the pool's settings and its `BeforeConnect`/`AfterConnect`
+hooks, so the core works with a one-connection pool; count them against the server's `max_connections`. The Node
+runtime needs a pool of at least two connections (a package handler records its invocation on a second one) and
+refuses to start with less. A consumer source that fails (package
 subscriptions unavailable, a module's source erroring) is reported without holding back the consumers of the others.
 
 A consumer chooses whom it acts as with `events.ResolveSubject(ctx, tx, subjects, ev, triggerID, mode)`:

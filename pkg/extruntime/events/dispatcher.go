@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/listenconn"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -504,12 +505,12 @@ func listen(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Dur
 	return out
 }
 
-// listenOnce holds LISTEN on a dedicated connection opened with the pool's
-// settings, never on a pooled one: a long-lived LISTEN would take a pool slot
+// listenOnce holds LISTEN on a dedicated connection opened like the pool's own
+// (listenconn: its settings and connect hooks), never on a pooled one: a long-lived LISTEN would take a pool slot
 // for the dispatcher's lifetime, and a small pool (MaxConns=1) would have none
 // left for fetching, delivering and pruning.
 func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Duration, poke func()) error {
-	conn, err := pgx.ConnectConfig(ctx, db.Config().ConnConfig.Copy())
+	conn, err := listenconn.Connect(ctx, db)
 	if err != nil {
 		return err
 	}

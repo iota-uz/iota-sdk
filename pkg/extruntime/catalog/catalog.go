@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/listenconn"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -220,10 +221,10 @@ func (c *Catalog) Listen(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// listenOnce holds LISTEN on a dedicated connection opened with the pool's
-// settings, so the listener never takes a pool slot for the process lifetime.
+// listenOnce holds LISTEN on a dedicated connection opened like the pool's own
+// (listenconn: its settings and connect hooks), so the listener never takes a pool slot for the process lifetime.
 func (c *Catalog) listenOnce(ctx context.Context) error {
-	conn, err := pgx.ConnectConfig(ctx, c.db.Config().ConnConfig.Copy())
+	conn, err := listenconn.Connect(ctx, c.db)
 	if err != nil {
 		return err
 	}

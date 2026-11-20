@@ -8,6 +8,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -247,6 +248,11 @@ func (cfg *Config) resolveWorkers() error {
 	return nil
 }
 
+// MinPoolConns is the smallest database pool the runtime accepts: a package
+// invocation inside a transaction (an event delivery, a workflow step)
+// records the invocation on a second connection.
+const MinPoolConns = 2
+
 // New wires the runtime. It starts the Node pool but no background loops;
 // call Start.
 func New(cfg Config, deps Deps) (*Runtime, error) {
@@ -258,6 +264,11 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		return nil, serrors.New(serrors.Invalid, "extruntime: CacheDir is required").WithOp(op)
 	case cfg.Natives == nil:
 		return nil, serrors.New(serrors.Invalid, "extruntime: Natives is required (compose the module registrations with native.Compose(modules.Natives()...))").WithOp(op)
+	}
+	if n := deps.DB.Config().MaxConns; n < MinPoolConns {
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf(
+			"extruntime: the extension runtime needs a database pool of at least %d connections, got %d: a package handler records its invocation on the pool while its delivery transaction holds another connection (raise the pool size, or leave EXTRUNTIME_ENABLED off; the event core works with one connection)",
+			MinPoolConns, n)).WithOp(op)
 	}
 	if err := cfg.resolveWorkers(); err != nil {
 		return nil, serrors.Wrap(op, err)

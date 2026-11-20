@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/listenconn"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
@@ -579,4 +581,61 @@ func TestOneConnectionPoolKeepsItsSlotWhileListening(t *testing.T) {
 	n, err := d.Prune(qctx)
 	require.NoError(t, err, "pruning gets a connection too")
 	require.GreaterOrEqual(t, n, int64(0))
+}
+
+// The dedicated LISTEN connection is opened like a pooled one: the pool's
+// BeforeConnect (here it supplies the real role) and AfterConnect hooks run,
+// and a connection whose AfterConnect fails is closed.
+func TestListenConnectionUsesThePoolConnectHooks(t *testing.T) {
+	e := newGoEnv(t)
+	cfg := e.db.Config().Copy()
+	role := cfg.ConnConfig.User
+	cfg.ConnConfig.User = "no_such_role_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	var before, after atomic.Int64
+	cfg.BeforeConnect = func(_ context.Context, cc *pgx.ConnConfig) error {
+		before.Add(1)
+		cc.User = role
+		return nil
+	}
+	cfg.AfterConnect = func(context.Context, *pgx.Conn) error { after.Add(1); return nil }
+	hooked, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(hooked.Close)
+
+	c := newGoConsumer("acme.go.hooked", goEventA.ID())
+	d, err := events.NewDispatcher(events.Config{
+		DB: hooked, Consumers: events.StaticConsumers(c), Subjects: e.subjects, PollInterval: 30 * time.Second, Logger: e.logger,
+	})
+	require.NoError(t, err)
+	d.Start(context.Background())
+	t.Cleanup(d.Stop)
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, e.db.QueryRow(context.Background(),
+			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query ILIKE 'LISTEN%'`).Scan(&n))
+		return n >= 1
+	}, 10*time.Second, 20*time.Millisecond, "the LISTEN connection is established through the hooks")
+	e.publish(e.tenant, goEventA, "x", 0)
+	require.Eventually(t, func() bool { return len(e.effects(c.id)) == 1 }, 10*time.Second, 20*time.Millisecond,
+		"the hooked LISTEN connection receives the NOTIFY")
+	require.GreaterOrEqual(t, before.Load(), int64(2), "BeforeConnect ran for the pooled and the LISTEN connection")
+	require.Equal(t, before.Load(), after.Load())
+
+	app := "listenconn_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	failing := e.db.Config().Copy()
+	failing.BeforeConnect = func(_ context.Context, cc *pgx.ConnConfig) error {
+		cc.RuntimeParams["application_name"] = app
+		return nil
+	}
+	failing.AfterConnect = func(context.Context, *pgx.Conn) error { return errors.New("session setup failed") }
+	bad, err := pgxpool.NewWithConfig(context.Background(), failing)
+	require.NoError(t, err)
+	t.Cleanup(bad.Close)
+	_, err = listenconn.Connect(context.Background(), bad)
+	require.ErrorContains(t, err, "session setup failed")
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, e.db.QueryRow(context.Background(), `SELECT count(*) FROM pg_stat_activity WHERE application_name = $1`, app).Scan(&n))
+		return n == 0
+	}, 5*time.Second, 20*time.Millisecond, "the connection whose initialization failed is closed")
 }
