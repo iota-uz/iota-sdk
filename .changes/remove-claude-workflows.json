@@ -1,0 +1,1 @@
+{"bump":"none","summary":"Remove unused Claude GitHub workflows, including the vulnerable claude-debugger workflow; CI configuration only, no runtime or public API change."}
