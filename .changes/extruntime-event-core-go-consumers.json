@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "The native event catalog, the outbox and its dispatcher (with pruning) become an always-on Go core composed by wiring.NewComponent, independent of EXTRUNTIME_ENABLED and of the @iota-uz/sdk Node distribution, so the outbox no longer grows without bound when the runtime is off (EXTRUNTIME_EVENTS_RETENTION, default 168h). Modules and applications register Go outbox consumers with wiring.ContributeConsumers (events.Consumer: receipt per event in the delivery transaction, per-consumer retries and dead-letter, run-as via events.ResolveSubject). With the runtime enabled the process runs one dispatcher and package subscriptions are its consumers (events.PackageConsumers). Adds composition.Contribute/Contributions and triggerowner.Assign. Direct callers of events.NewDispatcher: Config.Runner and Config.Subscriptions are replaced by Config.Consumers (events.PackageConsumers(subs, runner, subjects))."
+}
