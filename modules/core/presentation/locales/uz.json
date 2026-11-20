@@ -1157,7 +1157,9 @@
         "Last30Days": "Oxirgi 30 kun",
         "Next30Days": "Keyingi 30 kun",
         "ThisYear": "Shu yil",
-        "LastYear": "Oʻtgan yil"
+        "LastYear": "Oʻtgan yil",
+        "ThisQuarter": "Shu chorak",
+        "LastQuarter": "O‘tgan chorak"
       }
     }
   },

@@ -1157,7 +1157,9 @@
         "Last30Days": "Last 30 days",
         "Next30Days": "Next 30 days",
         "ThisYear": "This year",
-        "LastYear": "Last year"
+        "LastYear": "Last year",
+        "ThisQuarter": "This quarter",
+        "LastQuarter": "Last quarter"
       }
     }
   },

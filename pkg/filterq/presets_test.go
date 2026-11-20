@@ -176,3 +176,24 @@ func TestDefaultOperators(t *testing.T) {
 		}
 	}
 }
+
+func TestQuarterPresets(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC)
+	cases := []struct {
+		p        filterq.DatePreset
+		from, to string
+	}{
+		{filterq.PresetThisQuarter, "2026-01-01", "2026-03-31"},
+		{filterq.PresetLastQuarter, "2025-10-01", "2025-12-31"},
+	}
+	for _, c := range cases {
+		from, to := c.p.Range(now)
+		if from.Format(filterq.DateLayout) != c.from || to.Format(filterq.DateLayout) != c.to {
+			t.Errorf("%s: %s..%s", c.p, from.Format(filterq.DateLayout), to.Format(filterq.DateLayout))
+		}
+		if !c.p.Valid() {
+			t.Errorf("%s not valid", c.p)
+		}
+	}
+}

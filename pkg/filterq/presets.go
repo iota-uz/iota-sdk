@@ -18,6 +18,10 @@ const (
 	PresetNext30D   DatePreset = "next_30d"
 	PresetThisYear  DatePreset = "this_year"
 	PresetLastYear  DatePreset = "last_year"
+	// Quarter presets are opt-in (not part of AllPresets): reports that
+	// close by quarter list them explicitly in FieldDef.Presets.
+	PresetThisQuarter DatePreset = "this_quarter"
+	PresetLastQuarter DatePreset = "last_quarter"
 )
 
 // presetPrefix marks a symbolic preset value inside a condition.
@@ -38,7 +42,8 @@ func AllPresets() []DatePreset {
 // Valid reports whether p is a known preset.
 func (p DatePreset) Valid() bool {
 	switch p {
-	case PresetThisMonth, PresetLastMonth, PresetLast30D, PresetNext30D, PresetThisYear, PresetLastYear:
+	case PresetThisMonth, PresetLastMonth, PresetLast30D, PresetNext30D, PresetThisYear, PresetLastYear,
+		PresetThisQuarter, PresetLastQuarter:
 		return true
 	}
 	return false
@@ -71,6 +76,12 @@ func (p DatePreset) Range(now time.Time) (time.Time, time.Time) {
 		return time.Date(y, 1, 1, 0, 0, 0, 0, loc), time.Date(y, 12, 31, 0, 0, 0, 0, loc)
 	case PresetLastYear:
 		return time.Date(y-1, 1, 1, 0, 0, 0, 0, loc), time.Date(y-1, 12, 31, 0, 0, 0, 0, loc)
+	case PresetThisQuarter:
+		from := time.Date(y, (m-1)/3*3+1, 1, 0, 0, 0, 0, loc)
+		return from, from.AddDate(0, 3, -1)
+	case PresetLastQuarter:
+		from := time.Date(y, (m-1)/3*3+1, 1, 0, 0, 0, 0, loc).AddDate(0, -3, 0)
+		return from, from.AddDate(0, 3, -1)
 	}
 	return time.Time{}, time.Time{}
 }

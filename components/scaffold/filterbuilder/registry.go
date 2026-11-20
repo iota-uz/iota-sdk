@@ -216,6 +216,10 @@ func presetKey(p filterq.DatePreset) string {
 		return "Scaffold.FilterBuilder.Presets.ThisYear"
 	case filterq.PresetLastYear:
 		return "Scaffold.FilterBuilder.Presets.LastYear"
+	case filterq.PresetThisQuarter:
+		return "Scaffold.FilterBuilder.Presets.ThisQuarter"
+	case filterq.PresetLastQuarter:
+		return "Scaffold.FilterBuilder.Presets.LastQuarter"
 	}
 	return ""
 }
