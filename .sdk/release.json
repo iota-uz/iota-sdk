@@ -1,0 +1,110 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "BiChat run/title workers and the run reaper now run under the runtime lifecycle context, and the shared BiChat Redis client is lease-owned (composition.OwnedResource): a shutdown deadline no longer closes it under an accepted generation's terminal bookkeeping."
+    },
+    {
+      "bump": "minor",
+      "summary": "Business history reader options: history.Field.ValueKeyPrefix/ValueLabel translate stored codes (Item.Display carries localized labels and value texts with the code kept); history.Resource.Labels captions objects with one batched call per page, with captions recorded on events (Subject.Label, Mutation.Label) so deleted objects keep theirs; history.Resource.Visible (VisibleAll/VisibleIDs/VisibleWhere) hides events of objects outside the reader's set in SQL before pagination; history.WithResource helper; Service.Subject. Finance translates counterparty, transaction and debt codes and captions counterparties and money accounts. historypage.Group no longer takes a field-label function."
+    },
+    {
+      "bump": "minor",
+      "summary": "pkg/crud: new schema options crud.TenantScoped() and crud.WithTenantField(name), plus the optional crud.TenantScopedSchema interface and crud.SchemaTenantField helper. For a tenant-scoped schema, DefaultRepository adds the context tenant to the WHERE clause of Get, Exists, GetAll, List, Count, Update and Delete, writes the context tenant on Create, never rewrites the tenant column on Update, and fails with PermissionDenied when the context has no tenant. CrudController no longer accepts values for Hidden fields from submitted forms: Create fills them from InitialValue and Update keeps the stored value."
+    },
+    {
+      "bump": "minor",
+      "summary": "SDK ERP browser suites run with a worker-owned environment (cloned sealed baseline + dedicated server per Playwright worker) locally and in CI; testenv gains process.Config.Unset, --database-prefix, per-environment uploads/OIDC issuer for --sdk-erp and cmd/testenv-baseline --drop. The TypeScript truncate/seed helpers (resetDB/seedDB) were removed."
+    },
+    {
+      "bump": "minor",
+      "summary": "eventbus: guard subscribers with a RWMutex, stop logging event payloads (types only), add PublishCtx(ctx, ...) error via ContextPublisher and eventbus.PublishCtx, and deprecate EventBus.Publish."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add appconfig.Environment (development, test, staging, production) with Config.Env(), IsDevelopment(), IsTest() and IsStaging(); deprecate IsDev(), which is also true on staging, preprod and test. APP_ENVIRONMENT is matched case-insensitively and preprod/stage count as staging. GraphQL accepts localhost origins only in development and test, and BiChat enables Vite dev assets and exposed internal errors only in development."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the TypeScript extension runtime platform: pure resource contracts and @iota-uz/sdk/runtime* author API, shared Node worker pool and Go-owned transaction host, typed per-entity tables and overlays with native list/export columns, outbox events and a durable replay workflow engine, package build/review/activation with developer kit, runtime pages/navigation/screen and shell bindings, package HTTP endpoints and runtime notices on the shared notification service."
+    },
+    {
+      "bump": "minor",
+      "summary": "Make the extension runtime consumable: the EXTRUNTIME_* configuration section (extruntimeconfig, disabled by default), the pkg/extruntime/wiring component that cmd/server and cmd/worker compose from it (Node pool, @iota-uz/sdk dist verification, host manifest, configurator, MCP tools, public-endpoint tenant by configured ID or Host header), a server-composition smoke test, and the consumer guide docs/extensions/consumer.md."
+    },
+    {
+      "bump": "minor",
+      "summary": "Extension packages ship end-user documentation: docs/\u003clocale\u003e/\u003cpath\u003e.md with front matter is validated at check/build (source-located diagnostics), carried in the version artifact and manifest (covered by the review hashes), re-validated in Go at publish and activation, and served from the active version in the Help Center under Applications (/help/doc/apps/\u003cnamespace\u003e/...) to the readers who can use the package; helpHref in @iota-uz/sdk/runtime/client links to it and the MCP tool ext_docs reads it."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the extension runtime UI slice: contributed columns for native lists and exports (pkg/listext, wired into CRM clients), a dynamic page host with immutable asset route and browser RPC, navigation projection, screen and whole-shell replacement through bindings, and the browser runtime host (web/runtime client-host)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Finance dashboard gains one shared Lens period for all panels, a per-currency daily balance chart, and drill-down drawers listing the account operations behind each mark by stable keys; Lens table row drawer actions now open the drawer instead of navigating."
+    },
+    {
+      "bump": "major",
+      "summary": "GraphQL handler denies by default: every Query/Mutation/Subscription root field must carry @public, @authenticated or @can(permissions), otherwise NewHandler/AddExecutor fail at startup (AuthDirectivesWarn for a transition window; ValidateAuthDirectives for CI). Adds Authorizer and ObjectAuthorizer (ownership hook) options, depth (15), complexity (1000) and JSON body (1 MiB) limits checked before resolvers, GET transport off by default, a per-executor query cache, and rejection of Origin-less cross-site browser requests. Core users/user queries now require a session. Breaking for consumers serving unannotated schemas; see docs/graphql-security.md."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens explorations can be saved as reports and carried into host pages: InvestigationHost (save draft, publish, publish and add with add-only retry) on declared saveable slices with explained unsupported cases; the drill card states measure, period, constraint origins and host-computed ratio parts; the drill return protocol (Go pkg/lens/drillreturn, readReturnContext/backURL) restores levels, filters and the host's own record state; an expired snapshot is recalculated explicitly. Contract: Level.dimension, Node.value, Panel.ratio."
+    },
+    {
+      "bump": "patch",
+      "summary": "Lens panels keep the latest slice: a late answer to an earlier table search, sort or page, or to a panel batch superseded by one of them, no longer replaces (or marks as failed) the result the reader asked for last."
+    },
+    {
+      "bump": "patch",
+      "summary": "Add report.DecodeComposition and a shared Go/TypeScript report contract fixture verified on two host adapters."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens: add ReportDefinitionEditor for editing a shared report. It lists the placements a save reaches and offers an independent copy. Dashboard filters show their origin, drive only the preview and can be saved as a new report through the host. Parameter changes preview at once and persist only on Save changes. Conflict, failure, Cancel and leave-guard behaviour matches the composition editor. ReportCompositionEditor and the LensDashboard edit mode gain a proposal layout preview, proposalRequest (a proposal still being prepared turns stale on a manual edit; proposalHandlers.restart prepares it again), and placements(reportId) to list a shared report's placements before Edit report. An empty editor starts with Add report. New exports: ReportDefinitionEditor, ReportDefinitionEditorProps, ReportEditContext, ReportProposalRequest, ReportUsage. The editors and LensMessagesProvider take an optional locale, and the runtime catalogue now translates the report editors into ru and uz. The runtime key report.editor.empty was removed and report.definition.* keys were added."
+    },
+    {
+      "bump": "minor",
+      "summary": "Lens ReportPicker accepts the caller's EffectiveContext and returns a copy of it in ReportPickerConfirmation.context with the ordered picks; returning from a report preview restores the list's scroll position."
+    },
+    {
+      "bump": "minor",
+      "summary": "Breaking: MigrationManager.Rollback(ctx, steps) rolls back exactly the requested number of applied migrations (error if fewer are applied) and `migrate down` defaults to one; rolling back every migration now requires RollbackAll or `migrate down --all`. Rollbacks only touch applied migrations, never pending Up SQL. Run takes a context. Migrations run on one session holding a Postgres advisory lock, so concurrent replicas apply each migration once; statements get a default 30s lock_timeout (WithMigrationLockTimeout), and `-- +migrate Up/Down notransaction` migrations run outside a transaction."
+    },
+    {
+      "bump": "minor",
+      "summary": "pkg/money gains an explicit RoundingMode (RoundHalfUp default, RoundHalfEven, RoundDown, RoundUp, RoundFloor, RoundCeiling), NewFromDecimal, NewFromFloatRounded, RoundWith and AsDecimal. NewFromFloat now rounds half-up instead of truncating (0.125 UZS is 13 tiyin, was 12), Round is half-up instead of half-down, the zero value Money{} no longer panics, and JSON rejects fractional minor-unit amounts instead of truncating them."
+    },
+    {
+      "bump": "minor",
+      "summary": "Notification delivery policies compose (Go policy first, then extension package policies, any denial wins) with a fixed wire contract for package deliveryPolicy implementations; add an optional Web Push (VAPID, RFC 8291) channel adapter with a signed-in device registration API; revoke push devices their provider reports gone; add the ext_subscription_requeue MCP tool."
+    },
+    {
+      "bump": "minor",
+      "summary": "Generalize notification delivery: user, business-record (ContactResolver) and direct-address recipients separate from the subject and from per-target deliveries, with a notice instance table, per-target attempts and outcomes (including ambiguous), a push device registry, SubjectAccess and DeliveryPolicy hooks, pluggable per-channel ContentRenderer and a transaction-taking explicit send."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add HTTPServer.Run with graceful SIGTERM shutdown (drain in-flight requests, stop hooks in reverse order, close bus and pool), Runtime lifecycle context and default HTTP server timeouts."
+    },
+    {
+      "bump": "minor",
+      "summary": "GET /settings now renders a settings hub instead of redirecting to /settings/logo, and the core.settings navigation entry opens it (keeping the logo route's visibility): searchable cards (name and description) grouped in sections, with empty and no-match states. Components contribute entries with composition.ContributeSettings / AddSettings and hide them with RemoveSettingsPagesByKey; sections merge by Key, pages need a unique Key and an Href, and Name/Description are i18n keys translated at render time (untranslated values render as is). New pkg/settings resolves the registry for the user in a context (Resolve, ResolveFromContext, Source, ResolvedSection, ResolvedPage, shared General/Access/Organization sections). types.SettingsSection gains Key; types.SettingsPage gains Key, Order and Logic (all-of by default, any-of optional) and a HasPermission method. Core contributes general, notifications, users, roles, groups, departments and positions when admin controllers are registered; logging contributes the business history page. NewSettingsHubController accepts an optional settings.Source, controllers.UserControllerBasePath is added, and the core settings templates package HubPageProps.Sections is now []pkg/settings.ResolvedSection (was []types.SettingsSection)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add scoped test controls to testenv: consumer jobs with condition waits, scripted provider fakes with hold/release gates, dedicated clock control, scoped file/queue cleanup, replay manifests, a Go HTTP client and a shared CLI for scenario preparation."
+    },
+    {
+      "bump": "minor",
+      "summary": "@iota-uz/sdk/testing: target-scoped HTMX settlement now follows detached and replaced targets, rejects send errors and missing requests promptly, and accepts consumer readiness; native validation refusal recognises every hx verb and verifies the control stays :invalid; component readiness rejects with ReadinessError diagnostics and can wait for charts; add componentCase, assertCaseCoverage and attachDiagnosticScreenshot."
+    },
+    {
+      "bump": "patch",
+      "summary": "Write Uzbek Cyrillic (uz-Cyrl) core and projects translations in Cyrillic script instead of Latin."
+    }
+  ],
+  "source": "587216e2da1ec3672add9cbb22d2e5332bb7724e",
+  "version": "0.47.0"
+}
