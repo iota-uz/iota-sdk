@@ -56,6 +56,9 @@
     "WorkflowConcurrency": 0,
     "DisableBackground": false,
     "TrustedOrigins": "",
+    "Events": {
+      "Retention": 604800000000000
+    },
     "UI": {
       "HostManifest": "",
       "SourceTTL": 2000000000

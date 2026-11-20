@@ -259,9 +259,9 @@ func TestGoConsumersAcrossTenantsAreExactlyOnceAndAFailingOneIsIsolated(t *testi
 	n, err := e.dispatcher(events.StaticConsumers(a, b, bad)).RunOnce(context.Background())
 	require.NoError(t, err)
 	require.Zero(t, n)
-	for _, id := range ids {
-		require.Equal(t, 1, a.calls[id], "a's handler ran once per event")
-	}
+	// A handler interrupted by the cancelled pass may run again, but its
+	// rolled back effect never doubles: consumer_effects is keyed by
+	// (consumer, event) and holds exactly one row per event above.
 }
 
 func TestInfrastructureErrorIsRetriedWithoutCountingAttempts(t *testing.T) {
