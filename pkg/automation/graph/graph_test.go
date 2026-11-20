@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -481,20 +480,29 @@ func TestNameSchemaMatchesDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	nbsp, ideographic := "\u00a0", "\u3000"
 	for _, tc := range []struct {
 		name  string
 		valid bool
+		code  string
 	}{
-		{" " + strings.Repeat("a", 120) + " ", true},
-		{"\t" + strings.Repeat("я", 120) + "\n", true},
-		{strings.Repeat("a", 121), false},
-		{" " + strings.Repeat("a", 121) + " ", false},
-		{"   ", false},
-		{"", false},
-		{"a", true},
-		{" a b ", true},
+		{" " + strings.Repeat("a", 120) + " ", true, ""},
+		{"\t" + strings.Repeat("я", 120) + "\n", true, ""},
+		{nbsp + strings.Repeat("a", 120) + ideographic + "\v", true, ""},
+		{strings.Repeat("a", 121), false, graph.CodeLimit},
+		{" " + strings.Repeat("a", 121) + " ", false, graph.CodeLimit},
+		{"   ", false, graph.CodeInvalid},
+		{nbsp + nbsp, false, graph.CodeInvalid},
+		{"\u0085", false, graph.CodeInvalid},
+		{"", false, graph.CodeInvalid},
+		{"a", true, ""},
+		{" a" + nbsp + "b ", true, ""},
 	} {
-		raw := strings.Replace(orderGraph, `"  Big orders  "`, strconv.Quote(tc.name), 1)
+		quoted, err := json.Marshal(tc.name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := strings.Replace(orderGraph, `"  Big orders  "`, string(quoted), 1)
 		g, errs := graph.Decode([]byte(raw))
 		inst, err := jsonschema.UnmarshalJSON(strings.NewReader(raw))
 		if err != nil {
@@ -503,6 +511,9 @@ func TestNameSchemaMatchesDecode(t *testing.T) {
 		schemaOK := schema.Validate(inst) == nil
 		if (len(errs) == 0) != tc.valid || schemaOK != tc.valid {
 			t.Errorf("%q: decode errors %v, schema valid %v; want valid %v", tc.name, errs, schemaOK, tc.valid)
+		}
+		if !tc.valid && (len(errs) != 1 || errs[0].Path != "name" || errs[0].Code != tc.code) {
+			t.Errorf("%q: errors %v, want one at name with code %s", tc.name, errs, tc.code)
 		}
 		if tc.valid && g.Name != graph.TrimName(tc.name) {
 			t.Errorf("%q: kept %q", tc.name, g.Name)
@@ -532,5 +543,46 @@ func TestViewCopiesFields(t *testing.T) {
 	in.Graph().Nodes[0].Params["expression"] = "false"
 	if st := in.Start("check", &graph.StepContext{Ctx: ctx}); st.Outcome != "true" {
 		t.Fatalf("the graph changed: %+v", st)
+	}
+}
+
+// Params built in Go with typed containers are owned by the interpreter once it is built.
+func TestTypedParamsAreSnapshotted(t *testing.T) {
+	c := testCatalog(t)
+	channels := []string{"web"}
+	cases := []map[string]any{{"value": "new", "outcome": "fresh"}}
+	g := graph.Graph{
+		Name:     "Typed",
+		Triggers: []graph.Trigger{{ID: "t", Event: "order.created", Params: map[string]any{"channels": channels}}},
+		Nodes:    []graph.Node{{ID: "route", Type: "switch", Params: map[string]any{"expression": "order.status", "cases": cases}}},
+		Edges: []graph.Edge{
+			{From: graph.EdgeFrom{Node: "t", Outcome: graph.TriggerOutcome}, To: "route"},
+			{From: graph.EdgeFrom{Node: "route", Outcome: "fresh"}, To: graph.Ignore},
+			{From: graph.EdgeFrom{Node: "route", Outcome: "default"}, To: graph.Ignore},
+		},
+	}
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	channels[0] = "phone" // the caller's typed slice
+	cases[0]["outcome"] = "stale"
+	first := in.Graph()
+	if got := first.Triggers[0].Params["channels"].([]any)[0]; got != "web" {
+		t.Fatalf("the caller's slice changed the interpreter: %v", got)
+	}
+	if got := first.Nodes[0].Params["cases"].([]any)[0].(map[string]any)["outcome"]; got != "fresh" {
+		t.Fatalf("the caller's map changed the interpreter: %v", got)
+	}
+	first.Triggers[0].Params["channels"].([]any)[0] = "phone"
+	if got := in.Graph().Triggers[0].Params["channels"].([]any)[0]; got != "web" {
+		t.Fatalf("a Graph() result changed the interpreter: %v", got)
+	}
+	ctx := graph.Context{Vars: map[string]any{"order": map[string]any{"total": 1, "status": "new"}}}
+	if m, _ := in.TriggerMismatch("t", graph.Event{"kind": "order.created", "total": 1, "channel": "web"}, ctx); m != "" {
+		t.Fatalf("mismatch %q", m)
+	}
+	if st := in.Start("route", &graph.StepContext{Ctx: ctx}); st.Outcome != "fresh" {
+		t.Fatalf("route: %+v", st)
 	}
 }

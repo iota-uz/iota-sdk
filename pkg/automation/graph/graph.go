@@ -123,7 +123,7 @@ const graphSchema = `{
   "description": "The content of one immutable version of an automation graph.",
   "type": "object",
   "properties": {
-    "name": {"type": "string", "pattern": "^[ \\t\\n\\f\\r]*[^ \\t\\n\\f\\r](?:[\\s\\S]{0,118}[^ \\t\\n\\f\\r])?[ \\t\\n\\f\\r]*$", "description": "1 to 120 characters (code points) once spaces, tabs and line breaks at the edges are trimmed; the graph keeps the trimmed name."},
+    "name": {"type": "string", "pattern": "^[\\t\\n\\v\\f\\r \\x{85}\\p{Z}]*[^\\t\\n\\v\\f\\r \\x{85}\\p{Z}](?:[\\s\\S]{0,118}[^\\t\\n\\v\\f\\r \\x{85}\\p{Z}])?[\\t\\n\\v\\f\\r \\x{85}\\p{Z}]*$", "description": "1 to 120 characters (code points) once whitespace at the edges is trimmed (Unicode White_Space, as Go strings.TrimSpace); the graph keeps the trimmed name. The pattern is RE2 syntax."},
     "description": {"type": "string", "maxLength": 2000},
     "run_as": {"enum": ["owner", "initiator"], "default": "owner"},
     "triggers": {
@@ -252,16 +252,27 @@ func Decode(raw []byte) (Graph, []GraphError) {
 	return g, nil
 }
 
-// structureErrors checks a decoded document against the format's schema.
+// structureErrors checks a decoded document against the format's schema. A string name is checked by
+// nameErrors (invalid when blank, limit when too long), not by the pattern that mirrors that rule for clients.
 func structureErrors(doc any) []GraphError {
 	found := validateInstance(graphValidator(), doc)
-	out := make([]GraphError, 0, len(found))
+	out := make([]GraphError, 0, len(found)+1)
+	nameIsString := false
+	if o, ok := doc.(map[string]any); ok {
+		if name, ok := o["name"].(string); ok {
+			nameIsString = true
+			out = append(out, nameErrors(name)...)
+		}
+	}
 	for _, i := range found {
+		path := pathOf("", i.Path)
+		if path == "name" && nameIsString {
+			continue
+		}
 		code := CodeInvalid
 		if i.Limit {
 			code = CodeLimit
 		}
-		path := pathOf("", i.Path)
 		if path == "" {
 			path = "graph"
 		}
@@ -273,11 +284,9 @@ func structureErrors(doc any) []GraphError {
 	return out
 }
 
-// nameSpace is what TrimName trims: the characters the published schema's name pattern treats as edges.
-const nameSpace = " \t\n\f\r"
-
-// TrimName is a graph name as the graph keeps it: spaces, tabs and line breaks at the edges trimmed.
-func TrimName(name string) string { return strings.Trim(name, nameSpace) }
+// TrimName is a graph name as the graph keeps it: whitespace at the edges trimmed (strings.TrimSpace; the
+// schema's name pattern uses the same class).
+func TrimName(name string) string { return strings.TrimSpace(name) }
 
 func nameErrors(name string) []GraphError {
 	n := utf8.RuneCountInString(TrimName(name))

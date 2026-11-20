@@ -306,9 +306,16 @@ func sortedOutcomes(m map[string]string) []string {
 	return out
 }
 
+// copyMap copies params. Values built in Go ([]string, map[string]int, structs) become owned JSON values,
+// so no container is shared with the caller.
 func copyMap(m map[string]any) map[string]any {
 	if m == nil {
 		return nil
+	}
+	if owned, err := jsonValue(m); err == nil {
+		if out, ok := owned.(map[string]any); ok {
+			return out
+		}
 	}
 	return deepCopy(m).(map[string]any)
 }
