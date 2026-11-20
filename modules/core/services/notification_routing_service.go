@@ -210,47 +210,45 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	if !rule.Enabled {
 		return rule, nil, nil
 	}
-	named, err := s.directory.GetByIDs(ctx, rule.UserIDs)
-	if err != nil {
-		return rule, nil, serrors.Wrap(op, err)
-	}
-	ids := make([]uint, 0, len(named))
-	for _, recipient := range named {
-		ids = append(ids, recipient.ID)
-	}
-	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
-		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
+	// Named people are filtered through the rule's directory; the shared
+	// resolver expands groups, roles and the event's own participants.
+	var userIDs []uint
+	if len(rule.UserIDs) > 0 {
+		named, err := s.directory.GetByIDs(ctx, rule.UserIDs)
 		if err != nil {
 			return rule, nil, serrors.Wrap(op, err)
 		}
-		ids = append(ids, resolved...)
-	}
-	for _, key := range rule.RecipientKeys {
-		found := false
-		for _, recipient := range definition.RecipientKeys {
-			if recipient.Key == key {
-				found = true
-				resolved, err := recipient.Resolve(ctx, event)
-				if err != nil {
-					return rule, nil, serrors.Wrap(op, err)
-				}
-				ids = append(ids, resolved...)
-				break
-			}
+		userIDs = make([]uint, 0, len(named))
+		for _, recipient := range named {
+			userIDs = append(userIDs, recipient.ID)
 		}
-		if !found {
+	}
+	audience := notifications.Audience{Users: userIDs, Groups: rule.GroupIDs, Roles: rule.RoleIDs, Participants: rule.RecipientKeys}
+	resolved, err := s.audienceResolver(false).Resolve(ctx, audience, &event)
+	if err != nil {
+		return rule, nil, serrors.Wrap(op, err)
+	}
+	for _, skipped := range resolved.Skipped {
+		if skipped.Reason == notifications.SkipUnknownParticipant {
 			return rule, nil, serrors.New(serrors.Invalid, "unknown event recipient").WithOp(op)
 		}
 	}
-	unique := make([]uint, 0, len(ids))
-	seen := map[uint]bool{}
-	for _, id := range ids {
-		if id != 0 && !seen[id] {
-			seen[id] = true
-			unique = append(unique, id)
-		}
+	return rule, resolved.UserIDs, nil
+}
+
+// audienceResolver builds the shared resolver over the service's sources.
+// checkUsers drops unavailable named users; rule mode leaves that to its
+// directory.
+func (s *NotificationRoutingService) audienceResolver(checkUsers bool) *notifications.AudienceResolver {
+	var users notifications.AudienceUsers
+	if checkUsers {
+		users = s.users
 	}
-	return rule, unique, nil
+	var contacts *notifications.ContactResolvers
+	if s.platform != nil {
+		contacts = s.platform.Contacts
+	}
+	return notifications.NewAudienceResolver(s.catalog, s.audience, users, contacts)
 }
 
 // DeliverRecipients delivers a rule-mode event to user recipients.

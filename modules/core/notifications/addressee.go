@@ -212,6 +212,40 @@ func DeriveDedupeKey(producer Producer, event Event, recipients []Addressee, cha
 	for _, r := range recipients {
 		keys = append(keys, r.fingerprint())
 	}
+	return deriveDedupeKey(identity, event, keys, channels)
+}
+
+// DeriveAudienceDedupeKey is DeriveDedupeKey for an audience send. It hashes
+// the requested audience, not its members, so a replay after a group or role
+// changed still finds the first notice. An audience of users, records and
+// addresses only derives the same key as DeriveDedupeKey for those recipients.
+func DeriveAudienceDedupeKey(producer Producer, event Event, audience Audience, source *Event, channels []Channel) string {
+	identity := producer.Identity()
+	if identity == "" {
+		return ""
+	}
+	direct := audience.direct()
+	keys := make([]string, 0, len(direct)+len(audience.Groups)+len(audience.Roles)+len(audience.Participants))
+	for _, r := range direct {
+		keys = append(keys, r.fingerprint())
+	}
+	for _, id := range audience.Groups {
+		keys = append(keys, "group:"+id.String())
+	}
+	for _, id := range audience.Roles {
+		keys = append(keys, fmt.Sprintf("role:%d", id))
+	}
+	if len(audience.Participants) > 0 && source != nil {
+		origin := source.Key + "/" + source.SnapshotRef + "/" + source.ID + "/" + source.DedupeKey
+		for _, key := range audience.Participants {
+			keys = append(keys, "participant:"+key+"@"+origin)
+		}
+	}
+	return deriveDedupeKey(identity, event, keys, channels)
+}
+
+func deriveDedupeKey(identity string, event Event, keys []string, channels []Channel) string {
+	keys = slices.Clone(keys)
 	sort.Strings(keys)
 	names := make([]string, 0, len(channels))
 	for _, c := range channels {
