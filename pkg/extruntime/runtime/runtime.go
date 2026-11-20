@@ -178,8 +178,8 @@ type Runtime struct {
 	Artifacts   *artifact.Store
 	Manage      *manage.Service
 	// Workflows is the durable engine (host.WorkflowHandler and spi.Starter).
-	Workflows  *workflow.Engine
-	Outbox *events.Outbox
+	Workflows *workflow.Engine
+	Outbox    *events.Outbox
 	// Dispatcher delivers the outbox; it is Deps.Dispatcher when the core
 	// serves it, else the runtime's own.
 	Dispatcher *events.Dispatcher

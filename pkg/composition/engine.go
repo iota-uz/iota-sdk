@@ -321,7 +321,7 @@ type Container struct {
 	// materialize.
 	contributions          map[reflect.Type][]any
 	contributionsCollected bool
-	started            bool
+	started                bool
 }
 
 type controllerContribution struct {
