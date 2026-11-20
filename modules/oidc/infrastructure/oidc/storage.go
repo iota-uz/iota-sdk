@@ -23,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/authrequest"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/token"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -328,66 +329,73 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 	}
 
 	// A refresh is single-use: the presented token is replaced by a new one.
-	if currentRefreshToken != "" {
-		currentHash := sha256.Sum256([]byte(currentRefreshToken))
-		if err := s.tokenRepo.DeleteByTokenHash(ctx, hex.EncodeToString(currentHash[:])); err != nil {
-			return "", "", time.Time{}, serrors.Wrap(operation, err)
-		}
-	}
+	// One transaction, so a failed replacement leaves the presented token valid.
 	refreshToken := rand.Text()
-	hash := sha256.Sum256([]byte(refreshToken))
-	tokenHash := hex.EncodeToString(hash[:])
-
-	// Parse user ID from subject
-	userID, err := parseUserID(req.GetSubject())
-	if err != nil {
-		return "", "", time.Time{}, serrors.Wrap(operation, err)
-	}
-
-	// Get user to fetch tenant_id
-	u, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return "", "", time.Time{}, serrors.Wrap(operation, err)
-	}
-
-	// Create domain refresh token using configured lifetime
-
-	// Get auth time and AMR from request
-	// The zitadel library passes extended request objects with these methods
-	authTime := time.Now()
-	amr := []string{"pwd"} // Default authentication method
-	clientID := ""         // Will be extracted from audience if available
-
-	// Type assertion to get additional claims if available
-	if authReq, ok := req.(interface {
-		GetAuthTime() time.Time
-		GetAMR() []string
-	}); ok {
-		authTime = authReq.GetAuthTime()
-		if len(authReq.GetAMR()) > 0 {
-			amr = authReq.GetAMR()
+	err = composables.InTx(ctx, func(ctx context.Context) error {
+		if currentRefreshToken != "" {
+			currentHash := sha256.Sum256([]byte(currentRefreshToken))
+			if err := s.tokenRepo.DeleteByTokenHash(ctx, hex.EncodeToString(currentHash[:])); err != nil {
+				return err
+			}
 		}
-	}
+		hash := sha256.Sum256([]byte(refreshToken))
+		tokenHash := hex.EncodeToString(hash[:])
 
-	// Extract client ID from audience (first element is typically the client ID)
-	if len(req.GetAudience()) > 0 {
-		clientID = req.GetAudience()[0]
-	}
+		// Parse user ID from subject
+		userID, err := parseUserID(req.GetSubject())
+		if err != nil {
+			return err
+		}
 
-	domainToken := token.New(
-		tokenHash,
-		clientID,
-		int(userID),
-		u.TenantID(),
-		req.GetScopes(),
-		authTime,
-		s.refreshTokenLifetime,
-		token.WithAudience(req.GetAudience()),
-		token.WithAMR(amr),
-	)
+		// Get user to fetch tenant_id
+		u, err := s.userRepo.GetByID(ctx, userID)
+		if err != nil {
+			return err
+		}
 
-	// Store refresh token in repository
-	if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
+		// Create domain refresh token using configured lifetime
+
+		// Get auth time and AMR from request
+		// The zitadel library passes extended request objects with these methods
+		authTime := time.Now()
+		amr := []string{"pwd"} // Default authentication method
+		clientID := ""         // Will be extracted from audience if available
+
+		// Type assertion to get additional claims if available
+		if authReq, ok := req.(interface {
+			GetAuthTime() time.Time
+			GetAMR() []string
+		}); ok {
+			authTime = authReq.GetAuthTime()
+			if len(authReq.GetAMR()) > 0 {
+				amr = authReq.GetAMR()
+			}
+		}
+
+		// Extract client ID from audience (first element is typically the client ID)
+		if len(req.GetAudience()) > 0 {
+			clientID = req.GetAudience()[0]
+		}
+
+		domainToken := token.New(
+			tokenHash,
+			clientID,
+			int(userID),
+			u.TenantID(),
+			req.GetScopes(),
+			authTime,
+			s.refreshTokenLifetime,
+			token.WithAudience(req.GetAudience()),
+			token.WithAMR(amr),
+		)
+
+		// Store refresh token in repository
+		if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 

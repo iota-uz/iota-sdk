@@ -41,13 +41,15 @@ func TestStorage_CreateAccessAndRefreshTokens_IssuesAndRotates(t *testing.T) {
 	require.NoError(t, err)
 	_, second, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, req, "")
 	require.NoError(t, err)
-	assert.NotEmpty(t, first)
+	require.NotEmpty(t, first)
+	require.NotEmpty(t, second)
 	assert.NotEqual(t, first, second, "each code exchange issues its own refresh token")
 
 	refreshReq, err := storage.TokenRequestByRefreshToken(env.Ctx, first)
 	require.NoError(t, err)
 	_, rotated, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, refreshReq, first)
 	require.NoError(t, err)
+	require.NotEmpty(t, rotated)
 	assert.NotEqual(t, first, rotated)
 
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, first)
