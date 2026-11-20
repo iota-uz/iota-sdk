@@ -3,10 +3,12 @@ package controllers_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -105,4 +107,43 @@ func TestOIDCCallbackCompletesStoredAuthorizationRequest(t *testing.T) {
 	require.Equal(t, callbackURL, location.Scheme+"://"+location.Host+location.Path)
 	require.NotEmpty(t, location.Query().Get("code"))
 	require.Equal(t, "state-123", location.Query().Get("state"))
+}
+
+// Falsely green if discovery advertises refresh tokens the token endpoint
+// then refuses as unsupported_grant_type.
+func TestOIDCDiscoveryAdvertisesRefreshTokenGrant(t *testing.T) {
+	t.Parallel()
+
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	cryptoKey := base64.StdEncoding.EncodeToString(make([]byte, 32))
+	clientRepo := persistence.NewClientRepository()
+	authRequestRepo := persistence.NewAuthRequestRepository()
+	storage := oidcstorage.NewStorage(clientRepo, authRequestRepo, persistence.NewTokenRepository(), nil,
+		env.Pool, cryptoKey, "https://issuer.example.test/oidc", 0, 0)
+	controller := controllers.NewOIDCController(
+		storage,
+		&oidcconfig.Config{IssuerURL: "https://issuer.example.test/oidc", CryptoKey: cryptoKey},
+		services.NewOIDCService(clientRepo, authRequestRepo),
+		nil,
+		nil,
+		&httpconfig.Config{},
+	)
+	router := mux.NewRouter()
+	controller.Register(router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/oidc/.well-known/openid-configuration", nil).WithContext(env.Ctx))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var discovery struct {
+		GrantTypes []string `json:"grant_types_supported"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &discovery))
+	require.Contains(t, discovery.GrantTypes, "refresh_token")
+
+	recorder = httptest.NewRecorder()
+	form := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {"unknown"}, "client_id": {"nobody"}}
+	tokenRequest := httptest.NewRequest(http.MethodPost, "/oidc/oauth/token", strings.NewReader(form.Encode())).WithContext(env.Ctx)
+	tokenRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	router.ServeHTTP(recorder, tokenRequest)
+	require.NotContains(t, recorder.Body.String(), "unsupported_grant_type")
 }

@@ -80,6 +80,9 @@ func (c *OIDCController) Register(r *mux.Router) {
 		CryptoKey:                cryptoKey,
 		DefaultLogoutRedirectURI: "/",
 		CodeMethodS256:           true, // Enable PKCE with S256
+		// Clients registered with the refresh_token grant (and offline_access)
+		// get refresh tokens; without this the token endpoint refuses them.
+		GrantTypeRefreshToken: true,
 	}
 
 	// Initialize zitadel OIDC provider
