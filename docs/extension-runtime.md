@@ -378,6 +378,15 @@ re-execution of the pinned TS function, journal of completed occurrences, durabl
 signals, human tasks, leases and crash recovery. Revisit if a candidate supports external
 transaction receipts and per-instance artifact pinning.
 
+### Native workflow implementations (target design)
+
+Amends the engine qualification above: the Go-owned engine is the only engine, and a
+workflow contract may have a Go implementation. The full rules are §9.8. In short:
+
+* the engine picks the executor per instance (Go runner or package export);
+* a Go runner uses the same primitives, journal, leases, tasks and management API;
+* the engine, its tables and its scheduler remain single.
+
 ### Tables (`extruntime`)
 
 * `workflow_instances(id, tenant_id, workflow, package, version, artifact_hash, export, input,
@@ -942,3 +951,36 @@ A package styles its client without inline styles. Three tools, none of which ca
   neighbours' stylesheet, a fragment that brings the island back finds the link, and several islands of a version share it. The stylesheet is
   per version; it is not removed when a version deactivates (a document reload drops it).
 
+### 9.8 Native workflow implementations (target design)
+
+This subsection states the target decision; the implementation is reported by the pull requests that deliver it
+(#1320 events core, #1321 native workflows), which update this section to "as implemented". It is modelled on §9.3.
+
+* **Contract with a Go implementation.** A workflow contract may have a Go implementation, as native commands do (§9.3):
+  a contract is declared once and bound to a Go runner (`workflow.NativeContract`, registered through the composition
+  container), instead of — never together with — a package export. A contract id declared twice, or already declared by a
+  package workflow, is a composition error.
+* **Executor chosen per instance.** The engine selects the executor for each instance: a native instance runs its Go
+  runner; any other instance runs its pinned package export. A native instance does not pass the package gate, artifact
+  resolution or hash check; its package, version and artifact are empty.
+* **Same primitives.** The native runner uses the engine's own primitives — occurrences, journal, leases and fencing,
+  timers, signals, human tasks, `wf.call`, `wf.start`, terminate, resolve/retry — and the same management API. It does not
+  replay the journal: it keeps its own state in its own tables, written inside the fenced transaction together with the
+  occurrence receipt, and the journal serves as a journal of receipts, read lazily by `(name, n)`. The instance status
+  stays owned by the engine; consumers read it by join or through a status observer.
+* **An interpreter is an implementation, not an engine.** A graph interpreter (automation graphs,
+  [`automation-graphs.md`](automation-graphs.md)) is a Go implementation of workflow contracts (`automation.run`,
+  `automation.call`) on this engine. It has no claim loop, lease, heartbeat or task store of its own.
+  Tables and the scheduler are still one: one engine runs in the process, and the package runtime attaches its executor
+  to that same engine instead of building another.
+* **Go-only operation.** Native contracts, their engine and the Go host work with the runtime disabled
+  (`EXTRUNTIME_ENABLED=false`) and without the Node pool or the `@iota-uz/sdk` distribution: the engine is built by the
+  Go-only core, the host runs native commands, operations and queries, and a package export called without a pool fails as
+  unavailable (a package instance in such a process is `blocked`, unavailable). When the runtime is enabled, it does not
+  create a second engine: it attaches the package executor to the engine the core already built.
+* **Events without Node.** The event catalog (`native.Event`), the outbox and the dispatcher belong to the always-on Go
+  core: they run without Node and without `EXTRUNTIME_ENABLED`. The dispatcher is one per process; Go consumers register
+  with it on equal terms with package subscriptions, which are one source of consumers among others. Each delivery stays
+  one transaction of the consumer's work and its receipt; pruning runs without the runtime.
+* **Unchanged.** The rule at the top of this file — a slice owner may not invent a second registry, transport, query API
+  or workflow engine — stands as written.
