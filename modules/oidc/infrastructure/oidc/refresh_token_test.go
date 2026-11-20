@@ -77,3 +77,24 @@ func TestStorage_CreateAccessAndRefreshTokens_IssuesAndRotates(t *testing.T) {
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, rotated)
 	require.NoError(t, err)
 }
+
+// Falsely green if the access token carries no granted scopes: a resource
+// server (mcpgateway) then rejects every token as lacking scope.
+func TestStorage_GetPrivateClaimsFromScopes_CarriesScope(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	storage := oidc.NewStorage(nil, nil, nil, userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+	email, err := internet.NewEmail("scope-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Scope", "Holder", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+
+	claims, err := storage.GetPrivateClaimsFromScopes(env.Ctx, strconv.FormatUint(uint64(created.ID()), 10), "client",
+		[]string{"offline_access", "erp:read"})
+	require.NoError(t, err)
+	require.Equal(t, "offline_access erp:read", claims["scope"])
+}

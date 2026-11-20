@@ -758,6 +758,12 @@ func (s *Storage) GetPrivateClaimsFromScopes(
 	}
 
 	claims := make(map[string]any)
+	// Granted scopes travel in the access token (RFC 9068 "scope"), so a
+	// resource server such as mcpgateway can check them. The library passes
+	// them here with the userinfo scopes already removed.
+	if len(scopes) > 0 {
+		claims["scope"] = strings.Join(scopes, " ")
+	}
 
 	// Add custom claims based on scopes
 	for _, scope := range scopes {
