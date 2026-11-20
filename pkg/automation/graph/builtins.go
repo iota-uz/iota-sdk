@@ -31,9 +31,12 @@ func switchSchema() string {
 }
 
 func waitSchema(events []string) string {
-	ev, _ := json.Marshal(events)
 	if len(events) == 0 {
-		ev = []byte(`[""]`)
+		events = []string{""}
+	}
+	ev, err := json.Marshal(events)
+	if err != nil {
+		panic(err)
 	}
 	return `{"type": "object", "properties": {
 		"event": {"enum": ` + string(ev) + `},
@@ -123,6 +126,9 @@ func BuiltinsJSONSchema() json.RawMessage {
 	if err := json.Unmarshal([]byte(out), &compact); err != nil {
 		panic(err)
 	}
-	b, _ := json.Marshal(compact)
+	b, err := json.Marshal(compact)
+	if err != nil {
+		panic(err)
+	}
 	return b
 }

@@ -228,7 +228,7 @@ type nodeExpression struct {
 }
 
 func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpression {
-	var out []nodeExpression
+	out := make([]nodeExpression, 0, len(spec.Expressions)+len(spec.Values)+len(spec.Templates))
 	waited := ""
 	if spec.Wait != nil {
 		waited = spec.Wait.Event.Of(params)

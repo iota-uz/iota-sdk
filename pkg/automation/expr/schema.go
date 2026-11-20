@@ -44,13 +44,20 @@ func (o OrderedObject) MarshalJSON() ([]byte, error) {
 // An object lists its properties in declaration order, requires those that are not optional or dyn and
 // takes no other keys.
 func (f Field) JSONSchema() json.RawMessage {
-	b, _ := json.Marshal(f.schema())
-	return b
+	return mustJSON(f.schema())
 }
 
 // JSONSchema is the fields as the JSON Schema of an object.
 func (fs Fields) JSONSchema() json.RawMessage {
-	b, _ := json.Marshal(fs.schema())
+	return mustJSON(fs.schema())
+}
+
+// mustJSON marshals values built from strings, bools, slices and OrderedObject, which cannot fail.
+func mustJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("expr: marshal a schema: %v", err))
+	}
 	return b
 }
 
@@ -76,6 +83,8 @@ func (f Field) schema() any {
 		return f.Elem.schema()
 	case Object:
 		return Fields(f.Props).schema()
+	case Dyn:
+		return OrderedObject{}
 	}
 	return OrderedObject{}
 }

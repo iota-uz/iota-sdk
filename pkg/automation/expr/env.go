@@ -82,7 +82,7 @@ type Issue struct {
 	Column  int
 }
 
-func (i Issue) Error() string {
+func (i Issue) String() string {
 	if i.Line > 0 {
 		return fmt.Sprintf("%s (at %d:%d)", i.Message, i.Line, i.Column)
 	}
@@ -135,6 +135,7 @@ type Env struct {
 
 // NewEnv builds the environment of a scope. Build it once per scope and reuse it.
 func NewEnv(s Scope, l Limits) (*Env, error) {
+	l = l.withDefaults()
 	p := newProvider()
 	names := make([]string, 0, len(s.Vars))
 	for name := range s.Vars {
@@ -146,6 +147,9 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 		cel.CrossTypeNumericComparisons(true),
 		cel.DefaultUTCTimeZone(true),
 		cel.EnableMacroCallTracking(),
+		// The parser counts a chain of one operator as nested calls; the format bounds nodes and the
+		// collapsed depth itself (checkLimits), so the parser only needs to stay within MaxNodes.
+		cel.ParserRecursionLimit(max(250, l.MaxNodes)),
 		ext.Strings(),
 		ext.Bindings(),
 	}
@@ -160,7 +164,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Env{scope: s, limits: l.withDefaults(), cel: env, provider: p, names: names}, nil
+	return &Env{scope: s, limits: l, cel: env, provider: p, names: names}, nil
 }
 
 // Scope is the scope the environment was built for.
@@ -225,6 +229,8 @@ func typeMatches(t *types.Type, want Type) bool {
 		return t.Kind() == types.StringKind
 	case TypeMap:
 		return t.Kind() == types.MapKind || t.Kind() == types.StructKind
+	case TypeAny:
+		return true
 	}
 	return true
 }
@@ -379,6 +385,7 @@ func (e *Env) checkLimits(a *ast.AST) []Issue {
 			for _, sub := range []ast.Expr{c.IterRange(), c.AccuInit(), c.LoopCondition(), c.LoopStep(), c.Result()} {
 				walk(sub, depth+1, "")
 			}
+		case ast.UnspecifiedExprKind, ast.IdentKind, ast.LiteralKind:
 		}
 	}
 	walk(a.Expr(), 1, "")

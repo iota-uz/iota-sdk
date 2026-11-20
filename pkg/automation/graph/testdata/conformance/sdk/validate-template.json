@@ -1,0 +1,54 @@
+{
+  "name": "validate-template",
+  "format": 2,
+  "kind": "validate",
+  "description": "A {{ }} expression that reads an unknown field is an expression_type error at the template's param.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "say",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "Hi {{ issue.nope }}"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "say"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.text",
+      "code": "expression_type"
+    }
+  ]
+}

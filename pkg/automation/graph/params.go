@@ -67,8 +67,9 @@ func (p *schemaParams) Parse(raw map[string]any) (map[string]any, []Issue) {
 	}
 	dropNullOptionals(p.doc, obj)
 	applyDefaults(p.doc, obj)
-	var issues []Issue
-	for _, i := range validateInstance(p.schema, obj) {
+	found := validateInstance(p.schema, obj)
+	issues := make([]Issue, 0, len(found))
+	for _, i := range found {
 		issues = append(issues, Issue{Path: i.Path, Message: i.Message})
 	}
 	if len(issues) > 0 {
@@ -137,7 +138,10 @@ func paramsSchemaOf(fields expr.Fields) json.RawMessage {
 	var s map[string]any
 	_ = expr.UnmarshalJSON(fields.JSONSchema(), &s)
 	bound(s)
-	b, _ := json.Marshal(s)
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(fmt.Sprintf("graph: marshal a params schema: %v", err))
+	}
 	return b
 }
 
@@ -191,6 +195,9 @@ func MatchParams(match map[string]MatchField) (ParamsSpec, error) {
 			return nil, fmt.Errorf("match field %s: type is strings or bool", name)
 		}
 	}
-	b, _ := json.Marshal(map[string]any{"type": "object", "properties": props, "additionalProperties": false})
+	b, err := json.Marshal(map[string]any{"type": "object", "properties": props, "additionalProperties": false})
+	if err != nil {
+		return nil, err
+	}
 	return SchemaParams(b)
 }

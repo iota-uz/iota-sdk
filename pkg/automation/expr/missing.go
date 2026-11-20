@@ -210,9 +210,9 @@ func ToNative(v ref.Val) (any, error) {
 	case types.String:
 		return string(x), nil
 	case types.Null:
-		return nil, nil
+		return nil, nil //nolint:nilnil // CEL null is a Go nil value, not a missing one
 	case types.Timestamp:
-		return x.Time.UTC(), nil
+		return x.UTC(), nil
 	case types.Duration:
 		return x.Duration, nil
 	case *types.Err:

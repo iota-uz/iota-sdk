@@ -25,8 +25,9 @@ var templateRe = regexp.MustCompile(`(?s)\{\{(.*?)\}\}`)
 
 // TemplateExpressions lists the `{{ }}` expressions of a template (trimmed) with their offsets in text.
 func TemplateExpressions(text string) []TemplateExpression {
-	var out []TemplateExpression
-	for _, m := range templateRe.FindAllStringSubmatchIndex(text, -1) {
+	matches := templateRe.FindAllStringSubmatchIndex(text, -1)
+	out := make([]TemplateExpression, 0, len(matches))
+	for _, m := range matches {
 		raw := text[m[2]:m[3]]
 		lead := len(raw) - len(strings.TrimLeft(raw, " \t\r\n"))
 		out = append(out, TemplateExpression{Source: strings.TrimSpace(raw), Offset: m[2] + lead, Start: m[0], End: m[1]})

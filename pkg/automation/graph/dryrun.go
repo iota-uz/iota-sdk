@@ -49,7 +49,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 	for id, st := range ctx.Nodes {
 		run.Nodes[id] = st
 	}
-	var trace []TraceStep
+	trace := make([]TraceStep, 0, len(inputs)+4)
 	started, ended := false, false
 	waiting := ""
 
@@ -145,6 +145,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 				trace = append(trace, TraceStep{Node: node.ID, Outcome: TraceWaiting, ContextPatch: patch(step.Effects, out)})
 				waiting = node.ID
 				return
+			case StepOutcome, StepMissingContext, StepFailed:
 			}
 			trace = append(trace, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: patch(step.Effects, step.Output)})
 			if step.Output != nil {

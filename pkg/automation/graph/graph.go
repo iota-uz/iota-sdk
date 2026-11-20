@@ -253,8 +253,9 @@ func Decode(raw []byte) (Graph, []GraphError) {
 
 // structureErrors checks a decoded document against the format's schema.
 func structureErrors(doc any) []GraphError {
-	var out []GraphError
-	for _, i := range validateInstance(graphValidator(), doc) {
+	found := validateInstance(graphValidator(), doc)
+	out := make([]GraphError, 0, len(found))
+	for _, i := range found {
 		code := CodeInvalid
 		if i.Limit {
 			code = CodeLimit

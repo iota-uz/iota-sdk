@@ -1,0 +1,70 @@
+{
+  "name": "validate-switch-cases",
+  "format": 2,
+  "kind": "validate",
+  "description": "Switch case values are listed once each; the duplicate is a params error at its value.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "route",
+        "type": "switch",
+        "params": {
+          "expression": "event.label",
+          "cases": [
+            {
+              "value": "bug",
+              "outcome": "bug"
+            },
+            {
+              "value": "bug",
+              "outcome": "again"
+            }
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "route"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "bug"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "again"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "default"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.cases[1].value",
+      "code": "params"
+    }
+  ]
+}

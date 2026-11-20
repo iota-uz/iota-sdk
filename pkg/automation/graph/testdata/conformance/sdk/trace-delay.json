@@ -1,0 +1,96 @@
+{
+  "name": "trace-delay",
+  "format": 2,
+  "kind": "trace",
+  "description": "A delay is a wait without an event (as the built-in delay): it sleeps for its duration and continues with done on the timeout.",
+  "catalog_patch": {
+    "nodes": {
+      "delay": {
+        "behavior": "wait",
+        "params": {
+          "duration": "string"
+        },
+        "wait": {
+          "timeout": {
+            "param": "duration"
+          },
+          "timeout_outcome": "done"
+        }
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "later",
+        "type": "delay",
+        "params": {
+          "duration": "2h"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "later"
+      },
+      {
+        "from": {
+          "node": "later",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "issue.labeled",
+      "label": "y"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "later",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "timeout_ms": 7200000
+        }
+      }
+    },
+    {
+      "node": "later",
+      "outcome": "done",
+      "context_patch": {}
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

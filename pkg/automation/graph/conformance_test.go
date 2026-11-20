@@ -33,6 +33,7 @@ type fixture struct {
 	Unless       []string        `json:"unless"`
 	Catalog      json.RawMessage `json:"catalog"`
 	CatalogPatch json.RawMessage `json:"catalog_patch"`
+	Limits       *fixtureLimits  `json:"limits"`
 
 	// trace and validate
 	Graph   map[string]any   `json:"graph"`
@@ -48,6 +49,21 @@ type fixture struct {
 
 	// catalog: whether loading it fails
 	Error string `json:"error"`
+}
+
+type fixtureLimits struct {
+	MaxNodes   int    `json:"max_nodes"`
+	MaxDepth   int    `json:"max_depth"`
+	MaxLiteral int    `json:"max_literal"`
+	MaxArgs    int    `json:"max_args"`
+	CostLimit  uint64 `json:"cost_limit"`
+}
+
+func (l *fixtureLimits) expr() expr.Limits {
+	if l == nil {
+		return expr.Limits{}
+	}
+	return expr.Limits{MaxNodes: l.MaxNodes, MaxDepth: l.MaxDepth, MaxLiteral: l.MaxLiteral, MaxArgs: l.MaxArgs, CostLimit: l.CostLimit}
 }
 
 type fixtureOptions struct {
@@ -91,7 +107,7 @@ func loadFixtures(t *testing.T, dir string) []fixture {
 		t.Fatal(err)
 	}
 	sort.Strings(files)
-	var out []fixture
+	out := make([]fixture, 0, len(files))
 	for _, f := range files {
 		var fx fixture
 		readJSON(t, f, &fx)
@@ -134,7 +150,6 @@ func TestConformance(t *testing.T) {
 	}
 	ran, skipped := 0, 0
 	for _, f := range append(plot, sdk...) {
-		f := f
 		if reason := skipReason(f, caps); reason != "" {
 			skipped++
 			t.Logf("skip %s: %s", f.Name, reason)
@@ -172,7 +187,7 @@ func TestConformance(t *testing.T) {
 				}
 				catalog = c
 			}
-			opts := graph.Options{Behaviors: behaviors}
+			opts := graph.Options{Behaviors: behaviors, Limits: graph.Limits{Expr: f.Limits.expr()}}
 			var dry graph.DryRunOptions
 			if f.Options != nil {
 				if f.Options.CallError != "" {
@@ -277,6 +292,7 @@ func decodeGraph(t *testing.T, raw map[string]any) (graph.Graph, []graph.GraphEr
 }
 
 func runTrace(t *testing.T, c graph.Catalog, opts graph.Options, dry graph.DryRunOptions, f fixture) {
+	t.Helper()
 	g, errs := decodeGraph(t, f.Graph)
 	if len(errs) > 0 {
 		t.Fatalf("a trace fixture's graph decodes: %v", errs)
@@ -294,7 +310,7 @@ func runTrace(t *testing.T, c graph.Catalog, opts graph.Options, dry graph.DryRu
 		subject.Key, _ = f.Subject["key"].(string)
 	}
 	ctx := contextOf(t, f.Context)
-	var inputs []graph.DryRunInput
+	inputs := make([]graph.DryRunInput, 0, len(f.Inputs))
 	for _, i := range f.Inputs {
 		if i["timeout"] == true {
 			inputs = append(inputs, graph.DryRunInput{Timeout: true})
@@ -359,7 +375,10 @@ func generic(t *testing.T, v any) any {
 
 func compact(t *testing.T, v any) string {
 	t.Helper()
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return string(b)
 }
 
@@ -397,6 +416,7 @@ func matches(want, got any) bool {
 }
 
 func runValidate(t *testing.T, c graph.Catalog, opts graph.Options, f fixture) {
+	t.Helper()
 	g, errs := decodeGraph(t, f.Graph)
 	if len(errs) == 0 {
 		errs = graph.Validate(c, g, opts)
@@ -433,13 +453,14 @@ func runValidate(t *testing.T, c graph.Catalog, opts graph.Options, f fixture) {
 }
 
 func runExpressions(t *testing.T, c graph.Catalog, f fixture, templates bool) {
+	t.Helper()
 	for n, cs := range f.Cases {
 		t.Run(fmt.Sprintf("%d", n), func(t *testing.T) {
 			event := ""
 			if cs.Event != nil {
 				event = *cs.Event
 			}
-			env, err := expr.NewEnv(graph.ExprScope(c, cs.Subject, event, nil), expr.Limits{})
+			env, err := expr.NewEnv(graph.ExprScope(c, cs.Subject, event, nil), f.Limits.expr())
 			if err != nil {
 				t.Fatal(err)
 			}

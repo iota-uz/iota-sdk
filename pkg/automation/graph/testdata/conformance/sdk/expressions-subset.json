@@ -1,0 +1,192 @@
+{
+  "name": "expressions-subset",
+  "format": 2,
+  "kind": "expressions",
+  "description": "The CEL subset: RE2 refuses lookahead in a constant pattern at check time; uint and bytes are not types of the subset; the forbidden overloads are refused; int == double is a type error while int < double is allowed; an unknown field is a check error; ext.Strings and ext.Bindings are allowed.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.title.matches(\"(?=Crash)\")",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "syntax"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.title.matches(\"^Crash\")",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "1u > 0u",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "uint(issue.number) > 0u",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "b\"abc\" == b\"abc\"",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "size(bytes(issue.title)) > 0",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "string(timestamp(\"2026-01-01T00:00:00Z\")) != \"\"",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "string(duration(\"1h\")) != \"\"",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "int(timestamp(\"2026-01-01T00:00:00Z\")) > 0",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "int(duration(\"1h\")) > 0",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.number == 7.0",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.number < 7.5",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.titel == \"\"",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.title.lowerAscii().split(\" \").size() == 3",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "cel.bind(n, issue.number, n * n) == 49",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "now() > 0",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    }
+  ]
+}

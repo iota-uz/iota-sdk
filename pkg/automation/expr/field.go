@@ -179,8 +179,11 @@ func (fs Fields) Validate() error {
 
 // String is the field's JSON form.
 func (f Field) String() string {
-	b, _ := json.Marshal(f)
-	return string(b)
+	var b bytes.Buffer
+	if err := f.writeJSON(&b); err != nil {
+		return "invalid field: " + err.Error()
+	}
+	return b.String()
 }
 
 // MarshalJSON writes the vocabulary's form.
@@ -240,7 +243,10 @@ func (fs Fields) writeJSON(b *bytes.Buffer) error {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		name, _ := json.Marshal(p.Name)
+		name, err := json.Marshal(p.Name)
+		if err != nil {
+			return err
+		}
 		b.Write(name)
 		b.WriteString(":")
 		if err := p.Field.writeJSON(b); err != nil {

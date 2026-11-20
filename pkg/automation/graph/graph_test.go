@@ -1,0 +1,300 @@
+package graph_test
+
+import (
+	"encoding/json"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+)
+
+// The packages are pure: no database driver, no SDK modules, no extension runtime.
+func TestPackagesArePure(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not on PATH")
+	}
+	out, err := exec.Command("go", "list", "-deps", ".", "../expr").CombinedOutput()
+	if err != nil {
+		t.Fatalf("go list: %v\n%s", err, out)
+	}
+	for _, dep := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		for _, banned := range []string{"github.com/jackc/pgx", "github.com/iota-uz/iota-sdk/modules/", "github.com/iota-uz/iota-sdk/pkg/extruntime"} {
+			if strings.HasPrefix(dep, banned) {
+				t.Errorf("pkg/automation depends on %s", dep)
+			}
+		}
+	}
+}
+
+// testCatalog is a small catalog built in Go: one subject, two events, the built-in nodes and an effect.
+func testCatalog(t *testing.T) graph.Catalog {
+	t.Helper()
+	nodes := map[string]graph.NodeSpec{}
+	for _, n := range graph.BuiltinNodes(nil, []string{"order.paid"}) {
+		nodes[n.Type] = n
+	}
+	notify, err := graph.FieldsParams(expr.Fields{{Name: "text", Field: expr.StringField}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodes["notify"] = graph.NodeSpec{
+		Type: "notify", Title: "Notify", Behavior: graph.BehaviorEffect, Params: notify,
+		Templates: []string{"text"}, Outcomes: []string{"done", "failed"}, DoneOutcome: "done", FailedOutcome: "failed",
+	}
+	order := expr.ObjectOf(expr.Fields{{Name: "total", Field: expr.DoubleField}, {Name: "status", Field: expr.StringField}})
+	c := graph.Catalog{
+		Events: map[string]graph.EventSpec{
+			"order.created": {Key: "order.created", Subject: "order", Payload: expr.Fields{{Name: "total", Field: expr.DoubleField}},
+				Match: map[string]graph.MatchField{"channels": {Payload: "channel", Type: graph.MatchStrings, Fold: graph.FoldLower}}},
+			"order.paid": {Key: "order.paid", Subject: "order", Payload: expr.Fields{{Name: "amount", Field: expr.DoubleField}}, NoTrigger: true},
+		},
+		Nodes:    nodes,
+		Subjects: map[string]graph.SubjectSpec{"order": {Context: expr.Fields{{Name: "order", Field: order}}}},
+	}
+	if err := c.Check(nil); err != nil {
+		t.Fatal(err)
+	}
+	c.Revision = graph.Revision(c, nil)
+	return c
+}
+
+func mustDecode(t *testing.T, raw string) graph.Graph {
+	t.Helper()
+	g, errs := graph.Decode([]byte(raw))
+	if len(errs) > 0 {
+		t.Fatalf("decode: %v", errs)
+	}
+	return g
+}
+
+const orderGraph = `{
+  "name": "  Big orders  ",
+  "triggers": [{"id": "created", "event": "order.created", "params": {"channels": ["Web"]}, "filter": "event.total > 100.0"}],
+  "nodes": [
+    {"id": "check", "type": "branch", "params": {"expression": "order.status == \"new\""}},
+    {"id": "pay", "type": "wait", "params": {"event": "order.paid", "filter": "event.amount >= order.total", "timeout": "2d"}},
+    {"id": "say", "type": "notify", "params": {"text": "Paid {{ nodes.pay.output.event.amount }} at {{ now }}"}},
+    {"id": "stop", "type": "end", "params": {"reason": "done"}}
+  ],
+  "edges": [
+    {"from": {"node": "created", "outcome": "fired"}, "to": "check"},
+    {"from": {"node": "check", "outcome": "true"}, "to": "pay"},
+    {"from": {"node": "check", "outcome": "false"}, "to": "ignore"},
+    {"from": {"node": "pay", "outcome": "matched"}, "to": "say"},
+    {"from": {"node": "pay", "outcome": "timeout"}, "to": "ignore"},
+    {"from": {"node": "say", "outcome": "done"}, "to": "stop"},
+    {"from": {"node": "say", "outcome": "failed"}, "to": "stop"}
+  ]
+}`
+
+func TestDecodeDefaultsAndTrim(t *testing.T) {
+	g := mustDecode(t, orderGraph)
+	if g.Name != "Big orders" || g.RunAs != graph.RunAsOwner {
+		t.Fatalf("name %q run_as %q", g.Name, g.RunAs)
+	}
+	if _, errs := graph.Decode([]byte(`{"name": "   ", "triggers": [{"id": "a", "event": "x"}], "nodes": [], "edges": []}`)); len(errs) != 1 || errs[0].Path != "name" {
+		t.Fatalf("a blank name: %v", errs)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(graph.JSONSchema(), &schema); err != nil || schema["type"] != "object" {
+		t.Fatalf("JSONSchema: %v", err)
+	}
+	var builtins map[string]any
+	if err := json.Unmarshal(graph.BuiltinsJSONSchema(), &builtins); err != nil || len(builtins) != 5 {
+		t.Fatalf("BuiltinsJSONSchema: %v %v", err, builtins)
+	}
+}
+
+func TestInterpreterSteps(t *testing.T) {
+	c := testCatalog(t)
+	g := mustDecode(t, orderGraph)
+	if errs := graph.Validate(c, g, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("validate: %v", errs)
+	}
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
+	ctx := graph.Context{Vars: map[string]any{"order": map[string]any{"total": 150, "status": "new"}}, Now: now}
+	created := graph.Event{"kind": "order.created", "total": json.Number("150.5"), "channel": "web"}
+	if ok, st := in.TriggerMatches("created", created, ctx); !ok || st != nil {
+		t.Fatalf("trigger: %v %v", ok, st)
+	}
+	if m, _ := in.TriggerMismatch("created", graph.Event{"kind": "order.created", "total": 150.5, "channel": "phone"}, ctx); m != "channels" {
+		t.Fatalf("mismatch %q, want channels", m)
+	}
+	if m, _ := in.TriggerMismatch("created", graph.Event{"kind": "order.created", "total": 5, "channel": "web"}, ctx); m != graph.MismatchFilter {
+		t.Fatalf("mismatch %q, want filter", m)
+	}
+	ctx.Event = created
+	if st := in.Start("check", &graph.StepContext{Ctx: ctx}); st.Kind != graph.StepOutcome || st.Outcome != "true" {
+		t.Fatalf("check: %+v", st)
+	}
+	if to, ok := in.Next("check", "true"); !ok || to != "pay" {
+		t.Fatalf("next: %s %v", to, ok)
+	}
+	st := in.Start("pay", &graph.StepContext{Ctx: ctx})
+	if st.Kind != graph.StepWait || st.Wait.Event != "order.paid" || st.Wait.Timeout != 48*time.Hour {
+		t.Fatalf("pay: %+v", st)
+	}
+	if ok, _ := in.WaitMatches("pay", graph.Event{"kind": "order.paid", "amount": 10}, ctx); ok {
+		t.Fatal("a payment below the total wakes the wait")
+	}
+	paid := graph.Event{"kind": "order.paid", "amount": 150}
+	if ok, st := in.WaitMatches("pay", paid, ctx); !ok || st != nil {
+		t.Fatalf("wait: %v %v", ok, st)
+	}
+	outcome, output := in.Wake("pay", paid)
+	if outcome != "matched" {
+		t.Fatalf("wake: %s", outcome)
+	}
+	ctx.Nodes = map[string]graph.NodeState{"pay": {Output: output}}
+	st = in.Start("say", &graph.StepContext{Ctx: ctx})
+	if st.Kind != graph.StepOutcome || st.Outcome != "done" || st.Effects[0].Params["text"] != "Paid 150 at 2026-11-20T10:00:00.000Z" {
+		t.Fatalf("say: %+v", st)
+	}
+	if st := in.Start("stop", &graph.StepContext{Ctx: ctx}); st.Kind != graph.StepEnd || st.End["reason"] != "done" {
+		t.Fatalf("stop: %+v", st)
+	}
+	if outcome, _ := in.Wake("pay", nil); outcome != "timeout" {
+		t.Fatalf("timeout: %s", outcome)
+	}
+}
+
+func TestMaxValueBytes(t *testing.T) {
+	c := testCatalog(t)
+	in, err := graph.NewInterpreter(c, mustDecode(t, orderGraph), graph.Options{Limits: graph.Limits{MaxValueBytes: 64}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	big := graph.Event{"kind": "order.created", "total": 1, "channel": strings.Repeat("x", 100)}
+	_, st := in.TriggerMatches("created", big, graph.Context{})
+	if st == nil || st.Code != graph.FailValueTooLarge {
+		t.Fatalf("a large event: %+v", st)
+	}
+}
+
+// A node whose type's behavior the interpreter does not run is refused at nodes[i].type; a JSON catalog
+// with that behavior is refused when it loads.
+func TestUnsupportedBehavior(t *testing.T) {
+	c := testCatalog(t)
+	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "parallel", Params: graph.MustSchemaParams(`{"type": "object"}`)}
+	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
+		"nodes": [{"id": "s", "type": "split", "params": {}}], "edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "s"}]}`)
+	errs := graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[0].type" || errs[0].Code != graph.CodeUnsupportedBehavior {
+		t.Fatalf("errors: %v", errs)
+	}
+	if err := c.Check(nil); err == nil {
+		t.Fatal("Check accepts a catalog with behavior parallel")
+	}
+	_, err := graph.CatalogFromJSON([]byte(`{"events": {}, "subjects": {}, "nodes": {"split": {"behavior": "parallel"}}}`), nil)
+	if err == nil || !strings.Contains(err.Error(), "parallel") {
+		t.Fatalf("CatalogFromJSON: %v", err)
+	}
+}
+
+type parallelStub struct{}
+
+func (parallelStub) Behavior() graph.Behavior { return "parallel" }
+func (parallelStub) OutcomeRule(graph.NodeSpec) graph.OutcomeRule {
+	return graph.OutcomeRule{From: &graph.ParamRef{Param: "branches"}, Fixed: []string{}}
+}
+func (parallelStub) Validate(*graph.GraphView, graph.Node, graph.NodeSpec) []graph.GraphError {
+	return nil
+}
+func (parallelStub) Start(*graph.StepContext, graph.Node, graph.NodeSpec) graph.Step {
+	return graph.Step{Kind: graph.StepOutcome, Outcome: "a"}
+}
+
+// A behavior plugs in through NewBehaviors: catalogs then load it, graphs validate with it.
+func TestBehaviorsExtend(t *testing.T) {
+	if _, err := graph.NewBehaviors(parallelStub{}, parallelStub{}); err == nil {
+		t.Fatal("a duplicate behavior is accepted")
+	}
+	b, err := graph.NewBehaviors(append(graph.DefaultBehaviorImpls(), parallelStub{})...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(b.Supported()); got != 7 {
+		t.Fatalf("supported: %d", got)
+	}
+	c, err := graph.CatalogFromJSON([]byte(`{"events": {"e": {"subject": "none", "payload": {}}}, "subjects": {},
+		"nodes": {"split": {"behavior": "parallel", "params": {"branches": {"list": "string"}}}}}`), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "e"}],
+		"nodes": [{"id": "s", "type": "split", "params": {"branches": ["a", "b"]}}],
+		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "s"}, {"from": {"node": "s", "outcome": "a"}, "to": "ignore"}]}`)
+	errs := graph.Validate(c, g, graph.Options{Behaviors: b})
+	if len(errs) != 1 || errs[0].Path != "nodes[0]" || errs[0].Code != graph.CodeUnconnected {
+		t.Fatalf("errors: %v", errs)
+	}
+	v := graph.View(c, b)
+	if v.Nodes[0].OutcomeRule.From == nil || v.Nodes[0].OutcomeRule.From.Param != "branches" {
+		t.Fatalf("view: %+v", v.Nodes[0])
+	}
+}
+
+func TestOutcomesOf(t *testing.T) {
+	r := graph.OutcomeRule{
+		From:     &graph.ParamRef{Param: "cases", Field: "outcome"},
+		Fixed:    []string{"default", "bug"},
+		Optional: &graph.OptionalOutcome{Param: "timeout", Outcome: "timeout"},
+	}
+	got := graph.OutcomesOf(r, map[string]any{"cases": []any{map[string]any{"outcome": "bug"}, map[string]any{"outcome": "chore"}, "x"}, "timeout": "1h"})
+	if strings.Join(got, ",") != "bug,chore,default,timeout" {
+		t.Fatalf("outcomes: %v", got)
+	}
+	if got := graph.OutcomesOf(graph.OutcomeRule{Fixed: []string{"a"}, Optional: r.Optional}, map[string]any{}); strings.Join(got, ",") != "a" {
+		t.Fatalf("outcomes without the optional param: %v", got)
+	}
+}
+
+func TestViewAndRevision(t *testing.T) {
+	c := testCatalog(t)
+	v := graph.View(c, nil)
+	if v.Revision == "" || v.Revision != c.Revision {
+		t.Fatalf("revision %q, catalog %q", v.Revision, c.Revision)
+	}
+	if v.Events[0].Key != "order.created" || len(v.Events[0].TriggerParams) == 0 {
+		t.Fatalf("events: %+v", v.Events)
+	}
+	if _, err := json.Marshal(v); err != nil {
+		t.Fatal(err)
+	}
+	c2 := testCatalog(t)
+	c2.Events["order.created"] = graph.EventSpec{Key: "order.created", Subject: "order", Title: "Order created"}
+	if graph.Revision(c2, nil) == c.Revision {
+		t.Fatal("the revision does not change with the catalog")
+	}
+}
+
+func TestLayout(t *testing.T) {
+	g := mustDecode(t, orderGraph)
+	l := graph.Layout{"check": {X: 1, Y: 2}, "gone": {X: 3, Y: 4}}
+	if kept := graph.LayoutOf(g, l); len(kept) != 1 {
+		t.Fatalf("layout: %v", kept)
+	}
+	if errs := graph.ValidateLayout(graph.Layout{"Bad": {}}); len(errs) != 1 {
+		t.Fatalf("layout errors: %v", errs)
+	}
+	if id := graph.FreeID(g, "check"); id != "check_2" {
+		t.Fatalf("free id: %s", id)
+	}
+}
+
+func TestRulesOption(t *testing.T) {
+	c := testCatalog(t)
+	errs := graph.Validate(c, mustDecode(t, orderGraph), graph.Options{Rules: func(graph.Graph) []graph.GraphError {
+		return []graph.GraphError{{Path: "nodes[2].type", Code: "connection_unavailable", Message: "no connection"}}
+	}})
+	if len(errs) != 1 || errs[0].Code != "connection_unavailable" {
+		t.Fatalf("errors: %v", errs)
+	}
+}

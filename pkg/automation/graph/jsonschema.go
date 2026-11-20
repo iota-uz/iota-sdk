@@ -62,7 +62,7 @@ func compileVocab(_ *jsonschema.CompilerContext, obj map[string]any) (jsonschema
 		ext.maxMs, found = ms, true
 	}
 	if !found {
-		return nil, nil
+		return nil, nil //nolint:nilnil // the vocabulary API: no keywords of ours, no extension
 	}
 	return ext, nil
 }

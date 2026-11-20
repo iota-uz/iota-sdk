@@ -494,13 +494,13 @@ func (i *Interpreter) CallOutcome(nodeID string, output map[string]any) (string,
 		return "", &s
 	}
 	if floor := spec.Answer.Confidence; floor != nil {
-		if min, ok := expr.Number(params[floor.MinParam]); ok && params[floor.MinParam] != nil {
+		if minConf, ok := expr.Number(params[floor.MinParam]); ok && params[floor.MinParam] != nil {
 			conf, ok := expr.Number(output[floor.Field])
 			if !ok {
 				s := failed(FailInvalidAnswer, "%s: the answer has no %s", nodeID, floor.Field)
 				return "", &s
 			}
-			if conf < min {
+			if conf < minConf {
 				return floor.Below, nil
 			}
 		}

@@ -56,13 +56,7 @@ func appendPath(path []segment, s segment) []segment {
 
 // value normalizes v for field f. present=false: the value is absent and recorded as missing.
 func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
-	if f.Kind == Optional {
-		if v == nil {
-			return zero(*f.Elem), true, nil
-		}
-		return n.value(*f.Elem, v, path)
-	}
-	if v == nil {
+	if v == nil && f.Kind != Optional {
 		n.missing = append(n.missing, missing{path: path})
 		return nil, false, nil
 	}
@@ -70,6 +64,11 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		return nil, false, &InputError{Path: pathString(path), Message: fmt.Sprintf("%s expected, got %T", want, v)}
 	}
 	switch f.Kind {
+	case Optional:
+		if v == nil {
+			return zero(*f.Elem), true, nil
+		}
+		return n.value(*f.Elem, v, path)
 	case Dyn:
 		d, err := dynValue(v, path)
 		return d, true, err
@@ -200,6 +199,8 @@ func zero(f Field) any {
 			out[p.Name] = zero(p.Field)
 		}
 		return out
+	case Dyn:
+		return nil
 	}
 	return nil
 }

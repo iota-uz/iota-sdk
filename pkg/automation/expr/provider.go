@@ -41,6 +41,8 @@ func (p *provider) celType(f Field, path string) *types.Type {
 		return types.NewMapType(types.StringType, p.celType(*f.Elem, path+"{}"))
 	case Optional:
 		return p.celType(*f.Elem, path)
+	case Dyn:
+		return types.DynType
 	case Object:
 		// Paths are unique: variables and properties are identifiers, elements end in [] or {}.
 		name := objectTypePrefix + path
@@ -77,6 +79,9 @@ func (p *provider) fieldOf(t *types.Type) Field {
 		return BoolField
 	case types.TimestampKind:
 		return TimestampField
+	case types.UnspecifiedKind, types.DynKind, types.AnyKind, types.BytesKind, types.DurationKind, types.ErrorKind,
+		types.NullTypeKind, types.OpaqueKind, types.TypeKind, types.TypeParamKind, types.UintKind, types.UnknownKind:
+		return DynField
 	}
 	return DynField
 }
@@ -145,6 +150,8 @@ func (p *provider) typeOfProp(f Field, path string) *types.Type {
 		return types.NewMapType(types.StringType, p.typeOfProp(*f.Elem, path+"{}"))
 	case Object:
 		return types.NewObjectType(objectTypePrefix + path)
+	case String, Int, Double, Bool, Dyn, Enum, Timestamp:
+		return p.celType(f, path)
 	}
 	return p.celType(f, path)
 }

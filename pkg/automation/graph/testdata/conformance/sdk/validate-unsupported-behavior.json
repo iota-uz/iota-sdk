@@ -1,0 +1,47 @@
+{
+  "name": "validate-unsupported-behavior",
+  "format": 2,
+  "kind": "validate",
+  "description": "A node whose type's behavior this build does not run is refused at nodes[i].type; the catalog file itself is fine with behavior parallel only once #1328 exists.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "split",
+        "params": {}
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].type",
+      "code": "unsupported_behavior"
+    }
+  ],
+  "requires": [
+    "behavior:parallel"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "split": {
+        "behavior": "parallel"
+      }
+    }
+  }
+}

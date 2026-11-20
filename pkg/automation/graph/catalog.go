@@ -338,7 +338,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 		MixedSubject: cj.MixedSubject,
 	}
 	for entity, s := range cj.Subjects {
-		c.Subjects[entity] = SubjectSpec{Context: s.Context}
+		c.Subjects[entity] = SubjectSpec(s)
 	}
 	subjects := sortedKeys(c.Subjects)
 	events := sortedKeys(cj.Events)

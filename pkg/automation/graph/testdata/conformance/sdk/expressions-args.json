@@ -1,0 +1,28 @@
+{
+  "name": "expressions-args",
+  "format": 2,
+  "kind": "expressions",
+  "description": "With at most one argument per call, a receiver's target does not count; a second argument is refused.",
+  "limits": {
+    "max_args": 1
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "\"a,b\".split(\",\").size()",
+      "type": null,
+      "context": {},
+      "value": 2
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "\"a,b\".split(\",\", 1).size()",
+      "type": null,
+      "context": {},
+      "error": "type",
+      "issue": "limit"
+    }
+  ]
+}

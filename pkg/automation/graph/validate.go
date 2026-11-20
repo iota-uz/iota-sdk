@@ -142,7 +142,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		spec NodeSpec
 		impl BehaviorImpl
 	}
-	var behaviorRules []ruled
+	behaviorRules := make([]ruled, 0, len(g.Nodes))
 	for i, n := range g.Nodes {
 		at := fmt.Sprintf("nodes[%d]", i)
 		spec, ok := c.Nodes[n.Type]
@@ -254,6 +254,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 			ends[n.ID] = true
 		case BehaviorWait:
 			waits[n.ID] = true
+		case BehaviorBranch, BehaviorSwitch, BehaviorEffect, BehaviorCall:
 		}
 	}
 	for i, t := range g.Triggers {
@@ -350,6 +351,9 @@ func reachesEnd(v *GraphView, from string, ends map[string]bool, seen map[string
 		return false
 	}
 	seen[from] = true
+	if _, isNode := v.Node(from); isNode && v.Outcomes(from) == nil {
+		return true // its outcomes are unknown (an invalid node): its own error says so
+	}
 	for _, outcome := range sortedOutcomes(v.next[from]) {
 		if reachesEnd(v, v.next[from][outcome], ends, seen) {
 			return true
