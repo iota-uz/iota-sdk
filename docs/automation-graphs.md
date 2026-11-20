@@ -1,0 +1,290 @@
+# ADR: Automation graphs
+
+Status: accepted. Decision owner: SDK maintainers.
+
+Automation graphs let a tenant describe "when this happens, do that" as a visual
+graph. The graph runs on a Go workflow engine, is edited in a browser editor, and is
+extended by modules and applications through registries. This ADR fixes the runtime,
+the graph model, the package boundaries and the security rules. The interfaces it names
+are the contracts of the implementation issues #1320, #1321, #1322 and #1330; the rest
+of the work (#1325–#1350) refers here for decisions.
+
+## 1. Goals and non-goals of v1
+
+Goals:
+
+- A visual graph workflow engine in Go with an editor written in Solid.
+- Node types, triggers and connectors are registered by modules and applications, not
+  hard-coded.
+- Multi-tenancy, RBAC and audit are properties of the engine, not of each node.
+
+Non-goals:
+
+- Temporal or any infrastructure beyond PostgreSQL.
+- Two-way synchronisation between a text DSL and the canvas. The graph JSON is the only
+  source of truth.
+- Running untrusted Go or Python. The Code node runs JavaScript/TypeScript in a sandbox
+  (§9) and nothing else.
+
+## 2. Runtime
+
+### Decision D1: variant H — a Go-implemented workflow contract on the existing engine
+
+A graph run is an instance of the Go-implemented workflow contract `automation.run` on
+the extension-runtime engine (`docs/extension-runtime.md`, "Native workflow
+implementations"). There is one engine, one set of `extruntime` tables and one
+scheduler; the graph interpreter is an implementation of a contract, not a second engine.
+
+- **State.** Runs, tokens, steps and waits live in the `automation.*` tables. They are
+  written inside the engine's fenced `Transaction`, in the same transaction as the
+  occurrence receipt. A run that lost its lease cannot write anything.
+- **Journal.** For native contracts the engine journal is only a journal of receipts:
+  consumed signals, task decisions, timers and steps. It is read lazily, so waking an
+  instance costs O(new inputs), not O(journal size).
+- **External calls.** A node with an external effect runs as a child instance of the
+  contract `automation.call`, started from the run. The run itself never holds a
+  database transaction across a network call.
+- **Status.** The status of a run belongs to the engine (`workflow_instances.status`).
+  `automation.*` tables do not duplicate it; they join it or react through the
+  engine's `StatusObserver`.
+
+### Rejected runtime alternatives
+
+- **Replay interpreter** (re-execute the graph from the journal on every wake): after the
+  interpreter binary is upgraded, replay repeats the effects of completed iterations of
+  live runs, and a nondeterminism check cannot detect it.
+- **Own executor** (claim, lease and heartbeat in the automation module): the engine's
+  claim, fence and heartbeat are not exported, and `human_tasks` are bound by foreign key
+  to engine instances, so this would be a second workflow engine.
+- **Temporal:** adds a second stateful infrastructure service next to PostgreSQL, which
+  v1 excludes.
+
+## 3. Decisions D1–D7
+
+| # | Decision |
+|---|---|
+| D1 | Runtime: variant H (§2). |
+| D2 | Own graph format, using an established workflow vocabulary (behaviors, outcomes as output handles, field language, `nodes.<id>.output`, intent before call, immutable versions, layout stored apart from the version). The conformance fixtures are copied once from the product that established the vocabulary; there is no synchronisation. |
+| D3 | The full v1 semantics, including parallel, join and foreach. |
+| D4 | Expressions in CEL on `cel.dev/cel-go`. |
+| D5 | The Code node runs on our own fork of kafig; TypeScript is compiled with esbuild. |
+| D6 | The editor is our own Solid wrapper over `@xyflow/system` 1.0.0, pinned to the exact version. |
+| D7 | One event catalog: `native.Event` is the only source of triggerable domain events. |
+
+D7 was a proposal before this ADR. It is recorded here as accepted because the
+notification bridge (#1325) and the trigger catalog (#1330) are built on it. The owner
+confirms it when reviewing this ADR.
+
+### Rejected alternatives for D4–D6
+
+- **`fastschema/qjs`** (Code node): its resource limits and host-function control are not
+  enough for the Code node's limits and SSRF policy without maintaining our own fork;
+  kafig is that fork.
+- **goja** (Code node): interrupt-only resource control (no memory limit) and weaker
+  coverage of the ECMAScript output of esbuild.
+- **`@dschz/solid-flow`** (editor): a third-party wrapper that follows `@xyflow/system`
+  releases with a delay and fixes our rendering and versions to its choices; our own thin
+  wrapper over the pinned system package avoids that.
+
+## 4. Package boundaries
+
+```
+pkg/automation/
+  graph/       graph format, catalog types, validator, pure interpreter, dry run
+  expr/        field language, CEL environment, templates
+  engine/      the automation.run / automation.call implementations
+  catalog/     registries of node types, trigger sources, connectors; tenant catalog
+  connectors/  connector interfaces, encrypted connection store, OAuth2, usage
+  code/        Code node sandbox
+  builtin/     built-in node types
+modules/automations/        module: tables, controllers, pages, permissions
+web/automation-editor/      Solid editor, published as @iota-uz/sdk/automation-editor
+```
+
+Dependency rule:
+
+- `graph` and `expr` are pure: no database, no I/O, no imports of SDK modules,
+  `pkg/extruntime/...` or `pgx`. `graph` imports `expr`; `expr` never imports `graph`.
+- `catalog` depends on `graph`, `expr` and the native-event interface. `connectors`
+  imports `catalog`, never the reverse.
+- `engine` depends on interfaces only: the registry (`Registry.Node`), the connection
+  store (`ConnectionStore`) and the engine's `NativeRunner`. It does not import modules.
+- `modules/automations` and `builtin` sit at the edge and wire the rest together.
+
+## 5. Graph model and execution semantics
+
+### Format
+
+A graph version (`graph.Graph`) has a name, `run_as`, 1–40 triggers, up to 200 nodes
+and 500 edges. A node has an `id`, a `type` (a `NodeSpec` key of the catalog) and
+`params`. An edge goes from `{node, outcome}` to a node id or `ignore`; a trigger's only
+outcome is `fired`. The version is immutable. Id, version number, enabled flag and
+canvas layout belong to the owner (`modules/automations`), not to the version content.
+The format is published as JSON Schema (`graph.JSONSchema()`) for clients in other
+languages.
+
+Each node type has a **behavior**: `branch`, `switch`, `wait`, `effect`, `call`, `end`,
+and (D3) `parallel`, `join`, `foreach`, `collect`. Behaviors are an extension point
+(`BehaviorImpl`); a node whose behavior the interpreter does not execute is rejected
+when the catalog is loaded and on `nodes[i].type`. A subject is `{entity, key}` for any
+SDK or application entity, plus `conversation` and `none`.
+
+Expressions are CEL with strict type checking at save time. The allowed functions are the
+standard CEL functions, `ext.Strings` and `ext.Bindings`; regular expressions are RE2;
+there is no clock function — `now` is fixed per step. A reference to missing context
+produces `missing_context` (a path, not an error) and is handled by the engine, not
+treated as `false`.
+
+### Tokens
+
+Execution is token-based: a run holds one token on the main path and `parallel` and
+`foreach` create child tokens, which `join` and `collect` merge. A token moves along
+edges by the outcome of the node it just left. Waiting, timing out and task decisions
+resolve through signals on the engine journal.
+
+### Intent → call → apply
+
+A node with an external effect executes in three steps:
+
+1. **Intent.** In a fenced `Transaction` the engine records the intent and the
+   idempotency key `run:node:token:seq`, and pre-allocates the invocation id.
+2. **Call.** The effect runs outside any transaction through `Effect`. The engine marks
+   the occurrence started and counts the attempt.
+3. **Apply.** In a second fenced `Transaction` the engine stores the output, chooses the
+   outcome and moves the token.
+
+If a process dies after the intent and an attempt may have executed, the next attempt is
+told so (`attempt > 1`). A non-idempotent node then ends in the outcome
+`outcome_unknown`, which the graph handles explicitly; it is never silently retried.
+
+### Retries
+
+The engine retries only nodes that declare themselves idempotent (same key on every
+attempt) and calls that answer 429 with a `RetryAfter` inside the deadline. Everything
+else fails or ends in `outcome_unknown`.
+
+### Lock order
+
+Subject first, instance second. A consumer's own lock (for example an advisory lock on the
+subject) is taken inside the `Transaction` callback before any access to the instance
+row; the engine takes the instance lock only when the transaction ends. Signal delivery
+and task decisions follow the same order.
+
+### Limits
+
+Per graph: ≤ 200 nodes, ≤ 500 edges, ≤ 40 triggers; expression limits on AST nodes,
+depth, literal size and CEL cost; 1 MiB for an event payload or a node output. Per
+contract: concurrency (default 4 runs per process, its own slot pool) and a per-run
+timeout (default 5 minutes until the next suspension).
+
+### Cancellation
+
+Terminating a run terminates its unfinished children (`TerminateTree`, by `parent_id`).
+When a run completes or fails, its waiting occurrences and open tasks are cancelled in the
+same transaction, so a cancelled task disappears from the inbox. A step already running
+finishes; later host calls are rejected.
+
+### Versions and `StartV2`
+
+A published version never changes. Editing creates a new version. A run keeps the version
+it started on. `StartV2` starts a new instance on a newer version with `predecessor_id`
+set, so history stays linked (same rule as workflow start-v2 in the extension runtime).
+
+### Run-as
+
+Run-as is a property of the graph: `owner` (default) or `initiator`. `owner` runs as the
+graph's owner. `initiator` runs as the user who caused the event, with their
+current permissions, and falls back to the owner when the event has no initiator. A
+blocked or deleted subject blocks the run; it does not silently run with different rights.
+Each run loads the subject's current permissions.
+
+## 6. Triggers and the event catalog
+
+- **Domain events** come from the outbox through the event catalog (`native.Event`, D7).
+  One engine-wide consumer reads each event once and fans it out to the enabled graphs
+  whose triggers match. A subscription per graph is rejected: it multiplies queries and
+  retention-window scans by the number of graphs of all tenants.
+- **Schedule** triggers use the engine scheduler.
+- **Manual** triggers start a run on request.
+- **Connector inbound** (messages, polling) are trigger sources contributed by connectors.
+
+Not in v1: a webhook trigger and a trigger on the business-history record.
+
+A trigger carries a CEL filter and `params` checked against the event's declared trigger
+parameters. A consumer works only inside the tenant of the event it received.
+
+## 7. Connectors and credentials
+
+- A connector contributes node types and trigger sources and declares how it
+  authenticates (API key, basic, OAuth2, custom).
+- Credentials of a connection are stored in `automation.connections`, encrypted with
+  AES-256-GCM. The key comes from configuration; a fresh nonce is used per write and the
+  AAD binds the row to `tenant_id|id|kind`, so a row moved to another tenant or kind does
+  not decrypt. The keyring has several keys; the active one encrypts, and `Rewrap`
+  re-encrypts older rows, so keys can be rotated. Without a configured key the store
+  reports `ErrNotConfigured` and tenant connectors are unavailable.
+- **Platform credentials** (from application configuration) are available to tenants by
+  the connector's policy: `auto` for everybody, `opt_in` only after an explicit decision
+  of the tenant administrator. The platform AI key is `opt_in`. Usage is recorded
+  separately for platform and tenant credentials.
+- A secret never appears in `Connection`, in `List`, in errors or in logs. The engine
+  decrypts credentials and hands them to the node for the call; a node does not store them.
+- A node that needs a connector refers to it with the reserved param `connection`. A
+  tenant without a working connection of the needed kind does not see the node or trigger
+  in its catalog.
+
+## 8. RBAC and agents
+
+Permissions: `Automations.Read`, `Automations.Author`, `Automations.Enable`,
+`Automations.Operate`, and `Connections.Manage`. A node or event type may require an
+additional permission; the catalog an author sees is filtered by it, and sensitive event
+fields are removed from the schema for authors who lack the right.
+
+Three actions are human-only and fail for an agent with `HUMAN_REQUIRED`:
+
+- enabling a graph;
+- answering a human node (a task);
+- managing connections.
+
+MCP operations for automations are declared in the SDK operation registry (#1084), which
+is where this rule is enforced.
+
+## 9. Code node
+
+The Code node lets an author write a TypeScript function that runs in the kafig sandbox.
+
+- Contract: `run(ctx, env)`. `ctx` carries the validated node inputs; `env` carries the
+  controlled host functions.
+- CPU, memory, wall-clock and output size are limited per call.
+- Network access goes through a host function with an SSRF policy; the sandbox has no
+  direct network, file or process access.
+- Secrets are masked in logs and outputs.
+- Before a graph that contains a Code node is enabled, a human sees its code and the
+  secrets it can reach. Enabling is a human-only action (§8).
+
+**Open item:** type checking of TypeScript in the editor was a proposal before this ADR. It is not decided here and remains open.
+
+## 10. Phases and the notification replacement
+
+The work is split so that each part is shippable and refers to this ADR:
+
+1. Foundations: always-on event core with Go consumers (#1320); Go workflow
+   implementations in the engine (#1321); graph format, CEL and the pure interpreter
+   (#1322); registries and the connection store (#1330).
+2. The graph engine, tables and dry run; the editor; the first built-in nodes and
+   connectors.
+3. Parallel, join and foreach (#1328); the Code node (#1329); human tasks (#1327);
+   schedules (#1326).
+4. The notification replacement (#1325).
+
+**Notification rules.** A notification rule becomes a preset graph over the existing
+delivery layer. The delivery layer (channels, preferences, persistence, realtime) stays
+as is; what changes is how a rule decides to notify. The same event catalog drives both.
+
+## 11. Consequences
+
+- The extension runtime engine gains native contracts, so the core event outbox and the
+  workflow engine run without Node and without `EXTRUNTIME_ENABLED`.
+- The graph format is owned by the SDK; fixtures protect compatibility.
+- The Code node and connector credentials are the main security surface; both are
+  confined by the decisions above.
