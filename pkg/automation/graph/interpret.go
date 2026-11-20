@@ -344,7 +344,7 @@ func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
 }
 
 // Graph is the interpreted graph.
-func (i *Interpreter) Graph() Graph { return i.view.graph }
+func (i *Interpreter) Graph() Graph { return i.view.Graph() }
 
 // View is the graph's view.
 func (i *Interpreter) View() *GraphView { return i.view }

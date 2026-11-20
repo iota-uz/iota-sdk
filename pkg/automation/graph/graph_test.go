@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 // The packages are pure: no database driver, no SDK modules, no extension runtime.
@@ -465,15 +467,70 @@ func TestDecodeStrictEnd(t *testing.T) {
 	}
 }
 
-func TestNameTrimmedBeforeLimits(t *testing.T) {
-	name := " " + strings.Repeat("a", 120) + " "
-	raw := strings.Replace(orderGraph, `"  Big orders  "`, `"`+name+`"`, 1)
-	g, errs := graph.Decode([]byte(raw))
-	if len(errs) > 0 || len(g.Name) != 120 {
-		t.Fatalf("errors %v, name %d", errs, len(g.Name))
+// The published schema and Decode agree on a name at both limits, on raw (untrimmed) input.
+func TestNameSchemaMatchesDecode(t *testing.T) {
+	doc, err := jsonschema.UnmarshalJSON(strings.NewReader(string(graph.JSONSchema())))
+	if err != nil {
+		t.Fatal(err)
 	}
-	g.Name = name
-	if errs := graph.Validate(testCatalog(t), g, graph.Options{}); len(errs) > 0 {
-		t.Fatalf("validate: %v", errs)
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("mem://graph.json", doc); err != nil {
+		t.Fatal(err)
+	}
+	schema, err := c.Compile("mem://graph.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name  string
+		valid bool
+	}{
+		{" " + strings.Repeat("a", 120) + " ", true},
+		{"\t" + strings.Repeat("я", 120) + "\n", true},
+		{strings.Repeat("a", 121), false},
+		{" " + strings.Repeat("a", 121) + " ", false},
+		{"   ", false},
+		{"", false},
+		{"a", true},
+		{" a b ", true},
+	} {
+		raw := strings.Replace(orderGraph, `"  Big orders  "`, strconv.Quote(tc.name), 1)
+		g, errs := graph.Decode([]byte(raw))
+		inst, err := jsonschema.UnmarshalJSON(strings.NewReader(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		schemaOK := schema.Validate(inst) == nil
+		if (len(errs) == 0) != tc.valid || schemaOK != tc.valid {
+			t.Errorf("%q: decode errors %v, schema valid %v; want valid %v", tc.name, errs, schemaOK, tc.valid)
+		}
+		if tc.valid && g.Name != graph.TrimName(tc.name) {
+			t.Errorf("%q: kept %q", tc.name, g.Name)
+		}
+		if tc.valid {
+			g.Name = tc.name
+			if errs := graph.Validate(testCatalog(t), g, graph.Options{}); len(errs) > 0 {
+				t.Errorf("%q: validate %v", tc.name, errs)
+			}
+		}
+	}
+}
+
+// Nested field declarations are copies too: renaming a property through the view changes nothing.
+func TestViewCopiesFields(t *testing.T) {
+	in, err := graph.NewInterpreter(testCatalog(t), mustDecode(t, orderGraph), graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat := in.View().Catalog()
+	cat.Subjects["order"].Context[0].Field.Props[1].Name = "renamed"
+	cat.Events["order.created"].Payload[0].Field.Kind = 0
+	ctx := graph.Context{Vars: map[string]any{"order": map[string]any{"total": 1, "status": "new"}}}
+	if st := in.Start("check", &graph.StepContext{Ctx: ctx}); st.Kind != graph.StepOutcome || st.Outcome != "true" {
+		t.Fatalf("check: %+v", st)
+	}
+	in.Graph().Nodes[0].Params["expression"] = "false"
+	if st := in.Start("check", &graph.StepContext{Ctx: ctx}); st.Outcome != "true" {
+		t.Fatalf("the graph changed: %+v", st)
 	}
 }

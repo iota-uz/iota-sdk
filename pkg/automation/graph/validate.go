@@ -84,7 +84,6 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	// The structure, also for a graph built in Go rather than decoded.
 	var doc any
 	shape := g
-	shape.Name = strings.TrimSpace(g.Name) // the limits apply to the name as it is stored
 	if shape.RunAs == "" {
 		shape.RunAs = RunAsOwner // the default, as Decode gives it
 	}

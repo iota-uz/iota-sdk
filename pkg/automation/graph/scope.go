@@ -178,7 +178,7 @@ func nodeOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field, bo
 	if len(spec.Output) == 0 {
 		return expr.Field{}, false, nil
 	}
-	props := append(expr.Fields(nil), spec.Output...)
+	props := spec.Output.Clone()
 	if spec.Answer != nil {
 		if choices := fromValues(spec.OutcomesFrom, params); len(choices) > 0 {
 			for i, p := range props {

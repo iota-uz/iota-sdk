@@ -135,6 +135,34 @@ var reserved = map[string]bool{
 	"loop": true, "package": true, "namespace": true, "return": true, "var": true, "void": true, "while": true,
 }
 
+// Clone is a deep copy: no slice or pointer of the copy is shared with f.
+func (f Field) Clone() Field {
+	out := Field{Kind: f.Kind}
+	if f.Enum != nil {
+		out.Enum = append([]string(nil), f.Enum...)
+	}
+	if f.Elem != nil {
+		e := f.Elem.Clone()
+		out.Elem = &e
+	}
+	if f.Props != nil {
+		out.Props = []Prop(Fields(f.Props).Clone())
+	}
+	return out
+}
+
+// Clone is a deep copy of the fields.
+func (fs Fields) Clone() Fields {
+	if fs == nil {
+		return nil
+	}
+	out := make(Fields, len(fs))
+	for i, p := range fs {
+		out[i] = Prop{Name: p.Name, Field: p.Field.Clone()}
+	}
+	return out
+}
+
 // IsName reports whether s can name a variable or a field a select reads: a CEL identifier, not a keyword.
 func IsName(s string) bool { return identRe.MatchString(s) && !reserved[s] }
 

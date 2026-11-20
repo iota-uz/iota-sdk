@@ -123,7 +123,7 @@ const graphSchema = `{
   "description": "The content of one immutable version of an automation graph.",
   "type": "object",
   "properties": {
-    "name": {"type": "string", "minLength": 1, "maxLength": 120, "description": "1 to 120 characters after trimming spaces at the edges; Decode trims it before these limits apply."},
+    "name": {"type": "string", "pattern": "^[ \\t\\n\\f\\r]*[^ \\t\\n\\f\\r](?:[\\s\\S]{0,118}[^ \\t\\n\\f\\r])?[ \\t\\n\\f\\r]*$", "description": "1 to 120 characters (code points) once spaces, tabs and line breaks at the edges are trimmed; the graph keeps the trimmed name."},
     "description": {"type": "string", "maxLength": 2000},
     "run_as": {"enum": ["owner", "initiator"], "default": "owner"},
     "triggers": {
@@ -213,17 +213,11 @@ func Decode(raw []byte) (Graph, []GraphError) {
 	if _, err := dec.Token(); err != io.EOF {
 		return Graph{}, []GraphError{{Path: "graph", Code: CodeInvalid, Message: "unexpected data after the graph"}}
 	}
-	// The name's limits apply to it trimmed, as it is stored.
-	if o, ok := doc.(map[string]any); ok {
-		if name, ok := o["name"].(string); ok {
-			o["name"] = strings.TrimSpace(name)
-		}
-	}
 	if errs := structureErrors(doc); len(errs) > 0 {
 		return Graph{}, errs
 	}
 	o := doc.(map[string]any)
-	g := Graph{Name: strings.TrimSpace(o["name"].(string)), RunAs: RunAsOwner}
+	g := Graph{Name: TrimName(o["name"].(string)), RunAs: RunAsOwner}
 	if d, ok := o["description"].(string); ok {
 		g.Description = d
 	}
@@ -279,8 +273,14 @@ func structureErrors(doc any) []GraphError {
 	return out
 }
 
+// nameSpace is what TrimName trims: the characters the published schema's name pattern treats as edges.
+const nameSpace = " \t\n\f\r"
+
+// TrimName is a graph name as the graph keeps it: spaces, tabs and line breaks at the edges trimmed.
+func TrimName(name string) string { return strings.Trim(name, nameSpace) }
+
 func nameErrors(name string) []GraphError {
-	n := utf8.RuneCountInString(strings.TrimSpace(name))
+	n := utf8.RuneCountInString(TrimName(name))
 	if n == 0 {
 		return []GraphError{{Path: "name", Code: CodeInvalid, Message: "a graph has a name"}}
 	}

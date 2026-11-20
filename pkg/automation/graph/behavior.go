@@ -2,7 +2,6 @@ package graph
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"sort"
 )
 
@@ -234,7 +233,7 @@ func (v *GraphView) Outcomes(id string) []string {
 	if !ok {
 		return nil
 	}
-	return OutcomesOf(impl.OutcomeRule(spec), p)
+	return OutcomesOf(impl.OutcomeRule(copyNodeSpec(spec)), p)
 }
 
 // Reachable is every node reachable from a node or trigger along edges (from itself included).
@@ -334,7 +333,7 @@ func copyCatalog(c Catalog) Catalog {
 	out := c
 	out.Events = make(map[string]EventSpec, len(c.Events))
 	for k, e := range c.Events {
-		e.Payload = append(expr.Fields(nil), e.Payload...)
+		e.Payload = e.Payload.Clone()
 		if e.Match != nil {
 			m := make(map[string]MatchField, len(e.Match))
 			for name, f := range e.Match {
@@ -350,7 +349,7 @@ func copyCatalog(c Catalog) Catalog {
 	}
 	out.Subjects = make(map[string]SubjectSpec, len(c.Subjects))
 	for k, s := range c.Subjects {
-		out.Subjects[k] = SubjectSpec{Context: append(expr.Fields(nil), s.Context...)}
+		out.Subjects[k] = SubjectSpec{Context: s.Context.Clone()}
 	}
 	return out
 }
@@ -362,7 +361,7 @@ func copyNodeSpec(n NodeSpec) NodeSpec {
 	n.Expressions = append([]ExprParam(nil), n.Expressions...)
 	n.Templates = append([]string(nil), n.Templates...)
 	n.Values = append([]string(nil), n.Values...)
-	n.Output = append(expr.Fields(nil), n.Output...)
+	n.Output = n.Output.Clone()
 	if n.OutcomesFrom != nil {
 		r := *n.OutcomesFrom
 		n.OutcomesFrom = &r
