@@ -1,7 +1,9 @@
 package oidc_test
 
 import (
+	"context"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	oidcpersistence "github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
 type grantRequest struct {
@@ -97,4 +100,133 @@ func TestStorage_GetPrivateClaimsFromScopes_CarriesScope(t *testing.T) {
 		[]string{"offline_access", "erp:read"})
 	require.NoError(t, err)
 	require.Equal(t, "offline_access erp:read", claims["scope"])
+}
+
+// Falsely green if two simultaneous redemptions of one refresh token both
+// rotate it: the zero-row delete must fail the loser inside its transaction.
+func TestStorage_CreateAccessAndRefreshTokens_ConcurrentRedemption(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	tokens := oidcpersistence.NewTokenRepository()
+	storage := oidc.NewStorage(oidcpersistence.NewClientRepository(), nil, tokens, userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+
+	clientID := "mcp-" + uuid.NewString()
+	_, err := oidcpersistence.NewClientRepository().Create(env.Ctx,
+		client.New(clientID, "MCP client", "web", []string{"https://client.example.test/callback"}))
+	require.NoError(t, err)
+	email, err := internet.NewEmail("race-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Race", "Holder", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+	grant := grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}
+	_, refresh, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, "")
+	require.NoError(t, err)
+	// Make the grant visible to separate connections.
+	env.CommitTx(t)
+
+	// Each redemption runs on its own connection, outside the test transaction.
+	detached := context.WithValue(env.Ctx, constants.TxKey, nil)
+	for _, ctx := range []context.Context{detached, detached} {
+		_, err := storage.TokenRequestByRefreshToken(ctx, refresh)
+		require.NoError(t, err, "both requests load the token before either rotates it")
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, _, err := storage.CreateAccessAndRefreshTokens(detached, grant, refresh)
+			results <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	succeeded := 0
+	for err := range results {
+		if err == nil {
+			succeeded++
+		}
+	}
+	require.Equal(t, 1, succeeded, "exactly one concurrent redemption may rotate the token")
+}
+
+// Falsely green if a deactivated public client keeps refreshing: it never
+// passes AuthorizeClientIDSecret, where activity used to be checked.
+func TestStorage_TokenRequestByRefreshToken_RejectsInactiveClient(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	clients := oidcpersistence.NewClientRepository()
+	storage := oidc.NewStorage(clients, nil, oidcpersistence.NewTokenRepository(), userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+
+	for _, method := range []string{"none", "client_secret_post"} {
+		clientID := "mcp-" + method + "-" + uuid.NewString()
+		saved, err := clients.Create(env.Ctx, client.New(clientID, "MCP client", "web",
+			[]string{"https://client.example.test/callback"}, client.WithAuthMethod(method)))
+		require.NoError(t, err)
+		email, err := internet.NewEmail("inactive-" + uuid.NewString() + "@example.test")
+		require.NoError(t, err)
+		u, err := user.New("Inactive", "Client", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+		require.NoError(t, err)
+		created, err := userRepo.Create(env.Ctx, u)
+		require.NoError(t, err)
+		grant := grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}
+		_, refresh, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, "")
+		require.NoError(t, err)
+
+		_, err = storage.TokenRequestByRefreshToken(env.Ctx, refresh)
+		require.NoError(t, err, method)
+		require.NoError(t, clients.Update(env.Ctx, saved.Deactivate()))
+		_, err = storage.TokenRequestByRefreshToken(env.Ctx, refresh)
+		require.Error(t, err, "deactivated %s client must not refresh", method)
+	}
+}
+
+// Falsely green if a refresh that asks for fewer scopes still gets the
+// original ones in the new access and refresh tokens.
+func TestRefreshTokenRequest_SetCurrentScopesNarrows(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	clients := oidcpersistence.NewClientRepository()
+	storage := oidc.NewStorage(clients, nil, oidcpersistence.NewTokenRepository(), userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+	clientID := "mcp-" + uuid.NewString()
+	_, err := clients.Create(env.Ctx, client.New(clientID, "MCP client", "web", []string{"https://client.example.test/callback"}))
+	require.NoError(t, err)
+	email, err := internet.NewEmail("narrow-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Narrow", "Scopes", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+	_, refresh, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx,
+		grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}, "")
+	require.NoError(t, err)
+
+	req, err := storage.TokenRequestByRefreshToken(env.Ctx, refresh)
+	require.NoError(t, err)
+	require.Equal(t, []string{"openid", "offline_access"}, req.GetScopes())
+	req.SetCurrentScopes([]string{"offline_access"})
+	require.Equal(t, []string{"offline_access"}, req.GetScopes())
+
+	_, rotated, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, req, refresh)
+	require.NoError(t, err)
+	next, err := storage.TokenRequestByRefreshToken(env.Ctx, rotated)
+	require.NoError(t, err)
+	require.Equal(t, []string{"offline_access"}, next.GetScopes(), "the replacement token keeps the narrowed scopes")
 }

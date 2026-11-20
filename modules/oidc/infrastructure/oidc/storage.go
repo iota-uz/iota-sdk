@@ -15,6 +15,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
@@ -24,6 +25,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/authrequest"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/token"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -357,12 +360,6 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		clientID = req.GetAudience()[0]
 	}
 
-	if currentRefreshToken != "" {
-		if err := s.tokenRepo.DeleteByTokenHash(ctx, hashRefreshToken(currentRefreshToken)); err != nil {
-			return "", "", time.Time{}, serrors.Wrap(operation, err)
-		}
-	}
-
 	refreshToken, err := newRefreshToken()
 	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
@@ -378,11 +375,39 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		token.WithAudience(req.GetAudience()),
 		token.WithAMR(amr),
 	)
-	if err := s.tokenRepo.Create(ctx, domainToken); err != nil {
+
+	// Consuming the presented token and storing its replacement commit
+	// together: a failed insert keeps the presented token valid, and of two
+	// concurrent redemptions only the one that deletes the row succeeds.
+	if err := s.inTx(ctx, func(ctx context.Context) error {
+		if currentRefreshToken != "" {
+			if err := s.tokenRepo.DeleteByTokenHash(ctx, hashRefreshToken(currentRefreshToken)); err != nil {
+				return err
+			}
+		}
+		return s.tokenRepo.Create(ctx, domainToken)
+	}); err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
 	return accessToken, refreshToken, expiresAt, nil
+}
+
+// inTx runs fn in the caller's transaction, or in its own one when the
+// context carries none.
+func (s *Storage) inTx(ctx context.Context, fn func(context.Context) error) error {
+	if _, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok || s.db == nil {
+		return fn(ctx)
+	}
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(composables.WithTx(ctx, tx)); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // newRefreshToken returns an opaque, unguessable refresh token; only its
@@ -417,6 +442,18 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 	// Check if token is expired
 	if t.IsExpired() {
 		return nil, serrors.New(serrors.Invalid, "refresh token has expired").WithOp(operation)
+	}
+
+	// A deactivated client loses refresh for every auth method: public
+	// clients never pass AuthorizeClientIDSecret, where activity is checked.
+	if s.clientRepo != nil {
+		c, err := s.clientRepo.GetByClientID(ctx, t.ClientID())
+		if err != nil {
+			return nil, serrors.Wrap(operation, err)
+		}
+		if !c.IsActive() {
+			return nil, serrors.New(serrors.PermissionDenied, "client is not active").WithOp(operation)
+		}
 	}
 
 	// Map to op.RefreshTokenRequest interface
@@ -969,6 +1006,8 @@ func (c *oidcClient) ClockSkew() time.Duration {
 // refreshTokenRequest wraps token.RefreshToken to implement op.RefreshTokenRequest
 type refreshTokenRequest struct {
 	token token.RefreshToken
+	// scopes narrowed by the refresh request; nil keeps the token's scopes.
+	scopes []string
 }
 
 func (r *refreshTokenRequest) GetAMR() []string {
@@ -988,6 +1027,9 @@ func (r *refreshTokenRequest) GetClientID() string {
 }
 
 func (r *refreshTokenRequest) GetScopes() []string {
+	if r.scopes != nil {
+		return r.scopes
+	}
 	return r.token.Scopes()
 }
 
@@ -995,9 +1037,11 @@ func (r *refreshTokenRequest) GetSubject() string {
 	return fmt.Sprintf("%d", r.token.UserID())
 }
 
+// SetCurrentScopes applies the subset requested on refresh; the library has
+// already checked that it does not exceed the token's scopes. The narrowed
+// set goes into the new access token and the replacement refresh token.
 func (r *refreshTokenRequest) SetCurrentScopes(scopes []string) {
-	// Scopes are immutable in our implementation
-	// Token refresh uses original scopes from the refresh token
+	r.scopes = append([]string{}, scopes...)
 }
 
 // oidcAuthRequest wraps authrequest.AuthRequest to implement op.AuthRequest
