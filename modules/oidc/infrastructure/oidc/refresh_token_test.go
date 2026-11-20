@@ -2,6 +2,8 @@ package oidc_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"sync"
@@ -18,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/token"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	oidcpersistence "github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -319,4 +322,70 @@ func TestStorage_TokenRequestByRefreshToken_ReuseRevokesWholeChain(t *testing.T)
 	require.Error(t, err)
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, third)
 	require.Error(t, err, "the latest token of a reused chain must be revoked")
+}
+
+// Falsely green if reuse revocation and a concurrent rotation of the chain's
+// current token interleave: the revoke's chain snapshot must not miss the
+// replacement the rotation is committing.
+func TestStorage_RevokeReused_SerializedWithRotation(t *testing.T) {
+	t.Parallel()
+	env := setupTest(t)
+	require.NoError(t, oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey))
+	userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
+	clients := oidcpersistence.NewClientRepository()
+	tokens := oidcpersistence.NewTokenRepository()
+	storage := oidc.NewStorage(clients, nil, tokens, userRepo, env.Pool, testCryptoKey,
+		"https://issuer.example.com/oidc", time.Hour, 24*time.Hour)
+	clientID := "mcp-" + uuid.NewString()
+	_, err := clients.Create(env.Ctx, client.New(clientID, "MCP client", "web", []string{"https://client.example.test/callback"}))
+	require.NoError(t, err)
+	email, err := internet.NewEmail("lock-" + uuid.NewString() + "@example.test")
+	require.NoError(t, err)
+	u, err := user.New("Lock", "Holder", email, user.UILanguageEN, user.WithTenantID(env.TenantID())).SetPassword("Permanent123!")
+	require.NoError(t, err)
+	created, err := userRepo.Create(env.Ctx, u)
+	require.NoError(t, err)
+	grant := grantRequest{subject: strconv.FormatUint(uint64(created.ID()), 10), client: clientID}
+	_, first, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, "")
+	require.NoError(t, err)
+	_, second, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, grant, first)
+	require.NoError(t, err)
+	env.CommitTx(t)
+	detached := context.WithValue(env.Ctx, constants.TxKey, nil)
+
+	// A rotation of the current token is in flight: it holds the grant lock
+	// and has written its replacement, but has not committed yet.
+	rotation, err := env.Pool.Begin(detached)
+	require.NoError(t, err)
+	defer func() { _ = rotation.Rollback(detached) }()
+	inRotation := composables.WithTx(detached, rotation)
+	require.NoError(t, tokens.LockGrant(inRotation, int(created.ID()), clientID))
+	third := token.New(hashOf("third-"+uuid.NewString()), clientID, int(created.ID()), env.TenantID(),
+		[]string{"openid", "offline_access"}, time.Now(), time.Hour)
+	require.NoError(t, tokens.Create(inRotation, third))
+	require.NoError(t, tokens.Consume(inRotation, hashOf(second), third.ID()))
+
+	// Meanwhile the leaked first token is presented again.
+	revoked := make(chan error, 1)
+	go func() {
+		_, err := storage.TokenRequestByRefreshToken(detached, first)
+		revoked <- err
+	}()
+	select {
+	case err := <-revoked:
+		t.Fatalf("reuse revocation did not wait for the rotation: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	require.NoError(t, rotation.Commit(detached))
+	require.Error(t, <-revoked)
+
+	var revokedAt *time.Time
+	require.NoError(t, env.Pool.QueryRow(detached,
+		`SELECT revoked_at FROM oidc.refresh_tokens WHERE id = $1`, third.ID()).Scan(&revokedAt))
+	require.NotNil(t, revokedAt, "the replacement committed during the revoke must be revoked too")
+}
+
+func hashOf(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }

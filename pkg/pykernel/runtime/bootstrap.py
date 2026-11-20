@@ -162,7 +162,14 @@ def _make_proxy(spec):
     proxy.__name__ = name
     proxy.__doc__ = spec.get("doc") or None
     if spec.get("namespace"):
-        proxy.__signature__ = _signature(params)
+        try:
+            proxy.__signature__ = _signature(params)
+        except (TypeError, ValueError):
+            # A parameter named like a Python keyword ("from", "class") or
+            # otherwise not an identifier cannot appear in a signature. The
+            # proxy still accepts it as tools.x(**{"from": ...}); only the
+            # introspection hint is dropped instead of failing the kernel.
+            pass
     return proxy
 
 
