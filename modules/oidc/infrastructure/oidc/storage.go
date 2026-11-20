@@ -3,6 +3,7 @@ package oidc
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -316,7 +317,7 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 func (s *Storage) CreateAccessAndRefreshTokens(
 	ctx context.Context,
 	req op.TokenRequest,
-	refreshToken string,
+	currentRefreshToken string,
 ) (string, string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessAndRefreshTokens"
 
@@ -326,7 +327,14 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
 
-	// Hash refresh token with SHA-256
+	// A refresh is single-use: the presented token is replaced by a new one.
+	if currentRefreshToken != "" {
+		currentHash := sha256.Sum256([]byte(currentRefreshToken))
+		if err := s.tokenRepo.DeleteByTokenHash(ctx, hex.EncodeToString(currentHash[:])); err != nil {
+			return "", "", time.Time{}, serrors.Wrap(operation, err)
+		}
+	}
+	refreshToken := rand.Text()
 	hash := sha256.Sum256([]byte(refreshToken))
 	tokenHash := hex.EncodeToString(hash[:])
 

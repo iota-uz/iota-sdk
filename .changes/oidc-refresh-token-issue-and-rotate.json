@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"OIDC storage issues a new random refresh token on every grant and rotates the presented one on refresh, instead of storing and returning the token it was given."}
