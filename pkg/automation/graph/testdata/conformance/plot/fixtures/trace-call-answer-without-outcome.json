@@ -1,0 +1,135 @@
+{
+  "name": "trace-call-answer-without-outcome",
+  "kind": "trace",
+  "plot": false,
+  "description": "nodes.<id>.output without an outcome, for a call with two outcomes besides failed: the trace stops with missing_context at nodes.<id>.outcome.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Sync",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "post",
+        "type": "script",
+        "params": {
+          "outcomes": ["sent", "skipped"],
+          "output_schema": {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string",
+                "enum": ["sent", "queued"]
+              },
+              "ratio": {
+                "type": "number"
+              }
+            },
+            "required": ["ok", "count", "state"]
+          }
+        }
+      },
+      {
+        "id": "check",
+        "type": "branch",
+        "params": {
+          "expression": "nodes.post.output.ok && nodes.post.output.count > 1 && nodes.post.output.state == \"sent\" && nodes.post.output.ratio > 0.5"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "post"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "sent"
+        },
+        "to": "check"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "skipped"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "nodes": {
+      "post": {
+        "output": {
+          "ok": true,
+          "count": 2,
+          "state": "sent",
+          "ratio": 0.75
+        }
+      }
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "sync"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "post",
+      "outcome": "missing_context",
+      "context_patch": {
+        "path": "nodes.post.outcome"
+      }
+    }
+  ]
+}

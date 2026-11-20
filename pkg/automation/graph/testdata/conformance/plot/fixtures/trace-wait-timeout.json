@@ -1,0 +1,138 @@
+{
+  "name": "trace-wait-timeout",
+  "kind": "trace",
+  "plot": false,
+  "description": "A Wait's timeout takes its timeout outcome.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Times out",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "hold",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "timeout": "30m"
+        }
+      },
+      {
+        "id": "late",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "No pull request for {{ issue.title }}"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "matched"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "timeout"
+        },
+        "to": "late"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": ["needs-repro"],
+      "state": "open"
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "hold",
+      "outcome": "timeout",
+      "context_patch": {}
+    },
+    {
+      "node": "late",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "notify",
+              "text": "No pull request for Crash on save"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+package graph
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+)
+
+// MaxWaitMs is the longest a wait or a delay may sleep: 30 days.
+const MaxWaitMs = 30 * 86_400_000
+
+const (
+	expressionSchema = `{"type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^\\S(.*\\S)?$", "description": "CEL"}`
+	outcomeSchema    = `{"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"}`
+	durationSchema   = `{"type": "string", "pattern": "^[1-9][0-9]{0,5}(s|m|h|d)$", "x-max-ms": 2592000000, "description": "30s, 20m, 2h or 7d; at most 30 days"}`
+)
+
+func branchSchema() string {
+	return `{"type": "object", "properties": {"expression": ` + expressionSchema + `}, "required": ["expression"], "additionalProperties": false}`
+}
+
+func switchSchema() string {
+	return `{"type": "object", "properties": {
+		"expression": ` + expressionSchema + `,
+		"cases": {"type": "array", "minItems": 1, "maxItems": 20, "x-unique": "value", "items": {
+			"type": "object",
+			"properties": {"value": {"type": "string", "maxLength": 200}, "outcome": ` + outcomeSchema + `},
+			"required": ["value", "outcome"], "additionalProperties": false}}
+	}, "required": ["expression", "cases"], "additionalProperties": false}`
+}
+
+func waitSchema(events []string) string {
+	ev, _ := json.Marshal(events)
+	if len(events) == 0 {
+		ev = []byte(`[""]`)
+	}
+	return `{"type": "object", "properties": {
+		"event": {"enum": ` + string(ev) + `},
+		"filter": ` + expressionSchema + `,
+		"timeout": ` + durationSchema + `
+	}, "required": ["event"], "additionalProperties": false}`
+}
+
+func delaySchema() string {
+	return `{"type": "object", "properties": {"duration": ` + durationSchema + `}, "required": ["duration"], "additionalProperties": false}`
+}
+
+func endSchema() string {
+	return `{"type": "object", "properties": {"reason": {"type": "string", "maxLength": 500}}, "additionalProperties": false}`
+}
+
+func branchNode(subjects []string) NodeSpec {
+	return NodeSpec{
+		Type: "branch", Title: "Branch", Behavior: BehaviorBranch,
+		Description: "A CEL expression of type bool: outcome true or false.",
+		Params:      MustSchemaParams(branchSchema()), Subjects: subjects,
+		Expressions: []ExprParam{{Param: "expression", Type: expr.TypeBool}},
+	}
+}
+
+func switchNode(subjects []string) NodeSpec {
+	return NodeSpec{
+		Type: "switch", Title: "Switch", Behavior: BehaviorSwitch,
+		Description: "A CEL expression of type string: the outcome of the first case with that value, else default.",
+		Params:      MustSchemaParams(switchSchema()), Subjects: subjects,
+		Expressions: []ExprParam{{Param: "expression", Type: expr.TypeString}},
+	}
+}
+
+func waitNode(subjects, events []string) NodeSpec {
+	return NodeSpec{
+		Type: "wait", Title: "Wait", Behavior: BehaviorWait,
+		Description: "Sleeps until an event of this kind about the run's subject passes the filter, or the timeout.",
+		Params:      MustSchemaParams(waitSchema(events)), Subjects: subjects,
+		Expressions: []ExprParam{{Param: "filter", Type: expr.TypeBool}},
+		Wait: &WaitSpec{
+			Event: ValueOrParam{Param: "event"}, Filter: ValueOrParam{Param: "filter"}, TimeoutParam: "timeout",
+			Matched: "matched", TimeoutOutcome: "timeout",
+		},
+	}
+}
+
+func delayNode(subjects []string) NodeSpec {
+	return NodeSpec{
+		Type: "delay", Title: "Delay", Behavior: BehaviorWait,
+		Description: "Sleeps for a duration, then continues with done.",
+		Params:      MustSchemaParams(delaySchema()), Subjects: subjects,
+		Wait: &WaitSpec{TimeoutParam: "duration", TimeoutOutcome: "done"},
+	}
+}
+
+func endNode(subjects []string) NodeSpec {
+	return NodeSpec{
+		Type: "end", Title: "End", Behavior: BehaviorEnd,
+		Description: "Ends the run.",
+		Params:      MustSchemaParams(endSchema()), Subjects: subjects,
+	}
+}
+
+// BuiltinNodes are the node types every catalog may take: branch, switch, wait (on one of waitEvents),
+// delay (a wait without an event) and end, available with these subjects (empty: any).
+func BuiltinNodes(subjects []string, waitEvents []string) []NodeSpec {
+	return []NodeSpec{
+		branchNode(subjects),
+		switchNode(subjects),
+		waitNode(subjects, waitEvents),
+		delayNode(subjects),
+		endNode(subjects),
+	}
+}
+
+// BuiltinsJSONSchema is the params schema of each built-in node type, by type; wait's event is any key.
+func BuiltinsJSONSchema() json.RawMessage {
+	wait := `{"type": "object", "properties": {
+		"event": {"type": "string", "minLength": 1, "description": "an event key of the catalog"},
+		"filter": ` + expressionSchema + `,
+		"timeout": ` + durationSchema + `
+	}, "required": ["event"], "additionalProperties": false}`
+	out := fmt.Sprintf(`{"branch": %s, "switch": %s, "wait": %s, "delay": %s, "end": %s}`,
+		branchSchema(), switchSchema(), wait, delaySchema(), endSchema())
+	var compact json.RawMessage
+	if err := json.Unmarshal([]byte(out), &compact); err != nil {
+		panic(err)
+	}
+	b, _ := json.Marshal(compact)
+	return b
+}

@@ -1,0 +1,588 @@
+package graph
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+)
+
+// Event is an event as a graph reads it: {kind, ...payload}.
+type Event map[string]any
+
+// Kind is the event's kind.
+func (e Event) Kind() string {
+	k, _ := e["kind"].(string)
+	return k
+}
+
+// Payload is the event without its kind.
+func (e Event) Payload() map[string]any {
+	out := make(map[string]any, len(e))
+	for k, v := range e {
+		if k != "kind" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// Context is what a step reads: the trigger's event, node outputs, the subject's variables, the tenant and
+// the step's time (CEL has no function of the current time).
+type Context struct {
+	Event  map[string]any
+	Nodes  map[string]NodeState // nodes.<id>.output
+	Vars   map[string]any       // the subject's variables
+	Now    time.Time
+	Tenant map[string]any
+}
+
+// NodeState is what a node left: its output, and for a call answered without a choice its outcome.
+type NodeState struct {
+	Output  map[string]any `json:"output"`
+	Outcome string         `json:"outcome,omitempty"`
+}
+
+// StepKind is what a step decided.
+type StepKind string
+
+const (
+	StepOutcome        StepKind = "outcome"
+	StepWait           StepKind = "wait"
+	StepCall           StepKind = "call"
+	StepEnd            StepKind = "end"
+	StepMissingContext StepKind = "missing_context"
+	StepFailed         StepKind = "failed"
+)
+
+// Failure codes of a step.
+const (
+	FailExpression     = expr.CodeExpressionFailed
+	FailInvalidInput   = expr.CodeInvalidInput
+	FailInvalidGraph   = "INVALID_GRAPH"
+	FailUnknownOutcome = "UNKNOWN_OUTCOME"
+	FailInvalidAnswer  = "INVALID_ANSWER"
+	FailInvalidRequest = "INVALID_REQUEST"
+	FailValueTooLarge  = "VALUE_TOO_LARGE"
+)
+
+// Step is one decision of the interpreter. Nothing in it is applied: the engine applies effects and calls.
+type Step struct {
+	Kind    StepKind
+	Outcome string
+	Output  map[string]any
+	Effects []Effect       // effect params with templates rendered and values evaluated
+	Wait    *WaitIntent    // what the run sleeps on
+	End     map[string]any // an end node's params
+	Path    string         // MissingContext: the field's path
+	Code    string         // Failed: EXPRESSION_FAILED | INVALID_INPUT | ...
+	Message string
+}
+
+// Effect is a node's rendered params for the engine to apply. Node is the node type (the catalog key).
+type Effect struct {
+	Node   string         `json:"node"`
+	Params map[string]any `json:"params"`
+}
+
+// WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
+type WaitIntent struct {
+	Event   string
+	Filter  string
+	Timeout time.Duration // 0: none
+}
+
+func failed(code, format string, args ...any) Step {
+	return Step{Kind: StepFailed, Code: code, Message: fmt.Sprintf(format, args...)}
+}
+
+// stepOfError turns an evaluation error into a MissingContext or Failed step.
+func stepOfError(err error) Step {
+	var mc *expr.MissingContextError
+	if errors.As(err, &mc) {
+		return Step{Kind: StepMissingContext, Path: mc.Path, Message: mc.Error()}
+	}
+	var ee *expr.EvalError
+	if errors.As(err, &ee) {
+		return Step{Kind: StepFailed, Code: ee.Code, Message: ee.Message}
+	}
+	return Step{Kind: StepFailed, Code: FailExpression, Message: err.Error()}
+}
+
+func (s Step) stops() bool { return s.Kind == StepMissingContext || s.Kind == StepFailed }
+
+// Options configure validation and interpretation.
+type Options struct {
+	Behaviors  *Behaviors
+	Limits     Limits
+	MatchHooks map[string]func(params map[string]any, event Event) bool
+	// Rules are product rules checked after the format's (connection_unavailable, ...).
+	Rules func(Graph) []GraphError
+}
+
+// Limits bound expressions and values.
+type Limits struct {
+	Expr          expr.Limits
+	MaxValueBytes int // an event's payload and a node's output; 1 MiB by default
+}
+
+func (o Options) behaviors() *Behaviors {
+	if o.Behaviors == nil {
+		return DefaultBehaviors()
+	}
+	return o.Behaviors
+}
+
+func (o Options) maxValueBytes() int {
+	if o.Limits.MaxValueBytes <= 0 {
+		return 1 << 20
+	}
+	return o.Limits.MaxValueBytes
+}
+
+// StepContext is the context of one step for one token of a run. Token "" is the main path; split
+// behaviors name theirs ("split.legal", "each[0]").
+type StepContext struct {
+	Ctx   Context
+	Token string
+	in    *Interpreter
+}
+
+// Params are a node's params as its type parsed them.
+func (s *StepContext) Params(node Node) map[string]any {
+	if s.in == nil {
+		return nil
+	}
+	p, _ := s.in.view.Params(node.ID)
+	return p
+}
+
+// Catalog is the interpreter's catalog.
+func (s *StepContext) Catalog() Catalog {
+	if s.in == nil {
+		return Catalog{}
+	}
+	return s.in.view.catalog
+}
+
+// Eval evaluates a CEL source of a node in the graph's scope; a non-nil step is MissingContext or Failed.
+func (s *StepContext) Eval(src string, want expr.Type) (any, *Step) {
+	return s.EvalWith("*", s.Ctx, src, want)
+}
+
+// EvalWith evaluates in the scope of an event kind ("*": the graph's own) over a context.
+func (s *StepContext) EvalWith(event string, ctx Context, src string, want expr.Type) (any, *Step) {
+	if s.in == nil {
+		st := failed(FailInvalidGraph, "a step context without an interpreter")
+		return nil, &st
+	}
+	withNodes := event == "*"
+	p, issues := s.in.exprs.program(event, withNodes, src, want)
+	if len(issues) > 0 {
+		st := failed(FailExpression, "%s", issues[0].Message)
+		return nil, &st
+	}
+	v, err := p.Eval(varsOf(ctx))
+	if err != nil {
+		st := stepOfError(err)
+		return nil, &st
+	}
+	return v, nil
+}
+
+// Effect renders a node's templates and evaluates its values into the params the engine applies.
+func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
+	params := s.Params(node)
+	rendered := params
+	vars := varsOf(s.Ctx)
+	for _, t := range spec.Templates {
+		raw, ok := paramAt(params, t)
+		text, isStr := raw.(string)
+		if !ok || !isStr {
+			continue
+		}
+		tp, issues := s.in.exprs.template("*", text)
+		if len(issues) > 0 {
+			st := failed(FailExpression, "%s", issues[0].Message)
+			return Effect{}, &st
+		}
+		out, err := tp.Render(vars)
+		if err != nil {
+			st := stepOfError(err)
+			return Effect{}, &st
+		}
+		rendered = setAt(rendered, t, out)
+	}
+	for _, path := range spec.Values {
+		raw, ok := paramAt(params, path)
+		src, isStr := raw.(string)
+		if !ok || !isStr {
+			continue
+		}
+		v, st := s.Eval(src, expr.TypeAny)
+		if st != nil {
+			return Effect{}, st
+		}
+		j, err := jsonOut(v)
+		if err != nil {
+			s := failed(FailExpression, "%s: %v", path, err)
+			return Effect{}, &s
+		}
+		rendered = setAt(rendered, path, j)
+	}
+	return Effect{Node: node.Type, Params: rendered}, nil
+}
+
+// jsonOut is a CEL value as JSON: timestamps as RFC 3339 strings, durations as seconds.
+func jsonOut(v any) (any, error) {
+	switch x := v.(type) {
+	case time.Time:
+		return x.UTC().Format(time.RFC3339Nano), nil
+	case time.Duration:
+		return x.Seconds(), nil
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			j, err := jsonOut(e)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = j
+		}
+		return out, nil
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			j, err := jsonOut(e)
+			if err != nil {
+				return nil, err
+			}
+			out[k] = j
+		}
+		return out, nil
+	}
+	return v, nil
+}
+
+// varsOf is a context as CEL variables.
+func varsOf(ctx Context) map[string]any {
+	vars := make(map[string]any, len(ctx.Vars)+4)
+	for k, v := range ctx.Vars {
+		vars[k] = v
+	}
+	if ctx.Event != nil {
+		vars["event"] = ctx.Event
+	}
+	nodes := make(map[string]any, len(ctx.Nodes))
+	for id, st := range ctx.Nodes {
+		entry := map[string]any{}
+		if st.Output != nil {
+			entry["output"] = st.Output
+		}
+		nodes[id] = entry
+	}
+	vars["nodes"] = nodes
+	if ctx.Tenant != nil {
+		vars["tenant"] = ctx.Tenant
+	}
+	if !ctx.Now.IsZero() {
+		vars["now"] = ctx.Now
+	}
+	return vars
+}
+
+// Interpreter interprets one valid graph against its catalog. It holds no run state.
+type Interpreter struct {
+	view  *GraphView
+	opts  Options
+	exprs *exprs
+	next  map[string]map[string]string
+}
+
+// NewInterpreter prepares a graph; it must be valid.
+func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
+	if errs := Validate(c, g, o); len(errs) > 0 {
+		msgs := make([]string, 0, 3)
+		for i, e := range errs {
+			if i == 3 {
+				msgs = append(msgs, fmt.Sprintf("and %d more", len(errs)-3))
+				break
+			}
+			msgs = append(msgs, e.Error())
+		}
+		return nil, fmt.Errorf("the graph is not valid: %s", strings.Join(msgs, "; "))
+	}
+	v := buildView(c, g, o)
+	return &Interpreter{view: v, opts: o, exprs: newExprs(v, o.Limits.Expr), next: v.next}, nil
+}
+
+// Graph is the interpreted graph.
+func (i *Interpreter) Graph() Graph { return i.view.graph }
+
+// View is the graph's view.
+func (i *Interpreter) View() *GraphView { return i.view }
+
+// Next is where an outcome leads: a node id or "ignore"; ok=false when the outcome has no edge.
+func (i *Interpreter) Next(from, outcome string) (string, bool) {
+	to, ok := i.next[from][outcome]
+	return to, ok
+}
+
+func (i *Interpreter) trigger(id string) (Trigger, bool) {
+	for _, t := range i.view.graph.Triggers {
+		if t.ID == id {
+			return t, true
+		}
+	}
+	return Trigger{}, false
+}
+
+func (i *Interpreter) tooLarge(v any, what string) *Step {
+	b, err := json.Marshal(v)
+	if err != nil {
+		s := failed(FailInvalidInput, "%s is not JSON: %v", what, err)
+		return &s
+	}
+	if len(b) > i.opts.maxValueBytes() {
+		s := failed(FailValueTooLarge, "%s has %d bytes, at most %d", what, len(b), i.opts.maxValueBytes())
+		return &s
+	}
+	return nil
+}
+
+// Mismatch reasons of a trigger.
+const (
+	MismatchEvent  = "event"
+	MismatchHook   = "hook"
+	MismatchFilter = "filter"
+)
+
+// TriggerMismatch is why a trigger does not fire on an event: "event" (another kind), the name of a match
+// field whose value is not among the trigger's, "hook" (the event's match hook said no) or "filter" (its
+// CEL is false); "" when it fires. A filter that cannot be read stops with its step. Match fields come
+// first, so a filter is read only on an event the trigger's fields take.
+func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (string, *Step) {
+	t, ok := i.trigger(trigger)
+	if !ok {
+		s := failed(FailInvalidGraph, "no trigger %s", trigger)
+		return "", &s
+	}
+	if ev.Kind() != t.Event {
+		return MismatchEvent, nil
+	}
+	if s := i.tooLarge(ev, "the event"); s != nil {
+		return "", s
+	}
+	spec := i.view.catalog.Events[t.Event]
+	for _, name := range sortedKeys(spec.Match) {
+		f := spec.Match[name]
+		want := t.Params[name]
+		value, _ := paramAt(ev.Payload(), f.Payload)
+		if f.Type == MatchBool {
+			if b, ok := want.(bool); ok && value != b {
+				return name, nil
+			}
+			continue
+		}
+		wants, ok := want.([]any)
+		if !ok || len(wants) == 0 {
+			continue
+		}
+		fold := func(v any) string {
+			s := fmt.Sprint(v)
+			if f.Fold == FoldLower {
+				s = strings.ToLower(s)
+			}
+			return s
+		}
+		var values []string
+		switch v := value.(type) {
+		case nil:
+		case []any:
+			for _, x := range v {
+				values = append(values, fold(x))
+			}
+		default:
+			values = append(values, fold(v))
+		}
+		hit := false
+		for _, w := range wants {
+			for _, v := range values {
+				if fold(w) == v {
+					hit = true
+				}
+			}
+		}
+		if !hit {
+			return name, nil
+		}
+	}
+	if spec.MatchHook != "" {
+		hook := i.opts.MatchHooks[spec.MatchHook]
+		if hook == nil || !hook(t.Params, ev) {
+			return MismatchHook, nil
+		}
+	}
+	if t.Filter != "" {
+		sc := &StepContext{Ctx: ctx, in: i}
+		sc.Ctx.Event = ev
+		v, st := sc.EvalWith(t.Event, sc.Ctx, t.Filter, expr.TypeBool)
+		if st != nil {
+			return "", st
+		}
+		if v != true {
+			return MismatchFilter, nil
+		}
+	}
+	return "", nil
+}
+
+// TriggerMatches reports whether a trigger fires on an event; a non-nil step is why it cannot tell.
+func (i *Interpreter) TriggerMatches(trigger string, ev Event, ctx Context) (bool, *Step) {
+	m, st := i.TriggerMismatch(trigger, ev, ctx)
+	if st != nil {
+		return false, st
+	}
+	return m == "", nil
+}
+
+// Start is the step on entering a node.
+func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
+	node, ok := i.view.Node(nodeID)
+	if !ok {
+		return failed(FailInvalidGraph, "no node %s", nodeID)
+	}
+	spec, ok := i.view.catalog.Nodes[node.Type]
+	if !ok {
+		return failed(FailInvalidGraph, "%s is not a node type of the catalog", node.Type)
+	}
+	impl, ok := i.opts.behaviors().impl(spec.Behavior)
+	if !ok {
+		return failed(FailInvalidGraph, "behavior %s does not run here", spec.Behavior)
+	}
+	if s == nil {
+		s = &StepContext{}
+	}
+	s.in = i
+	return impl.Start(s, node, spec)
+}
+
+// CallOutcome is the outcome of a call from its answer, by the node type's answer rule: the chosen value,
+// unless a confidence below the node's floor makes it the floor's outcome. A value the node does not offer
+// is refused, so a run cannot follow an edge the graph does not draw.
+func (i *Interpreter) CallOutcome(nodeID string, output map[string]any) (string, *Step) {
+	node, ok := i.view.Node(nodeID)
+	spec := i.view.catalog.Nodes[node.Type]
+	params, okp := i.view.Params(nodeID)
+	if !ok || !okp || spec.Behavior != BehaviorCall || spec.Answer == nil {
+		s := failed(FailInvalidGraph, "node %s is not a call with an answer rule", nodeID)
+		return "", &s
+	}
+	if s := i.tooLarge(output, "the answer"); s != nil {
+		return "", s
+	}
+	choice, _ := output[spec.Answer.Choice].(string)
+	choices := spec.Outcomes
+	if spec.OutcomesFrom != nil {
+		choices = fromValues(spec.OutcomesFrom, params)
+	}
+	if !contains(choices, choice) {
+		s := failed(FailUnknownOutcome, "%s offers no choice %q", nodeID, choice)
+		return "", &s
+	}
+	if floor := spec.Answer.Confidence; floor != nil {
+		if min, ok := expr.Number(params[floor.MinParam]); ok && params[floor.MinParam] != nil {
+			conf, ok := expr.Number(output[floor.Field])
+			if !ok {
+				s := failed(FailInvalidAnswer, "%s: the answer has no %s", nodeID, floor.Field)
+				return "", &s
+			}
+			if conf < min {
+				return floor.Below, nil
+			}
+		}
+	}
+	return choice, nil
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// WaitIntentOf is what a wait node sleeps on for its params.
+func (i *Interpreter) WaitIntentOf(nodeID string) (WaitIntent, bool) {
+	node, ok := i.view.Node(nodeID)
+	if !ok {
+		return WaitIntent{}, false
+	}
+	spec := i.view.catalog.Nodes[node.Type]
+	params, _ := i.view.Params(nodeID)
+	if spec.Wait == nil {
+		return WaitIntent{}, false
+	}
+	return waitIntent(spec, params), true
+}
+
+func waitIntent(spec NodeSpec, params map[string]any) WaitIntent {
+	w := WaitIntent{Event: spec.Wait.Event.Of(params), Filter: spec.Wait.Filter.Of(params)}
+	if spec.Wait.TimeoutParam != "" {
+		if ms, ok := DurationMs(params[spec.Wait.TimeoutParam]); ok {
+			w.Timeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+	return w
+}
+
+// WaitMatches reports whether an event wakes a waiting node: its kind, then its filter with `event` being
+// this event.
+func (i *Interpreter) WaitMatches(nodeID string, ev Event, ctx Context) (bool, *Step) {
+	w, ok := i.WaitIntentOf(nodeID)
+	if !ok {
+		s := failed(FailInvalidGraph, "node %s does not wait", nodeID)
+		return false, &s
+	}
+	if w.Event == "" || ev.Kind() != w.Event {
+		return false, nil
+	}
+	if s := i.tooLarge(ev, "the event"); s != nil {
+		return false, s
+	}
+	if w.Filter == "" {
+		return true, nil
+	}
+	sc := &StepContext{Ctx: ctx, in: i}
+	sc.Ctx.Event = ev
+	v, st := sc.EvalWith(w.Event, sc.Ctx, w.Filter, expr.TypeBool)
+	if st != nil {
+		return false, st
+	}
+	return v == true, nil
+}
+
+// Wake is the outcome and output of a woken wait: matched with the event's payload, or its timeout
+// outcome when ev is nil.
+func (i *Interpreter) Wake(nodeID string, ev Event) (string, map[string]any) {
+	node, _ := i.view.Node(nodeID)
+	spec := i.view.catalog.Nodes[node.Type]
+	if spec.Wait == nil {
+		return "", nil
+	}
+	if ev == nil {
+		return spec.Wait.TimeoutOutcome, map[string]any{}
+	}
+	return spec.Wait.Matched, map[string]any{"event": ev.Payload()}
+}
+
+// FailedOutcome is the outcome a node takes when it fails, if its type has one.
+func (i *Interpreter) FailedOutcome(nodeID string) string {
+	node, _ := i.view.Node(nodeID)
+	return i.view.catalog.Nodes[node.Type].FailedOutcome
+}

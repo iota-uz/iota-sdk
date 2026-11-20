@@ -1,0 +1,15 @@
+{
+  "name": "expressions-missing-context",
+  "format": 2,
+  "kind": "expressions",
+  "description": "A missing field is found through CEL unknowns and named by its path in the AST: the first in the source when several are missing, the select chain without a method name, cut at the missing key of a dyn object; a branch that does not need it does not fail.",
+  "cases": [
+    {"subject": "card", "event": null, "source": "issue.number > 1 && size(card.tags) > 0", "type": "bool", "context": {}, "error": "missing_context", "path": "issue.number"},
+    {"subject": "card", "event": null, "source": "size(card.tags) > 0 && issue.number > 1", "type": "bool", "context": {}, "error": "missing_context", "path": "card.tags"},
+    {"subject": "card", "event": null, "source": "card.tags.size() > 1", "type": "bool", "context": {}, "error": "missing_context", "path": "card.tags"},
+    {"subject": "card", "event": null, "source": "event.a.b.c == 1", "type": "bool", "context": {"event": {"x": 1}}, "error": "missing_context", "path": "event.a"},
+    {"subject": "card", "event": null, "source": "issue.number > 1 || true", "type": "bool", "context": {}, "value": true},
+    {"subject": "card", "event": null, "source": "card.column == \"qa\"", "type": "bool", "context": {"card": {"column": null, "tags": []}}, "error": "missing_context", "path": "card.column"},
+    {"subject": "card", "event": "issue.labeled", "source": "event.label", "type": "string", "context": {"event": {"kind": "issue.labeled"}}, "error": "missing_context", "path": "event.label"}
+  ]
+}

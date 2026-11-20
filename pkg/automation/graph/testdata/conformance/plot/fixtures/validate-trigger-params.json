@@ -1,0 +1,91 @@
+{
+  "name": "validate-trigger-params",
+  "kind": "validate",
+  "description": "A trigger takes the params its event declares (its own, else its match fields) and no others; a signal event starts no graph.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Release notes",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "deployed",
+        "event": "deployment.succeeded",
+        "params": {
+          "production": "yes"
+        }
+      },
+      {
+        "id": "nightly",
+        "event": "schedule.fired",
+        "params": {
+          "timezone": "UTC"
+        }
+      },
+      {
+        "id": "changed",
+        "event": "run.changed"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "which",
+        "type": "branch",
+        "params": {
+          "expression": "run.number > 1"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "deployed",
+          "outcome": "fired"
+        },
+        "to": "which"
+      },
+      {
+        "from": {
+          "node": "nightly",
+          "outcome": "fired"
+        },
+        "to": "which"
+      },
+      {
+        "from": {
+          "node": "which",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "which",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "changed",
+          "outcome": "fired"
+        },
+        "to": "which"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "triggers[0].params.production"
+    },
+    {
+      "path": "triggers[1].params.time"
+    },
+    {
+      "path": "triggers[2].event"
+    }
+  ]
+}
