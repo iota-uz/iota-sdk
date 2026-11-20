@@ -166,10 +166,33 @@ func (v *GraphView) Out(node string) []Edge { return v.out[node] }
 // In lists the edges entering a node.
 func (v *GraphView) In(node string) []Edge { return v.in[node] }
 
-// Params are a node's params as its type parsed them (defaults applied); false when they are invalid.
+// Params are a node's params as its type parsed them (defaults applied), a copy the caller may change;
+// false when they are invalid.
 func (v *GraphView) Params(node string) (map[string]any, bool) {
 	p, ok := v.params[node]
-	return p, ok
+	if !ok {
+		return nil, false
+	}
+	return deepCopy(p).(map[string]any), true
+}
+
+// deepCopy copies JSON values: maps and lists are not shared.
+func deepCopy(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = deepCopy(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = deepCopy(e)
+		}
+		return out
+	}
+	return v
 }
 
 // Node returns a node by id.

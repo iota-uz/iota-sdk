@@ -1,0 +1,132 @@
+{
+  "name": "expressions-guards",
+  "format": 2,
+  "kind": "expressions",
+  "description": "A key of a dyn object is missing only where it is read: has() and in see it as absent, so a guarded read takes its fallback; index and select of an absent key give the same missing path; null elements of a list of dyn are values; int() and string() of dyn values are allowed (the forbidden overloads have no implementation).",
+  "catalog_patch": {
+    "subjects": {
+      "card": {
+        "context": {
+          "extra": {
+            "list": "dyn"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "has(event.data.a) ? event.data.a : \"none\"",
+      "type": "any",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "value": "none"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "has(event.data.a) && event.data.a.b == 1",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "value": false
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "\"zz\" in event.data ? event.data.zz : 0",
+      "type": "any",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "value": 0
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.data[\"zz\"] == 1",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "error": "missing_context",
+      "path": "event.data.zz"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "event.data.zz == 1",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "error": "missing_context",
+      "path": "event.data.zz"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "extra.size() == 2",
+      "type": "bool",
+      "context": {
+        "extra": [
+          null,
+          1
+        ]
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "int(event.data.x) == 1",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "string(event.data.x) == \"1\"",
+      "type": "bool",
+      "context": {
+        "event": {
+          "data": {
+            "x": 1
+          }
+        }
+      },
+      "value": true
+    }
+  ]
+}

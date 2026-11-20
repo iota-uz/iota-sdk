@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -257,6 +258,14 @@ func validateInstance(s *jsonschema.Schema, v any) []schemaIssue {
 		}
 	}
 	walk(ve)
+	// The validator's order of causes is not stable: sort, so the errors and their cap are deterministic.
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := pathOf("", out[i].Path), pathOf("", out[j].Path)
+		if a != b {
+			return a < b
+		}
+		return out[i].Message < out[j].Message
+	})
 	return out
 }
 

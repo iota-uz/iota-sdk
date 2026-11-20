@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,18 +20,59 @@ type templatePart struct {
 	program *Program
 }
 
-var templateRe = regexp.MustCompile(`(?s)\{\{(.*?)\}\}`)
-
 // TemplateExpressions lists the `{{ }}` expressions of a template (trimmed) with their offsets in text.
+// An expression ends at the first `}}` outside its string literals and braces, so `{{ {"a": {"b": 1}} }}`
+// is one expression; a `{{` without its end is text.
 func TemplateExpressions(text string) []TemplateExpression {
-	matches := templateRe.FindAllStringSubmatchIndex(text, -1)
-	out := make([]TemplateExpression, 0, len(matches))
-	for _, m := range matches {
-		raw := text[m[2]:m[3]]
+	var out []TemplateExpression
+	for at := 0; ; {
+		start := strings.Index(text[at:], "{{")
+		if start < 0 {
+			return out
+		}
+		start += at
+		end := expressionEnd(text, start+2)
+		if end < 0 {
+			return out
+		}
+		raw := text[start+2 : end]
 		lead := len(raw) - len(strings.TrimLeft(raw, " \t\r\n"))
-		out = append(out, TemplateExpression{Source: strings.TrimSpace(raw), Offset: m[2] + lead, Start: m[0], End: m[1]})
+		out = append(out, TemplateExpression{Source: strings.TrimSpace(raw), Offset: start + 2 + lead, Start: start, End: end + 2})
+		at = end + 2
 	}
-	return out
+}
+
+// expressionEnd is the index of the `}}` that closes an expression starting at from, or -1.
+func expressionEnd(text string, from int) int {
+	depth := 0
+	var quote byte
+	for i := from; i < len(text); i++ {
+		c := text[i]
+		if quote != 0 {
+			if c == '\\' {
+				i++
+				continue
+			}
+			if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+		case '{', '[', '(':
+			depth++
+		case ']', ')':
+			depth--
+		case '}':
+			if depth <= 0 && i+1 < len(text) && text[i+1] == '}' {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
 }
 
 // TemplateExpression is one `{{ }}` part of a template.
@@ -142,7 +182,17 @@ func renderText(v any, f Field) (string, error) {
 		}
 		parts := make([]string, 0, len(x))
 		for _, e := range x {
-			s, err := renderText(e, elem)
+			var s string
+			var err error
+			switch e.(type) {
+			case []any, map[string]any:
+				// A list or an object inside a list is JSON: flattening it would lose its shape.
+				var b bytes.Buffer
+				err = writeJSON(&b, e, elem)
+				s = b.String()
+			default:
+				s, err = renderText(e, elem)
+			}
 			if err != nil {
 				return "", err
 			}

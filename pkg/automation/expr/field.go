@@ -135,6 +135,9 @@ var reserved = map[string]bool{
 	"loop": true, "package": true, "namespace": true, "return": true, "var": true, "void": true, "while": true,
 }
 
+// IsName reports whether s can name a variable or a field a select reads: a CEL identifier, not a keyword.
+func IsName(s string) bool { return identRe.MatchString(s) && !reserved[s] }
+
 // Validate reports a declaration that cannot be used: an empty enum, a property that is not a CEL identifier.
 func (f Field) Validate() error {
 	switch f.Kind {

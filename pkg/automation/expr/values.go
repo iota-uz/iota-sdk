@@ -71,6 +71,9 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		return n.value(*f.Elem, v, path)
 	case Dyn:
 		d, err := dynValue(v, path)
+		if m, ok := d.(map[string]any); ok && err == nil {
+			return newDynMap(m, path, true), true, nil
+		}
 		return d, true, err
 	case String, Enum:
 		s, ok := v.(string)
@@ -121,7 +124,11 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		}
 		out := make([]any, 0, len(list))
 		for i, x := range list {
-			if x == nil && f.Elem.Kind != Optional && f.Elem.Kind != Dyn {
+			if x == nil && f.Elem.Kind == Dyn {
+				out = append(out, nil) // null is a dyn value
+				continue
+			}
+			if x == nil && f.Elem.Kind != Optional {
 				return nil, false, &InputError{Path: pathString(appendPath(path, int64(i))), Message: "null in a list"}
 			}
 			nv, present, err := n.value(*f.Elem, x, appendPath(path, int64(i)))
@@ -153,7 +160,7 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 				out[k] = nv
 			}
 		}
-		return out, true, nil
+		return newDynMap(out, path, false), true, nil
 	case Object:
 		m, ok := v.(map[string]any)
 		if !ok {

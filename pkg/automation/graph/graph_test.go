@@ -298,3 +298,69 @@ func TestRulesOption(t *testing.T) {
 		t.Fatalf("errors: %v", errs)
 	}
 }
+
+// Params handed out (End, Effect) are copies: an engine changing them does not change the next run.
+func TestParamsAreNotShared(t *testing.T) {
+	c := testCatalog(t)
+	in, err := graph.NewInterpreter(c, mustDecode(t, orderGraph), graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := in.Start("stop", nil)
+	st.End["reason"] = "changed"
+	if again := in.Start("stop", nil); again.End["reason"] != "done" {
+		t.Fatalf("the cached params changed: %v", again.End)
+	}
+}
+
+func TestDecodeErrorsAreDeterministic(t *testing.T) {
+	raw := `{"name": "x", "bad": 1, "triggers": [{"id": "A", "event": ""}], "nodes": [{"id": "B", "type": 1}], "edges": [{"from": {}, "to": "C"}]}`
+	_, first := graph.Decode([]byte(raw))
+	for range 30 {
+		_, errs := graph.Decode([]byte(raw))
+		if len(errs) != len(first) {
+			t.Fatalf("%v vs %v", errs, first)
+		}
+		for i := range errs {
+			if errs[i].Path != first[i].Path || errs[i].Message != first[i].Message {
+				t.Fatalf("order differs: %v vs %v", errs, first)
+			}
+		}
+	}
+}
+
+func TestRevisionCoversBehavior(t *testing.T) {
+	c := testCatalog(t)
+	n := c.Nodes["notify"]
+	n.FailedOutcome = "oops"
+	c.Nodes["notify"] = n
+	if graph.Revision(c, nil) == testCatalog(t).Revision {
+		t.Fatal("a failed outcome change keeps the revision")
+	}
+}
+
+func TestGoBuiltGraph(t *testing.T) {
+	c := testCatalog(t)
+	g := graph.Graph{
+		Name:     "Go",
+		Triggers: []graph.Trigger{{ID: "t", Event: "order.created"}},
+		Nodes:    []graph.Node{{ID: "stop", Type: "end"}},
+		Edges:    []graph.Edge{{From: graph.EdgeFrom{Node: "t", Outcome: graph.TriggerOutcome}, To: "stop"}},
+	}
+	if errs := graph.Validate(c, g, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("errors: %v", errs)
+	}
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := in.DryRun(graph.Subject{Entity: "customer", Key: "1"}, graph.Context{}, nil, graph.DryRunOptions{})
+	if len(trace) != 1 || trace[0].ContextPatch["code"] != graph.FailInvalidSubject {
+		t.Fatalf("another subject: %+v", trace)
+	}
+	trace = in.DryRun(graph.Subject{Entity: "order", Key: "1"}, graph.Context{},
+		[]graph.DryRunInput{{Event: graph.Event{"kind": "order.created", "total": 1}}}, graph.DryRunOptions{})
+	if len(trace) != 2 || trace[1].Outcome != graph.TraceEnd {
+		t.Fatalf("trace: %+v", trace)
+	}
+}

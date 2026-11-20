@@ -289,7 +289,8 @@ func ValidateLayout(l Layout) []GraphError {
 	if len(l) > MaxLayoutPlaces {
 		out = append(out, GraphError{Path: "layout", Code: CodeLimit, Message: fmt.Sprintf("at most %d places, one per node and trigger", MaxLayoutPlaces)})
 	}
-	for id, xy := range l {
+	for _, id := range sortedKeys(l) {
+		xy := l[id]
 		if !IsID(id) {
 			out = append(out, GraphError{Path: "layout." + id, Code: CodeInvalid, Message: "not a node or trigger id"})
 		}

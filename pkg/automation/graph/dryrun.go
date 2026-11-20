@@ -43,11 +43,21 @@ const maxDryRunSteps = 500
 // path; a run still waiting after the last input ends with waiting. An input no trigger takes leaves the
 // trace with not_triggered and, per trigger of the event's kind, the condition that failed.
 func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput, o DryRunOptions) []TraceStep {
-	_ = subject // a run is about its subject; the interpreter reads it through ctx.Vars
 	given := ctx.Nodes
 	run := Context{Event: map[string]any{}, Nodes: map[string]NodeState{}, Vars: ctx.Vars, Now: ctx.Now, Tenant: ctx.Tenant}
 	for id, st := range ctx.Nodes {
+		// A call's given answer is its answer, not an output: it is visible once the call has run.
+		if node, ok := i.view.Node(id); ok && i.view.catalog.Nodes[node.Type].Behavior == BehaviorCall {
+			continue
+		}
 		run.Nodes[id] = st
+	}
+	if reason := i.subjectMismatch(subject); reason != "" {
+		node := "trigger"
+		if len(i.view.graph.Triggers) > 0 {
+			node = i.view.graph.Triggers[0].ID
+		}
+		return []TraceStep{{Node: node, Outcome: TraceFailed, ContextPatch: map[string]any{"code": FailInvalidSubject, "message": reason}}}
 	}
 	trace := make([]TraceStep, 0, len(inputs)+4)
 	started, ended := false, false
@@ -229,6 +239,22 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 		trace = append(trace, TraceStep{Node: node, Outcome: TraceNotTriggered, ContextPatch: p})
 	}
 	return trace
+}
+
+// subjectMismatch is why a run cannot be about subject: the graph is about another entity, or a mixed
+// graph has no trigger about it. An empty entity is any subject.
+func (i *Interpreter) subjectMismatch(s Subject) string {
+	if s.Entity == "" || s.Entity == i.view.subject {
+		return ""
+	}
+	if i.view.catalog.MixedSubject != "" && i.view.subject == i.view.catalog.MixedSubject {
+		for _, t := range i.view.graph.Triggers {
+			if i.view.catalog.Events[t.Event].Subject == s.Entity {
+				return ""
+			}
+		}
+	}
+	return fmt.Sprintf("the graph is about a %s, not a %s", i.view.subject, s.Entity)
 }
 
 // callGiven is the answer a dry run takes for a call from the given nodes.<id>: its output and, by the

@@ -88,53 +88,6 @@ func (e *Env) chainOf(a *ast.AST, refs map[int64]*ast.ReferenceInfo, top ast.Exp
 	return chain{ids: ids, path: path, declLen: declLen, offset: offset}, true
 }
 
-// dynMissing walks each chain through the context and records the first key a dyn object or a map lacks:
-// that key is unknown, so the expression reports it as missing context unless a branch does not need it.
-func (p *Program) dynMissing(act map[string]any) []missing {
-	var out []missing
-	seen := map[string]bool{}
-	for _, c := range p.chains {
-		v, ok := act[c.path[0]]
-		if !ok {
-			continue // the variable itself is missing
-		}
-		f := p.env.scope.Vars[c.path[0]].Unwrap()
-		for i, seg := range c.path[1:] {
-			m, isMap := v.(map[string]any)
-			if !isMap {
-				break // selecting from a scalar or a list fails at evaluation
-			}
-			x, has := m[seg]
-			if f.Kind == Object {
-				prop, declared := f.Prop(seg)
-				if !declared || !has {
-					break // absent declared fields are already unknown
-				}
-				f, v = prop.Unwrap(), x
-				continue
-			}
-			if !has {
-				path := make([]segment, 0, i+2)
-				for _, s := range c.path[:i+2] {
-					path = append(path, s)
-				}
-				if key := strings.Join(c.path[:i+2], "."); !seen[key] {
-					seen[key] = true
-					out = append(out, missing{path: path})
-				}
-				break
-			}
-			if f.Kind == Map {
-				f = f.Elem.Unwrap()
-			} else {
-				f = DynField
-			}
-			v = x
-		}
-	}
-	return out
-}
-
 // missingPath is the path of the first unknown in the source: the chain of the field the expression reads
 // through declared fields, cut at the missing key of a dyn object.
 func (p *Program) missingPath(unk *types.Unknown) string {
@@ -165,6 +118,12 @@ func (p *Program) pathFor(id int64, pat []string) (string, int32) {
 			n = len(pat)
 		}
 		return strings.Join(c.path[:n], "."), c.offset
+	}
+	// An unknown read from a dyn object carries no expression id: find the chain that reads its path.
+	for _, c := range p.chains {
+		if len(c.path) >= len(pat) && hasPrefix(c.path, pat) {
+			return strings.Join(pat, "."), c.offset
+		}
 	}
 	offset := int32(math.MaxInt32)
 	if r, ok := p.ast.SourceInfo().GetOffsetRange(id); ok {
@@ -217,6 +176,8 @@ func ToNative(v ref.Val) (any, error) {
 		return x.Duration, nil
 	case *types.Err:
 		return nil, x
+	case *dynMap:
+		return dynNative(x.m)
 	}
 	if l, ok := v.(traits.Lister); ok {
 		n, ok := l.Size().(types.Int)
@@ -242,13 +203,41 @@ func ToNative(v ref.Val) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			out[fmt.Sprint(k.Value())] = val
+			key := fmt.Sprint(k.Value())
+			if _, dup := out[key]; dup {
+				return nil, fmt.Errorf("map keys %s collide as JSON keys", key)
+			}
+			out[key] = val
 		}
 		return out, nil
 	}
 	switch raw := v.Value().(type) {
 	case map[string]any:
-		return raw, nil
+		return dynNative(raw)
 	}
 	return v.Value(), nil
+}
+
+// dynNative unwraps nested dyn maps.
+func dynNative(m map[string]any) (map[string]any, error) {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		switch x := v.(type) {
+		case *dynMap:
+			n, err := dynNative(x.m)
+			if err != nil {
+				return nil, err
+			}
+			out[k] = n
+		case map[string]any:
+			n, err := dynNative(x)
+			if err != nil {
+				return nil, err
+			}
+			out[k] = n
+		default:
+			out[k] = v
+		}
+	}
+	return out, nil
 }

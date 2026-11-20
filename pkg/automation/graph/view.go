@@ -2,7 +2,6 @@ package graph
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // CatalogView is the catalog as a client reads it: everything an editor needs without Go code.
@@ -98,11 +97,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 	}
 	v.Revision = c.Revision
 	if v.Revision == "" {
-		body, err := json.Marshal(v)
-		if err != nil {
-			panic(fmt.Sprintf("graph: marshal a catalog view: %v", err))
-		}
-		v.Revision = revisionOf(body)
+		v.Revision = contentHash(c, v)
 	}
 	return v
 }

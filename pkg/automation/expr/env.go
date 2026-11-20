@@ -8,6 +8,7 @@ import (
 
 	"cel.dev/cel-go/cel"
 	"cel.dev/cel-go/common/ast"
+	celenv "cel.dev/cel-go/common/env"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/ext"
@@ -124,6 +125,24 @@ var forbiddenOverloads = map[string]bool{
 	"duration_to_int64":   true,
 }
 
+// stdlibSubset is the standard library without the forbidden overloads: they are refused at check time
+// for typed arguments and have no implementation at run time for dyn ones.
+func stdlibSubset() *celenv.LibrarySubset {
+	byFunction := map[string][]*celenv.Overload{}
+	for id := range forbiddenOverloads {
+		fn := "string"
+		if strings.HasSuffix(id, "_to_int64") {
+			fn = "int"
+		}
+		byFunction[fn] = append(byFunction[fn], &celenv.Overload{ID: id})
+	}
+	excluded := make([]*celenv.Function, 0, 2)
+	for _, fn := range []string{"int", "string"} {
+		excluded = append(excluded, &celenv.Function{Name: fn, Overloads: byFunction[fn]})
+	}
+	return celenv.NewLibrarySubset().AddExcludedFunctions(excluded...)
+}
+
 // Env is a CEL environment over a scope: standard functions, ext.Strings and ext.Bindings.
 type Env struct {
 	scope    Scope
@@ -143,6 +162,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 	}
 	sort.Strings(names)
 	opts := []cel.EnvOption{
+		cel.StdLib(cel.StdLibSubset(stdlibSubset())),
 		cel.CustomTypeProvider(p),
 		cel.CrossTypeNumericComparisons(true),
 		cel.DefaultUTCTimeZone(true),
@@ -160,7 +180,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 		}
 		opts = append(opts, cel.Variable(name, p.celType(f, name)))
 	}
-	env, err := cel.NewEnv(opts...)
+	env, err := cel.NewCustomEnv(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -545,7 +565,6 @@ func (p *Program) activation(vars map[string]any) (map[string]any, []*cel.Attrib
 		}
 	}
 	missing := n.missing
-	missing = append(missing, p.dynMissing(act)...)
 	patterns := make([]*cel.AttributePatternType, 0, len(missing))
 	for _, m := range missing {
 		pat := cel.AttributePattern(m.path[0].(string))

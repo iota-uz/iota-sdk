@@ -171,13 +171,17 @@ func (c Catalog) Check(b *Behaviors) error {
 		_, ok := c.Subjects[s]
 		return ok || s == SubjectConversation || s == SubjectNone
 	}
-	for entity, s := range c.Subjects {
+	for _, entity := range sortedKeys(c.Subjects) {
+		s := c.Subjects[entity]
 		if err := s.Context.Validate(); err != nil {
 			return fmt.Errorf("subject %s: %w", entity, err)
 		}
 		for _, p := range s.Context {
 			if reservedVars[p.Name] {
 				return fmt.Errorf("subject %s: %s is a variable of every scope", entity, p.Name)
+			}
+			if k := p.Field.Unwrap().Kind; k != expr.Object && k != expr.List {
+				return fmt.Errorf("subject %s: %s is an object or a list", entity, p.Name)
 			}
 		}
 	}
@@ -228,6 +232,14 @@ func (c Catalog) Check(b *Behaviors) error {
 		}
 		if err := n.Output.Validate(); err != nil {
 			return fmt.Errorf("node %s: output: %w", typ, err)
+		}
+		if a := n.Answer; a != nil {
+			if a.Choice == "" {
+				return fmt.Errorf("node %s: answer names its choice field", typ)
+			}
+			if c := a.Confidence; c != nil && (c.Field == "" || c.MinParam == "" || c.Below == "") {
+				return fmt.Errorf("node %s: answer confidence names field, min_param and below", typ)
+			}
 		}
 		if n.Wait != nil && n.Wait.Event.Value != "" {
 			if _, ok := c.Events[n.Wait.Event.Value]; !ok {
@@ -342,7 +354,8 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 	}
 	subjects := sortedKeys(c.Subjects)
 	events := sortedKeys(cj.Events)
-	for key, e := range cj.Events {
+	for _, key := range events {
+		e := cj.Events[key]
 		spec := EventSpec{
 			Key: key, Title: e.Title, Group: e.Group, Subject: e.Subject, Payload: e.Payload,
 			Match: e.Match, NoTrigger: e.NoTrigger, MatchHook: e.MatchHook,
@@ -359,7 +372,8 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 		}
 		c.Events[key] = spec
 	}
-	for typ, n := range cj.Nodes {
+	for _, typ := range sortedKeys(cj.Nodes) {
+		n := cj.Nodes[typ]
 		if _, ok := b.impl(n.Behavior); !ok {
 			return Catalog{}, fmt.Errorf("node %s: behavior %q is not one of %s", typ, n.Behavior, joinBehaviors(b.Supported()))
 		}
@@ -433,6 +447,52 @@ func withType(n NodeSpec, typ string) NodeSpec {
 func Revision(c Catalog, b *Behaviors) string {
 	c.Revision = ""
 	return View(c, b).Revision
+}
+
+// specDetail is what changes how a node or an event runs and the view does not show.
+type specDetail struct {
+	Outcomes      []string    `json:"outcomes,omitempty"`
+	DoneOutcome   string      `json:"done_outcome,omitempty"`
+	FailedOutcome string      `json:"failed_outcome,omitempty"`
+	Values        []string    `json:"values,omitempty"`
+	Answer        *AnswerSpec `json:"answer,omitempty"`
+	Wait          *waitDetail `json:"wait,omitempty"`
+	MatchHook     string      `json:"match_hook,omitempty"`
+}
+
+type waitDetail struct {
+	Event          ValueOrParam `json:"event"`
+	Filter         ValueOrParam `json:"filter"`
+	TimeoutParam   string       `json:"timeout_param,omitempty"`
+	Matched        string       `json:"matched,omitempty"`
+	TimeoutOutcome string       `json:"timeout_outcome,omitempty"`
+	Effect         bool         `json:"effect,omitempty"`
+}
+
+// contentHash hashes the view together with the details of every node and event.
+func contentHash(c Catalog, v CatalogView) string {
+	details := map[string]specDetail{}
+	for typ, n := range c.Nodes {
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer}
+		if w := n.Wait; w != nil {
+			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
+		}
+		details["node:"+typ] = d
+	}
+	for key, e := range c.Events {
+		if e.MatchHook != "" {
+			details["event:"+key] = specDetail{MatchHook: e.MatchHook}
+		}
+	}
+	v.Revision = ""
+	body, err := json.Marshal(struct {
+		View    CatalogView           `json:"view"`
+		Details map[string]specDetail `json:"details"`
+	}{v, details})
+	if err != nil {
+		panic(fmt.Sprintf("graph: marshal a catalog: %v", err))
+	}
+	return revisionOf(body)
 }
 
 func revisionOf(body []byte) string {

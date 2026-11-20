@@ -67,6 +67,7 @@ const (
 	FailInvalidAnswer  = "INVALID_ANSWER"
 	FailInvalidRequest = "INVALID_REQUEST"
 	FailValueTooLarge  = "VALUE_TOO_LARGE"
+	FailInvalidSubject = "INVALID_SUBJECT"
 )
 
 // Step is one decision of the interpreter. Nothing in it is applied: the engine applies effects and calls.
@@ -160,6 +161,22 @@ func (s *StepContext) Params(node Node) map[string]any {
 	return p
 }
 
+// View is the graph's view: edges, params, reachability, for behaviors that route between branches.
+func (s *StepContext) View() *GraphView {
+	if s.in == nil {
+		return nil
+	}
+	return s.in.view
+}
+
+// Next is where an outcome of a node leads (see Interpreter.Next).
+func (s *StepContext) Next(from, outcome string) (string, bool) {
+	if s.in == nil {
+		return "", false
+	}
+	return s.in.Next(from, outcome)
+}
+
 // Catalog is the interpreter's catalog.
 func (s *StepContext) Catalog() Catalog {
 	if s.in == nil {
@@ -173,13 +190,17 @@ func (s *StepContext) Eval(src string, want expr.Type) (any, *Step) {
 	return s.EvalWith("*", s.Ctx, src, want)
 }
 
-// EvalWith evaluates in the scope of an event kind ("*": the graph's own) over a context.
+// EvalWith evaluates in the scope of an event kind ("*": the graph's own) over a context; node outputs are
+// in scope, as for every node expression.
 func (s *StepContext) EvalWith(event string, ctx Context, src string, want expr.Type) (any, *Step) {
+	return s.eval(event, true, ctx, src, want)
+}
+
+func (s *StepContext) eval(event string, withNodes bool, ctx Context, src string, want expr.Type) (any, *Step) {
 	if s.in == nil {
 		st := failed(FailInvalidGraph, "a step context without an interpreter")
 		return nil, &st
 	}
-	withNodes := event == "*"
 	p, issues := s.in.exprs.program(event, withNodes, src, want)
 	if len(issues) > 0 {
 		st := failed(FailExpression, "%s", issues[0].Message)
@@ -302,9 +323,12 @@ type Interpreter struct {
 	next  map[string]map[string]string
 }
 
-// NewInterpreter prepares a graph; it must be valid.
+// NewInterpreter prepares a graph; it must be valid by the format's rules.
+// Product rules (Options.Rules) are not rechecked: a version saved before a rule started failing still runs.
 func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
-	if errs := Validate(c, g, o); len(errs) > 0 {
+	format := o
+	format.Rules = nil
+	if errs := Validate(c, g, format); len(errs) > 0 {
 		msgs := make([]string, 0, 3)
 		for i, e := range errs {
 			if i == 3 {
@@ -429,7 +453,7 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 	if t.Filter != "" {
 		sc := &StepContext{Ctx: ctx, in: i}
 		sc.Ctx.Event = ev
-		v, st := sc.EvalWith(t.Event, sc.Ctx, t.Filter, expr.TypeBool)
+		v, st := sc.eval(t.Event, false, sc.Ctx, t.Filter, expr.TypeBool) // a trigger reads no node outputs
 		if st != nil {
 			return "", st
 		}
@@ -463,11 +487,12 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 	if !ok {
 		return failed(FailInvalidGraph, "behavior %s does not run here", spec.Behavior)
 	}
-	if s == nil {
-		s = &StepContext{}
+	sc := StepContext{}
+	if s != nil {
+		sc = *s
 	}
-	s.in = i
-	return impl.Start(s, node, spec)
+	sc.in = i
+	return impl.Start(&sc, node, spec)
 }
 
 // CallOutcome is the outcome of a call from its answer, by the node type's answer rule: the chosen value,

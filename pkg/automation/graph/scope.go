@@ -41,12 +41,16 @@ func newExprs(v *GraphView, limits expr.Limits) *exprs {
 	if len(kinds) == 1 {
 		x.event = v.graph.Triggers[0].Event
 	}
+	seen := map[string]bool{}
 	for _, n := range v.graph.Nodes {
 		spec, ok := v.catalog.Nodes[n.Type]
 		p, okp := v.params[n.ID]
-		if !ok || !okp {
+		// A duplicate id or one CEL cannot select has its own error at nodes[i].id; keep it out of scope.
+		if !ok || !okp || seen[n.ID] || !expr.IsName(n.ID) {
+			seen[n.ID] = true
 			continue
 		}
+		seen[n.ID] = true
 		if f, ok, _ := nodeOutput(v.catalog, spec, p); ok {
 			x.outputs = append(x.outputs, expr.Prop{Name: n.ID, Field: expr.ObjectOf(expr.Fields{{Name: "output", Field: f}})})
 		}

@@ -59,7 +59,18 @@ func issuePath(prefix string, path []any) string {
 func Validate(c Catalog, g Graph, o Options) []GraphError {
 	// The structure, also for a graph built in Go rather than decoded.
 	var doc any
-	raw, err := json.Marshal(g)
+	shape := g
+	if shape.RunAs == "" {
+		shape.RunAs = RunAsOwner // the default, as Decode gives it
+	}
+	shape.Nodes = make([]Node, len(g.Nodes))
+	for i, n := range g.Nodes {
+		if n.Params == nil {
+			n.Params = map[string]any{} // a node built in Go without params
+		}
+		shape.Nodes[i] = n
+	}
+	raw, err := json.Marshal(shape)
 	if err != nil {
 		return []GraphError{{Path: "graph", Code: CodeInvalid, Message: err.Error()}}
 	}
@@ -88,7 +99,15 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		}
 		ids[t.ID] = true
 	}
+	for i, t := range g.Triggers {
+		if t.ID != Ignore && !expr.IsName(t.ID) {
+			errs.add(fmt.Sprintf("triggers[%d].id", i), CodeInvalid, "%s is a CEL keyword", t.ID)
+		}
+	}
 	for i, n := range g.Nodes {
+		if n.ID != Ignore && !expr.IsName(n.ID) {
+			errs.add(fmt.Sprintf("nodes[%d].id", i), CodeInvalid, "%s is a CEL keyword: nodes.%s cannot be read", n.ID, n.ID)
+		}
 		if n.ID == Ignore {
 			errs.add(fmt.Sprintf("nodes[%d].id", i), CodeInvalid, "%s is reserved for an edge that ends the run", Ignore)
 		}
