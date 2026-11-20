@@ -435,7 +435,7 @@
     "version": "0.48.0",
     "source": "740d7004b8aa9e24fc2b556118e9729e2ee1458e",
     "sha": "e1fe8b6103779aa5b31de4a9909f483988200194",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "44798196183"
   },
   "ready": {
