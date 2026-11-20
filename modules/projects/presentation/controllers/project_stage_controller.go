@@ -3,12 +3,16 @@ package controllers
 
 import (
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	projectstage "github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project_stage"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/templates/pages/project_stages"
@@ -16,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -82,17 +87,34 @@ func (c *ProjectStageController) List(
 	r *http.Request,
 	w http.ResponseWriter,
 	projectStageService *services.ProjectStageService,
+	projectService *services.ProjectService,
 ) {
 	paginationParams := composables.UsePaginated(r)
 
-	entities, err := projectStageService.GetPaginated(r.Context(), paginationParams.Limit, paginationParams.Offset, []string{})
+	registry := c.filterRegistry(r, projectService)
+	// Links made by the former created-at filter still work.
+	conditions := registry.Decode(filterq.LegacyDateRange(r.URL.Query(), "CreatedAt.From", "CreatedAt.To", "created_at"))
+	params := &projectstage.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+		Search: strings.TrimSpace(r.URL.Query().Get("Search")),
+		Filters: filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[projectstage.Field]{
+			"project":     {Column: projectstage.ProjectID, Type: "uuid"},
+			"start":       {Column: projectstage.StartDate},
+			"planned_end": {Column: projectstage.PlannedEndDate},
+			"factual_end": {Column: projectstage.FactualEndDate},
+			"created_at":  {Column: projectstage.CreatedAt},
+		}, time.Now()),
+	}
+
+	entities, err := projectStageService.Find(r.Context(), params)
 	if err != nil {
 		http.Error(w, "Failed to fetch project stages", http.StatusInternalServerError)
 		return
 	}
 
 	// Get total count for pagination
-	total, err := projectStageService.Count(r.Context())
+	total, err := projectStageService.CountFound(r.Context(), params)
 	if err != nil {
 		http.Error(w, "Failed to count project stages", http.StatusInternalServerError)
 		return
@@ -103,13 +125,35 @@ func (c *ProjectStageController) List(
 	props := &project_stages.IndexPageProps{
 		ProjectStages:   viewModels,
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), paginationParams.Limit),
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "project-stage-filters", ShowResetAlways: true,
+		},
 	}
 
 	if htmx.IsHxRequest(r) {
-		templ.Handler(project_stages.ProjectStagesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(project_stages.ProjectStagesTableWithChips(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(project_stages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
+}
+
+// filterRegistry describes the chips of the project stages list: the project
+// and the stage dates; a stage without a factual end date is not finished.
+func (c *ProjectStageController) filterRegistry(r *http.Request, projectService *services.ProjectService) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var projects []filterbuilder.Option
+	if all, err := projectService.GetAll(r.Context()); err == nil {
+		for _, p := range all {
+			projects = append(projects, filterbuilder.Opt(p.ID().String(), p.Name()))
+		}
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{Key: "project", Type: filterq.FieldTypeReference, Label: pageCtx.T("ProjectStages.Single.ProjectID"), Options: projects},
+		filterbuilder.FieldDef{Key: "start", Type: filterq.FieldTypeDate, Label: pageCtx.T("ProjectStages.List.StartDate"), Nullable: true},
+		filterbuilder.FieldDef{Key: "planned_end", Type: filterq.FieldTypeDate, Label: pageCtx.T("ProjectStages.List.PlannedEndDate"), Nullable: true},
+		filterbuilder.FieldDef{Key: "factual_end", Type: filterq.FieldTypeDate, Label: pageCtx.T("ProjectStages.List.FactualEndDate"), Nullable: true},
+		filterbuilder.FieldDef{Key: "created_at", Type: filterq.FieldTypeDate, Label: pageCtx.T("CreatedAt")},
+	)
 }
 
 func (c *ProjectStageController) ListByProject(

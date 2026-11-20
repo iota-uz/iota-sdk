@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -154,29 +153,6 @@ func (c *MoneyAccountController) filterRegistry(r *http.Request) *filterbuilder.
 	)
 }
 
-// legacyCreatedAt keeps links made by the former CreatedAt.From/To drawer
-// filter working: they become a created_at chip.
-func legacyCreatedAt(q url.Values) url.Values {
-	from, to := q.Get("CreatedAt.From"), q.Get("CreatedAt.To")
-	if from == "" || to == "" {
-		return q
-	}
-	fromTime, err1 := time.Parse(time.RFC3339, from)
-	toTime, err2 := time.Parse(time.RFC3339, to)
-	if err1 != nil || err2 != nil {
-		return q
-	}
-	out := url.Values{}
-	for k, v := range q {
-		out[k] = v
-	}
-	out.Add(filterq.ParamName, filterq.EncodeCondition(filterq.Condition{
-		Field: accountFilterCreatedAt, Op: filterq.OpBetween,
-		Values: []string{fromTime.Format(filterq.DateLayout), toTime.Format(filterq.DateLayout)},
-	}))
-	return out
-}
-
 func (c *MoneyAccountController) tableDefinitionWithBar(bar, oob templ.Component) table.TableDefinition {
 	return table.NewTableDefinition("", c.basePath).
 		WithColumns(c.tableDefinition.Columns()...).
@@ -216,7 +192,8 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	registry := c.filterRegistry(r)
-	conditions := registry.Decode(legacyCreatedAt(r.URL.Query()))
+	// Links made by the former created-at drawer filter still work.
+	conditions := registry.Decode(filterq.LegacyDateRange(r.URL.Query(), "CreatedAt.From", "CreatedAt.To", accountFilterCreatedAt))
 	params.Filters = append(params.Filters, filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[moneyAccount.Field]{
 		accountFilterCurrency:   {Column: moneyAccount.CurrencyCode},
 		accountFilterHasBalance: {Column: moneyAccount.Balance, Expr: func(col string) string { return col + " <> 0" }},

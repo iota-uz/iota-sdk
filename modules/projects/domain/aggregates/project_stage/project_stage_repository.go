@@ -26,6 +26,18 @@ const (
 
 type SortBy = repo.SortBy[Field]
 
+// Filter narrows Find by one field.
+type Filter = repo.FieldFilter[Field]
+
+// FindParams selects a page of stages: a free-text search over the
+// description and field filters (e.g. from filter chips, filterq.RepoFilters).
+type FindParams struct {
+	Limit   int
+	Offset  int
+	Search  string
+	Filters []Filter
+}
+
 type Repository interface {
 	Save(ctx context.Context, stage ProjectStage) (ProjectStage, error)
 	Delete(ctx context.Context, id uuid.UUID) error
@@ -33,6 +45,9 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]ProjectStage, error)
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]ProjectStage, error)
 	Count(ctx context.Context) (int64, error)
+	// Find and CountFound honour FindParams' search and filters.
+	Find(ctx context.Context, params *FindParams) ([]ProjectStage, error)
+	CountFound(ctx context.Context, params *FindParams) (int64, error)
 	GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectStage, error)
 	GetNextStageNumber(ctx context.Context, projectID uuid.UUID) (int, error)
 	UpdatePaidAmounts(ctx context.Context, stageID uuid.UUID) error

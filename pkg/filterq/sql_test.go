@@ -126,3 +126,11 @@ func TestRepoFiltersRenderAgainstRepositoryColumn(t *testing.T) {
 	assert.Equal(t, "((ma.balance)::numeric BETWEEN SYMMETRIC $2::numeric AND $3::numeric)", filters[1].Filter.String("ma.balance", 2))
 	assert.Equal(t, []any{"1", "2"}, filters[1].Filter.Value())
 }
+
+func TestLegacyDateRange(t *testing.T) {
+	q := url.Values{"CreatedAt.From": {"2026-01-01T00:00:00Z"}, "CreatedAt.To": {"2026-01-31"}}
+	out := LegacyDateRange(q, "CreatedAt.From", "CreatedAt.To", "created_at")
+	assert.Equal(t, []string{"created_at:between:2026-01-01,2026-01-31"}, out[ParamName])
+	assert.Empty(t, q[ParamName], "the input is not modified")
+	assert.Equal(t, q, LegacyDateRange(q, "CreatedAt.From", "Missing", "created_at"))
+}

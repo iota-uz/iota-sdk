@@ -196,3 +196,37 @@ func validValue(t FieldType, v string) bool {
 	}
 	return false
 }
+
+// LegacyDateRange keeps links made by a former from/to date filter working
+// (e.g. ?CreatedAt.From=…&CreatedAt.To=…, RFC 3339 or YYYY-MM-DD): when both
+// parameters are present, it returns a copy of q with an equivalent
+// "<field> between" condition added. Otherwise q is returned unchanged.
+func LegacyDateRange(q url.Values, fromKey, toKey, field string) url.Values {
+	from, okFrom := parseLegacyDate(q.Get(fromKey))
+	to, okTo := parseLegacyDate(q.Get(toKey))
+	if !okFrom || !okTo {
+		return q
+	}
+	out := make(url.Values, len(q)+1)
+	for k, v := range q {
+		out[k] = append([]string(nil), v...)
+	}
+	out.Add(ParamName, EncodeCondition(Condition{
+		Field: field, Op: OpBetween,
+		Values: []string{from.Format(DateLayout), to.Format(DateLayout)},
+	}))
+	return out
+}
+
+func parseLegacyDate(v string) (time.Time, bool) {
+	if v == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse(DateLayout, v); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
+}
