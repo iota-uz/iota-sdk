@@ -311,3 +311,50 @@ func TestNotificationAudience_UnavailableChannelIsAFailedPrecondition(t *testing
 	require.Error(t, err)
 	require.Equal(t, serrors.FailedPrecondition, serrors.CodeOf(err))
 }
+
+// Notices and jobs are unique per event key and identity, not per mode: rule
+// mode may not take the addressed namespace, and a legacy rule job holding it
+// is never reported as an audience send's receipt.
+func TestNotificationAudience_RuleModeCannotTakeTheAddressedIdentity(t *testing.T) {
+	c := setupAudience(t, 2)
+	require.NoError(t, c.router.SaveRule(c.committed, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: c.people[:1]}))
+	rule := c.event(uuid.NewString())
+	rule.DedupeKey = "addressed:same"
+	_, err := c.dispatch.Enqueue(c.committed, rule)
+	require.Error(t, err)
+	require.Equal(t, serrors.Invalid, serrors.CodeOf(err))
+
+	send := c.event(uuid.NewString())
+	send.DedupeKey = "same"
+	receipt, err := c.send(t, notifications.AudienceRequest{Event: send, Audience: notifications.Audience{Users: c.people}})
+	require.NoError(t, err)
+	require.Equal(t, 2, receipt.Recipients)
+
+	legacy := c.event(uuid.NewString())
+	legacy.DedupeKey = "addressed:legacy"
+	_, err = persistence.NewNotificationDispatchRepository().Enqueue(c.committed, notifications.DispatchRequest{Event: legacy, Rule: notifications.Rule{EventKey: legacy.Key, Enabled: true}, Mode: notifications.NoticeRule, RecipientIDs: c.people[:1]})
+	require.NoError(t, err)
+	send.DedupeKey = "legacy"
+	_, err = c.send(t, notifications.AudienceRequest{Event: send, Audience: notifications.Audience{Users: c.people}})
+	require.Error(t, err)
+	require.Equal(t, serrors.Conflict, serrors.CodeOf(err))
+}
+
+// The stored job is looked up before participants are resolved again, so a
+// participant whose record is gone does not hide the first receipt.
+func TestNotificationAudience_ReplayDoesNotResolveParticipantsAgain(t *testing.T) {
+	c := setupAudience(t, 1)
+	producer := notifications.Producer{InvocationID: "run-participant"}
+	source := c.source(c.people[0])
+	first, err := c.send(t, notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: source, Producer: producer})
+	require.NoError(t, err)
+	require.Equal(t, 1, first.Recipients)
+
+	gone := *source
+	gone.Data = map[string]string{"created_user": "deleted"} // the callback now fails
+	replay, err := c.send(t, notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: &gone, Producer: producer})
+	require.NoError(t, err)
+	require.Equal(t, first, replay)
+	_, err = c.sender.Resolve(c.committed, notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: &gone, Producer: producer})
+	require.Error(t, err, "a dry run still resolves and reports the failure")
+}

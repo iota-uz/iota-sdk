@@ -114,11 +114,14 @@ func (s *NotificationDispatchService) SendTx(ctx context.Context, tx pgx.Tx, req
 // Resolve expands the audience of req exactly as Send would, without writing.
 func (s *NotificationDispatchService) Resolve(ctx context.Context, req notifications.AudienceRequest) (notifications.ResolvedAudience, error) {
 	const op serrors.Op = "NotificationDispatchService.Resolve"
-	prepared, err := s.prepare(ctx, req)
+	if _, err := s.envelope(ctx, req); err != nil {
+		return notifications.ResolvedAudience{}, serrors.Wrap(op, err)
+	}
+	resolved, err := s.resolve(ctx, req)
 	if err != nil {
 		return notifications.ResolvedAudience{}, serrors.Wrap(op, err)
 	}
-	return prepared.resolved, nil
+	return resolved, nil
 }
 
 // Send queues a send to an audience in the transaction in ctx, so rollback
@@ -129,39 +132,58 @@ func (s *NotificationDispatchService) Resolve(ctx context.Context, req notificat
 // worker processes the job. Errors a caller can act on are returned before
 // anything is written: Invalid for an unknown notice, a malformed recipient,
 // a record or address without an external channel, an unknown participant,
-// participants without a source, a record entity without a contact resolver
-// or more than MaxExplicitRecipients recipients; FailedPrecondition when the
-// platform is not configured or a channel is unavailable.
+// participants without a source, a source of another tenant, a record entity
+// without a contact resolver or more than MaxExplicitRecipients recipients;
+// FailedPrecondition when the platform is not configured or a channel is
+// unavailable; Conflict when the identity is held by an event rule's job.
 func (s *NotificationDispatchService) Send(ctx context.Context, req notifications.AudienceRequest) (notifications.AudienceReceipt, error) {
 	const op serrors.Op = "NotificationDispatchService.Send"
-	prepared, err := s.prepare(ctx, req)
+	prepared, err := s.envelope(ctx, req)
 	if err != nil {
 		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
 	}
 	invalid := func(message string) (notifications.AudienceReceipt, error) {
 		return notifications.AudienceReceipt{}, serrors.New(serrors.Invalid, message).WithOp(op)
 	}
-	event := prepared.event
-	// Explicit jobs have their own identity namespace, so an event rule that
-	// already queued the same event ID cannot swallow the requested audience.
-	identity := eventIdentity(event)
-	event.DedupeKey = "addressed:" + identity
-	if len(event.DedupeKey) > 200 {
-		event.DedupeKey = fmt.Sprintf("addressed:sha256:%x", sha256.Sum256([]byte(identity)))
+	conflict := func() (notifications.AudienceReceipt, error) {
+		return notifications.AudienceReceipt{}, serrors.New(serrors.Conflict, "notification identity belongs to an event rule").WithOp(op)
 	}
-	// A replay returns what the first send accepted, even if the audience now
-	// resolves to nobody or to too many people. Concurrent first sends are
-	// still deduplicated atomically by the notice and job upserts below.
-	if existing, found, err := s.repo.Find(ctx, event.Key, event.DedupeKey); err != nil {
-		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
-	} else if found {
-		notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)
+	event := prepared.event
+	// Explicit sends have their own identity namespace, which rule mode may
+	// not use (see ensureNotice), so a rule job for the same event cannot
+	// swallow the requested audience.
+	identity := eventIdentity(event)
+	event.DedupeKey = addressedPrefix + identity
+	if len(event.DedupeKey) > 200 {
+		event.DedupeKey = fmt.Sprintf(addressedPrefix+"sha256:%x", sha256.Sum256([]byte(identity)))
+	}
+	// A replay returns what the first send accepted before the audience is
+	// resolved again, so a participant that no longer resolves, or a group
+	// that emptied or grew past the limit, does not change the receipt.
+	// Concurrent first sends are still deduplicated by the upserts below.
+	if finder, ok := s.repo.(notifications.DispatchFinder); ok {
+		existing, found, err := finder.Find(ctx, event.Key, event.DedupeKey)
 		if err != nil {
 			return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
 		}
-		return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: existing.Total()}, nil
+		if found {
+			if existing.Mode != notifications.NoticeExplicit {
+				return conflict()
+			}
+			notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)
+			if err != nil {
+				return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
+			}
+			if notice.Mode != notifications.NoticeExplicit {
+				return conflict()
+			}
+			return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: existing.Total()}, nil
+		}
 	}
-	resolved := prepared.resolved
+	resolved, err := s.resolve(ctx, req)
+	if err != nil {
+		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
+	}
 	for _, skipped := range resolved.Skipped {
 		switch skipped.Reason {
 		case notifications.SkipUnknownParticipant:
@@ -188,17 +210,22 @@ func (s *NotificationDispatchService) Send(ctx context.Context, req notification
 	if err != nil {
 		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
 	}
+	// Identities stored before rule mode reserved the namespace may still
+	// collide: never report a rule's notice or job as this send's receipt.
+	if notice.Mode != notifications.NoticeExplicit || job.Mode != notifications.NoticeExplicit {
+		return conflict()
+	}
 	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total()}, nil
 }
 
 type preparedAudience struct {
 	event    notifications.Event
 	channels []notifications.Channel
-	resolved notifications.ResolvedAudience
 }
 
-// prepare validates the envelope and channels and resolves the audience.
-func (s *NotificationDispatchService) prepare(ctx context.Context, req notifications.AudienceRequest) (preparedAudience, error) {
+// envelope validates the notice, tenant, channels and source and derives the
+// dedupe key, without resolving the audience.
+func (s *NotificationDispatchService) envelope(ctx context.Context, req notifications.AudienceRequest) (preparedAudience, error) {
 	invalid := func(message string) (preparedAudience, error) {
 		return preparedAudience{}, serrors.New(serrors.Invalid, message)
 	}
@@ -242,14 +269,22 @@ func (s *NotificationDispatchService) prepare(ctx context.Context, req notificat
 	if err := s.router.validateActor(ctx, event); err != nil {
 		return preparedAudience{}, err
 	}
-	resolved, err := s.router.audienceResolver(true).Resolve(ctx, req.Audience, req.Source)
-	if errors.Is(err, notifications.ErrInvalidAudience) {
-		return invalid(err.Error())
-	}
-	if err != nil {
+	if _, err := s.router.audienceResolver(true).CheckSource(ctx, req.Audience, req.Source); err != nil {
+		if errors.Is(err, notifications.ErrInvalidAudience) {
+			return invalid(err.Error())
+		}
 		return preparedAudience{}, err
 	}
-	return preparedAudience{event: event, channels: channels, resolved: resolved}, nil
+	return preparedAudience{event: event, channels: channels}, nil
+}
+
+// resolve expands the audience of a request whose envelope was validated.
+func (s *NotificationDispatchService) resolve(ctx context.Context, req notifications.AudienceRequest) (notifications.ResolvedAudience, error) {
+	resolved, err := s.router.audienceResolver(true).Resolve(ctx, req.Audience, req.Source)
+	if errors.Is(err, notifications.ErrInvalidAudience) {
+		return notifications.ResolvedAudience{}, serrors.New(serrors.Invalid, err.Error())
+	}
+	return resolved, err
 }
 
 func (s *NotificationDispatchService) Progress(ctx context.Context) (notifications.DispatchStats, error) {

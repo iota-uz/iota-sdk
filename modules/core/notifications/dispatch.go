@@ -55,13 +55,21 @@ type DispatchSummary struct {
 
 type DispatchRepository interface {
 	Enqueue(context.Context, DispatchRequest) (DispatchJob, error)
-	// Find returns the job stored for an event key and dedupe identity in the
-	// current tenant; found is false when there is none.
-	Find(ctx context.Context, eventKey, eventID string) (job DispatchJob, found bool, err error)
 	Next(context.Context) (*DispatchJob, error)
 	Advance(context.Context, uuid.UUID, int, int) error
 	Fail(context.Context, uuid.UUID) error
 	Retry(context.Context, uuid.UUID) error
 	Stats(context.Context) (DispatchStats, error)
 	List(context.Context) ([]DispatchSummary, error)
+}
+
+// DispatchFinder is an optional DispatchRepository extension. When the
+// repository implements it, an audience send looks up the job already stored
+// for its dedupe identity before resolving the audience again, so a replay
+// returns the first receipt even after membership changed. Without it a
+// replay is still deduplicated by Enqueue.
+type DispatchFinder interface {
+	// Find returns the job stored for an event key and dedupe identity in
+	// the current tenant; found is false when there is none.
+	Find(ctx context.Context, eventKey, eventID string) (job DispatchJob, found bool, err error)
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -271,10 +272,20 @@ func eventIdentity(event notifications.Event) string {
 	return event.ID
 }
 
-// ensureNotice stores the notice instance in the current transaction.
+// addressedPrefix starts the identity of every explicit and audience send.
+const addressedPrefix = "addressed:"
+
+// ensureNotice stores the notice instance in the current transaction. Rule
+// mode may not use the addressed identity namespace: notices and jobs are
+// unique per event key and identity, not per mode, so a rule event with such
+// an identity could take the place of an audience send.
 func (s *NotificationRoutingService) ensureNotice(ctx context.Context, event notifications.Event, mode notifications.NoticeMode) (notifications.Notice, error) {
+	const op serrors.Op = "NotificationRoutingService.ensureNotice"
 	if s.platform == nil || s.platform.Notices == nil || s.platform.Renderers == nil {
-		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp("NotificationRoutingService.ensureNotice")
+		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp(op)
+	}
+	if mode != notifications.NoticeExplicit && strings.HasPrefix(eventIdentity(event), addressedPrefix) {
+		return notifications.Notice{}, serrors.New(serrors.Invalid, "the addressed: identity prefix is reserved for explicit sends").WithOp(op)
 	}
 	return s.platform.Notices.Ensure(ctx, notifications.Notice{
 		TenantID: event.TenantID, EventKey: event.Key, Version: event.Version, SnapshotRef: event.SnapshotRef, EventID: eventIdentity(event),

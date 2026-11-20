@@ -295,9 +295,14 @@ recipient and for records or addresses without an external channel. It returns
 `FailedPrecondition` when the platform is not configured or a channel has no
 adapter. With a producer and no `DedupeKey`, the key is derived from the requested
 audience (not its members), so a replay returns the first `NoticeID` and job even
-after membership changed: the stored job is looked up before the new resolution
-is applied, so a group that emptied or grew past the limit does not change the
-receipt. The send neither reads nor changes the administrator's
+after membership changed: the stored job is looked up before the audience is
+resolved again, so a group that emptied or grew past the limit, or a participant
+that no longer resolves, does not change the receipt. The lookup uses the optional
+`notifications.DispatchFinder` extension of `DispatchRepository`; a repository
+without it still deduplicates through `Enqueue`. Identities starting with
+`addressed:` belong to explicit and audience sends: rule-mode events with such a
+`DedupeKey` are rejected as `Invalid`, and a send whose identity is held by an
+older rule job returns `Conflict` instead of that job's receipt. The send neither reads nor changes the administrator's
 rules and is deduplicated apart from rule-mode jobs.
 
 ### What happens after commit

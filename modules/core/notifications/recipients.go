@@ -86,20 +86,13 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 	if err != nil {
 		return ResolvedAudience{}, err
 	}
-	var definition Definition
-	if len(audience.Participants) > 0 && source == nil {
-		return invalid("participants need a source event")
+	source, err = r.CheckSource(ctx, audience, source)
+	if err != nil {
+		return ResolvedAudience{}, err
 	}
+	var definition Definition
 	if source != nil {
-		normalized, err := r.catalog.Normalize(*source)
-		if err != nil {
-			return invalid("unknown source event")
-		}
-		if normalized.TenantID != tenant {
-			return invalid("source event belongs to another tenant")
-		}
-		source = &normalized
-		definition, _ = r.catalog.For(normalized)
+		definition, _ = r.catalog.For(*source)
 	}
 	result := ResolvedAudience{}
 	skip := func(kind RecipientKind, ref, reason string) {
@@ -185,6 +178,30 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 		}
 	}
 	return result, nil
+}
+
+// CheckSource validates the source event of an audience without resolving
+// anyone: participants need a source, and a source must be registered and
+// belong to the context's tenant. It returns the normalized source.
+func (r *AudienceResolver) CheckSource(ctx context.Context, audience Audience, source *Event) (*Event, error) {
+	if len(audience.Participants) > 0 && source == nil {
+		return nil, fmt.Errorf("%w: participants need a source event", ErrInvalidAudience)
+	}
+	if source == nil {
+		return nil, nil //nolint:nilnil // No source is valid for an audience without participants.
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	normalized, err := r.catalog.Normalize(*source)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unknown source event", ErrInvalidAudience)
+	}
+	if normalized.TenantID != tenant {
+		return nil, fmt.Errorf("%w: source event belongs to another tenant", ErrInvalidAudience)
+	}
+	return &normalized, nil
 }
 
 // availableUsers keeps the users that exist in the tenant and can receive

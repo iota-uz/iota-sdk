@@ -15,6 +15,8 @@ import (
 
 type NotificationDispatchRepository struct{}
 
+var _ notifications.DispatchFinder = (*NotificationDispatchRepository)(nil)
+
 func NewNotificationDispatchRepository() notifications.DispatchRepository {
 	return &NotificationDispatchRepository{}
 }
