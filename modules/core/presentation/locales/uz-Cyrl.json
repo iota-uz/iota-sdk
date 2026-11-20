@@ -1372,9 +1372,9 @@
       "BlockedBy": "Блокланган:",
       "BlockedAt": "Блокланган сана:",
       "Errors": {
-        "ReasonRequired": "Сабаб майдон тўлдирилиши шарт",
-        "ReasonTooShort": "Сабаб жуда қисқа",
-        "ReasonTooLong": "Сабаб жуда узун",
+        "ReasonRequired": "Блоклаш сабаби талаб қилинади",
+        "ReasonTooShort": "Сабаб камида 3 та белгидан иборат бўлиши керак",
+        "ReasonTooLong": "Сабаб 1024 та белгидан ошмаслиги керак",
         "OperationFailed": "Фойдаланувчини блоклаб бўлмади. Илтимос, қайта уриниб кўринг."
       }
     },
@@ -1471,8 +1471,8 @@
     "gt": "{{.Field}} dan katta bo'lishi kerak",
     "alphanum": "{{.Field}} фақат ҳарф ва рақамлардан иборат бўлиши керак.",
     "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
-    "datetime": "Нотўғри сана ва вақт формати",
-    "gtfield": "Қиймат ушбу майдондан катта бўлиши керак",
+    "datetime": "{{.Field}} тўғри сана бўлиши керак",
+    "gtfield": "{{.Field}} {{.Param}}дан катта бўлиши керак",
     "invalidTIN": "ИНН формати нотўғри: {{.Details}}",
     "invalidPIN": "ПИНФЛ формати нотўғри: {{.Details}}"
   },
