@@ -2,6 +2,7 @@ package oidc_test
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -74,8 +75,9 @@ func TestStorage_CreateAccessAndRefreshTokens_IssuesAndRotates(t *testing.T) {
 
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, refresh)
 	require.Error(t, err, "a rotated refresh token must not be accepted again")
-	_, _, _, err = storage.CreateAccessAndRefreshTokens(env.Ctx, first, refresh)
+	replayed, _, _, err := storage.CreateAccessAndRefreshTokens(env.Ctx, first, refresh)
 	require.Error(t, err, "replaying a rotated refresh token must fail")
+	require.Empty(t, replayed)
 
 	_, err = storage.TokenRequestByRefreshToken(env.Ctx, rotated)
 	require.NoError(t, err)
@@ -144,7 +146,10 @@ func TestStorage_CreateAccessAndRefreshTokens_ConcurrentRedemption(t *testing.T)
 		go func() {
 			defer wg.Done()
 			<-start
-			_, _, _, err := storage.CreateAccessAndRefreshTokens(detached, grant, refresh)
+			access, _, _, err := storage.CreateAccessAndRefreshTokens(detached, grant, refresh)
+			if err == nil && access == "" {
+				err = errors.New("rotation returned no access token")
+			}
 			results <- err
 		}()
 	}
