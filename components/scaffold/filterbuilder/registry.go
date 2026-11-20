@@ -11,6 +11,7 @@ package filterbuilder
 
 import (
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -51,6 +52,12 @@ type FieldDef struct {
 	Group string
 	// Operators allowed for the field; nil → filterq.DefaultOperators(Type).
 	Operators []filterq.Operator
+	// Single makes a reference field pick one value (a plain select instead of
+	// a multi-select); conditions with several values are dropped on decode.
+	Single bool
+	// Nullable adds the "is empty" operator (filterq.OpEmpty) for a field
+	// whose value may be missing, e.g. an expense without a project.
+	Nullable bool
 	// Options for reference fields.
 	Options []Option
 	// Presets for date fields; nil → filterq.AllPresets().
@@ -60,10 +67,14 @@ type FieldDef struct {
 func (f FieldDef) operators() []filterq.Operator {
 	// Fall back to the type defaults when no operators are set — treat an empty
 	// (non-nil) slice the same as nil so callers never get a zero-length list.
-	if len(f.Operators) > 0 {
-		return f.Operators
+	ops := f.Operators
+	if len(ops) == 0 {
+		ops = filterq.DefaultOperators(f.Type)
 	}
-	return filterq.DefaultOperators(f.Type)
+	if f.Nullable && f.Type != filterq.FieldTypeBool && !slices.Contains(ops, filterq.OpEmpty) {
+		ops = append(slices.Clone(ops), filterq.OpEmpty)
+	}
+	return ops
 }
 
 func (f FieldDef) presets() []filterq.DatePreset {
@@ -71,7 +82,7 @@ func (f FieldDef) presets() []filterq.DatePreset {
 		return nil
 	}
 	// Presets resolve to ranges, so they require the between operator.
-	allowsBetween := filterq.Field{Key: f.Key, Type: f.Type, Operators: f.Operators}.AllowsOp(filterq.OpBetween)
+	allowsBetween := slices.Contains(f.operators(), filterq.OpBetween)
 	if !allowsBetween {
 		return nil
 	}
@@ -119,7 +130,7 @@ func (r *Registry) Field(key string) (FieldDef, bool) {
 func (r *Registry) Schema() filterq.Schema {
 	fields := make([]filterq.Field, 0, len(r.fields))
 	for _, f := range r.fields {
-		fields = append(fields, filterq.Field{Key: f.Key, Type: f.Type, Operators: f.Operators})
+		fields = append(fields, filterq.Field{Key: f.Key, Type: f.Type, Operators: f.operators(), Single: f.Single})
 	}
 	return filterq.Schema{Fields: fields}
 }
@@ -187,6 +198,8 @@ func operatorKey(op filterq.Operator) string {
 		return "Scaffold.FilterBuilder.Operators.Gt"
 	case filterq.OpLt:
 		return "Scaffold.FilterBuilder.Operators.Lt"
+	case filterq.OpEmpty:
+		return "Scaffold.FilterBuilder.Operators.Empty"
 	}
 	return ""
 }
@@ -206,6 +219,10 @@ func presetKey(p filterq.DatePreset) string {
 		return "Scaffold.FilterBuilder.Presets.ThisYear"
 	case filterq.PresetLastYear:
 		return "Scaffold.FilterBuilder.Presets.LastYear"
+	case filterq.PresetThisQuarter:
+		return "Scaffold.FilterBuilder.Presets.ThisQuarter"
+	case filterq.PresetLastQuarter:
+		return "Scaffold.FilterBuilder.Presets.LastQuarter"
 	}
 	return ""
 }

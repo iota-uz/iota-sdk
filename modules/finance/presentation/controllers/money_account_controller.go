@@ -12,8 +12,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -29,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -114,6 +115,52 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/transactions", c.GetAccountTransactions).Methods(http.MethodGet)
 }
 
+// Filter chip field keys of the accounts list.
+const (
+	accountFilterCurrency   = "currency"
+	accountFilterHasBalance = "has_balance"
+	accountFilterBalance    = "balance"
+	accountFilterCreatedAt  = "created_at"
+)
+
+// filterRegistry describes the chips of the accounts list. Accounts have no
+// type or active flag in the model, so those dimensions are not offered.
+func (c *MoneyAccountController) filterRegistry(r *http.Request) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var currencies []filterbuilder.Option
+	if list, err := c.viewModelCurrencies(r); err == nil {
+		for _, item := range list {
+			currencies = append(currencies, filterbuilder.Opt(item.Code, item.Code))
+		}
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{
+			Key: accountFilterCurrency, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("MoneyAccounts.List.Filters.Currency"), Options: currencies,
+		},
+		filterbuilder.FieldDef{
+			Key: accountFilterHasBalance, Type: filterq.FieldTypeBool,
+			Label: pageCtx.T("MoneyAccounts.List.Filters.HasBalance"),
+		},
+		filterbuilder.FieldDef{
+			Key: accountFilterBalance, Type: filterq.FieldTypeNumber,
+			Label: pageCtx.T("MoneyAccounts.List.Balance"),
+		},
+		filterbuilder.FieldDef{
+			Key: accountFilterCreatedAt, Type: filterq.FieldTypeDate,
+			Label: pageCtx.T("CreatedAt"),
+		},
+	)
+}
+
+func (c *MoneyAccountController) tableDefinitionWithBar(bar, oob templ.Component) table.TableDefinition {
+	return table.NewTableDefinition("", c.basePath).
+		WithColumns(c.tableDefinition.Columns()...).
+		WithInfiniteScroll(true).
+		WithFilterBar(bar, oob).
+		Build()
+}
+
 func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*coreviewmodels.Currency, error) {
 	currencies, err := c.currencyService.GetAll(r.Context())
 	if err != nil {
@@ -144,24 +191,16 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		params.Search = search
 	}
 
-	if from := r.URL.Query().Get("CreatedAt.From"); from != "" {
-		if to := r.URL.Query().Get("CreatedAt.To"); to != "" {
-			fromTime, err := time.Parse(time.RFC3339, from)
-			if err != nil {
-				http.Error(w, "Invalid from date format", http.StatusBadRequest)
-				return
-			}
-			toTime, err := time.Parse(time.RFC3339, to)
-			if err != nil {
-				http.Error(w, "Invalid to date format", http.StatusBadRequest)
-				return
-			}
-			params.Filters = append(params.Filters, moneyAccount.Filter{
-				Column: moneyAccount.CreatedAt,
-				Filter: repo.Between(fromTime, toTime),
-			})
-		}
-	}
+	registry := c.filterRegistry(r)
+	// Links made by the former created-at drawer filter still work.
+	conditions := registry.Decode(filterq.LegacyDateRange(r.URL.Query(), "CreatedAt.From", "CreatedAt.To", accountFilterCreatedAt))
+	params.Filters = append(params.Filters, filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[moneyAccount.Field]{
+		accountFilterCurrency:   {Column: moneyAccount.CurrencyCode},
+		accountFilterHasBalance: {Column: moneyAccount.Balance, Expr: func(col string) string { return col + " <> 0" }},
+		accountFilterBalance:    {Column: moneyAccount.Balance, Expr: func(col string) string { return col + " / 100.0" }},
+		accountFilterCreatedAt:  {Column: moneyAccount.CreatedAt},
+	}, time.Now())...)
+	barProps := filterbuilder.Props{Registry: registry, Filters: conditions, ID: "money-account-filters", ShowResetAlways: true}
 
 	accountEntities, err := c.moneyAccountService.GetPaginated(ctx, params)
 	if err != nil {
@@ -200,13 +239,14 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 				table.Column("created_at", pageCtx.T("CreatedAt")),
 			).
 			WithActions(actions.RenderAction(createAction)).
-			WithFilters(filters.CreatedAt()).
+			WithFilterBar(filterbuilder.Builder(barProps), filterbuilder.BuilderOOB(barProps)).
 			WithDeferredPanels(table.DeferredPanel{ID: "account-balances", URL: "/finance/balances"}).
 			WithInfiniteScroll(true).
 			Build()
 	} else {
-		// For HTMX requests, use minimal definition
-		definition = c.tableDefinition
+		// For HTMX requests, use minimal definition plus the chip bar, which
+		// re-renders out-of-band with the rows.
+		definition = c.tableDefinitionWithBar(filterbuilder.Builder(barProps), filterbuilder.BuilderOOB(barProps))
 	}
 
 	// Build table rows

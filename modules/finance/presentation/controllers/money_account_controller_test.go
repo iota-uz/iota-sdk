@@ -101,6 +101,65 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 		Contains("Test Account 2")
 }
 
+func TestMoneyAccountController_List_FilterChips(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User()
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD, currency.EUR)
+
+	service := itf.GetService[services.MoneyAccountService](env)
+	transactionSvc := itf.GetService[services.TransactionService](env)
+	currencySvc := itf.GetService[coreservices.CurrencyService](env)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
+	suite.Register(controller)
+
+	for i, a := range []struct {
+		name    string
+		balance *money.Money
+	}{
+		{"Dollar Wallet", money.NewFromFloat(1000.50, string(currency.UsdCode))},
+		{"Empty Dollar Wallet", money.NewFromFloat(0, string(currency.UsdCode))},
+		{"Euro Wallet", money.NewFromFloat(2500.75, string(currency.EurCode))},
+	} {
+		_, err := service.Create(env.Ctx, moneyAccountEntity.New(a.name, a.balance,
+			moneyAccountEntity.WithTenantID(env.Tenant.ID),
+			moneyAccountEntity.WithAccountNumber(fmt.Sprintf("CHIP%03d", i))))
+		require.NoError(t, err)
+	}
+
+	cases := []struct {
+		name    string
+		query   string
+		present []string
+		absent  []string
+	}{
+		{"currency", "?f=currency:is:USD", []string{"Dollar Wallet", "Empty Dollar Wallet"}, []string{"Euro Wallet"}},
+		{"currency and balance", "?f=currency:is:USD&f=has_balance:is:true", []string{"Dollar Wallet"}, []string{"Empty Dollar Wallet", "Euro Wallet"}},
+		{"balance range in major units", "?f=balance:between:2000,3000", []string{"Euro Wallet"}, []string{"Dollar Wallet"}},
+		{"nothing matches", "?f=balance:gt:1000000", nil, []string{"Dollar Wallet", "Euro Wallet"}},
+	}
+	for _, tc := range cases {
+		response := suite.GET(MoneyAccountBasePath + tc.query).HTMX().Expect(t).Status(200)
+		for _, name := range tc.present {
+			response.Contains(name)
+		}
+		for _, name := range tc.absent {
+			response.NotContains(name)
+		}
+		// The chip bar rides along with the rows so it shows what is applied.
+		response.Contains(`hx-swap-oob="outerHTML"`)
+	}
+
+	page := suite.GET(MoneyAccountBasePath + "?f=currency:is:EUR").Expect(t).Status(200)
+	page.Contains(`value="currency:is:EUR"`).Contains("data-filter-bar")
+}
+
 func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()

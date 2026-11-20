@@ -85,6 +85,17 @@ describe('scaffold presentation primitives', () => {
     expect(changes.at(-1)).toEqual([{ field: 'amount', operator: 'is', values: ['250'] }])
   })
 
+  it('applies the empty operator of a nullable field without values', async () => {
+    const changes: FilterCondition[][] = []
+    render(() => <FilterBuilder fields={[{ key: 'project', label: 'Project', type: 'reference', nullable: true, options: [{ value: 'p1', label: 'Alpha' }] }]} onConditionsChange={(next) => changes.push(next)} />)
+    await fireEvent.click(screen.getByRole('button', { name: 'Add filter' }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Project' }))
+    await fireEvent.change(screen.getByDisplayValue('is'), { target: { value: 'empty' } })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    await fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(changes.at(-1)).toEqual([{ field: 'project', operator: 'empty', values: [] }])
+  })
+
   it('renders editable chips with canonical hidden codec inputs and removal', async () => {
     const edit = vi.fn()
     const remove = vi.fn()

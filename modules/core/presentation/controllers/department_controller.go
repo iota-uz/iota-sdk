@@ -6,11 +6,13 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -21,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -148,6 +151,38 @@ func (c *DepartmentsController) parentNamesForPage(
 	return names, nil
 }
 
+// Filter chip field keys of the departments list.
+const (
+	departmentFilterParent = "parent"
+	departmentFilterStatus = "status"
+)
+
+// filterRegistry describes the chips of the departments list: the parent
+// department (or none, for top-level ones) and whether it is active.
+func (c *DepartmentsController) filterRegistry(r *http.Request, service *services.DepartmentService) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var parents []filterbuilder.Option
+	if opts, err := c.parentOptions(r, service, ""); err == nil {
+		for _, d := range opts {
+			parents = append(parents, filterbuilder.Opt(d.ID, d.Name))
+		}
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{
+			Key: departmentFilterParent, Type: filterq.FieldTypeReference, Nullable: true,
+			Label: pageCtx.T("Departments.List.Parent"), Options: parents,
+		},
+		filterbuilder.FieldDef{
+			Key: departmentFilterStatus, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("Departments.List.Status"), Operators: []filterq.Operator{filterq.OpIs},
+			Options: []filterbuilder.Option{
+				filterbuilder.Opt(string(department.StatusActive), pageCtx.T("Departments.Status.Active")),
+				filterbuilder.Opt(string(department.StatusInactive), pageCtx.T("Departments.Status.Inactive")),
+			},
+		},
+	)
+}
+
 func (c *DepartmentsController) List(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -171,6 +206,12 @@ func (c *DepartmentsController) List(
 			},
 		},
 	}
+	registry := c.filterRegistry(r, service)
+	conditions := registry.Decode(r.URL.Query())
+	findParams.Filters = filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[department.Field]{
+		departmentFilterParent: {Column: department.ParentIDField, Type: "uuid"},
+		departmentFilterStatus: {Column: department.StatusField},
+	}, time.Now())
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
@@ -208,13 +249,16 @@ func (c *DepartmentsController) List(
 		PerPage:     params.Limit,
 		Search:      search,
 		HasMore:     total > int64(params.Page*params.Limit),
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "department-filters", ShowResetAlways: true,
+		},
 	}
 
 	if htmx.IsHxRequest(r) {
 		if params.Page > 1 {
 			templ.Handler(departments.DepartmentRows(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			templ.Handler(departments.DepartmentsTable(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(departments.DepartmentsTableWithChips(pageProps), templ.WithStreaming()).ServeHTTP(w, r)
 		}
 	} else {
 		templ.Handler(departments.Index(pageProps), templ.WithStreaming()).ServeHTTP(w, r)

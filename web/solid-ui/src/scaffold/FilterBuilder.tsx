@@ -5,7 +5,7 @@ import { createFloatingPlacement, floatingPlacementClasses } from '../internal/f
 
 export type FilterFieldType = 'reference' | 'date' | 'number' | 'bool' | 'text'
 export interface FilterBuilderOption { value: string; label: string; count?: number; disabled?: boolean; group?: string }
-export interface FilterBuilderField { key: string; label: string; type: FilterFieldType; group?: string; operators?: readonly string[]; options?: readonly FilterBuilderOption[]; presets?: readonly string[] }
+export interface FilterBuilderField { key: string; label: string; type: FilterFieldType; group?: string; operators?: readonly string[]; options?: readonly FilterBuilderOption[]; presets?: readonly string[]; nullable?: boolean }
 export interface FilterCondition { field: string; operator: string; values: readonly string[]; preset?: string }
 export interface FilterConditionCodec { encode(condition: FilterCondition): string }
 
@@ -60,14 +60,16 @@ export function FilterChip(props: FilterChipProps) {
 export interface FilterEditorProps { field: FilterBuilderField; condition?: FilterCondition; applyLabel?: JSX.Element; onApply: (condition: FilterCondition) => void }
 
 export function FilterEditor(props: FilterEditorProps) {
-  const operators = () => props.field.operators?.length ? props.field.operators : props.field.type === 'number' || props.field.type === 'date' ? ['is', 'before', 'after', 'between'] : ['is', 'is_not']
+  const baseOperators = () => props.field.operators?.length ? props.field.operators : props.field.type === 'number' || props.field.type === 'date' ? ['is', 'before', 'after', 'between'] : ['is', 'is_not']
+  // A nullable field also offers "is empty", which carries no values (pkg/filterq OpEmpty).
+  const operators = () => props.field.nullable && props.field.type !== 'bool' && !baseOperators().includes('empty') ? [...baseOperators(), 'empty'] : baseOperators()
   const [operator, setOperator] = createSignal(props.condition?.operator ?? operators()[0] ?? 'is')
   const [values, setValues] = createSignal<string[]>([...(props.condition?.values ?? [])])
-  const apply = () => props.onApply({ field: props.field.key, operator: operator(), values: values() })
+  const apply = () => props.onApply({ field: props.field.key, operator: operator(), values: operator() === 'empty' ? [] : values() })
   return <div class="flex flex-col gap-2.5" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); apply() } }}>
     {operators().length > 1 && <select class="min-w-20 w-full appearance-none form-control form-control-input h-[2.6875rem] pr-8" value={operator()} onChange={(event) => setOperator(event.currentTarget.value)}>{operators().map((item) => <option value={item}>{item}</option>)}</select>}
-    {props.field.type === 'reference' && <GroupedOptions class="form-control form-control-input min-h-24" options={props.field.options ?? []} selected={values()} onChange={(event) => setValues(Array.from(event.currentTarget.selectedOptions).map((option) => option.value).filter((value) => !value.startsWith('__group:')))} />}
-    {(props.field.type === 'number' || props.field.type === 'date' || props.field.type === 'text') && <div class={classes(operator() === 'between' && 'flex items-center gap-2')}>
+    {props.field.type === 'reference' && operator() !== 'empty' && <GroupedOptions class="form-control form-control-input min-h-24" options={props.field.options ?? []} selected={values()} onChange={(event) => setValues(Array.from(event.currentTarget.selectedOptions).map((option) => option.value).filter((value) => !value.startsWith('__group:')))} />}
+    {(props.field.type === 'number' || props.field.type === 'date' || props.field.type === 'text') && operator() !== 'empty' && <div class={classes(operator() === 'between' && 'flex items-center gap-2')}>
       <input type={props.field.type === 'date' ? 'date' : props.field.type === 'number' ? 'number' : 'text'} step={props.field.type === 'number' ? 'any' : undefined} data-fb-value class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none" value={values()[0] ?? ''} onInput={(event) => setValues([event.currentTarget.value, ...values().slice(1)])} />
       {operator() === 'between' && <><span class="text-200">–</span><input type={props.field.type === 'date' ? 'date' : 'number'} step={props.field.type === 'number' ? 'any' : undefined} data-fb-value class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none" value={values()[1] ?? ''} onInput={(event) => setValues([values()[0] ?? '', event.currentTarget.value])} /></>}
     </div>}

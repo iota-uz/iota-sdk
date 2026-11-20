@@ -8,8 +8,8 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -111,24 +112,16 @@ func (c *PaymentCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		params.Search = search
 	}
 
-	if from := r.URL.Query().Get("CreatedAt.From"); from != "" {
-		if to := r.URL.Query().Get("CreatedAt.To"); to != "" {
-			fromTime, err := time.Parse(time.RFC3339, from)
-			if err != nil {
-				http.Error(w, "Invalid from date format", http.StatusBadRequest)
-				return
-			}
-			toTime, err := time.Parse(time.RFC3339, to)
-			if err != nil {
-				http.Error(w, "Invalid to date format", http.StatusBadRequest)
-				return
-			}
-			params.Filters = append(params.Filters, paymentcategory.Filter{
-				Column: paymentcategory.CreatedAt,
-				Filter: repo.Between(fromTime, toTime),
-			})
-		}
-	}
+	// Chips: the created-at date. Categories carry no parent or active flag,
+	// so nothing else narrows the list. Links made by the former created-at
+	// drawer filter still work.
+	registry := filterbuilder.NewRegistry(filterbuilder.FieldDef{
+		Key: "created_at", Type: filterq.FieldTypeDate, Label: pageCtx.T("CreatedAt"),
+	})
+	conditions := registry.Decode(filterq.LegacyDateRange(r.URL.Query(), "CreatedAt.From", "CreatedAt.To", "created_at"))
+	params.Filters = append(params.Filters, filterq.RepoFilters(conditions, registry.Schema(),
+		map[string]filterq.RepoField[paymentcategory.Field]{"created_at": {Column: paymentcategory.CreatedAt}}, time.Now())...)
+	barProps := filterbuilder.Props{Registry: registry, Filters: conditions, ID: "payment-category-filters", ShowResetAlways: true}
 
 	paymentEntities, err := c.paymentCategoryService.GetPaginated(ctx, params)
 	if err != nil {
@@ -166,12 +159,17 @@ func (c *PaymentCategoriesController) List(w http.ResponseWriter, r *http.Reques
 				table.Column("created_at", pageCtx.T("CreatedAt")),
 			).
 			WithActions(actions.RenderAction(createAction)).
-			WithFilters(filters.CreatedAt()).
+			WithFilterBar(filterbuilder.Builder(barProps), filterbuilder.BuilderOOB(barProps)).
 			WithInfiniteScroll(true).
 			Build()
 	} else {
-		// For HTMX requests, use minimal definition
-		definition = c.tableDefinition
+		// For HTMX requests, use minimal definition plus the chip bar, which
+		// re-renders out-of-band with the rows.
+		definition = table.NewTableDefinition("", c.basePath).
+			WithColumns(c.tableDefinition.Columns()...).
+			WithInfiniteScroll(true).
+			WithFilterBar(filterbuilder.Builder(barProps), filterbuilder.BuilderOOB(barProps)).
+			Build()
 	}
 
 	// Build table rows

@@ -1148,7 +1148,8 @@
         "Between": "between",
         "Eq": "=",
         "Gt": ">",
-        "Lt": "<"
+        "Lt": "<",
+        "Empty": "is empty"
       },
       "Presets": {
         "ThisMonth": "This month",
@@ -1156,7 +1157,9 @@
         "Last30Days": "Last 30 days",
         "Next30Days": "Next 30 days",
         "ThisYear": "This year",
-        "LastYear": "Last year"
+        "LastYear": "Last year",
+        "ThisQuarter": "This quarter",
+        "LastQuarter": "Last quarter"
       }
     }
   },

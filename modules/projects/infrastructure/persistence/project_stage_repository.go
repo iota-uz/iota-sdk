@@ -4,6 +4,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
@@ -260,6 +261,67 @@ func (r *ProjectStageRepository) GetPaginated(ctx context.Context, limit, offset
 	query := findProjectStageQuery + ` WHERE p.tenant_id = $1 ORDER BY ` + orderBy + ` LIMIT $2 OFFSET $3`
 
 	return r.queryProjectStages(ctx, query, tenantID, limit, offset)
+}
+
+// projectStageColumns maps filterable fields to their columns.
+var projectStageColumns = map[projectstage.Field]string{
+	projectstage.ProjectID:      "ps.project_id",
+	projectstage.StageNumber:    "ps.stage_number",
+	projectstage.TotalAmount:    "ps.total_amount",
+	projectstage.StartDate:      "ps.start_date",
+	projectstage.PlannedEndDate: "ps.planned_end_date",
+	projectstage.FactualEndDate: "ps.factual_end_date",
+	projectstage.CreatedAt:      "ps.created_at",
+}
+
+// findWhere renders the tenant scope, search and filters of params.
+func findWhere(tenantID uuid.UUID, params *projectstage.FindParams) (string, []any, error) {
+	where := []string{"p.tenant_id = $1"}
+	args := []any{tenantID}
+	if params.Search != "" {
+		args = append(args, "%"+params.Search+"%")
+		where = append(where, fmt.Sprintf("(ps.description ILIKE $%d OR ps.stage_number::text ILIKE $%d)", len(args), len(args)))
+	}
+	for _, filter := range params.Filters {
+		column, ok := projectStageColumns[filter.Column]
+		if !ok {
+			return "", nil, fmt.Errorf("invalid filter: unknown filter field: %v", filter.Column)
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+	return " WHERE " + strings.Join(where, " AND "), args, nil
+}
+
+func (r *ProjectStageRepository) Find(ctx context.Context, params *projectstage.FindParams) ([]projectstage.ProjectStage, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	where, args, err := findWhere(tenantID, params)
+	if err != nil {
+		return nil, err
+	}
+	query := findProjectStageQuery + where + fmt.Sprintf(" ORDER BY ps.stage_number ASC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
+	return r.queryProjectStages(ctx, query, append(args, params.Limit, params.Offset)...)
+}
+
+func (r *ProjectStageRepository) CountFound(ctx context.Context, params *projectstage.FindParams) (int64, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+	where, args, err := findWhere(tenantID, params)
+	if err != nil {
+		return 0, err
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var count int64
+	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM project_stages ps JOIN projects p ON ps.project_id = p.id`+where, args...).Scan(&count)
+	return count, err
 }
 
 func (r *ProjectStageRepository) Count(ctx context.Context) (int64, error) {
