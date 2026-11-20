@@ -1151,7 +1151,8 @@
         "Between": "entre",
         "Eq": "=",
         "Gt": ">",
-        "Lt": "<"
+        "Lt": "<",
+        "Empty": "está vazio"
       },
       "Presets": {
         "ThisMonth": "Este mês",

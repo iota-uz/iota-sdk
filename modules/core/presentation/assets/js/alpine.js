@@ -2933,7 +2933,9 @@ let filterBuilder = () => ({
     this.onApply({ field, op: 'is', values: ['true'], chip: -1 });
   },
   onApply(detail) {
-    if (!detail || !detail.values || !detail.values.length) return;
+    if (!detail || !detail.values) return;
+    // "is empty" carries no values; every other operator needs at least one.
+    if (!detail.values.length && detail.op !== 'empty') return;
     const enc = this.encode(detail);
     if (detail.chip >= 0) {
       const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${detail.chip}"]`);
@@ -2983,6 +2985,10 @@ let fbPanel = (cfg = {}) => ({
   op: cfg.op,
   preset: cfg.preset || '',
   apply() {
+    if (this.op === 'empty') {
+      this.$dispatch('fb-apply', { field: cfg.field, op: 'empty', values: [], chip: cfg.chip });
+      return;
+    }
     const values = this.collect();
     if (!values.length) return;
     this.$dispatch('fb-apply', { field: cfg.field, op: this.op, values, chip: cfg.chip });

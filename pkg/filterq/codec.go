@@ -22,6 +22,7 @@ const ParamName = "f"
 const PresenceParam = "fb"
 
 // Wire grammar: field ":" op ":" value ("," value)*
+// A valueless operator (OpEmpty) keeps the trailing colon: `category:empty:`.
 // Only the first two colons split, so values may contain colons freely
 // (e.g. preset:this_year). Inside a value, "%" → "%25" and "," → "%2C";
 // nothing else is escaped — UUIDs, codes, dates and numbers stay readable.
@@ -79,6 +80,11 @@ func DecodeCondition(raw string) (Condition, bool) {
 			continue
 		}
 		values = append(values, unescapeValue(v))
+	}
+	if op.Arity() == 0 {
+		// A valueless operator ignores whatever follows the second colon, so
+		// `category:empty:` and a hand-typed `category:empty:x` mean the same.
+		return Condition{Field: parts[0], Op: op}, true
 	}
 	if len(values) == 0 {
 		return Condition{}, false
@@ -150,6 +156,8 @@ func validCondition(f Field, c Condition) bool {
 		return false
 	}
 	switch arity := c.Op.Arity(); arity {
+	case 0:
+		return len(c.Values) == 0
 	case -1:
 		if len(c.Values) == 0 {
 			return false

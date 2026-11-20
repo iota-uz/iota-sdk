@@ -36,6 +36,9 @@ const (
 	OpEq      Operator = "eq"
 	OpGt      Operator = "gt"
 	OpLt      Operator = "lt"
+	// OpEmpty matches records where the field has no value (NULL reference,
+	// missing date). It carries no values: `category:empty:`.
+	OpEmpty Operator = "empty"
 )
 
 // Arity returns the number of values the operator expects:
@@ -50,6 +53,8 @@ func (o Operator) Arity() int {
 		return 2
 	case OpBefore, OpAfter, OpOn, OpEq, OpGt, OpLt:
 		return 1
+	case OpEmpty:
+		return 0
 	default:
 		return 1
 	}
@@ -58,13 +63,15 @@ func (o Operator) Arity() int {
 // Valid reports whether o is a known operator.
 func (o Operator) Valid() bool {
 	switch o {
-	case OpIs, OpIsNot, OpBefore, OpAfter, OpOn, OpBetween, OpEq, OpGt, OpLt:
+	case OpIs, OpIsNot, OpBefore, OpAfter, OpOn, OpBetween, OpEq, OpGt, OpLt, OpEmpty:
 		return true
 	}
 	return false
 }
 
 // DefaultOperators returns the canonical operator set for a field type.
+// OpEmpty is never a default: only a field that can actually be blank opts
+// into it (see NullableOperators).
 func DefaultOperators(t FieldType) []Operator {
 	switch t {
 	case FieldTypeReference:
@@ -124,3 +131,9 @@ func (fs FilterSet) Without(key string) FilterSet {
 
 // IsZero reports whether the set has no conditions.
 func (fs FilterSet) IsZero() bool { return len(fs) == 0 }
+
+// NullableOperators returns the default operators of a field type followed by
+// OpEmpty, for fields whose value may be missing ("without category").
+func NullableOperators(t FieldType) []Operator {
+	return append(DefaultOperators(t), OpEmpty)
+}

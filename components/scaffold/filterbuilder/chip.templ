@@ -145,6 +145,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 				}
 			}
 		}
+		<div class="flex flex-col gap-2.5" x-show="op !== 'empty'">
 		switch field.Type {
 			case filterq.FieldTypeReference:
 				if usesCheckboxList(field.Options) {
@@ -227,6 +228,7 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 					/>
 				</div>
 		}
+		</div>
 		@button.Primary(button.Props{
 			Size:  button.SizeSM,
 			Class: "justify-center",
