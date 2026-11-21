@@ -135,11 +135,24 @@ const (
 	CodeNativeQueryUnavailable = "runtime.nativeQueryUnavailable"
 	// CodeNotQuery is returned by tx.query / q.query for a non-query contract.
 	CodeNotQuery = native.CodeNotQuery
+	// CodePackageUnavailable is returned for a package export when the host
+	// has no Node pool (the extension runtime is off).
+	CodePackageUnavailable = "runtime.packageUnavailable"
+	// CodeInvocationUnfinished is returned by Invoke for a Request.InvocationID
+	// whose earlier invocation has no recorded outcome.
+	CodeInvocationUnfinished = "runtime.invocationUnfinished"
+	// CodeTxNotAllowed rejects a Request.Tx for a contract that does not run
+	// in one transaction (an ordinary command, a query).
+	CodeTxNotAllowed = "runtime.txNotAllowed"
 )
 
 // Config wires the host. Outbox, Starter, Notifier, Signals, Workflow and
 // Secrets are optional: the matching host calls fail explicitly when absent.
 type Config struct {
+	// Pool runs package code in Node workers. Without it (the extension
+	// runtime is off) the host still runs native contracts (commands,
+	// operations, queries) through their Go defaults, and every package
+	// export fails with CodePackageUnavailable before it is recorded.
 	Pool     Runner
 	DB       *pgxpool.Pool
 	Bindings Bindings
@@ -201,8 +214,8 @@ type Host struct {
 
 func New(cfg Config) (*Host, error) {
 	switch {
-	case cfg.Pool == nil, cfg.DB == nil, cfg.Bindings == nil, cfg.Catalog == nil, cfg.Data == nil:
-		return nil, serrors.New(serrors.Invalid, "extruntime host: Pool, DB, Bindings, Catalog and Data are required")
+	case cfg.DB == nil, cfg.Bindings == nil, cfg.Catalog == nil, cfg.Data == nil:
+		return nil, serrors.New(serrors.Invalid, "extruntime host: DB, Bindings, Catalog and Data are required")
 	}
 	if cfg.DefaultTimeout <= 0 {
 		cfg.DefaultTimeout = 30 * time.Second
@@ -236,6 +249,17 @@ type Request struct {
 	StartKeyBase string
 	// Occurrence is passed to the handler as ctx.occurrence.
 	Occurrence json.RawMessage
+	// InvocationID is a pre-allocated invocation ID for Go callers that
+	// record their intent before the call (the workflow engine). Empty: the
+	// host allocates one. A repeat with an ID whose invocation finished
+	// returns its recorded outcome without running it again; one without a
+	// recorded outcome fails with CodeInvocationUnfinished.
+	InvocationID string
+	// Tx is a caller-owned transaction an atomic command or operation runs
+	// in, so the caller commits its own writes (a workflow receipt) with the
+	// invocation's. The host never commits or rolls it back; the caller runs
+	// Result.AfterCommit after its commit.
+	Tx pgx.Tx
 }
 
 // Result describes a finished invocation. It is returned together with the
@@ -264,6 +288,15 @@ type Result struct {
 // binding. A failure after an ordinary command committed a transaction is
 // reported with Result.PartiallyCommitted; the host never re-runs it.
 func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
+	if req.InvocationID != "" {
+		if _, err := uuid.Parse(req.InvocationID); err != nil {
+			return Result{}, serrors.Wrap(opInvoke, fail(pool.CodeHostCall, "invocation id %q is not a uuid", req.InvocationID))
+		}
+		res, recorded, err := h.recorded(ctx, req)
+		if recorded {
+			return res, err
+		}
+	}
 	root := &rootState{
 		txs:      newTxRegistry(h.cfg.DB, h.cfg.Logger),
 		producer: req.Producer,
@@ -279,11 +312,51 @@ func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
 		subject:    req.Subject,
 		trigger:    req.Trigger,
 		occurrence: req.Occurrence,
+		id:         req.InvocationID,
+		externalTx: req.Tx,
+		afterHooks: req.Tx != nil,
+		callerTx:   req.Tx != nil,
 	})
 	if err != nil {
 		return res, serrors.Wrap(opInvoke, err)
 	}
 	return res, nil
+}
+
+// recorded returns the outcome of an earlier invocation with the request's
+// pre-allocated ID; recorded is false when there is none.
+func (h *Host) recorded(ctx context.Context, req Request) (Result, bool, error) {
+	var (
+		outcome   string
+		finished  bool
+		committed int
+		partial   bool
+		result    []byte
+		errJSON   []byte
+	)
+	err := h.cfg.DB.QueryRow(ctx, `
+		SELECT outcome, finished_at IS NOT NULL, committed_tx_count, partially_committed, result, error
+		FROM extruntime.invocations WHERE id = $1::uuid AND tenant_id = $2`, req.InvocationID, req.Subject.TenantID).
+		Scan(&outcome, &finished, &committed, &partial, &result, &errJSON)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Result{}, false, nil
+	}
+	if err != nil {
+		return Result{}, true, serrors.FromDB(opInvoke, err)
+	}
+	res := Result{InvocationID: req.InvocationID, Outcome: Outcome(outcome), CommittedTxCount: committed, PartiallyCommitted: partial}
+	switch {
+	case finished && res.Outcome == OutcomeOK:
+		res.Output = result
+		return res, true, nil
+	case finished && res.Outcome == OutcomeError:
+		var we pool.WireError
+		if json.Unmarshal(errJSON, &we) != nil || we.Kind == "" {
+			return res, true, fail(pool.CodeHostCall, "invocation %s failed with an unreadable error", req.InvocationID)
+		}
+		return res, true, &we
+	}
+	return res, true, fail(CodeInvocationUnfinished, "invocation %s has no recorded outcome (%s) and committed %d transaction(s)", req.InvocationID, outcome, committed)
 }
 
 // Export is an explicit implementation to run outside contract dispatch:
@@ -400,6 +473,9 @@ type execSpec struct {
 	afterHooks bool
 	// id pre-allocates the invocation ID (wf.call journals it before dispatch).
 	id string
+	// callerTx marks externalTx as a Request.Tx of a contract invocation,
+	// which only an atomic command or an operation may run in.
+	callerTx bool
 	// startBase, when set, gives the invocation (and what it nests) its own
 	// tx.start key sequence instead of the parent's.
 	startBase string
@@ -462,6 +538,13 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		}
 	}
 
+	if spec.callerTx && kind != pool.KindAtomic && kind != pool.KindOperation {
+		return Result{}, fail(CodeTxNotAllowed, "%s does not run in a single transaction; it cannot join the caller's", spec.contract)
+	}
+	if impl == nil && h.cfg.Pool == nil {
+		return Result{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: CodePackageUnavailable, Message: fmt.Sprintf(
+			"%s is implemented by a package and this process has no extension runtime (EXTRUNTIME_ENABLED is off)", firstNonEmpty(spec.contract, binding.Contract))}
+	}
 	e := &execution{
 		h:        h,
 		root:     root,
@@ -518,6 +601,13 @@ func (h *Host) resolveBinding(ctx context.Context, res spi.ResolvedResource) (Bi
 		return Binding{}, nil, err
 	}
 	return Binding{Contract: res.Resource.ID, Native: true}, impl, nil
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func idOr(id string) string {

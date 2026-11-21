@@ -83,7 +83,21 @@ type startPlan struct {
 // prepareStart resolves the workflow contract and the implementation to pin
 // and validates the input, before any lock is taken.
 func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.RawMessage) (startPlan, error) {
-	res, ok, err := e.cfg.Catalog.Resolve(ctx, workflow)
+	if nc, ok := e.Native(workflow); ok {
+		// A Go implementation pins nothing: the instance runs whatever this
+		// process registered for the contract.
+		if nc.Input != nil {
+			if verr := manifest.ValidateValue(*nc.Input, nonNull(input)); verr != nil {
+				return startPlan{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
+			}
+		}
+		return startPlan{impl: Implementation{Native: true}, permission: nc.Permission}, nil
+	}
+	deps := e.deps()
+	if deps.catalog == nil || deps.impl == nil {
+		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: workflow + " has no Go implementation and the package runtime is not attached"}
+	}
+	res, ok, err := deps.catalog.Resolve(ctx, workflow)
 	if err != nil {
 		return startPlan{}, serrors.Wrap(opPrepare, err)
 	}
@@ -95,7 +109,7 @@ func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.R
 			return startPlan{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
 		}
 	}
-	impl, err := e.cfg.Impl.Active(ctx, workflow)
+	impl, err := deps.impl.Active(ctx, workflow)
 	if err != nil {
 		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: fmt.Sprintf("%s has no active implementation: %v", workflow, err)}
 	}
@@ -149,12 +163,12 @@ func (e *Engine) insertInstance(ctx context.Context, tx queryer, s startSpec) (u
 	err := tx.QueryRow(ctx, `
 		INSERT INTO extruntime.workflow_instances
 			(id, tenant_id, workflow, package, version, artifact_hash, export, input, subject_user_id, subject_kind,
-			 predecessor_id, parent_instance_id, start_invocation_id, start_key)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14)
+			 predecessor_id, parent_instance_id, start_invocation_id, start_key, native)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14, $15)
 		ON CONFLICT (tenant_id, start_key) WHERE start_key IS NOT NULL DO NOTHING
 		RETURNING id`,
 		id, s.subject.TenantID, s.workflow, s.impl.Package, s.impl.Version, s.impl.Artifact.Hash, s.impl.Export, []byte(input),
-		s.subject.UserID, string(kind), s.predecessor, s.parent, inv, key).Scan(&got)
+		s.subject.UserID, string(kind), s.predecessor, s.parent, inv, key, s.impl.Native).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `SELECT id FROM extruntime.workflow_instances WHERE tenant_id = $1 AND start_key = $2`, s.subject.TenantID, s.key).Scan(&got)
 		if err != nil {

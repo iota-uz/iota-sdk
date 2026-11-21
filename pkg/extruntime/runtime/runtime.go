@@ -157,6 +157,13 @@ type Deps struct {
 	// Consumers are Go consumers the runtime's own dispatcher serves next to
 	// the package subscriptions (unused with Dispatcher).
 	Consumers events.ConsumerSource
+	// Workflows is the process's workflow engine, built by the always-on core
+	// (pkg/extruntime/wiring) with the native workflows. When set the runtime
+	// attaches its package executor to it (workflow.Engine.AttachPackages)
+	// instead of building a second engine, and does not serve it: one engine
+	// claims every ready instance, so a second would take the first one's.
+	// Nil: the runtime builds and serves its own.
+	Workflows *workflow.Engine
 }
 
 // Extension is a slice that needs the finished runtime.
@@ -206,6 +213,9 @@ type Runtime struct {
 	// ownsDispatcher is true when Dispatcher is the runtime's own, which
 	// Start serves.
 	ownsDispatcher bool
+	// ownsWorkflows is true when Workflows is the runtime's own engine, which
+	// Start serves.
+	ownsWorkflows bool
 
 	mu    sync.Mutex
 	stops []func(context.Context) error
@@ -335,7 +345,10 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		Outbox: rt.Outbox, Secrets: cfg.Secrets, Natives: rt.NativeImpls, Logger: cfg.Logger,
 		NativeContext: HistoryExecution(deps.Users),
 	}
-	if subjects != nil {
+	switch {
+	case deps.Workflows != nil:
+		rt.Workflows = deps.Workflows
+	case subjects != nil:
 		rt.Workflows, err = workflow.New(workflow.Config{
 			DB: deps.DB, Catalog: rt.Catalog, Bindings: rt.Bindings, Artifacts: rt.Manage, Impl: rt.Manage.Implementations(),
 			Subjects: subjects, Concurrency: cfg.Workflow.Concurrency, TaskAdminPermission: manage.PermOperate, Logger: cfg.Logger,
@@ -343,6 +356,9 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		if err != nil {
 			return fail(err)
 		}
+		rt.ownsWorkflows = true
+	}
+	if rt.Workflows != nil {
 		hostCfg.Workflow, hostCfg.Starter, hostCfg.Signals = rt.Workflows, rt.Workflows, rt.Workflows
 		rt.Manage.SetWorkflows(rt.Workflows)
 	}
@@ -354,8 +370,17 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		return fail(err)
 	}
 	guard.h = rt.Host
-	if rt.Workflows != nil {
+	switch {
+	case rt.ownsWorkflows:
 		rt.Workflows.Attach(rt.Host)
+		rt.Workflows.SetCommands(rt.Host)
+	case rt.Workflows != nil:
+		if err := rt.Workflows.AttachPackages(context.Background(), workflow.Packages{
+			Catalog: rt.Catalog, Bindings: rt.Bindings, Artifacts: rt.Manage, Impl: rt.Manage.Implementations(),
+			Runner: rt.Host, Commands: rt.Host,
+		}); err != nil {
+			return fail(err)
+		}
 	}
 	if deps.Dispatcher != nil {
 		rt.Dispatcher = deps.Dispatcher
@@ -431,8 +456,9 @@ func (rt *Runtime) Start(ctx context.Context) error {
 	}
 	rt.stops = append(rt.stops, func(context.Context) error { cancel(); wg.Wait(); return nil })
 	if !rt.Config.DisableBackground {
-		if rt.Workflows != nil {
+		if rt.ownsWorkflows {
 			rt.Workflows.Serve(bg)
+			rt.stops = append(rt.stops, func(context.Context) error { rt.Workflows.Shutdown(); return nil })
 		}
 		if rt.ownsDispatcher {
 			rt.Dispatcher.Start(bg)

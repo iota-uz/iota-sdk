@@ -22,3 +22,13 @@ func TestMergeEventsKeepsExplicitSettingsAndFillsTheRest(t *testing.T) {
 	require.Equal(t, 3, got.Concurrency)
 	require.Equal(t, time.Hour, got.Retention)
 }
+
+// Two contributions of one native workflow ID are a composition error.
+func TestMergeNativeWorkflowsRejectsDuplicates(t *testing.T) {
+	a := nativeWorkflows{"test.a": {}, "test.b": {}}
+	got, err := mergeNativeWorkflows([]nativeWorkflows{a, {"test.c": {}}})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	_, err = mergeNativeWorkflows([]nativeWorkflows{a, {"test.b": {}}})
+	require.ErrorContains(t, err, "test.b is contributed twice")
+}

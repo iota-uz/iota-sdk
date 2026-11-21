@@ -671,8 +671,8 @@ export const flow = async (wf, input) => {
 			child = i
 		}
 	}
-	require.NotNil(t, child.ParentInstanceID)
-	require.Equal(t, parent, *child.ParentInstanceID)
+	require.NotNil(t, child.ParentID)
+	require.Equal(t, parent, *child.ParentID)
 	require.Equal(t, workflow.StatusCompleted, child.Status)
 	require.JSONEq(t, `"`+child.ID.String()+`"`, string(st.instance(parent).Result))
 	require.Equal(t, parent.String()+":child:0", *child.StartKey)
