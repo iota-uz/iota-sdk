@@ -67,10 +67,13 @@ func (s *AcceptanceService) Update(
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: AcceptanceUpdated, Version: 1, Resource: AcceptanceResource, ID: id.String(),
 			Before: acceptanceSnapshot(document), After: acceptanceSnapshot(updated),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishAcceptanceSigned(txCtx, document, updated)
 	})
 	if err != nil {
 		return nil, err
@@ -135,10 +138,13 @@ func (s *AcceptanceService) changeStatus(
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: eventType, Version: 1, Resource: AcceptanceResource, ID: id.String(),
 			Before: acceptanceSnapshot(document), After: acceptanceSnapshot(updated),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishAcceptanceSigned(txCtx, document, updated)
 	})
 	if err != nil {
 		return nil, err

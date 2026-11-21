@@ -23,6 +23,21 @@ var eventPublisherTests = map[string]string{
 	"core.user.created.v1":  "core/services/user_events_test.go:TestUserService_Create_PublishesUserCreatedEventInTheCreatingTransaction",
 	"crm.client.created.v1": "crm/services/client_events_test.go:TestClientEvents_CommitAndRollBackWithTheClient",
 	"crm.client.updated.v1": "crm/services/client_events_test.go:TestClientEvents_CommitAndRollBackWithTheClient",
+
+	"finance.payment.created.v1":  "finance/services/events_test.go:TestPaymentEvents_CommitAndRollBackWithThePayment",
+	"finance.payment.updated.v1":  "finance/services/events_test.go:TestPaymentEvents_CommitAndRollBackWithThePayment",
+	"finance.expense.created.v1":  "finance/services/events_test.go:TestExpenseEvents_CommitAndRollBackWithTheExpense",
+	"finance.debt.created.v1":     "finance/services/events_test.go:TestDebtEvents_CommitAndRollBackWithTheDebt",
+	"finance.debt.settled.v1":     "finance/services/events_test.go:TestDebtEvents_CommitAndRollBackWithTheDebt",
+	"finance.debt.written_off.v1": "finance/services/events_test.go:TestDebtEvents_CommitAndRollBackWithTheDebt",
+	"finance.debt.cancelled.v1":   "finance/services/events_test.go:TestDebtEvents_CommitAndRollBackWithTheDebt",
+
+	"billing.transaction.status_changed.v1": "billing/services/events_test.go:TestBillingEvents_StatusChangeCommitsAndRollsBackWithTheTransaction",
+
+	"warehouse.order.created.v1":   "warehouse/services/orderservice/events_test.go:TestOrderEvents_CommitAndRollBackWithTheOrder",
+	"warehouse.order.completed.v1": "warehouse/services/orderservice/events_test.go:TestOrderEvents_CommitAndRollBackWithTheOrder",
+
+	"projects.acceptance.signed.v1": "projects/services/acceptance_events_test.go:TestAcceptanceEvents_SignedCommitsAndRollsBackWithTheDocument",
 }
 
 var publisherTestRef = regexp.MustCompile(`^([^:]+_test\.go):(Test\w+)$`)

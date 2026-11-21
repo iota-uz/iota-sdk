@@ -67,13 +67,23 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err != nil {
 		return err
 	}
-	return composables.InTx(ctx, func(txCtx context.Context) error {
-		created, err := s.repo.Create(txCtx, entity)
+	var created order.Order
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		created, err = s.repo.Create(txCtx, entity)
 		if err != nil {
 			return err
 		}
-		return s.record(txCtx, OrderCreated, created.ID(), nil, created)
+		if err := s.record(txCtx, OrderCreated, created.ID(), nil, created); err != nil {
+			return err
+		}
+		return publishOrderCreated(txCtx, created)
 	})
+	if err != nil {
+		return err
+	}
+	s.publishAggregateEvents(ctx, created)
+	return nil
 }
 
 func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, error) {
@@ -93,11 +103,15 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 		if err := s.repo.Update(txCtx, completedEntity); err != nil {
 			return err
 		}
-		return s.record(txCtx, OrderCompleted, id, entity, completedEntity)
+		if err := s.record(txCtx, OrderCompleted, id, entity, completedEntity); err != nil {
+			return err
+		}
+		return publishOrderCompleted(txCtx, completedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
+	s.publishAggregateEvents(ctx, completedEntity)
 	return completedEntity, nil
 }
 

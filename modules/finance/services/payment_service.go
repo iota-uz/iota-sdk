@@ -82,10 +82,13 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 		if err := s.accountService.RecalculateBalance(txCtx, createdEntity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: PaymentCreated, Version: 1, Resource: PaymentResource, ID: createdEntity.ID().String(),
 			After: paymentSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishPaymentCreated(txCtx, entity, createdEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -119,10 +122,13 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: PaymentUpdated, Version: 1, Resource: PaymentResource, ID: entity.ID().String(),
 			Before: paymentSnapshot(before), After: paymentSnapshot(updatedEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishPaymentUpdated(txCtx, before, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err

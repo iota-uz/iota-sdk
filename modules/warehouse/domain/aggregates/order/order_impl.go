@@ -14,26 +14,30 @@ import (
 func New(orderType Type, opts ...Option) Order {
 	now := time.Now()
 	o := &order{
-		id:        0,
-		tenantID:  uuid.Nil,
-		_type:     orderType,
-		status:    Pending,
-		items:     make([]Item, 0),
-		createdAt: now,
-		updatedAt: now,
-		events:    make([]interface{}, 0),
+		id:            0,
+		tenantID:      uuid.Nil,
+		_type:         orderType,
+		status:        Pending,
+		items:         make([]Item, 0),
+		createdAt:     now,
+		updatedAt:     now,
+		events:        make([]interface{}, 0),
+		reconstituted: false,
 	}
 	for _, opt := range opts {
 		opt(o)
 	}
 
-	// Emit OrderCreated event for new orders
-	o.events = append(o.events, OrderCreatedEvent{
-		OrderID:   o.id,
-		Type:      o._type,
-		TenantID:  o.tenantID,
-		Timestamp: o.createdAt,
-	})
+	// Emit OrderCreated event for new orders; an order read back from storage
+	// was created long ago and reports no creation.
+	if !o.reconstituted {
+		o.events = append(o.events, OrderCreatedEvent{
+			OrderID:   o.id,
+			Type:      o._type,
+			TenantID:  o.tenantID,
+			Timestamp: o.createdAt,
+		})
+	}
 
 	return o
 }
@@ -47,6 +51,8 @@ type order struct {
 	createdAt time.Time
 	updatedAt time.Time
 	events    []interface{}
+	// reconstituted marks an order rebuilt from storage.
+	reconstituted bool
 }
 
 func (o *order) ID() uint {

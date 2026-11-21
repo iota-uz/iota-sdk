@@ -841,6 +841,12 @@
         "_Description": "Полное управление этапами проектов"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "Просмотр billing-транзакций",
+        "_Description": "Просмотр billing-транзакций и событий об изменении их статуса"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "Просмотр товаров",

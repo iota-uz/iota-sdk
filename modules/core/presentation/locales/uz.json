@@ -841,6 +841,12 @@
         "_Description": "Loyiha bosqichlarini to'liq boshqarish"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "Billing tranzaksiyalarini ko'rish",
+        "_Description": "Billing tranzaksiyalari va ularning holati o'zgarishi voqealarini ko'rish"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "Mahsulotlarni ko'rish",

@@ -81,10 +81,13 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: ExpenseCreated, Version: 1, Resource: ExpenseResource, ID: created.ID().String(),
 			After: expenseSnapshot(created),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishExpenseCreated(txCtx, entity, created)
 	})
 	if err != nil {
 		return nil, err

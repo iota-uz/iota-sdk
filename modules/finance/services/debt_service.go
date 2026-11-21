@@ -159,10 +159,13 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: DebtCreated, Version: 1, Resource: DebtResource, ID: createdEntity.ID().String(),
 			After: debtSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishDebtCreated(txCtx, createdEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -263,18 +266,20 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtSettled, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtSettled, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtSettled(txCtx, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish debt settled event
-	settledEvent, err := debt.NewDebtSettledEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(settledEvent)
+	// The settlement is committed: a failure to announce it on the eventbus is
+	// logged, never returned, or a caller would retry a settlement that is saved.
+	s.publishAfterCommit(ctx, "DebtService.Settle", func() (any, error) {
+		return debt.NewDebtSettledEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -300,18 +305,18 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtClosed(txCtx, DebtWrittenOffEvent, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish debt written off event
-	writtenOffEvent, err := debt.NewDebtWrittenOffEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(writtenOffEvent)
+	s.publishAfterCommit(ctx, "DebtService.WriteOff", func() (any, error) {
+		return debt.NewDebtWrittenOffEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -340,17 +345,18 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtClosed(txCtx, DebtCancelledEvent, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	cancelledEvent, err := debt.NewDebtCancelledEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(cancelledEvent)
+	s.publishAfterCommit(ctx, "DebtService.Cancel", func() (any, error) {
+		return debt.NewDebtCancelledEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -384,6 +390,23 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+// publishAfterCommit announces a committed change on the eventbus. The change
+// is already saved, so a failure to build or publish the event is logged and
+// does not change the result of the call.
+func (s *DebtService) publishAfterCommit(ctx context.Context, op string, build func() (any, error)) {
+	defer func() {
+		if r := recover(); r != nil {
+			composables.UseLogger(ctx).WithField("op", op).Errorf("publishing the event after commit panicked: %v", r)
+		}
+	}()
+	event, err := build()
+	if err != nil {
+		composables.UseLogger(ctx).WithError(err).WithField("op", op).Error("building the event after commit failed")
+		return
+	}
+	s.publisher.Publish(event)
 }
 
 func (s *DebtService) recordDebtChange(ctx context.Context, eventType string, before, after debt.Debt) error {

@@ -844,6 +844,12 @@
         "_Description": "Capacidades completas de gerenciamento de etapas do projeto"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "Visualizar transações de faturamento",
+        "_Description": "Visualizar transações de faturamento e os eventos de mudança de status"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "Visualizar produtos",
