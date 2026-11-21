@@ -6,9 +6,11 @@ import (
 	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
+	"github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -48,17 +50,42 @@ type ClientUpdatedPayload struct {
 // creates the client.
 var ClientCreatedEvent = native.Event[ClientCreatedPayload](ClientCreatedEventID, native.EventSpec{
 	Subject:     ClientEntity,
-	Label:       map[string]string{"en": "Client created", "ru": "Клиент создан", "uz": "Mijoz yaratildi"},
+	Label:       manifest.Label{"en": "Client created", "ru": "Клиент создан", "uz": "Mijoz yaratildi", "uz-Cyrl": "Мижоз яратилди"},
 	Description: "A CRM client was created. Published in the transaction that creates the client.",
+	Descriptions: manifest.Label{
+		"en":      "A CRM client was created.",
+		"ru":      "Создан клиент CRM.",
+		"uz":      "CRM mijozi yaratildi.",
+		"uz-Cyrl": "CRM мижози яратилди.",
+	},
+	ReadPermission: permissions.ClientRead.Name(),
+	Sensitive:      clientContactFields,
+	Category:       "crm.clients",
 })
 
 // ClientUpdatedEvent is published by UpsertClient in the transaction that
 // updates the client.
 var ClientUpdatedEvent = native.Event[ClientUpdatedPayload](ClientUpdatedEventID, native.EventSpec{
 	Subject:     ClientEntity,
-	Label:       map[string]string{"en": "Client updated", "ru": "Клиент изменён", "uz": "Mijoz o'zgartirildi"},
+	Label:       manifest.Label{"en": "Client updated", "ru": "Клиент изменён", "uz": "Mijoz o'zgartirildi", "uz-Cyrl": "Мижоз ўзгартирилди"},
 	Description: "A CRM client was updated. Published in the transaction that updates the client; changed lists the crm.client fields the update changed.",
+	Descriptions: manifest.Label{
+		"en":      "A CRM client was updated; the changed fields are listed.",
+		"ru":      "Клиент CRM изменён; перечислены изменённые поля.",
+		"uz":      "CRM mijozi o'zgartirildi; o'zgargan maydonlar ko'rsatiladi.",
+		"uz-Cyrl": "CRM мижози ўзгартирилди; ўзгарган майдонлар кўрсатилади.",
+	},
+	ReadPermission: permissions.ClientRead.Name(),
+	Sensitive:      clientContactFields,
+	Category:       "crm.clients",
 })
+
+// clientContactFields are the payload fields of the client events that only a
+// user who may read clients sees.
+var clientContactFields = map[string][]string{
+	"phone": {permissions.ClientRead.Name()},
+	"email": {permissions.ClientRead.Name()},
+}
 
 // entityFields maps the history snapshot keys to the crm.client field IDs
 // that a changed list may name (personal identification is not exposed).

@@ -44,6 +44,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -234,6 +235,22 @@ func (c *component) Build(builder *composition.Builder) error {
 		return dispatch
 	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
+	// Event-backed notification definitions (notifications.FromEvent) are
+	// delivered from the outbox, in the transaction of the event's delivery.
+	// This is wiring.ContributeConsumers, written out so the core module does
+	// not import the extension runtime: the dispatcher of the wiring component
+	// reads every contributed events.ConsumerSource.
+	composition.Contribute(builder, func(container *composition.Container) ([]events.ConsumerSource, error) {
+		catalog, err := composition.Resolve[*notifications.Catalog](container)
+		if err != nil {
+			return nil, err
+		}
+		dispatch, err := composition.Resolve[*services.NotificationDispatchService](container)
+		if err != nil {
+			return nil, err
+		}
+		return []events.ConsumerSource{events.StaticConsumers(services.NewNotificationOutboxBridge(catalog, dispatch))}, nil
+	})
 	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
 		service, err := composition.Resolve[*services.NotificationService](container)
 		if err != nil {
@@ -277,10 +294,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
-	composition.ProvideFunc(builder, handlers.NewNotificationHandler)
-	composition.ContributeEventHandlerFunc(builder, func(h *handlers.NotificationHandler) any {
-		return h.OnUserCreated
-	})
 	// Revoke active sessions whenever a user's password changes so that
 	// leaked credentials stop being honoured after a reset.
 	composition.ProvideFunc(builder, handlers.NewUserHandler)

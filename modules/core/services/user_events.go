@@ -7,9 +7,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -32,8 +34,23 @@ type UserCreatedPayload struct {
 // module contributes it to the application's native set (Natives), next to
 // the events declared by extension packages.
 var UserCreatedEvent = native.Event[UserCreatedPayload](UserCreatedEventID, native.EventSpec{
-	Subject:     "core.user",
+	Subject: "core.user",
+	Label: manifest.Label{
+		"en": "User created", "ru": "Создан пользователь", "uz": "Foydalanuvchi yaratildi",
+		"uz-Cyrl": "Фойдаланувчи яратилди", "pt-BR": "Usuário criado", "zh": "用户已创建",
+	},
 	Description: "A user account was created. Published in the transaction that creates the user.",
+	Descriptions: manifest.Label{
+		"en":      "A user account was created.",
+		"ru":      "Создана учётная запись пользователя.",
+		"uz":      "Foydalanuvchi hisobi yaratildi.",
+		"uz-Cyrl": "Фойдаланувчи ҳисоби яратилди.",
+		"pt-BR":   "Uma conta de usuário foi criada.",
+		"zh":      "已创建用户账户。",
+	},
+	ReadPermission: permissions.UserRead.Name(),
+	Sensitive:      map[string][]string{"email": {permissions.UserRead.Name()}},
+	Category:       "core.users",
 })
 
 // Natives is the core module's native registration: the core.user entity and
@@ -59,8 +76,9 @@ func publishUserCreated(ctx context.Context, created user.User) error {
 			return serrors.Wrap(op, err)
 		}
 	}
+	// An actor of another tenant (a superadmin) is no subject of this tenant.
 	var initiator int64
-	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil {
+	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil && actor.TenantID() == tenantID {
 		initiator = int64(actor.ID())
 	}
 	_, err = events.Publish(ctx, tx,
