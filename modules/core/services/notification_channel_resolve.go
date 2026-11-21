@@ -131,6 +131,8 @@ func recipientOf(d notifications.Delivery) notifications.Addressee {
 		}
 	case notifications.RecipientAddress:
 		// Addressed directly: built from the delivery's own target below.
+	case notifications.RecipientGroup, notifications.RecipientRole, notifications.RecipientParticipant:
+		// Never stored on a delivery: the repository rejects them.
 	}
 	return notifications.AddressAddressee(map[notifications.Channel]string{d.Channel: d.TargetAddress})
 }
@@ -163,6 +165,9 @@ func (s *NotificationChannelService) targets(ctx context.Context, d notification
 		return uniqueTargets(d.Channel, contact.Targets), language, nil
 	case notifications.RecipientUser:
 		// Resolved from the user's devices and address below.
+	case notifications.RecipientGroup, notifications.RecipientRole, notifications.RecipientParticipant:
+		// Never stored on a delivery: the repository rejects them.
+		return nil, language, &resolveProblem{status: notifications.DeliveryFailed, code: notifications.ErrorCodeResolutionFailed}
 	}
 	var found []notifications.Target
 	if d.Channel == notifications.ChannelPush && s.platform != nil && s.platform.Devices != nil {

@@ -41,20 +41,21 @@ export const SPECIMENS = [
   {
     id: 'dialog',
     title: 'Dialog',
-    description: 'Confirmation dialog in its closed and modal-open states.',
-    states: ['default', 'open'],
+    description: 'Confirmation dialog closed, modal-open, and busy after a refused close.',
+    states: ['default', 'open', 'busy'],
   },
   {
     id: 'drawer',
     title: 'Drawer',
-    description: 'Responsive view drawer in its closed and modal-open states.',
-    states: ['default', 'open'],
+    description: 'Responsive view drawer closed, modal-open, and busy after a refused close.',
+    states: ['default', 'open', 'busy'],
   },
   {
     id: 'toasts',
     title: 'Toasts',
-    description: 'Persistent success, warning, and error notification surfaces.',
-    states: ['default', 'open'],
+    description: 'Success, warning, and error toasts with and without an action, above a fixed bottom action bar.',
+    states: ['default', 'open', 'action'],
+    responsiveStates: ['open'],
   },
   {
     id: 'selection',
@@ -83,6 +84,12 @@ export const SPECIMENS = [
 ] as const
 
 export type SpecimenID = (typeof SPECIMENS)[number]['id']
+
+/** States also captured at the narrow viewport, besides `default`. */
+export function responsiveStatesFor(specimenID: SpecimenID): readonly SpecimenState[] {
+  const specimen = SPECIMENS.find((item) => item.id === specimenID)
+  return specimen && 'responsiveStates' in specimen ? specimen.responsiveStates : []
+}
 export type SpecimenState = (typeof SPECIMENS)[number]['states'][number]
 
 export function isTheme(value: string | null): value is Theme {

@@ -36,7 +36,7 @@ describe('display primitives', () => {
   it('renders canonical alert tones and native attributes', () => {
     mount(() => <Alert variant="success" aria-live="polite">Saved</Alert>)
     const alert = host.firstElementChild as HTMLElement
-    expect(alert.className).toBe('bg-green-100 text-green-600 py-2.5 px-4 text-sm font-medium rounded-md w-full text-center')
+    expect(alert.className).toBe('bg-badge-green text-green py-2.5 px-4 text-sm font-medium rounded-md w-full text-center')
     expect(alert.getAttribute('aria-live')).toBe('polite')
     expect(alert.getAttribute('role')).toBe('alert')
   })
@@ -51,13 +51,25 @@ describe('display primitives', () => {
     expect(badges[5]!.classList.contains('bg-badge-gray')).toBe(true)
   })
 
-  it('clamps progress geometry and exposes progress semantics', () => {
-    mount(() => <Progress value={120} target={100} valueLabel="Done" targetLabel="100 jobs" />)
+  it('clamps progress geometry and exposes the visible share to assistive technology', () => {
+    mount(() => <Progress value={120} target={100} valueLabel="Done" targetLabel="100 jobs" label="Jobs" />)
     const bar = host.querySelector('[role="progressbar"]') as HTMLElement
     expect(bar.style.width).toBe('100%')
-    expect(bar.getAttribute('aria-valuenow')).toBe('120')
+    // The announced value matches the clamped fill; the raw numbers stay in the value text.
+    expect(bar.getAttribute('aria-label')).toBe('Jobs')
+    expect(bar.getAttribute('aria-valuemin')).toBe('0')
+    expect(bar.getAttribute('aria-valuemax')).toBe('100')
+    expect(bar.getAttribute('aria-valuenow')).toBe('100')
+    expect(bar.getAttribute('aria-valuetext')).toBe('120 / 100')
     expect(bar.textContent).toBe('Done')
     expect(host.querySelector('.shrink-0')!.textContent).toBe('100 jobs')
+  })
+
+  it('keeps an unnamed progress bar purely visual', () => {
+    mount(() => <Progress value={3} target={0} />)
+    expect(host.querySelector('[role="progressbar"]')).toBeNull()
+    expect(host.querySelector('[aria-valuenow]')).toBeNull()
+    expect((host.querySelector('.bg-success') as HTMLElement).style.width).toBe('0%')
   })
 
   it('matches Spinner SVG and accessible loading label', () => {

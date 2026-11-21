@@ -314,6 +314,10 @@
       }
     },
     "List": {
+      "Filters": {
+        "Currency": "Currency",
+        "HasBalance": "Has a balance"
+      },
       "New": "Add account",
       "Name": "Name",
       "Balance": "Balance",

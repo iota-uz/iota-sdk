@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/radio"
 	"github.com/iota-uz/iota-sdk/components/base/selects"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/base/toast"
 	copybutton "github.com/iota-uz/iota-sdk/components/copy_button"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -43,6 +44,7 @@ func main() {
 	})
 	mux.Handle("/fonts/", http.StripPrefix("/fonts/", http.FileServer(http.Dir(filepath.Join(root, "web/solid-ui/package-dist/fonts")))))
 	mux.Handle("/assets/fonts/", http.StripPrefix("/assets/fonts/", http.FileServer(http.Dir(filepath.Join(root, "modules/core/presentation/assets/fonts")))))
+	mux.Handle("/assets/js/", http.StripPrefix("/assets/js/", http.FileServer(http.Dir(filepath.Join(root, "modules/core/presentation/assets/js")))))
 	mux.HandleFunc("/", fixture)
 	if err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%d", *port), mux); err != nil {
 		panic(err)
@@ -98,8 +100,24 @@ func fixture(w http.ResponseWriter, r *http.Request) {
 	if specimen == "copy-button" {
 		_, _ = io.WriteString(w, `<script>{const icons=document.querySelectorAll('.fixture>button>span>span');icons[0]?.classList.add('opacity-100','scale-100');icons[1]?.classList.add('opacity-0','scale-50')}</script>`)
 	}
+	if specimen == "toast" {
+		// The toast container is Alpine-driven: dispatch the notification the
+		// Solid specimen shows and mark readiness once it has rendered and its
+		// enter transition has finished.
+		_, _ = fmt.Fprintf(w, `</main><script>document.addEventListener('alpine:initialized',()=>{window.dispatchEvent(new CustomEvent('notify',{detail:%s}));const settle=()=>{if(document.querySelector('[data-toast]')&&document.getAnimations().length===0){document.fonts.ready.then(()=>{document.documentElement.dataset.fixtureReady='true'})}else{requestAnimationFrame(settle)}};requestAnimationFrame(settle)})</script><script src="/assets/js/lib/alpine.lib.min.js"></script></body></html>`, toastFixtureDetail(state))
+		return
+	}
 	openDialog := state == "open"
 	_, _ = fmt.Fprintf(w, `</main><script>if(%t){document.querySelector('dialog')?.showModal()}document.fonts.ready.then(()=>{document.documentElement.dataset.fixtureReady='true'})</script></body></html>`, openDialog)
+}
+
+// toastFixtureDetail mirrors the Solid gallery toasts: the plain success toast
+// of the "open" specimen and the toast with an action of the "action" specimen.
+func toastFixtureDetail(state string) string {
+	if state == "action" {
+		return `{"variant":"success","title":"Product archived","message":"It no longer appears in the catalog.","duration":0,"action":{"label":"Undo","hxPost":"/products/archive/undo"}}`
+	}
+	return `{"variant":"success","title":"Product saved","message":"The draft is ready for review.","duration":0}`
 }
 
 func fixtureComponent(specimen, state string) templ.Component {
@@ -225,6 +243,12 @@ func fixtureComponent(specimen, state string) templ.Component {
 		})
 	case "copy-button":
 		return copybutton.CopyButton(copybutton.Props{Text: "TRV-2026"})
+	case "toast":
+		component := toast.Container()
+		return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			ctx = composables.WithPageCtx(ctx, types.NewPageContext(language.English, &url.URL{Path: "/"}, nil))
+			return component.Render(ctx, w)
+		})
 	case "language-select":
 		return usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 			Label: "Language", Value: "en", Attrs: templ.Attributes{"data-parity-target": "language-select"},

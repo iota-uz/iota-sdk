@@ -6,9 +6,19 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"strconv"
 )
+
+// ProjectStagesTableWithChips answers a search or filter change: the table
+// plus the chip bar, swapped out-of-band since it sits in the form above.
+templ ProjectStagesTableWithChips(props *IndexPageProps) {
+	@ProjectStagesTable(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
 
 templ ProjectStagesTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}

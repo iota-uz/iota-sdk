@@ -13,6 +13,8 @@ type TableDefinition struct {
 	actions    []templ.Component
 	sideFilter templ.Component
 	panels     []DeferredPanel
+	filterBar  templ.Component
+	barOOB     templ.Component
 
 	// Configuration options
 	enableInfiniteScroll bool
@@ -52,6 +54,12 @@ func (td TableDefinition) Actions() []templ.Component {
 
 func (td TableDefinition) SideFilter() templ.Component {
 	return td.sideFilter
+}
+
+// FilterBar returns the filter chip bar and its out-of-band twin, in that
+// order.
+func (td TableDefinition) FilterBar() (templ.Component, templ.Component) {
+	return td.filterBar, td.barOOB
 }
 
 // DeferredPanels returns the panels rendered above the table.
@@ -110,6 +118,15 @@ func (b *TableDefinitionBuilder) WithActions(actions ...templ.Component) *TableD
 // WithSideFilter sets the side filter component
 func (b *TableDefinitionBuilder) WithSideFilter(filter templ.Component) *TableDefinitionBuilder {
 	b.definition.sideFilter = filter
+	return b
+}
+
+// WithFilterBar shows a filter chip bar under the toolbar on every screen
+// width; oob (e.g. filterbuilder.BuilderOOB) re-renders it on row responses.
+// See TableConfig.FilterBar.
+func (b *TableDefinitionBuilder) WithFilterBar(bar, oob templ.Component) *TableDefinitionBuilder {
+	b.definition.filterBar = bar
+	b.definition.barOOB = oob
 	return b
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -178,6 +179,9 @@ func (s *NotificationRoutingService) Publish(ctx context.Context, event notifica
 	if err != nil {
 		return 0, serrors.New(serrors.Invalid, err.Error()).WithOp("NotificationRoutingService.Publish")
 	}
+	if err := checkRuleIdentity(event); err != nil {
+		return 0, err
+	}
 	rule, ids, err := s.ResolveRecipients(ctx, event)
 	if err != nil {
 		return 0, err
@@ -210,47 +214,72 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	if !rule.Enabled {
 		return rule, nil, nil
 	}
-	named, err := s.directory.GetByIDs(ctx, rule.UserIDs)
-	if err != nil {
-		return rule, nil, serrors.Wrap(op, err)
-	}
-	ids := make([]uint, 0, len(named))
-	for _, recipient := range named {
-		ids = append(ids, recipient.ID)
-	}
-	if len(rule.GroupIDs)+len(rule.RoleIDs) > 0 {
-		resolved, err := s.audience.Resolve(ctx, rule.GroupIDs, rule.RoleIDs)
+	// Named people are filtered through the rule's directory; the shared
+	// resolver expands groups, roles and the event's own participants.
+	var userIDs []uint
+	if len(rule.UserIDs) > 0 {
+		named, err := s.directory.GetByIDs(ctx, rule.UserIDs)
 		if err != nil {
 			return rule, nil, serrors.Wrap(op, err)
 		}
-		ids = append(ids, resolved...)
-	}
-	for _, key := range rule.RecipientKeys {
-		found := false
-		for _, recipient := range definition.RecipientKeys {
-			if recipient.Key == key {
-				found = true
-				resolved, err := recipient.Resolve(ctx, event)
-				if err != nil {
-					return rule, nil, serrors.Wrap(op, err)
-				}
-				ids = append(ids, resolved...)
-				break
-			}
+		userIDs = make([]uint, 0, len(named))
+		for _, recipient := range named {
+			userIDs = append(userIDs, recipient.ID)
 		}
-		if !found {
+	}
+	audience := notifications.Audience{Users: userIDs, Groups: rule.GroupIDs, Roles: rule.RoleIDs, Participants: rule.RecipientKeys}
+	resolved, err := s.audienceResolver(false).Resolve(ctx, audience, &event)
+	if err != nil {
+		return rule, nil, serrors.Wrap(op, err)
+	}
+	for _, skipped := range resolved.Skipped {
+		if skipped.Reason == notifications.SkipUnknownParticipant {
 			return rule, nil, serrors.New(serrors.Invalid, "unknown event recipient").WithOp(op)
 		}
 	}
-	unique := make([]uint, 0, len(ids))
-	seen := map[uint]bool{}
-	for _, id := range ids {
-		if id != 0 && !seen[id] {
-			seen[id] = true
-			unique = append(unique, id)
+	return rule, resolved.UserIDs, nil
+}
+
+// userStates adapts NotificationRecipients for an AudienceRepository that
+// cannot report user states in one query.
+type userStates struct{ users NotificationRecipients }
+
+func (u userStates) UserStates(ctx context.Context, ids []uint) ([]notifications.UserState, error) {
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list, err := u.users.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	states := make([]notifications.UserState, 0, len(list))
+	for _, usr := range list {
+		if usr.TenantID() != tenant {
+			continue
+		}
+		states = append(states, notifications.UserState{ID: usr.ID(), Active: !usr.IsBlocked() && usr.Type() == user.TypeUser && usr.Status() == user.StatusActive})
+	}
+	return states, nil
+}
+
+// audienceResolver builds the shared resolver over the service's sources.
+// checkUsers drops unavailable named users; rule mode leaves that to its
+// directory.
+func (s *NotificationRoutingService) audienceResolver(checkUsers bool) *notifications.AudienceResolver {
+	var users notifications.AudienceUsers
+	if checkUsers {
+		if batch, ok := s.audience.(notifications.AudienceUsers); ok {
+			users = batch
+		} else {
+			users = userStates{s.users}
 		}
 	}
-	return rule, unique, nil
+	var contacts *notifications.ContactResolvers
+	if s.platform != nil {
+		contacts = s.platform.Contacts
+	}
+	return notifications.NewAudienceResolver(s.catalog, s.audience, users, contacts)
 }
 
 // DeliverRecipients delivers a rule-mode event to user recipients.
@@ -273,10 +302,25 @@ func eventIdentity(event notifications.Event) string {
 	return event.ID
 }
 
+// addressedPrefix starts the identity of every explicit and audience send.
+const addressedPrefix = "addressed:"
+
+// checkRuleIdentity refuses a new rule-mode event in the addressed identity
+// namespace: notices and jobs are unique per event key and identity, not per
+// mode, so such an event could take the place of an audience send. Only new
+// rule events are checked; jobs accepted earlier keep being delivered.
+func checkRuleIdentity(event notifications.Event) error {
+	if strings.HasPrefix(eventIdentity(event), addressedPrefix) {
+		return serrors.New(serrors.Invalid, "the addressed: identity prefix is reserved for explicit sends").WithOp("NotificationRoutingService.checkRuleIdentity")
+	}
+	return nil
+}
+
 // ensureNotice stores the notice instance in the current transaction.
 func (s *NotificationRoutingService) ensureNotice(ctx context.Context, event notifications.Event, mode notifications.NoticeMode) (notifications.Notice, error) {
+	const op serrors.Op = "NotificationRoutingService.ensureNotice"
 	if s.platform == nil || s.platform.Notices == nil || s.platform.Renderers == nil {
-		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp("NotificationRoutingService.ensureNotice")
+		return notifications.Notice{}, serrors.New(serrors.FailedPrecondition, "notification platform is not configured").WithOp(op)
 	}
 	return s.platform.Notices.Ensure(ctx, notifications.Notice{
 		TenantID: event.TenantID, EventKey: event.Key, Version: event.Version, SnapshotRef: event.SnapshotRef, EventID: eventIdentity(event),

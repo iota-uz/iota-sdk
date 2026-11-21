@@ -1,4 +1,5 @@
 import { createEffect, createSignal, onCleanup, onMount, splitProps, type JSX } from 'solid-js'
+import { ButtonPresentationContext } from '../forms/Button'
 import { classes } from '../internal/classes'
 import { createFloatingPlacement, floatingPlacementClasses } from '../internal/floating'
 
@@ -43,7 +44,9 @@ export function Dropdown(props: DropdownProps) {
       items[event.key === 'Home' ? 0 : items.length - 1]?.focus()
     }
   }
-  onMount(() => details.ownerDocument.addEventListener('pointerdown', onDocumentPointerDown))
+  onMount(() => {
+    details.ownerDocument.addEventListener('pointerdown', onDocumentPointerDown)
+  })
   onCleanup(() => details?.ownerDocument.removeEventListener('pointerdown', onDocumentPointerDown))
   return (
     <div {...native} class={classes('relative', local.class)}>
@@ -54,7 +57,7 @@ export function Dropdown(props: DropdownProps) {
         onToggle={() => { if (details.open !== expanded()) setOpen(details.open) }}
         onKeyDown={onKeyDown}
       >
-        <summary ref={summary} aria-haspopup="menu" aria-expanded={expanded()} aria-label={local.label}>{local.trigger}</summary>
+        <summary ref={summary} aria-haspopup="menu" aria-expanded={expanded()} aria-label={local.label}><ButtonPresentationContext.Provider value={true}>{local.trigger}</ButtonPresentationContext.Provider></summary>
         <ul ref={menu} role="menu" class={classes('absolute flex max-h-[calc(100vh-1rem)] w-44 max-w-[calc(100vw-1rem)] flex-col gap-1 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-surface-300 p-1 text-sm shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'), local.menuClass)}>{local.children}</ul>
       </details>
       <details aria-hidden="true" class="hidden peer-open:block" name="details-dropdown"><summary class="fixed w-full h-full left-0 top-0" /></details>
@@ -68,7 +71,7 @@ export interface DropdownLinkProps extends JSX.AnchorHTMLAttributes<HTMLAnchorEl
 export function DropdownItem(props: DropdownItemProps | DropdownLinkProps) {
   const [local, native] = splitProps(props, ['href', 'class', 'children'])
   return (
-    <li>
+    <li role="none">
       {local.href
         ? <a {...native as JSX.AnchorHTMLAttributes<HTMLAnchorElement>} role="menuitem" href={local.href} class={classes('block p-2 duration-200 hover:bg-surface-400 rounded-md', local.class)}>{local.children}</a>
         : <button {...native as JSX.ButtonHTMLAttributes<HTMLButtonElement>} role="menuitem" type={(native as JSX.ButtonHTMLAttributes<HTMLButtonElement>).type ?? 'button'} class={classes('block p-2 duration-200 hover:bg-surface-400 rounded-md', local.class)}>{local.children}</button>}
@@ -84,7 +87,7 @@ export interface DropdownFormItemProps extends JSX.FormHTMLAttributes<HTMLFormEl
 export function DropdownFormItem(props: DropdownFormItemProps) {
   const [local, native] = splitProps(props, ['fields', 'buttonClass', 'children'])
   return (
-    <li><form {...native} method={native.method ?? 'post'}>
+    <li role="none"><form {...native} method={native.method ?? 'post'}>
       {Object.entries(local.fields ?? {}).map(([name, value]) => <input type="hidden" name={name} value={value} />)}
       <button role="menuitem" type="submit" class={classes('block w-full p-2 text-left duration-200 hover:bg-surface-400 rounded-md', local.buttonClass)}>{local.children}</button>
     </form></li>

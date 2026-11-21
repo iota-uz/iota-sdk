@@ -15,6 +15,8 @@ import (
 
 type NotificationDispatchRepository struct{}
 
+var _ notifications.DispatchFinder = (*NotificationDispatchRepository)(nil)
+
 func NewNotificationDispatchRepository() notifications.DispatchRepository {
 	return &NotificationDispatchRepository{}
 }
@@ -87,6 +89,25 @@ func (r *NotificationDispatchRepository) Enqueue(ctx context.Context, req notifi
 	}
 	job, err := scanDispatch(db.QueryRow(ctx, `INSERT INTO core.notification_dispatches(id,tenant_id,event_key,event_id,event,rule,mode,recipient_ids,addressees,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN jsonb_array_length($8::jsonb)+jsonb_array_length($9::jsonb)=0 THEN NOW() ELSE NULL END) ON CONFLICT(tenant_id,event_key,event_id) DO UPDATE SET event_id=EXCLUDED.event_id RETURNING `+dispatchColumns, uuid.New(), tenant, event.Key, identity, eventJSON, ruleJSON, string(req.Mode), idsJSON, addresseesJSON))
 	return job, serrors.Wrap(op, err)
+}
+func (r *NotificationDispatchRepository) Find(ctx context.Context, eventKey, eventID string) (notifications.DispatchJob, bool, error) {
+	const op serrors.Op = "NotificationDispatchRepository.Find"
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return notifications.DispatchJob{}, false, serrors.Wrap(op, err)
+	}
+	db, err := composables.UseTx(ctx)
+	if err != nil {
+		return notifications.DispatchJob{}, false, serrors.Wrap(op, err)
+	}
+	job, err := scanDispatch(db.QueryRow(ctx, `SELECT `+dispatchColumns+` FROM core.notification_dispatches WHERE tenant_id=$1 AND event_key=$2 AND event_id=$3`, tenant, eventKey, eventID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return notifications.DispatchJob{}, false, nil
+	}
+	if err != nil {
+		return notifications.DispatchJob{}, false, serrors.Wrap(op, err)
+	}
+	return job, true, nil
 }
 func (r *NotificationDispatchRepository) Next(ctx context.Context) (*notifications.DispatchJob, error) {
 	const op serrors.Op = "NotificationDispatchRepository.Next"

@@ -7,7 +7,7 @@ import (
 )
 
 templ RegularItem(label templ.Component, value templ.Component) {
-	<div class="flex p-3 justify-between items-center bg-gray-100 gap-2">
+	<div class="flex p-3 justify-between items-center bg-surface-100 gap-2">
 		@label
 		@value
 	</div>
@@ -38,7 +38,7 @@ templ Text(value templ.Component, classes templ.CSSClasses, attrs templ.Attribut
 }
 
 templ Link(text, href string, classes templ.CSSClasses, attrs templ.Attributes) {
-	<a class={ twmerge.Merge("font-medium text-sm text-brand-500 underline text-right", classes.String()) } href={ templ.SafeURL(href) } { attrs... }>{ text }</a>
+	<a class={ twmerge.Merge("font-medium text-sm text-brand-500 dark:text-primary-300 underline text-right", classes.String()) } href={ templ.SafeURL(href) } { attrs... }>{ text }</a>
 }
 
 templ ListTitle(text string, classes templ.CSSClasses, attrs templ.Attributes) {
@@ -46,7 +46,7 @@ templ ListTitle(text string, classes templ.CSSClasses, attrs templ.Attributes) {
 }
 
 templ ListSubtitle(text templ.Component, classes templ.CSSClasses, attrs templ.Attributes) {
-	<span class={ twmerge.Merge("text-brand-500 text-sm", classes.String()) } { attrs... }>
+	<span class={ twmerge.Merge("text-brand-500 dark:text-primary-300 text-sm", classes.String()) } { attrs... }>
 		@text
 	</span>
 }

@@ -16,7 +16,7 @@ export interface DescriptionListProps extends Omit<JSX.HTMLAttributes<HTMLDivEle
 
 function ListHeader(props: Pick<DescriptionListProps, 'title' | 'subtitle' | 'header'>) {
   if (props.header !== undefined) return <>{props.header}</>
-  return <div class="flex flex-col gap-2 p-4">{props.title !== undefined && <span class="text-sm font-medium">{props.title}</span>}{props.subtitle !== undefined && <span class="text-brand-500 text-sm">{props.subtitle}</span>}</div>
+  return <div class="flex flex-col gap-2 p-4">{props.title !== undefined && <span class="text-sm font-medium">{props.title}</span>}{props.subtitle !== undefined && <span class="text-brand-500 dark:text-primary-300 text-sm">{props.subtitle}</span>}</div>
 }
 
 export function DescriptionList(props: DescriptionListProps) {
@@ -38,7 +38,7 @@ export function DescriptionList(props: DescriptionListProps) {
 
 export function DescriptionListItem(props: JSX.HTMLAttributes<HTMLDivElement>) {
   const [local, native] = splitProps(props, ['class', 'children'])
-  return <div {...native} class={classes('flex p-3 justify-between items-center bg-gray-100 gap-2', local.class)}>{local.children}</div>
+  return <div {...native} class={classes('flex p-3 justify-between items-center bg-surface-100 gap-2', local.class)}>{local.children}</div>
 }
 
 export function DescriptionListLabel(props: JSX.HTMLAttributes<HTMLSpanElement>) {
@@ -53,7 +53,7 @@ export function DescriptionListValue(props: JSX.HTMLAttributes<HTMLSpanElement>)
 
 export function DescriptionListLink(props: JSX.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const [local, native] = splitProps(props, ['class', 'children'])
-  return <a {...native} class={classes('font-medium text-sm text-brand-500 underline text-right', local.class)}>{local.children}</a>
+  return <a {...native} class={classes('font-medium text-sm text-brand-500 dark:text-primary-300 underline text-right', local.class)}>{local.children}</a>
 }
 
 export interface DescriptionListDetailsProps extends JSX.DetailsHtmlAttributes<HTMLDetailsElement> { label: JSX.Element; contentClass?: string }

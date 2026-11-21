@@ -212,7 +212,7 @@ export function ImportRunProgress(props: ImportRunProgressProps) {
       if (!disposed && !controller.signal.aborted && action === controller) setCancelling(false)
     }
   }
-  return <div {...native} id={native.id ?? 'import-run'} class={local.class}><Show when={terminal()} fallback={<Card class="mx-6 mb-6"><div class="space-y-3"><p class="text-sm font-medium text-gray-700">{state().phase || labels().running}</p><Progress value={state().done} target={state().total > 0 ? state().total : 1} /><Show when={local.cancel}><div class="flex justify-end"><Button type="button" variant="secondary" size="sm" loading={cancelling()} onClick={() => void cancel()}>{labels().cancelRun}</Button></div></Show></div></Card>}><ImportRunResult state={state()} confirm={local.confirm} retry={local.retry} labels={local.labels} onStateChange={update} onError={local.onError} /></Show></div>
+  return <div {...native} id={native.id ?? 'import-run'} class={local.class}><Show when={terminal()} fallback={<Card class="mx-6 mb-6"><div class="space-y-3"><p class="text-sm font-medium text-gray-700">{state().phase || labels().running}</p><Progress value={state().done} target={state().total > 0 ? state().total : 1} label={state().phase || labels().running} /><Show when={local.cancel}><div class="flex justify-end"><Button type="button" variant="secondary" size="sm" loading={cancelling()} onClick={() => void cancel()}>{labels().cancelRun}</Button></div></Show></div></Card>}><ImportRunResult state={state()} confirm={local.confirm} retry={local.retry} labels={local.labels} onStateChange={update} onError={local.onError} /></Show></div>
 }
 
 export const RunProgress = ImportRunProgress

@@ -43,6 +43,16 @@ func (s *ProjectStageService) GetPaginated(
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
+// Find returns a page of stages matching the search and filters of params.
+func (s *ProjectStageService) Find(ctx context.Context, params *projectstage.FindParams) ([]projectstage.ProjectStage, error) {
+	return s.repo.Find(ctx, params)
+}
+
+// CountFound counts the stages matching params, ignoring paging.
+func (s *ProjectStageService) CountFound(ctx context.Context, params *projectstage.FindParams) (int64, error) {
+	return s.repo.CountFound(ctx, params)
+}
+
 func (s *ProjectStageService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }

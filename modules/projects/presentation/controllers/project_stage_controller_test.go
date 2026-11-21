@@ -104,6 +104,55 @@ func TestProjectStageController_List_Success(t *testing.T) {
 		Contains("Test stage 2")
 }
 
+func TestProjectStageController_List_FilterChips(t *testing.T) {
+	t.Parallel()
+	suite := newProjectStageSuiteBuilder(t).Build().AsUser(itf.User())
+	env := suite.Environment()
+	suite.Register(controllers.NewProjectStageController())
+
+	projectStageService := itf.GetService[services.ProjectStageService](env)
+	projectService := itf.GetService[services.ProjectService](env)
+	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
+	customer, err := counterpartyService.Create(env.Ctx, counterparty.New("Chip Customer", counterparty.Customer,
+		counterparty.Individual, counterparty.WithTenantID(env.Tenant.ID)))
+	require.NoError(t, err)
+
+	alpha := project.New("Alpha", customer.ID(), project.WithTenantID(env.Tenant.ID))
+	beta := project.New("Beta", customer.ID(), project.WithTenantID(env.Tenant.ID))
+	require.NoError(t, projectService.Create(env.Ctx, alpha))
+	require.NoError(t, projectService.Create(env.Ctx, beta))
+
+	done := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	require.NoError(t, projectStageService.Create(env.Ctx, projectstage.New(alpha.ID(), 1, 100000,
+		projectstage.WithDescription("Alpha finished stage"), projectstage.WithFactualEndDate(&done))))
+	require.NoError(t, projectStageService.Create(env.Ctx, projectstage.New(alpha.ID(), 2, 100000,
+		projectstage.WithDescription("Alpha open stage"))))
+	require.NoError(t, projectStageService.Create(env.Ctx, projectstage.New(beta.ID(), 1, 100000,
+		projectstage.WithDescription("Beta open stage"))))
+
+	cases := []struct {
+		name    string
+		query   string
+		present []string
+		absent  []string
+	}{
+		{"project", "?f=project:is:" + alpha.ID().String(), []string{"Alpha finished stage", "Alpha open stage"}, []string{"Beta open stage"}},
+		{"not finished", "?f=factual_end:empty:", []string{"Alpha open stage", "Beta open stage"}, []string{"Alpha finished stage"}},
+		{"project and not finished", "?f=project:is:" + alpha.ID().String() + "&f=factual_end:empty:", []string{"Alpha open stage"}, []string{"Alpha finished stage", "Beta open stage"}},
+		{"search keeps working with chips", "?Search=finished&f=project:is:" + alpha.ID().String(), []string{"Alpha finished stage"}, []string{"Alpha open stage"}},
+	}
+	for _, tc := range cases {
+		response := suite.GET(ProjectStageBasePath + tc.query).HTMX().Expect(t).Status(200)
+		for _, text := range tc.present {
+			response.Contains(text)
+		}
+		for _, text := range tc.absent {
+			response.NotContains(text)
+		}
+		response.Contains(`hx-swap-oob="outerHTML"`)
+	}
+}
+
 func TestProjectStageController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()

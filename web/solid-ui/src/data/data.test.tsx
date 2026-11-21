@@ -40,8 +40,8 @@ describe('data and layout primitives', () => {
       </DescriptionList>
     ))
     expect(screen.getByText('Product').parentElement).toHaveClass('flex', 'flex-col', 'gap-2', 'p-4')
-    expect(screen.getByText('CASCO').closest('div')).toHaveClass('bg-gray-100', 'p-3')
-    expect(screen.getByRole('link', { name: 'Open' })).toHaveClass('text-brand-500', 'underline')
+    expect(screen.getByText('CASCO').closest('div')).toHaveClass('bg-surface-100', 'p-3')
+    expect(screen.getByRole('link', { name: 'Open' })).toHaveClass('text-brand-500', 'dark:text-primary-300', 'underline')
     expect(screen.getByText('Nested details').closest('div')).toHaveClass('bg-surface-100', 'p-4')
   })
 

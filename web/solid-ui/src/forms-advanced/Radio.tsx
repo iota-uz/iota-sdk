@@ -108,7 +108,7 @@ export function Radio(props: RadioProps) {
         'iota-radio-indicator pointer-events-none w-5 h-5 shrink-0 border border-default rounded-full duration-300 peer-checked:border-brand peer-disabled:border-disabled relative',
         local.indicatorClass,
       )} />
-      <span class="text-300 peer-checked:text-100 font-medium text-sm">{local.label}{local.children}</span>
+      <span class="text-200 peer-checked:text-100 font-medium text-sm">{local.label}{local.children}</span>
     </label>
   )
 }

@@ -52,7 +52,7 @@ export function Slider(props: SliderProps) {
     <div class="flex flex-col w-full">
       <div class="flex justify-between mb-2">
         <Show when={local.label !== undefined && local.label !== ''}><label for={id()} class="form-control-label">{local.label}</label></Show>
-        <span class="text-sm text-gray-700" aria-hidden="true">{formatValue(value(), step(), local.valueFormat ?? 'auto')}</span>
+        <span class="text-sm text-200" aria-hidden="true">{formatValue(value(), step(), local.valueFormat ?? 'auto')}</span>
       </div>
       <div class="relative h-5 flex items-center">
         <div class="absolute h-1 w-full bg-gray-200 rounded-full" />

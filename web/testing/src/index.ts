@@ -40,3 +40,4 @@ import { preservingCleanup, withEnvironmentLease } from './lease.js'
 export { acquireEnvironmentLease, withEnvironmentLease, preservingCleanup, type EnvironmentLease, type LeaseOptions } from './lease.js'
 
 export { createHttpScenarioControl, createHttpTestControls, ScenarioControlError, JobWaitError, type ScenarioInput, type ScenarioResult, type EntityRef, type ExecutionStatus, type WaitResult, type ProviderStep, type ProviderCall, type ScenarioManifest } from './scenarios.js'
+export { expectNoA11yViolations, A11yViolationError, A11yDependencyError, blockingA11yImpacts, type A11yCheckOptions } from './a11y.js'

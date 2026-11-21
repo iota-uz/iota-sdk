@@ -148,7 +148,7 @@ function DisplaySpecimen() {
           {(variant) => <Badge variant={variant} class="specimen-badge" data-vr-target={variant === 'pink' ? 'display-badge' : undefined}>{variant}</Badge>}
         </For>
       </div>
-      <Progress value={68} target={100} valueLabel="68%" targetLabel="100%" />
+      <Progress value={68} target={100} valueLabel="68%" targetLabel="100%" label="Collected premiums" />
       <div class="specimen-row">
         <Spinner label="Loading products" />
         <Skeleton variant="card" class="specimen-skeleton" />
@@ -242,13 +242,28 @@ function DialogSpecimen(props: SpecimenProps) {
   return (
     <section class="specimen specimen-stack" aria-label="Dialog specimen" data-testid="specimen-dialog">
       <p>Confirmation dialogs retain focus and modal geometry across runtimes.</p>
-      <ConfirmationDialog
-        defaultOpen={props.state === 'open'}
-        heading="Delete insurance product?"
-        text="This action cannot be undone."
-        cancelText="Cancel"
-        confirmText="Delete"
-      />
+      {props.state === 'busy'
+        ? (
+          <ConfirmationDialog
+            defaultOpen
+            busy
+            busyMessage="Deleting the product. The request will not be sent twice."
+            heading="Delete insurance product?"
+            text="This action cannot be undone."
+            cancelText="Cancel"
+            confirmText="Delete"
+            danger
+          />
+        )
+        : (
+          <ConfirmationDialog
+            defaultOpen={props.state === 'open'}
+            heading="Delete insurance product?"
+            text="This action cannot be undone."
+            cancelText="Cancel"
+            confirmText="Delete"
+          />
+        )}
     </section>
   )
 }
@@ -257,7 +272,12 @@ function DrawerSpecimen(props: SpecimenProps) {
   return (
     <section class="specimen specimen-stack" aria-label="Drawer specimen" data-testid="specimen-drawer">
       <p>View drawers preserve the canonical edge, surface, and responsive width.</p>
-      <ViewDrawer defaultOpen={props.state === 'open'} title="Product details">
+      <ViewDrawer
+        defaultOpen={props.state === 'open' || props.state === 'busy'}
+        busy={props.state === 'busy' ? true : undefined}
+        busyMessage="Saving the product. The request will not be sent twice."
+        title="Product details"
+      >
         <div class="specimen-drawer-content">
           <strong>Travel insurance</strong>
           <p>Contract series TRV-2026 with worldwide coverage.</p>
@@ -267,17 +287,29 @@ function DrawerSpecimen(props: SpecimenProps) {
   )
 }
 
+const noop = () => {}
+
 function ToastsSpecimen(props: SpecimenProps) {
   return (
-    <section class="specimen specimen-stack" aria-label="Toast specimens" data-testid="specimen-toasts">
+    // The fixed bottom bar publishes its height so phone toasts stack above it.
+    <section class="specimen specimen-stack" aria-label="Toast specimens" data-testid="specimen-toasts" style={{ '--iota-toast-offset-bottom': '4.5rem' }}>
       <p>Notifications use a fixed region when the specimen is open.</p>
       {props.state === 'open' && (
         <ToastRegion>
           <Toast variant="success" title="Product saved" message="The draft is ready for review." duration={0} />
+          <Toast variant="success" title="Product archived" message="It no longer appears in the catalog." duration={0} action={{ label: 'Undo', onAction: noop }} data-vr-target="toast-undo" />
           <Toast variant="warning" title="Missing tariff" message="Add a tariff before publishing." duration={0} />
-          <Toast variant="error" title="Publish failed" message="Try again after checking the fields." duration={0} />
+          <Toast variant="error" title="Publish failed" message="Try again after checking the fields." duration={0} action={{ label: 'Retry', onAction: noop }} data-vr-target="toast-retry" />
         </ToastRegion>
       )}
+      {props.state === 'action' && (
+        <ToastRegion>
+          <Toast variant="success" title="Product archived" message="It no longer appears in the catalog." duration={0} action={{ label: 'Undo', onAction: noop }} data-vr-target="toast-action" />
+        </ToastRegion>
+      )}
+      <div class="specimen-bottom-bar" data-vr-target="toast-bottom-bar">
+        <Button class="min-h-11 flex-1 justify-center">Publish product</Button>
+      </div>
     </section>
   )
 }

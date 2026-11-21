@@ -44,16 +44,12 @@ templ RunProgress(statusURL string, state importpkg.RunState, confirmURL string)
 		>
 			@card.Card(card.Props{WrapperClass: "mx-6 mb-6"}) {
 				<div class="space-y-3">
-					<p class="text-sm font-medium text-gray-700">
-						if state.Phase != "" {
-							{ state.Phase }
-						} else {
-							{ orDefault(pgCtx.TSafe("Running"), "Running…") }
-						}
-					</p>
+					{{ phase := orDefault(state.Phase, orDefault(pgCtx.TSafe("Running"), "Running…")) }}
+					<p class="text-sm font-medium text-gray-700">{ phase }</p>
 					@base.Progress(base.ProgressProps{
 						Value:  uint(state.Done),
 						Target: progressTarget(state.Total),
+						Label:  phase,
 					})
 				</div>
 			}
