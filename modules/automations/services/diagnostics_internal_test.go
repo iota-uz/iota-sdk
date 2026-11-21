@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,42 +11,66 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 )
 
-// Whatever is combined with a secret and however it is encoded, embedded at any position of the
-// identity, the identity is refused.
-func TestIdentityRefusesEncodedSecretsAtAnyOffset(t *testing.T) {
+// Layers of encoding, applied in any order on top of a composite of a login and a secret and embedded
+// at any position, are unwrapped at the output boundary.
+func TestCarriesSecretUnwrapsLayeredEncodings(t *testing.T) {
 	t.Parallel()
 	all := func(string) bool { return true }
-	encoders := map[string]func([]byte) string{
-		"std": base64.StdEncoding.EncodeToString, "raw": base64.RawStdEncoding.EncodeToString,
-		"url": base64.URLEncoding.EncodeToString, "rawurl": base64.RawURLEncoding.EncodeToString,
-		"hex": hex.EncodeToString,
+	layers := map[string]func(string) string{
+		"b64":    func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
+		"rawurl": func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) },
+		"hex":    func(s string) string { return hex.EncodeToString([]byte(s)) },
+		"url":    url.QueryEscape,
 	}
-	for _, pw := range []string{"p", "p1", "p1x", "Pa55", "s3cret!", "a&b c"} {
+	names := []string{"b64", "rawurl", "hex", "url"}
+	for _, pw := range []string{"p", "p1x", "Pa55", "s3cret!", "a&b c"} {
 		creds := connectors.Credentials{"password": pw}
-		for _, login := range []string{"", "u", "us", "usr", "user", "robot@acme.uz"} {
-			for _, sep := range []string{":", "", " "} {
-				payload := []byte(login + sep + pw)
-				for name, enc := range encoders {
-					for _, prefix := range []string{"", "a", "ab", "abc", "bot ", "bot_", "x-"} {
-						id := prefix + enc(payload)
-						assert.False(t, identityPartOK(id, maxIdentityDisplay, all, creds), "%s %q", name, id)
-					}
+		base := "user:" + pw
+		var chains [][]string
+		for _, a := range names {
+			chains = append(chains, []string{a})
+			for _, b := range names {
+				chains = append(chains, []string{a, b})
+				for _, c := range names {
+					chains = append(chains, []string{a, b, c})
 				}
 			}
 		}
-		assert.False(t, identityPartOK("bot "+url.QueryEscape(pw), maxIdentityDisplay, all, creds))
-		assert.False(t, identityPartOK("bot "+pw, maxIdentityDisplay, all, creds))
+		for _, chain := range chains {
+			s := base
+			for _, l := range chain {
+				s = layers[l](s)
+			}
+			for _, prefix := range []string{"", "x", "xy", "xyz", "bot "} {
+				assert.True(t, carriesSecret(prefix+s, all, creds), "%v %q", chain, prefix+s)
+			}
+		}
 	}
 }
 
-func TestIdentityKeepsOrdinaryIdentities(t *testing.T) {
+func TestValidIdentityKeepsOnlyTypedShapes(t *testing.T) {
 	t.Parallel()
 	all := func(string) bool { return true }
 	creds := connectors.Credentials{"token": "123456:AAH-very-secret-bot-token", "password": "Zq7#long-pass"}
-	for _, ok := range []string{"@acme_sales_bot", "robot@acme.uz", "Acme Customer Support Bot", "+998 90 123 45 67", "Ғайрат Қодиров", "O'Brien & Sons (Main)"} {
-		assert.True(t, identityPartOK(ok, maxIdentityDisplay, all, creds), ok)
+	keep := []connectors.Identity{
+		{Display: "@acme_sales_bot", Kind: connectors.IdentityHandle},
+		{Display: "robot@acme.uz", Kind: connectors.IdentityEmail},
+		{Display: "+998 90 123 45 67", Kind: connectors.IdentityPhone},
 	}
-	for _, bad := range []string{"bot=1", "a/b", "id:42", "x\u200by", strings.Repeat("a", maxIdentityDisplay+1), "tok eyJhbGciOiJIUzI1NiJ9abc123"} {
-		assert.False(t, identityPartOK(bad, maxIdentityDisplay, all, creds), bad)
+	for _, id := range keep {
+		assert.Equal(t, id.Display, validIdentity(id, all, creds).Display, id.Display)
+	}
+	drop := []connectors.Identity{
+		{Display: "Acme Customer Support Bot"},
+		{Display: "Acme Customer Support Bot", Kind: connectors.IdentityHandle},
+		{Display: "@a", Kind: connectors.IdentityHandle},
+		{Display: "not-an-email", Kind: connectors.IdentityEmail},
+		{Display: "+99890abc", Kind: connectors.IdentityPhone},
+		{Display: "@acme_sales_bot", Kind: "custom"},
+	}
+	for _, id := range drop {
+		got := validIdentity(id, all, creds)
+		assert.Empty(t, got.Display, id.Display)
+		assert.Empty(t, got.Kind, id.Display)
 	}
 }

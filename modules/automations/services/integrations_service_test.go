@@ -54,13 +54,14 @@ func (n node) Requires() []catalog.ConnectorKind {
 }
 
 type telegram struct {
-	during     func()                    // runs inside Test, while the provider is being asked
-	echo       func(token string) string // the refusal message, from the token (a careless provider)
-	identityOf func(token string) string // the identity's display, from the token
-	accept     string                    // another token the provider accepts
-	tested     atomic.Int32
-	policy     connectors.PlatformPolicy
-	nodes      []catalog.NodeType
+	during       func()                    // runs inside Test, while the provider is being asked
+	echo         func(token string) string // the refusal message, from the token (a careless provider)
+	identityOf   func(token string) string // the identity's display, from the token
+	identityKind connectors.IdentityKind   // its declared kind (default handle)
+	accept       string                    // another token the provider accepts
+	tested       atomic.Int32
+	policy       connectors.PlatformPolicy
+	nodes        []catalog.NodeType
 }
 
 func (c *telegram) Kind() catalog.ConnectorKind       { return catalog.KindTelegramBot }
@@ -87,9 +88,13 @@ func (c *telegram) Test(_ context.Context, creds connectors.Credentials) (connec
 		return connectors.Identity{}, fmt.Errorf("401 Unauthorized: token %s is not accepted", creds["token"])
 	}
 	if c.identityOf != nil {
-		return connectors.Identity{Display: c.identityOf(creds["token"]), External: "bot-" + creds["token"]}, nil
+		kind := c.identityKind
+		if kind == "" {
+			kind = connectors.IdentityHandle
+		}
+		return connectors.Identity{Display: c.identityOf(creds["token"]), External: "bot-" + creds["token"], Kind: kind}, nil
 	}
-	return connectors.Identity{Display: "@sales_bot", External: "bot-1"}, nil
+	return connectors.Identity{Display: "@sales_bot", External: "bot-1", Kind: connectors.IdentityHandle}, nil
 }
 
 func telegramConnector(t *testing.T) *telegram {
@@ -181,7 +186,7 @@ func newEnv(t *testing.T) *env {
 	grants := connectors.NewPlatformGrants(e.db)
 	store = connectors.NewStore(e.db, keys, e.usage, platform, grants)
 	e.store = store
-	e.oauth = &fakeOAuth{identity: connectors.Identity{Display: "@oauth", External: "acct-1"}}
+	e.oauth = &fakeOAuth{identity: connectors.Identity{Display: "@oauth", External: "acct-1", Kind: connectors.IdentityHandle}}
 	e.svc = services.NewIntegrationsService(services.IntegrationsDeps{
 		Directory: dir, Store: store, Usage: e.usage, Platform: platform, Grants: grants, OAuth: e.oauth,
 		States: persistence.NewOAuthStates(e.db), Checks: persistence.NewConnectionChecks(e.db), Requests: persistence.NewRequests(e.db),
@@ -481,7 +486,7 @@ func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	e.putNamed("a", "account_a")
 	a, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
 	require.NoError(t, err)
-	e.oauth.identity = connectors.Identity{Display: "@b", External: "acct-2"}
+	e.oauth.identity = connectors.Identity{Display: "@acct_b", External: "acct-2", Kind: connectors.IdentityHandle}
 	e.putNamed("b", "account_b")
 	b, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "b", "code")
 	require.NoError(t, err)
@@ -498,7 +503,7 @@ func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	assert.Equal(t, a.ID, got.ID)
 	assert.Equal(t, a.ID, pending.ConnectionID)
 	assert.Equal(t, connectors.StatusConnected, got.Status)
-	assert.Equal(t, "@b", got.Identity.Display)
+	assert.Equal(t, "@acct_b", got.Identity.Display)
 	bAfter, _, err := e.store.Get(e.ctx, e.tenant, b.ID)
 	require.NoError(t, err)
 	assert.Equal(t, bBefore, bAfter, "B is not touched: still disabled, same version")
@@ -814,32 +819,36 @@ func TestTakenOverReservationIsFencedFromItsFormerOwner(t *testing.T) {
 	assert.Equal(t, c.Connection.ID, done.ConnectionID)
 }
 
-// The identity a connector reports is validated on its own before anything stores or shows it.
+// The identity a connector reports is shown only when the connector declared its kind and it has that
+// kind's shape and carries no secret, however encoded.
 func TestIdentityIsValidatedIndependently(t *testing.T) {
 	e := newEnv(t)
 	e.tg.accept = "s3cr3t-Pass-Phrase"
 	login := "robot@acme.uz"
 	cases := []struct {
 		display string
+		kind    connectors.IdentityKind
 		keep    bool
 	}{
-		{"@acme_sales_bot", true},
-		{"robot@acme.uz", true},
-		{"Acme Customer Support Bot", true},
-		{"+998 90 123 45 67", true},
-		// The secret and its encodings, alone or combined with the login.
-		{"bot " + e.tg.accept, false},
-		{"Basic " + base64.StdEncoding.EncodeToString([]byte(login+":"+e.tg.accept)), false},
-		{"user " + base64.RawURLEncoding.EncodeToString([]byte(e.tg.accept)), false},
-		{"id " + hex.EncodeToString([]byte(e.tg.accept)), false},
-		// Token-like runs whatever they encode.
-		{"bot eyJhbGciOiJIUzI1NiJ9xyz123", false},
-		{strings.Repeat("x", 101), false},
-		{"bot\x00name", false}, // not printable
+		{"@acme_sales_bot", connectors.IdentityHandle, true},
+		{"robot@acme.uz", connectors.IdentityEmail, true},
+		{"+998 90 123 45 67", connectors.IdentityPhone, true},
+		// Untyped or off-shape text is never shown, whatever it says.
+		{"Acme Customer Support Bot", "", false},
+		{"Acme Customer Support Bot", connectors.IdentityHandle, false},
+		{"bot\x00name", connectors.IdentityHandle, false},
+		// The secret and its encodings, alone, combined with the login, layered.
+		{"@x" + base64.RawURLEncoding.EncodeToString([]byte(login+":"+e.tg.accept)), connectors.IdentityHandle, false},
+		{"@x" + hex.EncodeToString([]byte(e.tg.accept)), connectors.IdentityHandle, false},
+		{"@x" + base64.RawURLEncoding.EncodeToString([]byte(url.QueryEscape(login+":"+e.tg.accept))), connectors.IdentityHandle, false},
 	}
 	for i, c := range cases {
-		display := c.display
+		display, kind := c.display, c.kind
 		e.tg.identityOf = func(string) string { return display }
+		e.tg.identityKind = kind
+		if kind == "" {
+			e.tg.identityKind = "free_text"
+		}
 		got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("id_%d", i), Credentials: map[string]any{"token": e.tg.accept}})
 		require.NoError(t, err)
 		if c.keep {
@@ -850,40 +859,70 @@ func TestIdentityIsValidatedIndependently(t *testing.T) {
 	}
 }
 
-// composite is a short base64 of a synthetic login and password (below any token-length rule; the
-// encoded password alone is not a substring of it), the way a provider echoes Basic credentials.
-func composite(login, password string) string {
-	return base64.RawStdEncoding.EncodeToString([]byte(login + ":" + password))
+// composite is a short unpadded base64 of a synthetic login and password, URL-escaped first when
+// layered — the way the reviewer's fake provider echoed it — as an @handle.
+func composite(login, password string, layered bool) string {
+	data := login + ":" + password
+	if layered {
+		data = url.QueryEscape(data)
+	}
+	return "@x" + base64.RawURLEncoding.EncodeToString([]byte(data))
 }
 
-// The composite of the round-4 review never reaches Identity.Display: not when a connection is
-// created, not when it is checked, not after an OAuth exchange.
+// The composites of rounds 4 and 6 never leave the service: not from Create, not from Test, not after
+// an OAuth exchange, and not from List.
 func TestCompositeCredentialNeverReachesTheIdentity(t *testing.T) {
 	e := newEnv(t)
+	for _, layered := range []bool{false, true} {
+		const pw = "p1x"
+		e.tg.accept = pw
+		e.tg.identityOf = func(tok string) string { return composite("u", tok, layered) }
+		created, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("composite_%t", layered), Credentials: map[string]any{"token": pw}})
+		require.NoError(t, err)
+		assert.Empty(t, created.Connection.Identity.Display, "Create")
+
+		res, err := e.svc.Test(e.ctx, e.actor(), created.Connection.ID)
+		require.NoError(t, err)
+		assert.True(t, res.OK)
+		assert.Empty(t, res.Identity, "Test")
+		for _, fields := range []bool{false, true} {
+			list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: fields})
+			require.NoError(t, err)
+			assert.NotContains(t, fmt.Sprintf("%+v", list), composite("u", pw, layered))
+		}
+
+		e.oauth.token = "t9z"
+		e.oauth.identity = connectors.Identity{Display: composite("u", "t9z", layered), External: composite("u", "t9z", layered), Kind: connectors.IdentityHandle}
+		state := fmt.Sprintf("c-%t", layered)
+		e.putNamed(state, fmt.Sprintf("oauth_composite_%t", layered))
+		saved, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), state, "code")
+		require.NoError(t, err)
+		assert.Empty(t, saved.Identity.Display, "OAuth")
+		assert.Empty(t, saved.Identity.External, "OAuth")
+		assert.NotContains(t, saved.DisplayName, composite("u", "t9z", layered))
+	}
+}
+
+// Rows written by the shared connector API (Store.Save, OAuth2.Complete, which copies the provider's
+// display into the display name) are checked when read: neither list mode returns a secret they carry.
+func TestStoredIdentityIsCheckedWhenRead(t *testing.T) {
+	e := newEnv(t)
 	const pw = "p1x"
-	shown := "bot " + composite("u", pw)
-	require.Less(t, len(shown), 16)
-	e.tg.accept = pw
-	e.tg.identityOf = func(tok string) string { return "bot " + composite("u", tok) }
-
-	created, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "composite", Credentials: map[string]any{"token": pw}})
+	carried := composite("u", pw, true)
+	_, err := e.store.Save(e.ctx, connectors.Connection{
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "external_row", DisplayName: "docs " + carried,
+		Identity: connectors.Identity{Display: carried, External: carried, Kind: connectors.IdentityHandle}, Status: connectors.StatusConnected,
+	}, connectors.Credentials{"token": pw})
 	require.NoError(t, err)
-	assert.Empty(t, created.Connection.Identity.Display, "Create")
-
-	res, err := e.svc.Test(e.ctx, e.actor(), created.Connection.ID)
-	require.NoError(t, err)
-	assert.True(t, res.OK)
-	assert.Empty(t, res.Identity, "Test")
-	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
-	require.NoError(t, err)
-	assert.NotContains(t, fmt.Sprintf("%+v", list), composite("u", pw))
-
-	e.oauth.token = "t9z"
-	e.oauth.identity = connectors.Identity{Display: "docs " + composite("u", "t9z"), External: composite("u", "t9z")}
-	e.putNamed("c", "oauth_composite")
-	saved, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "c", "code")
-	require.NoError(t, err)
-	assert.Empty(t, saved.Identity.Display, "OAuth")
-	assert.Empty(t, saved.Identity.External, "OAuth")
-	assert.NotContains(t, saved.DisplayName, composite("u", "t9z"))
+	for _, fields := range []bool{false, true} {
+		list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: fields})
+		require.NoError(t, err)
+		require.Len(t, list[0].Connections, 1)
+		got := list[0].Connections[0].Connection
+		assert.Empty(t, got.Identity.Display)
+		assert.Empty(t, got.Identity.External)
+		assert.Empty(t, got.DisplayName)
+		assert.Equal(t, "external_row", got.Name)
+		assert.NotContains(t, fmt.Sprintf("%+v", list), carried)
+	}
 }

@@ -86,7 +86,20 @@ type Credentials = catalog.Credentials
 type Identity struct {
 	Display  string `json:"display"`
 	External string `json:"external"` // the provider's identifier
+	// Kind declares what Display is: a provider-issued public identifier of a known shape. Only a typed
+	// Display (handle, email, phone) is shown to people; an untyped one is kept out of every response,
+	// since free text from a provider may carry the credentials it was given.
+	Kind IdentityKind `json:"kind,omitempty"`
 }
+
+// IdentityKind is the type of a public identity.
+type IdentityKind string
+
+const (
+	IdentityHandle IdentityKind = "handle" // @name: a bot or account handle
+	IdentityEmail  IdentityKind = "email"
+	IdentityPhone  IdentityKind = "phone" // digits, optionally with + and separators
+)
 
 // ConnectionStatus is the state of a connection.
 type ConnectionStatus string

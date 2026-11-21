@@ -249,15 +249,8 @@ func (s *IntegrationsService) List(ctx context.Context, a Actor, opts ListOption
 			at := at
 			e.LastChecked = &at
 		}
-		if opts.WithFields {
-			if conn, ok := s.dir.Get(c.Kind); ok {
-				_, creds, err := s.store.Get(ctx, a.TenantID, c.ID)
-				if err == nil {
-					e.Fields = connectors.RedactedCredentials(conn.Descriptor(), creds)
-				} else if !errors.Is(err, connectors.ErrNotConfigured) && !errors.Is(err, connectors.ErrUndecryptable) {
-					return nil, serrors.Wrap(op, err)
-				}
-			}
+		if e, err = s.reveal(ctx, a.TenantID, e, opts.WithFields); err != nil {
+			return nil, serrors.Wrap(op, err)
 		}
 		byKind[c.Kind] = append(byKind[c.Kind], e)
 	}
@@ -865,12 +858,39 @@ func (s *IntegrationsService) entry(ctx context.Context, tenantID uuid.UUID, c c
 			e.LastChecked = &at
 		}
 	}
-	if withFields {
-		if conn, ok := s.dir.Get(c.Kind); ok {
-			if _, creds, err := s.store.Get(ctx, tenantID, c.ID); err == nil {
-				e.Fields = connectors.RedactedCredentials(conn.Descriptor(), creds)
-			}
-		}
+	return s.reveal(ctx, tenantID, e, withFields)
+}
+
+// reveal is the output boundary of a connection: whatever wrote the row (this service, Store.Save,
+// OAuth2.Complete of the shared connector API), what leaves the service is checked against the
+// connection's current credentials — the identity by validIdentity, the display name and the name by
+// carriesSecret; what fails is emptied. A row whose credentials cannot be read shows no identity and
+// no display name, since it cannot be checked.
+func (s *IntegrationsService) reveal(ctx context.Context, tenantID uuid.UUID, e ConnectionEntry, withFields bool) (ConnectionEntry, error) {
+	c := e.Connection
+	_, creds, err := s.store.Get(ctx, tenantID, c.ID)
+	switch {
+	case err == nil:
+	case errors.Is(err, connectors.ErrNotConfigured), errors.Is(err, connectors.ErrUndecryptable), errors.Is(err, connectors.ErrNotFound):
+		e.Connection.Identity, e.Connection.DisplayName, e.Fields = connectors.Identity{}, "", nil
+		return e, nil
+	default:
+		return ConnectionEntry{}, err
+	}
+	secret := func(string) bool { return true }
+	conn, known := s.dir.Get(c.Kind)
+	if known {
+		secret = secretsOf(conn.Descriptor())
+	}
+	e.Connection.Identity = validIdentity(c.Identity, secret, creds)
+	if carriesSecret(c.DisplayName, secret, creds) {
+		e.Connection.DisplayName = ""
+	}
+	if carriesSecret(c.Name, secret, creds) {
+		e.Connection.Name = ""
+	}
+	if withFields && known {
+		e.Fields = connectors.RedactedCredentials(conn.Descriptor(), creds)
 	}
 	return e, nil
 }

@@ -54,7 +54,7 @@ func (bot) Test(_ context.Context, c connectors.Credentials) (connectors.Identit
 	if c["token"] != secret {
 		return connectors.Identity{}, fmt.Errorf("token %s refused", c["token"])
 	}
-	return connectors.Identity{Display: "@bot"}, nil
+	return connectors.Identity{Display: "@acme_bot", Kind: connectors.IdentityHandle}, nil
 }
 
 // drive is an OAuth2 connector; oauth is its provider.
@@ -68,7 +68,7 @@ func (drive) Descriptor() connectors.Descriptor {
 		OAuth2: &connectors.OAuth2Config{AuthURL: "https://provider.test/auth", TokenURL: "https://provider.test/token"}}
 }
 func (drive) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
-	return connectors.Identity{Display: "docs@acme.test"}, nil
+	return connectors.Identity{Display: "docs@acme.test", Kind: connectors.IdentityEmail}, nil
 }
 
 type oauth struct {
@@ -84,7 +84,7 @@ func (o *oauth) Exchange(context.Context, uuid.UUID, string, string) (connectors
 	if o.err != nil {
 		return connectors.OAuth2Grant{}, o.err
 	}
-	return connectors.OAuth2Grant{Kind: "drive", Identity: connectors.Identity{Display: "docs@acme.test"}, Credentials: connectors.Credentials{"access_token": "at"}}, nil
+	return connectors.OAuth2Grant{Kind: "drive", Identity: connectors.Identity{Display: "docs@acme.test", Kind: connectors.IdentityEmail}, Credentials: connectors.Credentials{"access_token": "at"}}, nil
 }
 func (o *oauth) Complete(context.Context, uuid.UUID, string, string) (connectors.Connection, error) {
 	panic("not used")
@@ -189,7 +189,7 @@ func TestRPCNeverReturnsSecrets(t *testing.T) {
 	assert.Equal(t, CategoryMessaging, list.Connectors[0].Category)
 	assert.True(t, list.CanManage)
 	require.Len(t, list.Connectors[0].Connections, 1)
-	assert.Equal(t, "@bot", *list.Connectors[0].Connections[0].Identity)
+	assert.Equal(t, "@acme_bot", *list.Connectors[0].Connections[0].Identity)
 	schema := list.Connectors[0].CredentialSchema.(map[string]any)
 	token := schema["properties"].(map[string]any)["token"].(map[string]any)
 	assert.Equal(t, "Bot token", token["title"], "x-label resolved for the locale")
