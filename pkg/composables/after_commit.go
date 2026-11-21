@@ -114,3 +114,14 @@ func (c *TxCallbacks) Run() {
 func WithSilentTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return WithAfterCommit(WithTx(ctx, tx), tx, func(func()) {})
 }
+
+// WithoutTx returns ctx without its transaction and the owner of it. A context
+// an event keeps for subscribers that run after the commit uses it: the
+// transaction of the change is closed by then, and a subscriber that reached
+// for it (UseTx) would query a finished transaction instead of the pool.
+func WithoutTx(ctx context.Context) context.Context {
+	if ctx.Value(constants.TxKey) == nil {
+		return ctx
+	}
+	return context.WithValue(context.WithValue(ctx, constants.TxKey, nil), constants.AfterCommitKey, nil)
+}

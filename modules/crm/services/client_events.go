@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
@@ -188,7 +190,7 @@ func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.
 	}
 	acting := tx.Subject()
 	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, Kind: acting.Kind}}
-	if acting.Kind == spi.SubjectInitiator && !history.IsJob(ctx) {
+	if acting.Kind == spi.SubjectInitiator && !history.IsJob(ctx) && !foreignUser(ctx, tenant) {
 		scope.Subject.UserID = acting.UserID
 	}
 	ref := ClientRef(saved.ID())
@@ -202,6 +204,13 @@ func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.
 	}
 	_, err = events.Publish(ctx, tx.DB(), scope, ClientUpdatedEvent, &ref, payload)
 	return serrors.Wrap("crm.publishClientEvent", err)
+}
+
+// foreignUser reports whether the user of ctx belongs to another tenant (a
+// superadmin acting in this one), who is no initiator of an event of tenant.
+func foreignUser(ctx context.Context, tenant uuid.UUID) bool {
+	u, err := composables.UseUser(ctx)
+	return err == nil && u != nil && u.TenantID() != tenant
 }
 
 // publishClientChange is publishClientEvent for the services' own

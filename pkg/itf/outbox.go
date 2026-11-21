@@ -100,10 +100,16 @@ func (te *TestEnvironment) OutboxCommitsAndRollsBack(tb testing.TB, ctx context.
 		if err := change(txCtx, "rolled-back"); err != nil {
 			return err
 		}
-		inside = countIn(tb, txCtx, tenantID, events)
+		counts, err := countIn(txCtx, tenantID, events)
+		if err != nil {
+			return err
+		}
+		inside = counts
 		return errRollBack
 	})
-	require.ErrorIs(tb, err, errRollBack, "the change reports no error of its own")
+	if !errors.Is(err, errRollBack) {
+		require.NoError(tb, err, "the change and the count of its events report no error")
+	}
 	for _, id := range events {
 		require.Equal(tb, before[id]+want[id], inside[id], "%s: the event is in the transaction of the change", id)
 	}
@@ -123,17 +129,22 @@ func (te *TestEnvironment) OutboxCommitsAndRollsBack(tb testing.TB, ctx context.
 	return got
 }
 
-func countIn(tb testing.TB, ctx context.Context, tenantID uuid.UUID, events []string) map[string]int {
-	tb.Helper()
+// countIn counts the events in the transaction of ctx; it reports an error
+// instead of failing the test so the transaction rolls back first.
+func countIn(ctx context.Context, tenantID uuid.UUID, events []string) (map[string]int, error) {
 	tx, err := composables.UseTx(ctx)
-	require.NoError(tb, err)
+	if err != nil {
+		return nil, err
+	}
 	out := make(map[string]int, len(events))
 	for _, id := range events {
 		var n int
-		require.NoError(tb, tx.QueryRow(ctx, `SELECT count(*) FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2`, tenantID, id).Scan(&n))
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2`, tenantID, id).Scan(&n); err != nil {
+			return nil, err
+		}
 		out[id] = n
 	}
-	return out
+	return out, nil
 }
 
 // OutboxRowsIn is OutboxRows as the transaction of ctx sees them, for changes a

@@ -395,3 +395,29 @@ func TestChatEvents_SendMessageRefusesAnUnownedTransactionBeforeSending(t *testi
 	require.NoError(t, err)
 	require.Len(t, e.provider.sent, sent+1)
 }
+
+// ChatService.Save publishes the messages the saved chat carries that were not
+// stored yet: those of a new chat, and only the new ones of a stored chat.
+func TestChatEvents_SavePublishesTheNewMessages(t *testing.T) {
+	e := newCRMEventEnv(t)
+	c := e.newClient(t, "+998903330091")
+	count := func() int {
+		return len(itf.OutboxRowsIn(t, e.ctx(), e.env.TenantID(), services.ChatMessageAddedEventID))
+	}
+	member := chat.NewMember(chat.NewClientSender(c.ID(), 0, c.FirstName(), c.LastName()), chat.TelegramTransport, chat.WithMemberTenantID(e.env.TenantID()))
+
+	// A new chat with one message.
+	saved, err := e.chats.Save(e.ctx(), chat.New(c.ID(), chat.WithTenantID(e.env.TenantID())).AddMessage(chat.NewMessage("first", member)))
+	require.NoError(t, err)
+	require.Equal(t, 1, count())
+
+	// A stored chat gaining a message publishes that one only.
+	_, err = e.chats.Save(e.ctx(), saved.AddMessage(chat.NewMessage("second", member)))
+	require.NoError(t, err)
+	require.Equal(t, 2, count())
+
+	// A chat without a new message publishes nothing.
+	_, err = e.chats.Save(e.ctx(), saved)
+	require.NoError(t, err)
+	require.Equal(t, 2, count())
+}

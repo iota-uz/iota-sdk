@@ -122,12 +122,14 @@ func chatMessagePayload(c chat.Chat, m chat.Message) ChatMessageAddedPayload {
 
 // publishChatMessagesAdded enqueues crm.chat.message_added.v1 for every
 // message of after that before did not have, in the transaction held by ctx.
-// before is the chat before the change.
+// before is the chat before the change, nil for a chat that was not stored.
 func publishChatMessagesAdded(ctx context.Context, before, after chat.Chat) error {
 	const op = serrors.Op("crm.publishChatMessagesAdded")
-	known := make(map[uint]bool, len(before.Messages()))
-	for _, m := range before.Messages() {
-		known[m.ID()] = true
+	known := map[uint]bool{}
+	if before != nil {
+		for _, m := range before.Messages() {
+			known[m.ID()] = true
+		}
 	}
 	ref := &spi.ObjectRef{Entity: ChatEntityID, Key: strconv.FormatUint(uint64(after.ID()), 10)}
 	for _, m := range after.Messages() {

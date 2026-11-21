@@ -26,15 +26,16 @@ func affectedUser(field string) notifications.RecipientDefinition {
 // core.user.created.v1 (userCreatedNotification, which keeps its legacy
 // identity).
 func coreEventNotifications() []notifications.Definition {
-	user := func(ev labeledEvent, level notification.Level, body func(notifications.Event) string, recipients ...notifications.RecipientDefinition) notifications.Definition {
+	user := func(ev labeledEvent, level notification.Level, body, url func(notifications.Event) string, recipients ...notifications.RecipientDefinition) notifications.Definition {
 		return notifications.FromEvent(ev,
 			notifications.WithModule("core"),
 			notifications.WithRequiredPermission(permissions.UserRead),
 			notifications.WithLevel(level),
 			notifications.WithRecipients(append([]notifications.RecipientDefinition{notifications.ActorRecipient()}, recipients...)...),
-			notifications.WithRender(notifications.EventContent(ev.Label(), ev.Descriptions(), body, notifications.DataURL("/users/", "user_id"))),
+			notifications.WithRender(notifications.EventContent(ev.Label(), ev.Descriptions(), body, url)),
 		)
 	}
+	userURL := notifications.DataURL("/users/", "user_id")
 	userName := func(e notifications.Event) string { return notifications.DataName(e, "first_name", "last_name") }
 	roleDef := func(ev labeledEvent, body func(notifications.Event) string) notifications.Definition {
 		return notifications.FromEvent(ev,
@@ -55,11 +56,12 @@ func coreEventNotifications() []notifications.Definition {
 	groupName := func(e notifications.Event) string { return e.Data["group_name"] }
 
 	return []notifications.Definition{
-		user(services.UserUpdatedEvent, notification.LevelInfo, userName, affectedUser("user_id")),
-		user(services.UserBlockedEvent, notification.LevelWarning, func(e notifications.Event) string { return e.Data["block_reason"] }, affectedUser("user_id")),
-		user(services.UserUnblockedEvent, notification.LevelInfo, nil, affectedUser("user_id")),
-		user(services.UserDeletedEvent, notification.LevelWarning, userName),
-		user(services.UserRoleAssignedEvent, notification.LevelInfo, nil, affectedUser("user_id")),
+		user(services.UserUpdatedEvent, notification.LevelInfo, userName, userURL, affectedUser("user_id")),
+		user(services.UserBlockedEvent, notification.LevelWarning, func(e notifications.Event) string { return e.Data["block_reason"] }, userURL, affectedUser("user_id")),
+		user(services.UserUnblockedEvent, notification.LevelInfo, nil, userURL, affectedUser("user_id")),
+		// The user is gone: the detail page cannot show them, so the notice has no link.
+		user(services.UserDeletedEvent, notification.LevelWarning, userName, nil),
+		user(services.UserRoleAssignedEvent, notification.LevelInfo, nil, userURL, affectedUser("user_id")),
 		roleDef(services.RoleCreatedEvent, func(e notifications.Event) string { return e.Data["name"] }),
 		roleDef(services.RolePermissionGrantedEvent, func(e notifications.Event) string { return e.Data["permission"] }),
 		groupDef(services.GroupCreatedEvent, func(e notifications.Event) string { return e.Data["name"] }),

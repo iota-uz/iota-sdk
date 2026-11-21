@@ -51,7 +51,7 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 		return nil, err
 	}
 
-	createdEvent, err := role.NewCreatedEvent(ctx, data)
+	createdEvent, err := role.NewCreatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 		return err
 	}
 
-	updatedEvent, err := role.NewUpdatedEvent(ctx, data)
+	updatedEvent, err := role.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	deletedEvent, err := role.NewDeletedEvent(ctx)
+	deletedEvent, err := role.NewDeletedEvent(composables.WithoutTx(ctx))
 	if err != nil {
 		return err
 	}

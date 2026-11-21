@@ -42,6 +42,6 @@ func eventNotifications() []notifications.Definition {
 		eventNotification(services.ClientCreatedEvent, clientName, clientURL),
 		eventNotification(services.ClientUpdatedEvent, clientName, clientURL),
 		eventNotification(services.ClientDeletedEvent, clientName, nil),
-		eventNotification(services.ChatMessageAddedEvent, func(e notifications.Event) string { return preview(e.Data["body"]) }, notifications.DataURL("/crm/chats/", "chat_id")),
+		eventNotification(services.ChatMessageAddedEvent, func(e notifications.Event) string { return preview(e.Data["body"]) }, notifications.DataURL("/crm/chats?chat_id=", "chat_id")),
 	}
 }

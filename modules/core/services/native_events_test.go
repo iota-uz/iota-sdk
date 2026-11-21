@@ -500,3 +500,24 @@ func TestPublishInTx_JobContextHasNoInitiator(t *testing.T) {
 	require.EqualValues(t, e.actor.ID(), *rows[0].Initiator)
 	require.Nil(t, rows[1].Initiator, "a job context has no initiator")
 }
+
+// The context an eventbus event keeps for its subscribers has no transaction:
+// the event is sent after the commit, and the transaction is finished by then.
+func TestLegacyEvents_ContextHasNoTransaction(t *testing.T) {
+	e := newEventEnv(t)
+	bus, err := composition.Resolve[eventbus.EventBus](e.f.Container)
+	require.NoError(t, err)
+	var seen atomic.Int32
+	var withTx atomic.Int32
+	unsubscribe := bus.Subscribe(func(ev *user.CreatedEvent) {
+		seen.Add(1)
+		if ev.Context().Value(constants.TxKey) != nil {
+			withTx.Add(1)
+		}
+	})
+	defer unsubscribe()
+	_, err = e.users.Create(e.ctx(), user.New("Ctx", "Person", internet.MustParseEmail("ctx-"+uuid.NewString()+"@example.com"), user.UILanguageEN, user.WithTenantID(e.tenantID)))
+	require.NoError(t, err)
+	require.EqualValues(t, 1, seen.Load())
+	require.Zero(t, withTx.Load(), "the event context carries no transaction")
+}

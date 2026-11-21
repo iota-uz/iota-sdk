@@ -91,7 +91,10 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx, h *txHandle) context.Context {
 	if tx != nil {
 		ctx = composables.WithTx(ctx, tx)
-		if h != nil {
+		// Only a handle that keeps the callbacks owns the transaction: a
+		// caller-owned one that does not collect them leaves AfterCommit to
+		// report composables.ErrNoCommitOwner instead of losing the event.
+		if h != nil && (!h.external || h.collect) {
 			ctx = composables.WithAfterCommit(ctx, tx, func(fn func()) {
 				_ = h.afterCommit(func(context.Context) { fn() })
 			})

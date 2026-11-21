@@ -52,3 +52,22 @@ func TestEveryNativeEventIsInTheNotificationCatalog(t *testing.T) {
 		require.NotEmpty(t, d.RecipientKeys, "%s can be delivered to its actor", ev.ID())
 	}
 }
+
+// The links of the notices point at pages that exist: a deleted user has none,
+// a chat opens through its query parameter.
+func TestEventNotificationLinks(t *testing.T) {
+	atRepositoryRoot(t)
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+	catalog, err := composition.Resolve[*notifications.Catalog](env.Container)
+	require.NoError(t, err)
+	link := func(key string, data map[string]string) string {
+		d, ok := catalog.Get(key)
+		require.True(t, ok, key)
+		content, err := d.Render(notifications.Event{Key: key, Data: data}, "en")
+		require.NoError(t, err)
+		return content.ActionURL
+	}
+	require.Equal(t, "/users/5", link("core.user.updated.v1", map[string]string{"user_id": "5"}))
+	require.Empty(t, link("core.user.deleted.v1", map[string]string{"user_id": "5", "first_name": "Gone"}), "a deleted user has no page")
+	require.Equal(t, "/crm/chats?chat_id=42", link("crm.chat.message_added.v1", map[string]string{"chat_id": "42", "body": "hi"}))
+}

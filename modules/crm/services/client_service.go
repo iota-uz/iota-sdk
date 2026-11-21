@@ -59,7 +59,7 @@ func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 	if err != nil {
 		return err
 	}
-	createdEvent, err := client.NewCreatedEvent(ctx, data)
+	createdEvent, err := client.NewCreatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 	if err != nil {
 		return err
 	}
-	updatedEvent, err := client.NewUpdatedEvent(ctx, data)
+	updatedEvent, err := client.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
@@ -139,6 +139,10 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
 	var entity client.Client
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Locked before it is read, so the deleted state is that of the row removed.
+		if err := s.repo.LockByID(txCtx, id); err != nil {
+			return err
+		}
 		var err error
 		entity, err = s.repo.GetByID(txCtx, id)
 		if err != nil {
@@ -158,7 +162,7 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent, err := client.NewDeletedEvent(ctx, entity)
+	deletedEvent, err := client.NewDeletedEvent(composables.WithoutTx(ctx), entity)
 	if err != nil {
 		return nil, err
 	}

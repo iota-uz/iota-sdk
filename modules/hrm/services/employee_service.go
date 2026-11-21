@@ -63,7 +63,7 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) 
 	if err != nil {
 		return err
 	}
-	ev, err := employee.NewCreatedEvent(ctx, *data, createdEntity)
+	ev, err := employee.NewCreatedEvent(composables.WithoutTx(ctx), *data, createdEntity)
 	if err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 	if err != nil {
 		return err
 	}
-	ev, err := employee.NewUpdatedEvent(ctx, *data, entity)
+	ev, err := employee.NewUpdatedEvent(composables.WithoutTx(ctx), *data, entity)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (s *EmployeeService) Delete(ctx context.Context, id uint) (employee.Employe
 	if err != nil {
 		return nil, err
 	}
-	ev, err := employee.NewDeletedEvent(ctx, entity)
+	ev, err := employee.NewDeletedEvent(composables.WithoutTx(ctx), entity)
 	if err != nil {
 		return nil, err
 	}

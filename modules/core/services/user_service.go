@@ -97,7 +97,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		return nil, err
 	}
 
-	createdEvent := user.NewCreatedEvent(ctx, data)
+	createdEvent := user.NewCreatedEvent(composables.WithoutTx(ctx), data)
 
 	var createdUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -270,7 +270,7 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 		return serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), updated)
 	updatedEvent.Result = updated
 	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
 		return err
@@ -280,7 +280,7 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 
 // performUpdate executes the common update logic for both Update and UpdateSelf
 func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.User, error) {
-	updatedEvent := user.NewUpdatedEvent(ctx, data)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 
 	var updatedUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -354,7 +354,7 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		return nil, err
 	}
 
-	deletedEvent := user.NewDeletedEvent(ctx)
+	deletedEvent := user.NewDeletedEvent(composables.WithoutTx(ctx))
 
 	var deletedUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
@@ -469,7 +469,7 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 	}
 
 	// Publish updated event for realtime updates
-	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), blockedUser)
 	updatedEvent.Result = blockedUser
 	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
 		return nil, err
@@ -525,7 +525,7 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 	}
 
 	// Publish updated event for realtime updates
-	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), unblockedUser)
 	updatedEvent.Result = unblockedUser
 	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
 		return nil, err
@@ -610,7 +610,7 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 		return nil, serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), updated)
 	updatedEvent.Result = updated
 	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
 		return nil, err
@@ -703,7 +703,7 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 		return nil, serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, completed)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), completed)
 	updatedEvent.Result = completed
 	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
 		return nil, err

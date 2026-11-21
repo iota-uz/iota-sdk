@@ -110,7 +110,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	}
 
 	// Publish event after successful commit
-	event, err := chat.NewCreatedEvent(ctx, createdEntity)
+	event, err := chat.NewCreatedEvent(composables.WithoutTx(ctx), createdEntity)
 	if err != nil {
 		return nil, err
 	}
@@ -121,13 +121,25 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	return createdEntity, nil
 }
 
-// Save persists chat information.
+// Save persists chat information. Messages the chat carries that the stored
+// chat did not have publish crm.chat.message_added.v1 in the same transaction.
 func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, error) {
-	createdEntity, err := s.repo.Save(ctx, entity)
+	var createdEntity chat.Chat
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		before, err := s.lockedBaseline(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		createdEntity, err = s.repo.Save(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		return publishChatMessagesAdded(txCtx, before, createdEntity)
+	})
 	if err != nil {
 		return nil, err
 	}
-	event, err := chat.NewCreatedEvent(ctx, createdEntity)
+	event, err := chat.NewCreatedEvent(composables.WithoutTx(ctx), createdEntity)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +147,28 @@ func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, er
 		return nil, err
 	}
 	return createdEntity, nil
+}
+
+// lockedBaseline locks the stored chat entity will be saved over and returns it
+// as it is, so the messages saved now are told from those already stored. A
+// chat of the client that is not stored yet has no baseline (nil).
+func (s *ChatService) lockedBaseline(txCtx context.Context, entity chat.Chat) (chat.Chat, error) {
+	id := entity.ID()
+	if id == 0 {
+		// The repository saves a new chat over the stored chat of its client.
+		existing, err := s.repo.GetByClientID(txCtx, entity.ClientID())
+		if errors.Is(err, persistence.ErrChatNotFound) {
+			return nil, nil //nolint:nilnil // no stored chat is the documented "no baseline" answer.
+		}
+		if err != nil {
+			return nil, err
+		}
+		id = existing.ID()
+	}
+	if err := s.repo.LockByID(txCtx, id); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(txCtx, id)
 }
 
 // AddMessageToChat adds a message to a chat and handles the transaction
@@ -168,7 +202,7 @@ func (s *ChatService) AddMessageToChat(
 	}
 
 	// Publish event after successful commit
-	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
+	event, err := chat.NewMessageAddedEvent(composables.WithoutTx(ctx), updatedChat)
 	if err != nil {
 		return nil, err
 	}
@@ -301,7 +335,7 @@ func (s *ChatService) onMessageReceived(msg chat.Message) error {
 //		return nil, err
 //	}
 //
-//	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
+//	event, err := chat.NewMessageAddedEvent(composables.WithoutTx(ctx), updatedChat)
 //	if err != nil {
 //		return nil, err
 //	}
@@ -373,7 +407,7 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 		return nil, err
 	}
 
-	event, err := chat.NewMessageAddedEvent(ctx, updatedChat)
+	event, err := chat.NewMessageAddedEvent(composables.WithoutTx(ctx), updatedChat)
 	if err != nil {
 		return nil, err
 	}
