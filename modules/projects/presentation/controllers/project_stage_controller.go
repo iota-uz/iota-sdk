@@ -123,7 +123,7 @@ func (c *ProjectStageController) List(
 	viewModels := mappers.ProjectStageDomainToViewModels(entities)
 
 	props := &project_stages.IndexPageProps{
-		ProjectStages:   viewModels,
+		ProjectStages: viewModels,
 		// Page links keep the search and chips, or page 2 would drop them.
 		PaginationState: pagination.NewWithQuery(c.basePath, r.URL.Query(), paginationParams.Page, int(total), paginationParams.Limit),
 		Filters: filterbuilder.Props{
