@@ -235,6 +235,12 @@ func (c Catalog) Check(b *Behaviors) error {
 		if err := n.Output.Validate(); err != nil {
 			return fmt.Errorf("node %s: output: %w", typ, err)
 		}
+		if n.Wait != nil && isBuiltinBehavior(n.Behavior) && n.Behavior != BehaviorWait {
+			return fmt.Errorf("node %s: a %s node does not wait; wait is only for a wait or a behavior that suspends", typ, n.Behavior)
+		}
+		if n.Behavior == BehaviorCall && len(n.Outcomes) == 0 && n.OutcomesFrom == nil {
+			return fmt.Errorf("node %s: a call has outcomes (fixed or from a param)", typ)
+		}
 		if n.Behavior == BehaviorEffect {
 			if err := effectOutcomesError(n); err != "" {
 				return fmt.Errorf("node %s: %s", typ, err)

@@ -132,6 +132,9 @@ func (effectBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 // Validate: an effect's done and failed outcomes are among its declared outcomes, or a run would take an
 // outcome that has no edge.
 func (effectBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphError {
+	if spec.Wait != nil {
+		return []GraphError{{Path: v.Path(node.ID) + ".type", Code: CodeInvalid, Message: node.Type + ": an effect does not wait"}}
+	}
 	if err := effectOutcomesError(spec); err != "" {
 		return []GraphError{{Path: v.Path(node.ID) + ".type", Code: CodeInvalid, Message: node.Type + ": " + err}}
 	}
@@ -183,6 +186,10 @@ func (callBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 // Validate: each value a call takes its outcomes from is one outcome: an id, listed once, not one of the
 // node's fixed outcomes.
 func (callBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphError {
+	if params, ok := v.Params(node.ID); ok && len(OutcomesOf(callBehavior{}.OutcomeRule(spec), params)) == 0 {
+		// No answer could complete the call: it has no outcome to take.
+		return []GraphError{{Path: v.Path(node.ID) + ".type", Code: CodeInvalid, Message: node.Type + " is a call with no outcomes"}}
+	}
 	if spec.OutcomesFrom == nil {
 		return nil
 	}

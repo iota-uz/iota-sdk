@@ -34,22 +34,51 @@ type plainEq struct {
 	negate bool
 }
 
+// Exec follows CEL's equality: an operand's error first (left, then right), then the unknowns of both
+// operands merged, then the comparison; each result is charged to the cost tracker as CEL charges it.
 func (e *plainEq) Exec(frame *interpreter.ExecutionFrame) ref.Val {
 	args := e.Args()
-	return e.compare(args[0].Exec(frame), args[1].Exec(frame))
+	charge := func(l, r, res ref.Val) ref.Val {
+		if costs := frame.CostTracker(); costs != nil {
+			costs.EvalBinary(frame, e.ID(), e, l, r, res)
+		}
+		return res
+	}
+	l := args[0].Exec(frame)
+	if types.IsError(l) {
+		return charge(l, types.UnknownType, l)
+	}
+	r := args[1].Exec(frame)
+	if types.IsError(r) {
+		return charge(l, r, r)
+	}
+	return charge(l, r, e.compare(l, r))
 }
 
 func (e *plainEq) Eval(act interpreter.Activation) ref.Val {
 	args := e.Args()
-	return e.compare(args[0].Eval(act), args[1].Eval(act))
-}
-
-func (e *plainEq) compare(l, r ref.Val) ref.Val {
-	if types.IsUnknownOrError(l) {
+	l := args[0].Eval(act)
+	if types.IsError(l) {
 		return l
 	}
-	if types.IsUnknownOrError(r) {
+	r := args[1].Eval(act)
+	if types.IsError(r) {
 		return r
+	}
+	return e.compare(l, r)
+}
+
+// compare is given operands that are not errors.
+func (e *plainEq) compare(l, r ref.Val) ref.Val {
+	lu, lUnk := l.(*types.Unknown)
+	ru, rUnk := r.(*types.Unknown)
+	switch {
+	case lUnk && rUnk:
+		return types.MergeUnknowns(lu, ru)
+	case lUnk:
+		return lu
+	case rUnk:
+		return ru
 	}
 	out := types.Equal(plainVal(l), plainVal(r))
 	if b, ok := out.(types.Bool); ok && e.negate {

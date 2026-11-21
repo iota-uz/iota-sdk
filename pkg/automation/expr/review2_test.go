@@ -119,3 +119,31 @@ func toStrings(v any) []string {
 	}
 	return out
 }
+
+// Review round 4: equality keeps CEL's cost accounting and its error precedence.
+func TestEqualityCostAndErrors(t *testing.T) {
+	env, err := expr.NewEnv(expr.Scope{Vars: map[string]expr.Field{"x": expr.IntField}}, expr.Limits{CostLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, issues := env.Check("(1 == 1) == true", expr.TypeBool)
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	if _, err := p.Eval(nil); err == nil {
+		t.Error("two comparisons fit a cost limit of 1")
+	}
+	env, err = expr.NewEnv(expr.Scope{Vars: map[string]expr.Field{"x": expr.IntField}}, expr.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, issues = env.Check("x == 1 / 0", expr.TypeBool)
+	if len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	_, err = p.Eval(map[string]any{})
+	var ee *expr.EvalError
+	if !errors.As(err, &ee) || ee.Code != expr.CodeExpressionFailed {
+		t.Errorf("a missing x beside a division by zero: %v", err)
+	}
+}

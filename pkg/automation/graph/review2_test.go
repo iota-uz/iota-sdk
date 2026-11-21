@@ -149,3 +149,37 @@ func TestReviewRoundTwoGraph(t *testing.T) {
 		t.Errorf("failed output has %d bytes: %s", len(b), b)
 	}
 }
+
+// Review round 4: a built-in call needs outcomes, and only a waiting kind may carry a WaitSpec.
+func TestBuiltinKindsDeclareNoFakeEnds(t *testing.T) {
+	c := testCatalog(t)
+	empty := graph.MustSchemaParams(`{"type": "object"}`)
+	c.Nodes["ask"] = graph.NodeSpec{Type: "ask", Behavior: graph.BehaviorCall, Params: empty}
+	if err := c.Check(nil); err == nil {
+		t.Error("Check accepts a call with no outcomes")
+	}
+	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
+		"nodes": [{"id": "a", "type": "ask", "params": {}}], "edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "a"}]}`)
+	if errs := graph.Validate(c, g, graph.Options{}); len(errs) == 0 {
+		t.Error("a call with no outcomes validates as an end")
+	}
+	c = testCatalog(t)
+	n := c.Nodes["notify"]
+	n.Wait = &graph.WaitSpec{Event: graph.ValueOrParam{Value: "order.paid"}, Matched: "done"}
+	c.Nodes["notify"] = n
+	if err := c.Check(nil); err == nil {
+		t.Error("Check accepts an effect with a WaitSpec")
+	}
+	loop := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
+		"nodes": [{"id": "e", "type": "notify", "params": {"text": "hi"}}],
+		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "e"}, {"from": {"node": "e", "outcome": "done"}, "to": "e"},
+			{"from": {"node": "e", "outcome": "failed"}, "to": "ignore"}]}`)
+	errs := graph.Validate(c, loop, graph.Options{})
+	var cycle bool
+	for _, e := range errs {
+		cycle = cycle || e.Code == graph.CodeCycleWithoutWait
+	}
+	if !cycle {
+		t.Errorf("an effect loop with a WaitSpec is not a cycle without wait: %v", errs)
+	}
+}

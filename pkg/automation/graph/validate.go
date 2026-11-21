@@ -324,10 +324,13 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	waits := map[string]bool{}
 	for _, n := range g.Nodes {
 		spec := c.Nodes[n.Type]
-		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || outcomes != nil && len(outcomes) == 0 {
+		// A built-in kind ends or suspends by what it is; a registered kind declares it: no outcomes ends a
+		// path, a WaitSpec suspends the run.
+		builtin := isBuiltinBehavior(spec.Behavior)
+		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || !builtin && outcomes != nil && len(outcomes) == 0 {
 			ends[n.ID] = true
 		}
-		if spec.Behavior == BehaviorWait || spec.Wait != nil {
+		if spec.Behavior == BehaviorWait || !builtin && spec.Wait != nil {
 			waits[n.ID] = true
 		}
 	}
@@ -415,6 +418,14 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		}
 	}
 	return errs.list
+}
+
+func isBuiltinBehavior(b Behavior) bool {
+	switch b {
+	case BehaviorBranch, BehaviorSwitch, BehaviorWait, BehaviorEffect, BehaviorCall, BehaviorEnd:
+		return true
+	}
+	return false
 }
 
 func reachesEnd(v *GraphView, from string, ends map[string]bool, seen map[string]bool) bool {
