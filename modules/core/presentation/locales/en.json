@@ -1138,6 +1138,8 @@
       "RemoveChip": "Remove filter"
     },
     "FilterBuilder": {
+      "Yes": "Yes",
+      "No": "No",
       "AddFilter": "Add filter",
       "ClearAll": "Clear all",
       "Apply": "Apply",

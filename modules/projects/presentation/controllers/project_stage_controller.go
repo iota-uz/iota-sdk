@@ -124,7 +124,8 @@ func (c *ProjectStageController) List(
 
 	props := &project_stages.IndexPageProps{
 		ProjectStages:   viewModels,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), paginationParams.Limit),
+		// Page links keep the search and chips, or page 2 would drop them.
+		PaginationState: pagination.NewWithQuery(c.basePath, r.URL.Query(), paginationParams.Page, int(total), paginationParams.Limit),
 		Filters: filterbuilder.Props{
 			Registry: registry, Filters: conditions, ID: "project-stage-filters", ShowResetAlways: true,
 		},

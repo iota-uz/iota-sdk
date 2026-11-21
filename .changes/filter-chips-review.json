@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Filter chips review fixes: flag (bool) chips open for editing — the chip names its value (Yes / No) and its editor switches it by click or keyboard; pagination.NewWithQuery keeps the list's query (search, chips, page size) in every page link, and the project stages list uses it so page 2 keeps its conditions."
+}

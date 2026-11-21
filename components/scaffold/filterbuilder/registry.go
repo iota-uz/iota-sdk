@@ -227,6 +227,14 @@ func presetKey(p filterq.DatePreset) string {
 	return ""
 }
 
+// boolKey maps a flag value to its SDK locale key.
+func boolKey(v string) string {
+	if v == "false" {
+		return "Scaffold.FilterBuilder.No"
+	}
+	return "Scaffold.FilterBuilder.Yes"
+}
+
 // maxChipValues caps how many value labels a chip shows before collapsing the
 // rest into "+N".
 const maxChipValues = 3
@@ -236,6 +244,9 @@ const maxChipValues = 3
 // localized label, everything else renders verbatim.
 func chipValueSummary(pageCtx types.PageContext, f FieldDef, c filterq.Condition) string {
 	if f.Type == filterq.FieldTypeBool {
+		if len(c.Values) == 1 {
+			return pageCtx.T(boolKey(c.Values[0]))
+		}
 		return ""
 	}
 	if p, ok := c.Preset(); ok {

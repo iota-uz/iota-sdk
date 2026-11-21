@@ -1142,6 +1142,8 @@
       "RemoveChip": "移除筛选器"
     },
     "FilterBuilder": {
+      "Yes": "是",
+      "No": "否",
       "AddFilter": "添加筛选",
       "ClearAll": "清除全部",
       "Apply": "应用",

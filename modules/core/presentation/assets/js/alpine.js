@@ -2984,7 +2984,21 @@ let filterBuilder = () => ({
 let fbPanel = (cfg = {}) => ({
   op: cfg.op,
   preset: cfg.preset || '',
+  // Current value of a flag chip ("true" / "false"); its editor presses it.
+  value: cfg.value || '',
+  applyBool(v) {
+    this.value = v;
+    this.$dispatch('fb-apply', { field: cfg.field, op: 'is', values: [v], chip: cfg.chip });
+  },
   apply() {
+    // Enter on a Yes / No button: the panel's keydown handler stops the
+    // button's own click, so apply the focused value here.
+    if (cfg.type === 'bool') {
+      const focused = this.$root.ownerDocument?.activeElement;
+      const v = focused && focused.dataset ? focused.dataset.fbBool : '';
+      if (v === 'true' || v === 'false') this.applyBool(v);
+      return;
+    }
     if (this.op === 'empty') {
       this.$dispatch('fb-apply', { field: cfg.field, op: 'empty', values: [], chip: cfg.chip });
       return;

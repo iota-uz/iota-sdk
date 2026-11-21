@@ -1138,6 +1138,8 @@
       "RemoveChip": "Убрать фильтр"
     },
     "FilterBuilder": {
+      "Yes": "Да",
+      "No": "Нет",
       "AddFilter": "Добавить фильтр",
       "ClearAll": "Сбросить все",
       "Apply": "Применить",

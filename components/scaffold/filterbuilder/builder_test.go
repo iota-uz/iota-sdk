@@ -384,3 +384,20 @@ func TestSingleReferenceFieldTakesOneValue(t *testing.T) {
 	assert.NotContains(t, html, "data-fb-checkboxes", "a single-value field never uses the checkbox list")
 	assert.NotContains(t, html, " multiple", "a single-value field uses a plain select")
 }
+
+func TestFlagChipShowsItsValueAndOpensAnEditor(t *testing.T) {
+	reg := NewRegistry(FieldDef{Key: "overdue", Type: filterq.FieldTypeBool, Label: "Overdue"})
+	for _, tc := range []struct{ value, label, other string }{
+		{"true", "Scaffold.FilterBuilder.Yes", "Scaffold.FilterBuilder.No"},
+		{"false", "Scaffold.FilterBuilder.No", "Scaffold.FilterBuilder.Yes"},
+	} {
+		fs := reg.Decode(url.Values{filterq.ParamName: {"overdue:is:" + tc.value}})
+		html := renderComponent(t, Props{Registry: reg, Filters: fs}, false)
+		chip := html[strings.Index(html, "data-fb-chip-wrapper"):strings.Index(html, "data-fb-popover")]
+		assert.Contains(t, chip, tc.label, "the chip names its value")
+		assert.NotContains(t, chip, tc.other)
+		assert.Contains(t, chip, `x-on:click="edit(0)"`, "a flag chip opens for editing")
+		assert.Contains(t, html, `applyBool(&#39;false&#39;)`)
+		assert.Contains(t, html, `&#34;value&#34;:&#34;`+tc.value+`&#34;`, "the editor knows the current value")
+	}
+}

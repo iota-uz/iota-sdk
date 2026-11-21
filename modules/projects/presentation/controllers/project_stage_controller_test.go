@@ -151,6 +151,15 @@ func TestProjectStageController_List_FilterChips(t *testing.T) {
 		}
 		response.Contains(`hx-swap-oob="outerHTML"`)
 	}
+
+	// Paging keeps the search and the chips: with one stage per page the
+	// second page of "Alpha" stages is still Alpha's, and its links carry the
+	// conditions on.
+	query := "?Search=stage&f=project:is:" + alpha.ID().String() + "&fb=1&limit=1"
+	first := suite.GET(ProjectStageBasePath + query).Expect(t).Status(200)
+	first.Contains("page=2").Contains("f=project%3Ais%3A" + alpha.ID().String()).Contains("Search=stage")
+	second := suite.GET(ProjectStageBasePath + query + "&page=2").HTMX().Expect(t).Status(200)
+	second.NotContains("Beta open stage")
 }
 
 func TestProjectStageController_List_HTMX_Request(t *testing.T) {

@@ -3,6 +3,7 @@ package pagination
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 )
 
@@ -108,6 +109,29 @@ func New(baseLink string, page, total, limit int) *State {
 			Link:   link,
 			Active: i == max(page-1, 0),
 		})
+	}
+	return p
+}
+
+// NewWithQuery is New for a list narrowed by query parameters (search, filter
+// chips, page size): every page link keeps them, so moving to the next page
+// does not drop the conditions. Only "page" is replaced.
+func NewWithQuery(baseLink string, query url.Values, page, total, limit int) *State {
+	p := New(baseLink, page, total, limit)
+	for i := range p.pages {
+		q := url.Values{}
+		for k, v := range query {
+			if k != "page" {
+				q[k] = append([]string(nil), v...)
+			}
+		}
+		if i > 0 {
+			q.Set("page", strconv.Itoa(i+1))
+		}
+		p.pages[i].Link = baseLink
+		if encoded := q.Encode(); encoded != "" {
+			p.pages[i].Link += "?" + encoded
+		}
 	}
 	return p
 }
