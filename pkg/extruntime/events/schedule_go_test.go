@@ -568,3 +568,69 @@ func TestBacklogOfEligibleSlotsProgressesAcrossPasses(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, n)
 }
+
+func TestFailedSlotStaysClaimedUntilItsBackoffIsDurable(t *testing.T) {
+	env := hosttest.New(t)
+	tenant := env.Tenant
+	var mu sync.Mutex
+	calls := 0
+	var other *events.Scheduler
+	var wg sync.WaitGroup
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	handler := events.SlotHandlerFunc(func(context.Context, pgx.Tx, events.Slot) error {
+		mu.Lock()
+		calls++
+		first := calls == 1
+		mu.Unlock()
+		if first {
+			// Another pass reaches the slot while this one is still failing.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := other.RunOnce(context.Background())
+				assert.NoError(t, err)
+			}()
+			time.Sleep(300 * time.Millisecond)
+			return errors.New("boom")
+		}
+		return nil
+	})
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: handler}
+	slow := func(c *events.SchedulerConfig) { c.BackoffBase = time.Minute }
+	first := goScheduler(t, env, events.StaticSchedules(def), &now, slow)
+	other = goScheduler(t, env, events.StaticSchedules(def), &now, slow)
+	_, err := first.RunOnce(context.Background())
+	require.NoError(t, err)
+	wg.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, calls, "the slot was not run again before its backoff")
+	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)))
+}
+
+func TestChangingTheCronResetsTheBacklogCursor(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{}
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "*/2 * * * *", TenantID: &tenant, Handler: h, MissedAfter: time.Hour,
+		ActiveFrom: time.Date(2026, 6, 1, 10, 20, 0, 0, time.UTC)}
+	src := &schedules{defs: []events.ScheduleDef{def}}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	s := goScheduler(t, env, src, &now)
+	events.SetLiveLimit(s, 2)
+	for range 4 {
+		_, err := s.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	require.Equal(t, 6, countStatus(t, env, def.ID, events.StatusDone), "every second minute from 10:20 to 10:30")
+
+	def.Cron = "* * * * *"
+	src.mu.Lock()
+	src.defs = []events.ScheduleDef{def}
+	src.mu.Unlock()
+	for range 10 {
+		_, err := s.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	require.Equal(t, 11, countStatus(t, env, def.ID, events.StatusDone), "the odd minutes the new recurrence adds run too")
+}

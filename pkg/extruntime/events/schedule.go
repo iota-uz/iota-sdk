@@ -323,9 +323,11 @@ const (
 	defaultLiveLimit = 100_000
 )
 
+// backlogKey identifies a backlog cursor by the schedule's recurrence too: a
+// cursor is only valid for the slots of the cron and zone that produced it.
 type backlogKey struct {
-	schedule string
-	tenant   uuid.UUID
+	schedule, cron, timezone string
+	tenant                   uuid.UUID
 }
 
 type runKey struct {
@@ -548,7 +550,7 @@ func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now 
 // per schedule and tenant remembers that everything before it is claimed, so
 // the passes make progress through a backlog instead of revisiting it.
 func (s *Scheduler) runBacklog(ctx context.Context, def ScheduleDef, spec cron.Schedule, loc *time.Location, tenant uuid.UUID, from, until time.Time) (int, error) {
-	key := backlogKey{schedule: def.ID, tenant: tenant}
+	key := backlogKey{schedule: def.ID, cron: def.Cron, timezone: def.Timezone, tenant: tenant}
 	s.cmu.Lock()
 	cursor, ok := s.backlog[key]
 	s.cmu.Unlock()
@@ -780,6 +782,13 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 	if err != nil {
 		return false, serrors.FromDB(opScheduleD, err)
 	}
+	// The handler runs under a savepoint. A failure rolls back to it and
+	// records the failed state in this same transaction, so the claim on the
+	// slot is held until the retry time is durable: a concurrent pass cannot
+	// run the slot again before the backoff.
+	if _, err := tx.Exec(ctx, `SAVEPOINT schedule_slot`); err != nil {
+		return false, serrors.FromDB(opScheduleD, err)
+	}
 	var (
 		res    host.Result
 		runErr error
@@ -807,49 +816,85 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		})
 	}
 	if runErr == nil {
+		if _, err := tx.Exec(ctx, `RELEASE SAVEPOINT schedule_slot`); err != nil && ctx.Err() == nil {
+			// A handler that swallowed a failed statement left the transaction
+			// aborted: the slot failed.
+			runErr = fmt.Errorf("schedule %s: the slot's transaction was rolled back: %w", def.ID, err)
+		}
+	}
+	if runErr == nil {
 		if res.InvocationID != "" {
 			if _, err := tx.Exec(ctx, `UPDATE extruntime.schedule_runs SET invocation_id = $4::uuid WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`,
 				tenant, def.ID, slot, res.InvocationID); err != nil {
 				return false, serrors.FromDB(opScheduleD, err)
 			}
 		}
-		err := tx.Commit(ctx)
-		switch {
-		case err == nil:
-			if res.AfterCommit != nil {
-				res.AfterCommit(ctx)
-			}
-			return true, nil
-		case errors.Is(err, pgx.ErrTxCommitRollback) && ctx.Err() == nil:
-			// A handler that swallowed a failed statement left the transaction
-			// aborted: the slot failed.
-			runErr = fmt.Errorf("schedule %s: the slot's transaction was rolled back: %w", def.ID, err)
-		default:
+		if err := tx.Commit(ctx); err != nil {
 			return false, serrors.FromDB(opScheduleD, err)
 		}
+		if res.AfterCommit != nil {
+			res.AfterCommit(ctx)
+		}
+		return true, nil
 	}
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
-	_ = tx.Rollback(context.WithoutCancel(ctx))
-	status := StatusFailed
-	if errors.Is(runErr, ErrNoSubject) || errors.Is(runErr, ErrRunnerUnavailable) {
+	status, failedAttempts := StatusFailed, attempts
+	msg := runErr.Error()
+	switch {
+	case errors.Is(runErr, ErrNoSubject) || errors.Is(runErr, ErrRunnerUnavailable):
 		// Nobody to act as, or nothing to run a package schedule with: the slot
 		// waits instead of failing, like a blocked delivery.
-		return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "", runErr.Error())
-	}
-	if host.IsInfrastructure(runErr) {
+		status, failedAttempts = StatusBlocked, prior
+	case host.IsInfrastructure(runErr):
 		// A failure of the platform is not the handler's: the slot is retried
 		// after the backoff without counting as an attempt.
-		attempts = max(attempts-1, 0)
-	} else if attempts >= s.cfg.MaxAttempts {
+		failedAttempts = max(attempts-1, 0)
+	case attempts >= s.cfg.MaxAttempts:
 		status = StatusDead
 	}
-	msg := runErr.Error()
-	if we, ok := pool.AsWireError(runErr); ok {
-		msg = we.Error()
+	if status != StatusBlocked {
+		if we, ok := pool.AsWireError(runErr); ok {
+			msg = we.Error()
+		}
 	}
-	return false, s.record(ctx, def, tenant, slot, status, attempts, res.InvocationID, msg)
+	// Roll the handler back to the savepoint and keep the claim: the failed
+	// state commits with it.
+	if _, err := tx.Exec(context.WithoutCancel(ctx), `ROLLBACK TO SAVEPOINT schedule_slot`); err == nil {
+		var inv any
+		if res.InvocationID != "" {
+			inv = res.InvocationID
+		}
+		_, err = tx.Exec(context.WithoutCancel(ctx), `
+			UPDATE extruntime.schedule_runs
+			SET status = $4, attempts = $5, next_at = clock_timestamp() + $6::interval, last_error = $7,
+			    invocation_id = COALESCE($8::uuid, invocation_id), updated_at = now()
+			WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`,
+			tenant, def.ID, slot, status, failedAttempts, s.backoff(status, failedAttempts).String(), msg, inv)
+		if err == nil {
+			if err = tx.Commit(context.WithoutCancel(ctx)); err == nil {
+				s.cfg.Logger.Warn("extruntime: schedule slot did not run", "schedule", def.ID, "tenant", tenant, "slot", slot, "status", status, "reason", msg)
+				return false, nil
+			}
+		}
+	}
+	// The transaction cannot carry the state (a broken connection): record it
+	// outside, as a last resort.
+	_ = tx.Rollback(context.WithoutCancel(ctx))
+	return false, s.record(ctx, def, tenant, slot, status, failedAttempts, res.InvocationID, msg)
+}
+
+// backoff is the delay before a failed or blocked slot is due again.
+func (s *Scheduler) backoff(status string, attempts int) time.Duration {
+	if status == StatusBlocked {
+		return s.cfg.BlockedRecheck
+	}
+	delay := s.cfg.BackoffBase
+	for i := 1; i < attempts; i++ {
+		delay *= 2
+	}
+	return delay
 }
 
 // callHandler runs a Go slot handler, turning a panic into an error so a
@@ -863,18 +908,13 @@ func callHandler(ctx context.Context, h SlotHandler, tx pgx.Tx, slot Slot) (err 
 	return h.RunSlot(ctx, tx, slot)
 }
 
-// record stores a non-delivered run state (failed, dead or blocked) outside
-// the rolled back handler transaction; it never overwrites a committed run.
+// record stores a non-delivered run state (failed, dead, blocked) outside any
+// slot transaction: a slot that was blocked before it was claimed, or the last
+// resort when the claiming transaction itself failed. It never overwrites a
+// committed run.
 func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, status string, attempts int, invocationID, msg string) error {
-	delay := s.cfg.BlockedRecheck
-	if status != StatusBlocked {
-		delay = s.cfg.BackoffBase
-		for i := 1; i < attempts; i++ {
-			delay *= 2
-		}
-	} else {
-		attempts = max(attempts, 0)
-	}
+	delay := s.backoff(status, attempts)
+	attempts = max(attempts, 0)
 	var inv any
 	if invocationID != "" {
 		inv = invocationID
