@@ -247,6 +247,21 @@ parameters. A consumer works only inside the tenant of the event it received.
   tenant without a working connection of the needed kind does not see the node or trigger
   in its catalog.
 
+Implementation notes (#1330):
+
+- `catalog.NodeType.Requires` lists kinds the node works with: any one of them makes it
+  available. The registry adds the reserved `connection` param (a connection ID or
+  `platform:<kind>`) to the params of such nodes and triggers; a node may not declare it.
+  Left out, the only available connection is used (`catalog.ResolveConnection`);
+  `catalog.ConnectionRule` reports `connection_unavailable` and, when several fit,
+  `connection_required`.
+- The keyring is `AUTOMATION_CONNECTIONS_KEYS` (`automationconfig`): `id:key[,id:key]`,
+  32-byte keys in base64 or hex, the first one active. To rotate, put the new key first,
+  run `Store.Rewrap` until it returns 0, then drop the old key.
+- The engine opens a call's connection with `connectors.CredentialSource.Open`.
+- `connectors.SecretResolver` also takes the `Directory`, which says which credential
+  fields are `x-secret`.
+
 ## 8. RBAC and agents
 
 Permissions: `Automations.Read`, `Automations.Author`, `Automations.Enable`,
