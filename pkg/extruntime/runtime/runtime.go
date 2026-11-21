@@ -397,6 +397,8 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		scfg.DB = deps.DB
 		if subjects != nil {
 			scfg.Runner, scfg.Subjects = rt.Host, subjects
+		} else {
+			scfg.Runner, scfg.Subjects = nil, nil // whatever Config.Schedules carried
 		}
 		scfg.Schedules = events.ComposeSchedules(rt.Manage.ScheduleSource(), deps.Schedules)
 		if scfg.Logger == nil {

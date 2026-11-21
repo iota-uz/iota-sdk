@@ -604,6 +604,7 @@ func TestFailedSlotStaysClaimedUntilItsBackoffIsDurable(t *testing.T) {
 			deadline := time.Now().Add(10 * time.Second)
 			for !claimBlocked(env) {
 				if time.Now().After(deadline) {
+					t.Error("the competing pass never reached the claim") // the handler error alone would only fail the slot
 					return errors.New("the competing pass never reached the claim")
 				}
 				time.Sleep(10 * time.Millisecond)
@@ -782,4 +783,35 @@ func TestBacklogPassStopsAfterAChunkEvenWhenNoSlotCommits(t *testing.T) {
 	_, err := s.RunOnce(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, 4, countStatus(t, env, def.ID, events.StatusBlocked), "the two newest slots and one backlog chunk of two")
+}
+
+func TestDueRetriesRotateAcrossTenantsWhenTheSameRunsFailAgain(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	tenants := []uuid.UUID{env.Tenant, env.NewTenant(), env.NewTenant(), env.NewTenant()}
+	var mu sync.Mutex
+	called := map[uuid.UUID]int{}
+	def := events.ScheduleDef{ID: "app.tick", Cron: "0 0 1 1 *", Handler: events.SlotHandlerFunc(func(_ context.Context, _ pgx.Tx, slot events.Slot) error {
+		mu.Lock()
+		defer mu.Unlock()
+		called[slot.TenantID]++
+		return &host.InfraError{Err: errors.New("database unavailable")} // not counted: it becomes due again at once
+	})}
+	for _, id := range tenants {
+		_, err := env.DB.Exec(ctx, `INSERT INTO extruntime.schedule_runs (tenant_id, schedule, slot, status, attempts, next_at) VALUES ($1, $2, '2026-01-01T00:00:00Z', 'failed', 1, now() - interval '1 minute')`, id, def.ID)
+		require.NoError(t, err)
+	}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now, func(c *events.SchedulerConfig) {
+		c.Tenants = &countingTenants{list: tenants}
+	})
+	events.SetRetryLimit(s, 2)
+	for range 2 {
+		_, err := s.RunOnce(ctx)
+		require.NoError(t, err)
+		time.Sleep(50 * time.Millisecond) // the backoff (10ms) elapses: the same runs are due again
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, called, 4, "every tenant was attempted within two passes: %v", called)
 }

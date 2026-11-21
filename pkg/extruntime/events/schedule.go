@@ -702,8 +702,11 @@ func (s *Scheduler) loadKnown(ctx context.Context, schedule string, since, until
 // loadRetries lists the failed and blocked runs of tenants that are due,
 // whatever the age of their slot but not from before activeFrom (a schedule
 // enabled again under the same ID does not retry the past of its earlier
-// activation). At most the retry limit are returned, the tenants taking turns,
-// oldest slots first; the rest stay due for later passes.
+// activation). At most the retry limit are returned. Tenants take turns, and
+// the turn goes to whoever was attempted least recently (updated_at, which
+// every attempt refreshes), so a run that fails again and becomes due before
+// the next pass cannot keep the same tenants first; the rest stay due for
+// later passes.
 func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []uuid.UUID, activeFrom time.Time) ([]retryable, error) {
 	// The column has microseconds: round the bound up so a slot before an
 	// activation with sub-microsecond digits is not admitted.
@@ -715,11 +718,11 @@ func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []
 	rows, err := s.cfg.DB.Query(ctx, `
 		SELECT tenant_id, slot, status, attempts FROM (
 			SELECT tenant_id, slot, status, attempts,
-			       row_number() OVER (PARTITION BY tenant_id ORDER BY slot) AS turn
+			       row_number() OVER (PARTITION BY tenant_id ORDER BY updated_at, slot) AS turn, updated_at
 			FROM extruntime.schedule_runs
 			WHERE tenant_id = ANY($2) AND schedule = $1 AND status IN ('failed', 'blocked') AND next_at <= now()
 			  AND ($3::timestamptz IS NULL OR slot >= $3)) due
-		ORDER BY turn, slot, tenant_id
+		ORDER BY turn, updated_at, slot, tenant_id
 		LIMIT $4`, schedule, tenants, nullTime(activeFrom), s.retryLimit)
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
