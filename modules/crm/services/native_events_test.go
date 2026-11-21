@@ -421,3 +421,48 @@ func TestChatEvents_SavePublishesTheNewMessages(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, count())
 }
+
+// Concurrent saves of the first chat of a client, each with its own message,
+// create one chat and publish every message once: creation is serialized on
+// the client row before the baseline is read.
+func TestChatEvents_ConcurrentFirstSavesPublishEachMessageOnce(t *testing.T) {
+	e := newCRMEventEnv(t)
+	c := e.newClient(t, "+998903330101")
+	e.env.CommitTx(t)
+	detached := context.WithValue(context.WithValue(e.ctx(), constants.TxKey, nil), constants.AfterCommitKey, nil)
+
+	const saves = 6
+	var wg sync.WaitGroup
+	errs := make(chan error, saves)
+	start := make(chan struct{})
+	for i := 0; i < saves; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			member := chat.NewMember(chat.NewClientSender(c.ID(), 0, c.FirstName(), c.LastName()), chat.TelegramTransport, chat.WithMemberTenantID(e.env.TenantID()))
+			_, err := e.chats.Save(detached, chat.New(c.ID(), chat.WithTenantID(e.env.TenantID())).AddMessage(chat.NewMessage(fmt.Sprintf("first %d", i), member)))
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	seen := map[int64]int{}
+	for _, row := range e.env.OutboxRows(t, e.env.TenantID(), services.ChatMessageAddedEventID) {
+		var p services.ChatMessageAddedPayload
+		require.NoError(t, json.Unmarshal(row.Payload, &p))
+		seen[p.MessageID]++
+	}
+	require.Len(t, seen, saves, "every saved message is published")
+	for id, n := range seen {
+		require.Equal(t, 1, n, "message %d is published once", id)
+	}
+	var chats int
+	require.NoError(t, e.env.Pool.QueryRow(context.Background(), `SELECT count(*) FROM chats WHERE client_id = $1`, c.ID()).Scan(&chats))
+	require.Equal(t, 1, chats)
+}

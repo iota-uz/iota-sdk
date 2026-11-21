@@ -90,23 +90,39 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	}
 
 	var createdEntity chat.Chat
+	created := false
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		tenantID, err := composables.UseTenantID(txCtx)
 		if err != nil {
+			return err
+		}
+		// A chat is created under the lock of its client's row, the same order
+		// Save takes, so concurrent creations do not race for the one chat.
+		if err := s.clientRepo.LockByID(txCtx, clientID); err != nil {
 			return err
 		}
 		client, err := s.clientService.GetByID(txCtx, clientID)
 		if err != nil {
 			return err
 		}
+		if existing, err := s.repo.GetByClientID(txCtx, clientID); err == nil {
+			createdEntity = existing // another transaction created it first
+			return nil
+		} else if !errors.Is(err, persistence.ErrChatNotFound) {
+			return err
+		}
 		createdEntity, err = s.repo.Save(txCtx, chat.New(
 			client.ID(),
 			chat.WithTenantID(tenantID),
 		))
+		created = err == nil
 		return err
 	})
 	if err != nil {
 		return nil, err
+	}
+	if !created {
+		return createdEntity, nil
 	}
 
 	// Publish event after successful commit
@@ -156,6 +172,11 @@ func (s *ChatService) lockedBaseline(txCtx context.Context, entity chat.Chat) (c
 	id := entity.ID()
 	if id == 0 {
 		// The repository saves a new chat over the stored chat of its client.
+		// Creation is serialized on the client row, so a concurrent save of the
+		// same client's first chat finds the chat the other one stored.
+		if err := s.clientRepo.LockByID(txCtx, entity.ClientID()); err != nil {
+			return nil, err
+		}
 		existing, err := s.repo.GetByClientID(txCtx, entity.ClientID())
 		if errors.Is(err, persistence.ErrChatNotFound) {
 			return nil, nil //nolint:nilnil // no stored chat is the documented "no baseline" answer.
