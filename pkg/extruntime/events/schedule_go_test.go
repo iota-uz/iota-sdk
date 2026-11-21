@@ -749,10 +749,11 @@ func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 		attempts int
 		msg      string
 		gen      int64
+		updated  time.Time
 	}
 	row := func() receipt {
 		var r receipt
-		require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts, last_error, generation FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&r.status, &r.attempts, &r.msg, &r.gen))
+		require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts, last_error, generation, updated_at FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&r.status, &r.attempts, &r.msg, &r.gen, &r.updated))
 		return r
 	}
 
@@ -769,14 +770,19 @@ func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 	require.Equal(t, 2, second.attempts)
 	require.Contains(t, second.msg, "second")
 
-	// Another pass recorded a blocked state with zero attempts whose deadline
-	// has already passed, in a transaction that got the very same updated_at
-	// (now() is the transaction's start): the late write of the first pass is
-	// dropped, because the generation counter moved.
+	// A pass claimed the slot when its receipt was the "second" one above (that
+	// is the generation it holds). Another pass then recorded a blocked state
+	// with zero attempts whose deadline has already passed, in a transaction
+	// that got the very same updated_at (now() is the transaction's start): the
+	// late write is dropped because the generation counter moved, which
+	// timestamps could not show.
+	claimedGen := second.gen
 	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET status = 'blocked', attempts = 0, last_error = 'newer', next_at = now() - interval '1 minute', generation = generation + 1 WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
 	require.NoError(t, err)
-	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 0, &gen, errors.New("stale")))
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 0, &claimedGen, errors.New("stale")))
 	newer := row()
+	require.True(t, newer.updated.Equal(second.updated), "the timestamp did not change across the newer update")
+	require.Greater(t, newer.gen, second.gen)
 	require.Equal(t, events.StatusBlocked, newer.status, "the newer receipt is untouched")
 	require.Equal(t, 0, newer.attempts)
 	require.Equal(t, "newer", newer.msg)
