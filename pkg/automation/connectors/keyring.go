@@ -129,6 +129,10 @@ func open(key, nonce, ciphertext, additional []byte) ([]byte, error) {
 }
 
 func newGCM(key []byte) (cipher.AEAD, error) {
+	if len(key) != 32 {
+		// aes.NewCipher would take 16 or 24 bytes too; the store is AES-256 only, whatever the Keyring.
+		return nil, fmt.Errorf("%w: an AES-256 key is 32 bytes, the keyring gave %d", ErrNotConfigured, len(key))
+	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("automation connections: cipher: %w", err)

@@ -180,17 +180,30 @@ func tokenCredentials(t *oauth2.Token, previous Credentials) Credentials {
 	return c
 }
 
-// tokenError hides the provider's response, which may echo what was sent.
+// tokenError hides the provider's response: its error code, description and status text are the
+// provider's and may echo what was sent, so only the numeric HTTP status is kept.
 func tokenError(err error) error {
 	var re *oauth2.RetrieveError
 	if errors.As(err, &re) {
-		code := re.ErrorCode
-		if code == "" && re.Response != nil {
-			code = re.Response.Status
+		if re.Response != nil {
+			return fmt.Errorf("automation connections: the provider refused the token request (HTTP %d)", re.Response.StatusCode)
 		}
-		return fmt.Errorf("automation connections: the provider refused the token request: %s", code)
+		return fmt.Errorf("automation connections: the provider refused the token request")
 	}
 	return fmt.Errorf("automation connections: token request failed")
+}
+
+// usable reports whether the access token has not expired yet (a token without expiry is usable).
+func usable(c Credentials) bool {
+	if c[OAuth2AccessToken] == "" {
+		return false
+	}
+	exp := c[OAuth2ExpiresAt]
+	if exp == "" {
+		return true
+	}
+	at, err := time.Parse(time.RFC3339, exp)
+	return err == nil && at.After(now())
 }
 
 func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
@@ -301,16 +314,30 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 		token  string
 		reauth bool
 	)
+	seenVersion := c.Version
 	err = pgx.BeginFunc(ctx, o.s.db, func(tx pgx.Tx) error {
 		c, creds, err := o.s.load(ctx, tx, tenantID, connectionID, true)
 		if err != nil {
 			return err
 		}
-		if c.Status == StatusNeedsReauth {
+		// The row may have changed while this call waited for the lock: check it again.
+		switch c.Status {
+		case StatusConnected:
+		case StatusNeedsReauth:
 			reauth = true
 			return nil
+		case StatusError, StatusDisabled:
+			return ErrNotConnected
+		default:
+			return ErrNotConnected
 		}
-		if fresh(creds) { // refreshed while this call waited for the lock
+		if fresh(creds) {
+			token = creds[OAuth2AccessToken]
+			return nil
+		}
+		// Another call refreshed while this one waited: reuse its token while it is valid, even when the
+		// provider issues tokens shorter-lived than RefreshBefore.
+		if c.Version != seenVersion && usable(creds) {
 			token = creds[OAuth2AccessToken]
 			return nil
 		}
@@ -328,7 +355,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			// Only a refused grant needs the user; invalid_client, 429 and the like are the platform's or
 			// transient and must not send every tenant to re-authorize.
 			if errors.As(err, &re) && re.ErrorCode == "invalid_grant" {
-				return o.markReauth(ctx, tx, c, tokenError(err).Error(), &reauth)
+				return o.markReauth(ctx, tx, c, "the provider refused the refresh token", &reauth)
 			}
 			return tokenError(err)
 		}

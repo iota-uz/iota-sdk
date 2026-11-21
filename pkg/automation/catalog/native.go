@@ -37,17 +37,18 @@ type failing interface {
 }
 
 type nativeSource struct {
-	events []graph.EventSpec
-	access map[string]EventAccess
-	labels map[string]manifest.Label
-	err    error
+	events       []graph.EventSpec
+	access       map[string]EventAccess
+	labels       map[string]manifest.Label
+	descriptions map[string]manifest.Label
+	err          error
 }
 
 // FromNativeEvents is the trigger source of native events: every event of the set, its payload translated
 // with FieldFromManifest, grouped by its category (or the first segment of its ID). A payload of a type
 // that cannot be translated makes the registration fail.
 func FromNativeEvents(set NativeEvents) TriggerSource {
-	src := &nativeSource{access: map[string]EventAccess{}, labels: map[string]manifest.Label{}}
+	src := &nativeSource{access: map[string]EventAccess{}, labels: map[string]manifest.Label{}, descriptions: map[string]manifest.Label{}}
 	if set == nil {
 		return src
 	}
@@ -61,7 +62,7 @@ func FromNativeEvents(set NativeEvents) TriggerSource {
 	sort.Slice(defs, func(i, j int) bool { return defs[i].ID() < defs[j].ID() })
 	for _, def := range defs {
 		res := def.Resource()
-		spec := graph.EventSpec{Key: def.ID(), Subject: res.Subject, Title: labelIn(res.Label, "", def.ID())}
+		spec := graph.EventSpec{Key: def.ID(), Subject: res.Subject, Title: labelIn(res.Label, "", def.ID()), Description: res.Description}
 		if spec.Subject == "" {
 			spec.Subject = graph.SubjectNone
 		}
@@ -86,6 +87,10 @@ func FromNativeEvents(set NativeEvents) TriggerSource {
 			access.Sensitive = m.Sensitive()
 			if c := m.Category(); c != "" {
 				spec.Group = c
+			}
+			if d := m.Descriptions(); len(d) > 0 {
+				src.descriptions[def.ID()] = d
+				spec.Description = labelIn(d, "", spec.Description)
 			}
 		}
 		src.access[def.ID()] = access
@@ -115,6 +120,7 @@ func (s *nativeSource) Access(key string) (EventAccess, bool) {
 
 func (s *nativeSource) Localize(spec graph.EventSpec, locale string) graph.EventSpec {
 	spec.Title = labelIn(s.labels[spec.Key], locale, spec.Title)
+	spec.Description = labelIn(s.descriptions[spec.Key], locale, spec.Description)
 	return spec
 }
 

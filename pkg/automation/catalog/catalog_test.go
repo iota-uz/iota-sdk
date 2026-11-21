@@ -313,7 +313,9 @@ type metaEvent struct {
 	sensitive map[string][]string
 }
 
-func (m metaEvent) Descriptions() manifest.Label   { return manifest.Label{"en": "A client was created"} }
+func (m metaEvent) Descriptions() manifest.Label {
+	return manifest.Label{"en": "A client was created", "ru": "Создан клиент"}
+}
 func (m metaEvent) ReadPermission() string         { return m.read }
 func (m metaEvent) Sensitive() map[string][]string { return m.sensitive }
 func (m metaEvent) Category() string               { return "clients" }
@@ -339,6 +341,8 @@ func TestAuthorWithoutClientReadDoesNotSeeContacts(t *testing.T) {
 	spec, ok := v.Catalog.Events["crm.client.created.v1"]
 	require.True(t, ok)
 	assert.Equal(t, "Клиент создан", spec.Title)
+	assert.Equal(t, "Создан клиент", spec.Description)
+	assert.Equal(t, "Создан клиент", v.JSON(nil).Events[0].Description)
 	assert.Equal(t, "clients", spec.Group)
 	assert.Equal(t, "crm.client", spec.Subject)
 	_, hasPhone := spec.Payload.Get("phone")

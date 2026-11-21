@@ -90,25 +90,24 @@ func (s *store) Connected(ctx context.Context, tenantID uuid.UUID) (map[catalog.
 	const op = serrors.Op("automation.connectors.Store.Connected")
 	out := map[catalog.ConnectorKind][]catalog.ConnectionRef{}
 	if s.keys != nil {
-		rows, err := s.db.Query(ctx, `SELECT kind, id, name, key_id FROM automation.connections
+		rows, err := s.db.Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
 			WHERE tenant_id = $1 AND status = $2 ORDER BY kind, created_at, name`, tenantID, string(StatusConnected))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)
 		}
 		for rows.Next() {
-			var (
-				kind, name, keyID string
-				id                uuid.UUID
-			)
-			if err := rows.Scan(&kind, &id, &name, &keyID); err != nil {
+			var nonce, secret []byte
+			c, err := scanConnection(rows, &nonce, &secret)
+			if err != nil {
 				rows.Close()
 				return nil, serrors.Wrap(op, err)
 			}
-			if _, ok := s.keys.Key(keyID); !ok {
-				continue // its key is gone: the row does not decrypt
+			// Only a row whose credentials authenticate is working: its key is gone, or the row was moved
+			// or changed outside the store, and Open would refuse it.
+			if _, err := s.decrypt(c, nonce, secret); err != nil {
+				continue
 			}
-			k := catalog.ConnectorKind(kind)
-			out[k] = append(out[k], catalog.ConnectionRef{ID: id.String(), Name: name})
+			out[c.Kind] = append(out[c.Kind], catalog.ConnectionRef{ID: c.ID.String(), Name: c.Name})
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {
@@ -449,7 +448,9 @@ func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn fu
 }
 
 // Rewrap walks the rows of older keys in id order, a batch per transaction, and re-seals those it can
-// decrypt with the active key, until it rewrapped batch rows or none are left. A row whose key is gone
+// decrypt with the active key, until it rewrapped batch rows or none are left. It waits for rows another
+// transaction holds (an OAuth2 refresh) instead of skipping them, so 0 means no row of an older key is
+// left, apart from those reported as undecryptable. A row whose key is gone
 // or that does not decrypt is left as is and reported in the error after the walk.
 func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 	const op = serrors.Op("automation.connectors.Store.Rewrap")
@@ -468,7 +469,7 @@ func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 		var seen, batchDone, batchSkipped int
 		err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 			rows, err := tx.Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
-				WHERE key_id <> $1 AND id > $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`, activeID, after, batch-done)
+				WHERE key_id <> $1 AND id > $2 ORDER BY id LIMIT $3 FOR UPDATE`, activeID, after, batch-done)
 			if err != nil {
 				return err
 			}

@@ -234,11 +234,70 @@ func TestMovedRowDoesNotDecrypt(t *testing.T) {
 	require.ErrorIs(t, err, connectors.ErrUndecryptable)
 	_, _, err = store.Get(e.ctx, e.tenant, c.ID)
 	require.ErrorIs(t, err, connectors.ErrNotFound, "the old tenant no longer has it")
+	// The moved row is not advertised either: the catalog would offer what Open refuses.
+	got, err := store.Connected(e.ctx, other)
+	require.NoError(t, err)
+	assert.Empty(t, got[catalog.KindTelegramBot])
 
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.connections SET tenant_id = $1, kind = 'smtp' WHERE id = $2`, e.tenant, c.ID)
 	require.NoError(t, err)
 	_, _, err = store.Get(e.ctx, e.tenant, c.ID)
 	require.ErrorIs(t, err, connectors.ErrUndecryptable, "another kind")
+	got, err = store.Connected(e.ctx, e.tenant)
+	require.NoError(t, err)
+	assert.Empty(t, got[catalog.KindSMTP])
+}
+
+// shortKeyring hands out a 16-byte key: the store must refuse it rather than fall back to AES-128.
+type shortKeyring struct{}
+
+func (shortKeyring) Active() (string, []byte)  { return "short", bytes.Repeat([]byte{1}, 16) }
+func (shortKeyring) Key(string) ([]byte, bool) { return bytes.Repeat([]byte{1}, 16), true }
+
+func TestStoreIsAES256Only(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, shortKeyring{}, nil, nil, nil)
+	_, err := store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot"}, connectors.Credentials{"token": botToken})
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
+	var n int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.connections`).Scan(&n))
+	assert.Zero(t, n)
+}
+
+// Rewrap waits for a row another transaction holds instead of reporting it done.
+func TestRewrapWaitsForLockedRows(t *testing.T) {
+	e := newEnv(t)
+	old := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	locked := e.save(old, e.tenant, "locked_bot", connectors.Credentials{"token": botToken})
+	e.save(old, e.tenant, "free_bot", connectors.Credentials{"token": botToken})
+
+	tx, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = tx.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, locked.ID)
+	require.NoError(t, err)
+
+	rotated := connectors.NewStore(e.db, keyring(t, "k2", "k1", "k2"), nil, nil, nil)
+	type result struct {
+		n   int
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		n, err := rotated.Rewrap(e.ctx, 10)
+		done <- result{n, err}
+	}()
+	select {
+	case r := <-done:
+		t.Fatalf("Rewrap returned %d, %v while a row was locked", r.n, r.err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	require.NoError(t, tx.Rollback(e.ctx))
+	r := <-done
+	require.NoError(t, r.err)
+	assert.Equal(t, 2, r.n)
+	var left int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.connections WHERE key_id <> 'k2'`).Scan(&left))
+	assert.Zero(t, left)
 }
 
 func TestRewrapMovesEveryRowToTheActiveKey(t *testing.T) {
@@ -534,6 +593,7 @@ type tokenServer struct {
 	*httptest.Server
 	refreshes atomic.Int32
 	refuse    atomic.Value // "": grant; else the OAuth error code
+	lifetime  atomic.Int32 // seconds of a refreshed token; 0: 3600
 	verifier  atomic.Value
 }
 
@@ -558,7 +618,11 @@ func newTokenServer(t *testing.T) *tokenServer {
 				_, _ = w.Write([]byte(`{"error":"` + code + `","error_description":"refresh-1 is revoked"}`))
 				return
 			}
-			_, _ = w.Write([]byte(`{"access_token":"access-2","token_type":"Bearer","expires_in":3600}`))
+			life := ts.lifetime.Load()
+			if life == 0 {
+				life = 3600
+			}
+			_, _ = fmt.Fprintf(w, `{"access_token":"access-%d","token_type":"Bearer","expires_in":%d}`, 1+ts.refreshes.Load(), life)
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 		}
@@ -636,6 +700,52 @@ func TestOAuth2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, c.ID, again.ID)
 
+	// A provider issuing tokens shorter-lived than RefreshBefore: parallel callers still refresh once.
+	ts.lifetime.Store(300)
+	before := ts.refreshes.Load()
+	for i := range tokens {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tokens[i], errs[i] = o.Token(e.ctx, e.tenant, c.ID)
+		}()
+	}
+	wg.Wait()
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+	assert.Equal(t, tokens[0], tokens[1])
+	assert.Equal(t, before+1, ts.refreshes.Load())
+	ts.lifetime.Store(0)
+
+	// A connection disabled while a caller waits for the lock gives no token.
+	_, state, err = o.Begin(e.ctx, e.tenant, "google_sheets", "https://app.test/callback")
+	require.NoError(t, err)
+	_, err = o.Complete(e.ctx, e.tenant, state, "code") // expiring again
+	require.NoError(t, err)
+	tx, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = tx.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, c.ID)
+	require.NoError(t, err)
+	waited := make(chan error, 1)
+	go func() {
+		_, err := o.Token(e.ctx, e.tenant, c.ID)
+		waited <- err
+	}()
+	for i := 0; ; i++ {
+		var waiting int
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()`).Scan(&waiting))
+		if waiting > 0 {
+			break
+		}
+		require.Less(t, i, 200, "Token never waited for the row lock")
+		time.Sleep(10 * time.Millisecond)
+	}
+	_, err = tx.Exec(e.ctx, `UPDATE automation.connections SET status = 'disabled', version = version + 1 WHERE id = $1`, c.ID)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(e.ctx))
+	require.ErrorIs(t, <-waited, connectors.ErrNotConnected)
+	require.NoError(t, store.SetStatus(e.ctx, e.tenant, c.ID, connectors.StatusConnected, ""))
+
 	// invalid_client is the platform's problem: an error, not a re-authorization of every tenant.
 	ts.refuse.Store("invalid_client")
 	_, err = o.Token(e.ctx, e.tenant, c.ID)
@@ -645,6 +755,14 @@ func TestOAuth2(t *testing.T) {
 	list, err := store.List(e.ctx, e.tenant, "google_sheets")
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusConnected, list[0].Status)
+
+	// Provider-controlled fields (error code, description, status text) never reach Error().
+	ts.refuse.Store("leak_refresh-1_echo")
+	_, err = o.Token(e.ctx, e.tenant, c.ID)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "refresh-1")
+	assert.NotContains(t, err.Error(), "leak")
+	assert.Contains(t, err.Error(), "HTTP 400")
 
 	// A refused grant: needs_reauth, ErrNeedsReauth, and the provider's text is not echoed.
 	ts.refuse.Store("invalid_grant")
