@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Run workflow contracts with a Go implementation (NativeContract) in the extruntime engine, which the Go-only core builds and serves without Node; host.New works without a pool, and Request gains InvocationID and Tx."}
