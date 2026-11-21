@@ -1449,3 +1449,48 @@ func TestNative_NestedPackageCallWithoutRuntimeBlocks(t *testing.T) {
 		})
 	}
 }
+
+// slowSubjects blocks LoadSubject until its context ends, once.
+type slowSubjects struct {
+	*hosttest.Subjects
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (s *slowSubjects) LoadSubject(ctx context.Context, tenant uuid.UUID, user int64, kind spi.SubjectKind) (spi.Subject, error) {
+	first := false
+	s.once.Do(func() { first = true })
+	if first {
+		close(s.entered)
+		<-ctx.Done()
+		return spi.Subject{}, ctx.Err()
+	}
+	return s.Subjects.LoadSubject(ctx, tenant, user, kind)
+}
+
+// Stopping the engine while a run loads its subject counts no failure either.
+func TestNative_ShutdownDuringSubjectLoadDoesNotCountAsAFailure(t *testing.T) {
+	env := newNativeEnv(t)
+	subjects := &slowSubjects{Subjects: env.subjects, entered: make(chan struct{})}
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) {
+		return json.RawMessage(`"ok"`), nil
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.subj": {Runner: done, Concurrency: 1}}, func(c *workflow.Config) {
+		c.MaxRunFailures, c.Subjects = 1, subjects
+	})
+	id := env.start(eng, "test.subj", "s1", `{}`)
+	eng.Serve(context.Background())
+	select {
+	case <-subjects.entered:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the run did not load its subject")
+	}
+	eng.Shutdown()
+	inst := env.inst(eng, id)
+	require.Equal(t, workflow.StatusRunning, inst.Status)
+	require.Zero(t, inst.Failures)
+	n, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, workflow.StatusCompleted, env.inst(eng, id).Status)
+}

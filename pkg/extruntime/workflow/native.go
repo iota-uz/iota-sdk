@@ -234,6 +234,9 @@ func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 	nc := *rs.native
 	subject, err := e.cfg.Subjects.LoadSubject(runCtx, inst.TenantID, inst.SubjectUserID, inst.SubjectKind)
 	switch {
+	case parent.Err() != nil:
+		// The engine stopped while the subject loaded: no failure is counted.
+		return e.abandon(parent, rs)
 	case errors.Is(err, host.ErrSubjectBlocked):
 		return e.finishBlocked(parent, rs, BlockSubject, err.Error())
 	case err != nil:
