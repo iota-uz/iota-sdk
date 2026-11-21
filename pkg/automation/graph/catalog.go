@@ -46,6 +46,7 @@ type SubjectSpec struct {
 type EventSpec struct {
 	Key           string
 	Title         string // localized by the caller
+	Description   string // localized by the caller; optional
 	Group         string
 	Subject       string // the entity the event is about; conversation and none are allowed
 	Payload       expr.Fields
@@ -299,6 +300,7 @@ type subjectJSON struct {
 
 type eventJSON struct {
 	Title         string                `json:"title"`
+	Description   string                `json:"description"`
 	Group         string                `json:"group"`
 	Subject       string                `json:"subject"`
 	Payload       expr.Fields           `json:"payload"`
@@ -372,7 +374,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 	for _, key := range events {
 		e := cj.Events[key]
 		spec := EventSpec{
-			Key: key, Title: e.Title, Group: e.Group, Subject: e.Subject, Payload: e.Payload,
+			Key: key, Title: e.Title, Description: e.Description, Group: e.Group, Subject: e.Subject, Payload: e.Payload,
 			Match: e.Match, NoTrigger: e.NoTrigger, MatchHook: e.MatchHook,
 		}
 		if spec.Title == "" {
