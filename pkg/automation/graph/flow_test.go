@@ -548,3 +548,44 @@ func TestFlowReviewCodeRabbit(t *testing.T) {
 		t.Fatalf("the cap's step is not last: %s %s", last.Node, last.Outcome)
 	}
 }
+
+// Review round 5 of #1366: a foreach's failed output keeps MaxValueBytes with its code; when even
+// {"code", "error": ""} cannot fit, the run fails.
+func TestFlowFailedOutputFits(t *testing.T) {
+	c := flowCatalog(t)
+	g := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "[1, 2, 3]"}},
+		{"id": "c", "type": "collect", "params": {"of": "each", "value": "foreach.each.item"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "c"), edge("each", "done", "ignore"),
+			edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	trace := dryRun(t, c, g, graph.Options{Limits: graph.Limits{MaxValueBytes: 64}}, nil)
+	failed := trace[len(trace)-2]
+	out, _ := failed.ContextPatch["output"].(map[string]any)
+	b, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if failed.Outcome != graph.OutcomeFailed || out["code"] != graph.FailValueTooLarge || len(b) > 64 {
+		t.Fatalf("a failed output of %d bytes: %+v", len(b), failed)
+	}
+	// {"kind":"e"} fits 30 bytes; {"code":"VALUE_TOO_LARGE","error":""} does not.
+	c.Events["e"] = graph.EventSpec{Key: "e", Title: "e", Subject: "card"}
+	small := mustDecode(t, strings.Replace(mustJSON(t, g), `"event":"issue.labeled"`, `"event":"e"`, 1))
+	in, err := graph.NewInterpreter(c, small, graph.Options{Limits: graph.Limits{MaxValueBytes: 30}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace = in.DryRun(graph.Subject{}, graph.Context{}, []graph.DryRunInput{{Event: graph.Event{"kind": "e"}}}, graph.DryRunOptions{})
+	last := trace[len(trace)-1]
+	if last.Node != "each" || last.Outcome != graph.TraceFailed || last.ContextPatch["code"] != graph.FailValueTooLarge {
+		t.Fatalf("fixed fields that cannot fit: %+v", trace)
+	}
+}
+
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

@@ -313,9 +313,16 @@ func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (
 	if failedOutcome == "" {
 		return "", false
 	}
-	out := map[string]any{"error": d.i.fitError(message)}
+	out := map[string]any{"error": message}
 	if len(code) > 0 && code[0] != "" {
 		out["code"] = code[0]
+	}
+	// The whole output keeps MaxValueBytes: the message is shortened; when even the fixed fields do not
+	// fit, the run fails.
+	out["error"] = d.i.fitError(message, out)
+	if big := d.i.tooLarge(out, "the failed output of "+node); big != nil {
+		d.stop(t, node, *big)
+		return "", false
 	}
 	t.set(node, NodeState{Output: out})
 	d.emit(t, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}})
@@ -772,10 +779,20 @@ func (i *Interpreter) callGiven(nodeID string, given map[string]NodeState) (stri
 	return "", nil, &s
 }
 
-// fitError shortens a failure message so the failed output {"error": message} stays within MaxValueBytes;
-// the run still takes the failed outcome.
-func (i *Interpreter) fitError(message string) string {
-	for i.tooLarge(map[string]any{"error": message}, "") != nil && message != "" {
+// fitError shortens a failure message so the failed output — {"error": message} and the other fields of
+// with, if given — stays within MaxValueBytes; the run still takes the failed outcome.
+func (i *Interpreter) fitError(message string, with ...map[string]any) string {
+	out := map[string]any{}
+	if len(with) > 0 {
+		for k, v := range with[0] {
+			out[k] = v
+		}
+	}
+	fits := func(m string) bool {
+		out["error"] = m
+		return i.tooLarge(out, "") == nil
+	}
+	for !fits(message) && message != "" {
 		cut := len(message) - len(message)/4 - 1
 		for cut > 0 && !utf8.RuneStart(message[cut]) {
 			cut--
