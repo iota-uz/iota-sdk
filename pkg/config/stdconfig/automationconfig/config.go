@@ -15,6 +15,9 @@ type ConnectionsConfig struct {
 	// one active. Empty: tenant connections are unavailable; platform credentials still work. To rotate,
 	// put the new key first, keep the old ones until Rewrap has finished, then drop them.
 	Keys string `koanf:"keys" secret:"true"`
+	// Active names the key that encrypts (empty: the first). With several replicas, roll a new key out
+	// decrypt-only first (listed, not active), make it active in a second deploy, then run Rewrap.
+	Active string `koanf:"active"`
 }
 
 // Config holds automation settings.
@@ -36,5 +39,5 @@ func (c *Config) Validate() error {
 
 // Keyring is the configured keyring; nil when no key is configured.
 func (c *Config) Keyring() (connectors.Keyring, error) {
-	return connectors.ParseKeyring(c.Connections.Keys)
+	return connectors.ParseKeyringActive(c.Connections.Keys, c.Connections.Active)
 }

@@ -64,7 +64,8 @@ func NewOAuth2(st Store, dir Directory, platform PlatformCredentials, opts ...OA
 	if dir == nil || platform == nil {
 		return nil, fmt.Errorf("%w: NewOAuth2 needs a directory and platform credentials", ErrInvalid)
 	}
-	o := &oauth{s: s, dir: dir, platform: platform, stateTTL: 10 * time.Minute}
+	// The refresh runs under the row lock: a provider that hangs must not hold it for long.
+	o := &oauth{s: s, dir: dir, platform: platform, stateTTL: 10 * time.Minute, client: &http.Client{Timeout: 30 * time.Second}}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -143,10 +144,11 @@ func (o *oauth) sealState(st oauthState) (string, error) {
 var errBadState = fmt.Errorf("%w: OAuth2 state is invalid or expired", ErrInvalid)
 
 func (o *oauth) openState(state string) (oauthState, error) {
-	keyID, body, ok := strings.Cut(state, ".")
-	if !ok {
+	i := strings.LastIndexByte(state, '.')
+	if i <= 0 {
 		return oauthState{}, errBadState
 	}
+	keyID, body := state[:i], state[i+1:]
 	key, ok := o.s.keys.Key(keyID)
 	if !ok {
 		return oauthState{}, errBadState
@@ -323,7 +325,9 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 		tok, err := cfg.TokenSource(o.ctx(ctx), expired).Token()
 		if err != nil {
 			var re *oauth2.RetrieveError
-			if errors.As(err, &re) && re.Response != nil && re.Response.StatusCode >= 400 && re.Response.StatusCode < 500 {
+			// Only a refused grant needs the user; invalid_client, 429 and the like are the platform's or
+			// transient and must not send every tenant to re-authorize.
+			if errors.As(err, &re) && re.ErrorCode == "invalid_grant" {
 				return o.markReauth(ctx, tx, c, tokenError(err).Error(), &reauth)
 			}
 			return tokenError(err)

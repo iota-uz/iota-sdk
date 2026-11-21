@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os/exec"
+	"sort"
 	"strings"
 	"testing"
 
@@ -191,13 +192,19 @@ func TestConnectionParamAndRule(t *testing.T) {
 	require.NotEmpty(t, errs)
 	assert.Equal(t, graph.CodeParams, errs[0].Code)
 
-	// Two connections (a tenant one and the platform credential): the param must name one.
+	// A tenant connection and the platform credential: the tenant's overrides, the param may stay out.
 	avail[catalog.KindTelegramBot] = append(avail[catalog.KindTelegramBot], catalog.ConnectionRef{ID: "platform:telegram_bot", Name: "platform"})
+	v, err = reg.ForTenant(ctx, uuid.New())
+	require.NoError(t, err)
+	assert.Empty(t, validate(t, v, `{}`, `{"text": "hi"}`))
+	assert.Empty(t, validate(t, v, `{"connection": "platform:telegram_bot"}`, `{"text": "hi", "connection": "platform:telegram_bot"}`))
+
+	// Two tenant connections: the param must name one.
+	avail[catalog.KindTelegramBot] = append(avail[catalog.KindTelegramBot], catalog.ConnectionRef{ID: uuid.NewString(), Name: "sales_bot"})
 	v, err = reg.ForTenant(ctx, uuid.New())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"triggers[0].params.connection:connection_required", "nodes[0].params.connection:connection_required"},
 		codes(validate(t, v, `{}`, `{"text": "hi"}`)))
-	assert.Empty(t, validate(t, v, `{"connection": "platform:telegram_bot"}`, `{"text": "hi", "connection": "platform:telegram_bot"}`))
 
 	// A view where the connector is unavailable: the rule names the node and the trigger.
 	delete(avail, catalog.KindTelegramBot)
@@ -217,7 +224,14 @@ func TestResolveConnectionPrefersTheFirstAndPicksTheKind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "t1", r.ID)
 	assert.Equal(t, catalog.KindTwilio, k)
-	_, _, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
+	// A tenant connection overrides a platform credential of another fitting kind.
+	r, k, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "t1", r.ID)
+	assert.Equal(t, catalog.KindTwilio, k)
+	_, _, err = catalog.ResolveConnection(map[catalog.ConnectorKind][]catalog.ConnectionRef{
+		catalog.KindEskiz: {{ID: "platform:eskiz"}}, catalog.KindTwilio: {{ID: "platform:twilio"}},
+	}, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
 	assert.ErrorIs(t, err, catalog.ErrConnectionRequired)
 	r, k, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz}, nil)
 	require.NoError(t, err)
@@ -456,4 +470,60 @@ func TestCredentialsDoNotPrint(t *testing.T) {
 	for _, s := range []string{c.String(), c.GoString()} {
 		assert.NotContains(t, s, "s3cr3t")
 	}
+}
+
+// sensitiveSource is a trigger source with access rules.
+type sensitiveSource struct {
+	source
+	access map[string]catalog.EventAccess
+}
+
+func (s sensitiveSource) Access(key string) (catalog.EventAccess, bool) {
+	a, ok := s.access[key]
+	return a, ok
+}
+
+func TestSensitiveMatchFieldsAndPaths(t *testing.T) {
+	payload := expr.Fields{
+		{Name: "phone", Field: expr.StringField},
+		{Name: "meta", Field: expr.DynField},
+		{Name: "contact", Field: expr.OptionalOf(expr.ObjectOf(expr.Fields{{Name: "email", Field: expr.StringField}, {Name: "city", Field: expr.StringField}}))},
+	}
+	ev := graph.EventSpec{Key: "crm.lead.v1", Subject: graph.SubjectNone, Payload: payload,
+		Match: map[string]graph.MatchField{
+			"phones": {Payload: "phone", Type: graph.MatchStrings},
+			"emails": {Payload: "contact.email", Type: graph.MatchStrings},
+			"cities": {Payload: "contact.city", Type: graph.MatchStrings},
+		}}
+	reg := catalog.NewRegistry(nil)
+	require.NoError(t, reg.RegisterTriggers(sensitiveSource{source: source{events: []graph.EventSpec{ev}}, access: map[string]catalog.EventAccess{
+		"crm.lead.v1": {Sensitive: map[string][]string{"phone": {"Lead.Read"}, "contact.email": {"Lead.Read"}}},
+	}}))
+	v, err := reg.ForTenant(context.Background(), uuid.New(), catalog.AsAuthor(spi.Subject{}))
+	require.NoError(t, err)
+	got := v.Catalog.Events["crm.lead.v1"]
+	assert.Equal(t, []string{"cities"}, sortedMatch(got.Match), "a match on a hidden field would reveal it")
+	contact, _ := got.Payload.Get("contact")
+	_, hasEmail := contact.Prop("email")
+	_, hasCity := contact.Prop("city")
+	assert.False(t, hasEmail)
+	assert.True(t, hasCity)
+
+	// A sensitive path that names nothing, or a field inside dyn, fails registration.
+	for _, path := range []string{"fone", "meta.phone", "contact.zip"} {
+		ev.Key = "crm.lead." + strings.ReplaceAll(path, ".", "_") + ".v1"
+		err := reg.RegisterTriggers(sensitiveSource{source: source{events: []graph.EventSpec{ev}}, access: map[string]catalog.EventAccess{
+			ev.Key: {Sensitive: map[string][]string{path: {"Lead.Read"}}},
+		}})
+		assert.Error(t, err, path)
+	}
+}
+
+func sortedMatch(m map[string]graph.MatchField) []string {
+	out := []string{}
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -123,8 +123,8 @@ type ConnectionStore interface {
 	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s ConnectionStatus, reason string) error
 	// Delete refuses a connection in use with ErrConnectionInUse (an *InUseError).
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
-	// UpdateInbound changes the inbound state (a polling cursor, a webhook secret, a subscription) under
-	// the row lock.
+	// UpdateInbound changes the inbound state (a polling cursor, a subscription id) under the row lock.
+	// The state is stored in the clear: a webhook signing secret belongs in the credentials (Save).
 	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error
 	// Rewrap re-encrypts up to batch rows sealed with older keys with the active one; idempotent. It
 	// returns how many rows it rewrapped: call it until it returns 0.

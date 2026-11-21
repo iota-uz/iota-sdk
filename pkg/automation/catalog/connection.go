@@ -106,7 +106,9 @@ var (
 
 // ResolveConnection picks the connection a node or a trigger that requires one of kinds runs with, out
 // of the tenant's connected refs: the one named by the connection param (a string), or, when it is
-// left out, the only connection of those kinds. A name that is not a working connection of those kinds
+// left out, the only connection of those kinds; a tenant connection overrides platform credentials, so
+// enabling a platform grant or adding the tenant's own connection does not break a graph that left the
+// param out. A name that is not a working connection of those kinds
 // is ErrConnectionUnavailable; no param and several connections is ErrConnectionRequired.
 func ResolveConnection(connected map[ConnectorKind][]ConnectionRef, kinds []ConnectorKind, param any) (ConnectionRef, ConnectorKind, error) {
 	ref, _ := param.(string)
@@ -137,10 +139,23 @@ func ResolveConnection(connected map[ConnectorKind][]ConnectionRef, kinds []Conn
 	switch {
 	case ref != "" || len(found) == 0:
 		return ConnectionRef{}, "", ErrConnectionUnavailable
-	case len(found) > 1:
+	case len(found) == 1:
+		return found[0], foundKind[0], nil
+	}
+	pick := -1
+	for i, r := range found {
+		if strings.HasPrefix(r.ID, PlatformPrefix) {
+			continue
+		}
+		if pick >= 0 {
+			return ConnectionRef{}, "", ErrConnectionRequired
+		}
+		pick = i
+	}
+	if pick < 0 {
 		return ConnectionRef{}, "", ErrConnectionRequired
 	}
-	return found[0], foundKind[0], nil
+	return found[pick], foundKind[pick], nil
 }
 
 // ConnectionRule is the product rule of graph.Options.Rules: a node or a trigger whose connector is not

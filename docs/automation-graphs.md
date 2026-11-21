@@ -256,8 +256,9 @@ Implementation notes (#1330):
   `catalog.ConnectionRule` reports `connection_unavailable` and, when several fit,
   `connection_required`.
 - The keyring is `AUTOMATION_CONNECTIONS_KEYS` (`automationconfig`): `id:key[,id:key]`,
-  32-byte keys in base64 or hex, the first one active. To rotate, put the new key first,
-  run `Store.Rewrap` until it returns 0, then drop the old key.
+  32-byte keys in base64 or hex; `AUTOMATION_CONNECTIONS_ACTIVE` names the active key
+  (default: the first). To rotate with several replicas: deploy the new key listed but not
+  active, then make it active, run `Store.Rewrap` until it returns 0, then drop the old key.
 - The engine opens a call's connection with `connectors.CredentialSource.Open`.
 - `connectors.SecretResolver` also takes the `Directory`, which says which credential
   fields are `x-secret`.

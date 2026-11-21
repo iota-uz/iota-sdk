@@ -80,6 +80,10 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 		if d.OAuth2 == nil || d.OAuth2.AuthURL == "" || d.OAuth2.TokenURL == "" {
 			return fmt.Errorf("%w: connector %s: auth oauth2 needs OAuth2 with AuthURL and TokenURL", ErrInvalid, kind)
 		}
+		// The client credential must not be the one offered to tenants: nodes would get client_secret.
+		if cc := d.OAuth2.ClientCredential; (d.Platform == PlatformAuto || d.Platform == PlatformOptIn) && (cc == "" || cc == string(kind)) {
+			return fmt.Errorf("%w: connector %s: a platform policy needs an OAuth2 client credential named apart from the kind", ErrInvalid, kind)
+		}
 	default:
 		return fmt.Errorf("%w: connector %s: auth %q is not api_key, basic, oauth2 or custom", ErrInvalid, kind, d.Auth)
 	}
@@ -143,12 +147,21 @@ func ValidateCredentials(d Descriptor, c Credentials) error {
 	return nil
 }
 
-// RedactedCredentials is what a client may see of credentials: every field without x-secret.
+// RedactedCredentials is what a client may see of credentials: the fields the credentials schema
+// declares without x-secret. A field the schema does not declare is withheld, so a connector without a
+// schema shows nothing.
 func RedactedCredentials(d Descriptor, c Credentials) map[string]string {
-	secret := SecretFields(d)
+	var doc struct {
+		Properties map[string]struct {
+			Secret bool `json:"x-secret"`
+		} `json:"properties"`
+	}
 	out := map[string]string{}
+	if len(d.Credentials) == 0 || json.Unmarshal(d.Credentials, &doc) != nil {
+		return out
+	}
 	for k, v := range c {
-		if !secret[k] {
+		if p, declared := doc.Properties[k]; declared && !p.Secret {
 			out[k] = v
 		}
 	}

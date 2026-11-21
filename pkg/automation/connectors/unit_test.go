@@ -27,6 +27,11 @@ func TestParseKeyring(t *testing.T) {
 	_, ok = k.Key("hex")
 	assert.True(t, ok)
 
+	k, err = connectors.ParseKeyringActive("new:"+b64+",old:"+raw, "old")
+	require.NoError(t, err)
+	id, _ = k.Active()
+	assert.Equal(t, "old", id, "a new key rolled out decrypt-only")
+
 	k, err = connectors.ParseKeyring("  ")
 	assert.NoError(t, err)
 	assert.Nil(t, k)
@@ -72,7 +77,18 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 	d := tg.Descriptor()
 	assert.Equal(t, map[string]bool{"token": true, "access_token": true}, connectors.SecretFields(d))
 	assert.Equal(t, map[string]string{"username": "support"}, connectors.RedactedCredentials(d, connectors.Credentials{"token": botToken, "username": "support"}))
+	assert.Equal(t, map[string]string{}, connectors.RedactedCredentials(d, connectors.Credentials{"undeclared": botToken}), "undeclared fields are withheld")
+	assert.Empty(t, connectors.RedactedCredentials(connectors.Descriptor{}, connectors.Credentials{"username": "x"}), "no schema shows nothing")
 	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"token": botToken}))
+
+	// An OAuth2 connector offered on the platform needs a client credential apart from its kind.
+	leaky := telegramConnector(t)
+	leaky.kind, leaky.nodes, leaky.sources = "sheets", nil, nil
+	leaky.auth, leaky.policy = connectors.AuthOAuth2, connectors.PlatformAuto
+	leaky.oauth = &connectors.OAuth2Config{AuthURL: "https://a", TokenURL: "https://t"}
+	assert.ErrorIs(t, dir.Register(leaky), connectors.ErrInvalid)
+	leaky.oauth.ClientCredential = "sheets_client"
+	assert.NoError(t, dir.Register(leaky))
 }
 
 // The migration applies and rolls back: its Down then its Up run on a migrated database.

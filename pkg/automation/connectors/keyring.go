@@ -43,13 +43,17 @@ func NewKeyring(active string, keys map[string][]byte) (Keyring, error) {
 // ParseKeyring reads a keyring from configuration: "id:key[,id:key...]", each key 32 bytes in base64
 // (standard or URL, padded or not) or 64 hex digits; the first key is active. An empty spec is no
 // keyring (nil, nil): the store then reports ErrNotConfigured.
-func ParseKeyring(spec string) (Keyring, error) {
+func ParseKeyring(spec string) (Keyring, error) { return ParseKeyringActive(spec, "") }
+
+// ParseKeyringActive is ParseKeyring with the active key named (empty: the first). With several
+// replicas a new key is rolled out first as a decrypt-only key, then made active, then Rewrap runs.
+func ParseKeyringActive(spec, active string) (Keyring, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return nil, nil
 	}
 	keys := map[string][]byte{}
-	active := ""
+	active = strings.TrimSpace(active)
 	for i, part := range strings.Split(spec, ",") {
 		id, raw, ok := strings.Cut(strings.TrimSpace(part), ":")
 		if !ok || id == "" || raw == "" {
@@ -63,7 +67,7 @@ func ParseKeyring(spec string) (Keyring, error) {
 			return nil, fmt.Errorf("automation connections: key %q: %w", id, err)
 		}
 		keys[id] = key
-		if i == 0 {
+		if i == 0 && active == "" {
 			active = id
 		}
 	}

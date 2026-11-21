@@ -532,7 +532,7 @@ func TestSecretResolverServesOnlySecretFields(t *testing.T) {
 type tokenServer struct {
 	*httptest.Server
 	refreshes atomic.Int32
-	refuse    atomic.Bool
+	refuse    atomic.Value // "": grant; else the OAuth error code
 	verifier  atomic.Value
 }
 
@@ -548,9 +548,9 @@ func newTokenServer(t *testing.T) *tokenServer {
 		case "refresh_token":
 			ts.refreshes.Add(1)
 			time.Sleep(50 * time.Millisecond) // a slow provider: the second caller waits on the row lock
-			if ts.refuse.Load() {
+			if code, _ := ts.refuse.Load().(string); code != "" {
 				w.WriteHeader(http.StatusBadRequest)
-				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"refresh-1 is revoked"}`))
+				_, _ = w.Write([]byte(`{"error":"` + code + `","error_description":"refresh-1 is revoked"}`))
 				return
 			}
 			_, _ = w.Write([]byte(`{"access_token":"access-2","token_type":"Bearer","expires_in":3600}`))
@@ -575,7 +575,8 @@ func TestOAuth2(t *testing.T) {
 	platform := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
 		"google_client": {Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}},
 	})
-	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, platform, nil)
+	// A dotted key id, as rotations are often named.
+	store := connectors.NewStore(e.db, keyring(t, "2026.11", "2026.11"), nil, platform, nil)
 	o, err := connectors.NewOAuth2(store, dir, platform, connectors.WithHTTPClient(ts.Client()))
 	require.NoError(t, err)
 
@@ -630,11 +631,21 @@ func TestOAuth2(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, c.ID, again.ID)
 
-	// A refused refresh: needs_reauth, ErrNeedsReauth, and the provider's text is not echoed.
-	ts.refuse.Store(true)
+	// invalid_client is the platform's problem: an error, not a re-authorization of every tenant.
+	ts.refuse.Store("invalid_client")
+	_, err = o.Token(e.ctx, e.tenant, c.ID)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, connectors.ErrNeedsReauth)
+	assert.NotContains(t, err.Error(), "refresh-1")
+	list, err := store.List(e.ctx, e.tenant, "google_sheets")
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, list[0].Status)
+
+	// A refused grant: needs_reauth, ErrNeedsReauth, and the provider's text is not echoed.
+	ts.refuse.Store("invalid_grant")
 	_, err = o.Token(e.ctx, e.tenant, c.ID)
 	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
-	list, err := store.List(e.ctx, e.tenant, "google_sheets")
+	list, err = store.List(e.ctx, e.tenant, "google_sheets")
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, connectors.StatusNeedsReauth, list[0].Status)
@@ -643,6 +654,6 @@ func TestOAuth2(t *testing.T) {
 	assert.ErrorIs(t, err, connectors.ErrNeedsReauth)
 	assert.False(t, strings.Contains(fmt.Sprint(err), "refresh-1"))
 
-	_, err = o.Complete(e.ctx, e.tenant, "k1.garbage", "code")
+	_, err = o.Complete(e.ctx, e.tenant, "2026.11.garbage", "code")
 	assert.True(t, errors.Is(err, connectors.ErrInvalid))
 }

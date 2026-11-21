@@ -248,6 +248,15 @@ func (r *registry) checkTriggers(s TriggerSource, seen map[string]bool) error {
 		if _, ok := e.Match[ConnectionParam]; ok {
 			return fmt.Errorf("event %s: %s is a reserved param", e.Key, ConnectionParam)
 		}
+		if pt, ok := s.(PermissionedTriggers); ok {
+			if access, ok := pt.Access(e.Key); ok {
+				for path := range access.Sensitive {
+					if err := sensitivePath(e.Payload, path); err != nil {
+						return fmt.Errorf("event %s: sensitive %s: %w", e.Key, path, err)
+					}
+				}
+			}
+		}
 		seen[e.Key] = true
 	}
 	return nil
@@ -346,7 +355,9 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			spec.Key = key
 		}
 		if o.author != nil {
-			spec.Payload = project(spec.Payload, access.Sensitive, *o.author)
+			var hidden []string
+			spec.Payload, hidden = project(spec.Payload, access.Sensitive, *o.author)
+			dropMatches(&spec, hidden)
 		}
 		if len(e.requires) > 0 {
 			base := spec.TriggerParams
@@ -448,9 +459,49 @@ func copyEvent(e graph.EventSpec) graph.EventSpec {
 	return e
 }
 
-// project removes from a payload the sensitive fields the author may not read: a field needs all of
-// its permissions.
-func project(payload expr.Fields, sensitive map[string][]string, author spi.Subject) expr.Fields {
+// sensitivePath checks that a sensitive path names a field of the payload and that no dyn field is on
+// the way: a field inside dyn cannot be removed from the schema, so the projection would not hide it.
+func sensitivePath(payload expr.Fields, path string) error {
+	parts := strings.Split(path, ".")
+	f := expr.ObjectOf(payload)
+	for i, part := range parts {
+		for f.Kind == expr.Optional || f.Kind == expr.List || f.Kind == expr.Map {
+			if f.Elem == nil {
+				return fmt.Errorf("not a field of the payload")
+			}
+			f = *f.Elem
+		}
+		if f.Kind == expr.Dyn {
+			return fmt.Errorf("%s is dyn: a field inside it cannot be hidden", strings.Join(parts[:i], "."))
+		}
+		next, ok := f.Prop(part)
+		if !ok {
+			return fmt.Errorf("not a field of the payload")
+		}
+		f = next
+	}
+	return nil
+}
+
+// dropMatches removes match fields that read a hidden payload field: matching by it would reveal it.
+func dropMatches(spec *graph.EventSpec, hidden []string) {
+	for name, m := range spec.Match {
+		for _, h := range hidden {
+			if m.Payload == h || strings.HasPrefix(m.Payload, h+".") {
+				delete(spec.Match, name)
+				break
+			}
+		}
+	}
+	if len(spec.Match) == 0 && spec.Match != nil {
+		spec.Match = nil
+	}
+}
+
+// project removes from a payload the sensitive fields the author may not read (a field needs all of
+// its permissions) and returns the hidden paths.
+func project(payload expr.Fields, sensitive map[string][]string, author spi.Subject) (expr.Fields, []string) {
+	var hidden []string
 	paths := make([]string, 0, len(sensitive))
 	for p := range sensitive {
 		paths = append(paths, p)
@@ -466,9 +517,10 @@ func project(payload expr.Fields, sensitive map[string][]string, author spi.Subj
 		}
 		if !allowed {
 			payload = removePath(payload, strings.Split(p, "."))
+			hidden = append(hidden, p)
 		}
 	}
-	return payload
+	return payload, hidden
 }
 
 // removePath removes the field at a dotted path; objects are looked into through optionals and the

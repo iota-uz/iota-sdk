@@ -351,6 +351,9 @@ func mapWriteError(err error) error {
 	if errors.As(err, &pg) {
 		switch pg.Code {
 		case "23505":
+			if pg.ConstraintName == "connections_pkey" {
+				return fmt.Errorf("%w: the connection id is taken", ErrInvalid)
+			}
 			return ErrNameTaken
 		case "23503":
 			return fmt.Errorf("%w: unknown tenant", ErrInvalid)
@@ -386,30 +389,30 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	if err := s.configured(); err != nil {
 		return serrors.Wrap(op, err)
 	}
-	var exists bool
-	if err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.connections WHERE tenant_id = $1 AND id = $2)`, tenantID, id).Scan(&exists); err != nil {
-		return serrors.Wrap(op, err)
-	}
-	if !exists {
-		return serrors.Wrap(op, ErrNotFound)
-	}
-	if s.usage != nil {
-		uses, err := s.usage.Uses(ctx, tenantID, id)
+	// The row stays locked from the check to the delete: whoever starts using the connection (enabling a
+	// graph version) locks it FOR SHARE, so a use cannot appear in between.
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		var locked uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
 		if err != nil {
-			return serrors.Wrap(op, err)
+			return err
 		}
-		if len(uses) > 0 {
-			return serrors.Wrap(op, &InUseError{Uses: uses})
+		if s.usage != nil {
+			uses, err := s.usage.Uses(ctx, tenantID, id)
+			if err != nil {
+				return err
+			}
+			if len(uses) > 0 {
+				return &InUseError{Uses: uses}
+			}
 		}
-	}
-	tag, err := s.db.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
-	if err != nil {
-		return serrors.Wrap(op, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return serrors.Wrap(op, ErrNotFound)
-	}
-	return nil
+		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+		return err
+	})
+	return serrors.Wrap(op, err)
 }
 
 func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {
@@ -459,7 +462,7 @@ func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 		after         = uuid.Nil
 	)
 	for done < batch {
-		var seen int
+		var seen, batchDone, batchSkipped int
 		err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 			rows, err := tx.Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
 				WHERE key_id <> $1 AND id > $2 ORDER BY id LIMIT $3 FOR UPDATE SKIP LOCKED`, activeID, after, batch-done)
@@ -489,7 +492,7 @@ func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 				after = r.c.ID
 				creds, err := s.decrypt(r.c, r.nonce, r.secret)
 				if err != nil {
-					skipped++
+					batchSkipped++
 					continue
 				}
 				keyID, nonce, secret, err := s.encrypt(r.c, creds)
@@ -500,13 +503,15 @@ func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 					r.c.TenantID, r.c.ID, keyID, nonce, secret); err != nil {
 					return err
 				}
-				done++
+				batchDone++
 			}
 			return nil
 		})
 		if err != nil {
-			return done, serrors.Wrap(op, err)
+			return done, serrors.Wrap(op, err) // the failed batch rolled back and is not counted
 		}
+		done += batchDone
+		skipped += batchSkipped
 		if seen == 0 {
 			break
 		}
