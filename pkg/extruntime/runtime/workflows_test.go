@@ -44,10 +44,12 @@ func TestRuntimeAttachesToTheCoreEngine(t *testing.T) {
 	rt, err := runtime.New(runtime.Config{
 		Natives: natives, WorkerScript: pooltest.BuildWorker(t), CacheDir: t.TempDir(), PoolSize: 1,
 		Builder: &managetest.Builder{}, Kits: &managetest.Kits{}, DisableBackground: true,
+		Workflow: runtime.WorkflowConfig{Concurrency: 3},
 	}, runtime.Deps{DB: scope.Pool, Workflows: eng})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = rt.Close(context.Background()) })
 	require.Same(t, eng, rt.Workflows, "the runtime builds no second engine")
+	require.Equal(t, 3, eng.PackageConcurrency(), "the runtime's workflow concurrency reaches the shared engine")
 	require.NoError(t, eng.Ready(context.Background()))
 
 	ctx := context.Background()

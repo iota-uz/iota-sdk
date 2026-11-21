@@ -780,3 +780,159 @@ func TestNative_CallRunsNativeCommandsWithoutTheRuntime(t *testing.T) {
 	}
 	require.NotEmpty(t, hist.Invocations, "the calls are recorded as invocations of the instance")
 }
+
+// An expired lease that nobody took over yet fences the final write (checked
+// on the database clock, without a heartbeat in between), and the heartbeat
+// does not resurrect it.
+func TestNative_ExpiredLeaseWithoutTakeoverIsFenced(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		heartbeat time.Duration
+	}{{"final fence", time.Hour}, {"heartbeat", 30 * time.Millisecond}} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newNativeEnv(t)
+			var fenced error
+			var renewed bool
+			runs := 0
+			runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+				id := run.Instance().ID
+				bg := context.Background()
+				if runs++; runs > 1 {
+					// The next claim of the expired instance runs normally.
+					return json.RawMessage(`"retried"`), nil
+				}
+				_, err := env.db.Exec(bg, `UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() - interval '1 second' WHERE id = $1`, id)
+				require.NoError(t, err)
+				time.Sleep(200 * time.Millisecond)
+				require.NoError(t, env.db.QueryRow(bg, `SELECT lease_until > clock_timestamp() FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&renewed))
+				_, fenced = run.Transaction(context.WithoutCancel(ctx), "write", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
+					return nil, writeState(ctx, tx, id, "write")
+				})
+				return nil, fenced
+			})
+			eng := env.engine(map[string]workflow.NativeContract{"test.expired": {Runner: runner}}, func(c *workflow.Config) {
+				c.LeaseTTL, c.Heartbeat = 30*time.Second, tc.heartbeat
+			})
+			id := env.start(eng, "test.expired", "x1", `{}`)
+			_, err := eng.RunOnce(context.Background())
+			require.NoError(t, err)
+			require.False(t, renewed, "the expired lease was not renewed")
+			require.ErrorIs(t, fenced, workflow.ErrFenced)
+			require.Empty(t, env.stateRows(id))
+			h, err := eng.Get(context.Background(), env.tenant, id)
+			require.NoError(t, err)
+			require.Empty(t, h.Occurrences)
+			require.Equal(t, 2, runs, "the expired instance was claimed again")
+			require.JSONEq(t, `"retried"`, string(h.Instance.Result))
+		})
+	}
+}
+
+func insertNativeInstance(t *testing.T, env *nativeEnv, workflowID string, parent *uuid.UUID, status string) uuid.UUID {
+	t.Helper()
+	id := uuid.New()
+	_, err := env.db.Exec(context.Background(), `
+		INSERT INTO extruntime.workflow_instances (id, tenant_id, workflow, package, version, export, input, subject_user_id, subject_kind, parent_instance_id, status, native)
+		VALUES ($1, $2, $3, '', '', '', '{}', 1, 'initiator', $4, $5, true)`, id, env.tenant, workflowID, parent, status)
+	require.NoError(t, err)
+	return id
+}
+
+// A grandchild inserted while TerminateTree waits for its parent's row is
+// still terminated.
+func TestNative_TerminateTreeSeesChildrenCreatedDuringTraversal(t *testing.T) {
+	env := newNativeEnv(t)
+	eng := env.engine(nil)
+	ctx := context.Background()
+	root := insertNativeInstance(t, env, "test.tree", nil, workflow.StatusWaiting)
+	child := insertNativeInstance(t, env, "test.tree", &root, workflow.StatusWaiting)
+
+	tx, err := env.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 FOR UPDATE`, child)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { done <- eng.TerminateTree(ctx, env.tenant, root) }()
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n))
+		return n > 0
+	}, 10*time.Second, 10*time.Millisecond, "TerminateTree waits for the child row")
+	grandchild := uuid.New()
+	_, err = tx.Exec(ctx, `
+		INSERT INTO extruntime.workflow_instances (id, tenant_id, workflow, package, version, export, input, subject_user_id, subject_kind, parent_instance_id, native)
+		VALUES ($1, $2, 'test.tree', '', '', '', '{}', 1, 'initiator', $3, true)`, grandchild, env.tenant, child)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+	require.NoError(t, <-done)
+	for _, id := range []uuid.UUID{root, child, grandchild} {
+		require.Equal(t, workflow.StatusTerminated, env.inst(eng, id).Status)
+	}
+}
+
+// After TerminateTree a descendant's in-flight effect is not cancelled by the
+// heartbeat; its outcome is fenced.
+func TestNative_TerminateTreeLetsTheDescendantStepFinish(t *testing.T) {
+	env := newNativeEnv(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var stepErr, recordErr error
+	root := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if _, err := run.Start(ctx, "child", 0, "test.slow", nil, workflow.StartOptions{}); err != nil {
+			return nil, err
+		}
+		_, err := run.WaitFor(ctx, "never", 0, "never", 0)
+		return nil, err
+	})
+	slow := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		_, recordErr = run.Effect(ctx, "work", 0, func(ctx context.Context, _ workflow.EffectAttempt) (json.RawMessage, error) {
+			close(started)
+			<-release
+			stepErr = ctx.Err()
+			return json.RawMessage(`1`), nil
+		})
+		return nil, recordErr
+	})
+	eng := env.engine(map[string]workflow.NativeContract{
+		"test.root": {Runner: root, Signals: map[string]manifest.Type{"never": anyPayload()}},
+		"test.slow": {Runner: slow},
+	}, func(c *workflow.Config) { c.Heartbeat = 40 * time.Millisecond })
+	rid := env.start(eng, "test.root", "r1", `{}`)
+	done := make(chan struct{})
+	go func() { defer close(done); _, _ = eng.RunOnce(context.Background()) }()
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the child effect did not start")
+	}
+	require.NoError(t, eng.TerminateTree(context.Background(), env.tenant, rid))
+	time.Sleep(200 * time.Millisecond) // several heartbeats
+	close(release)
+	<-done
+	require.NoError(t, stepErr, "the running step was not cancelled")
+	require.ErrorIs(t, recordErr, workflow.ErrFenced)
+	kids := childrenOf(t, eng, env.tenant, rid)
+	require.Len(t, kids, 1)
+	require.Equal(t, workflow.StatusTerminated, kids[0].Status)
+}
+
+// Serve in a process without the package executor blocks a ready package
+// instance as unavailable instead of leaving it running.
+func TestNative_ServeBlocksPackageInstancesWithoutRuntime(t *testing.T) {
+	env := newNativeEnv(t)
+	eng := env.engine(nil, func(c *workflow.Config) { c.Concurrency = 2 })
+	require.Equal(t, 2, eng.PackageConcurrency())
+	id := uuid.New()
+	_, err := env.db.Exec(context.Background(), `
+		INSERT INTO extruntime.workflow_instances (id, tenant_id, workflow, package, version, export, input, subject_user_id, subject_kind)
+		VALUES ($1, $2, 'acme.flow', 'acme', '1.0.0', 'flow', '{}', 1, 'initiator')`, id, env.tenant)
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	eng.Serve(ctx)
+	require.Eventually(t, func() bool {
+		inst := env.inst(eng, id)
+		return inst.Status == workflow.StatusBlocked && inst.BlockedReason == workflow.BlockUnavailable
+	}, 10*time.Second, 20*time.Millisecond)
+}

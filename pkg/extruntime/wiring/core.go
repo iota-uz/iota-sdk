@@ -21,6 +21,10 @@ type coreConfig struct {
 	retention         time.Duration
 	events            events.Config
 	disableBackground bool
+	// workflowConcurrency is the number of package workflow runs the engine
+	// executes at once (EXTRUNTIME_WORKFLOWCONCURRENCY, or the runtime
+	// configuration after Tune); 0 selects the engine default.
+	workflowConcurrency int
 }
 
 // mergeEvents fills the zero settings of primary from fallback.

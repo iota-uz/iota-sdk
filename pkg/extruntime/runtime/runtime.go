@@ -377,7 +377,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	case rt.Workflows != nil:
 		if err := rt.Workflows.AttachPackages(context.Background(), workflow.Packages{
 			Catalog: rt.Catalog, Bindings: rt.Bindings, Artifacts: rt.Manage, Impl: rt.Manage.Implementations(),
-			Runner: rt.Host, Commands: rt.Host,
+			Runner: rt.Host, Commands: rt.Host, Concurrency: cfg.Workflow.Concurrency,
 		}); err != nil {
 			return fail(err)
 		}

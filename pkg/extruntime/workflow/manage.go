@@ -555,30 +555,26 @@ func (e *Engine) TerminateTree(ctx context.Context, tenant, id uuid.UUID) error 
 		if !live(root.Status) {
 			return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
 		}
-		rows, err := tx.Query(ctx, `
-			WITH RECURSIVE tree AS (
-				SELECT id FROM extruntime.workflow_instances WHERE parent_instance_id = $1 AND tenant_id = $2
-				UNION
-				SELECT c.id FROM extruntime.workflow_instances c JOIN tree t ON c.parent_instance_id = t.id WHERE c.tenant_id = $2
-			)
-			SELECT `+instanceCols+` FROM extruntime.workflow_instances
-			WHERE id IN (SELECT id FROM tree) AND tenant_id = $2 AND status IN ('running', 'waiting', 'blocked')
-			ORDER BY id FOR UPDATE`, id, tenant)
-		if err != nil {
-			return serrors.FromDB(opManage, err)
-		}
+		// Level by level: a level's rows are locked before their children are
+		// read in a new statement. A child insert holds a key-share lock on its
+		// parent row (the parent_instance_id foreign key), so it either
+		// committed before the parent lock was granted and is seen by the next
+		// level's read, or waits for this transaction and then finds its parent
+		// terminated (a run's fence fails, its insert rolls back).
 		var descendants []Instance
-		for rows.Next() {
-			d, err := scanInstance(rows)
+		frontier := []uuid.UUID{root.ID}
+		for len(frontier) > 0 {
+			level, err := e.lockChildren(ctx, tx, tenant, frontier)
 			if err != nil {
-				rows.Close()
-				return serrors.FromDB(opManage, err)
+				return err
 			}
-			descendants = append(descendants, d)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return serrors.FromDB(opManage, err)
+			frontier = frontier[:0]
+			for _, c := range level {
+				frontier = append(frontier, c.ID)
+				if live(c.Status) {
+					descendants = append(descendants, c)
+				}
+			}
 		}
 		for _, inst := range append([]Instance{root}, descendants...) {
 			if err := e.terminateLocked(ctx, tx, inst); err != nil {
@@ -598,6 +594,28 @@ func (e *Engine) TerminateTree(ctx context.Context, tenant, id uuid.UUID) error 
 		e.staleLocal(s.String())
 	}
 	return nil
+}
+
+// lockChildren locks and returns the children of the given instances, in id
+// order, whatever their status (a finished child may have live children).
+func (e *Engine) lockChildren(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, parents []uuid.UUID) ([]Instance, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT `+instanceCols+` FROM extruntime.workflow_instances
+		WHERE tenant_id = $1 AND parent_instance_id = ANY($2)
+		ORDER BY id FOR UPDATE`, tenant, parents)
+	if err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	defer rows.Close()
+	var out []Instance
+	for rows.Next() {
+		c, err := scanInstance(rows)
+		if err != nil {
+			return nil, serrors.FromDB(opManage, err)
+		}
+		out = append(out, c)
+	}
+	return out, serrors.FromDB(opManage, rows.Err())
 }
 
 func live(status string) bool {

@@ -71,7 +71,7 @@ func mergeNativeWorkflows(list []nativeWorkflows) (map[string]workflow.NativeCon
 // pool: native contracts execute through their Go defaults and package
 // exports fail as unavailable. With the runtime, runtime.New attaches the
 // package executor and its own host to this same engine.
-func (c *component) buildWorkflows(b *composition.Builder, natives *native.Set, runtimeOn bool) {
+func (c *component) buildWorkflows(b *composition.Builder, natives *native.Set, core coreConfig, runtimeOn bool) {
 	composition.Provide[*workflow.Engine](b, func(container *composition.Container) (*workflow.Engine, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
@@ -86,6 +86,7 @@ func (c *component) buildWorkflows(b *composition.Builder, natives *native.Set, 
 		// or run without background work).
 		cfg := workflow.Config{
 			DB: db, Subjects: subjects, TaskAdminPermission: manage.PermOperate, Logger: c.opts.Logger,
+			Concurrency: core.workflowConcurrency,
 			NativeSource: func() (map[string]workflow.NativeContract, error) { return collectNativeWorkflows(container) },
 		}
 		if runtimeOn {

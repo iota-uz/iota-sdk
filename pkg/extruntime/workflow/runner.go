@@ -67,8 +67,9 @@ func (h *wakeHub) poke() {
 // decision) and by a poll that catches timers and expired leases. Each native
 // contract has its own pool of NativeContract.Concurrency workers, so native
 // runs never take the slots of package workflows; package workflows get
-// Config.Concurrency workers once the package executor is attached (here or
-// later by AttachPackages).
+// Config.Concurrency workers (or Packages.Concurrency). Attach the package
+// executor before Serve: without it the package workers block every ready
+// package instance as unavailable.
 func (e *Engine) Serve(ctx context.Context) {
 	e.mu.Lock()
 	if e.cancel != nil {
@@ -78,14 +79,13 @@ func (e *Engine) Serve(ctx context.Context) {
 	ctx, e.cancel = context.WithCancel(ctx)
 	e.done = make(chan struct{})
 	e.serving, e.wake, e.wg = ctx, &wakeHub{}, &sync.WaitGroup{}
-	pkg := e.runner != nil && e.pkg.complete()
-	e.pkgWorkers = pkg
-	done, hub, wg := e.done, e.wake, e.wg
+	done, hub, wg, pkgSlots := e.done, e.wake, e.wg, e.pkgConcurrency
 	e.mu.Unlock()
 
-	if pkg {
-		e.startWorkers(ctx, e.cfg.Concurrency, claimFilter{native: boolPtr(false)})
-	}
+	// Package workers run with or without the package executor: without it
+	// they block the ready package instances as unavailable (run), so an
+	// instance never waits silently in a process that cannot execute it.
+	e.startWorkers(ctx, pkgSlots, claimFilter{native: boolPtr(false)})
 	natives, err := e.allNatives()
 	if err != nil {
 		e.cfg.Logger.Error("extruntime: native workflows are not served", "error", err)
@@ -150,7 +150,7 @@ func (e *Engine) worker(ctx context.Context, filter claimFilter, wake <-chan str
 func (e *Engine) Shutdown() {
 	e.mu.Lock()
 	cancel, done := e.cancel, e.done
-	e.cancel, e.done, e.serving, e.pkgWorkers = nil, nil, nil, false
+	e.cancel, e.done, e.serving = nil, nil, nil
 	e.mu.Unlock()
 	if cancel == nil {
 		return
@@ -205,9 +205,12 @@ func (e *Engine) localRuns(instance string) []*runState {
 	return out
 }
 
-// heartbeat renews the lease while the run is active. A fenced renewal that
-// matches no row means the lease was taken over or the instance terminated:
-// the run is aborted and records nothing more.
+// heartbeat renews the lease while the run is active. A renewal matches only
+// a lease that is still valid on the database clock, so an expired lease is
+// never resurrected. No matched row means the lease expired or was taken
+// over (the run is aborted and records nothing more) or the instance was
+// terminated: then its in-flight step may finish, and every further host call
+// and write is fenced.
 func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 	hb, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
@@ -222,10 +225,17 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 				return
 			case <-t.C:
 				tag, err := e.cfg.DB.Exec(hb, `
-					UPDATE extruntime.workflow_instances SET lease_until = now() + $4::interval
-					WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
+					UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() + $4::interval
+					WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running' AND lease_until > clock_timestamp()`,
 					rs.inst.ID, rs.inst.TenantID, rs.epoch, e.cfg.LeaseTTL.String())
 				if err == nil && tag.RowsAffected() == 0 {
+					var status string
+					serr := e.cfg.DB.QueryRow(hb, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`,
+						rs.inst.ID, rs.inst.TenantID).Scan(&status)
+					if serr == nil && status == StatusTerminated {
+						rs.markStale(errTerminated)
+						return
+					}
 					rs.markStale(errLeaseLost)
 					rs.cancel()
 					return

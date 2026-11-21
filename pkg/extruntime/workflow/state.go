@@ -311,9 +311,11 @@ func (e *Engine) claim(ctx context.Context, f claimFilter) (*Instance, bool, err
 // the run still owns the instance and locks the row, serializing the write
 // against takeover, termination, signals and task decisions.
 func (e *Engine) fence(ctx context.Context, q queryer, rs *runState) error {
+	// The lease must still be valid on the database's wall clock: an expired
+	// lease that nobody took over yet fences as well as a takeover does.
 	tag, err := q.Exec(ctx, `
 		UPDATE extruntime.workflow_instances SET updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
+		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running' AND lease_until > clock_timestamp()`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
 	if err != nil {
 		return serrors.FromDB(opFence, err)
 	}

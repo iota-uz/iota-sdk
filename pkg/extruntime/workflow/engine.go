@@ -284,12 +284,13 @@ type Engine struct {
 	runs   map[string]*runState // run token -> state
 	cancel context.CancelFunc
 	done   chan struct{}
-	// serving is the context of Serve while it runs; AttachPackages starts the
-	// package workers in it.
-	serving    context.Context
-	pkgWorkers bool
-	wake       *wakeHub
-	wg         *sync.WaitGroup
+	// serving is the context of Serve while it runs.
+	serving context.Context
+	wake    *wakeHub
+	wg      *sync.WaitGroup
+	// pkgConcurrency is the number of package workers Serve starts:
+	// Config.Concurrency, or Packages.Concurrency once attached.
+	pkgConcurrency int
 
 	// natives are Config.Natives with the NativeSource merged in once it
 	// loaded (natLoaded); a failed load is retried by the next use.
@@ -322,12 +323,15 @@ type Packages struct {
 	// Commands replaces Config.Commands (the runtime's host serves both
 	// native and package commands).
 	Commands CommandInvoker
+	// Concurrency, when positive, replaces Config.Concurrency: the number of
+	// package workflow runs the process executes at once.
+	Concurrency int
 }
 
 // AttachPackages connects the package executor to the engine: from now on it
-// executes package workflows too, and when Serve runs, their workers start.
-// A native contract whose ID the catalog declares as a package workflow is a
-// composition error.
+// executes package workflows too. Call it before Serve (Serve sizes the
+// package workers then). A native contract whose ID the catalog declares as a
+// package workflow is a composition error.
 func (e *Engine) AttachPackages(ctx context.Context, p Packages) error {
 	if p.Catalog == nil || p.Bindings == nil || p.Artifacts == nil || p.Impl == nil || p.Runner == nil {
 		return serrors.New(serrors.Invalid, "extruntime workflow: AttachPackages needs Catalog, Bindings, Artifacts, Impl and Runner")
@@ -341,16 +345,19 @@ func (e *Engine) AttachPackages(ctx context.Context, p Packages) error {
 	if p.Commands != nil {
 		e.pkg.commands = p.Commands
 	}
-	start := e.serving != nil && !e.pkgWorkers
-	if start {
-		e.pkgWorkers = true
+	if p.Concurrency > 0 {
+		e.pkgConcurrency = p.Concurrency
 	}
-	serving := e.serving
 	e.mu.Unlock()
-	if start {
-		e.startWorkers(serving, e.cfg.Concurrency, claimFilter{native: boolPtr(false)})
-	}
 	return nil
+}
+
+// PackageConcurrency is the number of package workflow runs Serve executes
+// at once.
+func (e *Engine) PackageConcurrency() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.pkgConcurrency
 }
 
 // SetCommands sets the host NativeRun.Call dispatches commands through.
@@ -384,7 +391,7 @@ func New(cfg Config) (*Engine, error) {
 	return &Engine{
 		cfg: cfg, runner: cfg.Runner, runs: map[string]*runState{},
 		pkg:     packageDeps{catalog: cfg.Catalog, bindings: cfg.Bindings, artifacts: cfg.Artifacts, impl: cfg.Impl, commands: cfg.Commands},
-		natives: cfg.Natives, natLoaded: cfg.NativeSource == nil,
+		natives: cfg.Natives, natLoaded: cfg.NativeSource == nil, pkgConcurrency: cfg.Concurrency,
 	}, nil
 }
 

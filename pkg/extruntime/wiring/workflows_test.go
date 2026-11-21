@@ -58,7 +58,7 @@ func (c workflowComponent) Build(b *composition.Builder) error {
 func coreHarness(t *testing.T, name string, ids ...string) *itf.Scope {
 	t.Helper()
 	t.Setenv("IOTA_SDK_DIST", t.TempDir()) // no @iota-uz/sdk anywhere
-	section := extruntimeconfig.Config{AppRoot: t.TempDir()}
+	section := extruntimeconfig.Config{AppRoot: t.TempDir(), WorkflowConcurrency: 7}
 	components := append(modules.Components(),
 		wiring.NewComponent(wiring.Options{Natives: modules.Natives(), Section: &section}),
 		workflowComponent{ids: ids},
@@ -91,6 +91,7 @@ func TestCoreRunsNativeWorkflowsWithoutTheRuntime(t *testing.T) {
 	require.NoError(t, err)
 	_, ok := eng.Native(greetFlow)
 	require.True(t, ok)
+	require.Equal(t, 7, eng.PackageConcurrency(), "EXTRUNTIME_WORKFLOWCONCURRENCY sizes the package workers")
 
 	bg := context.Background()
 	tx, err := scope.Pool.Begin(bg)
