@@ -326,7 +326,7 @@ func recordRoleChange(ctx context.Context, w history.Writer, before, after role.
 
 // linkDiff returns the sorted IDs that are in after and not in before (added) and the other
 // way round (removed): the one diff history and native events are both built from.
-func linkDiff(before, after []string) (added, removed []string) {
+func linkDiff(before, after []string) ([]string, []string) {
 	was := make(map[string]bool, len(before))
 	for _, id := range before {
 		was[id] = true
@@ -335,6 +335,7 @@ func linkDiff(before, after []string) (added, removed []string) {
 	for _, id := range after {
 		is[id] = true
 	}
+	var added, removed []string
 	for _, id := range sortedKeys(is) {
 		if !was[id] {
 			added = append(added, id)

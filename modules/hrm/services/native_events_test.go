@@ -48,6 +48,7 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 	salary := 1500.5
 
 	commits := func(t *testing.T, want map[string]int, domain itf.Domain, change func(ctx context.Context, suffix string) error) map[string][]itf.OutboxRow {
+		t.Helper()
 		env.CommitTx(root)
 		got := env.OutboxCommitsAndRollsBack(t, actorCtx(), env.TenantID(), ids, want, domain, change)
 		for id, rows := range got {

@@ -371,3 +371,27 @@ func TestClientServiceEvents_ConcurrentSavesOfOneChangePublishOnce(t *testing.T)
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// A transaction nobody owns is refused before SendMessage hands the message to
+// the provider, not after it was sent.
+func TestChatEvents_SendMessageRefusesAnUnownedTransactionBeforeSending(t *testing.T) {
+	e := newCRMEventEnv(t)
+	c := e.newClient(t, "+998903330081")
+	chatEntity, err := e.chats.GetByClientIDOrCreate(e.ctx(), c.ID())
+	require.NoError(t, err)
+	e.env.CommitTx(t)
+	tx, err := e.env.Pool.Begin(context.Background())
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	base := context.WithValue(context.WithValue(e.ctx(), constants.TxKey, nil), constants.AfterCommitKey, nil)
+	sent := len(e.provider.sent)
+
+	_, err = e.chats.SendMessage(composables.WithTx(base, tx), services.SendMessageCommand{ChatID: chatEntity.ID(), Transport: chat.SMSTransport, Message: "Never sent"})
+	require.ErrorIs(t, err, composables.ErrNoCommitOwner)
+	require.Len(t, e.provider.sent, sent, "nothing reached the provider")
+
+	owned, _ := composables.OwnTx(base, tx)
+	_, err = e.chats.SendMessage(owned, services.SendMessageCommand{ChatID: chatEntity.ID(), Transport: chat.SMSTransport, Message: "Sent"})
+	require.NoError(t, err)
+	require.Len(t, e.provider.sent, sent+1)
+}

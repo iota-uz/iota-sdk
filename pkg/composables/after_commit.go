@@ -57,6 +57,21 @@ func AfterCommit(ctx context.Context, fn func()) error {
 	return ErrNoCommitOwner
 }
 
+// CheckAfterCommit reports ErrNoCommitOwner when AfterCommit would, without
+// registering anything. A change with a side effect that cannot be taken back
+// (a sent message) calls it before it acts, so a transaction nobody owns is
+// refused before, not after, the effect.
+func CheckAfterCommit(ctx context.Context) error {
+	tx, hasTx := ctx.Value(constants.TxKey).(pgx.Tx)
+	if !hasTx || tx == nil {
+		return nil
+	}
+	if owner, ok := ctx.Value(constants.AfterCommitKey).(*afterCommitOwner); ok && owner != nil && owner.tx == tx {
+		return nil
+	}
+	return ErrNoCommitOwner
+}
+
 // OwnTx is the supported path of a caller that begins a transaction itself and
 // passes it to services: it returns ctx carrying tx and the owner that keeps
 // the services' after-commit callbacks. The caller calls Run on the result

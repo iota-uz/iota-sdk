@@ -311,6 +311,12 @@ func (s *ChatService) onMessageReceived(msg chat.Message) error {
 //}
 
 func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (chat.Chat, error) {
+	// The provider sends the message inside the transaction. A transaction
+	// nobody owns is refused now, before a message that cannot be taken back
+	// is sent, not by the event publication after it.
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 	var updatedChat chat.Chat
 
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
