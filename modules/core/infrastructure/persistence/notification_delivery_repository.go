@@ -92,6 +92,8 @@ func insertDelivery(ctx context.Context, db repo.Tx, tenant uuid.UUID, d notific
 		refEntity, refKey = &d.Record.Entity, &d.Record.Key
 	case notifications.RecipientAddress:
 		// An address recipient is identified by its recipient key alone.
+	case notifications.RecipientGroup, notifications.RecipientRole, notifications.RecipientParticipant:
+		return serrors.New(serrors.Invalid, "Invalid notification delivery")
 	}
 	status := d.Status
 	if status == "" {

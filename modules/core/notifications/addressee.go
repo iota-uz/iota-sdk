@@ -39,6 +39,9 @@ func (k RecipientKind) Valid() bool {
 	switch k {
 	case RecipientUser, RecipientRecord, RecipientAddress:
 		return true
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		// Audience members that expand to users, never delivery recipients.
+		return false
 	}
 	return false
 }
@@ -165,6 +168,8 @@ func (a Addressee) Validate() error {
 				return errors.New("invalid recipient address")
 			}
 		}
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		return errors.New("invalid recipient kind")
 	default:
 		return errors.New("invalid recipient kind")
 	}
@@ -182,6 +187,8 @@ func (a Addressee) Key() string {
 		}
 	case RecipientAddress:
 		return "address:" + a.fingerprint()[:16]
+	case RecipientGroup, RecipientRole, RecipientParticipant:
+		// Not delivery recipients; keyed by kind like any unknown value.
 	}
 	return string(a.Kind)
 }
@@ -212,6 +219,45 @@ func DeriveDedupeKey(producer Producer, event Event, recipients []Addressee, cha
 	for _, r := range recipients {
 		keys = append(keys, r.fingerprint())
 	}
+	return deriveDedupeKey(identity, event, keys, channels)
+}
+
+// DeriveAudienceDedupeKey is DeriveDedupeKey for an audience send. It hashes
+// the requested audience, not its members, so a replay after a group or role
+// changed still finds the first notice. An audience of users, records and
+// addresses only derives the same key as DeriveDedupeKey for those recipients.
+func DeriveAudienceDedupeKey(producer Producer, event Event, audience Audience, source *Event, channels []Channel) string {
+	identity := producer.Identity()
+	if identity == "" {
+		return ""
+	}
+	direct := audience.direct()
+	keys := make([]string, 0, len(direct)+len(audience.Groups)+len(audience.Roles)+len(audience.Participants))
+	for _, r := range direct {
+		keys = append(keys, r.fingerprint())
+	}
+	for _, id := range audience.Groups {
+		keys = append(keys, "group:"+id.String())
+	}
+	for _, id := range audience.Roles {
+		keys = append(keys, fmt.Sprintf("role:%d", id))
+	}
+	if len(audience.Participants) > 0 && source != nil {
+		for _, key := range audience.Participants {
+			// A JSON tuple keeps fields that contain separators apart: an ID
+			// of "batch/1" never collides with ID "batch" and DedupeKey "1/...".
+			tuple, err := json.Marshal([]string{key, source.Key, source.SnapshotRef, source.ID, source.DedupeKey})
+			if err != nil {
+				return ""
+			}
+			keys = append(keys, fmt.Sprintf("participant:%x", sha256.Sum256(tuple)))
+		}
+	}
+	return deriveDedupeKey(identity, event, keys, channels)
+}
+
+func deriveDedupeKey(identity string, event Event, keys []string, channels []Channel) string {
+	keys = slices.Clone(keys)
 	sort.Strings(keys)
 	names := make([]string, 0, len(channels))
 	for _, c := range channels {

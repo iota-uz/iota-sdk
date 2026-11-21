@@ -20,6 +20,8 @@ func (c Condition) MatchValue(v string) bool {
 		return v != "" && slices.Contains(c.Values, v)
 	case OpIsNot:
 		return v == "" || !slices.Contains(c.Values, v)
+	case OpBefore, OpAfter, OpOn, OpBetween, OpEq, OpGt, OpLt:
+		// Date and number operators never apply to a reference value.
 	}
 	return false
 }
@@ -34,6 +36,8 @@ func (c Condition) MatchValues(vs []string) bool {
 		return slices.ContainsFunc(vs, func(v string) bool { return slices.Contains(c.Values, v) })
 	case OpIsNot:
 		return !slices.ContainsFunc(vs, func(v string) bool { return slices.Contains(c.Values, v) })
+	case OpBefore, OpAfter, OpOn, OpBetween, OpEq, OpGt, OpLt:
+		// Date and number operators never apply to reference values.
 	}
 	return false
 }
@@ -73,6 +77,8 @@ func (c Condition) MatchDate(t time.Time, now time.Time) bool {
 		return day.Before(v)
 	case OpAfter:
 		return day.After(v)
+	case OpIs, OpIsNot, OpBetween, OpEq, OpGt, OpLt, OpEmpty:
+		// Between and empty are handled above; the rest are not date operators.
 	}
 	return false
 }
@@ -101,6 +107,8 @@ func (c Condition) MatchNumber(v float64) bool {
 		return len(nums) == 1 && v > nums[0]
 	case OpLt:
 		return len(nums) == 1 && v < nums[0]
+	case OpIs, OpIsNot, OpBefore, OpAfter, OpOn, OpEmpty:
+		// Not number operators.
 	}
 	return false
 }

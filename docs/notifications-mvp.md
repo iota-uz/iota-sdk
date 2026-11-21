@@ -251,6 +251,63 @@ the same producer is its own notice. Rule-mode events (`Enqueue`) keep the
 USER/GROUP/ROLE/EVENT_RECIPIENT semantics and are never retargeted by, nor
 retarget, an explicit send.
 
+### Audience send
+
+External senders (a graph notify node, a workflow, a module) depend on
+`notifications.AudienceSender`, which the core module provides from
+`NotificationDispatchService`. One call sends to users, groups, roles, event
+participants, records and addresses; `EnqueueAddressedTx` is the special case of an
+audience of users, records and addresses.
+
+```go
+receipt, err := sender.SendTx(ctx, tx, notifications.AudienceRequest{
+    Event: notifications.Event{Key: "acme.policy.reminder.v1", TenantID: tenant,
+        Subject: notifications.SubjectReference{Type: "acme.policy", ID: "P-1"}},
+    Audience: notifications.Audience{
+        Groups:       []uuid.UUID{underwriters},
+        Roles:        []uint{managerRole},
+        Participants: []string{"created_user"}, // RecipientDefinition keys of Source
+        Records:      []notifications.ObjectRef{{Entity: "acme.customer", Key: "c-1"}},
+    },
+    Source:   &policyCreated, // the domain event whose definition resolves Participants
+    Channels: []notifications.Channel{notifications.ChannelInApp, notifications.ChannelEmail},
+    Producer: notifications.Producer{InstanceID: run, Occurrence: "notify#1"},
+})
+```
+
+The audience is expanded by `notifications.AudienceResolver`, the same resolver that
+expands an event rule's groups, roles and event recipients. Groups and roles are
+resolved only in the context's tenant, and their membership is fixed at the call.
+Blocked or inactive users, `RequiredPermission`, `RecipientGuard` and
+`SubjectAccess` are still checked per user by the dispatch worker, so a user who
+loses access before delivery gets a `skipped` delivery with `subject_access_denied`.
+The limit of `MaxExplicitRecipients` (5000) counts unique recipients after
+resolution, and a larger audience rejects the whole send. `Resolve` runs the same
+resolution without writing and lists dropped members in `Skipped` (`not_found` for a
+missing or foreign user, group or role, `inactive` for a blocked or inactive user,
+`no_contact_resolver`, `unknown_participant`; `Kind` is `user`, `group`, `role`,
+`participant` or `record`). Participant callbacks may name anyone, so their users
+are filtered to the tenant like named users. A `Source` must be registered and
+belong to the context's tenant even without participants. `SendTx` drops `not_found` and
+`inactive` members and returns `Invalid` for the other two, for participants without
+`Source`, for a `Source` of another tenant, for an unknown notice, for a malformed
+recipient and for records or addresses without an external channel. It returns
+`FailedPrecondition` when the platform is not configured or a channel has no
+adapter. With a producer and no `DedupeKey`, the key is derived from the requested
+audience (not its members), so a replay returns the first `NoticeID` and job even
+after membership changed: the stored job is looked up before the audience is
+resolved again, so a group that emptied or grew past the limit, or a participant
+that no longer resolves, does not change the receipt. The lookup uses the optional
+`notifications.DispatchFinder` extension of `DispatchRepository`, which the core
+repository implements. `SendTx` returns `FailedPrecondition` on a repository
+without it; `EnqueueExplicit` and `EnqueueAddressedTx` keep working there and
+deduplicate through `Enqueue`. Identities starting with `addressed:` belong to
+explicit and audience sends: new rule-mode events with such a `DedupeKey` are
+rejected as `Invalid` (rule jobs accepted earlier are still delivered), and a send
+whose identity is held by an older rule job returns `Conflict` instead of that
+job's receipt. The send neither reads nor changes the administrator's
+rules and is deduplicated apart from rule-mode jobs.
+
 ### What happens after commit
 
 1. The dispatch worker writes, per recipient and channel, an `unresolved` intent

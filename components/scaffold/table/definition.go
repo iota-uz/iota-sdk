@@ -56,8 +56,9 @@ func (td TableDefinition) SideFilter() templ.Component {
 	return td.sideFilter
 }
 
-// FilterBar returns the filter chip bar and its out-of-band twin.
-func (td TableDefinition) FilterBar() (bar, oob templ.Component) {
+// FilterBar returns the filter chip bar and its out-of-band twin, in that
+// order.
+func (td TableDefinition) FilterBar() (templ.Component, templ.Component) {
 	return td.filterBar, td.barOOB
 }
 

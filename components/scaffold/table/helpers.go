@@ -969,9 +969,6 @@ func WithContentID(id string) TableConfigOpt {
 	}
 }
 
-// WithStackedToolbar enables the portfolio-style layout: Actions render on the
-// title row (desktop), and search + filter chips stack vertically in a
-// persistent toolbar outside the row-swap target. See TableConfig.StackedToolbar.
 // WithFilterBar shows a filter chip bar under the toolbar on every screen width
 // and re-renders it out-of-band (oob, e.g. filterbuilder.BuilderOOB) on the
 // rows swap, so chips stay server-rendered after each filter change.
@@ -984,6 +981,9 @@ func WithFilterBar(bar, oob templ.Component) TableConfigOpt {
 	}
 }
 
+// WithStackedToolbar enables the portfolio-style layout: Actions render on the
+// title row (desktop), and search + filter chips stack vertically in a
+// persistent toolbar outside the row-swap target. See TableConfig.StackedToolbar.
 func WithStackedToolbar() TableConfigOpt {
 	return func(c *TableConfig) {
 		c.StackedToolbar = true

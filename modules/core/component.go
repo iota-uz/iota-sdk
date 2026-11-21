@@ -230,6 +230,9 @@ func (c *component) Build(builder *composition.Builder) error {
 		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels).WithPlatform(platform)
 	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchService)
+	composition.ProvideFunc(builder, func(dispatch *services.NotificationDispatchService) notifications.AudienceSender {
+		return dispatch
+	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
 	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
 		service, err := composition.Resolve[*services.NotificationService](container)

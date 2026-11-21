@@ -121,6 +121,8 @@ func referencePredicate(col Column, c Condition, p *Params) (string, bool) {
 		// A record without a value is "not X" too.
 		pred := "NOT COALESCE(" + col.Expr + " = ANY(" + list + "), false)"
 		return pred, true
+	case OpBefore, OpAfter, OpOn, OpBetween, OpEq, OpGt, OpLt, OpEmpty:
+		// Not reference operators; empty is rendered by the caller.
 	}
 	return "", false
 }
@@ -145,6 +147,8 @@ func datePredicate(expr string, c Condition, now time.Time, p *Params) (string, 
 		return expr + " < " + v, true
 	case OpAfter:
 		return expr + " > " + v, true
+	case OpIs, OpIsNot, OpBetween, OpEq, OpGt, OpLt, OpEmpty:
+		// Between is rendered above; the rest are not date operators.
 	}
 	return "", false
 }
@@ -169,6 +173,8 @@ func numberPredicate(expr string, c Condition, p *Params) (string, bool) {
 		return expr + " > " + v, true
 	case OpLt:
 		return expr + " < " + v, true
+	case OpIs, OpIsNot, OpBefore, OpAfter, OpOn, OpBetween, OpEmpty:
+		// Between is rendered above; the rest are not number operators.
 	}
 	return "", false
 }

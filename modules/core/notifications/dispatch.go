@@ -62,3 +62,16 @@ type DispatchRepository interface {
 	Stats(context.Context) (DispatchStats, error)
 	List(context.Context) ([]DispatchSummary, error)
 }
+
+// DispatchFinder is an optional DispatchRepository extension that audience
+// sends need: Send and SendTx look up the job already stored for their dedupe
+// identity before resolving the audience again, so a replay returns the first
+// receipt even after membership changed, and return FailedPrecondition on a
+// repository without it. Only the explicit helpers (EnqueueExplicit,
+// EnqueueAddressed, EnqueueAddressedTx) work without it; they deduplicate a
+// replay through Enqueue.
+type DispatchFinder interface {
+	// Find returns the job stored for an event key and dedupe identity in
+	// the current tenant; found is false when there is none.
+	Find(ctx context.Context, eventKey, eventID string) (job DispatchJob, found bool, err error)
+}

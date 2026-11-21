@@ -13,7 +13,9 @@ function panel({ checkboxes = [], selected = [] }) {
   const instance = factory({ field: "status", type: "reference", op: "is", chip: 3 });
   instance.$root = {
     querySelectorAll: (selector) => (selector === 'input[type="checkbox"][data-fb-value]' ? checkboxes : []),
-    querySelector: (selector) => (selector === "select[multiple]" ? { selectedOptions: selected } : null),
+    // The value select (multi or single) is found by excluding the operator
+    // select, which a real panel also renders.
+    querySelector: (selector) => (selector === "select:not([data-fb-op])" ? { selectedOptions: selected } : null),
   };
   instance.$dispatch = (name, detail) => dispatched.push({ name, detail });
   return { instance, dispatched };
@@ -50,4 +52,17 @@ test("combobox selection still applies and skips group headers", () => {
   });
   instance.apply();
   assert.deepEqual(Array.from(dispatched[0].detail.values), ["EEIU"]);
+});
+
+test("single-value select applies its one selected value", () => {
+  const { instance, dispatched } = panel({ selected: [{ value: "EEIU" }] });
+  instance.apply();
+  assert.equal(dispatched.length, 1);
+  assert.deepEqual(Array.from(dispatched[0].detail.values), ["EEIU"]);
+});
+
+test("an empty value select applies nothing", () => {
+  const { instance, dispatched } = panel({ selected: [{ value: "" }] });
+  instance.apply();
+  assert.deepEqual(dispatched, []);
 });

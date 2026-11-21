@@ -268,6 +268,7 @@ the deleted parent.
 | `core/NotificationRoutingService.SaveRule`, `core/NotificationService.MarkRead`, `core/NotificationService.MarkAllRead` | Notification settings and inbox state, technical |
 | `core/NotificationChannelService.SetEnabled`, `core/NotificationRoutingService.SetUserChannels` | A user's own choice of delivery channels, notification settings like `SaveRule`, technical |
 | `core/NotificationChannelService.Record`, `core/NotificationChannelService.Disabled` | Delivery log written by the notification dispatcher and a read of opt-outs, technical |
+| `core/NotificationDispatchService.Send`, `core/NotificationDispatchService.SendTx` | Queues a notice and its dispatch job for an audience inside the caller's transaction; the caller's own mutation carries the business event, technical |
 | `core/NotificationChannelService.RegisterDevice`, `core/NotificationChannelService.RevokeDevice` | A user's push device (delivery address of a browser or app installation), technical like sessions |
 | `core/TenantService.Create`, `core/TenantService.Update`, `core/TenantService.Delete` | Tenant administration in the superadmin console |
 | `core/UploadService.Create`, `core/UploadService.CreateMany`, `core/UploadService.CreatePrivate`, `core/UploadService.Delete` | File storage; attaching a file to a business object is recorded by its owner |
