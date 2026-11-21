@@ -1,0 +1,4 @@
+/* @iota-uz/sdk/automation-editor/styles.css — load next to the SDK stylesheet and solid-ui. */
+@import "./styles/editor.css";
+@import "./styles/form.css";
+@import "./styles/schedule.css";

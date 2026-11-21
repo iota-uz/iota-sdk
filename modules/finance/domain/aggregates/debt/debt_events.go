@@ -9,6 +9,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+// sessionOrNil is the session of ctx, or nil when there is none: a call from
+// MCP, an agent or a job has a user but no session, and the events built after
+// the change committed must not fail for it.
+func sessionOrNil(ctx context.Context) session.Session {
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		return nil
+	}
+	return sess
+}
+
 func NewDebtCreatedEvent(ctx context.Context, data Debt, result Debt) (*Created, error) {
 	sender, err := composables.UseUser(ctx)
 	if err != nil {
@@ -65,10 +76,7 @@ func NewDebtSettledEvent(ctx context.Context, result Debt) (*Settled, error) {
 	if err != nil {
 		return nil, err
 	}
-	sess, err := composables.UseSession(ctx)
-	if err != nil {
-		return nil, err
-	}
+	sess := sessionOrNil(ctx)
 	return &Settled{
 		Session: sess,
 		Sender:  sender,
@@ -81,10 +89,7 @@ func NewDebtWrittenOffEvent(ctx context.Context, result Debt) (*WrittenOff, erro
 	if err != nil {
 		return nil, err
 	}
-	sess, err := composables.UseSession(ctx)
-	if err != nil {
-		return nil, err
-	}
+	sess := sessionOrNil(ctx)
 	return &WrittenOff{
 		Session: sess,
 		Sender:  sender,
@@ -97,10 +102,7 @@ func NewDebtCancelledEvent(ctx context.Context, result Debt) (*Cancelled, error)
 	if err != nil {
 		return nil, err
 	}
-	sess, err := composables.UseSession(ctx)
-	if err != nil {
-		return nil, err
-	}
+	sess := sessionOrNil(ctx)
 	return &Cancelled{
 		Session: sess,
 		Sender:  sender,

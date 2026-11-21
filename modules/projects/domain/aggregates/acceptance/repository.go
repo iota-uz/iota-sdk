@@ -17,6 +17,10 @@ var ErrStatus = errors.New("acceptance document cannot change to this status")
 
 type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Document, error)
+	// Lock takes the row lock of the document until the transaction ends, so a
+	// read-modify-write of it (a signing is announced once) is serialized with
+	// concurrent ones.
+	Lock(ctx context.Context, id uuid.UUID) error
 	GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]Document, error)
 	// SignedTotals sums the signed documents of the projects, one amount per
 	// currency.

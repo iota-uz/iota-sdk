@@ -1,0 +1,20 @@
+{
+  "name": "@iota-kit/hrm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "iota": {
+    "kit": {
+      "namespace": "hrm",
+      "hash": "ae5b199c04b41c3062fbe8505ed3501789b18e03a005eace8fdf87ccd6885cfa"
+    }
+  }
+}

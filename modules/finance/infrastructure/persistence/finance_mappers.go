@@ -143,7 +143,9 @@ func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		// For now, create a category with the ID - ideally we'd fetch from DB
 		category = paymentcategory.New("Uncategorized", paymentcategory.WithID(uuid.MustParse(dbPayment.PaymentCategoryID.String)))
 	} else {
-		category = paymentcategory.New("Uncategorized")
+		// No category is stored: the same absent category on every read (the nil ID is
+		// written back as NULL), not a new generated one.
+		category = paymentcategory.New("Uncategorized", paymentcategory.WithID(uuid.Nil))
 	}
 
 	// Create default money account with zero balance

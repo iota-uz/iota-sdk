@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
@@ -153,6 +155,26 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uuid.UUID) (paym
 	}
 
 	return payments[0], nil
+}
+
+// Lock takes the row lock of the payment until the transaction ends.
+func (g *GormPaymentRepository) Lock(ctx context.Context, id uuid.UUID) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+	var locked uuid.UUID
+	if err := tx.QueryRow(ctx, "SELECT id FROM payments WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrPaymentNotFound
+		}
+		return errors.Wrap(err, "failed to lock payment")
+	}
+	return nil
 }
 
 func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment) (payment.Payment, error) {

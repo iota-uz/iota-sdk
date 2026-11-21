@@ -47,6 +47,7 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 		order.WithTenantID(tenantID),
 		order.WithStatus(status),
 		order.WithCreatedAt(dbOrder.CreatedAt),
+		order.Reconstituted(),
 	)
 	return orderEntity, nil
 }

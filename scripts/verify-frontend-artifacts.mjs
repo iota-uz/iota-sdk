@@ -8,6 +8,8 @@ const manifest = JSON.parse(await readFile(path.join(artifactsDir, 'frontend-art
 if (manifest.package !== '@iota-uz/sdk') throw new Error('preview artifact must contain only @iota-uz/sdk')
 const tarball = path.join(artifactsDir, manifest.file)
 const consumer = await mkdtemp(path.join(tmpdir(), 'iota-sdk-consumer-'))
+// Code that exists only in the automation editor's lazy canvas chunk (@xyflow/system's pan/zoom and the canvas DOM contract).
+const EDITOR_MARKERS = /iota-flow__handle|XYPanZoom|ae-canvas--connecting/
 
 function run(command, args) {
   return execFileSync(command, args, { cwd: consumer, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] })
@@ -41,6 +43,9 @@ try {
   if (/echarts|LensDashboard|DashboardPanels/.test(baseContents)) {
     throw new Error('client-host-only bundle pulled Lens implementation code')
   }
+  if (EDITOR_MARKERS.test(baseContents)) {
+    throw new Error('client-host-only bundle pulled the automation editor chunk')
+  }
 
   run('pnpm', ['add', '--ignore-scripts', '--strict-peer-dependencies', 'vite-plugin-solid@2.11.8'])
   await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
@@ -56,6 +61,35 @@ try {
   if (/react-dom|LensDashboard|DashboardPanels/.test(solidContents)) {
     throw new Error('solid-only bundle pulled React or Lens implementation code')
   }
+  if (EDITOR_MARKERS.test(solidContents)) {
+    throw new Error('@iota-uz/sdk/solid bundle pulled the automation editor chunk')
+  }
+
+  // The automation editor: its canvas (@xyflow/system, d3) is a lazy chunk, not part of the initial bundle.
+  await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
+  await writeFile(path.join(consumer, 'main.js'), [
+    "import { render } from 'solid-js/web'",
+    "import { Editor, tidyLayout } from '@iota-uz/sdk/automation-editor'",
+    "import '@iota-uz/sdk/automation-editor/styles.css'",
+    "document.querySelector('#app').dataset.runtime = Editor.name + tidyLayout.name + render.name",
+    '',
+  ].join('\n'))
+  run('pnpm', ['exec', 'vite', 'build', '--manifest'])
+  const editorManifest = JSON.parse(await readFile(path.join(consumer, 'dist/.vite/manifest.json'), 'utf8'))
+  const editorEntry = Object.values(editorManifest).find((chunk) => chunk.isEntry)
+  const initialFiles = new Set()
+  const collect = (key) => {
+    const chunk = editorManifest[key]
+    if (!chunk || initialFiles.has(chunk.file)) return
+    initialFiles.add(chunk.file)
+    for (const child of chunk.imports ?? []) collect(child)
+  }
+  collect(Object.keys(editorManifest).find((key) => editorManifest[key] === editorEntry))
+  const initialContents = (await Promise.all([...initialFiles].map((file) => readFile(path.join(consumer, 'dist', file), 'utf8')))).join('\n')
+  if (EDITOR_MARKERS.test(initialContents)) throw new Error('importing @iota-uz/sdk/automation-editor put the canvas chunk into the initial bundle')
+  const editorAssets = await readdir(path.join(consumer, 'dist/assets'))
+  const lazyContents = (await Promise.all(editorAssets.filter((name) => name.endsWith('.js') && !initialFiles.has(`assets/${name}`)).map((name) => readFile(path.join(consumer, 'dist/assets', name), 'utf8')))).join('\n')
+  if (!EDITOR_MARKERS.test(lazyContents)) throw new Error('the automation editor canvas chunk is missing from the consumer build')
 
   await rm(path.join(consumer, 'dist'), { recursive: true, force: true })
   await writeFile(path.join(consumer, 'main.js'), [

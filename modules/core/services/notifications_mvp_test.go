@@ -171,7 +171,8 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	// A rolled back creation leaves neither the user nor a notification.
 	tx, err := f.Pool.Begin(ctx)
 	require.NoError(t, err)
-	_, err = users.Create(composables.WithTx(ctx, tx), user.New("Rolled", "Back", internet.MustParseEmail("rollback@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	txCtx, _ := composables.OwnTx(ctx, tx)
+	_, err = users.Create(txCtx, user.New("Rolled", "Back", internet.MustParseEmail("rollback@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
 	require.NoError(t, err)
 	require.NoError(t, tx.Rollback(ctx))
 	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))

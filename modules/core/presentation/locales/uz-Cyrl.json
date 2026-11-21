@@ -841,6 +841,12 @@
         "_Description": "Лойиҳа босқичларини бошқариш рухсати"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "Billing транзакцияларини кўриш",
+        "_Description": "Billing транзакциялари ва уларнинг ҳолати ўзгариши воқеаларини кўриш"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "Маҳсулотларни кўриш",

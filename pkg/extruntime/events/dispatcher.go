@@ -33,6 +33,9 @@ const (
 	StatusFailed  = "failed"
 	StatusDead    = "dead"
 	StatusBlocked = "blocked"
+	// StatusSkipped is a state of extruntime.schedule_runs only: the slot was
+	// older than the schedule's missed-slot window and was not executed.
+	StatusSkipped = "skipped"
 )
 
 // Config configures the dispatcher. Zero values select the defaults.
@@ -294,6 +297,12 @@ func (d *Dispatcher) fetch(ctx context.Context, consumer string, keys []string, 
 // deliver hands one event to the consumer in a transaction with its receipt.
 // It returns true when Deliver succeeded and the transaction committed.
 func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (bool, error) {
+	// The scheduler's slots draw on the same share of the pool (see connSlots).
+	release, err := acquireConnSlot(ctx, d.cfg.DB)
+	if err != nil {
+		return false, err
+	}
+	defer release()
 	tx, err := d.cfg.DB.Begin(ctx)
 	if err != nil {
 		return false, serrors.FromDB(opDeliver, err)
@@ -324,10 +333,16 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	// repositories that read them from the context (composables.UseTx,
 	// UseTenantID) work inside the delivery and need no second connection.
 	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
+	// composables.AfterCommit of a service the consumer calls waits for the
+	// delivery commit too.
+	dctx = composables.WithAfterCommit(dctx, tx, func(fn func()) { commits.fns = append(commits.fns, func(context.Context) { fn() }) })
 	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
 		runErr = tx.Commit(ctx)
 		if runErr == nil {
+			// The transaction is over: free the pool share before callbacks that
+			// may call the dispatcher or the scheduler again.
+			release()
 			for _, fn := range commits.fns {
 				fn(ctx)
 			}

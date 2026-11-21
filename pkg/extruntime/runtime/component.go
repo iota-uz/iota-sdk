@@ -130,6 +130,12 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil && !composition.IsNotProvided(err) {
 			return nil, err
 		}
+		// The same for the scheduler: the process has one, which serves the Go
+		// schedules and, through the contribution below, the package ones.
+		scheduler, err := composition.Resolve[*events.Scheduler](container)
+		if err != nil && !composition.IsNotProvided(err) {
+			return nil, err
+		}
 		// Without Secrets in the configuration, the resolver a module provides
 		// (the automations module serves connection secrets) answers secrets.get.
 		cfg := c.cfg
@@ -146,7 +152,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		// container when first invoked.
 		return New(cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
-			NativeDeps: container, Dispatcher: outbox,
+			NativeDeps: container, Dispatcher: outbox, Scheduler: scheduler,
 			// Without the core, Go consumers contributed to the container are
 			// served by the runtime's own dispatcher.
 			Consumers: events.ConsumerSourceFunc(func(ctx context.Context) ([]events.Consumer, error) {
@@ -155,6 +161,15 @@ func (c *component) Build(builder *composition.Builder) error {
 					return nil, err
 				}
 				return events.ComposeConsumers(srcs...).Consumers(ctx)
+			}),
+			// Without the core, Go schedules contributed to the container are
+			// served by the runtime's own scheduler.
+			Schedules: events.ScheduleSourceFunc(func(ctx context.Context) ([]events.ScheduleDef, error) {
+				srcs, err := composition.Contributions[events.ScheduleSource](container)
+				if err != nil {
+					return nil, err
+				}
+				return events.ComposeSchedules(srcs...).ActiveSchedules(ctx)
 			}),
 		})
 	})
@@ -170,6 +185,20 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 		return []events.ConsumerSource{rt.PackageConsumers()}, nil
 	})
+	// The package schedules are a source of the core scheduler (unused when the
+	// runtime serves its own).
+	composition.Contribute(builder, func(container *composition.Container) ([]events.ScheduleSource, error) {
+		rt, err := composition.Resolve[*Runtime](container)
+		if err != nil {
+			return nil, err
+		}
+		if rt.ownsScheduler {
+			return nil, nil
+		}
+		return []events.ScheduleSource{rt.Manage.ScheduleSource()}, nil
+	})
+	// The core's scheduler runs the package schedules through the host.
+	composition.ProvideFuncAs[events.Runner](builder, func(rt *Runtime) *host.Host { return rt.Host })
 	composition.ProvideFunc(builder, func(rt *Runtime) *manage.Service { return rt.Manage })
 	// Every Go entry of a native contract dispatches through the host.
 	composition.ProvideFuncAs[native.Dispatcher](builder, func(rt *Runtime) *HostDispatcher { return rt.CommandDispatcher() })

@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -9,7 +11,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	paymeapi "github.com/iota-uz/payme"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +41,7 @@ func TestPaymeController_Create_UsesActiveTransactionWhenTerminalRowsMatchAccoun
 		saved = tx
 	})
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, outbox := newOutboxCtx()
 	resp, errRPC := controller.create(ctx, &paymeapi.CreateTransactionRequest{
 		Id:      "payme-tx-1",
 		Time:    1710000001000,
@@ -56,6 +60,7 @@ func TestPaymeController_Create_UsesActiveTransactionWhenTerminalRowsMatchAccoun
 	require.True(t, ok)
 	assert.Equal(t, "payme-tx-1", paymeDetails.ID())
 	assert.Equal(t, billing.Created, saved.Status())
+	assert.Zero(t, outbox.events(), "a save that keeps the status announces nothing")
 }
 
 func TestPaymeController_CheckPerform_UsesActiveTransactionWhenTerminalRowsMatchAccount(t *testing.T) {
@@ -79,7 +84,7 @@ func TestPaymeController_CheckPerform_UsesActiveTransactionWhenTerminalRowsMatch
 		saved = tx
 	})
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, outbox := newOutboxCtx()
 	resp, errRPC := controller.checkPerform(ctx, &paymeapi.CheckPerformTransactionRequest{
 		Amount:  12500,
 		Account: account,
@@ -91,6 +96,7 @@ func TestPaymeController_CheckPerform_UsesActiveTransactionWhenTerminalRowsMatch
 
 	require.NotNil(t, saved)
 	assert.Equal(t, billing.Pending, saved.Status())
+	assert.Equal(t, 1, outbox.events(), "the created -> pending change is announced in the saving transaction")
 
 	paymeDetails, ok := saved.Details().(details.PaymeDetails)
 	require.True(t, ok)
@@ -115,7 +121,7 @@ func TestPaymeController_Create_RejectsDuplicateActiveTransactions(t *testing.T)
 		),
 	}, nil)
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, _ := newOutboxCtx()
 	resp, errRPC := controller.create(ctx, &paymeapi.CreateTransactionRequest{
 		Id:      "payme-tx-1",
 		Time:    1710000001000,
@@ -145,7 +151,7 @@ func TestPaymeController_CheckPerform_RejectsDuplicateActiveTransactions(t *test
 		),
 	}, nil)
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, _ := newOutboxCtx()
 	resp, errRPC := controller.checkPerform(ctx, &paymeapi.CheckPerformTransactionRequest{
 		Amount:  12500,
 		Account: account,
@@ -178,7 +184,7 @@ func TestPaymeController_Perform_RefusesACancelledTransaction(t *testing.T) {
 		t.Fatal("refusing a perform must not rewrite the transaction")
 	})
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, _ := newOutboxCtx()
 	resp, errRPC := controller.perform(ctx, &paymeapi.PerformTransactionRequest{
 		Id: "payme-tx-1",
 	}, logrus.New().WithField("test", true))
@@ -207,7 +213,7 @@ func TestPaymeController_Perform_StaysIdempotentOnACompletedTransaction(t *testi
 		return nil
 	}, nil)
 
-	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
+	ctx, outbox := newOutboxCtx()
 	resp, errRPC := controller.perform(ctx, &paymeapi.PerformTransactionRequest{
 		Id: "payme-tx-1",
 	}, logrus.New().WithField("test", true))
@@ -218,6 +224,7 @@ func TestPaymeController_Perform_StaysIdempotentOnACompletedTransaction(t *testi
 	assert.Equal(t, "completed-row", resp.Transaction)
 	assert.EqualValues(t, paymeapi.TransactionStateCompleted, resp.State)
 	assert.Equal(t, int64(1710000002000), resp.PerformTime)
+	assert.Zero(t, outbox.events(), "a repeated callback with the same status announces nothing")
 }
 
 func newTestPaymePerformController(
@@ -230,6 +237,7 @@ func newTestPaymePerformController(
 	t.Helper()
 
 	repo := &testBillingRepo{
+		stored: []billing.Transaction{transaction},
 		getByDetailsFields: func(_ context.Context, gateway billing.Gateway, filters []billing.DetailsFieldFilter) ([]billing.Transaction, error) {
 			require.Equal(t, billing.Payme, gateway)
 			require.Equal(t, []billing.DetailsFieldFilter{{
@@ -263,6 +271,7 @@ func newTestPaymeController(
 	t.Helper()
 
 	repo := &testBillingRepo{
+		stored: transactions,
 		getByDetailsFields: func(_ context.Context, gateway billing.Gateway, filters []billing.DetailsFieldFilter) ([]billing.Transaction, error) {
 			require.Equal(t, billing.Payme, gateway)
 			require.ElementsMatch(t, paymeAccountFilters(account), filters)
@@ -323,6 +332,39 @@ func newPaymeControllerTestTransaction(
 		billing.Payme,
 		details.NewPaymeDetails(transactionID, options...),
 		billing.WithID(uuid.New()),
+		billing.WithTenantID(uuid.New()),
 		billing.WithStatus(status),
 	)
+}
+
+// outboxTx is a transaction that only records what is written to the outbox.
+type outboxTx struct {
+	repo.Tx
+	mu    sync.Mutex
+	execs []string
+}
+
+func (tx *outboxTx) Exec(_ context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
+	tx.execs = append(tx.execs, sql)
+	return pgconn.NewCommandTag("INSERT 0 1"), nil
+}
+
+// events is the number of rows written to extruntime.outbox_events.
+func (tx *outboxTx) events() int {
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
+	n := 0
+	for _, sql := range tx.execs {
+		if strings.Contains(sql, "extruntime.outbox_events") {
+			n++
+		}
+	}
+	return n
+}
+
+func newOutboxCtx() (context.Context, *outboxTx) {
+	tx := &outboxTx{}
+	return context.WithValue(context.Background(), constants.TxKey, tx), tx
 }

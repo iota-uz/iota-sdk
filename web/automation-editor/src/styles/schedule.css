@@ -1,0 +1,156 @@
+/* Schedule trigger recurrence editor. SDK tokens only (styles/tailwind/iota.css). */
+.ae-sched {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  color: oklch(var(--clr-text-100));
+}
+
+.ae-sched-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.ae-sched-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ae-sched-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.ae-sched-label {
+  margin: 0;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: oklch(var(--clr-text-200));
+}
+
+.ae-sched-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: oklch(var(--clr-text-300));
+}
+
+.ae-sched-error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: oklch(var(--clr-danger-btn-text));
+}
+
+.ae-sched-segments,
+.ae-sched-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid oklch(var(--clr-border-subtle));
+  border-radius: var(--radius, 0.5rem);
+  background: oklch(var(--clr-surface-100));
+}
+
+.ae-sched-segment,
+.ae-sched-day-option {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid oklch(var(--transparent));
+  border-radius: calc(var(--radius, 0.5rem) - 2px);
+  background: oklch(var(--transparent));
+  color: oklch(var(--clr-text-200));
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.ae-sched-segment[aria-checked="true"],
+.ae-sched-day-option[aria-checked="true"] {
+  border-color: oklch(var(--clr-border-default));
+  background: oklch(var(--clr-surface-300));
+  color: oklch(var(--clr-text-100));
+  font-weight: 500;
+}
+
+.ae-sched-segment:focus-visible,
+.ae-sched-day-option:focus-visible,
+.ae-sched-input:focus-visible {
+  outline: 2px solid oklch(var(--clr-border-brand));
+  outline-offset: 1px;
+}
+
+.ae-sched-segment:disabled,
+.ae-sched-day-option:disabled {
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .ae-sched-segment:not(:disabled):hover,
+  .ae-sched-day-option:not(:disabled):hover {
+    color: oklch(var(--clr-text-100));
+  }
+}
+
+.ae-sched-input {
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid oklch(var(--clr-border-default));
+  border-radius: var(--radius, 0.5rem);
+  background: oklch(var(--clr-surface-300));
+  color: oklch(var(--clr-text-100));
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ae-sched-input[aria-invalid="true"] {
+  border-color: oklch(var(--clr-border-danger));
+}
+
+.ae-sched-input:disabled {
+  border-color: oklch(var(--clr-border-disabled));
+  color: oklch(var(--clr-text-300));
+}
+
+.ae-sched-time { width: 8rem; }
+.ae-sched-day { width: 6rem; }
+.ae-sched-cron { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.ae-sched-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid oklch(var(--clr-border-subtle));
+}
+
+.ae-sched-runs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: oklch(var(--clr-text-200));
+  font-variant-numeric: tabular-nums;
+}
+
+@media (pointer: coarse) {
+  .ae-sched-segment,
+  .ae-sched-day-option,
+  .ae-sched-input {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

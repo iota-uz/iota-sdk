@@ -1,0 +1,76 @@
+/* Configure form of the node panel. SDK tokens only. */
+.ae-form { display: flex; flex-direction: column; gap: 1rem; }
+.ae-form-field { display: flex; flex-direction: column; gap: 0.375rem; min-width: 0; }
+.ae-form-label-row { display: inline-flex; align-items: baseline; gap: 0.375rem; min-width: 0; flex-wrap: wrap; }
+.ae-form-label-line { display: flex; align-items: baseline; gap: 0.5rem; justify-content: space-between; flex-wrap: wrap; }
+.ae-form-label { font-size: 0.875rem; font-weight: 500; color: oklch(var(--clr-text-100)); }
+.ae-form-required { color: oklch(var(--clr-border-danger)); }
+.ae-form-param { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; color: oklch(var(--clr-text-300)); }
+.ae-form-description, .ae-form-note { margin: 0; font-size: 0.75rem; color: oklch(var(--clr-text-200)); }
+.ae-form-error { margin: 0; font-size: 0.75rem; color: oklch(var(--clr-danger-btn-text)); }
+.ae-form-input { width: 100%; }
+.ae-form-textarea { width: 100%; resize: vertical; min-height: 2.5rem; }
+.ae-form-textarea-large { min-height: 60vh; }
+.ae-form-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; }
+.ae-form-badge {
+  font-size: 0.6875rem; padding: 0 0.375rem; border-radius: var(--radius, 0.5rem);
+  border: 1px solid oklch(var(--clr-border-subtle)); color: oklch(var(--clr-text-200)); background: oklch(var(--clr-badge-gray));
+}
+.ae-form-link {
+  background: none; border: 0; padding: 0.25rem 0; cursor: pointer; font-size: 0.75rem;
+  color: oklch(var(--clr-primary-outline-btn-text)); min-height: 36px;
+}
+.ae-form-link:focus-visible, .ae-form-segment:focus-visible, .ae-form-icon:focus-visible {
+  outline: 2px solid oklch(var(--clr-border-brand)); outline-offset: 2px;
+}
+.ae-form-switch { display: flex; align-items: center; gap: 0.75rem; }
+.ae-form-group {
+  border: 1px solid oklch(var(--clr-border-subtle)); border-radius: var(--radius, 0.5rem);
+  padding: 0.75rem; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0;
+}
+.ae-form-legend { padding: 0 0.25rem; }
+.ae-form-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ae-form-list-item { display: flex; gap: 0.5rem; align-items: flex-start; }
+.ae-form-list-body { flex: 1; min-width: 0; }
+.ae-form-list-actions { display: flex; gap: 0.25rem; }
+.ae-form-icon {
+  min-width: 36px; min-height: 36px; border-radius: var(--radius, 0.5rem); cursor: pointer;
+  border: 1px solid oklch(var(--clr-border-default)); background: oklch(var(--clr-surface-300)); color: oklch(var(--clr-text-100));
+}
+.ae-form-icon:disabled { opacity: 0.5; cursor: not-allowed; }
+.ae-form-icon-danger { color: oklch(var(--clr-danger-btn-text)); }
+.ae-form-duration { display: flex; gap: 0.5rem; }
+.ae-form-duration-amount { flex: 1; }
+.ae-form-duration-unit { flex: 1; }
+.ae-form-segmented {
+  display: inline-flex; flex-wrap: wrap; border: 1px solid oklch(var(--clr-border-default));
+  border-radius: var(--radius, 0.5rem); overflow: hidden; align-self: flex-start;
+}
+.ae-form-segment {
+  min-height: 36px; padding: 0 0.75rem; border: 0; background: oklch(var(--clr-surface-300));
+  color: oklch(var(--clr-text-100)); cursor: pointer; font-size: 0.875rem;
+}
+.ae-form-segment + .ae-form-segment { border-inline-start: 1px solid oklch(var(--clr-border-default)); }
+.ae-form-segment-active { background: oklch(var(--clr-primary-btn-bg)); color: oklch(var(--clr-primary-btn-text)); }
+.ae-form-segment:disabled { cursor: not-allowed; }
+.ae-form-code { position: relative; }
+.ae-form-completions {
+  position: absolute; z-index: 30; inset-inline: 0; top: 100%; margin: 0.25rem 0 0; padding: 0.25rem; list-style: none;
+  max-height: 14rem; overflow-y: auto; overscroll-behavior: contain;
+  background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-default));
+  border-radius: var(--radius, 0.5rem); box-shadow: var(--shadow-100);
+}
+.ae-form-completion {
+  display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.375rem 0.5rem; min-height: 36px; align-items: center;
+  border-radius: calc(var(--radius, 0.5rem) - 2px); cursor: pointer; color: oklch(var(--clr-text-100));
+}
+.ae-form-completion-active { background: oklch(var(--clr-surface-500)); outline: 1px solid oklch(var(--clr-border-brand)); }
+.ae-form-completion-type { font-size: 0.6875rem; color: oklch(var(--clr-text-300)); }
+@media (hover: hover) {
+  .ae-form-completion:hover { background: oklch(var(--clr-surface-500)); }
+  .ae-form-icon:hover:not(:disabled) { background: oklch(var(--clr-surface-500)); }
+}
+@media (pointer: coarse) {
+  .ae-form-link, .ae-form-icon, .ae-form-segment, .ae-form-completion { min-height: 44px; }
+  .ae-form-icon { min-width: 44px; }
+}

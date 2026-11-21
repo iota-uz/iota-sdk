@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
 func (e *env) createUser(by *actor, first, last, email string) user.User {
@@ -62,14 +64,22 @@ func TestScenario05CoreEventToExternalNotice(t *testing.T) {
 	// ---- a rolled back creation delivers nothing
 	smsBefore, mailBefore := len(e.sms.Sent()), len(e.email.Sent())
 	outboxBefore := e.scalarInt(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'core.user.created.v1'`)
+	// The eventbus event of the service waits for the commit of the caller's
+	// transaction too: the caller declares itself its owner (composables.OwnTx).
+	var legacy atomic.Int32
+	unsubscribe := resolve[eventbus.EventBus](t, e.scope.Container).Subscribe(func(*user.CreatedEvent) { legacy.Add(1) })
+	defer unsubscribe()
 	tx, err := e.pool.Begin(context.Background())
 	require.NoError(t, err)
 	addr, err := internet.NewEmail("ghost@example.com")
 	require.NoError(t, err)
-	txCtx := composables.WithTx(e.userContext(admin), tx)
+	txCtx, callbacks := composables.OwnTx(e.userContext(admin), tx)
 	_, err = e.users.Create(txCtx, user.New("Gus", "Ghost", addr, user.UILanguageEN, user.WithTenantID(e.tenant)))
 	require.NoError(t, err)
+	require.Zero(t, legacy.Load(), "the eventbus event is not sent before the owner commits")
 	require.NoError(t, tx.Rollback(context.Background()))
+	require.Zero(t, legacy.Load(), "a rolled back creation sends no eventbus event")
+	_ = callbacks // never run: the transaction rolled back
 	// Give the dispatcher, the engine and the notification passes time to (not) act.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {

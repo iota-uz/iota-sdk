@@ -570,7 +570,7 @@ subscription's `AfterSeq`. The management slice supplies `workflow.Implementatio
 `InvokeContext.Occurrence.journal`. Known limits: concurrent waits in `Promise.all` suspend
 sequentially; `wf.user.has()` reads current rights and is not journaled; event delivery is not strictly
 commit-ordered across concurrent producers; schedule slots older
-than `Lookback` (15 min) are skipped.
+than `Lookback` (15 min, or the schedule's `MissedAfter`) are not run (recorded as `skipped`). Go schedules (`wiring.ContributeSchedules`) share the scheduler: see `docs/extensions/consumer.md` §2.2.
 
 **Engine/events hardening (as implemented)**:
 * `tx.start` without an explicit key derives `base#n`: inside `wf.transaction` / an atomic `wf.call` the
