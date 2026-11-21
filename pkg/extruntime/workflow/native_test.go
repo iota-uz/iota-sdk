@@ -936,3 +936,117 @@ func TestNative_ServeBlocksPackageInstancesWithoutRuntime(t *testing.T) {
 		return inst.Status == workflow.StatusBlocked && inst.BlockedReason == workflow.BlockUnavailable
 	}, 10*time.Second, 20*time.Millisecond)
 }
+
+// holdRow locks the instance row in its own transaction without changing it,
+// waits until a statement of the engine is waiting for it and the lease has
+// expired, then releases it.
+func holdRowUntilExpired(t *testing.T, env *nativeEnv, id uuid.UUID, locked chan<- struct{}) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := env.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 FOR UPDATE`, id)
+	require.NoError(t, err)
+	if locked != nil {
+		close(locked)
+	}
+	require.Eventually(t, func() bool {
+		var waiting int
+		var expired bool
+		require.NoError(t, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting))
+		require.NoError(t, env.db.QueryRow(ctx, `SELECT lease_until < clock_timestamp() FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&expired))
+		return waiting > 0 && expired
+	}, 10*time.Second, 10*time.Millisecond, "the engine waits for the row while the lease expires")
+	require.NoError(t, tx.Rollback(ctx))
+}
+
+// A lease that expires while the final fence waits for a row lock (held by a
+// transaction that leaves the row unchanged) fences the write.
+func TestNative_LeaseExpiringDuringTheFenceLockWaitIsFenced(t *testing.T) {
+	env := newNativeEnv(t)
+	inFn := make(chan uuid.UUID, 1)
+	locked := make(chan struct{})
+	var fenced error
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs > 1 {
+			return json.RawMessage(`"retried"`), nil
+		}
+		_, fenced = run.Transaction(ctx, "write", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
+			inFn <- run.Instance().ID
+			<-locked
+			return nil, writeState(ctx, tx, run.Instance().ID, "write")
+		})
+		return nil, fenced
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.lockwait": {Runner: runner, RunTimeout: time.Minute}}, func(c *workflow.Config) {
+		c.LeaseTTL, c.Heartbeat = 500*time.Millisecond, time.Hour
+	})
+	env.start(eng, "test.lockwait", "l1", `{}`)
+	done := make(chan error, 1)
+	go func() { _, err := eng.RunOnce(context.Background()); done <- err }()
+	id := <-inFn
+	holdRowUntilExpired(t, env, id, locked)
+	require.NoError(t, <-done)
+	require.ErrorIs(t, fenced, workflow.ErrFenced)
+	require.Empty(t, env.stateRows(id), "the consumer row was not committed")
+	require.JSONEq(t, `"retried"`, string(env.inst(eng, id).Result))
+}
+
+// A heartbeat that waits for the row lock while the lease expires does not
+// renew it: the run is aborted.
+func TestNative_HeartbeatDoesNotRenewALeaseThatExpiredDuringItsLockWait(t *testing.T) {
+	env := newNativeEnv(t)
+	started := make(chan uuid.UUID, 1)
+	var runErr error
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs > 1 {
+			return json.RawMessage(`"retried"`), nil
+		}
+		started <- run.Instance().ID
+		<-ctx.Done()
+		runErr = ctx.Err()
+		return nil, runErr
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.hb": {Runner: runner, RunTimeout: time.Minute}}, func(c *workflow.Config) {
+		c.LeaseTTL, c.Heartbeat = 500*time.Millisecond, 50*time.Millisecond
+	})
+	env.start(eng, "test.hb", "h1", `{}`)
+	done := make(chan error, 1)
+	go func() { _, err := eng.RunOnce(context.Background()); done <- err }()
+	id := <-started
+	holdRowUntilExpired(t, env, id, nil)
+	require.NoError(t, <-done)
+	require.ErrorIs(t, runErr, context.Canceled, "the expired run was aborted, not renewed")
+	require.JSONEq(t, `"retried"`, string(env.inst(eng, id).Result))
+}
+
+// An owner whose lease expired before any takeover cannot complete the
+// instance, cancel its waits or call the observer: the next owner does.
+func TestNative_ExpiredOwnerCannotComplete(t *testing.T) {
+	env := newNativeEnv(t)
+	obs := &observer{}
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs > 1 {
+			return json.RawMessage(`"second"`), nil
+		}
+		_, err := env.db.Exec(context.Background(), `UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() - interval '1 second' WHERE id = $1`, run.Instance().ID)
+		require.NoError(t, err)
+		return json.RawMessage(`"first"`), nil
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.late": {Runner: runner, StatusObserver: obs}}, func(c *workflow.Config) {
+		c.Heartbeat = time.Hour
+	})
+	id := env.start(eng, "test.late", "e1", `{}`)
+	_, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	inst := env.inst(eng, id)
+	require.Equal(t, workflow.StatusCompleted, inst.Status)
+	require.JSONEq(t, `"second"`, string(inst.Result), "the expired owner's output was not stored")
+	seen, calls := obs.snapshot()
+	require.Equal(t, 1, calls)
+	require.Equal(t, []string{"running>completed=completed"}, seen)
+}

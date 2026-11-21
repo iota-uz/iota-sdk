@@ -311,30 +311,56 @@ func (e *Engine) claim(ctx context.Context, f claimFilter) (*Instance, bool, err
 // the run still owns the instance and locks the row, serializing the write
 // against takeover, termination, signals and task decisions.
 func (e *Engine) fence(ctx context.Context, q queryer, rs *runState) error {
-	// The lease must still be valid on the database's wall clock: an expired
-	// lease that nobody took over yet fences as well as a takeover does.
-	tag, err := q.Exec(ctx, `
-		UPDATE extruntime.workflow_instances SET updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running' AND lease_until > clock_timestamp()`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
+	lease, err := lockLease(ctx, q, rs)
 	if err != nil {
-		return serrors.FromDB(opFence, err)
+		return err
 	}
-	if tag.RowsAffected() == 1 {
-		return nil
-	}
-	var status string
-	var epoch int64
-	err = q.QueryRow(ctx, `SELECT status, lease_epoch FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID).Scan(&status, &epoch)
 	switch {
-	case err != nil:
+	case lease.live:
+		_, err := q.Exec(ctx, `UPDATE extruntime.workflow_instances SET updated_at = now() WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID)
 		return serrors.FromDB(opFence, err)
-	case status == StatusTerminated:
+	case lease.status == StatusTerminated:
 		rs.markStale(errTerminated)
 		return errTerminated
 	default:
 		rs.markStale(errLeaseLost)
 		return errLeaseLost
 	}
+}
+
+// leaseState is the instance row as the run's lease sees it under the lock.
+type leaseState struct {
+	status string
+	// live: the instance is running under this run's epoch and the lease is
+	// still valid on the database clock.
+	live bool
+}
+
+// lockLease locks the instance row (q must be a transaction) and then, in a
+// separate statement that runs after the lock is granted, reads whether the
+// run still holds a live lease. Checking the lease in the locking UPDATE
+// itself is not enough: PostgreSQL may evaluate the predicate before it waits
+// for a lock holder that leaves the row unchanged, and the lease can expire
+// during that wait. Every write of a run (fence, heartbeat, terminal and
+// suspend transitions, release) checks its lease this way, so an owner whose
+// lease expired writes nothing, whether or not another runner took over.
+func lockLease(ctx context.Context, q queryer, rs *runState) (leaseState, error) {
+	if _, err := q.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, rs.inst.ID, rs.inst.TenantID); err != nil {
+		return leaseState{}, serrors.FromDB(opFence, err)
+	}
+	var (
+		st    leaseState
+		epoch int64
+		valid bool
+	)
+	err := q.QueryRow(ctx, `
+		SELECT status, lease_epoch, COALESCE(lease_until > clock_timestamp(), false)
+		FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID).Scan(&st.status, &epoch, &valid)
+	if err != nil {
+		return leaseState{}, serrors.FromDB(opFence, err)
+	}
+	st.live = st.status == StatusRunning && epoch == rs.epoch && valid
+	return st, nil
 }
 
 // inFence runs fn in a new transaction after the fence and commits it. fn
@@ -400,14 +426,16 @@ func nullString(s string) any {
 func (e *Engine) transition(ctx context.Context, rs *runState, to, set string, args ...any) error {
 	ctx = context.WithoutCancel(ctx)
 	err := e.inTx(ctx, func(tx pgx.Tx) error {
-		all := append([]any{rs.inst.ID, rs.inst.TenantID, rs.epoch}, args...)
-		tag, err := tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
-			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, all...)
-		if err != nil {
-			return serrors.FromDB(opFinish, err)
+		// Only the owner of a live lease moves the instance; otherwise the
+		// next owner (a takeover, or the claim of the expired lease) decides.
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
 		}
-		if tag.RowsAffected() == 0 {
-			return nil
+		all := append([]any{rs.inst.ID, rs.inst.TenantID, rs.epoch}, args...)
+		if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, all...); err != nil {
+			return serrors.FromDB(opFinish, err)
 		}
 		return e.afterTransition(ctx, tx, rs.inst, StatusRunning, to)
 	})
@@ -516,14 +544,11 @@ func (e *Engine) finishSuspended(ctx context.Context, rs *runState) error {
 		return serrors.FromDB(opFinish, err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	tag, err := tx.Exec(ctx, `
-		UPDATE extruntime.workflow_instances SET updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
-	if err != nil {
-		return serrors.FromDB(opFinish, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return nil
+	// An owner whose lease expired does not suspend: the next claim replays
+	// up to the same suspension.
+	lease, err := lockLease(ctx, tx, rs)
+	if err != nil || !lease.live {
+		return err
 	}
 	var wake *time.Time
 	err = tx.QueryRow(ctx, `
@@ -571,10 +596,18 @@ func (e *Engine) release(ctx context.Context, rs *runState, _ error) error {
 		delay *= 2
 	}
 	delay = min(delay, time.Hour)
-	_, err := e.cfg.DB.Exec(context.WithoutCancel(ctx), `
-		UPDATE extruntime.workflow_instances
-		SET lease_owner = NULL, lease_until = now() + $4::interval, failures = $5, updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
-		rs.inst.ID, rs.inst.TenantID, rs.epoch, delay.String(), failures)
-	return serrors.FromDB(opFinish, err)
+	ctx = context.WithoutCancel(ctx)
+	return e.inTx(ctx, func(tx pgx.Tx) error {
+		// An expired lease is already claimable; its owner does not move it.
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			UPDATE extruntime.workflow_instances
+			SET lease_owner = NULL, lease_until = now() + $4::interval, failures = $5, updated_at = now()
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
+			rs.inst.ID, rs.inst.TenantID, rs.epoch, delay.String(), failures)
+		return serrors.FromDB(opFinish, err)
+	})
 }

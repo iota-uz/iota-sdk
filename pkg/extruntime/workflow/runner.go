@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // RunOnce claims and runs ready instances one after another until none is
@@ -211,6 +212,23 @@ func (e *Engine) localRuns(instance string) []*runState {
 // over (the run is aborted and records nothing more) or the instance was
 // terminated: then its in-flight step may finish, and every further host call
 // and write is fenced.
+// renew extends a live lease. The lease is checked after the row lock is
+// granted (lockLease), so a lease that expired while the renewal waited for
+// the lock stays expired.
+func (e *Engine) renew(ctx context.Context, rs *runState) (leaseState, error) {
+	var lease leaseState
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		if lease, err = lockLease(ctx, tx, rs); err != nil || !lease.live {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() + $3::interval WHERE id = $1 AND tenant_id = $2`,
+			rs.inst.ID, rs.inst.TenantID, e.cfg.LeaseTTL.String())
+		return serrors.FromDB(opFence, err)
+	})
+	return lease, err
+}
+
 func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 	hb, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
@@ -224,15 +242,9 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 			case <-hb.Done():
 				return
 			case <-t.C:
-				tag, err := e.cfg.DB.Exec(hb, `
-					UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() + $4::interval
-					WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running' AND lease_until > clock_timestamp()`,
-					rs.inst.ID, rs.inst.TenantID, rs.epoch, e.cfg.LeaseTTL.String())
-				if err == nil && tag.RowsAffected() == 0 {
-					var status string
-					serr := e.cfg.DB.QueryRow(hb, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`,
-						rs.inst.ID, rs.inst.TenantID).Scan(&status)
-					if serr == nil && status == StatusTerminated {
+				lease, err := e.renew(hb, rs)
+				if err == nil && !lease.live {
+					if lease.status == StatusTerminated {
 						rs.markStale(errTerminated)
 						return
 					}
