@@ -472,7 +472,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     begin()
     try {
       if (oauth()) {
-        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name() })
+        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName() })
         window.location.assign(r.authorize_url)
         return
       }

@@ -161,7 +161,8 @@ export function changedCredentials(fields: readonly FormField[], values: Record<
       if (replaced.has(f.name) && v !== '') { out[f.name] = v; changed = true }
       continue
     }
-    out[f.name] = f.kind === 'number' && v !== '' ? Number(v) : f.kind === 'boolean' ? v === 'true' : v
+    // Numbers go as typed text: an ID beyond 2^53 (a Telegram chat) must not pass through a JS number.
+    out[f.name] = f.kind === 'boolean' ? v === 'true' : v
     if (v !== (initial[f.name] ?? '')) changed = true
   }
   return changed ? out : undefined
@@ -173,7 +174,7 @@ export function newCredentials(fields: readonly FormField[], values: Record<stri
   for (const f of fields) {
     const v = values[f.name] ?? ''
     if (v === '' && f.kind !== 'boolean') continue
-    out[f.name] = f.kind === 'number' ? Number(v) : f.kind === 'boolean' ? v === 'true' : v
+    out[f.name] = f.kind === 'boolean' ? v === 'true' : v
   }
   return out
 }

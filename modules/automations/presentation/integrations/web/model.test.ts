@@ -69,6 +69,8 @@ describe('model', () => {
     expect(changedCredentials(fields, { chat: 'a', token: 'new' }, { chat: 'a' }, new Set(['token']))).toEqual({ chat: 'a', token: 'new' })
     expect(changedCredentials(fields, { chat: 'a', token: 'typed' }, { chat: 'a' }, new Set())).toBeUndefined()
     expect(newCredentials(fields, { token: 's', chat: '' })).toEqual({ token: 's' })
+    const numeric = schemaFields({ properties: { chat: { type: 'integer' } } })
+    expect(newCredentials(numeric, { chat: '-1001234567890123456' })).toEqual({ chat: '-1001234567890123456' })
   })
 
   it('checks required fields, counting a set secret as filled', () => {

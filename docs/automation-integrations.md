@@ -7,13 +7,18 @@
 
 ## Подключение в приложении
 
-Модуль входит в `modules.Components()`. Приложение регистрирует свои коннекторы:
+Модуль входит в `modules.Components()` без опций. Приложение, которое регистрирует
+свои коннекторы (или usage index, или манифест бандла), заменяет эту запись своей —
+два компонента `automations` в одном приложении дают ошибку композиции:
 
 ```go
-automations.NewComponent(
+components := slices.DeleteFunc(modules.Components(), func(c composition.Component) bool {
+    return c.Descriptor().Name == "automations"
+})
+components = append(components, automations.NewComponent(
     automations.WithConnectors(telegram.New(), smtp.New()),
     // automations.WithUsageIndex(engine.Usage) — подключает #1339
-)
+))
 ```
 
 Без `WithUsageIndex` модуль берёт `connectors.UsageIndex` из контейнера, если его
@@ -25,7 +30,11 @@ automations.NewComponent(
 `connectors.PlatformCredentials`, `connectors.PlatformGrants` и
 `host.SecretResolver`. Extension runtime использует этот `SecretResolver`, если в
 `wiring.Options.Secrets` ничего не задано: секрет пакета `<connection name>.<field>`
-берётся из подключения тенанта.
+берётся из подключения тенанта (только поле с `x-secret`, только подключённое, и только
+если пакет объявил этот секрет в манифесте). **Это меняет поведение по умолчанию:**
+раньше без `Options.Secrets` вызов `secrets.get` был недоступен. Приложение, которое
+не хочет отдавать секреты подключений пакетам, задаёт `wiring.Options.Secrets` явно
+(в том числе резолвер, который всегда отвечает «не найдено»).
 
 ## Конфигурация
 

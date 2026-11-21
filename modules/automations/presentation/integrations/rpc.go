@@ -87,7 +87,8 @@ func connectorView(e services.ConnectorEntry, lang string, canManage bool) Conne
 	for _, conn := range e.Connections {
 		cv := connectionView(conn)
 		if !canManage {
-			cv.Fields = nil
+			// An author picks a connection; the provider's messages are the administrator's.
+			cv.Fields, cv.StatusReason = nil, nil
 		}
 		v.Connections = append(v.Connections, cv)
 	}
@@ -331,7 +332,7 @@ func (c *Controller) oauthStart(ctx context.Context, req OAuthStartRequest) (OAu
 	if r != nil {
 		redirect = c.redirectURL(r)
 	}
-	authURL, err := c.cfg.Service.OAuthStart(ctx, actor(sub), kindOf(req.Kind), req.Name, connID, redirect)
+	authURL, err := c.cfg.Service.OAuthStart(ctx, actor(sub), kindOf(req.Kind), req.Name, req.DisplayName, connID, redirect)
 	if err != nil {
 		return OAuthStartResponse{}, mapErr(err)
 	}
@@ -348,6 +349,11 @@ func mapErr(err error) error {
 		return solid.NewRPCError(string(ErrUnavailable), "connections are not configured in this application", map[string]string{"code": string(ErrUnavailable)})
 	case errors.As(err, &invalid):
 		return solid.NewRPCError(solid.CodeFieldValidation, "invalid input", invalid.Fields)
+	case errors.Is(err, connectors.ErrVersionConflict):
+		// Another change (a token refresh, a second administrator) won the row: the screen reloads.
+		return solid.NewRPCError(string(ErrVersionConflict), "the connection changed meanwhile", map[string]string{"code": string(ErrVersionConflict)})
+	case errors.Is(err, connectors.ErrNameTaken):
+		return solid.NewRPCError(string(ErrNameTaken), "the name is taken", map[string]string{"code": string(ErrNameTaken)})
 	}
 	return err
 }

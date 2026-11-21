@@ -3,10 +3,13 @@ package services_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -49,6 +52,7 @@ func (n node) Requires() []catalog.ConnectorKind {
 }
 
 type telegram struct {
+	echo   func(token string) string // the refusal message, from the token (a careless provider)
 	tested atomic.Int32
 	policy connectors.PlatformPolicy
 	nodes  []catalog.NodeType
@@ -69,6 +73,9 @@ func (c *telegram) Descriptor() connectors.Descriptor {
 func (c *telegram) Test(_ context.Context, creds connectors.Credentials) (connectors.Identity, error) {
 	c.tested.Add(1)
 	if creds["token"] != goodToken {
+		if c.echo != nil {
+			return connectors.Identity{}, errors.New(c.echo(creds["token"]))
+		}
 		return connectors.Identity{}, fmt.Errorf("401 Unauthorized: token %s is not accepted", creds["token"])
 	}
 	return connectors.Identity{Display: "@sales_bot", External: "bot-1"}, nil
@@ -92,9 +99,11 @@ func (u *usage) Uses(_ context.Context, _, id uuid.UUID) ([]connectors.Use, erro
 	return u.uses[id], nil
 }
 
-// fakeOAuth issues states and completes them with a fixed connection.
+// fakeOAuth behaves like connectors.OAuth2.Complete: the provider's account is the identity; a
+// connection of the same identity is refreshed (and set connected), else a new one is created.
 type fakeOAuth struct {
-	store connectors.Store
+	store    connectors.Store
+	identity connectors.Identity
 }
 
 func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, kind catalog.ConnectorKind, redirect string) (string, string, error) {
@@ -103,7 +112,27 @@ func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, kind catalog.Connector
 }
 
 func (f *fakeOAuth) Complete(ctx context.Context, tenantID uuid.UUID, _, _ string) (connectors.Connection, error) {
-	return f.store.Save(ctx, connectors.Connection{TenantID: tenantID, Kind: catalog.KindTelegramBot, Name: "telegram_bot", DisplayName: "@oauth", Status: connectors.StatusConnected}, connectors.Credentials{"token": goodToken})
+	creds := connectors.Credentials{"token": goodToken}
+	existing, err := f.store.List(ctx, tenantID, catalog.KindTelegramBot)
+	if err != nil {
+		return connectors.Connection{}, err
+	}
+	for _, c := range existing {
+		if c.Identity.External == f.identity.External {
+			c.Identity, c.Status, c.StatusReason = f.identity, connectors.StatusConnected, ""
+			return f.store.Save(ctx, c, creds)
+		}
+	}
+	for i := 1; ; i++ {
+		name := "telegram_bot"
+		if i > 1 {
+			name = fmt.Sprintf("telegram_bot_%d", i)
+		}
+		c, err := f.store.Save(ctx, connectors.Connection{TenantID: tenantID, Kind: catalog.KindTelegramBot, Name: name, DisplayName: f.identity.Display, Identity: f.identity, Status: connectors.StatusConnected}, creds)
+		if !errors.Is(err, connectors.ErrNameTaken) {
+			return c, err
+		}
+	}
 }
 
 func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "", nil }
@@ -115,11 +144,13 @@ type env struct {
 	ctx    context.Context
 	db     *pgxpool.Pool
 	tenant uuid.UUID
+	user   int64
 	tg     *telegram
 	reg    catalog.Registry
 	store  connectors.Store
 	usage  *usage
 	svc    *services.IntegrationsService
+	oauth  *fakeOAuth
 	now    time.Time
 }
 
@@ -132,6 +163,8 @@ func newEnv(t *testing.T) *env {
 	})
 	scope := h.Scope(t)
 	e := &env{t: t, ctx: context.Background(), db: scope.Pool, tenant: scope.Tenant.ID, usage: &usage{uses: map[uuid.UUID][]connectors.Use{}}, now: time.Now()}
+	require.NoError(t, e.db.QueryRow(e.ctx, `INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Ann', 'Admin', $2, 'en') RETURNING id`, e.tenant, "admin-"+uuid.NewString()+"@example.com").Scan(&e.user))
 	e.tg = telegramConnector(t)
 	e.tg.policy = connectors.PlatformOptIn
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
@@ -146,8 +179,9 @@ func newEnv(t *testing.T) *env {
 	grants := connectors.NewPlatformGrants(e.db)
 	store = connectors.NewStore(e.db, keys, e.usage, platform, grants)
 	e.store = store
+	e.oauth = &fakeOAuth{store: store, identity: connectors.Identity{Display: "@oauth", External: "acct-1"}}
 	e.svc = services.NewIntegrationsService(services.IntegrationsDeps{
-		Directory: dir, Store: store, Usage: e.usage, Platform: platform, Grants: grants, OAuth: &fakeOAuth{store: store},
+		Directory: dir, Store: store, Usage: e.usage, Platform: platform, Grants: grants, OAuth: e.oauth,
 		States: persistence.NewOAuthStates(e.db), Checks: persistence.NewConnectionChecks(e.db),
 		Now: func() time.Time { return e.now },
 	})
@@ -169,7 +203,7 @@ func (e *env) newTenant() uuid.UUID {
 	return id
 }
 
-func (e *env) actor() services.Actor { return services.Actor{TenantID: e.tenant, UserID: 1} }
+func (e *env) actor() services.Actor { return services.Actor{TenantID: e.tenant, UserID: e.user} }
 
 func (e *env) create(name string) services.ConnectionEntry {
 	e.t.Helper()
@@ -389,14 +423,14 @@ func TestPlatformKeyIsOptIn(t *testing.T) {
 func TestOAuthStateIsOneTimeAndBound(t *testing.T) {
 	e := newEnv(t)
 	// The fake connector authenticates with an API key: OAuth needs an oauth2 connector.
-	_, err := e.svc.OAuthStart(e.ctx, e.actor(), catalog.KindTelegramBot, "", uuid.Nil, "https://app.test/cb")
+	_, err := e.svc.OAuthStart(e.ctx, e.actor(), catalog.KindTelegramBot, "", "", uuid.Nil, "https://app.test/cb")
 	var invalid *services.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 
 	// The state rules are the repository's and the service's: exercise them through the repository.
 	states := persistence.NewOAuthStates(e.db)
 	put := func(a services.Actor, state string, expires time.Time) {
-		require.NoError(t, states.Put(e.ctx, services.OAuthState{Hash: services.StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: catalog.KindTelegramBot, Name: "oauth_bot", ExpiresAt: expires}))
+		require.NoError(t, states.Put(e.ctx, services.OAuthState{Hash: services.StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: catalog.KindTelegramBot, Name: "oauth_bot", DisplayName: "Sales", ExpiresAt: expires}))
 	}
 	me := e.actor()
 	put(me, "s1", e.now.Add(10*time.Minute))
@@ -408,6 +442,7 @@ func TestOAuthStateIsOneTimeAndBound(t *testing.T) {
 	conn, err := e.svc.OAuthComplete(e.ctx, me, "s1", "code")
 	require.NoError(t, err)
 	assert.Equal(t, "oauth_bot", conn.Name, "the name given at the start")
+	assert.Equal(t, "Sales", conn.DisplayName)
 	_, err = e.svc.OAuthComplete(e.ctx, me, "s1", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "once")
 
@@ -421,4 +456,79 @@ func TestOAuthStateIsOneTimeAndBound(t *testing.T) {
 	assert.Equal(t, catalog.KindTelegramBot, kind)
 	_, err = e.svc.OAuthComplete(e.ctx, me, "s3", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "an abandoned state is gone")
+}
+
+func (e *env) putState(state string, connectionID uuid.UUID) {
+	e.t.Helper()
+	require.NoError(e.t, persistence.NewOAuthStates(e.db).Put(e.ctx, services.OAuthState{
+		Hash: services.StateHash(state), TenantID: e.tenant, UserID: e.user, Kind: catalog.KindTelegramBot, ConnectionID: connectionID, ExpiresAt: e.now.Add(time.Minute),
+	}))
+}
+
+func TestOAuthReauthKeepsTheConnectionTheAdministratorChose(t *testing.T) {
+	e := newEnv(t)
+	e.putState("first", uuid.Nil)
+	first, err := e.svc.OAuthComplete(e.ctx, e.actor(), "first", "code")
+	require.NoError(t, err)
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, first.ID, connectors.StatusNeedsReauth, "expired"))
+
+	// The administrator signs in again, but with another account.
+	e.oauth.identity = connectors.Identity{Display: "@other", External: "acct-2"}
+	e.putState("again", first.ID)
+	got, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, got.ID)
+	assert.Equal(t, connectors.StatusConnected, got.Status)
+	assert.Equal(t, "@other", got.Identity.Display)
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Len(t, conns, 1, "the connection the sign-in created is merged into the chosen one")
+}
+
+func TestOAuthSignInDoesNotEnableADisabledConnection(t *testing.T) {
+	e := newEnv(t)
+	e.putState("first", uuid.Nil)
+	first, err := e.svc.OAuthComplete(e.ctx, e.actor(), "first", "code")
+	require.NoError(t, err)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), first.ID, true)
+	require.NoError(t, err)
+	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
+
+	e.putState("second", uuid.Nil)
+	got, err := e.svc.OAuthComplete(e.ctx, e.actor(), "second", "code")
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, got.ID)
+	assert.Equal(t, connectors.StatusDisabled, got.Status)
+	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
+}
+
+func TestRefusalIsMaskedAndBounded(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	long := strings.Repeat("x", 40) + badToken
+	_, err := e.store.Save(e.ctx, c.Connection, connectors.Credentials{"token": long})
+	require.NoError(t, err)
+	e.tg.echo = func(token string) string {
+		return "HTTP 401 for Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte(token)) + " " + url.QueryEscape(token) + strings.Repeat(" <html>", 2000)
+	}
+	res, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
+	require.NoError(t, err)
+	assert.False(t, res.OK)
+	assert.NotContains(t, res.Message, base64.StdEncoding.EncodeToString([]byte(long)))
+	assert.NotContains(t, res.Message, url.QueryEscape(long))
+	assert.LessOrEqual(t, len([]rune(res.Message)), 500)
+	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusError, got.Status, "the status is recorded even for a long provider message")
+}
+
+func TestNoKeyringRefusesBeforeCallingTheProvider(t *testing.T) {
+	e := newEnv(t)
+	dir := connectors.NewDirectory(nil)
+	tg := telegramConnector(t)
+	require.NoError(t, dir.Register(tg))
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: dir, Store: connectors.NewStore(e.db, nil, nil, nil, nil)})
+	_, err := svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "x", Credentials: map[string]any{"token": goodToken}})
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
+	assert.Zero(t, tg.tested.Load())
 }

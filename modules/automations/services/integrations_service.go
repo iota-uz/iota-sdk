@@ -4,8 +4,10 @@ package services
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -261,7 +263,7 @@ func (s *IntegrationsService) ConnectionUsage(ctx context.Context, a Actor, id u
 func (s *IntegrationsService) platformState(ctx context.Context, tenantID uuid.UUID, conn connectors.Connector) (*PlatformState, error) {
 	policy := conn.Descriptor().Platform
 	if policy != connectors.PlatformAuto && policy != connectors.PlatformOptIn {
-		return nil, nil
+		return nil, nil //nolint:nilnil // documented contract: nil is «no platform credential» (policy none), not a failure
 	}
 	st := &PlatformState{Policy: policy}
 	if s.platform != nil {
@@ -285,9 +287,6 @@ func (s *IntegrationsService) platformState(ctx context.Context, tenantID uuid.U
 func (s *IntegrationsService) find(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, error) {
 	conns, err := s.store.List(ctx, tenantID, "")
 	if err != nil {
-		if errors.Is(err, connectors.ErrNotConfigured) {
-			return connectors.Connection{}, connectors.ErrNotFound
-		}
 		return connectors.Connection{}, err
 	}
 	for _, c := range conns {
@@ -329,6 +328,10 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	}
 	if len(fields) > 0 {
 		return ConnectionEntry{}, &InvalidInputError{Fields: fields}
+	}
+	if _, err := s.store.List(ctx, a.TenantID, in.Kind); err != nil {
+		// No keyring: nothing could be saved, so the credentials are not sent to the provider either.
+		return ConnectionEntry{}, mapStoreError(op, err)
 	}
 	identity, err := s.test(ctx, conn, creds)
 	if err != nil {
@@ -435,7 +438,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 		}
 	case errors.As(testErr, &failed):
 		if next.Status != connectors.StatusDisabled {
-			next.Status, next.StatusReason = connectors.StatusError, failed.Message
+			next.Status, next.StatusReason = failedStatus(conn), reason(failed.Message)
 		}
 	default:
 		return TestResult{}, serrors.Wrap(op, testErr)
@@ -445,7 +448,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 	}
 	s.touch(ctx, a.TenantID, id)
 	if failed != nil {
-		return TestResult{OK: false, Message: failed.Message}, nil
+		return TestResult{OK: false, Message: failed.Message}, nil //nolint:nilerr // a refusal of the provider is the check's result, recorded in the status
 	}
 	return TestResult{OK: true, Identity: identity.Display}, nil
 }
@@ -463,8 +466,13 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 	}
 	if conn.Descriptor().Auth == connectors.AuthOAuth2 && s.oauth != nil && cur.Status == connectors.StatusConnected {
 		if _, err := s.oauth.Token(ctx, tenantID, id); err != nil {
-			if errors.Is(err, connectors.ErrNeedsReauth) {
+			switch {
+			case errors.Is(err, connectors.ErrNeedsReauth):
 				return cur, conn, nil, true, nil
+			case errors.Is(err, connectors.ErrNotConnected):
+				// The status changed meanwhile: check with the stored credentials.
+			default:
+				return connectors.Connection{}, nil, nil, false, err
 			}
 		} else if cur, creds, err = s.store.Get(ctx, tenantID, id); err != nil {
 			return connectors.Connection{}, nil, nil, false, err
@@ -497,10 +505,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			case testErr == nil:
 				next.Identity, next.Status, next.StatusReason = identity, connectors.StatusConnected, ""
 			case errors.As(testErr, &failed):
-				next.Status, next.StatusReason = connectors.StatusError, failed.Message
-				if conn.Descriptor().Auth == connectors.AuthOAuth2 {
-					next.Status = connectors.StatusNeedsReauth
-				}
+				next.Status, next.StatusReason = failedStatus(conn), reason(failed.Message)
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
@@ -543,7 +548,7 @@ func (s *IntegrationsService) SetPlatformEnabled(ctx context.Context, a Actor, k
 
 // OAuthStart begins an OAuth2 authorization for a new connection (name) or the re-authorization of
 // connectionID; the state is kept for this user and tenant only.
-func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind catalog.ConnectorKind, name string, connectionID uuid.UUID, redirectURL string) (string, error) {
+func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind catalog.ConnectorKind, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error) {
 	const op = serrors.Op("automations.IntegrationsService.OAuthStart")
 	conn, ok := s.dir.Get(kind)
 	if !ok {
@@ -576,7 +581,7 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 		return "", serrors.Wrap(op, err)
 	}
 	if err := s.states.Put(ctx, OAuthState{
-		Hash: StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: kind, Name: name,
+		Hash: StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: kind, Name: name, DisplayName: truncate(strings.TrimSpace(displayName), 200),
 		ConnectionID: connectionID, ExpiresAt: s.now().Add(s.stateTTL),
 	}); err != nil {
 		return "", serrors.Wrap(op, err)
@@ -598,6 +603,16 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	if err != nil {
 		return connectors.Connection{}, err
 	}
+	// What the tenant has before: Complete matches an existing connection by the provider identity and
+	// may refresh one that an administrator disabled.
+	before, err := s.store.List(ctx, a.TenantID, pending.Kind)
+	if err != nil {
+		return connectors.Connection{}, serrors.Wrap(op, err)
+	}
+	existed := make(map[uuid.UUID]connectors.Connection, len(before))
+	for _, c := range before {
+		existed[c.ID] = c
+	}
 	saved, err := s.oauth.Complete(ctx, a.TenantID, state, code)
 	if err != nil {
 		if errors.Is(err, connectors.ErrInvalid) {
@@ -605,20 +620,56 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		}
 		return connectors.Connection{}, serrors.Wrap(op, err)
 	}
-	if saved.Kind != pending.Kind {
-		return connectors.Connection{}, ErrStateInvalid
-	}
-	s.touch(ctx, a.TenantID, saved.ID)
-	if pending.ConnectionID == uuid.Nil && saved.Version == 1 && pending.Name != "" && pending.Name != saved.Name {
+	prev, wasThere := existed[saved.ID]
+	switch {
+	case pending.ConnectionID != uuid.Nil && saved.ID != pending.ConnectionID:
+		// Re-authorization of a connection that signed in as another account: its credentials move to
+		// the connection the administrator asked for, so automations keep their reference.
+		if saved, err = s.adopt(ctx, a.TenantID, pending.ConnectionID, saved, !wasThere); err != nil {
+			return connectors.Connection{}, serrors.Wrap(op, err)
+		}
+	case wasThere && prev.Status == connectors.StatusDisabled && pending.ConnectionID != saved.ID:
+		// A new sign-in matched a disabled connection: it stays disabled until enabled explicitly.
+		if err := s.store.SetStatus(ctx, a.TenantID, saved.ID, connectors.StatusDisabled, ""); err != nil {
+			return connectors.Connection{}, serrors.Wrap(op, err)
+		}
+		saved.Status = connectors.StatusDisabled
+	case !wasThere && pending.ConnectionID == uuid.Nil && (pending.Name != "" || pending.DisplayName != ""):
 		renamed := saved
-		renamed.Name = pending.Name
+		if pending.Name != "" {
+			renamed.Name = pending.Name
+		}
+		if pending.DisplayName != "" {
+			renamed.DisplayName = pending.DisplayName
+		}
 		if out, err := s.store.Save(ctx, renamed, nil); err == nil {
 			saved = out
 		} else if !errors.Is(err, connectors.ErrNameTaken) {
 			return connectors.Connection{}, serrors.Wrap(op, err)
 		}
 	}
+	s.touch(ctx, a.TenantID, saved.ID)
 	return saved, nil
+}
+
+// adopt moves the credentials and identity of from into the connection target; from is deleted when the
+// sign-in created it.
+func (s *IntegrationsService) adopt(ctx context.Context, tenantID, target uuid.UUID, from connectors.Connection, created bool) (connectors.Connection, error) {
+	_, creds, err := s.store.Get(ctx, tenantID, from.ID)
+	if err != nil {
+		return connectors.Connection{}, err
+	}
+	cur, _, err := s.store.Get(ctx, tenantID, target)
+	if err != nil {
+		return connectors.Connection{}, err
+	}
+	if created {
+		if err := s.store.Delete(ctx, tenantID, from.ID); err != nil {
+			return connectors.Connection{}, err
+		}
+	}
+	cur.Identity, cur.Status, cur.StatusReason = from.Identity, connectors.StatusConnected, ""
+	return s.store.Save(ctx, cur, creds)
 }
 
 // OAuthAbandon drops the state of an authorization the provider refused (the user cancelled) and
@@ -632,6 +683,34 @@ func (s *IntegrationsService) OAuthAbandon(ctx context.Context, a Actor, state s
 		return "", err
 	}
 	return pending.Kind, nil
+}
+
+// failedStatus is the status of a connection its provider refused: an OAuth2 token the provider no
+// longer accepts needs a new sign-in (the page offers it); other credentials are an error.
+func failedStatus(conn connectors.Connector) connectors.ConnectionStatus {
+	if conn.Descriptor().Auth == connectors.AuthOAuth2 {
+		return connectors.StatusNeedsReauth
+	}
+	return connectors.StatusError
+}
+
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
+// maxReason bounds a provider's message kept as the status reason (the store allows 2000).
+const maxReason = 500
+
+func reason(msg string) string {
+	r := []rune(strings.TrimSpace(msg))
+	if len(r) <= maxReason {
+		return string(r)
+	}
+	return string(r[:maxReason-1]) + "…"
 }
 
 // StateHash is the stored form of an OAuth2 state.
@@ -684,7 +763,7 @@ func (s *IntegrationsService) test(ctx context.Context, conn connectors.Connecto
 	if ctx.Err() != nil {
 		return connectors.Identity{}, ctx.Err()
 	}
-	return connectors.Identity{}, &TestFailedError{Message: mask(err.Error(), creds, extra...)}
+	return connectors.Identity{}, &TestFailedError{Message: reason(mask(err.Error(), creds, extra...))}
 }
 
 // mask replaces every credential value of at least four characters in s.
@@ -693,9 +772,13 @@ func mask(s string, creds connectors.Credentials, extra ...connectors.Credential
 	values := []string{}
 	for _, c := range all {
 		for _, v := range c {
-			if len(v) >= 4 {
-				values = append(values, v)
+			if len(v) < 4 {
+				continue
 			}
+			// The value as a provider may echo it: verbatim, URL-escaped, or base64 (an Authorization header).
+			values = append(values, v, url.QueryEscape(v), url.PathEscape(v),
+				base64.StdEncoding.EncodeToString([]byte(v)), base64.RawStdEncoding.EncodeToString([]byte(v)),
+				base64.URLEncoding.EncodeToString([]byte(v)), base64.RawURLEncoding.EncodeToString([]byte(v)))
 		}
 	}
 	// Longer values first: one may contain another.

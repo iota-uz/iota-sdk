@@ -23,8 +23,9 @@ func NewOAuthStates(db *pgxpool.Pool) services.OAuthStates { return &oauthStates
 
 func (r *oauthStates) Put(ctx context.Context, s services.OAuthState) error {
 	const op = serrors.Op("automations.OAuthStates.Put")
-	// Expired states of the tenant are swept on the way.
-	if _, err := r.db.Exec(ctx, `DELETE FROM automation.oauth_states WHERE tenant_id = $1 AND expires_at < now()`, s.TenantID); err != nil {
+	// Expired states of every tenant are swept on the way (an abandoned sign-in never comes back); they
+	// carry no data of a tenant beyond the hash of a dead state.
+	if _, err := r.db.Exec(ctx, `DELETE FROM automation.oauth_states WHERE expires_at < now()`); err != nil {
 		return serrors.Wrap(op, err)
 	}
 	var conn *uuid.UUID

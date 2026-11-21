@@ -55,7 +55,11 @@ func Bind[Request, Response any](method Method, fn func(context.Context, Request
 	return Binding{method: method, call: func(ctx context.Context, params json.RawMessage) (any, error) {
 		var req Request
 		if len(bytes.TrimSpace(params)) > 0 && !bytes.Equal(bytes.TrimSpace(params), []byte("null")) {
-			if err := json.Unmarshal(params, &req); err != nil {
+			// Numbers inside untyped values (any, map[string]any) stay exact json.Number: an ID beyond
+			// 2^53 must not pass through float64.
+			dec := json.NewDecoder(bytes.NewReader(params))
+			dec.UseNumber()
+			if err := dec.Decode(&req); err != nil {
 				return nil, NewRPCError(CodeValidation, "the request does not match the method's parameters", nil)
 			}
 		}

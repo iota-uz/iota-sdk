@@ -6,22 +6,26 @@
 CREATE TABLE automation.oauth_states (
     state_hash bytea PRIMARY KEY,
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    user_id bigint NOT NULL,
+    user_id bigint NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     kind text NOT NULL,
     name text NOT NULL DEFAULT '',
     display_name text NOT NULL DEFAULT '',
-    connection_id uuid,
+    connection_id uuid REFERENCES automation.connections (id) ON DELETE CASCADE,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
 CREATE INDEX oauth_states_expires_at_idx ON automation.oauth_states (expires_at);
 
+CREATE INDEX oauth_states_tenant_id_idx ON automation.oauth_states (tenant_id);
+
 CREATE TABLE automation.connection_checks (
     connection_id uuid PRIMARY KEY REFERENCES automation.connections (id) ON DELETE CASCADE,
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     checked_at timestamp with time zone NOT NULL
 );
+
+CREATE INDEX connection_checks_tenant_id_idx ON automation.connection_checks (tenant_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS automation.connection_checks;

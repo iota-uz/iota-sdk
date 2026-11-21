@@ -166,6 +166,7 @@ type SaveResponse struct {
 type OAuthStartRequest struct {
 	Kind         string `json:"kind"`
 	Name         string `json:"name"`
+	DisplayName  string `json:"display_name,omitempty"`
 	ConnectionID string `json:"connection_id,omitempty"`
 }
 

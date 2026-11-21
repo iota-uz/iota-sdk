@@ -3,6 +3,7 @@ package solid
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -74,4 +75,16 @@ func TestRPCHandlerGuardAndDuplicates(t *testing.T) {
 	fn := func(context.Context, echoReq) (echoResp, error) { return echoResp{}, nil }
 	_, err := NewRPCHandler([]Binding{Bind(m, fn), Bind(m, fn)})
 	require.Error(t, err)
+}
+
+func TestRPCHandlerKeepsLargeNumbersExact(t *testing.T) {
+	t.Parallel()
+	var got any
+	h, err := NewRPCHandler([]Binding{Bind(Action[map[string]any, echoResp]("demo.any"), func(_ context.Context, r map[string]any) (echoResp, error) {
+		got = r["chat"]
+		return echoResp{}, nil
+	})})
+	require.NoError(t, err)
+	call(h, `{"jsonrpc":"2.0","id":1,"method":"demo.any","params":{"chat":-1001234567890123456}}`)
+	require.Equal(t, "-1001234567890123456", fmt.Sprint(got))
 }

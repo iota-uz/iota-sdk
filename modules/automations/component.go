@@ -2,9 +2,15 @@
 // its pages, starting with «Integrations» (/settings/integrations), where a tenant administrator
 // connects accounts to the connectors the application registered.
 //
-// An application enables it as a component (modules.Components lists it):
+// modules.Components lists it without options. An application that registers its connectors (or
+// a usage index, or a host manifest) replaces that entry with its own:
 //
-//	automations.NewComponent(automations.WithConnectors(telegram.New(), smtp.New()))
+//	components := slices.DeleteFunc(modules.Components(), func(c composition.Component) bool {
+//	    return c.Descriptor().Name == "automations"
+//	})
+//	components = append(components, automations.NewComponent(automations.WithConnectors(telegram.New())))
+//
+// or registers connectors on the resolved connectors.Directory before serving requests.
 //
 // The component provides the connector Directory, the catalog Registry, the encrypted ConnectionStore
 // (keys from AUTOMATION_CONNECTIONS_KEYS, platform credentials from AUTOMATION_PLATFORM_CREDENTIALS),
@@ -124,14 +130,21 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
-	if ext, err := config.Register[extruntimeconfig.Config](reg); err == nil {
-		out.hostPath = strings.TrimSpace(ext.UI.HostManifest)
+	ext, err := config.Register[extruntimeconfig.Config](reg)
+	if err != nil {
+		return out, err
 	}
-	httpCfg, herr := config.Register[httpconfig.Config](reg)
-	appCfg, aerr := config.Register[appconfig.Config](reg)
-	if herr == nil && aerr == nil {
-		out.origin = httpCfg.Origin(appCfg)
+	out.hostPath = strings.TrimSpace(ext.UI.HostManifest)
+	// The OAuth2 redirect is built from the configured origin, never from request headers alone.
+	httpCfg, err := config.Register[httpconfig.Config](reg)
+	if err != nil {
+		return out, err
 	}
+	appCfg, err := config.Register[appconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.origin = httpCfg.Origin(appCfg)
 	return out, nil
 }
 
@@ -190,7 +203,7 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return connectors.NewPlatformGrants(db), nil
 	})
-	composition.Provide[connectors.Store](b, func(container *composition.Container) (connectors.Store, error) {
+	composition.ProvideDefault[connectors.Store](b, func(container *composition.Container) (connectors.Store, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
 			return nil, err
@@ -265,8 +278,12 @@ func (c *component) Build(b *composition.Builder) error {
 		deps.Store = st
 		deps.Usage = c.usage
 		if deps.Usage == nil {
-			if u, err := composition.Resolve[connectors.UsageIndex](container); err == nil {
+			u, err := composition.Resolve[connectors.UsageIndex](container)
+			switch {
+			case err == nil:
 				deps.Usage = u
+			case !composition.IsNotProvided(err):
+				return nil, err
 			}
 		}
 		if deps.Platform, err = composition.Resolve[connectors.PlatformCredentials](container); err != nil {
