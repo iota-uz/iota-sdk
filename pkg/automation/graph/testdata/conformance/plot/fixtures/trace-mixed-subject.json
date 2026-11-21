@@ -1,0 +1,113 @@
+{
+  "name": "trace-mixed-subject",
+  "kind": "trace",
+  "description": "A side graph with triggers about different subjects (a deployment, a schedule) is about the catalog's mixed subject; a trigger matches by its fields without CEL (production), a node reads the mixed subject's context.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Release notes",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "deployed",
+        "event": "deployment.succeeded",
+        "params": {
+          "production": true,
+          "repositories": ["acme/app"]
+        }
+      },
+      {
+        "id": "nightly",
+        "event": "schedule.fired",
+        "params": {
+          "time": "02:00",
+          "timezone": "UTC"
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "id": "which",
+        "type": "branch",
+        "params": {
+          "expression": "run.number > 1"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "deployed",
+          "outcome": "fired"
+        },
+        "to": "which"
+      },
+      {
+        "from": {
+          "node": "nightly",
+          "outcome": "fired"
+        },
+        "to": "which"
+      },
+      {
+        "from": {
+          "node": "which",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "which",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "run": {
+      "repository": "acme/app",
+      "number": 3
+    }
+  },
+  "inputs": [
+    {
+      "kind": "deployment.succeeded",
+      "repository": "acme/app",
+      "environment": "staging",
+      "production": false,
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "deployment.succeeded",
+      "repository": "acme/app",
+      "environment": "production",
+      "production": true,
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "trace": [
+    {
+      "node": "deployed",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "which",
+      "outcome": "true",
+      "context_patch": {}
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

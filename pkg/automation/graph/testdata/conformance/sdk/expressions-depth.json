@@ -1,0 +1,45 @@
+{
+  "name": "expressions-depth",
+  "format": 2,
+  "kind": "expressions",
+  "description": "With a depth of 2: parentheses add nothing, a chain of one operator is one level, a nested list is a level each.",
+  "limits": {
+    "max_depth": 2
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "((((1 + 2)))) == 3",
+      "type": null,
+      "context": {},
+      "error": "type",
+      "issue": "limit"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "((((1 + 2))))",
+      "type": null,
+      "context": {},
+      "value": 3
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "1 + 2 + 3 + 4",
+      "type": null,
+      "context": {},
+      "value": 10
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[[1]]",
+      "type": null,
+      "context": {},
+      "error": "type",
+      "issue": "limit"
+    }
+  ]
+}

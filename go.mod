@@ -3,6 +3,7 @@ module github.com/iota-uz/iota-sdk
 go 1.24.10
 
 require (
+	cel.dev/cel-go v0.33.4
 	filippo.io/csrf v0.2.1
 	github.com/99designs/gqlgen v0.17.57
 	github.com/BurntSushi/toml v1.5.0
@@ -103,6 +104,7 @@ require (
 )
 
 require (
+	cel.dev/expr v0.25.1 // indirect
 	cloud.google.com/go/auth v0.11.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -110,6 +112,7 @@ require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antchfx/xpath v1.3.3 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.4 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.17 // indirect
@@ -227,7 +230,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
 	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect

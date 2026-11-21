@@ -1,0 +1,78 @@
+{
+  "name": "validate-rules",
+  "kind": "validate",
+  "description": "Unconnected outcome, a loop without a wait, an unknown event field.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Loops",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled",
+        "filter": "event.nope == 1"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "a",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      },
+      {
+        "id": "b",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "a"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "true"
+        },
+        "to": "b"
+      },
+      {
+        "from": {
+          "node": "b",
+          "outcome": "true"
+        },
+        "to": "a"
+      },
+      {
+        "from": {
+          "node": "b",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0]"
+    },
+    {
+      "path": "nodes[0]"
+    },
+    {
+      "path": "triggers[0].filter"
+    }
+  ]
+}

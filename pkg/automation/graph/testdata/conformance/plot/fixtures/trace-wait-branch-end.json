@@ -1,0 +1,163 @@
+{
+  "name": "trace-wait-branch-end",
+  "kind": "trace",
+  "plot": true,
+  "description": "Wait wakes on its event and filter, Branch reads the woken event, End ends the run.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Wait for a PR",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "hold",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "filter": "event.repository == issue.repository",
+          "timeout": "2h"
+        }
+      },
+      {
+        "id": "tagged",
+        "type": "branch",
+        "params": {
+          "expression": "size(card.tags) >= 2 && nodes.hold.output.event.number > 10"
+        }
+      },
+      {
+        "id": "to_qa",
+        "type": "end",
+        "params": {
+          "column": "qa"
+        }
+      },
+      {
+        "id": "back",
+        "type": "end",
+        "params": {
+          "column": "in_progress"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "matched"
+        },
+        "to": "tagged"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "timeout"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "tagged",
+          "outcome": "true"
+        },
+        "to": "to_qa"
+      },
+      {
+        "from": {
+          "node": "tagged",
+          "outcome": "false"
+        },
+        "to": "back"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": ["needs-repro"],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": ["mobile", "p1"]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 12,
+      "repository": "other/repo"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 12,
+      "repository": "acme/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 12,
+            "repository": "acme/app"
+          }
+        }
+      }
+    },
+    {
+      "node": "tagged",
+      "outcome": "true",
+      "context_patch": {}
+    },
+    {
+      "node": "to_qa",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "qa"
+      }
+    }
+  ]
+}

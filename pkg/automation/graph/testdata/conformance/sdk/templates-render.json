@@ -1,0 +1,194 @@
+{
+  "name": "templates-render",
+  "format": 2,
+  "kind": "templates",
+  "description": "{{ }} renders null as empty, a list joined with \", \", a declared object as JSON in declaration order, a map by sorted keys, a double as JavaScript writes it, a timestamp RFC 3339 in UTC with milliseconds.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "#{{ issue.number }}: {{ issue.title }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "#7: Crash on save"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ issue }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "{\"repository\":\"acme/app\",\"number\":7,\"title\":\"Crash on save\",\"body\":\"Steps\",\"labels\":[\"a\",\"b\"],\"state\":\"open\"}"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ {\"title\": issue.title, \"a\": 1} }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "{\"a\":1,\"title\":\"Crash on save\"}"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ issue.labels }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "a, b"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[{{ null }}]",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "[]"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ 0.5 + 0.25 }} {{ 2.0 }} {{ 1e21 }} {{ 0.0000001 }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "0.75 2 1e+21 1e-7"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ timestamp(\"2026-01-02T03:04:05Z\") }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "2026-01-02T03:04:05.000Z"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ \"<b>&\" }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "<b>&"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{ not a template } {{ issue.number }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open",
+          "body": "Steps"
+        }
+      },
+      "value": "{ not a template } 7"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ issue.nope }}",
+      "context": {},
+      "error": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ issue.number }}",
+      "context": {},
+      "error": "missing_context",
+      "path": "issue.number"
+    }
+  ]
+}

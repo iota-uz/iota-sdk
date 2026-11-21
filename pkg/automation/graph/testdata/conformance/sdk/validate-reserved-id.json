@@ -1,0 +1,67 @@
+{
+  "name": "validate-reserved-id",
+  "format": 2,
+  "kind": "validate",
+  "description": "An id that is a CEL keyword cannot be read as nodes.<id>: it is refused at its id, and the other expressions are still checked against the rest of the graph.",
+  "graph": {
+    "name": "Keyword",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "loop",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "check",
+        "type": "branch",
+        "params": {
+          "expression": "size(card.tags) > 1"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "loop"
+      },
+      {
+        "from": {
+          "node": "loop",
+          "outcome": "matched"
+        },
+        "to": "check"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].id",
+      "code": "invalid"
+    }
+  ]
+}

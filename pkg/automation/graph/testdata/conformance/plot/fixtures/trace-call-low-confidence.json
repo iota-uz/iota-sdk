@@ -1,0 +1,144 @@
+{
+  "name": "trace-call-low-confidence",
+  "kind": "trace",
+  "plot": false,
+  "description": "A call answered below its confidence floor takes the floor's outcome (unsure); the chosen value stays in the output.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Ask before shipping",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "decide",
+        "type": "ask",
+        "params": {
+          "question": "Ship #{{ issue.number }}?",
+          "choices": ["ship", "hold"],
+          "min_confidence": 0.6
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "wait_more",
+        "type": "end",
+        "params": {
+          "column": "backlog"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "decide"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "ship"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "hold"
+        },
+        "to": "wait_more"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "failed"
+        },
+        "to": "wait_more"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "unsure"
+        },
+        "to": "wait_more"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [],
+      "state": "open"
+    },
+    "nodes": {
+      "decide": {
+        "output": {
+          "answer": "ship",
+          "confidence": 0.4
+        }
+      }
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "decide",
+      "outcome": "unsure",
+      "context_patch": {
+        "output": {
+          "answer": "ship",
+          "confidence": 0.4
+        },
+        "effects": [
+          {
+            "node": "ask",
+            "params": {
+              "question": "Ship #7?",
+              "choices": ["ship", "hold"],
+              "min_confidence": 0.6
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "wait_more",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "backlog"
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "catalog-shadowed-variable",
+  "format": 2,
+  "kind": "catalog",
+  "description": "A subject's context may not declare event, nodes, tenant or now.",
+  "catalog_patch": {
+    "subjects": {
+      "run": {
+        "context": {
+          "now": {
+            "object": {
+              "at": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "error": "variable of every scope"
+}

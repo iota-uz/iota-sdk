@@ -1,0 +1,57 @@
+{
+  "name": "validate-cel-type-error",
+  "kind": "validate",
+  "description": "A number compared with a string is a type error at the expression's path.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Bad",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "three",
+        "type": "branch",
+        "params": {
+          "expression": "size(card.tags) == \"3\""
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "three"
+      },
+      {
+        "from": {
+          "node": "three",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "three",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.expression"
+    }
+  ]
+}

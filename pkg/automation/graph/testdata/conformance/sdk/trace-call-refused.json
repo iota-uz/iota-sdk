@@ -1,0 +1,104 @@
+{
+  "name": "trace-call-refused",
+  "format": 2,
+  "kind": "trace",
+  "description": "A call request the product refuses (DryRunOptions.CallError) takes the failed outcome without reading the given answer.",
+  "options": {
+    "call_error": "no connection"
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "decide",
+        "type": "ask",
+        "params": {
+          "question": "Ship?",
+          "choices": [
+            "ship",
+            "hold"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "decide"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "ship"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "hold"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "unsure"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "nodes": {
+      "decide": {
+        "output": {
+          "answer": "ship"
+        }
+      }
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "decide",
+      "outcome": "failed",
+      "context_patch": {
+        "output": {
+          "error": "no connection"
+        }
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

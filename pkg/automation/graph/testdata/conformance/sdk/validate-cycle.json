@@ -1,0 +1,96 @@
+{
+  "name": "validate-cycle",
+  "format": 2,
+  "kind": "validate",
+  "description": "A cycle through a wait is allowed; one without is cycle_without_wait at its first node.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "a",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      },
+      {
+        "id": "w",
+        "type": "wait",
+        "params": {
+          "event": "manual",
+          "timeout": "1h"
+        }
+      },
+      {
+        "id": "b",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "a"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "true"
+        },
+        "to": "w"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "false"
+        },
+        "to": "b"
+      },
+      {
+        "from": {
+          "node": "w",
+          "outcome": "matched"
+        },
+        "to": "a"
+      },
+      {
+        "from": {
+          "node": "w",
+          "outcome": "timeout"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "b",
+          "outcome": "true"
+        },
+        "to": "b"
+      },
+      {
+        "from": {
+          "node": "b",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[2]",
+      "code": "cycle_without_wait"
+    }
+  ]
+}

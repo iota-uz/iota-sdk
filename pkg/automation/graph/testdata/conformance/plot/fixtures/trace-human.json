@@ -1,0 +1,138 @@
+{
+  "name": "trace-human",
+  "kind": "trace",
+  "plot": true,
+  "description": "Human emits its effect and waits without moving the card; a person's answer (the manual event) is continue.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Ask a person",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "ask",
+        "type": "human",
+        "params": {
+          "reason": "question",
+          "text": "Is {{ issue.title }} still wanted?"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "in_progress"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "ask"
+      },
+      {
+        "from": {
+          "node": "ask",
+          "outcome": "continue"
+        },
+        "to": "go"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": ["needs-repro"],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": ["mobile", "p1"]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "manual",
+      "actor": {
+        "kind": "automation"
+      }
+    },
+    {
+      "kind": "manual",
+      "actor": {
+        "kind": "person",
+        "principal_id": "p1"
+      },
+      "note": "yes"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "ask",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "manual"
+        },
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "question",
+              "text": "Is Crash on save still wanted?"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "ask",
+      "outcome": "continue",
+      "context_patch": {
+        "output": {
+          "event": {
+            "actor": {
+              "kind": "person",
+              "principal_id": "p1"
+            },
+            "note": "yes"
+          }
+        }
+      }
+    },
+    {
+      "node": "go",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "in_progress"
+      }
+    }
+  ]
+}

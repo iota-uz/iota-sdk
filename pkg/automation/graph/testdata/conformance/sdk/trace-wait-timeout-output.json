@@ -1,0 +1,133 @@
+{
+  "name": "trace-wait-timeout-output",
+  "format": 2,
+  "kind": "trace",
+  "description": "A wait that matched, looped back and then timed out has no event in its output: a later read of it is missing context, not the old event.",
+  "graph": {
+    "name": "Loop",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "hold",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "timeout": "1h"
+        }
+      },
+      {
+        "id": "late",
+        "type": "branch",
+        "params": {
+          "expression": "nodes.hold.output.event.number > 1"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "matched"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "timeout"
+        },
+        "to": "late"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 5,
+      "repository": "a"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 5,
+            "repository": "a"
+          }
+        }
+      }
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "hold",
+      "outcome": "timeout",
+      "context_patch": {}
+    },
+    {
+      "node": "late",
+      "outcome": "missing_context",
+      "context_patch": {
+        "path": "nodes.hold.output.event.number"
+      }
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "name": "trace-missing-first-in-source",
+  "format": 2,
+  "kind": "trace",
+  "description": "Two fields are missing: the trace names the first in the source, without the method name.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "check",
+        "type": "branch",
+        "params": {
+          "expression": "card.tags.size() > 0 && issue.number > 1"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "check"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "check",
+      "outcome": "missing_context",
+      "context_patch": {
+        "path": "card.tags"
+      }
+    }
+  ]
+}
