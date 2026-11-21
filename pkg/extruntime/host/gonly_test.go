@@ -104,6 +104,7 @@ func TestHostRunsAnOperationInTheCallersTransaction(t *testing.T) {
 	req.Tx = tx
 	_, err = e.host.Invoke(ctx, req)
 	require.Equal(t, host.CodeTxNotAllowed, asWire(t, err).Code)
+	require.Empty(t, e.invocations("acme.n.save"), "the refused command was not recorded")
 
 	// A replayable invocation id cannot join a caller-owned transaction.
 	req = e.req("acme.n.add", `{"label":"no"}`)

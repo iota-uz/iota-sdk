@@ -543,6 +543,11 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		if kind, err = kindOf(contract); err != nil {
 			return Result{}, err
 		}
+		if spec.callerTx && kind != pool.KindAtomic && kind != pool.KindOperation {
+			// Before guards and the invocation record: nothing runs for a
+			// contract that cannot join the caller's transaction.
+			return Result{}, fail(CodeTxNotAllowed, "%s does not run in a single transaction; it cannot join the caller's", spec.contract)
+		}
 		if err := native.CheckPermissions(spec.subject.Has, res.Resource, h.nativeDefinition(res)); err != nil {
 			return Result{}, err
 		}
@@ -565,9 +570,6 @@ func (h *Host) execute(ctx context.Context, root *rootState, spec execSpec) (Res
 		}
 	}
 
-	if spec.callerTx && kind != pool.KindAtomic && kind != pool.KindOperation {
-		return Result{}, fail(CodeTxNotAllowed, "%s does not run in a single transaction; it cannot join the caller's", spec.contract)
-	}
 	if impl == nil && h.cfg.Pool == nil {
 		return Result{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: CodePackageUnavailable, Message: fmt.Sprintf(
 			"%s is implemented by a package and this process has no extension runtime (EXTRUNTIME_ENABLED is off)", firstNonEmpty(spec.contract, binding.Contract))}
