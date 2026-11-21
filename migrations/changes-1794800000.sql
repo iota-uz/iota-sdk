@@ -3,8 +3,9 @@
 ALTER TABLE extruntime.schedule_runs
     DROP CONSTRAINT IF EXISTS schedule_runs_status_check;
 
+-- Broader than the constraint it replaces, so existing rows satisfy it; it is validated by the next migration, outside this lock.
 ALTER TABLE extruntime.schedule_runs
-    ADD CONSTRAINT schedule_runs_status_check CHECK (status IN ('done', 'failed', 'dead', 'blocked', 'skipped'));
+    ADD CONSTRAINT schedule_runs_status_check CHECK (status IN ('done', 'failed', 'dead', 'blocked', 'skipped')) NOT VALID;
 
 -- Every slot of the schedule at or before accounted_through has a schedule_runs receipt (run or skipped).
 CREATE TABLE extruntime.schedule_accounting (

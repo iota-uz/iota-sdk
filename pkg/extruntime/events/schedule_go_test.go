@@ -246,12 +246,19 @@ func TestMissedAfterDefaultsToLookback(t *testing.T) {
 
 func TestFailingGoHandlerRollsBackRetriesThenDeadLetters(t *testing.T) {
 	env := hosttest.New(t)
-	h := &goSlots{fail: func(events.Slot) error { return errors.New("boom") }}
+	h := &goSlots{}
 	tenant := env.Tenant
-	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	// The handler writes, then fails: the write must roll back with the receipt.
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
+		Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, slot events.Slot) error {
+			if _, err := tx.Exec(ctx, `INSERT INTO host_items (tenant_id, label) VALUES ($1, 'partial')`, slot.TenantID); err != nil {
+				return err
+			}
+			return errors.New("boom")
+		})}
 	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
 	s := goScheduler(t, env, events.StaticSchedules(def), &now)
-	require.Eventually(t, func() bool {
+	waitFor(t, func() bool {
 		_, err := s.RunOnce(context.Background())
 		require.NoError(t, err)
 		var status string
@@ -260,6 +267,9 @@ func TestFailingGoHandlerRollsBackRetriesThenDeadLetters(t *testing.T) {
 		return err == nil && status == events.StatusDead && attempts == 3
 	}, 10*time.Second, 30*time.Millisecond)
 	require.Empty(t, h.slots())
+	var rows int
+	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT count(*) FROM host_items`).Scan(&rows))
+	require.Zero(t, rows, "the handler's write rolled back with the failed attempts")
 }
 
 func TestGoHandlerWithoutSubjectBlocksTheSlotUntilItResolves(t *testing.T) {
@@ -284,7 +294,7 @@ func TestGoHandlerWithoutSubjectBlocksTheSlotUntilItResolves(t *testing.T) {
 	mu.Lock()
 	ready = true
 	mu.Unlock()
-	require.Eventually(t, func() bool {
+	waitFor(t, func() bool {
 		_, err := s.RunOnce(context.Background())
 		require.NoError(t, err)
 		return len(h.slots()) == 1
@@ -449,7 +459,7 @@ func TestFailedSlotKeepsRetryingAfterItsMissedWindow(t *testing.T) {
 	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, slot))
 
 	now = slot.Add(5 * time.Minute) // the retry is due only after the window closed
-	require.Eventually(t, func() bool {
+	waitFor(t, func() bool {
 		_, err := s.RunOnce(context.Background())
 		require.NoError(t, err)
 		return statusOf(t, env, def.ID, slot) == events.StatusDone
@@ -469,7 +479,7 @@ func TestBlockedSlotExpiresIntoSkippedAfterItsMissedWindow(t *testing.T) {
 	require.Equal(t, events.StatusBlocked, statusOf(t, env, def.ID, slot))
 
 	now = slot.Add(3 * time.Minute)
-	require.Eventually(t, func() bool {
+	waitFor(t, func() bool {
 		_, err := s.RunOnce(context.Background())
 		require.NoError(t, err)
 		return statusOf(t, env, def.ID, slot) == events.StatusSkipped
@@ -590,7 +600,14 @@ func TestFailedSlotStaysClaimedUntilItsBackoffIsDurable(t *testing.T) {
 				_, err := other.RunOnce(context.Background())
 				assert.NoError(t, err)
 			}()
-			time.Sleep(300 * time.Millisecond)
+			// Wait until the other pass is blocked on this slot's claim.
+			deadline := time.Now().Add(10 * time.Second)
+			for !claimBlocked(env) {
+				if time.Now().After(deadline) {
+					return errors.New("the competing pass never reached the claim")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
 			return errors.New("boom")
 		}
 		return nil
@@ -633,4 +650,136 @@ func TestChangingTheCronResetsTheBacklogCursor(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.Equal(t, 11, countStatus(t, env, def.ID, events.StatusDone), "the odd minutes the new recurrence adds run too")
+}
+
+// waitFor polls cond on the test goroutine, so the assertions inside it may
+// fail the test at once (testify's Eventually runs it on another goroutine).
+func waitFor(t *testing.T, cond func() bool, wait, tick time.Duration, msgAndArgs ...any) {
+	t.Helper()
+	deadline := time.Now().Add(wait)
+	for !cond() {
+		if time.Now().After(deadline) {
+			require.FailNow(t, "condition never satisfied", msgAndArgs...)
+		}
+		time.Sleep(tick)
+	}
+}
+
+// claimBlocked reports whether a backend waits on a lock while claiming a
+// schedule slot.
+func claimBlocked(env *hosttest.Env) bool {
+	var n int
+	err := env.DB.QueryRow(context.Background(), `
+		SELECT count(*) FROM pg_stat_activity
+		WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%INSERT INTO extruntime.schedule_runs AS r%'`).Scan(&n)
+	return err == nil && n > 0
+}
+
+func TestSlotCommitRejectedByTheDatabaseCountsAsAFailedAttempt(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	_, err := env.DB.Exec(ctx, `
+		CREATE TABLE slot_parents (id int PRIMARY KEY);
+		CREATE TABLE slot_children (id int, parent int REFERENCES slot_parents (id) DEFERRABLE INITIALLY DEFERRED)`)
+	require.NoError(t, err)
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
+		Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, _ events.Slot) error {
+			_, err := tx.Exec(ctx, `INSERT INTO slot_children VALUES (1, 404)`) // checked at commit
+			return err
+		})}
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	now := slot.Add(20 * time.Second)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now, func(c *events.SchedulerConfig) { c.BackoffBase = time.Minute })
+	n, err := s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	var status string
+	var attempts int
+	require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&status, &attempts))
+	require.Equal(t, events.StatusFailed, status)
+	require.Equal(t, 1, attempts)
+	n, err = s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n, "the slot is not retried before its backoff")
+}
+
+func TestSlotHandlerCannotFinalizeTheTransaction(t *testing.T) {
+	env := hosttest.New(t)
+	tenant := env.Tenant
+	var commitErr, rollbackErr error
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
+		Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, slot events.Slot) error {
+			if _, err := tx.Exec(ctx, `INSERT INTO host_items (tenant_id, label) VALUES ($1, 'x')`, slot.TenantID); err != nil {
+				return err
+			}
+			commitErr, rollbackErr = tx.Commit(ctx), tx.Rollback(ctx)
+			return errors.New("boom")
+		})}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.ErrorIs(t, commitErr, events.ErrSlotTxOwned)
+	require.ErrorIs(t, rollbackErr, events.ErrSlotTxOwned)
+	var rows int
+	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT count(*) FROM host_items`).Scan(&rows))
+	require.Zero(t, rows, "the write was not made durable by the handler")
+}
+
+func TestDueRetriesAreBoundedPerPassAndLeaveRoomForTheCurrentSlot(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	h := &goSlots{}
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	for _, m := range []int{20, 21, 22} {
+		_, err := env.DB.Exec(ctx, `INSERT INTO extruntime.schedule_runs (tenant_id, schedule, slot, status, attempts, next_at) VALUES ($1, $2, $3, 'failed', 1, now() - interval '1 minute')`,
+			env.Tenant, def.ID, time.Date(2026, 6, 1, 10, m, 0, 0, time.UTC))
+		require.NoError(t, err)
+	}
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	events.SetRetryLimit(s, 2)
+	n, err := s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 3, n, "two retries and the current slot")
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, now.Truncate(time.Minute)))
+	n, err = s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "the remaining retry runs on the next pass")
+	require.Equal(t, 3, countStatus(t, env, def.ID, events.StatusDone)-1)
+}
+
+func TestSubMicrosecondActivationExcludesTheSlotBeforeIt(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	h := &goSlots{}
+	tenant := env.Tenant
+	activeFrom := time.Date(2026, 6, 1, 10, 30, 0, 500, time.UTC) // 10:30:00.0000005
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h, ActiveFrom: activeFrom, MissedAfter: time.Hour}
+	// A failed receipt of the 10:30 slot from an earlier activation.
+	_, err := env.DB.Exec(ctx, `INSERT INTO extruntime.schedule_runs (tenant_id, schedule, slot, status, attempts, next_at) VALUES ($1, $2, $3, 'failed', 1, now() - interval '1 minute')`,
+		env.Tenant, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC))
+	require.NoError(t, err)
+	now := time.Date(2026, 6, 1, 10, 31, 0, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	n, err := s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "only 10:31; the 10:30 slot predates the activation by half a microsecond")
+	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)))
+}
+
+func TestBacklogPassStopsAfterAChunkEvenWhenNoSlotCommits(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{fail: func(events.Slot) error { return fmt.Errorf("%w: nobody", events.ErrNoSubject) }}
+	tenant := env.Tenant
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h, MissedAfter: time.Hour,
+		ActiveFrom: time.Date(2026, 6, 1, 10, 25, 0, 0, time.UTC)} // six eligible slots
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	events.SetLiveLimit(s, 2)
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 4, countStatus(t, env, def.ID, events.StatusBlocked), "the two newest slots and one backlog chunk of two")
 }

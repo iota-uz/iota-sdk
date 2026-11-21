@@ -236,7 +236,10 @@ events.ScheduleDef{
 * `RunSlot` runs in the same transaction as the `schedule_runs` receipt of `(schedule, tenant, slot)`: a slot is never run
   twice, also by two nodes or a repeated `RunOnce`. An error rolls both back and the slot is retried with backoff up to
   `MaxAttempts`, then dead-lettered; an error wrapping `events.ErrNoSubject` blocks the slot (re-evaluated every
-  `BlockedRecheck`, no attempt counted). A panic fails the slot, not the process.
+  `BlockedRecheck`, no attempt counted). A panic fails the slot, not the process. The scheduler owns the end of `tx`:
+  the handler's `Commit` and `Rollback` fail with `events.ErrSlotTxOwned`. A slot that PostgreSQL refuses at commit (a
+  deferred constraint) counts as a failed attempt. Scheduler slots and outbox deliveries share half of the pool's
+  connections (two are needed at once), so a pool of the minimum size cannot deadlock between them.
 * A schedule with `TenantID` runs only for that tenant and never calls the `TenantLister`. With a `Handler` the scheduler
   looks up no `trigger_owners` and resolves no subject: the handler chooses whom it acts as, e.g. with
   `events.ResolveSubject` (§2.1). Use an `ID` that does not change when the definition is edited, so a new version does

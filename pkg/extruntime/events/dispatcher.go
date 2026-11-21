@@ -297,6 +297,12 @@ func (d *Dispatcher) fetch(ctx context.Context, consumer string, keys []string, 
 // deliver hands one event to the consumer in a transaction with its receipt.
 // It returns true when Deliver succeeded and the transaction committed.
 func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (bool, error) {
+	// The scheduler's slots draw on the same share of the pool (see connSlots).
+	release, err := acquireConnSlot(ctx, d.cfg.DB)
+	if err != nil {
+		return false, err
+	}
+	defer release()
 	tx, err := d.cfg.DB.Begin(ctx)
 	if err != nil {
 		return false, serrors.FromDB(opDeliver, err)

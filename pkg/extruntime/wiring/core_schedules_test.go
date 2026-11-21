@@ -22,19 +22,41 @@ import (
 // scheduleSource is a dynamic source of Go schedules: the schedules of a
 // tenant's graphs change while the process runs.
 type scheduleSource struct {
-	mu   sync.Mutex
-	defs []events.ScheduleDef
+	mu      sync.Mutex
+	defs    []events.ScheduleDef
+	version int // of defs
+	served  int // the version the last ActiveSchedules call returned
 }
 
 func (s *scheduleSource) set(defs ...events.ScheduleDef) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.defs = defs
+	s.version++
+}
+
+// observed blocks until a scheduler pass has read the current definitions.
+// Passes run one after another, so every pass that read older definitions has
+// finished by then: nothing can act on them after the test moves its clock.
+func (s *scheduleSource) observed(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		s.mu.Lock()
+		ok := s.served == s.version
+		s.mu.Unlock()
+		if ok {
+			return
+		}
+		require.True(t, time.Now().Before(deadline), "the scheduler never read the updated schedules")
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (s *scheduleSource) ActiveSchedules(context.Context) ([]events.ScheduleDef, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.served = s.version
 	return append([]events.ScheduleDef(nil), s.defs...), nil
 }
 
@@ -112,6 +134,7 @@ func TestCoreRunsContributedGoSchedulesWithoutTheRuntime(t *testing.T) {
 	)
 	require.Eventually(t, func() bool { return len(added.slots()) == 1 && len(rec.slots()) == 2 }, 10*time.Second, 20*time.Millisecond)
 	src.set(events.ScheduleDef{ID: "automation:a2:t1", Cron: "* * * * *", TenantID: &tenant, Handler: added})
+	src.observed(t)
 	clock.Add(int64(time.Minute))
 	require.Eventually(t, func() bool { return len(added.slots()) == 2 }, 10*time.Second, 20*time.Millisecond)
 	require.Len(t, rec.slots(), 2, "the removed schedule stopped")

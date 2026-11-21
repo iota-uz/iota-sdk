@@ -386,20 +386,26 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 			}
 			rt.ownsDispatcher = true
 		}
-		if deps.Scheduler != nil {
-			rt.Scheduler = deps.Scheduler
-		} else {
-			scfg := cfg.Schedules
-			scfg.DB, scfg.Runner, scfg.Subjects = deps.DB, rt.Host, subjects
-			scfg.Schedules = events.ComposeSchedules(rt.Manage.ScheduleSource(), deps.Schedules)
-			if scfg.Logger == nil {
-				scfg.Logger = cfg.Logger
-			}
-			if rt.Scheduler, err = events.NewScheduler(scfg); err != nil {
-				return fail(err)
-			}
-			rt.ownsScheduler = true
+	}
+	// The scheduler does not need a subject loader: without one (no user
+	// repository) package schedules have no Runner and are recorded as
+	// blocked, while Go schedules run.
+	if deps.Scheduler != nil {
+		rt.Scheduler = deps.Scheduler
+	} else {
+		scfg := cfg.Schedules
+		scfg.DB = deps.DB
+		if subjects != nil {
+			scfg.Runner, scfg.Subjects = rt.Host, subjects
 		}
+		scfg.Schedules = events.ComposeSchedules(rt.Manage.ScheduleSource(), deps.Schedules)
+		if scfg.Logger == nil {
+			scfg.Logger = cfg.Logger
+		}
+		if rt.Scheduler, err = events.NewScheduler(scfg); err != nil {
+			return fail(err)
+		}
+		rt.ownsScheduler = true
 	}
 	if rt.Notifier != nil && deps.Notices != nil && deps.Renderers != nil {
 		var owners notify.SubjectResolver
