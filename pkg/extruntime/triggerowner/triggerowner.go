@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -35,4 +36,24 @@ func Lookup(ctx context.Context, q Querier, triggerID string, tenant uuid.UUID) 
 		return 0, false, serrors.FromDB(opLookup, err)
 	}
 	return userID, true, nil
+}
+
+// Execer is a pool or a transaction that executes statements.
+type Execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// Assign makes userID the owner-user of the trigger in the tenant, replacing
+// a previous owner. It is the Go side's assignment for triggers that are not
+// package exports (Go outbox consumers, graph triggers); the management API
+// assigns the owners of package triggers with its own authorization.
+func Assign(ctx context.Context, q Execer, triggerID string, tenant uuid.UUID, userID int64) error {
+	const op = serrors.Op("extruntime.triggerowner.Assign")
+	if triggerID == "" || tenant == uuid.Nil || userID <= 0 {
+		return serrors.New(serrors.Invalid, "trigger, tenant and user are required").WithOp(op)
+	}
+	_, err := q.Exec(ctx, `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (trigger_id, tenant_id) DO UPDATE SET user_id = EXCLUDED.user_id, assigned_at = CURRENT_TIMESTAMP`, triggerID, tenant, userID)
+	return serrors.FromDB(op, err)
 }

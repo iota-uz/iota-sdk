@@ -57,8 +57,9 @@ the application root, point `EXTRUNTIME_DISTDIR` (or `IOTA_SDK_DIST`) at the `@i
 ### 1.2 Configuration
 
 The section is `pkg/config/stdconfig/extruntimeconfig` (prefix `extruntime`, one underscore per dot). It is
-**disabled by default**; while `EXTRUNTIME_ENABLED` is not `true` nothing else in the section is validated or used, and the
-application composes exactly as before.
+**disabled by default**; while `EXTRUNTIME_ENABLED` is not `true` the Node runtime is left out and only the settings of the
+always-on event core (`EXTRUNTIME_EVENTS_RETENTION`, `EXTRUNTIME_DISABLEBACKGROUND`) are read: the native event catalog,
+the outbox and its dispatcher run without Node (§2.1).
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -69,7 +70,8 @@ application composes exactly as before.
 | `EXTRUNTIME_DISTDIR` | `$IOTA_SDK_DIST`, else `<APPROOT>/node_modules/@iota-uz/sdk` | The `@iota-uz/sdk` package directory. |
 | `EXTRUNTIME_CACHEDIR` | `<user cache dir>/iota-extruntime` | Where artifacts are materialized for the workers and the asset route. A cache rebuilt from the database: it need not persist or be shared between instances. It is created `0700` and must belong to the user running the service (another user's directory is refused, a looser mode is tightened); a directory found under an artifact's name is compared with the stored archive before it is used and replaced when it differs. Without a user cache directory (no `$HOME`) the default is `<tmp>/iota-extruntime-<uid>`. |
 | `EXTRUNTIME_WORKFLOWCONCURRENCY` | engine default | Workflow instances run at once. |
-| `EXTRUNTIME_DISABLEBACKGROUND` | `false` | Keeps the workflow engine, event dispatcher and scheduler of this process off. The API, endpoints and RPC are unaffected. |
+| `EXTRUNTIME_DISABLEBACKGROUND` | `false` | Keeps the workflow engine, event dispatcher and scheduler of this process off. The API, endpoints and RPC are unaffected. Applies to the outbox dispatcher of the event core also while the runtime is disabled. |
+| `EXTRUNTIME_EVENTS_RETENTION` | `168h` | Age (from when the event occurred) after which an outbox event is pruned, unless a consumer still has a pending, failed or blocked delivery of it. An event a consumer has not reached by then is pruned too. Applies also while the runtime is disabled. |
 | `EXTRUNTIME_UI_HOSTMANIFEST` | – | Path of the client-host manifest JSON of the application's frontend build. Setting it mounts the UI slice: package pages, navigation, shell bindings, `/_ext/rpc` and `/_ext/assets`. Without it the browser RPC does not exist. |
 | `EXTRUNTIME_UI_SOURCETTL` | `2s` | Cache of the activated-UI snapshot. |
 | `EXTRUNTIME_CONFIGURATOR_ENABLED` | `false` | Mounts the configurator page. Requires the host manifest. |
@@ -95,9 +97,11 @@ author, review, publish and operate; nothing in the runtime bypasses RBAC.
 wiring.NewComponent(wiring.Options{Natives: modules.Natives()})
 ```
 
-Its `Build` reads the section from the config source. Disabled: it logs one line and contributes nothing. Enabled: it
-composes `runtime.NewComponent` with the native set of `modules.Natives()`, verifies the `@iota-uz/sdk` installation,
-loads the host manifest, and the runtime starts and stops with the container's lifecycle hooks:
+Its `Build` reads the section from the config source and always composes the event core (§2.1): the native set of
+`modules.Natives()`, the outbox dispatcher with pruning and the subject loader. Disabled: that is all, and it logs one
+line. Enabled: it also composes `runtime.NewComponent`, verifies the `@iota-uz/sdk` installation, loads the host
+manifest, and the runtime starts and stops with the container's lifecycle hooks; its package subscriptions are consumers
+of the core's dispatcher, so a process runs one dispatcher:
 
 * `cmd/server` (API + worker capabilities): management API, package endpoints, UI slice/configurator when configured, and
   the background parts (catalog listener, workflow engine, event dispatcher, scheduler, notification adapter).
@@ -134,8 +138,9 @@ components := append(modules.Components(), app.Component(), wiring.NewComponent(
     Natives:     natives,
     Secrets:     appSecrets,           // host.SecretResolver for secrets.get
     MCPRegistry: mcpRegistry,          // nil when the application has no MCP gateway (§7)
+    Events:      events.Config{PollInterval: time.Second}, // the core's outbox dispatcher
     Tune: func(cfg *runtime.Config) error {
-        cfg.Events.PollInterval = time.Second       // Go-only settings: events, schedules, cfg.Configurator.Types, ...
+        cfg.Schedules.PollInterval = time.Second    // Go-only settings: schedules, cfg.Configurator.Types, ...
         return nil
     },
 }))
@@ -145,10 +150,61 @@ components := append(modules.Components(), app.Component(), wiring.NewComponent(
 `wiring.RuntimeConfig(section, opts)` returns the `runtime.Config` and the verified `runtime.Dist` for applications that
 construct `runtime.NewComponent(cfg)` themselves, as `pkg/extruntime/e2e` does.
 
+A `runtime.NewComponent` composed without `wiring.NewComponent` serves a dispatcher of its own over the package
+subscriptions and the contributed Go consumers (`runtime.Config.Events` tunes it). Composed next to the core it reuses
+the core's; register the core after the runtime component so the dispatcher starts after the runtime and stops before
+it (`wiring.NewComponent` does this itself). With `wiring.NewComponent`, `Options.Events` tunes the dispatcher and the
+`cfg.Events` and `cfg.DisableBackground` a `Tune` sets apply to it.
+
 The runtime builds on the `core` module (notification services, users, permissions) and resolves from the container what it
 needs: `*pgxpool.Pool`, `*services.NotificationDispatchService`, `*notifications.Catalog`, `ContentRenderers`,
 `ContactResolvers`, `DeliveryPolicies`, `user.Repository`. It provides `*runtime.Runtime`, `*manage.Service`,
 `*catalog.Catalog`, `spi.Catalog` and `native.Dispatcher`.
+
+### 2.1 The event core and Go consumers
+
+The core needs no Node and runs whether or not the runtime is enabled. It provides `*native.Set` (composed from
+`Options.Natives`), `host.SubjectLoader` (current rights of users, for Go consumers; `ProvideDefault`, so an
+application can replace it; the runtime's packages, workflows and schedules keep their own loader) and
+`*events.Dispatcher`, the one dispatcher of the process. It starts with the API or worker capability unless
+`EXTRUNTIME_DISABLEBACKGROUND` is set, and prunes the outbox after `EXTRUNTIME_EVENTS_RETENTION`.
+
+Modules and applications register Go consumers of the outbox:
+
+```go
+wiring.ContributeConsumers(builder, func(c *composition.Container) ([]events.Consumer, error) {
+    return []events.Consumer{welcome}, nil
+})
+```
+
+An `events.Consumer` names its receipt key (`ID`, stable across releases and unique in the process; it shares
+`subscription_receipts` with package subscriptions, so take it from your module's namespace, e.g.
+`crm.consumers.clientWelcome`), the event keys it
+needs now (`Events`, read on every pass) and its watermark (`AfterSeq`; `events.Watermark` gives the current position).
+`Deliver(ctx, tx, ev)` runs in one transaction with the consumer's receipt, so an event is handled exactly once per
+consumer; `tx` carries the event's tenant in `app.tenant_id`, `ctx` carries `tx` and the tenant for repositories
+(`composables.UseTx`, `UseTenantID`), and the consumer works only in `ev.TenantID`. A returned
+error rolls back and is retried with backoff and dead-lettered after `MaxAttempts`, separately for each consumer and
+event; a `host.IsInfrastructure` error is retried without counting an attempt; an error wrapping `events.ErrNoSubject`
+blocks the delivery until it can act. `events.AfterCommit(ctx, fn)` defers work until the delivery commits. Consumers deliver concurrently, at most
+`events.Config.Concurrency` (default 8) at once and never more than the pool leaves room for: a second connection per running
+delivery stays free. LISTEN (the dispatcher's, and with the runtime the catalog's and the workflow engine's) runs on
+dedicated connections outside the pool, opened with the pool's settings and its `BeforeConnect`/`AfterConnect`
+hooks, so the core works with a one-connection pool; count them against the server's `max_connections`. The Node
+runtime needs a pool of at least two connections (a package handler records its invocation on a second one) and
+refuses to start with less. A consumer source that fails (package
+subscriptions unavailable, a module's source erroring) is reported without holding back the consumers of the others.
+
+A consumer chooses whom it acts as with `events.ResolveSubject(ctx, tx, subjects, ev, triggerID, mode)`:
+`events.RunAsInitiator` takes the initiator with current rights, else the owner of `triggerID` in the tenant
+(`extruntime.trigger_owners`); `events.RunAsOwner` always takes the owner. Without either, or for a blocked or deleted
+user, it returns `events.ErrNoSubject`; failing to read the owner or the user is an infrastructure error (retried, no
+attempt counted). The management API assigns owners of package triggers only: a module assigns the owners of its Go
+triggers with `triggerowner.Assign(ctx, q, triggerID, tenant, userID)`, and a blocked delivery resumes on the next
+recheck. Consumer sources that change at run time register with
+`wiring.ContributeConsumerSources`. Dead and blocked receipts of a Go consumer are requeued with
+`events.RequeueReceipts(ctx, q, tenant, consumerID, eventID)`, which the management API's requeue (§6.2) also calls when
+the runtime is enabled.
 
 ## 3. Contributing the application's natives
 

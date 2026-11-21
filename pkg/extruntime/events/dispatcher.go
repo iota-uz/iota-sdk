@@ -6,18 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/listenconn"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -35,43 +35,27 @@ const (
 	StatusBlocked = "blocked"
 )
 
-// Subscription is one active subscription of an activated package version.
-type Subscription struct {
-	ID       string
-	Package  string
-	Version  string
-	Export   string
-	Event    string
-	Artifact pool.Artifact
-	Secrets  []string
-	// AfterSeq is the activation watermark (see Watermark): events with a
-	// lower or equal sequence number are never delivered to this
-	// subscription. A handler update does not replay the journal.
-	AfterSeq int64
-}
-
-// SubscriptionSource lists the active subscriptions; the management slice
-// implements it over activations.
-type SubscriptionSource interface {
-	ActiveSubscriptions(ctx context.Context) ([]Subscription, error)
-}
-
-// Runner executes an export; *host.Host implements it.
-type Runner interface {
-	Run(ctx context.Context, req host.RunRequest) (host.Result, error)
-}
-
 // Config configures the dispatcher. Zero values select the defaults.
 type Config struct {
-	DB            *pgxpool.Pool
-	Runner        Runner
-	Subscriptions SubscriptionSource
-	Subjects      host.SubjectLoader
+	DB *pgxpool.Pool
+	// Consumers lists the consumers of every pass: Go consumers of modules
+	// and applications and, with the extension runtime, the package
+	// subscriptions (PackageConsumers).
+	Consumers ConsumerSource
+	// Subjects loads current rights; consumers resolve the subject they act
+	// as through it (ResolveSubject).
+	Subjects host.SubjectLoader
 
 	// PollInterval is the fallback poll period when no NOTIFY arrives. Default 2s.
 	PollInterval time.Duration
-	// BatchSize bounds events fetched per subscription and pass. Default 50.
+	// BatchSize bounds events fetched per consumer and pass. Default 50.
 	BatchSize int
+	// Concurrency bounds the consumers delivering at once. Default 8. It is
+	// capped by the pool (see deliverySlots): a delivery holds a connection
+	// for its transaction and may take a second one (a package handler
+	// records its invocation on the pool). LISTEN uses a dedicated
+	// connection outside the pool.
+	Concurrency int
 	// MaxAttempts before a poisoned event is dead-lettered. Default 5.
 	MaxAttempts int
 	// BackoffBase doubles per attempt up to BackoffMax. Defaults 1s and 5m.
@@ -79,21 +63,25 @@ type Config struct {
 	// BlockedRecheck is how often a blocked delivery (no owner, subject
 	// refused) is re-evaluated. Default 30s.
 	BlockedRecheck time.Duration
-	// Retention is how long delivered events stay in the outbox. Default 7d.
+	// Retention is how long events stay in the outbox once no delivery of
+	// them is pending. Default 7d.
 	Retention     time.Duration
 	PruneInterval time.Duration // default 1h
 	Logger        *slog.Logger
 }
 
 func (c *Config) defaults() error {
-	if c.DB == nil || c.Runner == nil || c.Subscriptions == nil || c.Subjects == nil {
-		return serrors.New(serrors.Invalid, "extruntime events: DB, Runner, Subscriptions and Subjects are required")
+	if c.DB == nil || c.Consumers == nil || c.Subjects == nil {
+		return serrors.New(serrors.Invalid, "extruntime events: DB, Consumers and Subjects are required")
 	}
 	if c.PollInterval <= 0 {
 		c.PollInterval = 2 * time.Second
 	}
 	if c.BatchSize <= 0 {
 		c.BatchSize = 50
+	}
+	if c.Concurrency <= 0 {
+		c.Concurrency = 8
 	}
 	if c.MaxAttempts <= 0 {
 		c.MaxAttempts = 5
@@ -108,7 +96,7 @@ func (c *Config) defaults() error {
 		c.BlockedRecheck = 30 * time.Second
 	}
 	if c.Retention <= 0 {
-		c.Retention = 7 * 24 * time.Hour
+		c.Retention = DefaultRetention
 	}
 	if c.PruneInterval <= 0 {
 		c.PruneInterval = time.Hour
@@ -119,16 +107,26 @@ func (c *Config) defaults() error {
 	return nil
 }
 
-// Dispatcher delivers outbox events to active subscriptions after commit.
+// DefaultRetention is how long events stay in the outbox by default.
+const DefaultRetention = 7 * 24 * time.Hour
+
+// running counts the dispatchers whose loop runs in this process.
+var running atomic.Int64
+
+// Running returns how many dispatchers serve in this process (Start without
+// Stop). An application runs one.
+func Running() int { return int(running.Load()) }
+
+// Dispatcher delivers outbox events to consumers after commit.
 //
-// Every committed event without a done/dead receipt of the subscription is
+// Every committed event without a done/dead receipt of the consumer is
 // eligible; there is no read cursor, so a transaction that took a lower seq but
 // commits later is never skipped and no running transaction anywhere in the
 // cluster delays delivery. Order follows seq among visible rows (not a strict
-// commit order). The activation watermark only excludes events older than the
-// activation. Each delivery is its own transaction with
-// the subscription receipt, so a duplicate delivery is a no-op, and a poisoned
-// event is retried with backoff and dead-lettered without blocking later ones.
+// commit order). The consumer watermark only excludes older events. Each
+// delivery is its own transaction with the consumer's receipt, so a duplicate
+// delivery is a no-op, and a poisoned event is retried with backoff and
+// dead-lettered without blocking later ones or other consumers.
 type Dispatcher struct {
 	cfg Config
 
@@ -138,25 +136,27 @@ type Dispatcher struct {
 	lastPrn time.Time
 }
 
+// deliverySlots is how many consumers deliver at once: Concurrency, capped so
+// that two connections per delivery fit in the pool, with at least one
+// delivery. The LISTEN connections (the dispatcher's and the catalog's) are
+// dedicated connections outside the pool.
+func deliverySlots(concurrency int, maxConns int32) int {
+	limit := max(int(maxConns)/2, 1)
+	return min(concurrency, limit)
+}
+
 func NewDispatcher(cfg Config) (*Dispatcher, error) {
 	if err := cfg.defaults(); err != nil {
 		return nil, err
 	}
+	cfg.Concurrency = deliverySlots(cfg.Concurrency, cfg.DB.Config().MaxConns)
 	return &Dispatcher{cfg: cfg}, nil
 }
 
 type outboxRow struct {
-	id        string
-	seq       int64
-	tenant    uuid.UUID
-	event     string
-	subEntity *string
-	subKey    *string
-	payload   json.RawMessage
-	initiator *int64
-	occurred  time.Time
-	status    string
-	attempts  int
+	Envelope
+	status   string
+	attempts int
 }
 
 const fetchSQL = `
@@ -164,105 +164,136 @@ SELECT e.id::text, e.seq, e.tenant_id, e.event, e.subject_entity, e.subject_key,
        COALESCE(r.status, ''), COALESCE(r.attempts, 0)
 FROM extruntime.outbox_events e
 LEFT JOIN extruntime.subscription_receipts r ON r.subscription = $1 AND r.event_id = e.id
-WHERE e.event = $2
+WHERE e.event = ANY($2::text[])
   AND e.seq > $3
   AND (r.event_id IS NULL OR (r.status IN ('pending', 'failed', 'blocked') AND r.next_at <= now()))
 ORDER BY e.seq
 LIMIT $4`
 
-// RunOnce delivers everything currently deliverable to every active
-// subscription and returns the number of successful deliveries. Subscriptions
-// are independent: they run concurrently and one failing never holds back
-// another.
+// RunOnce delivers everything currently deliverable to every consumer and
+// returns the number of successful deliveries. Consumers are independent:
+// they run concurrently and one failing never holds back another. A consumer
+// ID listed twice is delivered to once and reported as an error.
 func (d *Dispatcher) RunOnce(ctx context.Context) (int, error) {
-	subs, err := d.cfg.Subscriptions.ActiveSubscriptions(ctx)
-	if err != nil {
-		return 0, serrors.Wrap(opRunOnce, err)
+	consumers, srcErr := d.cfg.Consumers.Consumers(ctx)
+	var errs []error
+	if srcErr != nil {
+		// The consumers that were read are still served: a failing source
+		// (package subscriptions, a module's Go source) does not hold back
+		// the others.
+		errs = append(errs, srcErr)
+	}
+	// IDs are validated before any worker starts, so errs has one writer here.
+	seen := make(map[string]struct{}, len(consumers))
+	run := make([]Consumer, 0, len(consumers))
+	for _, c := range consumers {
+		if c == nil {
+			continue
+		}
+		id := c.ID()
+		if id == "" {
+			errs = append(errs, errors.New("extruntime events: a consumer has an empty ID"))
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			errs = append(errs, fmt.Errorf("extruntime events: consumer ID %q is registered twice", id))
+			continue
+		}
+		seen[id] = struct{}{}
+		run = append(run, c)
 	}
 	var (
 		wg    sync.WaitGroup
 		mu    sync.Mutex
 		total int
-		first error
+		slots = make(chan struct{}, d.cfg.Concurrency)
 	)
-	for _, sub := range subs {
+	for _, c := range run {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			n, err := d.runSubscription(ctx, sub)
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			n, err := d.runConsumer(ctx, c)
 			mu.Lock()
+			defer mu.Unlock()
 			total += n
-			if err != nil && first == nil {
-				first = err
+			if err != nil {
+				errs = append(errs, fmt.Errorf("consumer %s: %w", c.ID(), err))
 			}
-			mu.Unlock()
 		}()
 	}
 	wg.Wait()
-	if first != nil {
-		return total, serrors.Wrap(opRunOnce, first)
+	if len(errs) > 0 {
+		return total, serrors.Wrap(opRunOnce, errors.Join(errs...))
 	}
 	return total, nil
 }
 
-func (d *Dispatcher) runSubscription(ctx context.Context, sub Subscription) (int, error) {
+func (d *Dispatcher) runConsumer(ctx context.Context, c Consumer) (int, error) {
+	keys, err := c.Events(ctx)
+	if err != nil || len(keys) == 0 {
+		return 0, err
+	}
+	after, err := c.AfterSeq(ctx)
+	if err != nil {
+		return 0, err
+	}
 	delivered := 0
 	for {
 		if ctx.Err() != nil {
 			return delivered, ctx.Err()
 		}
-		rows, err := d.fetch(ctx, sub)
+		rows, err := d.fetch(ctx, c.ID(), keys, after)
 		if err != nil {
 			return delivered, err
 		}
 		if len(rows) == 0 {
 			return delivered, nil
 		}
-		progressed := 0
 		for _, row := range rows {
-			ok, err := d.deliver(ctx, sub, row)
+			ok, err := d.deliver(ctx, c, row)
 			if err != nil {
 				return delivered, err
 			}
 			if ok {
 				delivered++
 			}
-			progressed++
 		}
-		if progressed < d.cfg.BatchSize {
+		if len(rows) < d.cfg.BatchSize {
 			return delivered, nil
 		}
 	}
 }
 
-func (d *Dispatcher) fetch(ctx context.Context, sub Subscription) ([]outboxRow, error) {
-	rows, err := d.cfg.DB.Query(ctx, fetchSQL, sub.ID, sub.Event, sub.AfterSeq, d.cfg.BatchSize)
+func (d *Dispatcher) fetch(ctx context.Context, consumer string, keys []string, after int64) ([]outboxRow, error) {
+	rows, err := d.cfg.DB.Query(ctx, fetchSQL, consumer, keys, after, d.cfg.BatchSize)
 	if err != nil {
 		return nil, serrors.FromDB(opRunOnce, err)
 	}
 	defer rows.Close()
 	var out []outboxRow
 	for rows.Next() {
-		var r outboxRow
-		if err := rows.Scan(&r.id, &r.seq, &r.tenant, &r.event, &r.subEntity, &r.subKey, &r.payload, &r.initiator, &r.occurred, &r.status, &r.attempts); err != nil {
+		var (
+			r                 outboxRow
+			subEntity, subKey *string
+			payload           []byte
+		)
+		if err := rows.Scan(&r.ID, &r.Seq, &r.TenantID, &r.Event, &subEntity, &subKey, &payload, &r.InitiatorUserID, &r.OccurredAt, &r.status, &r.attempts); err != nil {
 			return nil, serrors.FromDB(opRunOnce, err)
 		}
+		if subEntity != nil && subKey != nil {
+			r.Subject = &spi.ObjectRef{Entity: *subEntity, Key: *subKey}
+		}
+		r.Payload = json.RawMessage(payload)
 		out = append(out, r)
 	}
 	return out, serrors.FromDB(opRunOnce, rows.Err())
 }
 
-// deliver runs the subscription export for one event. It returns true when
-// the handler ran and its transaction (with the receipt) committed.
-func (d *Dispatcher) deliver(ctx context.Context, sub Subscription, ev outboxRow) (bool, error) {
-	subject, blocked, err := d.subjectFor(ctx, sub, ev)
-	if err != nil {
-		return false, serrors.Wrap(opDeliver, err)
-	}
-	if blocked != "" {
-		return false, d.recordBlocked(ctx, sub, ev, blocked)
-	}
-
+// deliver hands one event to the consumer in a transaction with its receipt.
+// It returns true when Deliver succeeded and the transaction committed.
+func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (bool, error) {
 	tx, err := d.cfg.DB.Begin(ctx)
 	if err != nil {
 		return false, serrors.FromDB(opDeliver, err)
@@ -276,108 +307,44 @@ func (d *Dispatcher) deliver(ctx context.Context, sub Subscription, ev outboxRow
 		ON CONFLICT (subscription, event_id) DO UPDATE
 		SET status = 'done', attempts = r.attempts + 1, last_error = '', updated_at = now()
 		WHERE r.status IN ('pending', 'failed', 'blocked')
-		RETURNING attempts`, sub.ID, ev.id, ev.tenant).Scan(&attempts)
+		RETURNING attempts`, c.ID(), ev.ID, ev.TenantID).Scan(&attempts)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil // already delivered or dead: duplicate delivery is a no-op
 	}
 	if err != nil {
 		return false, serrors.FromDB(opDeliver, err)
 	}
-
-	input, err := d.eventInput(ev)
-	if err != nil {
-		return false, serrors.Wrap(opDeliver, err)
+	// The consumer works in the event's tenant only.
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.tenant_id', $1, true)`, ev.TenantID.String()); err != nil {
+		return false, serrors.FromDB(opDeliver, err)
 	}
-	res, runErr := d.cfg.Runner.Run(ctx, host.RunRequest{
-		Export: host.Export{
-			Kind:     pool.KindSubscription,
-			Resource: sub.ID,
-			Binding: host.Binding{
-				Contract: sub.ID, Package: sub.Package, Version: sub.Version, Export: sub.Export,
-				Artifact: sub.Artifact, Secrets: sub.Secrets,
-			},
-		},
-		Input:        input,
-		Subject:      subject,
-		Trigger:      host.Trigger{Kind: host.TriggerSubscription, Ref: sub.ID},
-		Tx:           tx,
-		Producer:     spi.Producer{EventID: ev.id},
-		StartKeyBase: sub.ID + ":" + ev.id,
-	})
+
+	commits := &afterCommits{}
+	// The context carries the delivery transaction and the event's tenant, so
+	// repositories that read them from the context (composables.UseTx,
+	// UseTenantID) work inside the delivery and need no second connection.
+	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
+	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
-		if res.InvocationID != "" {
-			if _, err := tx.Exec(ctx, `UPDATE extruntime.subscription_receipts SET invocation_id = $3::uuid WHERE subscription = $1 AND event_id = $2::uuid`,
-				sub.ID, ev.id, res.InvocationID); err != nil {
-				return false, serrors.FromDB(opDeliver, err)
+		runErr = tx.Commit(ctx)
+		if runErr == nil {
+			for _, fn := range commits.fns {
+				fn(ctx)
 			}
+			return true, nil
 		}
-		if err := tx.Commit(ctx); err != nil {
-			return false, serrors.FromDB(opDeliver, err)
-		}
-		if res.AfterCommit != nil {
-			res.AfterCommit(ctx)
-		}
-		return true, nil
+		// A failed commit (a deferred constraint, a transaction the consumer
+		// left aborted) is a failed attempt like any other, so the event backs
+		// off and dead-letters instead of blocking the later ones.
 	}
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
 	_ = tx.Rollback(context.WithoutCancel(ctx))
-	return false, d.recordFailure(ctx, sub, ev, attempts, res.InvocationID, runErr)
-}
-
-// subjectFor resolves who the handler acts as: the event initiator with
-// current rights, or the explicit owner of the subscription in the tenant.
-// A non-empty blocked string is the diagnostic of a refused delivery.
-func (d *Dispatcher) subjectFor(ctx context.Context, sub Subscription, ev outboxRow) (spi.Subject, string, error) {
-	var userID int64
-	kind := spi.SubjectInitiator
-	if ev.initiator != nil {
-		userID = *ev.initiator
-	} else {
-		kind = spi.SubjectOwner
-		owner, found, err := triggerowner.Lookup(ctx, d.cfg.DB, sub.ID, ev.tenant)
-		if err != nil {
-			return spi.Subject{}, "", serrors.Wrap(opDeliver, err)
-		}
-		if !found {
-			return spi.Subject{}, fmt.Sprintf("event %s has no initiator and subscription %s has no owner-user in tenant %s", ev.id, sub.ID, ev.tenant), nil
-		}
-		userID = owner
+	if errors.Is(runErr, ErrNoSubject) {
+		return false, d.recordBlocked(ctx, c.ID(), ev, runErr.Error())
 	}
-	subject, err := d.cfg.Subjects.LoadSubject(ctx, ev.tenant, userID, kind)
-	if errors.Is(err, host.ErrSubjectBlocked) {
-		return spi.Subject{}, err.Error(), nil
-	}
-	if err != nil {
-		return spi.Subject{}, "", err
-	}
-	subject.TenantID, subject.UserID, subject.Kind = ev.tenant, userID, kind
-	return subject, "", nil
-}
-
-func (d *Dispatcher) eventInput(ev outboxRow) (json.RawMessage, error) {
-	var subject *spi.ObjectRef
-	if ev.subEntity != nil && ev.subKey != nil {
-		subject = &spi.ObjectRef{Entity: *ev.subEntity, Key: *ev.subKey}
-	}
-	var initiator *string
-	if ev.initiator != nil {
-		s := strconv.FormatInt(*ev.initiator, 10)
-		initiator = &s
-	}
-	payload := ev.payload
-	if len(payload) == 0 {
-		payload = json.RawMessage(`null`)
-	}
-	return json.Marshal(struct {
-		ID         string          `json:"id"`
-		Event      string          `json:"event"`
-		OccurredAt string          `json:"occurredAt"`
-		Subject    *spi.ObjectRef  `json:"subject"`
-		Payload    json.RawMessage `json:"payload"`
-		Initiator  *string         `json:"initiator"`
-	}{ev.id, ev.event, ev.occurred.UTC().Format(time.RFC3339Nano), subject, payload, initiator})
+	return false, d.recordFailure(ctx, c.ID(), ev, attempts, runErr)
 }
 
 func (d *Dispatcher) backoff(attempts int) time.Duration {
@@ -393,7 +360,7 @@ func (d *Dispatcher) backoff(attempts int) time.Duration {
 // failure of the platform (database, worker, pool) is not the handler's: it is
 // retried after the backoff without counting as an attempt, so an outage can
 // never dead-letter events.
-func (d *Dispatcher) recordFailure(ctx context.Context, sub Subscription, ev outboxRow, attempts int, invocationID string, runErr error) error {
+func (d *Dispatcher) recordFailure(ctx context.Context, consumer string, ev outboxRow, attempts int, runErr error) error {
 	status := StatusFailed
 	if host.IsInfrastructure(runErr) {
 		attempts = max(attempts-1, 0)
@@ -401,8 +368,9 @@ func (d *Dispatcher) recordFailure(ctx context.Context, sub Subscription, ev out
 		status = StatusDead
 	}
 	var inv any
-	if invocationID != "" {
-		inv = invocationID
+	var ie *invocationError
+	if errors.As(runErr, &ie) {
+		inv = ie.invocationID
 	}
 	msg := runErr.Error()
 	if we, ok := pool.AsWireError(runErr); ok {
@@ -415,27 +383,30 @@ func (d *Dispatcher) recordFailure(ctx context.Context, sub Subscription, ev out
 		SET status = EXCLUDED.status, attempts = EXCLUDED.attempts, next_at = EXCLUDED.next_at,
 		    last_error = EXCLUDED.last_error, invocation_id = COALESCE(EXCLUDED.invocation_id, r.invocation_id), updated_at = now()
 		WHERE r.status <> 'done'`,
-		sub.ID, ev.id, ev.tenant, status, attempts, d.backoff(max(attempts, 1)).String(), msg, inv)
+		consumer, ev.ID, ev.TenantID, status, attempts, d.backoff(max(attempts, 1)).String(), msg, inv)
 	if err != nil {
 		return serrors.FromDB(opDeliver, err)
 	}
-	d.cfg.Logger.Warn("extruntime: subscription delivery failed", "subscription", sub.ID, "event", ev.id, "attempt", attempts, "status", status, "error", msg)
+	d.cfg.Logger.Warn("extruntime: event delivery failed", "consumer", consumer, "event", ev.ID, "attempt", attempts, "status", status, "error", msg)
 	return nil
 }
 
-func (d *Dispatcher) recordBlocked(ctx context.Context, sub Subscription, ev outboxRow, diagnostic string) error {
+func (d *Dispatcher) recordBlocked(ctx context.Context, consumer string, ev outboxRow, diagnostic string) error {
 	_, err := d.cfg.DB.Exec(ctx, `
 		INSERT INTO extruntime.subscription_receipts AS r (subscription, event_id, tenant_id, status, attempts, next_at, last_error)
 		VALUES ($1, $2::uuid, $3, 'blocked', 0, now() + $4::interval, $5)
 		ON CONFLICT (subscription, event_id) DO UPDATE
 		SET status = 'blocked', next_at = EXCLUDED.next_at, last_error = EXCLUDED.last_error, updated_at = now()
 		WHERE r.status IN ('pending', 'failed', 'blocked')`,
-		sub.ID, ev.id, ev.tenant, d.cfg.BlockedRecheck.String(), diagnostic)
+		consumer, ev.ID, ev.TenantID, d.cfg.BlockedRecheck.String(), diagnostic)
 	return serrors.FromDB(opDeliver, err)
 }
 
-// Prune deletes delivered events older than the retention that have no
-// delivery still pending.
+// Prune deletes the events that occurred longer than the retention ago and
+// have no pending, failed or blocked delivery of any consumer. An event no
+// consumer has a receipt for is deleted too: a consumer that has not reached
+// it within the retention (stopped background work, a key added later) never
+// receives it.
 func (d *Dispatcher) Prune(ctx context.Context) (int64, error) {
 	tag, err := d.cfg.DB.Exec(ctx, `
 		DELETE FROM extruntime.outbox_events e
@@ -459,6 +430,7 @@ func (d *Dispatcher) Start(ctx context.Context) {
 	}
 	ctx, d.cancel = context.WithCancel(ctx)
 	d.done = make(chan struct{})
+	running.Add(1)
 	go d.loop(ctx, d.done)
 }
 
@@ -477,6 +449,7 @@ func (d *Dispatcher) Stop() {
 
 func (d *Dispatcher) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
+	defer running.Add(-1)
 	wake := listen(ctx, d.cfg.DB, NotifyChannel, d.cfg.PollInterval, d.cfg.Logger)
 	for {
 		if _, err := d.RunOnce(ctx); err != nil && ctx.Err() == nil {
@@ -532,19 +505,23 @@ func listen(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Dur
 	return out
 }
 
+// listenOnce holds LISTEN on a dedicated connection opened like the pool's own
+// (listenconn: its settings and connect hooks), never on a pooled one: a long-lived LISTEN would take a pool slot
+// for the dispatcher's lifetime, and a small pool (MaxConns=1) would have none
+// left for fetching, delivering and pruning.
 func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Duration, poke func()) error {
-	conn, err := db.Acquire(ctx)
+	conn, err := listenconn.Connect(ctx, db)
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
 		return err
 	}
 	poke()
 	for {
 		wctx, cancel := context.WithTimeout(ctx, 10*poll)
-		_, err := conn.Conn().WaitForNotification(wctx)
+		_, err := conn.WaitForNotification(wctx)
 		cancel()
 		switch {
 		case err == nil:
@@ -553,7 +530,7 @@ func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time
 			return nil
 		case errors.Is(err, context.DeadlineExceeded):
 			// Idle: probe the connection so a dead one is noticed.
-			if perr := conn.Conn().Ping(ctx); perr != nil {
+			if perr := conn.Ping(ctx); perr != nil {
 				return perr
 			}
 		default:

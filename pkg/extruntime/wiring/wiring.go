@@ -1,16 +1,24 @@
-// Package wiring turns the extension runtime on in an iota-sdk application
-// from configuration. It is the composition root the SDK's own server
-// binaries (cmd/server, cmd/worker) and applications use:
+// Package wiring composes the extension core of an iota-sdk application and
+// turns the extension runtime on from configuration. It is the composition
+// root the SDK's own server binaries (cmd/server, cmd/worker) and
+// applications use:
 //
 //	components = append(components, wiring.NewComponent(wiring.Options{
 //	    Natives: append(modules.Natives(), app.Natives),
 //	}))
 //
+// The core is always on and needs no Node: the native.Set composed from the
+// contributors, the transactional outbox and its one dispatcher (with
+// pruning), and the host.SubjectLoader consumers resolve run-as subjects
+// with. Modules and applications register Go consumers of the outbox with
+// ContributeConsumers. The dispatcher runs in Start unless DisableBackground
+// is set.
+//
 // The component reads the extruntimeconfig section (EXTRUNTIME_* environment
 // variables) from the config source of the build context. While the section
-// is disabled, which is the default, it contributes nothing and the
-// application behaves as if it were not there. When it is enabled the
-// component composes runtime.NewComponent: the native set from the
+// is disabled, which is the default, the Node runtime is left out. When it is
+// enabled the component also composes runtime.NewComponent, whose package
+// subscriptions become consumers of the core dispatcher: the native set from the
 // contributors, the Node workers of the installed @iota-uz/sdk package, the
 // management API, the package endpoints, the UI slice and the configurator
 // the section asks for, and the MCP tools of an application that has an MCP
@@ -35,6 +43,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/mcptools"
@@ -69,12 +78,16 @@ type Options struct {
 	// settings that are Go values: event and schedule polling, Config.Types
 	// of the configurator, a custom build adapter.
 	Tune func(cfg *runtime.Config) error
+	// Events tunes the core's outbox dispatcher (polling, batching, retries,
+	// pruning); DB, Consumers and Subjects are set by the core. A zero
+	// Retention takes the section's EXTRUNTIME_EVENTS_RETENTION.
+	Events events.Config
 	// Logger is the runtime's structured logger. Default slog.Default().
 	Logger *slog.Logger
 }
 
-// NewComponent returns the composition component that enables the runtime
-// when its configuration says so.
+// NewComponent returns the composition component of the extension core,
+// which also enables the runtime when its configuration says so.
 func NewComponent(opts Options) composition.Component {
 	return &component{opts: opts}
 }
@@ -93,17 +106,29 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	logger := b.Context().Logger()
-	if !configured || !section.Enabled {
-		if logger != nil {
-			logger.Info("extension runtime is disabled (EXTRUNTIME_ENABLED is not set)")
-		}
-		return nil
-	}
-	cfg, dist, err := RuntimeConfig(section, c.opts)
+	natives, err := native.Compose(c.opts.Natives...)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
+	logger := b.Context().Logger()
+	core := coreConfig{retention: section.Events.Retention, events: c.opts.Events, disableBackground: section.DisableBackground}
+	if !configured || !section.Enabled {
+		c.buildCore(b, natives, core)
+		if logger != nil {
+			logger.Info("extension runtime is disabled (EXTRUNTIME_ENABLED is not set); the event core runs without it")
+		}
+		startCore(b, core)
+		return nil
+	}
+	cfg, dist, err := runtimeConfig(section, c.opts, natives)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	// Tune may have set the dispatcher settings and DisableBackground on the
+	// runtime configuration: the core's dispatcher is the one that applies them.
+	core.events = mergeEvents(core.events, cfg.Events)
+	core.disableBackground = cfg.DisableBackground
+	c.buildCore(b, natives, core)
 	if logger != nil {
 		logger.Infof("extension runtime is enabled: pool=%d, @iota-uz/sdk %s at %s, ui=%t, configurator=%t",
 			cfg.PoolSize, dist.Identity.ReleaseVersion, dist.Dir, cfg.UI != nil, cfg.Configurator != nil)
@@ -112,7 +137,11 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	return inner.Build(b)
+	if err := inner.Build(b); err != nil {
+		return err
+	}
+	startCore(b, core)
+	return nil
 }
 
 // section returns the configuration: the explicit one, else the section of
@@ -151,12 +180,16 @@ func DefaultCacheDir() string {
 // fails when the application is composed, not at the first invocation. It is
 // exported for applications that construct runtime.NewComponent themselves.
 func RuntimeConfig(section extruntimeconfig.Config, opts Options) (runtime.Config, runtime.Dist, error) {
-	const op = serrors.Op("extruntime.wiring.RuntimeConfig")
-	if err := section.Validate(); err != nil {
-		return runtime.Config{}, runtime.Dist{}, serrors.Wrap(op, err)
-	}
 	natives, err := native.Compose(opts.Natives...)
 	if err != nil {
+		return runtime.Config{}, runtime.Dist{}, serrors.Wrap("extruntime.wiring.RuntimeConfig", err)
+	}
+	return runtimeConfig(section, opts, natives)
+}
+
+func runtimeConfig(section extruntimeconfig.Config, opts Options, natives *native.Set) (runtime.Config, runtime.Dist, error) {
+	const op = serrors.Op("extruntime.wiring.RuntimeConfig")
+	if err := section.Validate(); err != nil {
 		return runtime.Config{}, runtime.Dist{}, serrors.Wrap(op, err)
 	}
 	distCfg := runtime.DistConfig{Dir: section.DistDir, AppRoot: section.AppRoot}

@@ -8,6 +8,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -84,7 +85,8 @@ type Config struct {
 	// Secrets serves secrets.get for secrets a package declared.
 	Secrets host.SecretResolver
 	// Workflow and Events tune the durable engine, the event dispatcher and
-	// the scheduler; zero values select their defaults.
+	// the scheduler; zero values select their defaults. Events applies only
+	// when the runtime builds its own dispatcher (Deps.Dispatcher is nil).
 	Workflow  WorkflowConfig
 	Events    events.Config
 	Schedules events.SchedulerConfig
@@ -145,6 +147,16 @@ type Deps struct {
 	// contracts (the composition container). Without it a native contract
 	// whose default needs a dependency fails when invoked.
 	NativeDeps native.Deps
+	// Dispatcher is the application's outbox dispatcher, served by the
+	// always-on core (pkg/extruntime/wiring). When set the runtime builds no
+	// dispatcher of its own and does not start or stop it: its package
+	// subscriptions reach that dispatcher as consumers (PackageConsumers,
+	// contributed by NewComponent). Nil: the runtime builds and serves its own
+	// over the package subscriptions, for a runtime composed without the core.
+	Dispatcher *events.Dispatcher
+	// Consumers are Go consumers the runtime's own dispatcher serves next to
+	// the package subscriptions (unused with Dispatcher).
+	Consumers events.ConsumerSource
 }
 
 // Extension is a slice that needs the finished runtime.
@@ -170,8 +182,10 @@ type Runtime struct {
 	Artifacts   *artifact.Store
 	Manage      *manage.Service
 	// Workflows is the durable engine (host.WorkflowHandler and spi.Starter).
-	Workflows  *workflow.Engine
-	Outbox     *events.Outbox
+	Workflows *workflow.Engine
+	Outbox    *events.Outbox
+	// Dispatcher delivers the outbox; it is Deps.Dispatcher when the core
+	// serves it, else the runtime's own.
 	Dispatcher *events.Dispatcher
 	Scheduler  *events.Scheduler
 	// Notify is nil without notification dependencies.
@@ -189,6 +203,9 @@ type Runtime struct {
 	db      *pgxpool.Pool
 	log     *slog.Logger
 	origins *originguard.Guard
+	// ownsDispatcher is true when Dispatcher is the runtime's own, which
+	// Start serves.
+	ownsDispatcher bool
 
 	mu    sync.Mutex
 	stops []func(context.Context) error
@@ -231,6 +248,11 @@ func (cfg *Config) resolveWorkers() error {
 	return nil
 }
 
+// MinPoolConns is the smallest database pool the runtime accepts: a package
+// invocation inside a transaction (an event delivery, a workflow step)
+// records the invocation on a second connection.
+const MinPoolConns = 2
+
 // New wires the runtime. It starts the Node pool but no background loops;
 // call Start.
 func New(cfg Config, deps Deps) (*Runtime, error) {
@@ -242,6 +264,11 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		return nil, serrors.New(serrors.Invalid, "extruntime: CacheDir is required").WithOp(op)
 	case cfg.Natives == nil:
 		return nil, serrors.New(serrors.Invalid, "extruntime: Natives is required (compose the module registrations with native.Compose(modules.Natives()...))").WithOp(op)
+	}
+	if n := deps.DB.Config().MaxConns; n < MinPoolConns {
+		return nil, serrors.New(serrors.Invalid, fmt.Sprintf(
+			"extruntime: the extension runtime needs a database pool of at least %d connections, got %d: a package handler records its invocation on the pool while its delivery transaction holds another connection (raise the pool size, or leave EXTRUNTIME_ENABLED off; the event core works with one connection)",
+			MinPoolConns, n)).WithOp(op)
 	}
 	if err := cfg.resolveWorkers(); err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -330,14 +357,20 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	if rt.Workflows != nil {
 		rt.Workflows.Attach(rt.Host)
 	}
+	if deps.Dispatcher != nil {
+		rt.Dispatcher = deps.Dispatcher
+	}
 	if subjects != nil {
-		dcfg := cfg.Events
-		dcfg.DB, dcfg.Runner, dcfg.Subscriptions, dcfg.Subjects = deps.DB, rt.Host, rt.Manage.SubscriptionSource(), subjects
-		if dcfg.Logger == nil {
-			dcfg.Logger = cfg.Logger
-		}
-		if rt.Dispatcher, err = events.NewDispatcher(dcfg); err != nil {
-			return fail(err)
+		if rt.Dispatcher == nil {
+			dcfg := cfg.Events
+			dcfg.DB, dcfg.Consumers, dcfg.Subjects = deps.DB, events.ComposeConsumers(rt.PackageConsumers(), deps.Consumers), subjects
+			if dcfg.Logger == nil {
+				dcfg.Logger = cfg.Logger
+			}
+			if rt.Dispatcher, err = events.NewDispatcher(dcfg); err != nil {
+				return fail(err)
+			}
+			rt.ownsDispatcher = true
 		}
 		scfg := cfg.Schedules
 		scfg.DB, scfg.Runner, scfg.Schedules, scfg.Subjects = deps.DB, rt.Host, rt.Manage.ScheduleSource(), subjects
@@ -369,6 +402,16 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 	return rt, nil
 }
 
+// PackageConsumers are the active package subscriptions as outbox consumers
+// (events.PackageConsumers over the host). Without a subject loader (no user
+// repository) there are none: a subscription cannot resolve who it acts as.
+func (rt *Runtime) PackageConsumers() events.ConsumerSource {
+	if rt.Subjects == nil {
+		return events.StaticConsumers()
+	}
+	return events.PackageConsumers(rt.Manage.SubscriptionSource(), rt.Host, rt.Subjects)
+}
+
 // Start runs the background parts: the catalog's NOTIFY listener, the
 // notification adapter that follows activations, the workflow engine, the
 // event dispatcher, the scheduler and the extensions. It returns after they
@@ -391,7 +434,7 @@ func (rt *Runtime) Start(ctx context.Context) error {
 		if rt.Workflows != nil {
 			rt.Workflows.Serve(bg)
 		}
-		if rt.Dispatcher != nil {
+		if rt.ownsDispatcher {
 			rt.Dispatcher.Start(bg)
 			rt.stops = append(rt.stops, func(context.Context) error { rt.Dispatcher.Stop(); return nil })
 		}

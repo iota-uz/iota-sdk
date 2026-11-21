@@ -35,6 +35,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
@@ -44,6 +45,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
@@ -153,7 +155,12 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 			})
 		}
 	}
-	components = append(components, comp)
+	// The always-on core serves the one outbox dispatcher of the process; the
+	// runtime's package subscriptions are its consumers, as in production
+	// (wiring.NewComponent with the runtime enabled). The core comes after the
+	// runtime, so its dispatcher starts after the runtime and stops before it.
+	core := wiring.NewComponent(wiring.Options{Natives: modules.Natives(), Section: &extruntimeconfig.Config{}, Events: cfg.events, Logger: logger})
+	components = append(components, comp, core)
 	if cfg.helpCenter {
 		components = append(components, helpcenter.NewComponent(helpcenter.EmbeddedContentConfig()))
 	}

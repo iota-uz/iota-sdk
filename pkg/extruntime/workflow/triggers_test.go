@@ -66,7 +66,7 @@ export const onThing = async (tx, e) => { await tx.start({ id: "acme.test.flow" 
 
 	st := newStack(t, env, im)
 	disp, err := events.NewDispatcher(events.Config{
-		DB: env.DB, Runner: st.host, Subscriptions: &subSource{list: []events.Subscription{sub}}, Subjects: env.Subjects,
+		DB: env.DB, Consumers: events.PackageConsumers(&subSource{list: []events.Subscription{sub}}, st.host, env.Subjects), Subjects: env.Subjects,
 		BackoffBase: 10 * time.Millisecond, Logger: env.Logger,
 	})
 	require.NoError(t, err)

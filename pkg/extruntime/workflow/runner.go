@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/listenconn"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -359,19 +360,21 @@ func listen(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Dur
 	return out
 }
 
+// listenOnce holds LISTEN on a dedicated connection opened like the pool's own
+// (listenconn: its settings and connect hooks), so the listener never takes a pool slot for the engine's lifetime.
 func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time.Duration, poke func()) error {
-	conn, err := db.Acquire(ctx)
+	conn, err := listenconn.Connect(ctx, db)
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
+	defer func() { _ = conn.Close(context.WithoutCancel(ctx)) }()
 	if _, err := conn.Exec(ctx, "LISTEN "+pgx.Identifier{channel}.Sanitize()); err != nil {
 		return err
 	}
 	poke()
 	for {
 		wctx, cancel := context.WithTimeout(ctx, 10*poll)
-		_, err := conn.Conn().WaitForNotification(wctx)
+		_, err := conn.WaitForNotification(wctx)
 		cancel()
 		switch {
 		case err == nil:
@@ -379,7 +382,7 @@ func listenOnce(ctx context.Context, db *pgxpool.Pool, channel string, poll time
 		case ctx.Err() != nil:
 			return nil
 		case errors.Is(err, context.DeadlineExceeded):
-			if perr := conn.Conn().Ping(ctx); perr != nil {
+			if perr := conn.Ping(ctx); perr != nil {
 				return perr
 			}
 		default:
