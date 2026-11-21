@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MSG, changedCredentials, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify,
+  MSG, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify,
   translator, usageHref, usedByText, type ConnectorView,
 } from './model'
 
@@ -80,7 +80,10 @@ describe('model', () => {
   })
 
   it('explains refusals in words and reads RPC error codes', () => {
-    expect(saveErrorText(t, { ok: false, error: 'test_failed', message: 'bad token' })).toBe('Refused: bad token')
+    const tr = translator((k) => ({ ...messages, [MSG + 'Reasons.auth.Text']: 'the key was refused', [MSG + 'Reasons.auth.Fix']: 'Replace it.' })[k] ?? k)
+    expect(saveErrorText(tr, { ok: false, error: 'test_failed', reason: 'auth', message: '<html>401 token=abc</html>' })).toBe('Refused: the key was refused. Replace it.')
+    expect(reasonText(tr, 'not-a-reason')).toContain('Reasons.unknown')
+    expect(oauthErrorText(tr, 'weird')).toBe('OAuth.exchange')
     expect(saveErrorText(t, { ok: false })).toBe('Could not save.')
     expect(errorCode({ code: 'unknown', details: { code: 'not_found' } })).toBe('not_found')
     expect(errorCode({ code: 'permission_denied' })).toBe('permission_denied')

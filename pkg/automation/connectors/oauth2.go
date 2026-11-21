@@ -206,31 +206,42 @@ func usable(c Credentials) bool {
 	return err == nil && at.After(now())
 }
 
-func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
-	const op = serrors.Op("automation.connectors.OAuth2.Complete")
+func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code string) (OAuth2Grant, error) {
+	const op = serrors.Op("automation.connectors.OAuth2.Exchange")
 	if err := o.s.configured(); err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	st, err := o.openState(state)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	if st.Tenant != tenantID {
-		return Connection{}, serrors.Wrap(op, errBadState)
+		return OAuth2Grant{}, serrors.Wrap(op, errBadState)
 	}
 	conn, cfg, err := o.config(st.Kind, st.Redirect)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	tok, err := cfg.Exchange(o.ctx(ctx), code, oauth2.VerifierOption(st.Verifier))
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, tokenError(err))
+		return OAuth2Grant{}, serrors.Wrap(op, tokenError(err))
 	}
 	creds := tokenCredentials(tok, nil)
 	identity, err := conn.Test(ctx, creds)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, fmt.Errorf("automation connections: the connector refused the new token"))
+		return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
 	}
+	return OAuth2Grant{Kind: st.Kind, Identity: identity, Credentials: creds}, nil
+}
+
+func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
+	const op = serrors.Op("automation.connectors.OAuth2.Complete")
+	g, err := o.Exchange(ctx, tenantID, state, code)
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	st := oauthState{Kind: g.Kind}
+	creds, identity := g.Credentials, g.Identity
 	// The same identity re-authorized: refresh that connection.
 	if identity.External != "" {
 		existing, err := o.s.List(ctx, tenantID, st.Kind)

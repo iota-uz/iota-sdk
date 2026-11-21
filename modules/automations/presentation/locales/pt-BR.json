@@ -129,7 +129,8 @@
         "ConnectedPlain": "A conexão funciona",
         "Failed": "A verificação falhou: {message}",
         "Reauth": "O serviço pede para entrar novamente.",
-        "Error": "Não foi possível verificar a conexão. Tente novamente em um minuto."
+        "Error": "Não foi possível verificar a conexão. Tente novamente em um minuto.",
+        "Slow": "Ainda aguardando o serviço. A verificação pode ser repetida com segurança."
       },
       "Toast": {
         "Saved": "{name} conectado",
@@ -146,7 +147,11 @@
         "state": "O link de entrada expirou ou foi aberto por outro usuário. Comece a entrada novamente.",
         "exchange": "O serviço não confirmou a entrada. Tente novamente em um minuto.",
         "unavailable": "A entrada por este serviço não está configurada no aplicativo.",
-        "Close": "Fechar"
+        "Close": "Fechar",
+        "refused": "A entrada foi feita, mas esta conta não pode ser usada para o conector. Entre com outra conta.",
+        "name_taken": "Este nome do sistema já é usado por outra conexão deste serviço. Escolha outro nome e entre novamente.",
+        "version_conflict": "A conexão foi alterada. Abra-a novamente e entre de novo.",
+        "not_found": "A conexão foi excluída."
       },
       "Usage": {
         "Title": "Onde {name} é usado",
@@ -184,6 +189,36 @@
         "Multiple": "Usado em {count} automações",
         "Plural": "Usado em {count} automações",
         "None": "Não usado"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "o serviço não aceitou as credenciais",
+          "Fix": "Verifique a chave ou a senha, ou gere uma nova no serviço e substitua-a."
+        },
+        "network": {
+          "Text": "o serviço não respondeu",
+          "Fix": "Verifique o endereço e tente novamente em um minuto."
+        },
+        "rate_limit": {
+          "Text": "o serviço limita as solicitações desta conta",
+          "Fix": "Aguarde alguns minutos e verifique novamente."
+        },
+        "config": {
+          "Text": "um parâmetro da conexão está errado",
+          "Fix": "Verifique o endereço, os IDs e os outros campos."
+        },
+        "reauth": {
+          "Text": "o serviço pede para entrar novamente",
+          "Fix": "Entre novamente pelo serviço."
+        },
+        "unknown": {
+          "Text": "o serviço recusou a conexão",
+          "Fix": "Verifique os valores; se repetir, abra a resposta do serviço abaixo."
+        }
+      },
+      "Diagnostics": {
+        "Show": "Mostrar a resposta do serviço",
+        "Hide": "Ocultar a resposta do serviço"
       }
     }
   }

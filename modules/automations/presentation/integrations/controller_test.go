@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -58,7 +57,43 @@ func (bot) Test(_ context.Context, c connectors.Credentials) (connectors.Identit
 	return connectors.Identity{Display: "@bot"}, nil
 }
 
+// drive is an OAuth2 connector; oauth is its provider.
+type drive struct{}
+
+func (drive) Kind() catalog.ConnectorKind       { return "drive" }
+func (drive) Nodes() []catalog.NodeType         { return nil }
+func (drive) Triggers() []catalog.TriggerSource { return nil }
+func (drive) Descriptor() connectors.Descriptor {
+	return connectors.Descriptor{Kind: "drive", Title: map[string]string{"en": "Drive"}, Auth: connectors.AuthOAuth2,
+		OAuth2: &connectors.OAuth2Config{AuthURL: "https://provider.test/auth", TokenURL: "https://provider.test/token"}}
+}
+func (drive) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
+	return connectors.Identity{Display: "docs@acme.test"}, nil
+}
+
+type oauth struct {
+	err   error
+	state string
+}
+
+func (o *oauth) Begin(_ context.Context, _ uuid.UUID, _ catalog.ConnectorKind, _ string) (string, string, error) {
+	o.state = uuid.NewString()
+	return "https://provider.test/auth?state=" + o.state, o.state, nil
+}
+func (o *oauth) Exchange(context.Context, uuid.UUID, string, string) (connectors.OAuth2Grant, error) {
+	if o.err != nil {
+		return connectors.OAuth2Grant{}, o.err
+	}
+	return connectors.OAuth2Grant{Kind: "drive", Identity: connectors.Identity{Display: "docs@acme.test"}, Credentials: connectors.Credentials{"access_token": "at"}}, nil
+}
+func (o *oauth) Complete(context.Context, uuid.UUID, string, string) (connectors.Connection, error) {
+	panic("not used")
+}
+func (o *oauth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "at", nil }
+
 type fixture struct {
+	oauth  *oauth
+	userID int64
 	t      *testing.T
 	ctrl   *Controller
 	tenant uuid.UUID
@@ -77,23 +112,33 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	dir := connectors.NewDirectory(nil)
 	require.NoError(t, dir.Register(bot{}))
+	require.NoError(t, dir.Register(drive{}))
 	store := connectors.NewStore(scope.Pool, keys, nil, nil, nil)
+	fake := &oauth{}
 	svc := services.NewIntegrationsService(services.IntegrationsDeps{
 		Directory: dir, Store: store, States: persistence.NewOAuthStates(scope.Pool), Checks: persistence.NewConnectionChecks(scope.Pool),
+		Requests: persistence.NewRequests(scope.Pool), OAuth: fake,
 	})
+	var userID int64
+	require.NoError(t, scope.Pool.QueryRow(context.Background(), `INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Ann', 'Admin', $2, 'en') RETURNING id`, scope.Tenant.ID, "admin-"+uuid.NewString()+"@example.com").Scan(&userID))
 	other := uuid.New()
 	_, err = scope.Pool.Exec(context.Background(), `INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())`,
 		other, "t-"+other.String()[:8], other.String()[:8]+".test")
 	require.NoError(t, err)
 	ctrl, err := NewController(Config{Service: svc, Configured: true})
 	require.NoError(t, err)
-	return &fixture{t: t, ctrl: ctrl, tenant: scope.Tenant.ID, other: other}
+	return &fixture{t: t, ctrl: ctrl, tenant: scope.Tenant.ID, other: other, oauth: fake, userID: userID}
 }
 
 func testUser(tenant uuid.UUID, perms ...permission.Permission) user.User {
+	return testUserID(tenant, 7, perms...)
+}
+
+func testUserID(tenant uuid.UUID, id int64, perms ...permission.Permission) user.User {
 	r := role.New("r", role.WithID(1), role.WithPermissions(perms), role.WithTenantID(tenant), role.WithCreatedAt(time.Now()), role.WithUpdatedAt(time.Now()))
 	email, _ := internet.NewEmail("admin@example.com")
-	return user.New("Ann", "Admin", email, "", user.WithID(7), user.WithTenantID(tenant), user.WithRoles([]role.Role{r}))
+	return user.New("Ann", "Admin", email, "", user.WithID(uint(id)), user.WithTenantID(tenant), user.WithRoles([]role.Role{r}))
 }
 
 // call posts one JSON-RPC request as u and returns the raw body.
@@ -139,7 +184,8 @@ func TestRPCNeverReturnsSecrets(t *testing.T) {
 	_, body = f.call(admin, MethodList, map[string]any{})
 	list := result[ListResponse](t, body)
 	assert.NotContains(t, body, secret)
-	require.Len(t, list.Connectors, 1)
+	require.Len(t, list.Connectors, 2)
+	list.Connectors = list.Connectors[1:] // drive, telegram_bot: by kind
 	assert.Equal(t, CategoryMessaging, list.Connectors[0].Category)
 	assert.True(t, list.CanManage)
 	require.Len(t, list.Connectors[0].Connections, 1)
@@ -181,6 +227,7 @@ func TestRPCPermissionsAndTenants(t *testing.T) {
 	_, body = f.call(author, MethodList, map[string]any{})
 	list := result[ListResponse](t, body)
 	assert.False(t, list.CanManage)
+	list.Connectors = list.Connectors[1:]
 	require.Len(t, list.Connectors[0].Connections, 1)
 	assert.Nil(t, list.Connectors[0].Connections[0].Fields)
 
@@ -238,20 +285,57 @@ func TestRPCNameTakenAndInvalidInput(t *testing.T) {
 	assert.Contains(t, body, `"code":"not_found"`)
 }
 
-func TestOAuthCallbackRedirects(t *testing.T) {
+func TestOAuthCallbackKeepsTheFormContext(t *testing.T) {
 	f := newFixture(t)
-	admin := testUser(f.tenant, permissions.ConnectionsManage)
-	get := func(q url.Values) *httptest.ResponseRecorder {
+	admin := testUserID(f.tenant, f.userID, permissions.ConnectionsManage)
+	start := func(params map[string]any) string {
+		t.Helper()
+		_, body := f.call(admin, MethodOAuthStart, params)
+		require.NotEmpty(t, result[OAuthStartResponse](t, body).AuthorizeURL, body)
+		return f.oauth.state
+	}
+	callback := func(q url.Values) string {
+		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, "/settings/integrations/oauth/callback?"+q.Encode(), nil)
 		req = req.WithContext(composables.WithUser(req.Context(), admin))
 		rec := httptest.NewRecorder()
 		f.ctrl.oauthCallback(rec, req)
-		return rec
+		require.Equal(t, http.StatusFound, rec.Code)
+		loc, err := url.Parse(rec.Header().Get("Location"))
+		require.NoError(t, err)
+		return loc.Query().Encode()
 	}
-	rec := get(url.Values{"state": {"forged"}, "code": {"c"}})
-	assert.Equal(t, http.StatusFound, rec.Code)
-	// Without an OAuth2 helper the service reports it is not configured.
-	assert.True(t, strings.HasPrefix(rec.Header().Get("Location"), "/settings/integrations?oauth_error="), rec.Header().Get("Location"))
-	rec = get(url.Values{"state": {"forged"}, "error": {"access_denied"}})
-	assert.Equal(t, "/settings/integrations?oauth_error=denied", rec.Header().Get("Location"))
+
+	// The user refuses at the provider: the create form comes back with its names.
+	state := start(map[string]any{"kind": "drive", "name": "company_drive", "display_name": "Company drive"})
+	assert.Equal(t, url.Values{"oauth_error": {"denied"}, "kind": {"drive"}, "name": {"company_drive"}, "display_name": {"Company drive"}}.Encode(),
+		callback(url.Values{"state": {state}, "error": {"access_denied"}}))
+
+	// The provider's token is refused by the connector.
+	f.oauth.err = connectors.ErrOAuth2Refused
+	state = start(map[string]any{"kind": "drive", "name": "company_drive"})
+	assert.Equal(t, url.Values{"oauth_error": {"refused"}, "kind": {"drive"}, "name": {"company_drive"}}.Encode(),
+		callback(url.Values{"state": {state}, "code": {"c"}}))
+
+	// Success creates the connection under the requested name.
+	f.oauth.err = nil
+	state = start(map[string]any{"kind": "drive", "name": "company_drive"})
+	got, err := url.ParseQuery(callback(url.Values{"state": {state}, "code": {"c"}}))
+	require.NoError(t, err)
+	id := got.Get("connected")
+	require.NotEmpty(t, id)
+	assert.Equal(t, "drive", got.Get("kind"))
+
+	// A re-authorization that fails returns to the edit form of that connection.
+	f.oauth.err = fmt.Errorf("oauth2: server error")
+	state = start(map[string]any{"kind": "drive", "name": "company_drive", "connection_id": id})
+	assert.Equal(t, url.Values{"oauth_error": {"exchange"}, "kind": {"drive"}, "edit": {id}}.Encode(),
+		callback(url.Values{"state": {state}, "code": {"c"}}))
+	// … and a successful one too.
+	f.oauth.err = nil
+	state = start(map[string]any{"kind": "drive", "name": "company_drive", "connection_id": id})
+	assert.Equal(t, url.Values{"connected": {id}, "kind": {"drive"}, "edit": {id}}.Encode(), callback(url.Values{"state": {state}, "code": {"c"}}))
+
+	// A state that is not this user's carries no context.
+	assert.Equal(t, url.Values{"oauth_error": {"state"}}.Encode(), callback(url.Values{"state": {"forged"}, "code": {"c"}}))
 }

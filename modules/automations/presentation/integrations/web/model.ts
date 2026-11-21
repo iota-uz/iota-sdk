@@ -125,10 +125,29 @@ export function fieldErrorText(t: Translator, code: string): string {
   }
 }
 
-/** The phrase of a failed save; never a raw code. */
+/** A provider's refusal in words with the step to fix it; never the provider's own text. */
+export function reasonText(t: Translator, reason: string | null | undefined): string {
+  const r = reason && ['auth', 'network', 'rate_limit', 'config', 'reauth', 'unknown'].includes(reason) ? reason : 'unknown'
+  return `${t(`Reasons.${r}.Text`)}. ${t(`Reasons.${r}.Fix`)}`
+}
+
+/** reasonText as a sentence of its own (the status line of a connection). */
+export function reasonSentence(t: Translator, reason: string | null | undefined): string {
+  const s = reasonText(t, reason)
+  return s.charAt(0).toLocaleUpperCase() + s.slice(1)
+}
+
+export const OAUTH_ERRORS = ['denied', 'state', 'exchange', 'unavailable', 'refused', 'name_taken', 'version_conflict', 'not_found'] as const
+
+/** The phrase of an OAuth2 return code. */
+export function oauthErrorText(t: Translator, code: string): string {
+  return t(`OAuth.${(OAUTH_ERRORS as readonly string[]).includes(code) ? code : 'exchange'}`)
+}
+
+/** The phrase of a failed save; never a raw code or the provider's text. */
 export function saveErrorText(t: Translator, r: SaveResult): string {
   switch (r.error) {
-    case 'test_failed': return t('Form.TestFailed', { message: r.message || t('Form.Invalid') })
+    case 'test_failed': return t('Form.TestFailed', { message: reasonText(t, r.reason) })
     case 'version_conflict': return t('Form.VersionConflict')
     case 'unavailable': return t('Form.Unavailable')
     case 'name_taken': return t('Form.NameTaken')

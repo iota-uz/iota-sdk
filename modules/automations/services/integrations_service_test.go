@@ -52,10 +52,12 @@ func (n node) Requires() []catalog.ConnectorKind {
 }
 
 type telegram struct {
-	echo   func(token string) string // the refusal message, from the token (a careless provider)
-	tested atomic.Int32
-	policy connectors.PlatformPolicy
-	nodes  []catalog.NodeType
+	echo       func(token string) string // the refusal message, from the token (a careless provider)
+	identityOf func(token string) string // the identity's display, from the token
+	accept     string                    // another token the provider accepts
+	tested     atomic.Int32
+	policy     connectors.PlatformPolicy
+	nodes      []catalog.NodeType
 }
 
 func (c *telegram) Kind() catalog.ConnectorKind       { return catalog.KindTelegramBot }
@@ -72,11 +74,14 @@ func (c *telegram) Descriptor() connectors.Descriptor {
 // Test refuses badToken and, like a careless provider, echoes it in the message.
 func (c *telegram) Test(_ context.Context, creds connectors.Credentials) (connectors.Identity, error) {
 	c.tested.Add(1)
-	if creds["token"] != goodToken {
+	if creds["token"] != goodToken && (c.accept == "" || creds["token"] != c.accept) {
 		if c.echo != nil {
 			return connectors.Identity{}, errors.New(c.echo(creds["token"]))
 		}
 		return connectors.Identity{}, fmt.Errorf("401 Unauthorized: token %s is not accepted", creds["token"])
+	}
+	if c.identityOf != nil {
+		return connectors.Identity{Display: c.identityOf(creds["token"]), External: "bot-" + creds["token"]}, nil
 	}
 	return connectors.Identity{Display: "@sales_bot", External: "bot-1"}, nil
 }
@@ -99,40 +104,26 @@ func (u *usage) Uses(_ context.Context, _, id uuid.UUID) ([]connectors.Use, erro
 	return u.uses[id], nil
 }
 
-// fakeOAuth behaves like connectors.OAuth2.Complete: the provider's account is the identity; a
-// connection of the same identity is refreshed (and set connected), else a new one is created.
+// fakeOAuth exchanges any code for a token of its current identity; it saves nothing.
 type fakeOAuth struct {
-	store    connectors.Store
 	identity connectors.Identity
+	err      error
 }
 
-func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, kind catalog.ConnectorKind, redirect string) (string, string, error) {
+func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, _ catalog.ConnectorKind, redirect string) (string, string, error) {
 	state := uuid.NewString()
 	return "https://provider.test/auth?state=" + state + "&redirect_uri=" + redirect, state, nil
 }
 
-func (f *fakeOAuth) Complete(ctx context.Context, tenantID uuid.UUID, _, _ string) (connectors.Connection, error) {
-	creds := connectors.Credentials{"token": goodToken}
-	existing, err := f.store.List(ctx, tenantID, catalog.KindTelegramBot)
-	if err != nil {
-		return connectors.Connection{}, err
+func (f *fakeOAuth) Exchange(context.Context, uuid.UUID, string, string) (connectors.OAuth2Grant, error) {
+	if f.err != nil {
+		return connectors.OAuth2Grant{}, f.err
 	}
-	for _, c := range existing {
-		if c.Identity.External == f.identity.External {
-			c.Identity, c.Status, c.StatusReason = f.identity, connectors.StatusConnected, ""
-			return f.store.Save(ctx, c, creds)
-		}
-	}
-	for i := 1; ; i++ {
-		name := "telegram_bot"
-		if i > 1 {
-			name = fmt.Sprintf("telegram_bot_%d", i)
-		}
-		c, err := f.store.Save(ctx, connectors.Connection{TenantID: tenantID, Kind: catalog.KindTelegramBot, Name: name, DisplayName: f.identity.Display, Identity: f.identity, Status: connectors.StatusConnected}, creds)
-		if !errors.Is(err, connectors.ErrNameTaken) {
-			return c, err
-		}
-	}
+	return connectors.OAuth2Grant{Kind: catalog.KindTelegramBot, Identity: f.identity, Credentials: connectors.Credentials{"token": goodToken}}, nil
+}
+
+func (f *fakeOAuth) Complete(context.Context, uuid.UUID, string, string) (connectors.Connection, error) {
+	panic("the service saves the connection itself")
 }
 
 func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "", nil }
@@ -179,10 +170,10 @@ func newEnv(t *testing.T) *env {
 	grants := connectors.NewPlatformGrants(e.db)
 	store = connectors.NewStore(e.db, keys, e.usage, platform, grants)
 	e.store = store
-	e.oauth = &fakeOAuth{store: store, identity: connectors.Identity{Display: "@oauth", External: "acct-1"}}
+	e.oauth = &fakeOAuth{identity: connectors.Identity{Display: "@oauth", External: "acct-1"}}
 	e.svc = services.NewIntegrationsService(services.IntegrationsDeps{
 		Directory: dir, Store: store, Usage: e.usage, Platform: platform, Grants: grants, OAuth: e.oauth,
-		States: persistence.NewOAuthStates(e.db), Checks: persistence.NewConnectionChecks(e.db),
+		States: persistence.NewOAuthStates(e.db), Checks: persistence.NewConnectionChecks(e.db), Requests: persistence.NewRequests(e.db),
 		Now: func() time.Time { return e.now },
 	})
 	return e
@@ -238,8 +229,9 @@ func TestCreateTestsFirstAndNeverReturnsTheSecret(t *testing.T) {
 	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": badToken}})
 	var failed *services.TestFailedError
 	require.ErrorAs(t, err, &failed)
-	assert.Contains(t, failed.Message, "401 Unauthorized")
-	assert.NotContains(t, failed.Message, badToken, "the connector's message is masked")
+	assert.Equal(t, services.ReasonAuth, failed.Reason)
+	assert.Contains(t, failed.Detail, "401 Unauthorized")
+	assert.NotContains(t, failed.Detail, badToken, "the connector's message is masked")
 	noSecret(t, err.Error())
 	conns, err := e.store.List(e.ctx, e.tenant, "")
 	require.NoError(t, err)
@@ -313,7 +305,7 @@ func TestUpdateKeepsCredentialsAndChecksVersion(t *testing.T) {
 	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.Connection.ID, Version: got.Connection.Version, Credentials: map[string]any{"token": badToken}})
 	var failed *services.TestFailedError
 	require.ErrorAs(t, err, &failed)
-	noSecret(t, failed.Message)
+	noSecret(t, failed.Detail)
 	_, creds, err = e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Equal(t, goodToken, creds["token"])
@@ -375,11 +367,12 @@ func TestTestRecordsTheStatus(t *testing.T) {
 	res, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
 	require.NoError(t, err)
 	assert.False(t, res.OK)
-	assert.NotContains(t, res.Message, badToken)
+	assert.NotContains(t, res.Detail, badToken)
+	assert.Equal(t, services.ReasonAuth, res.Reason)
 	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusError, got.Status)
-	assert.NotContains(t, got.StatusReason, badToken)
+	assert.Equal(t, "auth", got.StatusReason, "the stored reason is a category, never the provider's text")
 }
 
 func TestConnectionInUseIsNotDeleted(t *testing.T) {
@@ -434,27 +427,28 @@ func TestOAuthStateIsOneTimeAndBound(t *testing.T) {
 	}
 	me := e.actor()
 	put(me, "s1", e.now.Add(10*time.Minute))
-	_, err = e.svc.OAuthComplete(e.ctx, services.Actor{TenantID: me.TenantID, UserID: 99}, "s1", "code")
+	_, _, err = e.svc.OAuthComplete(e.ctx, services.Actor{TenantID: me.TenantID, UserID: 99}, "s1", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "another user")
-	_, err = e.svc.OAuthComplete(e.ctx, services.Actor{TenantID: e.newTenant(), UserID: me.UserID}, "s1", "code")
+	_, _, err = e.svc.OAuthComplete(e.ctx, services.Actor{TenantID: e.newTenant(), UserID: me.UserID}, "s1", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "another tenant")
 
-	conn, err := e.svc.OAuthComplete(e.ctx, me, "s1", "code")
+	conn, _, err := e.svc.OAuthComplete(e.ctx, me, "s1", "code")
 	require.NoError(t, err)
 	assert.Equal(t, "oauth_bot", conn.Name, "the name given at the start")
 	assert.Equal(t, "Sales", conn.DisplayName)
-	_, err = e.svc.OAuthComplete(e.ctx, me, "s1", "code")
+	_, _, err = e.svc.OAuthComplete(e.ctx, me, "s1", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "once")
 
 	put(me, "s2", e.now.Add(-time.Second))
-	_, err = e.svc.OAuthComplete(e.ctx, me, "s2", "code")
+	_, _, err = e.svc.OAuthComplete(e.ctx, me, "s2", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "expired")
 
 	put(me, "s3", e.now.Add(time.Minute))
-	kind, err := e.svc.OAuthAbandon(e.ctx, me, "s3")
+	abandoned, err := e.svc.OAuthAbandon(e.ctx, me, "s3")
 	require.NoError(t, err)
-	assert.Equal(t, catalog.KindTelegramBot, kind)
-	_, err = e.svc.OAuthComplete(e.ctx, me, "s3", "code")
+	assert.Equal(t, catalog.KindTelegramBot, abandoned.Kind)
+	assert.Equal(t, "oauth_bot", abandoned.Name, "the form context comes back")
+	_, _, err = e.svc.OAuthComplete(e.ctx, me, "s3", "code")
 	require.ErrorIs(t, err, services.ErrStateInvalid, "an abandoned state is gone")
 }
 
@@ -465,44 +459,85 @@ func (e *env) putState(state string, connectionID uuid.UUID) {
 	}))
 }
 
-func TestOAuthReauthKeepsTheConnectionTheAdministratorChose(t *testing.T) {
-	e := newEnv(t)
-	e.putState("first", uuid.Nil)
-	first, err := e.svc.OAuthComplete(e.ctx, e.actor(), "first", "code")
-	require.NoError(t, err)
-	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, first.ID, connectors.StatusNeedsReauth, "expired"))
-
-	// The administrator signs in again, but with another account.
-	e.oauth.identity = connectors.Identity{Display: "@other", External: "acct-2"}
-	e.putState("again", first.ID)
-	got, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
-	require.NoError(t, err)
-	assert.Equal(t, first.ID, got.ID)
-	assert.Equal(t, connectors.StatusConnected, got.Status)
-	assert.Equal(t, "@other", got.Identity.Display)
-	conns, err := e.store.List(e.ctx, e.tenant, "")
-	require.NoError(t, err)
-	assert.Len(t, conns, 1, "the connection the sign-in created is merged into the chosen one")
+func (e *env) putNamed(state, name string) {
+	e.t.Helper()
+	require.NoError(e.t, persistence.NewOAuthStates(e.db).Put(e.ctx, services.OAuthState{
+		Hash: services.StateHash(state), TenantID: e.tenant, UserID: e.user, Kind: catalog.KindTelegramBot, Name: name, ExpiresAt: e.now.Add(time.Minute),
+	}))
 }
 
-func TestOAuthSignInDoesNotEnableADisabledConnection(t *testing.T) {
+func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	e := newEnv(t)
-	e.putState("first", uuid.Nil)
-	first, err := e.svc.OAuthComplete(e.ctx, e.actor(), "first", "code")
+	e.putNamed("a", "account_a")
+	a, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
 	require.NoError(t, err)
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), first.ID, true)
+	e.oauth.identity = connectors.Identity{Display: "@b", External: "acct-2"}
+	e.putNamed("b", "account_b")
+	b, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "b", "code")
 	require.NoError(t, err)
-	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), b.ID, true)
+	require.NoError(t, err)
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "reauth"))
+	bBefore, _, err := e.store.Get(e.ctx, e.tenant, b.ID)
+	require.NoError(t, err)
 
-	e.putState("second", uuid.Nil)
-	got, err := e.svc.OAuthComplete(e.ctx, e.actor(), "second", "code")
+	// Re-authorizing A, the administrator signs in as account B.
+	e.putState("again", a.ID)
+	got, pending, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
 	require.NoError(t, err)
-	assert.Equal(t, first.ID, got.ID)
+	assert.Equal(t, a.ID, got.ID)
+	assert.Equal(t, a.ID, pending.ConnectionID)
+	assert.Equal(t, connectors.StatusConnected, got.Status)
+	assert.Equal(t, "@b", got.Identity.Display)
+	bAfter, _, err := e.store.Get(e.ctx, e.tenant, b.ID)
+	require.NoError(t, err)
+	assert.Equal(t, bBefore, bAfter, "B is not touched: still disabled, same version")
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Len(t, conns, 2)
+}
+
+func TestOAuthReauthOfADisabledConnectionKeepsItDisabled(t *testing.T) {
+	e := newEnv(t)
+	e.putNamed("a", "account_a")
+	a, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
+	require.NoError(t, err)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), a.ID, true)
+	require.NoError(t, err)
+	e.putState("again", a.ID)
+	got, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
+	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusDisabled, got.Status)
 	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
 }
 
-func TestRefusalIsMaskedAndBounded(t *testing.T) {
+func TestOAuthCreateWithATakenNameLeavesNothing(t *testing.T) {
+	e := newEnv(t)
+	e.create("sales_bot")
+	e.putNamed("dup", "sales_bot")
+	_, pending, err := e.svc.OAuthComplete(e.ctx, e.actor(), "dup", "code")
+	require.ErrorIs(t, err, connectors.ErrNameTaken)
+	assert.Equal(t, "sales_bot", pending.Name, "the form context comes back with the conflict")
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Len(t, conns, 1)
+}
+
+func TestOAuthProviderFailureKeepsTheFormContext(t *testing.T) {
+	e := newEnv(t)
+	e.oauth.err = connectors.ErrOAuth2Refused
+	e.putNamed("x", "my_bot")
+	_, pending, err := e.svc.OAuthComplete(e.ctx, e.actor(), "x", "code")
+	require.ErrorIs(t, err, services.ErrOAuthRefused)
+	assert.Equal(t, "my_bot", pending.Name)
+	e.oauth.err = errors.New("oauth2: cannot fetch token: 500")
+	e.putNamed("y", "my_bot")
+	_, pending, err = e.svc.OAuthComplete(e.ctx, e.actor(), "y", "code")
+	require.ErrorIs(t, err, services.ErrOAuthExchange)
+	assert.Equal(t, catalog.KindTelegramBot, pending.Kind)
+}
+
+func TestRefusalIsCategorizedMaskedAndBounded(t *testing.T) {
 	e := newEnv(t)
 	c := e.create("sales_bot")
 	long := strings.Repeat("x", 40) + badToken
@@ -514,12 +549,61 @@ func TestRefusalIsMaskedAndBounded(t *testing.T) {
 	res, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
 	require.NoError(t, err)
 	assert.False(t, res.OK)
-	assert.NotContains(t, res.Message, base64.StdEncoding.EncodeToString([]byte(long)))
-	assert.NotContains(t, res.Message, url.QueryEscape(long))
-	assert.LessOrEqual(t, len([]rune(res.Message)), 500)
+	assert.Equal(t, services.ReasonAuth, res.Reason)
+	assert.NotContains(t, res.Detail, base64.StdEncoding.EncodeToString([]byte(long)))
+	assert.NotContains(t, res.Detail, url.QueryEscape(long))
+	assert.LessOrEqual(t, len([]rune(res.Detail)), 500)
 	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
-	assert.Equal(t, connectors.StatusError, got.Status, "the status is recorded even for a long provider message")
+	assert.Equal(t, connectors.StatusError, got.Status)
+	assert.Equal(t, "auth", got.StatusReason)
+}
+
+// A short secret (a three-letter password) cannot be masked inside text: the provider's text is
+// dropped whole, from the refusal and from the identity.
+func TestShortSecretEchoedByTheConnectorIsNeverReturned(t *testing.T) {
+	e := newEnv(t)
+	e.tg.echo = func(token string) string { return "login failed for password " + token + " (401)" }
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, services.ReasonAuth, failed.Reason)
+	assert.Empty(t, failed.Detail)
+	assert.NotContains(t, err.Error(), "pw1")
+
+	e.tg.identityOf = func(token string) string { return "bot " + token }
+	e.tg.accept = "pw1"
+	got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
+	require.NoError(t, err)
+	assert.Empty(t, got.Connection.Identity.Display)
+	assert.NotContains(t, fmt.Sprintf("%+v", got.Connection.Identity), "pw1")
+}
+
+func TestRetryWithTheSameKeyReturnsTheFirstResult(t *testing.T) {
+	e := newEnv(t)
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-1"}
+	first, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	tested := e.tg.tested.Load()
+	// The answer was lost; «Retry» sends the same key.
+	again, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, first.Connection.ID, again.Connection.ID)
+	assert.Equal(t, tested, e.tg.tested.Load(), "the provider is not asked again")
+
+	name := "Renamed"
+	upd := services.UpdateInput{ID: first.Connection.ID, Version: first.Connection.Version, DisplayName: &name, IdempotencyKey: "k-2"}
+	u1, err := e.svc.Update(e.ctx, e.actor(), upd)
+	require.NoError(t, err)
+	u2, err := e.svc.Update(e.ctx, e.actor(), upd)
+	require.NoError(t, err, "a retried update is not a version conflict")
+	assert.Equal(t, u1.Connection.Version, u2.Connection.Version)
+
+	// Another tenant's key space is its own.
+	other := services.Actor{TenantID: e.newTenant(), UserID: e.user}
+	theirs, err := e.svc.Create(e.ctx, other, in)
+	require.NoError(t, err)
+	assert.NotEqual(t, first.Connection.ID, theirs.Connection.ID, "the other tenant's key does not see this tenant's connection")
 }
 
 func TestNoKeyringRefusesBeforeCallingTheProvider(t *testing.T) {

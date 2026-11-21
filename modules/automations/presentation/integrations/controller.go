@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -25,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -75,9 +77,12 @@ var screen = solid.Import[Props]("./web/Integrations.tsx", solid.WithRPC(
 // Config configures the controller.
 type Config struct {
 	Service *services.IntegrationsService
-	// Host is the application's client host bundle manifest. Without it the page is not mounted (the
-	// RPC and the OAuth2 callback still are).
+	// Host is the client host bundle manifest the page is rendered with. Without it the page is not
+	// mounted (the RPC and the OAuth2 callback still are).
 	Host *clienthost.Manifest
+	// Assets are the files of the module's own bundle, served under AssetsPath (nil: the Host bundle
+	// is the application's).
+	Assets fs.FS
 	// Path is the page path (default /settings/integrations).
 	Path string
 	// AutomationsPath is where a use links to (default /automations).
@@ -161,6 +166,9 @@ func (c *Controller) Descriptor() application.ControllerDescriptor {
 		application.Post(c.rpcPath(), application.Authenticated()),
 		application.Get(c.callbackPath(), application.RequireAll(permissions.ConnectionsManage)),
 	)
+	if c.cfg.Assets != nil {
+		d.Routes = append(d.Routes, application.Prefix(AssetsPath, application.Public()))
+	}
 	return d
 }
 
@@ -178,6 +186,9 @@ func (c *Controller) Register(r *mux.Router) {
 			requireManage,
 		)
 		c.client.Register(page)
+	}
+	if c.cfg.Assets != nil {
+		r.PathPrefix(AssetsPath+"/").Methods(http.MethodGet, http.MethodHead).Handler(assetHandler(c.cfg.Assets))
 	}
 	rpc := r.Path(c.rpcPath()).Methods(http.MethodPost).Subrouter()
 	rpc.Use(middleware.Authorize(), middleware.ProvideUser())
@@ -265,25 +276,53 @@ func (c *Controller) oauthCallback(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Redirect(w, r, c.cfg.Path+"?"+params.Encode(), http.StatusFound)
 	}
-	if providerErr := q.Get("error"); providerErr != "" {
-		params := url.Values{"oauth_error": {"denied"}}
-		if kind, err := c.cfg.Service.OAuthAbandon(ctx, a, q.Get("state")); err == nil {
-			params.Set("kind", string(kind))
+	// failed sends the browser back to the form the sign-in started from: the connector, the names
+	// typed in it, or the connection being re-authorized. A state that is not this user's carries none.
+	failed := func(code string, pending services.OAuthState) {
+		params := url.Values{"oauth_error": {code}}
+		if pending.Kind != "" {
+			params.Set("kind", string(pending.Kind))
+			if pending.ConnectionID != uuid.Nil {
+				params.Set("edit", pending.ConnectionID.String())
+			} else {
+				if pending.Name != "" {
+					params.Set("name", pending.Name)
+				}
+				if pending.DisplayName != "" {
+					params.Set("display_name", pending.DisplayName)
+				}
+			}
 		}
 		back(params)
+	}
+	if providerErr := q.Get("error"); providerErr != "" {
+		pending, _ := c.cfg.Service.OAuthAbandon(ctx, a, q.Get("state"))
+		failed("denied", pending)
 		return
 	}
-	conn, err := c.cfg.Service.OAuthComplete(ctx, a, q.Get("state"), q.Get("code"))
+	conn, pending, err := c.cfg.Service.OAuthComplete(ctx, a, q.Get("state"), q.Get("code"))
 	switch {
 	case err == nil:
-		back(url.Values{"connected": {conn.ID.String()}, "kind": {string(conn.Kind)}})
+		params := url.Values{"connected": {conn.ID.String()}, "kind": {string(conn.Kind)}}
+		if pending.ConnectionID != uuid.Nil {
+			params.Set("edit", conn.ID.String())
+		}
+		back(params)
 	case errors.Is(err, services.ErrStateInvalid):
-		back(url.Values{"oauth_error": {"state"}})
+		failed("state", services.OAuthState{})
 	case errors.Is(err, services.ErrOAuthUnavailable):
-		back(url.Values{"oauth_error": {"unavailable"}})
+		failed("unavailable", pending)
+	case errors.Is(err, services.ErrOAuthRefused):
+		failed("refused", pending)
+	case errors.Is(err, connectors.ErrNameTaken):
+		failed("name_taken", pending)
+	case errors.Is(err, connectors.ErrVersionConflict):
+		failed("version_conflict", pending)
+	case errors.Is(err, connectors.ErrNotFound):
+		failed("not_found", services.OAuthState{Kind: pending.Kind})
 	default:
 		c.log.ErrorContext(ctx, "automations: OAuth2 callback failed", "error", err)
-		back(url.Values{"oauth_error": {"exchange"}})
+		failed("exchange", pending)
 	}
 }
 

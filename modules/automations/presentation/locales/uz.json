@@ -129,7 +129,8 @@
         "ConnectedPlain": "Ulanish ishlayapti",
         "Failed": "Tekshiruvdan oʻtmadi: {message}",
         "Reauth": "Xizmat qayta kirishni soʻrayapti.",
-        "Error": "Ulanishni tekshirib boʻlmadi. Bir daqiqadan soʻng qayta urining."
+        "Error": "Ulanishni tekshirib boʻlmadi. Bir daqiqadan soʻng qayta urining.",
+        "Slow": "Xizmat javobini hali kutyapmiz. Tekshiruvni xavfsiz takrorlash mumkin."
       },
       "Toast": {
         "Saved": "{name} ulandi",
@@ -146,7 +147,11 @@
         "state": "Kirish havolasi eskirgan yoki boshqa foydalanuvchi tomonidan ochilgan. Kirishni qaytadan boshlang.",
         "exchange": "Xizmat kirishni tasdiqlamadi. Bir daqiqadan soʻng qayta urining.",
         "unavailable": "Bu xizmat orqali kirish ilovada sozlanmagan.",
-        "Close": "Yopish"
+        "Close": "Yopish",
+        "refused": "Kirish bajarildi, lekin bu akkauntni konnektor uchun ishlatib boʻlmaydi. Boshqa akkaunt bilan kiring.",
+        "name_taken": "Bu tizim nomi ushbu xizmatning boshqa ulanishida band. Boshqa nom tanlang va qayta kiring.",
+        "version_conflict": "Ulanish bu orada oʻzgartirildi. Uni qayta oching va yana kiring.",
+        "not_found": "Ulanish bu orada oʻchirib tashlandi."
       },
       "Usage": {
         "Title": "{name} qayerda ishlatiladi",
@@ -184,6 +189,36 @@
         "Multiple": "{count} ta avtomatlashtirishda ishlatiladi",
         "Plural": "{count} ta avtomatlashtirishda ishlatiladi",
         "None": "Ishlatilmaydi"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "xizmat kirish maʼlumotlarini qabul qilmadi",
+          "Fix": "Kalit yoki parolni tekshiring yoki xizmatda yangisini chiqarib, almashtiring."
+        },
+        "network": {
+          "Text": "xizmat javob bermadi",
+          "Fix": "Manzilni tekshiring va bir daqiqadan soʻng qayta urining."
+        },
+        "rate_limit": {
+          "Text": "xizmat bu akkaunt soʻrovlarini cheklayapti",
+          "Fix": "Bir necha daqiqa kuting va qayta tekshiring."
+        },
+        "config": {
+          "Text": "ulanish parametri notoʻgʻri",
+          "Fix": "Manzil, identifikatorlar va boshqa maydonlarni tekshiring."
+        },
+        "reauth": {
+          "Text": "xizmat qayta kirishni soʻrayapti",
+          "Fix": "Xizmat orqali qayta kiring."
+        },
+        "unknown": {
+          "Text": "xizmat ulanishni qabul qilmadi",
+          "Fix": "Qiymatlarni tekshiring; takrorlansa, quyida xizmat javobini oching."
+        }
+      },
+      "Diagnostics": {
+        "Show": "Xizmat javobini koʻrsatish",
+        "Hide": "Xizmat javobini yashirish"
       }
     }
   }

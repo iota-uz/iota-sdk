@@ -22,6 +22,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"sort"
@@ -76,7 +77,9 @@ func WithConnectors(list ...connectors.Connector) Option {
 }
 
 // WithHostManifest is the application's client host bundle manifest the integrations screen is served
-// with. Default: the manifest at EXTRUNTIME_UI_HOSTMANIFEST. Without one the page is not mounted.
+// with (the application merged the screen's feature catalog into its bundle). Default: the module's own
+// embedded bundle, served at /assets/automations; without it, the manifest at
+// EXTRUNTIME_UI_HOSTMANIFEST.
 func WithHostManifest(m clienthost.Manifest) Option {
 	return func(c *component) { c.host = &m }
 }
@@ -163,6 +166,15 @@ func (c *component) Build(b *composition.Builder) error {
 		return serrors.Wrap(op, err)
 	}
 	hostManifest := c.host
+	var assets fs.FS
+	if hostManifest == nil {
+		bundle, err := integrations.DefaultBundle()
+		if err == nil {
+			hostManifest, assets = &bundle.Manifest, bundle.Files
+		} else if logger := b.Context().Logger(); logger != nil {
+			logger.Warnf("automations: the embedded integrations bundle is unavailable: %v", err)
+		}
+	}
 	if hostManifest == nil && cfg.hostPath != "" {
 		m, err := loadManifest(cfg.hostPath)
 		if err != nil {
@@ -267,7 +279,7 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		deps := services.IntegrationsDeps{States: persistence.NewOAuthStates(db), Checks: persistence.NewConnectionChecks(db)}
+		deps := services.IntegrationsDeps{States: persistence.NewOAuthStates(db), Checks: persistence.NewConnectionChecks(db), Requests: persistence.NewRequests(db)}
 		if deps.Directory, err = composition.Resolve[connectors.Directory](container); err != nil {
 			return nil, err
 		}
@@ -307,7 +319,7 @@ func (c *component) Build(b *composition.Builder) error {
 	}
 	composition.ContributeControllersFunc(b, func(svc *services.IntegrationsService) ([]application.Controller, error) {
 		ctrl, err := integrations.NewController(integrations.Config{
-			Service: svc, Host: hostManifest, AutomationsPath: c.automationsPath, Configured: keys != nil,
+			Service: svc, Host: hostManifest, Assets: assets, AutomationsPath: c.automationsPath, Configured: keys != nil,
 			Origin: cfg.origin, MessageKeys: messageKeys, Logger: slog.Default(),
 		})
 		if err != nil {

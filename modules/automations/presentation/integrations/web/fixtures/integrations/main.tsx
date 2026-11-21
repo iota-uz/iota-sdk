@@ -28,6 +28,10 @@ const fake: FakeOptions = {
   delay: Number(params.get('delay') ?? '0'),
   platformFails: params.has('platformFails'),
   manage: params.get('manage') !== '0',
+  testDelay: Number(params.get('testDelay') ?? '0'),
+  lossy: params.has('lossy'),
+  oauthFail: params.get('oauthFail') ?? '',
+  testFailOnce: params.has('testFailOnce'),
   calls: [],
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls

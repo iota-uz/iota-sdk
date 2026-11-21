@@ -163,9 +163,10 @@ func connectionView(e services.ConnectionEntry) ConnectionView {
 		s := c.Identity.Display
 		v.Identity = &s
 	}
-	if c.StatusReason != "" {
-		s := c.StatusReason
-		v.StatusReason = &s
+	// Only a reason this module recorded is shown; free text (a provider's message) never is.
+	if services.IsReason(c.StatusReason) {
+		r := Reason(c.StatusReason)
+		v.StatusReason = &r
 	}
 	if e.LastChecked != nil {
 		s := e.LastChecked.UTC().Format(time.RFC3339)
@@ -217,7 +218,7 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 	case errors.As(err, &invalid):
 		return SaveResponse{Error: ErrInvalidInput, Fields: invalid.Fields}, nil
 	case errors.As(err, &failed):
-		return SaveResponse{Error: ErrTestFailed, Message: failed.Message}, nil
+		return SaveResponse{Error: ErrTestFailed, Reason: Reason(failed.Reason), Message: failed.Detail}, nil
 	case errors.Is(err, connectors.ErrNameTaken):
 		return SaveResponse{Error: ErrNameTaken, Fields: map[string]string{"name": "taken"}}, nil
 	case errors.Is(err, connectors.ErrVersionConflict):
@@ -233,6 +234,7 @@ func (c *Controller) create(ctx context.Context, req CreateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Create(ctx, actor(sub), services.CreateInput{
 		Kind: kindOf(req.Kind), Name: req.Name, DisplayName: req.DisplayName, Credentials: req.Credentials,
+		IdempotencyKey: req.IdempotencyKey,
 	}))
 }
 
@@ -247,6 +249,7 @@ func (c *Controller) update(ctx context.Context, req UpdateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Update(ctx, actor(sub), services.UpdateInput{
 		ID: id, Version: req.Version, DisplayName: req.DisplayName, Credentials: req.Credentials,
+		IdempotencyKey: req.IdempotencyKey,
 	}))
 }
 
@@ -264,9 +267,9 @@ func (c *Controller) test(ctx context.Context, req IDRequest) (TestResponse, err
 		return TestResponse{}, mapErr(err)
 	}
 	if res.NeedsReauth {
-		return TestResponse{Error: ErrNeedsReauth}, nil
+		return TestResponse{Error: ErrNeedsReauth, Reason: ReasonReauth}, nil
 	}
-	return TestResponse{OK: res.OK, Identity: res.Identity, Message: res.Message}, nil
+	return TestResponse{OK: res.OK, Identity: res.Identity, Reason: Reason(res.Reason), Message: res.Detail}, nil
 }
 
 func (c *Controller) setDisabled(ctx context.Context, req SetDisabledRequest) (ConnectionResponse, error) {

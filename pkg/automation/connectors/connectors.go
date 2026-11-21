@@ -228,12 +228,24 @@ type OAuth2Config struct {
 	ClientCredential string
 }
 
+// OAuth2Grant is an exchanged authorization: the connector kind of the state, who the token belongs
+// to and the credentials to save.
+type OAuth2Grant struct {
+	Kind        catalog.ConnectorKind
+	Identity    Identity
+	Credentials Credentials
+}
+
 // OAuth2 authorizes connections and keeps their tokens fresh.
 type OAuth2 interface {
 	// Begin returns the provider's authorization URL and the state to check on the callback.
 	Begin(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind, redirectURL string) (authURL string, state string, err error)
 	// Complete exchanges the code and saves the connection (a new one, or the one of the same identity).
 	Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error)
+	// Exchange exchanges the code and checks the token with the connector without saving anything: the
+	// caller saves the connection it chose (a re-authorization of a given connection, a new one under a
+	// given name).
+	Exchange(ctx context.Context, tenantID uuid.UUID, state, code string) (OAuth2Grant, error)
 	// Token is a valid access token, refreshed 15 minutes before it expires under the row lock; when
 	// the provider refuses the refresh the connection becomes needs_reauth and ErrNeedsReauth is returned.
 	Token(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error)
@@ -251,6 +263,8 @@ var (
 	ErrNotConnected = errors.New("automation connections: connection is not connected")
 	// ErrUndecryptable: the credentials do not decrypt (a row changed outside the store).
 	ErrUndecryptable = errors.New("automation connections: credentials do not decrypt")
+	// ErrOAuth2Refused: the connector refused the token the provider issued (Exchange, Complete).
+	ErrOAuth2Refused = errors.New("automation connections: the connector refused the new token")
 	// ErrInvalid: a connection or an argument the store refuses.
 	ErrInvalid = errors.New("automation connections: invalid")
 )

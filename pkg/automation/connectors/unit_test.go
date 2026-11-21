@@ -3,6 +3,8 @@ package connectors_test
 import (
 	"encoding/base64"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -94,11 +96,16 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 // The migration applies and rolls back: its Down then its Up run on a migrated database.
 func TestMigrationRollsBackAndApplies(t *testing.T) {
 	e := newEnv(t)
-	body, err := os.ReadFile("migrations/changes-1795256615.sql")
-	require.NoError(t, err)
-	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
-	require.True(t, ok)
-	up = strings.TrimPrefix(up, "-- +migrate Up")
+	const name = "changes-1795256615.sql"
+	up, down := migrationSections(t, name)
+	// Later migrations may depend on these tables: they are rolled back first, newest first, and
+	// applied again after.
+	later := laterMigrations(t, name)
+	for i := len(later) - 1; i >= 0; i-- {
+		_, d := migrationSections(t, later[i])
+		_, err := e.db.Exec(e.ctx, d)
+		require.NoError(t, err, later[i])
+	}
 
 	tables := func() int {
 		var n int
@@ -106,7 +113,7 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 		return n
 	}
 	assert.Equal(t, 3, tables())
-	_, err = e.db.Exec(e.ctx, down)
+	_, err := e.db.Exec(e.ctx, down)
 	require.NoError(t, err)
 	assert.Equal(t, 0, tables())
 	var schema int
@@ -115,9 +122,39 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 	_, err = e.db.Exec(e.ctx, up)
 	require.NoError(t, err)
 	assert.Equal(t, 3, tables())
+	for _, m := range later {
+		u, _ := migrationSections(t, m)
+		_, err := e.db.Exec(e.ctx, u)
+		require.NoError(t, err, m)
+	}
 
 	// Constraints of the table.
 	_, err = e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
 	require.Error(t, err, "a name that is not a slug")
+}
+
+// migrationSections are the Up and Down SQL of a migration file.
+func migrationSections(t *testing.T, name string) (string, string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("migrations", name))
+	require.NoError(t, err)
+	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
+	require.True(t, ok, name)
+	return strings.TrimPrefix(up, "-- +migrate Up"), down
+}
+
+// laterMigrations are the migration files applied after name, oldest first.
+func laterMigrations(t *testing.T, name string) []string {
+	t.Helper()
+	entries, err := os.ReadDir("migrations")
+	require.NoError(t, err)
+	var out []string
+	for _, entry := range entries {
+		if n := entry.Name(); strings.HasSuffix(n, ".sql") && n > name {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
 }

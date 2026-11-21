@@ -129,7 +129,8 @@
         "ConnectedPlain": "Connection works",
         "Failed": "Check failed: {message}",
         "Reauth": "The service asks to sign in again.",
-        "Error": "Could not check the connection. Try again in a minute."
+        "Error": "Could not check the connection. Try again in a minute.",
+        "Slow": "Still waiting for the service. The check is safe to repeat."
       },
       "Toast": {
         "Saved": "{name} is connected",
@@ -146,7 +147,11 @@
         "state": "The sign-in link expired or was opened by another user. Start the sign-in again.",
         "exchange": "The service did not confirm the sign-in. Try again in a minute.",
         "unavailable": "Sign-in with this service is not configured in the application.",
-        "Close": "Close"
+        "Close": "Close",
+        "refused": "The service signed you in, but the account cannot be used for this connector. Sign in with another account.",
+        "name_taken": "This system name is already used by another connection of this service. Choose another name and sign in again.",
+        "version_conflict": "The connection changed meanwhile. Open it again and sign in again.",
+        "not_found": "The connection was deleted meanwhile."
       },
       "Usage": {
         "Title": "Where {name} is used",
@@ -184,6 +189,36 @@
         "Multiple": "Used in {count} automations",
         "Plural": "Used in {count} automations",
         "None": "Not used"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "the service did not accept the credentials",
+          "Fix": "Check the key or the password, or issue a new one in the service, and replace it."
+        },
+        "network": {
+          "Text": "the service did not answer",
+          "Fix": "Check the address and try again in a minute."
+        },
+        "rate_limit": {
+          "Text": "the service limits requests of this account",
+          "Fix": "Wait a few minutes and check again."
+        },
+        "config": {
+          "Text": "a connection setting is wrong",
+          "Fix": "Check the address, the IDs and the other fields."
+        },
+        "reauth": {
+          "Text": "the service asks to sign in again",
+          "Fix": "Sign in again with the service."
+        },
+        "unknown": {
+          "Text": "the service refused the connection",
+          "Fix": "Check the values; if it repeats, open the service’s answer below."
+        }
+      },
+      "Diagnostics": {
+        "Show": "Show the service’s answer",
+        "Hide": "Hide the service’s answer"
       }
     }
   }

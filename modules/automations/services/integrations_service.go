@@ -4,10 +4,8 @@ package services
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -57,7 +55,21 @@ var (
 	ErrStateInvalid = errors.New("automations: OAuth2 state is invalid or expired")
 	// ErrOAuthUnavailable: OAuth2 is not configured in the application.
 	ErrOAuthUnavailable = errors.New("automations: OAuth2 is not configured")
+	// ErrOAuthRefused: the provider issued a token the connector does not accept.
+	ErrOAuthRefused = errors.New("automations: the connector refused the token of the sign-in")
+	// ErrOAuthExchange: the provider did not confirm the sign-in (the code exchange failed).
+	ErrOAuthExchange = errors.New("automations: the provider did not confirm the sign-in")
 )
+
+// Requests remembers the connection an idempotency key of the page produced, so a retry of a request
+// whose answer was lost returns the same connection instead of creating or changing it again.
+type Requests interface {
+	Find(ctx context.Context, tenantID uuid.UUID, key string) (uuid.UUID, bool, error)
+	Record(ctx context.Context, tenantID uuid.UUID, key string, connectionID uuid.UUID) error
+}
+
+// maxKey bounds an idempotency key.
+const maxKey = 100
 
 // InvalidInputError names the fields the input fails on, by code ("required", "invalid", "name").
 // It never carries values.
@@ -74,13 +86,16 @@ func (e *InvalidInputError) Error() string {
 	return "automations: invalid input: " + strings.Join(names, ", ")
 }
 
-// TestFailedError is a refusal of the provider: the connector's message, with every credential value
-// of the request masked.
+// TestFailedError is a refusal of the provider: its category and the provider's text prepared for the
+// page's «service answer» disclosure (credential values masked; empty when that is not safe).
 type TestFailedError struct {
-	Message string
+	Reason Reason
+	Detail string
 }
 
-func (e *TestFailedError) Error() string { return "automations: connection test failed: " + e.Message }
+func (e *TestFailedError) Error() string {
+	return "automations: connection test failed: " + string(e.Reason)
+}
 
 // PlatformState is the platform credential of a connector as a tenant sees it.
 type PlatformState struct {
@@ -118,6 +133,9 @@ type CreateInput struct {
 	Name        string
 	DisplayName string
 	Credentials map[string]any
+	// IdempotencyKey identifies the intent: a retry with the same key returns the connection the first
+	// request created.
+	IdempotencyKey string
 }
 
 // UpdateInput changes a connection; Credentials nil keeps them, an empty secret field keeps its value.
@@ -126,6 +144,8 @@ type UpdateInput struct {
 	Version     int
 	DisplayName *string
 	Credentials map[string]any
+	// IdempotencyKey: a retry with the same key returns the connection as the first request left it.
+	IdempotencyKey string
 }
 
 // IntegrationsService administers the connections of tenants: it checks credentials with the connector
@@ -139,6 +159,7 @@ type IntegrationsService struct {
 	oauth    connectors.OAuth2
 	states   OAuthStates
 	checks   ConnectionChecks
+	requests Requests
 	stateTTL time.Duration
 	now      func() time.Time
 }
@@ -153,6 +174,7 @@ type IntegrationsDeps struct {
 	OAuth     connectors.OAuth2
 	States    OAuthStates
 	Checks    ConnectionChecks
+	Requests  Requests
 	// StateTTL is how long an OAuth2 state is accepted (default 10 minutes).
 	StateTTL time.Duration
 	Now      func() time.Time
@@ -162,7 +184,7 @@ type IntegrationsDeps struct {
 func NewIntegrationsService(d IntegrationsDeps) *IntegrationsService {
 	s := &IntegrationsService{
 		dir: d.Directory, store: d.Store, usage: d.Usage, platform: d.Platform, grants: d.Grants,
-		oauth: d.OAuth, states: d.States, checks: d.Checks, stateTTL: d.StateTTL, now: d.Now,
+		oauth: d.OAuth, states: d.States, checks: d.Checks, requests: d.Requests, stateTTL: d.StateTTL, now: d.Now,
 	}
 	if s.stateTTL <= 0 {
 		s.stateTTL = 10 * time.Minute
@@ -329,6 +351,9 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	if len(fields) > 0 {
 		return ConnectionEntry{}, &InvalidInputError{Fields: fields}
 	}
+	if done, ok, err := s.replay(ctx, a.TenantID, in.IdempotencyKey); err != nil || ok {
+		return done, err
+	}
 	if _, err := s.store.List(ctx, a.TenantID, in.Kind); err != nil {
 		// No keyring: nothing could be saved, so the credentials are not sent to the provider either.
 		return ConnectionEntry{}, mapStoreError(op, err)
@@ -341,17 +366,60 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
 		Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
 	}, creds)
+	if errors.Is(err, connectors.ErrNameTaken) {
+		// A retry racing its own first request lost on the name: answer with what the first made.
+		if done, ok, rerr := s.replay(ctx, a.TenantID, in.IdempotencyKey); rerr == nil && ok {
+			return done, nil
+		}
+	}
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
+	s.record(ctx, a.TenantID, in.IdempotencyKey, saved.ID)
 	s.touch(ctx, a.TenantID, saved.ID)
 	return s.entry(ctx, a.TenantID, saved, true)
+}
+
+// replay is the connection an earlier request with key produced, as it is now.
+func (s *IntegrationsService) replay(ctx context.Context, tenantID uuid.UUID, key string) (ConnectionEntry, bool, error) {
+	key = strings.TrimSpace(key)
+	if key == "" || s.requests == nil {
+		return ConnectionEntry{}, false, nil
+	}
+	if len(key) > maxKey {
+		return ConnectionEntry{}, false, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
+	}
+	id, ok, err := s.requests.Find(ctx, tenantID, key)
+	if err != nil || !ok {
+		return ConnectionEntry{}, false, err
+	}
+	c, err := s.find(ctx, tenantID, id)
+	if err != nil {
+		return ConnectionEntry{}, false, err
+	}
+	e, err := s.entry(ctx, tenantID, c, true)
+	return e, err == nil, err
+}
+
+func (s *IntegrationsService) record(ctx context.Context, tenantID uuid.UUID, key string, id uuid.UUID) {
+	key = strings.TrimSpace(key)
+	if key == "" || s.requests == nil {
+		return
+	}
+	// The key only shortens a retry: failing to keep it does not fail the action.
+	_ = s.requests.Record(ctx, tenantID, key, id)
 }
 
 // Update changes the display name and the credentials of a connection. New credentials are merged
 // over the stored ones, checked and tested before they are saved.
 func (s *IntegrationsService) Update(ctx context.Context, a Actor, in UpdateInput) (ConnectionEntry, error) {
 	const op = serrors.Op("automations.IntegrationsService.Update")
+	if done, ok, err := s.replay(ctx, a.TenantID, in.IdempotencyKey); err != nil || ok {
+		if ok && done.Connection.ID != in.ID {
+			return ConnectionEntry{}, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
+		}
+		return done, err
+	}
 	cur, stored, err := s.store.Get(ctx, a.TenantID, in.ID)
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
@@ -397,6 +465,7 @@ func (s *IntegrationsService) Update(ctx context.Context, a Actor, in UpdateInpu
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
+	s.record(ctx, a.TenantID, in.IdempotencyKey, saved.ID)
 	if creds != nil {
 		s.touch(ctx, a.TenantID, saved.ID)
 	}
@@ -407,7 +476,8 @@ func (s *IntegrationsService) Update(ctx context.Context, a Actor, in UpdateInpu
 type TestResult struct {
 	OK       bool
 	Identity string
-	Message  string
+	Reason   Reason
+	Detail   string
 	// NeedsReauth: the provider refused the OAuth2 refresh; the user must sign in again.
 	NeedsReauth bool
 }
@@ -425,7 +495,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 			return TestResult{}, serrors.Wrap(op, err)
 		}
 		s.touch(ctx, a.TenantID, id)
-		return TestResult{NeedsReauth: true}, nil
+		return TestResult{NeedsReauth: true, Reason: ReasonReauth}, nil
 	}
 	identity, testErr := s.test(ctx, conn, creds)
 	next := cur
@@ -438,7 +508,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 		}
 	case errors.As(testErr, &failed):
 		if next.Status != connectors.StatusDisabled {
-			next.Status, next.StatusReason = failedStatus(conn), reason(failed.Message)
+			next.Status, next.StatusReason = failedStatus(conn, failed.Reason)
 		}
 	default:
 		return TestResult{}, serrors.Wrap(op, testErr)
@@ -448,7 +518,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 	}
 	s.touch(ctx, a.TenantID, id)
 	if failed != nil {
-		return TestResult{OK: false, Message: failed.Message}, nil //nolint:nilerr // a refusal of the provider is the check's result, recorded in the status
+		return TestResult{OK: false, Reason: failed.Reason, Detail: failed.Detail}, nil //nolint:nilerr // a refusal of the provider is the check's result, recorded in the status
 	}
 	return TestResult{OK: true, Identity: identity.Display}, nil
 }
@@ -505,7 +575,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			case testErr == nil:
 				next.Identity, next.Status, next.StatusReason = identity, connectors.StatusConnected, ""
 			case errors.As(testErr, &failed):
-				next.Status, next.StatusReason = failedStatus(conn), reason(failed.Message)
+				next.Status, next.StatusReason = failedStatus(conn, failed.Reason)
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
@@ -590,127 +660,111 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 }
 
 // OAuthComplete finishes an authorization the same user started in the same tenant: the state is
-// accepted once. A new connection takes the name given at the start when it is free.
-func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state, code string) (connectors.Connection, error) {
+// accepted once. The code is exchanged and tested first; then exactly one row is saved — the connection
+// being re-authorized (its version checked, a disabled one stays disabled), or a new connection under
+// the requested name (connectors.ErrNameTaken leaves nothing behind). The pending state is returned
+// with any error but ErrStateInvalid, so the page reopens the form it came from.
+func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state, code string) (connectors.Connection, OAuthState, error) {
 	const op = serrors.Op("automations.IntegrationsService.OAuthComplete")
 	if s.oauth == nil || s.states == nil {
-		return connectors.Connection{}, ErrOAuthUnavailable
+		return connectors.Connection{}, OAuthState{}, ErrOAuthUnavailable
 	}
 	if state == "" || code == "" {
-		return connectors.Connection{}, ErrStateInvalid
+		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
 	}
 	pending, err := s.states.Take(ctx, a.TenantID, a.UserID, StateHash(state), s.now())
 	if err != nil {
-		return connectors.Connection{}, err
+		return connectors.Connection{}, OAuthState{}, err
 	}
-	// What the tenant has before: Complete matches an existing connection by the provider identity and
-	// may refresh one that an administrator disabled.
-	before, err := s.store.List(ctx, a.TenantID, pending.Kind)
-	if err != nil {
-		return connectors.Connection{}, serrors.Wrap(op, err)
-	}
-	existed := make(map[uuid.UUID]connectors.Connection, len(before))
-	for _, c := range before {
-		existed[c.ID] = c
-	}
-	saved, err := s.oauth.Complete(ctx, a.TenantID, state, code)
-	if err != nil {
-		if errors.Is(err, connectors.ErrInvalid) {
-			return connectors.Connection{}, ErrStateInvalid
-		}
-		return connectors.Connection{}, serrors.Wrap(op, err)
-	}
-	prev, wasThere := existed[saved.ID]
+	grant, err := s.oauth.Exchange(ctx, a.TenantID, state, code)
 	switch {
-	case pending.ConnectionID != uuid.Nil && saved.ID != pending.ConnectionID:
-		// Re-authorization of a connection that signed in as another account: its credentials move to
-		// the connection the administrator asked for, so automations keep their reference.
-		if saved, err = s.adopt(ctx, a.TenantID, pending.ConnectionID, saved, !wasThere); err != nil {
-			return connectors.Connection{}, serrors.Wrap(op, err)
+	case err == nil:
+	case errors.Is(err, connectors.ErrInvalid):
+		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
+	case errors.Is(err, connectors.ErrNotConfigured):
+		return connectors.Connection{}, pending, ErrOAuthUnavailable
+	case errors.Is(err, connectors.ErrOAuth2Refused):
+		return connectors.Connection{}, pending, ErrOAuthRefused
+	default:
+		return connectors.Connection{}, pending, serrors.Wrap(op, errors.Join(ErrOAuthExchange, err))
+	}
+	if grant.Kind != pending.Kind {
+		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
+	}
+	var saved connectors.Connection
+	if pending.ConnectionID != uuid.Nil {
+		cur, _, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
+		if err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
 		}
-	case wasThere && prev.Status == connectors.StatusDisabled && pending.ConnectionID != saved.ID:
-		// A new sign-in matched a disabled connection: it stays disabled until enabled explicitly.
-		if err := s.store.SetStatus(ctx, a.TenantID, saved.ID, connectors.StatusDisabled, ""); err != nil {
-			return connectors.Connection{}, serrors.Wrap(op, err)
+		if cur.Kind != grant.Kind {
+			return connectors.Connection{}, pending, connectors.ErrNotFound
 		}
-		saved.Status = connectors.StatusDisabled
-	case !wasThere && pending.ConnectionID == uuid.Nil && (pending.Name != "" || pending.DisplayName != ""):
-		renamed := saved
-		if pending.Name != "" {
-			renamed.Name = pending.Name
+		cur.Identity = grant.Identity
+		if cur.Status != connectors.StatusDisabled {
+			cur.Status, cur.StatusReason = connectors.StatusConnected, ""
 		}
-		if pending.DisplayName != "" {
-			renamed.DisplayName = pending.DisplayName
+		if saved, err = s.store.Save(ctx, cur, grant.Credentials); err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
 		}
-		if out, err := s.store.Save(ctx, renamed, nil); err == nil {
-			saved = out
-		} else if !errors.Is(err, connectors.ErrNameTaken) {
-			return connectors.Connection{}, serrors.Wrap(op, err)
+	} else {
+		name := pending.Name
+		if name == "" {
+			name = slug(string(grant.Kind))
+		}
+		display := pending.DisplayName
+		if display == "" {
+			display = grant.Identity.Display
+		}
+		saved, err = s.store.Save(ctx, connectors.Connection{
+			TenantID: a.TenantID, Kind: grant.Kind, Name: name, DisplayName: display,
+			Identity: grant.Identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
+		}, grant.Credentials)
+		if err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
 		}
 	}
 	s.touch(ctx, a.TenantID, saved.ID)
-	return saved, nil
+	return saved, pending, nil
 }
 
-// adopt moves the credentials and identity of from into the connection target; from is deleted when the
-// sign-in created it.
-func (s *IntegrationsService) adopt(ctx context.Context, tenantID, target uuid.UUID, from connectors.Connection, created bool) (connectors.Connection, error) {
-	_, creds, err := s.store.Get(ctx, tenantID, from.ID)
-	if err != nil {
-		return connectors.Connection{}, err
-	}
-	cur, _, err := s.store.Get(ctx, tenantID, target)
-	if err != nil {
-		return connectors.Connection{}, err
-	}
-	if created {
-		if err := s.store.Delete(ctx, tenantID, from.ID); err != nil {
-			return connectors.Connection{}, err
+// slug is a connection name from a connector kind.
+func slug(kind string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(kind) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('_')
 		}
 	}
-	cur.Identity, cur.Status, cur.StatusReason = from.Identity, connectors.StatusConnected, ""
-	return s.store.Save(ctx, cur, creds)
+	out := b.String()
+	if out == "" || out[0] < 'a' || out[0] > 'z' {
+		out = "c_" + out
+	}
+	if len(out) > 40 {
+		out = out[:40]
+	}
+	return out
 }
 
 // OAuthAbandon drops the state of an authorization the provider refused (the user cancelled) and
-// returns its kind, so the page reopens that connector's form.
-func (s *IntegrationsService) OAuthAbandon(ctx context.Context, a Actor, state string) (catalog.ConnectorKind, error) {
+// returns it, so the page reopens the form it came from.
+func (s *IntegrationsService) OAuthAbandon(ctx context.Context, a Actor, state string) (OAuthState, error) {
 	if s.states == nil || state == "" {
-		return "", ErrStateInvalid
+		return OAuthState{}, ErrStateInvalid
 	}
-	pending, err := s.states.Take(ctx, a.TenantID, a.UserID, StateHash(state), s.now())
-	if err != nil {
-		return "", err
-	}
-	return pending.Kind, nil
+	return s.states.Take(ctx, a.TenantID, a.UserID, StateHash(state), s.now())
 }
 
-// failedStatus is the status of a connection its provider refused: an OAuth2 token the provider no
-// longer accepts needs a new sign-in (the page offers it); other credentials are an error.
-func failedStatus(conn connectors.Connector) connectors.ConnectionStatus {
-	if conn.Descriptor().Auth == connectors.AuthOAuth2 {
-		return connectors.StatusNeedsReauth
+// failedStatus is the status and stored reason of a connection its provider refused: an OAuth2 token
+// the provider no longer accepts needs a new sign-in (the page offers it); other credentials are an
+// error. The reason is a Reason, never the provider's text.
+func failedStatus(conn connectors.Connector, r Reason) (connectors.ConnectionStatus, string) {
+	if conn.Descriptor().Auth == connectors.AuthOAuth2 && (r == ReasonAuth || r == ReasonUnknown) {
+		return connectors.StatusNeedsReauth, string(ReasonReauth)
 	}
-	return connectors.StatusError
-}
-
-func truncate(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n])
-}
-
-// maxReason bounds a provider's message kept as the status reason (the store allows 2000).
-const maxReason = 500
-
-func reason(msg string) string {
-	r := []rune(strings.TrimSpace(msg))
-	if len(r) <= maxReason {
-		return string(r)
-	}
-	return string(r[:maxReason-1]) + "…"
+	return connectors.StatusError, string(r)
 }
 
 // StateHash is the stored form of an OAuth2 state.
@@ -751,42 +805,26 @@ func (s *IntegrationsService) touch(ctx context.Context, tenantID, id uuid.UUID)
 	}
 }
 
-// test runs Connector.Test. A refusal is a *TestFailedError whose message has every credential value
-// masked (of creds and of extra, the stored credentials of an update).
+// test runs Connector.Test. A refusal is a *TestFailedError with its category; the identity and the
+// detail are sanitized against creds and extra (the stored credentials of an update).
 func (s *IntegrationsService) test(ctx context.Context, conn connectors.Connector, creds connectors.Credentials, extra ...connectors.Credentials) (connectors.Identity, error) {
+	all := append([]connectors.Credentials{creds}, extra...)
 	identity, err := conn.Test(ctx, creds)
 	if err == nil {
-		identity.Display = mask(identity.Display, creds, extra...)
-		identity.External = mask(identity.External, creds, extra...)
+		var ok bool
+		if identity.Display, ok = sanitize(identity.Display, all...); !ok {
+			identity.Display = ""
+		}
+		if identity.External, ok = sanitize(identity.External, all...); !ok {
+			identity.External = ""
+		}
 		return identity, nil
 	}
 	if ctx.Err() != nil {
 		return connectors.Identity{}, ctx.Err()
 	}
-	return connectors.Identity{}, &TestFailedError{Message: reason(mask(err.Error(), creds, extra...))}
-}
-
-// mask replaces every credential value of at least four characters in s.
-func mask(s string, creds connectors.Credentials, extra ...connectors.Credentials) string {
-	all := append([]connectors.Credentials{creds}, extra...)
-	values := []string{}
-	for _, c := range all {
-		for _, v := range c {
-			if len(v) < 4 {
-				continue
-			}
-			// The value as a provider may echo it: verbatim, URL-escaped, or base64 (an Authorization header).
-			values = append(values, v, url.QueryEscape(v), url.PathEscape(v),
-				base64.StdEncoding.EncodeToString([]byte(v)), base64.RawStdEncoding.EncodeToString([]byte(v)),
-				base64.URLEncoding.EncodeToString([]byte(v)), base64.RawURLEncoding.EncodeToString([]byte(v)))
-		}
-	}
-	// Longer values first: one may contain another.
-	sort.Slice(values, func(i, j int) bool { return len(values[i]) > len(values[j]) })
-	for _, v := range values {
-		s = strings.ReplaceAll(s, v, "•••")
-	}
-	return s
+	msg := err.Error()
+	return connectors.Identity{}, &TestFailedError{Reason: classify(msg), Detail: detail(msg, all...)}
 }
 
 // toCredentials converts JSON values of a form to credential strings; a nested value is invalid.

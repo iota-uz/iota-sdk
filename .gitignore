@@ -26,6 +26,10 @@ dist/
 !pkg/lens/render/solid/dist/
 pkg/lens/render/solid/dist/*
 !pkg/lens/render/solid/dist/.keep
+# The integrations screen's bundle is committed: the automations module embeds and serves it, so a Go
+# consumer needs no Node build (modules/automations/presentation/integrations/assets.go).
+!modules/automations/presentation/integrations/dist/
+!modules/automations/presentation/integrations/dist/**
 
 
 # Applet embedded assets are build output; keep only a placeholder for go:embed.

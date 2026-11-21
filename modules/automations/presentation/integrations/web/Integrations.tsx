@@ -6,7 +6,7 @@ import {
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
-  CATEGORY_KEY, NAME_RE, changedCredentials, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText,
+  CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText,
   schemaFields, slugify, translator, usageHref, usedByText,
   type ConnectionView, type ConnectorView, type FormField, type ListResult, type Status, type Translator, type UsageView,
 } from './model'
@@ -31,11 +31,14 @@ interface Ctx {
   setCheck: (id: string, s: CheckState | undefined) => void
 }
 
-interface CheckState { running: boolean; ok?: boolean; text?: string }
+interface CheckState { running: boolean; slow?: boolean; ok?: boolean; text?: string; detail?: string; retry?: boolean }
+
+/** The result of an OAuth2 return the form shows: an error code or the connection it saved. */
+interface OAuthReturn { error?: string; connectedId?: string }
 
 type FormState =
-  | { mode: 'create'; connector: ConnectorView; oauth?: { error?: string; connectedId?: string } }
-  | { mode: 'edit'; connector: ConnectorView; connection: ConnectionView }
+  | { mode: 'create'; connector: ConnectorView; oauth?: OAuthReturn; prefill?: { name?: string; displayName?: string } }
+  | { mode: 'edit'; connector: ConnectorView; connection: ConnectionView; oauth?: OAuthReturn }
 
 /** Integrations is the screen of /settings/integrations. The host mounts it; the toasts live inside. */
 const Integrations: Component<SolidRouteProps<Props>> = (props) => (
@@ -95,7 +98,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
   // The open drawer is in the URL (D1): ?connect=<kind> or ?edit=<id>; Back closes it.
   const pushQuery = (key: string | undefined, value?: string) => {
     const url = new URL(window.location.href)
-    for (const k of ['connect', 'edit', 'connected', 'oauth_error', 'kind']) url.searchParams.delete(k)
+    for (const k of ['connect', 'edit', 'connected', 'oauth_error', 'kind', 'name', 'display_name']) url.searchParams.delete(k)
     if (key && value) url.searchParams.set(key, value)
     if (url.href !== window.location.href) window.history.pushState({}, '', url)
   }
@@ -110,19 +113,24 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     const edit = q.get('edit')
     const oauthError = q.get('oauth_error')
     const connected = q.get('connected')
-    if (oauthError) setOauthBanner(t(`OAuth.${['denied', 'state', 'exchange', 'unavailable'].includes(oauthError) ? oauthError : 'exchange'}`))
-    if (connected) toast.notify({ variant: 'success', title: t('OAuth.Connected') })
+    const oauth: OAuthReturn | undefined = oauthError || connected ? { ...(oauthError ? { error: oauthError } : {}), ...(connected ? { connectedId: connected } : {}) } : undefined
+    if (connected) { toast.notify({ variant: 'success', title: t('OAuth.Connected') }); highlight(connected) }
     if (edit) {
       for (const c of list.connectors) {
         const conn = c.connections.find((x) => x.id === edit)
-        if (conn) { setForm({ mode: 'edit', connector: c, connection: conn }); return }
+        if (conn) { setForm({ mode: 'edit', connector: c, connection: conn, ...(oauth ? { oauth } : {}) }); return }
       }
     }
     const connector = kind ? list.connectors.find((c) => c.kind === kind) : undefined
-    if (connector && (q.has('connect') || oauthError || connected)) {
-      setForm({ mode: 'create', connector, oauth: { ...(oauthError ? { error: oauthError } : {}), ...(connected ? { connectedId: connected } : {}) } })
-      if (connected) highlight(connected)
-    } else if (!q.has('connect')) setForm(undefined)
+    if (connector && (q.has('connect') || oauth)) {
+      const name = q.get('name') ?? undefined
+      const displayName = q.get('display_name') ?? undefined
+      setForm({ mode: 'create', connector, ...(oauth ? { oauth } : {}), ...(name || displayName ? { prefill: { ...(name ? { name } : {}), ...(displayName ? { displayName } : {}) } } : {}) })
+      return
+    }
+    // A return the page cannot place (another user's state, a deleted connection) is a banner.
+    if (oauthError) setOauthBanner(oauthErrorText(t, oauthError))
+    if (!q.has('connect')) setForm(undefined)
   }
   let initialised = false
   createEffect(() => {
@@ -230,6 +238,25 @@ function StatusLine(props: { tone: 'error' | 'warning' | 'success' | 'info'; rol
       <span class="min-w-0 flex-1">{props.children}</span>
       {props.action}
     </div>
+  )
+}
+
+function Spinner() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" class="animate-spin motion-reduce:animate-none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity="0.25" stroke-width="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+    </svg>
+  )
+}
+
+/** The service's own answer (credentials masked) behind a disclosure: never the message itself (C2). */
+function ServiceAnswer(props: { t: Translator; text: string }) {
+  return (
+    <details class="text-xs text-200" data-testid="service-answer">
+      <summary class="cursor-pointer select-none">{props.t('Diagnostics.Show')}</summary>
+      <pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-subtle p-2 font-mono">{props.text}</pre>
+    </details>
   )
 }
 
@@ -357,25 +384,28 @@ function PlatformRow(props: { ctx: Ctx; connector: ConnectorView }) {
 function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: ConnectionView }) {
   const t = props.ctx.t
   const c = () => props.connection
-  const testing = () => Boolean(props.ctx.check(c().id)?.running)
-  const result = () => { const st = props.ctx.check(c().id); return st && !st.running ? { ok: Boolean(st.ok), text: st.text ?? '' } : undefined }
+  const check = () => props.ctx.check(c().id)
+  const testing = () => Boolean(check()?.running)
   const setResult = (r: { ok: boolean; text: string } | undefined) => props.ctx.setCheck(c().id, r ? { running: false, ...r } : undefined)
   const [menuOpen, setMenuOpen] = createSignal(false)
+  // F1–F3: one request at a time; «still waiting» after 4 s; a failure in words with «Retry» (a check
+  // changes nothing at the provider, so repeating it is safe).
   const runTest = async () => {
     if (testing()) return
     setMenuOpen(false)
     const id = c().id
     props.ctx.setCheck(id, { running: true })
-    const done = (ok: boolean, text: string) => props.ctx.setCheck(id, { running: false, ok, text })
+    const slow = setTimeout(() => { const st = props.ctx.check(id); if (st?.running) props.ctx.setCheck(id, { ...st, slow: true }) }, 4000)
+    const done = (st: Omit<CheckState, 'running'>) => { clearTimeout(slow); props.ctx.setCheck(id, { running: false, ...st }) }
     try {
       const r = await props.ctx.call('automations.connections.test', { id })
-      if (r.ok) done(true, r.identity ? t('Test.Connected', { identity: r.identity }) : t('Test.ConnectedPlain'))
-      else if (r.error === 'needs_reauth') done(false, t('Test.Reauth'))
-      else done(false, t('Test.Failed', { message: r.message || t('Form.Invalid') }) + ' ' + t('Form.TestFailedHint'))
+      if (r.ok) done({ ok: true, text: r.identity ? t('Test.Connected', { identity: r.identity }) : t('Test.ConnectedPlain') })
+      else if (r.error === 'needs_reauth') done({ ok: false, text: t('Test.Reauth') })
+      else done({ ok: false, text: t('Test.Failed', { message: reasonText(t, r.reason) }), ...(r.message ? { detail: r.message } : {}) })
       props.ctx.refetch()
     } catch (e) {
       console.warn('automations: test failed', errorCode(e))
-      done(false, t('Test.Error'))
+      done({ ok: false, text: t('Test.Error'), retry: true })
     }
   }
   const reauth = async () => {
@@ -403,7 +433,9 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
               </button>
             </Show>
           </div>
-          <Show when={c().status_reason && c().status !== 'connected'}><p class="text-sm text-200">{c().status_reason}</p></Show>
+          <Show when={c().status_reason && c().status !== 'connected' && c().status !== 'disabled'}>
+            <p class="text-sm text-200" data-testid="status-reason">{reasonSentence(t, c().status_reason)}</p>
+          </Show>
         </div>
         <Show when={props.ctx.canManage()}>
           <Dropdown open={menuOpen()} onOpenChange={setMenuOpen} class={menuOpen() ? 'z-30' : undefined} label={t('Actions', { name: c().display_name || c().name })} menuClass="min-w-56"
@@ -425,9 +457,20 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
       <Show when={c().status === 'needs_reauth' && props.connector.auth === 'oauth2' && props.ctx.canManage()}>
         <div><Button size="sm" onClick={() => void reauth()} class="min-h-11 sm:min-h-9" data-testid="reauth">{t('SignInAgain')}</Button></div>
       </Show>
-      <div role="status" aria-live="polite" class="min-h-5 text-sm">
-        <Show when={testing()}><span class="text-200">{t('Test.Running')}</span></Show>
-        <Show when={!testing() && result()}>{(r) => <span class={r().ok ? 'text-green' : 'text-pink'} data-testid="test-result">{r().text}</span>}</Show>
+      <div role="status" aria-live="polite" class="flex min-h-5 flex-col gap-1 text-sm" data-testid="check-status">
+        <Show when={testing()}>
+          <span class="inline-flex items-center gap-2 text-200"><Spinner />{t('Test.Running')}</span>
+          <Show when={check()?.slow}><span class="text-200" data-testid="test-slow">{t('Test.Slow')}</span></Show>
+        </Show>
+        <Show when={!testing() && check()}>{(st) => (
+          <>
+            <span class={st().ok ? 'text-green' : 'text-pink'} data-testid="test-result">{st().text}</span>
+            <Show when={st().retry}>
+              <div><Button size="sm" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void runTest()} data-testid="test-retry">{t('Retry')}</Button></div>
+            </Show>
+            <Show when={st().detail}>{(d) => <ServiceAnswer t={t} text={d()} />}</Show>
+          </>
+        )}</Show>
       </div>
     </li>
   )
@@ -442,9 +485,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [values, setValues] = createSignal<Record<string, string>>(initial())
   const [replaced, setReplaced] = createSignal<Set<string>>(new Set())
   const [shown, setShown] = createSignal<Set<string>>(new Set())
-  const [displayName, setDisplayName] = createSignal(editing()?.display_name ?? '')
-  const [name, setName] = createSignal(editing()?.name ?? '')
-  const [nameTouched, setNameTouched] = createSignal(Boolean(editing()))
+  const prefill = () => (props.state.mode === 'create' ? props.state.prefill : undefined)
+  const [displayName, setDisplayName] = createSignal(editing()?.display_name ?? prefill()?.displayName ?? '')
+  const [name, setName] = createSignal(editing()?.name ?? prefill()?.name ?? '')
+  const [nameTouched, setNameTouched] = createSignal(Boolean(editing() || prefill()?.name))
+  // One key per intent (this form): «Retry» after an ambiguous failure resends the same key, so the
+  // server answers with what the first request did instead of doing it twice (F3).
+  const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  const [retry, setRetry] = createSignal(false)
+  const [answer, setAnswer] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
   const [busy, setBusy] = createSignal(false)
@@ -452,13 +501,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   let slowTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(slowTimer))
   const oauth = () => connector().auth === 'oauth2'
-  const oauthState = () => (props.state.mode === 'create' ? props.state.oauth : undefined)
+  const oauthState = () => props.state.oauth
+  // Editing an OAuth2 connection changes its name only; signing in again is its own action.
+  const signIn = () => oauth() && !editing()
 
   createEffect(() => { if (!nameTouched() && !editing()) setName(slugify(displayName(), connector().kind)) })
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
   const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
 
-  const begin = () => { setBusy(true); setSlow(false); setError(undefined); slowTimer = setTimeout(() => setSlow(true), 4000) }
+  const begin = () => { setBusy(true); setSlow(false); setError(undefined); setRetry(false); setAnswer(undefined); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
 
   const submit = async (event: Event) => {
@@ -471,28 +522,46 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (Object.keys(local).length > 0) { focusFirstError(local); return }
     begin()
     try {
-      if (oauth()) {
+      if (signIn()) {
         const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName() })
         window.location.assign(r.authorize_url)
         return
       }
       const e = editing()
+      const creds = e && !oauth() ? changedCredentials(fields(), values(), initial(), replaced()) : undefined
       const result = e
         ? await props.ctx.call('automations.connections.update', {
-          id: e.id, version: e.version, display_name: displayName(),
-          ...(() => { const creds = changedCredentials(fields(), values(), initial(), replaced()); return creds ? { credentials: creds } : {} })(),
+          id: e.id, version: e.version, display_name: displayName(), idempotency_key: idempotencyKey, ...(creds ? { credentials: creds } : {}),
         })
-        : await props.ctx.call('automations.connections.create', { kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()) })
+        : await props.ctx.call('automations.connections.create', {
+          kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()), idempotency_key: idempotencyKey,
+        })
       if (result.ok && result.connection) { end(); props.onSaved(result.connection, !e); return }
       end()
       setFieldErrors(result.fields ?? {})
-      setError(saveErrorText(t, result) + (result.error === 'test_failed' ? ' ' + t('Form.TestFailedHint') : ''))
+      setError(saveErrorText(t, result))
+      if (result.message) setAnswer(result.message)
       if (result.fields) focusFirstError(result.fields)
     } catch (e) {
       end()
       const code = errorCode(e)
       console.warn('automations: save failed', code)
-      setError(code === 'unavailable' ? t(oauth() ? 'OAuth.unavailable' : 'Form.Unavailable') : t('Form.Failed'))
+      if (code === 'unavailable') setError(t(oauth() ? 'OAuth.unavailable' : 'Form.Unavailable'))
+      else if (code === 'version_conflict') setError(t('Form.VersionConflict'))
+      else { setError(t('Form.Failed')); setRetry(true) } // the answer was lost: «Retry» with the same key
+    }
+  }
+  const reauth = async () => {
+    const e = editing()
+    if (!e || busy()) return
+    begin()
+    try {
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: e.name, connection_id: e.id })
+      window.location.assign(r.authorize_url)
+    } catch (err) {
+      end()
+      console.warn('automations: oauth_start failed', errorCode(err))
+      setError(errorCode(err) === 'unavailable' ? t('OAuth.unavailable') : t('Form.Failed'))
     }
   }
   let formRef: HTMLFormElement | undefined
@@ -512,27 +581,40 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           <p role="status" class="text-sm text-green">{t('OAuth.Connected')}</p>
         </Show>
         <Show when={oauthState()?.error}>{(code) => (
-          <p role="alert" class="text-sm text-pink">{t(`OAuth.${['denied', 'state', 'exchange', 'unavailable'].includes(code()) ? code() : 'exchange'}`)}</p>
+          <p role="alert" class="text-sm text-pink" data-testid="oauth-error">{oauthErrorText(t, code())}</p>
         )}</Show>
         <Input label={t('Form.DisplayName')} value={displayName()} onInput={(e) => setDisplayName(e.currentTarget.value)} description={t('Form.DisplayNameHint')}
           data-field="display_name" error={fieldErrors().display_name ? fieldErrorText(t, fieldErrors().display_name!) : undefined} disabled={busy()} autocomplete="off" />
         <Input label={t('Form.Name')} value={name()} onInput={(e) => { setNameTouched(true); setName(e.currentTarget.value) }} description={t('Form.NameHint')}
           data-field="name" error={fieldErrors().name ? fieldErrorText(t, fieldErrors().name!) : undefined} disabled={busy() || Boolean(editing())}
           required={!editing()} autocomplete="off" spellcheck={false} />
-        <Show when={!oauth()} fallback={<p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>}>
+        <Show when={!oauth()} fallback={
+          <Show when={editing()} fallback={<p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>}>
+            <div class="flex flex-col items-start gap-2">
+              <p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>
+              <Button type="button" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void reauth()} disabled={busy()} data-testid="form-reauth">{t('SignInAgain')}</Button>
+            </div>
+          </Show>
+        }>
           <For each={fields()}>{(f) => <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
             error={fieldErrors()[f.name] ? fieldErrorText(t, fieldErrors()[f.name]!) : undefined} disabled={busy()}
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}
             onShow={(s) => setShown((cur) => { const n = new Set(cur); if (s) n.add(f.name); else n.delete(f.name); return n })}
             onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} />}</For>
         </Show>
-        <Show when={error()}><p role="alert" class="text-sm text-pink" data-testid="form-error">{error()}</p></Show>
+        <Show when={error()}>
+          <div class="flex flex-col gap-2">
+            <p role="alert" class="text-sm text-pink" data-testid="form-error">{error()}</p>
+            <Show when={answer()}>{(a) => <ServiceAnswer t={t} text={a()} />}</Show>
+          </div>
+        </Show>
         <Show when={slow()}><p role="status" class="text-sm text-200">{t('Form.StillWaiting')}</p></Show>
         <div class="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-subtle bg-surface-300 pt-4 sm:flex-row sm:justify-end">
           <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
             onClick={() => { if (!busy()) props.onClose() }}>{t('Form.Cancel')}</Button>
           <Button type="submit" class="min-h-11 justify-center" loading={busy()} aria-disabled={busy() || undefined} data-testid="form-save">
-            {busy() ? (oauth() ? t('Form.Redirecting', { connector: connector().title }) : t('Form.Saving')) : oauth() ? t('Form.SignInWith', { connector: connector().title }) : t('Form.Save')}
+            {busy() ? (signIn() ? t('Form.Redirecting', { connector: connector().title }) : t('Form.Saving'))
+              : signIn() ? t('Form.SignInWith', { connector: connector().title }) : retry() ? t('Retry') : t('Form.Save')}
           </Button>
         </div>
       </form>

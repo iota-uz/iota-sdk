@@ -101,3 +101,32 @@ func (r *connectionChecks) LastChecked(ctx context.Context, tenantID uuid.UUID) 
 	}
 	return out, serrors.Wrap(op, rows.Err())
 }
+
+type requests struct{ db *pgxpool.Pool }
+
+// NewRequests keeps idempotency keys in automation.connection_requests for a day.
+func NewRequests(db *pgxpool.Pool) services.Requests { return &requests{db: db} }
+
+func (r *requests) Find(ctx context.Context, tenantID uuid.UUID, key string) (uuid.UUID, bool, error) {
+	var id uuid.UUID
+	err := r.db.QueryRow(ctx, `SELECT connection_id FROM automation.connection_requests
+		WHERE tenant_id = $1 AND key = $2 AND created_at > now() - interval '1 day'`, tenantID, key).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, serrors.Wrap("automations.Requests.Find", err)
+	}
+	return id, true, nil
+}
+
+func (r *requests) Record(ctx context.Context, tenantID uuid.UUID, key string, connectionID uuid.UUID) error {
+	const op = serrors.Op("automations.Requests.Record")
+	if _, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE created_at < now() - interval '1 day'`); err != nil {
+		return serrors.Wrap(op, err)
+	}
+	_, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, connection_id)
+		SELECT tenant_id, $2, id FROM automation.connections WHERE tenant_id = $1 AND id = $3
+		ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, connectionID)
+	return serrors.Wrap(op, err)
+}

@@ -43,24 +43,34 @@ components = append(components, automations.NewComponent(
 | `AUTOMATION_CONNECTIONS_KEYS` | Ключи шифрования `id:key[,id:key…]` (32 байта, base64 или hex). Без них подключения не сохраняются, страница показывает предупреждение. |
 | `AUTOMATION_CONNECTIONS_ACTIVE` | Активный ключ при ротации. |
 | `AUTOMATION_PLATFORM_CREDENTIALS` | JSON `{"<kind или имя OAuth-клиента>": {"<поле>": "<значение>"}}`: ключи платформы и `client_id`/`client_secret` OAuth2-клиентов. |
-| `EXTRUNTIME_UI_HOSTMANIFEST` | Манифест клиентского бандла. Без него (и без `automations.WithHostManifest`) страница не монтируется и пункта в settings hub нет; RPC и OAuth callback работают. |
+| `AUTOMATIONS_ASSETS_DIR` | Разработка: каталог свежесобранного бандла экрана вместо встроенного. |
 
 Адрес возврата OAuth2 — `<origin приложения>/settings/integrations/oauth/callback`;
 его нужно зарегистрировать у провайдера.
 
 ## Клиентский бандл
 
-Экран — Solid-фича SDK, как конфигуратор расширений. Приложение добавляет её
-каталог к своему:
+Экран работает без сборки на стороне приложения: модуль встраивает собранный бандл
+(`modules/automations/presentation/integrations/dist`, закоммичен) и отдаёт его сам на
+`/assets/automations/`. Достаточно строки в `modules.Components()` — менеджер с
+`Connections.Manage` видит пункт «Интеграции» в settings hub и открывает страницу.
+
+Приложение, которое уже собирает свой клиентский бандл, может вместо этого включить
+фичу в свой каталог и передать манифест через `automations.WithHostManifest`:
 
 ```ts
 import { solidFeatures as integrations } from "<iota-sdk>/modules/automations/presentation/integrations/web/solid-features.generated"
-import { solidFeatures as app } from "./solid-features.generated"
 mountSolidFeatureCatalogFromDocument({ catalog: { ...app, ...integrations } })
 ```
 
-Экран использует `@iota-uz/sdk/solid` и `@iota-uz/sdk/solid-ui`; утилиты Tailwind
-экрана входят в основной CSS SDK (`modules/**/*.tsx` в `styles/tailwind/pipeline.config.json`).
+После изменения экрана бандл пересобирают и коммитят; `pnpm check:bundle` падает, если
+закоммиченный бандл устарел:
+
+```sh
+cd modules/automations/presentation/integrations/web
+pnpm build:bundle   # dist/ и dist/bundle.json (идентичность бандла — хэш его содержимого)
+pnpm check:bundle
+```
 
 ## RPC
 
@@ -85,9 +95,26 @@ go run ./cmd/iota-solid -module modules/automations/presentation/integrations -c
 go test ./modules/automations/... ./pkg/clienthost/solid/
 cd modules/automations/presentation/integrations/web
 pnpm typecheck && pnpm test          # модель экрана
-pnpm test:browser                    # Playwright: экран на fake-сервере (fixtures/integrations)
+pnpm test:browser                    # Playwright: сценарии и VR+axe всех состояний (1440/390, светлая/тёмная)
+pnpm test:browser --update-snapshots # обновить Linux-baseline (browser-tests/__screenshots__)
 ```
 
 Fixture `fixtures/integrations` открывается так же: `pnpm vite fixtures/integrations`
 с параметрами `?scenario=empty|error|loading|fresh`, `?lang=ru`, `?theme=dark`,
-`?delay=<мс>`, `?platformFails`, `?manage=0`, `?unconfigured`.
+`?delay=<мс>`, `?testDelay=<мс>`, `?testFailOnce`, `?lossy`, `?oauthFail=<код>`, `?platformFails`,
+`?manage=0`, `?unconfigured`.
+
+## Ответы провайдеров
+
+Текст ответа сервиса никогда не становится текстом интерфейса. Отказ проверки
+классифицируется (`auth`, `network`, `rate_limit`, `config`, `reauth`, `unknown`); экран
+показывает фразу и шаг исправления на языке пользователя, а в `status_reason` хранится
+только категория. Сам ответ (с замаскированными значениями кредов, до 500 символов)
+доступен под «Показать ответ сервиса»; если в нём встречается короткое (< 4 символов)
+значение креда, которое нельзя замаскировать внутри текста, ответ не показывается совсем.
+
+## Повтор запросов
+
+Форма шлёт `idempotency_key` (один на открытие формы). Повтор после потерянного ответа
+с тем же ключом возвращает подключение, созданное или изменённое первым запросом
+(`automation.connection_requests`, сутки), а не делает работу второй раз.

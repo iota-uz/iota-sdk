@@ -12,6 +12,14 @@ export interface FakeOptions {
   platformFails: boolean
   /** false: the caller lacks Connections.Manage (an author). */
   manage: boolean
+  /** Delay of connections.test only (ms). */
+  testDelay: number
+  /** The first create or update is done but its answer is lost (a 502). */
+  lossy: boolean
+  /** The OAuth2 return fails with this code (refused, exchange, name_taken, denied). */
+  oauthFail: string
+  /** The first connections.test fails in transport (a 502). */
+  testFailOnce: boolean
   calls: { method: string; params: unknown }[]
 }
 
@@ -53,7 +61,7 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
       category: 'messaging', auth: 'api_key', credential_schema: tokenSchema, nodes: ['Send a Telegram message', 'Ask in Telegram'], platform: null,
       connections: fresh ? [] : [
         conn('telegram_bot', 'sales_bot', 'Sales bot', { identity: '@acme_sales_bot', used_by: 2, fields: { chat_id: '-1001234567890' } }),
-        conn('telegram_bot', 'support_bot', 'Support bot', { identity: '@acme_help_bot', status: 'error', status_reason: 'Unauthorized: the token was revoked. Create a new token in @BotFather and replace it.' }),
+        conn('telegram_bot', 'support_bot', 'Support bot', { identity: '@acme_help_bot', status: 'error', status_reason: 'auth' }),
       ],
     },
     {
@@ -69,7 +77,7 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
     {
       kind: 'google_drive', title: 'Google Drive', icon: '', description: 'Save and read documents in Google Drive.', category: 'documents', auth: 'oauth2',
       credential_schema: {}, nodes: ['Upload a file'], platform: null,
-      connections: fresh ? [] : [conn('google_drive', 'drive', 'Company drive', { identity: 'docs@acme.uz', status: 'needs_reauth', status_reason: 'Sign in again to keep access.' })],
+      connections: fresh ? [] : [conn('google_drive', 'drive', 'Company drive', { identity: 'docs@acme.uz', status: 'needs_reauth', status_reason: 'reauth' })],
     },
   ]
 }
@@ -96,6 +104,14 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   }
   const notFound = () => { throw { code: 'not_found', message: 'connection not found', data: { code: 'not_found' } } }
   let seq = 100
+  const keys = new Map<string, ConnectionView>()
+  let lost = false
+  let testFailed = false
+  const loseOnce = () => {
+    if (!opts.lossy || lost) return
+    lost = true
+    throw new Response('bad gateway', { status: 502 })
+  }
   const handlers: Record<keyof RPC, Handler> = {
     'automations.connectors.list': () => {
       if (opts.scenario === 'error') throw { code: 'internal', message: 'internal error' }
@@ -108,17 +124,35 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     'automations.connections.create': (p: RPC['automations.connections.create']['params']) => {
       const c = connectors.find((x) => x.kind === p.kind)
       if (!c) return notFound()
+      // Like the service: a retried key answers with what the first request made.
+      if (p.idempotency_key && keys.has(p.idempotency_key)) return { ok: true, connection: keys.get(p.idempotency_key) }
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(p.name)) return { ok: false, error: 'invalid_input', fields: { name: 'name' } }
       if (c.connections.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
-      if (secret === 'bad') return { ok: false, error: 'test_failed', message: 'Unauthorized: the service does not accept this token.' }
+      if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth', message: `HTTP 401 Unauthorized {"ok":false,"description":"token rejected"}` }
+      const key = p.idempotency_key
+      if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const created = conn(c.kind, p.name, p.display_name || p.name, { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz' })
       c.connections.push(created)
+      if (key) keys.set(key, created)
+      loseOnce()
       return { ok: true, connection: created }
     },
-    'automations.connections.oauth_start': (p: { kind: string; name: string }) => {
+    'automations.connections.oauth_start': (p: { kind: string; name: string; display_name?: string; connection_id?: string }) => {
       const c = connectors.find((x) => x.kind === p.kind)
       if (!c) return notFound()
+      if (opts.oauthFail) {
+        const back = new URLSearchParams({ oauth_error: opts.oauthFail, kind: p.kind })
+        if (p.connection_id) back.set('edit', p.connection_id)
+        else { if (p.name) back.set('name', p.name); if (p.display_name) back.set('display_name', p.display_name) }
+        return { authorize_url: `${window.location.pathname}?${back}` }
+      }
+      if (p.connection_id) {
+        const f = find(p.connection_id)
+        if (!f) return notFound()
+        Object.assign(f.connection, { status: 'connected', status_reason: null, version: f.connection.version + 1 })
+        return { authorize_url: `${window.location.pathname}?connected=${p.connection_id}&kind=${p.kind}&edit=${p.connection_id}` }
+      }
       const created = conn(c.kind, p.name || 'drive_2', 'docs@acme.uz', { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: 'docs@acme.uz' })
       c.connections.push(created)
       return { authorize_url: `${window.location.pathname}${window.location.search.replace(/[?&](connect|kind)=[^&]*/g, '').replace(/^&/, '?') || '?'}&connected=${created.id}&kind=${c.kind}` }
@@ -126,17 +160,22 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     'automations.connections.update': (p: RPC['automations.connections.update']['params']) => {
       const f = find(p.id)
       if (!f) return notFound()
+      const key = p.idempotency_key
+      if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       if (p.version !== f.connection.version) return { ok: false, error: 'version_conflict' }
-      if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', message: 'Unauthorized: the service does not accept this token.' }
+      if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', reason: 'auth', message: 'HTTP 401 Unauthorized' }
       Object.assign(f.connection, { display_name: p.display_name ?? f.connection.display_name, version: f.connection.version + 1 })
       if (p.credentials && f.connection.status !== 'disabled') Object.assign(f.connection, { status: 'connected', status_reason: null })
+      if (key) keys.set(key, f.connection)
+      loseOnce()
       return { ok: true, connection: f.connection }
     },
     'automations.connections.test': (p: { id: string }) => {
+      if (opts.testFailOnce && !testFailed) { testFailed = true; throw new Response('bad gateway', { status: 502 }) }
       const f = find(p.id)
       if (!f) return notFound()
-      if (f.connection.status === 'needs_reauth') return { ok: false, error: 'needs_reauth' }
-      if (f.connection.status === 'error') return { ok: false, message: f.connection.status_reason ?? 'Unauthorized' }
+      if (f.connection.status === 'needs_reauth') return { ok: false, error: 'needs_reauth', reason: 'reauth' }
+      if (f.connection.status === 'error') return { ok: false, reason: 'auth', message: 'HTTP 401 Unauthorized: {"ok":false,"error_code":401}' }
       return { ok: true, identity: f.connection.identity ?? '' }
     },
     'automations.connections.set_disabled': (p: { id: string; disabled: boolean }) => {
@@ -169,10 +208,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     if (opts.scenario === 'loading') await new Promise(() => {})
     const isList = body.method === 'automations.connectors.list'
     if (opts.delay > 0 && !isList) await new Promise((r) => setTimeout(r, opts.delay))
+    if (opts.testDelay > 0 && body.method === 'automations.connections.test') await new Promise((r) => setTimeout(r, opts.testDelay))
     let payload: unknown
     try {
       payload = { jsonrpc: '2.0', id: body.id, result: handlers[body.method](body.params) }
     } catch (error) {
+      if (error instanceof Response) return error
       payload = { jsonrpc: '2.0', id: body.id, error }
     }
     return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })

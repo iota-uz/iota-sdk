@@ -43,6 +43,18 @@ const (
 	StatusDisabled    Status = "disabled"
 )
 
+// Reason is the category of a provider's refusal; the screen explains it with a step to fix it.
+type Reason string
+
+const (
+	ReasonAuth      Reason = "auth"
+	ReasonNetwork   Reason = "network"
+	ReasonRateLimit Reason = "rate_limit"
+	ReasonConfig    Reason = "config"
+	ReasonReauth    Reason = "reauth"
+	ReasonUnknown   Reason = "unknown"
+)
+
 // ErrorCode is the refusal of an action that the screen explains.
 type ErrorCode string
 
@@ -85,7 +97,7 @@ type ConnectionView struct {
 	Version      int     `json:"version"`
 	Identity     *string `json:"identity"`
 	Status       Status  `json:"status"`
-	StatusReason *string `json:"status_reason"`
+	StatusReason *Reason `json:"status_reason"`
 	UsedBy       int     `json:"used_by"`
 	CreatedAt    string  `json:"created_at"`
 	UpdatedAt    string  `json:"updated_at"`
@@ -143,23 +155,29 @@ type CreateRequest struct {
 	Name        string         `json:"name"`
 	DisplayName string         `json:"display_name"`
 	Credentials map[string]any `json:"credentials"`
+	// IdempotencyKey identifies the intent: «Retry» resends the same key.
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // UpdateRequest changes a connection; credentials absent keep them.
 type UpdateRequest struct {
-	ID          string         `json:"id"`
-	Version     int            `json:"version"`
-	DisplayName *string        `json:"display_name,omitempty"`
-	Credentials map[string]any `json:"credentials,omitempty"`
+	ID             string         `json:"id"`
+	Version        int            `json:"version"`
+	DisplayName    *string        `json:"display_name,omitempty"`
+	Credentials    map[string]any `json:"credentials,omitempty"`
+	IdempotencyKey string         `json:"idempotency_key,omitempty"`
 }
 
 // SaveResponse is the result of create and update: ok with the connection, or the refusal.
 type SaveResponse struct {
-	OK         bool              `json:"ok"`
-	Connection *ConnectionView   `json:"connection,omitempty"`
-	Error      ErrorCode         `json:"error,omitempty"`
-	Message    string            `json:"message,omitempty"`
-	Fields     map[string]string `json:"fields,omitempty"`
+	OK         bool            `json:"ok"`
+	Connection *ConnectionView `json:"connection,omitempty"`
+	Error      ErrorCode       `json:"error,omitempty"`
+	Reason     Reason          `json:"reason,omitempty"`
+	// Message is the service's own answer (credential values masked), shown only under «Show the
+	// service's answer»; empty when it cannot be shown safely.
+	Message string            `json:"message,omitempty"`
+	Fields  map[string]string `json:"fields,omitempty"`
 }
 
 // OAuthStartRequest begins an OAuth2 authorization; ConnectionID re-authorizes that connection.
@@ -179,6 +197,7 @@ type OAuthStartResponse struct {
 type TestResponse struct {
 	OK       bool      `json:"ok"`
 	Identity string    `json:"identity,omitempty"`
+	Reason   Reason    `json:"reason,omitempty"`
 	Message  string    `json:"message,omitempty"`
 	Error    ErrorCode `json:"error,omitempty"`
 }

@@ -82,8 +82,12 @@ test('IN2/IN3: a refused test keeps the form and its values; save is one request
   // F4: a busy drawer does not close.
   await page.keyboard.press('Escape')
   await expect(form).toBeVisible()
-  await expect(form.getByTestId('form-error')).toContainText('The service refused the connection: Unauthorized: the service does not accept this token.')
-  await expect(form.getByTestId('form-error')).toContainText('Check the values and save again.')
+  await expect(form.getByTestId('form-error')).toHaveText('The service refused the connection: the service did not accept the credentials. Check the key or the password, or issue a new one in the service, and replace it.')
+  // C1/C2: the provider's own text only under the disclosure.
+  await expect(form.getByTestId('form-error')).not.toContainText('401')
+  await expect(form.getByTestId('service-answer').locator('pre')).toBeHidden()
+  await form.getByText("Show the service’s answer").click()
+  await expect(form.getByTestId('service-answer').locator('pre')).toContainText('HTTP 401 Unauthorized')
   expect(await callsOf(page, 'connections.create')).toHaveLength(1)
   await expect(token).toHaveValue('bad')
 
@@ -119,7 +123,9 @@ test('IN2: editing keeps a set secret unless it is replaced', async ({ page }) =
   await form.getByTestId('form-save').click()
   await expect(form).toHaveCount(0)
   const [update] = await callsOf(page, 'connections.update')
-  expect(update!.params).toEqual({ id: SALES_ID, version: 1, display_name: 'Sales bot (main)' })
+  expect(update!.params).toMatchObject({ id: SALES_ID, version: 1, display_name: 'Sales bot (main)' })
+  expect(update!.params.credentials).toBeUndefined()
+  expect(update!.params.idempotency_key).toBeTruthy()
   await expect(page).not.toHaveURL(/edit=/)
 })
 
@@ -140,7 +146,42 @@ test('IN3: check says who it is connected as, or why not', async ({ page }) => {
   await expect(row(page, 'sales_bot').getByTestId('test-result')).toHaveText('Connected as @acme_sales_bot')
   await menu(page, 'support_bot')
   await row(page, 'support_bot').getByTestId('menu-test').click()
-  await expect(row(page, 'support_bot').getByTestId('test-result')).toContainText('Check failed: Unauthorized: the token was revoked.')
+  await expect(row(page, 'support_bot').getByTestId('test-result')).toHaveText('Check failed: the service did not accept the credentials. Check the key or the password, or issue a new one in the service, and replace it.')
+  // The stored status reason is a phrase with a fix, never the provider's text.
+  await expect(row(page, 'support_bot').getByTestId('status-reason')).toHaveText('The service did not accept the credentials. Check the key or the password, or issue a new one in the service, and replace it.')
+})
+
+test('IN3/F1–F3: a slow check says so; a lost answer offers Retry', async ({ page }) => {
+  test.setTimeout(30_000)
+  await open(page, 'testDelay=5000&testFailOnce')
+  await menu(page, 'sales_bot')
+  await row(page, 'sales_bot').getByTestId('menu-test').click()
+  const status = row(page, 'sales_bot').getByTestId('check-status')
+  await expect(status).toContainText('Checking…')
+  await expect(status.locator('svg.animate-spin')).toBeVisible()
+  await expect(row(page, 'sales_bot').getByTestId('test-slow')).toHaveText('Still waiting for the service. The check is safe to repeat.', { timeout: 5_000 })
+  await expect(row(page, 'sales_bot').getByTestId('test-result')).toHaveText('Could not check the connection. Try again in a minute.', { timeout: 10_000 })
+  await row(page, 'sales_bot').getByTestId('test-retry').click()
+  await expect(row(page, 'sales_bot').getByTestId('test-result')).toHaveText('Connected as @acme_sales_bot', { timeout: 10_000 })
+  expect(await callsOf(page, 'connections.test')).toHaveLength(2)
+})
+
+test('F3: Retry after a lost answer resends the same key and creates one connection', async ({ page }) => {
+  await open(page, 'lossy')
+  await page.getByTestId('connect-telegram_bot').click()
+  const form = page.getByTestId('connection-form')
+  await form.locator('[data-field="display_name"]').fill('Lost bot')
+  await form.locator('[data-field="bot_token"]').fill('good-token')
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toHaveText('Could not save. Try again in a minute.')
+  await expect(form.getByTestId('form-save')).toHaveText('Retry')
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  const creates = await callsOf(page, 'connections.create')
+  expect(creates).toHaveLength(2)
+  expect(creates[0]!.params.idempotency_key).toBeTruthy()
+  expect(creates[1]!.params.idempotency_key).toBe(creates[0]!.params.idempotency_key)
+  await expect(page.locator('[data-testid="connection-lost_bot"]')).toHaveCount(1)
 })
 
 test('IN4: a used connection lists its uses with editor links and cannot be deleted', async ({ page }) => {
@@ -196,6 +237,48 @@ test('IN6/F8: the platform key switch rolls back when the server refuses', async
   await page.getByTestId('connector-openai').getByText('Use the platform key', { exact: true }).click()
   await expect(ok).toBeChecked()
   expect(await callsOf(page, 'platform.set_enabled')).toEqual([{ method: 'automations.platform.set_enabled', params: { kind: 'openai', enabled: true } }])
+})
+
+test('IN2: editing an OAuth connection updates it; Sign in again re-authorizes that connection', async ({ page }) => {
+  await open(page)
+  await menu(page, 'drive')
+  await row(page, 'drive').getByTestId('menu-edit').click()
+  const form = page.getByTestId('connection-form')
+  await expect(form.getByTestId('form-save')).toHaveText('Save')
+  await form.locator('[data-field="display_name"]').fill('Docs drive')
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  expect(await callsOf(page, 'connections.oauth_start')).toHaveLength(0)
+  const [update] = await callsOf(page, 'connections.update')
+  expect(update!.params).toMatchObject({ id: '00000000-0000-4000-8000-000000000004', display_name: 'Docs drive' })
+  expect(update!.params.credentials).toBeUndefined()
+
+  await menu(page, 'drive')
+  await row(page, 'drive').getByTestId('menu-edit').click()
+  await page.getByTestId('form-reauth').click()
+  await expect(page).toHaveURL(/edit=00000000-0000-4000-8000-000000000004/)
+  // The fake returns to ?edit=<id> only for a start that named the connection (connection_id).
+  await expect(page.getByTestId('connection-form')).toContainText('The account is connected.')
+  await expect(page.getByTestId('connection-form')).toContainText('Edit Company drive') // the fixture reseeds on reload
+})
+
+test('IN2: a failed OAuth return reopens the form it came from', async ({ page }) => {
+  await open(page, 'oauthFail=refused')
+  await page.getByTestId('connect-google_drive').click()
+  const form = page.getByTestId('connection-form')
+  await form.locator('[data-field="display_name"]').fill('Team drive')
+  await form.getByTestId('form-save').click()
+  await expect(page).toHaveURL(/oauth_error=refused/)
+  const back = page.getByTestId('connection-form')
+  await expect(back.getByTestId('oauth-error')).toHaveText('The service signed you in, but the account cannot be used for this connector. Sign in with another account.')
+  await expect(back.locator('[data-field="display_name"]')).toHaveValue('Team drive')
+  await expect(back.locator('[data-field="name"]')).toHaveValue('team_drive')
+
+  // A failed re-authorization returns to the edit form of that connection.
+  await open(page, 'oauthFail=exchange')
+  await row(page, 'drive').getByTestId('reauth').click()
+  await expect(page.getByTestId('connection-form')).toContainText('Edit Company drive')
+  await expect(page.getByTestId('oauth-error')).toHaveText('The service did not confirm the sign-in. Try again in a minute.')
 })
 
 test('IN2: OAuth returns to the same form with its result', async ({ page }) => {
