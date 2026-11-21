@@ -5,8 +5,8 @@ import (
 	"sort"
 )
 
-// BehaviorImpl is how a kind of node runs and is checked. Implementations beyond the defaults (parallel,
-// join, foreach, collect) plug in through NewBehaviors.
+// BehaviorImpl is how a kind of node runs and is checked. Implementations beyond the defaults plug in
+// through NewBehaviors.
 type BehaviorImpl interface {
 	Behavior() Behavior
 	// OutcomeRule gives the kind's outcomes as data, so an editor builds a node's outputs without Go code.
@@ -41,19 +41,20 @@ func NewBehaviors(impls ...BehaviorImpl) (*Behaviors, error) {
 }
 
 var defaultBehaviors = func() *Behaviors {
-	b, err := NewBehaviors(branchBehavior{}, switchBehavior{}, waitBehavior{}, effectBehavior{}, callBehavior{}, endBehavior{})
+	b, err := NewBehaviors(DefaultBehaviorImpls()...)
 	if err != nil {
 		panic(err)
 	}
 	return b
 }()
 
-// DefaultBehaviors are branch, switch, wait, effect, call and end.
+// DefaultBehaviors are branch, switch, wait, effect, call and end, and the flow behaviors parallel, join,
+// foreach and collect.
 func DefaultBehaviors() *Behaviors { return defaultBehaviors }
 
 // DefaultBehaviorImpls are the implementations of DefaultBehaviors, to extend a set with NewBehaviors.
 func DefaultBehaviorImpls() []BehaviorImpl {
-	return []BehaviorImpl{branchBehavior{}, switchBehavior{}, waitBehavior{}, effectBehavior{}, callBehavior{}, endBehavior{}}
+	return append([]BehaviorImpl{branchBehavior{}, switchBehavior{}, waitBehavior{}, effectBehavior{}, callBehavior{}, endBehavior{}}, FlowBehaviors()...)
 }
 
 // Supported lists the behaviors of the set, in the order given.
@@ -146,6 +147,7 @@ type GraphView struct {
 	catalog  Catalog
 	graph    Graph
 	behavior *Behaviors
+	limits   Limits
 	subject  string
 	where    map[string]string // id → "triggers[i]" or "nodes[i]" (the last one of a duplicate)
 	nodes    map[string]int
@@ -162,6 +164,9 @@ func (v *GraphView) Catalog() Catalog { return copyCatalog(v.catalog) }
 
 // Graph is the graph.
 func (v *GraphView) Graph() Graph { return copyGraph(v.graph) }
+
+// Limits are the limits the graph is checked and run with.
+func (v *GraphView) Limits() Limits { return v.limits }
 
 // Subject is the graph's subject.
 func (v *GraphView) Subject() string { return v.subject }

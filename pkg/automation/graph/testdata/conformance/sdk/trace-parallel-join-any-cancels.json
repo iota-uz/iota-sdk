@@ -1,0 +1,240 @@
+{
+  "name": "trace-parallel-join-any-cancels",
+  "format": 2,
+  "kind": "trace",
+  "description": "Join any continues with the first branch that arrives and cancels the others: the token waiting on a human is cancelled on that node.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      },
+      "delay": {
+        "behavior": "wait",
+        "params": {
+          "duration": "string"
+        },
+        "wait": {
+          "timeout_param": "duration",
+          "timeout_outcome": "done"
+        }
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "approval",
+          "text": "Approve {{ issue.title }}?"
+        }
+      },
+      {
+        "id": "pause",
+        "type": "delay",
+        "params": {
+          "duration": "1h"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "any"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "pause"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "pause",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "approve",
+      "outcome": "waiting",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "approval",
+              "text": "Approve Crash on save?"
+            }
+          }
+        ],
+        "output": {
+          "waits_for": "manual"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "pause",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "timeout_ms": 3600000
+        }
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "pause",
+      "outcome": "done",
+      "context_patch": {},
+      "token": "split.sales"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": null
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "approve",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.legal"
+    },
+    {
+      "node": "j",
+      "outcome": "joined",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "legal": {
+              "arrived": false,
+              "output": null
+            },
+            "sales": {
+              "arrived": true,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "go",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "done"
+      }
+    }
+  ]
+}

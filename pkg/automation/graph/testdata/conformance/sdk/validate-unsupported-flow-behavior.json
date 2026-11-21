@@ -1,0 +1,100 @@
+{
+  "name": "validate-unsupported-flow-behavior",
+  "format": 2,
+  "kind": "validate",
+  "description": "A catalog without the flow behaviors refuses a graph that uses them at nodes[i].type: the catalog loads with all behaviors, validation runs without parallel, join, foreach and collect.",
+  "requires": [],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "a"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].type",
+      "code": "unsupported_behavior"
+    },
+    {
+      "path": "nodes[1].type",
+      "code": "unsupported_behavior"
+    }
+  ],
+  "options": {
+    "without_behaviors": [
+      "parallel",
+      "join",
+      "foreach",
+      "collect"
+    ]
+  }
+}

@@ -1,0 +1,274 @@
+{
+  "name": "trace-foreach-concurrency-order",
+  "format": 2,
+  "kind": "trace",
+  "description": "The trace walks the items in their order whatever the concurrency (20 here; 1 gives the same trace): every item runs until its wait, and each event wakes the item it matches.",
+  "requires": [
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "[1, 2, 3]",
+          "concurrency": 20
+        }
+      },
+      {
+        "id": "hold",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "filter": "event.number == foreach.each.item"
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each",
+          "value": "nodes.hold.output.event.number * 10"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "matched"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 2,
+      "repository": "acme/app"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 1,
+      "repository": "acme/app"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 3,
+      "repository": "acme/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "each[2]"
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 2,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 20
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 1,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 10
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 3,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "each[2]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 30
+      },
+      "token": "each[2]"
+    },
+    {
+      "node": "each",
+      "outcome": "done",
+      "context_patch": {
+        "output": {
+          "results": [
+            {
+              "index": 0,
+              "ok": true,
+              "value": 10
+            },
+            {
+              "index": 1,
+              "ok": true,
+              "value": 20
+            },
+            {
+              "index": 2,
+              "ok": true,
+              "value": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

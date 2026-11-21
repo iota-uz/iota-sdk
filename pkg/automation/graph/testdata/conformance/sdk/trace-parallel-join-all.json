@@ -1,0 +1,255 @@
+{
+  "name": "trace-parallel-join-all",
+  "format": 2,
+  "kind": "trace",
+  "description": "Join all waits for every branch. Branches run in their order, each depth first until it waits or arrives: sales arrives first, legal after its wait wakes. The branch's value is its last node's output; the joined output has every branch.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "pr",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "note",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "sales"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "pr"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "note"
+      },
+      {
+        "from": {
+          "node": "pr",
+          "outcome": "matched"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 5,
+      "repository": "acme/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "pr",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "note",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "notify",
+              "text": "sales"
+            }
+          }
+        ]
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": null
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "pr",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "j",
+      "outcome": "joined",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "legal": {
+              "arrived": true,
+              "output": {
+                "event": {
+                  "number": 5,
+                  "repository": "acme/app"
+                }
+              }
+            },
+            "sales": {
+              "arrived": true,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "go",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "done"
+      }
+    }
+  ]
+}

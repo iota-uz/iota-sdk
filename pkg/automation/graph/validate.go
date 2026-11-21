@@ -13,6 +13,7 @@ const maxErrors = 100
 // buildView parses the params of every node and indexes the edges.
 func buildView(c Catalog, g Graph, o Options) *GraphView {
 	v := newView(c, g, o.behaviors())
+	v.limits = o.Limits
 	g = v.graph
 	for _, n := range g.Nodes {
 		spec, ok := v.catalog.Nodes[n.Type]
@@ -185,7 +186,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 					if k == 10 {
 						break
 					}
-					errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
+					errs.add(issuePath(at+".params", issue.Path), issueCode(issue), "%s", issue.Message)
 				}
 			} else if _, ok := v.triggerParams[t.ID]; !ok {
 				errs.add(at+".params", CodeParams, "the params of %s parsed into values that are not JSON", t.Event)
@@ -226,7 +227,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				if k == 10 {
 					break
 				}
-				errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
+				errs.add(issuePath(at+".params", issue.Path), issueCode(issue), "%s", issue.Message)
 			}
 			continue
 		}
@@ -327,10 +328,12 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		// A built-in kind ends or suspends by what it is; a registered kind declares it: no outcomes ends a
 		// path, a WaitSpec suspends the run.
 		builtin := isBuiltinBehavior(spec.Behavior)
-		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || !builtin && outcomes != nil && len(outcomes) == 0 {
+		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || spec.Behavior == BehaviorCollect || !builtin && outcomes != nil && len(outcomes) == 0 {
 			ends[n.ID] = true
 		}
-		if spec.Behavior == BehaviorWait || !builtin && spec.Wait != nil {
+		// A call waits for its answer (ask, a script); a cycle through a foreach is cycle_through_foreach,
+		// its own error, so it is not reported twice.
+		if spec.Behavior == BehaviorWait || spec.Behavior == BehaviorCall || spec.Behavior == BehaviorForeach || !builtin && spec.Wait != nil {
 			waits[n.ID] = true
 		}
 	}
@@ -420,9 +423,24 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	return errs.list
 }
 
+func issueCode(i Issue) string {
+	if i.Limit {
+		return CodeLimit
+	}
+	return CodeParams
+}
+
 func isBuiltinBehavior(b Behavior) bool {
-	switch b {
+	switch b { //nolint:exhaustive // the other behaviors are flow behaviors or registered ones
 	case BehaviorBranch, BehaviorSwitch, BehaviorWait, BehaviorEffect, BehaviorCall, BehaviorEnd:
+		return true
+	}
+	return isFlowBehavior(b)
+}
+
+func isFlowBehavior(b Behavior) bool {
+	switch b { //nolint:exhaustive // only the four flow behaviors
+	case BehaviorParallel, BehaviorJoin, BehaviorForeach, BehaviorCollect:
 		return true
 	}
 	return false

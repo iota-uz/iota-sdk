@@ -126,7 +126,7 @@ func TestDecodeDefaultsAndTrim(t *testing.T) {
 		t.Fatalf("JSONSchema: %v", err)
 	}
 	var builtins map[string]any
-	if err := json.Unmarshal(graph.BuiltinsJSONSchema(), &builtins); err != nil || len(builtins) != 5 {
+	if err := json.Unmarshal(graph.BuiltinsJSONSchema(), &builtins); err != nil || len(builtins) != 9 {
 		t.Fatalf("BuiltinsJSONSchema: %v %v", err, builtins)
 	}
 }
@@ -205,7 +205,7 @@ func TestMaxValueBytes(t *testing.T) {
 // with that behavior is refused when it loads.
 func TestUnsupportedBehavior(t *testing.T) {
 	c := testCatalog(t)
-	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "parallel", Params: graph.MustSchemaParams(`{"type": "object"}`)}
+	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "race", Params: graph.MustSchemaParams(`{"type": "object"}`)}
 	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
 		"nodes": [{"id": "s", "type": "split", "params": {}}], "edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "s"}]}`)
 	errs := graph.Validate(c, g, graph.Options{})
@@ -213,41 +213,41 @@ func TestUnsupportedBehavior(t *testing.T) {
 		t.Fatalf("errors: %v", errs)
 	}
 	if err := c.Check(nil); err == nil {
-		t.Fatal("Check accepts a catalog with behavior parallel")
+		t.Fatal("Check accepts a catalog with behavior race")
 	}
-	_, err := graph.CatalogFromJSON([]byte(`{"events": {}, "subjects": {}, "nodes": {"split": {"behavior": "parallel"}}}`), nil)
-	if err == nil || !strings.Contains(err.Error(), "parallel") {
+	_, err := graph.CatalogFromJSON([]byte(`{"events": {}, "subjects": {}, "nodes": {"split": {"behavior": "race"}}}`), nil)
+	if err == nil || !strings.Contains(err.Error(), "race") {
 		t.Fatalf("CatalogFromJSON: %v", err)
 	}
 }
 
-type parallelStub struct{}
+type raceStub struct{}
 
-func (parallelStub) Behavior() graph.Behavior { return "parallel" }
-func (parallelStub) OutcomeRule(graph.NodeSpec) graph.OutcomeRule {
+func (raceStub) Behavior() graph.Behavior { return "race" }
+func (raceStub) OutcomeRule(graph.NodeSpec) graph.OutcomeRule {
 	return graph.OutcomeRule{From: &graph.ParamRef{Param: "branches"}, Fixed: []string{}}
 }
-func (parallelStub) Validate(*graph.GraphView, graph.Node, graph.NodeSpec) []graph.GraphError {
+func (raceStub) Validate(*graph.GraphView, graph.Node, graph.NodeSpec) []graph.GraphError {
 	return nil
 }
-func (parallelStub) Start(*graph.StepContext, graph.Node, graph.NodeSpec) graph.Step {
+func (raceStub) Start(*graph.StepContext, graph.Node, graph.NodeSpec) graph.Step {
 	return graph.Step{Kind: graph.StepOutcome, Outcome: "a"}
 }
 
 // A behavior plugs in through NewBehaviors: catalogs then load it, graphs validate with it.
 func TestBehaviorsExtend(t *testing.T) {
-	if _, err := graph.NewBehaviors(parallelStub{}, parallelStub{}); err == nil {
+	if _, err := graph.NewBehaviors(raceStub{}, raceStub{}); err == nil {
 		t.Fatal("a duplicate behavior is accepted")
 	}
-	b, err := graph.NewBehaviors(append(graph.DefaultBehaviorImpls(), parallelStub{})...)
+	b, err := graph.NewBehaviors(append(graph.DefaultBehaviorImpls(), raceStub{})...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := len(b.Supported()); got != 7 {
+	if got := len(b.Supported()); got != 11 {
 		t.Fatalf("supported: %d", got)
 	}
 	c, err := graph.CatalogFromJSON([]byte(`{"events": {"e": {"subject": "none", "payload": {}}}, "subjects": {},
-		"nodes": {"split": {"behavior": "parallel", "params": {"branches": {"list": "string"}}}}}`), b)
+		"nodes": {"split": {"behavior": "race", "params": {"branches": {"list": "string"}}}}}`), b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,7 +460,7 @@ func TestSchemasLoadNoFiles(t *testing.T) {
 
 func TestNilParamsSpec(t *testing.T) {
 	c := testCatalog(t)
-	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "parallel"}
+	c.Nodes["split"] = graph.NodeSpec{Type: "split", Behavior: "race"}
 	c.Nodes["bare"] = graph.NodeSpec{Type: "bare", Behavior: graph.BehaviorEnd}
 	g := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
 		"nodes": [{"id": "s", "type": "split", "params": {}}, {"id": "b", "type": "bare", "params": {}}],

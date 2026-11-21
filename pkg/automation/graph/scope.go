@@ -14,6 +14,7 @@ type exprs struct {
 	view    *GraphView
 	limits  expr.Limits
 	outputs expr.Fields // nodes.<id>.output by node, in graph order
+	foreach expr.Fields // foreach.<id> by foreach node, in graph order
 	event   string      // the event kind all triggers share; "" when they differ
 
 	mu    sync.Mutex
@@ -51,6 +52,12 @@ func newExprs(v *GraphView, limits expr.Limits) *exprs {
 			continue
 		}
 		seen[n.ID] = true
+		if spec.Behavior == BehaviorForeach {
+			x.foreach = append(x.foreach, expr.Prop{Name: n.ID, Field: expr.ObjectOf(expr.Fields{
+				{Name: "item", Field: expr.DynField},
+				{Name: "index", Field: expr.IntField},
+			})})
+		}
 		if f, ok, _ := nodeOutput(v.catalog, spec, p); ok {
 			x.outputs = append(x.outputs, expr.Prop{Name: n.ID, Field: expr.ObjectOf(expr.Fields{{Name: "output", Field: f}})})
 		}
@@ -86,7 +93,8 @@ func ExprScope(c Catalog, subject, event string, nodes expr.Fields) expr.Scope {
 	return expr.Scope{Vars: vars}
 }
 
-// env is the environment of a scope: the event kind read ("*": the graph's), with or without node outputs. ("*": the graph's), and whether node outputs are visible.
+// env is the environment of a scope: the event kind read ("*": the graph's), with or without node outputs
+// (and foreach items).
 func (x *exprs) env(event string, withNodes bool) (*expr.Env, error) {
 	key := fmt.Sprintf("%s|%t", event, withNodes)
 	x.mu.Lock()
@@ -103,6 +111,10 @@ func (x *exprs) env(event string, withNodes bool) (*expr.Env, error) {
 		nodes = x.outputs
 	}
 	scope := ExprScope(x.view.catalog, x.view.subject, kind, nodes)
+	if withNodes && len(x.foreach) > 0 {
+		// foreach.<id>.item and .index: read inside the foreach's body.
+		scope.Vars["foreach"] = expr.ObjectOf(x.foreach)
+	}
 	e, err := expr.NewEnv(scope, x.limits)
 	if err != nil {
 		return nil, err

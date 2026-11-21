@@ -38,6 +38,14 @@ type Context struct {
 	Vars   map[string]any       // the subject's variables
 	Now    time.Time
 	Tenant map[string]any
+	// Foreach is foreach.<id> inside the body of a foreach: the token's item and its index.
+	Foreach map[string]ForeachItem
+}
+
+// ForeachItem is what the body of a foreach reads as foreach.<id>.
+type ForeachItem struct {
+	Item  any `json:"item"`
+	Index int `json:"index"`
 }
 
 // NodeState is what a node left: its output, and for a call answered without a choice its outcome.
@@ -56,6 +64,14 @@ const (
 	StepEnd            StepKind = "end"
 	StepMissingContext StepKind = "missing_context"
 	StepFailed         StepKind = "failed"
+	// StepFork starts a token per branch (parallel): Fork lists them; Wait, when set, is the timeout of
+	// the parallel's join, counted from the fork. The forking token waits for the join.
+	StepFork StepKind = "fork"
+	// StepEach starts the body for each item (foreach): Each lists them; the token of item i is
+	// ItemToken(token, node, i) and enters Next(node, "item"). The token waits for the items.
+	StepEach StepKind = "each"
+	// StepArrive ends the token at a join or a collect: Arrive is what it brings.
+	StepArrive StepKind = "arrive"
 )
 
 // Failure codes of a step.
@@ -68,6 +84,10 @@ const (
 	FailInvalidRequest = "INVALID_REQUEST"
 	FailValueTooLarge  = "VALUE_TOO_LARGE"
 	FailInvalidSubject = "INVALID_SUBJECT"
+	// FailLimit: a fork or a foreach would exceed Limits.MaxTokens; the run fails, no token is created.
+	FailLimit = "LIMIT"
+	// FailJoinIncomplete: a join's branches can no longer give what it waits for and it has no timeout.
+	FailJoinIncomplete = "JOIN_INCOMPLETE"
 )
 
 // Step is one decision of the interpreter. Nothing in it is applied: the engine applies effects and calls.
@@ -81,6 +101,31 @@ type Step struct {
 	Path    string         // MissingContext: the field's path
 	Code    string         // Failed: EXPRESSION_FAILED | INVALID_INPUT | ...
 	Message string
+	Fork    []Fork   // StepFork: the new tokens, in the order of the branches
+	Each    *Each    // StepEach: the items
+	Arrive  *Arrival // StepArrive: at a join or a collect
+	Cancel  []string // tokens to cancel with their waits and tasks (a join any / n_of, a join timeout)
+}
+
+// Fork is a token a parallel starts and the node it enters (ignore: the branch ends at once).
+type Fork struct {
+	Token string `json:"token"`
+	Node  string `json:"node"`
+}
+
+// Each is what a foreach runs its body for: the items, and how many items run at once in the engine.
+// A dry run walks the items in their order whatever the concurrency.
+type Each struct {
+	Items       []any `json:"items"`
+	Concurrency int   `json:"concurrency"`
+}
+
+// Arrival is what a token brings to a join (Of: the parallel) or a collect (Of: the foreach): the output
+// of the branch's last node, or the collect's value; nil when there is none.
+type Arrival struct {
+	Of    string `json:"of"`
+	Token string `json:"token"`
+	Value any    `json:"value"`
 }
 
 // Effect is a node's rendered params for the engine to apply. Node is the node type (the catalog key).
@@ -124,11 +169,34 @@ type Options struct {
 	Rules func(Graph) []GraphError
 }
 
-// Limits bound expressions and values.
+// Limits bound expressions, values and tokens. Zero is the default.
 type Limits struct {
-	Expr          expr.Limits
-	MaxValueBytes int // an event's payload and a node's output; 1 MiB by default
+	Expr                  expr.Limits
+	MaxValueBytes         int // an event's payload and a node's output; 1 MiB by default
+	MaxForeachItems       int // the items one foreach runs; 1000 by default
+	MaxForeachConcurrency int // a foreach's concurrency; 20 by default
+	MaxParallelBranches   int // a parallel's branches; 20 by default
+	MaxTokens             int // the active tokens of one run; 1000 by default
 }
+
+func orDefault(v, d int) int {
+	if v <= 0 {
+		return d
+	}
+	return v
+}
+
+// ForeachItems is MaxForeachItems with its default.
+func (l Limits) ForeachItems() int { return orDefault(l.MaxForeachItems, 1000) }
+
+// ForeachConcurrency is MaxForeachConcurrency with its default.
+func (l Limits) ForeachConcurrency() int { return orDefault(l.MaxForeachConcurrency, 20) }
+
+// ParallelBranches is MaxParallelBranches with its default.
+func (l Limits) ParallelBranches() int { return orDefault(l.MaxParallelBranches, 20) }
+
+// Tokens is MaxTokens with its default.
+func (l Limits) Tokens() int { return orDefault(l.MaxTokens, 1000) }
 
 func (o Options) behaviors() *Behaviors {
 	if o.Behaviors == nil {
@@ -145,11 +213,17 @@ func (o Options) maxValueBytes() int {
 }
 
 // StepContext is the context of one step for one token of a run. Token "" is the main path; split
-// behaviors name theirs ("split.legal", "each[0]").
+// behaviors name theirs ("split.legal", "each[0]", nested "split.legal/each[3]").
 type StepContext struct {
 	Ctx   Context
 	Token string
-	in    *Interpreter
+	// From is the node (or trigger) whose outcome led the token here: a join takes its output as the
+	// branch's.
+	From string
+	// Tokens is how many tokens of the run are active, this one included: a fork or a foreach that would
+	// exceed Limits.MaxTokens fails before it creates any. 0: not counted (1).
+	Tokens int
+	in     *Interpreter
 }
 
 // Params are a node's params as its type parsed them.
@@ -311,6 +385,13 @@ func varsOf(ctx Context) map[string]any {
 	}
 	if !ctx.Now.IsZero() {
 		vars["now"] = ctx.Now
+	}
+	if len(ctx.Foreach) > 0 {
+		each := make(map[string]any, len(ctx.Foreach))
+		for id, it := range ctx.Foreach {
+			each[id] = map[string]any{"item": it.Item, "index": int64(it.Index)}
+		}
+		vars["foreach"] = each
 	}
 	return vars
 }
@@ -508,6 +589,9 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 	}
 	sc.in = i
 	st := impl.Start(&sc, node, copyNodeSpec(spec))
+	if limit := i.tokenLimit(sc.Tokens, st); limit != nil {
+		return *limit
+	}
 	if st.Output != nil {
 		if big := i.tooLarge(st.Output, "the output of "+nodeID); big != nil {
 			return *big // the limit holds for every behavior, registered ones included
