@@ -225,11 +225,22 @@ func TestResolveConnectionPrefersTheFirstAndPicksTheKind(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "t1", r.ID)
 	assert.Equal(t, catalog.KindTwilio, k)
-	// A tenant connection overrides a platform credential of another fitting kind.
-	r, k, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
+	// A tenant connection does not override a platform credential of another kind: the graph must choose.
+	_, _, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
+	require.ErrorIs(t, err, catalog.ErrConnectionRequired)
+	// It overrides the platform credential of its own kind.
+	sameKind := map[catalog.ConnectorKind][]catalog.ConnectionRef{
+		catalog.KindEskiz:  {{ID: "e1", Name: "own"}, {ID: "platform:eskiz"}},
+		catalog.KindTwilio: {},
+	}
+	r, k, err = catalog.ResolveConnection(sameKind, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, "t1", r.ID)
-	assert.Equal(t, catalog.KindTwilio, k)
+	assert.Equal(t, "e1", r.ID)
+	assert.Equal(t, catalog.KindEskiz, k)
+	// And then only one candidate may remain.
+	sameKind[catalog.KindTwilio] = []catalog.ConnectionRef{{ID: "platform:twilio"}}
+	_, _, err = catalog.ResolveConnection(sameKind, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
+	require.ErrorIs(t, err, catalog.ErrConnectionRequired)
 	_, _, err = catalog.ResolveConnection(map[catalog.ConnectorKind][]catalog.ConnectionRef{
 		catalog.KindEskiz: {{ID: "platform:eskiz"}}, catalog.KindTwilio: {{ID: "platform:twilio"}},
 	}, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)

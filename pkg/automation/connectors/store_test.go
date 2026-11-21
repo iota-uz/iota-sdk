@@ -780,3 +780,42 @@ func TestOAuth2(t *testing.T) {
 	_, err = o.Complete(e.ctx, e.tenant, "2026.11.garbage", "code")
 	require.ErrorIs(t, err, connectors.ErrInvalid)
 }
+
+// staleList answers List with an earlier snapshot, as if the row changed between List and Get.
+type staleList struct {
+	connectors.ConnectionStore
+	snapshot []connectors.Connection
+}
+
+func (s staleList) List(context.Context, uuid.UUID, catalog.ConnectorKind) ([]connectors.Connection, error) {
+	return s.snapshot, nil
+}
+
+func TestSecretResolverChecksTheRowItReads(t *testing.T) {
+	e := newEnv(t)
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(telegramConnector(t)))
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	c := e.save(store, e.tenant, "support_bot", connectors.Credentials{"token": botToken})
+	snapshot, err := store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	r := connectors.SecretResolver(staleList{ConnectionStore: store, snapshot: snapshot}, dir, nil)
+	sc := spi.Scope{Subject: spi.Subject{TenantID: e.tenant}}
+
+	// Disabled after List.
+	require.NoError(t, store.SetStatus(e.ctx, e.tenant, c.ID, connectors.StatusDisabled, "paused"))
+	v, err := r.Secret(e.ctx, sc, "support_bot.token")
+	require.ErrorIs(t, err, connectors.ErrNotConnected)
+	assert.Empty(t, v)
+
+	// Renamed after List.
+	require.NoError(t, store.SetStatus(e.ctx, e.tenant, c.ID, connectors.StatusConnected, ""))
+	cur, _, err := store.Get(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	cur.Name = "renamed_bot"
+	_, err = store.Save(e.ctx, cur, nil)
+	require.NoError(t, err)
+	v, err = r.Secret(e.ctx, sc, "support_bot.token")
+	require.ErrorIs(t, err, connectors.ErrNotFound)
+	assert.Empty(t, v)
+}

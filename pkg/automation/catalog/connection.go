@@ -106,9 +106,9 @@ var (
 
 // ResolveConnection picks the connection a node or a trigger that requires one of kinds runs with, out
 // of the tenant's connected refs: the one named by the connection param (a string), or, when it is
-// left out, the only connection of those kinds; a tenant connection overrides platform credentials, so
-// enabling a platform grant or adding the tenant's own connection does not break a graph that left the
-// param out. A name that is not a working connection of those kinds
+// left out, the only connection of those kinds. A tenant connection overrides the platform credential
+// of its own kind only, so enabling a platform grant or adding the tenant's own connection of that kind
+// does not break a graph that left the param out, and never switches it to another kind silently. A name that is not a working connection of those kinds
 // is ErrConnectionUnavailable; no param and several connections is ErrConnectionRequired.
 func ResolveConnection(connected map[ConnectorKind][]ConnectionRef, kinds []ConnectorKind, param any) (ConnectionRef, ConnectorKind, error) {
 	ref, _ := param.(string)
@@ -142,18 +142,21 @@ func ResolveConnection(connected map[ConnectorKind][]ConnectionRef, kinds []Conn
 	case len(found) == 1:
 		return found[0], foundKind[0], nil
 	}
+	tenantOf := map[ConnectorKind]bool{}
+	for i, r := range found {
+		if !strings.HasPrefix(r.ID, PlatformPrefix) {
+			tenantOf[foundKind[i]] = true
+		}
+	}
 	pick := -1
 	for i, r := range found {
-		if strings.HasPrefix(r.ID, PlatformPrefix) {
-			continue
+		if strings.HasPrefix(r.ID, PlatformPrefix) && tenantOf[foundKind[i]] {
+			continue // overridden by the tenant's own connection of this kind
 		}
 		if pick >= 0 {
 			return ConnectionRef{}, "", ErrConnectionRequired
 		}
 		pick = i
-	}
-	if pick < 0 {
-		return ConnectionRef{}, "", ErrConnectionRequired
 	}
 	return found[pick], foundKind[pick], nil
 }

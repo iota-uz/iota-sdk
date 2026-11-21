@@ -59,12 +59,17 @@ func (r *secretResolver) Secret(ctx context.Context, sc spi.Scope, name string) 
 	if !ok || !SecretFields(conn.Descriptor())[field] {
 		return "", serrors.Wrap(op, fmt.Errorf("%w: %s is not a secret field of connector %s", ErrNotFound, field, c.Kind))
 	}
-	if c.Status != StatusConnected {
-		return "", serrors.Wrap(op, fmt.Errorf("%w: %s", ErrNotConnected, connName))
-	}
-	_, creds, err := r.store.Get(ctx, sc.Subject.TenantID, c.ID)
+	// Name, kind and status are checked on the row the credentials come from: List is an earlier
+	// snapshot, and the connection may have been renamed or disabled since.
+	cur, creds, err := r.store.Get(ctx, sc.Subject.TenantID, c.ID)
 	if err != nil {
 		return "", serrors.Wrap(op, err)
+	}
+	if cur.Name != connName || cur.Kind != c.Kind {
+		return "", serrors.Wrap(op, fmt.Errorf("%w: connection %s", ErrNotFound, connName))
+	}
+	if cur.Status != StatusConnected {
+		return "", serrors.Wrap(op, fmt.Errorf("%w: %s", ErrNotConnected, connName))
 	}
 	v, ok := creds[field]
 	if !ok {
