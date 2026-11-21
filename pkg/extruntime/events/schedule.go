@@ -233,6 +233,8 @@ type Scheduler struct {
 	liveLimit int
 	// retryLimit bounds the due retries one pass handles per schedule.
 	retryLimit int
+	// commit finishes the slot transaction; tests replace it.
+	commit func(context.Context, pgx.Tx) error
 	// backlog remembers, per schedule and tenant, how far the eligible slots
 	// older than the newest live ones are all claimed (see runBacklog).
 	cmu     sync.Mutex
@@ -274,7 +276,7 @@ func NewScheduler(cfg SchedulerConfig) (*Scheduler, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Scheduler{cfg: cfg, liveLimit: defaultLiveLimit, retryLimit: defaultRetryLimit, backlog: map[backlogKey]time.Time{}}, nil
+	return &Scheduler{cfg: cfg, liveLimit: defaultLiveLimit, retryLimit: defaultRetryLimit, commit: func(ctx context.Context, tx pgx.Tx) error { return tx.Commit(ctx) }, backlog: map[backlogKey]time.Time{}}, nil
 }
 
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
@@ -409,10 +411,18 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 
 // retryable is a failed or blocked run that is due for another attempt.
 type retryable struct {
-	tenant   uuid.UUID
-	slot     time.Time
-	status   string
-	attempts int
+	tenant uuid.UUID
+	slot   time.Time
+	status string
+	seen   receipt
+}
+
+// receipt is what a pass knew of a slot's run when it decided to touch it:
+// its attempts and its generation (updated_at, which every state change
+// refreshes). A zero value means no receipt existed.
+type receipt struct {
+	attempts  int
+	updatedAt *time.Time
 }
 
 // runSchedule runs one schedule for tenants. It handles three disjoint sets,
@@ -483,7 +493,7 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 			}
 			continue
 		}
-		ok, err := s.runSlot(ctx, def, r.tenant, r.slot, r.attempts)
+		ok, err := s.runSlot(ctx, def, r.tenant, r.slot, r.seen)
 		if err != nil {
 			if ctx.Err() != nil {
 				return ran, err
@@ -503,7 +513,7 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 			if _, seen := known[runKey{tenant, slot}]; seen {
 				continue
 			}
-			ok, err := s.runSlot(ctx, def, tenant, slot, 0)
+			ok, err := s.runSlot(ctx, def, tenant, slot, receipt{})
 			if err != nil {
 				if ctx.Err() != nil {
 					return ran, err
@@ -583,7 +593,7 @@ func (s *Scheduler) runBacklog(ctx context.Context, def ScheduleDef, spec cron.S
 				continue
 			}
 			attempted++
-			ok, err := s.runSlot(ctx, def, tenant, slot, 0)
+			ok, err := s.runSlot(ctx, def, tenant, slot, receipt{})
 			if err != nil {
 				return ran, err
 			}
@@ -716,7 +726,7 @@ func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []
 		}
 	}
 	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT tenant_id, slot, status, attempts FROM (
+		SELECT tenant_id, slot, status, attempts, updated_at FROM (
 			SELECT tenant_id, slot, status, attempts,
 			       row_number() OVER (PARTITION BY tenant_id ORDER BY updated_at, slot) AS turn, updated_at
 			FROM extruntime.schedule_runs
@@ -731,10 +741,12 @@ func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []
 	var out []retryable
 	for rows.Next() {
 		var r retryable
-		if err := rows.Scan(&r.tenant, &r.slot, &r.status, &r.attempts); err != nil {
+		var updatedAt time.Time
+		if err := rows.Scan(&r.tenant, &r.slot, &r.status, &r.seen.attempts, &updatedAt); err != nil {
 			return nil, serrors.FromDB(opSchedule, err)
 		}
 		r.slot = r.slot.UTC()
+		r.seen.updatedAt = &updatedAt
 		out = append(out, r)
 	}
 	return out, serrors.FromDB(opSchedule, rows.Err())
@@ -768,14 +780,14 @@ func (s *Scheduler) loadAccounted(ctx context.Context, schedule string, tenants 
 	return out, serrors.FromDB(opSchedule, rows.Err())
 }
 
-func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, prior int) (bool, error) {
+func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, seen receipt) (bool, error) {
 	var (
 		subject spi.Subject
 		ownerID int64
 	)
 	if def.Handler == nil {
 		if s.cfg.Runner == nil {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "",
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, seen.attempts, seen.updatedAt, "",
 				fmt.Sprintf("schedule %s is a package schedule and the extension runtime is not enabled", def.ID))
 		}
 		var found bool
@@ -785,11 +797,11 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 			return false, serrors.Wrap(opScheduleD, err)
 		}
 		if !found {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, seen.attempts, seen.updatedAt, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
 		}
 		subject, err = s.cfg.Subjects.LoadSubject(ctx, tenant, ownerID, spi.SubjectOwner)
 		if errors.Is(err, host.ErrSubjectBlocked) {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "", err.Error())
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, seen.attempts, seen.updatedAt, "", err.Error())
 		}
 		if err != nil {
 			return false, serrors.Wrap(opScheduleD, err)
@@ -812,6 +824,14 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 			_ = tx.Rollback(context.WithoutCancel(ctx))
 		}
 	}()
+	// The generation of the receipt the claim finds (none for a new slot), taken
+	// under a row lock, so a late fallback write can tell whether anyone
+	// recorded a result after this claim.
+	var generation *time.Time
+	if err := tx.QueryRow(ctx, `SELECT updated_at FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3 FOR UPDATE`,
+		tenant, def.ID, slot).Scan(&generation); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return false, serrors.FromDB(opScheduleD, err)
+	}
 	var attempts int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO extruntime.schedule_runs AS r (tenant_id, schedule, slot, status, attempts)
@@ -886,7 +906,7 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 				return false, serrors.FromDB(opScheduleD, err)
 			}
 		}
-		err := tx.Commit(ctx)
+		err := s.commit(ctx, tx)
 		if err == nil {
 			txOpen = false
 			release() // the transaction is over; the callback may call the scheduler again
@@ -903,12 +923,12 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		// claim are gone, and the slot failed.
 		txOpen = false
 		runErr = fmt.Errorf("schedule %s: the slot's transaction was rejected at commit: %w", def.ID, err)
-		return false, s.failSlot(ctx, nil, def, tenant, slot, attempts, res.InvocationID, runErr)
+		return false, s.failSlot(ctx, nil, def, tenant, slot, attempts, generation, res.InvocationID, runErr)
 	}
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
-	if err := s.failSlot(ctx, tx, def, tenant, slot, attempts, res.InvocationID, runErr); err != nil {
+	if err := s.failSlot(ctx, tx, def, tenant, slot, attempts, generation, res.InvocationID, runErr); err != nil {
 		return false, err
 	}
 	txOpen = false
@@ -940,7 +960,7 @@ func (slotTx) Rollback(context.Context) error { return ErrSlotTxOwned }
 // open transaction) it rolls back to the savepoint, keeping the claim, and
 // commits the failed state with it; without one, or when that fails, it
 // records the state outside.
-func (s *Scheduler) failSlot(ctx context.Context, tx pgx.Tx, def ScheduleDef, tenant uuid.UUID, slot time.Time, attempts int, invocationID string, runErr error) error {
+func (s *Scheduler) failSlot(ctx context.Context, tx pgx.Tx, def ScheduleDef, tenant uuid.UUID, slot time.Time, attempts int, generation *time.Time, invocationID string, runErr error) error {
 	status, failedAttempts := StatusFailed, attempts
 	msg := runErr.Error()
 	switch {
@@ -987,7 +1007,7 @@ func (s *Scheduler) failSlot(ctx context.Context, tx pgx.Tx, def ScheduleDef, te
 		// it outside, as a last resort.
 		_ = tx.Rollback(wc)
 	}
-	return s.record(ctx, def, tenant, slot, status, failedAttempts, max(attempts-1, 0), invocationID, msg)
+	return s.record(ctx, def, tenant, slot, status, failedAttempts, generation, invocationID, msg)
 }
 
 // backoff is the delay before a failed or blocked slot is due again.
@@ -1017,9 +1037,10 @@ func callHandler(ctx context.Context, h SlotHandler, tx pgx.Tx, slot Slot) (err 
 // slot transaction: a slot that was blocked before it was claimed, or the last
 // resort when the claiming transaction itself failed. It never overwrites a
 // committed run, and it writes over an existing receipt only while that
-// receipt still is what the caller saw (expected attempts, still due): a pass
-// that advanced it meanwhile keeps its result.
-func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, status string, attempts, expected int, invocationID, msg string) error {
+// receipt still is the generation the caller saw (generation is its updated_at;
+// nil means there was none, so an existing receipt is never touched): a pass
+// that recorded a result meanwhile keeps it.
+func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, status string, attempts int, generation *time.Time, invocationID, msg string) error {
 	delay := s.backoff(status, attempts)
 	attempts = max(attempts, 0)
 	var inv any
@@ -1033,8 +1054,8 @@ func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUI
 		SET status = EXCLUDED.status,
 		    attempts = CASE WHEN EXCLUDED.status = 'blocked' THEN r.attempts ELSE EXCLUDED.attempts END, next_at = EXCLUDED.next_at, last_error = EXCLUDED.last_error,
 		    invocation_id = COALESCE(EXCLUDED.invocation_id, r.invocation_id), updated_at = now()
-		WHERE r.status IN ('failed', 'blocked') AND r.attempts = $9 AND r.next_at <= now()`,
-		tenant, def.ID, slot, status, attempts, delay.String(), msg, inv, expected)
+		WHERE r.status IN ('failed', 'blocked') AND $9::timestamptz IS NOT NULL AND r.updated_at = $9`,
+		tenant, def.ID, slot, status, attempts, delay.String(), msg, inv, generation)
 	if err != nil {
 		return serrors.FromDB(opScheduleD, err)
 	}

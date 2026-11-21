@@ -734,8 +734,8 @@ func TestCommitFailureClassification(t *testing.T) {
 }
 
 // When the claiming transaction is gone, the failure is recorded outside it,
-// but only over the receipt this pass saw: a pass that advanced the receipt
-// meanwhile keeps its result.
+// but only over the receipt generation this pass claimed: a pass that recorded
+// a result meanwhile keeps it, whatever its status, attempts or deadline.
 func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 	env := hosttest.New(t)
 	ctx := context.Background()
@@ -744,22 +744,72 @@ func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
 	s := goScheduler(t, env, events.StaticSchedules(def), &now)
 	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	type receipt struct {
+		status   string
+		attempts int
+		msg      string
+		gen      time.Time
+	}
+	row := func() receipt {
+		var r receipt
+		require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts, last_error, updated_at FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&r.status, &r.attempts, &r.msg, &r.gen))
+		return r
+	}
 
-	// No receipt (the claim insert rolled back): the failure is inserted.
-	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 1, errors.New("rejected")))
-	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, slot))
+	// No receipt existed at the claim (nil generation) and still none: inserted.
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 1, nil, errors.New("rejected")))
+	first := row()
+	require.Equal(t, events.StatusFailed, first.status)
+	gen := first.gen
 
-	// Another pass claimed it again and recorded a second failure with a
-	// future retry time. The first pass, which had claimed the slot when it was
-	// at one attempt (its claim returned 2), writes late: its write is dropped.
-	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET attempts = 2, last_error = 'newer', next_at = now() + interval '1 hour' WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
+	// A receipt existed at the claim, and is unchanged: updated.
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 2, &gen, errors.New("second")))
+	second := row()
+	require.Equal(t, events.StatusFailed, second.status)
+	require.Equal(t, 2, second.attempts)
+	require.Contains(t, second.msg, "second")
+
+	// Another pass recorded a blocked state with zero attempts whose deadline
+	// has already passed: the late write of the first pass is dropped.
+	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET status = 'blocked', attempts = 0, last_error = 'newer', next_at = now() - interval '1 minute', updated_at = now() WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
 	require.NoError(t, err)
-	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 2, errors.New("stale")))
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 0, &gen, errors.New("stale")))
+	newer := row()
+	require.Equal(t, events.StatusBlocked, newer.status, "the newer receipt is untouched")
+	require.Equal(t, 0, newer.attempts)
+	require.Equal(t, "newer", newer.msg)
+
+	// No receipt at the claim, but one exists now: never touched.
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 1, nil, errors.New("stale too")))
+	require.Equal(t, "newer", row().msg)
+}
+
+// A commit PostgreSQL rejects after the handler succeeded is a failed attempt,
+// recorded outside the lost transaction, and the slot waits out its backoff.
+func TestRejectedCommitIsRecordedAsAFailedAttempt(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	tenant := env.Tenant
+	h := &goSlots{}
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	now := slot.Add(20 * time.Second)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now, func(c *events.SchedulerConfig) { c.BackoffBase = time.Minute })
+	events.SetCommit(s, func(ctx context.Context, tx pgx.Tx) error {
+		_ = tx.Rollback(ctx) // what PostgreSQL does with a transaction whose commit it rejects
+		return &pgconn.PgError{Code: "23503", Message: "insert or update violates foreign key constraint"}
+	})
+	n, err := s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	var status string
 	var attempts int
-	var msg string
-	require.NoError(t, env.DB.QueryRow(ctx, `SELECT attempts, last_error FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&attempts, &msg))
-	require.Equal(t, 2, attempts)
-	require.Equal(t, "newer", msg, "the newer receipt is untouched")
+	require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&status, &attempts))
+	require.Equal(t, events.StatusFailed, status)
+	require.Equal(t, 1, attempts)
+	_, err = s.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Len(t, h.slots(), 1, "the handler ran once: the slot waits out its backoff")
 }
 
 // The shared limiter registry does not keep closed pools alive.

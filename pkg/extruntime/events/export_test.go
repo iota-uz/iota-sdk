@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,9 +21,12 @@ func CommitRejected(err error) bool { return commitRejected(err) }
 // FailSlotOutside records a failed slot without its transaction, the way the
 // scheduler does when the claim is already gone; claimed is the attempt count
 // the claim returned.
-func FailSlotOutside(s *Scheduler, ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, claimed int, runErr error) error {
-	return s.failSlot(ctx, nil, def, tenant, slot, claimed, "", runErr)
+func FailSlotOutside(s *Scheduler, ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, claimed int, generation *time.Time, runErr error) error {
+	return s.failSlot(ctx, nil, def, tenant, slot, claimed, generation, "", runErr)
 }
+
+// SetCommit replaces how the scheduler finishes a slot transaction.
+func SetCommit(s *Scheduler, commit func(context.Context, pgx.Tx) error) { s.commit = commit }
 
 // ConnSlotPools counts the pools the shared limiter registry knows.
 func ConnSlotPools() int {
