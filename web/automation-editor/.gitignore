@@ -1,0 +1,8 @@
+fixture/solid-ui.generated.css
+fixture-dist/
+test-results/
+playwright-report/
+e2e/results/
+.shot.mjs
+.eval.mjs
+package-dist/
