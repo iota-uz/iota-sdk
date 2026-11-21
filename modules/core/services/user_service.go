@@ -129,10 +129,12 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 	}
 	createdEvent.Result = createdUser
 
-	s.publisher.Publish(createdEvent)
-	for _, e := range data.Events() {
-		s.publisher.Publish(e)
-	}
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) })
+	composables.AfterCommit(ctx, func() {
+		for _, e := range data.Events() {
+			s.publisher.Publish(e)
+		}
+	})
 
 	return createdUser, nil
 }
@@ -266,7 +268,7 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
 	updatedEvent.Result = updated
-	s.publisher.Publish(updatedEvent)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
 	return nil
 }
 
@@ -307,10 +309,12 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 
 	updatedEvent.Result = updatedUser
 
-	s.publisher.Publish(updatedEvent)
-	for _, e := range data.Events() {
-		s.publisher.Publish(e)
-	}
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	composables.AfterCommit(ctx, func() {
+		for _, e := range data.Events() {
+			s.publisher.Publish(e)
+		}
+	})
 
 	return updatedUser, nil
 }
@@ -372,7 +376,7 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	}
 	deletedEvent.Result = deletedUser
 
-	s.publisher.Publish(deletedEvent)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) })
 
 	return deletedUser, nil
 }
@@ -455,7 +459,7 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 	// Publish updated event for realtime updates
 	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
 	updatedEvent.Result = blockedUser
-	s.publisher.Publish(updatedEvent)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
 
 	return blockedUser, nil
 }
@@ -509,7 +513,7 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 	// Publish updated event for realtime updates
 	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
 	updatedEvent.Result = unblockedUser
-	s.publisher.Publish(updatedEvent)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
 
 	return unblockedUser, nil
 }
@@ -592,10 +596,12 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
 	updatedEvent.Result = updated
-	s.publisher.Publish(updatedEvent)
-	for _, e := range updated.Events() {
-		s.publisher.Publish(e)
-	}
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	composables.AfterCommit(ctx, func() {
+		for _, e := range updated.Events() {
+			s.publisher.Publish(e)
+		}
+	})
 
 	return &TemporaryPasswordResult{User: updated, Password: password, ExpiresAt: expiresAt}, nil
 }
@@ -679,10 +685,12 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 
 	updatedEvent := user.NewUpdatedEvent(ctx, completed)
 	updatedEvent.Result = completed
-	s.publisher.Publish(updatedEvent)
-	for _, e := range completed.Events() {
-		s.publisher.Publish(e)
-	}
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	composables.AfterCommit(ctx, func() {
+		for _, e := range completed.Events() {
+			s.publisher.Publish(e)
+		}
+	})
 
 	return completed, nil
 }

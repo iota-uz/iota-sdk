@@ -81,11 +81,16 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 		}
 	}()
 
-	if err := fn(WithTx(ctx, tx)); err != nil {
+	callbacks := &commitCallbacks{}
+	if err := fn(WithAfterCommit(WithTx(ctx, tx), tx, callbacks.add)); err != nil {
 		if rErr := tx.Rollback(ctx); rErr != nil {
 			return errors.Join(err, rErr)
 		}
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	callbacks.run()
+	return nil
 }

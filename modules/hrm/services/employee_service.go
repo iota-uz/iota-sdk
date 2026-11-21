@@ -67,7 +67,7 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) 
 	if err != nil {
 		return err
 	}
-	s.publisher.Publish(ev)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) })
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 	if err != nil {
 		return err
 	}
-	s.publisher.Publish(ev)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) })
 	return nil
 }
 
@@ -130,7 +130,7 @@ func (s *EmployeeService) Delete(ctx context.Context, id uint) (employee.Employe
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(ev)
+	composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) })
 	return entity, nil
 }
 

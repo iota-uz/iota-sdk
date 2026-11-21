@@ -115,11 +115,14 @@ var clientContactFields = map[string][]string{
 }
 
 // entityFields maps the history snapshot keys to the crm.client field IDs
-// that a changed list may name (personal identification is not exposed).
+// that a changed list may name. The passport and the PIN are named when they
+// change, so an edit of only one of them still publishes its event; their
+// values never travel.
 var entityFields = []struct{ snapshot, field string }{
 	{"first_name", "firstName"}, {"last_name", "lastName"}, {"middle_name", "middleName"},
 	{"phone", "phone"}, {"address", "address"}, {"email", "email"},
 	{"date_of_birth", "dateOfBirth"}, {"gender", "gender"}, {"comments", "comments"},
+	{"passport", "passport"}, {"pin", "pin"},
 }
 
 func optional(v string) *string {

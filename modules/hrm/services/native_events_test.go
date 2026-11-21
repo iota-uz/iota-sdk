@@ -28,6 +28,7 @@ import (
 )
 
 func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
+	root := t
 	env := itf.Setup(t, itf.WithComponents(
 		logging.NewComponent(),
 		core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
@@ -37,15 +38,16 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 	actor, err := corepersistence.NewUserRepository(corepersistence.NewUploadRepository()).Create(env.Ctx,
 		user.New("HR", "Manager", internet.MustParseEmail("hr-"+uuid.NewString()+"@example.com"), user.UILanguageEN, user.WithTenantID(env.TenantID())))
 	require.NoError(t, err)
-	ctx := composables.WithUser(env.Ctx, actor)
+	actorCtx := func() context.Context { return composables.WithUser(env.Ctx, actor) }
 	employees := itf.GetService[services.EmployeeService](env)
 	ids := []string{services.EmployeeCreatedEventID, services.EmployeeUpdatedEventID}
 	phones := map[string]string{"rolled-back": "+998901110001", "committed": "+998901110002"}
 	hired := shared.DateOnly(time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC))
 	salary := 1500.5
 
-	commits := func(want map[string]int, change func(ctx context.Context, suffix string) error) map[string][]itf.OutboxRow {
-		got := itf.OutboxCommitsAndRollsBack(t, ctx, env.TenantID(), ids, want, change)
+	commits := func(t *testing.T, want map[string]int, domain itf.Domain, change func(ctx context.Context, suffix string) error) map[string][]itf.OutboxRow {
+		env.CommitTx(root)
+		got := env.OutboxCommitsAndRollsBack(t, actorCtx(), env.TenantID(), ids, want, domain, change)
 		for id, rows := range got {
 			for _, r := range rows {
 				require.NotNil(t, r.Initiator, "%s: the acting user is the event initiator", id)
@@ -58,7 +60,7 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 
 	var created itf.OutboxRow
 	t.Run("created", func(t *testing.T) {
-		got := commits(map[string]int{services.EmployeeCreatedEventID: 1}, func(ctx context.Context, suffix string) error {
+		got := commits(t, map[string]int{services.EmployeeCreatedEventID: 1}, itf.Domain{SQL: "SELECT count(*)::text FROM employees WHERE tenant_id = $1", Args: []any{env.TenantID()}}, func(ctx context.Context, suffix string) error {
 			return employees.Create(ctx, &employee.CreateDTO{
 				FirstName: "Aziz", LastName: "Karimov", Email: suffix + "@example.com", Phone: phones[suffix], Salary: &salary,
 				Pin: "12345678901234", BirthDate: shared.DateOnly(time.Date(1992, 3, 4, 0, 0, 0, 0, time.UTC)), HireDate: hired,
@@ -98,7 +100,7 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 
 	t.Run("updated", func(t *testing.T) {
 		resigned := shared.DateOnly(time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC))
-		got := commits(map[string]int{services.EmployeeUpdatedEventID: 1}, func(ctx context.Context, _ string) error {
+		got := commits(t, map[string]int{services.EmployeeUpdatedEventID: 1}, itf.Domain{SQL: "SELECT salary::text FROM employees WHERE id = $1", Args: []any{employeeID}}, func(ctx context.Context, _ string) error {
 			return employees.Update(ctx, employeeID, update(2000, resigned))
 		})
 		row := got[services.EmployeeUpdatedEventID][0]
@@ -107,8 +109,9 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 			"the changed fields are named, their values are not sent")
 
 		// An update that changes nothing publishes nothing.
-		before := itf.OutboxCounts(t, ctx, env.TenantID(), ids...)
-		require.NoError(t, employees.Update(ctx, employeeID, update(2000, resigned)))
-		require.Equal(t, before, itf.OutboxCounts(t, ctx, env.TenantID(), ids...))
+		before := env.OutboxCounts(t, env.TenantID(), ids...)
+		require.NoError(t, employees.Update(actorCtx(), employeeID, update(2000, resigned)))
+		env.CommitTx(root)
+		require.Equal(t, before, env.OutboxCounts(t, env.TenantID(), ids...))
 	})
 }

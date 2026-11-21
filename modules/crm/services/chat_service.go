@@ -114,7 +114,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	if err != nil {
 		return nil, err
 	}
-	go s.publisher.Publish(event)
+	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
 
 	return createdEntity, nil
 }
@@ -129,7 +129,7 @@ func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, er
 	if err != nil {
 		return nil, err
 	}
-	go s.publisher.Publish(event)
+	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
 	return createdEntity, nil
 }
 
@@ -142,6 +142,11 @@ func (s *ChatService) AddMessageToChat(
 	var updatedChat chat.Chat
 
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The chat is locked before it is read: appends run one after another,
+		// and each publishes only the messages it stored itself.
+		if err := s.repo.LockByID(txCtx, chatID); err != nil {
+			return err
+		}
 		// Get chat entity
 		chatEntity, err := s.repo.GetByID(txCtx, chatID)
 		if err != nil {
@@ -163,7 +168,7 @@ func (s *ChatService) AddMessageToChat(
 	if err != nil {
 		return nil, err
 	}
-	go s.publisher.Publish(event)
+	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
 
 	return updatedChat, nil
 }
@@ -303,6 +308,9 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 	var updatedChat chat.Chat
 
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.repo.LockByID(txCtx, cmd.ChatID); err != nil {
+			return err
+		}
 		chatEntity, err := s.GetByID(txCtx, cmd.ChatID)
 		if err != nil {
 			return err
@@ -357,7 +365,7 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 	if err != nil {
 		return nil, err
 	}
-	go s.publisher.Publish(event)
+	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
 
 	return updatedChat, nil
 }
