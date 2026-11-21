@@ -85,12 +85,12 @@ func TestExpenseCategoryController_List_CreatedAtChip(t *testing.T) {
 	_, err := service.Create(env.Ctx, expenseCategoryEntity.New("Chip Category", expenseCategoryEntity.WithTenantID(env.Tenant.ID)))
 	require.NoError(t, err)
 
-	suite.GET(ExpenseCategoryBasePath + "?f=created_at:after:2000-01-01").HTMX().Expect(t).Status(200).
+	suite.GET(ExpenseCategoryBasePath+"?f=created_at:after:2000-01-01").HTMX().Expect(t).Status(200).
 		Contains("Chip Category").Contains(`hx-swap-oob="outerHTML"`)
-	suite.GET(ExpenseCategoryBasePath + "?f=created_at:before:2000-01-01").HTMX().Expect(t).Status(200).
+	suite.GET(ExpenseCategoryBasePath+"?f=created_at:before:2000-01-01").HTMX().Expect(t).Status(200).
 		NotContains("Chip Category")
 	// The former drawer filter's link becomes the same chip.
-	suite.GET(ExpenseCategoryBasePath + "?CreatedAt.From=1999-01-01T00:00:00Z&CreatedAt.To=1999-12-31T00:00:00Z").Expect(t).Status(200).
+	suite.GET(ExpenseCategoryBasePath+"?CreatedAt.From=1999-01-01T00:00:00Z&CreatedAt.To=1999-12-31T00:00:00Z").Expect(t).Status(200).
 		Contains(`value="created_at:between:1999-01-01,1999-12-31"`).NotContains("Chip Category")
 }
 
