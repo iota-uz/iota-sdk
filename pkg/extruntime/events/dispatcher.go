@@ -337,6 +337,9 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	if runErr == nil {
 		runErr = tx.Commit(ctx)
 		if runErr == nil {
+			// The transaction is over: free the pool share before callbacks that
+			// may call the dispatcher or the scheduler again.
+			release()
 			for _, fn := range commits.fns {
 				fn(ctx)
 			}

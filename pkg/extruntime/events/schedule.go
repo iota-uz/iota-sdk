@@ -860,6 +860,15 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		})
 	}
 	if runErr == nil {
+		// Deferred constraints are checked here, inside the savepoint, not at
+		// commit: a violation fails the slot while the transaction still holds
+		// its claim, so the failed state is recorded before anyone else can
+		// claim the slot.
+		if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil && ctx.Err() == nil {
+			runErr = fmt.Errorf("schedule %s: the slot's deferred constraints failed: %w", def.ID, err)
+		}
+	}
+	if runErr == nil {
 		if _, err := tx.Exec(ctx, `RELEASE SAVEPOINT schedule_slot`); err != nil && ctx.Err() == nil {
 			// A handler that swallowed a failed statement left the transaction
 			// aborted: the slot failed.
@@ -876,6 +885,7 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		err := tx.Commit(ctx)
 		if err == nil {
 			txOpen = false
+			release() // the transaction is over; the callback may call the scheduler again
 			if res.AfterCommit != nil {
 				res.AfterCommit(ctx)
 			}
@@ -884,8 +894,9 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		if ctx.Err() != nil || !commitRejected(err) {
 			return false, serrors.FromDB(opScheduleD, err) // the outcome may be unknown: do not count an attempt
 		}
-		// PostgreSQL rejected the commit (a deferred constraint, say): the
-		// handler's writes and the claim are gone, and the slot failed.
+		// PostgreSQL still rejected the commit (deferred constraints are
+		// checked before it, so this is rare): the handler's writes and the
+		// claim are gone, and the slot failed.
 		txOpen = false
 		runErr = fmt.Errorf("schedule %s: the slot's transaction was rejected at commit: %w", def.ID, err)
 		return false, s.failSlot(ctx, nil, def, tenant, slot, attempts, res.InvocationID, runErr)

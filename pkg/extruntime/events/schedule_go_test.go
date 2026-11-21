@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -814,4 +815,101 @@ func TestDueRetriesRotateAcrossTenantsWhenTheSameRunsFailAgain(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	require.Len(t, called, 4, "every tenant was attempted within two passes: %v", called)
+}
+
+func TestDeferredConstraintFailureKeepsTheClaimUntilTheBackoffIsDurable(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	_, err := env.DB.Exec(ctx, `
+		CREATE TABLE slot_parents (id int PRIMARY KEY);
+		CREATE TABLE slot_children (id int, parent int REFERENCES slot_parents (id) DEFERRABLE INITIALLY DEFERRED)`)
+	require.NoError(t, err)
+	tenant := env.Tenant
+	var mu sync.Mutex
+	calls := 0
+	var other *events.Scheduler
+	var wg sync.WaitGroup
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	handler := events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, _ events.Slot) error {
+		mu.Lock()
+		calls++
+		first := calls == 1
+		mu.Unlock()
+		if !first {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO slot_children VALUES (1, 404)`); err != nil { // checked at commit
+			return err
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := other.RunOnce(context.Background())
+			assert.NoError(t, err)
+		}()
+		deadline := time.Now().Add(10 * time.Second)
+		for !claimBlocked(env) {
+			if time.Now().After(deadline) {
+				t.Error("the competing pass never reached the claim")
+				return nil
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		return nil // the handler succeeds; the database refuses its writes
+	})
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: handler}
+	slow := func(c *events.SchedulerConfig) { c.BackoffBase = time.Minute }
+	first := goScheduler(t, env, events.StaticSchedules(def), &now, slow)
+	other = goScheduler(t, env, events.StaticSchedules(def), &now, slow)
+	_, err = first.RunOnce(ctx)
+	require.NoError(t, err)
+	wg.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, calls, "the slot was not claimed again before its backoff was durable")
+	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)))
+}
+
+// A callback that runs after the commit may call the scheduler again even on a
+// pool of the minimum size: the pool share is released before it runs.
+func TestAfterCommitCallbackCanCallTheSchedulerOnATwoConnectionPool(t *testing.T) {
+	env := hosttest.New(t)
+	small := *env.DB.Config()
+	small.MaxConns = 2
+	db, err := pgxpool.NewWithConfig(context.Background(), &small)
+	require.NoError(t, err)
+	t.Cleanup(db.Close)
+	tenant := env.Tenant
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	innerDef := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: &goSlots{}}
+	inner, err := events.NewScheduler(events.SchedulerConfig{DB: db, Schedules: events.StaticSchedules(innerDef), Lookback: time.Minute, Now: func() time.Time { return now }, Logger: env.Logger})
+	require.NoError(t, err)
+	called := false
+	// The runner stands in for a package schedule whose result carries an
+	// after-commit callback that runs the scheduler synchronously.
+	outer, err := events.NewScheduler(events.SchedulerConfig{
+		DB: db, Schedules: events.StaticSchedules(events.ScheduleDef{ID: "pkg.tick", Package: "p", Version: "1", Export: "e", Cron: "* * * * *", TenantID: &tenant}),
+		Runner: callbackRunner{after: func(ctx context.Context) {
+			called = true
+			_, err := inner.RunOnce(ctx)
+			assert.NoError(t, err)
+		}},
+		Subjects: env.Subjects, Lookback: time.Minute, Now: func() time.Time { return now }, Logger: env.Logger,
+	})
+	require.NoError(t, err)
+	_, err = env.DB.Exec(context.Background(), `INSERT INTO extruntime.trigger_owners (trigger_id, tenant_id, user_id) VALUES ('pkg.tick', $1, 42)`, env.Tenant)
+	require.NoError(t, err)
+	env.Subjects.Grant(42)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	n, err := outer.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.True(t, called)
+}
+
+type callbackRunner struct{ after func(context.Context) }
+
+func (r callbackRunner) Run(context.Context, host.RunRequest) (host.Result, error) {
+	return host.Result{AfterCommit: r.after}, nil
 }

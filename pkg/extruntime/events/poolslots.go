@@ -15,6 +15,9 @@ import (
 // (the runtime needs at least two).
 var connSlots sync.Map // *pgxpool.Pool -> chan struct{}
 
+// acquireConnSlot takes a share of the pool. The returned release is safe to
+// call more than once: take it as soon as the transaction ends, before any
+// callback that may call back into the scheduler or dispatcher.
 func acquireConnSlot(ctx context.Context, db *pgxpool.Pool) (func(), error) {
 	v, ok := connSlots.Load(db)
 	if !ok {
@@ -23,7 +26,8 @@ func acquireConnSlot(ctx context.Context, db *pgxpool.Pool) (func(), error) {
 	slots := v.(chan struct{})
 	select {
 	case slots <- struct{}{}:
-		return func() { <-slots }, nil
+		var once sync.Once
+		return func() { once.Do(func() { <-slots }) }, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
