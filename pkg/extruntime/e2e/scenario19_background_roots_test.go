@@ -43,7 +43,8 @@ func (e *env) clientHistory(eventType, clientID string) []historyRow {
 // a package subscription (acting as the event initiator) and a public
 // endpoint (acting as its trigger owner) both call it through tx.call. The
 // history says the extension runtime did the work for that user; the client
-// event names the same user as its initiator; the module's eventbus event
+// event has no initiator (a job context has none, only the authorization
+// subject is inherited); the module's eventbus event
 // (an after-commit callback) still fires after the subscription's own
 // transaction commits.
 func TestScenario19NativeDefaultsFromBackgroundRoots(t *testing.T) {
@@ -76,9 +77,9 @@ func TestScenario19NativeDefaultsFromBackgroundRoots(t *testing.T) {
 		[]string{hist[0].ActorKind, hist[0].ActorID, hist[0].Initiator}, "the runtime acted for the event initiator")
 	require.NotEmpty(t, hist[0].Operation)
 	require.NotEmpty(t, hist[0].Run)
-	require.Equal(t, int64(admin.id), int64(e.scalarInt(
-		`SELECT initiator_user_id FROM extruntime.outbox_events WHERE event = 'crm.client.updated.v1' AND subject_key = $1`, id)),
-		"the client event names the user the subscription acted as")
+	require.Equal(t, 1, e.scalarInt(
+		`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'crm.client.updated.v1' AND subject_key = $1 AND initiator_user_id IS NULL`, id),
+		"a job context has no event initiator, though the subscription is authorized as the initiator of its event")
 	select {
 	case ev := <-updated:
 		require.Equal(t, id, itoa(ev.Result.ID()), "the eventbus event ran after the subscription's commit")

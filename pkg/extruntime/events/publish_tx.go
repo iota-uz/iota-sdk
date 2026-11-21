@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -20,7 +21,8 @@ import (
 // publication never lands in a wrong tenant and its transaction rolls back.
 // The initiator is the acting user of ctx when that user belongs to the
 // event's tenant (a superadmin of another tenant is no subject of it); a
-// system or job context has none. A context without a transaction is an
+// system or job context (history.IsJob) has none, even when it carries the
+// user it is authorized as. A context without a transaction is an
 // error: a published event must never outlive a failed change.
 func PublishInTx[P any](ctx context.Context, tenantID uuid.UUID, ev *native.EventDef[P], subject *spi.ObjectRef, payload P) error {
 	const op = serrors.Op("extruntime.events.PublishInTx")
@@ -35,7 +37,7 @@ func PublishInTx[P any](ctx context.Context, tenantID uuid.UUID, ev *native.Even
 		return serrors.Wrap(op, err)
 	}
 	var initiator int64
-	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil && actor.TenantID() == tenantID {
+	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil && actor.TenantID() == tenantID && !history.IsJob(ctx) {
 		initiator = int64(actor.ID())
 	}
 	_, err = Publish(ctx, tx, spi.Scope{Subject: spi.Subject{TenantID: tenantID, UserID: initiator, Kind: spi.SubjectInitiator}}, ev, subject, payload)

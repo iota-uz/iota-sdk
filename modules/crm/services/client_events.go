@@ -178,9 +178,9 @@ func clientUpdatedPayload(before, saved client.Client) ClientUpdatedPayload {
 //
 // The invocation subject (tx.Subject) authorizes the write; it is not the
 // event's attribution. The initiator is the user who acted: the initiating
-// user of a request, or the event initiator a subscription acts as. The owner
-// a schedule, an endpoint or a subscription without an initiator runs as is a
-// configured identity of a job context, and a job context has no initiator.
+// user of a request. A job context (history.IsJob: a subscription, a schedule,
+// an endpoint) has none, even when it is authorized as an event initiator, and
+// neither has the owner a job runs as.
 func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.Client) error {
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -188,7 +188,7 @@ func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.
 	}
 	acting := tx.Subject()
 	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, Kind: acting.Kind}}
-	if acting.Kind == spi.SubjectInitiator {
+	if acting.Kind == spi.SubjectInitiator && !history.IsJob(ctx) {
 		scope.Subject.UserID = acting.UserID
 	}
 	ref := ClientRef(saved.ID())

@@ -40,7 +40,7 @@ func TestEmployeeEvents_CommitAndRollBackWithTheEmployee(t *testing.T) {
 	actor, err := corepersistence.NewUserRepository(corepersistence.NewUploadRepository()).Create(env.Ctx,
 		user.New("HR", "Manager", internet.MustParseEmail("hr-"+uuid.NewString()+"@example.com"), user.UILanguageEN, user.WithTenantID(env.TenantID())))
 	require.NoError(t, err)
-	actorCtx := func() context.Context { return composables.WithUser(env.Ctx, actor) }
+	actorCtx := func() context.Context { return itf.TestExecution(composables.WithUser(env.Ctx, actor)) }
 	employees := itf.GetService[services.EmployeeService](env)
 	ids := []string{services.EmployeeCreatedEventID, services.EmployeeUpdatedEventID}
 	phones := map[string]string{"rolled-back": "+998901110001", "committed": "+998901110002"}

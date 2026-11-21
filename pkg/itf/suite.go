@@ -209,7 +209,7 @@ func (s *Suite) setupMiddleware() {
 				ctx = composables.WithUser(ctx, currentUser)
 			}
 			ctx = composables.WithPool(ctx, s.env.Pool)
-			ctx = scopeTx(ctx, s.env.Tx)
+			ctx = ScopeTx(ctx, s.env.Tx)
 			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = history.WithExecution(ctx, history.Execution{Channel: businessevent.ChannelUI, OperationID: uuid.NewString()})

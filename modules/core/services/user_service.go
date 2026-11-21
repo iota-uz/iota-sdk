@@ -129,12 +129,16 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 	}
 	createdEvent.Result = createdUser
 
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) })
-	composables.AfterCommit(ctx, func() {
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
 		for _, e := range data.Events() {
 			s.publisher.Publish(e)
 		}
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return createdUser, nil
 }
@@ -268,7 +272,9 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
 	updatedEvent.Result = updated
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -309,12 +315,16 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 
 	updatedEvent.Result = updatedUser
 
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
-	composables.AfterCommit(ctx, func() {
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
 		for _, e := range data.Events() {
 			s.publisher.Publish(e)
 		}
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return updatedUser, nil
 }
@@ -376,7 +386,9 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	}
 	deletedEvent.Result = deletedUser
 
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return deletedUser, nil
 }
@@ -459,7 +471,9 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 	// Publish updated event for realtime updates
 	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
 	updatedEvent.Result = blockedUser
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return blockedUser, nil
 }
@@ -513,7 +527,9 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 	// Publish updated event for realtime updates
 	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
 	updatedEvent.Result = unblockedUser
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return unblockedUser, nil
 }
@@ -596,12 +612,16 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 
 	updatedEvent := user.NewUpdatedEvent(ctx, updated)
 	updatedEvent.Result = updated
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
-	composables.AfterCommit(ctx, func() {
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
 		for _, e := range updated.Events() {
 			s.publisher.Publish(e)
 		}
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return &TemporaryPasswordResult{User: updated, Password: password, ExpiresAt: expiresAt}, nil
 }
@@ -685,12 +705,16 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 
 	updatedEvent := user.NewUpdatedEvent(ctx, completed)
 	updatedEvent.Result = completed
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
-	composables.AfterCommit(ctx, func() {
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
 		for _, e := range completed.Events() {
 			s.publisher.Publish(e)
 		}
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return completed, nil
 }

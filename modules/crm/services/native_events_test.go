@@ -76,7 +76,7 @@ func newCRMEventEnv(t *testing.T) *crmEventEnv {
 // ctx acts as the operator in the test's current scope transaction (itf commits
 // and renews it, so it is rebuilt on every use).
 func (e *crmEventEnv) ctx() context.Context {
-	ctx := composables.WithUser(e.env.Ctx, e.actor)
+	ctx := itf.TestExecution(composables.WithUser(e.env.Ctx, e.actor))
 	return context.WithValue(ctx, constants.LoggerKey, logrus.NewEntry(logrus.New()))
 }
 

@@ -4,6 +4,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"

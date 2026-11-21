@@ -157,10 +157,10 @@ func OutboxRowsIn(tb testing.TB, ctx context.Context, tenantID uuid.UUID, event 
 	return out
 }
 
-// scopeTx carries the rollback scope transaction of a test. The scope never
+// ScopeTx carries a rollback scope transaction of a test, or a savepoint of it. The scope never
 // commits, so the owner it declares runs after-commit callbacks (the eventbus
 // events of the services under test) at once: a test observes them as it would
 // after the commit of a real request.
-func scopeTx(ctx context.Context, tx pgx.Tx) context.Context {
+func ScopeTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return composables.WithAfterCommit(composables.WithTx(ctx, tx), tx, func(fn func()) { fn() })
 }

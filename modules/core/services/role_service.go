@@ -77,7 +77,9 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 	}
 	createdEvent.Result = createdRole
 
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
 
 	return createdRole, nil
 }
@@ -116,7 +118,9 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 
 	updatedEvent.Result = updatedRole
 
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -151,7 +155,9 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	deletedEvent.Result = deletedRole
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -86,7 +87,9 @@ func (e *eventEnv) newGroup(t *testing.T, name string, opts ...group.Option) gro
 
 // ctx acts as the actor in the test's current scope transaction (itf commits
 // and renews it, so it is rebuilt on every use).
-func (e *eventEnv) ctx() context.Context { return composables.WithUser(e.f.Ctx, e.actor) }
+func (e *eventEnv) ctx() context.Context {
+	return itf.TestExecution(composables.WithUser(e.f.Ctx, e.actor))
+}
 
 func outboxRows(t *testing.T, ctx context.Context, tenantID uuid.UUID, event string) []outboxRow {
 	t.Helper()
@@ -144,7 +147,7 @@ func TestUserEvents_CommitAndRollBackWithTheChange(t *testing.T) {
 
 	t.Run("updated_by_the_user", func(t *testing.T) {
 		self := e.newUser(t, "Self", user.WithPermissions([]permission.Permission{permissions.UserUpdate}))
-		selfCtx := composables.WithUser(e.f.Ctx, self)
+		selfCtx := itf.TestExecution(composables.WithUser(e.f.Ctx, self))
 		changed, err := e.users.UpdateSelf(selfCtx, self.SetName("Selfie", "Person", ""))
 		require.NoError(t, err)
 		require.Equal(t, "Selfie", changed.FirstName())
@@ -416,8 +419,9 @@ func TestLegacyEvents_WaitForTheOwningTransaction(t *testing.T) {
 }
 
 // A transaction the caller begins itself delivers the eventbus events of the
-// services only through the owner it declares: without one nothing is sent (the
-// caller may roll back), with one they are sent when the caller commits.
+// services through the owner it declares (composables.OwnTx), when it commits.
+// A transaction without a declared owner is refused instead of dropping the
+// event silently.
 func TestLegacyEvents_ExternalTransactionOwner(t *testing.T) {
 	e := newEventEnv(t)
 	target := e.newUser(t, "External")
@@ -428,36 +432,71 @@ func TestLegacyEvents_ExternalTransactionOwner(t *testing.T) {
 	unsubscribe := bus.Subscribe(func(*user.UpdatedEvent) { updated.Add(1) })
 	defer unsubscribe()
 	base := context.WithValue(context.WithValue(e.ctx(), constants.TxKey, nil), constants.AfterCommitKey, nil)
-	rename := func(ctx context.Context) {
+	rename := func(ctx context.Context) error {
 		_, err := e.users.Update(ctx, target.SetName("External-"+uuid.NewString(), "Person", ""))
-		require.NoError(t, err)
+		return err
+	}
+	nameOf := func() string {
+		var name string
+		require.NoError(t, e.f.Pool.QueryRow(context.Background(), `SELECT first_name FROM users WHERE id = $1`, target.ID()).Scan(&name))
+		return name
 	}
 
-	t.Run("no declared owner", func(t *testing.T) {
+	t.Run("no declared owner is refused", func(t *testing.T) {
 		updated.Store(0)
+		before := nameOf()
 		tx, err := e.f.Pool.Begin(context.Background())
 		require.NoError(t, err)
-		rename(composables.WithTx(base, tx))
-		require.NoError(t, tx.Rollback(context.Background()))
-		require.Zero(t, updated.Load(), "a change in a transaction nobody answers for sends no event, rolled back or not")
+		err = rename(composables.WithTx(base, tx))
+		require.ErrorIs(t, err, composables.ErrNoCommitOwner, "the service reports the missing owner")
+		require.NoError(t, tx.Rollback(context.Background()), "the caller rolls the refused change back")
+		require.Equal(t, before, nameOf())
+		require.Zero(t, updated.Load())
 	})
 
-	t.Run("declared owner", func(t *testing.T) {
-		updated.Store(0)
-		for _, commit := range []bool{false, true} {
-			tx, err := e.f.Pool.Begin(context.Background())
-			require.NoError(t, err)
-			callbacks := &composables.TxCallbacks{}
-			rename(composables.WithAfterCommit(composables.WithTx(base, tx), tx, callbacks.Add))
-			require.Zero(t, updated.Load(), "nothing is sent before the owner commits")
-			if !commit {
-				require.NoError(t, tx.Rollback(context.Background()))
-				require.Zero(t, updated.Load(), "a rolled back change sends no event")
-				continue
-			}
-			require.NoError(t, tx.Commit(context.Background()))
-			callbacks.Run()
-			require.EqualValues(t, 1, updated.Load(), "the owner runs the callbacks after its commit")
+	for _, rebind := range []bool{false, true} {
+		name := "declared owner"
+		if rebind {
+			name = "declared owner, transaction rebound with WithTx"
 		}
-	})
+		t.Run(name, func(t *testing.T) {
+			updated.Store(0)
+			for _, commit := range []bool{false, true} {
+				tx, err := e.f.Pool.Begin(context.Background())
+				require.NoError(t, err)
+				ctx, callbacks := composables.OwnTx(base, tx)
+				if rebind {
+					ctx = composables.WithTx(ctx, tx)
+				}
+				require.NoError(t, rename(ctx))
+				require.Zero(t, updated.Load(), "nothing is sent before the owner commits")
+				if !commit {
+					require.NoError(t, tx.Rollback(context.Background()))
+					require.Zero(t, updated.Load(), "a rolled back change sends no event")
+					continue
+				}
+				require.NoError(t, tx.Commit(context.Background()))
+				require.Zero(t, updated.Load(), "the owner has not run its callbacks yet")
+				callbacks.Run()
+				require.EqualValues(t, 1, updated.Load(), "a committed change sends its event once")
+			}
+		})
+	}
+}
+
+// A job or system context, though it carries the user it is authorized as, has
+// no event initiator; a request of that user has.
+func TestPublishInTx_JobContextHasNoInitiator(t *testing.T) {
+	e := newEventEnv(t)
+	payload := services.UserDeletedPayload{UserID: 1, FirstName: "A", LastName: "B"}
+	ref := &spi.ObjectRef{Entity: "core.user", Key: "1"}
+
+	require.NoError(t, events.PublishInTx(e.ctx(), e.tenantID, services.UserDeletedEvent, ref, payload))
+	require.NoError(t, events.PublishInTx(history.SystemExecution(e.ctx(), "test:job", "Test job"), e.tenantID, services.UserDeletedEvent, ref, payload))
+
+	rows := outboxRows(t, e.ctx(), e.tenantID, services.UserDeletedEventID)
+	require.Len(t, rows, 2)
+	require.NotNil(t, rows[0].Initiator, "a request of the acting user names them")
+	require.EqualValues(t, e.actor.ID(), *rows[0].Initiator)
+	require.Nil(t, rows[1].Initiator, "a job context has no initiator")
 }

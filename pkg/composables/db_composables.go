@@ -15,11 +15,16 @@ var (
 	ErrNoPool = errors.New("no database pool found in context")
 )
 
-// WithTx returns a context that carries tx. The owner of an earlier
-// transaction in ctx is dropped with it: whoever commits tx declares itself
-// with WithAfterCommit (InTx does for its own), and until then AfterCommit
-// callbacks of changes made in tx are not delivered.
+// WithTx returns a context that carries tx. The owner declared for the same
+// transaction (WithAfterCommit, OwnTx, InTx) is kept, so rebinding a
+// transaction does not lose it; the owner of another transaction is dropped,
+// because it does not answer for tx. Without an owner, AfterCommit reports
+// ErrNoCommitOwner for changes made in tx.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
+	owner, _ := ctx.Value(constants.AfterCommitKey).(*afterCommitOwner)
+	if owner != nil && owner.tx == tx {
+		return context.WithValue(ctx, constants.TxKey, tx)
+	}
 	return context.WithValue(context.WithValue(ctx, constants.AfterCommitKey, nil), constants.TxKey, tx)
 }
 

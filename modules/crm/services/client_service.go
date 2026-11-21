@@ -64,7 +64,9 @@ func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 		return err
 	}
 	createdEvent.Result = createdClient
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -128,7 +130,9 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 		return err
 	}
 	updatedEvent.Result = updatedClient
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -159,7 +163,9 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 		return nil, err
 	}
 	deletedEvent.Result = entity
-	composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return nil, err
+	}
 	return entity, nil
 }
 

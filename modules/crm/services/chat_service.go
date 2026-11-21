@@ -114,7 +114,9 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	if err != nil {
 		return nil, err
 	}
-	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
+	if err := composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) }); err != nil {
+		return nil, err
+	}
 
 	return createdEntity, nil
 }
@@ -129,7 +131,9 @@ func (s *ChatService) Save(ctx context.Context, entity chat.Chat) (chat.Chat, er
 	if err != nil {
 		return nil, err
 	}
-	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
+	if err := composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) }); err != nil {
+		return nil, err
+	}
 	return createdEntity, nil
 }
 
@@ -168,7 +172,9 @@ func (s *ChatService) AddMessageToChat(
 	if err != nil {
 		return nil, err
 	}
-	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
+	if err := composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) }); err != nil {
+		return nil, err
+	}
 
 	return updatedChat, nil
 }
@@ -365,7 +371,9 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 	if err != nil {
 		return nil, err
 	}
-	composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) })
+	if err := composables.AfterCommit(ctx, func() { go s.publisher.Publish(event) }); err != nil {
+		return nil, err
+	}
 
 	return updatedChat, nil
 }

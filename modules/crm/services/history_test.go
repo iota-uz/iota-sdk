@@ -211,7 +211,7 @@ func TestCRMHistory_RollbackLeavesNoEvents(t *testing.T) {
 				ctx = composables.WithParams(ctx, itf.DefaultParams())
 				ctx = composables.WithSession(ctx, itf.MockSession())
 				ctx = composables.WithUser(ctx, f.env.User)
-				return composables.WithTx(ctx, tx)
+				return itf.ScopeTx(ctx, tx)
 			},
 			wantErr: history.ErrExecutionMissing,
 		},
@@ -220,7 +220,7 @@ func TestCRMHistory_RollbackLeavesNoEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			savepoint, err := f.env.Tx.Begin(f.env.Ctx)
 			require.NoError(t, err)
-			operation := itf.TestExecution(composables.WithTx(f.env.Ctx, savepoint))
+			operation := itf.TestExecution(itf.ScopeTx(f.env.Ctx, savepoint))
 			p, err := phone.NewFromE164("99890222000" + strconv.Itoa(i))
 			require.NoError(t, err)
 			c, err := client.New("Rolled back", client.WithTenantID(f.env.Tenant.ID), client.WithPhone(p))
