@@ -75,7 +75,12 @@ type Definition struct {
 	Event EventRef
 	// Data projects the typed payload of an event-backed definition into
 	// Event.Data (WithData); nil uses FlatData.
-	Data                 func(payload json.RawMessage) (map[string]string, error)
+	Data func(payload json.RawMessage) (map[string]string, error)
+	// LegacyEvent accepts, without the payload contract check, an event of an
+	// event-backed definition that was persisted before the definition was
+	// built from its event (Data without Payload), so queued jobs still
+	// deliver after an upgrade (WithLegacyEvents).
+	LegacyEvent          func(Event) bool
 	ActionURL            func(Event) (string, error)
 	DefaultLevel         notification.Level
 	PayloadFields        []PayloadField

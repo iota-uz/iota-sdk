@@ -93,8 +93,21 @@ enqueues the notification in the transaction of the event's delivery, with the
 delivery receipt. A rolled back creation leaves neither the user nor the
 notification, a crash right after the commit only delays it, and a redelivery
 of the same outbox row (the notification ID is the outbox row ID) queues no
-second notice. The bridge needs the outbox dispatcher of `pkg/extruntime/wiring`,
-which runs without the extension runtime.
+second notice. The initiator of the event is historical attribution: an
+initiator deleted before the delivery is left out of the `actor` recipient and
+the rule's other recipients are still notified.
+
+The outbox dispatcher is the one of `pkg/extruntime/wiring` when the
+application composes it. A composition without it (`modules.Components()`
+alone) gets core's own Go-only dispatcher, started with the API or worker
+capability unless `DisableNotificationWorker` or `DisableOutboxDispatcher` is
+set; a process always runs one dispatcher.
+
+Upgrading from the eventbus handler: jobs it queued (identity
+`user-created:<user ID>`, Data without payload) still deliver
+(`notifications.WithLegacyEvents`), and the migration marks a retained
+`core.user.created.v1` outbox row delivered to `notifications` only when such a
+job or notice exists, so a creation the handler missed is still notified.
 
 Monitor failed and dead `notifications` receipts in `extruntime.subscription_receipts`,
 `notification delivery batch failed; durable retry scheduled`, and realtime

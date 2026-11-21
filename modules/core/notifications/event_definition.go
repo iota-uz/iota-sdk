@@ -114,6 +114,14 @@ func WithData(fn func(payload json.RawMessage) (map[string]string, error)) Defin
 	return func(d *Definition) { d.Data = fn }
 }
 
+// WithLegacyEvents accepts events that match and carry no Payload without the
+// payload contract check: the events a producer persisted (in queued dispatch
+// jobs) before its definition was built from the business event. They are
+// still checked by the payload fields, ValidatePayload and Render.
+func WithLegacyEvents(match func(Event) bool) DefinitionOption {
+	return func(d *Definition) { d.LegacyEvent = match }
+}
+
 // DataOf projects a typed payload into the flat Data of an event of the
 // definition: Definition.Data, or FlatData without one.
 func (d Definition) DataOf(payload json.RawMessage) (map[string]string, error) {
@@ -205,9 +213,16 @@ func prepareEvent(d Definition) (Definition, error) {
 	}
 	contract := *res.Payload
 	custom := d.ValidatePayload
+	legacy := d.LegacyEvent
 	d.ValidatePayload = func(event Event) error {
 		payload := event.Payload
 		if len(bytes.TrimSpace(payload)) == 0 {
+			if legacy != nil && legacy(event) {
+				if custom != nil {
+					return custom(event)
+				}
+				return nil
+			}
 			return fmt.Errorf("notification %s needs the payload of its event", id)
 		}
 		if err := manifest.ValidateValue(contract, payload); err != nil {

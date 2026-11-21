@@ -200,7 +200,19 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 		return rule, nil, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
 	definition, _ := s.catalog.For(event)
-	if err := s.validateActor(ctx, event); err != nil {
+	if definition.Event != nil {
+		// The initiator of a committed business event is historical
+		// attribution: the event happened even if that user has since been
+		// deleted or is not a member of the tenant. Such an actor is left out
+		// of the semantic recipients, and the other recipients still resolve.
+		available, err := s.actorAvailable(ctx, event)
+		if err != nil {
+			return rule, nil, serrors.Wrap(op, err)
+		}
+		if !available {
+			event.ActorUserID = 0
+		}
+	} else if err := s.validateActor(ctx, event); err != nil {
 		return rule, nil, err
 	}
 	rule, err = s.rules.Get(ctx, event.Key)
@@ -536,21 +548,31 @@ func (s *NotificationRoutingService) deliverAddressees(ctx context.Context, even
 
 func (s *NotificationRoutingService) validateActor(ctx context.Context, event notifications.Event) error {
 	const op = "NotificationRoutingService.validateActor"
-	if event.ActorUserID == 0 {
-		return nil
-	}
-	tenant, err := composables.UseTenantID(ctx)
+	available, err := s.actorAvailable(ctx, event)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
-	if err != nil {
-		return serrors.Wrap(op, err)
-	}
-	if len(actors) != 1 || actors[0].TenantID() != tenant {
+	if !available {
 		return serrors.New(serrors.Invalid, "invalid notification actor").WithOp(op)
 	}
 	return nil
+}
+
+// actorAvailable reports whether the event has no actor or its actor is a
+// user of the current tenant.
+func (s *NotificationRoutingService) actorAvailable(ctx context.Context, event notifications.Event) (bool, error) {
+	if event.ActorUserID == 0 {
+		return true, nil
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, err
+	}
+	actors, err := s.users.GetByIDs(ctx, []uint{event.ActorUserID})
+	if err != nil {
+		return false, err
+	}
+	return len(actors) == 1 && actors[0].TenantID() == tenant, nil
 }
 
 func (s *NotificationRoutingService) validateChannels(channels []notifications.Channel) error {

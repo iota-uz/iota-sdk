@@ -17,6 +17,10 @@ import (
 // the ID of the core.user.created.v1 event it is built from.
 const UserCreatedNotificationEvent = services.UserCreatedEventID
 
+// LegacyUserCreatedNotificationPrefix starts the ID of the user-created
+// notifications the removed eventbus handler queued ("user-created:<user ID>").
+const LegacyUserCreatedNotificationPrefix = "user-created:"
+
 func newCoreNotificationCatalog(extra []notifications.Definition) (*notifications.Catalog, error) {
 	catalog := notifications.NewCatalog()
 	definitions := append([]notifications.Definition{notifications.TestDefinition(), userCreatedNotification()}, extra...)
@@ -40,6 +44,11 @@ func userCreatedNotification() notifications.Definition {
 		notifications.WithRequiredPermission(permissions.UserRead),
 		notifications.WithLevel(notification.LevelSuccess),
 		notifications.WithData(userCreatedData),
+		// Jobs queued by the eventbus handler before the outbox bridge carry
+		// user_id and name in Data and no payload; they still deliver.
+		notifications.WithLegacyEvents(func(event notifications.Event) bool {
+			return strings.HasPrefix(event.ID, LegacyUserCreatedNotificationPrefix)
+		}),
 		notifications.WithPayloadFields(
 			notifications.PayloadField{Key: "user_id", Required: true},
 			notifications.PayloadField{Key: "name", Required: true},

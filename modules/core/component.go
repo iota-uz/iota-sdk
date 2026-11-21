@@ -44,7 +44,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -62,7 +61,13 @@ var LocaleFiles embed.FS
 
 type ModuleOptions struct {
 	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
+	// It also keeps core's own outbox dispatcher stopped.
 	DisableNotificationWorker bool
+	// DisableOutboxDispatcher keeps core's Go-only outbox dispatcher (the one
+	// a composition without pkg/extruntime/wiring uses) stopped, for example
+	// in a process that leaves event delivery to a dedicated worker. With the
+	// wiring component the dispatcher is wiring's and this has no effect.
+	DisableOutboxDispatcher bool
 	// NotificationChannels installs provider adapters for email, SMS and push.
 	// In-app delivery is always available. Without an adapter its channel cannot
 	// be selected on a rule.
@@ -237,20 +242,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
 	// Event-backed notification definitions (notifications.FromEvent) are
 	// delivered from the outbox, in the transaction of the event's delivery.
-	// This is wiring.ContributeConsumers, written out so the core module does
-	// not import the extension runtime: the dispatcher of the wiring component
-	// reads every contributed events.ConsumerSource.
-	composition.Contribute(builder, func(container *composition.Container) ([]events.ConsumerSource, error) {
-		catalog, err := composition.Resolve[*notifications.Catalog](container)
-		if err != nil {
-			return nil, err
-		}
-		dispatch, err := composition.Resolve[*services.NotificationDispatchService](container)
-		if err != nil {
-			return nil, err
-		}
-		return []events.ConsumerSource{events.StaticConsumers(services.NewNotificationOutboxBridge(catalog, dispatch))}, nil
-	})
+	c.buildOutboxDelivery(builder)
 	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
 		service, err := composition.Resolve[*services.NotificationService](container)
 		if err != nil {
