@@ -301,7 +301,8 @@ func Slots(def ScheduleDef, from, to time.Time) ([]time.Time, error) {
 
 // slotsAfter lists the slots in (from, to], oldest first, at most limit of
 // them; more reports that the range holds more.
-func slotsAfter(spec cron.Schedule, loc *time.Location, from, to time.Time, limit int) (out []time.Time, more bool) {
+func slotsAfter(spec cron.Schedule, loc *time.Location, from, to time.Time, limit int) ([]time.Time, bool) {
+	var out []time.Time
 	for t := spec.Next(from.In(loc)); !t.IsZero() && !t.After(to); t = spec.Next(t) {
 		if len(out) == limit {
 			return out, true
@@ -533,11 +534,10 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 // slots start and the older eligible slots in [from, headFrom) are left to
 // runBacklog; otherwise headFrom is from. The current slot is never starved by
 // a backlog.
-func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now time.Time) (slots []time.Time, headFrom time.Time) {
-	headFrom = from
+func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now time.Time) ([]time.Time, time.Time) {
+	headFrom := from
 	for {
-		var more bool
-		slots, more = slotsAfter(spec, loc, headFrom.Add(-tick), now, s.liveLimit)
+		slots, more := slotsAfter(spec, loc, headFrom.Add(-tick), now, s.liveLimit)
 		if !more {
 			return slots, headFrom
 		}
