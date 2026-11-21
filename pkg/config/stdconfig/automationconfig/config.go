@@ -4,6 +4,7 @@
 package automationconfig
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -29,15 +30,16 @@ type Config struct {
 // ConfigPrefix returns the koanf prefix for automationconfig ("automation").
 func (Config) ConfigPrefix() string { return "automation" }
 
-// Validate checks that the keyring parses.
+// Validate checks that the keyring parses; no keys is valid (connections are then unavailable).
 func (c *Config) Validate() error {
-	if _, err := c.Keyring(); err != nil {
+	if _, err := c.Keyring(); err != nil && !errors.Is(err, connectors.ErrNotConfigured) {
 		return fmt.Errorf("automationconfig: connections.keys: %w", err)
 	}
 	return nil
 }
 
-// Keyring is the configured keyring; nil when no key is configured.
+// Keyring is the configured keyring; connectors.ErrNotConfigured when no key is configured (pass a nil
+// keyring to connectors.NewStore then).
 func (c *Config) Keyring() (connectors.Keyring, error) {
 	return connectors.ParseKeyringActive(c.Connections.Keys, c.Connections.Active)
 }

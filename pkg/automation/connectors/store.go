@@ -143,6 +143,8 @@ func (s *store) platformAvailable(ctx context.Context, tenantID uuid.UUID, pc Pl
 			return false, nil
 		}
 		return s.grants.Enabled(ctx, tenantID, kind)
+	case PlatformNone:
+		return false, nil
 	}
 	return false, nil
 }
@@ -217,13 +219,14 @@ func (s *store) decrypt(c Connection, nonce, secret []byte) (Credentials, error)
 }
 
 // encrypt seals credentials with the active key.
-func (s *store) encrypt(c Connection, creds Credentials) (keyID string, nonce, secret []byte, err error) {
+// It returns the key id, the nonce and the sealed secret.
+func (s *store) encrypt(c Connection, creds Credentials) (string, []byte, []byte, error) {
 	keyID, key := s.keys.Active()
 	plain, err := json.Marshal(creds)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("%w: credentials are not JSON", ErrInvalid)
 	}
-	nonce, secret, err = seal(key, plain, aad(c.TenantID, c.ID, c.Kind))
+	nonce, secret, err := seal(key, plain, aad(c.TenantID, c.ID, c.Kind))
 	return keyID, nonce, secret, err
 }
 
@@ -554,6 +557,8 @@ func (s *store) Open(ctx context.Context, tenantID uuid.UUID, ref string) (catal
 	case StatusConnected:
 	case StatusNeedsReauth:
 		return catalog.ConnectionInfo{}, nil, serrors.Wrap(op, ErrNeedsReauth)
+	case StatusError, StatusDisabled:
+		return catalog.ConnectionInfo{}, nil, serrors.Wrap(op, ErrNotConnected)
 	default:
 		return catalog.ConnectionInfo{}, nil, serrors.Wrap(op, ErrNotConnected)
 	}

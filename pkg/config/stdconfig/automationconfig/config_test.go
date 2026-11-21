@@ -2,9 +2,11 @@ package automationconfig_test
 
 import (
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
@@ -40,9 +42,11 @@ func TestKeyringFromConfig(t *testing.T) {
 func TestEmptyKeysIsNoKeyring(t *testing.T) {
 	t.Parallel()
 	var cfg automationconfig.Config
-	kr, err := cfg.Keyring()
-	if err != nil || kr != nil {
+	if kr, err := cfg.Keyring(); !errors.Is(err, connectors.ErrNotConfigured) || kr != nil {
 		t.Fatalf("keyring %v, %v", kr, err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("no keys is valid: %v", err)
 	}
 	cfg.Connections.Keys = "k1:short"
 	if err := cfg.Validate(); err == nil {

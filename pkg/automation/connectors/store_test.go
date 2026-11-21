@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -118,6 +116,7 @@ func (s source) Events() []graph.EventSpec         { return s.events }
 func (s source) Requires() []catalog.ConnectorKind { return nil }
 
 func telegramConnector(t *testing.T) *telegram {
+	t.Helper()
 	p, err := graph.FieldsParams(expr.Fields{{Name: "text", Field: expr.StringField}})
 	require.NoError(t, err)
 	return &telegram{
@@ -142,7 +141,7 @@ func TestTelegramAppearsAfterSave(t *testing.T) {
 	reg := catalog.NewRegistry(store)
 	dir := connectors.NewDirectory(reg)
 	require.NoError(t, dir.Register(telegramConnector(t)))
-	assert.Error(t, dir.Register(telegramConnector(t)), "a kind twice")
+	require.Error(t, dir.Register(telegramConnector(t)), "a kind twice")
 
 	v, err := reg.ForTenant(e.ctx, e.tenant)
 	require.NoError(t, err)
@@ -184,7 +183,7 @@ func TestOptInPlatformCredential(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got[catalog.KindTelegramBot], "opt_in before SetEnabled")
 	_, _, err = store.Open(e.ctx, e.tenant, "platform:telegram_bot")
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
 
 	require.NoError(t, grants.SetEnabled(e.ctx, e.tenant, catalog.KindTelegramBot, true, 0))
 	got, err = store.Connected(e.ctx, e.tenant)
@@ -232,14 +231,14 @@ func TestMovedRowDoesNotDecrypt(t *testing.T) {
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.connections SET tenant_id = $1 WHERE id = $2`, other, c.ID)
 	require.NoError(t, err)
 	_, _, err = store.Get(e.ctx, other, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrUndecryptable)
+	require.ErrorIs(t, err, connectors.ErrUndecryptable)
 	_, _, err = store.Get(e.ctx, e.tenant, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrNotFound, "the old tenant no longer has it")
+	require.ErrorIs(t, err, connectors.ErrNotFound, "the old tenant no longer has it")
 
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.connections SET tenant_id = $1, kind = 'smtp' WHERE id = $2`, e.tenant, c.ID)
 	require.NoError(t, err)
 	_, _, err = store.Get(e.ctx, e.tenant, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrUndecryptable, "another kind")
+	require.ErrorIs(t, err, connectors.ErrUndecryptable, "another kind")
 }
 
 func TestRewrapMovesEveryRowToTheActiveKey(t *testing.T) {
@@ -284,9 +283,9 @@ func TestRewrapMovesEveryRowToTheActiveKey(t *testing.T) {
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.connections SET key_id = 'gone' WHERE id = $1`, ids[0])
 	require.NoError(t, err)
 	_, err = onlyNew.Rewrap(e.ctx, 10)
-	assert.ErrorIs(t, err, connectors.ErrUndecryptable)
+	require.ErrorIs(t, err, connectors.ErrUndecryptable)
 	_, _, err = onlyNew.Get(e.ctx, tenants[0], ids[0])
-	assert.ErrorIs(t, err, connectors.ErrNotConfigured)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 	got, err := onlyNew.Connected(e.ctx, tenants[0])
 	require.NoError(t, err)
 	for _, r := range got[catalog.KindTelegramBot] {
@@ -355,14 +354,14 @@ func TestStoreRules(t *testing.T) {
 
 	// Name taken in (tenant, kind); free in another kind or tenant.
 	_, err := store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "support_bot"}, connectors.Credentials{})
-	assert.ErrorIs(t, err, connectors.ErrNameTaken)
+	require.ErrorIs(t, err, connectors.ErrNameTaken)
 	_, err = store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindSMTP, Name: "support_bot"}, connectors.Credentials{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	other := e.newTenant()
 	_, err = store.Save(e.ctx, connectors.Connection{TenantID: other, Kind: catalog.KindTelegramBot, Name: "support_bot"}, connectors.Credentials{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "new_bot"}, nil)
-	assert.ErrorIs(t, err, connectors.ErrInvalid, "a new connection needs credentials")
+	require.ErrorIs(t, err, connectors.ErrInvalid, "a new connection needs credentials")
 
 	// Update: creds nil keeps them; a stale version conflicts.
 	c.DisplayName = "Renamed"
@@ -373,7 +372,7 @@ func TestStoreRules(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, botToken, creds["token"])
 	_, err = store.Save(e.ctx, c, nil)
-	assert.ErrorIs(t, err, connectors.ErrVersionConflict)
+	require.ErrorIs(t, err, connectors.ErrVersionConflict)
 	updated, err = store.Save(e.ctx, updated, connectors.Credentials{"token": "rotated"})
 	require.NoError(t, err)
 	_, creds, err = store.Get(e.ctx, e.tenant, c.ID)
@@ -382,14 +381,14 @@ func TestStoreRules(t *testing.T) {
 
 	// Isolation: another tenant gets not found everywhere.
 	_, _, err = store.Get(e.ctx, other, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
 	foreign := updated
 	foreign.TenantID = other
 	_, err = store.Save(e.ctx, foreign, nil)
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
-	assert.ErrorIs(t, store.SetStatus(e.ctx, other, c.ID, connectors.StatusError, "x"), connectors.ErrNotFound)
-	assert.ErrorIs(t, store.Delete(e.ctx, other, c.ID), connectors.ErrNotFound)
-	assert.ErrorIs(t, store.UpdateInbound(e.ctx, other, c.ID, func(s json.RawMessage) (json.RawMessage, error) { return s, nil }), connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, store.SetStatus(e.ctx, other, c.ID, connectors.StatusError, "x"), connectors.ErrNotFound)
+	require.ErrorIs(t, store.Delete(e.ctx, other, c.ID), connectors.ErrNotFound)
+	require.ErrorIs(t, store.UpdateInbound(e.ctx, other, c.ID, func(s json.RawMessage) (json.RawMessage, error) { return s, nil }), connectors.ErrNotFound)
 	list, err := store.List(e.ctx, other, catalog.KindTelegramBot)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
@@ -402,7 +401,9 @@ func TestStoreRules(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			assert.NoError(t, store.UpdateInbound(e.ctx, e.tenant, c.ID, func(s json.RawMessage) (json.RawMessage, error) {
-				var st struct{ Cursor int }
+				var st struct {
+					Cursor int `json:"cursor"`
+				}
 				_ = json.Unmarshal(s, &st)
 				st.Cursor++
 				return json.Marshal(st)
@@ -411,7 +412,7 @@ func TestStoreRules(t *testing.T) {
 	}
 	wg.Wait()
 	var cursor int
-	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT (inbound->>'Cursor')::int FROM automation.connections WHERE id = $1`, c.ID).Scan(&cursor))
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT (inbound->>'cursor')::int FROM automation.connections WHERE id = $1`, c.ID).Scan(&cursor))
 	assert.Equal(t, 8, cursor)
 
 	// Open: a connected connection; needs_reauth and error are refused.
@@ -421,14 +422,14 @@ func TestStoreRules(t *testing.T) {
 	assert.Equal(t, "rotated", creds["token"])
 	require.NoError(t, store.SetStatus(e.ctx, e.tenant, c.ID, connectors.StatusNeedsReauth, "expired"))
 	_, _, err = store.Open(e.ctx, e.tenant, c.ID.String())
-	assert.ErrorIs(t, err, connectors.ErrNeedsReauth)
+	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
 	_, _, err = store.Open(e.ctx, e.tenant, "not-a-uuid")
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
 
 	// Delete.
 	require.NoError(t, store.Delete(e.ctx, e.tenant, c.ID))
 	_, _, err = store.Get(e.ctx, e.tenant, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
 }
 
 type fakeUses []connectors.Use
@@ -462,11 +463,11 @@ func TestWithoutAKeyOnlyPlatformWorks(t *testing.T) {
 	})
 	store := connectors.NewStore(e.db, nil, nil, platform, nil)
 	_, err := store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot"}, connectors.Credentials{"token": botToken})
-	assert.ErrorIs(t, err, connectors.ErrNotConfigured)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 	_, err = store.List(e.ctx, e.tenant, "")
-	assert.ErrorIs(t, err, connectors.ErrNotConfigured)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 	_, err = store.Rewrap(e.ctx, 10)
-	assert.ErrorIs(t, err, connectors.ErrNotConfigured)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 	got, err := store.Connected(e.ctx, e.tenant)
 	require.NoError(t, err)
 	assert.Equal(t, []catalog.ConnectionRef{{ID: "platform:telegram_bot", Name: "platform"}}, got[catalog.KindTelegramBot])
@@ -481,7 +482,7 @@ func TestUsageIsRecordedApart(t *testing.T) {
 	run := uuid.New()
 	require.NoError(t, rec.Record(e.ctx, catalog.UsageEntry{TenantID: e.tenant, Kind: catalog.KindOpenAI, ConnectionID: "platform:openai", Unit: "token_in", Quantity: 120, RunID: &run}))
 	require.NoError(t, rec.Record(e.ctx, catalog.UsageEntry{TenantID: e.tenant, Kind: catalog.KindOpenAI, ConnectionID: uuid.NewString(), Unit: "token_in", Quantity: 30}))
-	assert.ErrorIs(t, rec.Record(e.ctx, catalog.UsageEntry{TenantID: e.tenant, Kind: catalog.KindOpenAI, ConnectionID: "platform:openai", Unit: "token_in"}), connectors.ErrInvalid)
+	require.ErrorIs(t, rec.Record(e.ctx, catalog.UsageEntry{TenantID: e.tenant, Kind: catalog.KindOpenAI, ConnectionID: "platform:openai", Unit: "token_in"}), connectors.ErrInvalid)
 	var platform, tenant int64
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT
 		COALESCE(sum(quantity) FILTER (WHERE connection_id LIKE 'platform:%'), 0),
@@ -512,7 +513,7 @@ func TestSecretResolverServesOnlySecretFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, botToken, v)
 	_, err = r.Secret(e.ctx, sc, "support_bot.username")
-	assert.ErrorIs(t, err, connectors.ErrNotFound, "not an x-secret field")
+	require.ErrorIs(t, err, connectors.ErrNotFound, "not an x-secret field")
 	v, err = r.Secret(e.ctx, sc, "OPENAI_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "fallback:OPENAI_KEY", v)
@@ -524,7 +525,7 @@ func TestSecretResolverServesOnlySecretFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "fallback:support_bot.token", v)
 	_, err = connectors.SecretResolver(store, dir, nil).Secret(e.ctx, sc, "nope")
-	assert.ErrorIs(t, err, connectors.ErrNotFound)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
 }
 
 // ---- OAuth2
@@ -537,9 +538,13 @@ type tokenServer struct {
 }
 
 func newTokenServer(t *testing.T) *tokenServer {
+	t.Helper()
 	ts := &tokenServer{}
 	ts.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Form.Get("grant_type") {
 		case "authorization_code":
@@ -590,7 +595,7 @@ func TestOAuth2(t *testing.T) {
 
 	// The state is bound to the tenant.
 	_, err = o.Complete(e.ctx, e.newTenant(), state, "code")
-	assert.ErrorIs(t, err, connectors.ErrInvalid)
+	require.ErrorIs(t, err, connectors.ErrInvalid)
 
 	c, err := o.Complete(e.ctx, e.tenant, state, "code")
 	require.NoError(t, err)
@@ -635,7 +640,7 @@ func TestOAuth2(t *testing.T) {
 	ts.refuse.Store("invalid_client")
 	_, err = o.Token(e.ctx, e.tenant, c.ID)
 	require.Error(t, err)
-	assert.NotErrorIs(t, err, connectors.ErrNeedsReauth)
+	require.NotErrorIs(t, err, connectors.ErrNeedsReauth)
 	assert.NotContains(t, err.Error(), "refresh-1")
 	list, err := store.List(e.ctx, e.tenant, "google_sheets")
 	require.NoError(t, err)
@@ -651,9 +656,9 @@ func TestOAuth2(t *testing.T) {
 	assert.Equal(t, connectors.StatusNeedsReauth, list[0].Status)
 	assert.NotContains(t, list[0].StatusReason, "refresh-1")
 	_, err = o.Token(e.ctx, e.tenant, c.ID)
-	assert.ErrorIs(t, err, connectors.ErrNeedsReauth)
-	assert.False(t, strings.Contains(fmt.Sprint(err), "refresh-1"))
+	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
+	assert.NotContains(t, fmt.Sprint(err), "refresh-1")
 
 	_, err = o.Complete(e.ctx, e.tenant, "2026.11.garbage", "code")
-	assert.True(t, errors.Is(err, connectors.ErrInvalid))
+	require.ErrorIs(t, err, connectors.ErrInvalid)
 }

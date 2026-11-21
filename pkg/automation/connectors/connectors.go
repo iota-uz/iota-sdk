@@ -93,19 +93,19 @@ func (s ConnectionStatus) valid() bool {
 
 // Connection is a tenant's connection, without its credentials.
 type Connection struct {
-	ID           uuid.UUID
-	TenantID     uuid.UUID
-	Kind         catalog.ConnectorKind
-	Name         string // slug ^[a-z][a-z0-9_]{0,39}$, unique in (tenant, kind)
-	DisplayName  string
-	Identity     Identity
-	Status       ConnectionStatus
-	StatusReason string
-	Version      int // optimistic concurrency
-	KeyID        string
-	CreatedBy    int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           uuid.UUID             `json:"id"`
+	TenantID     uuid.UUID             `json:"tenant_id"`
+	Kind         catalog.ConnectorKind `json:"kind"`
+	Name         string                `json:"name"` // slug ^[a-z][a-z0-9_]{0,39}$, unique in (tenant, kind)
+	DisplayName  string                `json:"display_name"`
+	Identity     Identity              `json:"identity"`
+	Status       ConnectionStatus      `json:"status"`
+	StatusReason string                `json:"status_reason"`
+	Version      int                   `json:"version"` // optimistic concurrency
+	KeyID        string                `json:"key_id"`
+	CreatedBy    int64                 `json:"created_by"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
 }
 
 // ConnectionStore keeps the connections of tenants. Every query is scoped to the tenant; a connection

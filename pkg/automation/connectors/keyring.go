@@ -41,8 +41,8 @@ func NewKeyring(active string, keys map[string][]byte) (Keyring, error) {
 }
 
 // ParseKeyring reads a keyring from configuration: "id:key[,id:key...]", each key 32 bytes in base64
-// (standard or URL, padded or not) or 64 hex digits; the first key is active. An empty spec is no
-// keyring (nil, nil): the store then reports ErrNotConfigured.
+// (standard or URL, padded or not) or 64 hex digits; the first key is active. An empty spec is
+// ErrNotConfigured: pass a nil keyring to NewStore, which then serves platform credentials only.
 func ParseKeyring(spec string) (Keyring, error) { return ParseKeyringActive(spec, "") }
 
 // ParseKeyringActive is ParseKeyring with the active key named (empty: the first). With several
@@ -50,7 +50,7 @@ func ParseKeyring(spec string) (Keyring, error) { return ParseKeyringActive(spec
 func ParseKeyringActive(spec, active string) (Keyring, error) {
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
-		return nil, nil
+		return nil, ErrNotConfigured
 	}
 	keys := map[string][]byte{}
 	active = strings.TrimSpace(active)
@@ -100,13 +100,13 @@ func aad(tenantID, id uuid.UUID, kind catalog.ConnectorKind) []byte {
 	return []byte(tenantID.String() + "|" + id.String() + "|" + string(kind))
 }
 
-// seal encrypts with a fresh 96-bit nonce.
-func seal(key, plaintext, additional []byte) (nonce, ciphertext []byte, err error) {
+// seal encrypts with a fresh 96-bit nonce; it returns the nonce and the ciphertext.
+func seal(key, plaintext, additional []byte) ([]byte, []byte, error) {
 	gcm, err := newGCM(key)
 	if err != nil {
 		return nil, nil, err
 	}
-	nonce = make([]byte, gcm.NonceSize())
+	nonce := make([]byte, gcm.NonceSize())
 	if _, err := rand.Read(nonce); err != nil {
 		return nil, nil, fmt.Errorf("automation connections: nonce: %w", err)
 	}

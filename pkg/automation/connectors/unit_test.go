@@ -33,17 +33,17 @@ func TestParseKeyring(t *testing.T) {
 	assert.Equal(t, "old", id, "a new key rolled out decrypt-only")
 
 	k, err = connectors.ParseKeyring("  ")
-	assert.NoError(t, err)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 	assert.Nil(t, k)
 	for _, bad := range []string{"nokey", "a:" + base64.StdEncoding.EncodeToString([]byte("short")), "a:" + b64 + ",a:" + b64, "bad id:" + b64} {
 		_, err := connectors.ParseKeyring(bad)
-		assert.Error(t, err, bad)
+		require.Error(t, err, bad)
 		if err != nil {
 			assert.NotContains(t, err.Error(), b64)
 		}
 	}
 	_, err = connectors.NewKeyring("missing", map[string][]byte{"k": key('a')})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestDirectoryChecksDescriptors(t *testing.T) {
@@ -68,27 +68,27 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 	oauthless := telegramConnector(t)
 	oauthless.kind, oauthless.nodes, oauthless.sources = "sheets", nil, nil
 	oauthless.auth = connectors.AuthOAuth2
-	assert.ErrorIs(t, dir.Register(oauthless), connectors.ErrInvalid)
+	require.ErrorIs(t, dir.Register(oauthless), connectors.ErrInvalid)
 	badPolicy := telegramConnector(t)
 	badPolicy.kind, badPolicy.nodes, badPolicy.sources = "x", nil, nil
 	badPolicy.policy = "everyone"
-	assert.ErrorIs(t, dir.Register(badPolicy), connectors.ErrInvalid)
+	require.ErrorIs(t, dir.Register(badPolicy), connectors.ErrInvalid)
 
 	d := tg.Descriptor()
 	assert.Equal(t, map[string]bool{"token": true, "access_token": true}, connectors.SecretFields(d))
 	assert.Equal(t, map[string]string{"username": "support"}, connectors.RedactedCredentials(d, connectors.Credentials{"token": botToken, "username": "support"}))
 	assert.Equal(t, map[string]string{}, connectors.RedactedCredentials(d, connectors.Credentials{"undeclared": botToken}), "undeclared fields are withheld")
 	assert.Empty(t, connectors.RedactedCredentials(connectors.Descriptor{}, connectors.Credentials{"username": "x"}), "no schema shows nothing")
-	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"token": botToken}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"token": botToken}))
 
 	// An OAuth2 connector offered on the platform needs a client credential apart from its kind.
 	leaky := telegramConnector(t)
 	leaky.kind, leaky.nodes, leaky.sources = "sheets", nil, nil
 	leaky.auth, leaky.policy = connectors.AuthOAuth2, connectors.PlatformAuto
 	leaky.oauth = &connectors.OAuth2Config{AuthURL: "https://a", TokenURL: "https://t"}
-	assert.ErrorIs(t, dir.Register(leaky), connectors.ErrInvalid)
+	require.ErrorIs(t, dir.Register(leaky), connectors.ErrInvalid)
 	leaky.oauth.ClientCredential = "sheets_client"
-	assert.NoError(t, dir.Register(leaky))
+	require.NoError(t, dir.Register(leaky))
 }
 
 // The migration applies and rolls back: its Down then its Up run on a migrated database.
@@ -119,5 +119,5 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 	// Constraints of the table.
 	_, err = e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
-	assert.Error(t, err, "a name that is not a slug")
+	require.Error(t, err, "a name that is not a slug")
 }

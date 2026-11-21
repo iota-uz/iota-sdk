@@ -555,6 +555,8 @@ func removeIn(f expr.Field, path []string) expr.Field {
 	case expr.Object:
 		f.Props = []expr.Prop(removePath(expr.Fields(f.Props), path))
 		return f
+	case expr.String, expr.Int, expr.Double, expr.Bool, expr.Dyn, expr.Enum, expr.Timestamp:
+		return f // no fields inside
 	}
 	return f
 }

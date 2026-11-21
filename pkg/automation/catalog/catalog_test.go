@@ -92,6 +92,7 @@ func callNode(t *testing.T, typ string) node {
 }
 
 func telegram(t *testing.T) connector {
+	t.Helper()
 	return connector{
 		kind:  catalog.KindTelegramBot,
 		nodes: []catalog.NodeType{callNode(t, "telegram.send")},
@@ -232,39 +233,39 @@ func TestResolveConnectionPrefersTheFirstAndPicksTheKind(t *testing.T) {
 	_, _, err = catalog.ResolveConnection(map[catalog.ConnectorKind][]catalog.ConnectionRef{
 		catalog.KindEskiz: {{ID: "platform:eskiz"}}, catalog.KindTwilio: {{ID: "platform:twilio"}},
 	}, []catalog.ConnectorKind{catalog.KindEskiz, catalog.KindTwilio}, nil)
-	assert.ErrorIs(t, err, catalog.ErrConnectionRequired)
+	require.ErrorIs(t, err, catalog.ErrConnectionRequired)
 	r, k, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "platform:eskiz", r.ID)
 	assert.Equal(t, catalog.KindEskiz, k)
 	_, _, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindSMTP}, nil)
-	assert.ErrorIs(t, err, catalog.ErrConnectionUnavailable)
+	require.ErrorIs(t, err, catalog.ErrConnectionUnavailable)
 	_, _, err = catalog.ResolveConnection(refs, []catalog.ConnectorKind{catalog.KindEskiz}, 5)
-	assert.ErrorIs(t, err, catalog.ErrConnectionUnavailable)
+	require.ErrorIs(t, err, catalog.ErrConnectionUnavailable)
 }
 
 func TestDuplicatesFailAtComposition(t *testing.T) {
 	reg := catalog.NewRegistry(nil)
 	require.NoError(t, reg.RegisterConnector(telegram(t)))
-	assert.Error(t, reg.RegisterConnector(telegram(t)), "a kind twice")
-	assert.Error(t, reg.RegisterNode(callNode(t, "telegram.send")), "a node type twice")
-	assert.Error(t, reg.RegisterTriggers(source{events: []graph.EventSpec{{Key: "telegram.message", Subject: graph.SubjectNone}}}), "an event twice")
+	require.Error(t, reg.RegisterConnector(telegram(t)), "a kind twice")
+	require.Error(t, reg.RegisterNode(callNode(t, "telegram.send")), "a node type twice")
+	require.Error(t, reg.RegisterTriggers(source{events: []graph.EventSpec{{Key: "telegram.message", Subject: graph.SubjectNone}}}), "an event twice")
 
 	// A connector that fails adds nothing.
 	bad := connector{kind: catalog.KindSMTP, nodes: []catalog.NodeType{callNode(t, "smtp.send"), callNode(t, "telegram.send")}}
-	assert.Error(t, reg.RegisterConnector(bad))
+	require.Error(t, reg.RegisterConnector(bad))
 	_, ok := reg.Node("smtp.send")
 	assert.False(t, ok)
-	assert.NoError(t, reg.RegisterConnector(connector{kind: catalog.KindSMTP, nodes: []catalog.NodeType{callNode(t, "smtp.send")}}))
+	require.NoError(t, reg.RegisterConnector(connector{kind: catalog.KindSMTP, nodes: []catalog.NodeType{callNode(t, "smtp.send")}}))
 
 	// The reserved param.
 	reserved, err := graph.FieldsParams(expr.Fields{{Name: "connection", Field: expr.StringField}})
 	require.NoError(t, err)
 	n := callNode(t, "x.send")
 	n.spec.Params = reserved
-	assert.Error(t, reg.RegisterNode(n))
+	require.Error(t, reg.RegisterNode(n))
 	// A payload with kind.
-	assert.Error(t, reg.RegisterTriggers(source{events: []graph.EventSpec{{Key: "x.y", Subject: graph.SubjectNone, Payload: expr.Fields{{Name: "kind", Field: expr.StringField}}}}}))
+	require.Error(t, reg.RegisterTriggers(source{events: []graph.EventSpec{{Key: "x.y", Subject: graph.SubjectNone, Payload: expr.Fields{{Name: "kind", Field: expr.StringField}}}}}))
 }
 
 func TestPermissionedAndLocalizedNodes(t *testing.T) {
@@ -421,9 +422,9 @@ func TestFieldFromManifest(t *testing.T) {
 	assert.Equal(t, want, f)
 
 	_, err = catalog.FieldFromManifest(manifest.Type{Kind: "money"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = catalog.FieldFromManifest(manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{{Name: "a-b", Type: manifest.Type{Kind: manifest.KindString}}}})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 type badDef struct{ native.EventDefinition }
@@ -448,7 +449,7 @@ func (failingAvailability) Connected(context.Context, uuid.UUID) (map[catalog.Co
 
 func TestAvailabilityErrorFailsTheView(t *testing.T) {
 	_, err := catalog.NewRegistry(failingAvailability{}).ForTenant(context.Background(), uuid.New())
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestWaitOnAnUnavailableEventHidesTheNode(t *testing.T) {
@@ -515,7 +516,7 @@ func TestSensitiveMatchFieldsAndPaths(t *testing.T) {
 		err := reg.RegisterTriggers(sensitiveSource{source: source{events: []graph.EventSpec{ev}}, access: map[string]catalog.EventAccess{
 			ev.Key: {Sensitive: map[string][]string{path: {"Lead.Read"}}},
 		}})
-		assert.Error(t, err, path)
+		require.Error(t, err, path)
 	}
 }
 
