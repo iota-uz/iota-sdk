@@ -1035,16 +1035,10 @@ func (e *Engine) callOrdinary(ctx context.Context, call commandCaller, rs *runSt
 	}
 	if isWire && we.Code == host.CodePackageUnavailable {
 		// The command reached a package export (a nested call) in a process
-		// without the runtime: not its own failure. Nothing committed: the
-		// call is forgotten and dispatched again after Resume. Something
-		// committed: the started occurrence stays for Resolve or Retry, as an
-		// ambiguous call does.
-		if !res.PartiallyCommitted && res.CommittedTxCount == 0 {
-			if ferr := e.forget(ctx, rs, name, n); ferr != nil {
-				return nil, ferr
-			}
-			return nil, blockedWire(rs.block(BlockUnavailable, we.Message))
-		}
+		// without the runtime: not its own failure. The command may already
+		// have had effects outside the database (an ordinary command makes
+		// external requests freely), so its started occurrence stays for
+		// Resolve or Retry, as an ambiguous call does, whatever it committed.
 		return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf(
 			"%s; command %s (occurrence %s#%d, invocation %s) committed %d transaction(s) before it: resolve or retry the occurrence, then resume",
 			we.Message, command, name, n, res.InvocationID, res.CommittedTxCount)))

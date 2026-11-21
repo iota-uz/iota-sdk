@@ -1408,7 +1408,7 @@ func TestNative_NestedPackageCallWithoutRuntimeBlocks(t *testing.T) {
 		name      string
 		commit    bool
 		keepsCall bool
-	}{{"nothing committed", false, false}, {"after a commit", true, true}} {
+	}{{"nothing committed", false, true}, {"after a commit", true, true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newNativeEnv(t)
 			outer := native.Command("test.cmd.outer", native.Spec{}, func(native.Deps) (native.CommandFunc[stepIn, stepOut], error) {
