@@ -87,10 +87,17 @@ type ScheduleDef struct {
 	// tenant (the package schedules, which are application-wide). A schedule
 	// with a TenantID never consults the TenantLister.
 	TenantID *uuid.UUID
-	// MissedAfter is how late a slot may still run: an older slot that has no
-	// run yet is not executed but recorded as skipped. Zero means
-	// SchedulerConfig.Lookback. Skipped slots are recorded only for a
-	// schedule with an ActiveFrom (see SchedulerConfig.SkipHistory).
+	// MissedAfter is how late a slot may still run (a slot exactly this old
+	// still does): a strictly older slot that has no run is not executed but
+	// recorded as skipped. A slot that already ran and failed keeps being
+	// retried up to MaxAttempts whatever its age; a blocked one expires into
+	// skipped once it is older than MissedAfter. Zero means
+	// SchedulerConfig.Lookback.
+	//
+	// The scheduler remembers, per schedule and tenant, how far the past is
+	// accounted for (extruntime.schedule_accounting), so every slot missed
+	// since ActiveFrom (or, without ActiveFrom, since the schedule was first
+	// seen) is recorded, however long the downtime, a batch per pass.
 	MissedAfter time.Duration
 	// Handler runs the slot in Go. When set the scheduler looks up no
 	// trigger_owners and resolves no subject: the handler picks its run-as.
@@ -199,13 +206,7 @@ type SchedulerConfig struct {
 	// Lookback is how far behind a missed slot is still run (restarts,
 	// downtime) unless the schedule sets MissedAfter. Older slots are
 	// recorded as skipped. Default 15m.
-	Lookback time.Duration
-	// SkipHistory bounds how far back skipped slots are recorded: a pass
-	// records the slots it skipped within this window (never before the
-	// schedule's ActiveFrom), and only for schedules that have an ActiveFrom:
-	// without a known start of activity there is no history to account for.
-	// Default 24h.
-	SkipHistory time.Duration
+	Lookback    time.Duration
 	MaxAttempts int // default 3
 	// BackoffBase doubles per attempt; BlockedRecheck re-evaluates runs
 	// blocked on a missing owner or refused subject.
@@ -223,6 +224,8 @@ type SchedulerConfig struct {
 // source on every pass.
 type Scheduler struct {
 	cfg SchedulerConfig
+	// liveLimit bounds the live slots one pass enumerates.
+	liveLimit int
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -245,9 +248,6 @@ func NewScheduler(cfg SchedulerConfig) (*Scheduler, error) {
 	if cfg.Lookback <= 0 {
 		cfg.Lookback = 15 * time.Minute
 	}
-	if cfg.SkipHistory <= 0 {
-		cfg.SkipHistory = 24 * time.Hour
-	}
 	if cfg.MaxAttempts <= 0 {
 		cfg.MaxAttempts = 3
 	}
@@ -263,44 +263,65 @@ func NewScheduler(cfg SchedulerConfig) (*Scheduler, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Scheduler{cfg: cfg}, nil
+	return &Scheduler{cfg: cfg, liveLimit: defaultLiveLimit}, nil
 }
 
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
-// Slots returns the cron slots of def in (from, to], as UTC instants. The
-// expression is evaluated in the schedule's timezone, so "0 9 * * *" in
-// Asia/Tashkent is 04:00 UTC.
-func Slots(def ScheduleDef, from, to time.Time) ([]time.Time, error) {
+// parseSchedule parses the cron expression and the time zone of def.
+func parseSchedule(def ScheduleDef) (cron.Schedule, *time.Location, error) {
 	spec, err := cronParser.Parse(def.Cron)
 	if err != nil {
-		return nil, serrors.Wrap(opSlots, fmt.Errorf("schedule %s: cron %q: %w", def.ID, def.Cron, err))
+		return nil, nil, serrors.Wrap(opSlots, fmt.Errorf("schedule %s: cron %q: %w", def.ID, def.Cron, err))
 	}
 	loc := time.UTC
 	if def.Timezone != "" {
 		if loc, err = time.LoadLocation(def.Timezone); err != nil {
-			return nil, serrors.Wrap(opSlots, fmt.Errorf("schedule %s: timezone %q: %w", def.ID, def.Timezone, err))
+			return nil, nil, serrors.Wrap(opSlots, fmt.Errorf("schedule %s: timezone %q: %w", def.ID, def.Timezone, err))
 		}
 	}
-	var out []time.Time
-	for t := spec.Next(from.In(loc)); !t.IsZero() && !t.After(to); t = spec.Next(t) {
-		out = append(out, t.UTC())
-		if len(out) > 10_000 {
-			break
-		}
+	return spec, loc, nil
+}
+
+// Slots returns the cron slots of def in (from, to], as UTC instants. The
+// expression is evaluated in the schedule's timezone, so "0 9 * * *" in
+// Asia/Tashkent is 04:00 UTC. At most 10,001 slots are returned, the oldest.
+func Slots(def ScheduleDef, from, to time.Time) ([]time.Time, error) {
+	spec, loc, err := parseSchedule(def)
+	if err != nil {
+		return nil, err
 	}
+	out, _ := slotsAfter(spec, loc, from, to, 10_001)
 	return out, nil
 }
+
+// slotsAfter lists the slots in (from, to], oldest first, at most limit of
+// them; more reports that the range holds more.
+func slotsAfter(spec cron.Schedule, loc *time.Location, from, to time.Time, limit int) (out []time.Time, more bool) {
+	for t := spec.Next(from.In(loc)); !t.IsZero() && !t.After(to); t = spec.Next(t) {
+		if len(out) == limit {
+			return out, true
+		}
+		out = append(out, t.UTC())
+	}
+	return out, false
+}
+
+const (
+	// tick is the smallest step of a timestamptz: it turns the inclusive lower
+	// bounds of the contract into the exclusive ones slotsAfter takes.
+	tick = time.Microsecond
+	// historyBatch bounds the skipped slots one pass records per schedule and
+	// tenant, so a long downtime is accounted for over several passes without
+	// delaying the live slots.
+	historyBatch = 5000
+	// defaultLiveLimit bounds the live slots one pass enumerates.
+	defaultLiveLimit = 100_000
+)
 
 type runKey struct {
 	tenant uuid.UUID
 	slot   time.Time
-}
-
-type runState struct {
-	status   string
-	attempts int
-	due      bool // next_at has passed on the database clock
 }
 
 // RunOnce evaluates every active schedule once and runs the due slots of
@@ -364,110 +385,268 @@ func (s *Scheduler) RunOnce(ctx context.Context) (int, error) {
 	return ran, errors.Join(errs...)
 }
 
-// runSchedule runs the due slots of one schedule for tenants. Slots older
-// than the schedule's MissedAfter that have no run yet are recorded as
-// skipped; slots before ActiveFrom are ignored.
+// retryable is a failed or blocked run that is due for another attempt.
+type retryable struct {
+	tenant   uuid.UUID
+	slot     time.Time
+	status   string
+	attempts int
+}
+
+// runSchedule runs one schedule for tenants. It handles three disjoint sets,
+// so none can starve another:
+//
+//   - due retries of runs that already have a receipt (failed ones whatever
+//     their age, up to MaxAttempts; blocked ones until they are older than
+//     the missed window, then they expire into skipped);
+//   - the live slots, those from the missed window that have no receipt;
+//   - the past: slots older than the window and not yet accounted for are
+//     recorded as skipped, a batch per pass, from the accounted watermark.
+//
+// A slot before ActiveFrom is in none of them.
 func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []uuid.UUID, now time.Time) (int, error) {
 	if def.ID == "" {
 		s.cfg.Logger.Error("extruntime: schedule is invalid", "schedule", "", "error", "empty schedule ID")
+		return 0, nil
+	}
+	spec, loc, err := parseSchedule(def)
+	if err != nil {
+		s.cfg.Logger.Error("extruntime: schedule is invalid", "schedule", def.ID, "error", err)
 		return 0, nil
 	}
 	missedAfter := def.MissedAfter
 	if missedAfter <= 0 {
 		missedAfter = s.cfg.Lookback
 	}
-	cutoff := now.Add(-missedAfter) // slots at or before it are missed
-	from := cutoff                  // without ActiveFrom only the slots that can still run
-	if !def.ActiveFrom.IsZero() {
-		from = now.Add(-max(missedAfter, s.cfg.SkipHistory))
+	cutoff := now.Add(-missedAfter) // a slot at or after it may still run
+	liveFrom := cutoff
+	if liveFrom.Before(def.ActiveFrom) {
+		liveFrom = def.ActiveFrom
 	}
-	if from.Before(def.ActiveFrom) {
-		from = def.ActiveFrom
+	live := s.liveSlots(spec, loc, liveFrom, now)
+	var known map[runKey]struct{}
+	if len(live) > 0 {
+		if known, err = s.loadKnown(ctx, def.ID, live[0]); err != nil {
+			return 0, err
+		}
 	}
-	slots, err := Slots(def, from, now)
-	if err != nil {
-		s.cfg.Logger.Error("extruntime: schedule is invalid", "schedule", def.ID, "error", err)
-		return 0, nil
-	}
-	if len(slots) == 0 {
-		return 0, nil
-	}
-	known, err := s.loadRuns(ctx, def.ID, slots[0])
+	retries, err := s.loadRetries(ctx, def.ID, tenants)
 	if err != nil {
 		return 0, err
 	}
-	ran := 0
-	var errs []error
-	for _, tenant := range tenants {
-		var missed []time.Time
-		for _, slot := range slots {
-			st, seen := known[runKey{tenant, slot}]
-			if !slot.After(cutoff) {
-				if !seen {
-					missed = append(missed, slot)
+	accounted, err := s.loadAccounted(ctx, def.ID)
+	if err != nil {
+		return 0, err
+	}
+
+	var (
+		ran  int
+		errs []error
+		bad  = map[uuid.UUID]bool{} // tenants whose run failed on the database
+	)
+	fail := func(tenant uuid.UUID, err error) {
+		errs = append(errs, fmt.Errorf("tenant %s: %w", tenant, err))
+		bad[tenant] = true
+	}
+	for _, r := range retries {
+		if bad[r.tenant] {
+			continue
+		}
+		if r.status == StatusBlocked && r.slot.Before(cutoff) {
+			if err := s.expireBlocked(ctx, def, r.tenant, r.slot); err != nil {
+				if ctx.Err() != nil {
+					return ran, err
 				}
+				fail(r.tenant, err)
+			}
+			continue
+		}
+		ok, err := s.runSlot(ctx, def, r.tenant, r.slot, r.attempts)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ran, err
+			}
+			fail(r.tenant, err)
+			continue
+		}
+		if ok {
+			ran++
+		}
+	}
+	for _, tenant := range tenants {
+		for _, slot := range live {
+			if bad[tenant] {
+				break
+			}
+			if _, seen := known[runKey{tenant, slot}]; seen {
 				continue
 			}
-			if seen && (!st.due || (st.status != StatusFailed && st.status != StatusBlocked)) {
-				continue
-			}
-			ok, err := s.runSlot(ctx, def, tenant, slot, st.attempts)
+			ok, err := s.runSlot(ctx, def, tenant, slot, 0)
 			if err != nil {
 				if ctx.Err() != nil {
 					return ran, err
 				}
-				// One tenant's failure (e.g. a tenant that no longer exists)
-				// does not stop the others.
-				errs = append(errs, fmt.Errorf("tenant %s: %w", tenant, err))
+				fail(tenant, err)
 				break
 			}
 			if ok {
 				ran++
 			}
 		}
-		if err := s.recordSkipped(ctx, def, tenant, missed); err != nil {
+		if bad[tenant] {
+			continue
+		}
+		if err := s.accountPast(ctx, def, spec, loc, tenant, accounted, cutoff); err != nil {
 			if ctx.Err() != nil {
 				return ran, err
 			}
-			errs = append(errs, fmt.Errorf("tenant %s: %w", tenant, err))
+			fail(tenant, err)
 		}
 	}
 	return ran, errors.Join(errs...)
 }
 
-// recordSkipped writes the missed slots into the run history. It never
-// overwrites an existing run.
-func (s *Scheduler) recordSkipped(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slots []time.Time) error {
-	if len(slots) == 0 {
-		return nil
+// liveSlots lists the slots in [from, now]. A range that holds more than the
+// live limit keeps its newest part: the current slot is never starved by a
+// backlog.
+func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now time.Time) []time.Time {
+	for {
+		slots, more := slotsAfter(spec, loc, from.Add(-tick), now, s.liveLimit)
+		if !more {
+			return slots
+		}
+		s.cfg.Logger.Warn("extruntime: schedule has more live slots than one pass handles; the oldest are left to the history accounting", "limit", s.liveLimit)
+		from = now.Add(-now.Sub(from) / 2)
 	}
-	_, err := s.cfg.DB.Exec(ctx, `
-		INSERT INTO extruntime.schedule_runs (tenant_id, schedule, slot, status, attempts, last_error)
-		SELECT $1, $2, slot, 'skipped', 0, $4 FROM unnest($3::timestamptz[]) AS slot
-		ON CONFLICT (tenant_id, schedule, slot) DO NOTHING`,
-		tenant, def.ID, slots, "slot missed: older than the schedule's missed-slot window")
+}
+
+// accountPast records the slots of tenant that are older than the missed
+// window, have no run and lie after the accounted watermark, as skipped, and
+// moves the watermark. The watermark starts at ActiveFrom; without ActiveFrom
+// there is no known start, so it starts where the schedule is first seen.
+func (s *Scheduler) accountPast(ctx context.Context, def ScheduleDef, spec cron.Schedule, loc *time.Location, tenant uuid.UUID, accounted map[uuid.UUID]time.Time, cutoff time.Time) error {
+	through, have := accounted[tenant]
+	initial := false
+	if !have {
+		if def.ActiveFrom.IsZero() {
+			through, initial = cutoff.Add(-tick), true
+		} else {
+			through = def.ActiveFrom.Add(-tick)
+		}
+	}
+	if from := def.ActiveFrom.Add(-tick); !def.ActiveFrom.IsZero() && from.After(through) {
+		through = from // enabled again later than it was accounted
+	}
+	slots, _ := slotsAfter(spec, loc, through, cutoff.Add(-tick), historyBatch)
+	if len(slots) == 0 {
+		if !initial {
+			return nil
+		}
+	} else {
+		through = slots[len(slots)-1]
+	}
+	tx, err := s.cfg.DB.Begin(ctx)
 	if err != nil {
 		return serrors.FromDB(opScheduleD, err)
 	}
-	s.cfg.Logger.Warn("extruntime: schedule slots skipped", "schedule", def.ID, "tenant", tenant, "count", len(slots), "first", slots[0], "last", slots[len(slots)-1])
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if len(slots) > 0 {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO extruntime.schedule_runs (tenant_id, schedule, slot, status, attempts, last_error)
+			SELECT $1, $2, slot, 'skipped', 0, $4 FROM unnest($3::timestamptz[]) AS slot
+			ON CONFLICT (tenant_id, schedule, slot) DO NOTHING`,
+			tenant, def.ID, slots, "slot missed: older than the schedule's missed-slot window"); err != nil {
+			return serrors.FromDB(opScheduleD, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO extruntime.schedule_accounting (tenant_id, schedule, accounted_through)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (tenant_id, schedule) DO UPDATE
+		SET accounted_through = GREATEST(schedule_accounting.accounted_through, EXCLUDED.accounted_through)`,
+		tenant, def.ID, through); err != nil {
+		return serrors.FromDB(opScheduleD, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return serrors.FromDB(opScheduleD, err)
+	}
+	if len(slots) > 0 {
+		s.cfg.Logger.Warn("extruntime: schedule slots skipped", "schedule", def.ID, "tenant", tenant, "count", len(slots), "first", slots[0], "last", slots[len(slots)-1])
+	}
 	return nil
 }
 
-func (s *Scheduler) loadRuns(ctx context.Context, schedule string, since time.Time) (map[runKey]runState, error) {
-	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, slot, status, attempts, next_at <= now() FROM extruntime.schedule_runs WHERE schedule = $1 AND slot >= $2`, schedule, since)
+// expireBlocked turns a blocked run that outlived the missed window into
+// skipped, keeping its diagnostic.
+func (s *Scheduler) expireBlocked(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time) error {
+	_, err := s.cfg.DB.Exec(ctx, `
+		UPDATE extruntime.schedule_runs
+		SET status = 'skipped', last_error = last_error || ' (expired: older than the schedule''s missed-slot window)', updated_at = now()
+		WHERE tenant_id = $1 AND schedule = $2 AND slot = $3 AND status = 'blocked'`, tenant, def.ID, slot)
+	if err != nil {
+		return serrors.FromDB(opScheduleD, err)
+	}
+	return nil
+}
+
+// loadKnown lists the slots from since on that have any run.
+func (s *Scheduler) loadKnown(ctx context.Context, schedule string, since time.Time) (map[runKey]struct{}, error) {
+	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, slot FROM extruntime.schedule_runs WHERE schedule = $1 AND slot >= $2`, schedule, since)
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
 	}
 	defer rows.Close()
-	out := map[runKey]runState{}
+	out := map[runKey]struct{}{}
 	for rows.Next() {
 		var k runKey
-		var st runState
-		if err := rows.Scan(&k.tenant, &k.slot, &st.status, &st.attempts, &st.due); err != nil {
+		if err := rows.Scan(&k.tenant, &k.slot); err != nil {
 			return nil, serrors.FromDB(opSchedule, err)
 		}
 		k.slot = k.slot.UTC()
-		out[k] = st
+		out[k] = struct{}{}
+	}
+	return out, serrors.FromDB(opSchedule, rows.Err())
+}
+
+// loadRetries lists the failed and blocked runs of tenants that are due,
+// whatever the age of their slot, oldest first.
+func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []uuid.UUID) ([]retryable, error) {
+	rows, err := s.cfg.DB.Query(ctx, `
+		SELECT tenant_id, slot, status, attempts FROM extruntime.schedule_runs
+		WHERE schedule = $1 AND tenant_id = ANY($2) AND status IN ('failed', 'blocked') AND next_at <= now()
+		ORDER BY slot, tenant_id`, schedule, tenants)
+	if err != nil {
+		return nil, serrors.FromDB(opSchedule, err)
+	}
+	defer rows.Close()
+	var out []retryable
+	for rows.Next() {
+		var r retryable
+		if err := rows.Scan(&r.tenant, &r.slot, &r.status, &r.attempts); err != nil {
+			return nil, serrors.FromDB(opSchedule, err)
+		}
+		r.slot = r.slot.UTC()
+		out = append(out, r)
+	}
+	return out, serrors.FromDB(opSchedule, rows.Err())
+}
+
+// loadAccounted lists how far the past of the schedule is accounted for, per
+// tenant.
+func (s *Scheduler) loadAccounted(ctx context.Context, schedule string) (map[uuid.UUID]time.Time, error) {
+	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, accounted_through FROM extruntime.schedule_accounting WHERE schedule = $1`, schedule)
+	if err != nil {
+		return nil, serrors.FromDB(opSchedule, err)
+	}
+	defer rows.Close()
+	out := map[uuid.UUID]time.Time{}
+	for rows.Next() {
+		var id uuid.UUID
+		var t time.Time
+		if err := rows.Scan(&id, &t); err != nil {
+			return nil, serrors.FromDB(opSchedule, err)
+		}
+		out[id] = t.UTC()
 	}
 	return out, serrors.FromDB(opSchedule, rows.Err())
 }

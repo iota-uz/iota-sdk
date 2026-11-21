@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -14,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
 // coreConfig is what configures the core: the section and, with the runtime
@@ -34,7 +36,6 @@ func mergeSchedules(primary, fallback events.SchedulerConfig) events.SchedulerCo
 	}
 	pick(&primary.PollInterval, fallback.PollInterval)
 	pick(&primary.Lookback, fallback.Lookback)
-	pick(&primary.SkipHistory, fallback.SkipHistory)
 	pick(&primary.BackoffBase, fallback.BackoffBase)
 	pick(&primary.BlockedRecheck, fallback.BlockedRecheck)
 	if primary.MaxAttempts <= 0 {
@@ -165,6 +166,27 @@ func (l lazyRunner) Run(ctx context.Context, req host.RunRequest) (host.Result, 
 	return r.Run(ctx, req)
 }
 
+// lazySubjects loads the owner of a package schedule with the runtime's own
+// loader (runtime.UserSubjects over Config.PermissionUniverse), exactly as
+// the runtime's scheduler did, and falls back to the core's loader when there
+// is no runtime or it has none. It is resolved on use for the reason
+// lazyRunner is.
+type lazySubjects struct {
+	core    host.SubjectLoader
+	runtime func() (*runtime.Runtime, bool)
+}
+
+func (l lazySubjects) loader() host.SubjectLoader {
+	if rt, ok := l.runtime(); ok && rt != nil && rt.Subjects != nil {
+		return rt.Subjects
+	}
+	return l.core
+}
+
+func (l lazySubjects) LoadSubject(ctx context.Context, tenantID uuid.UUID, userID int64, kind spi.SubjectKind) (spi.Subject, error) {
+	return l.loader().LoadSubject(ctx, tenantID, userID, kind)
+}
+
 // buildCore provides the always-on part: the native set, the subject loader,
 // the outbox dispatcher and the scheduler.
 func (c *component) buildCore(b *composition.Builder, natives *native.Set, core coreConfig) {
@@ -210,7 +232,13 @@ func (c *component) buildCore(b *composition.Builder, natives *native.Set, core 
 			return nil, err
 		}
 		cfg := core.schedules
-		cfg.DB, cfg.Subjects, cfg.Schedules, cfg.Runner = db, subjects, contributedSchedules(container), lazyRunner{container: container}
+		cfg.DB, cfg.Schedules, cfg.Runner = db, contributedSchedules(container), lazyRunner{container: container}
+		// Go schedules resolve no subject; package schedules run as their
+		// owner with the runtime's loader, not the core's.
+		cfg.Subjects = lazySubjects{core: subjects, runtime: func() (*runtime.Runtime, bool) {
+			rt, err := composition.Resolve[*runtime.Runtime](container)
+			return rt, err == nil
+		}}
 		if cfg.Logger == nil {
 			cfg.Logger = c.opts.Logger
 		}

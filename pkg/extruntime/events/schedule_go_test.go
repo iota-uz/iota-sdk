@@ -370,3 +370,145 @@ func TestScheduleWithoutActiveFromRecordsNoSkippedSlots(t *testing.T) {
 	require.Equal(t, 1, n)
 	require.Len(t, runsOf(t, env, def.ID), 1, "no known start of activity: the past is not accounted for")
 }
+
+func statusOf(t *testing.T, env *hosttest.Env, schedule string, at time.Time) string {
+	t.Helper()
+	var status string
+	err := env.DB.QueryRow(context.Background(), `SELECT status FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, schedule, at).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ""
+	}
+	require.NoError(t, err)
+	return status
+}
+
+func countStatus(t *testing.T, env *hosttest.Env, schedule, status string) int {
+	t.Helper()
+	var n int
+	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT count(*) FROM extruntime.schedule_runs WHERE schedule = $1 AND status = $2`, schedule, status).Scan(&n))
+	return n
+}
+
+func TestActivationAndMissedWindowBoundariesAreInclusive(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{}
+	tenant := env.Tenant
+	def := events.ScheduleDef{
+		ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h,
+		ActiveFrom: time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC), MissedAfter: time.Minute,
+	}
+	now := time.Date(2026, 6, 1, 10, 31, 0, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	n, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, n, "the slot at ActiveFrom and the slot exactly MissedAfter old both run")
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)))
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, now))
+}
+
+func TestMissedSlotsAfterLongDowntimeAreRecordedEvenWithoutActiveFrom(t *testing.T) {
+	env := hosttest.New(t)
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:daily", Cron: "0 9 * * *", TenantID: &tenant, Handler: &goSlots{}}
+	now := time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, countStatus(t, env, def.ID, events.StatusSkipped), "first seen: nothing before is known")
+
+	now = time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC) // 48 hours of downtime
+	_, err = s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, events.StatusSkipped, statusOf(t, env, def.ID, time.Date(2026, 6, 2, 9, 0, 0, 0, time.UTC)))
+	require.Equal(t, events.StatusSkipped, statusOf(t, env, def.ID, time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC)))
+	_, err = s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 2, countStatus(t, env, def.ID, events.StatusSkipped), "accounted once")
+}
+
+func TestFailedSlotKeepsRetryingAfterItsMissedWindow(t *testing.T) {
+	env := hosttest.New(t)
+	var mu sync.Mutex
+	calls := 0
+	h := &goSlots{fail: func(events.Slot) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls == 1 {
+			return errors.New("transient")
+		}
+		return nil
+	}}
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	now := slot.Add(59 * time.Second) // one second left in the one-minute window
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, slot))
+
+	now = slot.Add(5 * time.Minute) // the retry is due only after the window closed
+	require.Eventually(t, func() bool {
+		_, err := s.RunOnce(context.Background())
+		require.NoError(t, err)
+		return statusOf(t, env, def.ID, slot) == events.StatusDone
+	}, 10*time.Second, 30*time.Millisecond, "the failed slot is retried up to MaxAttempts whatever its age")
+}
+
+func TestBlockedSlotExpiresIntoSkippedAfterItsMissedWindow(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{fail: func(events.Slot) error { return fmt.Errorf("%w: nobody", events.ErrNoSubject) }}
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	now := slot.Add(20 * time.Second)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, events.StatusBlocked, statusOf(t, env, def.ID, slot))
+
+	now = slot.Add(3 * time.Minute)
+	require.Eventually(t, func() bool {
+		_, err := s.RunOnce(context.Background())
+		require.NoError(t, err)
+		return statusOf(t, env, def.ID, slot) == events.StatusSkipped
+	}, 10*time.Second, 40*time.Millisecond)
+	var msg string
+	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT last_error FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&msg))
+	require.Contains(t, msg, "nobody")
+	require.Contains(t, msg, "expired")
+}
+
+func TestLongHistoryIsRecordedInBatchesAndNeverStarvesTheCurrentSlot(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{}
+	tenant := env.Tenant
+	now := time.Date(2026, 6, 21, 10, 30, 20, 0, time.UTC)
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h, ActiveFrom: now.Add(-20 * 24 * time.Hour)}
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+
+	n, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "the current slot runs although 28,800 slots are missed")
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, time.Date(2026, 6, 21, 10, 30, 0, 0, time.UTC)))
+	first := countStatus(t, env, def.ID, events.StatusSkipped)
+	require.Equal(t, 5000, first, "a batch of the oldest missed slots")
+	_, err = s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 10000, countStatus(t, env, def.ID, events.StatusSkipped), "the next pass continues where the accounting stopped")
+}
+
+func TestHugeLiveBacklogKeepsTheNewestSlots(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{}
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h, MissedAfter: time.Hour}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	events.SetLiveLimit(s, 10)
+	n, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.True(t, n >= 1 && n <= 10, "ran %d", n)
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)), "the current slot is among them")
+}

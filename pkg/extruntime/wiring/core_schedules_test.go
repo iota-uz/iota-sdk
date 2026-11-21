@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -75,13 +76,15 @@ func TestCoreRunsContributedGoSchedulesWithoutTheRuntime(t *testing.T) {
 	t.Setenv("IOTA_SDK_DIST", t.TempDir())
 	src := &scheduleSource{}
 	section := extruntimeconfig.Config{AppRoot: t.TempDir()}
-	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	var clock atomic.Int64 // the scheduler reads it while the test advances it
+	clock.Store(time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC).UnixNano())
+	now := func() time.Time { return time.Unix(0, clock.Load()).UTC() }
 	h := itf.NewHarness(t, itf.HarnessConfig{
 		Name: "extruntime_wiring_schedules",
 		Components: append(modules.Components(),
 			wiring.NewComponent(wiring.Options{
 				Natives: modules.Natives(), Section: &section,
-				Schedules: events.SchedulerConfig{PollInterval: 50 * time.Millisecond, Lookback: time.Minute, Now: func() time.Time { return now }},
+				Schedules: events.SchedulerConfig{PollInterval: 50 * time.Millisecond, Lookback: time.Minute, Now: now},
 			}),
 			scheduleComponent{src: src},
 		),
@@ -102,14 +105,14 @@ func TestCoreRunsContributedGoSchedulesWithoutTheRuntime(t *testing.T) {
 	// A schedule that appears while the scheduler runs fires on the next
 	// slot; a removed one stops.
 	added := &slotRecorder{}
-	now = now.Add(time.Minute)
+	clock.Add(int64(time.Minute))
 	src.set(
 		events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: rec},
 		events.ScheduleDef{ID: "automation:a2:t1", Cron: "* * * * *", TenantID: &tenant, Handler: added},
 	)
 	require.Eventually(t, func() bool { return len(added.slots()) == 1 && len(rec.slots()) == 2 }, 10*time.Second, 20*time.Millisecond)
 	src.set(events.ScheduleDef{ID: "automation:a2:t1", Cron: "* * * * *", TenantID: &tenant, Handler: added})
-	now = now.Add(time.Minute)
+	clock.Add(int64(time.Minute))
 	require.Eventually(t, func() bool { return len(added.slots()) == 2 }, 10*time.Second, 20*time.Millisecond)
 	require.Len(t, rec.slots(), 2, "the removed schedule stopped")
 

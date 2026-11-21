@@ -241,11 +241,16 @@ events.ScheduleDef{
   looks up no `trigger_owners` and resolves no subject: the handler chooses whom it acts as, e.g. with
   `events.ResolveSubject` (§2.1). Use an `ID` that does not change when the definition is edited, so a new version does
   not repeat slots that already ran.
-* Slots before `ActiveFrom` never run (enabling a schedule does not catch up on the past). A slot older than
-  `MissedAfter` that has no run is not executed but recorded in `schedule_runs` as `skipped`, within
-  `SchedulerConfig.SkipHistory` (24 h) and only for a schedule that has an `ActiveFrom`.
+* Slots before `ActiveFrom` never run (enabling a schedule does not catch up on the past); the slot at `ActiveFrom` does.
+  A slot at most `MissedAfter` old runs; a strictly older slot that has no run is not executed but recorded in
+  `schedule_runs` as `skipped`. The scheduler remembers per schedule and tenant how far the past is accounted for
+  (`extruntime.schedule_accounting`), so every slot missed since `ActiveFrom` (without one: since the schedule was first
+  seen) is recorded however long the downtime, in batches of 5000 per pass that never delay the current slots. A failed
+  slot keeps being retried up to `MaxAttempts` whatever its age; a blocked one expires into `skipped` once it is older
+  than `MissedAfter`.
 * `Options.Schedules` tunes the scheduler (polling, `Lookback`, retries). With the runtime enabled the package schedules
-  join the same scheduler as another source and run through the runtime; without it a package schedule can only be
+  join the same scheduler as another source and run through the runtime, their owners loaded with the runtime's own
+  subject loader (over `runtime.Config.PermissionUniverse`), not the core's; without it a package schedule can only be
   blocked with a diagnostic, so `SchedulerConfig.Runner` is optional. A `runtime.NewComponent` composed without the
   core serves a scheduler of its own over the package schedules and the contributed Go schedules.
 
