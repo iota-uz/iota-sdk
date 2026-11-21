@@ -195,18 +195,33 @@ function EditorBody(props: EditorProps): JSX.Element {
     validateTimer = setTimeout(() => void validate(), VALIDATE_DEBOUNCE_MS)
   }, { defer: true }))
 
+  // ——— writes ———
+  // Save, layout saves and Load latest change the same stored layout: they run one at a time, and after
+  // each one the layout on screen is compared with the stored one and the latest snapshot is sent.
+  let writes: Promise<unknown> = Promise.resolve()
+  let writing = 0
+  const exclusive = <T,>(fn: () => Promise<T>): Promise<T> => {
+    writing += 1
+    const run = writes.then(fn, fn)
+    writes = run.then(() => undefined, () => undefined)
+    return run.finally(() => {
+      writing -= 1
+      queueMicrotask(checkLayout)
+    })
+  }
+
   // ——— layout autosave (AS1): never a version ———
-  // One request at a time; when it ends, the layout on screen is compared with what was saved and the
-  // latest snapshot is sent again if they differ (an undo during a save is saved too).
   const [layoutState, setLayoutState] = createSignal<LayoutState>('idle')
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
-  let layoutInFlight = false
+  let layoutQueued = false
   const saveLayoutNow = async () => {
     clearTimeout(layoutTimer)
+    layoutTimer = undefined
     const save = props.saveLayout
-    if (!save || readOnly() || layoutInFlight) return
-    layoutInFlight = true
-    try {
+    if (!save || readOnly() || layoutQueued) return
+    layoutQueued = true
+    await exclusive(async () => {
+      layoutQueued = false
       for (;;) {
         const next = layout()
         if (layoutsEqual(next, persistedLayout())) {
@@ -223,19 +238,23 @@ function EditorBody(props: EditorProps): JSX.Element {
           return
         }
       }
-    } finally {
-      layoutInFlight = false
-    }
+    })
   }
-  createEffect(on(layout, (next) => {
-    if (!props.saveLayout || readOnly()) return
-    clearTimeout(layoutTimer)
-    if (layoutInFlight) return // the request in flight sends the latest snapshot when it ends
-    if (layoutsEqual(next, persistedLayout())) {
+  /** After any write, or when the layout changes: schedule a layout save if the screen and storage differ. */
+  function checkLayout() {
+    if (!props.saveLayout || readOnly() || writing > 0 || layoutQueued || layoutTimer !== undefined) return
+    if (layoutsEqual(layout(), persistedLayout())) {
       if (layoutState() === 'saving') setLayoutState('saved')
       return
     }
     layoutTimer = setTimeout(() => void saveLayoutNow(), LAYOUT_DEBOUNCE_MS)
+  }
+  createEffect(on(layout, () => {
+    if (writing === 0 && !layoutQueued) {
+      clearTimeout(layoutTimer)
+      layoutTimer = undefined
+    }
+    checkLayout()
   }, { defer: true }))
 
   // ——— save ———
@@ -256,25 +275,28 @@ function EditorBody(props: EditorProps): JSX.Element {
       return
     }
     const graph = draft()
-    const positions = layout()
     const sentBase = base()
     setSaveState({ status: 'saving', slow: false })
     const slow = setTimeout(() => setSaveState((s) => (s.status === 'saving' ? { status: 'saving', slow: true } : s)), STILL_WAITING_MS)
     if (!validFor(graph)) {
       // The snapshot that is sent is the one that was checked.
+      // validate() publishes the result only while this snapshot is still the draft; a newer check owns
+      // the panel otherwise.
       const issues = await validate(graph)
       if (!issues || issues.errors.length > 0) {
         clearTimeout(slow)
         setSaveState({ status: 'idle' })
-        if (issues) {
-          setValidation({ status: 'done', ...issues, graph })
-          setValidationOpen(true)
-        }
+        if (issues && draft() === graph) setValidationOpen(true)
         return
       }
     }
+    let positions = layout()
     try {
-      const result = await props.save(graph, positions, sentBase)
+      const result = await exclusive(() => {
+        // The layout sent is the one on screen when the write starts, after any layout save before it.
+        positions = layout()
+        return props.save(graph, positions, sentBase)
+      })
       clearTimeout(slow)
       if ('ok' in result && result.ok) {
         batch(() => {
@@ -298,8 +320,12 @@ function EditorBody(props: EditorProps): JSX.Element {
       }
       setSaveState({ status: 'idle' })
       const rejected = result as { errors?: GraphError[]; warnings?: GraphError[] }
-      setValidation({ status: 'done', errors: rejected.errors ?? [], warnings: rejected.warnings ?? [], graph })
-      setValidationOpen(true)
+      // The server's errors are about the sent snapshot: shown only while it is still the draft.
+      if (draft() === graph) {
+        validateSeq += 1
+        setValidation({ status: 'done', errors: rejected.errors ?? [], warnings: rejected.warnings ?? [], graph })
+        setValidationOpen(true)
+      }
     } catch (error) {
       clearTimeout(slow)
       console.warn('automation-editor: save failed', error)
@@ -313,10 +339,13 @@ function EditorBody(props: EditorProps): JSX.Element {
   const loadLatest = async () => {
     setReloading(true)
     try {
-      const latest = await props.reload()
+      const latest = await exclusive(() => props.reload())
+      // Draft, layout, saved baseline and version change together; this is not a user edit, so the phone
+      // guard of commit() does not apply (the width may change while the reload runs).
       batch(() => {
         const nextLayout = ensureLayout(latest.graph, props.catalog, latest.layout)
-        commit({ graph: latest.graph, layout: nextLayout })
+        setHistory((h) => record(h, { graph: latest.graph, layout: nextLayout }))
+        lastKey = null
         setSaved(latest.graph)
         setBase(latest.version)
         setPersistedLayout(nextLayout)

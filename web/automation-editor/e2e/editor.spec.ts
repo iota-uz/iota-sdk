@@ -212,6 +212,64 @@ test.describe('editor', () => {
     await expect(page.locator('.ae-quiet')).toContainText('Layout saved')
   })
 
+  test('Load latest switches draft, layout, baseline and version together, even if the width changes meanwhile', async ({ page }) => {
+    await open(page, 'conflict=1&latency=1000')
+    await card(page, 'has_email').click()
+    await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('true')
+    await page.locator('.ae-save').click()
+    await page.locator('.ae-banner').filter({ hasText: 'Saved by another user' }).getByRole('button', { name: 'Load latest' }).click()
+    await page.getByRole('button', { name: 'Replace my draft' }).click()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.locator('.ae-toolbar__name')).toHaveText('Saved by Aziz', { timeout: 5000 })
+    await expect(page.locator('.ae-tag').first()).toHaveText('v4')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    // The replaced draft is the saved version: nothing to save, so no write with the old graph and base 4.
+    await expect(page.locator('.ae-save')).toHaveAttribute('aria-disabled', 'true')
+    await expect(page.locator('.ae-tag--dirty')).toHaveCount(0)
+    expect(await page.evaluate(() => window.__fixture.saves.length)).toBe(1)
+  })
+
+  test('a move while Save waits is not overwritten by the older layout of that Save', async ({ page }) => {
+    await open(page, 'latency=1800')
+    await card(page, 'has_email').click()
+    await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('user.email != "" && true')
+    await page.locator('.ae-save').click()
+    const start = await center(card(page, 'user_created').locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 64, y: start.y + 48 })
+    const onScreen = await page.evaluate(() => window.__fixture.initialLayout.user_created!)
+    await expect.poll(() => page.evaluate(() => window.__fixture.saves.length), { timeout: 10000 }).toBe(1)
+    // When every write has settled, storage holds what the canvas shows, not the Save's older snapshot.
+    await expect.poll(async () => {
+      const stored = await page.evaluate(() => window.__fixture.layout.user_created)
+      return stored && (stored.x !== onScreen.x || stored.y !== onScreen.y)
+    }, { timeout: 15000 }).toBe(true)
+    await page.waitForTimeout(2500)
+    const stored = await page.evaluate(() => window.__fixture.layout.user_created!)
+    expect(stored).not.toEqual(onScreen)
+  })
+
+  test('errors of a Save check are not published after the field was fixed', async ({ page }) => {
+    await open(page, 'latency=1200')
+    await card(page, 'has_email').click()
+    const field = page.locator('.ae-panel [data-param="expression"] textarea').first()
+    await field.fill('')
+    // Records whether the stale error is ever shown, not only at the end (a later check would clear it).
+    await page.evaluate(() => {
+      const w = window as unknown as { __staleShown: boolean }
+      w.__staleShown = false
+      new MutationObserver(() => {
+        if (document.body.textContent?.includes('An expression is required.')) w.__staleShown = true
+      }).observe(document.body, { subtree: true, childList: true, characterData: true })
+    })
+    await page.locator('.ae-save').click()
+    await field.fill('true')
+    await page.waitForTimeout(4000)
+    expect(await page.evaluate(() => (window as unknown as { __staleShown: boolean }).__staleShown)).toBe(false)
+    await expect(page.getByText('An expression is required.')).toHaveCount(0)
+    await expect(card(page, 'has_email').locator('.ae-badge--error')).toHaveCount(0)
+    expect(await page.evaluate(() => window.__fixture.saves.length)).toBe(0)
+  })
+
   test('Versions lists the versions and opens one', async ({ page }) => {
     await open(page)
     await page.getByRole('button', { name: 'Versions' }).click()
