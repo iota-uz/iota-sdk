@@ -2,10 +2,10 @@
 // Tidy, touch controls and the read-only outline on phones. The package knows nothing of routes,
 // storage or permissions: everything it does to the outside goes through the host's props.
 import { ConfirmationDialog, Switch as Toggle, ToastProvider, useToast } from '@iota-uz/sdk/solid-ui'
-import { batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, Show, type JSX } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, lazy, on, onCleanup, onMount, Show, Suspense, type JSX } from 'solid-js'
 import { Canvas } from './Canvas'
 import { copyItems, parseClip, pasteClip, serializeClip, type Clip } from './clipboard'
-import { ContextMenu, type MenuItem } from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
 import { snap } from './geometry'
 import {
   addNode,
@@ -26,18 +26,27 @@ import {
 } from './graph'
 import { amend, canRedo, canUndo, createHistory, record, redo, undo, type History, type Snapshot } from './history'
 import { Icon } from './icons'
-import { KeyMap } from './KeyMap'
 import { ensureLayout, placeNew, tidyLayout } from './layout'
 import { isMac } from './locale'
-import { NodePanel } from './NodePanel'
 import { Outline } from './Outline'
-import { Palette, type PaletteChoice, type PaletteMode } from './Palette'
-import { SettingsDialog } from './SettingsDialog'
+import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
 import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, XY } from './types'
 import { localErrors } from './validation'
-import { issuesOf, ValidationPanel, type ValidationState } from './ValidationPanel'
+import { issuesOf, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
+
+// The panel's forms (JSON Schema fields, CEL and template editors, the schedule editor) are their own
+// lazy chunk: the canvas chunk stays within its budget and the first paint does not wait for them.
+const loadPalette = () => import('./Palette')
+const loadMenu = () => import('./ContextMenu')
+const loadPanel = () => import('./NodePanel')
+const NodePanel = lazy(() => loadPanel().then((m) => ({ default: m.NodePanel })))
+const Palette = lazy(() => loadPalette().then((m) => ({ default: m.Palette })))
+const ContextMenu = lazy(() => loadMenu().then((m) => ({ default: m.ContextMenu })))
+const SettingsDialog = lazy(() => import('./SettingsDialog').then((m) => ({ default: m.SettingsDialog })))
+const ValidationPanel = lazy(() => import('./ValidationPanel').then((m) => ({ default: m.ValidationPanel })))
+const KeyMap = lazy(() => import('./KeyMap').then((m) => ({ default: m.KeyMap })))
 
 export const VALIDATE_DEBOUNCE_MS = 800
 export const LAYOUT_DEBOUNCE_MS = 500
@@ -89,7 +98,14 @@ function EditorBody(props: EditorProps): JSX.Element {
   const commitGraph = (graph: AutomationGraph, key?: string) => commit({ graph, layout: ensureLayout(graph, props.catalog, layout()) }, key)
 
   // ——— selection, layers ———
-  const [selected, setSelected] = createSignal<string | null>(null)
+  const [selected, setSelectedSignal] = createSignal<string | null>(props.selected ?? null)
+  const setSelected = (id: string | null) => {
+    setSelectedSignal(id)
+    if (id !== (props.selected ?? null)) props.onSelect?.(id)
+  }
+  createEffect(on(() => props.selected, (id) => {
+    if (id !== undefined && id !== selected()) setSelectedSignal(id)
+  }, { defer: true }))
   const [focusField, setFocusField] = createSignal<string | null>(null)
   const [palette, setPalette] = createSignal<PaletteMode | null>(null)
   const [menu, setMenu] = createSignal<CanvasMenu | null>(null)
@@ -531,6 +547,14 @@ function EditorBody(props: EditorProps): JSX.Element {
       clearTimeout(layoutTimer)
     })
     void validate()
+    // The palette, menu and panel are their own chunks; fetch them while the browser is idle so their
+    // first use does not wait.
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200))
+    idle(() => {
+      void loadPalette()
+      void loadMenu()
+      void loadPanel()
+    })
   })
 
   // ——— render ———
@@ -721,13 +745,14 @@ function EditorBody(props: EditorProps): JSX.Element {
                 </div>
               </Show>
               <Show when={palette()}>
-                {(mode) => <Palette mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} />}
+                {(mode) => <Suspense><Palette mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
               </Show>
               <Show when={menu()}>
-                {(m) => <ContextMenu x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} />}
+                {(m) => <Suspense><ContextMenu x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
               </Show>
             </div>
             <Show when={validationOpen()}>
+              <Suspense>
               <ValidationPanel
                 state={validationView()}
                 graph={draft()}
@@ -737,6 +762,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                 onRetry={() => void validate()}
                 onClose={() => setValidationOpen(false)}
               />
+              </Suspense>
             </Show>
             {props.panels}
           </div>
@@ -754,6 +780,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                   }
                 }}
               >
+                <Suspense fallback={<div class="ae-panel ae-panel--loading" role="status" aria-busy="true" aria-label={t().states.loading} />}>
                 <NodePanel
                   graph={draft()}
                   catalog={props.catalog}
@@ -770,12 +797,15 @@ function EditorBody(props: EditorProps): JSX.Element {
                     canvasApi?.focus(current)
                   }}
                 />
+                </Suspense>
               </div>
             )}
           </Show>
         </div>
       </Show>
-      <SettingsDialog
+      <Show when={settingsOpen()}>
+        <Suspense>
+          <SettingsDialog
         open={settingsOpen()}
         graph={draft()}
         locale={props.locale}
@@ -785,6 +815,7 @@ function EditorBody(props: EditorProps): JSX.Element {
       />
       <Show when={versionsMenu()}>
         {(p) => (
+          <Suspense>
           <ContextMenu
             x={p().x}
             y={p().y}
@@ -798,9 +829,16 @@ function EditorBody(props: EditorProps): JSX.Element {
               run: () => props.onOpenVersion?.(v.version),
             }))}
           />
+          </Suspense>
         )}
       </Show>
-      <KeyMap open={keymapOpen()} locale={props.locale} onClose={() => setKeymapOpen(false)} />
+        </Suspense>
+      </Show>
+      <Show when={keymapOpen()}>
+        <Suspense>
+          <KeyMap open locale={props.locale} onClose={() => setKeymapOpen(false)} />
+        </Suspense>
+      </Show>
       <ConfirmationDialog
         open={confirmReload()}
         onOpenChange={(open) => { if (!open) setConfirmReload(false) }}

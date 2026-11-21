@@ -83,6 +83,21 @@ lens cmd="help" *args="":
       exit 2 ;; \
   esac
 
+[group("automation-editor")]
+[doc("Automation graph editor commands (dev|check|build|e2e|touch|bench)")]
+automation-editor cmd="help" *args="":
+  case "{{cmd}}" in \
+    dev) (cd web/automation-editor && node scripts/fixture-css.mjs && pnpm dev {{args}}) ;; \
+    check) (cd web/automation-editor && pnpm check {{args}}) ;; \
+    build) (cd web/automation-editor && pnpm build:package {{args}}) ;; \
+    e2e) (cd web/automation-editor && pnpm e2e {{args}}) ;; \
+    touch) (cd web/automation-editor && pnpm exec playwright test --project=touch --project=ipad {{args}}) ;; \
+    bench) (cd web/automation-editor && pnpm bench {{args}}) ;; \
+    *) \
+      echo "Usage: just automation-editor [dev|check|build|e2e|touch|bench]" ; \
+      exit 2 ;; \
+  esac
+
 [group("solid-ui")]
 [doc("Solid UI component gallery commands (dev|build|typecheck|test|check|vr|vr-update|vr-linux|install)")]
 solid-ui cmd="help" *args="":

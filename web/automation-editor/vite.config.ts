@@ -13,6 +13,8 @@ export default defineConfig({
     dedupe: ['solid-js'],
   },
   plugins: [solid()],
+  // The SDK's fonts at /assets/fonts, as the host serves them, so screenshots use the real typefaces.
+  publicDir: path.resolve(rootDir, 'fixture/public'),
   server: { port: 5181, host: '0.0.0.0' },
   preview: { port: 5181, host: '0.0.0.0' },
   build: { outDir: path.resolve(rootDir, 'fixture-dist'), emptyOutDir: true },

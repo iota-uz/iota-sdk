@@ -67,3 +67,27 @@ export function describeItem(graph: AutomationGraph, catalog: EditorCatalog, id:
     group: spec.group,
   }
 }
+
+/** Names of every item at once (one pass over the graph), for the canvas. */
+export function describeAll(graph: AutomationGraph, catalog: EditorCatalog, locale: EditorLocale, now?: Date): Map<string, ItemName> {
+  const out = new Map<string, ItemName>()
+  const nodes = new Map(catalog.nodes.map((n) => [n.type, n]))
+  for (const trigger of graph.triggers) out.set(trigger.id, describeItem({ ...graph, nodes: [], triggers: [trigger] }, catalog, trigger.id, locale, now))
+  for (const node of graph.nodes) {
+    const spec = nodes.get(node.type)
+    if (!spec) {
+      out.set(node.id, { title: node.type, subtitle: node.id, kind: 'node' })
+      continue
+    }
+    const summaryParam = spec.expressions[0]?.param ?? spec.templates[0]
+    const summary = summaryParam ? node.params[summaryParam] : undefined
+    out.set(node.id, {
+      title: spec.title,
+      subtitle: typeof summary === 'string' && summary.trim() ? short(summary, 48) : node.id,
+      kind: 'node',
+      icon: spec.icon,
+      group: spec.group,
+    })
+  }
+  return out
+}

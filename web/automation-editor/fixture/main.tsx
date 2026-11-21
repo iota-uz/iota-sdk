@@ -2,10 +2,11 @@
 // e2e and the benchmark. Query: graph=sample|connected|empty|bench, locale, theme=dark, readonly=1,
 // latency=<ms>, fail=save|validate|savelayout, conflict=1, pending=1, overlay=1, catalog=empty,
 // mode=canvas (the Canvas alone, with counters), errors=1 (validate reports an error on has_email).
-import { createSignal, Show } from 'solid-js'
+import { batch, createSignal, Show } from 'solid-js'
 import { render } from 'solid-js/web'
 import { Canvas } from '../src/Canvas'
 import { Editor } from '../src/Editor'
+import { EditorSkeleton } from '../src/lazy'
 import { ensureLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, SaveResult } from '../src/types'
 import { catalog as fullCatalog, emptyCatalog } from './catalog'
@@ -33,7 +34,9 @@ const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
 const initial = pick()
 
 type Log = {
+  replaceJsMs?: number
   mountMs?: number
+  mountJsMs?: number
   saves: { base: number; graph: AutomationGraph }[]
   saveLayouts: AutomationLayout[]
   validates: number
@@ -80,11 +83,26 @@ const overlay: Overlay | null = params.get('overlay') === '1'
 function App() {
   const [enabled, setEnabled] = createSignal(true)
   const [tab, setTab] = createSignal<'edit' | 'runs'>('edit')
+  if (params.get('loading') === '1') return <EditorSkeleton locale={locale} />
   if (params.get('mode') === 'canvas') {
     const [graph, setGraph] = createSignal(initial.graph)
     const [layout, setLayout] = createSignal(ensureLayout(initial.graph, catalog, initial.layout))
     const [selected, setSelected] = createSignal<string | null>(null)
     window.__fixture.setGraph = setGraph
+    // Benchmark hook: replace the whole graph and layout at once, as an undo of many edits does.
+    let flip = false
+    window.__fixture.replace = () => {
+      flip = !flip
+      const next = flip ? bench(200, 500, 1) : initial
+      const started = performance.now()
+      batch(() => {
+        setGraph(next.graph)
+        setLayout(ensureLayout(next.graph, catalog, next.layout))
+      })
+      log.replaceJsMs = performance.now() - started
+      void document.body.offsetHeight
+      return performance.now() - started
+    }
     return (
       <div style={{ position: 'relative', height: '100%' }}>
         <Canvas
@@ -101,7 +119,7 @@ function App() {
             log.moves.push(positions)
             setLayout({ ...layout(), ...positions })
           }}
-          minimap
+          minimap={params.get('minimap') !== '0'}
           locale={locale}
         />
       </div>
@@ -153,5 +171,9 @@ function App() {
   )
 }
 
+const started = performance.now()
 render(() => <App />, document.getElementById('root')!)
+log.mountJsMs = performance.now() - started
+void document.body.offsetHeight
+log.mountMs = performance.now() - started
 document.documentElement.dataset.fixtureReady = 'true'

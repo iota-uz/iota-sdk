@@ -5,13 +5,7 @@ import { Icon } from './icons'
 import { describeItem } from './names'
 import { strings } from './strings'
 import type { AutomationGraph, EditorCatalog, EditorLocale, GraphError } from './types'
-import { errorTarget } from './validation'
-
-export type ValidationState =
-  | { status: 'idle' }
-  | { status: 'checking'; errors: GraphError[]; warnings: GraphError[] }
-  | { status: 'done'; errors: GraphError[]; warnings: GraphError[] }
-  | { status: 'failed'; errors: GraphError[]; warnings: GraphError[] }
+import { errorTarget, issuesOf, type ValidationState } from './validation'
 
 export interface ValidationPanelProps {
   state: ValidationState
@@ -21,10 +15,6 @@ export interface ValidationPanelProps {
   onPick(target: { id: string | null; field: string | null }): void
   onRetry(): void
   onClose(): void
-}
-
-export function issuesOf(state: ValidationState): { errors: GraphError[]; warnings: GraphError[] } {
-  return state.status === 'idle' ? { errors: [], warnings: [] } : { errors: state.errors, warnings: state.warnings }
 }
 
 export function ValidationPanel(props: ValidationPanelProps): JSX.Element {

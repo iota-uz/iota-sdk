@@ -6,3 +6,4 @@ e2e/results/
 .shot.mjs
 .eval.mjs
 package-dist/
+fixture/public/

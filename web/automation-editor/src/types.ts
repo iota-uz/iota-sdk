@@ -139,6 +139,9 @@ export interface EditorProps {
   panels?: JSX.Element
   crumb?: JSX.Element; actions?: JSX.Element; banner?: JSX.Element
   locale: EditorLocale
+  /** The selected step, for a host that keeps it in the URL (D1); omitted → the editor's own state. */
+  selected?: string | null
+  onSelect?(id: string | null): void
 }
 
 export interface CanvasApi {

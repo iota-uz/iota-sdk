@@ -4,15 +4,14 @@
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry } from './geometry'
-import { connect, edgeKey, FIRED, findItem, IGNORE, itemOutcomes, parentOf, pathOf, removeItems } from './graph'
+import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
 import { Icon } from './icons'
 import { backEdges, ensureLayout } from './layout'
-import { describeItem } from './names'
+import { describeAll, type ItemName } from './names'
 import { strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { errorsByItem } from './validation'
 import {
-  createMinimap,
   createNodeDrag,
   createPanZoom,
   edgePath,
@@ -28,7 +27,7 @@ import {
   type PanZoom,
   type Viewport,
 } from './xy/adapter'
-import { FLOW_CLASS, handleAttributes, isPaneAt, NODE_CLASS, nodeIdAt, NODRAG, NOPAN, NOWHEEL, PANE_CLASS } from './xy/dom'
+import { FLOW_CLASS, HANDLE_CLASS, handleDataId, isPaneAt, NODE_CLASS, nodeIdAt, NODRAG, NOPAN, NOWHEEL, PANE_CLASS } from './xy/dom'
 
 let flowCounter = 0
 
@@ -37,6 +36,8 @@ const LONG_PRESS_SLOP = 10
 const HOVER_PATH_MS = 150
 
 type Box = { start: XY; end: XY }
+
+const EMPTY_GEOMETRY = cardGeometry([], true)
 
 function sameItem(a: CanvasItem | undefined, b: CanvasItem | undefined): boolean {
   if (a === b) return true
@@ -60,6 +61,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   let container: HTMLDivElement | undefined
   let viewportEl: HTMLDivElement | undefined
+  let gridEl: HTMLDivElement | undefined
+  let gridStep = 0
   let minimapEl: SVGSVGElement | undefined
   let panZoom: PanZoom | null = null
   const lookup = new NodeLookup()
@@ -74,7 +77,6 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [hovered, setHovered] = createSignal<string | null>(null)
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
-  const [mounted, setMounted] = createSignal(false)
 
   // ——— derived graph view ———
 
@@ -88,37 +90,117 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const graph = props.graph
     const map = new Map<string, CanvasItem>()
     const edgeIndex = new Map<string, string>()
-    for (const e of graph.edges) edgeIndex.set(edgeKey(e.from.node, e.from.outcome), e.to)
-    const add = (id: string, kind: 'trigger' | 'node', type: string) => {
-      const outs = itemOutcomes(graph, props.catalog, id).map((outcome) => {
+    const extra = new Map<string, string[]>()
+    for (const e of graph.edges) {
+      edgeIndex.set(edgeKey(e.from.node, e.from.outcome), e.to)
+      const list = extra.get(e.from.node)
+      if (list) list.push(e.from.outcome)
+      else extra.set(e.from.node, [e.from.outcome])
+    }
+    const specs = new Map(props.catalog.nodes.map((n) => [n.type, n]))
+    const errors = errorMap()
+    const states = props.overlay?.states
+    const add = (id: string, kind: 'trigger' | 'node', type: string, outcomes: string[]) => {
+      for (const outcome of extra.get(id) ?? []) if (!outcomes.includes(outcome)) outcomes.push(outcome)
+      const outs = outcomes.map((outcome) => {
         const to = edgeIndex.get(edgeKey(id, outcome)) ?? null
         return { outcome, to: to === IGNORE ? null : to, ignore: to === IGNORE }
       })
-      map.set(id, { id, kind, type, outs, state: props.overlay?.states.get(id), error: errorMap().get(id) })
+      map.set(id, { id, kind, type, outs, state: states?.get(id), error: errors.get(id) })
     }
-    for (const trigger of graph.triggers) add(trigger.id, 'trigger', trigger.event)
-    for (const node of graph.nodes) add(node.id, 'node', node.type)
+    for (const trigger of graph.triggers) add(trigger.id, 'trigger', trigger.event, [FIRED])
+    for (const node of graph.nodes) add(node.id, 'node', node.type, nodeOutcomes(node, specs.get(node.type)))
     return map
   })
+
+  const names = createMemo(() => describeAll(props.graph, props.catalog, props.locale ?? 'en'), undefined, {
+    equals: (a, b) => a.size === b.size && [...a].every(([id, n]) => {
+      const m = b.get(id)
+      return m !== undefined && m.title === n.title && m.subtitle === n.subtitle && m.icon === n.icon
+    }),
+  })
+  const nameOf = (id: string): ItemName => names().get(id) ?? { title: id, subtitle: '', kind: 'node' }
 
   const ids = createMemo<string[]>((previous) => {
     const next = [...itemMap().keys()]
     return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
   })
 
+  // The same outcomes give the same geometry object, so replacing the graph (undo) does not re-create
+  // the outcome chips of unchanged cards.
+  const geometryCache = new Map<string, CardGeometry>()
   const geometryMap = createMemo(() => {
     const map = new Map<string, CardGeometry>()
-    for (const [id, item] of itemMap()) map.set(id, cardGeometry(item.outs.map((o) => o.outcome), item.kind === 'node'))
+    for (const [id, item] of itemMap()) {
+      const key = `${item.kind}\u0000${item.outs.map((o) => o.outcome).join('\u0000')}`
+      let geometry = geometryCache.get(key)
+      if (!geometry) {
+        geometry = cardGeometry(item.outs.map((o) => o.outcome), item.kind === 'node')
+        if (geometryCache.size > 500) geometryCache.clear()
+        geometryCache.set(key, geometry)
+      }
+      map.set(id, geometry)
+    }
     return map
   })
 
   const back = createMemo(() => backEdges(props.graph))
 
-  const edgeList = createMemo<string[]>((previous) => {
+  // Edges are keyed by their source (one edge per node.outcome); the target is read reactively, so a
+  // rewired edge updates its path instead of being re-created.
+  const edgeTargets = createMemo(() => {
     const known = itemMap()
-    const next = props.graph.edges
-      .filter((e) => e.to !== IGNORE && known.has(e.from.node) && known.has(e.to))
-      .map((e) => `${edgeKey(e.from.node, e.from.outcome)}\u0000${e.to}`)
+    const map = new Map<string, string>()
+    for (const e of props.graph.edges) {
+      if (e.to !== IGNORE && known.has(e.from.node) && known.has(e.to)) map.set(edgeKey(e.from.node, e.from.outcome), e.to)
+    }
+    return map
+  })
+  const edgeList = createMemo<string[]>((previous) => {
+    const next = [...edgeTargets().keys()]
+    return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
+  })
+
+
+  // Only what is inside the viewport (plus a margin) is in the DOM, as xyflow's "only render visible
+  // elements": a 200-step graph costs the cards on screen, not all of them. Selected items stay mounted.
+  const VISIBLE_MARGIN = 160
+  // Before mount nothing is measured (and on the server nothing renders); a container without a size
+  // after mount (hidden, or jsdom) renders everything.
+  const [measured, setMeasured] = createSignal(false)
+  const visibleRect = createMemo(() => {
+    const { width, height } = size()
+    const vp = viewport()
+    if (!measured()) return { x: 0, y: 0, width: 0, height: 0 }
+    if (width === 0) return null
+    const margin = VISIBLE_MARGIN / vp.zoom
+    const a = toFlow({ x: 0, y: 0 }, vp)
+    return { x: a.x - margin, y: a.y - margin, width: width / vp.zoom + margin * 2, height: height / vp.zoom + margin * 2 }
+  }, null, { equals: (a, b) => a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height) })
+  const keep = (id: string) => props.selected === id || multi().has(id)
+  const visibleIds = createMemo<string[]>((previous) => {
+    const rect = visibleRect()
+    const geometries = geometryMap()
+    const next = rect === null ? ids() : ids().filter((id) => {
+      if (keep(id)) return true
+      const p = positions[id]
+      const g = geometries.get(id)
+      return p && g ? rectsOverlap(rect, { x: p.x, y: p.y, width: g.width, height: g.height + 24 }) : false
+    })
+    return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
+  })
+  const visibleEdges = createMemo<string[]>((previous) => {
+    const rect = visibleRect()
+    const targets = edgeTargets()
+    const next = rect === null ? edgeList() : edgeList().filter((source) => {
+      const node = source.slice(0, source.lastIndexOf('.'))
+      const p = positions[node]
+      const q = positions[targets.get(source) ?? '']
+      if (!p || !q) return false
+      const x = Math.min(p.x, q.x) - 64
+      const y = Math.min(p.y, q.y) - 64
+      return rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })
+    })
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
   })
 
@@ -212,10 +294,15 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const applyViewport = (vp: Viewport) => {
     setViewport(vp)
     if (viewportEl) viewportEl.style.transform = `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`
-    if (container) {
-      container.style.setProperty('--ae-grid', `${GRID * vp.zoom}px`)
-      container.style.setProperty('--ae-grid-x', `${vp.x}px`)
-      container.style.setProperty('--ae-grid-y', `${vp.y}px`)
+    // The dot grid is its own layer: a pan only translates it (compositing, no repaint); a zoom resizes it.
+    if (gridEl) {
+      const step = GRID * vp.zoom
+      if (gridStep !== step) {
+        gridStep = step
+        gridEl.style.backgroundSize = `${step}px ${step}px`
+      }
+      const mod = (v: number) => ((v % step) + step) % step
+      gridEl.style.transform = `translate(${mod(vp.x) - step}px, ${mod(vp.y) - step}px)`
     }
   }
 
@@ -243,6 +330,23 @@ export function Canvas(props: CanvasProps): JSX.Element {
     panZoom.set(viewportForBounds(b, width, height, 0.12), 0)
   }
 
+  // A small graph is fitted; a big one that would need a small zoom opens at its start (triggers) at
+  // 100 %, so the first paint costs the cards on screen.
+  const FIT_ITEMS = 40
+  const INITIAL_MIN_ZOOM = 1
+  const initialView = () => {
+    const b = bounds()
+    const { width, height } = size()
+    if (!b || !panZoom || width === 0) return
+    const fitted = viewportForBounds(b, width, height, 0.12)
+    if (fitted.zoom >= INITIAL_MIN_ZOOM || ids().length <= FIT_ITEMS) {
+      panZoom.set(fitted, 0)
+      return
+    }
+    const zoom = INITIAL_MIN_ZOOM
+    panZoom.set({ x: 48 - b.x * zoom, y: 48 - b.y * zoom, zoom }, 0)
+  }
+
   const center = (): XY => {
     const { width, height } = size()
     return toFlow({ x: width / 2, y: height / 2 }, viewport())
@@ -250,7 +354,17 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   const focusItem = (id: string) => {
     const element = nodeElements.get(id)
-    if (!element) return
+    if (!element) {
+      // Off screen, so not mounted: bring it into view, then focus it once it renders.
+      const p = positions[id]
+      const g = geometryMap().get(id)
+      const { width, height } = size()
+      if (!p || !g || !panZoom || width === 0) return
+      const vp = viewport()
+      panZoom.set({ x: width / 2 - (p.x + g.width / 2) * vp.zoom, y: height / 2 - (p.y + g.height / 2) * vp.zoom, zoom: vp.zoom })
+      queueMicrotask(() => nodeElements.get(id)?.focus({ preventScroll: true }))
+      return
+    }
     element.focus({ preventScroll: true })
     const p = positions[id]
     const g = geometryMap().get(id)
@@ -292,13 +406,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
     })
     resize.observe(container)
     setSize({ width: container.clientWidth, height: container.clientHeight })
-    fit()
+    initialView()
+    setMeasured(true)
     const onKey = (event: KeyboardEvent) => setAltSnapOff(event.altKey)
     const onPointer = (event: MouseEvent) => setAltSnapOff(event.altKey)
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('keyup', onKey, true)
     window.addEventListener('mousemove', onPointer, true)
-    setMounted(true)
     props.onReady?.(api)
     onCleanup(() => {
       resize.disconnect()
@@ -314,16 +428,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     panZoom?.update({ panOnDrag: true, selecting: Boolean(props.selecting) || box() !== null, connecting: connection() !== null })
   })
 
-  // Minimap and "Fit" keep working after edits (ED11).
-  createEffect(() => {
-    if (!mounted() || !props.minimap || !minimapEl || !panZoom) return
-    const map = createMinimap(minimapEl, panZoom, () => {
-      const b = bounds()
-      return b ? Math.max(b.width / 200, b.height / 140, 1) : 1
-    })
-    map.update(size().width, size().height)
-    onCleanup(() => map.destroy())
-  })
+  // Minimap (ED11): a press or drag on it centres the viewport on that point; it follows every edit.
+  const onMinimapPointer = (event: PointerEvent) => {
+    if (!minimapEl || !panZoom) return
+    if (event.type === 'pointerdown') {
+      event.stopPropagation()
+      minimapEl.setPointerCapture(event.pointerId)
+    } else if (!minimapEl.hasPointerCapture(event.pointerId)) {
+      return
+    }
+    const matrix = minimapEl.getScreenCTM()
+    if (!matrix) return
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse())
+    const vp = viewport()
+    const { width, height } = size()
+    panZoom.set({ x: width / 2 - point.x * vp.zoom, y: height / 2 - point.y * vp.zoom, zoom: vp.zoom })
+  }
 
   // ——— menus, long press, box selection ———
 
@@ -369,6 +489,17 @@ export function Canvas(props: CanvasProps): JSX.Element {
         timer: setTimeout(() => {
           setPress(null)
           longPress = null
+          // The finger lifting after a long press must not click the menu item that opened under it.
+          const swallow = (e: Event) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+          window.addEventListener('click', swallow, { capture: true, once: true })
+          window.addEventListener('touchend', swallow, { capture: true, once: true })
+          setTimeout(() => {
+            window.removeEventListener('click', swallow, { capture: true })
+            window.removeEventListener('touchend', swallow, { capture: true })
+          }, 800)
           openMenu(start.x, start.y, item)
         }, LONG_PRESS_MS),
       }
@@ -602,7 +733,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const connectionHint = createMemo(() => {
     const c = connection()
     if (!c) return null
-    const title = (id: string) => describeItem(props.graph, props.catalog, id, props.locale ?? 'en').title
+    const title = (id: string) => nameOf(id).title
     const from = `${title(c.fromNode)}.${c.fromHandle}`
     const target = c.overTarget && c.valid ? title(c.overTarget) : '…'
     const old = props.graph.edges.find((e) => e.from.node === c.fromNode && e.from.outcome === c.fromHandle)
@@ -620,52 +751,55 @@ export function Canvas(props: CanvasProps): JSX.Element {
     return coarse ? t().canvas.hintTouch : t().canvas.hintMouse
   }
 
-  const edgeView = (key: string) => {
-    const [source, to] = key.split('\u0000') as [string, string]
+  const edgeView = (source: string) => {
     const dot = source.lastIndexOf('.')
     const node = source.slice(0, dot)
     const outcome = source.slice(dot + 1)
+    const to = () => edgeTargets().get(source) ?? ''
+    const loop = () => back().has(`${node}->${to()}`)
     const path = createMemo(() => {
+      const target = to()
       const p = positions[node]
-      const q = positions[to]
+      const q = positions[target]
       const g = geometryMap().get(node)
       const slot = g?.outcomes.find((o) => o.outcome === outcome)
-      const target = geometryMap().get(to)?.target
-      if (!p || !q || !slot || !target) return ''
+      const handle = geometryMap().get(target)?.target
+      if (!p || !q || !slot || !handle) return ''
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
-      const b = { x: q.x + target.x, y: q.y + target.y }
-      return back().has(`${node}->${to}`) || b.x < a.x - GRID ? loopPath(a, b) : edgePath(a, b)
+      const b = { x: q.x + handle.x, y: q.y + handle.y }
+      return loop() || b.x < a.x - GRID ? loopPath(a, b) : edgePath(a, b)
     })
-    const taken = () => props.overlay?.taken.has(source) ?? false
-    const dim = () => {
+    const className = createMemo(() => {
+      let c = 'ae-edge'
+      const taken = props.overlay?.taken.has(source) ?? false
+      if (connectingKey() === source) c += ' ae-edge--hidden'
+      if (taken) c += ' ae-edge--taken'
+      if (loop()) c += ' ae-edge--loop'
       const h = highlight()
-      if (props.overlay) return !taken()
-      return h ? !h.edges.has(source) : false
-    }
-    return (
-      <path
-        class="ae-edge"
-        classList={{ 'ae-edge--hidden': connectingKey() === source, 'ae-edge--taken': taken(), 'ae-dim': dim(), 'ae-edge--loop': back().has(`${node}->${to}`) }}
-        d={path()}
-        data-edge={source}
-        data-to={to}
-      />
-    )
+      if (props.overlay ? !taken : h ? !h.edges.has(source) : false) c += ' ae-dim'
+      return c
+    })
+    return <path class={className()} d={path()} data-edge={source} data-to={to()} />
   }
 
   const NodeCard = (cardProps: { id: string }) => {
     const id = cardProps.id
     const item = createMemo(() => itemMap().get(id), undefined, { equals: sameItem }) as Accessor<CanvasItem>
-    const geometry = createMemo(() => geometryMap().get(id) ?? cardGeometry([], true))
-    const name = createMemo(() => describeItem(props.graph, props.catalog, id, props.locale ?? 'en'))
-    const position = () => positions[id] ?? { x: 0, y: 0 }
+    const geometry = createMemo(() => geometryMap().get(id) ?? EMPTY_GEOMETRY)
+    const name = createMemo(() => nameOf(id), undefined, { equals: (a, b) => a.title === b.title && a.subtitle === b.subtitle && a.icon === b.icon })
     const selected = createMemo(() => isSelected(id))
-    const dim = () => {
-      if (props.overlay) return !props.overlay.states.has(id)
+    const unavailable = createMemo(() => item()?.kind === 'node' && !props.catalog.nodes.some((n) => n.type === item()?.type))
+    const className = createMemo(() => {
+      const it = item()
+      let c = `${NODE_CLASS} ${NOPAN} ae-card`
+      if (it?.kind === 'trigger') c += ' ae-card--trigger'
+      if (selected()) c += ' ae-card--selected'
+      if (it?.error || unavailable()) c += ' ae-card--error'
+      if (it?.state) c += ` ae-card--${it.state}`
       const h = highlight()
-      return h ? !h.items.has(id) : false
-    }
-    const unavailable = () => item()?.kind === 'node' && !props.catalog.nodes.some((n) => n.type === item()?.type)
+      if (props.overlay ? !props.overlay.states.has(id) : h ? !h.items.has(id) : false) c += ' ae-dim'
+      return c
+    })
     let element: HTMLDivElement | undefined
     let drag: NodeDrag | null = null
 
@@ -680,28 +814,18 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (nodeElements.get(id) === element) nodeElements.delete(id)
     })
 
-    const outLabel = (out: CanvasItem['outs'][number]) => {
+    const outLabel = (out: CanvasItem['outs'][number] | undefined) => {
+      if (!out || (!out.to && !out.ignore)) return t().canvas.notConnected
       if (out.ignore) return t().canvas.ignored
-      if (!out.to) return t().canvas.notConnected
-      return describeItem(props.graph, props.catalog, out.to, props.locale ?? 'en').title
+      return nameOf(out.to!).title
     }
+    const icon = () => name().icon ?? (item()?.kind === 'trigger' ? 'event' : props.catalog.nodes.find((n) => n.type === item()?.type)?.behavior ?? 'node')
 
     return (
       <div
         ref={element}
-        class={`${NODE_CLASS} ${NOPAN} ae-card`}
-        classList={{
-          'ae-card--trigger': item()?.kind === 'trigger',
-          'ae-card--selected': selected(),
-          'ae-card--error': Boolean(item()?.error) || unavailable(),
-          'ae-dim': dim(),
-          [`ae-card--${item()?.state ?? 'idle'}`]: Boolean(item()?.state),
-        }}
-        style={{
-          transform: `translate(${position().x}px, ${position().y}px)`,
-          width: `${geometry().width}px`,
-          height: `${geometry().height}px`,
-        }}
+        class={className()}
+        style={`transform:translate(${positions[id]?.x ?? 0}px,${positions[id]?.y ?? 0}px);width:${geometry().width}px;height:${geometry().height}px`}
         data-id={id}
         role="group"
         tabindex="0"
@@ -729,9 +853,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <Show when={geometry().target}>
           {(target) => (
             <div
-              {...handleAttributes(flowId, id, TARGET_HANDLE, 'target', editable())}
-              class={`${handleAttributes(flowId, id, TARGET_HANDLE, 'target', editable()).class} ae-handle ae-handle--target`}
-              style={{ left: `${target().x}px`, top: `${target().y}px` }}
+              class={`${HANDLE_CLASS} target ${NOPAN} ${NODRAG} ae-handle ae-handle--target${editable() ? ' connectable connectableend' : ''}`}
+              data-id={handleDataId(flowId, id, TARGET_HANDLE, 'target')}
+              data-nodeid={id}
+              data-handleid={TARGET_HANDLE}
+              data-handlepos="left"
+              style={`left:${target().x}px;top:${target().y}px`}
               aria-hidden="true"
             />
           )}
@@ -739,7 +866,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <Show when={props.renderNode} fallback={
           <div class="ae-card__body">
             <div class="ae-card__head">
-              <span class="ae-card__icon"><Icon name={name().icon ?? (item()?.kind === 'trigger' ? 'event' : props.catalog.nodes.find((n) => n.type === item()?.type)?.behavior ?? 'node')} /></span>
+              <span class="ae-card__icon"><Icon name={icon()} /></span>
               <span class="ae-card__title" title={name().title}>{name().title}</span>
               <Show when={item()?.state}>
                 {(state) => (
@@ -764,42 +891,45 @@ export function Canvas(props: CanvasProps): JSX.Element {
         }>
           {(render) => <div class="ae-card__body">{render()(item)}</div>}
         </Show>
-        <div class="ae-card__outs">
-          <For each={geometry().outcomes}>
-            {(slot) => {
-              const out = () => item()?.outs.find((o) => o.outcome === slot.outcome)
-              const taken = () => props.overlay?.taken.has(edgeKey(id, slot.outcome)) ?? false
-              const attributes = () => handleAttributes(flowId, id, slot.outcome, 'source', editable())
-              return (
-                <>
-                  <span
-                    class="ae-out"
-                    classList={{ 'ae-out--open': !out()?.to && !out()?.ignore, 'ae-out--ignore': Boolean(out()?.ignore), 'ae-out--taken': taken() }}
-                    style={{ left: `${slot.x}px`, width: `${slot.width}px`, top: `${OUTCOME_ROW_Y}px` }}
-                    title={t().canvas.outcome(slot.outcome, out() ? outLabel(out()!) : '')}
-                  >
-                    {slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}
+        <For each={geometry().outcomes}>
+          {(slot) => {
+            // The outcome chip is the source handle itself: one element, its dot drawn by CSS at the
+            // declared handle position (bottom centre).
+            const out = () => item()?.outs.find((o) => o.outcome === slot.outcome)
+            const open = () => !out()?.to && !out()?.ignore
+            const chipClass = () => {
+              let c = `${HANDLE_CLASS} source ${NOPAN} ${NODRAG} ae-out`
+              if (editable()) c += ' connectable'
+              if (open()) c += ' ae-out--open'
+              if (out()?.ignore) c += ' ae-out--ignore'
+              if (props.overlay?.taken.has(edgeKey(id, slot.outcome))) c += ' ae-out--taken'
+              return c
+            }
+            return (
+              <>
+                <div
+                  class={chipClass()}
+                  data-id={handleDataId(flowId, id, slot.outcome, 'source')}
+                  data-nodeid={id}
+                  data-handleid={slot.outcome}
+                  data-handlepos="bottom"
+                  style={`left:${slot.x}px;width:${slot.width}px;top:${OUTCOME_ROW_Y}px`}
+                  title={t().canvas.outcome(slot.outcome, outLabel(out()))}
+                  aria-hidden="true"
+                  onMouseDown={(event) => onHandleDown(id, slot.outcome, event)}
+                  onTouchStart={(event) => onHandleDown(id, slot.outcome, event)}
+                >
+                  <span class="ae-out__label">{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
+                </div>
+                <Show when={!out()?.to}>
+                  <span class="ae-out-note" style={`left:${slot.handle.x}px;top:${slot.handle.y + 10}px`}>
+                    {out()?.ignore ? `× ${t().canvas.ignored}` : t().canvas.notConnected}
                   </span>
-                  <div
-                    {...attributes()}
-                    class={`${attributes().class} ae-handle ae-handle--source`}
-                    classList={{ 'ae-handle--open': !out()?.to && !out()?.ignore }}
-                    style={{ left: `${slot.handle.x}px`, top: `${slot.handle.y}px` }}
-                    role={editable() ? 'button' : undefined}
-                    aria-label={t().canvas.outcome(slot.outcome, out() ? outLabel(out()!) : '')}
-                    onMouseDown={(event) => onHandleDown(id, slot.outcome, event)}
-                    onTouchStart={(event) => onHandleDown(id, slot.outcome, event)}
-                  />
-                  <Show when={!out()?.to}>
-                    <span class={`ae-out-note ${NODRAG}`} style={{ left: `${slot.handle.x}px`, top: `${slot.handle.y + 10}px` }}>
-                      {out()?.ignore ? `× ${t().canvas.ignored}` : t().canvas.notConnected}
-                    </span>
-                  </Show>
-                </>
-              )
-            }}
-          </For>
-        </div>
+                </Show>
+              </>
+            )
+          }}
+        </For>
       </div>
     )
   }
@@ -820,6 +950,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     if (!b) return null
     const pad = 80
     return { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 }
+  })
+
+  // The minimap draws every card as one path (two with the selection): one element to restyle, not 200.
+  const minimapPaths = createMemo(() => {
+    const geometries = geometryMap()
+    let rest = ''
+    let selected = ''
+    for (const id of ids()) {
+      const p = positions[id]
+      const g = geometries.get(id)
+      if (!p || !g) continue
+      const rect = `M${p.x} ${p.y}h${g.width}v${g.height}h${-g.width}z`
+      if (isSelected(id)) selected += rect
+      else rest += rect
+    }
+    return { rest, selected }
   })
 
   const viewportRect = () => {
@@ -849,15 +995,16 @@ export function Canvas(props: CanvasProps): JSX.Element {
         openMenu(event.clientX, event.clientY, null, event)
       }}
     >
+      <div ref={gridEl} class="ae-grid" aria-hidden="true" />
       <div class={`${PANE_CLASS} ae-pane`} />
       <div ref={viewportEl} class="ae-viewport">
         <svg class="ae-edges" aria-hidden="true">
-          <For each={edgeList()}>{(key) => edgeView(key)}</For>
+          <For each={visibleEdges()}>{(key) => edgeView(key)}</For>
           <Show when={connection()}>
             <path class="ae-edge ae-edge--draft" classList={{ 'ae-edge--valid': connection()?.valid === true }} d={connectionPath()} />
           </Show>
         </svg>
-        <For each={ids()}>{(id) => <NodeCard id={id} />}</For>
+        <For each={visibleIds()}>{(id) => <NodeCard id={id} />}</For>
       </div>
       <Show when={boxRect()}>
         {(rect) => <div class="ae-box" style={{ left: `${rect().x}px`, top: `${rect().y}px`, width: `${rect().width}px`, height: `${rect().height}px` }} />}
@@ -884,15 +1031,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
           height="140"
           viewBox={minimapView() ? `${minimapView()!.x} ${minimapView()!.y} ${minimapView()!.width} ${minimapView()!.height}` : '0 0 200 140'}
           preserveAspectRatio="xMidYMid meet"
+          onPointerDown={onMinimapPointer}
+          onPointerMove={onMinimapPointer}
           role="img"
           aria-label={t().canvas.minimap}
         >
-          <For each={ids()}>
-            {(id) => {
-              const g = () => geometryMap().get(id)
-              return <rect class="ae-minimap__node" classList={{ 'ae-minimap__node--selected': isSelected(id) }} x={positions[id]?.x ?? 0} y={positions[id]?.y ?? 0} width={g()?.width ?? 0} height={g()?.height ?? 0} rx="8" />
-            }}
-          </For>
+          <path class="ae-minimap__node" d={minimapPaths().rest} />
+          <path class="ae-minimap__node ae-minimap__node--selected" d={minimapPaths().selected} />
           <rect class="ae-minimap__view" x={viewportRect().x} y={viewportRect().y} width={viewportRect().width} height={viewportRect().height} />
         </svg>
       </Show>

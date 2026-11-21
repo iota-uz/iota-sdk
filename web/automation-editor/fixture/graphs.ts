@@ -46,14 +46,14 @@ export const connected: AutomationGraph = {
 export const empty: AutomationGraph = { name: '', run_as: 'owner', triggers: [], nodes: [], edges: [] }
 
 /** 200 nodes and 500 edges for the benchmark: layered, every node a switch with up to 5 outcomes. */
-export function bench(nodes = 200, edges = 500): { graph: AutomationGraph; layout: AutomationLayout } {
+export function bench(nodes = 200, edges = 500, seed = 0): { graph: AutomationGraph; layout: AutomationLayout } {
   const graph: AutomationGraph = { name: 'Benchmark', run_as: 'owner', triggers: [{ id: 'start', event: 'core.user.created.v1' }], nodes: [], edges: [] }
   const layout: AutomationLayout = { start: { x: 0, y: 0 } }
   const perColumn = 10
   const outcomes = ['a', 'b', 'c']
   for (let i = 0; i < nodes; i += 1) {
-    graph.nodes.push({ id: `n${i}`, type: 'switch', params: { expression: 'event.kind', cases: outcomes.map((o) => ({ value: o, outcome: o })) } })
-    layout[`n${i}`] = { x: 352 + Math.floor(i / perColumn) * 352, y: (i % perColumn) * 144 }
+    graph.nodes.push({ id: `n${i}`, type: 'switch', params: { expression: seed ? 'event.kind + ""' : 'event.kind', cases: outcomes.map((o) => ({ value: o, outcome: o })) } })
+    layout[`n${i}`] = { x: 352 + Math.floor(i / perColumn) * 352, y: (i % perColumn) * 144 + seed * 16 }
   }
   graph.edges.push({ from: { node: 'start', outcome: 'fired' }, to: 'n0' })
   let made = 1
@@ -62,7 +62,7 @@ export function bench(nodes = 200, edges = 500): { graph: AutomationGraph; layou
   outer: for (let s = 0; s < slots.length; s += 1) {
     for (let i = 0; i < nodes; i += 1) {
       if (made >= edges) break outer
-      const target = Math.min(nodes - 1, i + 1 + ((i * 7 + s * 13) % 17))
+      const target = Math.min(nodes - 1, i + 1 + ((i * 7 + s * 13 + seed * 5) % 17))
       if (target === i) continue
       graph.edges.push({ from: { node: `n${i}`, outcome: slots[s]! }, to: `n${target}` })
       made += 1

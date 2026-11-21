@@ -41,3 +41,13 @@ export function localErrors(graph: AutomationGraph, known: (type: string) => boo
   })
   return out
 }
+
+export type ValidationState =
+  | { status: 'idle' }
+  | { status: 'checking'; errors: GraphError[]; warnings: GraphError[] }
+  | { status: 'done'; errors: GraphError[]; warnings: GraphError[] }
+  | { status: 'failed'; errors: GraphError[]; warnings: GraphError[] }
+
+export function issuesOf(state: ValidationState): { errors: GraphError[]; warnings: GraphError[] } {
+  return state.status === 'idle' ? { errors: [], warnings: [] } : { errors: state.errors, warnings: state.warnings }
+}

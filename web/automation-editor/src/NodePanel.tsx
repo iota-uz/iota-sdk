@@ -81,7 +81,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
   return (
     <aside class="ae-panel" role="complementary" aria-label={t().panel.label}>
       <header class="ae-panel__head">
-        <span class="ae-panel__icon"><Icon name={name().icon ?? (name().kind === 'trigger' ? 'event' : 'node')} /></span>
+        <span class="ae-panel__icon"><Icon name={name().icon ?? (name().kind === 'trigger' ? 'event' : catalogNode(props.catalog, (ref()?.item as { type?: string } | undefined)?.type ?? '')?.behavior ?? 'node')} /></span>
         <div class="ae-panel__titles">
           <h2 class="ae-panel__title" title={name().title}>{name().title}</h2>
           <p class="ae-panel__sub" title={name().subtitle}>{name().kind === 'trigger' ? t().canvas.trigger : catalogNode(props.catalog, (ref()?.item as { type?: string })?.type ?? '')?.description ?? ''}</p>

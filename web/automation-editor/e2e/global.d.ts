@@ -15,6 +15,7 @@ declare global {
       failNext(kind: string): void
       recover(kind: string): void
       setGraph?(graph: AutomationGraph): void
+      replace?(): number
     }
   }
 }

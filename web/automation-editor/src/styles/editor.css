@@ -24,11 +24,11 @@
   min-width: 0;
 }
 .ae-toolbar__path { display: flex; align-items: center; gap: 0.5rem; min-width: 0; flex: 1 1 auto; overflow: hidden; }
-.ae-toolbar__crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: oklch(var(--clr-text-200)); flex: 0 1 auto; }
+.ae-toolbar__crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: oklch(var(--clr-text-200)); flex: 0 100 auto; }
 .ae-toolbar__name {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-weight: 600; font-size: 1rem; border: 0; background: none; color: inherit; padding: 0.25rem 0.375rem;
-  border-radius: var(--radius, 0.5rem); cursor: pointer; flex: 0 1 auto;
+  border-radius: var(--radius, 0.5rem); cursor: pointer; flex: 0 1 auto; min-width: 5rem;
 }
 .ae-toolbar__name:disabled { cursor: default; }
 .ae-toolbar__tabs { display: flex; gap: 0.25rem; flex: none; }
@@ -105,19 +105,18 @@
 
 /* ——— canvas ——— */
 .ae-canvas {
-  --ae-grid: 16px;
-  --ae-grid-x: 0px;
-  --ae-grid-y: 0px;
   position: absolute; inset: 0; overflow: hidden; outline: none;
   background-color: oklch(var(--clr-canvas-bg));
-  background-image: radial-gradient(circle, oklch(var(--clr-canvas-dot)) 1px, oklch(var(--transparent)) 1.2px);
-  background-size: var(--ae-grid) var(--ae-grid);
-  background-position: var(--ae-grid-x) var(--ae-grid-y);
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
 .ae-pane { position: absolute; inset: 0; }
+.ae-grid {
+  position: absolute; left: 0; top: 0; right: -64px; bottom: -64px; pointer-events: none; will-change: transform;
+  background-image: radial-gradient(circle, oklch(var(--clr-canvas-dot)) 1px, oklch(var(--transparent)) 1.2px);
+  background-size: 16px 16px; background-position: 8px 8px;
+}
 .ae-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .ae-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
 .ae-edge { fill: none; stroke: oklch(var(--clr-canvas-edge)); stroke-width: 1.5; }
@@ -133,6 +132,8 @@
   border: 1px solid oklch(var(--clr-border-default)); border-radius: 12px;
   background: oklch(var(--clr-surface-300)); box-shadow: var(--shadow-200);
   cursor: grab; outline: none;
+  /* Fixed-size cards: their layout and style never leak out, so moving or replacing one is cheap. */
+  contain: layout style;
 }
 .ae-canvas--readonly .ae-card { cursor: pointer; }
 .ae-card--trigger { border-style: solid; border-left: 4px solid oklch(var(--clr-border-brand)); }
@@ -147,33 +148,37 @@
 .ae-card__icon { display: inline-flex; color: oklch(var(--clr-text-200)); }
 .ae-card__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ae-card__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: oklch(var(--clr-text-200)); font-variant-numeric: tabular-nums; }
-.ae-card__outs { position: absolute; inset: 0; pointer-events: none; }
 .ae-out {
   position: absolute; box-sizing: border-box; height: 24px; line-height: 22px; text-align: center;
   font-size: 0.75rem; border-radius: 9999px; border: 1px solid oklch(var(--clr-border-subtle));
-  background: oklch(var(--clr-surface-100)); color: oklch(var(--clr-text-200));
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 6px;
+  background: oklch(var(--clr-surface-100)); color: oklch(var(--clr-text-200)); padding: 0 6px;
 }
+.ae-out__label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The handle dot sits at the declared handle position: the card's bottom edge under the chip. */
+.ae-out::after {
+  content: ''; position: absolute; left: 50%; top: 30px; width: 12px; height: 12px; margin-left: -6px; box-sizing: border-box;
+  border-radius: 9999px; border: 2px solid oklch(var(--clr-canvas-edge)); background: oklch(var(--clr-surface-300));
+}
+/* A larger invisible hit area: ≥ 36 px for a cursor, ≥ 44 px for a finger (T1). */
+.ae-out::before { content: ''; position: absolute; inset: -6px -2px -14px; }
+@media (pointer: coarse) { .ae-out::before { inset: -10px -4px -20px; } }
+.ae-out.connectable { cursor: crosshair; }
 .ae-out--open { border-style: dashed; border-color: oklch(var(--clr-border-default)); }
-.ae-out--ignore { text-decoration: line-through; color: oklch(var(--clr-text-200)); }
+.ae-out--open::after { border-color: oklch(var(--clr-border-strong)); }
+.ae-out--ignore .ae-out__label { text-decoration: line-through; }
 .ae-out--taken { border-color: oklch(var(--clr-canvas-edge-active)); color: oklch(var(--clr-text-100)); }
+.ae-out--taken::after { border-color: oklch(var(--clr-canvas-edge-active)); }
+@media (hover: hover) { .ae-out.connectable:hover, .ae-out.connectable:hover::after { border-color: oklch(var(--clr-canvas-edge-active)); } }
 .ae-out-note {
   position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 0.6875rem;
-  color: oklch(var(--clr-text-300)); pointer-events: none;
+  color: oklch(var(--clr-text-200)); pointer-events: none;
 }
 .ae-handle {
   position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; box-sizing: border-box;
   border-radius: 9999px; border: 2px solid oklch(var(--clr-canvas-edge)); background: oklch(var(--clr-surface-300));
-  pointer-events: auto;
 }
-.ae-handle--source.connectable { cursor: crosshair; }
-.ae-handle--open { border-color: oklch(var(--clr-border-strong)); }
 .ae-handle--target { pointer-events: none; }
 .ae-canvas--connecting .ae-handle--target { pointer-events: auto; border-color: oklch(var(--clr-canvas-edge-active)); }
-/* A wider invisible hit area for fingers and the mouse: never smaller than 36 / 44 px. */
-.ae-handle--source::after { content: ''; position: absolute; inset: -12px; border-radius: 9999px; }
-@media (pointer: coarse) { .ae-handle--source::after { inset: -16px; } }
-@media (hover: hover) { .ae-handle--source.connectable:hover { border-color: oklch(var(--clr-canvas-edge-active)); } }
 
 .ae-state, .ae-badge {
   display: inline-flex; align-items: center; gap: 0.25rem; flex: none; font-size: 0.6875rem; line-height: 1;
@@ -348,7 +353,7 @@ body > .ae-menu, .ae-editor > .ae-menu { position: fixed; }
 
 /* ——— touch targets (T1) ——— */
 @media (pointer: coarse) {
-  .ae-btn, .ae-iconbtn, .ae-tab, .ae-menu__item, .ae-palette__item, .ae-issue, .ae-paths__row { min-height: 44px; }
+  .ae-btn, .ae-iconbtn, .ae-tab, .ae-menu__item, .ae-palette__item, .ae-issue, .ae-paths__row, .ae-toolbar__name, .ae-editor .ae-save { min-height: 44px; }
   .ae-iconbtn { width: 44px; }
 }
 

@@ -11,6 +11,10 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: process.env.CI ? [['list']] : [['line']],
+  snapshotPathTemplate: 'vr/baselines/{platform}/{arg}{ext}',
+  expect: {
+    toHaveScreenshot: { animations: 'disabled', caret: 'hide', scale: 'css', threshold: 0, maxDiffPixels: 0 },
+  },
   use: {
     baseURL,
     locale: 'en-US',
@@ -20,9 +24,14 @@ export default defineConfig({
   },
   projects: [
     { name: 'e2e', testMatch: /editor\.spec\.ts/, use: { browserName: 'chromium' } },
-    { name: 'touch', testMatch: /touch\.spec\.ts/, use: { browserName: 'chromium', hasTouch: true, viewport: { width: 1180, height: 820 } } },
+    { name: 'touch', testMatch: /touch\.spec\.ts/, use: { ...devices['iPad (gen 7) landscape'], browserName: 'chromium' } },
     { name: 'ipad', testMatch: /touch\.spec\.ts/, use: { ...devices['iPad (gen 7) landscape'], browserName: 'webkit' } },
     { name: 'bench', testMatch: /bench\.spec\.ts/, use: { browserName: 'chromium' } },
+    {
+      name: 'vr',
+      testMatch: /vr\.spec\.ts/,
+      use: { browserName: 'chromium', deviceScaleFactor: 1, launchOptions: { args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'] } },
+    },
   ],
   webServer: {
     command: 'node scripts/fixture-css.mjs && pnpm exec vite build && pnpm exec vite preview --port ' + port + ' --strictPort',

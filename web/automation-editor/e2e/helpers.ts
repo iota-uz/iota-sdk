@@ -19,9 +19,9 @@ export async function drag(page: Page, from: { x: number; y: number }, to: { x: 
   await page.mouse.up()
 }
 
-export async function open(page: Page, query = '') {
+export async function open(page: Page, query = '', ready = '.ae-canvas') {
   await page.goto(`/${query ? `?${query}` : ''}`)
-  await expect(page.locator('.ae-canvas')).toBeVisible()
+  await expect(page.locator(ready)).toBeVisible()
   await page.waitForFunction(() => document.documentElement.dataset.fixtureReady === 'true')
 }
 

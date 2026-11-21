@@ -15,13 +15,15 @@
   },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build:package": "vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && node scripts/package-css.mjs && node scripts/check-chunk.mjs && node scripts/ssr-smoke.mjs",
+    "build:package": "node scripts/ensure-solid-ui.mjs && vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && node scripts/prune-types.mjs && node scripts/package-css.mjs && node scripts/check-chunk.mjs && node scripts/ssr-smoke.mjs",
     "build:fixture": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test",
     "e2e": "playwright test --project=e2e",
-    "bench": "playwright test --project=bench"
+    "bench": "playwright test --project=bench",
+    "vr": "node scripts/vr.mjs",
+    "vr-update": "node scripts/vr.mjs --update"
   },
   "dependencies": {
     "@xyflow/system": "1.0.0",

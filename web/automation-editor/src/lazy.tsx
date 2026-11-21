@@ -8,14 +8,18 @@ import type { CanvasProps, EditorLocale, EditorProps } from './types'
 type Chunk = typeof import('./chunk')
 let chunk: Promise<Chunk> | null = null
 
-/** Starts loading the editor chunk (e.g. on hover of a link to the editor). */
-export function loadEditor(): Promise<Chunk> {
+function chunkPromise(): Promise<Chunk> {
   chunk ??= import('./chunk')
   return chunk
 }
 
-const LazyEditor = lazy(() => loadEditor().then((m) => ({ default: m.Editor })))
-const LazyCanvas = lazy(() => loadEditor().then((m) => ({ default: m.Canvas })))
+/** Starts loading the editor chunk (e.g. on hover of a link to the editor). */
+export function loadEditor(): Promise<void> {
+  return chunkPromise().then(() => undefined)
+}
+
+const LazyEditor = lazy(() => chunkPromise().then((m) => ({ default: m.Editor })))
+const LazyCanvas = lazy(() => chunkPromise().then((m) => ({ default: m.Canvas })))
 
 /** The loading state: a skeleton of the toolbar and the canvas with the real cards' size (S2). */
 export function EditorSkeleton(props: { locale?: EditorLocale }): JSX.Element {

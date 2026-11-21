@@ -9,12 +9,10 @@ import {
   Position,
   XYDrag,
   XYHandle,
-  XYMinimap,
   XYPanZoom,
   type HandleBounds,
   type InternalNodeBase,
   type NodeBase,
-  type PanZoomInstance,
   type Transform,
 } from '@xyflow/system'
 import type { XY } from '../types'
@@ -118,8 +116,6 @@ export type PanZoom = {
   scaleBy(factor: number): void
   scaleTo(zoom: number): void
   destroy(): void
-  /** For the minimap. */
-  readonly instance: PanZoomInstance
 }
 
 export function createPanZoom(domNode: Element, options: PanZoomOptions): PanZoom {
@@ -161,7 +157,6 @@ export function createPanZoom(domNode: Element, options: PanZoomOptions): PanZoo
     scaleBy: (factor) => void instance.scaleBy(factor, { duration: 150 }),
     scaleTo: (zoom) => void instance.scaleTo(zoom, { duration: 150 }),
     destroy: () => instance.destroy(),
-    instance,
   }
 }
 
@@ -335,27 +330,4 @@ export function toFlow(point: XY, viewport: Viewport): XY {
 
 export function toBox(flow: XY, viewport: Viewport): XY {
   return { x: flow.x * viewport.zoom + viewport.x, y: flow.y * viewport.zoom + viewport.y }
-}
-
-// ——— minimap ———
-
-export type Minimap = { update(width: number, height: number): void; destroy(): void }
-
-export function createMinimap(svg: SVGSVGElement, panZoom: PanZoom, viewScale: () => number): Minimap {
-  const map = XYMinimap({
-    domNode: svg,
-    panZoom: panZoom.instance,
-    getTransform: () => {
-      const vp = panZoom.get()
-      return [vp.x, vp.y, vp.zoom]
-    },
-    getViewScale: viewScale,
-  })
-  return {
-    update: (width, height) => map.update({
-      translateExtent: [[-Infinity, -Infinity], [Infinity, Infinity]],
-      width, height, pannable: true, zoomable: true, inversePan: false, zoomStep: 10,
-    }),
-    destroy: () => map.destroy(),
-  }
 }

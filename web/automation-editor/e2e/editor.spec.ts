@@ -240,7 +240,7 @@ test.describe('editor', () => {
 
   test('phones get the read-only outline (< 768 px)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await open(page, 'overlay=1').catch(() => undefined)
+    await open(page, 'overlay=1', '.ae-outline')
     await expect(page.locator('.ae-outline')).toBeVisible()
     await expect(page.getByText('Editing is available on a larger screen')).toBeVisible()
     await expect(page.locator('.ae-canvas')).toHaveCount(0)
