@@ -18,9 +18,10 @@ type afterCommitOwner struct {
 
 // WithAfterCommit declares that the owner of tx, which ctx carries, runs the
 // callbacks add receives after it commits tx and drops them when it rolls
-// back. InTx declares it for the transactions it begins; the other owners of a
-// transaction (the native dispatcher, the outbox dispatcher) declare it for
-// theirs.
+// back. InTx declares it for the transactions it begins; every other owner of
+// a transaction (the native dispatcher, the outbox dispatcher, the extension
+// host) declares it for theirs, and a test scope declares that it never
+// commits and runs the callbacks at once.
 func WithAfterCommit(ctx context.Context, tx pgx.Tx, add func(func())) context.Context {
 	return context.WithValue(ctx, constants.AfterCommitKey, &afterCommitOwner{tx: tx, add: add})
 }
@@ -28,35 +29,43 @@ func WithAfterCommit(ctx context.Context, tx pgx.Tx, add func(func())) context.C
 // AfterCommit runs fn once the transaction of ctx has committed, so a side
 // effect that must not outlive a rolled back change (an eventbus event, a
 // wake-up) is not sent for it. fn is dropped when the transaction rolls back.
-// Without a transaction in ctx, or when the owner of the transaction did not
-// declare itself (a test's rolled-back scope), the change has no later commit
-// to wait for and fn runs at once.
+//
+// A transaction whose owner did not declare itself (WithAfterCommit) offers no
+// commit to wait for and the owner may well roll it back, so fn is dropped:
+// nothing is delivered for a change in a transaction nobody answers for. Only
+// a context without any transaction has no later commit to wait for, and fn
+// runs at once.
 func AfterCommit(ctx context.Context, fn func()) {
 	if fn == nil {
 		return
 	}
-	if owner, ok := ctx.Value(constants.AfterCommitKey).(*afterCommitOwner); ok && owner != nil {
-		if tx, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok && tx == owner.tx {
-			owner.add(fn)
-			return
-		}
+	tx, hasTx := ctx.Value(constants.TxKey).(pgx.Tx)
+	if !hasTx || tx == nil {
+		fn()
+		return
 	}
-	fn()
+	if owner, ok := ctx.Value(constants.AfterCommitKey).(*afterCommitOwner); ok && owner != nil && owner.tx == tx {
+		owner.add(fn)
+	}
 }
 
-// commitCallbacks collects the callbacks of the transaction InTx owns.
-type commitCallbacks struct {
+// TxCallbacks collects the after-commit callbacks of a transaction its owner
+// commits itself: declare it with WithAfterCommit(ctx, tx, c.Add), then call
+// Run once the commit succeeded (and not at all after a rollback).
+type TxCallbacks struct {
 	mu  sync.Mutex
 	fns []func()
 }
 
-func (c *commitCallbacks) add(fn func()) {
+// Add keeps a callback for Run.
+func (c *TxCallbacks) Add(fn func()) {
 	c.mu.Lock()
 	c.fns = append(c.fns, fn)
 	c.mu.Unlock()
 }
 
-func (c *commitCallbacks) run() {
+// Run runs the kept callbacks in order, once.
+func (c *TxCallbacks) Run() {
 	c.mu.Lock()
 	fns := c.fns
 	c.fns = nil

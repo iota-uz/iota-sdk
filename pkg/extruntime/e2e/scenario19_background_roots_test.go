@@ -96,7 +96,7 @@ func TestScenario19NativeDefaultsFromBackgroundRoots(t *testing.T) {
 	require.Equal(t, "api", hist[0].Channel)
 	require.Equal(t, []string{"service", "extruntime:endpoint", itoa(gateway.id)},
 		[]string{hist[0].ActorKind, hist[0].ActorID, hist[0].Initiator}, "the runtime acted for the endpoint's owner")
-	require.Equal(t, int64(gateway.id), int64(e.scalarInt(
-		`SELECT initiator_user_id FROM extruntime.outbox_events WHERE event = 'crm.client.created.v1' AND subject_key = $1`, leadID)),
-		"the owner is the initiator of the event")
+	require.Equal(t, 1, e.scalarInt(
+		`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'crm.client.created.v1' AND subject_key = $1 AND initiator_user_id IS NULL`, leadID),
+		"the owner of an endpoint is the identity the job runs as, not the initiator of the event")
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -316,3 +317,57 @@ func TestChatEvents_ConcurrentAppendsPublishEachMessageOnce(t *testing.T) {
 		require.Equal(t, 1, n, "message %d is published once", id)
 	}
 }
+
+// Concurrent saves of one change publish one crm.client.updated.v1: the client
+// row is locked before the baseline of the diff is read, so every save after
+// the first finds nothing changed. It holds for ClientService.Update and for
+// the native upsert command.
+func TestClientServiceEvents_ConcurrentSavesOfOneChangePublishOnce(t *testing.T) {
+	e := newCRMEventEnv(t)
+	c := e.newClient(t, "+998903330071")
+	e.env.CommitTx(t)
+	detached := context.WithValue(context.WithValue(e.ctx(), constants.TxKey, nil), constants.AfterCommitKey, nil)
+	nativeCtx := composables.WithUser(composables.WithTenantID(composables.WithPool(context.Background(), e.env.Pool), e.env.TenantID()), e.env.User)
+	nativeCtx = itf.TestExecution(nativeCtx)
+	d := native.NewDirect(native.Bind(services.Contracts(), native.StaticDeps(e.clients)), native.WithAuthorizer(native.UserAuthorizer))
+	name := "Concurrent"
+	ref := services.ClientRef(c.ID())
+
+	for _, tc := range []struct {
+		name string
+		save func() error
+	}{
+		{"ClientService.Update", func() error {
+			return e.clients.Update(detached, c.SetName("Concurrent", "", "").SetComments("same change"))
+		}},
+		{"native upsert", func() error {
+			_, err := dispatch[services.SaveClientOutput](t, nativeCtx, d, services.SaveClient.ID(), services.SaveClientInput{Client: &ref, FirstName: &name, Address: ptr("same address")})
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(e.env.OutboxRows(t, e.env.TenantID(), services.ClientUpdatedEventID))
+			const saves = 8
+			var wg sync.WaitGroup
+			errs := make(chan error, saves)
+			start := make(chan struct{})
+			for i := 0; i < saves; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					errs <- tc.save()
+				}()
+			}
+			close(start)
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				require.NoError(t, err)
+			}
+			require.Len(t, e.env.OutboxRows(t, e.env.TenantID(), services.ClientUpdatedEventID), before+1, "the change is reported once")
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

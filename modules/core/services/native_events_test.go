@@ -414,3 +414,50 @@ func TestLegacyEvents_WaitForTheOwningTransaction(t *testing.T) {
 		})
 	}
 }
+
+// A transaction the caller begins itself delivers the eventbus events of the
+// services only through the owner it declares: without one nothing is sent (the
+// caller may roll back), with one they are sent when the caller commits.
+func TestLegacyEvents_ExternalTransactionOwner(t *testing.T) {
+	e := newEventEnv(t)
+	target := e.newUser(t, "External")
+	e.f.CommitTx(t)
+	bus, err := composition.Resolve[eventbus.EventBus](e.f.Container)
+	require.NoError(t, err)
+	var updated atomic.Int32
+	unsubscribe := bus.Subscribe(func(*user.UpdatedEvent) { updated.Add(1) })
+	defer unsubscribe()
+	base := context.WithValue(context.WithValue(e.ctx(), constants.TxKey, nil), constants.AfterCommitKey, nil)
+	rename := func(ctx context.Context) {
+		_, err := e.users.Update(ctx, target.SetName("External-"+uuid.NewString(), "Person", ""))
+		require.NoError(t, err)
+	}
+
+	t.Run("no declared owner", func(t *testing.T) {
+		updated.Store(0)
+		tx, err := e.f.Pool.Begin(context.Background())
+		require.NoError(t, err)
+		rename(composables.WithTx(base, tx))
+		require.NoError(t, tx.Rollback(context.Background()))
+		require.Zero(t, updated.Load(), "a change in a transaction nobody answers for sends no event, rolled back or not")
+	})
+
+	t.Run("declared owner", func(t *testing.T) {
+		updated.Store(0)
+		for _, commit := range []bool{false, true} {
+			tx, err := e.f.Pool.Begin(context.Background())
+			require.NoError(t, err)
+			callbacks := &composables.TxCallbacks{}
+			rename(composables.WithAfterCommit(composables.WithTx(base, tx), tx, callbacks.Add))
+			require.Zero(t, updated.Load(), "nothing is sent before the owner commits")
+			if !commit {
+				require.NoError(t, tx.Rollback(context.Background()))
+				require.Zero(t, updated.Load(), "a rolled back change sends no event")
+				continue
+			}
+			require.NoError(t, tx.Commit(context.Background()))
+			callbacks.Run()
+			require.EqualValues(t, 1, updated.Load(), "the owner runs the callbacks after its commit")
+		}
+	})
+}

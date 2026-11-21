@@ -28,7 +28,7 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 			// Add composables
 			ctx = composables.WithUser(ctx, u)
 			ctx = composables.WithPool(ctx, env.Pool)
-			ctx = composables.WithTx(ctx, env.Tx)
+			ctx = scopeTx(ctx, env.Tx)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)
 			ctx = history.WithExecution(ctx, history.Execution{Channel: businessevent.ChannelUI, OperationID: uuid.NewString()})
 			ctx = composables.WithSession(ctx, MockSession())

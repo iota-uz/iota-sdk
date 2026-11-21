@@ -1,6 +1,9 @@
 package modules_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -90,6 +93,7 @@ func TestNativeEventsCoverage(t *testing.T) {
 	require.NoError(t, err)
 	evs := set.Events()
 	require.NotEmpty(t, evs)
+	published := publishedEventVars(t)
 	for _, ev := range evs {
 		t.Run(ev.ID(), func(t *testing.T) {
 			require.True(t, native.ValidEventKey(ev.ID()), "the key follows %s", native.EventKeyPattern)
@@ -101,7 +105,7 @@ func TestNativeEventsCoverage(t *testing.T) {
 			}
 			cov, ok := eventCoverageByID[ev.ID()]
 			require.True(t, ok, "name the declaration and the publisher test of the event in eventCoverageByID")
-			require.True(t, publishedByProduction(t, cov.Var), "a service publishes %s with events.Publish/PublishInTx", cov.Var)
+			require.True(t, published[cov.Var], "a service passes %s to events.Publish/PublishInTx", cov.Var)
 			m := publisherTestRef.FindStringSubmatch(cov.Test)
 			require.NotNil(t, m, "eventCoverageByID entry %q is file_test.go:TestName", cov.Test)
 			src, err := os.ReadFile(filepath.FromSlash(m[1]))
@@ -117,30 +121,84 @@ func TestNativeEventsCoverage(t *testing.T) {
 	}
 }
 
-// publishedByProduction reports whether a non-test source file of the modules
-// passes the event variable to events.Publish / events.PublishInTx (directly or
-// through a local that is then published).
-func publishedByProduction(t *testing.T, eventVar string) bool {
+// publishedEventVars are the names of the event variables that reach the event
+// argument of a real events.Publish / events.PublishInTx call in the non-test
+// sources of the modules, directly or through a local variable assigned from
+// them. A name that is only declared, listed in Natives or assigned to a local
+// nothing publishes is not in the set.
+func publishedEventVars(t *testing.T) map[string]bool {
 	t.Helper()
-	use := regexp.MustCompile(`(Publish(InTx)?\(.*|=\s*)\b` + eventVar + `\b`)
-	found := false
+	published := map[string]bool{}
+	fset := token.NewFileSet()
 	require.NoError(t, filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || found || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		src, err := os.ReadFile(path)
+		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return err
 		}
-		for _, line := range strings.Split(string(src), "\n") {
-			if use.MatchString(line) {
-				found = true
-				break
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
 			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				// events.PublishInTx(ctx, tenant, ev, ...), events.Publish(ctx, tx, scope, ev, ...)
+				arg, isPublish := map[string]int{"PublishInTx": 2, "Publish": 3}[sel.Sel.Name]
+				pkg, isEvents := sel.X.(*ast.Ident)
+				if !isPublish || !isEvents || pkg.Name != "events" || len(call.Args) <= arg {
+					return true
+				}
+				for name := range resolveEventNames(fn.Body, call.Args[arg]) {
+					published[name] = true
+				}
+				return true
+			})
 		}
 		return nil
 	}))
-	return found
+	return published
+}
+
+// resolveEventNames are the identifiers expr can be: itself, or those the
+// local it names is assigned from in body.
+func resolveEventNames(body *ast.BlockStmt, expr ast.Expr) map[string]bool {
+	out := map[string]bool{}
+	var visit func(name string, seen map[string]bool)
+	visit = func(name string, seen map[string]bool) {
+		if seen[name] {
+			return
+		}
+		seen[name] = true
+		out[name] = true
+		ast.Inspect(body, func(n ast.Node) bool {
+			assign, ok := n.(*ast.AssignStmt)
+			if !ok || len(assign.Lhs) != len(assign.Rhs) {
+				return true
+			}
+			for i, lhs := range assign.Lhs {
+				if id, ok := lhs.(*ast.Ident); ok && id.Name == name {
+					if rhs, ok := assign.Rhs[i].(*ast.Ident); ok {
+						visit(rhs.Name, seen)
+					}
+				}
+			}
+			return true
+		})
+	}
+	if id, ok := expr.(*ast.Ident); ok {
+		visit(id.Name, map[string]bool{})
+	}
+	return out
 }
 
 // testBody is the source of the top-level test function name.

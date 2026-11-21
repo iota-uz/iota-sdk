@@ -70,13 +70,18 @@ func (s *PostgresStore) InTx(ctx context.Context, fn func(ctx context.Context) e
 	if err != nil {
 		return err
 	}
-	if err := fn(composables.WithTx(ctx, tx)); err != nil {
+	callbacks := &composables.TxCallbacks{}
+	if err := fn(composables.WithAfterCommit(composables.WithTx(ctx, tx), tx, callbacks.Add)); err != nil {
 		if rbErr := tx.Rollback(context.WithoutCancel(ctx)); rbErr != nil {
 			return errors.Join(err, rbErr)
 		}
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	callbacks.Run()
+	return nil
 }
 
 func (s *PostgresStore) SavePlan(ctx context.Context, p Plan) error {

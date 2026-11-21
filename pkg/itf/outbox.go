@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -154,4 +155,12 @@ func OutboxRowsIn(tb testing.TB, ctx context.Context, tenantID uuid.UUID, event 
 	}
 	require.NoError(tb, rows.Err())
 	return out
+}
+
+// scopeTx carries the rollback scope transaction of a test. The scope never
+// commits, so the owner it declares runs after-commit callbacks (the eventbus
+// events of the services under test) at once: a test observes them as it would
+// after the commit of a real request.
+func scopeTx(ctx context.Context, tx pgx.Tx) context.Context {
+	return composables.WithAfterCommit(composables.WithTx(ctx, tx), tx, func(fn func()) { fn() })
 }

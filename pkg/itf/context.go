@@ -162,7 +162,7 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 
 // WithTx returns a new context with the test transaction
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
-	return composables.WithTx(ctx, te.Tx)
+	return scopeTx(ctx, te.Tx)
 }
 
 // CommitTx commits the current scope transaction and replaces it with a fresh
@@ -220,7 +220,7 @@ func (te *TestEnvironment) beginScopeTx(tb testing.TB) {
 	}
 	tx = repo.NewGuardedTx(tx)
 	te.Tx = tx
-	te.Ctx = composables.WithTx(te.Ctx, tx)
+	te.Ctx = scopeTx(te.Ctx, tx)
 	tb.Cleanup(func() {
 		if err := tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			tb.Logf("warning: failed to roll back scope transaction: %v", err)

@@ -98,6 +98,11 @@ func (s *ClientService) create(txCtx context.Context, data client.Client) (clien
 func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 	var updatedClient client.Client
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The row is locked before the baseline of the diff is read: of two
+		// concurrent saves of one change only the first reports it.
+		if err := s.repo.LockByID(txCtx, data.ID()); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, data.ID())
 		if err != nil {
 			return err

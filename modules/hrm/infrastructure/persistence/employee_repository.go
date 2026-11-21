@@ -4,6 +4,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence/models"
@@ -137,6 +138,24 @@ func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]employee.Employe
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 	return g.queryEmployees(ctx, repo.Join(employeeFindQuery, "WHERE e.tenant_id = $1"), tenantID)
+}
+
+// LockByID implements employee.Repository.
+func (g *GormEmployeeRepository) LockByID(ctx context.Context, id uint) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get transaction: %w", err)
+	}
+	var locked uint
+	err = tx.QueryRow(ctx, "SELECT id FROM employees WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrEmployeeNotFound
+	}
+	return err
 }
 
 func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (employee.Employee, error) {

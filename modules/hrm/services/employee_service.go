@@ -77,6 +77,11 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 		return err
 	}
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// The row is locked before the baseline of the diff is read: of two
+		// concurrent saves of one change only the first reports it.
+		if err := s.repo.LockByID(txCtx, id); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, id)
 		if err != nil {
 			return err

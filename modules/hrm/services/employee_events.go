@@ -123,6 +123,21 @@ var employeeEntityFields = []struct{ snapshot, field string }{
 	{"first_name", "firstName"}, {"last_name", "lastName"}, {"middle_name", "middleName"},
 	{"email", "email"}, {"phone", "phone"}, {"hire_date", "hireDate"}, {"resignation_date", "resignationDate"},
 	{"birth_date", "birthDate"}, {"salary", "salary"}, {"tin", "tin"}, {"pin", "pin"},
+	{"primary_language", "primaryLanguage"}, {"secondary_language", "secondaryLanguage"},
+	{"notes", "notes"}, {"avatar_id", "avatarId"},
+}
+
+// employeeEventValues are the values a changed list compares: the history
+// snapshot plus the persisted fields it does not carry.
+func employeeEventValues(e employee.Employee) history.Snapshot {
+	values := employeeSnapshot(e)
+	values["primary_language"], values["secondary_language"] = "", ""
+	if lang := e.Language(); lang != nil {
+		values["primary_language"], values["secondary_language"] = lang.Primary(), lang.Secondary()
+	}
+	values["notes"] = e.Notes()
+	values["avatar_id"] = e.AvatarID()
+	return values
 }
 
 func employeeChangedFields(before, after history.Snapshot) []string {
@@ -156,7 +171,7 @@ func publishEmployeeCreated(ctx context.Context, created employee.Employee) erro
 // publishEmployeeUpdated enqueues hrm.employee.updated.v1 when the update
 // changed a field; an update that changed nothing publishes nothing.
 func publishEmployeeUpdated(ctx context.Context, before, after employee.Employee) error {
-	changed := employeeChangedFields(employeeSnapshot(before), employeeSnapshot(after))
+	changed := employeeChangedFields(employeeEventValues(before), employeeEventValues(after))
 	if len(changed) == 0 {
 		return nil
 	}

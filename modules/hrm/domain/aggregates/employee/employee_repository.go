@@ -23,6 +23,10 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Employee, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Employee, error)
 	GetByID(ctx context.Context, id uint) (Employee, error)
+	// LockByID locks the employee row of the current tenant until the
+	// transaction of ctx ends; an update takes it before it reads the state its
+	// change is measured against.
+	LockByID(ctx context.Context, id uint) error
 	Create(ctx context.Context, data Employee) (Employee, error)
 	Update(ctx context.Context, data Employee) error
 	Delete(ctx context.Context, id uint) error

@@ -160,10 +160,13 @@ type directTxState struct {
 // same hooks Tx.AfterCommit registers; one that came with the caller's context
 // keeps the owner the caller declared.
 func (s *directTxState) withTx(ctx context.Context) context.Context {
-	ctx = composables.WithTx(ctx, s.tx)
 	if s.external {
-		return ctx
+		if tx, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok && tx == s.tx {
+			return ctx // the caller's own context: its owner stays declared
+		}
+		return composables.WithTx(ctx, s.tx)
 	}
+	ctx = composables.WithTx(ctx, s.tx)
 	return composables.WithAfterCommit(ctx, s.tx, func(fn func()) {
 		s.mu.Lock()
 		s.hooks = append(s.hooks, func(context.Context) { fn() })

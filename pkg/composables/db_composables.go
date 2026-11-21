@@ -15,8 +15,12 @@ var (
 	ErrNoPool = errors.New("no database pool found in context")
 )
 
+// WithTx returns a context that carries tx. The owner of an earlier
+// transaction in ctx is dropped with it: whoever commits tx declares itself
+// with WithAfterCommit (InTx does for its own), and until then AfterCommit
+// callbacks of changes made in tx are not delivered.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
-	return context.WithValue(ctx, constants.TxKey, tx)
+	return context.WithValue(context.WithValue(ctx, constants.AfterCommitKey, nil), constants.TxKey, tx)
 }
 
 func UseTx(ctx context.Context) (repo.Tx, error) {
@@ -81,8 +85,8 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 		}
 	}()
 
-	callbacks := &commitCallbacks{}
-	if err := fn(WithAfterCommit(WithTx(ctx, tx), tx, callbacks.add)); err != nil {
+	callbacks := &TxCallbacks{}
+	if err := fn(WithAfterCommit(WithTx(ctx, tx), tx, callbacks.Add)); err != nil {
 		if rErr := tx.Rollback(ctx); rErr != nil {
 			return errors.Join(err, rErr)
 		}
@@ -91,6 +95,6 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	callbacks.run()
+	callbacks.Run()
 	return nil
 }

@@ -126,7 +126,12 @@ func (s *ClientService) upsert(ctx context.Context, tx native.Tx, in SaveClientI
 		if err != nil {
 			return SaveClientOutput{}, err
 		}
-		existing, err = s.repo.GetByID(ctx, id)
+		// Locked before it is read: of two concurrent saves of one change only
+		// the first reports it.
+		err = s.repo.LockByID(ctx, id)
+		if err == nil {
+			existing, err = s.repo.GetByID(ctx, id)
+		}
 		if serrors.CodeOf(err) == serrors.NotFound {
 			return SaveClientOutput{}, native.Validation(native.Issue{Code: IssueClientNotFound, Path: []string{"client"}})
 		}

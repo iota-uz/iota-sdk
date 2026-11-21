@@ -174,18 +174,23 @@ func clientUpdatedPayload(before, saved client.Client) ClientUpdatedPayload {
 
 // publishClientEvent enqueues crm.client.created.v1 (before == nil) or
 // crm.client.updated.v1 in tx, so the event commits or rolls back with the
-// client. An update that changed nothing publishes nothing. The initiator is
-// the user the invocation acts as (tx.Subject: the initiating user, or the
-// owner of a subscription, schedule or endpoint), the same subject
-// tx.Authorize checks, not the HTTP user of ctx, which a background root does
-// not have.
+// client. An update that changed nothing publishes nothing.
+//
+// The invocation subject (tx.Subject) authorizes the write; it is not the
+// event's attribution. The initiator is the user who acted: the initiating
+// user of a request, or the event initiator a subscription acts as. The owner
+// a schedule, an endpoint or a subscription without an initiator runs as is a
+// configured identity of a job context, and a job context has no initiator.
 func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.Client) error {
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 	acting := tx.Subject()
-	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, UserID: acting.UserID, Kind: acting.Kind}}
+	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, Kind: acting.Kind}}
+	if acting.Kind == spi.SubjectInitiator {
+		scope.Subject.UserID = acting.UserID
+	}
 	ref := ClientRef(saved.ID())
 	if before == nil {
 		_, err = events.Publish(ctx, tx.DB(), scope, ClientCreatedEvent, &ref, clientCreatedPayload(saved))
