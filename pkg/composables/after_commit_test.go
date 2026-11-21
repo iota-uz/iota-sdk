@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -33,4 +34,19 @@ func TestAfterCommit_WaitsForTheOwnerAndDropsOnRollback(t *testing.T) {
 	hooks.Discard()
 	hooks.Run(ctx)
 	require.Len(t, ran, 3)
+}
+
+type fakeTx struct{ pgx.Tx }
+
+func TestWithTx_KeepsTheHooksOfTheSameTransactionAndDropsThemForAnother(t *testing.T) {
+	tx, other := &fakeTx{}, &fakeTx{}
+	ctx, hooks := composables.WithCommitHooks(composables.WithTx(context.Background(), tx))
+	require.Same(t, hooks, composables.UseCommitHooks(ctx))
+
+	require.Same(t, hooks, composables.UseCommitHooks(composables.WithTx(ctx, tx)), "joining the same transaction keeps its hooks")
+	require.Nil(t, composables.UseCommitHooks(composables.WithTx(ctx, other)), "another transaction has its own outcome")
+
+	require.NoError(t, composables.RequireCommitHooks(ctx))
+	require.NoError(t, composables.RequireCommitHooks(context.Background()), "no transaction: the service opens its own")
+	require.ErrorIs(t, composables.RequireCommitHooks(composables.WithTx(ctx, other)), composables.ErrNoCommitHooks)
 }

@@ -302,7 +302,7 @@ func (h *harnessImpl) Scope(tb testing.TB) *Scope {
 		}
 		tx = repo.NewGuardedTx(tx)
 
-		scopeCtx := composables.WithTx(ctx, tx)
+		scopeCtx, _ := composables.WithCommitHooks(composables.WithTx(ctx, tx))
 		if err := applyTxSettings(scopeCtx, tx, h.cfg.Isolation.Tx); err != nil {
 			_ = tx.Rollback(scopeCtx)
 			tb.Fatalf("failed to apply rollback scope tx settings: %v", err)

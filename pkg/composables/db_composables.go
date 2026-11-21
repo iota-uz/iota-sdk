@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -15,15 +16,31 @@ var (
 	ErrNoPool = errors.New("no database pool found in context")
 )
 
-// WithTx returns a context that runs in tx. The commit hooks of an enclosing
-// transaction do not follow it (AfterCommit): tx has its own outcome, which
-// only its owner knows; the owner attaches hooks with WithCommitHooks.
+// WithTx returns a context that runs in tx. Joining the transaction ctx already
+// runs in keeps its commit hooks. A different transaction (a savepoint, a new
+// owner) has its own outcome, which only its owner knows, so the hooks of the
+// enclosing one do not follow it: the owner attaches its own with
+// WithCommitHooks.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
+	same := sameTx(ctx.Value(constants.TxKey), tx)
 	ctx = context.WithValue(ctx, constants.TxKey, tx)
-	if h, _ := ctx.Value(afterCommitKey{}).(*CommitHooks); h != nil {
+	if h, _ := ctx.Value(afterCommitKey{}).(*CommitHooks); h != nil && !same {
 		ctx = context.WithValue(ctx, afterCommitKey{}, (*CommitHooks)(nil))
 	}
 	return ctx
+}
+
+// sameTx reports whether current is the transaction tx. Transactions are
+// pointers; an incomparable dynamic type is never the same.
+func sameTx(current any, tx pgx.Tx) bool {
+	if current == nil || tx == nil {
+		return false
+	}
+	a, b := reflect.TypeOf(current), reflect.TypeOf(tx)
+	if a != b || !a.Comparable() {
+		return false
+	}
+	return current == any(tx)
 }
 
 func UseTx(ctx context.Context) (repo.Tx, error) {

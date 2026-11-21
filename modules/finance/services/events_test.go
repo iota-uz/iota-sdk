@@ -64,7 +64,8 @@ func commitsAndRollsBack(t *testing.T, ctx context.Context, tenantID uuid.UUID, 
 	require.NoError(t, err)
 	savepoint, err := tx.(pgx.Tx).Begin(ctx)
 	require.NoError(t, err)
-	spCtx := composables.WithTx(ctx, savepoint)
+	// The test owns the savepoint, so it owns its commit hooks too.
+	spCtx, _ := composables.WithCommitHooks(composables.WithTx(ctx, savepoint))
 	act(spCtx)
 	require.Len(t, outboxRows(t, spCtx, tenantID, event), before+1, "the event is in the transaction of the change")
 	require.NoError(t, savepoint.Rollback(ctx))

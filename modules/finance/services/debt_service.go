@@ -227,6 +227,9 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return nil, err
+	}
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -292,6 +295,9 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return nil, err
+	}
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -334,6 +340,9 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 // outstanding, so a cancelled payable debt stops reserving money.
 func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, error) {
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
 		return nil, err
 	}
 

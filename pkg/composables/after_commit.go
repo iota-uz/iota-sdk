@@ -28,6 +28,13 @@ func WithCommitHooks(ctx context.Context) (context.Context, *CommitHooks) {
 	return context.WithValue(ctx, afterCommitKey{}, h), h
 }
 
+// UseCommitHooks returns the commit hooks ctx registers its AfterCommit
+// callbacks with, or nil when its transaction has none.
+func UseCommitHooks(ctx context.Context) *CommitHooks {
+	h, _ := ctx.Value(afterCommitKey{}).(*CommitHooks)
+	return h
+}
+
 // Attach returns ctx with h as the collector of its AfterCommit callbacks: a
 // nested call whose context was derived before the transaction's own context
 // joins the same transaction's hooks.
@@ -92,6 +99,26 @@ func AfterCommit(ctx context.Context, fn func(context.Context)) {
 		return
 	}
 	runHook(ctx, fn)
+}
+
+// ErrNoCommitHooks means ctx runs in a transaction whose owner offers no commit
+// hooks, so a change announced after commit would never be announced.
+var ErrNoCommitHooks = errors.New("composables: the transaction of the context has no commit hooks (its owner must attach them with WithCommitHooks)")
+
+// RequireCommitHooks is called by a service that promises an announcement after
+// commit, before it changes anything: it fails when ctx runs in a transaction
+// without hooks (a transaction opened with the pool and handed over with WithTx,
+// a savepoint begun by hand), where AfterCommit could not keep the promise, and
+// succeeds when the service owns the transaction (InTx opens it with hooks) or
+// joins one that has them.
+func RequireCommitHooks(ctx context.Context) error {
+	if h, ok := ctx.Value(afterCommitKey{}).(*CommitHooks); ok && h != nil {
+		return nil
+	}
+	if ctx.Value(constants.TxKey) != nil {
+		return ErrNoCommitHooks
+	}
+	return nil
 }
 
 // InSavepoint runs fn in a savepoint of the transaction held by ctx. The

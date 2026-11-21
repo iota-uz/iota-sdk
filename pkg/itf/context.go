@@ -162,7 +162,13 @@ func (te *TestEnvironment) TenantID() uuid.UUID {
 
 // WithTx returns a new context with the test transaction
 func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
-	return composables.WithTx(ctx, te.Tx)
+	ctx = composables.WithTx(ctx, te.Tx)
+	// The scope transaction owns the commit hooks of the environment; CommitTx
+	// runs them.
+	if hooks := composables.UseCommitHooks(te.Ctx); hooks != nil {
+		ctx = hooks.Attach(ctx)
+	}
+	return ctx
 }
 
 // CommitTx commits the current scope transaction and replaces it with a fresh
@@ -182,8 +188,14 @@ func (te *TestEnvironment) CommitTx(tb testing.TB) {
 	if te.Tx == nil {
 		tb.Fatal("CommitTx: environment has no scope transaction")
 	}
+	hooks := composables.UseCommitHooks(te.Ctx)
 	if err := te.Tx.Commit(te.Ctx); err != nil {
 		tb.Fatalf("CommitTx: failed to commit scope transaction (already closed?): %v", err)
+	}
+	// What services registered with composables.AfterCommit runs now that the
+	// transaction committed.
+	if hooks != nil {
+		hooks.Run(te.Ctx)
 	}
 	te.beginScopeTx(tb)
 }
@@ -220,7 +232,7 @@ func (te *TestEnvironment) beginScopeTx(tb testing.TB) {
 	}
 	tx = repo.NewGuardedTx(tx)
 	te.Tx = tx
-	te.Ctx = composables.WithTx(te.Ctx, tx)
+	te.Ctx, _ = composables.WithCommitHooks(composables.WithTx(te.Ctx, tx))
 	tb.Cleanup(func() {
 		if err := tx.Rollback(te.Ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			tb.Logf("warning: failed to roll back scope transaction: %v", err)

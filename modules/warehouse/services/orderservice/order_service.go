@@ -63,6 +63,9 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.OrderCreate); err != nil {
 		return err
 	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return err
+	}
 	entity, err := data.ToEntity()
 	if err != nil {
 		return err
@@ -90,6 +93,9 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 	//if err := composables.CanUser(ctx, permissions.OrderComplete); err != nil {
 	//	return err
 	//}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return nil, err
+	}
 	var completedEntity order.Order
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		// The order is read under its row lock: of two concurrent completions
