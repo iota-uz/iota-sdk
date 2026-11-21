@@ -129,7 +129,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(p.name)) return { ok: false, error: 'invalid_input', fields: { name: 'name' } }
       if (c.connections.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
-      if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth', message: `HTTP 401 Unauthorized {"ok":false,"description":"token rejected"}` }
+      if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const created = conn(c.kind, p.name, p.display_name || p.name, { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz' })
@@ -163,7 +163,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       if (p.version !== f.connection.version) return { ok: false, error: 'version_conflict' }
-      if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', reason: 'auth', message: 'HTTP 401 Unauthorized' }
+      if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', reason: 'auth' }
       Object.assign(f.connection, { display_name: p.display_name ?? f.connection.display_name, version: f.connection.version + 1 })
       if (p.credentials && f.connection.status !== 'disabled') Object.assign(f.connection, { status: 'connected', status_reason: null })
       if (key) keys.set(key, f.connection)
@@ -175,7 +175,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const f = find(p.id)
       if (!f) return notFound()
       if (f.connection.status === 'needs_reauth') return { ok: false, error: 'needs_reauth', reason: 'reauth' }
-      if (f.connection.status === 'error') return { ok: false, reason: 'auth', message: 'HTTP 401 Unauthorized: {"ok":false,"error_code":401}' }
+      if (f.connection.status === 'error') return { ok: false, reason: 'auth' }
       return { ok: true, identity: f.connection.identity ?? '' }
     },
     'automations.connections.set_disabled': (p: { id: string; disabled: boolean }) => {

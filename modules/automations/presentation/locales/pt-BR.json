@@ -216,10 +216,6 @@
           "Text": "o serviço recusou a conexão",
           "Fix": "Verifique os valores; se repetir, abra a resposta do serviço abaixo."
         }
-      },
-      "Diagnostics": {
-        "Show": "Mostrar a resposta do serviço",
-        "Hide": "Ocultar a resposta do serviço"
       }
     }
   }

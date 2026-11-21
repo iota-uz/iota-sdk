@@ -46,3 +46,22 @@ func TestEmbeddedBundleServesAStampedRelease(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, current.Manifest.Validate())
 }
+
+// The bundle's utilities load after the application's stylesheet in the same cascade layer: unscoped,
+// they override the layout (an app page lost its sidebar). They apply only inside the client route.
+func TestBundleUtilitiesAreScopedToTheClientRoute(t *testing.T) {
+	t.Parallel()
+	files, err := bundleFiles()
+	require.NoError(t, err)
+	b, err := bundleFor(files, "9.9.9")
+	require.NoError(t, err)
+	require.NotEmpty(t, b.Manifest.Styles)
+	for _, s := range b.Manifest.Styles {
+		rec := httptest.NewRecorder()
+		b.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, s, nil))
+		require.Equal(t, http.StatusOK, rec.Code)
+		css := rec.Body.String()
+		assert.Contains(t, css, "@layer utilities{:is(#iota-client-route,#iota-client-route-portals){")
+		assert.Equal(t, 1, strings.Count(css, "@layer utilities{"), "a single, scoped utilities layer")
+	}
+}

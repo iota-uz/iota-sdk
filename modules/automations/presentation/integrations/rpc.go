@@ -218,7 +218,7 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 	case errors.As(err, &invalid):
 		return SaveResponse{Error: ErrInvalidInput, Fields: invalid.Fields}, nil
 	case errors.As(err, &failed):
-		return SaveResponse{Error: ErrTestFailed, Reason: Reason(failed.Reason), Message: failed.Detail}, nil
+		return SaveResponse{Error: ErrTestFailed, Reason: Reason(failed.Reason)}, nil
 	case errors.Is(err, connectors.ErrNameTaken):
 		return SaveResponse{Error: ErrNameTaken, Fields: map[string]string{"name": "taken"}}, nil
 	case errors.Is(err, connectors.ErrVersionConflict):
@@ -271,7 +271,7 @@ func (c *Controller) test(ctx context.Context, req IDRequest) (TestResponse, err
 	if res.NeedsReauth {
 		return TestResponse{Error: ErrNeedsReauth, Reason: ReasonReauth}, nil
 	}
-	return TestResponse{OK: res.OK, Identity: res.Identity, Reason: Reason(res.Reason), Message: res.Detail}, nil
+	return TestResponse{OK: res.OK, Identity: res.Identity, Reason: Reason(res.Reason)}, nil
 }
 
 func (c *Controller) setDisabled(ctx context.Context, req SetDisabledRequest) (ConnectionResponse, error) {

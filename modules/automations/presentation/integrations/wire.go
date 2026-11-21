@@ -172,14 +172,11 @@ type UpdateRequest struct {
 
 // SaveResponse is the result of create and update: ok with the connection, or the refusal.
 type SaveResponse struct {
-	OK         bool            `json:"ok"`
-	Connection *ConnectionView `json:"connection,omitempty"`
-	Error      ErrorCode       `json:"error,omitempty"`
-	Reason     Reason          `json:"reason,omitempty"`
-	// Message is the service's own answer (credential values masked), shown only under «Show the
-	// service's answer»; empty when it cannot be shown safely.
-	Message string            `json:"message,omitempty"`
-	Fields  map[string]string `json:"fields,omitempty"`
+	OK         bool              `json:"ok"`
+	Connection *ConnectionView   `json:"connection,omitempty"`
+	Error      ErrorCode         `json:"error,omitempty"`
+	Reason     Reason            `json:"reason,omitempty"`
+	Fields     map[string]string `json:"fields,omitempty"`
 }
 
 // OAuthStartRequest begins an OAuth2 authorization; ConnectionID re-authorizes that connection.
@@ -200,7 +197,6 @@ type TestResponse struct {
 	OK       bool      `json:"ok"`
 	Identity string    `json:"identity,omitempty"`
 	Reason   Reason    `json:"reason,omitempty"`
-	Message  string    `json:"message,omitempty"`
 	Error    ErrorCode `json:"error,omitempty"`
 }
 

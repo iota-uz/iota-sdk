@@ -23,6 +23,26 @@ function run(cmd, args) {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
+// The bundle's utilities sit in the same cascade layer as the application's stylesheet and load after
+// it, so an unscoped `.hidden` would beat the layout's `lg:flex` (the sidebar disappeared). They are
+// nested under the client route's mount and portals, so they apply to the screen and nothing else.
+const SCOPE = ':is(#iota-client-route,#iota-client-route-portals)'
+function scopeUtilities(file) {
+  const css = readFileSync(file, 'utf8')
+  const open = '@layer utilities{'
+  const start = css.indexOf(open)
+  if (start < 0) throw new Error('no utilities layer in the bundle stylesheet')
+  let depth = 1
+  let i = start + open.length
+  for (; i < css.length && depth > 0; i++) {
+    if (css[i] === '{') depth++
+    else if (css[i] === '}') depth--
+  }
+  const end = i - 1 // the brace closing the layer
+  const body = css.slice(start + open.length, end)
+  writeFileSync(file, css.slice(0, start) + open + SCOPE + '{' + body + '}' + css.slice(end))
+}
+
 function files(dir, base = dir) {
   return readdirSync(dir).flatMap((name) => {
     const p = path.join(dir, name)
@@ -35,6 +55,7 @@ const out = mkdtempSync(path.resolve(web, '../.dist-build-'))
 process.on('exit', () => rmSync(out, { recursive: true, force: true }))
 
 run(path.join(web, 'node_modules/.bin/tailwindcss'), ['--input', 'bundle/bundle.css', '--output', 'bundle/bundle.generated.css', '--minify'])
+scopeUtilities(path.join(web, 'bundle/bundle.generated.css'))
 run(path.join(web, 'node_modules/.bin/vite'), ['build', '--config', 'vite.bundle.config.ts', '--outDir', out, '--emptyOutDir'])
 
 const manifest = JSON.parse(readFileSync(path.join(out, '.vite/manifest.json'), 'utf8'))

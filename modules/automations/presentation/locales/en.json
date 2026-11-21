@@ -216,10 +216,6 @@
           "Text": "the service refused the connection",
           "Fix": "Check the values; if it repeats, open the service’s answer below."
         }
-      },
-      "Diagnostics": {
-        "Show": "Show the service’s answer",
-        "Hide": "Hide the service’s answer"
       }
     }
   }

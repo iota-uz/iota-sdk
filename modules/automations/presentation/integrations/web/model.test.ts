@@ -81,7 +81,7 @@ describe('model', () => {
 
   it('explains refusals in words and reads RPC error codes', () => {
     const tr = translator((k) => ({ ...messages, [MSG + 'Reasons.auth.Text']: 'the key was refused', [MSG + 'Reasons.auth.Fix']: 'Replace it.' })[k] ?? k)
-    expect(saveErrorText(tr, { ok: false, error: 'test_failed', reason: 'auth', message: '<html>401 token=abc</html>' })).toBe('Refused: the key was refused. Replace it.')
+    expect(saveErrorText(tr, { ok: false, error: 'test_failed', reason: 'auth' })).toBe('Refused: the key was refused. Replace it.')
     expect(reasonText(tr, 'not-a-reason')).toContain('Reasons.unknown')
     expect(oauthErrorText(tr, 'weird')).toBe('OAuth.exchange')
     expect(saveErrorText(t, { ok: false })).toBe('Could not save.')

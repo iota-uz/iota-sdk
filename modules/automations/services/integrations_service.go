@@ -114,11 +114,10 @@ func (e *InvalidInputError) Error() string {
 	return "automations: invalid input: " + strings.Join(names, ", ")
 }
 
-// TestFailedError is a refusal of the provider: its category and the provider's text prepared for the
-// page's «service answer» disclosure (credential values masked; empty when that is not safe).
+// TestFailedError is a refusal of the provider, by category. The provider's own text is not kept:
+// it may carry the credentials in a form no mask anticipates.
 type TestFailedError struct {
 	Reason Reason
-	Detail string
 }
 
 func (e *TestFailedError) Error() string {
@@ -554,7 +553,6 @@ type TestResult struct {
 	OK       bool
 	Identity string
 	Reason   Reason
-	Detail   string
 	// NeedsReauth: the provider refused the OAuth2 refresh; the user must sign in again.
 	NeedsReauth bool
 }
@@ -594,7 +592,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 	}
 	s.touch(ctx, a.TenantID, id)
 	if failed != nil {
-		return TestResult{OK: false, Reason: failed.Reason, Detail: failed.Detail}, nil //nolint:nilerr // a refusal of the provider is the check's result, recorded in the status
+		return TestResult{OK: false, Reason: failed.Reason}, nil //nolint:nilerr // a refusal of the provider is the check's result, recorded in the status
 	}
 	return TestResult{OK: true, Identity: identity.Display}, nil
 }
@@ -769,7 +767,7 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	}
 	// The connector's Test produced the identity from the new token: it is stored and listed, so it is
 	// sanitized against the token set before either write (every field of a token set is secret).
-	grant.Identity = sanitizeIdentity(grant.Identity, func(string) bool { return true }, grant.Credentials)
+	grant.Identity = validIdentity(grant.Identity, func(string) bool { return true }, grant.Credentials)
 	var saved connectors.Connection
 	if pending.ConnectionID != uuid.Nil {
 		cur, _, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
@@ -884,20 +882,20 @@ func (s *IntegrationsService) touch(ctx context.Context, tenantID, id uuid.UUID)
 	}
 }
 
-// test runs Connector.Test. A refusal is a *TestFailedError with its category; the identity and the
-// detail are sanitized against creds and extra (the stored credentials of an update).
+// test runs Connector.Test. A refusal is a *TestFailedError with its category only; the identity is
+// validated against creds and extra (the stored credentials of an update) before anything keeps it.
 func (s *IntegrationsService) test(ctx context.Context, conn connectors.Connector, creds connectors.Credentials, extra ...connectors.Credentials) (connectors.Identity, error) {
 	all := append([]connectors.Credentials{creds}, extra...)
 	secret := secretsOf(conn.Descriptor())
 	identity, err := conn.Test(ctx, creds)
 	if err == nil {
-		return sanitizeIdentity(identity, secret, all...), nil
+		return validIdentity(identity, secret, all...), nil
 	}
 	if ctx.Err() != nil {
 		return connectors.Identity{}, ctx.Err()
 	}
 	msg := err.Error()
-	return connectors.Identity{}, &TestFailedError{Reason: classify(msg), Detail: detail(msg, secret, all...)}
+	return connectors.Identity{}, &TestFailedError{Reason: classify(msg)}
 }
 
 // toCredentials converts JSON values of a form to credential strings; a nested value is invalid.

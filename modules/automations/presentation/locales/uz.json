@@ -216,10 +216,6 @@
           "Text": "xizmat ulanishni qabul qilmadi",
           "Fix": "Qiymatlarni tekshiring; takrorlansa, quyida xizmat javobini oching."
         }
-      },
-      "Diagnostics": {
-        "Show": "Xizmat javobini koʻrsatish",
-        "Hide": "Xizmat javobini yashirish"
       }
     }
   }

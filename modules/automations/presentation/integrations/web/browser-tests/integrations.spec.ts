@@ -83,11 +83,9 @@ test('IN2/IN3: a refused test keeps the form and its values; save is one request
   await page.keyboard.press('Escape')
   await expect(form).toBeVisible()
   await expect(form.getByTestId('form-error')).toHaveText('The service refused the connection: the service did not accept the credentials. Check the key or the password, or issue a new one in the service, and replace it.')
-  // C1/C2: the provider's own text only under the disclosure.
+  // C1/C2: a phrase and a fix, never the provider's text (none reaches the page).
   await expect(form.getByTestId('form-error')).not.toContainText('401')
-  await expect(form.getByTestId('service-answer').locator('pre')).toBeHidden()
-  await form.getByText("Show the service’s answer").click()
-  await expect(form.getByTestId('service-answer').locator('pre')).toContainText('HTTP 401 Unauthorized')
+  await expect(page.getByTestId('service-answer')).toHaveCount(0)
   expect(await callsOf(page, 'connections.create')).toHaveLength(1)
   await expect(token).toHaveValue('bad')
 

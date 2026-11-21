@@ -31,7 +31,7 @@ interface Ctx {
   setCheck: (id: string, s: CheckState | undefined) => void
 }
 
-interface CheckState { running: boolean; slow?: boolean; ok?: boolean; text?: string; detail?: string; retry?: boolean }
+interface CheckState { running: boolean; slow?: boolean; ok?: boolean; text?: string; retry?: boolean }
 
 /** The result of an OAuth2 return the form shows: an error code or the connection it saved. */
 interface OAuthReturn { error?: string; connectedId?: string }
@@ -250,16 +250,6 @@ function Spinner() {
   )
 }
 
-/** The service's own answer (credentials masked) behind a disclosure: never the message itself (C2). */
-function ServiceAnswer(props: { t: Translator; text: string }) {
-  return (
-    <details class="text-xs text-200" data-testid="service-answer">
-      <summary class="cursor-pointer select-none">{props.t('Diagnostics.Show')}</summary>
-      <pre class="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-subtle p-2 font-mono">{props.text}</pre>
-    </details>
-  )
-}
-
 function CardsSkeleton() {
   return (
     <div class="flex flex-col gap-3" aria-busy="true" data-testid="integrations-loading">
@@ -401,7 +391,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
       const r = await props.ctx.call('automations.connections.test', { id })
       if (r.ok) done({ ok: true, text: r.identity ? t('Test.Connected', { identity: r.identity }) : t('Test.ConnectedPlain') })
       else if (r.error === 'needs_reauth') done({ ok: false, text: t('Test.Reauth') })
-      else done({ ok: false, text: t('Test.Failed', { message: reasonText(t, r.reason) }), ...(r.message ? { detail: r.message } : {}) })
+      else done({ ok: false, text: t('Test.Failed', { message: reasonText(t, r.reason) }) })
       props.ctx.refetch()
     } catch (e) {
       console.warn('automations: test failed', errorCode(e))
@@ -468,7 +458,6 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
             <Show when={st().retry}>
               <div><Button size="sm" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void runTest()} data-testid="test-retry">{t('Retry')}</Button></div>
             </Show>
-            <Show when={st().detail}>{(d) => <ServiceAnswer t={t} text={d()} />}</Show>
           </>
         )}</Show>
       </div>
@@ -493,7 +482,6 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   // server answers with what the first request did instead of doing it twice (F3).
   const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
   const [retry, setRetry] = createSignal(false)
-  const [answer, setAnswer] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
   const [busy, setBusy] = createSignal(false)
@@ -509,7 +497,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
   const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
 
-  const begin = () => { setBusy(true); setSlow(false); setError(undefined); setRetry(false); setAnswer(undefined); slowTimer = setTimeout(() => setSlow(true), 4000) }
+  const begin = () => { setBusy(true); setSlow(false); setError(undefined); setRetry(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
 
   const submit = async (event: Event) => {
@@ -541,7 +529,6 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       setFieldErrors(result.fields ?? {})
       setError(saveErrorText(t, result))
       if (result.error === 'in_progress') setRetry(true) // the first request is still running: retry with the same key
-      if (result.message) setAnswer(result.message)
       if (result.fields) focusFirstError(result.fields)
     } catch (e) {
       end()
@@ -606,7 +593,6 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         <Show when={error()}>
           <div class="flex flex-col gap-2">
             <p role="alert" class="text-sm text-pink" data-testid="form-error">{error()}</p>
-            <Show when={answer()}>{(a) => <ServiceAnswer t={t} text={a()} />}</Show>
           </div>
         </Show>
         <Show when={slow()}><p role="status" class="text-sm text-200">{t('Form.StillWaiting')}</p></Show>

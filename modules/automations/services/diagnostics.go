@@ -5,8 +5,9 @@ import (
 	"encoding/hex"
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 )
@@ -57,9 +58,6 @@ func classify(msg string) Reason {
 	return ReasonUnknown
 }
 
-// maxDetail bounds the provider's text kept for the «show the service's answer» disclosure.
-const maxDetail = 500
-
 // secretSet tells which credential fields are secret: the x-secret fields of the connector's schema;
 // every field when the schema declares none (an OAuth2 token set).
 type secretSet func(field string) bool
@@ -72,16 +70,32 @@ func secretsOf(d connectors.Descriptor) secretSet {
 	return func(f string) bool { return fields[f] }
 }
 
-// minMaskable is the shortest secret value that is masked inside text. A shorter one cannot be
-// recognised reliably once encoded (base64 shifts with its neighbours, a Basic header joins it with
-// the login), so text that may carry it is not returned at all.
-const minMaskable = 8
+// A provider's text is never returned: only its Reason (classify). Masking a credential inside free
+// text cannot be made complete — a provider may echo it encoded together with other data (a Basic
+// header, a signed payload) — so the page explains the category and nothing of the text reaches a
+// client, a log of the page or the stored status.
 
-// opaque is a run that looks like a token or an encoding (base64, hex): a provider's text can carry a
-// credential in a form no mask anticipates, so such runs are redacted from the detail too.
-var opaque = regexp.MustCompile(`[A-Za-z0-9+/=_\-]{20,}`)
+// Limits of an identity part a connector reports.
+const (
+	maxIdentityDisplay  = 100
+	maxIdentityExternal = 128
+)
 
-// forms are the ways a provider may echo v: verbatim, URL-escaped, base64 (any alphabet, padded or
+// tokenLike is a run an identity must not contain: long, from a token/encoding alphabet and mixing
+// letters with digits or ending in base64 padding — how a credential or an encoded one looks, unlike a
+// name, an @handle, an email or a phone number.
+var tokenRun = regexp.MustCompile(`[A-Za-z0-9+/=_\-]{16,}`)
+
+func tokenLike(s string) bool {
+	for _, run := range tokenRun.FindAllString(s, -1) {
+		if strings.HasSuffix(run, "=") || (strings.ContainsAny(run, "0123456789") && strings.IndexFunc(run, unicode.IsLetter) >= 0) {
+			return true
+		}
+	}
+	return false
+}
+
+// forms are the ways a value may be echoed: verbatim, URL-escaped, base64 (any alphabet, padded or
 // not) and hex.
 func forms(v string) []string {
 	b := []byte(v)
@@ -91,75 +105,49 @@ func forms(v string) []string {
 		hex.EncodeToString(b)}
 }
 
-// masked replaces every form of every credential value of at least minMaskable characters. It reports
-// false when a secret value is too short to mask and one of its forms occurs in s.
-func masked(s string, secret secretSet, creds ...connectors.Credentials) (string, bool) {
-	var long []string
+// identityPartOK validates one part of an identity on its own: printable, bounded, nothing token-like,
+// and no form of any secret credential value (non-secret values, such as a login, may appear: an
+// email identity is the login).
+func identityPartOK(s string, limit int, secret secretSet, creds ...connectors.Credentials) bool {
+	if s == "" {
+		return true
+	}
+	if utf8.RuneCountInString(s) > limit || tokenLike(s) {
+		return false
+	}
+	for _, r := range s {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
 	lower := strings.ToLower(s)
 	for _, c := range creds {
 		for field, v := range c {
-			switch {
-			case v == "":
-			case len(v) < minMaskable:
-				if !secret(field) {
-					continue
+			if v == "" || !secret(field) {
+				continue
+			}
+			for _, f := range forms(v) {
+				if strings.Contains(lower, strings.ToLower(f)) {
+					return false
 				}
-				for _, f := range forms(v) {
-					if strings.Contains(lower, strings.ToLower(f)) {
-						return "", false
-					}
-				}
-			default:
-				long = append(long, forms(v)...)
 			}
 		}
 	}
-	// Longer forms first: one may contain another.
-	sort.Slice(long, func(i, j int) bool { return len(long[i]) > len(long[j]) })
-	for _, v := range long {
-		s = strings.ReplaceAll(s, v, "•••")
-	}
-	return s, true
+	return true
 }
 
-// hasShortSecret reports whether a secret value is too short to be masked in text.
-func hasShortSecret(secret secretSet, creds ...connectors.Credentials) bool {
-	for _, c := range creds {
-		for field, v := range c {
-			if v != "" && len(v) < minMaskable && secret(field) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// sanitizeIdentity is the identity a connector returned, safe to store and show: every form of every
-// credential value masked; a part that carries a form of a value too short to mask is emptied.
-func sanitizeIdentity(id connectors.Identity, secret secretSet, creds ...connectors.Credentials) connectors.Identity {
-	var ok bool
-	if id.Display, ok = masked(id.Display, secret, creds...); !ok {
+// validIdentity is the identity a connector reported, each part kept only when it passes
+// identityPartOK; a rejected part is emptied (nothing of it is stored or shown).
+func validIdentity(id connectors.Identity, secret secretSet, creds ...connectors.Credentials) connectors.Identity {
+	id.Display = strings.TrimSpace(id.Display)
+	id.External = strings.TrimSpace(id.External)
+	if !identityPartOK(id.Display, maxIdentityDisplay, secret, creds...) {
 		id.Display = ""
 	}
-	if id.External, ok = masked(id.External, secret, creds...); !ok {
+	if !identityPartOK(id.External, maxIdentityExternal, secret, creds...) {
 		id.External = ""
 	}
 	return id
-}
-
-// detail is the provider's message for the «show the service's answer» disclosure, returned only when
-// it is safe: never when a secret value is too short to be masked (whatever form it may take in the
-// text); otherwise with every form of every value masked, token-like runs redacted, bounded.
-func detail(msg string, secret secretSet, creds ...connectors.Credentials) string {
-	if hasShortSecret(secret, creds...) {
-		return ""
-	}
-	s, ok := masked(msg, secret, creds...)
-	if !ok {
-		return ""
-	}
-	s = opaque.ReplaceAllString(s, "•••")
-	return truncate(strings.TrimSpace(s), maxDetail)
 }
 
 func truncate(s string, n int) string {

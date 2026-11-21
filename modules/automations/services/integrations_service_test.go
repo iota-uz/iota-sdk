@@ -236,8 +236,7 @@ func TestCreateTestsFirstAndNeverReturnsTheSecret(t *testing.T) {
 	var failed *services.TestFailedError
 	require.ErrorAs(t, err, &failed)
 	assert.Equal(t, services.ReasonAuth, failed.Reason)
-	assert.Contains(t, failed.Detail, "401 Unauthorized")
-	assert.NotContains(t, failed.Detail, badToken, "the connector's message is masked")
+	assert.NotContains(t, fmt.Sprintf("%+v", failed), badToken, "only the category is kept")
 	noSecret(t, err.Error())
 	conns, err := e.store.List(e.ctx, e.tenant, "")
 	require.NoError(t, err)
@@ -311,7 +310,7 @@ func TestUpdateKeepsCredentialsAndChecksVersion(t *testing.T) {
 	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.Connection.ID, Version: got.Connection.Version, Credentials: map[string]any{"token": badToken}})
 	var failed *services.TestFailedError
 	require.ErrorAs(t, err, &failed)
-	noSecret(t, failed.Detail)
+	noSecret(t, fmt.Sprintf("%+v", failed))
 	_, creds, err = e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Equal(t, goodToken, creds["token"])
@@ -373,7 +372,7 @@ func TestTestRecordsTheStatus(t *testing.T) {
 	res, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
 	require.NoError(t, err)
 	assert.False(t, res.OK)
-	assert.NotContains(t, res.Detail, badToken)
+	assert.NotContains(t, fmt.Sprintf("%+v", res), badToken)
 	assert.Equal(t, services.ReasonAuth, res.Reason)
 	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
@@ -556,9 +555,7 @@ func TestRefusalIsCategorizedMaskedAndBounded(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, res.OK)
 	assert.Equal(t, services.ReasonAuth, res.Reason)
-	assert.NotContains(t, res.Detail, base64.StdEncoding.EncodeToString([]byte(long)))
-	assert.NotContains(t, res.Detail, url.QueryEscape(long))
-	assert.LessOrEqual(t, len([]rune(res.Detail)), 500)
+	assert.NotContains(t, fmt.Sprintf("%+v", res), "Basic", "nothing of the provider's text is kept")
 	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusError, got.Status)
@@ -579,7 +576,7 @@ func TestShortSecretEchoedByTheConnectorIsNeverReturned(t *testing.T) {
 		_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
 		var failed *services.TestFailedError
 		require.ErrorAs(t, err, &failed)
-		assert.Empty(t, failed.Detail)
+		assert.Equal(t, services.TestFailedError{Reason: failed.Reason}, *failed, "only the category")
 		assert.NotContains(t, strings.ToLower(err.Error()), "pw1")
 	}
 
@@ -749,7 +746,7 @@ func TestEncodedShortSecretNeverLeaks(t *testing.T) {
 		_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": pw}})
 		var failed *services.TestFailedError
 		require.ErrorAs(t, err, &failed)
-		assert.Empty(t, failed.Detail, echo(pw))
+		assert.NotContains(t, fmt.Sprintf("%+v %v", failed, err), base64.StdEncoding.EncodeToString([]byte(pw)), echo(pw))
 	}
 
 	e.tg.accept = pw
@@ -764,8 +761,7 @@ func TestEncodedShortSecretNeverLeaks(t *testing.T) {
 		assert.Empty(t, got.Connection.Identity.Display, identityOf(pw))
 	}
 
-	// A long secret inside a Basic header (its base64 is not a substring of the header's) is redacted
-	// as an opaque run.
+	// A long secret inside a Basic header: nothing of the provider's text is kept, only the category.
 	e.tg.accept = ""
 	e.tg.echo = func(v string) string {
 		return "401 Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("robot@acme.uz:"+v))
@@ -773,8 +769,8 @@ func TestEncodedShortSecretNeverLeaks(t *testing.T) {
 	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "long", Credentials: map[string]any{"token": badToken}})
 	var failed *services.TestFailedError
 	require.ErrorAs(t, err, &failed)
-	assert.Contains(t, failed.Detail, "401 Authorization: Basic •••")
-	assert.NotContains(t, failed.Detail, base64.StdEncoding.EncodeToString([]byte("robot@acme.uz:"+badToken)))
+	assert.Equal(t, services.ReasonAuth, failed.Reason)
+	assert.NotContains(t, err.Error(), "Basic")
 }
 
 // A reservation that expired and was taken over belongs to its new owner: the request it replaced can
@@ -811,4 +807,40 @@ func TestTakenOverReservationIsFencedFromItsFormerOwner(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, services.RequestDone, done.State)
 	assert.Equal(t, c.Connection.ID, done.ConnectionID)
+}
+
+// The identity a connector reports is validated on its own before anything stores or shows it.
+func TestIdentityIsValidatedIndependently(t *testing.T) {
+	e := newEnv(t)
+	e.tg.accept = "s3cr3t-Pass-Phrase"
+	login := "robot@acme.uz"
+	cases := []struct {
+		display string
+		keep    bool
+	}{
+		{"@acme_sales_bot", true},
+		{"robot@acme.uz", true},
+		{"Acme Customer Support Bot", true},
+		{"+998 90 123 45 67", true},
+		// The secret and its encodings, alone or combined with the login.
+		{"bot " + e.tg.accept, false},
+		{"Basic " + base64.StdEncoding.EncodeToString([]byte(login+":"+e.tg.accept)), false},
+		{"user " + base64.RawURLEncoding.EncodeToString([]byte(e.tg.accept)), false},
+		{"id " + hex.EncodeToString([]byte(e.tg.accept)), false},
+		// Token-like runs whatever they encode.
+		{"bot eyJhbGciOiJIUzI1NiJ9xyz123", false},
+		{strings.Repeat("x", 101), false},
+		{"bot\x00name", false}, // not printable
+	}
+	for i, c := range cases {
+		display := c.display
+		e.tg.identityOf = func(string) string { return display }
+		got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("id_%d", i), Credentials: map[string]any{"token": e.tg.accept}})
+		require.NoError(t, err)
+		if c.keep {
+			assert.Equal(t, display, got.Connection.Identity.Display, display)
+		} else {
+			assert.Empty(t, got.Connection.Identity.Display, display)
+		}
+	}
 }
