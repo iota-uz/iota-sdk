@@ -149,6 +149,13 @@ func (o *order) Complete() (Order, error) {
 	return &result, nil
 }
 
+// NewItem is an item of an order made of the products of a position. Building
+// items this way and handing them to SetItems hydrates an order read from
+// storage without recording that anything was added to it.
+func NewItem(position position.Position, products ...product.Product) Item {
+	return &item{position: position, products: products}
+}
+
 type item struct {
 	position position.Position
 	products []product.Product

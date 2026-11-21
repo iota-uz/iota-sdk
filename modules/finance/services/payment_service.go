@@ -66,6 +66,9 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 	if err := composables.CanUser(ctx, permissions.PaymentCreate); err != nil {
 		return nil, err
 	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return nil, err
+	}
 
 	createdEvent, err := payment.NewCreatedEvent(ctx, entity, entity)
 	if err != nil {
@@ -94,13 +97,20 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 		return nil, err
 	}
 
-	createdEvent.Result = createdEntity
-	s.publisher.Publish(createdEvent)
+	// Announced when the transaction that holds the payment commits: inside a
+	// caller's transaction that is the caller's commit.
+	composables.AfterCommit(ctx, func(context.Context) {
+		createdEvent.Result = createdEntity
+		s.publisher.Publish(createdEvent)
+	})
 	return createdEntity, nil
 }
 
 func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
 		return nil, err
 	}
 
@@ -139,8 +149,10 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 		return nil, err
 	}
 
-	updatedEvent.Result = updatedEntity
-	s.publisher.Publish(updatedEvent)
+	composables.AfterCommit(ctx, func(context.Context) {
+		updatedEvent.Result = updatedEntity
+		s.publisher.Publish(updatedEvent)
+	})
 	return updatedEntity, nil
 }
 

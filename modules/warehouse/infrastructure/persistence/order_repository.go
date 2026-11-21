@@ -451,13 +451,12 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		if err != nil {
 			return nil, err
 		}
+		// Hydration, not an addition: SetItems records no ItemAddedEvent.
+		items := make([]order.Item, 0, len(domainProducts))
 		for _, p := range domainProducts {
-			domainOrder, err = domainOrder.AddItem(p.Position(), p)
-			if err != nil {
-				return nil, err
-			}
+			items = append(items, order.NewItem(p.Position(), p))
 		}
-		orders[i] = domainOrder
+		orders[i] = domainOrder.SetItems(items)
 	}
 
 	if err := rows.Err(); err != nil {

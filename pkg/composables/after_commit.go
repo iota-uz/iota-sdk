@@ -35,6 +35,15 @@ func UseCommitHooks(ctx context.Context) *CommitHooks {
 	return h
 }
 
+// WithoutCommitHooks returns ctx without commit hooks, for code that leaves the
+// transaction of its caller (an ordinary command opens its own).
+func WithoutCommitHooks(ctx context.Context) context.Context {
+	if UseCommitHooks(ctx) == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, afterCommitKey{}, (*CommitHooks)(nil))
+}
+
 // Attach returns ctx with h as the collector of its AfterCommit callbacks: a
 // nested call whose context was derived before the transaction's own context
 // joins the same transaction's hooks.
@@ -126,6 +135,11 @@ func RequireCommitHooks(ctx context.Context) error {
 // back and move to the enclosing transaction's hooks when it is released, so
 // they run only if the enclosing transaction commits.
 func InSavepoint(ctx context.Context, fn func(context.Context) error) error {
+	// Hooks that move to a parent that has none would be dropped: refuse before
+	// the savepoint opens, so nothing is written under a promise nobody keeps.
+	if err := RequireCommitHooks(ctx); err != nil {
+		return err
+	}
 	tx, ok := ctx.Value(constants.TxKey).(pgx.Tx)
 	if !ok || tx == nil {
 		return ErrNoTx

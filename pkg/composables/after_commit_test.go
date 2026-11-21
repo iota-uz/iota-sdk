@@ -50,3 +50,18 @@ func TestWithTx_KeepsTheHooksOfTheSameTransactionAndDropsThemForAnother(t *testi
 	require.NoError(t, composables.RequireCommitHooks(context.Background()), "no transaction: the service opens its own")
 	require.ErrorIs(t, composables.RequireCommitHooks(composables.WithTx(ctx, other)), composables.ErrNoCommitHooks)
 }
+
+func TestInSavepoint_RefusesAParentWithoutHooksBeforeOpeningTheSavepoint(t *testing.T) {
+	// fakeTx has no Begin: reaching it would panic, so the refusal comes first.
+	ctx := composables.WithTx(context.Background(), &fakeTx{})
+	called := false
+	err := composables.InSavepoint(ctx, func(context.Context) error { called = true; return nil })
+	require.ErrorIs(t, err, composables.ErrNoCommitHooks)
+	require.False(t, called)
+}
+
+func TestWithoutCommitHooks(t *testing.T) {
+	ctx, hooks := composables.WithCommitHooks(context.Background())
+	require.Same(t, hooks, composables.UseCommitHooks(ctx))
+	require.Nil(t, composables.UseCommitHooks(composables.WithoutCommitHooks(ctx)))
+}

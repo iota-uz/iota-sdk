@@ -140,6 +140,9 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtCreate); err != nil {
 		return nil, err
 	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
+		return nil, err
+	}
 	if err := s.checkAccount(ctx, entity); err != nil {
 		return nil, err
 	}
@@ -171,13 +174,18 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 
-	createdEvent.Result = createdEntity
-	s.publisher.Publish(createdEvent)
+	composables.AfterCommit(ctx, func(context.Context) {
+		createdEvent.Result = createdEntity
+		s.publisher.Publish(createdEvent)
+	})
 	return createdEntity, nil
 }
 
 func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, error) {
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.RequireCommitHooks(ctx); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.GetByID(ctx, entity.ID())
@@ -218,8 +226,10 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 
-	updatedEvent.Result = updatedEntity
-	s.publisher.Publish(updatedEvent)
+	composables.AfterCommit(ctx, func(context.Context) {
+		updatedEvent.Result = updatedEntity
+		s.publisher.Publish(updatedEvent)
+	})
 	return updatedEntity, nil
 }
 

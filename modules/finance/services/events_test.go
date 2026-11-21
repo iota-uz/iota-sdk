@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/modules/logging/domain/aggregates/businessevent"
@@ -388,5 +389,68 @@ func TestDebtService_EventbusFollowsTheOwnersCommit(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
+	require.Equal(t, 1, count())
+}
+
+// A payment without a category keeps no category on every read: the created
+// payload carries no categoryId and an update that changes nothing publishes
+// nothing.
+func TestPaymentEvents_UncategorizedPaymentStaysUncategorized(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	tenant := f.env.TenantID()
+	day := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+	entity := payment.New(money.New(1500, "USD"), paymentcategory.New("none", paymentcategory.WithTenantID(tenant), paymentcategory.WithID(uuid.Nil)),
+		payment.WithTenantID(tenant), payment.WithAccount(f.newAccount(t)),
+		payment.WithCounterpartyID(f.newCounterparty(t).ID()),
+		payment.WithTransactionDate(day), payment.WithAccountingPeriod(day),
+	)
+	created, err := f.payments.Create(f.ctx, entity)
+	require.NoError(t, err)
+	rows := outboxRows(t, f.ctx, tenant, services.PaymentCreatedEventID)
+	require.Len(t, rows, 1)
+	require.NotContains(t, string(rows[0].Payload), "categoryId")
+
+	first, err := f.payments.GetByID(f.ctx, created.ID())
+	require.NoError(t, err)
+	second, err := f.payments.GetByID(f.ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, first.Category().ID(), second.Category().ID(), "the absent category reads back the same every time")
+
+	_, err = f.payments.Update(f.ctx, first)
+	require.NoError(t, err)
+	require.Empty(t, outboxRows(t, f.ctx, tenant, services.PaymentUpdatedEventID), "an unchanged update publishes nothing")
+}
+
+// The eventbus events of a payment are published when the transaction that holds
+// it commits, as the native events are.
+func TestPaymentService_EventbusFollowsTheOwnersCommit(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	entity := f.payment(t)
+	f.env.CommitTx(t)
+	ctx := committedCtx(f.env)
+	bus, err := composition.Resolve[eventbus.EventBus](f.env.Container)
+	require.NoError(t, err)
+	var mu sync.Mutex
+	announced := 0
+	defer bus.Subscribe(func(*payment.Created) { mu.Lock(); announced++; mu.Unlock() })()
+	count := func() int { mu.Lock(); defer mu.Unlock(); return announced }
+	errLater := errors.New("the caller's later step failed")
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if _, err := f.payments.Create(txCtx, entity); err != nil {
+			return err
+		}
+		if count() != 0 {
+			return errors.New("announced before the caller's commit")
+		}
+		return errLater
+	})
+	require.ErrorIs(t, err, errLater)
+	require.Zero(t, count(), "a rolled back payment is not announced")
+
+	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+		_, err := f.payments.Create(txCtx, entity)
+		return err
+	}))
 	require.Equal(t, 1, count())
 }

@@ -95,7 +95,7 @@ func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx, h *txHandle) conte
 			}
 		}
 	} else if ctx.Value(constants.TxKey) != nil {
-		ctx = context.WithValue(ctx, constants.TxKey, nil)
+		ctx = composables.WithoutCommitHooks(context.WithValue(ctx, constants.TxKey, nil))
 	}
 	if tid, err := composables.UseTenantID(ctx); err != nil || tid != e.scope.Subject.TenantID {
 		ctx = composables.WithTenantID(ctx, e.scope.Subject.TenantID)

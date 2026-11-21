@@ -330,7 +330,7 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 		runErr = tx.Commit(ctx)
 		if runErr == nil {
 			for _, fn := range commits.fns {
-				fn(ctx)
+				d.runAfterCommit(ctx, fn)
 			}
 			// What services called by the consumer registered with composables.AfterCommit.
 			serviceCommits.Run(ctx)
@@ -348,6 +348,18 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 		return false, d.recordBlocked(ctx, c.ID(), ev, runErr.Error())
 	}
 	return false, d.recordFailure(ctx, c.ID(), ev, attempts, runErr)
+}
+
+// runAfterCommit runs one after-commit callback of a committed delivery. The
+// receipt is already done, so a panicking callback is logged and the rest, and
+// the services' composables.AfterCommit hooks, still run.
+func (d *Dispatcher) runAfterCommit(ctx context.Context, fn func(context.Context)) {
+	defer func() {
+		if r := recover(); r != nil {
+			d.cfg.Logger.Error("extruntime: event after-commit callback panicked", "panic", r)
+		}
+	}()
+	fn(ctx)
 }
 
 func (d *Dispatcher) backoff(attempts int) time.Duration {

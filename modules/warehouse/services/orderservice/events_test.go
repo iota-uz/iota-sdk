@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,6 +17,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
@@ -147,9 +152,12 @@ func TestOrderEvents_EventbusFollowsTheOwnersCommit(t *testing.T) {
 	// The caller's transaction rolls back after Create returned: nothing is
 	// announced, neither natively nor on the eventbus.
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		require.NoError(t, service.Create(txCtx, order.CreateDTO{Type: "in", Status: "pending"}))
-		c, _ := count()
-		require.Zero(t, c, "the eventbus event waits for the caller's commit")
+		if err := service.Create(txCtx, order.CreateDTO{Type: "in", Status: "pending"}); err != nil {
+			return err
+		}
+		if c, _ := count(); c != 0 {
+			return errors.New("announced before the caller's commit")
+		}
 		return errRollback
 	})
 	require.ErrorIs(t, err, errRollback)
@@ -172,8 +180,9 @@ func TestOrderEvents_EventbusFollowsTheOwnersCommit(t *testing.T) {
 
 	// A rolled back completion announces nothing.
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		_, err := service.Complete(txCtx, id)
-		require.NoError(t, err)
+		if _, err := service.Complete(txCtx, id); err != nil {
+			return err
+		}
 		return errRollback
 	})
 	require.ErrorIs(t, err, errRollback)
@@ -234,6 +243,7 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	// pool.Begin + WithTx: refused, nothing written, whatever the owner does next.
 	tx, err := env.Pool.Begin(ctx)
 	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() // frees the connection if an assertion fails
 	require.ErrorIs(t, create(composables.WithTx(ctx, tx)), composables.ErrNoCommitHooks)
 	require.NoError(t, tx.Commit(ctx))
 	require.Zero(t, count())
@@ -245,6 +255,7 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	// The same owner, once it attaches hooks and runs them after its commit.
 	tx, err = env.Pool.Begin(ctx)
 	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	hookCtx, hooks := composables.WithCommitHooks(composables.WithTx(ctx, tx))
 	require.NoError(t, create(hookCtx))
 	require.Zero(t, count())
@@ -256,9 +267,14 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	// A savepoint begun by hand inside InTx has no hooks of its own: refused.
 	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
 		raw, err := txCtx.Value(constants.TxKey).(pgx.Tx).Begin(txCtx)
-		require.NoError(t, err)
-		require.ErrorIs(t, create(composables.WithTx(txCtx, raw)), composables.ErrNoCommitHooks)
-		return raw.Rollback(txCtx)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = raw.Rollback(context.WithoutCancel(txCtx)) }()
+		if err := create(composables.WithTx(txCtx, raw)); !errors.Is(err, composables.ErrNoCommitHooks) {
+			return fmt.Errorf("a savepoint without hooks must be refused, got %v", err)
+		}
+		return nil
 	}))
 	require.Equal(t, 1, count())
 	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
@@ -267,18 +283,26 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	errLater := errors.New("rolled back by the caller")
 	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
 		err := composables.InSavepoint(txCtx, func(spCtx context.Context) error {
-			require.NoError(t, create(spCtx))
+			if err := create(spCtx); err != nil {
+				return err
+			}
 			return errLater
 		})
-		require.ErrorIs(t, err, errLater)
+		if !errors.Is(err, errLater) {
+			return fmt.Errorf("the savepoint must roll back with the caller's error, got %v", err)
+		}
 		return nil
 	}))
 	require.Equal(t, 1, count())
 	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		require.NoError(t, composables.InSavepoint(txCtx, create))
-		require.Equal(t, 1, count(), "released into the caller's transaction, not yet committed")
+		if err := composables.InSavepoint(txCtx, create); err != nil {
+			return err
+		}
+		if count() != 1 {
+			return errors.New("announced before the caller's commit")
+		}
 		return errLater
 	})
 	require.ErrorIs(t, err, errLater)
@@ -289,4 +313,48 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	}))
 	require.Equal(t, 2, count())
 	require.Equal(t, 2, committedOutbox(t, env, orderservice.OrderCreatedEventID))
+}
+
+// An order read from storage reports no item as added: completing an order that
+// has items announces its completion and nothing else.
+func TestOrderEvents_CompletingAnOrderWithItemsAnnouncesNoItemAdded(t *testing.T) {
+	env := itf.Setup(t,
+		itf.WithComponents(modules.Components()...),
+		itf.WithUser(itf.User(permissions.OrderCreate, permissions.OrderRead, permissions.OrderUpdate)),
+	)
+	env.User = user.New("", "", env.User.Email(), "", user.WithID(env.User.ID()), user.WithRoles(env.User.Roles()), user.WithTenantID(env.TenantID()))
+	env.Ctx = composables.WithUser(env.Ctx, env.User)
+	service := itf.GetService[orderservice.OrderService](env)
+	bus, err := composition.Resolve[eventbus.EventBus](env.Container)
+	require.NoError(t, err)
+
+	productRepo := persistence.NewProductRepository()
+	orderRepo := persistence.NewOrderRepository(productRepo)
+	require.NoError(t, persistence.NewUnitRepository().Create(env.Ctx, &unit.Unit{ID: 1, Title: "Unit", ShortTitle: "U", CreatedAt: time.Now(), UpdatedAt: time.Now()}))
+	pos := position.New("Position", "1234567890", position.WithID(1), position.WithUnitID(1), position.WithCreatedAt(time.Now()), position.WithUpdatedAt(time.Now()))
+	_, err = persistence.NewPositionRepository().Create(env.Ctx, pos)
+	require.NoError(t, err)
+	draft, err := order.New(order.TypeIn, order.WithStatus(order.Pending)).AddItem(pos, product.New("EPS:1234567890", product.InStock, product.WithPosition(pos)))
+	require.NoError(t, err)
+	created, err := orderRepo.Create(env.Ctx, draft)
+	require.NoError(t, err)
+
+	var mu sync.Mutex
+	var seen []string
+	defer bus.Subscribe(func(order.ItemAddedEvent) { mu.Lock(); seen = append(seen, "itemAdded"); mu.Unlock() })()
+	defer bus.Subscribe(func(order.OrderCompletedEvent) { mu.Lock(); seen = append(seen, "completed"); mu.Unlock() })()
+	defer bus.Subscribe(func(order.OrderCreatedEvent) { mu.Lock(); seen = append(seen, "created"); mu.Unlock() })()
+	env.CommitTx(t)
+
+	ctx := itf.TestExecution(composables.WithUser(composables.WithTenantID(composables.WithPool(context.Background(), env.Pool), env.TenantID()), env.User))
+	stored, err := orderRepo.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.Len(t, stored.Items(), 1)
+	require.Empty(t, stored.Events(), "hydration records no events")
+
+	_, err = service.Complete(ctx, created.ID())
+	require.NoError(t, err)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []string{"completed"}, seen)
 }

@@ -195,7 +195,8 @@ func (te *TestEnvironment) CommitTx(tb testing.TB) {
 	// What services registered with composables.AfterCommit runs now that the
 	// transaction committed.
 	if hooks != nil {
-		hooks.Run(te.Ctx)
+		// The callbacks run after the commit, outside the closed transaction.
+		hooks.Run(composables.WithTx(te.Ctx, nil))
 	}
 	te.beginScopeTx(tb)
 }
