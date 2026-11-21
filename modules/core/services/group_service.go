@@ -104,14 +104,19 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 		if err != nil {
 			return err
 		}
-		return recordGroupChange(txCtx, s.historyWriter, nil, savedGroup)
+		if err := recordGroupChange(txCtx, s.historyWriter, nil, savedGroup); err != nil {
+			return err
+		}
+		return publishGroupCreated(txCtx, savedGroup)
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	evt := group.NewCreatedEvent(savedGroup, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return savedGroup, nil
 }
@@ -148,7 +153,9 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 	}
 
 	evt := group.NewUpdatedEvent(oldGroup, updatedGroup, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return updatedGroup, nil
 }
@@ -185,7 +192,9 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 
 	evt := group.NewDeletedEvent(g, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -221,7 +230,9 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 	}
 
 	evt := group.NewUserAddedEvent(savedGroup, userToAdd, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return savedGroup, nil
 }
@@ -257,7 +268,9 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 	}
 
 	evt := group.NewUserRemovedEvent(savedGroup, userToRemove, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return savedGroup, nil
 }
@@ -295,7 +308,9 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 	}
 
 	evt := group.NewUpdatedEvent(g, savedGroup, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return savedGroup, nil
 }
@@ -333,7 +348,9 @@ func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleTo
 	}
 
 	evt := group.NewUpdatedEvent(g, savedGroup, actor)
-	s.publisher.Publish(evt)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(evt) }); err != nil {
+		return nil, err
+	}
 
 	return savedGroup, nil
 }

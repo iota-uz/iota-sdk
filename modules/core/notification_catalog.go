@@ -23,7 +23,8 @@ const LegacyUserCreatedNotificationPrefix = "user-created:"
 
 func newCoreNotificationCatalog(extra []notifications.Definition) (*notifications.Catalog, error) {
 	catalog := notifications.NewCatalog()
-	definitions := append([]notifications.Definition{notifications.TestDefinition(), userCreatedNotification()}, extra...)
+	definitions := append([]notifications.Definition{notifications.TestDefinition(), userCreatedNotification()}, coreEventNotifications()...)
+	definitions = append(definitions, extra...)
 	for _, definition := range definitions {
 		if err := catalog.Register(definition); err != nil {
 			return nil, err

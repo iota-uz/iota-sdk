@@ -5,6 +5,7 @@ import (
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
@@ -60,6 +61,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewMessageTemplateRepository)
 	composition.ProvideFunc(builder, newCRMTwilioProvider)
 	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.ProvideFunc(builder, services.NewClientService)
 	composition.ProvideFunc(builder, newCRMChatService)
 	composition.ProvideFunc(builder, services.NewMessageTemplateService)

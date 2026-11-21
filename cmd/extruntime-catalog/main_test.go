@@ -47,7 +47,10 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 			ids[r.ID] = string(r.Kind)
 		}
 	}
-	require.Equal(t, map[string]string{"core.user": "int64", "crm.client": "int64"}, keyTypes, "native entities carry their key type")
+	require.Equal(t, map[string]string{
+		"core.user": "int64", "core.role": "int64", "core.group": "uuid",
+		"crm.client": "int64", "crm.chat": "int64", "hrm.employee": "int64",
+	}, keyTypes, "native entities carry their key type")
 	require.Equal(t, "event", ids["core.user.created.v1"])
 	require.Equal(t, "event", ids["crm.client.created.v1"])
 	require.Equal(t, "event", ids["crm.client.updated.v1"])

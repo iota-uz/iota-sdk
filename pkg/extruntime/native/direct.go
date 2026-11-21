@@ -155,6 +155,25 @@ type directTxState struct {
 	hooks    []func(context.Context)
 }
 
+// withTx is ctx carrying the transaction. A transaction the dispatch owns
+// also runs the callbacks composables.AfterCommit gets after its commit, the
+// same hooks Tx.AfterCommit registers; one that came with the caller's context
+// keeps the owner the caller declared.
+func (s *directTxState) withTx(ctx context.Context) context.Context {
+	if s.external {
+		if tx, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok && tx == s.tx {
+			return ctx // the caller's own context: its owner stays declared
+		}
+		return composables.WithTx(ctx, s.tx)
+	}
+	ctx = composables.WithTx(ctx, s.tx)
+	return composables.WithAfterCommit(ctx, s.tx, func(fn func()) {
+		s.mu.Lock()
+		s.hooks = append(s.hooks, func(context.Context) { fn() })
+		s.mu.Unlock()
+	})
+}
+
 func (d *Direct) begin(ctx context.Context, opts pgx.TxOptions) (*directTxState, error) {
 	if tx, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok && tx != nil {
 		return &directTxState{tx: tx, external: true}, nil
@@ -172,13 +191,13 @@ func (d *Direct) begin(ctx context.Context, opts pgx.TxOptions) (*directTxState,
 
 func (d *Direct) inTx(ctx context.Context, join *directTxState, fn func(ctx context.Context, tx *directTx) (json.RawMessage, error)) (json.RawMessage, error) {
 	if join != nil {
-		return fn(composables.WithTx(ctx, join.tx), &directTx{d: d, st: join, ctx: ctx})
+		return fn(join.withTx(ctx), &directTx{d: d, st: join, ctx: ctx})
 	}
 	st, err := d.begin(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, err
 	}
-	out, err := fn(composables.WithTx(ctx, st.tx), &directTx{d: d, st: st, ctx: ctx})
+	out, err := fn(st.withTx(ctx), &directTx{d: d, st: st, ctx: ctx})
 	if err := d.end(ctx, st, err == nil); err != nil {
 		return nil, err
 	}
@@ -187,13 +206,13 @@ func (d *Direct) inTx(ctx context.Context, join *directTxState, fn func(ctx cont
 
 func (d *Direct) inSnapshot(ctx context.Context, join *directTxState, fn func(ctx context.Context, tx *directTx) (json.RawMessage, error)) (json.RawMessage, error) {
 	if join != nil {
-		return fn(composables.WithTx(ctx, join.tx), &directTx{d: d, st: join, ctx: ctx})
+		return fn(join.withTx(ctx), &directTx{d: d, st: join, ctx: ctx})
 	}
 	st, err := d.begin(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, err
 	}
-	out, err := fn(composables.WithTx(ctx, st.tx), &directTx{d: d, st: st, ctx: ctx})
+	out, err := fn(st.withTx(ctx), &directTx{d: d, st: st, ctx: ctx})
 	if !st.external {
 		_ = st.tx.Rollback(context.WithoutCancel(ctx))
 	}
@@ -302,7 +321,7 @@ func (c *directCommand) Transaction(ctx context.Context, fn func(ctx context.Con
 	if err != nil {
 		return err
 	}
-	ferr := fn(composables.WithTx(ctx, st.tx), &directTx{d: c.d, st: st, ctx: ctx})
+	ferr := fn(st.withTx(ctx), &directTx{d: c.d, st: st, ctx: ctx})
 	if err := c.d.end(ctx, st, ferr == nil); err != nil {
 		return err
 	}

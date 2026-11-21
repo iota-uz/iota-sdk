@@ -67,7 +67,7 @@ describe('iota-ext init → check → build → test', () => {
     expect(init.err).toBe('')
     expect(init.status).toBe(0)
     const pkg = join(dir, 'pkg')
-    expect(init.out).toContain('kit generated: @iota-kit/core, @iota-kit/crm')
+    expect(init.out).toContain('kit generated: @iota-kit/core, @iota-kit/crm, @iota-kit/hrm')
     for (const f of ['package.json', 'tsconfig.json', 'src/contracts.ts', 'src/server.ts', 'src/client.tsx', 'src/server.test.ts', 'src/NotesScreen.module.css', 'src/css-modules.d.ts', '.iota/kit/core/index.d.ts', '.iota/kit/kit.json']) {
       expect(existsSync(join(pkg, f)), f).toBe(true)
     }
@@ -324,7 +324,7 @@ export const b = implement(billing.Void, (_tx, input) => input.reason.length)
       const r = iota(pkg, command)
       expect(r.status).toBe(1)
       expect(r.err).toContain('src/uses.ts:2:')
-      expect(r.err).toContain('graph.unknownKit kit module "@iota-kit/billing" is not part of the developer kit this package builds against (installed: @iota-kit/core, @iota-kit/crm)')
+      expect(r.err).toContain('graph.unknownKit kit module "@iota-kit/billing" is not part of the developer kit this package builds against (installed: @iota-kit/core, @iota-kit/crm, @iota-kit/hrm)')
       expect(r.err).toContain('iota-ext kit pull --server')
       expect(r.err.match(/@iota-kit\/billing" is not part/g)).toHaveLength(1)
       expect(r.err).not.toMatch(/ts\.(2307|7006|7031|2339)/)
@@ -376,7 +376,7 @@ describe('the kit outside node_modules', () => {
     cpSync(join(pkg, '.iota', 'kit', 'core'), join(pkg, 'node_modules', '@iota-kit', 'core'), { recursive: true })
     cpSync(join(pkg, '.iota', 'kit', 'crm'), join(pkg, 'node_modules', '@iota-kit', 'crm'), { recursive: true })
     const record = JSON.parse(readFileSync(join(pkg, '.iota', 'kit', 'kit.json'), 'utf8')) as { hash: string }
-    writeFileSync(join(pkg, 'node_modules', '.iota-kit.json'), JSON.stringify({ hash: record.hash, source: { kind: 'catalog', files: ['sdk'] }, modules: ['@iota-kit/core', '@iota-kit/crm'] }))
+    writeFileSync(join(pkg, 'node_modules', '.iota-kit.json'), JSON.stringify({ hash: record.hash, source: { kind: 'catalog', files: ['sdk'] }, modules: ['@iota-kit/core', '@iota-kit/crm', '@iota-kit/hrm'] }))
     rmSync(join(pkg, '.iota', 'kit'), { recursive: true })
     const tsconfig = JSON.parse(readFileSync(join(pkg, 'tsconfig.json'), 'utf8')) as { compilerOptions: { paths?: unknown } }
     delete tsconfig.compilerOptions.paths
@@ -414,7 +414,7 @@ describe('the kit outside node_modules', () => {
       const status = iota(pkg, 'kit', 'status')
       expect(status.status).toBe(0)
       expect(status.out).toMatch(/ok {2}@iota-kit\/core/)
-      expect(JSON.parse(iota(pkg, 'kit', 'status', '--json').out)).toMatchObject({ ok: true, installed: true, location: 'kit', editor: 'present', modules: [{ name: '@iota-kit/core', state: 'ok' }, { name: '@iota-kit/crm', state: 'ok' }] })
+      expect(JSON.parse(iota(pkg, 'kit', 'status', '--json').out)).toMatchObject({ ok: true, installed: true, location: 'kit', editor: 'present', modules: [{ name: '@iota-kit/core', state: 'ok' }, { name: '@iota-kit/crm', state: 'ok' }, { name: '@iota-kit/hrm', state: 'ok' }] })
       rmSync(join(pkg, '.iota'), { recursive: true })
       const none = iota(pkg, 'kit', 'status')
       expect(none.status).toBe(0)
@@ -432,7 +432,7 @@ describe('the kit outside node_modules', () => {
       expect(status.out).toContain('the kit is damaged')
       const json = JSON.parse(iota(pkg, 'kit', 'status', '--json').out) as { ok: boolean; modules: { name: string; state: string }[] }
       expect(json.ok).toBe(false)
-      expect(json.modules.map((m) => m.state)).toEqual(['missing', 'missing'])
+      expect(json.modules.map((m) => m.state)).toEqual(['missing', 'missing', 'ok'])
       // check says so too, instead of only complaining about the imports.
       writeFileSync(join(pkg, 'src', 'uses.ts'), `import * as crm from "@iota-kit/crm"\nexport const x = crm.Client\n`)
       const check = iota(pkg, 'check')

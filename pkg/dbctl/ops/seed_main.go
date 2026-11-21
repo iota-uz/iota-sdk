@@ -78,7 +78,7 @@ func runMainSeed(ctx context.Context, e *ExecutionContext) error {
 		)),
 	)
 
-	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, e.Tx), defaultTenant.ID)
+	ctxWithTenant := composables.WithTenantID(composables.WithSilentTx(ctx, e.Tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return fmt.Errorf("seed main dataset: %w", err)
 	}

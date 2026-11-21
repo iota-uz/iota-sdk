@@ -94,7 +94,7 @@ func SeedPool(ctx context.Context, pool *pgxpool.Pool, logger *logrus.Logger) er
 	)
 
 	ctxWithTenant := composables.WithTenantID(
-		composables.WithTx(history.SystemExecution(ctx, "e2e:seed", "E2E seed"), tx),
+		composables.WithSilentTx(history.SystemExecution(ctx, "e2e:seed", "E2E seed"), tx),
 		defaultTenant.ID,
 	)
 

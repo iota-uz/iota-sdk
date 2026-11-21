@@ -252,7 +252,7 @@ func TestHRMHistory_RollbackLeavesNoEvents(t *testing.T) {
 				ctx = composables.WithParams(ctx, itf.DefaultParams())
 				ctx = composables.WithSession(ctx, itf.MockSession())
 				ctx = composables.WithUser(ctx, f.env.User)
-				return composables.WithTx(ctx, tx)
+				return itf.ScopeTx(ctx, tx)
 			},
 			wantErr: history.ErrExecutionMissing,
 		},
@@ -261,7 +261,7 @@ func TestHRMHistory_RollbackLeavesNoEvents(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			savepoint, err := f.env.Tx.Begin(f.env.Ctx)
 			require.NoError(t, err)
-			operation := itf.TestExecution(composables.WithTx(f.env.Ctx, savepoint))
+			operation := itf.TestExecution(itf.ScopeTx(f.env.Ctx, savepoint))
 			p := &position.Position{TenantID: f.env.Tenant.ID.String(), Name: "Rolled back"}
 
 			err = f.positions.Create(tt.ctx(operation, savepoint), p)
