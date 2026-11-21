@@ -314,6 +314,10 @@
       }
     },
     "List": {
+      "Filters": {
+        "Currency": "Valyuta",
+        "HasBalance": "Qoldiq bor"
+      },
       "New": "Hisob qo'shish",
       "Name": "Nomi",
       "Balance": "Balans",

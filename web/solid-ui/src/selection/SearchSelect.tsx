@@ -156,7 +156,7 @@ export function SearchSelect(props: SearchSelectProps) {
 
   return (
     <div {...native} ref={(element) => { root = element; if (typeof local.ref === 'function') local.ref(element) }} id={id()} class={classes('relative', local.class)} data-endpoint={local.endpoint}>
-      <Show when={local.label}><label for={`${id()}-input`} class="block text-sm font-medium text-gray-700">{local.label}</label></Show>
+      <Show when={local.label}><label for={`${id()}-input`} class="block text-sm font-medium text-200">{local.label}</label></Show>
       <input
         {...local.inputProps}
         ref={(element) => { input = element; if (typeof local.inputProps?.ref === 'function') local.inputProps.ref(element) }}
@@ -173,7 +173,7 @@ export function SearchSelect(props: SearchSelectProps) {
         aria-expanded={open()}
         aria-controls={listID()}
         aria-autocomplete="list"
-        aria-activedescendant={activeIndex() >= 0 ? `${id()}-option-${activeIndex()}` : undefined}
+        aria-activedescendant={open() && !inactive() && activeIndex() >= 0 ? `${id()}-option-${activeIndex()}` : undefined}
         onFocus={(event) => { if (!inactive()) setOpen(true); callHandler(local.inputProps?.onFocus, event) }}
         onInput={(event) => { search(event.currentTarget.value); callHandler(local.inputProps?.onInput, event) }}
         onKeyDown={keydown}

@@ -357,3 +357,30 @@ func TestPopoversStayInsideNarrowScreens(t *testing.T) {
 	assert.Contains(t, html, `class="relative flex flex-wrap`, "the builder row anchors the popovers on mobile")
 	assert.Contains(t, html, `class="sm:relative"`, "button wrappers only anchor popovers from sm up")
 }
+
+func TestNullableFieldOffersEmptyOperator(t *testing.T) {
+	reg := NewRegistry(
+		FieldDef{Key: "project", Type: filterq.FieldTypeReference, Label: "Project", Nullable: true,
+			Options: []Option{Opt("p1", "Alpha")}},
+		FieldDef{Key: "flag", Type: filterq.FieldTypeBool, Label: "Flag", Nullable: true},
+	)
+	fs := reg.Decode(url.Values{filterq.ParamName: {"project:empty:", "flag:empty:"}})
+	require.Equal(t, filterq.FilterSet{{Field: "project", Op: filterq.OpEmpty}}, fs, "bool flags never take the empty operator")
+
+	html := renderComponent(t, Props{Registry: reg, Filters: fs}, false)
+	assert.Contains(t, html, `value="project:empty:"`)
+	assert.Contains(t, html, "Scaffold.FilterBuilder.Operators.Empty")
+	assert.Contains(t, html, `x-show="op !== &#39;empty&#39;"`, "value controls hide for the empty operator")
+}
+
+func TestSingleReferenceFieldTakesOneValue(t *testing.T) {
+	reg := NewRegistry(FieldDef{Key: "account", Type: filterq.FieldTypeReference, Label: "Account", Single: true,
+		Options: []Option{Opt("a", "A"), Opt("b", "B")}})
+	fs := reg.Decode(url.Values{filterq.ParamName: {"account:is:a,b", "account:is:b", "account:is:a"}})
+	require.Equal(t, filterq.FilterSet{{Field: "account", Op: filterq.OpIs, Values: []string{"b"}}}, fs,
+		"a multi-value condition is dropped and duplicates are not merged for a single-value field")
+
+	html := renderComponent(t, Props{Registry: reg, Filters: fs}, false)
+	assert.NotContains(t, html, "data-fb-checkboxes", "a single-value field never uses the checkbox list")
+	assert.NotContains(t, html, " multiple", "a single-value field uses a plain select")
+}

@@ -48,7 +48,10 @@ describe('import run state machine', () => {
     vi.useFakeTimers()
     const loadStatus = vi.fn(async () => ({ status: 'done' as const, done: 4, total: 4, result: { counts: [{ label: 'Imported', value: 4 }] } }))
     mount(() => <ImportRunProgress initialState={{ status: 'running', phase: 'Reading', done: 1, total: 4 }} loadStatus={loadStatus} pollInterval={20} />)
-    expect(host.querySelector('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '1')
+    // The bar is named by the visible phase; its value is the visible share (1 of 4).
+    expect(host.querySelector('[role="progressbar"]')).toHaveAttribute('aria-label', 'Reading')
+    expect(host.querySelector('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '25')
+    expect(host.querySelector('[role="progressbar"]')).toHaveAttribute('aria-valuetext', '1 / 4')
     await vi.advanceTimersByTimeAsync(20)
     expect(loadStatus).toHaveBeenCalledOnce()
     expect(host).toHaveTextContent('Imported')

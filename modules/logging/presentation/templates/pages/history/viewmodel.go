@@ -132,7 +132,7 @@ func dayRange(c filterq.Condition, loc *time.Location, now time.Time) (time.Time
 	case filterq.OpBetween:
 		lo, hi, ok := c.DateRange(now)
 		return lo, hi.AddDate(0, 0, 1), ok
-	case filterq.OpIs, filterq.OpIsNot, filterq.OpEq, filterq.OpGt, filterq.OpLt:
+	case filterq.OpIs, filterq.OpIsNot, filterq.OpEq, filterq.OpGt, filterq.OpLt, filterq.OpEmpty:
 	}
 	return time.Time{}, time.Time{}, false
 }

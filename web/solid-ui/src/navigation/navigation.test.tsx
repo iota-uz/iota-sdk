@@ -2,12 +2,22 @@ import { createSignal, type JSX } from 'solid-js'
 import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { describe, expect, it, vi } from 'vitest'
 import { BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, Breadcrumbs } from './Breadcrumbs'
+import { Button } from '../forms/Button'
 import { Dropdown, DropdownItem } from './Dropdown'
 import { NavTabs, NavTabsContent, NavTabsList, NavTabsTrigger } from './NavTabs'
 import { Pagination } from './Pagination'
 import { BoostedContent, BoostedLink, Tabs, TabsContent, TabsList, TabsTrigger, type BoostedTabRequest } from './Tabs'
 
 describe('navigation primitives', () => {
+  // axe nested-interactive / aria-required-*: the summary is the only button; items sit in role="none" rows.
+  it('renders a Button trigger as the summary look and menu rows without list semantics', () => {
+    render(() => <Dropdown label="Actions" trigger={<Button variant="secondary">Actions</Button>}><DropdownItem>Duplicate</DropdownItem></Dropdown>)
+    const summary = document.querySelector('summary[aria-haspopup="menu"]')!
+    expect(summary.querySelector('button')).toBeNull()
+    expect(summary.querySelector('span.btn.btn-secondary')).toHaveTextContent('Actions')
+    expect(screen.getByRole('menuitem', { hidden: true, name: 'Duplicate' }).parentElement).toHaveAttribute('role', 'none')
+  })
+
   it('renders canonical breadcrumb markup', () => {
     render(() => <Breadcrumbs aria-label="Breadcrumb"><BreadcrumbItem><BreadcrumbLink href="/products">Products</BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem>New</BreadcrumbItem></Breadcrumbs>)
     expect(screen.getByRole('list')).toHaveClass('flex', 'items-center', 'gap-1', 'text-sm')

@@ -53,7 +53,8 @@ func ContentHTMX(config *TableConfig) templ.Component {
 		// the resolved row target) — but NOT on infinite scroll (targets a row)
 		// or sort (targets the table container), which keep their chips intact.
 		oobTargetID := strings.TrimPrefix(config.ResolvedHxTarget(), "#")
-		emitFiltersOOB := config.StackedToolbar && len(config.FiltersOOB) > 0 && hxTarget == oobTargetID
+		// The same holds for a FilterBar, which sits above the rows in any mode.
+		emitFiltersOOB := (config.StackedToolbar || config.FilterBar != nil) && len(config.FiltersOOB) > 0 && hxTarget == oobTargetID
 		if isHtmxRequest {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " ")
 			if templ_7745c5c3_Err != nil {

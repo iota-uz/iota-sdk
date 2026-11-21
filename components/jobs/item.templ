@@ -58,6 +58,7 @@ templ Item(j jobs.Job) {
 			@base.Progress(base.ProgressProps{
 				Value:  uint(j.Progress),
 				Target: 100,
+				Label:  kindLabel(pageCtx, j.Kind),
 			})
 			if j.Phase != "" {
 				<div class="mt-1 text-xs text-gray-500 truncate">{ j.Phase }</div>

@@ -5071,6 +5071,16 @@
   .lens-chart-canvas {
     @apply lens:w-full lens:flex-1;
     min-height: 17rem;
+    /* The chart's own canvas is sized in pixels by ECharts, so without this it
+       is content the box must fit: a chart drawn tall (an expanded panel)
+       keeps its card tall after the panel returns to the grid, because the
+       stale pixel height holds the auto-sized row open and the resize guard
+       reads that as the chart feeding itself. Size containment makes
+       the box a function of the layout alone — the floor above, the row's
+       share — so a card always shrinks back to what the grid gives it. (The
+       block axis alone is not enough: a row-flex host still stretches the
+       item to its stale content.) */
+    contain: size;
   }
 
   .lens-chart-load-error {

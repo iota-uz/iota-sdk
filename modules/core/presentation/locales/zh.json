@@ -1152,7 +1152,8 @@
         "Between": "介于",
         "Eq": "=",
         "Gt": ">",
-        "Lt": "<"
+        "Lt": "<",
+        "Empty": "为空"
       },
       "Presets": {
         "ThisMonth": "本月",
@@ -1160,7 +1161,9 @@
         "Last30Days": "过去30天",
         "Next30Days": "未来30天",
         "ThisYear": "今年",
-        "LastYear": "去年"
+        "LastYear": "去年",
+        "ThisQuarter": "本季度",
+        "LastQuarter": "上季度"
       }
     }
   },

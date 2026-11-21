@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import type { ComponentCase, ComponentHost } from '@iota-uz/sdk/testing'
-import { SPECIMENS, THEMES, type SpecimenID, type SpecimenState } from '../src/catalog'
+import { responsiveStatesFor, SPECIMENS, THEMES, type SpecimenID, type SpecimenState } from '../src/catalog'
 
 export const viewports = {
   desktop: { width: 1440, height: 900 },
@@ -10,8 +10,9 @@ export const viewports = {
 export type GalleryCase = ComponentCase & { specimen: SpecimenID; state: SpecimenState; screenshot: string }
 
 /**
- * Every declared specimen state in both themes on desktop, plus each specimen's default state on
- * the narrow viewport. Discovery comes from the gallery catalog, not a separate screen DSL.
+ * Every declared specimen state in both themes on desktop, plus each specimen's default state (and
+ * its declared responsive states) on the narrow viewport. Discovery comes from the gallery catalog,
+ * not a separate screen DSL.
  */
 export const galleryCases: readonly GalleryCase[] = SPECIMENS.flatMap(specimen => THEMES.flatMap(theme => [
   ...specimen.states.map((state): GalleryCase => ({
@@ -22,6 +23,10 @@ export const galleryCases: readonly GalleryCase[] = SPECIMENS.flatMap(specimen =
     id: `${specimen.id} ${theme} responsive`, specimen: specimen.id, state: 'default', locale: 'en-US', theme,
     viewport: viewports.mobile, screenshot: `${specimen.id}-${theme}-default-mobile.png`,
   },
+  ...responsiveStatesFor(specimen.id).map((state): GalleryCase => ({
+    id: `${specimen.id} ${theme} ${state} responsive`, specimen: specimen.id, state, locale: 'en-US', theme,
+    viewport: viewports.mobile, screenshot: `${specimen.id}-${theme}-${state}-mobile.png`,
+  })),
 ]))
 
 async function prepareState(page: Page, state: SpecimenState, specimenID: SpecimenID): Promise<void> {
@@ -30,6 +35,12 @@ async function prepareState(page: Page, state: SpecimenState, specimenID: Specim
   else if (state === 'focus' && specimenID === 'data') await page.locator('tbody tr[tabindex]').first().focus()
   else if (state === 'focus') await page.locator('[data-vr-target]').first().focus()
   if (state === 'open' && specimenID === 'selection') await page.locator('[data-vr-target="selection-combobox"] [role="combobox"]').focus()
+  // A busy layer is captured after a refused close, so its status line is visible.
+  if (state === 'busy') {
+    await expect(page.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-dialog-busy-status] [role="status"]')).toBeVisible()
+  }
 }
 
 /** The Solid UI gallery renders the packaged components with their production CSS and fonts. */
@@ -47,8 +58,8 @@ export const galleryHost: ComponentHost<GalleryCase> = {
   },
 }
 
-export function galleryCase(specimen: SpecimenID, state: SpecimenState, theme: 'light' | 'dark' = 'light'): GalleryCase {
-  const found = galleryCases.find(c => c.specimen === specimen && c.state === state && c.theme === theme && c.viewport === viewports.desktop)
+export function galleryCase(specimen: SpecimenID, state: SpecimenState, theme: 'light' | 'dark' = 'light', viewport: keyof typeof viewports = 'desktop'): GalleryCase {
+  const found = galleryCases.find(c => c.specimen === specimen && c.state === state && c.theme === theme && c.viewport === viewports[viewport])
   if (!found) throw new Error(`Gallery does not declare ${specimen} ${state} ${theme}`)
   return found
 }

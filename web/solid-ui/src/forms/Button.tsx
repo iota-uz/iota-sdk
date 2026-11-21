@@ -1,4 +1,4 @@
-import { Show, splitProps, type JSX } from 'solid-js'
+import { createContext, Show, splitProps, useContext, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'primary-outline' | 'sidebar' | 'danger' | 'ghost'
@@ -36,7 +36,15 @@ const sizeClasses: Record<ButtonSize, string> = {
   xs: 'btn-xs',
 }
 
+/**
+ * Inside a control that is itself the button (a Dropdown's summary), a Button is
+ * only the look: it renders as a non-interactive span with the same classes, so
+ * there is one focus stop and no interactive control nested in another.
+ */
+export const ButtonPresentationContext = createContext(false)
+
 export function Button(props: ButtonProps) {
+  const presentational = useContext(ButtonPresentationContext)
   const [local, native] = splitProps(props as ButtonProps & { disabled?: boolean }, [
     'children', 'class', 'variant', 'size', 'fixed', 'rounded', 'loading', 'icon', 'href', 'disabled',
   ])
@@ -52,6 +60,11 @@ export function Button(props: ButtonProps) {
     local.class,
   )
   const content = () => <>{local.icon}{local.children}<div class="btn-loading-indicator" /></>
+
+  if (presentational) {
+    const { type: _type, value: _value, form: _form, name: _name, ...rest } = native as JSX.ButtonHTMLAttributes<HTMLButtonElement>
+    return <span {...rest as JSX.HTMLAttributes<HTMLSpanElement>} class={className()} aria-busy={local.loading || undefined}>{content()}</span>
+  }
 
   return (
     <Show

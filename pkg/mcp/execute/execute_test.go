@@ -71,6 +71,8 @@ func newFixture(t *testing.T, withRuntime bool) *fixture {
 			func(_ context.Context, in echoIn) (echoOut, error) {
 				return echoOut{Text: in.Text, Bulky: "INTERMEDIATE-PAYLOAD"}, nil
 			}),
+		mcp.MustNew(mcp.Spec{Name: "period", Description: "Echo a period.", Annotations: mcp.Annotations{ReadOnly: true}},
+			func(_ context.Context, in periodIn) (periodIn, error) { return in, nil }),
 		mcp.MustNew(mcp.Spec{Name: "record", Description: "Pretend to write.", Policy: mcp.Policy{Permissions: []string{"Record.Write"}}},
 			func(_ context.Context, _ struct{}) (recordOut, error) {
 				return recordOut{OperationID: "op-1"}, nil
@@ -155,6 +157,24 @@ emit({"echo": r["data"]["text"], "ok": w["ok"]})
 	assert.NotEmpty(t, out.Namespace.Generation)
 }
 
+// periodIn has a field named like a Python keyword.
+type periodIn struct {
+	From string `json:"from"`
+}
+
+// Falsely green if a tool parameter named like a Python keyword ("from")
+// kills the kernel while it builds the tools namespace.
+func TestExecute_KeywordParameterNames(t *testing.T) {
+	f := newFixture(t, true)
+	out := decode(t, f.run(t, f.ctx, execute.Input{Code: `
+r = await tools.period(**{"from": "2026-01-01"})
+emit(r["data"]["from"])
+`}))
+	assert.Equal(t, execute.StatusSucceeded, out.Status)
+	require.Len(t, out.Emitted, 1)
+	assert.JSONEq(t, `"2026-01-01"`, string(out.Emitted[0]))
+}
+
 func TestExecute_StructuredOutcomes(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -209,7 +229,7 @@ func TestExecute_StructuredOutcomes(t *testing.T) {
 				t.Helper()
 				require.Len(t, out.Emitted, 2)
 				assert.JSONEq(t, `false`, string(out.Emitted[0]))
-				assert.JSONEq(t, `["echo","record"]`, string(out.Emitted[1]))
+				assert.JSONEq(t, `["echo","period","record"]`, string(out.Emitted[1]))
 			},
 		},
 		{

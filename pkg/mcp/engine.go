@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -64,6 +66,70 @@ func NewEngine(registry *Registry, authz Authorizer, opts ...EngineOption) (*Eng
 }
 
 func (e *Engine) Registry() *Registry { return e.registry }
+
+// Operations returns the operations the caller of ctx may call now: every
+// tool except host-only ones, filtered by the same authorizer Call runs.
+// Hiding a tool here is a convenience for discovery; Call still enforces
+// policy on every invocation.
+func (e *Engine) Operations(ctx context.Context) []Spec {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
+		return nil
+	}
+	verdicts := make(map[string]bool)
+	var out []Spec
+	for _, spec := range e.registry.Specs() {
+		if spec.HostOnly {
+			continue
+		}
+		key := policyKey(spec.Policy)
+		allowed, seen := verdicts[key]
+		if !seen {
+			_, err := e.authz.Authorize(ctx, p, spec.Policy)
+			allowed = err == nil
+			verdicts[key] = allowed
+		}
+		if allowed {
+			out = append(out, spec)
+		}
+	}
+	return out
+}
+
+// Operation returns one operation if the caller of ctx may call it now.
+func (e *Engine) Operation(ctx context.Context, name string) (Spec, bool) {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
+		return Spec{}, false
+	}
+	spec, ok := e.registry.Spec(name)
+	if !ok || spec.HostOnly {
+		return Spec{}, false
+	}
+	if _, err := e.authz.Authorize(ctx, p, spec.Policy); err != nil {
+		return Spec{}, false
+	}
+	return spec, true
+}
+
+// Allows reports whether the caller of ctx passes policy now, without
+// running any handler.
+func (e *Engine) Allows(ctx context.Context, policy Policy) bool {
+	p, ok := PrincipalFrom(ctx)
+	if !ok {
+		return false
+	}
+	_, err := e.authz.Authorize(ctx, p, policy)
+	return err == nil
+}
+
+func policyKey(p Policy) string {
+	scopes := slices.Clone(p.Scopes)
+	perms := slices.Clone(p.Permissions)
+	slices.Sort(scopes)
+	slices.Sort(perms)
+	return strings.Join(scopes, " ") + "|" + strings.Join(perms, " ")
+}
 
 type nestedKey struct{}
 

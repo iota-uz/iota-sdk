@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"OIDC: serialize refresh token reuse revocation with rotation of the same grant (advisory lock) so a replacement committed during a revoke is revoked too; pykernel: a tool parameter named like a Python keyword no longer kills the kernel while it builds the tools namespace."}

@@ -13,10 +13,12 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 )
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
@@ -24,6 +26,8 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	params.Set("page", strconv.Itoa(props.Page+1))
 	params.Set("name", props.Search)
 	params.Set("limit", strconv.Itoa(props.PerPage))
+	// Later pages keep the chips' conditions.
+	filterq.EncodeTo(props.Filters.Filters, params)
 
 	return templ.Attributes{
 		"hx-get":     "/departments?" + params.Encode(),
@@ -99,7 +103,24 @@ templ DepartmentRows(props *IndexPageProps) {
 	}
 }
 
+// DepartmentsTable is the swap target of the search/filter form; its wrapper
+// id stays even when the list is empty, so the next search still has a target.
 templ DepartmentsTable(props *IndexPageProps) {
+	<div id="departments-table">
+		@departmentsTable(props)
+	</div>
+}
+
+// DepartmentsTableWithChips answers a search or filter change: the table plus
+// the chip bar, swapped out-of-band since it sits in the form above.
+templ DepartmentsTableWithChips(props *IndexPageProps) {
+	@DepartmentsTable(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
+
+templ departmentsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if len(props.Departments) == 0 {
 		@base.TableEmptyState(base.TableEmptyStateProps{
@@ -150,11 +171,12 @@ templ DepartmentsContent(props *IndexPageProps) {
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
-				class="p-4 flex items-center gap-3"
+				class="p-4 flex flex-wrap items-center gap-3"
 				hx-get="/departments"
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target="table"
+				hx-trigger="keyup[!target.closest('[data-fb-popover]')] changed delay:500ms from:(form input), filter-changed"
+				hx-target="#departments-table"
 				hx-swap="outerHTML"
+				hx-push-url="true"
 			>
 				<input type="hidden" name="page" value="1"/>
 				<div class="flex-1">
@@ -184,6 +206,11 @@ templ DepartmentsContent(props *IndexPageProps) {
 						}
 					}
 				</div>
+				if props.Filters.Registry != nil {
+					<div class="w-full">
+						@filterbuilder.Builder(props.Filters)
+					</div>
+				}
 			</form>
 			@DepartmentsTable(props)
 		</div>

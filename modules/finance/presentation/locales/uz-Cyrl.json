@@ -314,6 +314,10 @@
       }
     },
     "List": {
+      "Filters": {
+        "Currency": "Валюта",
+        "HasBalance": "Қолдиқ бор"
+      },
       "New": "Ҳисоб қўшиш",
       "Name": "Номи",
       "Balance": "Баланс",

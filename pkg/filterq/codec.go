@@ -22,6 +22,7 @@ const ParamName = "f"
 const PresenceParam = "fb"
 
 // Wire grammar: field ":" op ":" value ("," value)*
+// A valueless operator (OpEmpty) keeps the trailing colon: `category:empty:`.
 // Only the first two colons split, so values may contain colons freely
 // (e.g. preset:this_year). Inside a value, "%" → "%25" and "," → "%2C";
 // nothing else is escaped — UUIDs, codes, dates and numbers stay readable.
@@ -80,6 +81,11 @@ func DecodeCondition(raw string) (Condition, bool) {
 		}
 		values = append(values, unescapeValue(v))
 	}
+	if op.Arity() == 0 {
+		// A valueless operator ignores whatever follows the second colon, so
+		// `category:empty:` and a hand-typed `category:empty:x` mean the same.
+		return Condition{Field: parts[0], Op: op}, true
+	}
 	if len(values) == 0 {
 		return Condition{}, false
 	}
@@ -112,7 +118,8 @@ func Decode(q url.Values, s Schema) FilterSet {
 			// single-valued, so merging duplicate bool params (is:true + is:false)
 			// would resurrect the match-everything case validCondition rejects —
 			// keep the first and drop later duplicates instead.
-			if (c.Op == OpIs || c.Op == OpIsNot) && field.Type != FieldTypeBool {
+			// A single-value field keeps its first condition for the same reason.
+			if (c.Op == OpIs || c.Op == OpIsNot) && field.Type != FieldTypeBool && !field.Single {
 				out[at].Values = mergeValues(out[at].Values, c.Values)
 			}
 			continue
@@ -149,7 +156,12 @@ func validCondition(f Field, c Condition) bool {
 	if f.Type == FieldTypeBool && len(c.Values) != 1 {
 		return false
 	}
+	if f.Single && len(c.Values) > 1 {
+		return false
+	}
 	switch arity := c.Op.Arity(); arity {
+	case 0:
+		return len(c.Values) == 0
 	case -1:
 		if len(c.Values) == 0 {
 			return false
@@ -183,4 +195,38 @@ func validValue(t FieldType, v string) bool {
 		return v != ""
 	}
 	return false
+}
+
+// LegacyDateRange keeps links made by a former from/to date filter working
+// (e.g. ?CreatedAt.From=…&CreatedAt.To=…, RFC 3339 or YYYY-MM-DD): when both
+// parameters are present, it returns a copy of q with an equivalent
+// "<field> between" condition added. Otherwise q is returned unchanged.
+func LegacyDateRange(q url.Values, fromKey, toKey, field string) url.Values {
+	from, okFrom := parseLegacyDate(q.Get(fromKey))
+	to, okTo := parseLegacyDate(q.Get(toKey))
+	if !okFrom || !okTo {
+		return q
+	}
+	out := make(url.Values, len(q)+1)
+	for k, v := range q {
+		out[k] = append([]string(nil), v...)
+	}
+	out.Add(ParamName, EncodeCondition(Condition{
+		Field: field, Op: OpBetween,
+		Values: []string{from.Format(DateLayout), to.Format(DateLayout)},
+	}))
+	return out
+}
+
+func parseLegacyDate(v string) (time.Time, bool) {
+	if v == "" {
+		return time.Time{}, false
+	}
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse(DateLayout, v); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -21,9 +22,10 @@ templ ProjectStagesContent(props *IndexPageProps) {
 			<form
 				class="p-4 flex flex-wrap items-center gap-3 [&>div]:min-w-0"
 				hx-get="/project-stages"
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-trigger="keyup[!target.closest('[data-fb-popover]')] changed delay:500ms from:(form input), change[!target.closest('[data-fb-popover]')] changed from:(form select), filter-changed"
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
+				hx-push-url="true"
 			>
 				<div class="w-full md:flex-1">
 					@filters.Search([]filters.SearchField{
@@ -38,7 +40,6 @@ templ ProjectStagesContent(props *IndexPageProps) {
 					})
 				</div>
 				@filters.PageSize()
-				@filters.CreatedAt()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal,
 					Href: "/project-stages/new/drawer",
@@ -50,6 +51,11 @@ templ ProjectStagesContent(props *IndexPageProps) {
 					},
 				}) {
 					{ pageCtx.T("ProjectStages.List.New") }
+				}
+				if props.Filters.Registry != nil {
+					<div class="w-full">
+						@filterbuilder.Builder(props.Filters)
+					</div>
 				}
 			</form>
 			@ProjectStagesTable(props)

@@ -134,7 +134,7 @@ func (p *SliderProps) render() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"text-sm text-gray-700\" x-text=\"displayValue()\"></span></div><div class=\"relative h-5 flex items-center\"><div class=\"absolute h-1 w-full bg-gray-200 rounded-full\"></div><div class=\"absolute h-1 bg-brand-500 rounded-full\" x-bind:style=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"text-sm text-200\" x-text=\"displayValue()\"></span></div><div class=\"relative h-5 flex items-center\"><div class=\"absolute h-1 w-full bg-gray-200 rounded-full\"></div><div class=\"absolute h-1 bg-brand-500 rounded-full\" x-bind:style=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
