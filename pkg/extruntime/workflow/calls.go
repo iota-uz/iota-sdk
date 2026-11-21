@@ -1033,6 +1033,22 @@ func (e *Engine) callOrdinary(ctx context.Context, call commandCaller, rs *runSt
 		}
 		return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("command %s: %s", command, we.Error())))
 	}
+	if isWire && we.Code == host.CodePackageUnavailable {
+		// The command reached a package export (a nested call) in a process
+		// without the runtime: not its own failure. Nothing committed: the
+		// call is forgotten and dispatched again after Resume. Something
+		// committed: the started occurrence stays for Resolve or Retry, as an
+		// ambiguous call does.
+		if !res.PartiallyCommitted && res.CommittedTxCount == 0 {
+			if ferr := e.forget(ctx, rs, name, n); ferr != nil {
+				return nil, ferr
+			}
+			return nil, blockedWire(rs.block(BlockUnavailable, we.Message))
+		}
+		return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf(
+			"%s; command %s (occurrence %s#%d, invocation %s) committed %d transaction(s) before it: resolve or retry the occurrence, then resume",
+			we.Message, command, name, n, res.InvocationID, res.CommittedTxCount)))
+	}
 	failed := started
 	failed.Status, failed.Meta, failed.InvocationID = OccFailed, callMeta(res), res.InvocationID
 	if isWire {
@@ -1068,6 +1084,8 @@ func (e *Engine) callAtomic(ctx context.Context, call host.WorkflowCall, rs *run
 			}
 		case isWire && we.Kind == pool.ErrKindDenied:
 			return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("command %s: %s", command, we.Error())))
+		case isWire && we.Code == host.CodePackageUnavailable:
+			return nil, blockedWire(rs.block(BlockUnavailable, we.Message))
 		}
 		return nil, err
 	}

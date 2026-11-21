@@ -225,13 +225,13 @@ func suspended(kind, name string, n int) error {
 // pins package code (PackageGate, artifacts, the journal preload).
 func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 	inst := rs.inst
-	nc, ok, err := e.lookupNative(inst.Workflow)
-	if err != nil {
-		return e.finishTransient(parent, rs, err)
+	if rs.nativeErr != nil {
+		return e.finishTransient(parent, rs, rs.nativeErr)
 	}
-	if !ok {
+	if rs.native == nil {
 		return e.finishBlocked(parent, rs, BlockUnavailable, fmt.Sprintf("workflow %s has no Go implementation in this process", inst.Workflow))
 	}
+	nc := *rs.native
 	subject, err := e.cfg.Subjects.LoadSubject(runCtx, inst.TenantID, inst.SubjectUserID, inst.SubjectKind)
 	switch {
 	case errors.Is(err, host.ErrSubjectBlocked):
@@ -254,9 +254,15 @@ func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 	if ab := rs.aborted(); ab != nil {
 		return e.finishTransient(parent, rs, ab)
 	}
+	if parent.Err() != nil {
+		// The engine is stopping: the run is not the instance's failure. Its
+		// lease is released without counting a failure, so the next process
+		// claims it at once.
+		return e.abandon(parent, rs)
+	}
 	if err := runCtx.Err(); err != nil {
-		// The run outlived its timeout or the process is stopping: whatever
-		// the runner returned after that is not accepted; the run is retried.
+		// The run outlived its timeout: whatever the runner returned after
+		// that is not accepted; the run is retried with backoff.
 		return e.finishTransient(parent, rs, err)
 	}
 	switch {

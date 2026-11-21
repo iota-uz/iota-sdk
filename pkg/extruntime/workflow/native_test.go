@@ -287,6 +287,17 @@ func TestNative_EffectInterruptedAfterStartRetriesWithTheSameKey(t *testing.T) {
 	id := env.start(a, "test.effect", "e1", `{}`)
 
 	doneA := make(chan error, 1)
+	var releaseOnce sync.Once
+	unblock := func() { releaseOnce.Do(func() { close(release) }) }
+	// Registered before the goroutine starts: a failing assertion below still
+	// releases the first run and waits for it before the database goes away.
+	t.Cleanup(func() {
+		unblock()
+		select {
+		case <-doneA:
+		case <-time.After(30 * time.Second):
+		}
+	})
 	go func() { _, err := a.RunOnce(context.Background()); doneA <- err }()
 	var first attempt
 	select {
@@ -310,8 +321,9 @@ func TestNative_EffectInterruptedAfterStartRetriesWithTheSameKey(t *testing.T) {
 	require.Equal(t, 2, second.n)
 	require.Equal(t, first.key, second.key)
 	require.Equal(t, id.String()+":pay:0", second.key)
-	close(release)
+	unblock()
 	require.NoError(t, <-doneA)
+	doneA <- nil // for the cleanup
 
 	inst := env.inst(b, id)
 	require.Equal(t, workflow.StatusCompleted, inst.Status)
@@ -1284,4 +1296,156 @@ func TestNative_RunnerPanicFailsTheInstance(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(env.inst(eng, id).Error, &we))
 	require.Equal(t, "workflow.runnerPanic", we.Code)
+}
+
+// Static registrations are checked against a package catalog given to New.
+func TestNative_StaticRegistrationConflictsWithAPackage(t *testing.T) {
+	env := newNativeEnv(t)
+	cat := hosttest.NewCatalog()
+	cat.Add(spi.ResolvedResource{Package: "acme", Version: "1.0.0", Resource: manifest.Resource{ID: "test.clash", Kind: manifest.ResWorkflow}})
+	eng := env.engine(map[string]workflow.NativeContract{"test.clash": {Runner: joinAny(1)}}, func(c *workflow.Config) {
+		c.Catalog, c.Bindings, c.Artifacts, c.Impl = cat, noBindings{}, &hosttest.Artifacts{}, newImpls()
+	})
+	require.ErrorContains(t, eng.Ready(context.Background()), "also declared as a package workflow")
+}
+
+// Stopping the engine during a run counts no failure: the instance is
+// claimable at once, even with a failure budget of one.
+func TestNative_ShutdownDoesNotCountAsAFailure(t *testing.T) {
+	env := newNativeEnv(t)
+	started := make(chan struct{}, 1)
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs > 1 {
+			return json.RawMessage(`"after restart"`), nil
+		}
+		started <- struct{}{}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.stop": {Runner: runner, Concurrency: 1}}, func(c *workflow.Config) { c.MaxRunFailures = 1 })
+	id := env.start(eng, "test.stop", "x1", `{}`)
+	eng.Serve(context.Background())
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the run did not start")
+	}
+	eng.Shutdown()
+	inst := env.inst(eng, id)
+	require.Equal(t, workflow.StatusRunning, inst.Status)
+	require.Zero(t, inst.Failures)
+	n, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "the next claim takes the instance at once")
+	require.JSONEq(t, `"after restart"`, string(env.inst(eng, id).Result))
+}
+
+// A start replay returns the child it already created, even after the
+// producer finished.
+func TestNative_StartReplayReturnsTheExistingChild(t *testing.T) {
+	env := newNativeEnv(t)
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) { return nil, nil })
+	eng := env.engine(map[string]workflow.NativeContract{"test.kid": {Runner: done}})
+	parent := insertNativeInstance(t, env, "test.kid", nil, workflow.StatusWaiting)
+	start := func() (string, error) {
+		ctx := context.Background()
+		tx, err := env.db.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(ctx) }()
+		id, err := eng.Start(ctx, tx, spi.Scope{Subject: env.subject(1)}, spi.StartIntent{
+			Workflow: "test.kid", Input: json.RawMessage(`{}`), Key: "same", Producer: spi.Producer{InstanceID: parent.String()},
+		})
+		if err == nil {
+			require.NoError(t, tx.Commit(ctx))
+		}
+		return id, err
+	}
+	first, err := start()
+	require.NoError(t, err)
+	require.NoError(t, eng.Terminate(context.Background(), env.tenant, parent))
+	again, err := start()
+	require.NoError(t, err)
+	require.Equal(t, first, again)
+}
+
+// Registrations that cannot be loaded while a run must block it record a
+// retry with backoff instead of repeating the failed transition.
+func TestNative_RegistrationFailureDuringABlockedTransitionBacksOff(t *testing.T) {
+	env := newNativeEnv(t)
+	eng := env.engine(nil, func(c *workflow.Config) {
+		c.MaxRunFailures, c.RetryBackoff = 1, time.Minute
+		c.NativeSource = func() (map[string]workflow.NativeContract, error) { return nil, errors.New("provider not ready") }
+	})
+	id := insertNativeInstance(t, env, "test.gone", nil, workflow.StatusRunning)
+	_, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	inst := env.inst(eng, id)
+	require.Equal(t, workflow.StatusRunning, inst.Status)
+	require.Equal(t, 1, inst.Failures)
+	var backedOff bool
+	require.NoError(t, env.db.QueryRow(context.Background(), `SELECT lease_until > clock_timestamp() + interval '30 seconds' FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&backedOff))
+	require.True(t, backedOff)
+	n, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n, "the instance waits for its backoff")
+}
+
+// pkgBindings binds acme.pkg.cmd to a package export and nothing else.
+type pkgBindings struct{}
+
+func (pkgBindings) Resolve(_ context.Context, id string) (host.Binding, error) {
+	if id == "acme.pkg.cmd" {
+		return host.Binding{Contract: id, Package: "acme", Version: "1.0.0", Export: "cmd"}, nil
+	}
+	return host.Binding{}, host.ErrNoBinding
+}
+
+// A native command that reaches a package export in a process without the
+// runtime blocks the instance as unavailable instead of failing it.
+func TestNative_NestedPackageCallWithoutRuntimeBlocks(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		commit    bool
+		keepsCall bool
+	}{{"nothing committed", false, false}, {"after a commit", true, true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newNativeEnv(t)
+			outer := native.Command("test.cmd.outer", native.Spec{}, func(native.Deps) (native.CommandFunc[stepIn, stepOut], error) {
+				return func(ctx context.Context, c native.CommandContext, in stepIn) (stepOut, error) {
+					if tc.commit {
+						if err := c.Transaction(ctx, func(context.Context, native.Tx) error { return nil }); err != nil {
+							return stepOut{}, err
+						}
+					}
+					_, err := c.Call(ctx, "acme.pkg.cmd", json.RawMessage(`{}`))
+					return stepOut{}, err
+				}, nil
+			})
+			set := native.NewSet()
+			require.NoError(t, set.Add(outer))
+			cat := hosttest.NewCatalog()
+			for _, r := range set.Resources() {
+				cat.Add(spi.ResolvedResource{Resource: r, Native: true})
+			}
+			cat.Add(spi.ResolvedResource{Package: "acme", Version: "1.0.0", Resource: hosttest.Command("acme.pkg.cmd", false, nil, nil)})
+			runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+				return run.Call(ctx, "c", 0, "test.cmd.outer", json.RawMessage(`{"step":"x"}`))
+			})
+			eng := env.engine(map[string]workflow.NativeContract{"test.nested": {Runner: runner}}, func(c *workflow.Config) { c.Catalog = cat })
+			h, err := host.New(host.Config{DB: env.db, Bindings: pkgBindings{}, Catalog: cat, Data: data.NewStore(cat, nil, nil), Natives: native.Bind(set, nil), Logger: env.logger})
+			require.NoError(t, err)
+			eng.SetCommands(h)
+			id := env.start(eng, "test.nested", "n1", `{}`)
+			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks")
+			require.Equal(t, workflow.BlockUnavailable, env.inst(eng, id).BlockedReason)
+			hist, err := eng.Get(context.Background(), env.tenant, id)
+			require.NoError(t, err)
+			o, ok := occ(hist, "c", 0)
+			require.Equal(t, tc.keepsCall, ok, "%+v", o)
+			if ok {
+				require.Equal(t, workflow.OccStarted, o.Status, "kept for Resolve or Retry, never failed")
+			}
+		})
+	}
 }

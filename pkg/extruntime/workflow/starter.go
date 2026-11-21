@@ -59,6 +59,12 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 	if in.Producer.InstanceID != "" {
 		pid, err := uuid.Parse(in.Producer.InstanceID)
 		if err == nil {
+			// A replay of a start that already created this producer's child
+			// returns it, even after the producer finished; only a new child
+			// needs a live producer.
+			if id, ok, err := e.existingChild(ctx, tx, sc.Subject.TenantID, pid, in.Workflow, in.Key); err != nil || ok {
+				return id, err
+			}
 			if err := e.lockLiveParent(ctx, tx, sc.Subject.TenantID, pid); err != nil {
 				return "", err
 			}
@@ -70,6 +76,22 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 		return "", serrors.Wrap(opStart, err)
 	}
 	return id.String(), nil
+}
+
+// existingChild returns the instance a start with this key already created
+// for the same producer and workflow.
+func (e *Engine) existingChild(ctx context.Context, tx pgx.Tx, tenant, parent uuid.UUID, workflow, key string) (string, bool, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `
+		SELECT id FROM extruntime.workflow_instances
+		WHERE tenant_id = $1 AND start_key = $2 AND parent_instance_id = $3 AND workflow = $4`, tenant, key, parent, workflow).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, serrors.FromDB(opStart, err)
+	}
+	return id.String(), true, nil
 }
 
 // lockLiveParent holds the producing instance against termination for the

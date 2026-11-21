@@ -270,11 +270,20 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 // records how the run ended. All writes are fenced by the claim's epoch.
 func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
 	timeout := e.cfg.RunTimeout
+	var (
+		native    *NativeContract
+		nativeErr error
+	)
 	if inst.Native {
-		// Package claims never wait on the native registrations. A load
-		// failure here keeps the default; runNative reports it.
-		if nc, ok, err := e.lookupNative(inst.Workflow); err == nil && ok {
-			timeout = nc.RunTimeout
+		// Package claims never wait on the native registrations. A native
+		// run resolves its contract once: the timeout and the dispatch below
+		// use the same lookup.
+		nc, ok, err := e.lookupNative(inst.Workflow)
+		switch {
+		case err != nil:
+			nativeErr = err
+		case ok:
+			native, timeout = &nc, nc.RunTimeout
 		}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -284,6 +293,7 @@ func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
 		token:   fmt.Sprintf("%s:%d", inst.ID, inst.LeaseEpoch),
 		journal: map[occKey]Occurrence{},
 		lazy:    inst.Native,
+		native:  native, nativeErr: nativeErr,
 	}
 	e.register(rs)
 	defer e.unregister(rs)

@@ -395,8 +395,10 @@ func New(cfg Config) (*Engine, error) {
 	}
 	return &Engine{
 		cfg: cfg, runner: cfg.Runner, runs: map[string]*runState{},
-		pkg:     packageDeps{catalog: cfg.Catalog, bindings: cfg.Bindings, artifacts: cfg.Artifacts, impl: cfg.Impl, commands: cfg.Commands},
-		natives: cfg.Natives, natLoaded: cfg.NativeSource == nil, pkgConcurrency: cfg.Concurrency,
+		pkg: packageDeps{catalog: cfg.Catalog, bindings: cfg.Bindings, artifacts: cfg.Artifacts, impl: cfg.Impl, commands: cfg.Commands},
+		// Registrations are published once validated: right away when there is
+		// neither a source to load nor a package catalog to check them against.
+		natives: cfg.Natives, natLoaded: cfg.NativeSource == nil && cfg.Impl == nil, pkgConcurrency: cfg.Concurrency,
 	}, nil
 }
 
@@ -434,9 +436,12 @@ func (e *Engine) allNatives() (map[string]NativeContract, error) {
 	if e.natLoaded {
 		return e.natives, nil
 	}
-	more, err := e.cfg.NativeSource()
-	if err != nil {
-		return nil, serrors.Wrap(opAttach, err)
+	var more map[string]NativeContract
+	if e.cfg.NativeSource != nil {
+		var err error
+		if more, err = e.cfg.NativeSource(); err != nil {
+			return nil, serrors.Wrap(opAttach, err)
+		}
 	}
 	merged, err := normalizeNatives(maps.Clone(e.cfg.Natives), more)
 	if err != nil {

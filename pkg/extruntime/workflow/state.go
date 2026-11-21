@@ -119,6 +119,10 @@ type runState struct {
 	// lazy marks a native run: journal is a cache filled on demand by
 	// Engine.occ, not a preload of the whole journal.
 	lazy bool
+	// native is the contract a native run resolved once at claim (its timeout
+	// and its dispatch use the same lookup); nativeErr is why it could not.
+	native    *NativeContract
+	nativeErr error
 
 	mu      sync.Mutex
 	journal map[occKey]Occurrence
@@ -450,14 +454,16 @@ func (e *Engine) transition(ctx context.Context, rs *runState, to, set string, a
 	if !errors.As(err, &oe) {
 		return err
 	}
-	e.cfg.Logger.Warn("extruntime: workflow status observer failed; the transition is retried", "instance", rs.inst.ID, "to", to, "error", oe.err)
+	e.cfg.Logger.Warn("extruntime: workflow transition rolled back; it is retried after a backoff", "instance", rs.inst.ID, "to", to, "error", oe.err)
 	if to == StatusBlocked {
 		return e.release(ctx, rs, oe.err)
 	}
 	return e.finishTransient(ctx, rs, oe.err)
 }
 
-// observerError is a StatusObserver failure: it rolls the transition back.
+// observerError rolls a transition back for a retry with backoff: a
+// StatusObserver failure, or native registrations that could not be loaded
+// (the completion policy and observer of the contract are unknown).
 type observerError struct{ err error }
 
 func (o *observerError) Error() string {
@@ -473,7 +479,7 @@ func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, 
 	}
 	nc, ok, err := e.lookupNative(inst.Workflow)
 	if err != nil {
-		return err
+		return &observerError{err: err}
 	}
 	if !ok {
 		return nil
@@ -594,6 +600,22 @@ func (e *Engine) finishTransient(ctx context.Context, rs *runState, cause error)
 		return e.finishBlocked(ctx, rs, BlockFailing, fmt.Sprintf("%d consecutive runs failed; last: %v", failures, cause))
 	}
 	return e.release(ctx, rs, cause)
+}
+
+// abandon releases the lease of a run the engine stopped (shutdown) without
+// counting a failure: the instance is claimable at once.
+func (e *Engine) abandon(ctx context.Context, rs *runState) error {
+	ctx = context.WithoutCancel(ctx)
+	return e.inTx(ctx, func(tx pgx.Tx) error {
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			UPDATE extruntime.workflow_instances SET lease_owner = NULL, lease_until = NULL, updated_at = now()
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
+		return serrors.FromDB(opFinish, err)
+	})
 }
 
 // release frees the lease for a retry after a backoff that doubles with
