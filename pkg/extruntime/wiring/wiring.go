@@ -85,6 +85,10 @@ type Options struct {
 	// pruning); DB, Consumers and Subjects are set by the core. A zero
 	// Retention takes the section's EXTRUNTIME_EVENTS_RETENTION.
 	Events events.Config
+	// Schedules tunes the core's scheduler (polling, missed-slot window,
+	// retries); DB, Runner, Schedules and Subjects are set by the core. With
+	// the runtime enabled, Tune's Config.Schedules fills the zero settings.
+	Schedules events.SchedulerConfig
 	// Logger is the runtime's structured logger. Default slog.Default().
 	Logger *slog.Logger
 }
@@ -115,7 +119,7 @@ func (c *component) Build(b *composition.Builder) error {
 	}
 	logger := b.Context().Logger()
 	core := coreConfig{
-		retention: section.Events.Retention, events: c.opts.Events, disableBackground: section.DisableBackground,
+		retention: section.Events.Retention, events: c.opts.Events, schedules: c.opts.Schedules, disableBackground: section.DisableBackground,
 		workflowConcurrency: section.WorkflowConcurrency,
 	}
 	if !configured || !section.Enabled {
@@ -135,6 +139,7 @@ func (c *component) Build(b *composition.Builder) error {
 	// Tune may have set the dispatcher settings and DisableBackground on the
 	// runtime configuration: the core's dispatcher is the one that applies them.
 	core.events = mergeEvents(core.events, cfg.Events)
+	core.schedules = mergeSchedules(core.schedules, cfg.Schedules)
 	core.disableBackground = cfg.DisableBackground
 	core.workflowConcurrency = cfg.Workflow.Concurrency
 	c.buildCore(b, natives, core)

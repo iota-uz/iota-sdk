@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Extension runtime schedules support a tenant scope, a missed-slot window recorded as skipped, and Go slot handlers served by the Go-only core scheduler (wiring.ContributeSchedules)."}

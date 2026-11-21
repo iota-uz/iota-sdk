@@ -4,6 +4,7 @@ packages:
   - web/lens
   - web/math
   - web/solid-ui
+  - web/automation-editor
   - web/testing
   - web/runtime
   - web/chat-ui

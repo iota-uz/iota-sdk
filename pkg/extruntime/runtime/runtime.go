@@ -84,7 +84,8 @@ type Config struct {
 	Secrets host.SecretResolver
 	// Workflow and Events tune the durable engine, the event dispatcher and
 	// the scheduler; zero values select their defaults. Events applies only
-	// when the runtime builds its own dispatcher (Deps.Dispatcher is nil).
+	// when the runtime builds its own dispatcher (Deps.Dispatcher is nil),
+	// Schedules only when it builds its own scheduler (Deps.Scheduler is nil).
 	Workflow  WorkflowConfig
 	Events    events.Config
 	Schedules events.SchedulerConfig
@@ -162,6 +163,14 @@ type Deps struct {
 	// claims every ready instance, so a second would take the first one's.
 	// Nil: the runtime builds and serves its own.
 	Workflows *workflow.Engine
+	// Scheduler is the application's schedule scheduler, served by the core
+	// (pkg/extruntime/wiring); the package schedules reach it as a
+	// ScheduleSource (see Runtime.Manage.ScheduleSource). Nil makes the
+	// runtime serve its own.
+	Scheduler *events.Scheduler
+	// Schedules are Go schedules the runtime's own scheduler serves next to
+	// the package schedules (unused with Scheduler).
+	Schedules events.ScheduleSource
 }
 
 // Extension is a slice that needs the finished runtime.
@@ -192,7 +201,10 @@ type Runtime struct {
 	// Dispatcher delivers the outbox; it is Deps.Dispatcher when the core
 	// serves it, else the runtime's own.
 	Dispatcher *events.Dispatcher
-	Scheduler  *events.Scheduler
+	// Scheduler runs the schedules; it is Deps.Scheduler when the core serves
+	// it (the package schedules join it as a ScheduleSource), else the
+	// runtime's own over the package schedules and Deps.Schedules.
+	Scheduler *events.Scheduler
 	// Notify is nil without notification dependencies.
 	Notify   *notify.Adapter
 	Notifier *notify.Notifier
@@ -214,6 +226,8 @@ type Runtime struct {
 	// ownsWorkflows is true when Workflows is the runtime's own engine, which
 	// Start serves.
 	ownsWorkflows bool
+	// ownsScheduler is the same for Scheduler.
+	ownsScheduler bool
 
 	mu    sync.Mutex
 	stops []func(context.Context) error
@@ -395,14 +409,28 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 			}
 			rt.ownsDispatcher = true
 		}
+	}
+	// The scheduler does not need a subject loader: without one (no user
+	// repository) package schedules have no Runner and are recorded as
+	// blocked, while Go schedules run.
+	if deps.Scheduler != nil {
+		rt.Scheduler = deps.Scheduler
+	} else {
 		scfg := cfg.Schedules
-		scfg.DB, scfg.Runner, scfg.Schedules, scfg.Subjects = deps.DB, rt.Host, rt.Manage.ScheduleSource(), subjects
+		scfg.DB = deps.DB
+		if subjects != nil {
+			scfg.Runner, scfg.Subjects = rt.Host, subjects
+		} else {
+			scfg.Runner, scfg.Subjects = nil, nil // whatever Config.Schedules carried
+		}
+		scfg.Schedules = events.ComposeSchedules(rt.Manage.ScheduleSource(), deps.Schedules)
 		if scfg.Logger == nil {
 			scfg.Logger = cfg.Logger
 		}
 		if rt.Scheduler, err = events.NewScheduler(scfg); err != nil {
 			return fail(err)
 		}
+		rt.ownsScheduler = true
 	}
 	if rt.Notifier != nil && deps.Notices != nil && deps.Renderers != nil {
 		var owners notify.SubjectResolver
@@ -462,7 +490,7 @@ func (rt *Runtime) Start(ctx context.Context) error {
 			rt.Dispatcher.Start(bg)
 			rt.stops = append(rt.stops, func(context.Context) error { rt.Dispatcher.Stop(); return nil })
 		}
-		if rt.Scheduler != nil {
+		if rt.ownsScheduler {
 			rt.Scheduler.Start(bg)
 			rt.stops = append(rt.stops, func(context.Context) error { rt.Scheduler.Stop(); return nil })
 		}
