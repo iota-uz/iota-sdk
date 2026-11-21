@@ -47,19 +47,18 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   for (let i = 0; i < 10; i += 1) replaces.push(await page.evaluate(() => window.__fixture.replace!()))
   const replaceMs = median(replaces)
 
+  // Long tasks and frames are recorded all the time with their timestamps and filtered by the drag's
+  // interval afterwards (pointerdown → end of the drag, after the last frames and entries are delivered),
+  // so a task at either edge of the drag or delivered late is not missed.
   await page.evaluate(() => {
-    const w = window as unknown as { __longTasks: number[]; __frames: number[]; __recording: boolean }
+    const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
     w.__longTasks = []
     w.__frames = []
-    w.__recording = false
     new PerformanceObserver((list) => {
-      if (!w.__recording) return
-      for (const entry of list.getEntries()) w.__longTasks.push(entry.duration)
-    }).observe({ type: 'longtask', buffered: false })
-    let last = 0
+      for (const entry of list.getEntries()) w.__longTasks.push({ start: entry.startTime, duration: entry.duration })
+    }).observe({ type: 'longtask', buffered: true })
     const tick = (now: number) => {
-      if (w.__recording && last) w.__frames.push(now - last)
-      last = now
+      w.__frames.push(now)
       requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
@@ -83,19 +82,25 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   const box = (await card(page, target).locator('.ae-card__title').boundingBox())!
   const start = { x: box.x + 10, y: box.y + box.height / 2 }
   await page.mouse.move(start.x, start.y)
+  const from = await page.evaluate(() => performance.now())
   await page.mouse.down()
   await page.mouse.move(start.x + 4, start.y + 4, { steps: 2 })
-  await page.evaluate(() => { (window as unknown as { __recording: boolean }).__recording = true })
   for (let i = 1; i <= 60; i += 1) {
     await page.mouse.move(start.x + Math.sin(i / 8) * 160, start.y + Math.sin(i / 6) * 60)
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))))
   }
-  await page.evaluate(() => { (window as unknown as { __recording: boolean }).__recording = false })
   await page.mouse.up()
-  const { frames, longTasks } = await page.evaluate(() => {
-    const w = window as unknown as { __longTasks: number[]; __frames: number[] }
-    return { frames: w.__frames, longTasks: w.__longTasks }
-  })
+  // The end of the drag (onMove, re-render) and the delivery of its entries are inside the interval.
+  const to = await page.evaluate(() => new Promise<number>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now())))))
+  await page.waitForTimeout(300)
+  const { frames, longTasks } = await page.evaluate(({ from, to }) => {
+    const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
+    const stamps = w.__frames.filter((t) => t >= from && t <= to)
+    return {
+      frames: stamps.slice(1).map((t, i) => t - stamps[i]!),
+      longTasks: w.__longTasks.filter((e) => e.start < to && e.start + e.duration > from).map((e) => e.duration),
+    }
+  }, { from, to })
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
 
   const profile = {

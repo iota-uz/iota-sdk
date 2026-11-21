@@ -375,7 +375,7 @@ jobs:
 
       - name: Touch (Chromium CDP and WebKit iPad)
         working-directory: web/automation-editor
-        run: pnpm exec playwright test --project=touch --project=ipad
+        run: pnpm exec playwright test --project=touch --project=ipad --project=ipad-portrait
 
       - name: Performance benchmark (200 steps / 500 edges, 4x CPU throttle)
         working-directory: web/automation-editor

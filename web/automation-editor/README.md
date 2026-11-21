@@ -27,6 +27,13 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
 - Layout is apart from the graph: a move is a history step and is saved by `saveLayout` 500 ms after
   the last change; it never makes the graph dirty or creates a version.
 - Tidy lays out left to right (an accepted deviation from the standard's top-to-bottom).
+- Validation results belong to the snapshot they checked: they are rebased onto the current draft by
+  item id, an edit invalidates a check in flight, and Save checks exactly the snapshot it sends.
+- Layout saves run one at a time; when one ends, the layout on screen is compared with what was saved
+  and the latest snapshot is sent again if they differ.
+- An unavailable connection (ED10): the host's `validate` returns an error with
+  `code: "connection_unavailable"` whose message names the connection; a catalog type with
+  `connected: false` is reported by the editor itself. Such steps get a "No connection" badge.
 
 ## Keys (K1)
 
@@ -72,5 +79,6 @@ just automation-editor build   # package build: chunk budget, declarations, SSR 
 just automation-editor e2e     # Playwright scenarios (Chromium)
 just automation-editor touch   # Chromium with CDP touch events and WebKit iPad
 just automation-editor bench   # performance regression
-pnpm --dir web/automation-editor vr   # screenshots; missing Linux baselines are generated as candidates
+pnpm --dir web/automation-editor vr          # compare with the approved Linux baselines (0 px); a missing one fails and is written as a candidate
+pnpm --dir web/automation-editor vr-update   # rewrite the baselines on purpose, then review and commit them
 ```

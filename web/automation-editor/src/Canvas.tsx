@@ -10,7 +10,7 @@ import { backEdges, ensureLayout } from './layout'
 import { describeAll, type ItemName } from './names'
 import { strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
-import { errorsByItem } from './validation'
+import { connectionLost, errorsByItem } from './validation'
 import {
   createNodeDrag,
   createPanZoom,
@@ -85,6 +85,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   createEffect(on(layout, (next) => setPositions(reconcile(structuredClone(next)))))
 
   const errorMap = createMemo(() => errorsByItem(props.graph, props.errors))
+  const lost = createMemo(() => connectionLost(props.graph, props.errors))
 
   const itemMap = createMemo(() => {
     const graph = props.graph
@@ -164,7 +165,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   // Only what is inside the viewport (plus a margin) is in the DOM, as xyflow's "only render visible
   // elements": a 200-step graph costs the cards on screen, not all of them. Selected items stay mounted.
-  const VISIBLE_MARGIN = 160
+  const VISIBLE_MARGIN = 64
   // Before mount nothing is measured (and on the server nothing renders); a container without a size
   // after mount (hidden, or jsdom) renders everything.
   const [measured, setMeasured] = createSignal(false)
@@ -302,7 +303,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
         gridEl.style.backgroundSize = `${step}px ${step}px`
       }
       const mod = (v: number) => ((v % step) + step) % step
-      gridEl.style.transform = `translate(${mod(vp.x) - step}px, ${mod(vp.y) - step}px)`
+      gridEl.style.transform = `translate(${Math.round(mod(vp.x) - step)}px, ${Math.round(mod(vp.y) - step)}px)`
     }
   }
 
@@ -819,6 +820,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (out.ignore) return t().canvas.ignored
       return nameOf(out.to!).title
     }
+    // Outcomes without an edge: one note under its handle, or one line for the card when there are several.
+    const notes = createMemo(() => (item()?.outs ?? []).filter((o) => !o.to).map((o) =>
+      `${o.outcome === FIRED ? '→' : o.outcome}: ${o.ignore ? t().canvas.ignored : t().canvas.notConnected}`), undefined, { equals: (a, b) => a.join('\u0000') === b.join('\u0000') })
+    const badgeLabel = () => unavailable() ? t().canvas.unavailable : lost().has(id) ? `${t().canvas.noConnection}: ${item()?.error ?? ''}` : t().canvas.error
     const icon = () => name().icon ?? (item()?.kind === 'trigger' ? 'event' : props.catalog.nodes.find((n) => n.type === item()?.type)?.behavior ?? 'node')
 
     return (
@@ -880,9 +885,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
                 {(badge) => <span class="ae-badge">{badge()}</span>}
               </Show>
               <Show when={item()?.error || unavailable()}>
-                <span class="ae-badge ae-badge--error" role="img" aria-label={unavailable() ? t().canvas.unavailable : t().canvas.error} title={item()?.error ?? t().canvas.unavailable}>
+                <span
+                  class="ae-badge ae-badge--error"
+                  role="img"
+                  aria-label={badgeLabel()}
+                  title={item()?.error ?? t().canvas.unavailable}
+                >
                   <Icon name="error" size={12} />
-                  <span>{unavailable() ? t().canvas.unavailable : '!'}</span>
+                  <span>{unavailable() ? t().canvas.unavailable : lost().has(id) ? t().canvas.noConnection : '!'}</span>
                 </span>
               </Show>
             </div>
@@ -921,7 +931,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
                 >
                   <span class="ae-out__label">{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
                 </div>
-                <Show when={!out()?.to}>
+                <Show when={!out()?.to && notes().length === 1}>
                   <span class="ae-out-note" style={`left:${slot.handle.x}px;top:${slot.handle.y + 10}px`}>
                     {out()?.ignore ? `× ${t().canvas.ignored}` : t().canvas.notConnected}
                   </span>
@@ -930,6 +940,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
             )
           }}
         </For>
+        <Show when={notes().length > 1}>
+          <span class="ae-out-note ae-out-note--card" style={`top:${geometry().height + 10}px`} title={notes().join(' · ')}>
+            {notes().join(' · ')}
+          </span>
+        </Show>
       </div>
     )
   }
@@ -949,7 +964,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const b = bounds()
     if (!b) return null
     const pad = 80
-    return { x: b.x - pad, y: b.y - pad, width: b.width + pad * 2, height: b.height + pad * 2 }
+    return { x: Math.round(b.x - pad), y: Math.round(b.y - pad), width: Math.round(b.width + pad * 2), height: Math.round(b.height + pad * 2) }
   })
 
   // The minimap draws every card as one path (two with the selection): one element to restyle, not 200.
@@ -972,7 +987,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const { width, height } = size()
     const vp = viewport()
     const a = toFlow({ x: 0, y: 0 }, vp)
-    return { x: a.x, y: a.y, width: width / vp.zoom, height: height / vp.zoom }
+    // Whole flow units: the frame does not shimmer with sub-pixel viewport values.
+    return { x: Math.round(a.x), y: Math.round(a.y), width: Math.round(width / vp.zoom), height: Math.round(height / vp.zoom) }
   }
 
   return (

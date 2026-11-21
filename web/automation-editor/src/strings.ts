@@ -18,6 +18,7 @@ export type Strings = {
     notConnected: string
     ignored: string
     unavailable: string
+    noConnection: string
     zoomIn: string
     zoomOut: string
     fit: string
@@ -110,6 +111,7 @@ export type Strings = {
     failed: string
     retry: string
     unavailable(type: string): string
+    noConnection(title: string): string
     close: string
     graph: string
   }
@@ -189,6 +191,7 @@ const en: Strings = {
     notConnected: 'not connected',
     ignored: 'ignored',
     unavailable: 'Unavailable',
+    noConnection: 'No connection',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     fit: 'Fit to screen',
@@ -281,6 +284,7 @@ const en: Strings = {
     failed: 'Could not validate. Your draft is kept.',
     retry: 'Retry',
     unavailable: (type) => `Step type “${type}” is not available: check its connection`,
+    noConnection: (title) => `“${title}”: its connection is unavailable. Reconnect it in Integrations or pick another connection.`,
     close: 'Close validation',
     graph: 'Automation',
   },
@@ -380,6 +384,7 @@ const ru: Strings = {
     notConnected: 'не подключён',
     ignored: 'игнорируется',
     unavailable: 'Недоступно',
+    noConnection: 'Нет подключения',
     zoomIn: 'Приблизить',
     zoomOut: 'Отдалить',
     fit: 'Вместить',
@@ -472,6 +477,7 @@ const ru: Strings = {
     failed: 'Не удалось проверить. Черновик сохранён.',
     retry: 'Повторить',
     unavailable: (type) => `Тип шага «${type}» недоступен: проверьте подключение`,
+    noConnection: (title) => `«${title}»: подключение недоступно. Переподключите его в «Интеграциях» или выберите другое.`,
     close: 'Закрыть проверку',
     graph: 'Автоматизация',
   },
@@ -571,6 +577,7 @@ const uz: Strings = {
     notConnected: 'ulanmagan',
     ignored: 'eʼtiborsiz',
     unavailable: 'Mavjud emas',
+    noConnection: 'Ulanish yoʻq',
     zoomIn: 'Yaqinlashtirish',
     zoomOut: 'Uzoqlashtirish',
     fit: 'Sigʻdirish',
@@ -663,6 +670,7 @@ const uz: Strings = {
     failed: 'Tekshirib boʻlmadi. Qoralama saqlandi.',
     retry: 'Qayta urinish',
     unavailable: (type) => `«${type}» turidagi qadam mavjud emas: ulanishni tekshiring`,
+    noConnection: (title) => `«${title}»: ulanish mavjud emas. Uni «Integratsiyalar»da qayta ulang yoki boshqasini tanlang.`,
     close: 'Tekshiruvni yopish',
     graph: 'Avtomatlashtirish',
   },
@@ -762,6 +770,7 @@ const uzCyrl: Strings = {
     notConnected: 'уланмаган',
     ignored: 'эътиборсиз',
     unavailable: 'Мавжуд эмас',
+    noConnection: 'Уланиш йўқ',
     zoomIn: 'Яқинлаштириш',
     zoomOut: 'Узоқлаштириш',
     fit: 'Сиғдириш',
@@ -854,6 +863,7 @@ const uzCyrl: Strings = {
     failed: 'Текшириб бўлмади. Қоралама сақланди.',
     retry: 'Қайта уриниш',
     unavailable: (type) => `«${type}» туридаги қадам мавжуд эмас: уланишни текширинг`,
+    noConnection: (title) => `«${title}»: уланиш мавжуд эмас. Уни «Интеграциялар»да қайта уланг ёки бошқасини танланг.`,
     close: 'Текширувни ёпиш',
     graph: 'Автоматлаштириш',
   },

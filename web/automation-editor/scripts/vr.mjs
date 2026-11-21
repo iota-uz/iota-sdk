@@ -4,17 +4,14 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const baselineDir = path.join(root, 'vr', 'baselines', process.platform)
 const cliArgs = process.argv.slice(2)
 const updateIndex = cliArgs.indexOf('--update')
 const update = updateIndex >= 0
 const forwarded = cliArgs.filter((_, index) => index !== updateIndex)
-const hasBaseline = existsSync(baselineDir) && readdirSync(baselineDir).some((name) => name.endsWith('.png'))
-const shouldUpdate = update || !hasBaseline
-
-if (!hasBaseline && !update) {
-  console.log(`No ${process.platform} baselines found; bootstrapping ${path.relative(root, baselineDir)}.`)
-}
+// Check mode compares with the approved Linux baselines at 0 px (Q1). A missing baseline is a failure:
+// a candidate is written next to the approved ones for review, and the run still exits non-zero.
+// `--update` (pnpm vr-update) rewrites the baselines on purpose.
+const shouldUpdate = update
 
 const pnpmDir = path.join(root, 'node_modules', '.pnpm')
 const hasHermeticBrowser = existsSync(pnpmDir) && readdirSync(pnpmDir).some((entry) =>
@@ -65,14 +62,11 @@ if ((result.status ?? 1) !== 0 && !shouldUpdate && existsSync(report)) {
   )
   if (missingOnly) {
     const names = failures.map((failure) => failure.title).sort()
-    console.log(`Missing ${names.length} approved ${process.platform} baselines; generating candidates. Review and promote them before merge:`)
+    console.log(`Missing ${names.length} approved ${process.platform} baselines; writing candidates. Review and commit them:`)
     console.log(names.map((name) => `  - ${name}`).join('\n'))
-    const updateResult = spawnSync('pnpm', ['exec', 'playwright', 'test', '--project=vr', ...forwarded, '--update-snapshots'], { cwd: root, env, stdio: 'inherit' })
-    if ((updateResult.status ?? 1) === 0) {
-      writeFileSync(missingMarker, `${names.join('\n')}\n`)
-      process.exit(0)
-    }
-    process.exit(updateResult.status ?? 1)
+    spawnSync('pnpm', ['exec', 'playwright', 'test', '--project=vr', ...forwarded, '--update-snapshots'], { cwd: root, env, stdio: 'inherit' })
+    writeFileSync(missingMarker, `${names.join('\n')}\n`)
+    process.exit(1)
   }
 }
 process.exit(result.status ?? 1)

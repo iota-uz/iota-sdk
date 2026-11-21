@@ -31,7 +31,22 @@ const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
     default: return { graph: sample, layout: {} }
   }
 }
-const initial = pick()
+const picked = pick()
+// connection=lost: a Telegram step whose connection the host reports unavailable (validate diagnostic),
+// and a step of a catalog type without any working connection (connected: false).
+const initial = params.get('connection') === 'lost'
+  ? {
+    layout: picked.layout,
+    graph: {
+      ...picked.graph,
+      nodes: [
+        ...picked.graph.nodes,
+        { id: 'notify_sales', type: 'telegram.send_message', params: { connection: 'conn_sales', chat: '@sales', text: 'New user {{ user.email }}' } },
+        { id: 'classify', type: 'ai.classify', params: { text: 'hello' } },
+      ],
+    },
+  }
+  : picked
 
 type Log = {
   replaceJsMs?: number
@@ -39,6 +54,9 @@ type Log = {
   mountJsMs?: number
   saves: { base: number; graph: AutomationGraph }[]
   saveLayouts: AutomationLayout[]
+  saveLayoutCalls: number
+  openedVersions: number[]
+  initialLayout: AutomationLayout
   validates: number
   moves: AutomationLayout[]
   changes: AutomationGraph[]
@@ -46,7 +64,7 @@ type Log = {
   graph: AutomationGraph
   layout: AutomationLayout
 }
-const log: Log = { saves: [], saveLayouts: [], validates: 0, moves: [], changes: [], reloads: 0, graph: initial.graph, layout: initial.layout }
+const log: Log = { saves: [], saveLayouts: [], saveLayoutCalls: 0, openedVersions: [], initialLayout: ensureLayout(initial.graph, catalog, initial.layout), validates: 0, moves: [], changes: [], reloads: 0, graph: initial.graph, layout: initial.layout }
 window.__fixture = Object.assign(log, {
   failNext: (kind: string) => fail.add(kind),
   recover: (kind: string) => fail.delete(kind),
@@ -63,6 +81,9 @@ const api: EditorApi = {
     const errors: GraphError[] = []
     graph.nodes.forEach((node, index) => {
       if (node.type === 'branch' && !String(node.params.expression ?? '').trim()) errors.push({ path: `nodes[${index}].params.expression`, message: 'An expression is required.', code: 'required' })
+      if (node.type === 'telegram.send_message' && node.params.connection === 'conn_sales') {
+        errors.push({ path: `nodes[${index}].params.connection`, code: 'connection_unavailable', message: 'Connection “Sales bot” is unavailable: reconnect it in Integrations.' })
+      }
       if (params.get('errors') === '1' && node.id === 'has_email') errors.push({ path: `nodes[${index}].params.expression`, message: 'Unknown field user.mail.', code: 'type' })
     })
     if (graph.triggers.length === 0) errors.push({ path: 'triggers', message: 'Add at least one trigger.', code: 'required' })
@@ -143,8 +164,9 @@ function App() {
       runsCount={12}
       runsBody={<p style={{ padding: '1rem' }}>Runs live in #1347.</p>}
       versions={[{ version: 3, enabled: true, by: 'Aziz' }, { version: 2, note: 'Before review' }, { version: 1 }]}
-      onOpenVersion={() => undefined}
+      onOpenVersion={(version) => log.openedVersions.push(version)}
       saveLayout={serverVersion > 0 ? async (positions) => {
+        log.saveLayoutCalls += 1
         await wait(latency)
         if (fail.has('savelayout')) throw new Error('network')
         log.saveLayouts.push(positions)

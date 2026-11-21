@@ -155,6 +155,82 @@ test.describe('editor', () => {
     await expect(save).toHaveAttribute('aria-disabled', 'true')
   })
 
+  test('a step whose connection is unavailable is marked and named in Validation (ED10)', async ({ page }) => {
+    await open(page, 'connection=lost')
+    await page.getByRole('button', { name: 'Validate' }).click()
+    const dock = page.locator('.ae-validation')
+    await expect(dock).toContainText('Connection “Sales bot” is unavailable')
+    await expect(dock).toContainText('“Classify text”: its connection is unavailable')
+    for (const id of ['notify_sales', 'classify']) {
+      await card(page, id).scrollIntoViewIfNeeded().catch(() => undefined)
+    }
+    await page.locator('.ae-canvas').focus()
+    await page.keyboard.press('Shift+1')
+    await expect(card(page, 'notify_sales').locator('.ae-badge--error')).toContainText('No connection')
+    await expect(card(page, 'classify').locator('.ae-badge--error')).toContainText('No connection')
+    await expect(page.locator('.ae-save')).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('an edit during a check: the old answer is not shown for the new draft, and Save checks what it sends', async ({ page }) => {
+    await open(page, 'latency=800')
+    await card(page, 'has_email').click()
+    const field = page.locator('.ae-panel [data-param="expression"] textarea').first()
+    await field.fill('')
+    await page.getByRole('button', { name: 'Validate' }).click()
+    // While that check runs the expression is fixed again: the answer for the empty one must not stay.
+    await field.fill('user.email != "" && true')
+    await expect.poll(() => page.evaluate(() => window.__fixture.validates)).toBeGreaterThanOrEqual(2)
+    await expect(page.locator('.ae-validation')).not.toContainText('An expression is required.')
+    await page.locator('.ae-save').click()
+    await expect.poll(() => page.evaluate(() => window.__fixture.saves.length)).toBe(1)
+    const sent = await page.evaluate(() => window.__fixture.saves[0]!.graph.nodes.find((n) => n.id === 'has_email')!.params.expression)
+    expect(sent).toBe('user.email != "" && true')
+  })
+
+  test('Save checks a changed draft first and does not send it when the check finds errors', async ({ page }) => {
+    await open(page, 'latency=300')
+    await card(page, 'has_email').click()
+    await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('')
+    await page.locator('.ae-save').click()
+    await expect(page.locator('.ae-validation')).toContainText('An expression is required.')
+    expect(await page.evaluate(() => window.__fixture.saves.length)).toBe(0)
+  })
+
+  test('an undo while the layout is being saved saves the undone layout too (AS1)', async ({ page }) => {
+    await open(page, 'latency=1400')
+    const box = (await card(page, 'end').boundingBox())!
+    const start = await center(card(page, 'end').locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 80, y: start.y + 48 })
+    await expect.poll(() => page.evaluate(() => window.__fixture.saveLayoutCalls), { timeout: 3000 }).toBe(1)
+    await page.locator('.ae-canvas').focus()
+    await page.keyboard.press(`${mod}+z`)
+    await expect.poll(async () => (await card(page, 'end').boundingBox())!.x).toBeCloseTo(box.x, 0)
+    await expect.poll(() => page.evaluate(() => window.__fixture.saveLayouts.length), { timeout: 6000 }).toBe(2)
+    const [first, second] = await page.evaluate(() => window.__fixture.saveLayouts)
+    expect(second!.end).not.toEqual(first!.end)
+    expect(second!.end).toEqual(await page.evaluate(() => window.__fixture.initialLayout.end))
+    await expect(page.locator('.ae-quiet')).toContainText('Layout saved')
+  })
+
+  test('Versions lists the versions and opens one', async ({ page }) => {
+    await open(page)
+    await page.getByRole('button', { name: 'Versions' }).click()
+    const menu = page.locator('.ae-menu')
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveCount(3)
+    await menu.getByRole('menuitemcheckbox', { name: /Version 2/ }).click()
+    await expect.poll(() => page.evaluate(() => window.__fixture.openedVersions)).toEqual([2])
+  })
+
+  test('narrowing to a phone closes Settings and stops editing', async ({ page }) => {
+    await open(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await expect(page.getByRole('heading', { name: 'Automation settings' })).toBeVisible()
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(page.locator('.ae-outline')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Automation settings' })).toHaveCount(0)
+    await expect(page.locator('input:not([type="checkbox"]), textarea')).toHaveCount(0)
+  })
+
   test('save sends the draft with its base; a network error keeps the draft and the retry sends the same base (ED12)', async ({ page }) => {
     await open(page, 'fail=save')
     await card(page, 'has_email').click()

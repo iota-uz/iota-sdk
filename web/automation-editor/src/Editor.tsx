@@ -33,7 +33,7 @@ import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
 import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, XY } from './types'
 import { localErrors } from './validation'
-import { issuesOf, type ValidationState } from './validation'
+import { rebaseErrors, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
 
 // The panel's forms (JSON Schema fields, CEL and template editors, the schedule editor) are their own
@@ -89,6 +89,8 @@ function EditorBody(props: EditorProps): JSX.Element {
   let lastKey: string | null = null
   let lastAt = 0
   const commit = (next: Snapshot, key?: string) => {
+    // A phone shows the read-only outline: no path may edit there (a layer left open, a shortcut).
+    if (mobile()) return
     const now = Date.now()
     if (key && key === lastKey && now - lastAt < FIELD_COALESCE_MS) setHistory((h) => amend(h, next))
     else setHistory((h) => record(h, next))
@@ -130,54 +132,109 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (id && !findItem(graph, id)) setSelected(null)
   }))
 
+  // Crossing to the phone width closes every editing layer; the outline is read-only (T7).
+  createEffect(on(mobile, (phone) => {
+    if (!phone) return
+    batch(() => {
+      setPalette(null)
+      setMenu(null)
+      setVersionsMenu(null)
+      setSettingsOpen(false)
+      setKeymapOpen(false)
+      setSelected(null)
+      setValidationOpen(false)
+    })
+  }, { defer: true }))
+
   // ——— validation ———
+  // Each result belongs to the snapshot it checked. Shown errors are rebased onto the current draft by
+  // item id; a result for an older snapshot never decides whether the current one may be saved.
   const [validation, setValidation] = createSignal<ValidationState>({ status: 'idle' })
-  const local = createMemo(() => localErrors(draft(), (type) => Boolean(catalogNode(props.catalog, type)), (type) => t().validation.unavailable(type)))
-  const allErrors = createMemo<GraphError[]>(() => [...local(), ...issuesOf(validation()).errors])
+  const local = createMemo(() => localErrors(draft(), (type) => catalogNode(props.catalog, type), {
+    unknown: (type) => t().validation.unavailable(type),
+    noConnection: (title) => t().validation.noConnection(title),
+  }))
+  const checked = createMemo(() => {
+    const state = validation()
+    if (state.status === 'idle') return { errors: [] as GraphError[], warnings: [] as GraphError[] }
+    return { errors: rebaseErrors(state.errors, state.graph, draft()), warnings: rebaseErrors(state.warnings, state.graph, draft()) }
+  })
+  const allErrors = createMemo<GraphError[]>(() => [...local(), ...checked().errors])
+  /** The server answered for exactly this snapshot. */
+  const validFor = (graph: AutomationGraph) => {
+    const state = validation()
+    return state.status === 'done' && state.graph === graph
+  }
   let validateSeq = 0
   let validateTimer: ReturnType<typeof setTimeout> | undefined
-  const validate = async () => {
+  /** Checks a snapshot; the result is shown only while that snapshot is still the draft. */
+  const validate = async (graph: AutomationGraph = draft()): Promise<{ errors: GraphError[]; warnings: GraphError[] } | null> => {
     clearTimeout(validateTimer)
     const seq = ++validateSeq
-    const graph = draft()
-    const previous = issuesOf(validation())
-    setValidation({ status: 'checking', ...previous })
+    const previous = validation()
+    const keep = previous.status === 'idle' ? { errors: [], warnings: [], graph } : previous
+    setValidation({ ...keep, status: 'checking' })
     try {
       const result = await props.api.validate(graph)
-      if (seq !== validateSeq) return
-      setValidation({ status: 'done', errors: result.errors ?? [], warnings: result.warnings ?? [] })
+      const issues = { errors: result.errors ?? [], warnings: result.warnings ?? [] }
+      if (seq === validateSeq && draft() === graph) setValidation({ status: 'done', ...issues, graph })
+      return issues
     } catch (error) {
-      if (seq !== validateSeq) return
       console.warn('automation-editor: validate failed', error)
-      setValidation({ status: 'failed', ...previous })
-      toast.notify({ variant: 'error', title: t().validation.failed, action: { label: t().common.retry, onAction: () => void validate() } })
+      if (seq === validateSeq) {
+        setValidation({ ...keep, status: 'failed' })
+        toast.notify({ variant: 'error', title: t().validation.failed, action: { label: t().common.retry, onAction: () => void validate() } })
+      }
+      return null
     }
   }
   createEffect(on(draft, () => {
+    // An edit invalidates the check in flight; the next one starts after a pause.
+    validateSeq += 1
     clearTimeout(validateTimer)
     validateTimer = setTimeout(() => void validate(), VALIDATE_DEBOUNCE_MS)
   }, { defer: true }))
 
   // ——— layout autosave (AS1): never a version ———
+  // One request at a time; when it ends, the layout on screen is compared with what was saved and the
+  // latest snapshot is sent again if they differ (an undo during a save is saved too).
   const [layoutState, setLayoutState] = createSignal<LayoutState>('idle')
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
+  let layoutInFlight = false
   const saveLayoutNow = async () => {
+    clearTimeout(layoutTimer)
     const save = props.saveLayout
-    if (!save || readOnly()) return
-    const next = layout()
-    setLayoutState('saving')
+    if (!save || readOnly() || layoutInFlight) return
+    layoutInFlight = true
     try {
-      await save(next)
-      setPersistedLayout(next)
-      setLayoutState(layoutsEqual(layout(), next) ? 'saved' : 'saving')
-    } catch (error) {
-      console.warn('automation-editor: saveLayout failed', error)
-      setLayoutState('failed')
+      for (;;) {
+        const next = layout()
+        if (layoutsEqual(next, persistedLayout())) {
+          setLayoutState((state) => (state === 'idle' ? 'idle' : 'saved'))
+          return
+        }
+        setLayoutState('saving')
+        try {
+          await save(next)
+          setPersistedLayout(next)
+        } catch (error) {
+          console.warn('automation-editor: saveLayout failed', error)
+          setLayoutState('failed')
+          return
+        }
+      }
+    } finally {
+      layoutInFlight = false
     }
   }
   createEffect(on(layout, (next) => {
-    if (!props.saveLayout || readOnly() || layoutsEqual(next, persistedLayout())) return
+    if (!props.saveLayout || readOnly()) return
     clearTimeout(layoutTimer)
+    if (layoutInFlight) return // the request in flight sends the latest snapshot when it ends
+    if (layoutsEqual(next, persistedLayout())) {
+      if (layoutState() === 'saving') setLayoutState('saved')
+      return
+    }
     layoutTimer = setTimeout(() => void saveLayoutNow(), LAYOUT_DEBOUNCE_MS)
   }, { defer: true }))
 
@@ -188,11 +245,14 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [overwrite, setOverwrite] = createSignal<number | null>(null)
   const [confirmReload, setConfirmReload] = createSignal(false)
   const [reloading, setReloading] = createSignal(false)
-  const canSave = () => !readOnly() && saveState().status !== 'saving' && allErrors().length === 0 && (dirty() || props.version === 0 && base() === 0)
+  const editingBlocked = () => readOnly() || mobile()
+  /** Save is blocked by errors known for this very draft; a draft not checked yet is checked on Save. */
+  const knownErrors = () => local().length > 0 || (validFor(draft()) && checked().errors.length > 0)
+  const canSave = () => !editingBlocked() && saveState().status !== 'saving' && !knownErrors() && (dirty() || props.version === 0 && base() === 0)
 
   const save = async () => {
     if (!canSave()) {
-      if (allErrors().length > 0) setValidationOpen(true)
+      if (knownErrors()) setValidationOpen(true)
       return
     }
     const graph = draft()
@@ -200,6 +260,19 @@ function EditorBody(props: EditorProps): JSX.Element {
     const sentBase = base()
     setSaveState({ status: 'saving', slow: false })
     const slow = setTimeout(() => setSaveState((s) => (s.status === 'saving' ? { status: 'saving', slow: true } : s)), STILL_WAITING_MS)
+    if (!validFor(graph)) {
+      // The snapshot that is sent is the one that was checked.
+      const issues = await validate(graph)
+      if (!issues || issues.errors.length > 0) {
+        clearTimeout(slow)
+        setSaveState({ status: 'idle' })
+        if (issues) {
+          setValidation({ status: 'done', ...issues, graph })
+          setValidationOpen(true)
+        }
+        return
+      }
+    }
     try {
       const result = await props.save(graph, positions, sentBase)
       clearTimeout(slow)
@@ -225,7 +298,7 @@ function EditorBody(props: EditorProps): JSX.Element {
       }
       setSaveState({ status: 'idle' })
       const rejected = result as { errors?: GraphError[]; warnings?: GraphError[] }
-      setValidation({ status: 'done', errors: rejected.errors ?? [], warnings: rejected.warnings ?? [] })
+      setValidation({ status: 'done', errors: rejected.errors ?? [], warnings: rejected.warnings ?? [], graph })
       setValidationOpen(true)
     } catch (error) {
       clearTimeout(slow)
@@ -559,13 +632,13 @@ function EditorBody(props: EditorProps): JSX.Element {
 
   // ——— render ———
   const errorsShown = () => allErrors()
+  // The panel shows the issues rebased onto the current draft, plus the editor's own.
   const validationView = createMemo<ValidationState>(() => {
     const state = validation()
-    if (local().length === 0) return state
-    if (state.status === 'idle') return { status: 'done', errors: local(), warnings: [] }
-    return { ...state, errors: [...local(), ...state.errors] }
+    if (state.status === 'idle' && local().length === 0) return state
+    return { status: state.status === 'idle' ? 'done' : state.status, errors: allErrors(), warnings: checked().warnings, graph: draft() }
   })
-  const issueCount = () => allErrors().length + issuesOf(validation()).warnings.length
+  const issueCount = () => allErrors().length + checked().warnings.length
   const empty = () => draft().triggers.length === 0 && draft().nodes.length === 0
   const saveLabel = () => (saveState().status === 'saving' ? t().toolbar.saving : overwrite() ? t().save.saveOver(overwrite()!) : t().toolbar.save)
 
@@ -809,10 +882,12 @@ function EditorBody(props: EditorProps): JSX.Element {
         open={settingsOpen()}
         graph={draft()}
         locale={props.locale}
-        readOnly={readOnly()}
+        readOnly={editingBlocked()}
         onChange={(patch, key) => commitGraph({ ...draft(), ...patch }, key)}
         onClose={() => setSettingsOpen(false)}
       />
+        </Suspense>
+      </Show>
       <Show when={versionsMenu()}>
         {(p) => (
           <Suspense>
@@ -831,8 +906,6 @@ function EditorBody(props: EditorProps): JSX.Element {
           />
           </Suspense>
         )}
-      </Show>
-        </Suspense>
       </Show>
       <Show when={keymapOpen()}>
         <Suspense>

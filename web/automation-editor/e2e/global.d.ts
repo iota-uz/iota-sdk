@@ -5,6 +5,9 @@ declare global {
     __fixture: {
       saves: { base: number; graph: AutomationGraph }[]
       saveLayouts: AutomationLayout[]
+      saveLayoutCalls: number
+      openedVersions: number[]
+      initialLayout: AutomationLayout
       validates: number
       moves: AutomationLayout[]
       changes: AutomationGraph[]

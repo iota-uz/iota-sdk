@@ -7,7 +7,7 @@ import { addNode, addTrigger, connect, duplicateItems, edgeOf, idBase, nodeOutco
 import { canRedo, canUndo, createHistory, record, redo, undo } from './history'
 import { backEdges, ensureLayout, itemSize, placeNew, tidyLayout } from './layout'
 import type { AutomationGraph, AutomationLayout, GraphEdge } from './types'
-import { errorsByItem, errorTarget } from './validation'
+import { connectionLost, CONNECTION_UNAVAILABLE, errorsByItem, errorTarget, localErrors, rebaseErrors } from './validation'
 
 const spec = (type: string) => catalog.nodes.find((n) => n.type === type)!
 
@@ -230,5 +230,30 @@ describe('validation paths', () => {
     expect(errorTarget(sample, 'edges[0]')).toEqual({ id: 'user_created', field: null })
     expect(errorTarget(sample, 'name')).toEqual({ id: null, field: null })
     expect(errorsByItem(sample, [{ path: 'nodes[0].params.expression', message: 'bad' }]).get('has_email')).toBe('bad')
+  })
+})
+
+describe('validation snapshots', () => {
+  it('rebases error paths onto the current draft by id and drops errors of removed steps', () => {
+    const before = sample
+    const after = removeItems(sample, ['has_email'])
+    const errors = [
+      { path: 'nodes[0].params.expression', message: 'gone' },
+      { path: 'nodes[1].params.subject', message: 'subject' },
+      { path: 'name', message: 'graph-level' },
+    ]
+    const rebased = rebaseErrors(errors, before, after)
+    expect(rebased).toEqual([{ path: 'nodes[0].params.subject', message: 'subject' }, { path: 'name', message: 'graph-level' }])
+    expect(errorTarget(after, rebased[0]!.path).id).toBe('send_email')
+  })
+
+  it('reports steps of a type without a working connection, as the host diagnostic does (ED10)', () => {
+    const graph: AutomationGraph = { ...sample, nodes: [...sample.nodes, { id: 'classify', type: 'ai.classify', params: {} }] }
+    const errors = localErrors(graph, (type) => catalog.nodes.find((n) => n.type === type), {
+      unknown: (type) => `unknown ${type}`,
+      noConnection: (title) => `no connection for ${title}`,
+    })
+    expect(errors).toEqual([{ path: 'nodes[4].params.connection', message: 'no connection for Classify text', code: CONNECTION_UNAVAILABLE }])
+    expect([...connectionLost(graph, errors)]).toEqual(['classify'])
   })
 })

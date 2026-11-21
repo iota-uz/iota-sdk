@@ -91,7 +91,7 @@ automation-editor cmd="help" *args="":
     check) (cd web/automation-editor && pnpm check {{args}}) ;; \
     build) (cd web/automation-editor && pnpm build:package {{args}}) ;; \
     e2e) (cd web/automation-editor && pnpm e2e {{args}}) ;; \
-    touch) (cd web/automation-editor && pnpm exec playwright test --project=touch --project=ipad {{args}}) ;; \
+    touch) (cd web/automation-editor && pnpm exec playwright test --project=touch --project=ipad --project=ipad-portrait {{args}}) ;; \
     bench) (cd web/automation-editor && pnpm bench {{args}}) ;; \
     *) \
       echo "Usage: just automation-editor [dev|check|build|e2e|touch|bench]" ; \

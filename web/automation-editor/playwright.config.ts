@@ -26,6 +26,7 @@ export default defineConfig({
     { name: 'e2e', testMatch: /editor\.spec\.ts/, use: { browserName: 'chromium' } },
     { name: 'touch', testMatch: /touch\.spec\.ts/, use: { ...devices['iPad (gen 7) landscape'], browserName: 'chromium' } },
     { name: 'ipad', testMatch: /touch\.spec\.ts/, use: { ...devices['iPad (gen 7) landscape'], browserName: 'webkit' } },
+    { name: 'ipad-portrait', testMatch: /touch\.spec\.ts/, use: { ...devices['iPad (gen 7)'], browserName: 'webkit' } },
     { name: 'bench', testMatch: /bench\.spec\.ts/, use: { browserName: 'chromium' } },
     {
       name: 'vr',
@@ -36,7 +37,7 @@ export default defineConfig({
   webServer: {
     command: 'node scripts/fixture-css.mjs && pnpm exec vite build && pnpm exec vite preview --port ' + port + ' --strictPort',
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 })
