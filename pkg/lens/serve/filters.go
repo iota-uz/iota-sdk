@@ -45,6 +45,7 @@ func periodFilter(input filter.Input) document.Filter {
 			StartParam: input.DateRange.StartName, EndParam: input.DateRange.EndName,
 			Value:      value,
 			AllowEmpty: input.DateRange.AllowAllTime || value.Start == "" || value.End == "",
+			Chips:      input.Component == lens.VariableComponentFilterChips,
 		},
 	}
 }

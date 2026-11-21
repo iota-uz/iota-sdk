@@ -82,7 +82,7 @@ function sameValue(left: PeriodValue, right: PeriodValue): boolean {
 }
 
 /** The viewer's wall-clock date, used only to resolve today-relative presets. */
-function localToday(): CalendarDate {
+export function localToday(): CalendarDate {
   const now = new Date()
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
 }
@@ -203,6 +203,21 @@ function popoverPresets(
 ): Array<RenderablePreset> {
   return catalogPresets(period, today, translate)
     .filter((preset) => !declared.some((other) => sameValue(other.value, preset.value)))
+}
+
+/**
+ * Every one-click range this period offers, in rail order: the producer's
+ * declared periods, then the built-in catalogue minus duplicates. Shared with
+ * the chip presentation (PeriodChips) so both offer the same choices.
+ */
+export function periodChoices(
+  period: NonNullable<Filter['period']>,
+  today: CalendarDate,
+  translate: (key: string, fallback: string) => string,
+): Array<{ id: string; label: string; value: PeriodValue }> {
+  const declared = declaredPresets(period)
+  return [...declared, ...popoverPresets(period, today, translate, declared)]
+    .map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
 }
 
 function draftFromValue(value: PeriodValue): RangeDraft {

@@ -1,0 +1,9 @@
+/* The SDK host page an embedded dashboard sits on: its tokens, base and
+   component classes, over the preflight every SDK page has. Installed only by the stories that render the shared
+   filter-chip kit (which expects that host), never globally, so the other
+   stories keep capturing Lens on a bare page. */
+@config "../../../../tailwind.config.js";
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "../../../../styles/tailwind/iota.css";

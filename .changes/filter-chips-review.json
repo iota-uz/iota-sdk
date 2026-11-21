@@ -1,4 +1,4 @@
 {
   "bump": "minor",
-  "summary": "Filter chips review fixes: flag (bool) chips open for editing — the chip names its value (Yes / No) and its editor switches it by click or keyboard; pagination.NewWithQuery keeps the list's query (search, chips, page size) in every page link, and the project stages list uses it so page 2 keeps its conditions."
+  "summary": "Filter chips review fixes: flag (bool) chips open for editing — the chip names its value (Yes / No) and its editor switches it by click or keyboard; pagination.NewWithQuery keeps the list's query (search, chips, page size) in every page link, and the project stages list uses it so page 2 keeps its conditions. Lens: a date-range variable with Component lens.VariableComponentFilterChips renders as a chip of the shared solid-ui FilterBuilder (presets, custom range, required when the period cannot be empty) over the same URL parameters, so drill, export and links keep the period; the kit loads lazily. solid-ui FilterBuilder: date presets, required fields, editable flag chips, custom summary and labels."
 }

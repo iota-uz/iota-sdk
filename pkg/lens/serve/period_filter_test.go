@@ -182,3 +182,23 @@ func TestDocument_DocumentOptionsCarryTheHeader(t *testing.T) {
 	require.Equal(t, "Custom", doc.Header.Title)
 	require.Equal(t, "Quarter", doc.Header.Subtitle)
 }
+
+func TestDocument_FilterChipsComponentMarksThePeriodAsAChip(t *testing.T) {
+	t.Parallel()
+	handlers, source := periodHandlers(t, func(cfg *Config) {
+		cfg.Spec.Variables[0].Component = lens.VariableComponentFilterChips
+	})
+
+	doc := requestDocument(t, handlers, "/dash/document?period-start=2026-04-01&period-end=2026-06-30")
+
+	require.Len(t, doc.Filters, 1)
+	period := doc.Filters[0].Period
+	require.True(t, period.Chips, "filter_chips renders the period as a shared-kit chip")
+	require.Equal(t, document.PeriodValue{Start: "2026-04-01", End: "2026-06-30"}, period.Value,
+		"the chip reads and writes the same URL parameters as the calendar")
+	require.NoError(t, doc.Validate())
+	require.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), source.last()["since"])
+
+	plain, _ := periodHandlers(t, nil)
+	require.False(t, requestDocument(t, plain, "/dash/document").Filters[0].Period.Chips)
+}

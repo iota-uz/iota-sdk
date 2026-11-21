@@ -17,7 +17,7 @@
     "dev": "node ./scripts/dev.mjs",
     "stories:preview": "node ./scripts/preview-stories.mjs",
     "build": "pnpm --dir ../sdk build:testing && tsc --noEmit && vite build",
-    "build:package": "pnpm --dir ../client-host build && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
+    "build:package": "pnpm --dir ../client-host build && node scripts/ensure-solid-ui.mjs && vite build --config vite.package.config.ts && tsc -p tsconfig.package.json",
     "typecheck": "pnpm --dir ../sdk build:testing && tsc --noEmit",
     "lint": "eslint . && pnpm lint:styles",
     "lint:styles": "stylelint src/styles.css",

@@ -193,6 +193,8 @@ const storyIds = [
   'filter-controls--calendar-range-pending',
   'filter-controls--comparison-custom-interval',
   'filter-controls--comparison-menu-open',
+  'filter-controls--dashboard-filter-chips',
+  'filter-controls--dashboard-filter-chips-open',
   'filter-controls--dashboard-filter-preset-applied',
   'filter-controls--dashboard-filter-dark',
   'filter-controls--dashboard-filter-light',
@@ -522,6 +524,8 @@ const staticStories = [
   // Reviewed Linux diff: one anti-aliased date-field corner pixel; the session allows two.
   ['filter-controls--comparison-custom-interval', 0, 2],
   ['filter-controls--comparison-menu-open', 0],
+  ['filter-controls--dashboard-filter-chips', 0],
+  ['filter-controls--dashboard-filter-chips-open', 0],
   ['filter-controls--dashboard-filter-preset-applied', 0],
   ['filter-controls--dashboard-filter-dark', 0],
   ['filter-controls--dashboard-filter-light', 0],
@@ -771,6 +775,11 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       // the loading and invalid-LaTeX cards are meant to stay unready.
       await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
       await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
+    }
+    if (storyId.startsWith('filter-controls--dashboard-filter-chips')) {
+      // The chip kit loads lazily; the open story clicks its chip once it mounts.
+      await expect(page.locator('.lens-period-chips [data-fb-chip-wrapper]')).toBeVisible()
+      if (storyId.endsWith('-open')) await expect(page.getByRole('dialog', { name: 'Edit Period' })).toBeVisible()
     }
     if (storyId.startsWith('investigation--')) await investigationSettled(page, storyId)
     await screenshot(page, storyId, { maxDiffPixels })

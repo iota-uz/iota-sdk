@@ -29,6 +29,12 @@
     "paths": {
       "@iota-uz/sdk/client-host": [
         "../client-host/src/solid-index.ts"
+      ],
+      "@iota-uz/sdk/solid-ui/embedded-css": [
+        "./src/controls/solidUiEmbeddedCss.dev.ts"
+      ],
+      "@iota-uz/sdk/solid-ui": [
+        "../solid-ui/src/index.ts"
       ]
     },
     "jsxImportSource": "solid-js"
@@ -41,5 +47,6 @@
     "vite.stories.config.ts",
     "vite.package.config.ts",
     "tailwind.config.ts",
+    "kitCss.ts",
   ]
 }

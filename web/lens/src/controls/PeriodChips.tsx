@@ -1,0 +1,97 @@
+import { FilterBuilder, type FilterBuilderField, type FilterCondition } from '@iota-uz/sdk/solid-ui'
+import kitStyles from '@iota-uz/sdk/solid-ui/embedded-css'
+import { currentPeriodValue, useFilters, useTranslate } from '../runtime'
+import type { Filter, PeriodValue } from '../contract'
+import { formatDisplayDate, localToday, periodChoices } from './PeriodFilterControl'
+import { parseISODate, type CalendarDate } from './model'
+
+/**
+ * The shared filter-chip kit's utilities, installed once per page. The kit
+ * expects a host carrying the SDK stylesheet (tokens and base), which is what
+ * an embedded dashboard sits on; the sheet adds only the utilities the chip
+ * components use, so a host whose lists filter by chips and its dashboard
+ * render the same chip.
+ */
+function installKitStyles(): void {
+  if (typeof document === 'undefined' || document.querySelector('style[data-lens-solid-ui]')) return
+  const style = document.createElement('style')
+  style.dataset.lensSolidUi = ''
+  style.textContent = kitStyles
+  document.head.appendChild(style)
+}
+
+function displayRange(value: PeriodValue): string {
+  const start = parseISODate(value.start)
+  const end = parseISODate(value.end)
+  if (!start || !end) return ''
+  return `${formatDisplayDate(start)} – ${formatDisplayDate(end)}`
+}
+
+export interface PeriodChipsProps {
+  /** Period filters declared with the filter_chips component. */
+  filters: Filter[]
+  /** Fixed "today" for deterministic stories and visual regression. */
+  today?: CalendarDate
+}
+
+/**
+ * Period filters as chips of the shared filter builder (solid-ui
+ * FilterBuilder): the same chip, editor and keyboard handling the host's
+ * lists use. A chip reads «Период · Этот квартал» or «Период · 01.07.2026 –
+ * 30.09.2026»; opening it offers the period's presets and a custom range.
+ * State goes through the filters context exactly like the calendar control —
+ * the document URL's start/end parameters — so links, refresh, back, drill
+ * and export keep the period. A period that cannot be empty is a required
+ * chip: it has no remove button and "Clear all" keeps it.
+ */
+export function PeriodChips(props: PeriodChipsProps) {
+  const { values, setPeriod } = useFilters()
+  const translate = useTranslate()
+  installKitStyles()
+  const today = () => props.today ?? localToday()
+  const periods = () => props.filters.filter((filter) => filter.kind === 'period' && filter.period)
+  const choices = (filter: Filter) => periodChoices(filter.period!, today(), translate)
+  const fields = (): FilterBuilderField[] => periods().map((filter) => ({
+    key: filter.id,
+    label: filter.label ?? translate('filter.period.open', 'Change period'),
+    type: 'date',
+    operators: ['between'],
+    required: !filter.period!.allowEmpty,
+    presetOptions: choices(filter).map((choice) => ({ id: choice.id, label: choice.label, values: [choice.value.start, choice.value.end] })),
+  }))
+  const conditions = (): FilterCondition[] => periods().flatMap((filter) => {
+    const value = currentPeriodValue(filter.period!, values)
+    if (!value.start || !value.end) return []
+    const preset = choices(filter).find((choice) => choice.value.start === value.start && choice.value.end === value.end)
+    return [{ field: filter.id, operator: 'between', values: [value.start, value.end], ...(preset ? { preset: preset.id } : {}) }]
+  })
+  const apply = (next: FilterCondition[]) => {
+    for (const filter of periods()) {
+      const condition = next.find((item) => item.field === filter.id)
+      const current = currentPeriodValue(filter.period!, values)
+      if (condition && condition.values.length === 2) {
+        const [start, end] = condition.values as [string, string]
+        if (start && end && (start !== current.start || end !== current.end)) setPeriod(filter, start <= end ? { start, end } : { start: end, end: start })
+      } else if (!condition && filter.period!.allowEmpty && (current.start || current.end)) {
+        setPeriod(filter, { start: '', end: '' })
+      }
+    }
+  }
+  return (
+    <FilterBuilder
+      class="lens-period-chips"
+      data-testid="period-chips"
+      fields={fields()}
+      conditions={conditions()}
+      onConditionsChange={apply}
+      operatorLabel={() => ''}
+      formatSummary={(field, condition) => {
+        const preset = condition.preset ? field.presetOptions?.find((item) => item.id === condition.preset) : undefined
+        return preset?.label ?? displayRange({ start: condition.values[0] ?? '', end: condition.values[1] ?? '' })
+      }}
+      applyLabel={translate('filter.period.apply', 'Apply')}
+      removeLabel={translate('filter.facet.remove', 'Remove filter')}
+      clearLabel={translate('filter.facet.clearAll', 'Clear all')}
+    />
+  )
+}

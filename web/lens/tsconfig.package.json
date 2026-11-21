@@ -9,7 +9,9 @@
     "rootDir": "src",
     "types": ["vite/client"],
     "paths": {
-      "@iota-uz/sdk/client-host": ["../client-host/dist/index.d.ts"]
+      "@iota-uz/sdk/client-host": ["../client-host/dist/index.d.ts"],
+      "@iota-uz/sdk/solid-ui/embedded-css": ["../solid-ui/package-dist/embedded-css.d.ts"],
+      "@iota-uz/sdk/solid-ui": ["../solid-ui/package-dist/index.d.ts"]
     }
   },
   "include": ["src/index.ts", "src/vite-env.d.ts"],

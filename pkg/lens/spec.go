@@ -48,6 +48,11 @@ const (
 	VariableComponentNumberInput     VariableComponent = "number_input"
 	VariableComponentToggle          VariableComponent = "toggle"
 	VariableComponentComparePicker   VariableComponent = "compare_picker"
+	// VariableComponentFilterChips renders a date-range variable as a chip of
+	// the shared filter builder (solid-ui FilterBuilder) instead of the
+	// calendar trigger, so a host whose lists filter by chips reads the same
+	// on its dashboard.
+	VariableComponentFilterChips VariableComponent = "filter_chips"
 )
 
 type DashboardSpec struct {

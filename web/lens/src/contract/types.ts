@@ -686,6 +686,7 @@ export interface PeriodFilter {
   max?: string
   allowEmpty?: boolean
   presets?: Array<PeriodPreset>
+  chips?: boolean
 }
 
 export interface PeriodPreset {

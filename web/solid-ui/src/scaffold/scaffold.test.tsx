@@ -96,6 +96,39 @@ describe('scaffold presentation primitives', () => {
     expect(changes.at(-1)).toEqual([{ field: 'project', operator: 'empty', values: [] }])
   })
 
+  it('applies a date preset, keeps a required chip through Clear all and edits a flag chip', async () => {
+    const changes: FilterCondition[][] = []
+    render(() => {
+      const [conditions, setConditions] = createSignal<FilterCondition[]>([
+        { field: 'period', operator: 'between', values: ['2026-07-01', '2026-09-30'] },
+        { field: 'overdue', operator: 'is', values: ['false'] },
+      ])
+      return <FilterBuilder
+        fields={[
+          { key: 'period', label: 'Period', type: 'date', operators: ['between'], required: true, presetOptions: [{ id: 'thisQuarter', label: 'This quarter', values: ['2026-10-01', '2026-12-31'] }] },
+          { key: 'overdue', label: 'Overdue', type: 'bool' },
+        ]}
+        conditions={conditions()}
+        operatorLabel={(op) => (op === 'between' ? '' : op)}
+        boolLabels={{ yes: 'Yes', no: 'No' }}
+        showResetAlways
+        onConditionsChange={(next) => { changes.push(next); setConditions(next) }}
+      />
+    })
+    expect(screen.getByRole('button', { name: /Period/ })).toHaveTextContent('2026-07-01 – 2026-09-30')
+    expect(screen.getByRole('button', { name: /Overdue/ })).toHaveTextContent('No')
+    expect(screen.getAllByRole('button', { name: 'Remove filter' })).toHaveLength(1)
+    await fireEvent.click(screen.getByRole('button', { name: /Period/ }))
+    await fireEvent.click(screen.getByRole('button', { name: 'This quarter' }))
+    expect(changes.at(-1)![0]).toEqual({ field: 'period', operator: 'between', values: ['2026-10-01', '2026-12-31'], preset: 'thisQuarter' })
+    expect(screen.getByRole('button', { name: /Period/ })).toHaveTextContent('This quarter')
+    await fireEvent.click(screen.getByRole('button', { name: /Overdue/ }))
+    await fireEvent.click(screen.getByRole('button', { name: 'Yes' }))
+    expect(changes.at(-1)![1]).toEqual({ field: 'overdue', operator: 'is', values: ['true'] })
+    await fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(changes.at(-1)!.map((condition) => condition.field)).toEqual(['period'])
+  })
+
   it('renders editable chips with canonical hidden codec inputs and removal', async () => {
     const edit = vi.fn()
     const remove = vi.fn()

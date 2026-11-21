@@ -1177,3 +1177,50 @@ describe('SegmentedFilterControl', () => {
     expect(params.get('PeriodGrain')).toBe('year')
   })
 })
+
+/** A period declared with the filter_chips component: the shared kit's chip. */
+function chipPeriodDocument(value: { start: string; end: string }): DashboardDocument {
+  const base = documentWithPeriod(value)
+  const period = base.filters![0]!
+  return parseDocument({
+    ...base,
+    filters: [{ ...period, period: { ...period.period!, allowEmpty: false, chips: true } }],
+  })
+}
+
+function chipPeriodFetcher(calls: Array<string>): typeof fetch {
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    calls.push(`${url.pathname}${url.search}`)
+    const start = url.searchParams.get('ActualRangeStart')
+    const end = url.searchParams.get('ActualRangeEnd')
+    const value = start !== null && end !== null ? { start, end } : { start: '2026-01-01', end: '2026-07-22' }
+    return Promise.resolve(new Response(
+      JSON.stringify(chipPeriodDocument(value)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+  }
+}
+
+describe('Period chips (shared filter builder)', () => {
+  it('shows the period as a required chip and applies a preset through the document URL', async () => {
+    window.history.replaceState(null, '', '/report')
+    const calls: Array<string> = []
+    const view = render(() => <FiltersFixture fetcher={chipPeriodFetcher(calls)} />)
+    const chips = await screen.findByTestId('period-chips')
+    // The calendar control is replaced, not duplicated.
+    expect(screen.queryByRole('button', { name: /Change period/ })).not.toBeInTheDocument()
+    const chip = within(chips).getByRole('button', { name: /Period.*Current fiscal year/ })
+    // Required: no remove button and no "Clear all".
+    expect(within(chips).queryByRole('button', { name: 'Remove filter' })).not.toBeInTheDocument()
+    expect(within(chips).queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument()
+    fireEvent.click(chip)
+    const editor = await screen.findByRole('dialog', { name: 'Edit Period' })
+    fireEvent.click(within(editor).getByRole('button', { name: '2025' }))
+    await waitFor(() => expect(calls.some((call) => call.includes('ActualRangeStart=2025-01-01') && call.includes('ActualRangeEnd=2025-12-31'))).toBe(true))
+    expect(await within(chips).findByRole('button', { name: /Period.*2025/ })).toBeInTheDocument()
+    expect(new URL(window.location.href).searchParams.get('ActualRangeStart')).toBe('2025-01-01')
+    view.unmount()
+  })
+})

@@ -4,6 +4,7 @@ import { Calendar } from './controls'
 import { LensDashboard } from './LensDashboard'
 import type { LensThemeMode } from './runtime'
 import './styles.css'
+import sdkHostCss from './stories/sdkHost.css?kit-css'
 
 const storyToday = { year: 2026, month: 7, day: 22 }
 
@@ -533,3 +534,52 @@ GranularitySegmented.storyName = 'Granularity segmented'
 
 export const GranularitySegmentedDark = () => <GranularityScene theme="dark" />
 GranularitySegmentedDark.storyName = 'Granularity segmented dark'
+
+/**
+ * The SDK host page an embedded dashboard sits on (tokens and component
+ * classes), installed for the chip stories only: the shared filter-chip kit
+ * draws with the host's tokens, while every other story keeps a bare page.
+ */
+function SdkHost(props: { children: JSX.Element }) {
+  onMount(() => {
+    const style = window.document.createElement('style')
+    style.dataset.storySdkHost = ''
+    style.textContent = sdkHostCss
+    // First in <head>, as on a real host page: its layer order (theme, base,
+    // components, utilities) is the one the page keeps, so the kit's
+    // utilities win over the host's base.
+    window.document.head.prepend(style)
+    onCleanup(() => style.remove())
+  })
+  return <>{props.children}</>
+}
+
+/**
+ * A period declared with the filter_chips component: the chip of the shared
+ * filter builder the host's lists use, not the calendar trigger. It is
+ * required (the period cannot be empty), so it has no remove button.
+ */
+const chipPeriodFilter: Filter = {
+  ...periodFilter,
+  period: { ...periodFilter.period!, allowEmpty: false, chips: true, value: { start: '2025-01-01', end: '2025-12-31' } },
+}
+
+export const DashboardFilterChips = () => (
+  <SdkHost><DashboardScene period={chipPeriodFilter} theme="light" /></SdkHost>
+)
+DashboardFilterChips.storyName = 'Dashboard filter chips'
+
+/** The chip opened: the period's presets and a custom range. */
+function ChipOpen(props: { children: JSX.Element }) {
+  let ref: HTMLDivElement | undefined
+  onMount(() => {
+    const cancel = clickWhenReady(() => ref?.querySelector<HTMLElement>('.lens-period-chips [data-fb-chip-wrapper] button'))
+    onCleanup(cancel)
+  })
+  return <div ref={ref}>{props.children}</div>
+}
+
+export const DashboardFilterChipsOpen = () => (
+  <SdkHost><ChipOpen><DashboardScene period={chipPeriodFilter} theme="light" /></ChipOpen></SdkHost>
+)
+DashboardFilterChipsOpen.storyName = 'Dashboard filter chips open'
