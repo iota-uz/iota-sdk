@@ -11,13 +11,17 @@ const solidRoot = path.join(web, 'node_modules/solid-js')
 // into the content hash of the bundle: the bundle's identity, which the Go side sends back in the route
 // context (dist/bundle.json), so the host's identity check passes without tying the bundle to a commit.
 export const COMMIT_SENTINEL = '0123456789abcdef0123456789abcdef01234567'
+export const RELEASE_SENTINEL = '0.0.0-iota-automations-release'
 
 const identity: Plugin = {
   name: 'automations-bundle-identity',
   enforce: 'pre',
   transform(code, id) {
     if (!id.split('?')[0]!.endsWith(path.join('client-host', 'src', 'identity.ts'))) return null
+    // The release is filled in by the Go asset handler when it serves the file (assets.go), so a
+    // release candidate that stamps a new version serves a matching bundle without a rebuild.
     return code.split('__IOTA_SDK_SOURCE_COMMIT__').join(COMMIT_SENTINEL)
+      .replace(/SDK_RELEASE_VERSION = ['"][^'"]+['"]/, `SDK_RELEASE_VERSION = '${RELEASE_SENTINEL}'`)
   },
 }
 

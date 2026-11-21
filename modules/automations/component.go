@@ -22,8 +22,8 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"log/slog"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -166,11 +166,11 @@ func (c *component) Build(b *composition.Builder) error {
 		return serrors.Wrap(op, err)
 	}
 	hostManifest := c.host
-	var assets fs.FS
+	var assets http.Handler
 	if hostManifest == nil {
 		bundle, err := integrations.DefaultBundle()
 		if err == nil {
-			hostManifest, assets = &bundle.Manifest, bundle.Files
+			hostManifest, assets = &bundle.Manifest, bundle.Handler
 		} else if logger := b.Context().Logger(); logger != nil {
 			logger.Warnf("automations: the embedded integrations bundle is unavailable: %v", err)
 		}

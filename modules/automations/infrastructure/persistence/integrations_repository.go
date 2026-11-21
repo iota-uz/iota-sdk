@@ -104,29 +104,71 @@ func (r *connectionChecks) LastChecked(ctx context.Context, tenantID uuid.UUID) 
 
 type requests struct{ db *pgxpool.Pool }
 
-// NewRequests keeps idempotency keys in automation.connection_requests for a day.
+// NewRequests keeps idempotency keys in automation.connection_requests.
 func NewRequests(db *pgxpool.Pool) services.Requests { return &requests{db: db} }
 
-func (r *requests) Find(ctx context.Context, tenantID uuid.UUID, key string) (uuid.UUID, bool, error) {
-	var id uuid.UUID
-	err := r.db.QueryRow(ctx, `SELECT connection_id FROM automation.connection_requests
-		WHERE tenant_id = $1 AND key = $2 AND created_at > now() - interval '1 day'`, tenantID, key).Scan(&id)
+// staleReservation is how long a reservation without a connection holds its key: past it, the
+// request that made it is taken to have failed (it rolled back or its process died).
+const staleReservation = "2 minutes"
+
+func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string) (services.Reservation, error) {
+	const op = serrors.Op("automations.Requests.Reserve")
+	if _, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE created_at < now() - interval '1 day'`); err != nil {
+		return services.Reservation{}, serrors.Wrap(op, err)
+	}
+	tag, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, fingerprint)
+		VALUES ($1, $2, $3) ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, fingerprint)
+	if err != nil {
+		return services.Reservation{}, serrors.Wrap(op, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return services.Reservation{State: services.RequestNew}, nil
+	}
+	var (
+		fp   string
+		conn *uuid.UUID
+	)
+	err = r.db.QueryRow(ctx, `SELECT fingerprint, connection_id FROM automation.connection_requests WHERE tenant_id = $1 AND key = $2`,
+		tenantID, key).Scan(&fp, &conn)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, false, nil
+		// Released or swept between the two statements: reserve again.
+		return r.Reserve(ctx, tenantID, key, fingerprint)
 	}
 	if err != nil {
-		return uuid.Nil, false, serrors.Wrap("automations.Requests.Find", err)
+		return services.Reservation{}, serrors.Wrap(op, err)
 	}
-	return id, true, nil
+	switch {
+	case fp != fingerprint:
+		return services.Reservation{State: services.RequestMismatch}, nil
+	case conn != nil:
+		return services.Reservation{State: services.RequestDone, ConnectionID: *conn}, nil
+	}
+	// A reservation of a request that died is taken over; a live one is in progress.
+	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now()
+		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key)
+	if err != nil {
+		return services.Reservation{}, serrors.Wrap(op, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return services.Reservation{State: services.RequestNew}, nil
+	}
+	return services.Reservation{State: services.RequestInProgress}, nil
 }
 
-func (r *requests) Record(ctx context.Context, tenantID uuid.UUID, key string, connectionID uuid.UUID) error {
-	const op = serrors.Op("automations.Requests.Record")
-	if _, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE created_at < now() - interval '1 day'`); err != nil {
-		return serrors.Wrap(op, err)
+func (r *requests) Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, connectionID uuid.UUID) error {
+	tag, err := tx.Exec(ctx, `UPDATE automation.connection_requests SET connection_id = $3
+		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL`, tenantID, key, connectionID)
+	if err != nil {
+		return serrors.Wrap("automations.Requests.Complete", err)
 	}
-	_, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, connection_id)
-		SELECT tenant_id, $2, id FROM automation.connections WHERE tenant_id = $1 AND id = $3
-		ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, connectionID)
-	return serrors.Wrap(op, err)
+	if tag.RowsAffected() != 1 {
+		// The reservation expired and another request took the key over: this write must not commit.
+		return serrors.Wrap("automations.Requests.Complete", services.ErrRequestInProgress)
+	}
+	return nil
+}
+
+func (r *requests) Release(ctx context.Context, tenantID uuid.UUID, key string) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL`, tenantID, key)
+	return serrors.Wrap("automations.Requests.Release", err)
 }

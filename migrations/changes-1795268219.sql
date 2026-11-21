@@ -28,12 +28,16 @@ CREATE TABLE automation.connection_checks (
 
 CREATE INDEX connection_checks_tenant_id_idx ON automation.connection_checks (tenant_id);
 
--- The connection an idempotency key of the integrations page produced: a retry of a request whose
--- answer was lost returns that connection instead of creating or changing it again. Kept a day.
+-- Idempotency keys of the integrations page. A key is reserved before the provider is asked (an
+-- overlapping retry sees it in progress) and bound to a keyed fingerprint of its payload; the save
+-- that changes the connection sets connection_id in the same transaction, so a retry after a lost
+-- answer gets that connection. A reservation without a connection expires after two minutes; rows are
+-- kept a day.
 CREATE TABLE automation.connection_requests (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     key text NOT NULL CHECK (key <> '' AND length(key) <= 100),
-    connection_id uuid NOT NULL REFERENCES automation.connections (id) ON DELETE CASCADE,
+    fingerprint text NOT NULL,
+    connection_id uuid REFERENCES automation.connections (id) ON DELETE CASCADE,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, key)
 );

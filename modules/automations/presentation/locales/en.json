@@ -121,7 +121,8 @@
         "NameTaken": "This system name is already used by another connection of this service.",
         "VersionConflict": "Someone changed this connection meanwhile. Close the form and open it again.",
         "Unavailable": "Connections are not configured in this application.",
-        "Failed": "Could not save. Try again in a minute."
+        "Failed": "Could not save. Try again in a minute.",
+        "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice."
       },
       "Test": {
         "Running": "Checking…",

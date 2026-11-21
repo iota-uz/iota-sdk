@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -61,12 +62,37 @@ var (
 	ErrOAuthExchange = errors.New("automations: the provider did not confirm the sign-in")
 )
 
-// Requests remembers the connection an idempotency key of the page produced, so a retry of a request
-// whose answer was lost returns the same connection instead of creating or changing it again.
-type Requests interface {
-	Find(ctx context.Context, tenantID uuid.UUID, key string) (uuid.UUID, bool, error)
-	Record(ctx context.Context, tenantID uuid.UUID, key string, connectionID uuid.UUID) error
+// RequestState is what a reserved idempotency key says about its request.
+type RequestState int
+
+const (
+	// RequestNew: the key is this request's now; run it.
+	RequestNew RequestState = iota
+	// RequestInProgress: a request with the key is running (a retry overlapped it).
+	RequestInProgress
+	// RequestDone: a request with the key changed ConnectionID; answer with it.
+	RequestDone
+	// RequestMismatch: the key was used for another payload.
+	RequestMismatch
+)
+
+// Reservation is the state of an idempotency key.
+type Reservation struct {
+	State        RequestState
+	ConnectionID uuid.UUID
 }
+
+// Requests keeps the idempotency keys of the page. A key is reserved before the provider is asked and
+// bound to a fingerprint of the payload; Complete runs in the transaction of the save, so the key
+// records the connection exactly when the change commits; Release frees a key whose request failed.
+type Requests interface {
+	Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string) (Reservation, error)
+	Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, connectionID uuid.UUID) error
+	Release(ctx context.Context, tenantID uuid.UUID, key string) error
+}
+
+// ErrRequestInProgress is a request with the same idempotency key that is still running.
+var ErrRequestInProgress = errors.New("automations: a request with this key is still running")
 
 // maxKey bounds an idempotency key.
 const maxKey = 100
@@ -152,7 +178,7 @@ type UpdateInput struct {
 // before anything is saved and never returns a credential value.
 type IntegrationsService struct {
 	dir      connectors.Directory
-	store    connectors.ConnectionStore
+	store    connectors.Store
 	usage    connectors.UsageIndex
 	platform connectors.PlatformCredentials
 	grants   connectors.PlatformGrants
@@ -167,7 +193,7 @@ type IntegrationsService struct {
 // IntegrationsDeps are the dependencies of the service; Usage, Platform, Grants and OAuth may be nil.
 type IntegrationsDeps struct {
 	Directory connectors.Directory
-	Store     connectors.ConnectionStore
+	Store     connectors.Store
 	Usage     connectors.UsageIndex
 	Platform  connectors.PlatformCredentials
 	Grants    connectors.PlatformGrants
@@ -351,75 +377,124 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	if len(fields) > 0 {
 		return ConnectionEntry{}, &InvalidInputError{Fields: fields}
 	}
-	if done, ok, err := s.replay(ctx, a.TenantID, in.IdempotencyKey); err != nil || ok {
-		return done, err
-	}
 	if _, err := s.store.List(ctx, a.TenantID, in.Kind); err != nil {
 		// No keyring: nothing could be saved, so the credentials are not sent to the provider either.
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
-	identity, err := s.test(ctx, conn, creds)
-	if err != nil {
-		return ConnectionEntry{}, err
+	req, done, err := s.reserve(ctx, a.TenantID, in.IdempotencyKey, uuid.Nil, "create", string(in.Kind), name, display, creds)
+	if err != nil || done != nil {
+		return deref(done), err
 	}
-	saved, err := s.store.Save(ctx, connectors.Connection{
-		TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
-		Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
-	}, creds)
-	if errors.Is(err, connectors.ErrNameTaken) {
-		// A retry racing its own first request lost on the name: answer with what the first made.
-		if done, ok, rerr := s.replay(ctx, a.TenantID, in.IdempotencyKey); rerr == nil && ok {
-			return done, nil
+	saved, err := func() (connectors.Connection, error) {
+		identity, err := s.test(ctx, conn, creds)
+		if err != nil {
+			return connectors.Connection{}, err
 		}
-	}
+		return s.store.SaveWith(ctx, connectors.Connection{
+			TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
+			Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
+		}, creds, req.complete)
+	}()
 	if err != nil {
+		req.release(ctx)
+		var failed *TestFailedError
+		if errors.As(err, &failed) {
+			return ConnectionEntry{}, err
+		}
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
-	s.record(ctx, a.TenantID, in.IdempotencyKey, saved.ID)
 	s.touch(ctx, a.TenantID, saved.ID)
 	return s.entry(ctx, a.TenantID, saved, true)
 }
 
-// replay is the connection an earlier request with key produced, as it is now.
-func (s *IntegrationsService) replay(ctx context.Context, tenantID uuid.UUID, key string) (ConnectionEntry, bool, error) {
-	key = strings.TrimSpace(key)
-	if key == "" || s.requests == nil {
-		return ConnectionEntry{}, false, nil
-	}
-	if len(key) > maxKey {
-		return ConnectionEntry{}, false, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
-	}
-	id, ok, err := s.requests.Find(ctx, tenantID, key)
-	if err != nil || !ok {
-		return ConnectionEntry{}, false, err
-	}
-	c, err := s.find(ctx, tenantID, id)
-	if err != nil {
-		return ConnectionEntry{}, false, err
-	}
-	e, err := s.entry(ctx, tenantID, c, true)
-	return e, err == nil, err
+// request is a reserved idempotency key; the zero value (no key) completes and releases nothing.
+type request struct {
+	s        *IntegrationsService
+	tenantID uuid.UUID
+	key      string
 }
 
-func (s *IntegrationsService) record(ctx context.Context, tenantID uuid.UUID, key string, id uuid.UUID) {
-	key = strings.TrimSpace(key)
-	if key == "" || s.requests == nil {
+func (r request) complete(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+	if r.key == "" {
+		return nil
+	}
+	return r.s.requests.Complete(ctx, tx, r.tenantID, r.key, saved.ID)
+}
+
+func (r request) release(ctx context.Context) {
+	if r.key == "" {
 		return
 	}
-	// The key only shortens a retry: failing to keep it does not fail the action.
-	_ = s.requests.Record(ctx, tenantID, key, id)
+	// Even when the request's context is gone the key must not wait out its expiry.
+	_ = r.s.requests.Release(context.WithoutCancel(ctx), r.tenantID, r.key)
+}
+
+func deref(e *ConnectionEntry) ConnectionEntry {
+	if e == nil {
+		return ConnectionEntry{}
+	}
+	return *e
+}
+
+// reserve takes an idempotency key for a request with this payload. A key a finished request used
+// answers with that connection as it is now (done); one a running request holds is
+// ErrRequestInProgress; one used for another payload is invalid. Without a key nothing is reserved.
+func (s *IntegrationsService) reserve(ctx context.Context, tenantID uuid.UUID, key string, target uuid.UUID, payload ...any) (request, *ConnectionEntry, error) {
+	key = strings.TrimSpace(key)
+	if key == "" || s.requests == nil {
+		return request{}, nil, nil
+	}
+	if len(key) > maxKey {
+		return request{}, nil, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
+	}
+	data, err := json.Marshal(append([]any{target}, payload...))
+	if err != nil {
+		return request{}, nil, err
+	}
+	fp, err := s.store.Fingerprint(data)
+	if err != nil {
+		return request{}, nil, err
+	}
+	res, err := s.requests.Reserve(ctx, tenantID, key, fp)
+	if err != nil {
+		return request{}, nil, err
+	}
+	switch res.State {
+	case RequestNew:
+		return request{s: s, tenantID: tenantID, key: key}, nil, nil
+	case RequestInProgress:
+		return request{}, nil, ErrRequestInProgress
+	case RequestMismatch:
+		return request{}, nil, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
+	case RequestDone:
+	}
+	c, err := s.find(ctx, tenantID, res.ConnectionID)
+	if err != nil {
+		return request{}, nil, err
+	}
+	e, err := s.entry(ctx, tenantID, c, true)
+	if err != nil {
+		return request{}, nil, err
+	}
+	return request{}, &e, nil
 }
 
 // Update changes the display name and the credentials of a connection. New credentials are merged
 // over the stored ones, checked and tested before they are saved.
 func (s *IntegrationsService) Update(ctx context.Context, a Actor, in UpdateInput) (ConnectionEntry, error) {
-	const op = serrors.Op("automations.IntegrationsService.Update")
-	if done, ok, err := s.replay(ctx, a.TenantID, in.IdempotencyKey); err != nil || ok {
-		if ok && done.Connection.ID != in.ID {
-			return ConnectionEntry{}, &InvalidInputError{Fields: map[string]string{"idempotency_key": "invalid"}}
-		}
-		return done, err
+	req, done, err := s.reserve(ctx, a.TenantID, in.IdempotencyKey, in.ID, "update", in.Version, in.DisplayName, in.Credentials)
+	if err != nil || done != nil {
+		return deref(done), err
 	}
+	entry, err := s.update(ctx, a, in, req)
+	if err != nil {
+		req.release(ctx)
+	}
+	return entry, err
+}
+
+func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInput, req request) (ConnectionEntry, error) {
+	const op = serrors.Op("automations.IntegrationsService.Update")
 	cur, stored, err := s.store.Get(ctx, a.TenantID, in.ID)
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
@@ -461,11 +536,10 @@ func (s *IntegrationsService) Update(ctx context.Context, a Actor, in UpdateInpu
 			next.Status, next.StatusReason = connectors.StatusConnected, ""
 		}
 	}
-	saved, err := s.store.Save(ctx, next, creds)
+	saved, err := s.store.SaveWith(ctx, next, creds, req.complete)
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
-	s.record(ctx, a.TenantID, in.IdempotencyKey, saved.ID)
 	if creds != nil {
 		s.touch(ctx, a.TenantID, saved.ID)
 	}
@@ -491,9 +565,8 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 		return TestResult{}, mapStoreError(op, err)
 	}
 	if reauth {
-		if err := s.store.SetStatus(ctx, a.TenantID, id, connectors.StatusNeedsReauth, "re-authorization required"); err != nil {
-			return TestResult{}, serrors.Wrap(op, err)
-		}
+		// OAuth2.Token already recorded needs_reauth in its locked transaction: writing it again here
+		// could overwrite a disable or re-authorization committed since.
 		s.touch(ctx, a.TenantID, id)
 		return TestResult{NeedsReauth: true, Reason: ReasonReauth}, nil
 	}
@@ -691,6 +764,9 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	if grant.Kind != pending.Kind {
 		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
 	}
+	// The connector's Test produced the identity from the new token: it is stored and listed, so it is
+	// sanitized against the token set before either write (every field of a token set is secret).
+	grant.Identity = sanitizeIdentity(grant.Identity, func(string) bool { return true }, grant.Credentials)
 	var saved connectors.Connection
 	if pending.ConnectionID != uuid.Nil {
 		cur, _, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
@@ -809,22 +885,16 @@ func (s *IntegrationsService) touch(ctx context.Context, tenantID, id uuid.UUID)
 // detail are sanitized against creds and extra (the stored credentials of an update).
 func (s *IntegrationsService) test(ctx context.Context, conn connectors.Connector, creds connectors.Credentials, extra ...connectors.Credentials) (connectors.Identity, error) {
 	all := append([]connectors.Credentials{creds}, extra...)
+	secret := secretsOf(conn.Descriptor())
 	identity, err := conn.Test(ctx, creds)
 	if err == nil {
-		var ok bool
-		if identity.Display, ok = sanitize(identity.Display, all...); !ok {
-			identity.Display = ""
-		}
-		if identity.External, ok = sanitize(identity.External, all...); !ok {
-			identity.External = ""
-		}
-		return identity, nil
+		return sanitizeIdentity(identity, secret, all...), nil
 	}
 	if ctx.Err() != nil {
 		return connectors.Identity{}, ctx.Err()
 	}
 	msg := err.Error()
-	return connectors.Identity{}, &TestFailedError{Reason: classify(msg), Detail: detail(msg, all...)}
+	return connectors.Identity{}, &TestFailedError{Reason: classify(msg), Detail: detail(msg, secret, all...)}
 }
 
 // toCredentials converts JSON values of a form to credential strings; a nested value is invalid.
@@ -924,7 +994,7 @@ func mapStoreError(op serrors.Op, err error) error {
 	switch {
 	case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNameTaken),
 		errors.Is(err, connectors.ErrVersionConflict), errors.Is(err, connectors.ErrConnectionInUse),
-		errors.Is(err, connectors.ErrNotConfigured):
+		errors.Is(err, connectors.ErrNotConfigured), errors.Is(err, ErrRequestInProgress):
 		return err
 	}
 	var invalid *InvalidInputError

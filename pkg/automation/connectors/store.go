@@ -2,6 +2,9 @@ package connectors
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +46,14 @@ type store struct {
 type Store interface {
 	ConnectionStore
 	CredentialSource
+	// SaveWith is Save with within run in the same transaction after the write: a record that must
+	// exist exactly when the connection change does (an idempotency key). An error of within rolls the
+	// write back.
+	SaveWith(ctx context.Context, c Connection, creds Credentials, within func(ctx context.Context, tx pgx.Tx, saved Connection) error) (Connection, error)
+	// Fingerprint is an HMAC of data under the active key: it binds a record to a payload with
+	// credentials without storing anything a value could be guessed back from. ErrNotConfigured without
+	// a keyring.
+	Fingerprint(data []byte) (string, error)
 }
 
 // NewStore is the connection store. keys nil: tenant connections are unavailable (ErrNotConfigured)
@@ -279,7 +290,7 @@ func (s *store) Save(ctx context.Context, c Connection, creds Credentials) (Conn
 	}
 	var saved Connection
 	if c.Version == 0 {
-		saved, err = s.create(ctx, c, identity, creds)
+		saved, err = s.create(ctx, s.db, c, identity, creds)
 	} else {
 		saved, err = s.update(ctx, s.db, c, identity, creds)
 	}
@@ -289,7 +300,53 @@ func (s *store) Save(ctx context.Context, c Connection, creds Credentials) (Conn
 	return saved, nil
 }
 
-func (s *store) create(ctx context.Context, c Connection, identity []byte, creds Credentials) (Connection, error) {
+func (s *store) SaveWith(ctx context.Context, c Connection, creds Credentials, within func(ctx context.Context, tx pgx.Tx, saved Connection) error) (Connection, error) {
+	const op = serrors.Op("automation.connectors.Store.SaveWith")
+	if err := s.configured(); err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	c, err := checkConnection(c)
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	identity, err := json.Marshal(c.Identity)
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	var saved Connection
+	err = pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		var err error
+		if c.Version == 0 {
+			saved, err = s.create(ctx, tx, c, identity, creds)
+		} else {
+			saved, err = s.update(ctx, tx, c, identity, creds)
+		}
+		if err != nil {
+			return err
+		}
+		if within != nil {
+			return within(ctx, tx, saved)
+		}
+		return nil
+	})
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	return saved, nil
+}
+
+func (s *store) Fingerprint(data []byte) (string, error) {
+	if err := s.configured(); err != nil {
+		return "", serrors.Wrap("automation.connectors.Store.Fingerprint", err)
+	}
+	id, key := s.keys.Active()
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte("automation-request-fingerprint\x00"))
+	_, _ = mac.Write(data)
+	return id + ":" + hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func (s *store) create(ctx context.Context, q querier, c Connection, identity []byte, creds Credentials) (Connection, error) {
 	if creds == nil {
 		return Connection{}, fmt.Errorf("%w: a new connection needs credentials", ErrInvalid)
 	}
@@ -300,7 +357,7 @@ func (s *store) create(ctx context.Context, c Connection, identity []byte, creds
 	if err != nil {
 		return Connection{}, err
 	}
-	row := s.db.QueryRow(ctx, `INSERT INTO automation.connections
+	row := q.QueryRow(ctx, `INSERT INTO automation.connections
 		(tenant_id, id, kind, name, display_name, identity, status, status_reason, key_id, nonce, secret, version, created_by, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, now(), now())
 		RETURNING `+connectionColumns,

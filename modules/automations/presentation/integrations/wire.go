@@ -66,6 +66,8 @@ const (
 	ErrConnectionInUse ErrorCode = "CONNECTION_IN_USE"
 	ErrNeedsReauth     ErrorCode = "needs_reauth"
 	ErrUnavailable     ErrorCode = "unavailable"
+	// ErrInProgress: a request with the same idempotency key is still running; retry with the key.
+	ErrInProgress ErrorCode = "in_progress"
 )
 
 // Props are the initial props of the screen.

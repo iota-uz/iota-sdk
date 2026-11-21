@@ -121,7 +121,8 @@
         "NameTaken": "Este nome do sistema já é usado por outra conexão deste serviço.",
         "VersionConflict": "Alguém alterou esta conexão. Feche o formulário e abra-o novamente.",
         "Unavailable": "As conexões não estão configuradas neste aplicativo.",
-        "Failed": "Não foi possível salvar. Tente novamente em um minuto."
+        "Failed": "Não foi possível salvar. Tente novamente em um minuto.",
+        "InProgress": "A primeira tentativa ainda está sendo processada. Tente novamente em alguns segundos; nada será salvo duas vezes."
       },
       "Test": {
         "Running": "Verificando…",

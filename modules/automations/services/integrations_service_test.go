@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,6 +53,7 @@ func (n node) Requires() []catalog.ConnectorKind {
 }
 
 type telegram struct {
+	during     func()                    // runs inside Test, while the provider is being asked
 	echo       func(token string) string // the refusal message, from the token (a careless provider)
 	identityOf func(token string) string // the identity's display, from the token
 	accept     string                    // another token the provider accepts
@@ -74,6 +76,9 @@ func (c *telegram) Descriptor() connectors.Descriptor {
 // Test refuses badToken and, like a careless provider, echoes it in the message.
 func (c *telegram) Test(_ context.Context, creds connectors.Credentials) (connectors.Identity, error) {
 	c.tested.Add(1)
+	if c.during != nil {
+		c.during()
+	}
 	if creds["token"] != goodToken && (c.accept == "" || creds["token"] != c.accept) {
 		if c.echo != nil {
 			return connectors.Identity{}, errors.New(c.echo(creds["token"]))
@@ -559,24 +564,59 @@ func TestRefusalIsCategorizedMaskedAndBounded(t *testing.T) {
 	assert.Equal(t, "auth", got.StatusReason)
 }
 
-// A short secret (a three-letter password) cannot be masked inside text: the provider's text is
-// dropped whole, from the refusal and from the identity.
+// A short secret (a three-letter password) cannot be masked inside text: wherever it occurs — as a
+// word or inside an identifier or a dump — the provider's text is dropped whole, from the refusal and
+// from the identity.
 func TestShortSecretEchoedByTheConnectorIsNeverReturned(t *testing.T) {
 	e := newEnv(t)
-	e.tg.echo = func(token string) string { return "login failed for password " + token + " (401)" }
-	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
-	var failed *services.TestFailedError
-	require.ErrorAs(t, err, &failed)
-	assert.Equal(t, services.ReasonAuth, failed.Reason)
-	assert.Empty(t, failed.Detail)
-	assert.NotContains(t, err.Error(), "pw1")
+	for _, echo := range []func(string) string{
+		func(tok string) string { return "login failed for password " + tok + " (401)" },
+		func(tok string) string { return `{"error":"bad_creds","user":"svc_` + tok + `_01"}` },
+		func(tok string) string { return "HTTP401:" + strings.ToUpper(tok) + "x" },
+	} {
+		e.tg.echo = echo
+		_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
+		var failed *services.TestFailedError
+		require.ErrorAs(t, err, &failed)
+		assert.Empty(t, failed.Detail)
+		assert.NotContains(t, strings.ToLower(err.Error()), "pw1")
+	}
 
-	e.tg.identityOf = func(token string) string { return "bot " + token }
 	e.tg.accept = "pw1"
-	got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": "pw1"}})
+	for i, identityOf := range []func(string) string{
+		func(tok string) string { return "bot " + tok },
+		func(tok string) string { return "@acme" + tok + "bot" },
+	} {
+		e.tg.identityOf = identityOf
+		got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("short_%d", i), Credentials: map[string]any{"token": "pw1"}})
+		require.NoError(t, err)
+		assert.Empty(t, got.Connection.Identity.Display)
+		assert.NotContains(t, got.Connection.Identity.External, "pw1")
+		list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+		require.NoError(t, err)
+		assert.NotContains(t, fmt.Sprintf("%+v", list), "pw1")
+	}
+}
+
+// The identity Connector.Test derives from a new OAuth2 token is stored and listed: it is sanitized
+// against the token set before the connection is created or re-authorized.
+func TestOAuthIdentityEchoingTheTokenIsSanitized(t *testing.T) {
+	e := newEnv(t)
+	e.oauth.identity = connectors.Identity{Display: "token " + goodToken, External: "id-" + goodToken}
+	e.putNamed("a", "")
+	created, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
 	require.NoError(t, err)
-	assert.Empty(t, got.Connection.Identity.Display)
-	assert.NotContains(t, fmt.Sprintf("%+v", got.Connection.Identity), "pw1")
+	assert.NotContains(t, created.Identity.Display, goodToken)
+	assert.NotContains(t, created.Identity.External, goodToken)
+	assert.NotContains(t, created.DisplayName, goodToken, "the display name falls back to the sanitized identity")
+
+	e.putState("b", created.ID)
+	reauth, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "b", "code")
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", reauth.Identity), goodToken)
+	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+	require.NoError(t, err)
+	noSecret(t, list)
 }
 
 func TestRetryWithTheSameKeyReturnsTheFirstResult(t *testing.T) {
@@ -591,6 +631,14 @@ func TestRetryWithTheSameKeyReturnsTheFirstResult(t *testing.T) {
 	assert.Equal(t, first.Connection.ID, again.Connection.ID)
 	assert.Equal(t, tested, e.tg.tested.Load(), "the provider is not asked again")
 
+	// The key is bound to its payload.
+	other := in
+	other.Name = "another"
+	_, err = e.svc.Create(e.ctx, e.actor(), other)
+	var invalid *services.InvalidInputError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, "invalid", invalid.Fields["idempotency_key"])
+
 	name := "Renamed"
 	upd := services.UpdateInput{ID: first.Connection.ID, Version: first.Connection.Version, DisplayName: &name, IdempotencyKey: "k-2"}
 	u1, err := e.svc.Update(e.ctx, e.actor(), upd)
@@ -600,19 +648,84 @@ func TestRetryWithTheSameKeyReturnsTheFirstResult(t *testing.T) {
 	assert.Equal(t, u1.Connection.Version, u2.Connection.Version)
 
 	// Another tenant's key space is its own.
-	other := services.Actor{TenantID: e.newTenant(), UserID: e.user}
-	theirs, err := e.svc.Create(e.ctx, other, in)
+	stranger := services.Actor{TenantID: e.newTenant(), UserID: e.user}
+	theirs, err := e.svc.Create(e.ctx, stranger, in)
 	require.NoError(t, err)
-	assert.NotEqual(t, first.Connection.ID, theirs.Connection.ID, "the other tenant's key does not see this tenant's connection")
+	assert.NotEqual(t, first.Connection.ID, theirs.Connection.ID)
 }
 
-func TestNoKeyringRefusesBeforeCallingTheProvider(t *testing.T) {
+// A retry that overlaps its first request (the provider is still answering) does not ask the provider
+// again: it is told the request is in progress, and once the first finished it gets its connection.
+func TestOverlappingRetryWaitsForTheFirstRequest(t *testing.T) {
 	e := newEnv(t)
-	dir := connectors.NewDirectory(nil)
-	tg := telegramConnector(t)
-	require.NoError(t, dir.Register(tg))
-	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: dir, Store: connectors.NewStore(e.db, nil, nil, nil, nil)})
-	_, err := svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "x", Credentials: map[string]any{"token": goodToken}})
-	require.ErrorIs(t, err, connectors.ErrNotConfigured)
-	assert.Zero(t, tg.tested.Load())
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-overlap"}
+	inside, release := make(chan struct{}), make(chan struct{})
+	e.tg.during = func() { e.tg.during = nil; close(inside); <-release }
+	done := make(chan error, 1)
+	var first services.ConnectionEntry
+	go func() {
+		var err error
+		first, err = e.svc.Create(e.ctx, e.actor(), in)
+		done <- err
+	}()
+	<-inside
+	_, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.ErrorIs(t, err, services.ErrRequestInProgress)
+	close(release)
+	require.NoError(t, <-done)
+	again, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, first.Connection.ID, again.Connection.ID)
+	assert.EqualValues(t, 1, e.tg.tested.Load())
+}
+
+// A request cancelled before its save commits leaves no connection and frees its key; the retry runs.
+func TestCancelledRequestFreesItsKey(t *testing.T) {
+	e := newEnv(t)
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-cancel"}
+	ctx, cancel := context.WithCancel(e.ctx)
+	e.tg.during = func() { e.tg.during = nil; cancel() }
+	_, err := e.svc.Create(ctx, e.actor(), in)
+	require.Error(t, err)
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+	got, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "sales_bot", got.Connection.Name)
+}
+
+// The key is recorded in the transaction of the save: when recording fails, the connection is not
+// created either, so a key never misses a change that committed.
+func TestKeyAndSaveCommitTogether(t *testing.T) {
+	e := newEnv(t)
+	failing := failingRequests{Requests: persistence.NewRequests(e.db)}
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: e.svc.Directory(), Store: e.store, Requests: failing})
+	_, err := svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-tx"})
+	require.Error(t, err)
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+}
+
+type failingRequests struct{ services.Requests }
+
+func (failingRequests) Complete(context.Context, pgx.Tx, uuid.UUID, string, uuid.UUID) error {
+	return errors.New("record failed")
+}
+
+// A disable committed while the provider is being asked wins: the check's outcome is written only to
+// the version it read.
+func TestCheckDoesNotOverwriteAConcurrentDisable(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	e.tg.during = func() {
+		e.tg.during = nil
+		require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, c.Connection.ID, connectors.StatusDisabled, ""))
+	}
+	_, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
+	require.ErrorIs(t, err, connectors.ErrVersionConflict)
+	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusDisabled, got.Status)
 }

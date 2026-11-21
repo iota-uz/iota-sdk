@@ -223,6 +223,8 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 		return SaveResponse{Error: ErrNameTaken, Fields: map[string]string{"name": "taken"}}, nil
 	case errors.Is(err, connectors.ErrVersionConflict):
 		return SaveResponse{Error: ErrVersionConflict}, nil
+	case errors.Is(err, services.ErrRequestInProgress):
+		return SaveResponse{Error: ErrInProgress}, nil
 	}
 	return SaveResponse{}, mapErr(err)
 }

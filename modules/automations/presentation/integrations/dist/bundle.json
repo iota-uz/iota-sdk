@@ -1,8 +1,8 @@
 {
-  "sdkCommit": "ae1e73ac8a2bbc84eb5cd446205365c3da7152a6",
-  "sdkReleaseVersion": "0.5.6",
+  "sdkCommit": "8264470e16f1ef4e549ee08938d86f7587a8d3aa",
+  "releasePlaceholder": "0.0.0-iota-automations-release",
   "protocolVersion": "1.0.0",
-  "entry": "assets/integrations-Dk1AJpxf.js",
+  "entry": "assets/integrations-DL1TJbph.js",
   "styles": [
     "assets/integrations-DV5bAvrq.css"
   ]

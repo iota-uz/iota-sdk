@@ -9,11 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/automations"
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
 )
 
 // The module as modules.Components lists it, with no options and no application bundle: a manager
@@ -25,24 +26,18 @@ func TestIntegrationsPageThroughTheApplicationRoutes(t *testing.T) {
 		Contains(`"id":"automations.integrations"`).
 		Contains(`"rpc":"/settings/integrations/rpc"`).
 		Body()
-	script := regexp.MustCompile(`<script type="module" src="(/assets/automations/assets/integrations-[^"]+\.js)"`).FindStringSubmatch(body)
+	script := regexp.MustCompile(`<script type="module" src="(/assets/automations/[0-9][^/]*/assets/integrations-[^"]+\.js)"`).FindStringSubmatch(body)
 	require.Len(t, script, 2, "the page loads the module's own bundle")
 	asset := manager.GET(script[1]).Expect(t).Status(http.StatusOK)
 	assert.Contains(t, asset.Header("Cache-Control"), "immutable")
-	manager.GET("/assets/automations/bundle.json").Expect(t).Status(http.StatusNotFound)
+	manager.GET("/assets/automations/" + sdkidentity.ReleaseVersion + "/bundle.json").Expect(t).Status(http.StatusNotFound)
 
-	var found bool
-	for _, s := range manager.Env().Container.SettingsSections() {
-		for _, p := range s.Pages {
-			if p.Key == automations.SettingsPageIntegrations {
-				found = true
-			}
-		}
-	}
-	assert.True(t, found, "the settings hub lists the page")
+	// The settings hub as each user gets it: the entry links the page for a manager only.
+	manager.GET("/settings").Expect(t).Status(http.StatusOK).Contains(`href="/settings/integrations"`)
 
 	other := mount(t, itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).AsUser(corePerms.UserRead).Build())
 	other.GET("/settings/integrations").Expect(t).Status(http.StatusForbidden).NotContains(`iota-client-route-mount`)
+	other.GET("/settings").Expect(t).Status(http.StatusOK).NotContains(`href="/settings/integrations"`)
 	other.POST("/settings/integrations/rpc").JSON(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "automations.connectors.list", "params": map[string]any{}}).
 		Expect(t).Status(http.StatusForbidden).Contains(`"code":"forbidden"`)
 }
@@ -53,7 +48,8 @@ func mount(t *testing.T, s *itf.Suite) *itf.Suite {
 	t.Helper()
 	for _, c := range s.Env().App.Controllers() {
 		if c.Descriptor().ID == integrations.ControllerID {
-			return s.Register(c)
+			// The hub renders the registry of the request's container, filtered for the user.
+			return s.Register(c).Register(controllers.NewSettingsHubController())
 		}
 	}
 	t.Fatal("the integrations controller is not composed")

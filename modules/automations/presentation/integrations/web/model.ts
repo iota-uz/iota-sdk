@@ -149,6 +149,7 @@ export function saveErrorText(t: Translator, r: SaveResult): string {
   switch (r.error) {
     case 'test_failed': return t('Form.TestFailed', { message: reasonText(t, r.reason) })
     case 'version_conflict': return t('Form.VersionConflict')
+    case 'in_progress': return t('Form.InProgress')
     case 'unavailable': return t('Form.Unavailable')
     case 'name_taken': return t('Form.NameTaken')
     case 'invalid_input': return t('Form.Invalid')

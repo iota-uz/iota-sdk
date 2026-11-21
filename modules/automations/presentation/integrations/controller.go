@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -80,9 +79,9 @@ type Config struct {
 	// Host is the client host bundle manifest the page is rendered with. Without it the page is not
 	// mounted (the RPC and the OAuth2 callback still are).
 	Host *clienthost.Manifest
-	// Assets are the files of the module's own bundle, served under AssetsPath (nil: the Host bundle
-	// is the application's).
-	Assets fs.FS
+	// Assets serves the files of the module's own bundle under AssetsPath (nil: the Host bundle is
+	// the application's).
+	Assets http.Handler
 	// Path is the page path (default /settings/integrations).
 	Path string
 	// AutomationsPath is where a use links to (default /automations).
@@ -188,7 +187,7 @@ func (c *Controller) Register(r *mux.Router) {
 		c.client.Register(page)
 	}
 	if c.cfg.Assets != nil {
-		r.PathPrefix(AssetsPath+"/").Methods(http.MethodGet, http.MethodHead).Handler(assetHandler(c.cfg.Assets))
+		r.PathPrefix(AssetsPath+"/").Methods(http.MethodGet, http.MethodHead).Handler(c.cfg.Assets)
 	}
 	rpc := r.Path(c.rpcPath()).Methods(http.MethodPost).Subrouter()
 	rpc.Use(middleware.Authorize(), middleware.ProvideUser())

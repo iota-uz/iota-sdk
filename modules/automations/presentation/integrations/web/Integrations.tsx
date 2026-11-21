@@ -540,6 +540,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       end()
       setFieldErrors(result.fields ?? {})
       setError(saveErrorText(t, result))
+      if (result.error === 'in_progress') setRetry(true) // the first request is still running: retry with the same key
       if (result.message) setAnswer(result.message)
       if (result.fields) focusFirstError(result.fields)
     } catch (e) {

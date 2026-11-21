@@ -50,14 +50,16 @@ for (const f of files(dist)) {
   const text = readFileSync(p, 'utf8')
   if (text.includes(SENTINEL)) writeFileSync(p, text.split(SENTINEL).join(commit))
 }
-const identity = readFileSync(path.join(web, '../../../../../web/client-host/src/identity.ts'), 'utf8')
-const release = /SDK_RELEASE_VERSION = ['"]([^'"]+)['"]/.exec(identity)?.[1]
 const protocol = /CLIENT_HOST_PROTOCOL_VERSION = ['"]([^'"]+)['"]/.exec(readFileSync(path.join(web, '../../../../../web/client-host/src/protocol.ts'), 'utf8'))?.[1]
-if (!release || !protocol) throw new Error('cannot read the SDK release or protocol version')
+if (!protocol) throw new Error('cannot read the client host protocol version')
+if (!files(dist).some((f) => f.endsWith('.js') && readFileSync(path.join(dist, f), 'utf8').includes('0.0.0-iota-automations-release'))) {
+  throw new Error('the release placeholder is missing from the bundle')
+}
 rmSync(path.join(dist, '.vite'), { recursive: true, force: true })
 writeFileSync(path.join(dist, 'bundle.json'), JSON.stringify({
   sdkCommit: commit,
-  sdkReleaseVersion: release,
+  // The SDK release is the serving binary's: assets.go writes it over this placeholder.
+  releasePlaceholder: '0.0.0-iota-automations-release',
   protocolVersion: protocol,
   entry: entry.file,
   styles: entry.css ?? [],

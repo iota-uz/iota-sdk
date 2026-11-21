@@ -59,17 +59,30 @@ func classify(msg string) Reason {
 // maxDetail bounds the provider's text kept for the «show the service's answer» disclosure.
 const maxDetail = 500
 
+// secretSet tells which credential fields are secret: the x-secret fields of the connector's schema;
+// every field when the schema declares none (an OAuth2 token set).
+type secretSet func(field string) bool
+
+func secretsOf(d connectors.Descriptor) secretSet {
+	fields := connectors.SecretFields(d)
+	if len(fields) == 0 {
+		return func(string) bool { return true }
+	}
+	return func(f string) bool { return fields[f] }
+}
+
 // sanitize returns s with every credential value masked, verbatim and in the forms a provider echoes
-// (URL-escaped, base64 as in an Authorization header). A value shorter than four characters cannot be
-// masked inside text without mangling it: when one appears as a word, nothing of s is returned.
-func sanitize(s string, creds ...connectors.Credentials) (string, bool) {
+// (URL-escaped, base64 as in an Authorization header). A secret value shorter than four characters
+// cannot be masked inside text without mangling it: when it occurs anywhere in s — inside a word, an
+// identifier or a formatted dump — nothing of s is returned.
+func sanitize(s string, secret secretSet, creds ...connectors.Credentials) (string, bool) {
 	var long []string
 	for _, c := range creds {
-		for _, v := range c {
+		for field, v := range c {
 			switch {
 			case v == "":
 			case len(v) < 4:
-				if regexp.MustCompile(`(^|[^\pL\pN])` + regexp.QuoteMeta(v) + `($|[^\pL\pN])`).MatchString(s) {
+				if secret(field) && strings.Contains(strings.ToLower(s), strings.ToLower(v)) {
 					return "", false
 				}
 			default:
@@ -87,10 +100,23 @@ func sanitize(s string, creds ...connectors.Credentials) (string, bool) {
 	return s, true
 }
 
+// sanitizeIdentity is the identity a connector returned, safe to store and show: each part sanitized,
+// emptied when that is not possible.
+func sanitizeIdentity(id connectors.Identity, secret secretSet, creds ...connectors.Credentials) connectors.Identity {
+	var ok bool
+	if id.Display, ok = sanitize(id.Display, secret, creds...); !ok {
+		id.Display = ""
+	}
+	if id.External, ok = sanitize(id.External, secret, creds...); !ok {
+		id.External = ""
+	}
+	return id
+}
+
 // detail is the provider's message prepared for the disclosure: sanitized and bounded; empty when it
 // cannot be shown safely.
-func detail(msg string, creds ...connectors.Credentials) string {
-	s, ok := sanitize(msg, creds...)
+func detail(msg string, secret secretSet, creds ...connectors.Credentials) string {
+	s, ok := sanitize(msg, secret, creds...)
 	if !ok {
 		return ""
 	}
