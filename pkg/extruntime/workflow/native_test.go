@@ -1551,3 +1551,41 @@ func TestNative_ShutdownInfrastructureErrorDoesNotBlock(t *testing.T) {
 		})
 	}
 }
+
+// slowArtifacts blocks ResolveArtifact until its context ends.
+type slowArtifacts struct{ entered chan struct{} }
+
+func (a *slowArtifacts) ResolveArtifact(ctx context.Context, _, _ string) (pool.Artifact, []string, error) {
+	close(a.entered)
+	<-ctx.Done()
+	return pool.Artifact{}, nil, fmt.Errorf("resolve artifact: %w", ctx.Err())
+}
+
+// A package run whose artifact resolution the shutdown cut short is released
+// for the next process, not blocked.
+func TestPackage_ShutdownDuringArtifactResolutionDoesNotBlock(t *testing.T) {
+	env := newNativeEnv(t)
+	arts := &slowArtifacts{entered: make(chan struct{})}
+	eng := env.engine(nil, func(c *workflow.Config) {
+		c.Catalog, c.Bindings, c.Artifacts, c.Impl, c.Runner = hosttest.NewCatalog(), noBindings{}, arts, newImpls(), noRunner{}
+		c.Concurrency, c.MaxRunFailures = 1, 1
+	})
+	id := uuid.New()
+	_, err := env.db.Exec(context.Background(), `
+		INSERT INTO extruntime.workflow_instances (id, tenant_id, workflow, package, version, export, input, subject_user_id, subject_kind)
+		VALUES ($1, $2, 'acme.flow', 'acme', '1.0.0', 'flow', '{}', 1, 'initiator')`, id, env.tenant)
+	require.NoError(t, err)
+	eng.Serve(context.Background())
+	select {
+	case <-arts.entered:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the run did not resolve its artifact")
+	}
+	eng.Shutdown()
+	inst := env.inst(eng, id)
+	require.Equal(t, workflow.StatusRunning, inst.Status, "blocked: %s %s", inst.BlockedReason, inst.BlockedDetail)
+	require.Zero(t, inst.Failures)
+	var claimable bool
+	require.NoError(t, env.db.QueryRow(context.Background(), `SELECT lease_until IS NULL FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&claimable))
+	require.True(t, claimable, "the lease is released for the next process")
+}

@@ -336,6 +336,10 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 
 	art, secrets, err := deps.artifacts.ResolveArtifact(runCtx, inst.Package, inst.Version)
 	if err != nil {
+		if parent.Err() != nil {
+			// The engine is stopping: released for the next process, no failure.
+			return e.abandon(parent, rs)
+		}
 		return e.finishBlocked(parent, rs, BlockArtifact, fmt.Sprintf("pinned artifact %s@%s is unavailable: %v", inst.Package, inst.Version, err))
 	}
 	if inst.ArtifactHash != "" && art.Hash != inst.ArtifactHash {

@@ -536,6 +536,12 @@ func (e *Engine) finishFailed(ctx context.Context, rs *runState, we *pool.WireEr
 }
 
 func (e *Engine) finishBlocked(ctx context.Context, rs *runState, reason, detail string) error {
+	if ctx.Err() != nil {
+		// The engine is stopping (ctx is the scheduler's context): a block
+		// decided now may be the shutdown's doing (a lookup it cut short). The
+		// run is released instead; the next process decides again.
+		return e.abandon(ctx, rs)
+	}
 	e.cfg.Logger.Warn("extruntime: workflow instance blocked", "instance", rs.inst.ID, "reason", reason, "detail", detail)
 	return e.transition(ctx, rs, StatusBlocked, `status = 'blocked', blocked_reason = $4, blocked_detail = $5, wake_at = NULL`, reason, detail)
 }
