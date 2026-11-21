@@ -1,4 +1,4 @@
-import { createContext, createEffect, createSignal, onCleanup, onMount, Show, splitProps, useContext, type JSX } from 'solid-js'
+import { children, createContext, createEffect, createSignal, onCleanup, onMount, Show, splitProps, useContext, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
 import { Button } from '../forms/Button'
 
@@ -70,21 +70,31 @@ export function DialogBusyStatus(props: { class?: string }) {
   return <BusyStatusLine class={props.class} register />
 }
 
-const statusRowClass = 'col-start-1 row-start-1 flex min-h-5 items-center gap-2'
 const statusDot = () => <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-500" />
 
 function BusyStatusLine(props: { class?: string; register?: boolean }) {
   const control = useDialog()
   if (control && props.register) onCleanup(control.registerStatus())
   const visible = () => Boolean(control?.busy() && control.closeRefused())
-  // The hidden copy of the message holds the line at its final height (also when
-  // it wraps on a phone), so showing the message never moves the buttons.
+  // The message is rendered once and stays in layout; only its visibility
+  // changes. The line therefore holds its final height (also when it wraps on a
+  // phone, and for an element-valued busyMessage) across every busy cycle.
   return (
-    <div class={classes('grid text-sm text-200', props.class)} data-dialog-busy-status>
-      <p aria-hidden="true" class={classes(statusRowClass, 'invisible')}>{statusDot()}{control?.busyMessage()}</p>
-      <p role="status" class={statusRowClass}><Show when={visible()}>{statusDot()}{control?.busyMessage()}</Show></p>
+    <div class={classes('text-sm text-200', props.class)} data-dialog-busy-status>
+      <p role="status" class={classes('flex min-h-5 items-center gap-2', !visible() && 'invisible')} data-visible={visible() || undefined}>{statusDot()}{control?.busyMessage()}</p>
     </div>
   )
+}
+
+// Resolved inside the dialog context so children can use useDialog(). Bare
+// text placed directly in the layer is wrapped in a span, so the busy dimming
+// rule (which styles elements) reaches it as it reaches any element.
+function DialogContent(props: { children?: JSX.Element }) {
+  const resolved = children(() => props.children)
+  return <>{resolved.toArray().map((node) => {
+    const text = typeof node === 'string' || typeof node === 'number' || (typeof Text !== 'undefined' && node instanceof Text)
+    return text ? <span data-dialog-text>{node}</span> : node
+  })}</>
 }
 
 const focusableSelector = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -207,7 +217,7 @@ export function Dialog(props: DialogProps) {
       onKeyDown={onKeyDown}
     >
       <DialogContext.Provider value={control}>
-        {local.children}
+        <DialogContent>{local.children}</DialogContent>
         <Show when={local.busy !== undefined && statusSlots() === 0}><BusyStatusLine class="px-4 pb-3" /></Show>
       </DialogContext.Provider>
     </dialog>

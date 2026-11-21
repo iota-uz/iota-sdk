@@ -25,6 +25,7 @@ templ UsageBar(props UsageBarProps) {
 					Target:      uint(max(props.Limit, 1)),
 					ValueLabel:  fmt.Sprintf("%d", props.Current),
 					TargetLabel: fmt.Sprintf("%d", props.Limit),
+					Label:       props.Entity,
 				})
 			}
 		</div>

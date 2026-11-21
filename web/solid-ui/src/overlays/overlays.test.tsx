@@ -186,9 +186,9 @@ describe('overlay primitives', () => {
       const dialog = screen.getByRole('dialog') as HTMLDialogElement
       const line = dialog.querySelector('[data-dialog-busy-status]')!
       const status = line.querySelector('[role="status"]')!
-      expect(status).toHaveTextContent('')
-      // The hidden copy reserves the message's height before any close attempt.
-      expect(line.querySelector('[aria-hidden="true"]')).toHaveTextContent('Still deleting')
+      // The message is laid out from the start, only invisible, so it reserves its height.
+      expect(status).toHaveTextContent('Still deleting')
+      expect(status).toHaveClass('invisible')
       expect(dialog).toHaveAttribute('aria-busy', 'true')
       expect(dialog).toHaveAttribute('data-busy')
       expect(screen.getByRole('button', { name: 'Close' })).toHaveAttribute('data-dialog-close')
@@ -204,10 +204,10 @@ describe('overlay primitives', () => {
       expect(changed).not.toHaveBeenCalled()
       expect(cancelled).not.toHaveBeenCalled()
       expect(dialog.open).toBe(true)
-      expect(status).toHaveTextContent('Still deleting')
+      expect(status).not.toHaveClass('invisible')
 
       setBusy(false)
-      expect(status).toHaveTextContent('')
+      expect(status).toHaveClass('invisible')
       expect(dialog).not.toHaveAttribute('aria-busy')
       await fireEvent.keyDown(dialog, { key: 'Escape' })
       expect(changed).toHaveBeenCalledWith(false)
@@ -232,6 +232,38 @@ describe('overlay primitives', () => {
       expect(open()).toBe(false)
       expect(opener).toHaveFocus()
       opener.remove()
+    })
+
+    it('keeps one element-valued busy message laid out across busy cycles', async () => {
+      const [busy, setBusy] = createSignal(true)
+      render(() => <ConfirmationDialog open busy={busy()} busyMessage={<strong data-testid="busy-message">Publishing, please wait</strong>} heading="Publish?" confirmText="Publish" />)
+      await Promise.resolve()
+      const dialog = screen.getByRole('dialog') as HTMLDialogElement
+      const message = screen.getByTestId('busy-message')
+      const status = message.closest('[role="status"]')!
+      for (let cycle = 0; cycle < 2; cycle++) {
+        expect(dialog.querySelectorAll('[data-testid="busy-message"]')).toHaveLength(1)
+        expect(screen.getByTestId('busy-message')).toBe(message)
+        expect(status).toHaveClass('invisible')
+        await fireEvent.keyDown(dialog, { key: 'Escape' })
+        expect(status).not.toHaveClass('invisible')
+        expect(screen.getByTestId('busy-message')).toBe(message)
+        setBusy(false)
+        expect(status).toHaveClass('invisible')
+        expect(message.isConnected).toBe(true)
+        setBusy(true)
+      }
+    })
+
+    it('wraps bare text in the layer so the busy dimming reaches it', async () => {
+      render(() => <Dialog open busy aria-label="Notes">Plain text<p>Paragraph</p></Dialog>)
+      await Promise.resolve()
+      const dialog = screen.getByRole('dialog', { name: 'Notes' })
+      const wrapper = dialog.querySelector('[data-dialog-text]')!
+      expect(wrapper.tagName).toBe('SPAN')
+      expect(wrapper.parentElement).toBe(dialog)
+      expect(wrapper).toHaveTextContent('Plain text')
+      expect(Array.from(dialog.childNodes).some((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())).toBe(false)
     })
 
     it('reserves the status line only for dialogs that can be busy', async () => {

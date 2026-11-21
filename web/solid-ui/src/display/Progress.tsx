@@ -6,7 +6,12 @@ export interface ProgressProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, 
   target: number
   valueLabel?: JSX.Element
   targetLabel?: JSX.Element
-  /** Accessible name of the progress bar ("Collected premiums"); required for assistive technology. */
+  /**
+   * Accessible name ("Collected premiums"). With it the bar is a
+   * role="progressbar" whose value is the visible percentage (0-100, clamped
+   * like the fill) with "value / target" as text; without it the bar is purely
+   * visual, as the templ Progress.
+   */
   label?: string
 }
 
@@ -19,11 +24,12 @@ export function Progress(props: ProgressProps) {
         <div
           class="bg-success text-on-success text-right rounded-md p-1"
           style={{ width: `${percentage()}%` }}
-          role="progressbar"
-          aria-label={local.label}
-          aria-valuemin="0"
-          aria-valuemax={local.target}
-          aria-valuenow={local.value}
+          role={local.label ? 'progressbar' : undefined}
+          aria-label={local.label || undefined}
+          aria-valuemin={local.label ? 0 : undefined}
+          aria-valuemax={local.label ? 100 : undefined}
+          aria-valuenow={local.label ? Math.round(percentage()) : undefined}
+          aria-valuetext={local.label ? `${local.value} / ${local.target}` : undefined}
         >
           {local.valueLabel ?? local.value}
         </div>

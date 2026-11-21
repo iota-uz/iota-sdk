@@ -51,13 +51,25 @@ describe('display primitives', () => {
     expect(badges[5]!.classList.contains('bg-badge-gray')).toBe(true)
   })
 
-  it('clamps progress geometry and exposes progress semantics', () => {
-    mount(() => <Progress value={120} target={100} valueLabel="Done" targetLabel="100 jobs" />)
+  it('clamps progress geometry and exposes the visible share to assistive technology', () => {
+    mount(() => <Progress value={120} target={100} valueLabel="Done" targetLabel="100 jobs" label="Jobs" />)
     const bar = host.querySelector('[role="progressbar"]') as HTMLElement
     expect(bar.style.width).toBe('100%')
-    expect(bar.getAttribute('aria-valuenow')).toBe('120')
+    // The announced value matches the clamped fill; the raw numbers stay in the value text.
+    expect(bar.getAttribute('aria-label')).toBe('Jobs')
+    expect(bar.getAttribute('aria-valuemin')).toBe('0')
+    expect(bar.getAttribute('aria-valuemax')).toBe('100')
+    expect(bar.getAttribute('aria-valuenow')).toBe('100')
+    expect(bar.getAttribute('aria-valuetext')).toBe('120 / 100')
     expect(bar.textContent).toBe('Done')
     expect(host.querySelector('.shrink-0')!.textContent).toBe('100 jobs')
+  })
+
+  it('keeps an unnamed progress bar purely visual', () => {
+    mount(() => <Progress value={3} target={0} />)
+    expect(host.querySelector('[role="progressbar"]')).toBeNull()
+    expect(host.querySelector('[aria-valuenow]')).toBeNull()
+    expect((host.querySelector('.bg-success') as HTMLElement).style.width).toBe('0%')
   })
 
   it('matches Spinner SVG and accessible loading label', () => {

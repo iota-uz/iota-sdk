@@ -146,88 +146,88 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 			}
 		}
 		<div class="flex flex-col gap-2.5" x-show="op !== 'empty'">
-		switch field.Type {
-			case filterq.FieldTypeReference:
-				if usesCheckboxList(field.Options) && !field.Single {
-					@CheckboxOptions(field.Options, condValues(cond))
-				} else {
-					@base.Combobox(base.ComboboxProps{
-						Multiple:     !field.Single,
-						Searchable:   true,
-						Name:         "",
-						Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
-						NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
-						ListClass:    "!max-h-60",
-					}) {
-						@GroupedOptions(field.Options, condValues(cond))
-					}
-				}
-			case filterq.FieldTypeDate:
-				if len(field.presets()) > 0 {
-					<div class="flex flex-wrap gap-1.5">
-						for _, p := range field.presets() {
-							<button
-								type="button"
-								class="rounded-md border border-default px-2 py-1 text-xs cursor-pointer hover:border-brand hover:bg-surface-400 duration-100"
-								:class={ "preset === '" + string(p) + "' ? 'bg-surface-400 font-medium' : ''" }
-								x-on:click={ "applyPreset('" + string(p) + "')" }
-							>
-								{ pageCtx.T(presetKey(p)) }
-							</button>
+			switch field.Type {
+				case filterq.FieldTypeReference:
+					if usesCheckboxList(field.Options) && !field.Single {
+						@CheckboxOptions(field.Options, condValues(cond))
+					} else {
+						@base.Combobox(base.ComboboxProps{
+							Multiple:     !field.Single,
+							Searchable:   true,
+							Name:         "",
+							Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
+							NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
+							ListClass:    "!max-h-60",
+						}) {
+							@GroupedOptions(field.Options, condValues(cond))
 						}
+					}
+				case filterq.FieldTypeDate:
+					if len(field.presets()) > 0 {
+						<div class="flex flex-wrap gap-1.5">
+							for _, p := range field.presets() {
+								<button
+									type="button"
+									class="rounded-md border border-default px-2 py-1 text-xs cursor-pointer hover:border-brand hover:bg-surface-400 duration-100"
+									:class={ "preset === '" + string(p) + "' ? 'bg-surface-400 font-medium' : ''" }
+									x-on:click={ "applyPreset('" + string(p) + "')" }
+								>
+									{ pageCtx.T(presetKey(p)) }
+								</button>
+							}
+						</div>
+					}
+					<div x-show="op !== 'between'" data-fb-variant="single">
+						@input.DatePicker(input.DatePickerProps{
+							Mode: input.DatePickerModeSingle,
+							// DateFormat must be set: an empty value serializes as
+							// "" and the datePicker falls back to the bogus 'z'
+							// flatpickr token, so the hidden input holds a string
+							// filterq.Decode can't time.Parse(DateLayout) — the
+							// condition is silently dropped and the filter never
+							// applies. "Y-m-d" matches filterq DateLayout 2006-01-02.
+							DateFormat: "Y-m-d",
+							Name:       "",
+							Selected:   singleDateSelected(cond),
+						})
 					</div>
-				}
-				<div x-show="op !== 'between'" data-fb-variant="single">
-					@input.DatePicker(input.DatePickerProps{
-						Mode: input.DatePickerModeSingle,
-						// DateFormat must be set: an empty value serializes as
-						// "" and the datePicker falls back to the bogus 'z'
-						// flatpickr token, so the hidden input holds a string
-						// filterq.Decode can't time.Parse(DateLayout) — the
-						// condition is silently dropped and the filter never
-						// applies. "Y-m-d" matches filterq DateLayout 2006-01-02.
-						DateFormat: "Y-m-d",
-						Name:       "",
-						Selected:   singleDateSelected(cond),
-					})
-				</div>
-				<div x-cloak x-show="op === 'between'" data-fb-variant="range">
-					@input.DatePicker(input.DatePickerProps{
-						Mode:       input.DatePickerModeRange,
-						DateFormat: "Y-m-d",
-						StartName:  "",
-						EndName:    "",
-						Selected:   rangeDateSelected(cond),
-					})
-				</div>
-			case filterq.FieldTypeNumber:
-				<div x-show="op !== 'between'" data-fb-variant="single">
-					<input
-						type="number"
-						step="any"
-						data-fb-value
-						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
-						value={ numberValue(cond, 0) }
-					/>
-				</div>
-				<div x-cloak x-show="op === 'between'" data-fb-variant="range" class="flex items-center gap-2">
-					<input
-						type="number"
-						step="any"
-						data-fb-value
-						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
-						value={ numberValue(cond, 0) }
-					/>
-					<span class="text-200">–</span>
-					<input
-						type="number"
-						step="any"
-						data-fb-value
-						class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
-						value={ numberValue(cond, 1) }
-					/>
-				</div>
-		}
+					<div x-cloak x-show="op === 'between'" data-fb-variant="range">
+						@input.DatePicker(input.DatePickerProps{
+							Mode:       input.DatePickerModeRange,
+							DateFormat: "Y-m-d",
+							StartName:  "",
+							EndName:    "",
+							Selected:   rangeDateSelected(cond),
+						})
+					</div>
+				case filterq.FieldTypeNumber:
+					<div x-show="op !== 'between'" data-fb-variant="single">
+						<input
+							type="number"
+							step="any"
+							data-fb-value
+							class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
+							value={ numberValue(cond, 0) }
+						/>
+					</div>
+					<div x-cloak x-show="op === 'between'" data-fb-variant="range" class="flex items-center gap-2">
+						<input
+							type="number"
+							step="any"
+							data-fb-value
+							class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
+							value={ numberValue(cond, 0) }
+						/>
+						<span class="text-200">–</span>
+						<input
+							type="number"
+							step="any"
+							data-fb-value
+							class="form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none"
+							value={ numberValue(cond, 1) }
+						/>
+					</div>
+			}
 		</div>
 		@button.Primary(button.Props{
 			Size:  button.SizeSM,
