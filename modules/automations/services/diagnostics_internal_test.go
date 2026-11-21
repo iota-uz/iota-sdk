@@ -47,7 +47,7 @@ func TestIdentityKeepsOrdinaryIdentities(t *testing.T) {
 	for _, ok := range []string{"@acme_sales_bot", "robot@acme.uz", "Acme Customer Support Bot", "+998 90 123 45 67", "Ғайрат Қодиров", "O'Brien & Sons (Main)"} {
 		assert.True(t, identityPartOK(ok, maxIdentityDisplay, all, creds), ok)
 	}
-	for _, bad := range []string{"bot=1", "a/b", "id:42", "x​y", strings.Repeat("a", maxIdentityDisplay+1), "tok eyJhbGciOiJIUzI1NiJ9abc123"} {
+	for _, bad := range []string{"bot=1", "a/b", "id:42", "x\u200by", strings.Repeat("a", maxIdentityDisplay+1), "tok eyJhbGciOiJIUzI1NiJ9abc123"} {
 		assert.False(t, identityPartOK(bad, maxIdentityDisplay, all, creds), bad)
 	}
 }
