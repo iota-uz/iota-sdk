@@ -10,12 +10,24 @@ type ProgressProps struct {
 	ValueLabel      string
 	TargetLabelComp templ.Component
 	ValueLabelComp  templ.Component
+	// Label is the accessible name of the progress bar, as in the Solid Progress.
+	Label string
 }
 
 templ Progress(p ProgressProps) {
 	<div class="flex gap-2 items-center text-sm font-medium">
 		<div class="bg-surface-100 flex-1 relative rounded-md">
-			<div class="bg-success text-on-success text-right rounded-md p-1" style={ templ.SafeCSS(fmt.Sprintf("width: %f%%", math.Min(float64(p.Value)/float64(p.Target)*100, 100))) }>
+			<div
+				class="bg-success text-on-success text-right rounded-md p-1"
+				style={ templ.SafeCSS(fmt.Sprintf("width: %f%%", math.Min(float64(p.Value)/float64(p.Target)*100, 100))) }
+				role="progressbar"
+				aria-valuemin="0"
+				aria-valuemax={ fmt.Sprintf("%d", p.Target) }
+				aria-valuenow={ fmt.Sprintf("%d", p.Value) }
+				if p.Label != "" {
+					aria-label={ p.Label }
+				}
+			>
 				if p.ValueLabelComp != nil {
 					@p.ValueLabelComp
 				} else if p.ValueLabel != "" {

@@ -6,10 +6,12 @@ export interface ProgressProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, 
   target: number
   valueLabel?: JSX.Element
   targetLabel?: JSX.Element
+  /** Accessible name of the progress bar ("Collected premiums"); required for assistive technology. */
+  label?: string
 }
 
 export function Progress(props: ProgressProps) {
-  const [local, native] = splitProps(props, ['class', 'value', 'target', 'valueLabel', 'targetLabel'])
+  const [local, native] = splitProps(props, ['class', 'value', 'target', 'valueLabel', 'targetLabel', 'label'])
   const percentage = () => local.target > 0 ? Math.min(Math.max(local.value / local.target * 100, 0), 100) : 0
   return (
     <div {...native} class={classes('flex gap-2 items-center text-sm font-medium', local.class)}>
@@ -18,6 +20,7 @@ export function Progress(props: ProgressProps) {
           class="bg-success text-on-success text-right rounded-md p-1"
           style={{ width: `${percentage()}%` }}
           role="progressbar"
+          aria-label={local.label}
           aria-valuemin="0"
           aria-valuemax={local.target}
           aria-valuenow={local.value}

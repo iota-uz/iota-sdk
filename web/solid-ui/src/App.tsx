@@ -148,7 +148,7 @@ function DisplaySpecimen() {
           {(variant) => <Badge variant={variant} class="specimen-badge" data-vr-target={variant === 'pink' ? 'display-badge' : undefined}>{variant}</Badge>}
         </For>
       </div>
-      <Progress value={68} target={100} valueLabel="68%" targetLabel="100%" />
+      <Progress value={68} target={100} valueLabel="68%" targetLabel="100%" label="Collected premiums" />
       <div class="specimen-row">
         <Spinner label="Loading products" />
         <Skeleton variant="card" class="specimen-skeleton" />

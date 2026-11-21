@@ -36,7 +36,7 @@ describe('display primitives', () => {
   it('renders canonical alert tones and native attributes', () => {
     mount(() => <Alert variant="success" aria-live="polite">Saved</Alert>)
     const alert = host.firstElementChild as HTMLElement
-    expect(alert.className).toBe('bg-green-100 text-green-600 py-2.5 px-4 text-sm font-medium rounded-md w-full text-center')
+    expect(alert.className).toBe('bg-badge-green text-green py-2.5 px-4 text-sm font-medium rounded-md w-full text-center')
     expect(alert.getAttribute('aria-live')).toBe('polite')
     expect(alert.getAttribute('role')).toBe('alert')
   })

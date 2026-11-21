@@ -45,6 +45,7 @@
     /* Primary */
     --primary-50: 96% 0.02 280;
     /* very light primary tint */
+    --primary-300: 70% 0.15 283.89;
     --primary-400: 62.51% 0.172 283.89;
     /* #8f87ff */
     --primary-500: 58.73% 0.23 279.66;
@@ -143,8 +144,9 @@
     --clr-danger-btn-bg: var(--red-500) / 10%;
     --clr-danger-btn-bg-active: var(--red-500) / 30%;
     --clr-danger-btn-bg-hover: var(--red-500) / 20%;
-    --clr-danger-btn-text: var(--red-500);
-    --clr-danger-btn-text-hover: var(--red-500);
+    /* Danger text sits on its own 10-30% tint: a deeper shade keeps it >= 4.5:1. */
+    --clr-danger-btn-text: 52% 0.218 0.58;
+    --clr-danger-btn-text-hover: 52% 0.218 0.58;
     --clr-danger-btn-border: var(--clr-danger-btn-bg);
     --clr-danger-btn-border-hover: var(--clr-danger-btn-bg);
 
@@ -172,7 +174,7 @@
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--black);
     --clr-form-control-ring: var(--primary-650) / 20%;
-    --clr-form-control-label: var(--gray-400);
+    --clr-form-control-label: var(--gray-500);
     --form-control-border-size: var(--border-size-1);
     --form-control-size-x: calc(var(--size-2) - var(--form-control-border-size) * 2);
     --form-control-size-y: calc(var(--size-2) - var(--form-control-border-size) * 2);
@@ -189,11 +191,12 @@
     /* Text */
     --clr-text-100: var(--black);
     --clr-text-200: var(--gray-600);
-    --clr-text-300: var(--gray-400);
-    --clr-text-green: var(--green-500);
-    --clr-text-pink: var(--pink-500);
-    --clr-text-yellow: var(--yellow-500);
-    --clr-text-blue: var(--blue-500);
+    --clr-text-300: var(--gray-500);
+    /* Colored text (badges, statuses) keeps its hue at a shade readable on white and on its badge tint. */
+    --clr-text-green: 50% 0.12 168.27;
+    --clr-text-pink: 53% 0.218 0.58;
+    --clr-text-yellow: 53% 0.13 73.41;
+    --clr-text-blue: 52% 0.099 240.98;
     --clr-text-purple: var(--purple-500);
 
     /* Avatar */
@@ -230,7 +233,7 @@
     --clr-theme-switcher-text: var(--black);
 
     --clr-success: var(--green-500);
-    --clr-on-sucess: var(--white);
+    --clr-on-sucess: var(--black);
 
     /* Toast: a light surface in both themes (not overridden under html.dark). */
     --clr-toast-surface: var(--white);
@@ -282,6 +285,12 @@
 
   html.dark {
     color-scheme: dark;
+    /* Red text (errors, danger buttons) needs a lighter shade on dark surfaces. */
+    --red-500: 68% 0.2 0.58;
+    --clr-danger-btn-text: var(--red-500);
+    --clr-danger-btn-text-hover: var(--red-500);
+    --clr-primary-outline-btn-text: var(--primary-300);
+    --clr-primary-outline-btn-text-hover: var(--primary-300);
     /* Surface */
     --clr-surface-50: var(--black-950);
     --clr-surface-100: var(--black-950);
@@ -301,8 +310,10 @@
     --clr-text-200: var(--gray-100);
     --clr-text-300: var(--gray-300);
     --clr-text-green: var(--green-600);
-    --clr-text-pink: var(--pink-600);
-    --clr-text-blue: var(--blue-600);
+    --clr-text-pink: 68% 0.2 359.93;
+    --clr-text-yellow: var(--yellow-500);
+    --clr-text-blue: 68% 0.07 240.72;
+    --clr-text-purple: 68% 0.18 305.37;
 
     /* Avatar */
     --clr-avatar-text: var(--primary-400);
@@ -839,7 +850,7 @@
   }
 
   .tab-slider-item:not(.tab-active) {
-    @apply text-slate-400 dark:text-slate-400;
+    @apply text-slate-600 dark:text-slate-300;
   }
 
   .tab-slider-item.tab-active {
@@ -1028,8 +1039,17 @@
   }
 
   .btn-ghost:hover {
-    --text-color: var(--gray-400);
+    --text-color: var(--gray-700);
     --bg-color: var(--gray-200);
+  }
+
+  html.dark .btn-ghost {
+    --text-color: var(--gray-300);
+  }
+
+  html.dark .btn-ghost:hover {
+    --text-color: var(--gray-100);
+    --bg-color: var(--gray-800);
   }
 
   /* Toggle button in collapsed state */

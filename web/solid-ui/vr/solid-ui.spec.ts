@@ -1,6 +1,5 @@
 import { expectNoA11yViolations, openComponentCase } from '@iota-uz/sdk/testing'
 import { expect, test, type Page } from '@playwright/test'
-import type { SpecimenID } from '../src/catalog'
 import { galleryCase, galleryCases, galleryHost, type GalleryCase } from './gallery.host'
 
 async function open(page: Page, c: GalleryCase): Promise<void> {
@@ -164,30 +163,9 @@ test.describe('interaction and accessibility contracts', () => {
   })
 })
 
-// Specimens whose every state, theme and viewport must have 0 serious/critical
-// axe violations. The rest of the gallery carries debt that predates the axe
-// gate; each specimen joins this list once its debt is fixed (pending a scope
-// decision on iota-uz/iota-sdk#1353 review):
-// - buttons: btn-danger text on its tint (3.9:1 light, 3.4:1 dark); btn-ghost
-//   and btn-primary-outline text in dark (2.2:1, 3.7:1).
-// - form-controls, advanced-forms, selection, utilities, scaffold: form labels
-//   and text-300 are gray-400 on white (2.6:1); error text red-500 in dark
-//   (3.6:1); hard-coded text-gray-700 without a dark variant (1.6:1); the
-//   segmented toggle (slate-400, 2.4:1); Combobox aria-activedescendant points
-//   to an option that is not rendered while closed.
-// - display: badge text on its tint (1.6–4.1:1), Alert and Progress label
-//   contrast, Progress without an accessible name.
-// - navigation, scaffold (open): Dropdown summary wraps a focusable control
-//   (nested-interactive), menu items without a role="menu" list; NavTabs and
-//   Tabs inactive text (2.2–3.0:1).
-// - data: DescriptionList bg-gray-100 rows with white text in dark (1.1:1),
-//   text-brand-500 links in dark (4.1:1).
-// Most of these are shared SDK tokens or templ twins under the parity check,
-// so their fix is a cross-screen change rather than an overlay one.
-const axeCleanSpecimens: readonly SpecimenID[] = ['gallery-shell', 'toasts', 'dialog', 'drawer']
-
+// Every specimen, state, theme and viewport of the gallery: 0 serious/critical axe violations.
 test.describe('accessibility', () => {
-  for (const c of galleryCases.filter(item => axeCleanSpecimens.includes(item.specimen))) {
+  for (const c of galleryCases) {
     test(`axe ${c.id}`, async ({ page }) => {
       await open(page, c)
       await settleAnimations(page)
