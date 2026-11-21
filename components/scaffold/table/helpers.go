@@ -972,6 +972,18 @@ func WithContentID(id string) TableConfigOpt {
 // WithStackedToolbar enables the portfolio-style layout: Actions render on the
 // title row (desktop), and search + filter chips stack vertically in a
 // persistent toolbar outside the row-swap target. See TableConfig.StackedToolbar.
+// WithFilterBar shows a filter chip bar under the toolbar on every screen width
+// and re-renders it out-of-band (oob, e.g. filterbuilder.BuilderOOB) on the
+// rows swap, so chips stay server-rendered after each filter change.
+func WithFilterBar(bar, oob templ.Component) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.FilterBar = bar
+		if oob != nil {
+			c.FiltersOOB = append(c.FiltersOOB, oob)
+		}
+	}
+}
+
 func WithStackedToolbar() TableConfigOpt {
 	return func(c *TableConfig) {
 		c.StackedToolbar = true
@@ -1230,10 +1242,17 @@ type TableConfig struct {
 	// (that forces a whole-card swap, defeating the persistent toolbar).
 	StackedToolbar bool
 
+	// FilterBar is a filter chip bar (filterbuilder.Builder) rendered under
+	// the toolbar on every screen width. Unlike Filters it is never moved into
+	// the mobile filters drawer: active conditions stay visible and editable on
+	// a phone, and the bar is rendered once, so its element IDs stay unique.
+	// Set it with WithFilterBar, which also registers its out-of-band twin.
+	FilterBar templ.Component
+
 	// FiltersOOB are filter components re-rendered out-of-band on the
 	// rows-path HTMX response (e.g. filterbuilder.BuilderOOB), so the chip bar
 	// stays server-rendered when the toolbar lives outside the swap target.
-	// Only emitted in StackedToolbar mode. See AddFiltersOOB.
+	// Only emitted in StackedToolbar mode or with a FilterBar. See AddFiltersOOB.
 	FiltersOOB []templ.Component
 
 	// Deferred panels rendered inside the form but outside the swap target;

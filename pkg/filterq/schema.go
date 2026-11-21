@@ -7,6 +7,10 @@ type Field struct {
 	Key       string
 	Type      FieldType
 	Operators []Operator // nil → DefaultOperators(Type)
+	// Single limits a reference field to one value per condition, for
+	// calculations that work on one item or all of them (a report over one
+	// account in its currency, not a mix of several).
+	Single bool
 }
 
 // AllowsOp reports whether the operator is permitted on this field.

@@ -17,8 +17,10 @@ import (
 
 const principalKey = "iota.principal"
 
-// NewServer publishes every registered tool. Tool failures travel as
-// structuredContent with isError; only protocol problems become MCP errors.
+// NewServer publishes the registry's entry points (lookup and execute) when it
+// has any, otherwise every registered tool; a call to an unpublished tool is
+// an unknown-tool protocol error. Tool failures travel as structuredContent
+// with isError; only protocol problems become MCP errors.
 func NewServer(engine *mcp.Engine, impl *sdk.Implementation, opts *sdk.ServerOptions) (*sdk.Server, error) {
 	const op serrors.Op = "mcpgateway.NewServer"
 	server := sdk.NewServer(impl, opts)
@@ -26,7 +28,7 @@ func NewServer(engine *mcp.Engine, impl *sdk.Implementation, opts *sdk.ServerOpt
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
-	for _, spec := range engine.Registry().Specs() {
+	for _, spec := range engine.Registry().Published() {
 		server.AddTool(toolOf(spec, failure), handler(engine, spec.Name))
 	}
 	return server, nil

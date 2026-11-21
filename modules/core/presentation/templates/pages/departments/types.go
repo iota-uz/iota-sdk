@@ -1,6 +1,9 @@
 package departments
 
-import "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+import (
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+)
 
 // IndexPageProps holds the data for rendering the departments index page.
 type IndexPageProps struct {
@@ -9,6 +12,8 @@ type IndexPageProps struct {
 	PerPage     int
 	Search      string
 	HasMore     bool
+	// Filters is the filter chip bar (parent, status); a nil Registry hides it.
+	Filters filterbuilder.Props
 }
 
 // DepartmentFormData holds the raw, unvalidated form values used to re-render

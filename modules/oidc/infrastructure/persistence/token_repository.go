@@ -29,6 +29,9 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
+	lockRefreshGrantQuery    = `SELECT pg_advisory_xact_lock(hashtextextended(format('oidc-refresh-grant:%s:%s', $1::bigint, $2::text), 0))`
+	grantOfRefreshTokenQuery = `SELECT user_id, client_id FROM oidc.refresh_tokens WHERE token_hash = $1`
+
 	consumeRefreshTokenQuery = `
 		UPDATE oidc.refresh_tokens SET revoked_at = NOW(), replaced_by = $2
 		WHERE token_hash = $1 AND revoked_at IS NULL`
@@ -124,11 +127,37 @@ func (r *TokenRepository) Consume(ctx context.Context, tokenHash string, replace
 	return nil
 }
 
+func (r *TokenRepository) LockGrant(ctx context.Context, userID int, clientID string) error {
+	const op serrors.Op = "TokenRepository.LockGrant"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if _, err := tx.Exec(ctx, lockRefreshGrantQuery, userID, clientID); err != nil {
+		return serrors.FromDB(op, err)
+	}
+	return nil
+}
+
 func (r *TokenRepository) RevokeReused(ctx context.Context, tokenHash string) (bool, error) {
 	const op serrors.Op = "TokenRepository.RevokeReused"
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	var userID int
+	var clientID string
+	if err := tx.QueryRow(ctx, grantOfRefreshTokenQuery, tokenHash).Scan(&userID, &clientID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, serrors.FromDB(op, err)
+	}
+	// After the lock, a rotation of this grant has either committed (its
+	// replacement is in the chain snapshot below) or waits for this revoke.
+	if err := r.LockGrant(ctx, userID, clientID); err != nil {
 		return false, serrors.Wrap(op, err)
 	}
 	result, err := tx.Exec(ctx, revokeReusedRefreshTokenQuery, tokenHash)

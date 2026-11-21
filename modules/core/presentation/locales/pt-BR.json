@@ -1151,7 +1151,8 @@
         "Between": "entre",
         "Eq": "=",
         "Gt": ">",
-        "Lt": "<"
+        "Lt": "<",
+        "Empty": "está vazio"
       },
       "Presets": {
         "ThisMonth": "Este mês",
@@ -1159,7 +1160,9 @@
         "Last30Days": "Últimos 30 dias",
         "Next30Days": "Próximos 30 dias",
         "ThisYear": "Este ano",
-        "LastYear": "Ano passado"
+        "LastYear": "Ano passado",
+        "ThisQuarter": "Este trimestre",
+        "LastQuarter": "Trimestre passado"
       }
     }
   },

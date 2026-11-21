@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -18,6 +19,8 @@ import (
 type IndexPageProps struct {
 	ProjectStages   []viewmodels.ProjectStageViewModel
 	PaginationState *pagination.State
+	// Filters is the filter chip bar; a nil Registry hides it.
+	Filters filterbuilder.Props
 }
 
 func Index(props *IndexPageProps) templ.Component {
