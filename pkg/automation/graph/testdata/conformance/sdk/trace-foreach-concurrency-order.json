@@ -2,7 +2,7 @@
   "name": "trace-foreach-concurrency-order",
   "format": 2,
   "kind": "trace",
-  "description": "The trace walks the items in their order whatever the concurrency (20 here; 1 gives the same trace): every item runs until its wait, and each event wakes the item it matches.",
+  "description": "The trace runs the items in their order one after another whatever the concurrency (20 here; 1 gives the same trace): the next item starts once the one before ended, so an event before its item waits wakes nothing.",
   "requires": [
     "behavior:foreach",
     "behavior:collect"
@@ -137,6 +137,11 @@
     },
     {
       "kind": "pull_request.opened",
+      "number": 2,
+      "repository": "acme/app"
+    },
+    {
+      "kind": "pull_request.opened",
       "number": 3,
       "repository": "acme/app"
     }
@@ -159,13 +164,24 @@
     },
     {
       "node": "hold",
-      "outcome": "waiting",
+      "outcome": "matched",
       "context_patch": {
         "output": {
-          "waits_for": "pull_request.opened"
+          "event": {
+            "number": 1,
+            "repository": "acme/app"
+          }
         }
       },
-      "token": "each[1]"
+      "token": "each[0]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 10
+      },
+      "token": "each[0]"
     },
     {
       "node": "hold",
@@ -175,7 +191,7 @@
           "waits_for": "pull_request.opened"
         }
       },
-      "token": "each[2]"
+      "token": "each[1]"
     },
     {
       "node": "hold",
@@ -200,24 +216,13 @@
     },
     {
       "node": "hold",
-      "outcome": "matched",
+      "outcome": "waiting",
       "context_patch": {
         "output": {
-          "event": {
-            "number": 1,
-            "repository": "acme/app"
-          }
+          "waits_for": "pull_request.opened"
         }
       },
-      "token": "each[0]"
-    },
-    {
-      "node": "c",
-      "outcome": "arrived",
-      "context_patch": {
-        "value": 10
-      },
-      "token": "each[0]"
+      "token": "each[2]"
     },
     {
       "node": "hold",

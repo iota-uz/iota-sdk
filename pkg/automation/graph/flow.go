@@ -490,7 +490,8 @@ type joinBehavior struct{}
 
 func (joinBehavior) Behavior() Behavior { return BehaviorJoin }
 func (joinBehavior) OutcomeRule(NodeSpec) OutcomeRule {
-	return OutcomeRule{Fixed: []string{OutcomeJoined}, Optional: &OptionalOutcome{Param: "timeout", Outcome: OutcomeTimeout}}
+	return OutcomeRule{Fixed: []string{OutcomeJoined}, Optional: &OptionalOutcome{Param: "timeout", Outcome: OutcomeTimeout},
+		Unconnected: []string{OutcomeTimeout}}
 }
 
 // Validate: of is a parallel with no other join; n is set for n_of only, at most the parallel's branches;
@@ -537,8 +538,7 @@ func (joinBehavior) Start(s *StepContext, node Node, _ NodeSpec) Step {
 	}
 	var value any
 	if s.From != "" && s.From != of {
-		// An empty output ({} of an effect or of a wait's timeout) is no output.
-		if st, ok := s.Ctx.Nodes[s.From]; ok && len(st.Output) > 0 {
+		if st, ok := s.Ctx.Nodes[s.From]; ok && st.Output != nil {
 			value = deepCopy(st.Output)
 		}
 	}
@@ -555,7 +555,7 @@ type JoinState struct {
 
 // Join decides a join for the token that forked its parallel: StepWait while it still waits; StepOutcome
 // joined (or timeout) with the output and the branch tokens to cancel, in branch order; StepFailed when
-// the branches left cannot give what it waits for and it has no timeout.
+// the branches left cannot give what it waits for, or its timer fired, and its timeout outcome has no edge.
 func (i *Interpreter) Join(joinID, token string, st JoinState) Step {
 	params, ok := i.view.Params(joinID)
 	node, _ := i.view.Node(joinID)
@@ -592,7 +592,7 @@ func (i *Interpreter) Join(joinID, token string, st JoinState) Step {
 	case arrived >= need:
 		return Step{Kind: StepOutcome, Outcome: OutcomeJoined, Output: output, Cancel: cancel}
 	case st.TimedOut || arrived+open < need:
-		if params["timeout"] != nil {
+		if _, connected := i.Next(joinID, OutcomeTimeout); connected && params["timeout"] != nil {
 			return Step{Kind: StepOutcome, Outcome: OutcomeTimeout, Output: output, Cancel: cancel}
 		}
 		s := failed(FailJoinIncomplete, "%s waits for %d branches of %s; %d arrived and %d may still", joinID, need, of, arrived, open)
@@ -777,6 +777,12 @@ func (i *Interpreter) tokenLimit(active int, st Step) *Step {
 	default:
 		return nil
 	}
+	return i.tokensOver(active, n)
+}
+
+// tokensOver fails a step that would start n tokens beside active ones (the stepping token included,
+// which waits for them) when they exceed Limits.MaxTokens.
+func (i *Interpreter) tokensOver(active, n int) *Step {
 	if active < 1 {
 		active = 1
 	}

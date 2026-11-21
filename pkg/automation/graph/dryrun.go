@@ -55,9 +55,10 @@ const (
 // path; a run still waiting after the last input ends with waiting. An input no trigger takes leaves the
 // trace with not_triggered and, per trigger of the event's kind, the condition that failed.
 //
-// Tokens: a parallel's branches run in their order, a foreach's items in theirs whatever its concurrency,
-// each depth first until it waits, arrives at a join or a collect, or ends; a step of a token other than
-// the main path names it. An event wakes every waiting token it matches, in the order the tokens were
+// Tokens: a parallel's branches run in their order, each depth first until it waits, arrives at a join
+// or a collect, or ends. A foreach's items run in their order one after another — the next starts once
+// the one before ended — whatever its concurrency, so the trace and its MaxTokens count do not depend on
+// it. A step of a token other than the main path names it. An event wakes every waiting token it matches, in the order the tokens were
 // created. A timeout input fires the earliest pending timer — a wait's, counted from when it started
 // waiting, or a join's, counted from its parallel's fork — the first one created on a tie.
 func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput, o DryRunOptions) []TraceStep {
@@ -162,9 +163,13 @@ type dryGroup struct {
 	state   JoinState
 	results []ItemResult
 	left    int
-	// concurrency of a foreach: the engine runs at most this many items at once.
-	concurrency int
-	closed      bool
+	// A foreach's items run one after another: an item's token is created when the one before ended.
+	items   []any
+	target  string
+	next    int
+	current *dryToken
+	running bool
+	closed  bool
 }
 
 // dryTimer is a pending timeout on the dry run's clock: a waiting token's, or a join's.
@@ -254,26 +259,14 @@ func (d *dryRun) fail(t *dryToken, node string, s Step) {
 	d.finish(t, false, nil, s.Message)
 }
 
-// active counts the tokens the engine would hold: those not done and not waiting for their join or
-// items, a foreach's items at most its concurrency (a dry run starts them all).
+// active counts the tokens of the trace's schedule that run: not done and not waiting for their join or
+// items. A foreach's later items are not tokens yet.
 func (d *dryRun) active() int {
 	n := 0
-	items := map[*dryGroup]int{}
 	for _, t := range d.tokens {
-		if t.done || t.parked {
-			continue
+		if !t.done && !t.parked {
+			n++
 		}
-		if g := t.group; g != nil && g.kind == BehaviorForeach {
-			items[g]++
-			continue
-		}
-		n++
-	}
-	for g, k := range items {
-		if g.concurrency > 0 && k > g.concurrency {
-			k = g.concurrency
-		}
-		n += k
 	}
 	return n
 }
@@ -327,10 +320,21 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			d.stop(t, current, failed(FailInvalidGraph, "no node %s", current))
 			return
 		}
-		step := i.Start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from, Tokens: d.active()})
-		if b := i.view.catalog.Nodes[node.Type].Behavior; step.Kind == StepFailed && step.Code == FailLimit && (b == BehaviorParallel || b == BehaviorForeach) {
-			d.stop(t, node.ID, step) // MaxTokens: the run fails, whatever outcomes the node has
-			return
+		step := i.Start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from})
+		// MaxTokens by the trace's schedule, whatever the concurrency: a fork adds its branches, a foreach
+		// one item at a time. The run fails, whatever outcomes the node has.
+		starting := 0
+		switch step.Kind { //nolint:exhaustive // only forks and foreachs make tokens
+		case StepFork:
+			starting = len(step.Fork)
+		case StepEach:
+			starting = 1
+		}
+		if starting > 0 {
+			if over := i.tokensOver(d.active(), starting); over != nil {
+				d.stop(t, node.ID, *over)
+				return
+			}
 		}
 		if step.Kind == StepFailed {
 			if fo, took := d.takeFailed(t, node.ID, step.Message); took {
@@ -435,23 +439,40 @@ func (d *dryRun) fork(t *dryToken, node string, step Step) {
 }
 
 func (d *dryRun) each(t *dryToken, node string, step Step) {
-	g := &dryGroup{node: node, kind: BehaviorForeach, parent: t, left: len(step.Each.Items), concurrency: step.Each.Concurrency}
 	target, ok := d.i.Next(node, OutcomeItem)
 	if !ok {
 		d.stop(t, node, failed(FailInvalidGraph, "%s has no edge from item", node))
 		return
 	}
+	g := &dryGroup{node: node, kind: BehaviorForeach, parent: t, left: len(step.Each.Items), items: step.Each.Items, target: target}
 	t.parked = true
-	for k, item := range step.Each.Items {
-		c := &dryToken{name: ItemToken(t.name, node, k), ctx: copyContext(t.ctx), at: target, from: node, group: g, index: k}
-		c.ctx.Foreach[node] = ForeachItem{Item: item, Index: k}
-		g.tokens = append(g.tokens, c)
-		d.tokens = append(d.tokens, c)
-	}
-	d.start(g)
+	d.runItems(g)
 }
 
-// start walks a group's new tokens in their order; one a join already cancelled is not walked.
+// runItems starts a foreach's next items, one after another: the next once the current one ended. The
+// trace is the same whatever the concurrency.
+func (d *dryRun) runItems(g *dryGroup) {
+	if g.running {
+		return // the loop below goes on once the current item's walk returns
+	}
+	g.running = true
+	defer func() { g.running = false }()
+	for !d.ended && !g.closed && !g.parent.done && g.next < len(g.items) {
+		if g.current != nil && !g.current.done {
+			return
+		}
+		k := g.next
+		g.next++
+		c := &dryToken{name: ItemToken(g.parent.name, g.node, k), ctx: copyContext(g.parent.ctx), at: g.target, from: g.node, group: g, index: k}
+		c.ctx.Foreach[g.node] = ForeachItem{Item: g.items[k], Index: k}
+		g.tokens = append(g.tokens, c)
+		d.tokens = append(d.tokens, c)
+		g.current = c
+		d.walk(c, c.at)
+	}
+}
+
+// start walks a fork's new tokens in their order; one a join already cancelled is not walked.
 func (d *dryRun) start(g *dryGroup) {
 	for _, c := range g.tokens {
 		if d.ended {
@@ -501,6 +522,8 @@ func (d *dryRun) finish(t *dryToken, arrived bool, value any, reason string) {
 		g.left--
 		if g.left == 0 {
 			d.foreachDone(g)
+		} else {
+			d.runItems(g)
 		}
 	}
 }
@@ -622,8 +645,10 @@ func (d *dryRun) event(ev Event) {
 		w := t.at
 		matched, st := d.i.WaitMatches(w, ev, t.ctx)
 		if st != nil {
-			d.stop(t, w, *st)
-			return
+			// A filter that fails ends its token (an item is then not ok); the other waits still read
+			// the event. Missing context stops the trace.
+			d.fail(t, w, *st)
+			continue
 		}
 		if !matched {
 			continue

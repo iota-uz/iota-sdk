@@ -76,6 +76,9 @@ type OutcomeRule struct {
 	From     *ParamRef        `json:"from,omitempty"`
 	Fixed    []string         `json:"fixed"`
 	Optional *OptionalOutcome `json:"optional,omitempty"`
+	// Unconnected are outcomes that may be left without an edge: a run that would take one fails instead
+	// (a join's timeout).
+	Unconnected []string `json:"unconnected,omitempty"`
 }
 
 // OptionalOutcome is an outcome that exists when a param is set (a wait's timeout).
@@ -243,6 +246,17 @@ func (v *GraphView) Outcomes(id string) []string {
 		return nil
 	}
 	return OutcomesOf(impl.OutcomeRule(copyNodeSpec(spec)), p)
+}
+
+// MayLeaveUnconnected reports whether an outcome of a node may have no edge (OutcomeRule.Unconnected).
+func (v *GraphView) MayLeaveUnconnected(id, outcome string) bool {
+	n, ok := v.Node(id)
+	if !ok {
+		return false
+	}
+	spec := v.catalog.Nodes[n.Type]
+	impl, ok := v.behavior.impl(spec.Behavior)
+	return ok && contains(impl.OutcomeRule(copyNodeSpec(spec)).Unconnected, outcome)
 }
 
 // Reachable is every node reachable from a node or trigger along edges (from itself included).

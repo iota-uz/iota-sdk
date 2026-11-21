@@ -200,7 +200,7 @@
       "node": "j",
       "outcome": "arrived",
       "context_patch": {
-        "value": null
+        "value": {}
       },
       "token": "split.sales"
     },
@@ -222,7 +222,7 @@
             },
             "sales": {
               "arrived": true,
-              "output": null
+              "output": {}
             }
           }
         }

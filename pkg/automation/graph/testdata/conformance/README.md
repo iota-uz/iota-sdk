@@ -52,14 +52,17 @@ path is the empty token. In a trace:
 
 - A step of a token other than the main path has `token`. A parallel and a foreach that starts its items
   take no step of their own: their tokens' steps follow.
-- A parallel's branches run in their order, a foreach's items in the order of `items` whatever its
-  `concurrency`, each depth first until it waits, arrives or ends.
+- A parallel's branches run in their order, each depth first until it waits, arrives or ends. A
+  foreach's items run in the order of `items` one after another — the next starts once the one before
+  ended — whatever its `concurrency`, so the trace and its `MaxTokens` count do not depend on it.
 - `arrived` (`context_patch: {"value": ...}`) is a token reaching a join (the output of the branch's last
-  node, `null` when it has none or it is `{}`) or a collect (its `value`, `null` without one).
+  node — `{}` stays `{}` — or `null` when it has none) or a collect (its `value`, `null` without one).
 - `cancelled` is a token a join cancelled (any, n_of, timeout), on the node it was at, in branch order.
 - The join's step (`joined` or `timeout`, output `branches`) and the foreach's (`done`, `partial_failed`
   with output `results`, or `failed` with `code` and `error`) belong to the token that forked.
-- An `end`, `ignore`, a failure without a failed outcome or a join that can no longer join (without
+- A join's `timeout` outcome may be left without an edge: taking it then fails the run (or the token
+  that forked) with `JOIN_INCOMPLETE`.
+- An `end`, `ignore`, a failure without a failed outcome (a wait's filter included) or a join that can no longer join (without
   timeout) ends only its token outside the main path (an item is then `ok: false`); on the main path it
   ends the run. `missing_context`, `MaxTokens` (code `LIMIT`) and a token taking 500 steps without
   waiting stop the whole trace.

@@ -2,7 +2,7 @@
   "name": "trace-parallel-join-all",
   "format": 2,
   "kind": "trace",
-  "description": "Join all waits for every branch. Branches run in their order, each depth first until it waits or arrives: sales arrives first, legal after its wait wakes. The branch's value is its last node's output; the joined output has every branch.",
+  "description": "Join all waits for every branch. Branches run in their order, each depth first until it waits or arrives: sales arrives first, legal after its wait wakes. The branch's value is its last node's output ({} of an effect is kept); the joined output has every branch.",
   "requires": [
     "behavior:parallel",
     "behavior:join"
@@ -190,7 +190,7 @@
       "node": "j",
       "outcome": "arrived",
       "context_patch": {
-        "value": null
+        "value": {}
       },
       "token": "split.sales"
     },
@@ -237,7 +237,7 @@
             },
             "sales": {
               "arrived": true,
-              "output": null
+              "output": {}
             }
           }
         }

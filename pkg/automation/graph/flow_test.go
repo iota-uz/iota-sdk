@@ -80,9 +80,9 @@ func TestForeachConcurrencyTrace(t *testing.T) {
 				edge("each", "done", "ignore"), edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
 	}
 	events := []graph.DryRunInput{
-		{Event: graph.Event{"kind": "pull_request.opened", "number": 3, "repository": "a"}},
 		{Event: graph.Event{"kind": "pull_request.opened", "number": 1, "repository": "a"}},
 		{Event: graph.Event{"kind": "pull_request.opened", "number": 2, "repository": "a"}},
+		{Event: graph.Event{"kind": "pull_request.opened", "number": 3, "repository": "a"}},
 	}
 	one := dryRun(t, c, build(1), graph.Options{}, nil, events...)
 	twenty := dryRun(t, c, build(20), graph.Options{}, nil, events...)
@@ -361,5 +361,62 @@ func TestFlowReview(t *testing.T) {
 	}
 	if n := titled.Nodes["approval"]; n.Title != "Approval" || n.Description != "d" || n.Type != "approval" {
 		t.Fatalf("title: %+v", n)
+	}
+}
+
+// Review round 1 of #1366: the dry run's MaxTokens count follows its one-item-at-a-time schedule, so it
+// is the same at every concurrency; a nested fork that waits holds only its own item's branches; a
+// node's empty output reaches the join as {}; a join's timeout may be left unconnected.
+func TestFlowReviewRoundOne(t *testing.T) {
+	c := flowCatalog(t)
+	direct := func(concurrency int) graph.Graph {
+		return flowGraph(t, fmt.Sprintf(`{"id": "each", "type": "foreach", "params": {"items": "[1, 2]", "concurrency": %d}},
+			{"id": "c", "type": "collect", "params": {"of": "each"}}`, concurrency),
+			strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "c"),
+				edge("each", "done", "ignore"), edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	}
+	one := dryRun(t, c, direct(1), graph.Options{Limits: graph.Limits{MaxTokens: 1}}, nil)
+	twenty := dryRun(t, c, direct(20), graph.Options{Limits: graph.Limits{MaxTokens: 1}}, nil)
+	if !reflect.DeepEqual(one, twenty) || one[len(one)-2].Outcome != graph.OutcomeDone {
+		t.Fatalf("at the token limit:\n 1: %+v\n20: %+v", one, twenty)
+	}
+
+	nested := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "[1, 2]", "concurrency": 1}},
+		{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "wa", "type": "wait", "params": {"event": "pull_request.opened"}},
+		{"id": "wb", "type": "wait", "params": {"event": "pull_request.opened"}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "all"}},
+		{"id": "c", "type": "collect", "params": {"of": "each"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "split"), edge("split", "a", "wa"), edge("split", "b", "wb"),
+			edge("wa", "matched", "j"), edge("wb", "matched", "j"), edge("j", "joined", "c"),
+			edge("each", "done", "ignore"), edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	pr := graph.DryRunInput{Event: graph.Event{"kind": "pull_request.opened", "number": 1, "repository": "a"}}
+	trace := dryRun(t, c, nested, graph.Options{Limits: graph.Limits{MaxTokens: 2}}, nil, pr, pr)
+	if done := trace[len(trace)-2]; done.Node != "each" || done.Outcome != graph.OutcomeDone {
+		t.Fatalf("nested waiting forks under MaxTokens 2: %+v", trace)
+	}
+
+	g := joinGraph(t, "all", `, "timeout": "1h"`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := in.Start("j", &graph.StepContext{Token: "split.a", From: "x", Ctx: graph.Context{Nodes: map[string]graph.NodeState{"x": {Output: map[string]any{}}}}})
+	if v, ok := st.Arrive.Value.(map[string]any); !ok || v == nil || len(v) != 0 {
+		t.Fatalf("an empty output: %#v", st.Arrive.Value)
+	}
+
+	unconnected := flowGraph(t, `{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "all", "timeout": "1h"}}`,
+		strings.Join([]string{edge("labeled", "fired", "split"), edge("split", "a", "j"), edge("split", "b", "ignore"), edge("j", "joined", "ignore")}, ","))
+	if errs := graph.Validate(c, unconnected, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("an unconnected timeout: %v", errs)
+	}
+	in, err = graph.NewInterpreter(c, unconnected, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := in.Join("j", "", graph.JoinState{Arrived: map[string]graph.Arrival{"a": {}}, Gone: map[string]bool{"b": true}}); st.Kind != graph.StepFailed || st.Code != graph.FailJoinIncomplete {
+		t.Fatalf("an impossible join without a timeout edge: %+v", st)
 	}
 }

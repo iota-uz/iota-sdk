@@ -301,7 +301,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	}
 	for _, id := range order {
 		for _, outcome := range v.Outcomes(id) {
-			if !connected[id][outcome] {
+			if !connected[id][outcome] && !v.MayLeaveUnconnected(id, outcome) {
 				errs.add(v.where[id], CodeUnconnected, "outcome %s of %s is not connected (connect it, or to %s)", outcome, id, Ignore)
 			}
 		}

@@ -204,7 +204,7 @@
       "node": "j",
       "outcome": "arrived",
       "context_patch": {
-        "value": null
+        "value": {}
       },
       "token": "split.a"
     },
@@ -277,7 +277,7 @@
           "branches": {
             "a": {
               "arrived": true,
-              "output": null
+              "output": {}
             },
             "b": {
               "arrived": true,

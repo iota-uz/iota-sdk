@@ -220,8 +220,9 @@ type StepContext struct {
 	// From is the node (or trigger) whose outcome led the token here: a join takes its output as the
 	// branch's.
 	From string
-	// Tokens is how many tokens of the run are active, this one included: a fork or a foreach that would
-	// exceed Limits.MaxTokens fails before it creates any. 0: not counted (1).
+	// Tokens is how many tokens of the run are active, this one included: a fork or a foreach (by its
+	// concurrency) that would exceed Limits.MaxTokens fails before it creates any. 0: not checked here
+	// (a dry run counts by its own schedule).
 	Tokens int
 	in     *Interpreter
 }
@@ -589,7 +590,7 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 	}
 	sc.in = i
 	st := impl.Start(&sc, node, copyNodeSpec(spec))
-	if limit := i.tokenLimit(sc.Tokens, st); limit != nil {
+	if limit := i.tokenLimit(sc.Tokens, st); sc.Tokens > 0 && limit != nil {
 		return *limit
 	}
 	if st.Output != nil {
