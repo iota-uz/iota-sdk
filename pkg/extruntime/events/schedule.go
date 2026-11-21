@@ -226,6 +226,10 @@ type Scheduler struct {
 	cfg SchedulerConfig
 	// liveLimit bounds the live slots one pass enumerates.
 	liveLimit int
+	// backlog remembers, per schedule and tenant, how far the eligible slots
+	// older than the newest live ones are all claimed (see runBacklog).
+	cmu     sync.Mutex
+	backlog map[backlogKey]time.Time
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -263,7 +267,7 @@ func NewScheduler(cfg SchedulerConfig) (*Scheduler, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Scheduler{cfg: cfg, liveLimit: defaultLiveLimit}, nil
+	return &Scheduler{cfg: cfg, liveLimit: defaultLiveLimit, backlog: map[backlogKey]time.Time{}}, nil
 }
 
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
@@ -318,6 +322,11 @@ const (
 	// defaultLiveLimit bounds the live slots one pass enumerates.
 	defaultLiveLimit = 100_000
 )
+
+type backlogKey struct {
+	schedule string
+	tenant   uuid.UUID
+}
 
 type runKey struct {
 	tenant uuid.UUID
@@ -423,18 +432,18 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 	if liveFrom.Before(def.ActiveFrom) {
 		liveFrom = def.ActiveFrom
 	}
-	live := s.liveSlots(spec, loc, liveFrom, now)
+	live, headFrom := s.liveSlots(spec, loc, liveFrom, now)
 	var known map[runKey]struct{}
 	if len(live) > 0 {
-		if known, err = s.loadKnown(ctx, def.ID, live[0]); err != nil {
+		if known, err = s.loadKnown(ctx, def.ID, live[0], now, tenants); err != nil {
 			return 0, err
 		}
 	}
-	retries, err := s.loadRetries(ctx, def.ID, tenants)
+	retries, err := s.loadRetries(ctx, def.ID, tenants, def.ActiveFrom)
 	if err != nil {
 		return 0, err
 	}
-	accounted, err := s.loadAccounted(ctx, def.ID)
+	accounted, err := s.loadAccounted(ctx, def.ID, tenants)
 	if err != nil {
 		return 0, err
 	}
@@ -496,6 +505,17 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 		if bad[tenant] {
 			continue
 		}
+		if headFrom.After(liveFrom) {
+			n, err := s.runBacklog(ctx, def, spec, loc, tenant, liveFrom, headFrom)
+			ran += n
+			if err != nil {
+				if ctx.Err() != nil {
+					return ran, err
+				}
+				fail(tenant, err)
+				continue
+			}
+		}
 		if err := s.accountPast(ctx, def, spec, loc, tenant, accounted, cutoff); err != nil {
 			if ctx.Err() != nil {
 				return ran, err
@@ -506,18 +526,66 @@ func (s *Scheduler) runSchedule(ctx context.Context, def ScheduleDef, tenants []
 	return ran, errors.Join(errs...)
 }
 
-// liveSlots lists the slots in [from, now]. A range that holds more than the
-// live limit keeps its newest part: the current slot is never starved by a
-// backlog.
-func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now time.Time) []time.Time {
+// liveSlots lists the newest live slots, those in [from, now], at most the
+// live limit of them. When the range holds more, headFrom is where the listed
+// slots start and the older eligible slots in [from, headFrom) are left to
+// runBacklog; otherwise headFrom is from. The current slot is never starved by
+// a backlog.
+func (s *Scheduler) liveSlots(spec cron.Schedule, loc *time.Location, from, now time.Time) (slots []time.Time, headFrom time.Time) {
+	headFrom = from
 	for {
-		slots, more := slotsAfter(spec, loc, from.Add(-tick), now, s.liveLimit)
+		var more bool
+		slots, more = slotsAfter(spec, loc, headFrom.Add(-tick), now, s.liveLimit)
 		if !more {
-			return slots
+			return slots, headFrom
 		}
-		s.cfg.Logger.Warn("extruntime: schedule has more live slots than one pass handles; the oldest are left to the history accounting", "limit", s.liveLimit)
-		from = now.Add(-now.Sub(from) / 2)
+		headFrom = now.Add(-now.Sub(headFrom) / 2)
 	}
+}
+
+// runBacklog runs the eligible slots in [from, until) that no run has claimed
+// yet, one chunk of at most the live limit per pass, oldest first. A cursor
+// per schedule and tenant remembers that everything before it is claimed, so
+// the passes make progress through a backlog instead of revisiting it.
+func (s *Scheduler) runBacklog(ctx context.Context, def ScheduleDef, spec cron.Schedule, loc *time.Location, tenant uuid.UUID, from, until time.Time) (int, error) {
+	key := backlogKey{schedule: def.ID, tenant: tenant}
+	s.cmu.Lock()
+	cursor, ok := s.backlog[key]
+	s.cmu.Unlock()
+	if !ok || cursor.Before(from) {
+		cursor = from
+	}
+	ran := 0
+	for cursor.Before(until) {
+		chunk, more := slotsAfter(spec, loc, cursor.Add(-tick), until.Add(-tick), s.liveLimit)
+		if len(chunk) == 0 {
+			break
+		}
+		known, err := s.loadKnown(ctx, def.ID, chunk[0], chunk[len(chunk)-1], []uuid.UUID{tenant})
+		if err != nil {
+			return ran, err
+		}
+		for _, slot := range chunk {
+			if _, seen := known[runKey{tenant, slot}]; seen {
+				continue
+			}
+			ok, err := s.runSlot(ctx, def, tenant, slot, 0)
+			if err != nil {
+				return ran, err
+			}
+			if ok {
+				ran++
+			}
+		}
+		cursor = chunk[len(chunk)-1].Add(tick)
+		s.cmu.Lock()
+		s.backlog[key] = cursor
+		s.cmu.Unlock()
+		if ran > 0 || !more {
+			break // one chunk of work per pass
+		}
+	}
+	return ran, nil
 }
 
 // accountPast records the slots of tenant that are older than the missed
@@ -589,9 +657,11 @@ func (s *Scheduler) expireBlocked(ctx context.Context, def ScheduleDef, tenant u
 	return nil
 }
 
-// loadKnown lists the slots from since on that have any run.
-func (s *Scheduler) loadKnown(ctx context.Context, schedule string, since time.Time) (map[runKey]struct{}, error) {
-	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, slot FROM extruntime.schedule_runs WHERE schedule = $1 AND slot >= $2`, schedule, since)
+// loadKnown lists the slots of tenants in [since, until] that have any run.
+func (s *Scheduler) loadKnown(ctx context.Context, schedule string, since, until time.Time, tenants []uuid.UUID) (map[runKey]struct{}, error) {
+	rows, err := s.cfg.DB.Query(ctx, `
+		SELECT tenant_id, slot FROM extruntime.schedule_runs
+		WHERE tenant_id = ANY($3) AND schedule = $1 AND slot >= $2 AND slot <= $4`, schedule, since, tenants, until)
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
 	}
@@ -609,12 +679,15 @@ func (s *Scheduler) loadKnown(ctx context.Context, schedule string, since time.T
 }
 
 // loadRetries lists the failed and blocked runs of tenants that are due,
-// whatever the age of their slot, oldest first.
-func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []uuid.UUID) ([]retryable, error) {
+// whatever the age of their slot but not from before activeFrom (a schedule
+// enabled again under the same ID does not retry the past of its earlier
+// activation), oldest first.
+func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []uuid.UUID, activeFrom time.Time) ([]retryable, error) {
 	rows, err := s.cfg.DB.Query(ctx, `
 		SELECT tenant_id, slot, status, attempts FROM extruntime.schedule_runs
-		WHERE schedule = $1 AND tenant_id = ANY($2) AND status IN ('failed', 'blocked') AND next_at <= now()
-		ORDER BY slot, tenant_id`, schedule, tenants)
+		WHERE tenant_id = ANY($2) AND schedule = $1 AND status IN ('failed', 'blocked') AND next_at <= now()
+		  AND ($3::timestamptz IS NULL OR slot >= $3)
+		ORDER BY slot, tenant_id`, schedule, tenants, nullTime(activeFrom))
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
 	}
@@ -631,10 +704,18 @@ func (s *Scheduler) loadRetries(ctx context.Context, schedule string, tenants []
 	return out, serrors.FromDB(opSchedule, rows.Err())
 }
 
+// nullTime is NULL for a zero time.
+func nullTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
 // loadAccounted lists how far the past of the schedule is accounted for, per
-// tenant.
-func (s *Scheduler) loadAccounted(ctx context.Context, schedule string) (map[uuid.UUID]time.Time, error) {
-	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, accounted_through FROM extruntime.schedule_accounting WHERE schedule = $1`, schedule)
+// tenant of tenants.
+func (s *Scheduler) loadAccounted(ctx context.Context, schedule string, tenants []uuid.UUID) (map[uuid.UUID]time.Time, error) {
+	rows, err := s.cfg.DB.Query(ctx, `SELECT tenant_id, accounted_through FROM extruntime.schedule_accounting WHERE tenant_id = ANY($2) AND schedule = $1`, schedule, tenants)
 	if err != nil {
 		return nil, serrors.FromDB(opSchedule, err)
 	}

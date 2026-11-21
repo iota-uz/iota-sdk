@@ -52,3 +52,16 @@ func TestPackageScheduleOwnersUseTheRuntimeSubjectLoader(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "core", got.Credential, "no runtime: the core's loader")
 }
+
+// The clock a Tune configured on the runtime survives the merge into the
+// core's scheduler; Options.Schedules wins when it sets one.
+func TestMergeSchedulesKeepsTheRuntimeClock(t *testing.T) {
+	at := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	fallback := events.SchedulerConfig{Now: func() time.Time { return at }, Lookback: time.Hour}
+	got := mergeSchedules(events.SchedulerConfig{}, fallback)
+	require.Equal(t, at, got.Now())
+	require.Equal(t, time.Hour, got.Lookback)
+	own := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	got = mergeSchedules(events.SchedulerConfig{Now: func() time.Time { return own }}, fallback)
+	require.Equal(t, own, got.Now())
+}

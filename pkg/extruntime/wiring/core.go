@@ -41,6 +41,9 @@ func mergeSchedules(primary, fallback events.SchedulerConfig) events.SchedulerCo
 	if primary.MaxAttempts <= 0 {
 		primary.MaxAttempts = fallback.MaxAttempts
 	}
+	if primary.Now == nil {
+		primary.Now = fallback.Now // the clock a Tune configured
+	}
 	if primary.Tenants == nil {
 		primary.Tenants = fallback.Tenants
 	}

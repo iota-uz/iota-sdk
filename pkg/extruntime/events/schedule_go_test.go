@@ -509,6 +509,62 @@ func TestHugeLiveBacklogKeepsTheNewestSlots(t *testing.T) {
 	events.SetLiveLimit(s, 10)
 	n, err := s.RunOnce(context.Background())
 	require.NoError(t, err)
-	require.True(t, n >= 1 && n <= 10, "ran %d", n)
+	require.True(t, n >= 1 && n <= 20, "a pass runs the newest slots and one backlog chunk, ran %d", n)
 	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)), "the current slot is among them")
+	for range 6 {
+		_, err = s.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	require.Equal(t, 60, countStatus(t, env, def.ID, events.StatusDone), "the whole hour of eligible slots ran")
+}
+
+func TestReenabledScheduleDoesNotRetrySlotsFromBeforeItsActivation(t *testing.T) {
+	env := hosttest.New(t)
+	tenant := env.Tenant
+	old := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
+		Handler: events.SlotHandlerFunc(func(context.Context, pgx.Tx, events.Slot) error { return errors.New("failed before") })}
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+	now := slot.Add(20 * time.Second)
+	_, err := goScheduler(t, env, events.StaticSchedules(old), &now).RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, events.StatusFailed, statusOf(t, env, old.ID, slot))
+
+	// Disabled, then enabled again under the same ID with a new handler.
+	h := &goSlots{}
+	again := events.ScheduleDef{ID: old.ID, Cron: "* * * * *", TenantID: &tenant, Handler: h, ActiveFrom: time.Date(2026, 6, 1, 10, 31, 5, 0, time.UTC)}
+	now = time.Date(2026, 6, 1, 10, 31, 30, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(again), &now)
+	for range 5 {
+		time.Sleep(30 * time.Millisecond) // the retry backoff elapses
+		_, err = s.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	require.Equal(t, events.StatusFailed, statusOf(t, env, old.ID, slot), "the slot before ActiveFrom is not retried")
+	for _, got := range h.slots() {
+		require.True(t, got.At.After(slot), "the new handler ran %s", got.At)
+	}
+}
+
+func TestBacklogOfEligibleSlotsProgressesAcrossPasses(t *testing.T) {
+	env := hosttest.New(t)
+	h := &goSlots{}
+	tenant := env.Tenant
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h, MissedAfter: time.Hour,
+		ActiveFrom: time.Date(2026, 6, 1, 10, 25, 0, 0, time.UTC)} // six eligible slots: 10:25 .. 10:30
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	events.SetLiveLimit(s, 2)
+
+	_, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, events.StatusDone, statusOf(t, env, def.ID, time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)), "the current slot runs at once")
+	for range 2 {
+		_, err = s.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	require.Equal(t, 6, countStatus(t, env, def.ID, events.StatusDone), "older eligible slots run on the following passes, at the same clock")
+	require.Len(t, h.slots(), 6)
+	n, err := s.RunOnce(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n)
 }
