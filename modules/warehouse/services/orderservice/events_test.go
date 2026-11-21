@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/orderservice"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
@@ -201,4 +202,76 @@ func TestOrderEvents_EventbusFollowsTheOwnersCommit(t *testing.T) {
 	_, done = count()
 	require.Equal(t, 1, done)
 	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCompletedEventID))
+}
+
+// A transaction the commit hooks do not know about (opened with the pool and
+// handed over with WithTx, or a savepoint begun by hand inside a caller's
+// transaction) has an outcome only its owner knows: the service never
+// announces on the eventbus under it. InSavepoint is the way to nest with
+// announcements: they move to the enclosing transaction on release and are
+// dropped on rollback.
+func TestOrderEvents_EventbusIgnoresTransactionsWithoutCommitHooks(t *testing.T) {
+	env := itf.Setup(t,
+		itf.WithComponents(modules.Components()...),
+		itf.WithUser(itf.User(permissions.OrderCreate, permissions.OrderRead, permissions.OrderUpdate)),
+	)
+	env.User = user.New("", "", env.User.Email(), "", user.WithID(env.User.ID()), user.WithRoles(env.User.Roles()), user.WithTenantID(env.TenantID()))
+	env.Ctx = composables.WithUser(env.Ctx, env.User)
+	service := itf.GetService[orderservice.OrderService](env)
+	bus, err := composition.Resolve[eventbus.EventBus](env.Container)
+	require.NoError(t, err)
+	var mu sync.Mutex
+	announced := 0
+	defer bus.Subscribe(func(order.OrderCreatedEvent) { mu.Lock(); announced++; mu.Unlock() })()
+	count := func() int { mu.Lock(); defer mu.Unlock(); return announced }
+	env.CommitTx(t)
+	ctx := itf.TestExecution(composables.WithUser(composables.WithTenantID(composables.WithPool(context.Background(), env.Pool), env.TenantID()), env.User))
+	create := func(ctx context.Context) error {
+		return service.Create(ctx, order.CreateDTO{Type: "in", Status: "pending"})
+	}
+
+	// pool.Begin + WithTx, rolled back by its owner.
+	tx, err := env.Pool.Begin(ctx)
+	require.NoError(t, err)
+	require.NoError(t, create(composables.WithTx(ctx, tx)))
+	require.NoError(t, tx.Rollback(ctx))
+	require.Zero(t, count(), "a transaction without commit hooks announces nothing, whatever its outcome")
+	require.Zero(t, committedOutbox(t, env, orderservice.OrderCreatedEventID))
+
+	// A savepoint begun by hand inside InTx: it rolls back, the caller commits.
+	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+		raw, err := txCtx.Value(constants.TxKey).(pgx.Tx).Begin(txCtx)
+		require.NoError(t, err)
+		require.NoError(t, create(composables.WithTx(txCtx, raw)))
+		return raw.Rollback(txCtx)
+	}))
+	require.Zero(t, count(), "a rolled back savepoint does not leak into the caller's commit")
+	require.Zero(t, committedOutbox(t, env, orderservice.OrderCreatedEventID))
+
+	// InSavepoint: rollback drops, release hands over to the caller.
+	errLater := errors.New("rolled back by the caller")
+	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+		err := composables.InSavepoint(txCtx, func(spCtx context.Context) error {
+			require.NoError(t, create(spCtx))
+			return errLater
+		})
+		require.ErrorIs(t, err, errLater)
+		return nil
+	}))
+	require.Zero(t, count())
+	require.Zero(t, committedOutbox(t, env, orderservice.OrderCreatedEventID))
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		require.NoError(t, composables.InSavepoint(txCtx, create))
+		require.Zero(t, count(), "released into the caller's transaction, not yet committed")
+		return errLater
+	})
+	require.ErrorIs(t, err, errLater)
+	require.Zero(t, count(), "the caller rolled back after the release")
+
+	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+		return composables.InSavepoint(txCtx, create)
+	}))
+	require.Equal(t, 1, count())
+	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
 }

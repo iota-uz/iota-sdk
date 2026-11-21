@@ -323,7 +323,8 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	// The context carries the delivery transaction and the event's tenant, so
 	// repositories that read them from the context (composables.UseTx,
 	// UseTenantID) work inside the delivery and need no second connection.
-	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
+	serviceCommits := &composables.CommitHooks{}
+	dctx := serviceCommits.Attach(context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits))
 	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
 		runErr = tx.Commit(ctx)
@@ -331,6 +332,8 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 			for _, fn := range commits.fns {
 				fn(ctx)
 			}
+			// What services called by the consumer registered with composables.AfterCommit.
+			serviceCommits.Run(ctx)
 			return true, nil
 		}
 		// A failed commit (a deferred constraint, a transaction the consumer

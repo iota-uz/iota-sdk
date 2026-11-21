@@ -59,6 +59,12 @@ func (s *AcceptanceService) Update(
 ) (acceptance.Document, error) {
 	var updated acceptance.Document
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The stored status is read under the row lock: of two writers racing
+		// to sign one draft the second reads it signed, so the signing is
+		// announced once.
+		if err := s.repo.Lock(txCtx, id); err != nil {
+			return err
+		}
 		document, err := s.projectDocument(txCtx, projectID, id)
 		if err != nil {
 			return err
@@ -130,6 +136,9 @@ func (s *AcceptanceService) changeStatus(
 ) (acceptance.Document, error) {
 	var updated acceptance.Document
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.repo.Lock(txCtx, id); err != nil {
+			return err
+		}
 		document, err := s.projectDocument(txCtx, projectID, id)
 		if err != nil {
 			return err

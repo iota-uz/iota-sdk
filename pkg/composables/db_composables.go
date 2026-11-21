@@ -15,8 +15,15 @@ var (
 	ErrNoPool = errors.New("no database pool found in context")
 )
 
+// WithTx returns a context that runs in tx. The commit hooks of an enclosing
+// transaction do not follow it (AfterCommit): tx has its own outcome, which
+// only its owner knows; the owner attaches hooks with WithCommitHooks.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
-	return context.WithValue(ctx, constants.TxKey, tx)
+	ctx = context.WithValue(ctx, constants.TxKey, tx)
+	if h, _ := ctx.Value(afterCommitKey{}).(*CommitHooks); h != nil {
+		ctx = context.WithValue(ctx, afterCommitKey{}, (*CommitHooks)(nil))
+	}
+	return ctx
 }
 
 func UseTx(ctx context.Context) (repo.Tx, error) {

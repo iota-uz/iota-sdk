@@ -2,9 +2,11 @@ package composables
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/jackc/pgx/v5"
 	"github.com/sirupsen/logrus"
 )
 
@@ -67,11 +69,17 @@ func runHook(ctx context.Context, fn func(context.Context)) {
 // committed; a rollback drops it, so a nested service call made inside a
 // caller's InTx announces its change only when the caller's transaction commits.
 //
-// When ctx carries no commit hooks the transaction is owned by code that does
-// not offer them (a test transaction, a host with its own commit): fn then runs
-// at once, as it did before AfterCommit existed, and the owner must make sure
-// that is acceptable. Without a transaction there is nothing to wait for and fn
-// runs at once as well.
+// The commit hooks belong to one transaction: WithTx starts a context without
+// them, so a callback registered under another transaction (a savepoint opened
+// by hand, a transaction a host or a test owns) never reaches the outer commit.
+// An owner that wants its transaction's callbacks run attaches hooks with
+// WithCommitHooks or CommitHooks.Attach and runs them after its commit (InTx,
+// InSavepoint, the extension runtime hosts do).
+//
+// A context with a transaction but without hooks has an owner nobody can ask
+// about the outcome. fn is then dropped and a warning is logged: running it
+// would announce a change that may still roll back. Without a transaction
+// there is nothing to wait for and fn runs at once.
 func AfterCommit(ctx context.Context, fn func(context.Context)) {
 	if h, ok := ctx.Value(afterCommitKey{}).(*CommitHooks); ok && h != nil {
 		h.mu.Lock()
@@ -79,7 +87,47 @@ func AfterCommit(ctx context.Context, fn func(context.Context)) {
 		h.mu.Unlock()
 		return
 	}
+	if ctx.Value(constants.TxKey) != nil {
+		UseLoggerOrDefault(ctx).Warn("an after-commit callback was dropped: the transaction of the context has no commit hooks, so its outcome is unknown")
+		return
+	}
 	runHook(ctx, fn)
+}
+
+// InSavepoint runs fn in a savepoint of the transaction held by ctx. The
+// callbacks fn registers with AfterCommit are dropped when the savepoint rolls
+// back and move to the enclosing transaction's hooks when it is released, so
+// they run only if the enclosing transaction commits.
+func InSavepoint(ctx context.Context, fn func(context.Context) error) error {
+	tx, ok := ctx.Value(constants.TxKey).(pgx.Tx)
+	if !ok || tx == nil {
+		return ErrNoTx
+	}
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	spCtx, hooks := WithCommitHooks(WithTx(ctx, sp))
+	defer func() {
+		if r := recover(); r != nil {
+			hooks.Discard()
+			_ = sp.Rollback(context.WithoutCancel(ctx))
+			panic(r)
+		}
+	}()
+	if err := fn(spCtx); err != nil {
+		hooks.Discard()
+		if rErr := sp.Rollback(context.WithoutCancel(ctx)); rErr != nil {
+			return errors.Join(err, rErr)
+		}
+		return err
+	}
+	if err := sp.Commit(ctx); err != nil {
+		hooks.Discard()
+		return err
+	}
+	AfterCommit(ctx, hooks.Run)
+	return nil
 }
 
 // UseLoggerOrDefault is the logger of ctx, or the standard logger when ctx has

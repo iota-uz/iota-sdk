@@ -50,7 +50,7 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 			t := &hostTx{e: e, h: txh}
 			defer t.done.Store(true)
 			var err error
-			out, err = e.native.RunTx(e.nativeCtx(ctx, tx), t, in)
+			out, err = e.native.RunTx(e.nativeCtx(ctx, tx, txh), t, in)
 			return err
 		})
 		return out, err
@@ -64,14 +64,14 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 			q := &hostTx{e: e, h: h}
 			defer q.done.Store(true)
 			var err error
-			out, err = e.native.RunQuery(e.nativeCtx(ctx, tx), q, in)
+			out, err = e.native.RunQuery(e.nativeCtx(ctx, tx, nil), q, in)
 			return err
 		})
 		return out, err
 	case pool.KindCommand:
 		c := &hostCommand{e: e}
 		defer c.done.Store(true)
-		return e.native.RunCommand(e.nativeCtx(ctx, nil), c, in)
+		return e.native.RunCommand(e.nativeCtx(ctx, nil, nil), c, in)
 	case pool.KindSubscription, pool.KindWorkflow, pool.KindGuard, pool.KindTemplate,
 		pool.KindEndpoint, pool.KindSchedule:
 		// not native contract shapes
@@ -82,10 +82,18 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 // nativeCtx is the context a Go handler gets: the caller's values (request
 // user, session, localizer when the root came from HTTP), the transaction for
 // repositories (composables.UseTx; none for an ordinary command), the
-// subject's tenant and the database pool.
-func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx) context.Context {
+// subject's tenant and the database pool. When the transaction's handle can run
+// after-commit callbacks, services called with this context register theirs
+// with composables.AfterCommit and the handle runs them after its commit.
+func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx, h *txHandle) context.Context {
 	if tx != nil {
 		ctx = composables.WithTx(ctx, tx)
+		if h != nil {
+			hooks := &composables.CommitHooks{}
+			if err := h.afterCommit(hooks.Run); err == nil {
+				ctx = hooks.Attach(ctx)
+			}
+		}
 	} else if ctx.Value(constants.TxKey) != nil {
 		ctx = context.WithValue(ctx, constants.TxKey, nil)
 	}
@@ -196,7 +204,7 @@ func (c *hostCommand) Transaction(ctx context.Context, fn func(ctx context.Conte
 	ferr := h.do(ctx, func(ctx context.Context, tx pgx.Tx) error {
 		t := &hostTx{e: c.e, h: h}
 		defer t.done.Store(true)
-		return fn(c.e.nativeCtx(ctx, tx), t)
+		return fn(c.e.nativeCtx(ctx, tx, h), t)
 	})
 	outcome := TxCommit
 	if ferr != nil {

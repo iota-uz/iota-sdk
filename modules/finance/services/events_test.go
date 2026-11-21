@@ -230,8 +230,9 @@ func TestDebtEvents_CommitAndRollBackWithTheDebt(t *testing.T) {
 func TestDebtService_Settle_WithoutSession(t *testing.T) {
 	f := newFinanceEventsFixture(t)
 	created := f.newDebt(t)
+	f.env.CommitTx(t)
 	// ctx carries a user and no session.
-	ctx := context.WithValue(f.ctx, constants.SessionKey, nil)
+	ctx := context.WithValue(committedCtx(f.env), constants.SessionKey, nil)
 	_, err := composables.UseSession(ctx)
 	require.Error(t, err, "the context has no session")
 	actor, err := composables.UseUser(ctx)
@@ -240,26 +241,31 @@ func TestDebtService_Settle_WithoutSession(t *testing.T) {
 
 	bus, err := composition.Resolve[eventbus.EventBus](f.env.Container)
 	require.NoError(t, err)
+	var mu sync.Mutex
 	var announced []*debt.Settled
-	unsubscribe := bus.Subscribe(func(e *debt.Settled) { announced = append(announced, e) })
+	unsubscribe := bus.Subscribe(func(e *debt.Settled) { mu.Lock(); announced = append(announced, e); mu.Unlock() })
 	defer unsubscribe()
 
 	settled, err := f.debts.Settle(ctx, created.ID(), 500.00, nil)
 	require.NoError(t, err, "a committed settlement is not reported as failed")
 	require.Equal(t, debt.DebtStatusSettled, settled.Status())
 
-	stored, err := f.debts.GetByID(f.ctx, created.ID())
+	stored, err := f.debts.GetByID(ctx, created.ID())
 	require.NoError(t, err)
 	require.Equal(t, debt.DebtStatusSettled, stored.Status())
-	require.Len(t, outboxRows(t, f.ctx, f.env.TenantID(), services.DebtSettledEventID), 1)
+	require.Len(t, committedPayloads(t, f, services.DebtSettledEventID), 1)
+	mu.Lock()
 	require.Len(t, announced, 1, "the eventbus event is still published, without a session")
 	require.Nil(t, announced[0].Session)
+	mu.Unlock()
 
 	for name, call := range map[string]func(debt.Debt) error{
 		"write off": func(d debt.Debt) error { _, err := f.debts.WriteOff(ctx, d.ID()); return err },
 		"cancel":    func(d debt.Debt) error { _, err := f.debts.Cancel(ctx, d.ID()); return err },
 	} {
-		require.NoError(t, call(f.newDebt(t)), name)
+		other, err := f.debts.Create(committedCtx(f.env), f.debt().UpdateCounterpartyID(created.CounterpartyID()))
+		require.NoError(t, err)
+		require.NoError(t, call(other), name)
 	}
 }
 

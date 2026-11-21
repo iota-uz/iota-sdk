@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"

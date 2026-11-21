@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -141,4 +142,80 @@ func TestAcceptanceEvents_SignedCommitsAndRollsBackWithTheDocument(t *testing.T)
 	})
 	require.Equal(t, other.ID().String(), row.Subject)
 	require.JSONEq(t, `{"acceptanceId":"`+other.ID().String()+`","projectId":"`+p.ID().String()+`","kind":"ACT","number":"A-2","amount":{"amount":"1250075","currency":"USD"},"signedOn":"2026-09-20"}`, string(row.Payload))
+}
+
+// Writers racing to sign one draft announce the signing once: the stored status
+// is read under the row lock, so the second one finds the document signed.
+func TestAcceptanceEvents_ConcurrentSigningsAnnounceOnce(t *testing.T) {
+	env := itf.Setup(t, itf.WithComponents(
+		core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
+		finance.NewComponent(),
+		projects.NewComponent(),
+	), itf.WithUser(itf.User()))
+	ctx := env.Ctx
+	require.NoError(t, itf.GetService[coreservices.CurrencyService](env).Create(ctx, &currency.CreateDTO{
+		Code: string(currency.USD.Code()), Name: currency.USD.Name(), Symbol: string(currency.USD.Symbol()),
+	}))
+	client, err := itf.GetService[financeservices.CounterpartyService](env).Create(ctx, counterparty.New(
+		"Race Client", counterparty.Customer, counterparty.LLC, counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	p := project.New("Race Project", client.ID(), project.WithTenantID(env.Tenant.ID))
+	require.NoError(t, itf.GetService[services.ProjectService](env).Create(ctx, p))
+	service := itf.GetService[services.AcceptanceService](env)
+	day := time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC)
+	newDraft := func(number string) acceptance.Document {
+		draft, err := service.Create(ctx, acceptance.New(p.ID(), acceptance.KindAct, number, day,
+			money.New(50000, "USD"), acceptance.WithTenantID(env.Tenant.ID)))
+		require.NoError(t, err)
+		return draft
+	}
+	twoUpdates, updateAndSign := newDraft("R-1"), newDraft("R-2")
+	env.CommitTx(t)
+	pool := itf.TestExecution(composables.WithTenantID(composables.WithPool(context.Background(), env.Pool), env.Tenant.ID))
+	signedEvents := func(id uuid.UUID) int {
+		var n int
+		require.NoError(t, env.Pool.QueryRow(context.Background(),
+			`SELECT count(*) FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2 AND subject_key = $3`,
+			env.Tenant.ID, services.AcceptanceSignedEventID, id.String()).Scan(&n))
+		return n
+	}
+	revision := func(number string) acceptance.Revision {
+		return acceptance.Revision{Kind: acceptance.KindAct, Number: number, Date: day, SignedOn: day, Amount: money.New(50000, "USD")}
+	}
+	race := func(calls ...func() error) []error {
+		var wg sync.WaitGroup
+		errs := make([]error, len(calls))
+		for i, call := range calls {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				errs[i] = call()
+			}()
+		}
+		wg.Wait()
+		return errs
+	}
+
+	errs := race(
+		func() error { _, err := service.Update(pool, p.ID(), twoUpdates.ID(), revision("R-1")); return err },
+		func() error { _, err := service.Update(pool, p.ID(), twoUpdates.ID(), revision("R-1")); return err },
+	)
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+	require.Equal(t, 1, signedEvents(twoUpdates.ID()), "two updates signing one draft announce one signing")
+
+	errs = race(
+		func() error { _, err := service.Update(pool, p.ID(), updateAndSign.ID(), revision("R-2")); return err },
+		func() error { _, err := service.Sign(pool, p.ID(), updateAndSign.ID()); return err },
+	)
+	failed := 0
+	for _, err := range errs {
+		if err != nil {
+			require.ErrorIs(t, err, acceptance.ErrStatus)
+			failed++
+		}
+	}
+	require.LessOrEqual(t, failed, 1)
+	require.Equal(t, 1, signedEvents(updateAndSign.ID()), "an update and a sign racing on one draft announce one signing")
 }
