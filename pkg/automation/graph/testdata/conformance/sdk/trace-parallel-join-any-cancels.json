@@ -15,12 +15,6 @@
       "join": {
         "behavior": "join"
       },
-      "foreach": {
-        "behavior": "foreach"
-      },
-      "collect": {
-        "behavior": "collect"
-      },
       "delay": {
         "behavior": "wait",
         "params": {

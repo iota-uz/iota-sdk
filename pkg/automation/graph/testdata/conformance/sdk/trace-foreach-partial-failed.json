@@ -9,12 +9,6 @@
   ],
   "catalog_patch": {
     "nodes": {
-      "parallel": {
-        "behavior": "parallel"
-      },
-      "join": {
-        "behavior": "join"
-      },
       "foreach": {
         "behavior": "foreach"
       },

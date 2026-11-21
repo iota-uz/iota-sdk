@@ -518,3 +518,33 @@ func TestFlowReviewRoundThree(t *testing.T) {
 		t.Fatalf("an impossible join: %+v", st)
 	}
 }
+
+// CodeRabbit on #1366: a foreach whose results exceed MaxValueBytes takes failed with its code; a
+// trace stopped by its cap ends with the LIMIT step.
+func TestFlowReviewCodeRabbit(t *testing.T) {
+	c := flowCatalog(t)
+	g := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "[\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\", \"cccccccccccccccccccccccccccccccccccccccc\"]"}},
+		{"id": "c", "type": "collect", "params": {"of": "each", "value": "foreach.each.item"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "c"), edge("each", "done", "ignore"),
+			edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	trace := dryRun(t, c, g, graph.Options{Limits: graph.Limits{MaxValueBytes: 128}}, nil)
+	failed := trace[len(trace)-2]
+	if out, _ := failed.ContextPatch["output"].(map[string]any); failed.Node != "each" || failed.Outcome != graph.OutcomeFailed || out["code"] != graph.FailValueTooLarge {
+		t.Fatalf("an oversized foreach: %+v", trace)
+	}
+
+	// The last of 9999 items arrives at step 10 000, the cap: LIMIT is the last step, not the foreach's done.
+	labels := make([]any, 9999)
+	for k := range labels {
+		labels[k] = "l"
+	}
+	vars := map[string]any{"issue": map[string]any{"repository": "a", "number": 1, "title": "t", "labels": labels, "state": "open"}}
+	body := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "issue.labels"}},
+		{"id": "c", "type": "collect", "params": {"of": "each"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "c"),
+			edge("each", "done", "ignore"), edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	trace = dryRun(t, c, body, graph.Options{Limits: graph.Limits{MaxForeachItems: 10000}}, vars)
+	if last := trace[len(trace)-1]; last.Outcome != graph.TraceFailed || last.ContextPatch["code"] != graph.FailLimit {
+		t.Fatalf("the cap's step is not last: %s %s", last.Node, last.Outcome)
+	}
+}

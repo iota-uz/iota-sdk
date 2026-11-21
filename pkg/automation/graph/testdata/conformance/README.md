@@ -37,7 +37,8 @@ what Plot calls an event graph. `subject: {repository}` has no meaning in the SD
   (`behavior:parallel`, `behavior:join`, `behavior:foreach`, `behavior:collect`). The runner skips a
   fixture whose `requires` are not met (or whose `unless` is) and prints the number skipped.
 - `catalog`: a catalog of its own instead of `plot/catalog.json`.
-- `catalog_patch`: a JSON merge patch (RFC 7386) over the catalog.
+- `catalog_patch`: a JSON merge patch (RFC 7386) over the catalog. A fixture adds only the flow node types
+  its `requires` name, so a runner with just those behaviors loads it.
 - `limits`: expression limits (`max_nodes`, `max_depth`, `max_literal`, `max_args`, `cost_limit`).
 - `options`: `call_error` (every call request is refused with this message), `match_hooks` (hooks that
   take every event), `without_behaviors` (validate without these behaviors; the catalog still loads with
@@ -62,7 +63,8 @@ path is the empty token. In a trace:
   with output `results`, or `failed` with `code` and `error`) belong to the token that forked.
 - Inside a branch or a foreach's body a node's failed outcome may be left without an edge: the token
   ends there and does not arrive (the item is not ok).
-- A join's and a foreach's output keep `MaxValueBytes`: a larger one fails with `VALUE_TOO_LARGE`.
+- A join's and a foreach's output keep `MaxValueBytes`: a larger one fails with `VALUE_TOO_LARGE`; a
+  foreach takes its `failed` outcome with output `{"error", "code": "VALUE_TOO_LARGE"}`.
 - A join's `timeout` outcome may be left without an edge: taking it then fails the run (or the token
   that forked) with `JOIN_INCOMPLETE`.
 - An `end`, `ignore`, a failure without a failed outcome (a wait's filter included) or a join that can no longer join (without
@@ -71,7 +73,10 @@ path is the empty token. In a trace:
   waiting stop the whole trace.
 - `foreach.<id>.item` and `.index` are read inside that foreach's body (its collect and the constructs
   nested in it); elsewhere they are an `expression_type` error.
-- An event wakes every waiting token it matches, in the order the tokens were created. `{"timeout": true}`
+- An event is offered, in the order the tokens were created, to the tokens that were waiting when it
+  arrived and are still waiting at their turn: a matching wait a join cancelled meanwhile (a branch
+  before it arrived first) is skipped, and a wait started while the event is handled does not receive
+  it. A trace that stops (`missing_context`, `LIMIT`, a failed run) ends with that step. `{"timeout": true}`
   fires the earliest pending timer on the dry run's clock — a wait's from when it started waiting, a
   join's from its parallel's fork — the first one created on a tie.
 

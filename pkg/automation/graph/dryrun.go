@@ -58,8 +58,9 @@ const (
 // Tokens: a parallel's branches run in their order, each depth first until it waits, arrives at a join
 // or a collect, or ends. A foreach's items run in their order one after another — the next starts once
 // the one before ended — whatever its concurrency, so the trace and its MaxTokens count do not depend on
-// it. A step of a token other than the main path names it. An event wakes every waiting token it matches, in the order the tokens were
-// created. A timeout input fires the earliest pending timer — a wait's, counted from when it started
+// it. A step of a token other than the main path names it. An event is offered, in the order the tokens
+// were created, to the tokens waiting when it arrives and still waiting at their turn: one a join
+// cancelled meanwhile is skipped, and a wait started while it is handled does not see it. A timeout input fires the earliest pending timer — a wait's, counted from when it started
 // waiting, or a join's, counted from its parallel's fork — the first one created on a tie.
 func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput, o DryRunOptions) []TraceStep {
 	run := Context{Event: map[string]any{}, Nodes: map[string]NodeState{}, Vars: ctx.Vars, Now: ctx.Now, Tenant: ctx.Tenant, Foreach: map[string]ForeachItem{}}
@@ -240,6 +241,9 @@ func dryPatch(effects []Effect, output map[string]any) map[string]any {
 }
 
 func (d *dryRun) emit(t *dryToken, s TraceStep) {
+	if d.ended {
+		return // the trace stopped: its stopping step stays the last
+	}
 	if t != nil {
 		s.Token = t.name
 	}
@@ -302,12 +306,17 @@ func (d *dryRun) dropTimer(drop *dryTimer) {
 	d.timers = kept
 }
 
-func (d *dryRun) takeFailed(t *dryToken, node, message string) (string, bool) {
+// takeFailed sends a failure down the node's failed outcome, if it has one: output {"error"}, and
+// "code" when the failure names one the output must keep (a foreach's VALUE_TOO_LARGE).
+func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (string, bool) {
 	failedOutcome := d.i.FailedOutcome(node)
 	if failedOutcome == "" {
 		return "", false
 	}
 	out := map[string]any{"error": d.i.fitError(message)}
+	if len(code) > 0 && code[0] != "" {
+		out["code"] = code[0]
+	}
 	t.set(node, NodeState{Output: out})
 	d.emit(t, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}})
 	return failedOutcome, true
@@ -613,7 +622,7 @@ func (d *dryRun) foreachDone(g *dryGroup) {
 	if st.Kind == StepFailed {
 		p := g.parent
 		p.parked = false
-		if fo, took := d.takeFailed(p, g.node, st.Message); took {
+		if fo, took := d.takeFailed(p, g.node, st.Message, st.Code); took {
 			d.advance(p, g.node, fo)
 			return
 		}

@@ -9,12 +9,6 @@
   ],
   "catalog_patch": {
     "nodes": {
-      "parallel": {
-        "behavior": "parallel"
-      },
-      "join": {
-        "behavior": "join"
-      },
       "foreach": {
         "behavior": "foreach"
       },
@@ -44,7 +38,7 @@
         "type": "wait",
         "params": {
           "event": "pull_request.opened",
-          "filter": "event.number / foreach.each.item == 1"
+          "filter": "event.number / foreach.each.item > 0"
         }
       },
       {
@@ -131,7 +125,7 @@
     },
     {
       "kind": "pull_request.opened",
-      "number": 1,
+      "number": 2,
       "repository": "acme/app"
     }
   ],
@@ -176,7 +170,7 @@
       "context_patch": {
         "output": {
           "event": {
-            "number": 1,
+            "number": 2,
             "repository": "acme/app"
           }
         }

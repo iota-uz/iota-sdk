@@ -11,12 +11,6 @@
       },
       "join": {
         "behavior": "join"
-      },
-      "foreach": {
-        "behavior": "foreach"
-      },
-      "collect": {
-        "behavior": "collect"
       }
     }
   },
