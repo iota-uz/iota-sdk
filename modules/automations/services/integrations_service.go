@@ -531,6 +531,11 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 			next.Status, next.StatusReason = connectors.StatusConnected, ""
 		}
 	}
+	if creds != nil {
+		// The retained metadata may carry the credentials being replaced: once they are gone it could no
+		// longer be recognised, so it is checked against both.
+		scrubRetained(&next, secretsOf(d), stored, creds)
+	}
 	saved, err := s.store.SaveWith(ctx, next, creds, req.complete)
 	if err != nil {
 		return ConnectionEntry{}, mapStoreError(op, err)
@@ -763,14 +768,16 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	grant.Identity = validIdentity(grant.Identity, func(string) bool { return true }, grant.Credentials)
 	var saved connectors.Connection
 	if pending.ConnectionID != uuid.Nil {
-		cur, _, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
+		cur, old, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
 		if err != nil {
 			return connectors.Connection{}, pending, mapStoreError(op, err)
 		}
 		if cur.Kind != grant.Kind {
 			return connectors.Connection{}, pending, connectors.ErrNotFound
 		}
-		cur.Identity = grant.Identity
+		all := func(string) bool { return true }
+		cur.Identity = validIdentity(grant.Identity, all, grant.Credentials, old)
+		scrubRetained(&cur, all, old, grant.Credentials)
 		if cur.Status != connectors.StatusDisabled {
 			cur.Status, cur.StatusReason = connectors.StatusConnected, ""
 		}
@@ -861,22 +868,38 @@ func (s *IntegrationsService) entry(ctx context.Context, tenantID uuid.UUID, c c
 	return s.reveal(ctx, tenantID, e, withFields)
 }
 
+// scrubRetained clears metadata a connection keeps across a credential change when it carries a value
+// of the old or the new credentials: the display name (the store falls back to the name) and the name
+// (replaced by one made from the connection's ID).
+func scrubRetained(c *connectors.Connection, secret secretSet, old, next connectors.Credentials) {
+	if carriesSecret(c.DisplayName, secret, old, next) {
+		c.DisplayName = ""
+	}
+	if carriesSecret(c.Name, secret, old, next) {
+		c.Name = "connection_" + strings.ReplaceAll(c.ID.String(), "-", "")[:12]
+	}
+}
+
 // reveal is the output boundary of a connection: whatever wrote the row (this service, Store.Save,
 // OAuth2.Complete of the shared connector API), what leaves the service is checked against the
 // connection's current credentials — the identity by validIdentity, the display name and the name by
 // carriesSecret; what fails is emptied. A row whose credentials cannot be read shows no identity and
 // no display name, since it cannot be checked.
 func (s *IntegrationsService) reveal(ctx context.Context, tenantID uuid.UUID, e ConnectionEntry, withFields bool) (ConnectionEntry, error) {
-	c := e.Connection
-	_, creds, err := s.store.Get(ctx, tenantID, c.ID)
+	// Metadata and credentials come from the same read of the row: a list read earlier may predate a
+	// credential rotation, and checking its metadata against newer credentials would let an old secret
+	// through.
+	cur, creds, err := s.store.Get(ctx, tenantID, e.Connection.ID)
 	switch {
 	case err == nil:
+		e.Connection = cur
 	case errors.Is(err, connectors.ErrNotConfigured), errors.Is(err, connectors.ErrUndecryptable), errors.Is(err, connectors.ErrNotFound):
 		e.Connection.Identity, e.Connection.DisplayName, e.Fields = connectors.Identity{}, "", nil
 		return e, nil
 	default:
 		return ConnectionEntry{}, err
 	}
+	c := e.Connection
 	secret := func(string) bool { return true }
 	conn, known := s.dir.Get(c.Kind)
 	if known {

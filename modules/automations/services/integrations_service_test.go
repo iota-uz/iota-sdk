@@ -926,3 +926,86 @@ func TestStoredIdentityIsCheckedWhenRead(t *testing.T) {
 		assert.NotContains(t, fmt.Sprintf("%+v", list), carried)
 	}
 }
+
+// rotatingStore rotates a connection's credentials and display name the first time the service reads
+// it after listing: the list's row is then older than the credentials.
+type rotatingStore struct {
+	connectors.Store
+	once   sync.Once
+	rotate func()
+}
+
+func (r *rotatingStore) Get(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, connectors.Credentials, error) {
+	r.once.Do(r.rotate)
+	return r.Store.Get(ctx, tenantID, id)
+}
+
+// Metadata and credentials are checked from one read of the row: a rotation committed between the
+// list and the read does not let the list's old metadata through against the new credentials.
+func TestListChecksMetadataAgainstTheCredentialsOfTheSameRead(t *testing.T) {
+	e := newEnv(t)
+	const old, next = "oldpw1", "newpw2"
+	c, err := e.store.Save(e.ctx, connectors.Connection{
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "rotating", DisplayName: "docs " + old, Status: connectors.StatusConnected,
+	}, connectors.Credentials{"token": old})
+	require.NoError(t, err)
+	rs := &rotatingStore{Store: e.store}
+	rs.rotate = func() {
+		cur, _, err := e.store.Get(e.ctx, e.tenant, c.ID)
+		require.NoError(t, err)
+		cur.DisplayName = "Rotated"
+		_, err = e.store.Save(e.ctx, cur, connectors.Credentials{"token": next})
+		require.NoError(t, err)
+	}
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: e.svc.Directory(), Store: rs})
+	list, err := svc.List(e.ctx, e.actor(), services.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, list[0].Connections, 1)
+	got := list[0].Connections[0].Connection
+	assert.Equal(t, "Rotated", got.DisplayName, "the metadata of the row the credentials came from")
+	assert.NotContains(t, fmt.Sprintf("%+v", list), old)
+}
+
+// Replacing the credentials scrubs retained metadata against the old ones too: once replaced, the old
+// secret could no longer be recognised in it.
+func TestCredentialReplacementScrubsMetadataCarryingTheOldSecret(t *testing.T) {
+	e := newEnv(t)
+	const old = "oldpw1"
+	c, err := e.store.Save(e.ctx, connectors.Connection{
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "n_" + old, DisplayName: "docs " + old,
+		Identity: connectors.Identity{Display: "@acct_" + old, Kind: connectors.IdentityHandle}, Status: connectors.StatusConnected,
+	}, connectors.Credentials{"token": old})
+	require.NoError(t, err)
+	before, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", before), old, "hidden while the old credentials are current")
+
+	got, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.ID, Version: c.Version, Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", got), old, "the update's answer")
+	after, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", after), old, "later lists")
+	stored, _, err := e.store.Get(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	assert.NotContains(t, stored.DisplayName+stored.Name+stored.Identity.Display, old, "nothing of the old secret is kept")
+}
+
+// A re-authorization replaces the tokens: retained metadata carrying the old token is scrubbed too.
+func TestReauthorizationScrubsMetadataCarryingTheOldToken(t *testing.T) {
+	e := newEnv(t)
+	const old = "oldtok9"
+	c, err := e.store.Save(e.ctx, connectors.Connection{
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "drive_" + old, DisplayName: "docs " + old, Status: connectors.StatusNeedsReauth,
+	}, connectors.Credentials{"token": old})
+	require.NoError(t, err)
+	e.oauth.token = "newtok8"
+	e.putState("re", c.ID)
+	saved, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "re", "code")
+	require.NoError(t, err)
+	assert.Equal(t, c.ID, saved.ID)
+	assert.NotContains(t, saved.DisplayName+saved.Name, old)
+	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", list), old)
+}
