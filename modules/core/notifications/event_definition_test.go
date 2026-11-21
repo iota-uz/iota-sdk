@@ -3,6 +3,7 @@ package notifications_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -105,4 +106,46 @@ func TestFlatData(t *testing.T) {
 	require.Equal(t, map[string]string{"user_id": "5", "first_name": "Ann", "age": "3", "meta": `{"a":1}`}, data)
 	_, err = notifications.FlatData(json.RawMessage(`[1]`))
 	require.Error(t, err)
+}
+
+// The payload is the source of Data: stale or empty Data that arrives with a
+// payload is replaced by the projection.
+func TestFromEvent_DataIsAlwaysProjectedFromThePayload(t *testing.T) {
+	c := notifications.NewCatalog()
+	require.NoError(t, c.Register(notifications.FromEvent(invoicePaidEvent,
+		notifications.WithPayloadFields(notifications.PayloadField{Key: "number", Required: true}),
+		notifications.WithData(func(payload json.RawMessage) (map[string]string, error) {
+			var p invoicePaid
+			if err := json.Unmarshal(payload, &p); err != nil {
+				return nil, err
+			}
+			return map[string]string{"number": p.Number}, nil
+		}),
+	)))
+	payload := json.RawMessage(`{"invoiceId":"7","number":"I-7","paid":true,"lines":[]}`)
+	for name, data := range map[string]map[string]string{
+		"stale": {"number": "I-999", "extra": "x"},
+		"empty": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := c.Normalize(notifications.Event{Key: invoicePaidEvent.ID(), ID: uuid.NewString(), TenantID: uuid.New(), Payload: payload, Data: data})
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"number": "I-7"}, got.Data)
+		})
+	}
+}
+
+// The default projection reads an object, so an event with another payload
+// shape registers only with its own projection.
+func TestFromEvent_ANonObjectPayloadNeedsWithData(t *testing.T) {
+	tagged := native.Event[[]string]("billing.invoice.tagged.v1", native.EventSpec{Label: manifest.Label{"en": "Invoice tagged"}})
+	require.ErrorContains(t, notifications.NewCatalog().Register(notifications.FromEvent(tagged)), "needs WithData")
+	require.NoError(t, notifications.NewCatalog().Register(notifications.FromEvent(tagged,
+		notifications.WithData(func(payload json.RawMessage) (map[string]string, error) {
+			var tags []string
+			if err := json.Unmarshal(payload, &tags); err != nil {
+				return nil, err
+			}
+			return map[string]string{"tags": strings.Join(tags, ",")}, nil
+		}))))
 }

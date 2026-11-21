@@ -109,7 +109,9 @@ func WithPayloadFields(fields ...PayloadField) DefinitionOption {
 // WithData sets the projection of the typed payload into Data for renderers
 // and rules. Without it the projection is flat over the top level: camelCase
 // keys become snake_case, values become strings and nested objects and
-// arrays JSON.
+// arrays JSON; an event whose payload is not an object needs WithData. The
+// projection always replaces the Data an event arrives with: the payload is
+// the source of truth.
 func WithData(fn func(payload json.RawMessage) (map[string]string, error)) DefinitionOption {
 	return func(d *Definition) { d.Data = fn }
 }
@@ -234,7 +236,10 @@ func prepareEvent(d Definition) (Definition, error) {
 			d.Description = map[string]string{"en": res.Description}
 		}
 	}
-	if len(d.PayloadFields) == 0 && d.Data == nil && res.Payload.Kind == manifest.KindObject {
+	if d.Data == nil && res.Payload.Kind != manifest.KindObject {
+		return Definition{}, fmt.Errorf("notification definition %s: a %s payload needs WithData (the default projection reads an object)", id, res.Payload.Kind)
+	}
+	if len(d.PayloadFields) == 0 && d.Data == nil {
 		for _, p := range res.Payload.Properties {
 			d.PayloadFields = append(d.PayloadFields, PayloadField{Key: SnakeCase(p.Name)})
 		}

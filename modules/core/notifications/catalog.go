@@ -369,7 +369,11 @@ func (c *Catalog) normalize(event Event, stored bool) (Event, error) {
 	if (event.Subject.Type == "") != (event.Subject.ID == "") {
 		return event, fmt.Errorf("invalid notification subject")
 	}
-	if d.Event != nil && event.Data == nil && len(event.Payload) > 0 {
+	// For an event-backed definition the payload is authoritative: Data is
+	// always its projection, so the content and the rules never read values
+	// that differ from the validated payload. Only a legacy event of a
+	// persisted job (no payload) keeps the Data it was queued with.
+	if d.Event != nil && len(event.Payload) > 0 {
 		data, err := d.DataOf(event.Payload)
 		if err != nil {
 			return event, fmt.Errorf("project notification payload: %w", err)
