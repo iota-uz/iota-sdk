@@ -32,11 +32,13 @@ CREATE INDEX connection_checks_tenant_id_idx ON automation.connection_checks (te
 -- overlapping retry sees it in progress) and bound to a keyed fingerprint of its payload; the save
 -- that changes the connection sets connection_id in the same transaction, so a retry after a lost
 -- answer gets that connection. A reservation without a connection expires after two minutes; rows are
--- kept a day.
+-- kept a day. owner fences the reservation: a request that took over an expired reservation gets a
+-- new owner, so the request it replaced can neither complete nor release it.
 CREATE TABLE automation.connection_requests (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     key text NOT NULL CHECK (key <> '' AND length(key) <= 100),
     fingerprint text NOT NULL,
+    owner uuid NOT NULL,
     connection_id uuid REFERENCES automation.connections (id) ON DELETE CASCADE,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, key)

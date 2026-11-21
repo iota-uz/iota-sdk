@@ -76,10 +76,12 @@ const (
 	RequestMismatch
 )
 
-// Reservation is the state of an idempotency key.
+// Reservation is the state of an idempotency key. Owner identifies a RequestNew reservation: only
+// its holder completes or releases it.
 type Reservation struct {
 	State        RequestState
 	ConnectionID uuid.UUID
+	Owner        uuid.UUID
 }
 
 // Requests keeps the idempotency keys of the page. A key is reserved before the provider is asked and
@@ -87,8 +89,8 @@ type Reservation struct {
 // records the connection exactly when the change commits; Release frees a key whose request failed.
 type Requests interface {
 	Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string) (Reservation, error)
-	Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, connectionID uuid.UUID) error
-	Release(ctx context.Context, tenantID uuid.UUID, key string) error
+	Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, owner, connectionID uuid.UUID) error
+	Release(ctx context.Context, tenantID uuid.UUID, key string, owner uuid.UUID) error
 }
 
 // ErrRequestInProgress is a request with the same idempotency key that is still running.
@@ -412,13 +414,14 @@ type request struct {
 	s        *IntegrationsService
 	tenantID uuid.UUID
 	key      string
+	owner    uuid.UUID
 }
 
 func (r request) complete(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 	if r.key == "" {
 		return nil
 	}
-	return r.s.requests.Complete(ctx, tx, r.tenantID, r.key, saved.ID)
+	return r.s.requests.Complete(ctx, tx, r.tenantID, r.key, r.owner, saved.ID)
 }
 
 func (r request) release(ctx context.Context) {
@@ -426,7 +429,7 @@ func (r request) release(ctx context.Context) {
 		return
 	}
 	// Even when the request's context is gone the key must not wait out its expiry.
-	_ = r.s.requests.Release(context.WithoutCancel(ctx), r.tenantID, r.key)
+	_ = r.s.requests.Release(context.WithoutCancel(ctx), r.tenantID, r.key, r.owner)
 }
 
 func deref(e *ConnectionEntry) ConnectionEntry {
@@ -461,7 +464,7 @@ func (s *IntegrationsService) reserve(ctx context.Context, tenantID uuid.UUID, k
 	}
 	switch res.State {
 	case RequestNew:
-		return request{s: s, tenantID: tenantID, key: key}, nil, nil
+		return request{s: s, tenantID: tenantID, key: key, owner: res.Owner}, nil, nil
 	case RequestInProgress:
 		return request{}, nil, ErrRequestInProgress
 	case RequestMismatch:

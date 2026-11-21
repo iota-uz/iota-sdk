@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"net/url"
 	"regexp"
 	"sort"
@@ -71,28 +72,49 @@ func secretsOf(d connectors.Descriptor) secretSet {
 	return func(f string) bool { return fields[f] }
 }
 
-// sanitize returns s with every credential value masked, verbatim and in the forms a provider echoes
-// (URL-escaped, base64 as in an Authorization header). A secret value shorter than four characters
-// cannot be masked inside text without mangling it: when it occurs anywhere in s — inside a word, an
-// identifier or a formatted dump — nothing of s is returned.
-func sanitize(s string, secret secretSet, creds ...connectors.Credentials) (string, bool) {
+// minMaskable is the shortest secret value that is masked inside text. A shorter one cannot be
+// recognised reliably once encoded (base64 shifts with its neighbours, a Basic header joins it with
+// the login), so text that may carry it is not returned at all.
+const minMaskable = 8
+
+// opaque is a run that looks like a token or an encoding (base64, hex): a provider's text can carry a
+// credential in a form no mask anticipates, so such runs are redacted from the detail too.
+var opaque = regexp.MustCompile(`[A-Za-z0-9+/=_\-]{20,}`)
+
+// forms are the ways a provider may echo v: verbatim, URL-escaped, base64 (any alphabet, padded or
+// not) and hex.
+func forms(v string) []string {
+	b := []byte(v)
+	return []string{v, url.QueryEscape(v), url.PathEscape(v),
+		base64.StdEncoding.EncodeToString(b), base64.RawStdEncoding.EncodeToString(b),
+		base64.URLEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b),
+		hex.EncodeToString(b)}
+}
+
+// masked replaces every form of every credential value of at least minMaskable characters. It reports
+// false when a secret value is too short to mask and one of its forms occurs in s.
+func masked(s string, secret secretSet, creds ...connectors.Credentials) (string, bool) {
 	var long []string
+	lower := strings.ToLower(s)
 	for _, c := range creds {
 		for field, v := range c {
 			switch {
 			case v == "":
-			case len(v) < 4:
-				if secret(field) && strings.Contains(strings.ToLower(s), strings.ToLower(v)) {
-					return "", false
+			case len(v) < minMaskable:
+				if !secret(field) {
+					continue
+				}
+				for _, f := range forms(v) {
+					if strings.Contains(lower, strings.ToLower(f)) {
+						return "", false
+					}
 				}
 			default:
-				long = append(long, v, url.QueryEscape(v), url.PathEscape(v),
-					base64.StdEncoding.EncodeToString([]byte(v)), base64.RawStdEncoding.EncodeToString([]byte(v)),
-					base64.URLEncoding.EncodeToString([]byte(v)), base64.RawURLEncoding.EncodeToString([]byte(v)))
+				long = append(long, forms(v)...)
 			}
 		}
 	}
-	// Longer values first: one may contain another.
+	// Longer forms first: one may contain another.
 	sort.Slice(long, func(i, j int) bool { return len(long[i]) > len(long[j]) })
 	for _, v := range long {
 		s = strings.ReplaceAll(s, v, "•••")
@@ -100,26 +122,43 @@ func sanitize(s string, secret secretSet, creds ...connectors.Credentials) (stri
 	return s, true
 }
 
-// sanitizeIdentity is the identity a connector returned, safe to store and show: each part sanitized,
-// emptied when that is not possible.
+// hasShortSecret reports whether a secret value is too short to be masked in text.
+func hasShortSecret(secret secretSet, creds ...connectors.Credentials) bool {
+	for _, c := range creds {
+		for field, v := range c {
+			if v != "" && len(v) < minMaskable && secret(field) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// sanitizeIdentity is the identity a connector returned, safe to store and show: every form of every
+// credential value masked; a part that carries a form of a value too short to mask is emptied.
 func sanitizeIdentity(id connectors.Identity, secret secretSet, creds ...connectors.Credentials) connectors.Identity {
 	var ok bool
-	if id.Display, ok = sanitize(id.Display, secret, creds...); !ok {
+	if id.Display, ok = masked(id.Display, secret, creds...); !ok {
 		id.Display = ""
 	}
-	if id.External, ok = sanitize(id.External, secret, creds...); !ok {
+	if id.External, ok = masked(id.External, secret, creds...); !ok {
 		id.External = ""
 	}
 	return id
 }
 
-// detail is the provider's message prepared for the disclosure: sanitized and bounded; empty when it
-// cannot be shown safely.
+// detail is the provider's message for the «show the service's answer» disclosure, returned only when
+// it is safe: never when a secret value is too short to be masked (whatever form it may take in the
+// text); otherwise with every form of every value masked, token-like runs redacted, bounded.
 func detail(msg string, secret secretSet, creds ...connectors.Credentials) string {
-	s, ok := sanitize(msg, secret, creds...)
+	if hasShortSecret(secret, creds...) {
+		return ""
+	}
+	s, ok := masked(msg, secret, creds...)
 	if !ok {
 		return ""
 	}
+	s = opaque.ReplaceAllString(s, "•••")
 	return truncate(strings.TrimSpace(s), maxDetail)
 }
 

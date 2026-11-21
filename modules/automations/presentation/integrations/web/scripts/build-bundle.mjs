@@ -3,10 +3,13 @@
 //
 //   node scripts/build-bundle.mjs          # rebuild
 //   node scripts/build-bundle.mjs --check  # fail when the committed bundle is stale
+//
+// The build always goes to a temporary directory first: the check compares it with ../dist without
+// touching it, and a rebuild swaps the finished directory in, so ../dist (read by go:embed) is never
+// half-written.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,36 +30,34 @@ function files(dir, base = dir) {
   }).sort()
 }
 
-let previous
-if (check && existsSync(dist)) {
-  previous = mkdtempSync(path.join(tmpdir(), 'automations-dist-'))
-  cpSync(dist, previous, { recursive: true })
-}
+// A sibling of ../dist (same file system, so the swap is a rename), outside the embedded directory.
+const out = mkdtempSync(path.resolve(web, '../.dist-build-'))
+process.on('exit', () => rmSync(out, { recursive: true, force: true }))
 
 run(path.join(web, 'node_modules/.bin/tailwindcss'), ['--input', 'bundle/bundle.css', '--output', 'bundle/bundle.generated.css', '--minify'])
-run(path.join(web, 'node_modules/.bin/vite'), ['build', '--config', 'vite.bundle.config.ts'])
+run(path.join(web, 'node_modules/.bin/vite'), ['build', '--config', 'vite.bundle.config.ts', '--outDir', out, '--emptyOutDir'])
 
-const manifest = JSON.parse(readFileSync(path.join(dist, '.vite/manifest.json'), 'utf8'))
+const manifest = JSON.parse(readFileSync(path.join(out, '.vite/manifest.json'), 'utf8'))
 const entry = manifest['bundle/entry.ts']
 if (!entry) throw new Error('bundle entry is missing from the Vite manifest')
 
 // The identity is the hash of what was built (with the sentinel in place), then written in.
 const hash = createHash('sha1')
-for (const f of files(dist)) if (!f.startsWith('.vite')) hash.update(f).update(readFileSync(path.join(dist, f)))
+for (const f of files(out)) if (!f.startsWith('.vite')) hash.update(f).update(readFileSync(path.join(out, f)))
 const commit = hash.digest('hex')
-for (const f of files(dist)) {
+for (const f of files(out)) {
   if (!f.endsWith('.js')) continue
-  const p = path.join(dist, f)
+  const p = path.join(out, f)
   const text = readFileSync(p, 'utf8')
   if (text.includes(SENTINEL)) writeFileSync(p, text.split(SENTINEL).join(commit))
 }
 const protocol = /CLIENT_HOST_PROTOCOL_VERSION = ['"]([^'"]+)['"]/.exec(readFileSync(path.join(web, '../../../../../web/client-host/src/protocol.ts'), 'utf8'))?.[1]
 if (!protocol) throw new Error('cannot read the client host protocol version')
-if (!files(dist).some((f) => f.endsWith('.js') && readFileSync(path.join(dist, f), 'utf8').includes('0.0.0-iota-automations-release'))) {
+if (!files(out).some((f) => f.endsWith('.js') && readFileSync(path.join(out, f), 'utf8').includes('0.0.0-iota-automations-release'))) {
   throw new Error('the release placeholder is missing from the bundle')
 }
-rmSync(path.join(dist, '.vite'), { recursive: true, force: true })
-writeFileSync(path.join(dist, 'bundle.json'), JSON.stringify({
+rmSync(path.join(out, '.vite'), { recursive: true, force: true })
+writeFileSync(path.join(out, 'bundle.json'), JSON.stringify({
   sdkCommit: commit,
   // The SDK release is the serving binary's: assets.go writes it over this placeholder.
   releasePlaceholder: '0.0.0-iota-automations-release',
@@ -66,14 +67,19 @@ writeFileSync(path.join(dist, 'bundle.json'), JSON.stringify({
 }, null, 2) + '\n')
 
 if (check) {
-  const now = files(dist)
-  const before = previous ? files(previous) : []
+  const now = files(out)
+  const before = existsSync(dist) ? files(dist) : []
   const stale = JSON.stringify(now) !== JSON.stringify(before) ||
-    now.some((f) => !readFileSync(path.join(dist, f)).equals(readFileSync(path.join(previous, f))))
-  if (previous) rmSync(previous, { recursive: true, force: true })
+    now.some((f) => !readFileSync(path.join(out, f)).equals(readFileSync(path.join(dist, f))))
   if (stale) {
     console.error('modules/automations/presentation/integrations/dist is stale: run `node scripts/build-bundle.mjs` in its web/ and commit the result')
     process.exit(1)
   }
+} else {
+  const old = `${dist}.old`
+  rmSync(old, { recursive: true, force: true })
+  if (existsSync(dist)) renameSync(dist, old)
+  renameSync(out, dist)
+  rmSync(old, { recursive: true, force: true })
 }
 console.log(`automations bundle: ${entry.file} (${commit})`)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -710,7 +711,7 @@ func TestKeyAndSaveCommitTogether(t *testing.T) {
 
 type failingRequests struct{ services.Requests }
 
-func (failingRequests) Complete(context.Context, pgx.Tx, uuid.UUID, string, uuid.UUID) error {
+func (failingRequests) Complete(context.Context, pgx.Tx, uuid.UUID, string, uuid.UUID, uuid.UUID) error {
 	return errors.New("record failed")
 }
 
@@ -728,4 +729,86 @@ func TestCheckDoesNotOverwriteAConcurrentDisable(t *testing.T) {
 	got, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusDisabled, got.Status)
+}
+
+// A short secret echoed in an encoded form — base64 of the value, a Basic header joining it with the
+// login, URL-escaped, hex — never reaches the detail or the identity.
+func TestEncodedShortSecretNeverLeaks(t *testing.T) {
+	e := newEnv(t)
+	const pw = "a&b" // three bytes, URL-escapes and base64-encodes to something else
+	echoes := []func(string) string{
+		func(v string) string { return "rejected " + base64.StdEncoding.EncodeToString([]byte(v)) },
+		func(v string) string {
+			return "401 Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("robot@acme.uz:"+v))
+		},
+		func(v string) string { return "bad password=" + url.QueryEscape(v) },
+		func(v string) string { return "bad key " + hex.EncodeToString([]byte(v)) },
+	}
+	for _, echo := range echoes {
+		e.tg.echo = echo
+		_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "short", Credentials: map[string]any{"token": pw}})
+		var failed *services.TestFailedError
+		require.ErrorAs(t, err, &failed)
+		assert.Empty(t, failed.Detail, echo(pw))
+	}
+
+	e.tg.accept = pw
+	for i, identityOf := range []func(string) string{
+		func(v string) string { return "bot " + base64.RawStdEncoding.EncodeToString([]byte(v)) },
+		func(v string) string { return "bot-" + url.QueryEscape(v) },
+		func(v string) string { return "bot_" + hex.EncodeToString([]byte(v)) },
+	} {
+		e.tg.identityOf = identityOf
+		got, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("enc_%d", i), Credentials: map[string]any{"token": pw}})
+		require.NoError(t, err)
+		assert.Empty(t, got.Connection.Identity.Display, identityOf(pw))
+	}
+
+	// A long secret inside a Basic header (its base64 is not a substring of the header's) is redacted
+	// as an opaque run.
+	e.tg.accept = ""
+	e.tg.echo = func(v string) string {
+		return "401 Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("robot@acme.uz:"+v))
+	}
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "long", Credentials: map[string]any{"token": badToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	assert.Contains(t, failed.Detail, "401 Authorization: Basic •••")
+	assert.NotContains(t, failed.Detail, base64.StdEncoding.EncodeToString([]byte("robot@acme.uz:"+badToken)))
+}
+
+// A reservation that expired and was taken over belongs to its new owner: the request it replaced can
+// neither release it nor complete it.
+func TestTakenOverReservationIsFencedFromItsFormerOwner(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	reqs := persistence.NewRequests(e.db)
+	first, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	require.NoError(t, err)
+	require.Equal(t, services.RequestNew, first.State)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.connection_requests SET created_at = now() - interval '3 minutes' WHERE key = 'k-fence'`)
+	require.NoError(t, err)
+	second, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	require.NoError(t, err)
+	require.Equal(t, services.RequestNew, second.State, "an expired reservation is taken over")
+	require.NotEqual(t, first.Owner, second.Owner)
+
+	// The former owner's cleanup does not free the new owner's reservation…
+	require.NoError(t, reqs.Release(e.ctx, e.tenant, "k-fence", first.Owner))
+	third, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestInProgress, third.State)
+
+	// … and its late save cannot claim it: the completion fails, so that transaction rolls back.
+	err = pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
+		return reqs.Complete(e.ctx, tx, e.tenant, "k-fence", first.Owner, c.Connection.ID)
+	})
+	require.ErrorIs(t, err, services.ErrRequestInProgress)
+	require.NoError(t, pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
+		return reqs.Complete(e.ctx, tx, e.tenant, "k-fence", second.Owner, c.Connection.ID)
+	}))
+	done, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestDone, done.State)
+	assert.Equal(t, c.Connection.ID, done.ConnectionID)
 }

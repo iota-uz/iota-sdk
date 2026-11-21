@@ -116,13 +116,14 @@ func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerp
 	if _, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE created_at < now() - interval '1 day'`); err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}
-	tag, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, fingerprint)
-		VALUES ($1, $2, $3) ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, fingerprint)
+	owner := uuid.New()
+	tag, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, fingerprint, owner)
+		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, fingerprint, owner)
 	if err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}
 	if tag.RowsAffected() == 1 {
-		return services.Reservation{State: services.RequestNew}, nil
+		return services.Reservation{State: services.RequestNew, Owner: owner}, nil
 	}
 	var (
 		fp   string
@@ -144,31 +145,34 @@ func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerp
 		return services.Reservation{State: services.RequestDone, ConnectionID: *conn}, nil
 	}
 	// A reservation of a request that died is taken over; a live one is in progress.
-	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now()
-		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key)
+	// The takeover gives the reservation a new owner: the request it replaces is fenced out.
+	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now(), owner = $3
+		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key, owner)
 	if err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}
 	if tag.RowsAffected() == 1 {
-		return services.Reservation{State: services.RequestNew}, nil
+		return services.Reservation{State: services.RequestNew, Owner: owner}, nil
 	}
 	return services.Reservation{State: services.RequestInProgress}, nil
 }
 
-func (r *requests) Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, connectionID uuid.UUID) error {
-	tag, err := tx.Exec(ctx, `UPDATE automation.connection_requests SET connection_id = $3
-		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL`, tenantID, key, connectionID)
+func (r *requests) Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, owner, connectionID uuid.UUID) error {
+	tag, err := tx.Exec(ctx, `UPDATE automation.connection_requests SET connection_id = $4
+		WHERE tenant_id = $1 AND key = $2 AND owner = $3 AND connection_id IS NULL`, tenantID, key, owner, connectionID)
 	if err != nil {
 		return serrors.Wrap("automations.Requests.Complete", err)
 	}
 	if tag.RowsAffected() != 1 {
-		// The reservation expired and another request took the key over: this write must not commit.
+		// The reservation expired and another request took the key over (or it was released): this
+		// write must not commit.
 		return serrors.Wrap("automations.Requests.Complete", services.ErrRequestInProgress)
 	}
 	return nil
 }
 
-func (r *requests) Release(ctx context.Context, tenantID uuid.UUID, key string) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL`, tenantID, key)
+func (r *requests) Release(ctx context.Context, tenantID uuid.UUID, key string, owner uuid.UUID) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests
+		WHERE tenant_id = $1 AND key = $2 AND owner = $3 AND connection_id IS NULL`, tenantID, key, owner)
 	return serrors.Wrap("automations.Requests.Release", err)
 }
