@@ -59,8 +59,12 @@ path is the empty token. In a trace:
 - `cancelled` is a token a join cancelled (any, n_of, timeout), on the node it was at, in branch order.
 - The join's step (`joined` or `timeout`, output `branches`) and the foreach's (`done`, `partial_failed`
   with output `results`, or `failed` with `code` and `error`) belong to the token that forked.
-- An `end`, `ignore` or a failure without a failed outcome ends only its token outside the main path;
-  `missing_context` and a failed join stop the whole trace.
+- An `end`, `ignore`, a failure without a failed outcome or a join that can no longer join (without
+  timeout) ends only its token outside the main path (an item is then `ok: false`); on the main path it
+  ends the run. `missing_context`, `MaxTokens` (code `LIMIT`) and a token taking 500 steps without
+  waiting stop the whole trace.
+- `foreach.<id>.item` and `.index` are read inside that foreach's body (its collect and the constructs
+  nested in it); elsewhere they are an `expression_type` error.
 - An event wakes every waiting token it matches, in the order the tokens were created. `{"timeout": true}`
   fires the earliest pending timer on the dry run's clock — a wait's from when it started waiting, a
   join's from its parallel's fork — the first one created on a tie.

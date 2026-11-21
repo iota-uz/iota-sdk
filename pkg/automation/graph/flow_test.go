@@ -321,3 +321,45 @@ func TestFlowNodes(t *testing.T) {
 		t.Fatalf("errors\n got %v\nwant %v", got, want)
 	}
 }
+
+// Review of #1366: the dry run counts a foreach's items by its concurrency, a loop of calls that never
+// waits stops with LIMIT, a catalog keeps its titles of flow node types.
+func TestFlowReview(t *testing.T) {
+	c := flowCatalog(t)
+	// 10 items one at a time, each forking 2 branches: the engine holds 1 item and 2 branches.
+	g := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"}},
+		{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "all"}},
+		{"id": "c", "type": "collect", "params": {"of": "each"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "split"), edge("split", "a", "j"), edge("split", "b", "j"),
+			edge("j", "joined", "c"), edge("each", "done", "ignore"), edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	trace := dryRun(t, c, g, graph.Options{Limits: graph.Limits{MaxTokens: 5}}, nil)
+	if done := trace[len(trace)-2]; done.Node != "each" || done.Outcome != graph.OutcomeDone {
+		t.Fatalf("a fork inside items run one at a time: %+v", trace[len(trace)-3:])
+	}
+
+	// ask answers at once in a dry run: a loop through it is valid, and its trace stops with LIMIT.
+	loop := flowGraph(t, `{"id": "q", "type": "ask", "params": {"question": "again?", "choices": ["yes", "no"]}}`,
+		strings.Join([]string{edge("labeled", "fired", "q"), edge("q", "yes", "q"), edge("q", "no", "ignore"),
+			edge("q", "unsure", "ignore"), edge("q", "failed", "ignore")}, ","))
+	if errs := graph.Validate(c, loop, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("a loop through a call: %v", errs)
+	}
+	in, err := graph.NewInterpreter(c, loop, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace = in.DryRun(graph.Subject{}, graph.Context{Nodes: map[string]graph.NodeState{"q": {Output: map[string]any{"answer": "yes"}}}},
+		[]graph.DryRunInput{{Event: graph.Event{"kind": "issue.labeled", "label": "x"}}}, graph.DryRunOptions{})
+	if last := trace[len(trace)-1]; last.Outcome != graph.TraceFailed || last.ContextPatch["code"] != graph.FailLimit {
+		t.Fatalf("a loop that never waits: %+v", last)
+	}
+
+	titled, err := graph.CatalogFromJSON([]byte(`{"events": {}, "subjects": {}, "nodes": {"approval": {"behavior": "parallel", "title": "Approval", "description": "d"}}}`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := titled.Nodes["approval"]; n.Title != "Approval" || n.Description != "d" || n.Type != "approval" {
+		t.Fatalf("title: %+v", n)
+	}
+}

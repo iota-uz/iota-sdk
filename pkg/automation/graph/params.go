@@ -20,7 +20,6 @@ type ParamsSpec interface {
 type Issue struct {
 	Path    []any
 	Message string
-	Limit   bool // a length, count or maximum: the format reports it as code limit
 }
 
 type schemaParams struct {
@@ -71,7 +70,7 @@ func (p *schemaParams) Parse(raw map[string]any) (map[string]any, []Issue) {
 	found := validateInstance(p.schema, obj)
 	issues := make([]Issue, 0, len(found))
 	for _, i := range found {
-		issues = append(issues, Issue(i))
+		issues = append(issues, Issue{Path: i.Path, Message: i.Message})
 	}
 	if len(issues) > 0 {
 		return nil, issues

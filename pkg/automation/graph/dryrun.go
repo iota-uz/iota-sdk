@@ -162,7 +162,9 @@ type dryGroup struct {
 	state   JoinState
 	results []ItemResult
 	left    int
-	closed  bool
+	// concurrency of a foreach: the engine runs at most this many items at once.
+	concurrency int
+	closed      bool
 }
 
 // dryTimer is a pending timeout on the dry run's clock: a waiting token's, or a join's.
@@ -241,10 +243,10 @@ func (d *dryRun) stop(t *dryToken, node string, s Step) {
 	d.ended = true
 }
 
-// fail is a failed step without a failed outcome: it fails the run on the main path (and on a limit),
-// and ends only its token elsewhere.
+// fail is a failed step without a failed outcome: it fails the run on the main path, and ends only its
+// token elsewhere.
 func (d *dryRun) fail(t *dryToken, node string, s Step) {
-	if s.Kind == StepMissingContext || t.group == nil || s.Code == FailLimit {
+	if s.Kind == StepMissingContext || t.group == nil {
 		d.stop(t, node, s)
 		return
 	}
@@ -252,12 +254,26 @@ func (d *dryRun) fail(t *dryToken, node string, s Step) {
 	d.finish(t, false, nil, s.Message)
 }
 
+// active counts the tokens the engine would hold: those not done and not waiting for their join or
+// items, a foreach's items at most its concurrency (a dry run starts them all).
 func (d *dryRun) active() int {
 	n := 0
+	items := map[*dryGroup]int{}
 	for _, t := range d.tokens {
-		if !t.done && !t.parked {
-			n++
+		if t.done || t.parked {
+			continue
 		}
+		if g := t.group; g != nil && g.kind == BehaviorForeach {
+			items[g]++
+			continue
+		}
+		n++
+	}
+	for g, k := range items {
+		if g.concurrency > 0 && k > g.concurrency {
+			k = g.concurrency
+		}
+		n += k
 	}
 	return n
 }
@@ -312,7 +328,11 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			return
 		}
 		step := i.Start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from, Tokens: d.active()})
-		if step.Kind == StepFailed && step.Code != FailLimit {
+		if b := i.view.catalog.Nodes[node.Type].Behavior; step.Kind == StepFailed && step.Code == FailLimit && (b == BehaviorParallel || b == BehaviorForeach) {
+			d.stop(t, node.ID, step) // MaxTokens: the run fails, whatever outcomes the node has
+			return
+		}
+		if step.Kind == StepFailed {
 			if fo, took := d.takeFailed(t, node.ID, step.Message); took {
 				t.from = node.ID
 				current, ok = i.Next(node.ID, fo)
@@ -390,6 +410,10 @@ func (d *dryRun) walk(t *dryToken, current string) {
 		t.from = node.ID
 		current, ok = i.Next(node.ID, step.Outcome)
 	}
+	if ok && !d.ended {
+		// A loop that never waits in a dry run: calls answer at once from the context.
+		d.stop(t, current, failed(FailLimit, "a token took %d steps without waiting", maxDryRunSteps))
+	}
 }
 
 func (d *dryRun) fork(t *dryToken, node string, step Step) {
@@ -411,7 +435,7 @@ func (d *dryRun) fork(t *dryToken, node string, step Step) {
 }
 
 func (d *dryRun) each(t *dryToken, node string, step Step) {
-	g := &dryGroup{node: node, kind: BehaviorForeach, parent: t, left: len(step.Each.Items)}
+	g := &dryGroup{node: node, kind: BehaviorForeach, parent: t, left: len(step.Each.Items), concurrency: step.Each.Concurrency}
 	target, ok := d.i.Next(node, OutcomeItem)
 	if !ok {
 		d.stop(t, node, failed(FailInvalidGraph, "%s has no edge from item", node))
@@ -500,9 +524,10 @@ func (d *dryRun) decideJoin(g *dryGroup) {
 	case StepWait:
 		return
 	case StepFailed:
+		// The forking token fails: the run on the main path, only that token inside a branch or an item.
 		g.closed = true
 		d.cancel(st.Cancel)
-		d.stop(g.parent, g.join, st)
+		d.fail(g.parent, g.join, st)
 		return
 	}
 	g.closed = true

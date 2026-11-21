@@ -314,7 +314,7 @@ func validateInstance(s *jsonschema.Schema, v any) []schemaIssue {
 				p = append(p, k.Field)
 			}
 			out = append(out, schemaIssue{Path: p, Message: k.LocalizedString(printer)})
-		case *kind.MaxItems, *kind.MaxLength, *kind.MaxProperties, *kind.Maximum:
+		case *kind.MaxItems, *kind.MaxLength, *kind.MaxProperties:
 			out = append(out, schemaIssue{Path: base, Message: e.ErrorKind.LocalizedString(printer), Limit: true})
 		default:
 			out = append(out, schemaIssue{Path: base, Message: e.ErrorKind.LocalizedString(printer)})

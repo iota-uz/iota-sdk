@@ -411,7 +411,14 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 		case isFlowBehavior(n.Behavior):
 			// parallel, join, foreach and collect take the built-in params and outputs: the interpreter
 			// reads them, so a catalog cannot change them.
-			c.Nodes[typ] = withType(flowNode(n.Behavior, on), typ)
+			spec := withType(flowNode(n.Behavior, on), typ)
+			if n.Title != "" {
+				spec.Title = n.Title
+			}
+			if n.Description != "" {
+				spec.Description = n.Description
+			}
+			c.Nodes[typ] = spec
 			continue
 		}
 		spec := NodeSpec{

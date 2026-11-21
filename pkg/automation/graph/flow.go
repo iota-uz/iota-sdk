@@ -47,8 +47,8 @@ const idSchema = `{"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$"}`
 
 func parallelSchema() string {
 	return `{"type": "object", "properties": {
-		"branches": {"type": "array", "minItems": 2, "maxItems": 20, "x-unique": true, "items": ` + outcomeSchema + `,
-			"description": "2 to 20 outcome names, each connected by one edge; every branch runs as its own token"}
+		"branches": {"type": "array", "minItems": 2, "x-unique": true, "items": ` + outcomeSchema + `,
+			"description": "outcome names, each connected by one edge; every branch runs as its own token. At most Limits.MaxParallelBranches (20), code limit"}
 	}, "required": ["branches"], "additionalProperties": false}`
 }
 
@@ -56,7 +56,7 @@ func joinSchema() string {
 	return `{"type": "object", "properties": {
 		"of": ` + idSchema + `,
 		"mode": {"enum": ["all", "any", "n_of"]},
-		"n": {"type": "integer", "minimum": 1, "maximum": 20, "description": "for n_of: 1 to the parallel's number of branches"},
+		"n": {"type": "integer", "minimum": 1, "description": "for n_of: 1 to the parallel's number of branches"},
 		"timeout": ` + durationSchema + `
 	}, "required": ["of", "mode"], "additionalProperties": false}`
 }
@@ -64,8 +64,8 @@ func joinSchema() string {
 func foreachSchema() string {
 	return `{"type": "object", "properties": {
 		"items": ` + expressionSchema + `,
-		"concurrency": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1},
-		"max_items": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "more items take outcome failed without running the body; 1000 when left out"}
+		"concurrency": {"type": "integer", "minimum": 1, "default": 1, "description": "items run at once in the engine; at most Limits.MaxForeachConcurrency (20), code limit"},
+		"max_items": {"type": "integer", "minimum": 1, "description": "more items take outcome failed (code LIMIT) without running the body; at most and by default Limits.MaxForeachItems (1000), code limit"}
 	}, "required": ["items"], "additionalProperties": false}`
 }
 
@@ -370,6 +370,69 @@ func (f *flowGraph) closure(construct string, r region, code, what string) []Gra
 	return out
 }
 
+// foreachScopes are, by node, the comma-joined ids of the foreachs whose body the node runs in (its
+// expressions read foreach.<id> of those only); a node outside every body has "".
+func foreachScopes(v *GraphView) map[string]string {
+	f := newFlowGraph(v)
+	direct := map[string][]string{} // node → the constructs whose tokens run it
+	joinOf := map[string]string{}   // a join → its parallel: it continues in the parallel's region
+	for _, n := range v.graph.Nodes {
+		switch f.behavior(n.ID) { //nolint:exhaustive // only constructs have regions
+		case BehaviorParallel:
+			for m := range f.region(n.ID).members {
+				direct[m] = append(direct[m], n.ID)
+			}
+			for _, j := range f.closers(n.ID, BehaviorJoin) {
+				joinOf[j] = n.ID
+			}
+		case BehaviorForeach:
+			for m := range f.region(n.ID).members {
+				direct[m] = append(direct[m], n.ID)
+			}
+			for _, c := range f.closers(n.ID, BehaviorCollect) {
+				direct[c] = append(direct[c], n.ID)
+			}
+		}
+	}
+	memo := map[string]map[string]bool{}
+	var around func(id string, seen map[string]bool) map[string]bool
+	around = func(id string, seen map[string]bool) map[string]bool {
+		if m, ok := memo[id]; ok {
+			return m
+		}
+		out := map[string]bool{}
+		if seen[id] {
+			return out // an invalid graph that nests a construct in itself: its own error says so
+		}
+		seen[id] = true
+		if p, ok := joinOf[id]; ok {
+			for k := range around(p, seen) {
+				out[k] = true
+			}
+		}
+		for _, c := range direct[id] {
+			if f.behavior(c) == BehaviorForeach {
+				out[c] = true
+			}
+			for k := range around(c, seen) {
+				out[k] = true
+			}
+		}
+		memo[id] = out
+		return out
+	}
+	scopes := map[string]string{}
+	for _, n := range v.graph.Nodes {
+		ids := make([]string, 0)
+		for k := range around(n.ID, map[string]bool{}) {
+			ids = append(ids, k)
+		}
+		sort.Strings(ids)
+		scopes[n.ID] = strings.Join(ids, ",")
+	}
+	return scopes
+}
+
 // ---------------------------------------------------------------------------------------------
 // parallel
 
@@ -576,12 +639,15 @@ func (foreachBehavior) Validate(v *GraphView, node Node, _ NodeSpec) []GraphErro
 
 func (foreachBehavior) Start(s *StepContext, node Node, _ NodeSpec) Step {
 	params := s.Params(node)
-	v, st := s.Eval(stringParam(params, "items"), expr.TypeList)
-	if st != nil {
-		return *st
-	}
 	fail := func(code, msg string) Step {
 		return Step{Kind: StepOutcome, Outcome: OutcomeFailed, Output: map[string]any{"results": []any{}, "error": msg, "code": code}}
+	}
+	v, st := s.Eval(stringParam(params, "items"), expr.TypeList)
+	if st != nil {
+		if st.Kind == StepFailed {
+			return fail(st.Code, st.Message)
+		}
+		return *st
 	}
 	list, ok := v.([]any)
 	if !ok {

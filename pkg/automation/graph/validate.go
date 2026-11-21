@@ -186,7 +186,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 					if k == 10 {
 						break
 					}
-					errs.add(issuePath(at+".params", issue.Path), issueCode(issue), "%s", issue.Message)
+					errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
 				}
 			} else if _, ok := v.triggerParams[t.ID]; !ok {
 				errs.add(at+".params", CodeParams, "the params of %s parsed into values that are not JSON", t.Event)
@@ -227,7 +227,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				if k == 10 {
 					break
 				}
-				errs.add(issuePath(at+".params", issue.Path), issueCode(issue), "%s", issue.Message)
+				errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
 			}
 			continue
 		}
@@ -376,8 +376,14 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 
 	// CEL.
 	x := newExprs(v, o.Limits.Expr)
+	each := foreachScopes(v)
 	check := func(path, event string, withNodes bool, src string, want expr.Type) {
-		if _, issues := x.program(event, withNodes, src, want); len(issues) > 0 {
+		if _, issues := x.programIn(event, withNodes, each[""], src, want); len(issues) > 0 {
+			errs.push(exprError(path, issues[0]))
+		}
+	}
+	checkIn := func(node, path, event string, src string, want expr.Type) {
+		if _, issues := x.programIn(event, true, each[node], src, want); len(issues) > 0 {
 			errs.push(exprError(path, issues[0]))
 		}
 	}
@@ -400,17 +406,17 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		at := fmt.Sprintf("nodes[%d]", i)
 		for _, e := range nodeExpressions(c, spec, params) {
 			if e.template {
-				if _, issues := x.template(e.event, e.source); len(issues) > 0 {
+				if _, issues := x.templateIn(e.event, each[n.ID], e.source); len(issues) > 0 {
 					errs.push(exprError(at+"."+e.path, issues[0]))
 				}
 				continue
 			}
-			check(at+"."+e.path, e.event, true, e.source, e.want)
+			checkIn(n.ID, at+"."+e.path, e.event, e.source, e.want)
 		}
 		// A filter fixed by the node type reads the event it waits for.
 		if spec.Wait != nil && spec.Wait.Filter.Value != "" {
 			if kind := spec.Wait.Event.Of(params); kind != "" {
-				check(at+".type", kind, true, spec.Wait.Filter.Value, expr.TypeBool)
+				checkIn(n.ID, at+".type", kind, spec.Wait.Filter.Value, expr.TypeBool)
 			}
 		}
 	}
@@ -421,13 +427,6 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		}
 	}
 	return errs.list
-}
-
-func issueCode(i Issue) string {
-	if i.Limit {
-		return CodeLimit
-	}
-	return CodeParams
 }
 
 func isBuiltinBehavior(b Behavior) bool {
