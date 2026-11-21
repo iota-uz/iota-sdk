@@ -25,6 +25,8 @@ const expectedExports = [
   './chat-ui/styles.css',
   './lens',
   './lens/styles.css',
+  './automation-editor',
+  './automation-editor/styles.css',
 ]
 
 if (JSON.stringify(Object.keys(packageJSON.exports).sort()) !== JSON.stringify(expectedExports.sort())) {
@@ -199,4 +201,30 @@ if (!/^[0-9a-f]{40}$/.test(identity.sourceCommit)) {
   } finally {
     await rm(isolated, { recursive: true, force: true })
   }
+}
+
+// The automation editor subpath: server-safe to import next to solid-ui (SSR smoke), and its canvas
+// (@xyflow/system, d3) sits in a lazy chunk the entry does not import statically.
+{
+  const { renderToString } = await import('solid-js/web')
+  const solidUI = await import('@iota-uz/sdk/solid-ui')
+  const editor = await import('@iota-uz/sdk/automation-editor')
+  const graph = { name: 'Smoke', run_as: 'owner', triggers: [{ id: 'user_created', event: 'core.user.created.v1' }], nodes: [], edges: [] }
+  const catalog = { revision: '1', events: [{ key: 'core.user.created.v1', title: 'User created', group: 'Users', subject: 'core.user', payload: {}, trigger_params: null }], nodes: [], context_schema: {} }
+  const html = renderToString(() => [
+    solidUI.Button({ children: 'SSR smoke' }),
+    editor.Outline({ graph, catalog, locale: 'en' }),
+    editor.Editor({ graph, catalog, layout: {}, version: 0, locale: 'en', enabled: false, api: {}, save: async () => ({ errors: [] }), reload: async () => ({ graph, version: 0, layout: {} }) }),
+  ])
+  if (!html.includes('SSR smoke') || !html.includes('User created') || !html.includes('ae-skeleton')) {
+    throw new Error('solid-ui and the automation editor did not render together on the server')
+  }
+  const entry = await readFile(path.join(root, 'dist/automation-editor/index.js'), 'utf8')
+  const staticImports = [...entry.matchAll(/from\s*["']\.\/([^"']+)["']/g)].map((m) => m[1])
+  for (const file of staticImports) {
+    const text = await readFile(path.join(root, 'dist/automation-editor', file), 'utf8')
+    if (/XYPanZoom|zoomIdentity/.test(text)) throw new Error(`@iota-uz/sdk/automation-editor statically imports the canvas chunk (${file})`)
+  }
+  const types = await readFile(path.join(root, 'dist/automation-editor/index.d.ts'), 'utf8')
+  if (/@xyflow/.test(types)) throw new Error('@xyflow/system types leak into the automation editor declarations')
 }

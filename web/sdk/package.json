@@ -57,6 +57,13 @@
       "import": "./dist/lens/index.js"
     },
     "./lens/styles.css": "./dist/lens/style.css",
+    "./automation-editor": {
+      "types": "./dist/automation-editor/index.d.ts",
+      "browser": "./dist/automation-editor/index.js",
+      "node": "./dist/automation-editor/index.server.js",
+      "import": "./dist/automation-editor/index.js"
+    },
+    "./automation-editor/styles.css": "./dist/automation-editor/styles.css",
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
@@ -93,7 +100,7 @@
   },
   "scripts": {
     "build": "pnpm build:subpaths",
-    "build:subpaths": "pnpm --dir ../client-host build && pnpm --dir ../solid-ui build:package && pnpm --dir ../lens build:package && pnpm --dir ../testing build && pnpm --dir ../runtime build && pnpm --dir ../chat-ui build:package && node ./scripts/assemble-subpaths.mjs",
+    "build:subpaths": "pnpm --dir ../client-host build && pnpm --dir ../solid-ui build:package && pnpm --dir ../lens build:package && pnpm --dir ../automation-editor build:package && pnpm --dir ../testing build && pnpm --dir ../runtime build && pnpm --dir ../chat-ui build:package && node ./scripts/assemble-subpaths.mjs",
     "check": "pnpm test:exports",
     "test:exports": "node ./scripts/check-package-exports.mjs",
     "pack": "pnpm build && npm pack --json",

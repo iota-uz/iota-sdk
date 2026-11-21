@@ -1,0 +1,49 @@
+{
+  "name": "@iota-uz/sdk-automation-editor-internal",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iota-uz/iota-sdk.git",
+    "directory": "web/automation-editor"
+  },
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build:package": "node scripts/ensure-solid-ui.mjs && vite build --config vite.package.config.ts && vite build --config vite.package.ssr.config.ts && tsc -p tsconfig.package.json && node scripts/prune-types.mjs && node scripts/package-css.mjs && node scripts/check-chunk.mjs && node scripts/ssr-smoke.mjs",
+    "build:fixture": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test",
+    "e2e": "playwright test --project=e2e",
+    "bench": "playwright test --project=bench",
+    "vr": "node scripts/vr.mjs",
+    "vr-update": "node scripts/vr.mjs --update"
+  },
+  "dependencies": {
+    "@xyflow/system": "1.0.0",
+    "solid-js": "1.9.15"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@iota-uz/sdk": "workspace:*",
+    "@playwright/test": "1.55.1",
+    "@solidjs/testing-library": "0.8.10",
+    "@testing-library/jest-dom": "6.6.3",
+    "jsdom": "25.0.1",
+    "typescript": "5.7.2",
+    "vite": "5.4.21",
+    "vite-plugin-solid": "2.11.8",
+    "vitest": "2.1.9",
+    "@tailwindcss/postcss": "4.1.18",
+    "tailwindcss": "4.1.18"
+  }
+}

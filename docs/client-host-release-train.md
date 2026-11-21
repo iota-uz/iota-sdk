@@ -10,6 +10,8 @@ workspace modules:
 - `@iota-uz/sdk/styles.css`
 - `@iota-uz/sdk/lens`
 - `@iota-uz/sdk/lens/styles.css`
+- `@iota-uz/sdk/automation-editor` (its canvas, `@xyflow/system` and d3 load as a lazy chunk)
+- `@iota-uz/sdk/automation-editor/styles.css`
 
 Version 0.5 is a clean break. The former root, BiChat, applet, Tailwind, asset,
 `@iota-uz/client-host`, and `@iota-uz/lens-web` APIs are not compatibility
@@ -37,7 +39,8 @@ protocol version, tarball name, and SHA-256.
 The verification script installs the tarball in an empty consumer while the
 `@iota-uz` registry points to an unreachable address. It checks every export,
 renderer peer resolution, and proves that importing the bounded host does not pull
-Lens or ECharts into the initial bundle.
+Lens or ECharts into the initial bundle, that neither the host nor `@iota-uz/sdk/solid`
+pulls the automation editor, and that the editor's canvas stays a lazy chunk.
 
 ## Production release
 

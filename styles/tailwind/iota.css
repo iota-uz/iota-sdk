@@ -235,6 +235,12 @@
     --clr-success: var(--green-500);
     --clr-on-sucess: var(--black);
 
+    /* Graph canvas (automation editor): its own surface and dot grid, checked in both themes. */
+    --clr-canvas-bg: var(--gray-50);
+    --clr-canvas-dot: 70.7% 0.022 261.325 / 55%;
+    --clr-canvas-edge: var(--gray-400);
+    --clr-canvas-edge-active: var(--primary-500);
+
     /* Toast: a light surface in both themes (not overridden under html.dark). */
     --clr-toast-surface: var(--white);
     --clr-toast-text: var(--black);
@@ -285,6 +291,11 @@
 
   html.dark {
     color-scheme: dark;
+    /* Graph canvas: darker than cards so they stand out; dots stay visible. */
+    --clr-canvas-bg: 14% 0.004 264;
+    --clr-canvas-dot: 55.1% 0.027 264.364 / 45%;
+    --clr-canvas-edge: var(--gray-500);
+    --clr-canvas-edge-active: var(--primary-400);
     /* Red text (errors, danger buttons) needs a lighter shade on dark surfaces. */
     --red-500: 68% 0.2 0.58;
     --clr-danger-btn-text: var(--red-500);
