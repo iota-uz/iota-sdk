@@ -370,6 +370,21 @@ func (f *flowGraph) closure(construct string, r region, code, what string) []Gra
 	return out
 }
 
+// insideConstructs are the nodes a branch's or an item's token runs: their failed outcome may be left
+// without an edge, the token then ends without arriving.
+func insideConstructs(v *GraphView) map[string]bool {
+	f := newFlowGraph(v)
+	out := map[string]bool{}
+	for _, n := range v.graph.Nodes {
+		if b := f.behavior(n.ID); b == BehaviorParallel || b == BehaviorForeach {
+			for m := range f.region(n.ID).members {
+				out[m] = true
+			}
+		}
+	}
+	return out
+}
+
 // foreachScopes are, by node, the comma-joined ids of the foreachs whose body the node runs in (its
 // expressions read foreach.<id> of those only); a node outside every body has "".
 func foreachScopes(v *GraphView) map[string]string {
@@ -588,6 +603,10 @@ func (i *Interpreter) Join(joinID, token string, st JoinState) Step {
 		}
 	}
 	output := map[string]any{"branches": result}
+	if big := i.tooLarge(output, "the output of "+joinID); big != nil && (arrived >= need || st.TimedOut || arrived+open < need) {
+		big.Cancel = cancel
+		return *big
+	}
 	switch {
 	case arrived >= need:
 		return Step{Kind: StepOutcome, Outcome: OutcomeJoined, Output: output, Cancel: cancel}
@@ -707,7 +726,11 @@ func (i *Interpreter) ForeachDone(foreachID string, results []ItemResult) Step {
 	if node, ok := i.view.Node(foreachID); !ok || i.view.catalog.Nodes[node.Type].Behavior != BehaviorForeach {
 		return failed(FailInvalidGraph, "%s is not a foreach", foreachID)
 	}
-	return Step{Kind: StepOutcome, Outcome: outcome, Output: map[string]any{"results": list}}
+	output := map[string]any{"results": list}
+	if big := i.tooLarge(output, "the output of "+foreachID); big != nil {
+		return *big
+	}
+	return Step{Kind: StepOutcome, Outcome: outcome, Output: output}
 }
 
 // ---------------------------------------------------------------------------------------------

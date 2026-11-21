@@ -299,8 +299,18 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	for _, n := range g.Nodes {
 		order = append(order, n.ID)
 	}
+	inside := insideConstructs(v)
 	for _, id := range order {
+		failedOutcome := ""
+		if n, ok := v.Node(id); ok && inside[id] {
+			failedOutcome = c.Nodes[n.Type].FailedOutcome
+		}
 		for _, outcome := range v.Outcomes(id) {
+			// Inside a branch or a foreach's body a failed outcome may have no edge: the token ends there,
+			// the branch does not arrive and the item is not ok.
+			if outcome == failedOutcome && failedOutcome != "" {
+				continue
+			}
 			if !connected[id][outcome] && !v.MayLeaveUnconnected(id, outcome) {
 				errs.add(v.where[id], CodeUnconnected, "outcome %s of %s is not connected (connect it, or to %s)", outcome, id, Ignore)
 			}

@@ -301,7 +301,22 @@ func (d *dryRun) advance(t *dryToken, from, outcome string) {
 	t.from = from
 	if current, ok := d.i.Next(from, outcome); ok {
 		d.walk(t, current)
+		return
 	}
+	d.noEdge(t)
+}
+
+// noEdge ends a branch's or an item's token on an outcome without an edge (a failed outcome inside a
+// construct may have none): the branch does not arrive, the item is not ok.
+func (d *dryRun) noEdge(t *dryToken) {
+	if t.group == nil {
+		return // a valid graph connects every outcome on the main path
+	}
+	reason := "an outcome of " + t.from + " has no edge"
+	if msg, ok := t.ctx.Nodes[t.from].Output["error"].(string); ok && msg != "" {
+		reason = msg
+	}
+	d.finish(t, false, nil, reason)
 }
 
 // walk runs a token from a node until it waits, forks, arrives or ends.
@@ -320,7 +335,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			d.stop(t, current, failed(FailInvalidGraph, "no node %s", current))
 			return
 		}
-		step := i.Start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from})
+		step := i.start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from}, false)
 		// MaxTokens by the trace's schedule, whatever the concurrency: a fork adds its branches, a foreach
 		// one item at a time. The run fails, whatever outcomes the node has.
 		starting := 0
@@ -413,6 +428,10 @@ func (d *dryRun) walk(t *dryToken, current string) {
 		}
 		t.from = node.ID
 		current, ok = i.Next(node.ID, step.Outcome)
+	}
+	if !ok && !d.ended {
+		d.noEdge(t)
+		return
 	}
 	if ok && !d.ended {
 		// A loop that never waits in a dry run: calls answer at once from the context.
@@ -574,7 +593,13 @@ func (d *dryRun) foreachDone(g *dryGroup) {
 	g.closed = true
 	st := d.i.ForeachDone(g.node, g.results)
 	if st.Kind == StepFailed {
-		d.stop(g.parent, g.node, st)
+		p := g.parent
+		p.parked = false
+		if fo, took := d.takeFailed(p, g.node, st.Message); took {
+			d.advance(p, g.node, fo)
+			return
+		}
+		d.fail(p, g.node, st)
 		return
 	}
 	p := g.parent

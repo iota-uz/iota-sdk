@@ -420,3 +420,60 @@ func TestFlowReviewRoundOne(t *testing.T) {
 		t.Fatalf("an impossible join without a timeout edge: %+v", st)
 	}
 }
+
+// Review round 2 of #1366: Start keeps MaxTokens without an active count, a failed outcome may stay
+// unconnected inside a branch (the token does not arrive), and join and foreach outputs keep the value
+// size limit.
+func TestFlowReviewRoundTwo(t *testing.T) {
+	c := flowCatalog(t)
+	three := flowGraph(t, `{"id": "split", "type": "parallel", "params": {"branches": ["a", "b", "c"]}}`,
+		strings.Join([]string{edge("labeled", "fired", "split"), edge("split", "a", "ignore"), edge("split", "b", "ignore"), edge("split", "c", "ignore")}, ","))
+	in, err := graph.NewInterpreter(c, three, graph.Options{Limits: graph.Limits{MaxTokens: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := in.Start("split", &graph.StepContext{}); st.Kind != graph.StepFailed || st.Code != graph.FailLimit {
+		t.Fatalf("an empty step context: %+v", st)
+	}
+	if st := in.Start("split", nil); st.Kind != graph.StepFailed || st.Code != graph.FailLimit {
+		t.Fatalf("no step context: %+v", st)
+	}
+
+	// ask.failed left unconnected in a branch validates; on the main path it is still unconnected.
+	branch := flowGraph(t, `{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "q", "type": "ask", "params": {"question": "ok?", "choices": ["yes", "no"]}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "any"}}`,
+		strings.Join([]string{edge("labeled", "fired", "split"), edge("split", "a", "q"), edge("split", "b", "j"),
+			edge("q", "yes", "j"), edge("q", "no", "j"), edge("q", "unsure", "j"), edge("j", "joined", "ignore")}, ","))
+	if errs := graph.Validate(c, branch, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("failed unconnected in a branch: %v", errs)
+	}
+	main := flowGraph(t, `{"id": "q", "type": "ask", "params": {"question": "ok?", "choices": ["yes", "no"]}}`,
+		strings.Join([]string{edge("labeled", "fired", "q"), edge("q", "yes", "ignore"), edge("q", "no", "ignore"), edge("q", "unsure", "ignore")}, ","))
+	if errs := graph.Validate(c, main, graph.Options{}); len(errs) != 1 || errs[0].Code != graph.CodeUnconnected {
+		t.Fatalf("failed unconnected on the main path: %v", errs)
+	}
+
+	big := func(b string) graph.Arrival {
+		return graph.Arrival{Of: "split", Token: "split." + b, Value: map[string]any{"text": strings.Repeat("x", 60)}}
+	}
+	in, err = graph.NewInterpreter(c, joinGraph(t, "all", ""), graph.Options{Limits: graph.Limits{MaxValueBytes: 128}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := in.Join("j", "", graph.JoinState{Arrived: map[string]graph.Arrival{"a": big("a"), "b": big("b"), "c": big("c")}})
+	if st.Kind != graph.StepFailed || st.Code != graph.FailValueTooLarge {
+		t.Fatalf("a joined output over the limit: %+v", st)
+	}
+	each := flowGraph(t, `{"id": "each", "type": "foreach", "params": {"items": "[1]"}}, {"id": "c", "type": "collect", "params": {"of": "each"}}`,
+		strings.Join([]string{edge("labeled", "fired", "each"), edge("each", "item", "c"), edge("each", "done", "ignore"),
+			edge("each", "partial_failed", "ignore"), edge("each", "failed", "ignore")}, ","))
+	in, err = graph.NewInterpreter(c, each, graph.Options{Limits: graph.Limits{MaxValueBytes: 128}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := []graph.ItemResult{{Index: 0, OK: true, Value: strings.Repeat("x", 60)}, {Index: 1, OK: true, Value: strings.Repeat("y", 60)}}
+	if st := in.ForeachDone("each", results); st.Kind != graph.StepFailed || st.Code != graph.FailValueTooLarge {
+		t.Fatalf("foreach results over the limit: %+v", st)
+	}
+}

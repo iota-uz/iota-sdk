@@ -221,8 +221,7 @@ type StepContext struct {
 	// branch's.
 	From string
 	// Tokens is how many tokens of the run are active, this one included: a fork or a foreach (by its
-	// concurrency) that would exceed Limits.MaxTokens fails before it creates any. 0: not checked here
-	// (a dry run counts by its own schedule).
+	// concurrency) that would exceed Limits.MaxTokens fails before it creates any. 0 counts as 1.
 	Tokens int
 	in     *Interpreter
 }
@@ -572,6 +571,11 @@ func (i *Interpreter) TriggerMatches(trigger string, ev Event, ctx Context) (boo
 
 // Start is the step on entering a node.
 func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
+	return i.start(nodeID, s, true)
+}
+
+// start is Start; checkTokens=false leaves MaxTokens to the caller (a dry run counts by its own schedule).
+func (i *Interpreter) start(nodeID string, s *StepContext, checkTokens bool) Step {
 	node, ok := i.view.Node(nodeID)
 	if !ok {
 		return failed(FailInvalidGraph, "no node %s", nodeID)
@@ -590,8 +594,10 @@ func (i *Interpreter) Start(nodeID string, s *StepContext) Step {
 	}
 	sc.in = i
 	st := impl.Start(&sc, node, copyNodeSpec(spec))
-	if limit := i.tokenLimit(sc.Tokens, st); sc.Tokens > 0 && limit != nil {
-		return *limit
+	if checkTokens {
+		if limit := i.tokenLimit(sc.Tokens, st); limit != nil {
+			return *limit
+		}
 	}
 	if st.Output != nil {
 		if big := i.tooLarge(st.Output, "the output of "+nodeID); big != nil {

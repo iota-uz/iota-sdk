@@ -60,6 +60,9 @@ path is the empty token. In a trace:
 - `cancelled` is a token a join cancelled (any, n_of, timeout), on the node it was at, in branch order.
 - The join's step (`joined` or `timeout`, output `branches`) and the foreach's (`done`, `partial_failed`
   with output `results`, or `failed` with `code` and `error`) belong to the token that forked.
+- Inside a branch or a foreach's body a node's failed outcome may be left without an edge: the token
+  ends there and does not arrive (the item is not ok).
+- A join's and a foreach's output keep `MaxValueBytes`: a larger one fails with `VALUE_TOO_LARGE`.
 - A join's `timeout` outcome may be left without an edge: taking it then fails the run (or the token
   that forked) with `JOIN_INCOMPLETE`.
 - An `end`, `ignore`, a failure without a failed outcome (a wait's filter included) or a join that can no longer join (without
