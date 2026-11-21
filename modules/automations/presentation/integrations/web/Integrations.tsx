@@ -406,7 +406,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
           <Show when={c().status_reason && c().status !== 'connected'}><p class="text-sm text-200">{c().status_reason}</p></Show>
         </div>
         <Show when={props.ctx.canManage()}>
-          <Dropdown open={menuOpen()} onOpenChange={setMenuOpen} label={t('Actions', { name: c().display_name || c().name })} menuClass="min-w-56"
+          <Dropdown open={menuOpen()} onOpenChange={setMenuOpen} class={menuOpen() ? 'z-30' : undefined} label={t('Actions', { name: c().display_name || c().name })} menuClass="min-w-56"
             trigger={<span class="flex h-11 w-11 items-center justify-center rounded-md text-200 sm:h-9 sm:w-9" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="128" cy="64" r="16" /><circle cx="128" cy="128" r="16" /><circle cx="128" cy="192" r="16" /></svg>
             </span>}>
@@ -415,7 +415,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
             <DropdownItem onClick={() => { setMenuOpen(false); void props.ctx.setDisabled(c(), c().status !== 'disabled') }} data-testid="menu-toggle">
               {c().status === 'disabled' ? t('Menu.Enable') : t('Menu.Disable')}
             </DropdownItem>
-            <DropdownItem onClick={() => { setMenuOpen(false); props.ctx.openDelete(props.connector, c()) }} disabled={inUse()} aria-describedby={inUse() ? reasonID() : undefined} class="text-pink" data-testid="menu-delete">
+            <DropdownItem onClick={() => { setMenuOpen(false); props.ctx.openDelete(props.connector, c()) }} disabled={inUse()} aria-describedby={inUse() ? reasonID() : undefined} class="text-pink disabled:cursor-not-allowed disabled:text-200" data-testid="menu-delete">
               {t('Menu.Delete')}
             </DropdownItem>
             <Show when={inUse()}><li role="none" id={reasonID()} class="px-2 pb-2 text-xs text-200">{t('DeleteBlocked')}</li></Show>
