@@ -150,11 +150,11 @@ type dryToken struct {
 	done    bool
 	// writes are the node outputs the token set since it was created (joins of its own branches
 	// included), in the order first set: what a join takes from an arrived branch.
-	writes  map[string]NodeState
-	order   []string
-	group   *dryGroup // the parallel or foreach it is a branch or an item of; nil: the main path
-	key     string    // its branch
-	index   int       // its item
+	writes map[string]NodeState
+	order  []string
+	group  *dryGroup // the parallel or foreach it is a branch or an item of; nil: the main path
+	key    string    // its branch
+	index  int       // its item
 }
 
 // set writes a node's output in the token's context and records it among its writes.
