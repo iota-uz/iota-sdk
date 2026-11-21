@@ -79,21 +79,30 @@ func (e *Engine) Serve(ctx context.Context) {
 	}
 	ctx, e.cancel = context.WithCancel(ctx)
 	e.done = make(chan struct{})
-	e.serving, e.wake, e.wg = ctx, &wakeHub{}, &sync.WaitGroup{}
-	done, hub, wg, pkgSlots := e.done, e.wake, e.wg, e.pkgConcurrency
+	done, hub, wg, pkgSlots := e.done, &wakeHub{}, &sync.WaitGroup{}, e.pkgConcurrency
 	e.mu.Unlock()
 
 	// Package workers run with or without the package executor: without it
 	// they block the ready package instances as unavailable (run), so an
 	// instance never waits silently in a process that cannot execute it.
-	e.startWorkers(ctx, pkgSlots, claimFilter{native: boolPtr(false)})
-	natives, err := e.allNatives()
-	if err != nil {
-		e.cfg.Logger.Error("extruntime: native workflows are not served", "error", err)
+	// Workers are tracked by this call's hub and wait group, never by those
+	// of a later Serve.
+	startWorkers(ctx, hub, wg, pkgSlots, func(ctx context.Context, sig <-chan struct{}) {
+		e.worker(ctx, claimFilter{native: boolPtr(false)}, sig)
+	})
+	startNatives := func() bool {
+		natives, err := e.allNatives()
+		if err != nil {
+			e.cfg.Logger.Error("extruntime: native workflows are not served yet; their registrations are loaded again on the next poll", "error", err)
+			return false
+		}
+		for id, nc := range natives {
+			filter := claimFilter{native: boolPtr(true), workflow: id}
+			startWorkers(ctx, hub, wg, nc.Concurrency, func(ctx context.Context, sig <-chan struct{}) { e.worker(ctx, filter, sig) })
+		}
+		return true
 	}
-	for id, nc := range natives {
-		e.startWorkers(ctx, nc.Concurrency, claimFilter{native: boolPtr(true), workflow: id})
-	}
+	nativesUp := startNatives()
 	wake := listen(ctx, e.cfg.DB, NotifyChannel, e.cfg.PollInterval, e.cfg.Logger)
 	go func() {
 		defer close(done)
@@ -103,26 +112,25 @@ func (e *Engine) Serve(ctx context.Context) {
 				wg.Wait()
 				return
 			case <-wake:
+				if !nativesUp {
+					// A failed load of the registrations is retried here; the
+					// pools start once it succeeds.
+					nativesUp = startNatives()
+				}
 				hub.poke()
 			}
 		}
 	}()
 }
 
-// startWorkers starts n workers that claim what filter selects.
-func (e *Engine) startWorkers(ctx context.Context, n int, filter claimFilter) {
-	e.mu.Lock()
-	hub, wg := e.wake, e.wg
-	e.mu.Unlock()
-	if hub == nil {
-		return
-	}
+// startWorkers starts n workers on hub and wg.
+func startWorkers(ctx context.Context, hub *wakeHub, wg *sync.WaitGroup, n int, work func(ctx context.Context, wake <-chan struct{})) {
 	for range n {
 		sig := hub.subscribe()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			e.worker(ctx, filter, sig)
+			work(ctx, sig)
 		}()
 	}
 }
@@ -151,7 +159,7 @@ func (e *Engine) worker(ctx context.Context, filter claimFilter, wake <-chan str
 func (e *Engine) Shutdown() {
 	e.mu.Lock()
 	cancel, done := e.cancel, e.done
-	e.cancel, e.done, e.serving = nil, nil, nil
+	e.cancel, e.done = nil, nil
 	e.mu.Unlock()
 	if cancel == nil {
 		return
@@ -223,7 +231,7 @@ func (e *Engine) renew(ctx context.Context, rs *runState) (leaseState, error) {
 			return err
 		}
 		_, err = tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() + $3::interval WHERE id = $1 AND tenant_id = $2`,
-			rs.inst.ID, rs.inst.TenantID, e.cfg.LeaseTTL.String())
+			rs.inst.ID, rs.inst.TenantID, pgInterval(e.cfg.LeaseTTL))
 		return serrors.FromDB(opFence, err)
 	})
 	return lease, err
@@ -262,10 +270,12 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 // records how the run ended. All writes are fenced by the claim's epoch.
 func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
 	timeout := e.cfg.RunTimeout
-	nc, native := e.Native(inst.Workflow)
-	native = native && inst.Native
-	if native {
-		timeout = nc.RunTimeout
+	if inst.Native {
+		// Package claims never wait on the native registrations. A load
+		// failure here keeps the default; runNative reports it.
+		if nc, ok, err := e.lookupNative(inst.Workflow); err == nil && ok {
+			timeout = nc.RunTimeout
+		}
 	}
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

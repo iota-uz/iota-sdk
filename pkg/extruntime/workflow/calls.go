@@ -57,6 +57,18 @@ func parseDuration(s string) (time.Duration, error) {
 	return time.Duration(v * float64(unit)), nil
 }
 
+// pgInterval spells a duration as a PostgreSQL interval in whole
+// microseconds (PostgreSQL's resolution). A positive remainder rounds up, so
+// a timer never fires before its duration; Go's own spelling ("1µs") is not
+// an interval PostgreSQL accepts.
+func pgInterval(d time.Duration) string {
+	us := d / time.Microsecond
+	if d > 0 && d%time.Microsecond != 0 {
+		us++
+	}
+	return strconv.FormatInt(int64(us), 10) + " microseconds"
+}
+
 func suspendError(reason string, wakeAt *time.Time) *pool.WireError {
 	info := map[string]any{"reason": reason}
 	if wakeAt != nil {
@@ -373,7 +385,7 @@ func (e *Engine) sleepRecord(ctx context.Context, rs *runState, name string, n i
 		var at time.Time
 		due := false
 		if !ok {
-			if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, d.String()).Scan(&at); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(d)).Scan(&at); err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
 			o = Occurrence{Name: name, N: n, Kind: KindSleep, Status: OccWaiting, WakeAt: &at, Attempts: 1}
@@ -438,6 +450,18 @@ func (e *Engine) wfWaitFor(ctx context.Context, rs *runState, args json.RawMessa
 // wait (and its timeout), or times a waiting one out. The result is nil while
 // the wait goes on; wake is its timeout.
 func (e *Engine) waitRecord(ctx context.Context, rs *runState, name string, n int, signal string, timeout time.Duration, hasTimeout bool, o Occurrence, ok bool) (json.RawMessage, *time.Time, error) {
+	if ok {
+		// The wake computation (finishSuspended) looks for the signal the
+		// journal recorded: a replay that waits for another one would park the
+		// instance on the wrong name.
+		var meta struct {
+			Signal string `json:"signal"`
+		}
+		if err := json.Unmarshal(nonNull(o.Meta), &meta); err != nil || meta.Signal != signal {
+			return nil, nil, blockedWire(rs.block(BlockNondeterminism, fmt.Sprintf(
+				"occurrence %s#%d waits for signal %q but the workflow code now waits for %q there", name, n, meta.Signal, signal)))
+		}
+	}
 	var result json.RawMessage
 	var wake *time.Time
 	err := e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
@@ -463,7 +487,7 @@ func (e *Engine) waitRecord(ctx context.Context, rs *runState, name string, n in
 				o = Occurrence{Name: name, N: n, Kind: KindWaitFor, Status: OccWaiting, Attempts: 1, Meta: marshal(map[string]string{"signal": signal})}
 				if hasTimeout {
 					var at time.Time
-					if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, timeout.String()).Scan(&at); err != nil {
+					if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(timeout)).Scan(&at); err != nil {
 						return nil, serrors.FromDB(opCall, err)
 					}
 					o.WakeAt = &at
@@ -636,7 +660,7 @@ func (e *Engine) taskRecord(ctx context.Context, rs *runState, name string, n in
 			var at *time.Time
 			if spec.hasTimeout {
 				var t time.Time
-				if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, spec.timeout.String()).Scan(&t); err != nil {
+				if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(spec.timeout)).Scan(&t); err != nil {
 					return nil, serrors.FromDB(opCall, err)
 				}
 				at = &t

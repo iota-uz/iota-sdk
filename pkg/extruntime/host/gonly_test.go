@@ -47,12 +47,25 @@ func TestHostInvocationIDIsIdempotent(t *testing.T) {
 	require.Equal(t, []string{"once"}, e.items())
 
 	// A failed invocation repeats its failure.
-	req = e.req("acme.n.save", `{"label":"rollback"}`, "Acme.Save")
+	req = e.req("acme.n.save", `{"label":"invalid"}`, "Acme.Save")
 	req.InvocationID = uuid.NewString()
+	_, firstErr := e.host.Invoke(context.Background(), req)
+	require.Error(t, firstErr)
+	_, replayErr := e.host.Invoke(context.Background(), req)
+	require.Equal(t, asWire(t, firstErr).Code, asWire(t, replayErr).Code, "the replay returns the recorded failure")
+	require.Equal(t, issuesOf(t, firstErr), issuesOf(t, replayErr), "with its validation issues")
+	require.Equal(t, 2, n.defaultRuns())
+
+	// A replay is held to the contract's permission as the subject holds it
+	// now, and to the contract and subject it was recorded for.
+	req = e.req("acme.n.save", `{"label":"once"}`)
+	req.InvocationID = id
 	_, err = e.host.Invoke(context.Background(), req)
-	require.Error(t, err)
+	require.Equal(t, "runtime.permissionDenied", asWire(t, err).Code)
+	req = e.req("acme.n.add", `{"label":"once"}`, "Acme.Save")
+	req.InvocationID = id
 	_, err = e.host.Invoke(context.Background(), req)
-	require.Error(t, err)
+	require.Equal(t, host.CodeInvocationMismatch, asWire(t, err).Code)
 	require.Equal(t, 2, n.defaultRuns())
 
 	// An invocation without an outcome is reported, not re-run.
@@ -89,6 +102,12 @@ func TestHostRunsAnOperationInTheCallersTransaction(t *testing.T) {
 	defer func() { _ = tx.Rollback(ctx) }()
 	req = e.req("acme.n.save", `{"label":"no"}`, "Acme.Save")
 	req.Tx = tx
+	_, err = e.host.Invoke(ctx, req)
+	require.Equal(t, host.CodeTxNotAllowed, asWire(t, err).Code)
+
+	// A replayable invocation id cannot join a caller-owned transaction.
+	req = e.req("acme.n.add", `{"label":"no"}`)
+	req.Tx, req.InvocationID = tx, uuid.NewString()
 	_, err = e.host.Invoke(ctx, req)
 	require.Equal(t, host.CodeTxNotAllowed, asWire(t, err).Code)
 }

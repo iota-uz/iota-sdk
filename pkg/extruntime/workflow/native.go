@@ -225,7 +225,10 @@ func suspended(kind, name string, n int) error {
 // pins package code (PackageGate, artifacts, the journal preload).
 func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 	inst := rs.inst
-	nc, ok := e.Native(inst.Workflow)
+	nc, ok, err := e.lookupNative(inst.Workflow)
+	if err != nil {
+		return e.finishTransient(parent, rs, err)
+	}
 	if !ok {
 		return e.finishBlocked(parent, rs, BlockUnavailable, fmt.Sprintf("workflow %s has no Go implementation in this process", inst.Workflow))
 	}
@@ -250,6 +253,11 @@ func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 	}
 	if ab := rs.aborted(); ab != nil {
 		return e.finishTransient(parent, rs, ab)
+	}
+	if err := runCtx.Err(); err != nil {
+		// The run outlived its timeout or the process is stopping: whatever
+		// the runner returned after that is not accepted; the run is retried.
+		return e.finishTransient(parent, rs, err)
 	}
 	switch {
 	case runErr == nil:

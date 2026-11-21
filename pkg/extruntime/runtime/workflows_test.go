@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -59,11 +60,12 @@ func TestRuntimeAttachesToTheCoreEngine(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit(ctx))
 	id := uuid.MustParse(raw)
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		_, err := eng.RunOnce(ctx)
-		require.NoError(t, err)
+		assert.NoError(c, err)
 		hist, err := eng.Get(ctx, scope.Tenant.ID, id)
-		require.NoError(t, err)
-		return hist.Instance.Status == workflow.StatusCompleted
+		if assert.NoError(c, err) {
+			assert.Equal(c, workflow.StatusCompleted, hist.Instance.Status)
+		}
 	}, 10*time.Second, 50*time.Millisecond)
 }

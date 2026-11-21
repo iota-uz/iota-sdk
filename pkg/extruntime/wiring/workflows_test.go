@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -107,9 +108,17 @@ func TestCoreRunsNativeWorkflowsWithoutTheRuntime(t *testing.T) {
 		require.NoError(t, err)
 		return h.Instance
 	}
-	require.Eventually(t, func() bool { return status().Status == workflow.StatusWaiting }, 15*time.Second, 50*time.Millisecond, "the served engine runs the instance")
+	reaches := func(want, msg string) {
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			h, err := eng.Get(bg, scope.Tenant.ID, id)
+			if assert.NoError(c, err) {
+				assert.Equal(c, want, h.Instance.Status)
+			}
+		}, 15*time.Second, 50*time.Millisecond, msg)
+	}
+	reaches(workflow.StatusWaiting, "the served engine runs the instance")
 	require.NoError(t, eng.Signal(bg, scope.Tenant.ID, int64(u.ID()), id, "hello", json.RawMessage(`{"name":"core"}`), ""))
-	require.Eventually(t, func() bool { return status().Status == workflow.StatusCompleted }, 15*time.Second, 50*time.Millisecond, "the signal completes it")
+	reaches(workflow.StatusCompleted, "the signal completes it")
 	inst := status()
 	require.True(t, inst.Native)
 	require.JSONEq(t, `{"name":"core"}`, string(inst.Result))

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
@@ -363,7 +364,10 @@ func (e *Engine) deliverSignal(ctx context.Context, q queryer, r signalReq) erro
 // a native instance and from the catalog for a package one.
 func (e *Engine) signalContract(ctx context.Context, inst Instance) (map[string]manifest.Type, string, error) {
 	if inst.Native {
-		nc, ok := e.Native(inst.Workflow)
+		nc, ok, err := e.lookupNative(inst.Workflow)
+		if err != nil {
+			return nil, "", serrors.Wrap(opManage, err)
+		}
 		if !ok {
 			return nil, "", serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s has no Go implementation in this process", ErrInvalid, inst.Workflow))
 		}
@@ -517,28 +521,48 @@ func (e *Engine) mayDecide(actor spi.Subject, kind string, assignee int64, permi
 // already committed stay (no compensation) and children keep running (see
 // TerminateTree).
 func (e *Engine) Terminate(ctx context.Context, tenant, id uuid.UUID) error {
-	var stopped []uuid.UUID
-	err := e.inTx(ctx, func(tx pgx.Tx) error {
-		inst, err := e.lockInstance(ctx, tx, tenant, id)
-		if err != nil {
-			return err
-		}
-		if !live(inst.Status) {
-			return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
-		}
-		if err := e.terminateLocked(ctx, tx, inst); err != nil {
-			return err
-		}
-		stopped = append(stopped, id)
-		return nil
+	err := retryConflicts(ctx, func() error {
+		return e.inTx(ctx, func(tx pgx.Tx) error {
+			inst, err := e.lockInstance(ctx, tx, tenant, id)
+			if err != nil {
+				return err
+			}
+			if !live(inst.Status) {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
+			}
+			return e.terminateLocked(ctx, tx, inst)
+		})
 	})
 	if err != nil {
 		return err
 	}
-	for _, s := range stopped {
-		e.cancelLocal(s.String())
-	}
+	e.cancelLocal(id.String())
 	return nil
+}
+
+// retryConflicts reruns fn (a whole transaction) when PostgreSQL aborted it
+// for a deadlock or a serialization failure. A termination locks the
+// instance row before its StatusObserver touches the consumer's rows, while a
+// run locks the consumer's rows before its fence: when both meet, PostgreSQL
+// aborts one, and a termination must not fail for that.
+func retryConflicts(ctx context.Context, fn func() error) error {
+	var err error
+	for attempt := range 4 {
+		if err = fn(); err == nil || !isConflict(err) || ctx.Err() != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Duration(attempt+1) * 20 * time.Millisecond):
+		}
+	}
+	return err
+}
+
+func isConflict(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && (pe.Code == "40P01" || pe.Code == "40001")
 }
 
 // TerminateTree terminates an instance and every unfinished descendant (by
@@ -547,42 +571,9 @@ func (e *Engine) Terminate(ctx context.Context, tenant, id uuid.UUID) error {
 // descendants are left as they are.
 func (e *Engine) TerminateTree(ctx context.Context, tenant, id uuid.UUID) error {
 	var stopped []uuid.UUID
-	err := e.inTx(ctx, func(tx pgx.Tx) error {
-		root, err := e.lockInstance(ctx, tx, tenant, id)
-		if err != nil {
-			return err
-		}
-		if !live(root.Status) {
-			return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
-		}
-		// Level by level: a level's rows are locked before their children are
-		// read in a new statement. A child insert holds a key-share lock on its
-		// parent row (the parent_instance_id foreign key), so it either
-		// committed before the parent lock was granted and is seen by the next
-		// level's read, or waits for this transaction and then finds its parent
-		// terminated (a run's fence fails, its insert rolls back).
-		var descendants []Instance
-		frontier := []uuid.UUID{root.ID}
-		for len(frontier) > 0 {
-			level, err := e.lockChildren(ctx, tx, tenant, frontier)
-			if err != nil {
-				return err
-			}
-			frontier = frontier[:0]
-			for _, c := range level {
-				frontier = append(frontier, c.ID)
-				if live(c.Status) {
-					descendants = append(descendants, c)
-				}
-			}
-		}
-		for _, inst := range append([]Instance{root}, descendants...) {
-			if err := e.terminateLocked(ctx, tx, inst); err != nil {
-				return err
-			}
-			stopped = append(stopped, inst.ID)
-		}
-		return nil
+	err := retryConflicts(ctx, func() error {
+		stopped = stopped[:0]
+		return e.inTx(ctx, func(tx pgx.Tx) error { return e.terminateTreeTx(ctx, tx, tenant, id, &stopped) })
 	})
 	if err != nil {
 		return err
@@ -592,6 +583,44 @@ func (e *Engine) TerminateTree(ctx context.Context, tenant, id uuid.UUID) error 
 	e.cancelLocal(id.String())
 	for _, s := range stopped[1:] {
 		e.staleLocal(s.String())
+	}
+	return nil
+}
+
+func (e *Engine) terminateTreeTx(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID, stopped *[]uuid.UUID) error {
+	root, err := e.lockInstance(ctx, tx, tenant, id)
+	if err != nil {
+		return err
+	}
+	if !live(root.Status) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
+	}
+	// Level by level: a level's rows are locked before their children are
+	// read in a new statement. A child insert holds a key-share lock on its
+	// parent row (the parent_instance_id foreign key), so it either
+	// committed before the parent lock was granted and is seen by the next
+	// level's read, or waits for this transaction and then finds its parent
+	// terminated (a run's fence fails, its insert rolls back).
+	var descendants []Instance
+	frontier := []uuid.UUID{root.ID}
+	for len(frontier) > 0 {
+		level, err := e.lockChildren(ctx, tx, tenant, frontier)
+		if err != nil {
+			return err
+		}
+		frontier = frontier[:0]
+		for _, c := range level {
+			frontier = append(frontier, c.ID)
+			if live(c.Status) {
+				descendants = append(descendants, c)
+			}
+		}
+	}
+	for _, inst := range append([]Instance{root}, descendants...) {
+		if err := e.terminateLocked(ctx, tx, inst); err != nil {
+			return err
+		}
+		*stopped = append(*stopped, inst.ID)
 	}
 	return nil
 }
@@ -634,16 +663,18 @@ func (e *Engine) lockInstance(ctx context.Context, tx pgx.Tx, tenant, id uuid.UU
 // terminateLocked terminates a live instance whose row tx has locked, with
 // its open tasks and waits, and tells the contract's StatusObserver.
 func (e *Engine) terminateLocked(ctx context.Context, tx pgx.Tx, inst Instance) error {
-	if _, err := tx.Exec(ctx, `
+	updated, err := scanInstance(tx.QueryRow(ctx, `
 		UPDATE extruntime.workflow_instances
 		SET status = 'terminated', wake_at = NULL, lease_owner = NULL, lease_until = NULL, finished_at = now(), updated_at = now()
-		WHERE id = $1 AND tenant_id = $2`, inst.ID, inst.TenantID); err != nil {
+		WHERE id = $1 AND tenant_id = $2
+		RETURNING `+instanceCols, inst.ID, inst.TenantID))
+	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
 	if err := cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
 		return err
 	}
-	if err := e.afterTransition(ctx, tx, inst, inst.Status, StatusTerminated); err != nil {
+	if err := e.afterTransition(ctx, tx, updated, inst.Status, StatusTerminated); err != nil {
 		return serrors.Wrap(opManage, err)
 	}
 	return nil
@@ -667,8 +698,17 @@ func (e *Engine) StartV2(ctx context.Context, actor spi.Subject, predecessor uui
 		if version != "" {
 			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: a native workflow has no package versions", ErrInvalid))
 		}
-		if _, ok := e.Native(old.Workflow); !ok {
+		nc, ok, lerr := e.lookupNative(old.Workflow)
+		if lerr != nil {
+			return uuid.Nil, serrors.Wrap(opManage, lerr)
+		}
+		if !ok {
 			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s has no Go implementation in this process", ErrInvalid, old.Workflow))
+		}
+		if nc.Input != nil {
+			if verr := manifest.ValidateValue(*nc.Input, nonNull(old.Input)); verr != nil {
+				return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: input no longer matches the workflow contract: %v", ErrInvalid, verr))
+			}
 		}
 		impl = Implementation{Native: true}
 	} else {

@@ -141,6 +141,9 @@ const (
 	// CodeInvocationUnfinished is returned by Invoke for a Request.InvocationID
 	// whose earlier invocation has no recorded outcome.
 	CodeInvocationUnfinished = "runtime.invocationUnfinished"
+	// CodeInvocationMismatch is returned by Invoke for a Request.InvocationID
+	// recorded for another contract or subject.
+	CodeInvocationMismatch = "runtime.invocationMismatch"
 	// CodeTxNotAllowed rejects a Request.Tx for a contract that does not run
 	// in one transaction (an ordinary command, a query).
 	CodeTxNotAllowed = "runtime.txNotAllowed"
@@ -288,13 +291,24 @@ type Result struct {
 // binding. A failure after an ordinary command committed a transaction is
 // reported with Result.PartiallyCommitted; the host never re-runs it.
 func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
+	// The deadline bounds the replay lookup too, not only the execution.
+	ctx, cancel := h.withDeadline(ctx)
+	defer cancel()
 	if req.InvocationID != "" {
 		if _, err := uuid.Parse(req.InvocationID); err != nil {
 			return Result{}, serrors.Wrap(opInvoke, fail(pool.CodeHostCall, "invocation id %q is not a uuid", req.InvocationID))
 		}
+		if req.Tx != nil {
+			// The invocation record commits on its own, so a caller that rolled
+			// back its transaction would replay an outcome whose writes are gone.
+			return Result{}, serrors.Wrap(opInvoke, fail(CodeTxNotAllowed, "a replayable invocation id cannot be combined with a caller-owned transaction"))
+		}
 		res, recorded, err := h.recorded(ctx, req)
 		if recorded {
-			return res, err
+			if err != nil {
+				return res, serrors.Wrap(opInvoke, err)
+			}
+			return res, nil
 		}
 	}
 	root := &rootState{
@@ -303,8 +317,6 @@ func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
 		starts:   &startSource{base: req.StartKeyBase},
 	}
 	defer root.txs.rollbackAll()
-	ctx, cancel := h.withDeadline(ctx)
-	defer cancel()
 
 	res, err := h.execute(ctx, root, execSpec{
 		contract:   req.Contract,
@@ -324,9 +336,14 @@ func (h *Host) Invoke(ctx context.Context, req Request) (Result, error) {
 }
 
 // recorded returns the outcome of an earlier invocation with the request's
-// pre-allocated ID; recorded is false when there is none.
+// pre-allocated ID; recorded is false when there is none. The record must be
+// of the same contract and subject, and the subject must still be allowed to
+// invoke the contract: a replay never reveals a result a fresh call would
+// deny.
 func (h *Host) recorded(ctx context.Context, req Request) (Result, bool, error) {
 	var (
+		contract  string
+		userID    int64
 		outcome   string
 		finished  bool
 		committed int
@@ -335,14 +352,24 @@ func (h *Host) recorded(ctx context.Context, req Request) (Result, bool, error) 
 		errJSON   []byte
 	)
 	err := h.cfg.DB.QueryRow(ctx, `
-		SELECT outcome, finished_at IS NOT NULL, committed_tx_count, partially_committed, result, error
+		SELECT contract, subject_user_id, outcome, finished_at IS NOT NULL, committed_tx_count, partially_committed, result, error
 		FROM extruntime.invocations WHERE id = $1::uuid AND tenant_id = $2`, req.InvocationID, req.Subject.TenantID).
-		Scan(&outcome, &finished, &committed, &partial, &result, &errJSON)
+		Scan(&contract, &userID, &outcome, &finished, &committed, &partial, &result, &errJSON)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Result{}, false, nil
 	}
 	if err != nil {
 		return Result{}, true, serrors.FromDB(opInvoke, err)
+	}
+	if contract != req.Contract || userID != req.Subject.UserID {
+		return Result{}, true, fail(CodeInvocationMismatch, "invocation %s was made for another contract or subject", req.InvocationID)
+	}
+	rc, err := h.resolveContract(ctx, req.Contract)
+	if err != nil {
+		return Result{}, true, err
+	}
+	if err := native.CheckPermissions(req.Subject.Has, rc.Resource, h.nativeDefinition(rc)); err != nil {
+		return Result{}, true, err
 	}
 	res := Result{InvocationID: req.InvocationID, Outcome: Outcome(outcome), CommittedTxCount: committed, PartiallyCommitted: partial}
 	switch {

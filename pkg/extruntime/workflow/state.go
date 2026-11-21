@@ -286,7 +286,7 @@ func (e *Engine) claim(ctx context.Context, f claimFilter) (*Instance, bool, err
 	}
 	row := e.cfg.DB.QueryRow(ctx, `
 		UPDATE extruntime.workflow_instances i
-		SET status = 'running', lease_owner = $1, lease_until = now() + $2::interval, lease_epoch = i.lease_epoch + 1,
+		SET status = 'running', lease_owner = $1, lease_until = clock_timestamp() + $2::interval, lease_epoch = i.lease_epoch + 1,
 		    run_count = i.run_count + 1, wake_at = NULL, updated_at = now()
 		WHERE i.id = (
 			SELECT w.id FROM extruntime.workflow_instances w
@@ -296,7 +296,7 @@ func (e *Engine) claim(ctx context.Context, f claimFilter) (*Instance, bool, err
 			ORDER BY w.updated_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1)
-		RETURNING `+instanceCols, e.cfg.Owner, e.cfg.LeaseTTL.String(), f.native, wf)
+		RETURNING `+instanceCols, e.cfg.Owner, pgInterval(e.cfg.LeaseTTL), f.native, wf)
 	inst, err := scanInstance(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
@@ -433,11 +433,18 @@ func (e *Engine) transition(ctx context.Context, rs *runState, to, set string, a
 			return err
 		}
 		all := append([]any{rs.inst.ID, rs.inst.TenantID, rs.epoch}, args...)
-		if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
-			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, all...); err != nil {
+		// The observer sees the row as this transition wrote it (result,
+		// error, blocked reason, finish time).
+		updated, err := scanInstance(tx.QueryRow(ctx, `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'
+			RETURNING `+instanceCols, all...))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
 			return serrors.FromDB(opFinish, err)
 		}
-		return e.afterTransition(ctx, tx, rs.inst, StatusRunning, to)
+		return e.afterTransition(ctx, tx, updated, StatusRunning, to)
 	})
 	var oe *observerError
 	if !errors.As(err, &oe) {
@@ -464,7 +471,10 @@ func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, 
 	if !inst.Native {
 		return nil
 	}
-	nc, ok := e.Native(inst.Workflow)
+	nc, ok, err := e.lookupNative(inst.Workflow)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -481,7 +491,6 @@ func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, 
 	default:
 		return nil
 	}
-	inst.Status = to
 	if err := nc.StatusObserver.InstanceStatusChanged(ctx, tx, inst, from, to); err != nil {
 		return &observerError{err: err}
 	}
@@ -605,9 +614,9 @@ func (e *Engine) release(ctx context.Context, rs *runState, _ error) error {
 		}
 		_, err = tx.Exec(ctx, `
 			UPDATE extruntime.workflow_instances
-			SET lease_owner = NULL, lease_until = now() + $4::interval, failures = $5, updated_at = now()
+			SET lease_owner = NULL, lease_until = clock_timestamp() + $4::interval, failures = $5, updated_at = now()
 			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
-			rs.inst.ID, rs.inst.TenantID, rs.epoch, delay.String(), failures)
+			rs.inst.ID, rs.inst.TenantID, rs.epoch, pgInterval(delay), failures)
 		return serrors.FromDB(opFinish, err)
 	})
 }

@@ -13,8 +13,9 @@
 // and the one *workflow.Engine of the process, which runs the Go
 // implementations of workflow contracts. Modules and applications register Go
 // consumers of the outbox with ContributeConsumers and native workflows with
-// ContributeNativeWorkflows. The dispatcher and the engine run in Start
-// unless DisableBackground is set.
+// ContributeNativeWorkflows. The dispatcher and the engine run in Start in a
+// process with the API or the worker capability, unless DisableBackground is
+// set; a process with neither capability drains no events or workflow runs.
 //
 // The component reads the extruntimeconfig section (EXTRUNTIME_* environment
 // variables) from the config source of the build context. While the section

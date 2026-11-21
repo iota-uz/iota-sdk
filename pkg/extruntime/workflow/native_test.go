@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -24,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -80,10 +82,23 @@ func (e *nativeEnv) start(eng *workflow.Engine, wf, key, input string) uuid.UUID
 	ctx := context.Background()
 	tx, err := e.db.Begin(ctx)
 	require.NoError(e.t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
 	id, err := eng.Start(ctx, tx, spi.Scope{Subject: e.subject(1)}, spi.StartIntent{Workflow: wf, Input: json.RawMessage(input), Key: key})
 	require.NoError(e.t, err)
 	require.NoError(e.t, tx.Commit(ctx))
 	return uuid.MustParse(id)
+}
+
+// eventuallyStatus waits for the instance to reach status; read errors are
+// reported through the collector, never from the polling goroutine.
+func (e *nativeEnv) eventuallyStatus(eng *workflow.Engine, id uuid.UUID, status, msg string) {
+	e.t.Helper()
+	require.EventuallyWithT(e.t, func(c *assert.CollectT) {
+		h, err := eng.Get(context.Background(), e.tenant, id)
+		if assert.NoError(c, err) {
+			assert.Equal(c, status, h.Instance.Status)
+		}
+	}, 10*time.Second, 20*time.Millisecond, msg)
 }
 
 func (e *nativeEnv) inst(eng *workflow.Engine, id uuid.UUID) workflow.Instance {
@@ -286,7 +301,12 @@ func TestNative_EffectInterruptedAfterStartRetriesWithTheSameKey(t *testing.T) {
 	require.NoError(t, err)
 	_, err = b.RunOnce(context.Background())
 	require.NoError(t, err)
-	second := <-attempts
+	var second attempt
+	select {
+	case second = <-attempts:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the second run did not retry the effect", "%+v", env.inst(b, id))
+	}
 	require.Equal(t, 2, second.n)
 	require.Equal(t, first.key, second.key)
 	require.Equal(t, id.String()+":pay:0", second.key)
@@ -642,9 +662,9 @@ func TestNative_ServeRunsWithoutPackageRuntime(t *testing.T) {
 	defer cancel()
 	eng.Serve(ctx)
 	id := env.start(eng, "test.serve", "s1", `{}`)
-	require.Eventually(t, func() bool { return env.inst(eng, id).Status == workflow.StatusWaiting }, 10*time.Second, 20*time.Millisecond)
+	env.eventuallyStatus(eng, id, workflow.StatusWaiting, "suspends")
 	require.NoError(t, eng.Signal(context.Background(), env.tenant, 1, id, "go", json.RawMessage(`{"v":1}`), ""))
-	require.Eventually(t, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, 10*time.Second, 20*time.Millisecond)
+	env.eventuallyStatus(eng, id, workflow.StatusCompleted, "completes")
 	require.JSONEq(t, `{"v":1}`, string(env.inst(eng, id).Result))
 }
 
@@ -854,10 +874,11 @@ func TestNative_TerminateTreeSeesChildrenCreatedDuringTraversal(t *testing.T) {
 	require.NoError(t, err)
 	done := make(chan error, 1)
 	go func() { done <- eng.TerminateTree(ctx, env.tenant, root) }()
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		var n int
-		require.NoError(t, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n))
-		return n > 0
+		if assert.NoError(c, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n)) {
+			assert.Positive(c, n)
+		}
 	}, 10*time.Second, 10*time.Millisecond, "TerminateTree waits for the child row")
 	grandchild := uuid.New()
 	_, err = tx.Exec(ctx, `
@@ -931,10 +952,8 @@ func TestNative_ServeBlocksPackageInstancesWithoutRuntime(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	eng.Serve(ctx)
-	require.Eventually(t, func() bool {
-		inst := env.inst(eng, id)
-		return inst.Status == workflow.StatusBlocked && inst.BlockedReason == workflow.BlockUnavailable
-	}, 10*time.Second, 20*time.Millisecond)
+	env.eventuallyStatus(eng, id, workflow.StatusBlocked, "blocks")
+	require.Equal(t, workflow.BlockUnavailable, env.inst(eng, id).BlockedReason)
 }
 
 // holdRow locks the instance row in its own transaction without changing it,
@@ -951,12 +970,14 @@ func holdRowUntilExpired(t *testing.T, env *nativeEnv, id uuid.UUID, locked chan
 	if locked != nil {
 		close(locked)
 	}
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		var waiting int
 		var expired bool
-		require.NoError(t, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting))
-		require.NoError(t, env.db.QueryRow(ctx, `SELECT lease_until < clock_timestamp() FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&expired))
-		return waiting > 0 && expired
+		if assert.NoError(c, env.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting)) &&
+			assert.NoError(c, env.db.QueryRow(ctx, `SELECT lease_until < clock_timestamp() FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&expired)) {
+			assert.Positive(c, waiting)
+			assert.True(c, expired)
+		}
 	}, 10*time.Second, 10*time.Millisecond, "the engine waits for the row while the lease expires")
 	require.NoError(t, tx.Rollback(ctx))
 }
@@ -986,7 +1007,14 @@ func TestNative_LeaseExpiringDuringTheFenceLockWaitIsFenced(t *testing.T) {
 	env.start(eng, "test.lockwait", "l1", `{}`)
 	done := make(chan error, 1)
 	go func() { _, err := eng.RunOnce(context.Background()); done <- err }()
-	id := <-inFn
+	var id uuid.UUID
+	select {
+	case id = <-inFn:
+	case err := <-done:
+		require.FailNow(t, "the run ended before its transaction", "%v", err)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the run did not reach its transaction")
+	}
 	holdRowUntilExpired(t, env, id, locked)
 	require.NoError(t, <-done)
 	require.ErrorIs(t, fenced, workflow.ErrFenced)
@@ -1016,7 +1044,14 @@ func TestNative_HeartbeatDoesNotRenewALeaseThatExpiredDuringItsLockWait(t *testi
 	env.start(eng, "test.hb", "h1", `{}`)
 	done := make(chan error, 1)
 	go func() { _, err := eng.RunOnce(context.Background()); done <- err }()
-	id := <-started
+	var id uuid.UUID
+	select {
+	case id = <-started:
+	case err := <-done:
+		require.FailNow(t, "the run ended before it started", "%v", err)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the run did not start")
+	}
 	holdRowUntilExpired(t, env, id, nil)
 	require.NoError(t, <-done)
 	require.ErrorIs(t, runErr, context.Canceled, "the expired run was aborted, not renewed")
@@ -1049,4 +1084,190 @@ func TestNative_ExpiredOwnerCannotComplete(t *testing.T) {
 	seen, calls := obs.snapshot()
 	require.Equal(t, 1, calls)
 	require.Equal(t, []string{"running>completed=completed"}, seen)
+}
+
+// Sub-millisecond durations reach PostgreSQL as intervals it accepts.
+func TestNative_MicrosecondSleepAndTimeouts(t *testing.T) {
+	env := newNativeEnv(t)
+	uid := int64(3)
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if err := run.Sleep(ctx, "tiny", 0, 1500*time.Nanosecond); err != nil {
+			return nil, err
+		}
+		w, err := run.WaitFor(ctx, "w", 0, "go", time.Microsecond)
+		if err != nil {
+			return nil, err
+		}
+		tr, err := run.Task(ctx, "t", 0, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{{Kind: workflow.TaskAssignUser, UserID: &uid}}, Timeout: time.Microsecond})
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]any{"timedOut": w.TimedOut, "task": tr.Outcome})
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.tiny": {Runner: runner, Signals: map[string]manifest.Type{"go": anyPayload()}}})
+	id := env.start(eng, "test.tiny", "t1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+	require.JSONEq(t, `{"timedOut":true,"task":"timeout"}`, string(env.inst(eng, id).Result))
+}
+
+// A replay that waits for another signal at a recorded wait is
+// nondeterminism: the instance blocks instead of parking on the wrong name.
+func TestNative_WaitForWithAnotherSignalBlocks(t *testing.T) {
+	env := newNativeEnv(t)
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		runs++
+		signal := "a"
+		if runs > 1 {
+			signal = "b"
+		}
+		_, err := run.WaitFor(ctx, "w", 0, signal, 0)
+		return nil, err
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.sig": {Runner: runner, Signals: map[string]manifest.Type{"a": anyPayload(), "b": anyPayload()}}})
+	id := env.start(eng, "test.sig", "s1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusWaiting }, "waits for a")
+	require.NoError(t, eng.Signal(context.Background(), env.tenant, 1, id, "b", json.RawMessage(`{}`), ""))
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks")
+	require.Equal(t, workflow.BlockNondeterminism, env.inst(eng, id).BlockedReason)
+}
+
+// StartV2 of a native instance validates the saved input against the
+// contract as registered now.
+func TestNative_StartV2ValidatesInputAgainstTheCurrentContract(t *testing.T) {
+	env := newNativeEnv(t)
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) { return nil, nil })
+	eng := env.engine(map[string]workflow.NativeContract{"test.v2": {Runner: done}})
+	id := env.start(eng, "test.v2", "v1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+
+	strict := env.engine(map[string]workflow.NativeContract{"test.v2": {Runner: done, Input: hosttest.Obj("who", hosttest.Str())}})
+	_, err := strict.StartV2(context.Background(), env.subject(1), id, "")
+	require.ErrorIs(t, err, workflow.ErrInvalid)
+	next, err := eng.StartV2(context.Background(), env.subject(1), id, "")
+	require.NoError(t, err, "a contract without an input schema accepts it")
+	require.Equal(t, id, *env.inst(eng, next).PredecessorID)
+}
+
+// A runner that returns after its run timeout is not accepted: the run is
+// retried.
+func TestNative_RunAfterItsDeadlineIsNotAccepted(t *testing.T) {
+	env := newNativeEnv(t)
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs == 1 {
+			<-ctx.Done()
+			return json.RawMessage(`"late"`), nil
+		}
+		return json.RawMessage(`"on time"`), nil
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.deadline": {Runner: runner, RunTimeout: 100 * time.Millisecond}})
+	id := env.start(eng, "test.deadline", "d1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+	require.JSONEq(t, `"on time"`, string(env.inst(eng, id).Result))
+	require.Equal(t, 2, runs)
+}
+
+// A NativeSource that fails is not a missing contract: a start is refused
+// (retryable) instead of routed, and Serve starts the native pools once the
+// source loads.
+func TestNative_NativeSourceFailureIsRetried(t *testing.T) {
+	env := newNativeEnv(t)
+	var failing atomic.Bool
+	failing.Store(true)
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) {
+		return json.RawMessage(`"ok"`), nil
+	})
+	eng := env.engine(nil, func(c *workflow.Config) {
+		c.NativeSource = func() (map[string]workflow.NativeContract, error) {
+			if failing.Load() {
+				return nil, errors.New("provider not ready")
+			}
+			return map[string]workflow.NativeContract{"test.src": {Runner: done}}, nil
+		}
+	})
+	ctx := context.Background()
+	tx, err := env.db.Begin(ctx)
+	require.NoError(t, err)
+	_, err = eng.Start(ctx, tx, spi.Scope{Subject: env.subject(1)}, spi.StartIntent{Workflow: "test.src", Input: json.RawMessage(`{}`), Key: "s1"})
+	require.NoError(t, tx.Rollback(ctx))
+	require.ErrorContains(t, err, "provider not ready")
+	require.True(t, host.IsInfrastructure(err), "the start is retried, not failed or routed to a package")
+
+	sctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	eng.Serve(sctx)
+	failing.Store(false)
+	id := env.start(eng, "test.src", "s2", `{}`)
+	env.eventuallyStatus(eng, id, workflow.StatusCompleted, "the native pool starts after the source loads")
+}
+
+// Registrations a NativeSource supplies are checked against the package
+// catalog when they load, also after AttachPackages.
+func TestNative_SourcedRegistrationConflictsWithAPackage(t *testing.T) {
+	env := newNativeEnv(t)
+	cat := hosttest.NewCatalog()
+	cat.Add(spi.ResolvedResource{Package: "acme", Version: "1.0.0", Resource: manifest.Resource{ID: "test.clash", Kind: manifest.ResWorkflow}})
+	eng := env.engine(nil, func(c *workflow.Config) {
+		c.NativeSource = func() (map[string]workflow.NativeContract, error) {
+			return map[string]workflow.NativeContract{"test.clash": {Runner: joinAny(1)}}, nil
+		}
+	})
+	require.NoError(t, eng.AttachPackages(context.Background(), workflow.Packages{Catalog: cat, Bindings: noBindings{}, Artifacts: &hosttest.Artifacts{}, Impl: newImpls(), Runner: noRunner{}}))
+	require.ErrorContains(t, eng.Ready(context.Background()), "also declared as a package workflow")
+	tx, err := env.db.Begin(context.Background())
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	_, err = eng.Start(context.Background(), tx, spi.Scope{Subject: env.subject(1)}, spi.StartIntent{Workflow: "test.clash", Input: json.RawMessage(`{}`), Key: "c1"})
+	require.ErrorContains(t, err, "also declared as a package workflow")
+}
+
+// A start produced by a terminated instance (an ordinary command it called
+// before it noticed) adds no child to the stopped tree.
+func TestNative_TerminatedProducerStartsNoChild(t *testing.T) {
+	env := newNativeEnv(t)
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) { return nil, nil })
+	eng := env.engine(map[string]workflow.NativeContract{"test.kid": {Runner: done}})
+	parent := insertNativeInstance(t, env, "test.kid", nil, workflow.StatusWaiting)
+	require.NoError(t, eng.Terminate(context.Background(), env.tenant, parent))
+	ctx := context.Background()
+	tx, err := env.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = eng.Start(ctx, tx, spi.Scope{Subject: env.subject(1)}, spi.StartIntent{
+		Workflow: "test.kid", Input: json.RawMessage(`{}`), Key: "k1", Producer: spi.Producer{InstanceID: parent.String()},
+	})
+	we, ok := pool.AsWireError(err)
+	require.True(t, ok, "%v", err)
+	require.Equal(t, workflow.CodeInstanceNotAccepting, we.Code)
+}
+
+// resultObserver keeps the instance a completed transition reported.
+type resultObserver struct {
+	mu   sync.Mutex
+	last workflow.Instance
+}
+
+func (o *resultObserver) InstanceStatusChanged(_ context.Context, _ pgx.Tx, inst workflow.Instance, _, _ string) error {
+	o.mu.Lock()
+	o.last = inst
+	o.mu.Unlock()
+	return nil
+}
+
+// The observer receives the row as the transition wrote it.
+func TestNative_StatusObserverSeesTheWrittenInstance(t *testing.T) {
+	env := newNativeEnv(t)
+	obs := &resultObserver{}
+	done := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) {
+		return json.RawMessage(`{"n":1}`), nil
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.seen": {Runner: done, StatusObserver: obs}})
+	id := env.start(eng, "test.seen", "o1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	require.Equal(t, workflow.StatusCompleted, obs.last.Status)
+	require.JSONEq(t, `{"n":1}`, string(obs.last.Result))
+	require.NotNil(t, obs.last.FinishedAt)
 }

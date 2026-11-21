@@ -284,10 +284,6 @@ type Engine struct {
 	runs   map[string]*runState // run token -> state
 	cancel context.CancelFunc
 	done   chan struct{}
-	// serving is the context of Serve while it runs.
-	serving context.Context
-	wake    *wakeHub
-	wg      *sync.WaitGroup
 	// pkgConcurrency is the number of package workers Serve starts:
 	// Config.Concurrency, or Packages.Concurrency once attached.
 	pkgConcurrency int
@@ -336,7 +332,16 @@ func (e *Engine) AttachPackages(ctx context.Context, p Packages) error {
 	if p.Catalog == nil || p.Bindings == nil || p.Artifacts == nil || p.Impl == nil || p.Runner == nil {
 		return serrors.New(serrors.Invalid, "extruntime workflow: AttachPackages needs Catalog, Bindings, Artifacts, Impl and Runner")
 	}
-	if err := checkPackageConflicts(ctx, p.Catalog, e.cfg.Natives); err != nil {
+	// The registration lock is held until the executor is published, so a
+	// concurrent first load of NativeSource either is checked here or sees
+	// the executor and checks itself (allNatives).
+	e.natMu.Lock()
+	defer e.natMu.Unlock()
+	natives := e.cfg.Natives
+	if e.natLoaded {
+		natives = e.natives
+	}
+	if err := checkPackageConflicts(ctx, p.Catalog, natives); err != nil {
 		return err
 	}
 	e.mu.Lock()
@@ -414,17 +419,15 @@ func checkPackageConflicts(ctx context.Context, cat spi.Catalog, natives map[str
 // against the attached package catalog. Composition roots call it at start,
 // so a bad registration fails the start instead of the first run.
 func (e *Engine) Ready(ctx context.Context) error {
-	natives, err := e.allNatives()
-	if err != nil {
-		return err
-	}
-	if cat := e.catalog(); cat != nil && e.deps().complete() {
-		return checkPackageConflicts(ctx, cat, natives)
-	}
-	return nil
+	_, err := e.allNatives()
+	return err
 }
 
 // allNatives returns every native contract, loading the source on first use.
+// A load is published only after it was validated, including against the
+// package catalog when the package executor is attached (AttachPackages
+// checks a load that happened before it): no start or run ever selects a
+// registration that failed. A failed load is retried by the next use.
 func (e *Engine) allNatives() (map[string]NativeContract, error) {
 	e.natMu.Lock()
 	defer e.natMu.Unlock()
@@ -439,18 +442,37 @@ func (e *Engine) allNatives() (map[string]NativeContract, error) {
 	if err != nil {
 		return nil, err
 	}
+	if d := e.deps(); d.complete() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := checkPackageConflicts(ctx, d.catalog, merged); err != nil {
+			return nil, err
+		}
+	}
 	e.natives, e.natLoaded = merged, true
 	return merged, nil
 }
 
-// Native returns the Go implementation registered for a workflow contract.
-func (e *Engine) Native(workflowID string) (NativeContract, bool) {
+// lookupNative returns the Go implementation registered for a workflow
+// contract. err is set when the registrations could not be loaded: then the
+// caller cannot tell a native contract from a package one and must not fall
+// back to either.
+func (e *Engine) lookupNative(workflowID string) (NativeContract, bool, error) {
 	natives, err := e.allNatives()
 	if err != nil {
-		e.cfg.Logger.Error("extruntime: native workflows are not available", "error", err)
-		return NativeContract{}, false
+		return NativeContract{}, false, err
 	}
 	nc, ok := natives[workflowID]
+	return nc, ok, nil
+}
+
+// Native returns the Go implementation registered for a workflow contract;
+// false also when the registrations cannot be loaded (logged).
+func (e *Engine) Native(workflowID string) (NativeContract, bool) {
+	nc, ok, err := e.lookupNative(workflowID)
+	if err != nil {
+		e.cfg.Logger.Error("extruntime: native workflows are not available", "error", err)
+	}
 	return nc, ok
 }
 

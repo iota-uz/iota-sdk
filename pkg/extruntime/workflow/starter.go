@@ -59,6 +59,9 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 	if in.Producer.InstanceID != "" {
 		pid, err := uuid.Parse(in.Producer.InstanceID)
 		if err == nil {
+			if err := e.lockLiveParent(ctx, tx, sc.Subject.TenantID, pid); err != nil {
+				return "", err
+			}
 			spec.parent = &pid
 		}
 	}
@@ -67,6 +70,27 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 		return "", serrors.Wrap(opStart, err)
 	}
 	return id.String(), nil
+}
+
+// lockLiveParent holds the producing instance against termination for the
+// rest of tx (a key-share lock conflicts with the row lock Terminate and
+// TerminateTree take) and requires it to be live. A command a terminated
+// instance started before it noticed cannot add a child to the stopped tree.
+func (e *Engine) lockLiveParent(ctx context.Context, tx pgx.Tx, tenant, parent uuid.UUID) error {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR KEY SHARE`, parent, tenant); err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	var status string
+	err := tx.QueryRow(ctx, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, parent, tenant).Scan(&status)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotFound, Message: fmt.Sprintf("producing instance %s does not exist", parent)}
+	case err != nil:
+		return serrors.FromDB(opStart, err)
+	case !live(status):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotAccepting, Message: fmt.Sprintf("producing instance %s is %s and starts no children", parent, status)}
+	}
+	return nil
 }
 
 // CodeStartDenied is the typed error of tx.start / wf.start by a subject that
@@ -83,7 +107,13 @@ type startPlan struct {
 // prepareStart resolves the workflow contract and the implementation to pin
 // and validates the input, before any lock is taken.
 func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.RawMessage) (startPlan, error) {
-	if nc, ok := e.Native(workflow); ok {
+	nc, ok, err := e.lookupNative(workflow)
+	if err != nil {
+		// Without the registrations the start cannot tell a native contract
+		// from a package one; it is retried, never routed to either.
+		return startPlan{}, &host.InfraError{Err: err}
+	}
+	if ok {
 		// A Go implementation pins nothing: the instance runs whatever this
 		// process registered for the contract.
 		if nc.Input != nil {
