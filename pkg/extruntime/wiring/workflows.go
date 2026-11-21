@@ -86,7 +86,7 @@ func (c *component) buildWorkflows(b *composition.Builder, natives *native.Set, 
 		// or run without background work).
 		cfg := workflow.Config{
 			DB: db, Subjects: subjects, TaskAdminPermission: manage.PermOperate, Logger: c.opts.Logger,
-			Concurrency: core.workflowConcurrency,
+			Concurrency:  core.workflowConcurrency,
 			NativeSource: func() (map[string]workflow.NativeContract, error) { return collectNativeWorkflows(container) },
 		}
 		if runtimeOn {
