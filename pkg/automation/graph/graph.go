@@ -336,7 +336,7 @@ func LayoutOf(g Graph, l Layout) Layout {
 // FreeID is a readable id for a new trigger or node: base, else base_2, base_3, … — the first one the graph
 // does not use. Existing ids are never renamed: schedules, run keys and journals name them.
 func FreeID(g Graph, base string) string {
-	taken := map[string]bool{}
+	taken := map[string]bool{Ignore: true} // ignore ends a run: no node may take it
 	for _, t := range g.Triggers {
 		taken[t.ID] = true
 	}

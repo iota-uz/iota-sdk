@@ -155,6 +155,7 @@ type Env struct {
 // NewEnv builds the environment of a scope. Build it once per scope and reuse it.
 func NewEnv(s Scope, l Limits) (*Env, error) {
 	l = l.withDefaults()
+	s = s.Clone() // the provider keeps the declarations: none of them may be the caller's
 	p := newProvider()
 	names := make([]string, 0, len(s.Vars))
 	for name := range s.Vars {
@@ -184,7 +185,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Env{scope: s.Clone(), limits: l, cel: env, provider: p, names: names}, nil
+	return &Env{scope: s, limits: l, cel: env, provider: p, names: names}, nil
 }
 
 // Scope is the scope the environment was built for.
@@ -238,6 +239,8 @@ func (e *Env) Check(src string, want Type) (*Program, []Issue) {
 	}
 	prg, err := e.cel.Program(checked,
 		cel.CustomDecoratorV2(plainEquality),
+		cel.CustomDecoratorV2(sortedMapLiterals),
+		cel.CustomDecoratorV2(unknownIDs),
 		cel.EvalOptions(cel.OptPartialEval|cel.OptOptimize),
 		cel.CostLimit(e.limits.CostLimit),
 	)
@@ -489,7 +492,8 @@ func (e *Env) functions(member bool) []string {
 		}
 		ok := false
 		for _, o := range fn.OverloadDecls() {
-			if forbiddenOverloads[o.ID()] || o.IsMemberFunction() != member {
+			// A conversion to uint or bytes is refused by the check, so it is no suggestion either.
+			if forbiddenOverloads[o.ID()] || o.IsMemberFunction() != member || outsideSubset(o.ResultType()) {
 				continue
 			}
 			ok = true
@@ -520,7 +524,7 @@ func (e *Env) memberFunctions(recv Field) []string {
 			continue
 		}
 		for _, o := range fn.OverloadDecls() {
-			if forbiddenOverloads[o.ID()] || !o.IsMemberFunction() || len(o.ArgTypes()) == 0 || !accepts(o.ArgTypes()[0]) {
+			if forbiddenOverloads[o.ID()] || !o.IsMemberFunction() || len(o.ArgTypes()) == 0 || !accepts(o.ArgTypes()[0]) || outsideSubset(o.ResultType()) {
 				continue
 			}
 			out = append(out, name)
@@ -536,6 +540,11 @@ func (e *Env) memberFunctions(recv Field) []string {
 	}
 	sort.Strings(out)
 	return dedupe(out)
+}
+
+// outsideSubset reports a type the subset refuses: uint or bytes, also inside lists and maps.
+func outsideSubset(t *types.Type) bool {
+	return usesKind(t, types.UintKind) || usesKind(t, types.BytesKind)
 }
 
 func receiverKind(f Field) types.Kind {

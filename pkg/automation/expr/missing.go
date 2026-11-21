@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"cel.dev/cel-go/common/ast"
@@ -140,7 +141,7 @@ func (p *Program) missingPath(unk *types.Unknown) string {
 	return best
 }
 
-func (p *Program) pathFor(id int64, pat []string) (string, int32) {
+func (p *Program) pathFor(id int64, pat []any) (string, int32) {
 	for _, c := range p.chains {
 		if !c.ids[id] || len(c.path) < len(pat) || !hasPrefix(c.path, pat) {
 			continue
@@ -149,39 +150,54 @@ func (p *Program) pathFor(id int64, pat []string) (string, int32) {
 		if len(pat) > n {
 			n = len(pat)
 		}
-		return joinPath(c.path[:n]), c.offset
-	}
-	// An unknown read from a dyn object carries no expression id: find the chain that reads its path.
-	for _, c := range p.chains {
-		if len(c.path) >= len(pat) && hasPrefix(c.path, pat) {
-			return joinPath(pat), c.offset
-		}
+		return joinPath(strings2any(c.path[:n])), c.offset
 	}
 	offset := int32(math.MaxInt32)
 	if r, ok := p.ast.SourceInfo().GetOffsetRange(id); ok {
 		offset = r.Start
+	} else {
+		// No location for the id: the chain that reads this path.
+		for _, c := range p.chains {
+			if len(c.path) >= len(pat) && hasPrefix(c.path, pat) {
+				offset = c.offset
+				break
+			}
+		}
 	}
 	return joinPath(pat), offset
 }
 
-func hasPrefix(path, prefix []string) bool {
+func hasPrefix(path []string, prefix []any) bool {
 	for i, s := range prefix {
-		if path[i] != s {
+		if str, ok := s.(string); !ok || path[i] != str {
 			return false
 		}
 	}
 	return true
 }
 
-func trailSegments(t *types.AttributeTrail) []string {
-	out := []string{t.Variable()}
+// trailSegments keeps a trail's qualifiers typed: keys as strings, list indices as int64.
+func trailSegments(t *types.AttributeTrail) []any {
+	out := []any{t.Variable()}
 	for _, q := range t.QualifierPath() {
 		switch v := q.(type) {
 		case string:
 			out = append(out, v)
+		case int64:
+			out = append(out, v)
+		case uint64:
+			out = append(out, int64(v)) //nolint:gosec // list indices are small
 		default:
-			out = append(out, fmt.Sprintf("[%v]", v))
+			out = append(out, fmt.Sprint(v))
 		}
+	}
+	return out
+}
+
+func strings2any(s []string) []any {
+	out := make([]any, len(s))
+	for i, x := range s {
+		out[i] = x
 	}
 	return out
 }
@@ -283,14 +299,25 @@ func nativeValue(v any) (any, error) {
 	return v, nil
 }
 
-// joinPath writes a path: keys joined with dots, list indices as [i].
-func joinPath(segments []string) string {
+// joinPath writes a path: identifier keys joined with dots, other keys as ["key"], list indices as [i].
+func joinPath(segments []any) string {
 	var b strings.Builder
 	for i, s := range segments {
-		if i > 0 && !strings.HasPrefix(s, "[") {
-			b.WriteByte('.')
+		switch v := s.(type) {
+		case int64:
+			fmt.Fprintf(&b, "[%d]", v)
+		case string:
+			switch {
+			case i == 0:
+				b.WriteString(v)
+			case IsName(v):
+				b.WriteByte('.')
+				b.WriteString(v)
+			default:
+				// A key a select cannot spell (`a.b`, `x-y`) is an index: tenant["a.b"], not tenant.a.b.
+				b.WriteString("[" + strconv.Quote(v) + "]")
+			}
 		}
-		b.WriteString(s)
 	}
 	return b.String()
 }

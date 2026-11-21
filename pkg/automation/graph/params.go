@@ -119,8 +119,21 @@ func applyDefaults(schema map[string]any, obj map[string]any) {
 				}
 			}
 		}
-		if child, ok := obj[k].(map[string]any); ok {
-			applyDefaults(sub, child)
+		applyDefaultsIn(sub, obj[k])
+	}
+}
+
+// applyDefaultsIn applies defaults inside a value: an object by its properties, each item of an array by
+// the array's items schema.
+func applyDefaultsIn(schema map[string]any, v any) {
+	switch x := v.(type) {
+	case map[string]any:
+		applyDefaults(schema, x)
+	case []any:
+		if items, ok := schema["items"].(map[string]any); ok {
+			for _, item := range x {
+				applyDefaultsIn(items, item)
+			}
 		}
 	}
 }
@@ -173,6 +186,12 @@ func bound(s map[string]any) {
 	}
 }
 
+// trimmedPattern is a string without whitespace at its edges: the Unicode White_Space characters, as
+// strings.TrimSpace trims them, written literally so the pattern reads the same in Go and JavaScript.
+const trimmedPattern = "^[^" + whiteSpaceClass + "]([\\s\\S]*[^" + whiteSpaceClass + "])?$"
+
+const whiteSpaceClass = "\t\n\v\f\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"
+
 // MatchParams is the ParamsSpec of a trigger on an event that declares match fields and no params of its
 // own: per field, a list of values (strings, each once, trimmed, ≤ 50) or a flag (bool); all optional.
 func MatchParams(match map[string]MatchField) (ParamsSpec, error) {
@@ -189,7 +208,7 @@ func MatchParams(match map[string]MatchField) (ParamsSpec, error) {
 			props[name] = map[string]any{
 				"type":     "array",
 				"maxItems": 50,
-				"items":    map[string]any{"type": "string", "minLength": 1, "maxLength": 200, "pattern": `^\S(.*\S)?$`},
+				"items":    map[string]any{"type": "string", "minLength": 1, "maxLength": 200, "pattern": trimmedPattern},
 				unique:     true,
 			}
 		default:

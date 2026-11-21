@@ -244,12 +244,12 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 			continue
 		}
 		event := "*"
-		if spec.Wait != nil && spec.Wait.Filter.Param == e.Param && waited != "" {
-			event = waited
-		}
 		want := e.Type
 		if want == "" {
 			want = expr.TypeAny
+		}
+		if spec.Wait != nil && spec.Wait.Filter.Param == e.Param && waited != "" {
+			event, want = waited, expr.TypeBool // a wait's filter is a bool, whatever Expressions says
 		}
 		out = append(out, nodeExpression{path: "params." + e.Param, source: s, want: want, event: event})
 	}

@@ -63,10 +63,8 @@ func expressionEnd(text string, from int) int {
 				return -1
 			}
 			i = end
-		case c == '{' || c == '[' || c == '(':
-			depth++
-		case c == ']' || c == ')':
-			depth--
+		case c == '{':
+			depth++ // only braces decide where }} is; CEL reports unbalanced () and []
 		case c == '}':
 			if depth <= 0 && i+1 < len(text) && text[i+1] == '}' {
 				return i

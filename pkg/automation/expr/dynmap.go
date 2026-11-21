@@ -3,11 +3,9 @@ package expr
 import (
 	"reflect"
 
-	"cel.dev/cel-go/common/operators"
 	"cel.dev/cel-go/common/types"
 	"cel.dev/cel-go/common/types/ref"
 	"cel.dev/cel-go/common/types/traits"
-	"cel.dev/cel-go/interpreter"
 )
 
 // dynMap is a dyn object or a map of the context as CEL reads it. Reading a key it lacks is an unknown
@@ -121,62 +119,4 @@ func (d *dynMap) Size() ref.Val { return types.Int(len(d.m)) }
 func (d *dynMap) Iterator() traits.Iterator {
 	keys := sortedKeys(d.m)
 	return types.DefaultTypeAdapter.NativeToValue(keys).(traits.Lister).Iterator()
-}
-
-// plainEquality makes == and != independent of operand order: CEL asks the left operand, and a native map
-// does not recognize a dynMap, so both operands are compared as plain values.
-func plainEquality(i interpreter.InterpretableV2) (interpreter.InterpretableV2, error) {
-	call, ok := i.(interpreter.InterpretableCall)
-	if !ok || len(call.Args()) != 2 {
-		return i, nil
-	}
-	switch call.Function() {
-	case operators.Equals:
-		return &plainEq{InterpretableCall: call}, nil
-	case operators.NotEquals:
-		return &plainEq{InterpretableCall: call, negate: true}, nil
-	}
-	return i, nil
-}
-
-type plainEq struct {
-	interpreter.InterpretableCall
-	negate bool
-}
-
-func (e *plainEq) Exec(frame *interpreter.ExecutionFrame) ref.Val {
-	args := e.Args()
-	return e.compare(args[0].Exec(frame), args[1].Exec(frame))
-}
-
-func (e *plainEq) Eval(act interpreter.Activation) ref.Val {
-	args := e.Args()
-	return e.compare(args[0].Eval(act), args[1].Eval(act))
-}
-
-func (e *plainEq) compare(l, r ref.Val) ref.Val {
-	if types.IsUnknownOrError(l) {
-		return l
-	}
-	if types.IsUnknownOrError(r) {
-		return r
-	}
-	out := types.Equal(plainVal(l), plainVal(r))
-	if b, ok := out.(types.Bool); ok && e.negate {
-		return !b
-	}
-	return out
-}
-
-// plainVal turns a value holding dynMaps into native CEL values.
-func plainVal(v ref.Val) ref.Val {
-	switch v.(type) {
-	case *dynMap, traits.Lister, traits.Mapper:
-		native, err := ToNative(v)
-		if err != nil {
-			return v
-		}
-		return types.DefaultTypeAdapter.NativeToValue(native)
-	}
-	return v
 }

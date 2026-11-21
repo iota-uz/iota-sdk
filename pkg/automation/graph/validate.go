@@ -23,13 +23,17 @@ func buildView(c Catalog, g Graph, o Options) *GraphView {
 			continue // its own error at nodes[i].type; params of a kind this build does not run are not read
 		}
 		if p, issues := spec.Params.Parse(n.Params); len(issues) == 0 {
-			v.params[n.ID] = ownedParams(p)
+			if owned, ok := ownedParams(p); ok {
+				v.params[n.ID] = owned
+			}
 		}
 	}
 	for _, t := range g.Triggers {
 		if takes := triggerParamsSpec(v.catalog.Events[t.Event]); takes != nil {
 			if p, issues := takes.Parse(t.Params); len(issues) == 0 {
-				v.triggerParams[t.ID] = ownedParams(p)
+				if owned, ok := ownedParams(p); ok {
+					v.triggerParams[t.ID] = owned
+				}
 			}
 		}
 	}
@@ -61,13 +65,15 @@ func triggerParamsSpec(e EventSpec) ParamsSpec {
 
 // ownedParams stores what a ParamsSpec parsed as owned JSON values: a custom spec may return typed Go
 // containers, which later copies would otherwise share.
-func ownedParams(p map[string]any) map[string]any {
-	if owned, err := jsonValue(p); err == nil {
-		if m, ok := owned.(map[string]any); ok {
-			return m
-		}
+// ok=false: the parsed params are not JSON values (NaN, a channel); they are not kept, and Validate
+// reports them, so nothing the caller can change is shared.
+func ownedParams(p map[string]any) (map[string]any, bool) {
+	owned, err := jsonValue(p)
+	if err != nil {
+		return nil, false
 	}
-	return copyMap(p)
+	m, ok := owned.(map[string]any)
+	return m, ok
 }
 
 type errorList struct{ list []GraphError }
@@ -181,6 +187,8 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 					}
 					errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
 				}
+			} else if _, ok := v.triggerParams[t.ID]; !ok {
+				errs.add(at+".params", CodeParams, "the params of %s parsed into values that are not JSON", t.Event)
 			}
 		} else if len(t.Params) > 0 {
 			errs.add(at+".params", CodeParams, "a trigger on %s takes no params", t.Event)
@@ -220,6 +228,10 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				}
 				errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
 			}
+			continue
+		}
+		if _, ok := v.params[n.ID]; !ok {
+			errs.add(at+".params", CodeParams, "%s parsed its params into values that are not JSON", n.Type)
 			continue
 		}
 		if len(spec.Subjects) > 0 && !contains(spec.Subjects, subject) {
@@ -306,15 +318,17 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 			errs.add(fmt.Sprintf("nodes[%d]", i), CodeUnreachable, "%s is not reachable from a trigger", n.ID)
 		}
 	}
+	// An end is a node with no outcomes (End, or a registered terminal behavior); a node with a WaitSpec
+	// suspends the run (Wait, or a registered behavior that waits), so a cycle through it is allowed.
 	ends := map[string]bool{}
 	waits := map[string]bool{}
 	for _, n := range g.Nodes {
-		switch c.Nodes[n.Type].Behavior {
-		case BehaviorEnd:
+		spec := c.Nodes[n.Type]
+		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || outcomes != nil && len(outcomes) == 0 {
 			ends[n.ID] = true
-		case BehaviorWait:
+		}
+		if spec.Behavior == BehaviorWait || spec.Wait != nil {
 			waits[n.ID] = true
-		case BehaviorBranch, BehaviorSwitch, BehaviorEffect, BehaviorCall:
 		}
 	}
 	for i, t := range g.Triggers {

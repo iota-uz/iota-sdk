@@ -273,6 +273,11 @@ func keyOrder(raw []byte) (map[string][]string, error) {
 					return err
 				}
 				k, _ := kt.(string)
+				for _, seen := range keys {
+					if seen == k {
+						return fmt.Errorf("%s: %s is declared twice", ptr, k)
+					}
+				}
 				keys = append(keys, k)
 				if err := walk(ptr + "/" + k); err != nil {
 					return err

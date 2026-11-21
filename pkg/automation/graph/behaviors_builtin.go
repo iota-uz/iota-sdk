@@ -81,6 +81,13 @@ func (waitBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphErro
 	}
 	params, _ := v.Params(node.ID)
 	w := waitIntent(spec, params)
+	if tp := spec.Wait.TimeoutParam; tp != "" {
+		if raw, set := params[tp]; set && raw != nil {
+			if _, ok := DurationMs(raw); !ok {
+				return []GraphError{{Path: v.Path(node.ID) + ".params." + tp, Code: CodeParams, Message: "a timeout is a duration like 30s, 20m, 2h or 7d"}}
+			}
+		}
+	}
 	if spec.Wait.Event.IsZero() {
 		if w.Timeout == 0 {
 			return []GraphError{{Path: v.Path(node.ID) + ".params." + spec.Wait.TimeoutParam, Code: CodeParams, Message: "a delay needs a duration"}}

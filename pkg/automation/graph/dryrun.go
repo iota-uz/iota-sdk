@@ -1,6 +1,9 @@
 package graph
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf8"
+)
 
 // DryRunInput is one input of a dry run: an event, or the timeout of the wait the run sleeps on.
 type DryRunInput struct {
@@ -86,7 +89,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 		if failedOutcome == "" {
 			return "", false
 		}
-		out := map[string]any{"error": message}
+		out := map[string]any{"error": i.fitError(message)}
 		run.Nodes[node] = NodeState{Output: out}
 		trace = append(trace, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}})
 		return failedOutcome, true
@@ -302,4 +305,17 @@ func (i *Interpreter) callGiven(nodeID string, given map[string]NodeState) (stri
 	}
 	s := Step{Kind: StepMissingContext, Path: fmt.Sprintf("nodes.%s.outcome", nodeID), Message: fmt.Sprintf("%s has outcomes %v: name the one taken", nodeID, taken)}
 	return "", nil, &s
+}
+
+// fitError shortens a failure message so the failed output {"error": message} stays within MaxValueBytes;
+// the run still takes the failed outcome.
+func (i *Interpreter) fitError(message string) string {
+	for i.tooLarge(map[string]any{"error": message}, "") != nil && message != "" {
+		cut := len(message) - len(message)/4 - 1
+		for cut > 0 && !utf8.RuneStart(message[cut]) {
+			cut--
+		}
+		message = message[:cut]
+	}
+	return message
 }

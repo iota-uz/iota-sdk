@@ -70,7 +70,7 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 	switch f.Kind {
 	case Optional:
 		if v == nil {
-			return zero(*f.Elem), true, nil
+			return zeroAt(*f.Elem, path), true, nil
 		}
 		return n.value(*f.Elem, v, path)
 	case Dyn:
@@ -246,7 +246,8 @@ func dynValue(v any, path []segment) (any, error) {
 		return out, nil
 	case map[string]any:
 		out := make(map[string]any, len(x))
-		for k, e := range x {
+		for _, k := range sortedKeys(x) { // the first invalid key is always the same one
+			e := x[k]
 			if e == nil {
 				continue
 			}
@@ -355,6 +356,14 @@ func floatInt(f float64) (int64, bool, error) {
 }
 
 func floatValue(v any) (float64, bool) {
+	f, ok := anyFloat(v)
+	if !ok || math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false // NaN and infinities are not JSON numbers
+	}
+	return f, true
+}
+
+func anyFloat(v any) (float64, bool) {
 	switch x := v.(type) {
 	case json.Number:
 		f, err := x.Float64()
@@ -457,4 +466,23 @@ func wrapDyn(v any, path []segment) any {
 		return out
 	}
 	return v
+}
+
+// zeroAt is the zero value of an absent optional field as CEL reads it: a map is a dynMap, as a given
+// empty map is, so a missing key reads the same either way.
+func zeroAt(f Field, path []segment) any {
+	switch f.Kind {
+	case Map:
+		return newDynMap(map[string]any{}, path, f.Elem.Kind == Dyn)
+	case Optional:
+		return zeroAt(*f.Elem, path)
+	case Object:
+		out := make(map[string]any, len(f.Props))
+		for _, p := range f.Props {
+			out[p.Name] = zeroAt(p.Field, appendPath(path, p.Name))
+		}
+		return out
+	case String, Int, Double, Bool, Dyn, Enum, List, Timestamp:
+	}
+	return zero(f)
 }
