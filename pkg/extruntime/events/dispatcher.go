@@ -33,6 +33,9 @@ const (
 	StatusFailed  = "failed"
 	StatusDead    = "dead"
 	StatusBlocked = "blocked"
+	// StatusSkipped is a state of extruntime.schedule_runs only: the slot was
+	// older than the schedule's missed-slot window and was not executed.
+	StatusSkipped = "skipped"
 )
 
 // Config configures the dispatcher. Zero values select the defaults.
