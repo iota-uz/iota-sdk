@@ -114,6 +114,7 @@ func (u *usage) Uses(_ context.Context, _, id uuid.UUID) ([]connectors.Use, erro
 type fakeOAuth struct {
 	identity connectors.Identity
 	err      error
+	token    string // the access token of the grant (default goodToken)
 }
 
 func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, _ catalog.ConnectorKind, redirect string) (string, string, error) {
@@ -125,7 +126,11 @@ func (f *fakeOAuth) Exchange(context.Context, uuid.UUID, string, string) (connec
 	if f.err != nil {
 		return connectors.OAuth2Grant{}, f.err
 	}
-	return connectors.OAuth2Grant{Kind: catalog.KindTelegramBot, Identity: f.identity, Credentials: connectors.Credentials{"token": goodToken}}, nil
+	token := f.token
+	if token == "" {
+		token = goodToken
+	}
+	return connectors.OAuth2Grant{Kind: catalog.KindTelegramBot, Identity: f.identity, Credentials: connectors.Credentials{"token": token}}, nil
 }
 
 func (f *fakeOAuth) Complete(context.Context, uuid.UUID, string, string) (connectors.Connection, error) {
@@ -843,4 +848,42 @@ func TestIdentityIsValidatedIndependently(t *testing.T) {
 			assert.Empty(t, got.Connection.Identity.Display, display)
 		}
 	}
+}
+
+// composite is a short base64 of a synthetic login and password (below any token-length rule; the
+// encoded password alone is not a substring of it), the way a provider echoes Basic credentials.
+func composite(login, password string) string {
+	return base64.RawStdEncoding.EncodeToString([]byte(login + ":" + password))
+}
+
+// The composite of the round-4 review never reaches Identity.Display: not when a connection is
+// created, not when it is checked, not after an OAuth exchange.
+func TestCompositeCredentialNeverReachesTheIdentity(t *testing.T) {
+	e := newEnv(t)
+	const pw = "p1x"
+	shown := "bot " + composite("u", pw)
+	require.Less(t, len(shown), 16)
+	e.tg.accept = pw
+	e.tg.identityOf = func(tok string) string { return "bot " + composite("u", tok) }
+
+	created, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "composite", Credentials: map[string]any{"token": pw}})
+	require.NoError(t, err)
+	assert.Empty(t, created.Connection.Identity.Display, "Create")
+
+	res, err := e.svc.Test(e.ctx, e.actor(), created.Connection.ID)
+	require.NoError(t, err)
+	assert.True(t, res.OK)
+	assert.Empty(t, res.Identity, "Test")
+	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
+	require.NoError(t, err)
+	assert.NotContains(t, fmt.Sprintf("%+v", list), composite("u", pw))
+
+	e.oauth.token = "t9z"
+	e.oauth.identity = connectors.Identity{Display: "docs " + composite("u", "t9z"), External: composite("u", "t9z")}
+	e.putNamed("c", "oauth_composite")
+	saved, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "c", "code")
+	require.NoError(t, err)
+	assert.Empty(t, saved.Identity.Display, "OAuth")
+	assert.Empty(t, saved.Identity.External, "OAuth")
+	assert.NotContains(t, saved.DisplayName, composite("u", "t9z"))
 }

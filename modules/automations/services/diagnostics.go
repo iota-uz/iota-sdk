@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"net/url"
@@ -81,53 +82,86 @@ const (
 	maxIdentityExternal = 128
 )
 
-// tokenLike is a run an identity must not contain: long, from a token/encoding alphabet and mixing
-// letters with digits or ending in base64 padding — how a credential or an encoded one looks, unlike a
-// name, an @handle, an email or a phone number.
+// identityChars is the safe boundary of an identity part: names, @handles, emails and phone numbers.
+// It leaves out what encodings need to carry data unambiguously — "=", "/", ":" and the like — and
+// any control or format character.
+var identityChars = regexp.MustCompile(`^[\p{L}\p{M}\p{N} @._+\-()'’#,&]+$`)
+
+// tokenRun finds runs an identity must not contain: long, from a token/encoding alphabet and mixing
+// letters with digits — how a credential or an encoded one looks, unlike a name, a handle, an email or
+// a phone number.
 var tokenRun = regexp.MustCompile(`[A-Za-z0-9+/=_\-]{16,}`)
 
 func tokenLike(s string) bool {
 	for _, run := range tokenRun.FindAllString(s, -1) {
-		if strings.HasSuffix(run, "=") || (strings.ContainsAny(run, "0123456789") && strings.IndexFunc(run, unicode.IsLetter) >= 0) {
+		if strings.ContainsAny(run, "0123456789") && strings.IndexFunc(run, unicode.IsLetter) >= 0 {
 			return true
 		}
 	}
 	return false
 }
 
-// forms are the ways a value may be echoed: verbatim, URL-escaped, base64 (any alphabet, padded or
-// not) and hex.
-func forms(v string) []string {
-	b := []byte(v)
-	return []string{v, url.QueryEscape(v), url.PathEscape(v),
-		base64.StdEncoding.EncodeToString(b), base64.RawStdEncoding.EncodeToString(b),
-		base64.URLEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b),
-		hex.EncodeToString(b)}
+// encodedRun is a run that could be base64 text; hexRun one that could be hex.
+var (
+	encodedRun = regexp.MustCompile(`[A-Za-z0-9+_\-]{2,}`)
+	hexRun     = regexp.MustCompile(`[0-9A-Fa-f]{2,}`)
+)
+
+// decodings are the byte strings s may stand for: s itself, URL-unescaped, and every base64 (any
+// alphabet) and hex decoding of each run, taken at each alignment — an encoding embedded at any
+// position of a run decodes at one of them, whatever was encoded with it ("login:password").
+func decodings(s string) [][]byte {
+	out := [][]byte{[]byte(s)}
+	if u, err := url.QueryUnescape(s); err == nil {
+		out = append(out, []byte(u))
+	}
+	for _, run := range encodedRun.FindAllString(s, -1) {
+		for k := 0; k < 4 && k < len(run); k++ {
+			part := run[k:]
+			std := strings.NewReplacer("-", "+", "_", "/").Replace(part)
+			if n := len(std) / 4 * 4; n > 0 {
+				if b, err := base64.StdEncoding.DecodeString(std[:n]); err == nil {
+					out = append(out, b)
+				}
+			}
+			if rem := len(std) % 4; rem >= 2 {
+				if b, err := base64.RawStdEncoding.DecodeString(std); err == nil {
+					out = append(out, b)
+				}
+			}
+		}
+	}
+	for _, run := range hexRun.FindAllString(s, -1) {
+		for k := 0; k < 2 && k < len(run); k++ {
+			part := run[k:]
+			if n := len(part) / 2 * 2; n > 0 {
+				if b, err := hex.DecodeString(part[:n]); err == nil {
+					out = append(out, b)
+				}
+			}
+		}
+	}
+	return out
 }
 
-// identityPartOK validates one part of an identity on its own: printable, bounded, nothing token-like,
-// and no form of any secret credential value (non-secret values, such as a login, may appear: an
-// email identity is the login).
+// identityPartOK validates one part of an identity on its own: within the safe character boundary,
+// bounded, and none of its decodings (plain, URL, base64 at any alignment, hex) contains a secret
+// credential value — so a credential cannot be carried in it, alone or combined with other data.
 func identityPartOK(s string, limit int, secret secretSet, creds ...connectors.Credentials) bool {
 	if s == "" {
 		return true
 	}
-	if utf8.RuneCountInString(s) > limit || tokenLike(s) {
+	if utf8.RuneCountInString(s) > limit || !identityChars.MatchString(s) || tokenLike(s) {
 		return false
 	}
-	for _, r := range s {
-		if !unicode.IsPrint(r) {
-			return false
-		}
-	}
-	lower := strings.ToLower(s)
+	decoded := decodings(s)
 	for _, c := range creds {
 		for field, v := range c {
 			if v == "" || !secret(field) {
 				continue
 			}
-			for _, f := range forms(v) {
-				if strings.Contains(lower, strings.ToLower(f)) {
+			for _, d := range decoded {
+				if bytes.Contains(bytes.ToLower(d), bytes.ToLower([]byte(v))) {
 					return false
 				}
 			}
