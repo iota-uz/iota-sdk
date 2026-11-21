@@ -17,6 +17,7 @@ type CatalogView struct {
 type EventView struct {
 	Key           string                `json:"key"`
 	Title         string                `json:"title"`
+	Description   string                `json:"description,omitempty"`
 	Group         string                `json:"group"`
 	Subject       string                `json:"subject"`
 	Payload       json.RawMessage       `json:"payload"`
@@ -55,7 +56,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 	for _, key := range sortedKeys(c.Events) {
 		e := c.Events[key]
 		ev := EventView{
-			Key: key, Title: e.Title, Group: e.Group, Subject: e.Subject,
+			Key: key, Title: e.Title, Description: e.Description, Group: e.Group, Subject: e.Subject,
 			Payload: e.Payload.JSONSchema(), Match: e.Match, NoTrigger: e.NoTrigger,
 		}
 		if ev.Title == "" {
