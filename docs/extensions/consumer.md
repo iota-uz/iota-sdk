@@ -166,8 +166,9 @@ needs: `*pgxpool.Pool`, `*services.NotificationDispatchService`, `*notifications
 The core needs no Node and runs whether or not the runtime is enabled. It provides `*native.Set` (composed from
 `Options.Natives`), `host.SubjectLoader` (current rights of users, for Go consumers; `ProvideDefault`, so an
 application can replace it; the runtime's packages, workflows and schedules keep their own loader) and
-`*events.Dispatcher`, the one dispatcher of the process. It starts with the API or worker capability unless
-`EXTRUNTIME_DISABLEBACKGROUND` is set, and prunes the outbox after `EXTRUNTIME_EVENTS_RETENTION`.
+`*events.Dispatcher`, the one dispatcher of the process, and `*events.Scheduler`, its one scheduler (§2.2). Both start with
+the API or worker capability unless `EXTRUNTIME_DISABLEBACKGROUND` is set; the dispatcher prunes the outbox after
+`EXTRUNTIME_EVENTS_RETENTION`.
 
 Modules and applications register Go consumers of the outbox:
 
@@ -205,6 +206,56 @@ recheck. Consumer sources that change at run time register with
 `wiring.ContributeConsumerSources`. Dead and blocked receipts of a Go consumer are requeued with
 `events.RequeueReceipts(ctx, q, tenant, consumerID, eventID)`, which the management API's requeue (§6.2) also calls when
 the runtime is enabled.
+
+### 2.2 Go schedules
+
+The core's scheduler runs cron schedules whose slot handler is Go, with the runtime enabled or not. A module or
+application registers a source of `events.ScheduleDef`s:
+
+```go
+wiring.ContributeSchedules(builder, func(c *composition.Container) (events.ScheduleSource, error) {
+    return graphSchedules, nil // ActiveSchedules(ctx) ([]events.ScheduleDef, error)
+})
+```
+
+```go
+events.ScheduleDef{
+    ID:       "automation:" + automationID + ":" + triggerID, // application-wide, stable for the (tenant, trigger) pair
+    Cron:     "0 9 * * 1-5",                                  // 5 fields
+    Timezone: "Asia/Tashkent",                                // IANA, default UTC
+    TenantID: &tenant,                                        // nil: every tenant
+    ActiveFrom:  enabledAt,                                   // earlier slots never run
+    MissedAfter: 10 * time.Minute,                            // 0: SchedulerConfig.Lookback
+    Handler:  events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, slot events.Slot) error { ... }),
+}
+```
+
+* The source is read on every pass (`SchedulerConfig.PollInterval`, 10 s): a schedule that appears or disappears
+  between passes is picked up without a restart. A source may return schedules together with an error; the scheduler
+  runs those it got and reports the error. `events.ComposeSchedules` concatenates sources (duplicate IDs are an error).
+* `RunSlot` runs in the same transaction as the `schedule_runs` receipt of `(schedule, tenant, slot)`: a slot is never run
+  twice, also by two nodes or a repeated `RunOnce`. An error rolls both back and the slot is retried with backoff up to
+  `MaxAttempts`, then dead-lettered; an error wrapping `events.ErrNoSubject` blocks the slot (re-evaluated every
+  `BlockedRecheck`, no attempt counted). A panic fails the slot, not the process. The scheduler owns the end of `tx`:
+  the handler's `Commit` and `Rollback` fail with `events.ErrSlotTxOwned`. A slot that PostgreSQL refuses at commit (a
+  deferred constraint) counts as a failed attempt. Scheduler slots and outbox deliveries share half of the pool's
+  connections (two are needed at once), so a pool of the minimum size cannot deadlock between them.
+* A schedule with `TenantID` runs only for that tenant and never calls the `TenantLister`. With a `Handler` the scheduler
+  looks up no `trigger_owners` and resolves no subject: the handler chooses whom it acts as, e.g. with
+  `events.ResolveSubject` (§2.1). Use an `ID` that does not change when the definition is edited, so a new version does
+  not repeat slots that already ran.
+* Slots before `ActiveFrom` never run (enabling a schedule does not catch up on the past); the slot at `ActiveFrom` does.
+  A slot at most `MissedAfter` old runs; a strictly older slot that has no run is not executed but recorded in
+  `schedule_runs` as `skipped`. The scheduler remembers per schedule and tenant how far the past is accounted for
+  (`extruntime.schedule_accounting`), so every slot missed since `ActiveFrom` (without one: since the schedule was first
+  seen) is recorded however long the downtime, in batches of 5000 per pass that never delay the current slots. A failed
+  slot keeps being retried up to `MaxAttempts` whatever its age, but never from before the current `ActiveFrom`; a blocked one expires into `skipped` once it is older
+  than `MissedAfter`.
+* `Options.Schedules` tunes the scheduler (polling, `Lookback`, retries). With the runtime enabled the package schedules
+  join the same scheduler as another source and run through the runtime, their owners loaded with the runtime's own
+  subject loader (over `runtime.Config.PermissionUniverse`), not the core's; without it a package schedule can only be
+  blocked with a diagnostic, so `SchedulerConfig.Runner` is optional. A `runtime.NewComponent` composed without the
+  core serves a scheduler of its own over the package schedules and the contributed Go schedules.
 
 ## 3. Contributing the application's natives
 
