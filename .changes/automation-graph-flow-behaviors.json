@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"pkg/automation/graph: parallel, join, foreach and collect behaviors with tokens in the validator, interpreter and dry run (StepFork/StepEach/StepArrive, Interpreter.Join and ForeachDone, flow Limits, token-aware traces), with SDK conformance fixtures; expr gains TypeList."}
