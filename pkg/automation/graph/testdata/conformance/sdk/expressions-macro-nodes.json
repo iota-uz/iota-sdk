@@ -1,0 +1,28 @@
+{
+  "name": "expressions-macro-nodes",
+  "format": 2,
+  "kind": "expressions",
+  "description": "With at most 8 nodes, [1, 2].exists(x, x > 1) passes: the macro is one call (exists, its target list of 2, x, and x > 1 of 3: 8 nodes), though its expansion has more. A ninth node is refused.",
+  "limits": {
+    "max_nodes": 8
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[1, 2].exists(x, x > 1)",
+      "type": "bool",
+      "context": {},
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[1, 2].exists(x, x > 1 + 0)",
+      "type": "bool",
+      "context": {},
+      "error": "type",
+      "issue": "limit"
+    }
+  ]
+}

@@ -428,6 +428,27 @@ func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error
 	return chats[0], nil
 }
 
+// LockByID implements chat.Repository.
+func (g *ChatRepository) LockByID(ctx context.Context, id uint) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+	var locked uint
+	err = tx.QueryRow(ctx, "SELECT id FROM chats WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrChatNotFound
+	}
+	if err != nil {
+		return errors.Wrapf(err, "failed to lock chat with id %d", id)
+	}
+	return nil
+}
+
 func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {

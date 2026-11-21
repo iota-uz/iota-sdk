@@ -1,0 +1,17 @@
+{
+  "name": "catalog-unknown-behavior",
+  "format": 2,
+  "kind": "catalog",
+  "description": "A catalog with a behavior this build does not run (parallel before #1328) is refused when it loads.",
+  "unless": [
+    "behavior:parallel"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "split": {
+        "behavior": "parallel"
+      }
+    }
+  },
+  "error": "behavior \"parallel\""
+}

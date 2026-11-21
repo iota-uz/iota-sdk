@@ -53,6 +53,11 @@ type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Client, error)
 	GetByID(ctx context.Context, id uint) (Client, error)
+	// LockByID locks the client row of the current tenant until the transaction
+	// of ctx ends. An update takes it before it reads the state its change is
+	// measured against, so concurrent saves of one client run one after another
+	// and the second sees what the first wrote.
+	LockByID(ctx context.Context, id uint) error
 	GetByPhone(ctx context.Context, phoneNumber string) (Client, error)
 	GetByContactValue(ctx context.Context, contactType ContactType, value string) (Client, error)
 	Save(ctx context.Context, data Client) (Client, error) // Create or Update

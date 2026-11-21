@@ -4,6 +4,8 @@ package projects
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
@@ -35,6 +37,7 @@ func (c *component) LocaleFS() []*embed.FS {
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddNavNodes(builder, ProjectsNavNode)
 	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 
 	composition.ProvideFunc(builder, persistence.NewProjectRepository)
 	composition.ProvideFunc(builder, persistence.NewProjectStageRepository)

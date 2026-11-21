@@ -1,0 +1,92 @@
+{
+  "name": "validate-call-outcomes",
+  "kind": "validate",
+  "description": "Every choice of a call is an outcome: one that is not an outcome name is refused, an unconnected one is reported, an edge from a choice that is gone is refused.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Ask before shipping",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "decide",
+        "type": "ask",
+        "params": {
+          "question": "Ship?",
+          "choices": ["ship", "Not now"]
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "wait_more",
+        "type": "end",
+        "params": {
+          "column": "backlog"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "decide"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "ship"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "hold"
+        },
+        "to": "wait_more"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "failed"
+        },
+        "to": "wait_more"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "unsure"
+        },
+        "to": "wait_more"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.choices[1]"
+    },
+    {
+      "path": "nodes[0]"
+    },
+    {
+      "path": "edges[2].from.outcome"
+    }
+  ]
+}

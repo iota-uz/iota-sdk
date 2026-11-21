@@ -90,6 +90,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			return err
 		}
 	}
+	// The runtime serves the outbox (its own dispatcher, or the one of the
+	// extension core it joins) under its own settings.
+	composition.Contribute(builder, func(*composition.Container) ([]events.DispatcherOwner, error) {
+		return []events.DispatcherOwner{{Name: "extruntime"}}, nil
+	})
 	composition.Provide[*Runtime](builder, func(container *composition.Container) (*Runtime, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {

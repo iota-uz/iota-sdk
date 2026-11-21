@@ -97,7 +97,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		return nil, err
 	}
 
-	createdEvent := user.NewCreatedEvent(ctx, data)
+	createdEvent := user.NewCreatedEvent(composables.WithoutTx(ctx), data)
 
 	var createdUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -119,7 +119,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		}); err != nil {
 			return err
 		}
-		if err := recordUserAccess(txCtx, s.historyWriter, nil, createdUser); err != nil {
+		if err := recordUserAccess(txCtx, s.historyWriter, s.policy.groupName, nil, createdUser); err != nil {
 			return err
 		}
 		return publishUserCreated(txCtx, createdUser)
@@ -129,9 +129,15 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 	}
 	createdEvent.Result = createdUser
 
-	s.publisher.Publish(createdEvent)
-	for _, e := range data.Events() {
-		s.publisher.Publish(e)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
+		for _, e := range data.Events() {
+			s.publisher.Publish(e)
+		}
+	}); err != nil {
+		return nil, err
 	}
 
 	return createdUser, nil
@@ -264,15 +270,17 @@ func (s *UserService) ChangePassword(ctx context.Context, currentPassword, newPa
 		return serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), updated)
 	updatedEvent.Result = updated
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 	return nil
 }
 
 // performUpdate executes the common update logic for both Update and UpdateSelf
 func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.User, error) {
-	updatedEvent := user.NewUpdatedEvent(ctx, data)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 
 	var updatedUser user.User
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
@@ -296,7 +304,10 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 		}); err != nil {
 			return err
 		}
-		return recordUserAccess(txCtx, s.historyWriter, before, updatedUser)
+		if err := recordUserAccess(txCtx, s.historyWriter, s.policy.groupName, before, updatedUser); err != nil {
+			return err
+		}
+		return publishUserUpdated(txCtx, before, updatedUser)
 	})
 	if err != nil {
 		return nil, err
@@ -304,9 +315,15 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 
 	updatedEvent.Result = updatedUser
 
-	s.publisher.Publish(updatedEvent)
-	for _, e := range data.Events() {
-		s.publisher.Publish(e)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
+		for _, e := range data.Events() {
+			s.publisher.Publish(e)
+		}
+	}); err != nil {
+		return nil, err
 	}
 
 	return updatedUser, nil
@@ -337,7 +354,7 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		return nil, err
 	}
 
-	deletedEvent := user.NewDeletedEvent(ctx)
+	deletedEvent := user.NewDeletedEvent(composables.WithoutTx(ctx))
 
 	var deletedUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
@@ -356,17 +373,22 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 			return err
 		}
 		deletedUser = entity
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserDeleted, Version: 1, Resource: UserResource, ID: userKey(id),
 			Before: userSnapshot(entity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserDeleted(txCtx, entity)
 	})
 	if err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = deletedUser
 
-	s.publisher.Publish(deletedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return deletedUser, nil
 }
@@ -433,10 +455,13 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserBlocked, Version: 1, Resource: UserResource, ID: userKey(userID),
 			Before: userBlockSnapshot(before), After: userBlockSnapshot(blockedUser),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserBlocked(txCtx, blockedUser)
 	})
 
 	if err != nil {
@@ -444,9 +469,11 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 	}
 
 	// Publish updated event for realtime updates
-	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), blockedUser)
 	updatedEvent.Result = blockedUser
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return blockedUser, nil
 }
@@ -484,10 +511,13 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserUnblocked, Version: 1, Resource: UserResource, ID: userKey(userID),
 			Before: userBlockSnapshot(before), After: userBlockSnapshot(unblockedUser),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserUnblocked(txCtx, unblockedUser)
 	})
 
 	if err != nil {
@@ -495,9 +525,11 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 	}
 
 	// Publish updated event for realtime updates
-	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), unblockedUser)
 	updatedEvent.Result = unblockedUser
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 
 	return unblockedUser, nil
 }
@@ -578,11 +610,17 @@ func (s *UserService) IssueTemporaryPassword(ctx context.Context, userID uint, p
 		return nil, serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, updated)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), updated)
 	updatedEvent.Result = updated
-	s.publisher.Publish(updatedEvent)
-	for _, e := range updated.Events() {
-		s.publisher.Publish(e)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
+		for _, e := range updated.Events() {
+			s.publisher.Publish(e)
+		}
+	}); err != nil {
+		return nil, err
 	}
 
 	return &TemporaryPasswordResult{User: updated, Password: password, ExpiresAt: expiresAt}, nil
@@ -665,11 +703,17 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, sessionToken strin
 		return nil, serrors.Wrap(op, err)
 	}
 
-	updatedEvent := user.NewUpdatedEvent(ctx, completed)
+	updatedEvent := user.NewUpdatedEvent(composables.WithoutTx(ctx), completed)
 	updatedEvent.Result = completed
-	s.publisher.Publish(updatedEvent)
-	for _, e := range completed.Events() {
-		s.publisher.Publish(e)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
+	if err := composables.AfterCommit(ctx, func() {
+		for _, e := range completed.Events() {
+			s.publisher.Publish(e)
+		}
+	}); err != nil {
+		return nil, err
 	}
 
 	return completed, nil

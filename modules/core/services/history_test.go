@@ -442,7 +442,7 @@ func TestCoreHistory_RollbackLeavesNoEvents(t *testing.T) {
 
 	savepoint, err := f.env.Tx.Begin(f.env.Ctx)
 	require.NoError(t, err)
-	operation := itf.TestExecution(composables.WithTx(f.admin, savepoint))
+	operation := itf.TestExecution(itf.ScopeTx(f.admin, savepoint))
 
 	_, err = f.users.BlockUser(operation, target.ID(), "left the company")
 	require.NoError(t, err)

@@ -1,0 +1,130 @@
+{
+  "name": "trace-foreach-max-items",
+  "format": 2,
+  "kind": "trace",
+  "description": "More items than max_items take outcome failed with code LIMIT without running the body: no item token is created.",
+  "requires": [
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "issue.labels",
+          "max_items": 1
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "each",
+      "outcome": "failed",
+      "context_patch": {
+        "output": {
+          "code": "LIMIT",
+          "error": "*",
+          "results": []
+        }
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

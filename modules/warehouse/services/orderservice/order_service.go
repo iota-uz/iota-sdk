@@ -63,25 +63,46 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.OrderCreate); err != nil {
 		return err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return err
+	}
 	entity, err := data.ToEntity()
 	if err != nil {
 		return err
 	}
-	return composables.InTx(ctx, func(txCtx context.Context) error {
-		created, err := s.repo.Create(txCtx, entity)
+	var created order.Order
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		created, err = s.repo.Create(txCtx, entity)
 		if err != nil {
 			return err
 		}
-		return s.record(txCtx, OrderCreated, created.ID(), nil, created)
+		if err := s.record(txCtx, OrderCreated, created.ID(), nil, created); err != nil {
+			return err
+		}
+		return publishOrderCreated(txCtx, created)
 	})
+	if err != nil {
+		return err
+	}
+	return s.publishAggregateEvents(ctx, created)
 }
 
 func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, error) {
 	//if err := composables.CanUser(ctx, permissions.OrderComplete); err != nil {
 	//	return err
 	//}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 	var completedEntity order.Order
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The order is read under its row lock: of two concurrent completions
+		// the second waits, reads complete and is refused, so only one
+		// transition is saved and announced.
+		if err := s.repo.Lock(txCtx, id); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, id)
 		if err != nil {
 			return err
@@ -93,9 +114,15 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 		if err := s.repo.Update(txCtx, completedEntity); err != nil {
 			return err
 		}
-		return s.record(txCtx, OrderCompleted, id, entity, completedEntity)
+		if err := s.record(txCtx, OrderCompleted, id, entity, completedEntity); err != nil {
+			return err
+		}
+		return publishOrderCompleted(txCtx, completedEntity)
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err := s.publishAggregateEvents(ctx, completedEntity); err != nil {
 		return nil, err
 	}
 	return completedEntity, nil

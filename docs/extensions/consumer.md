@@ -287,7 +287,11 @@ The CRM module is the reference consumer: `modules/crm/natives.go`, `modules/crm
   write is refused (`data.nativeWrite`).
 * **Lists** (`native.List(id)`): the ID packages extend with `column(...)` contracts and overlays. The Go list/export must
   consult `pkg/listext` for the contributed columns, filters and sorting (CRM's `ClientController` is the reference).
-* **Events** (`native.Event[P](id, native.EventSpec{Subject, Description})`): versioned IDs (`app.ticket.closed.v1`) with a
+* **Events** (`native.Event[P](id, native.EventSpec{Subject, Label, Descriptions, ReadPermission, Sensitive, Category})`):
+  versioned snake_case IDs (`app.ticket.closed.v1`, grammar `native.EventKeyPattern`, shared with notification
+  definitions) with a localized `Label` and `Descriptions` (texts are not part of the contract hash), the permission that
+  reveals the event (`ReadPermission`, empty: the subject entity's), the PII payload paths and the permissions that
+  reveal them (`Sensitive`, checked against the payload type) and a
   payload struct whose wire type is derived by `native.TypeOf` (int64 fields need `wire:"int64"` and `,string`; floats,
   maps and interfaces are refused). Publish them **in the write transaction**:
 

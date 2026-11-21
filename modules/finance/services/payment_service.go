@@ -66,6 +66,12 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 	if err := composables.CanUser(ctx, permissions.PaymentCreate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
+	if err := checkEntityTenant(ctx, "PaymentService.Create", entity.TenantID()); err != nil {
+		return nil, err
+	}
 
 	createdEvent, err := payment.NewCreatedEvent(ctx, entity, entity)
 	if err != nil {
@@ -82,22 +88,37 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (pa
 		if err := s.accountService.RecalculateBalance(txCtx, createdEntity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: PaymentCreated, Version: 1, Resource: PaymentResource, ID: createdEntity.ID().String(),
 			After: paymentSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishPaymentCreated(txCtx, entity, createdEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	createdEvent.Result = createdEntity
-	s.publisher.Publish(createdEvent)
+	// Announced when the transaction that holds the payment commits: inside a
+	// caller's transaction that is the caller's commit.
+	if err := composables.AfterCommit(ctx, func() {
+		createdEvent.Result = createdEntity
+		s.publisher.Publish(createdEvent)
+	}); err != nil {
+		return nil, err
+	}
 	return createdEntity, nil
 }
 
 func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
+	if err := checkEntityTenant(ctx, "PaymentService.Update", entity.TenantID()); err != nil {
 		return nil, err
 	}
 
@@ -108,6 +129,11 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 
 	var updatedEntity payment.Payment
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// The stored state is read under the row lock, so the changed fields are
+		// measured against what the previous writer committed.
+		if err := s.repo.Lock(txCtx, entity.ID()); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, entity.ID())
 		if err != nil {
 			return err
@@ -119,17 +145,24 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: PaymentUpdated, Version: 1, Resource: PaymentResource, ID: entity.ID().String(),
 			Before: paymentSnapshot(before), After: paymentSnapshot(updatedEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishPaymentUpdated(txCtx, before, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	updatedEvent.Result = updatedEntity
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() {
+		updatedEvent.Result = updatedEntity
+		s.publisher.Publish(updatedEvent)
+	}); err != nil {
+		return nil, err
+	}
 	return updatedEntity, nil
 }
 

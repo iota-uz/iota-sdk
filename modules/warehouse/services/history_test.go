@@ -390,7 +390,8 @@ func TestWarehouseHistory_RolledBackActionLeavesNoEvents(t *testing.T) {
 
 	savepoint, err := w.env.Tx.Begin(ctx)
 	require.NoError(t, err)
-	txCtx := composables.WithTx(ctx, savepoint)
+	// The test owns the savepoint, so it owns its commit hooks too.
+	txCtx, _ := composables.OwnTx(ctx, savepoint)
 	_, err = w.positions.Create(txCtx, &position.CreateDTO{Title: "Ghost", Barcode: "404", UnitID: u.ID})
 	require.NoError(t, err)
 	require.NoError(t, w.orders.Create(txCtx, order.CreateDTO{Type: string(order.TypeOut), Status: string(order.Pending)}))

@@ -1,0 +1,173 @@
+{
+  "name": "validate-codes",
+  "format": 2,
+  "kind": "validate",
+  "description": "Each structural rule reports its stable code at its path.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      },
+      {
+        "id": "other",
+        "event": "issue.unknown"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "a",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      },
+      {
+        "id": "a",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      },
+      {
+        "id": "b",
+        "type": "nope",
+        "params": {}
+      },
+      {
+        "id": "c",
+        "type": "branch",
+        "params": {
+          "expression": "1 +"
+        }
+      },
+      {
+        "id": "d",
+        "type": "branch",
+        "params": {
+          "expression": "1"
+        }
+      },
+      {
+        "id": "f",
+        "type": "action",
+        "params": {
+          "action": "call_mom"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "a"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "a",
+          "outcome": "maybe"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "c",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "c",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "d",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "d",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[1].id",
+      "code": "duplicate_id"
+    },
+    {
+      "path": "triggers[1].event",
+      "code": "unknown_event"
+    },
+    {
+      "path": "nodes[2].type",
+      "code": "unknown_node_type"
+    },
+    {
+      "path": "edges[3].from.outcome",
+      "code": "unknown_outcome"
+    },
+    {
+      "path": "nodes[3].params.expression",
+      "code": "expression_syntax"
+    },
+    {
+      "path": "nodes[4].params.expression",
+      "code": "expression_type"
+    },
+    {
+      "path": "nodes[5].params.action",
+      "code": "params"
+    },
+    {
+      "path": "triggers[1]",
+      "code": "unconnected"
+    },
+    {
+      "path": "nodes[2]",
+      "code": "unreachable"
+    },
+    {
+      "path": "nodes[3]",
+      "code": "unreachable"
+    },
+    {
+      "path": "nodes[4]",
+      "code": "unreachable"
+    },
+    {
+      "path": "nodes[5]",
+      "code": "unreachable"
+    },
+    {
+      "path": "triggers[1]",
+      "code": "unconnected"
+    }
+  ]
+}

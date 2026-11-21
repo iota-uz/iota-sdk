@@ -1,0 +1,149 @@
+{
+  "name": "validate-join-foreign-edge",
+  "format": 2,
+  "kind": "validate",
+  "description": "A join is entered only from the branches of its parallel: an edge from before the fork, or from a branch of another parallel, is join_foreign_edge.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "gate",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      },
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "any"
+        }
+      },
+      {
+        "id": "other",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "c",
+            "d"
+          ]
+        }
+      },
+      {
+        "id": "k",
+        "type": "join",
+        "params": {
+          "of": "other",
+          "mode": "all"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "gate"
+      },
+      {
+        "from": {
+          "node": "gate",
+          "outcome": "true"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "gate",
+          "outcome": "false"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "a"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b"
+        },
+        "to": "other"
+      },
+      {
+        "from": {
+          "node": "other",
+          "outcome": "c"
+        },
+        "to": "k"
+      },
+      {
+        "from": {
+          "node": "other",
+          "outcome": "d"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "k",
+          "outcome": "joined"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "edges[2]",
+      "code": "join_foreign_edge"
+    },
+    {
+      "path": "edges[6]",
+      "code": "join_foreign_edge"
+    }
+  ]
+}

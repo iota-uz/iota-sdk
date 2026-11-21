@@ -1,0 +1,204 @@
+{
+  "name": "trace-join-branch-gone",
+  "format": 2,
+  "kind": "trace",
+  "description": "A branch that ends without arriving does not count: once the others cannot give what join all waits for, it takes timeout at once, before its timer.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "approval",
+          "text": "Approve {{ issue.title }}?"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all",
+          "timeout": "7d"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "late",
+        "type": "end",
+        "params": {
+          "column": "attention"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "timeout"
+        },
+        "to": "late"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "approve",
+      "outcome": "waiting",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "approval",
+              "text": "Approve Crash on save?"
+            }
+          }
+        ],
+        "output": {
+          "waits_for": "manual"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {},
+      "token": "split.sales"
+    },
+    {
+      "node": "approve",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.legal"
+    },
+    {
+      "node": "j",
+      "outcome": "timeout",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "legal": {
+              "arrived": false,
+              "output": null
+            },
+            "sales": {
+              "arrived": false,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "late",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "attention"
+      }
+    }
+  ]
+}

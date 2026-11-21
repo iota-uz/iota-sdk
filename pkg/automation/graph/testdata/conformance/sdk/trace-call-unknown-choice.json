@@ -1,0 +1,95 @@
+{
+  "name": "trace-call-unknown-choice",
+  "format": 2,
+  "kind": "trace",
+  "description": "An answer naming a choice the node does not offer is refused: a run never follows an edge the graph does not draw.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "decide",
+        "type": "ask",
+        "params": {
+          "question": "Ship?",
+          "choices": [
+            "ship",
+            "hold"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "decide"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "ship"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "hold"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "unsure"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "nodes": {
+      "decide": {
+        "output": {
+          "answer": "maybe"
+        }
+      }
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "decide",
+      "outcome": "failed",
+      "context_patch": {
+        "code": "UNKNOWN_OUTCOME",
+        "message": "*"
+      }
+    }
+  ]
+}

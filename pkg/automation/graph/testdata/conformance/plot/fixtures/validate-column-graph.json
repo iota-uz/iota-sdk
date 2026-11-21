@@ -1,0 +1,60 @@
+{
+  "name": "validate-column-graph",
+  "kind": "validate",
+  "changed": "Plot's column graphs (attach column, a trigger's column, End required on every path) are product concepts the SDK format does not have. The graph is a plain SDK graph now; its trigger still carries Plot's column key, which the strict decoder refuses, and ignore stays allowed.",
+  "description": "A column graph starts on entering its column and ends every path in End: ignore is refused, which leaves those outcomes unconnected.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "QA",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "entered",
+        "event": "card.entered",
+        "column": "in_progress"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "note",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "hi"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "entered",
+          "outcome": "fired"
+        },
+        "to": "note"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "triggers[0].column"
+    }
+  ]
+}

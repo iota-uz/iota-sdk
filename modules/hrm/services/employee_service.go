@@ -52,19 +52,24 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: EmployeeCreated, Version: 1, Resource: EmployeeResource, ID: employeeID(createdEntity.ID()),
 			After: employeeSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishEmployeeCreated(txCtx, createdEntity)
 	})
 	if err != nil {
 		return err
 	}
-	ev, err := employee.NewCreatedEvent(ctx, *data, createdEntity)
+	ev, err := employee.NewCreatedEvent(composables.WithoutTx(ctx), *data, createdEntity)
 	if err != nil {
 		return err
 	}
-	s.publisher.Publish(ev)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) }); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -74,6 +79,11 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 		return err
 	}
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// The row is locked before the baseline of the diff is read: of two
+		// concurrent saves of one change only the first reports it.
+		if err := s.repo.LockByID(txCtx, id); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, id)
 		if err != nil {
 			return err
@@ -85,19 +95,24 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: EmployeeUpdated, Version: 1, Resource: EmployeeResource, ID: employeeID(id),
 			Before: employeeSnapshot(before), After: employeeSnapshot(after),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishEmployeeUpdated(txCtx, before, after)
 	})
 	if err != nil {
 		return err
 	}
-	ev, err := employee.NewUpdatedEvent(ctx, *data, entity)
+	ev, err := employee.NewUpdatedEvent(composables.WithoutTx(ctx), *data, entity)
 	if err != nil {
 		return err
 	}
-	s.publisher.Publish(ev)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) }); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -120,11 +135,13 @@ func (s *EmployeeService) Delete(ctx context.Context, id uint) (employee.Employe
 	if err != nil {
 		return nil, err
 	}
-	ev, err := employee.NewDeletedEvent(ctx, entity)
+	ev, err := employee.NewDeletedEvent(composables.WithoutTx(ctx), entity)
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(ev)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(ev) }); err != nil {
+		return nil, err
+	}
 	return entity, nil
 }
 

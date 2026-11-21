@@ -1,0 +1,108 @@
+{
+  "name": "expressions-failed",
+  "format": 2,
+  "kind": "expressions",
+  "description": "Evaluation failures are EXPRESSION_FAILED, not missing context: an index out of bounds, division by zero, integer overflow, a regular expression RE2 refuses at run time.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.labels[5] == \"x\"",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "failed",
+      "code": "EXPRESSION_FAILED"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.number / 0 > 1",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "failed",
+      "code": "EXPRESSION_FAILED"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "9223372036854775807 + issue.number > 0",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "failed",
+      "code": "EXPRESSION_FAILED"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.title.matches(issue.title + \"(?=x)\")",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "failed",
+      "code": "EXPRESSION_FAILED"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.number > 3",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 9007199254740993,
+          "title": "Crash on save",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "failed",
+      "code": "INVALID_INPUT"
+    }
+  ]
+}

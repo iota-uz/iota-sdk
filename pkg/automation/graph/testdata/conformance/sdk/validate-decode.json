@@ -1,0 +1,52 @@
+{
+  "name": "validate-decode",
+  "format": 2,
+  "kind": "validate",
+  "description": "Decode is strict: an unknown key, a wrong type and a limit are errors at their paths, and nothing else is checked.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "Bad",
+        "type": "branch",
+        "params": {
+          "expression": "true"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "ignore"
+      }
+    ],
+    "attach": {
+      "kind": "column",
+      "column": "qa"
+    },
+    "run_as": "robot"
+  },
+  "errors": [
+    {
+      "path": "attach",
+      "code": "invalid"
+    },
+    {
+      "path": "run_as",
+      "code": "invalid"
+    },
+    {
+      "path": "nodes[0].id",
+      "code": "invalid"
+    }
+  ]
+}

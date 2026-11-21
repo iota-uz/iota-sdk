@@ -1,5 +1,5 @@
 {
-  "hash": "5322e7edacffc1dfc5ab80cdfa4c59a381bec46e0da46ede46c17a8fe224787d",
+  "hash": "ae5b199c04b41c3062fbe8505ed3501789b18e03a005eace8fdf87ccd6885cfa",
   "source": {
     "kind": "catalog",
     "files": [
@@ -8,18 +8,24 @@
   },
   "modules": [
     "@iota-kit/core",
-    "@iota-kit/crm"
+    "@iota-kit/crm",
+    "@iota-kit/hrm"
   ],
   "files": {
     "@iota-kit/core": {
-      "index.js": "4e12cfbd16b7c3d8a256b59fc3c0bf971216e39210e16913a9f3927c0633afa8",
-      "index.d.ts": "0649ed9d4261ffc99dd35435d34a32af7e39d04f2971a960662b7cf7f085e04b",
-      "package.json": "6011b941d0d5167058c9b1fb2e59e167aded645b616fcb7e2bcd6e08a5147831"
+      "index.js": "b8ad1ba835083d3584ea447978c4adca851563190b068c6f3b06f6deb682c491",
+      "index.d.ts": "3bbb96a7422a2e6e6bdc67c82f0581d6d8d558e5b6a9d207f2aeff0b499113df",
+      "package.json": "30602018e496aa23cb27359588d07af765042bc8a8facff24df777306cfdf9e2"
     },
     "@iota-kit/crm": {
-      "index.js": "7ab3e103cf0a00080783ff71e8c7513cd12a1317f41fe0182ec2e09226d9998a",
-      "index.d.ts": "afec2c3eea7e97a726cde884526a14738157dafee93790314a7f334f6c34e9ca",
-      "package.json": "381cf95fbd9eb4d95f408533f9e4724e76d9be0e7ebaf7d8b11ec942546511b3"
+      "index.js": "7ce39dcebae5a6d4a260a80c6143b3138111aeeafca05a861dbbd37b7be7f4dd",
+      "index.d.ts": "69defbf3d413f5c6eadc42085eb78e50c9c9d4b1a4cd8acb2fc8913abca86247",
+      "package.json": "e3372b1593575f064f735678fe790d493a953223e4a899942c327c49f42d7e19"
+    },
+    "@iota-kit/hrm": {
+      "index.js": "c7f78e170faa93516b616f712ccf5bf0a2eb8013e5f8dcf57bb8e283592138f8",
+      "index.d.ts": "29a776f53ec5999e0966370475ee8f102dd241d8b2d4e95544819cc0c47a7f61",
+      "package.json": "50f7d6d29eaaa1de041952910f46acc503fa1a152d4ce72e15daf3be2d274340"
     }
   }
 }

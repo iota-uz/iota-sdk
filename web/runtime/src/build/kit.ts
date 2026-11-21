@@ -35,6 +35,13 @@ const isPublic = (r: ResourceJSON): boolean => !SKIPPED_KINDS.has(r.kind) && (r.
 
 const pascal = (s: string): string => s.slice(0, 1).toUpperCase() + s.slice(1);
 
+/**
+ * Export names that are public kit API and keep their short form when later events collide with them:
+ * `core.Created` is the user-created event, documented before core.role.created.v1 and core.group.created.v1
+ * took the same last segment. The others of such a clash take more segments (`core.RoleCreated`).
+ */
+const PINNED_EXPORTS: ReadonlyMap<string, string> = new Map([["core.user.created.v1", "Created"]]);
+
 /** Export names: PascalCase of the last non-version id segment; colliding names take more segments. */
 function exportNames(ids: readonly string[]): Map<string, string> {
   const segments = (id: string): string[] => {
@@ -44,6 +51,7 @@ function exportNames(ids: readonly string[]): Map<string, string> {
   };
   const depth = new Map(ids.map((id) => [id, 1]));
   const name = (id: string): string =>
+    PINNED_EXPORTS.get(id) ??
     segments(id)
       .slice(-(depth.get(id) ?? 1))
       .map(pascal)

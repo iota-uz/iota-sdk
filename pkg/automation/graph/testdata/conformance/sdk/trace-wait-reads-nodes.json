@@ -1,0 +1,141 @@
+{
+  "name": "trace-wait-reads-nodes",
+  "format": 2,
+  "kind": "trace",
+  "description": "A wait's filter reads its own event and earlier node outputs, at run time as at save time.",
+  "graph": {
+    "name": "Two PRs",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "first",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "bigger",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "filter": "event.number > nodes.first.output.event.number"
+        }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "first"
+      },
+      {
+        "from": {
+          "node": "first",
+          "outcome": "matched"
+        },
+        "to": "bigger"
+      },
+      {
+        "from": {
+          "node": "bigger",
+          "outcome": "matched"
+        },
+        "to": "done"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 5,
+      "repository": "a"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 3,
+      "repository": "a"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 9,
+      "repository": "a"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "first",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "first",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 5,
+            "repository": "a"
+          }
+        }
+      }
+    },
+    {
+      "node": "bigger",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      }
+    },
+    {
+      "node": "bigger",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 9,
+            "repository": "a"
+          }
+        }
+      }
+    },
+    {
+      "node": "done",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "done"
+      }
+    }
+  ]
+}

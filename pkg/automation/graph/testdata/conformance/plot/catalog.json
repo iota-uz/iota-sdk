@@ -1,0 +1,357 @@
+{
+  "name": "conformance",
+  "changed": "SDK format: attach_kinds, column_event and column_subject are Plot's column/card graphs, which the SDK format does not have; a match field reads the payload ({\"from\": \"repository\"} became {\"payload\": \"repository\", \"fold\": \"lower\"}, {\"from\": {\"payload\": p}} became {\"payload\": p}); triggers: false became no_trigger: true; issue.labeled gained an optional repository so its repositories match field reads the event instead of Plot's subject repository.",
+  "mixed_subject": "run",
+  "events": {
+    "card.entered": {
+      "subject": "card",
+      "payload": {
+        "column": {
+          "enum": [
+            "backlog",
+            "in_progress",
+            "qa",
+            "attention",
+            "done"
+          ]
+        },
+        "from": {
+          "optional": {
+            "enum": [
+              "backlog",
+              "in_progress",
+              "qa",
+              "attention",
+              "done"
+            ]
+          }
+        },
+        "actor": {
+          "object": {
+            "kind": {
+              "enum": [
+                "person",
+                "plot",
+                "automation"
+              ]
+            },
+            "principal_id": {
+              "optional": "string"
+            }
+          }
+        }
+      }
+    },
+    "issue.labeled": {
+      "subject": "card",
+      "payload": {
+        "label": "string",
+        "repository": {
+          "optional": "string"
+        }
+      },
+      "match": {
+        "repositories": {
+          "payload": "repository",
+          "type": "strings",
+          "fold": "lower",
+          "title": "Repository"
+        },
+        "labels": {
+          "payload": "label",
+          "type": "strings",
+          "title": "Label"
+        }
+      }
+    },
+    "pull_request.opened": {
+      "subject": "card",
+      "payload": {
+        "number": "int",
+        "repository": "string"
+      }
+    },
+    "deployment.succeeded": {
+      "subject": "deployment",
+      "payload": {
+        "repository": "string",
+        "environment": "string",
+        "production": "bool",
+        "sha": "string",
+        "components": {
+          "optional": {
+            "list": "string"
+          }
+        }
+      },
+      "match": {
+        "repositories": {
+          "payload": "repository",
+          "type": "strings",
+          "fold": "lower",
+          "title": "Repository"
+        },
+        "environments": {
+          "payload": "environment",
+          "type": "strings",
+          "title": "Environment"
+        },
+        "production": {
+          "payload": "production",
+          "type": "bool",
+          "title": "Production"
+        }
+      }
+    },
+    "manual": {
+      "subject": "card",
+      "payload": {
+        "actor": {
+          "object": {
+            "kind": {
+              "enum": [
+                "person",
+                "plot",
+                "automation"
+              ]
+            },
+            "principal_id": {
+              "optional": "string"
+            }
+          }
+        },
+        "note": {
+          "optional": "string"
+        }
+      }
+    },
+    "schedule.fired": {
+      "subject": "run",
+      "payload": {
+        "schedule_id": "string",
+        "at": "string"
+      },
+      "trigger_params": {
+        "time": "string",
+        "timezone": "string"
+      }
+    },
+    "run.changed": {
+      "subject": "run",
+      "payload": {
+        "state": "string"
+      },
+      "no_trigger": true
+    }
+  },
+  "subjects": {
+    "card": {
+      "context": {
+        "card": {
+          "object": {
+            "column": "string",
+            "tags": {
+              "list": "string"
+            },
+            "priority": {
+              "optional": "string"
+            }
+          }
+        },
+        "issue": {
+          "object": {
+            "repository": "string",
+            "number": "int",
+            "title": "string",
+            "body": {
+              "optional": "string"
+            },
+            "labels": {
+              "list": "string"
+            },
+            "state": {
+              "enum": [
+                "open",
+                "closed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "deployment": {
+      "context": {
+        "deployment": {
+          "object": {
+            "repository": "string",
+            "environment": "string",
+            "deployment_id": "int",
+            "production": "bool"
+          }
+        }
+      }
+    },
+    "run": {
+      "context": {
+        "run": {
+          "object": {
+            "repository": "string",
+            "number": "int"
+          }
+        }
+      }
+    }
+  },
+  "nodes": {
+    "wait": {
+      "behavior": "wait"
+    },
+    "branch": {
+      "behavior": "branch"
+    },
+    "switch": {
+      "behavior": "switch"
+    },
+    "human": {
+      "behavior": "wait",
+      "subjects": [
+        "card"
+      ],
+      "params": {
+        "reason": "string",
+        "text": "string",
+        "timeout": {
+          "optional": "string"
+        }
+      },
+      "templates": [
+        "text"
+      ],
+      "wait": {
+        "event": {
+          "value": "manual"
+        },
+        "filter": {
+          "value": "event.actor.kind == \"person\""
+        },
+        "timeout": {
+          "param": "timeout"
+        },
+        "matched": "continue",
+        "timeout_outcome": "timeout",
+        "effect": true
+      }
+    },
+    "action": {
+      "behavior": "effect",
+      "params": {
+        "action": {
+          "enum": [
+            "comment_issue",
+            "notify"
+          ]
+        },
+        "body": {
+          "optional": "string"
+        },
+        "text": {
+          "optional": "string"
+        }
+      },
+      "templates": [
+        "body",
+        "text"
+      ],
+      "outcomes": [
+        "done",
+        "failed"
+      ],
+      "done_outcome": "done",
+      "failed_outcome": "failed",
+      "output": {
+        "error": {
+          "optional": "string"
+        }
+      }
+    },
+    "end": {
+      "behavior": "end",
+      "subjects": [
+        "card"
+      ],
+      "params": {
+        "column": {
+          "enum": [
+            "backlog",
+            "in_progress",
+            "qa",
+            "attention",
+            "done"
+          ]
+        },
+        "reason": {
+          "optional": "string"
+        }
+      }
+    },
+    "ask": {
+      "behavior": "call",
+      "params": {
+        "question": "string",
+        "choices": {
+          "list": "string"
+        },
+        "min_confidence": {
+          "optional": "double"
+        }
+      },
+      "templates": [
+        "question"
+      ],
+      "outcomes_from": {
+        "param": "choices"
+      },
+      "outcomes": [
+        "unsure",
+        "failed"
+      ],
+      "failed_outcome": "failed",
+      "output": {
+        "answer": "string",
+        "confidence": {
+          "optional": "double"
+        }
+      },
+      "answer": {
+        "choice": "answer",
+        "confidence": {
+          "field": "confidence",
+          "min_param": "min_confidence",
+          "below": "unsure"
+        }
+      }
+    },
+    "script": {
+      "behavior": "call",
+      "description": "A call whose outcomes are the values of its outcomes param plus failed, and whose output is the JSON Schema in output_schema (any JSON value without it).",
+      "params": {
+        "outcomes": {
+          "list": "string"
+        },
+        "output_schema": {
+          "optional": "dyn"
+        }
+      },
+      "outcomes_from": {
+        "param": "outcomes"
+      },
+      "outcomes": [
+        "failed"
+      ],
+      "failed_outcome": "failed",
+      "output_from": {
+        "param": "output_schema"
+      }
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "name": "trace-trigger-action",
+  "kind": "trace",
+  "plot": true,
+  "description": "A side graph: a trigger filter, an action whose template reads the issue, then ignore.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Needs repro",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled",
+        "filter": "event.label == \"needs-repro\""
+      }
+    ],
+    "nodes": [
+      {
+        "id": "ask",
+        "type": "action",
+        "params": {
+          "action": "comment_issue",
+          "body": "Please add steps to reproduce #{{ issue.number }}."
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "ask"
+      },
+      {
+        "from": {
+          "node": "ask",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "ask",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": ["needs-repro"],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": ["mobile", "p1"]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "bug"
+    },
+    {
+      "kind": "issue.labeled",
+      "label": "needs-repro"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "ask",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "comment_issue",
+              "body": "Please add steps to reproduce #7."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

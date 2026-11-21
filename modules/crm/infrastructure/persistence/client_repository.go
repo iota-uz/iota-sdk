@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
@@ -398,6 +400,24 @@ func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client,
 		return nil, ErrClientNotFound
 	}
 	return clients[0], nil
+}
+
+// LockByID implements client.Repository.
+func (g *ClientRepository) LockByID(ctx context.Context, id uint) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	var locked uint
+	err = tx.QueryRow(ctx, "SELECT id FROM clients WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrClientNotFound
+	}
+	return err
 }
 
 // getByID is an internal helper method for getting a client by ID without tenant filtering

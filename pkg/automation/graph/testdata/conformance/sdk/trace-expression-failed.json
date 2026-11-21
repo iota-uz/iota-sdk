@@ -1,0 +1,111 @@
+{
+  "name": "trace-expression-failed",
+  "format": 2,
+  "kind": "trace",
+  "description": "An index out of bounds is EXPRESSION_FAILED: a node with a failed outcome takes it with the error as its output; a branch without one stops the trace as failed.",
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "say",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "{{ issue.labels[5] }}"
+        }
+      },
+      {
+        "id": "check",
+        "type": "branch",
+        "params": {
+          "expression": "issue.labels[9] == \"x\""
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "say"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "failed"
+        },
+        "to": "check"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "a",
+        "b"
+      ],
+      "state": "open"
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "say",
+      "outcome": "failed",
+      "context_patch": {
+        "output": {
+          "error": "*"
+        }
+      }
+    },
+    {
+      "node": "check",
+      "outcome": "failed",
+      "context_patch": {
+        "code": "EXPRESSION_FAILED",
+        "message": "*"
+      }
+    }
+  ]
+}

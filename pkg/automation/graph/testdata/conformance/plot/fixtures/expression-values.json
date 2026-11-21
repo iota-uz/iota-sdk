@@ -1,0 +1,108 @@
+{
+  "name": "expression-values",
+  "kind": "expressions",
+  "cases": [
+    {
+      "subject": "card",
+      "event": "issue.labeled",
+      "source": "event.label == \"bug\" && issue.number + 1 == 8",
+      "type": "bool",
+      "context": {
+        "event": {
+          "label": "bug"
+        },
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": ["needs-repro"],
+          "state": "open"
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "card.priority == \"\"",
+      "type": "bool",
+      "context": {
+        "card": {
+          "column": "qa",
+          "tags": []
+        }
+      },
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.labels.exists(l, l.startsWith(\"needs\")) ? \"yes\" : \"no\"",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": ["needs-repro"],
+          "state": "open"
+        }
+      },
+      "value": "yes"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "size(card.tags) == \"3\"",
+      "type": "bool",
+      "context": {},
+      "error": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "card.column",
+      "type": "bool",
+      "context": {},
+      "error": "type"
+    },
+    {
+      "subject": "deployment",
+      "event": null,
+      "source": "card.column == \"qa\"",
+      "type": "bool",
+      "context": {},
+      "error": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.number > 3",
+      "type": "bool",
+      "context": {
+        "card": {
+          "column": "in_progress",
+          "tags": ["mobile", "p1"]
+        }
+      },
+      "error": "missing_context",
+      "path": "issue.number"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.body.contains(\"steps\") || issue.body == \"\"",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "Crash on save",
+          "labels": [],
+          "state": "open"
+        }
+      },
+      "value": true
+    }
+  ]
+}

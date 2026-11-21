@@ -1,0 +1,56 @@
+{
+  "name": "trace-match-hook",
+  "format": 2,
+  "kind": "trace",
+  "description": "An event with a match hook starts a graph only when the product's rule takes it; without the hook the trigger reports hook.",
+  "catalog_patch": {
+    "events": {
+      "issue.labeled": {
+        "match_hook": "same_team"
+      }
+    }
+  },
+  "options": {
+    "match_hooks": [
+      "same_team"
+    ]
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

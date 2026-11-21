@@ -1,0 +1,105 @@
+{
+  "name": "validate-call-output-schema",
+  "kind": "validate",
+  "plot": false,
+  "description": "A field the declared output does not have, or a comparison of the wrong type, is a CEL type error at save time.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Sync",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "post",
+        "type": "script",
+        "params": {
+          "outcomes": ["sent", "skipped"],
+          "output_schema": {
+            "type": "object",
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "count": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string",
+                "enum": ["sent", "queued"]
+              },
+              "ratio": {
+                "type": "number"
+              }
+            },
+            "required": ["ok", "count", "state"]
+          }
+        }
+      },
+      {
+        "id": "check",
+        "type": "branch",
+        "params": {
+          "expression": "nodes.post.output.okk"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "post"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "sent"
+        },
+        "to": "check"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "skipped"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "post",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "check",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[1].params.expression"
+    }
+  ]
+}

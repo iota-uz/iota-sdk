@@ -1,0 +1,29 @@
+{
+  "name": "templates-braces",
+  "format": 2,
+  "kind": "templates",
+  "description": "A {{ }} expression ends at the first }} outside its strings and braces.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ {\"a\": {\"b\": 1}} }}",
+      "context": {},
+      "value": "{\"a\":{\"b\":1}}"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "[{{ \"}}\" }}]",
+      "context": {},
+      "value": "[}}]"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "{{ [1, [2]] }}",
+      "context": {},
+      "value": "1, [2]"
+    }
+  ]
+}

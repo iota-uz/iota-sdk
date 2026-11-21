@@ -1,0 +1,45 @@
+{
+  "name": "validate-unsupported-behavior",
+  "format": 2,
+  "kind": "validate",
+  "description": "A node whose type's behavior the interpreter does not run is refused at nodes[i].type: the catalog loads with effect, validation runs without it.",
+  "graph": {
+    "name": "No effects",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "say",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "hi"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "say"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].type",
+      "code": "unsupported_behavior"
+    }
+  ],
+  "options": {
+    "without_behaviors": [
+      "effect"
+    ]
+  }
+}

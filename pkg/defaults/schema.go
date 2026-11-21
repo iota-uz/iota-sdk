@@ -171,6 +171,10 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 		projects.manageSet("ProjectStage", projectsPerms.ProjectStageCreate, projectsPerms.ProjectStageRead, projectsPerms.ProjectStageUpdate, projectsPerms.ProjectStageDelete),
 	)
 
+	// Billing module
+	billing := newPermissionSetBuilder("Billing")
+	sets = append(sets, billing.viewSet("Transaction", billingPerms.BillingTransactionRead))
+
 	// Warehouse module
 	warehouse := newPermissionSetBuilder("Warehouse")
 	sets = append(sets,
@@ -220,8 +224,7 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 // appendRemainingPermissionSets adds remaining modules as individual permission sets
 func appendRemainingPermissionSets(sets []rbac.PermissionSet) []rbac.PermissionSet {
 	// Collect all remaining permissions
-	remainingPermissions := make([]permission.Permission, 0, len(billingPerms.Permissions)+len(loggingPerms.Permissions))
-	remainingPermissions = append(remainingPermissions, billingPerms.Permissions...)
+	remainingPermissions := make([]permission.Permission, 0, len(loggingPerms.Permissions))
 	remainingPermissions = append(remainingPermissions, loggingPerms.Permissions...)
 
 	// Convert each permission to a permission set

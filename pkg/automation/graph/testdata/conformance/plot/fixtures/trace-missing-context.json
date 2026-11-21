@@ -1,0 +1,84 @@
+{
+  "name": "trace-missing-context",
+  "kind": "trace",
+  "plot": true,
+  "description": "A field the step needs and the context lacks ends the trace with its path.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Needs the card",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "many",
+        "type": "branch",
+        "params": {
+          "expression": "size(card.tags) > 1"
+        }
+      },
+      {
+        "id": "done",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "many"
+      },
+      {
+        "from": {
+          "node": "many",
+          "outcome": "true"
+        },
+        "to": "done"
+      },
+      {
+        "from": {
+          "node": "many",
+          "outcome": "false"
+        },
+        "to": "done"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "many",
+      "outcome": "missing_context",
+      "context_patch": {
+        "path": "card.tags"
+      }
+    }
+  ]
+}

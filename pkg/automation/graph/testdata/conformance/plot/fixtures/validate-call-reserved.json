@@ -1,0 +1,82 @@
+{
+  "name": "validate-call-reserved",
+  "kind": "validate",
+  "description": "A call's values are its outcomes once each: a value listed twice is refused, and so is one that is already a fixed outcome of the node (failed).",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Ask before shipping",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "decide",
+        "type": "ask",
+        "params": {
+          "question": "Ship?",
+          "choices": ["ship", "failed", "ship"]
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "wait_more",
+        "type": "end",
+        "params": {
+          "column": "backlog"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "decide"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "ship"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "failed"
+        },
+        "to": "wait_more"
+      },
+      {
+        "from": {
+          "node": "decide",
+          "outcome": "unsure"
+        },
+        "to": "wait_more"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.choices[1]"
+    },
+    {
+      "path": "nodes[0].params.choices[2]"
+    }
+  ]
+}

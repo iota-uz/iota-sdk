@@ -690,3 +690,32 @@ func TestOperationTimeoutKillsTheWorker(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
+
+// The kit of the committed SDK snapshot keeps the documented short name of the
+// user-created event (core.Created) after the role and group events, which
+// share its last segment, joined the core namespace.
+func TestSDKSnapshotKitKeepsTheUserCreatedExportName(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "web", "runtime", "catalog", "sdk-natives.json"))
+	require.NoError(t, err)
+	var doc struct {
+		Sources []struct {
+			Namespace string              `json:"namespace"`
+			Resources []manifest.Resource `json:"resources"`
+			Lists     []string            `json:"lists"`
+		} `json:"sources"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	sources := make([]build.KitSource, 0, len(doc.Sources))
+	for _, s := range doc.Sources {
+		sources = append(sources, build.KitSource{Namespace: s.Namespace, Resources: s.Resources, Lists: s.Lists})
+	}
+	kit, err := newBuilder(t).GenerateKit(context.Background(), sources)
+	require.NoError(t, err)
+	js := string(kit.Modules["@iota-kit/core"]["index.js"])
+	require.Contains(t, js, `export const Created = foreign(event("core.user.created.v1"`)
+	require.Contains(t, js, `export const RoleCreated = foreign(event("core.role.created.v1"`)
+	require.Contains(t, js, `export const GroupCreated = foreign(event("core.group.created.v1"`)
+	require.Contains(t, string(kit.Modules["@iota-kit/hrm"]["index.js"]), `export const Created = foreign(event("hrm.employee.created.v1"`)
+	require.Contains(t, string(kit.Modules["@iota-kit/crm"]["index.js"]), `export const Created = foreign(event("crm.client.created.v1"`)
+	require.Contains(t, string(kit.Modules["@iota-kit/crm"]["index.js"]), `export const Updated = foreign(event("crm.client.updated.v1"`)
+}

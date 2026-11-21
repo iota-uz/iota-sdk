@@ -47,8 +47,21 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 			ids[r.ID] = string(r.Kind)
 		}
 	}
-	require.Equal(t, map[string]string{"core.user": "int64", "crm.client": "int64"}, keyTypes, "native entities carry their key type")
+	require.Equal(t, map[string]string{
+		"core.user": "int64", "core.role": "int64", "core.group": "uuid",
+		"crm.client": "int64", "crm.chat": "int64", "hrm.employee": "int64",
+		"finance.payment": "uuid", "finance.expense": "uuid", "finance.debt": "uuid",
+		"warehouse.order": "int64", "billing.transaction": "uuid", "projects.acceptance": "uuid",
+	}, keyTypes, "native entities carry their key type")
 	require.Equal(t, "event", ids["core.user.created.v1"])
+	for _, id := range []string{
+		"finance.payment.created.v1", "finance.payment.updated.v1", "finance.expense.created.v1",
+		"finance.debt.created.v1", "finance.debt.settled.v1", "finance.debt.written_off.v1", "finance.debt.cancelled.v1",
+		"billing.transaction.status_changed.v1", "warehouse.order.created.v1", "warehouse.order.completed.v1",
+		"projects.acceptance.signed.v1",
+	} {
+		require.Equal(t, "event", ids[id], id)
+	}
 	require.Equal(t, "event", ids["crm.client.created.v1"])
 	require.Equal(t, "event", ids["crm.client.updated.v1"])
 	require.Equal(t, "route", ids["crm.clients"])

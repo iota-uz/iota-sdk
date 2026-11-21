@@ -1,0 +1,103 @@
+{
+  "name": "trace-trigger-match",
+  "kind": "trace",
+  "changed": "Plot matched repositories against the run's subject repository when the event had none (subject.repository); the SDK subject is {entity, key}, so a match field reads the event: both inputs carry the repository ACME/app the subject had. The expected trace is unchanged.",
+  "description": "A trigger matches by its fields first (labels), then by its CEL filter; an event neither takes starts nothing, and the trace says which condition of which trigger failed.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Sync label",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled",
+        "params": {
+          "repositories": [
+            "acme/app"
+          ],
+          "labels": [
+            "sync"
+          ]
+        },
+        "filter": "card.priority == \"P0\""
+      }
+    ],
+    "nodes": [
+      {
+        "id": "say",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "synced"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "say"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "say",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "ACME/app"
+  },
+  "context": {
+    "card": {
+      "column": "backlog",
+      "tags": [],
+      "priority": "P2"
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "docs",
+      "repository": "ACME/app"
+    },
+    {
+      "kind": "issue.labeled",
+      "label": "sync",
+      "repository": "ACME/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "not_triggered",
+      "context_patch": {
+        "triggers": [
+          {
+            "trigger": "labeled",
+            "failed": "labels"
+          },
+          {
+            "trigger": "labeled",
+            "failed": "filter"
+          }
+        ]
+      }
+    }
+  ]
+}

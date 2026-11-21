@@ -1,0 +1,126 @@
+{
+  "name": "trace-switch-default",
+  "kind": "trace",
+  "plot": true,
+  "description": "Switch with no case for the value takes default.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Route a label",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "route",
+        "type": "switch",
+        "params": {
+          "expression": "event.label",
+          "cases": [
+            {
+              "value": "bug",
+              "outcome": "bug"
+            },
+            {
+              "value": "chore",
+              "outcome": "chore"
+            }
+          ]
+        }
+      },
+      {
+        "id": "fix",
+        "type": "end",
+        "params": {
+          "column": "in_progress"
+        }
+      },
+      {
+        "id": "park",
+        "type": "end",
+        "params": {
+          "column": "backlog"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "route"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "bug"
+        },
+        "to": "fix"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "chore"
+        },
+        "to": "park"
+      },
+      {
+        "from": {
+          "node": "route",
+          "outcome": "default"
+        },
+        "to": "park"
+      }
+    ]
+  },
+  "subject": {
+    "repository": "acme/app"
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": ["needs-repro"],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": ["mobile", "p1"]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "question"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "route",
+      "outcome": "default",
+      "context_patch": {}
+    },
+    {
+      "node": "park",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "backlog"
+      }
+    }
+  ]
+}

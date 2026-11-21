@@ -1,0 +1,43 @@
+{
+  "name": "validate-end-in-deployment",
+  "kind": "validate",
+  "description": "A graph about a deployment has no End: it has no column.",
+  "graph": {
+    "id": "",
+    "version": 0,
+    "name": "Deployed",
+    "attach": {
+      "kind": "event"
+    },
+    "enabled": false,
+    "triggers": [
+      {
+        "id": "deployed",
+        "event": "deployment.succeeded"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "end",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "deployed",
+          "outcome": "fired"
+        },
+        "to": "end"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].type"
+    }
+  ]
+}

@@ -66,6 +66,9 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 
 	createdEvent, err := expense.NewCreatedEvent(ctx, entity)
 	if err != nil {
@@ -81,21 +84,29 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: ExpenseCreated, Version: 1, Resource: ExpenseResource, ID: created.ID().String(),
 			After: expenseSnapshot(created),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishExpenseCreated(txCtx, entity, created)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	s.publisher.Publish(createdEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
 	return created, nil
 }
 
 func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -126,7 +137,9 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (ex
 		return nil, err
 	}
 
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 	return updated, nil
 }
 

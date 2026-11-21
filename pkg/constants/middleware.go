@@ -6,11 +6,14 @@ import "github.com/go-playground/validator/v10"
 type ContextKey string
 
 const (
-	UserKey         ContextKey = "user"
-	SessionKey      ContextKey = "session"
-	NavItemsKey     ContextKey = "navItems"
-	AllNavItemsKey  ContextKey = "allNavItems"
-	TxKey           ContextKey = "poolTx"
+	UserKey        ContextKey = "user"
+	SessionKey     ContextKey = "session"
+	NavItemsKey    ContextKey = "navItems"
+	AllNavItemsKey ContextKey = "allNavItems"
+	TxKey          ContextKey = "poolTx"
+	// AfterCommitKey carries the owner of the transaction in TxKey, which runs
+	// the callbacks added to it after the transaction commits.
+	AfterCommitKey  ContextKey = "afterCommit"
 	PoolKey         ContextKey = "pool"
 	ParamsKey       ContextKey = "params"
 	LoggerKey       ContextKey = "logger"

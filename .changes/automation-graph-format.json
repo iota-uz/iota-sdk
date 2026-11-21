@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Add pkg/automation/graph and pkg/automation/expr: the automation graph format, CEL expressions and templates, validator, pure step interpreter and dry run, with conformance fixtures."}

@@ -333,6 +333,9 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	// repositories that read them from the context (composables.UseTx,
 	// UseTenantID) work inside the delivery and need no second connection.
 	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
+	// composables.AfterCommit of a service the consumer calls waits for the
+	// delivery commit too.
+	dctx = composables.WithAfterCommit(dctx, tx, func(fn func()) { commits.fns = append(commits.fns, func(context.Context) { fn() }) })
 	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
 		runErr = tx.Commit(ctx)
