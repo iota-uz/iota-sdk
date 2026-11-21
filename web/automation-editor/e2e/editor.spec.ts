@@ -270,6 +270,35 @@ test.describe('editor', () => {
     expect(await page.evaluate(() => window.__fixture.saves.length)).toBe(0)
   })
 
+  test('a refused layout save stays visible with Retry and is not resent on its own', async ({ page }) => {
+    await open(page, 'fail=savelayout&latency=300')
+    const start = await center(card(page, 'end').locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 64, y: start.y + 48 })
+    const status = page.locator('.ae-quiet')
+    await expect(status).toContainText('Layout not saved')
+    await page.waitForTimeout(3000)
+    expect(await page.evaluate(() => window.__fixture.saveLayoutCalls)).toBe(1)
+    await expect(status).toContainText('Layout not saved')
+    // Retry sends it again; once the host accepts, it is saved.
+    await page.evaluate(() => window.__fixture.recover('savelayout'))
+    await status.getByRole('button', { name: 'Retry' }).click()
+    await expect(status).toContainText('Layout saved')
+    expect(await page.evaluate(() => window.__fixture.saveLayoutCalls)).toBe(2)
+    expect(await page.evaluate(() => window.__fixture.saveLayouts.length)).toBe(1)
+  })
+
+  test('a new move after a refused layout save is saved again', async ({ page }) => {
+    await open(page, 'fail=savelayout&latency=100')
+    const start = await center(card(page, 'end').locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 64, y: start.y + 48 })
+    await expect(page.locator('.ae-quiet')).toContainText('Layout not saved')
+    await page.evaluate(() => window.__fixture.recover('savelayout'))
+    const again = await center(card(page, 'end').locator('.ae-card__title'))
+    await drag(page, again, { x: again.x + 32, y: again.y })
+    await expect(page.locator('.ae-quiet')).toContainText('Layout saved')
+    expect(await page.evaluate(() => window.__fixture.saveLayoutCalls)).toBe(2)
+  })
+
   test('Versions lists the versions and opens one', async ({ page }) => {
     await open(page)
     await page.getByRole('button', { name: 'Versions' }).click()

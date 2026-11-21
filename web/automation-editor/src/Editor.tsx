@@ -214,11 +214,23 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [layoutState, setLayoutState] = createSignal<LayoutState>('idle')
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
   let layoutQueued = false
+  // A refused snapshot stays refused ("Not saved · Retry") until the person retries or moves something;
+  // it is never resent on its own. Nothing is scheduled after unmount.
+  let failedLayout: AutomationLayout | null = null
+  let disposed = false
+  onCleanup(() => {
+    disposed = true
+    clearTimeout(layoutTimer)
+  })
+  const retryLayout = () => {
+    failedLayout = null
+    void saveLayoutNow()
+  }
   const saveLayoutNow = async () => {
     clearTimeout(layoutTimer)
     layoutTimer = undefined
     const save = props.saveLayout
-    if (!save || readOnly() || layoutQueued) return
+    if (!save || readOnly() || layoutQueued || disposed) return
     layoutQueued = true
     await exclusive(async () => {
       layoutQueued = false
@@ -232,8 +244,10 @@ function EditorBody(props: EditorProps): JSX.Element {
         try {
           await save(next)
           setPersistedLayout(next)
+          failedLayout = null
         } catch (error) {
           console.warn('automation-editor: saveLayout failed', error)
+          failedLayout = next
           setLayoutState('failed')
           return
         }
@@ -242,7 +256,8 @@ function EditorBody(props: EditorProps): JSX.Element {
   }
   /** After any write, or when the layout changes: schedule a layout save if the screen and storage differ. */
   function checkLayout() {
-    if (!props.saveLayout || readOnly() || writing > 0 || layoutQueued || layoutTimer !== undefined) return
+    if (disposed || !props.saveLayout || readOnly() || writing > 0 || layoutQueued || layoutTimer !== undefined) return
+    if (failedLayout && layoutsEqual(layout(), failedLayout)) return
     if (layoutsEqual(layout(), persistedLayout())) {
       if (layoutState() === 'saving') setLayoutState('saved')
       return
@@ -842,7 +857,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                 <div class="ae-quiet" role="status" aria-live="polite">
                   <Show when={layoutState() === 'failed'} fallback={layoutState() === 'saving' ? t().save.layoutSaving : t().save.layoutSaved}>
                     <span>{t().save.layoutFailed}</span>
-                    <button type="button" class="ae-link" onClick={() => void saveLayoutNow()}>{t().save.retry}</button>
+                    <button type="button" class="ae-link" onClick={retryLayout}>{t().save.retry}</button>
                   </Show>
                 </div>
               </Show>
