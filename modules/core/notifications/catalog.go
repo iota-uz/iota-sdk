@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
@@ -76,11 +77,16 @@ type Definition struct {
 	// Data projects the typed payload of an event-backed definition into
 	// Event.Data (WithData); nil uses FlatData.
 	Data func(payload json.RawMessage) (map[string]string, error)
-	// LegacyEvent accepts, without the payload contract check, an event of an
-	// event-backed definition that was persisted before the definition was
-	// built from its event (Data without Payload), so queued jobs still
-	// deliver after an upgrade (WithLegacyEvents).
-	LegacyEvent          func(Event) bool
+	// LegacyEvent accepts, in persisted dispatch jobs only, an event of an
+	// event-backed definition queued before the definition was built from its
+	// event (Data without Payload), so queued jobs still deliver after an
+	// upgrade (WithLegacyEvents).
+	LegacyEvent func(Event) bool
+	// DedupeKey derives the delivery identity the outbox bridge gives the
+	// events it enqueues (WithDedupeKey); nil keeps the outbox row ID.
+	DedupeKey func(Event) string
+	// contract is the payload type of Event, set at registration.
+	contract             *manifest.Type
 	ActionURL            func(Event) (string, error)
 	DefaultLevel         notification.Level
 	PayloadFields        []PayloadField
@@ -321,7 +327,17 @@ func TestDefinition() Definition {
 		return Content{Title: Localized(names, language), Body: Localized(bodies, language), ActionURL: "/notifications"}, nil
 	}}
 }
-func (c *Catalog) Normalize(event Event) (Event, error) {
+
+// Normalize validates a new event and fills its envelope defaults. An event of
+// an event-backed definition needs the payload of its event.
+func (c *Catalog) Normalize(event Event) (Event, error) { return c.normalize(event, false) }
+
+// NormalizeStored is Normalize for the event of a persisted dispatch job: it
+// also admits the legacy events of the definition (WithLegacyEvents), queued
+// before the definition was built from its business event.
+func (c *Catalog) NormalizeStored(event Event) (Event, error) { return c.normalize(event, true) }
+
+func (c *Catalog) normalize(event Event, stored bool) (Event, error) {
 	d, ok := c.For(event)
 	if !ok {
 		return event, fmt.Errorf("unknown notification event")
@@ -373,6 +389,9 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 		if _, err := notification.New(1, "validation", "", notification.WithActionURL(action)); err != nil {
 			return event, err
 		}
+	}
+	if err := d.checkPayload(event, stored); err != nil {
+		return event, err
 	}
 	if d.ValidatePayload != nil {
 		if err := d.ValidatePayload(event); err != nil {

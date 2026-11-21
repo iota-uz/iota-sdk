@@ -44,8 +44,16 @@ func userCreatedNotification() notifications.Definition {
 		notifications.WithRequiredPermission(permissions.UserRead),
 		notifications.WithLevel(notification.LevelSuccess),
 		notifications.WithData(userCreatedData),
-		// Jobs queued by the eventbus handler before the outbox bridge carry
-		// user_id and name in Data and no payload; they still deliver.
+		// The eventbus handler this definition replaced queued the notification
+		// as "user-created:<user ID>". The bridge uses the same identity, so a
+		// replica still running the handler during a rolling upgrade and the
+		// bridge enqueue one notification between them, whichever runs first,
+		// and a retained outbox row the handler already notified is a no-op.
+		notifications.WithDedupeKey(func(event notifications.Event) string {
+			return LegacyUserCreatedNotificationPrefix + event.Subject.ID
+		}),
+		// The jobs the handler queued carry user_id and name in Data and no
+		// payload; they still deliver when processed.
 		notifications.WithLegacyEvents(func(event notifications.Event) bool {
 			return strings.HasPrefix(event.ID, LegacyUserCreatedNotificationPrefix)
 		}),

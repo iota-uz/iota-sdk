@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -16,13 +15,15 @@ import (
 )
 
 // buildOutboxDelivery registers the outbox → notification bridge and the
-// Go-only outbox dispatcher of a composition without the extension runtime.
+// fallback outbox dispatcher of a composition without the extension core.
 //
 // The bridge is contributed like wiring.ContributeConsumers (written out so
-// the core module does not import the extension runtime). The dispatcher is a
-// default: the wiring component provides the one shared dispatcher of the
-// process (with the runtime's package subscriptions) and replaces it. Core
-// starts the dispatcher only when it is its own, so a process runs exactly one.
+// the core module does not import the extension runtime). The fallback
+// dispatcher is private to core: it is neither provided in the container nor
+// started when a component declares that it serves the outbox
+// (events.DispatcherOwner: pkg/extruntime/wiring, or the extension runtime
+// composed directly), which then delivers the contributed consumers with its
+// own settings. A process therefore runs one dispatcher.
 func (c *component) buildOutboxDelivery(builder *composition.Builder) {
 	composition.Contribute(builder, func(container *composition.Container) ([]events.ConsumerSource, error) {
 		catalog, err := composition.Resolve[*notifications.Catalog](container)
@@ -36,49 +37,50 @@ func (c *component) buildOutboxDelivery(builder *composition.Builder) {
 		return []events.ConsumerSource{events.StaticConsumers(services.NewNotificationOutboxBridge(catalog, dispatch))}, nil
 	})
 
-	own := &atomic.Pointer[events.Dispatcher]{}
-	composition.ProvideDefault[*events.Dispatcher](builder, func(container *composition.Container) (*events.Dispatcher, error) {
-		db, err := composition.Resolve[*pgxpool.Pool](container)
-		if err != nil {
-			return nil, err
-		}
-		subjects, err := composition.Resolve[host.SubjectLoader](container)
-		if composition.IsNotProvided(err) {
-			users, uerr := composition.Resolve[user.Repository](container)
-			if uerr != nil {
-				return nil, uerr
-			}
-			subjects, err = &host.UserSubjects{Users: users, Universe: corePerms.Permissions, Pool: db}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		d, err := events.NewDispatcher(events.Config{DB: db, Subjects: subjects, Consumers: contributedConsumers(container)})
-		if err != nil {
-			return nil, err
-		}
-		own.Store(d)
-		return d, nil
-	})
-
 	bc := builder.Context()
 	if c.options.DisableNotificationWorker || c.options.DisableOutboxDispatcher ||
 		(!bc.HasCapability(composition.CapabilityAPI) && !bc.HasCapability(composition.CapabilityWorker)) {
 		return
 	}
 	composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
-		d, err := composition.Resolve[*events.Dispatcher](container)
+		owners, err := composition.Contributions[events.DispatcherOwner](container)
 		if err != nil {
 			return nil, err
 		}
-		if d != own.Load() {
-			return nil, nil // the wiring component owns and starts the dispatcher
+		if len(owners) > 0 {
+			return nil, nil // another component serves the outbox
+		}
+		d, err := fallbackDispatcher(container)
+		if err != nil {
+			return nil, err
 		}
 		return []composition.Hook{{Name: "core.outbox-dispatch", Start: func(ctx context.Context) (composition.StopFn, error) {
 			d.Start(composition.LifecycleContext(ctx))
 			return func(context.Context) error { d.Stop(); return nil }, nil
 		}}}, nil
 	})
+}
+
+// fallbackDispatcher delivers the contributed Go consumers of the outbox with
+// the default settings. Subjects come from the container's host.SubjectLoader
+// when one is provided, else from the core users.
+func fallbackDispatcher(container *composition.Container) (*events.Dispatcher, error) {
+	db, err := composition.Resolve[*pgxpool.Pool](container)
+	if err != nil {
+		return nil, err
+	}
+	subjects, err := composition.Resolve[host.SubjectLoader](container)
+	if composition.IsNotProvided(err) {
+		users, uerr := composition.Resolve[user.Repository](container)
+		if uerr != nil {
+			return nil, uerr
+		}
+		subjects, err = &host.UserSubjects{Users: users, Universe: corePerms.Permissions, Pool: db}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return events.NewDispatcher(events.Config{DB: db, Subjects: subjects, Consumers: contributedConsumers(container)})
 }
 
 // contributedConsumers reads the contributed consumer sources on every pass.

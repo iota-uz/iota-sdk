@@ -83,6 +83,9 @@ func (b *notificationOutboxBridge) Deliver(ctx context.Context, _ pgx.Tx, ev eve
 	if ev.Subject != nil {
 		event.Subject = notifications.SubjectReference{Type: ev.Subject.Entity, ID: ev.Subject.Key}
 	}
+	if definition.DedupeKey != nil {
+		event.DedupeKey = definition.DedupeKey(event)
+	}
 	if _, err := b.dispatch.Enqueue(ctx, event); err != nil {
 		return serrors.Wrap(op, err)
 	}

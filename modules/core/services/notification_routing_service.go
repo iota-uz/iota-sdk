@@ -296,7 +296,7 @@ func (s *NotificationRoutingService) audienceResolver(checkUsers bool) *notifica
 
 // DeliverRecipients delivers a rule-mode event to user recipients.
 func (s *NotificationRoutingService) DeliverRecipients(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint) (int, error) {
-	return s.deliverUsers(ctx, event, rule, ids, notifications.NoticeRule)
+	return s.deliverUsers(ctx, event, rule, ids, notifications.NoticeRule, false)
 }
 
 // WithPlatform installs the notice store, renderers, contact resolvers and
@@ -350,13 +350,19 @@ func (s *NotificationRoutingService) levelFor(rule notifications.Rule, definitio
 	return notification.LevelInfo
 }
 
-func (s *NotificationRoutingService) deliverUsers(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint, mode notifications.NoticeMode) (int, error) {
+// deliverUsers delivers to user recipients. stored is set for the event of a
+// persisted dispatch job, which may be a legacy event (Catalog.NormalizeStored).
+func (s *NotificationRoutingService) deliverUsers(ctx context.Context, event notifications.Event, rule notifications.Rule, ids []uint, mode notifications.NoticeMode, stored bool) (int, error) {
 	const op = "NotificationRoutingService.DeliverRecipients"
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
 	}
-	event, err = s.catalog.Normalize(event)
+	if stored {
+		event, err = s.catalog.NormalizeStored(event)
+	} else {
+		event, err = s.catalog.Normalize(event)
+	}
 	if err != nil || tenant != event.TenantID {
 		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}
@@ -496,7 +502,7 @@ func (s *NotificationRoutingService) deliverAddressees(ctx context.Context, even
 	if err != nil {
 		return 0, serrors.Wrap(op, err)
 	}
-	event, err = s.catalog.Normalize(event)
+	event, err = s.catalog.NormalizeStored(event)
 	if err != nil || tenant != event.TenantID {
 		return 0, serrors.New(serrors.Invalid, "invalid notification event envelope").WithOp(op)
 	}

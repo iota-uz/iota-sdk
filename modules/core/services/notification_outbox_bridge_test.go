@@ -2,9 +2,9 @@ package services_test
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -43,21 +43,13 @@ func deliverEnvelope(t *testing.T, ctx context.Context, bridge events.Consumer, 
 	})
 }
 
-// migrationUp is the Up section of the upgrade migration of #1325.
-func migrationUp(t *testing.T) string {
-	t.Helper()
-	raw, err := os.ReadFile("migrations/changes-1794800000.sql")
-	require.NoError(t, err)
-	up, _, ok := strings.Cut(string(raw), "-- +migrate Down")
-	require.True(t, ok)
-	return up
-}
-
-// An upgrade keeps every user-created notification exactly once: a job the
+// An upgrade keeps every user-created notification exactly once. A job the
 // removed eventbus handler queued (Data, no payload) still delivers through
-// Process; the migration marks its retained outbox row delivered to the
-// bridge, so it is not notified again; a retained row the handler never
-// enqueued gets no receipt and the bridge notifies it.
+// Process. The bridge enqueues under the handler's identity
+// ("user-created:<user ID>"), so a retained outbox row the handler already
+// notified is a no-op, a row it missed is notified, and a replica still
+// running the handler during a rolling upgrade, finishing after the bridge,
+// queues nothing new. A new Data-only submission is still refused.
 func TestNotificationOutboxBridge_UpgradeFromTheEventbusHandler(t *testing.T) {
 	f, ctx := setupUserCreatedNotification(t)
 	router := itf.GetService[services.NotificationRoutingService](f)
@@ -68,43 +60,42 @@ func TestNotificationOutboxBridge_UpgradeFromTheEventbusHandler(t *testing.T) {
 	rule := notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{f.User.ID()}}
 	require.NoError(t, router.SaveRule(ctx, rule))
 	users := persistence.NewUserRepository(persistence.NewUploadRepository())
-	notified, err := users.Create(ctx, user.New("Legacy", "Notified", internet.MustParseEmail("legacy-notified@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
-	require.NoError(t, err)
-	missed, err := users.Create(ctx, user.New("Legacy", "Missed", internet.MustParseEmail("legacy-missed@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
-	require.NoError(t, err)
-
-	// Both creations are retained in the outbox; the handler queued only the first.
-	for _, u := range []user.User{notified, missed} {
-		_, err := f.Pool.Exec(context.Background(), `
+	created := map[string]user.User{}
+	for _, name := range []string{"Notified", "Missed", "Racing"} {
+		u, err := users.Create(ctx, user.New("Legacy", name, internet.MustParseEmail("legacy-"+strings.ToLower(name)+"@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+		require.NoError(t, err)
+		created[name] = u
+		_, err = f.Pool.Exec(context.Background(), `
 			INSERT INTO extruntime.outbox_events (id, tenant_id, event, subject_entity, subject_key, payload, initiator_user_id)
 			VALUES (gen_random_uuid(), $1, $2, 'core.user', $3, $4, $5)`,
 			f.TenantID(), services.UserCreatedEventID, fmt.Sprint(u.ID()), userCreatedPayload(u.ID(), u.FirstName(), u.LastName()), int64(f.User.ID()))
 		require.NoError(t, err)
 	}
-	legacy := notifications.Event{
-		Key: core.UserCreatedNotificationEvent, Version: 1, ID: fmt.Sprintf("%s%d", core.LegacyUserCreatedNotificationPrefix, notified.ID()),
-		TenantID: f.TenantID(), ActorUserID: f.User.ID(), OccurredAt: time.Now().UTC(),
-		Subject: notifications.SubjectReference{Type: "user", ID: fmt.Sprint(notified.ID())},
-		Data:    map[string]string{"user_id": fmt.Sprint(notified.ID()), "name": "Legacy Notified"},
+	legacyEvent := func(u user.User) notifications.Event {
+		return notifications.Event{
+			Key: core.UserCreatedNotificationEvent, Version: 1, ID: fmt.Sprintf("%s%d", core.LegacyUserCreatedNotificationPrefix, u.ID()),
+			TenantID: f.TenantID(), ActorUserID: f.User.ID(), OccurredAt: time.Now().UTC(),
+			Subject: notifications.SubjectReference{Type: "user", ID: fmt.Sprint(u.ID())},
+			Data:    map[string]string{"user_id": fmt.Sprint(u.ID()), "name": "Legacy " + u.LastName()},
+		}
 	}
-	_, err = jobs.Enqueue(ctx, notifications.DispatchRequest{Event: legacy, Rule: rule, Mode: notifications.NoticeRule, RecipientIDs: []uint{f.User.ID()}})
-	require.NoError(t, err)
-
-	_, err = f.Pool.Exec(context.Background(), migrationUp(t))
-	require.NoError(t, err)
-	receipts := map[string]bool{}
-	for _, u := range []user.User{notified, missed} {
-		var n int
-		require.NoError(t, f.Pool.QueryRow(context.Background(), `
-			SELECT count(*) FROM extruntime.subscription_receipts r JOIN extruntime.outbox_events o ON o.id = r.event_id
-			WHERE r.subscription = 'notifications' AND o.tenant_id = $1 AND o.subject_key = $2`, f.TenantID(), fmt.Sprint(u.ID())).Scan(&n))
-		receipts[u.LastName()] = n == 1
+	legacyEnqueue := func(u user.User) {
+		t.Helper()
+		_, err := jobs.Enqueue(ctx, notifications.DispatchRequest{Event: legacyEvent(u), Rule: rule, Mode: notifications.NoticeRule, RecipientIDs: []uint{f.User.ID()}})
+		require.NoError(t, err)
 	}
-	require.Equal(t, map[string]bool{"Notified": true, "Missed": false}, receipts)
 
-	// The pending legacy job delivers; the bridge delivers only the missed row.
+	// The handler queued the first creation before the upgrade.
+	legacyEnqueue(created["Notified"])
+	// A new Data-only submission is refused even under the legacy identity.
+	_, err = dispatch.Enqueue(ctx, legacyEvent(created["Missed"]))
+	require.ErrorContains(t, err, "needs the payload of its event")
+
+	// The bridge delivers the retained rows; an old replica then finishes
+	// its enqueue of the third creation.
 	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))
 	require.NoError(t, err)
+	legacyEnqueue(created["Racing"])
 	for {
 		more, err := dispatch.Process(ctx)
 		require.NoError(t, err)
@@ -118,10 +109,10 @@ func TestNotificationOutboxBridge_UpgradeFromTheEventbusHandler(t *testing.T) {
 	for _, item := range items {
 		bodies = append(bodies, item.Body())
 	}
-	require.ElementsMatch(t, []string{"Legacy Notified", "Legacy Missed"}, bodies)
+	require.ElementsMatch(t, []string{"Legacy Notified", "Legacy Missed", "Legacy Racing"}, bodies, "one notification per creation")
 	summaries, err := dispatch.Jobs(ctx)
 	require.NoError(t, err)
-	require.Len(t, summaries, 2)
+	require.Len(t, summaries, 3)
 	for _, s := range summaries {
 		require.Empty(t, s.LastError)
 		require.NotNil(t, s.CompletedAt)
@@ -167,9 +158,9 @@ func TestNotificationOutboxBridge_CoreCompositionWithoutWiringDelivers(t *testin
 	})
 	scope := h.Scope(t)
 	ctx := itf.TestExecution(composables.WithSession(composables.WithParams(scope.Ctx, itf.DefaultParams()), itf.MockSession()))
-	_, err := composition.Resolve[*events.Dispatcher](scope.Container)
-	require.NoError(t, err)
 	require.Equal(t, 1, events.Running(), "core starts its own dispatcher")
+	_, err := composition.Resolve[*events.Dispatcher](scope.Container)
+	require.True(t, composition.IsNotProvided(err), "the fallback dispatcher is private to core")
 
 	perms := []permission.Permission{permissions.UserCreate, permissions.UserRead}
 	var admin user.User
@@ -199,4 +190,33 @@ func TestNotificationOutboxBridge_CoreCompositionWithoutWiringDelivers(t *testin
 		items, err := inbox.List(ctx, notification.FindParams{})
 		return err == nil && len(items) == 1 && items[0].Body() == "Core Only"
 	}, 30*time.Second, 100*time.Millisecond, "the core dispatcher and notification worker deliver the notification")
+}
+
+// outboxOwner is a component that serves the outbox itself, as the extension
+// runtime composed directly does.
+type outboxOwner struct{}
+
+func (outboxOwner) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "test.outbox-owner"}
+}
+func (outboxOwner) LocaleFS() []*embed.FS { return nil }
+func (outboxOwner) Build(b *composition.Builder) error {
+	composition.Contribute(b, func(*composition.Container) ([]events.DispatcherOwner, error) {
+		return []events.DispatcherOwner{{Name: "test"}}, nil
+	})
+	return nil
+}
+
+// Core leaves the outbox to a component that declares it serves it (the
+// extension runtime composed without wiring keeps its own dispatcher and
+// settings, DisableBackground included).
+func TestNotificationOutboxBridge_CoreDefersToADeclaredDispatcherOwner(t *testing.T) {
+	h := itf.NewHarness(t, itf.HarnessConfig{
+		Name:       "core_outbox_deferred",
+		Components: append(modules.Components(), outboxOwner{}),
+		Database:   itf.DatabaseConfig{Provisioning: itf.ProvisioningPerTestDatabase},
+		Isolation:  itf.IsolationConfig{Mode: itf.IsolationCommitted},
+	})
+	h.Scope(t)
+	require.Zero(t, events.Running(), "core starts no dispatcher next to the owner's")
 }

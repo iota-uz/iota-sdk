@@ -61,12 +61,13 @@ var LocaleFiles embed.FS
 
 type ModuleOptions struct {
 	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
-	// It also keeps core's own outbox dispatcher stopped.
+	// It also keeps core's fallback outbox dispatcher stopped.
 	DisableNotificationWorker bool
-	// DisableOutboxDispatcher keeps core's Go-only outbox dispatcher (the one
-	// a composition without pkg/extruntime/wiring uses) stopped, for example
-	// in a process that leaves event delivery to a dedicated worker. With the
-	// wiring component the dispatcher is wiring's and this has no effect.
+	// DisableOutboxDispatcher keeps core's fallback outbox dispatcher stopped,
+	// for example in a process that leaves event delivery to a dedicated
+	// worker. The fallback runs only in a composition where no component
+	// serves the outbox (events.DispatcherOwner: pkg/extruntime/wiring or the
+	// extension runtime); there this option has no effect.
 	DisableOutboxDispatcher bool
 	// NotificationChannels installs provider adapters for email, SMS and push.
 	// In-app delivery is always available. Without an adapter its channel cannot

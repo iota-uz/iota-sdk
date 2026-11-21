@@ -97,17 +97,21 @@ second notice. The initiator of the event is historical attribution: an
 initiator deleted before the delivery is left out of the `actor` recipient and
 the rule's other recipients are still notified.
 
-The outbox dispatcher is the one of `pkg/extruntime/wiring` when the
-application composes it. A composition without it (`modules.Components()`
-alone) gets core's own Go-only dispatcher, started with the API or worker
-capability unless `DisableNotificationWorker` or `DisableOutboxDispatcher` is
-set; a process always runs one dispatcher.
+The outbox dispatcher belongs to the component that declares it serves the
+outbox (`events.DispatcherOwner`): `pkg/extruntime/wiring`, or the extension
+runtime composed directly, with its own settings. A composition without either
+(`modules.Components()` alone) gets core's private fallback dispatcher, started
+with the API or worker capability unless `DisableNotificationWorker` or
+`DisableOutboxDispatcher` is set; a process always runs one dispatcher.
 
-Upgrading from the eventbus handler: jobs it queued (identity
-`user-created:<user ID>`, Data without payload) still deliver
-(`notifications.WithLegacyEvents`), and the migration marks a retained
-`core.user.created.v1` outbox row delivered to `notifications` only when such a
-job or notice exists, so a creation the handler missed is still notified.
+Upgrading from the eventbus handler: the bridge enqueues user-created
+notifications under the handler's identity `user-created:<user ID>`
+(`notifications.WithDedupeKey`), so a retained outbox row the handler already
+notified is a no-op, a creation it missed is notified, and a replica still
+running the handler during a rolling upgrade adds nothing, whichever enqueues
+first. Jobs the handler queued (Data without payload) still deliver when
+processed (`notifications.WithLegacyEvents`); a new Data-only submission is
+refused.
 
 Monitor failed and dead `notifications` receipts in `extruntime.subscription_receipts`,
 `notification delivery batch failed; durable retry scheduled`, and realtime

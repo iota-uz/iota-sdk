@@ -114,12 +114,41 @@ func WithData(fn func(payload json.RawMessage) (map[string]string, error)) Defin
 	return func(d *Definition) { d.Data = fn }
 }
 
-// WithLegacyEvents accepts events that match and carry no Payload without the
-// payload contract check: the events a producer persisted (in queued dispatch
-// jobs) before its definition was built from the business event. They are
-// still checked by the payload fields, ValidatePayload and Render.
+// WithLegacyEvents accepts, in persisted dispatch jobs only
+// (Catalog.NormalizeStored), events that match and carry no Payload without
+// the payload contract check: the jobs a producer queued before its definition
+// was built from the business event. They are still checked by the payload
+// fields, ValidatePayload and Render. A new submission (Catalog.Normalize)
+// always needs the payload.
 func WithLegacyEvents(match func(Event) bool) DefinitionOption {
 	return func(d *Definition) { d.LegacyEvent = match }
+}
+
+// WithDedupeKey sets the delivery identity of the events the outbox bridge
+// enqueues (Event.DedupeKey). Use it when another producer enqueues the same
+// notification under its own identity, for example the producer the event
+// replaced, so whichever enqueues second is a no-op.
+func WithDedupeKey(fn func(Event) string) DefinitionOption {
+	return func(d *Definition) { d.DedupeKey = fn }
+}
+
+// checkPayload checks the payload of an event of an event-backed definition
+// against the event contract. stored admits the legacy events of a persisted
+// job (WithLegacyEvents).
+func (d Definition) checkPayload(event Event, stored bool) error {
+	if d.contract == nil {
+		return nil
+	}
+	if len(bytes.TrimSpace(event.Payload)) == 0 {
+		if stored && d.LegacyEvent != nil && d.LegacyEvent(event) {
+			return nil
+		}
+		return fmt.Errorf("notification %s needs the payload of its event", d.Key)
+	}
+	if err := manifest.ValidateValue(*d.contract, event.Payload); err != nil {
+		return fmt.Errorf("payload of %s: %w", d.Key, err)
+	}
+	return nil
 }
 
 // DataOf projects a typed payload into the flat Data of an event of the
@@ -212,26 +241,6 @@ func prepareEvent(d Definition) (Definition, error) {
 		slices.SortFunc(d.PayloadFields, func(a, b PayloadField) int { return strings.Compare(a.Key, b.Key) })
 	}
 	contract := *res.Payload
-	custom := d.ValidatePayload
-	legacy := d.LegacyEvent
-	d.ValidatePayload = func(event Event) error {
-		payload := event.Payload
-		if len(bytes.TrimSpace(payload)) == 0 {
-			if legacy != nil && legacy(event) {
-				if custom != nil {
-					return custom(event)
-				}
-				return nil
-			}
-			return fmt.Errorf("notification %s needs the payload of its event", id)
-		}
-		if err := manifest.ValidateValue(contract, payload); err != nil {
-			return fmt.Errorf("payload of %s: %w", id, err)
-		}
-		if custom != nil {
-			return custom(event)
-		}
-		return nil
-	}
+	d.contract = &contract
 	return d, nil
 }
