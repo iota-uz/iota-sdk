@@ -49,5 +49,5 @@ func Components() []composition.Component {
 //
 //	set, err := native.Compose(append(modules.Natives(), app.Natives)...)
 func Natives() []native.Contributor {
-	return []native.Contributor{coreservices.Natives, crm.Natives}
+	return []native.Contributor{coreservices.Natives, crm.Natives, hrm.Natives}
 }

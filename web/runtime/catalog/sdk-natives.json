@@ -6,6 +6,288 @@
       "namespace": "core",
       "resources": [
         {
+          "id": "core.group",
+          "kind": "entity",
+          "contractHash": "71ee80b844dad45edac348f3070c434435609a087671ba5e535ea5c60ef232c2",
+          "label": {
+            "en": "Group",
+            "ru": "Группа",
+            "uz": "Guruh",
+            "uz-Cyrl": "Гуруҳ"
+          },
+          "fields": [
+            {
+              "id": "name",
+              "type": {
+                "kind": "string",
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "description",
+              "type": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "type",
+              "type": {
+                "kind": "string",
+                "maxLength": 50
+              }
+            },
+            {
+              "id": "createdAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "updatedAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            }
+          ],
+          "access": {
+            "read": [
+              {
+                "permission": "Group.Read",
+                "all": true
+              }
+            ]
+          },
+          "keyType": "uuid"
+        },
+        {
+          "id": "core.group.created.v1",
+          "kind": "event",
+          "contractHash": "6b6e510ad1abef914c6137639c4dc000693c4eaf213676b6300e4ad1dd0a2830",
+          "label": {
+            "en": "Group created",
+            "ru": "Группа создана",
+            "uz": "Guruh yaratildi",
+            "uz-Cyrl": "Гуруҳ яратилди"
+          },
+          "description": "A user group was created. Published in the transaction that creates the group.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "groupId",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "name",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.group"
+        },
+        {
+          "id": "core.group.member_added.v1",
+          "kind": "event",
+          "contractHash": "223327c9daf30cba8be6f5c472b71df320f8af8a39652f12f1db6e3c4443cd0a",
+          "label": {
+            "en": "User added to group",
+            "ru": "Пользователь добавлен в группу",
+            "uz": "Foydalanuvchi guruhga qo'shildi",
+            "uz-Cyrl": "Фойдаланувчи гуруҳга қўшилди"
+          },
+          "description": "A user joined a group. Published once per added member in the transaction of the change, on the group or on the user form.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "groupId",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "groupName",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.group"
+        },
+        {
+          "id": "core.group.member_removed.v1",
+          "kind": "event",
+          "contractHash": "5c72396db21daa6feb9e55e84c0f0b7b8eb306685946702f6594cd8ac59cd528",
+          "label": {
+            "en": "User removed from group",
+            "ru": "Пользователь удалён из группы",
+            "uz": "Foydalanuvchi guruhdan chiqarildi",
+            "uz-Cyrl": "Фойдаланувчи гуруҳдан чиқарилди"
+          },
+          "description": "A user left a group. Published once per removed member in the transaction of the change, on the group or on the user form.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "groupId",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "groupName",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.group"
+        },
+        {
+          "id": "core.role",
+          "kind": "entity",
+          "contractHash": "57bd8118e346efc6648f49231c06b5a89fdbc01b16baf9f866e2a4da99959c1e",
+          "label": {
+            "en": "Role",
+            "ru": "Роль",
+            "uz": "Rol",
+            "uz-Cyrl": "Роль"
+          },
+          "fields": [
+            {
+              "id": "name",
+              "type": {
+                "kind": "string",
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "description",
+              "type": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "type",
+              "type": {
+                "kind": "string",
+                "maxLength": 50
+              }
+            },
+            {
+              "id": "createdAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "updatedAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            }
+          ],
+          "access": {
+            "read": [
+              {
+                "permission": "Role.Read",
+                "all": true
+              }
+            ]
+          },
+          "keyType": "int64"
+        },
+        {
+          "id": "core.role.created.v1",
+          "kind": "event",
+          "contractHash": "d1ec797cb60ff5a54231998d6587ff8b22d0dbe28d4165d92ac14df67786c779",
+          "label": {
+            "en": "Role created",
+            "ru": "Роль создана",
+            "uz": "Rol yaratildi",
+            "uz-Cyrl": "Роль яратилди"
+          },
+          "description": "A role was created. Published in the transaction that creates the role.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "roleId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "name",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.role"
+        },
+        {
+          "id": "core.role.permission_granted.v1",
+          "kind": "event",
+          "contractHash": "9bd7c7066f81d1427d0e1f68165befa53111acb95e26eb2ff1636f633a78929e",
+          "label": {
+            "en": "Permission granted to role",
+            "ru": "Роли выдано право",
+            "uz": "Rolga ruxsat berildi",
+            "uz-Cyrl": "Ролга рухсат берилди"
+          },
+          "description": "A permission was granted to a role. Published once per added permission in the transaction of the change.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "roleId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "permission",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.role"
+        },
+        {
           "id": "core.user",
           "kind": "entity",
           "contractHash": "44ca3e9dc112d995123bab4a734ecb531ddc764472dd7ad067a8e8162f0b87ab",
@@ -85,6 +367,36 @@
           "keyType": "int64"
         },
         {
+          "id": "core.user.blocked.v1",
+          "kind": "event",
+          "contractHash": "7867c7a1d74afa686252064489ca17116a91d8e0ed92b777e4ee9a075481d0c3",
+          "label": {
+            "en": "User blocked",
+            "ru": "Пользователь заблокирован",
+            "uz": "Foydalanuvchi bloklandi",
+            "uz-Cyrl": "Фойдаланувчи блокланди"
+          },
+          "description": "A user was blocked. Published in the transaction that blocks the user.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "blockReason",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.user"
+        },
+        {
           "id": "core.user.created.v1",
           "kind": "event",
           "contractHash": "e3d9470226f2757ef9269af0cfa055a77c89fcc50352549de67ee3d227f7e569",
@@ -133,12 +445,264 @@
             ]
           },
           "subject": "core.user"
+        },
+        {
+          "id": "core.user.deleted.v1",
+          "kind": "event",
+          "contractHash": "8d98adbf6eb8d5d6e88fcc5148ae2fc50ac48fc8585dc4b5019e229d988f3532",
+          "label": {
+            "en": "User deleted",
+            "ru": "Пользователь удалён",
+            "uz": "Foydalanuvchi o'chirildi",
+            "uz-Cyrl": "Фойдаланувчи ўчирилди"
+          },
+          "description": "A user was deleted. Published in the transaction that deletes the user.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string"
+                }
+              }
+            ]
+          },
+          "subject": "core.user"
+        },
+        {
+          "id": "core.user.role_assigned.v1",
+          "kind": "event",
+          "contractHash": "192329c9dc788cd7a527e2065a8b375af28784190c334aec9054eb3527f50a27",
+          "label": {
+            "en": "Role assigned to user",
+            "ru": "Пользователю назначена роль",
+            "uz": "Foydalanuvchiga rol tayinlandi",
+            "uz-Cyrl": "Фойдаланувчига роль тайинланди"
+          },
+          "description": "A role was assigned to a user. Published once per added role in the transaction of the change.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "roleId",
+                "type": {
+                  "kind": "int64"
+                }
+              }
+            ]
+          },
+          "subject": "core.user"
+        },
+        {
+          "id": "core.user.unblocked.v1",
+          "kind": "event",
+          "contractHash": "0297a726be345638a0cf3981842a6c546bd701ef5b4f411c2a9023f4390fa9d7",
+          "label": {
+            "en": "User unblocked",
+            "ru": "Пользователь разблокирован",
+            "uz": "Foydalanuvchi blokdan chiqarildi",
+            "uz-Cyrl": "Фойдаланувчи блокдан чиқарилди"
+          },
+          "description": "A user was unblocked. Published in the transaction that unblocks the user.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              }
+            ]
+          },
+          "subject": "core.user"
+        },
+        {
+          "id": "core.user.updated.v1",
+          "kind": "event",
+          "contractHash": "691bd707dfb0b8142582c18bd4b86e35935bcf2e9f8ab16fa0ebdd85c38bd09e",
+          "label": {
+            "en": "User updated",
+            "ru": "Пользователь изменён",
+            "uz": "Foydalanuvchi o'zgartirildi",
+            "uz-Cyrl": "Фойдаланувчи ўзгартирилди"
+          },
+          "description": "A user was updated. Published in the transaction of the update that changed a profile field; changed lists the core.user fields it changed.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "userId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "changed",
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "subject": "core.user"
         }
       ]
     },
     {
       "namespace": "crm",
       "resources": [
+        {
+          "id": "crm.chat",
+          "kind": "entity",
+          "contractHash": "0c02286896884b3cbea21bf59c0dbb7a522295079b2ee657f3a7a3d45bdefda2",
+          "label": {
+            "en": "Chat",
+            "ru": "Чат",
+            "uz": "Chat",
+            "uz-Cyrl": "Чат"
+          },
+          "fields": [
+            {
+              "id": "clientId",
+              "type": {
+                "kind": "int64"
+              }
+            },
+            {
+              "id": "lastMessageAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "createdAt",
+              "type": {
+                "kind": "datetime"
+              }
+            }
+          ],
+          "access": {
+            "read": [
+              {
+                "permission": "Client.Read",
+                "all": true
+              }
+            ]
+          },
+          "keyType": "int64"
+        },
+        {
+          "id": "crm.chat.message_added.v1",
+          "kind": "event",
+          "contractHash": "e93bc7017d65b46795de2b438bb0d4420ce928977b7e29ccdb70850bf0790698",
+          "label": {
+            "en": "Chat message added",
+            "ru": "Сообщение добавлено в чат",
+            "uz": "Chatga xabar qo'shildi",
+            "uz-Cyrl": "Чатга хабар қўшилди"
+          },
+          "description": "A message was added to a CRM chat. Published once per message in the transaction that stores it; inbound when the client wrote it, outbound when a user sent it.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "chatId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "clientId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "messageId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "transport",
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "telegram",
+                    "whatsapp",
+                    "instagram",
+                    "sms",
+                    "email",
+                    "phone",
+                    "website",
+                    "other"
+                  ]
+                }
+              },
+              {
+                "name": "direction",
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "inbound",
+                    "outbound"
+                  ]
+                }
+              },
+              {
+                "name": "body",
+                "type": {
+                  "kind": "string",
+                  "maxLength": 4000
+                }
+              },
+              {
+                "name": "sentAt",
+                "type": {
+                  "kind": "datetime"
+                }
+              }
+            ]
+          },
+          "subject": "crm.chat"
+        },
         {
           "id": "crm.client",
           "kind": "entity",
@@ -304,6 +868,36 @@
                 "type": {
                   "kind": "string",
                   "optional": true
+                }
+              }
+            ]
+          },
+          "subject": "crm.client"
+        },
+        {
+          "id": "crm.client.deleted.v1",
+          "kind": "event",
+          "contractHash": "26cf0c3a8096663156b0b1132e9b9604ad461509a3a03e7c5fee52949b0f8f6a",
+          "label": {
+            "en": "Client deleted",
+            "ru": "Клиент удалён",
+            "uz": "Mijoz o'chirildi",
+            "uz-Cyrl": "Мижоз ўчирилди"
+          },
+          "description": "A CRM client was deleted. Published in the transaction that deletes the client.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "clientId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
                 }
               }
             ]
@@ -659,6 +1253,183 @@
       ],
       "lists": [
         "crm.lists.clients"
+      ]
+    },
+    {
+      "namespace": "hrm",
+      "resources": [
+        {
+          "id": "hrm.employee",
+          "kind": "entity",
+          "contractHash": "a3671a4ae449bb3b69c46d4536166d159efe62cf50f50495f2f5a9ae3b77a7a7",
+          "label": {
+            "en": "Employee",
+            "ru": "Сотрудник",
+            "uz": "Xodim",
+            "uz-Cyrl": "Ходим"
+          },
+          "fields": [
+            {
+              "id": "firstName",
+              "type": {
+                "kind": "string",
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "lastName",
+              "type": {
+                "kind": "string",
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "middleName",
+              "type": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "email",
+              "type": {
+                "kind": "string",
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "phone",
+              "type": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 255
+              }
+            },
+            {
+              "id": "createdAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "updatedAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            }
+          ],
+          "access": {
+            "read": [
+              {
+                "permission": "Employee.Read",
+                "all": true
+              }
+            ]
+          },
+          "keyType": "int64"
+        },
+        {
+          "id": "hrm.employee.created.v1",
+          "kind": "event",
+          "contractHash": "5b6408fdc5360822fe01a05c549ad4d94d48845cdd5dd6ec211cacd42b07ce0c",
+          "label": {
+            "en": "Employee created",
+            "ru": "Сотрудник создан",
+            "uz": "Xodim yaratildi",
+            "uz-Cyrl": "Ходим яратилди"
+          },
+          "description": "An employee was created. Published in the transaction that creates the employee.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "employeeId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "firstName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "lastName",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "email",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
+                }
+              },
+              {
+                "name": "hireDate",
+                "type": {
+                  "kind": "date"
+                }
+              }
+            ]
+          },
+          "subject": "hrm.employee"
+        },
+        {
+          "id": "hrm.employee.updated.v1",
+          "kind": "event",
+          "contractHash": "f65c939f27aa54e5eb49240b33ef3f06adf97d944c7e8e31e72be6696c645f79",
+          "label": {
+            "en": "Employee updated",
+            "ru": "Сотрудник изменён",
+            "uz": "Xodim o'zgartirildi",
+            "uz-Cyrl": "Ходим ўзгартирилди"
+          },
+          "description": "An employee was updated. Published in the transaction of the update; changed lists the field IDs it changed, without their values.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "employeeId",
+                "type": {
+                  "kind": "int64"
+                }
+              },
+              {
+                "name": "changed",
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "string"
+                  }
+                }
+              },
+              {
+                "name": "resignationDate",
+                "type": {
+                  "kind": "date",
+                  "optional": true
+                }
+              }
+            ]
+          },
+          "subject": "hrm.employee"
+        }
       ]
     }
   ]

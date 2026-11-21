@@ -119,7 +119,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) (user.User, er
 		}); err != nil {
 			return err
 		}
-		if err := recordUserAccess(txCtx, s.historyWriter, nil, createdUser); err != nil {
+		if err := recordUserAccess(txCtx, s.historyWriter, s.policy.groupName, nil, createdUser); err != nil {
 			return err
 		}
 		return publishUserCreated(txCtx, createdUser)
@@ -296,7 +296,10 @@ func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.U
 		}); err != nil {
 			return err
 		}
-		return recordUserAccess(txCtx, s.historyWriter, before, updatedUser)
+		if err := recordUserAccess(txCtx, s.historyWriter, s.policy.groupName, before, updatedUser); err != nil {
+			return err
+		}
+		return publishUserUpdated(txCtx, before, updatedUser)
 	})
 	if err != nil {
 		return nil, err
@@ -356,10 +359,13 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 			return err
 		}
 		deletedUser = entity
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserDeleted, Version: 1, Resource: UserResource, ID: userKey(id),
 			Before: userSnapshot(entity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserDeleted(txCtx, entity)
 	})
 	if err != nil {
 		return nil, err
@@ -433,10 +439,13 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserBlocked, Version: 1, Resource: UserResource, ID: userKey(userID),
 			Before: userBlockSnapshot(before), After: userBlockSnapshot(blockedUser),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserBlocked(txCtx, blockedUser)
 	})
 
 	if err != nil {
@@ -484,10 +493,13 @@ func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: UserUnblocked, Version: 1, Resource: UserResource, ID: userKey(userID),
 			Before: userBlockSnapshot(before), After: userBlockSnapshot(unblockedUser),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishUserUnblocked(txCtx, unblockedUser)
 	})
 
 	if err != nil {

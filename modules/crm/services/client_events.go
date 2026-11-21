@@ -21,6 +21,7 @@ import (
 const (
 	ClientCreatedEventID = "crm.client.created.v1"
 	ClientUpdatedEventID = "crm.client.updated.v1"
+	ClientDeletedEventID = "crm.client.deleted.v1"
 )
 
 // ClientCreatedPayload is the payload of crm.client.created.v1: the fields the
@@ -44,6 +45,12 @@ type ClientUpdatedPayload struct {
 	Phone      *string  `json:"phone,omitempty"`
 	Email      *string  `json:"email,omitempty"`
 	Changed    []string `json:"changed"`
+}
+
+// ClientDeletedPayload is the payload of crm.client.deleted.v1.
+type ClientDeletedPayload struct {
+	ClientID  int64  `json:"clientId,string" wire:"int64"`
+	FirstName string `json:"firstName"`
 }
 
 // ClientCreatedEvent is published by UpsertClient in the transaction that
@@ -79,6 +86,26 @@ var ClientUpdatedEvent = native.Event[ClientUpdatedPayload](ClientUpdatedEventID
 	Sensitive:      clientContactFields,
 	Category:       "crm.clients",
 })
+
+// ClientDeletedEvent is published by ClientService.Delete in the transaction
+// that deletes the client.
+var ClientDeletedEvent = native.Event[ClientDeletedPayload](ClientDeletedEventID, native.EventSpec{
+	Subject:     ClientEntity,
+	Label:       localized("Client deleted", "Клиент удалён", "Mijoz o'chirildi", "Мижоз ўчирилди"),
+	Description: "A CRM client was deleted. Published in the transaction that deletes the client.",
+	Descriptions: localized(
+		"A CRM client was deleted.",
+		"Клиент CRM удалён.",
+		"CRM mijozi o'chirildi.",
+		"CRM мижози ўчирилди."),
+	ReadPermission: permissions.ClientRead.Name(),
+	Category:       "crm.clients",
+})
+
+// localized builds the label of an event in the locales the SDK checks.
+func localized(en, ru, uz, uzCyrl string) manifest.Label {
+	return manifest.Label{"en": en, "ru": ru, "uz": uz, "uz-Cyrl": uzCyrl}
+}
 
 // clientContactFields are the payload fields of the client events that only a
 // user who may read clients sees.
@@ -125,12 +152,30 @@ func changedFields(before, after history.Snapshot) []string {
 	return out
 }
 
+func clientCreatedPayload(saved client.Client) ClientCreatedPayload {
+	phone, email := contactOf(saved)
+	return ClientCreatedPayload{
+		ClientID: int64(saved.ID()), FirstName: saved.FirstName(),
+		LastName: optional(saved.LastName()), MiddleName: optional(saved.MiddleName()), Phone: phone, Email: email,
+	}
+}
+
+func clientUpdatedPayload(before, saved client.Client) ClientUpdatedPayload {
+	phone, email := contactOf(saved)
+	return ClientUpdatedPayload{
+		ClientID: int64(saved.ID()), FirstName: saved.FirstName(),
+		LastName: optional(saved.LastName()), MiddleName: optional(saved.MiddleName()), Phone: phone, Email: email,
+		Changed: changedFields(clientSnapshot(before), clientSnapshot(saved)),
+	}
+}
+
 // publishClientEvent enqueues crm.client.created.v1 (before == nil) or
 // crm.client.updated.v1 in tx, so the event commits or rolls back with the
-// client. The initiator is the user the invocation acts as (tx.Subject: the
-// initiating user, or the owner of a subscription, schedule or endpoint), the
-// same subject tx.Authorize checks, not the HTTP user of ctx, which a
-// background root does not have.
+// client. An update that changed nothing publishes nothing. The initiator is
+// the user the invocation acts as (tx.Subject: the initiating user, or the
+// owner of a subscription, schedule or endpoint), the same subject
+// tx.Authorize checks, not the HTTP user of ctx, which a background root does
+// not have.
 func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.Client) error {
 	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -139,18 +184,38 @@ func publishClientEvent(ctx context.Context, tx native.Tx, before, saved client.
 	acting := tx.Subject()
 	scope := spi.Scope{Subject: spi.Subject{TenantID: tenant, UserID: acting.UserID, Kind: acting.Kind}}
 	ref := ClientRef(saved.ID())
-	phone, email := contactOf(saved)
 	if before == nil {
-		_, err = events.Publish(ctx, tx.DB(), scope, ClientCreatedEvent, &ref, ClientCreatedPayload{
-			ClientID: int64(saved.ID()), FirstName: saved.FirstName(),
-			LastName: optional(saved.LastName()), MiddleName: optional(saved.MiddleName()), Phone: phone, Email: email,
-		})
-	} else {
-		_, err = events.Publish(ctx, tx.DB(), scope, ClientUpdatedEvent, &ref, ClientUpdatedPayload{
-			ClientID: int64(saved.ID()), FirstName: saved.FirstName(),
-			LastName: optional(saved.LastName()), MiddleName: optional(saved.MiddleName()), Phone: phone, Email: email,
-			Changed: changedFields(clientSnapshot(before), clientSnapshot(saved)),
-		})
+		_, err = events.Publish(ctx, tx.DB(), scope, ClientCreatedEvent, &ref, clientCreatedPayload(saved))
+		return serrors.Wrap("crm.publishClientEvent", err)
 	}
+	payload := clientUpdatedPayload(before, saved)
+	if len(payload.Changed) == 0 {
+		return nil
+	}
+	_, err = events.Publish(ctx, tx.DB(), scope, ClientUpdatedEvent, &ref, payload)
 	return serrors.Wrap("crm.publishClientEvent", err)
+}
+
+// publishClientChange is publishClientEvent for the services' own
+// transactions (composables.InTx): the event belongs to the client's tenant
+// and the acting user of ctx, when there is one, is its initiator.
+func publishClientChange(ctx context.Context, before, saved client.Client) error {
+	const op = serrors.Op("crm.publishClientChange")
+	ref := ClientRef(saved.ID())
+	if before == nil {
+		return serrors.Wrap(op, events.PublishInTx(ctx, saved.TenantID(), ClientCreatedEvent, &ref, clientCreatedPayload(saved)))
+	}
+	payload := clientUpdatedPayload(before, saved)
+	if len(payload.Changed) == 0 {
+		return nil
+	}
+	return serrors.Wrap(op, events.PublishInTx(ctx, saved.TenantID(), ClientUpdatedEvent, &ref, payload))
+}
+
+// publishClientDeleted enqueues crm.client.deleted.v1.
+func publishClientDeleted(ctx context.Context, deleted client.Client) error {
+	ref := ClientRef(deleted.ID())
+	return serrors.Wrap("crm.publishClientDeleted", events.PublishInTx(ctx, deleted.TenantID(), ClientDeletedEvent, &ref, ClientDeletedPayload{
+		ClientID: int64(deleted.ID()), FirstName: deleted.FirstName(),
+	}))
 }

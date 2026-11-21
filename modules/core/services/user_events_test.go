@@ -22,29 +22,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
-type outboxRow struct {
-	Event, SubjectEntity, SubjectKey string
-	Initiator                        *int64
-	Payload                          json.RawMessage
-}
+type outboxRow = itf.OutboxRow
 
 func userCreatedEvents(t *testing.T, ctx context.Context, tenantID uuid.UUID) []outboxRow {
 	t.Helper()
-	tx, err := composables.UseTx(ctx)
-	require.NoError(t, err)
-	rows, err := tx.Query(ctx, `
-		SELECT event, subject_entity, subject_key, initiator_user_id, payload
-		FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2 ORDER BY seq`, tenantID, services.UserCreatedEventID)
-	require.NoError(t, err)
-	defer rows.Close()
-	var out []outboxRow
-	for rows.Next() {
-		var r outboxRow
-		require.NoError(t, rows.Scan(&r.Event, &r.SubjectEntity, &r.SubjectKey, &r.Initiator, &r.Payload))
-		out = append(out, r)
-	}
-	require.NoError(t, rows.Err())
-	return out
+	return itf.OutboxRows(t, ctx, tenantID, services.UserCreatedEventID)
 }
 
 func TestUserService_Create_PublishesUserCreatedEventInTheCreatingTransaction(t *testing.T) {

@@ -600,7 +600,10 @@ export const onPointsChanged = subscribe("acme.loyalty.onPointsChanged", c.Point
 * Subscribe to platform events through the kit (`subscribe("…", core.Created, handler)`). `tx.start` inside a
   subscription needs no key: the delivery derives one, so redelivery cannot start a second workflow.
 * Platform events are published by Go through the same outbox, **in the transaction of the change**: `core.Created`
-  (`core.user.created.v1`) when a user is created; `crm.Created` / `crm.Updated` (`crm.client.created.v1` /
+  (`core.user.created.v1`) when a user is created (the user updated/blocked/unblocked/deleted/role-assigned, role
+  created/permission-granted, group created/member-added/member-removed, client deleted, chat message-added and
+  employee created/updated events of the SDK are published the same way; a no-op update publishes nothing, and the
+  short export names of colliding keys take more segments: `core.RoleCreated`, `core.GroupCreated`); `crm.Created` / `crm.Updated` (`crm.client.created.v1` /
   `crm.client.updated.v1`, subject `crm.client`) by `crm.UpsertClient`, so every client write that goes through it
   — the CRM forms, a `crm.SaveClient` replacement, your own `tx.call(crm.UpsertClient, …)` — publishes one. The
   payload carries the client's published fields (`clientId`, `firstName`, optional `lastName`, `middleName`,

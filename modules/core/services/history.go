@@ -238,8 +238,11 @@ func permissionKey(p permission.Permission) string {
 }
 
 // recordUserAccess records the roles, groups and direct permissions the user gained or lost
-// between before and after; before is nil for a new user.
-func recordUserAccess(ctx context.Context, w history.Writer, before, after user.User) error {
+// between before and after, and publishes the matching native events (a role assigned, a
+// member added to or removed from a group) in the same transaction; before is nil for a new
+// user. It is the one place a user's access diff is computed for both, so a group membership
+// changed on the user form is published like one changed on the group.
+func recordUserAccess(ctx context.Context, w history.Writer, groupName groupNamer, before, after user.User) error {
 	subject := businessevent.Subject{Resource: UserResource, ID: userKey(after.ID())}
 	var beforeRoles, beforeGroups, beforePerms []string
 	if before != nil {
@@ -247,17 +250,27 @@ func recordUserAccess(ctx context.Context, w history.Writer, before, after user.
 		beforeGroups = ids(before.GroupIDs(), uuid.UUID.String)
 		beforePerms = ids(before.Permissions(), permissionKey)
 	}
-	if err := recordLinks(ctx, w, subject, RoleResource, beforeRoles, ids(after.Roles(), roleKey), UserRoleAssigned, UserRoleUnassigned); err != nil {
+	rolesAdded, rolesRemoved := linkDiff(beforeRoles, ids(after.Roles(), roleKey))
+	if err := recordLinks(ctx, w, subject, RoleResource, rolesAdded, rolesRemoved, UserRoleAssigned, UserRoleUnassigned); err != nil {
 		return err
 	}
-	if err := recordLinks(ctx, w, subject, GroupResource, beforeGroups, ids(after.GroupIDs(), uuid.UUID.String), GroupMemberAdded, GroupMemberRemoved); err != nil {
+	groupsAdded, groupsRemoved := linkDiff(beforeGroups, ids(after.GroupIDs(), uuid.UUID.String))
+	if err := recordLinks(ctx, w, subject, GroupResource, groupsAdded, groupsRemoved, GroupMemberAdded, GroupMemberRemoved); err != nil {
 		return err
 	}
-	return recordLinks(ctx, w, subject, PermissionResource, beforePerms, ids(after.Permissions(), permissionKey), UserPermissionGranted, UserPermissionRevoked)
+	permsAdded, permsRemoved := linkDiff(beforePerms, ids(after.Permissions(), permissionKey))
+	if err := recordLinks(ctx, w, subject, PermissionResource, permsAdded, permsRemoved, UserPermissionGranted, UserPermissionRevoked); err != nil {
+		return err
+	}
+	if err := publishUserRolesAssigned(ctx, after, rolesAdded); err != nil {
+		return err
+	}
+	return publishUserGroups(ctx, after.TenantID(), int64(after.ID()), groupName, groupsAdded, groupsRemoved)
 }
 
 // recordGroupChange records the group's own changes and the members and roles it gained or
-// lost; before is nil for a new group.
+// lost, and publishes core.group.member_added/member_removed for the member diff in the same
+// transaction; before is nil for a new group.
 func recordGroupChange(ctx context.Context, w history.Writer, before, after group.Group) error {
 	m := history.Mutation{Type: GroupUpdated, Version: 1, Resource: GroupResource, ID: after.ID().String(), After: groupSnapshot(after)}
 	if before == nil {
@@ -274,13 +287,19 @@ func recordGroupChange(ctx context.Context, w history.Writer, before, after grou
 		beforeMembers = ids(before.Users(), memberKey)
 		beforeRoles = ids(before.Roles(), roleKey)
 	}
-	if err := recordLinks(ctx, w, subject, UserResource, beforeMembers, ids(after.Users(), memberKey), GroupMemberAdded, GroupMemberRemoved); err != nil {
+	membersAdded, membersRemoved := linkDiff(beforeMembers, ids(after.Users(), memberKey))
+	if err := recordLinks(ctx, w, subject, UserResource, membersAdded, membersRemoved, GroupMemberAdded, GroupMemberRemoved); err != nil {
 		return err
 	}
-	return recordLinks(ctx, w, subject, RoleResource, beforeRoles, ids(after.Roles(), roleKey), GroupRoleAssigned, GroupRoleUnassigned)
+	rolesAdded, rolesRemoved := linkDiff(beforeRoles, ids(after.Roles(), roleKey))
+	if err := recordLinks(ctx, w, subject, RoleResource, rolesAdded, rolesRemoved, GroupRoleAssigned, GroupRoleUnassigned); err != nil {
+		return err
+	}
+	return publishGroupMembers(ctx, after, membersAdded, membersRemoved)
 }
 
-// recordRoleChange records the role's own changes and the permissions it gained or lost;
+// recordRoleChange records the role's own changes and the permissions it gained or lost, and
+// publishes core.role.permission_granted for every added permission in the same transaction;
 // before is nil for a new role.
 func recordRoleChange(ctx context.Context, w history.Writer, before, after role.Role) error {
 	id := roleKey(after)
@@ -298,11 +317,16 @@ func recordRoleChange(ctx context.Context, w history.Writer, before, after role.
 		beforePerms = ids(before.Permissions(), permissionKey)
 	}
 	subject := businessevent.Subject{Resource: RoleResource, ID: id}
-	return recordLinks(ctx, w, subject, PermissionResource, beforePerms, ids(after.Permissions(), permissionKey), RolePermissionGranted, RolePermissionRevoked)
+	added, removed := linkDiff(beforePerms, ids(after.Permissions(), permissionKey))
+	if err := recordLinks(ctx, w, subject, PermissionResource, added, removed, RolePermissionGranted, RolePermissionRevoked); err != nil {
+		return err
+	}
+	return publishRolePermissionsGranted(ctx, after, added)
 }
 
-// recordLinks records one event per object of resource linked to or unlinked from subject.
-func recordLinks(ctx context.Context, w history.Writer, subject businessevent.Subject, resource string, before, after []string, linked, unlinked string) error {
+// linkDiff returns the sorted IDs that are in after and not in before (added) and the other
+// way round (removed): the one diff history and native events are both built from.
+func linkDiff(before, after []string) (added, removed []string) {
 	was := make(map[string]bool, len(before))
 	for _, id := range before {
 		was[id] = true
@@ -313,16 +337,27 @@ func recordLinks(ctx context.Context, w history.Writer, subject businessevent.Su
 	}
 	for _, id := range sortedKeys(is) {
 		if !was[id] {
-			if err := recordEvent(ctx, w, linked, subject, businessevent.Subject{Resource: resource, ID: id}); err != nil {
-				return err
-			}
+			added = append(added, id)
 		}
 	}
 	for _, id := range sortedKeys(was) {
 		if !is[id] {
-			if err := recordEvent(ctx, w, unlinked, subject, businessevent.Subject{Resource: resource, ID: id}); err != nil {
-				return err
-			}
+			removed = append(removed, id)
+		}
+	}
+	return added, removed
+}
+
+// recordLinks records one event per object of resource linked to or unlinked from subject.
+func recordLinks(ctx context.Context, w history.Writer, subject businessevent.Subject, resource string, added, removed []string, linked, unlinked string) error {
+	for _, id := range added {
+		if err := recordEvent(ctx, w, linked, subject, businessevent.Subject{Resource: resource, ID: id}); err != nil {
+			return err
+		}
+	}
+	for _, id := range removed {
+		if err := recordEvent(ctx, w, unlinked, subject, businessevent.Subject{Resource: resource, ID: id}); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -311,7 +311,8 @@ func (in SaveClientInput) apply(existing client.Client, tenant uuid.UUID) (clien
 func Natives(s *native.Set) error {
 	return s.Add(
 		native.Entity(data.CRMClient()), native.List(data.NativeClientList),
-		ClientCreatedEvent, ClientUpdatedEvent,
+		ClientCreatedEvent, ClientUpdatedEvent, ClientDeletedEvent,
+		native.Entity(ChatEntity()), ChatMessageAddedEvent,
 		UpsertClient, SaveClient,
 	)
 }

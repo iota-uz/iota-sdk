@@ -67,7 +67,10 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 		if err != nil {
 			return err
 		}
-		return recordRoleChange(txCtx, s.historyWriter, nil, createdRole)
+		if err := recordRoleChange(txCtx, s.historyWriter, nil, createdRole); err != nil {
+			return err
+		}
+		return publishRoleCreated(txCtx, createdRole)
 	})
 	if err != nil {
 		return nil, err

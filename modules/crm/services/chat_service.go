@@ -149,7 +149,10 @@ func (s *ChatService) AddMessageToChat(
 		}
 		// Update chat
 		updatedChat, err = s.repo.Save(txCtx, chatEntity.AddMessage(msg))
-		return err
+		if err != nil {
+			return err
+		}
+		return publishChatMessagesAdded(txCtx, chatEntity, updatedChat)
 	})
 	if err != nil {
 		return nil, err
@@ -207,7 +210,7 @@ func (s *ChatService) CreateOrGetClientByPhone(ctx context.Context, phoneNumber 
 			return err
 		}
 
-		newClientEntity, err = s.clientService.create(txCtx, newClient)
+		newClientEntity, err = s.clientService.createPublished(txCtx, newClient)
 		return err
 	})
 	if err != nil {
@@ -332,6 +335,9 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 
 		updatedChat, err = s.repo.Save(txCtx, chatEntity.AddMessage(msg))
 		if err != nil {
+			return err
+		}
+		if err := publishChatMessagesAdded(txCtx, chatEntity, updatedChat); err != nil {
 			return err
 		}
 		provider := s.providers[cmd.Transport]

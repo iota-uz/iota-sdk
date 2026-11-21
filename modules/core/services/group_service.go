@@ -104,7 +104,10 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 		if err != nil {
 			return err
 		}
-		return recordGroupChange(txCtx, s.historyWriter, nil, savedGroup)
+		if err := recordGroupChange(txCtx, s.historyWriter, nil, savedGroup); err != nil {
+			return err
+		}
+		return publishGroupCreated(txCtx, savedGroup)
 	})
 	if err != nil {
 		return nil, err

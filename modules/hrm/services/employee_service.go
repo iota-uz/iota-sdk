@@ -52,10 +52,13 @@ func (s *EmployeeService) Create(ctx context.Context, data *employee.CreateDTO) 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: EmployeeCreated, Version: 1, Resource: EmployeeResource, ID: employeeID(createdEntity.ID()),
 			After: employeeSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishEmployeeCreated(txCtx, createdEntity)
 	})
 	if err != nil {
 		return err
@@ -85,10 +88,13 @@ func (s *EmployeeService) Update(ctx context.Context, id uint, data *employee.Up
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: EmployeeUpdated, Version: 1, Resource: EmployeeResource, ID: employeeID(id),
 			Before: employeeSnapshot(before), After: employeeSnapshot(after),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishEmployeeUpdated(txCtx, before, after)
 	})
 	if err != nil {
 		return err
