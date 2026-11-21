@@ -1,0 +1,30 @@
+{
+  "changes": [
+    {
+      "bump": "none",
+      "summary": "Add the automation graphs ADR and the native workflow amendment to extension-runtime; documentation only, no runtime or public API change."
+    },
+    {
+      "bump": "minor",
+      "summary": "Filter chips: a nullable field offers the \"is empty\" operator (filterq.OpEmpty, wire form `field:empty:`, filterbuilder.FieldDef.Nullable, Solid FilterBuilderField.nullable); filterq.AppendSQL renders a FilterSet as PostgreSQL predicates from a field → column map (custom predicates for computed fields), and Condition.MatchValue/MatchValues/MatchBool/MatchDate/MatchNumber apply the same semantics to lists assembled in memory. Scaffold tables take a filter chip bar through table.WithFilterBar(bar, oob): it sits under the toolbar on every screen width instead of being folded into the mobile filters drawer, renders once, and re-renders out-of-band on row swaps. TableDefinition.WithFilterBar does the same for definition-built tables. filterq.RepoFilters turns chips into repo.FieldFilter values for pkg/repo repositories. The finance accounts list (/finance/accounts) replaces its created-at drawer filter with chips: currency, has balance, balance range, created at (old CreatedAt.From/To links still work). Positions (/positions) and departments (/departments) lists get chips too: department and status for positions; parent department (including none) and status for departments; the search form now pushes its state to the URL and infinite scroll keeps the conditions. New opt-in date presets this_quarter and last_quarter (filterq.PresetThisQuarter / PresetLastQuarter) for reports that close by quarter. filterbuilder.FieldDef.Single (filterq.Field.Single) limits a reference field to one value: a plain select in the editor, multi-value or duplicate conditions dropped on decode. Expense and payment categories replace their created-at drawer filter with a created-at chip; the project stages list (/project-stages) now really filters: chips for project, start, planned and factual end dates (with \"not set\") and created at, plus the existing search over description and stage number (projectstage.FindParams, Repository.Find/CountFound). filterq.LegacyDateRange turns former ?X.From=\u0026X.To= links into a between chip."
+    },
+    {
+      "bump": "minor",
+      "summary": "MCP: lookup and describe entry points over the shared registry; transports publish only entry points once registered; execute is an entry point; Python bindings accept keyword-named parameters such as from."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add notifications.AudienceSender (SendTx/Resolve) to send a notice to users, groups, roles, event participants, records and addresses in the caller transaction; event rules and explicit sends share the new AudienceResolver. Repositories may implement the optional notifications.DispatchFinder so replays return the first receipt. Rule-mode events may no longer use a DedupeKey starting with addressed:, which is reserved for explicit sends."
+    },
+    {
+      "bump": "minor",
+      "summary": "Accessibility contrast across SDK components (templ and Solid UI): form labels and tertiary text are gray-500; badge, alert, danger-button and error text use shades that reach 4.5:1 in both themes; outline and ghost buttons, nav tabs, segmented tabs and description-list rows read correctly in dark; progress text is dark on the green fill and the bar has an accessible name; Solid Dropdown triggers are no longer nested buttons and Combobox/SearchSelect reference an active option only while open. The whole Solid UI gallery now passes the axe gate in every state, theme and viewport."
+    },
+    {
+      "bump": "minor",
+      "summary": "Solid UI and templ toasts take one action (\"Undo\", \"Retry\") and use the light SDK surface with polite/alert announcements and a phone layout above bottom bars; Dialog and Drawer gain a busy state that refuses every close while a request runs; @iota-uz/sdk/testing adds expectNoA11yViolations (optional peer @axe-core/playwright); docs/automation-ui-standard.md defines the automation UI/UX acceptance standard."
+    }
+  ],
+  "source": "afe32ace5341cf8906dced1eb75d99923f1374c0",
+  "version": "0.48.0"
+}
