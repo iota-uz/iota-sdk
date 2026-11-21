@@ -24,6 +24,8 @@ const (
 	TypeString Type = "string"
 	// TypeMap is a map or a declared object (or dyn), e.g. `{"title": issue.title}`.
 	TypeMap Type = "map"
+	// TypeList is a CEL list (or dyn), e.g. a foreach's items.
+	TypeList Type = "list"
 	// TypeAny is any type.
 	TypeAny Type = "any"
 )
@@ -262,6 +264,8 @@ func typeMatches(t *types.Type, want Type) bool {
 		return t.Kind() == types.StringKind
 	case TypeMap:
 		return t.Kind() == types.MapKind || t.Kind() == types.StructKind
+	case TypeList:
+		return t.Kind() == types.ListKind
 	case TypeAny:
 		return true
 	}

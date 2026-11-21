@@ -1,0 +1,308 @@
+{
+  "name": "trace-parallel-join-n-of",
+  "format": 2,
+  "kind": "trace",
+  "description": "Join n_of continues with the n-th branch to arrive and cancels the branches still running, in branch order.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      },
+      {
+        "id": "note",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "a"
+        }
+      },
+      {
+        "id": "pr",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "approval",
+          "text": "Approve {{ issue.title }}?"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "n_of",
+          "n": 2
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "a"
+        },
+        "to": "note"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b"
+        },
+        "to": "pr"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "c"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "pr",
+          "outcome": "matched"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 5,
+      "repository": "acme/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "note",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "notify",
+              "text": "a"
+            }
+          }
+        ]
+      },
+      "token": "split.a"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": {}
+      },
+      "token": "split.a"
+    },
+    {
+      "node": "pr",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "split.b"
+    },
+    {
+      "node": "approve",
+      "outcome": "waiting",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "approval",
+              "text": "Approve Crash on save?"
+            }
+          }
+        ],
+        "output": {
+          "waits_for": "manual"
+        }
+      },
+      "token": "split.c"
+    },
+    {
+      "node": "pr",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.b"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.b"
+    },
+    {
+      "node": "approve",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.c"
+    },
+    {
+      "node": "j",
+      "outcome": "joined",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "a": {
+              "arrived": true,
+              "output": {}
+            },
+            "b": {
+              "arrived": true,
+              "output": {
+                "event": {
+                  "number": 5,
+                  "repository": "acme/app"
+                }
+              }
+            },
+            "c": {
+              "arrived": false,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "go",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "done"
+      }
+    }
+  ]
+}

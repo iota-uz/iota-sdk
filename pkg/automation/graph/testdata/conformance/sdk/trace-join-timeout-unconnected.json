@@ -1,0 +1,205 @@
+{
+  "name": "trace-join-timeout-unconnected",
+  "format": 2,
+  "kind": "trace",
+  "description": "A join's timeout outcome may be left without an edge: when its timer fires the run fails instead (JOIN_INCOMPLETE), after the branches still running are cancelled.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "pr",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "approval",
+          "text": "Approve {{ issue.title }}?"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all",
+          "timeout": "2h"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "pr"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "pr",
+          "outcome": "matched"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "pr",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "approve",
+      "outcome": "waiting",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "approval",
+              "text": "Approve Crash on save?"
+            }
+          }
+        ],
+        "output": {
+          "waits_for": "manual"
+        }
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "pr",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.legal"
+    },
+    {
+      "node": "approve",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.sales"
+    },
+    {
+      "node": "j",
+      "outcome": "failed",
+      "context_patch": {
+        "code": "JOIN_INCOMPLETE",
+        "message": "*"
+      }
+    }
+  ]
+}

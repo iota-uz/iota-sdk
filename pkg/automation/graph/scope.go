@@ -14,6 +14,7 @@ type exprs struct {
 	view    *GraphView
 	limits  expr.Limits
 	outputs expr.Fields // nodes.<id>.output by node, in graph order
+	foreach expr.Fields // foreach.<id> by foreach node, in graph order
 	event   string      // the event kind all triggers share; "" when they differ
 
 	mu    sync.Mutex
@@ -51,6 +52,12 @@ func newExprs(v *GraphView, limits expr.Limits) *exprs {
 			continue
 		}
 		seen[n.ID] = true
+		if spec.Behavior == BehaviorForeach {
+			x.foreach = append(x.foreach, expr.Prop{Name: n.ID, Field: expr.ObjectOf(expr.Fields{
+				{Name: "item", Field: expr.DynField},
+				{Name: "index", Field: expr.IntField},
+			})})
+		}
 		if f, ok, _ := nodeOutput(v.catalog, spec, p); ok {
 			x.outputs = append(x.outputs, expr.Prop{Name: n.ID, Field: expr.ObjectOf(expr.Fields{{Name: "output", Field: f}})})
 		}
@@ -86,9 +93,13 @@ func ExprScope(c Catalog, subject, event string, nodes expr.Fields) expr.Scope {
 	return expr.Scope{Vars: vars}
 }
 
-// env is the environment of a scope: the event kind read ("*": the graph's), with or without node outputs. ("*": the graph's), and whether node outputs are visible.
-func (x *exprs) env(event string, withNodes bool) (*expr.Env, error) {
-	key := fmt.Sprintf("%s|%t", event, withNodes)
+// allForeach is the scope of every foreach of the graph (a step reads only what its token has).
+const allForeach = "*"
+
+// env is the environment of a scope: the event kind read ("*": the graph's), with or without node outputs,
+// and the foreach items in scope: allForeach, or the comma-joined ids of the foreachs around a node.
+func (x *exprs) env(event string, withNodes bool, each string) (*expr.Env, error) {
+	key := fmt.Sprintf("%s|%t|%s", event, withNodes, each)
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if e, ok := x.envs[key]; ok {
@@ -103,6 +114,22 @@ func (x *exprs) env(event string, withNodes bool) (*expr.Env, error) {
 		nodes = x.outputs
 	}
 	scope := ExprScope(x.view.catalog, x.view.subject, kind, nodes)
+	if withNodes {
+		// foreach.<id>.item and .index: read inside the foreach's body.
+		in := map[string]bool{}
+		for _, id := range strings.Split(each, ",") {
+			in[id] = true
+		}
+		var fields expr.Fields
+		for _, f := range x.foreach {
+			if each == allForeach || in[f.Name] {
+				fields = append(fields, f)
+			}
+		}
+		if len(fields) > 0 {
+			scope.Vars["foreach"] = expr.ObjectOf(fields)
+		}
+	}
 	e, err := expr.NewEnv(scope, x.limits)
 	if err != nil {
 		return nil, err
@@ -112,14 +139,19 @@ func (x *exprs) env(event string, withNodes bool) (*expr.Env, error) {
 }
 
 func (x *exprs) program(event string, withNodes bool, src string, want expr.Type) (*expr.Program, []expr.Issue) {
-	key := fmt.Sprintf("%s|%t|%s|%s", event, withNodes, want, src)
+	return x.programIn(event, withNodes, allForeach, src, want)
+}
+
+// programIn checks a source in a scope with only the given foreach items (see env).
+func (x *exprs) programIn(event string, withNodes bool, each, src string, want expr.Type) (*expr.Program, []expr.Issue) {
+	key := fmt.Sprintf("%s|%t|%s|%s|%s", event, withNodes, each, want, src)
 	x.mu.Lock()
 	if r, ok := x.progs[key]; ok {
 		x.mu.Unlock()
 		return r.p, r.issues
 	}
 	x.mu.Unlock()
-	e, err := x.env(event, withNodes)
+	e, err := x.env(event, withNodes, each)
 	if err != nil {
 		return nil, []expr.Issue{{Code: expr.IssueType, Message: err.Error()}}
 	}
@@ -131,14 +163,18 @@ func (x *exprs) program(event string, withNodes bool, src string, want expr.Type
 }
 
 func (x *exprs) template(event string, text string) (*expr.TemplateProgram, []expr.Issue) {
-	key := event + "|" + text
+	return x.templateIn(event, allForeach, text)
+}
+
+func (x *exprs) templateIn(event, each, text string) (*expr.TemplateProgram, []expr.Issue) {
+	key := event + "|" + each + "|" + text
 	x.mu.Lock()
 	if r, ok := x.tmpls[key]; ok {
 		x.mu.Unlock()
 		return r.t, r.issues
 	}
 	x.mu.Unlock()
-	e, err := x.env(event, true)
+	e, err := x.env(event, true, each)
 	if err != nil {
 		return nil, []expr.Issue{{Code: expr.IssueType, Message: err.Error()}}
 	}

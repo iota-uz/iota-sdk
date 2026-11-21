@@ -1,0 +1,237 @@
+{
+  "name": "trace-branch-failed-unconnected",
+  "format": 2,
+  "kind": "trace",
+  "description": "Inside a branch a node's failed outcome may be left without an edge: a refused call ends the branch's token there, it does not arrive, and join all takes timeout at once.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "q",
+        "type": "ask",
+        "params": {
+          "question": "Is {{ issue.title }} legal?",
+          "choices": [
+            "yes",
+            "no"
+          ]
+        }
+      },
+      {
+        "id": "note",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "sales"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all",
+          "timeout": "1d"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "stuck",
+        "type": "end",
+        "params": {
+          "column": "attention"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "q"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "note"
+      },
+      {
+        "from": {
+          "node": "q",
+          "outcome": "yes"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "q",
+          "outcome": "no"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "q",
+          "outcome": "unsure"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "timeout"
+        },
+        "to": "stuck"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "options": {
+    "call_error": "the model is not available"
+  },
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "q",
+      "outcome": "failed",
+      "context_patch": {
+        "output": {
+          "error": "the model is not available"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "note",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.sales"
+    },
+    {
+      "node": "j",
+      "outcome": "timeout",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "legal": {
+              "arrived": false,
+              "output": null
+            },
+            "sales": {
+              "arrived": false,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "stuck",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "attention"
+      }
+    }
+  ]
+}
