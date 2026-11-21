@@ -25,7 +25,7 @@ type RepoField[F any] struct {
 // resolves, so a chip means the same in a hand-written query and in a
 // repository-backed list.
 func RepoFilters[F any](fs FilterSet, schema Schema, fields map[string]RepoField[F], now time.Time) []repo.FieldFilter[F] {
-	var out []repo.FieldFilter[F]
+	out := make([]repo.FieldFilter[F], 0, len(fs))
 	for _, c := range fs {
 		f, ok := fields[c.Field]
 		if !ok {
