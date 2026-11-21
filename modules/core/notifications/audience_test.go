@@ -17,7 +17,9 @@ func TestDeriveAudienceDedupeKey(t *testing.T) {
 	legacy := notifications.DeriveDedupeKey(producer, event, []notifications.Addressee{
 		notifications.AddressAddressee(address), notifications.UserAddressee(7), notifications.RecordAddressee("acme.customer", "c-1"),
 	}, channels)
-	require.NotEmpty(t, legacy)
+	// Pinned from the implementation before audience sends, so a replay after
+	// the upgrade still finds a job stored by an older release.
+	require.Equal(t, "producer:instance:wf#notify#1:0bd3cd0dd7b92619065d99e2", legacy)
 	require.Equal(t, legacy, notifications.DeriveAudienceDedupeKey(producer, event, direct, nil, channels), "explicit sends keep their dedupe identity")
 
 	group := direct
@@ -30,4 +32,15 @@ func TestDeriveAudienceDedupeKey(t *testing.T) {
 	other.ID = "e-2"
 	require.NotEqual(t, first, notifications.DeriveAudienceDedupeKey(producer, event, withParticipant, &other, channels), "participants of another source event are another audience")
 	require.Empty(t, notifications.DeriveAudienceDedupeKey(notifications.Producer{}, event, direct, nil, channels))
+}
+
+func TestDeriveAudienceDedupeKey_ParticipantSourceFieldsDoNotCollide(t *testing.T) {
+	producer := notifications.Producer{InvocationID: "run"}
+	event := notifications.Event{Key: notifications.TestEventKey}
+	audience := notifications.Audience{Participants: []string{"created_user"}}
+	a := &notifications.Event{Key: "acme.policy.created.v1", ID: "batch/1", DedupeKey: "created"}
+	b := &notifications.Event{Key: "acme.policy.created.v1", ID: "batch", DedupeKey: "1/created"}
+	require.NotEqual(t,
+		notifications.DeriveAudienceDedupeKey(producer, event, audience, a, nil),
+		notifications.DeriveAudienceDedupeKey(producer, event, audience, b, nil))
 }

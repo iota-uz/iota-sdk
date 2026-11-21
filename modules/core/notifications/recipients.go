@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -47,10 +46,17 @@ const (
 // registered or belongs to another tenant.
 var ErrInvalidAudience = errors.New("invalid notification audience")
 
-// AudienceUsers loads users so the resolver can drop missing, foreign, blocked
-// and inactive ones.
+// UserState is what the resolver needs to know about one user.
+type UserState struct {
+	ID uint
+	// Active is false for a blocked, inactive or non-person account.
+	Active bool
+}
+
+// AudienceUsers reports the state of users of the context's tenant in one
+// batch. IDs of missing users and users of another tenant are omitted.
 type AudienceUsers interface {
-	GetByIDs(context.Context, []uint) ([]user.User, error)
+	UserStates(ctx context.Context, ids []uint) ([]UserState, error)
 }
 
 // AudienceResolver expands an audience to unique recipients in the tenant of
@@ -65,8 +71,8 @@ type AudienceResolver struct {
 	contacts *ContactResolvers
 }
 
-// NewAudienceResolver builds a resolver. users may be nil to keep named and
-// participant users unchecked until delivery, as event rules do (they filter
+// NewAudienceResolver builds a resolver. users may be nil to keep named,
+// member and participant users unchecked until delivery, as event rules do (they filter
 // named users through their directory);
 // contacts may be nil when no records are resolved.
 func NewAudienceResolver(catalog *Catalog, groups AudienceRepository, users AudienceUsers, contacts *ContactResolvers) *AudienceResolver {
@@ -82,11 +88,10 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 	invalid := func(message string) (ResolvedAudience, error) {
 		return ResolvedAudience{}, fmt.Errorf("%w: %s", ErrInvalidAudience, message)
 	}
-	tenant, err := composables.UseTenantID(ctx)
-	if err != nil {
+	if _, err := composables.UseTenantID(ctx); err != nil {
 		return ResolvedAudience{}, err
 	}
-	source, err = r.CheckSource(ctx, audience, source)
+	source, err := r.CheckSource(ctx, audience, source)
 	if err != nil {
 		return ResolvedAudience{}, err
 	}
@@ -132,7 +137,7 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 			// Validate rejects these kinds above.
 		}
 	}
-	available, err := r.availableUsers(ctx, tenant, named, skip)
+	available, err := r.availableUsers(ctx, named, skip)
 	if err != nil {
 		return ResolvedAudience{}, err
 	}
@@ -143,6 +148,12 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 	}
 	if len(groups)+len(roles) > 0 {
 		members, err := r.groups.Resolve(ctx, groups, roles)
+		if err != nil {
+			return ResolvedAudience{}, err
+		}
+		// Members are counted against the limit, so unavailable ones are
+		// dropped here rather than only at delivery.
+		members, err = r.availableUsers(ctx, slices.DeleteFunc(members, func(id uint) bool { return id == 0 || seenUsers[id] }), skip)
 		if err != nil {
 			return ResolvedAudience{}, err
 		}
@@ -166,7 +177,7 @@ func (r *AudienceResolver) Resolve(ctx context.Context, audience Audience, sourc
 			}
 			// A participant callback may name anyone: drop missing, foreign
 			// and unavailable users like named ones.
-			ids, err = r.availableUsers(ctx, tenant, slices.DeleteFunc(slices.Clone(ids), func(id uint) bool { return id == 0 || seenUsers[id] }), skip)
+			ids, err = r.availableUsers(ctx, slices.DeleteFunc(slices.Clone(ids), func(id uint) bool { return id == 0 || seenUsers[id] }), skip)
 			if err != nil {
 				return ResolvedAudience{}, err
 			}
@@ -206,25 +217,25 @@ func (r *AudienceResolver) CheckSource(ctx context.Context, audience Audience, s
 
 // availableUsers keeps the users that exist in the tenant and can receive
 // notifications, in request order.
-func (r *AudienceResolver) availableUsers(ctx context.Context, tenant uuid.UUID, ids []uint, skip func(RecipientKind, string, string)) ([]uint, error) {
+func (r *AudienceResolver) availableUsers(ctx context.Context, ids []uint, skip func(RecipientKind, string, string)) ([]uint, error) {
 	if r.users == nil || len(ids) == 0 {
 		return ids, nil
 	}
-	users, err := r.users.GetByIDs(ctx, ids)
+	states, err := r.users.UserStates(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	found := make(map[uint]user.User, len(users))
-	for _, u := range users {
-		found[u.ID()] = u
+	active := make(map[uint]bool, len(states))
+	for _, st := range states {
+		active[st.ID] = st.Active
 	}
 	out := make([]uint, 0, len(ids))
 	for _, id := range ids {
-		u, ok := found[id]
+		ok, found := active[id]
 		switch {
-		case !ok || u.TenantID() != tenant:
+		case !found:
 			skip(RecipientUser, strconv.FormatUint(uint64(id), 10), SkipNotFound)
-		case u.IsBlocked() || u.Type() != user.TypeUser || u.Status() != user.StatusActive:
+		case !ok:
 			skip(RecipientUser, strconv.FormatUint(uint64(id), 10), SkipInactive)
 		default:
 			out = append(out, id)

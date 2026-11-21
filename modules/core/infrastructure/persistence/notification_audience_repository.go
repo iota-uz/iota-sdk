@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -100,6 +101,47 @@ func (r *NotificationAudienceRepository) Resolve(ctx context.Context, groups []u
 			return nil, serrors.Wrap(op, err)
 		}
 		result = append(result, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return result, nil
+}
+
+var _ notifications.AudienceUsers = (*NotificationAudienceRepository)(nil)
+
+// UserStates reads, in one query, whether each user of the tenant among ids
+// can receive notifications. Missing and foreign users are omitted.
+func (r *NotificationAudienceRepository) UserStates(ctx context.Context, ids []uint) ([]notifications.UserState, error) {
+	const op = "NotificationAudienceRepository.UserStates"
+	if len(ids) == 0 {
+		return []notifications.UserState{}, nil
+	}
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	db, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	userIDs := make([]int64, len(ids))
+	for i, id := range ids {
+		userIDs[i] = int64(id)
+	}
+	rows, err := db.Query(ctx, `SELECT id, (NOT is_blocked AND type = $3 AND status = $4) FROM users WHERE tenant_id = $1 AND id = ANY($2::bigint[])`,
+		tenant, userIDs, string(user.TypeUser), string(user.StatusActive))
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	defer rows.Close()
+	result := make([]notifications.UserState, 0, len(ids))
+	for rows.Next() {
+		var state notifications.UserState
+		if err := rows.Scan(&state.ID, &state.Active); err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+		result = append(result, state)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, serrors.Wrap(op, err)

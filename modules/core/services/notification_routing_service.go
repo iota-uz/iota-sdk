@@ -240,13 +240,40 @@ func (s *NotificationRoutingService) ResolveRecipients(ctx context.Context, even
 	return rule, resolved.UserIDs, nil
 }
 
+// userStates adapts NotificationRecipients for an AudienceRepository that
+// cannot report user states in one query.
+type userStates struct{ users NotificationRecipients }
+
+func (u userStates) UserStates(ctx context.Context, ids []uint) ([]notifications.UserState, error) {
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list, err := u.users.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	states := make([]notifications.UserState, 0, len(list))
+	for _, usr := range list {
+		if usr.TenantID() != tenant {
+			continue
+		}
+		states = append(states, notifications.UserState{ID: usr.ID(), Active: !usr.IsBlocked() && usr.Type() == user.TypeUser && usr.Status() == user.StatusActive})
+	}
+	return states, nil
+}
+
 // audienceResolver builds the shared resolver over the service's sources.
 // checkUsers drops unavailable named users; rule mode leaves that to its
 // directory.
 func (s *NotificationRoutingService) audienceResolver(checkUsers bool) *notifications.AudienceResolver {
 	var users notifications.AudienceUsers
 	if checkUsers {
-		users = s.users
+		if batch, ok := s.audience.(notifications.AudienceUsers); ok {
+			users = batch
+		} else {
+			users = userStates{s.users}
+		}
 	}
 	var contacts *notifications.ContactResolvers
 	if s.platform != nil {

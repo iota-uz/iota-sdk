@@ -344,6 +344,27 @@ func TestNotificationAudience_RuleModeCannotTakeTheAddressedIdentity(t *testing.
 	c.drain(t)
 	require.Zero(t, c.count(t, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1 AND (completed_at IS NULL OR attempts>0)", c.f.TenantID()))
 	require.Equal(t, 1, c.count(t, "SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1 AND event_id='addressed:legacy' AND mode='rule'", c.f.TenantID()))
+	delivered := c.deliveries(t, notifications.TestEventKey, "addressed:legacy")
+	require.Len(t, delivered, 1)
+	require.Equal(t, c.people[0], delivered[0].UserID)
+	require.Equal(t, notifications.DeliverySent, delivered[0].Status)
+}
+
+// Group and role members count against the limit, so members who cannot
+// receive notifications are dropped at resolution.
+func TestNotificationAudience_UnavailableMembersAreNotCounted(t *testing.T) {
+	c := setupAudience(t, 3)
+	group := c.group(t, c.f.TenantID(), c.people...)
+	_, err := c.f.Pool.Exec(c.committed, "UPDATE users SET status='pending_onboarding' WHERE id=$1", c.people[2])
+	require.NoError(t, err)
+	req := notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Groups: []uuid.UUID{group}}}
+	resolved, err := c.sender.Resolve(c.committed, req)
+	require.NoError(t, err)
+	require.ElementsMatch(t, c.people[:2], resolved.UserIDs)
+	require.Equal(t, []notifications.SkippedRecipient{{Kind: notifications.RecipientUser, Ref: strconv.FormatUint(uint64(c.people[2]), 10), Reason: notifications.SkipInactive}}, resolved.Skipped)
+	receipt, err := c.send(t, req)
+	require.NoError(t, err)
+	require.Equal(t, 2, receipt.Recipients)
 }
 
 // legacyDispatchRepository implements only DispatchRepository, as SDK

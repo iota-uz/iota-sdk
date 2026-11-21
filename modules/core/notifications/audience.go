@@ -36,8 +36,10 @@ type Audience struct {
 	Records []ObjectRef
 	// Addresses are direct channel addresses, one map per recipient.
 	Addresses []map[Channel]string
-	// Addressees are ready recipients of any kind, for example an address
-	// recipient with a language override.
+	// Addressees are ready user, record or address recipients, for example an
+	// address recipient with a language override. Groups, roles and
+	// participants expand only through the fields above; an Addressee of
+	// those kinds is Invalid.
 	Addressees []Addressee
 }
 

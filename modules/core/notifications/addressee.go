@@ -243,9 +243,14 @@ func DeriveAudienceDedupeKey(producer Producer, event Event, audience Audience, 
 		keys = append(keys, fmt.Sprintf("role:%d", id))
 	}
 	if len(audience.Participants) > 0 && source != nil {
-		origin := source.Key + "/" + source.SnapshotRef + "/" + source.ID + "/" + source.DedupeKey
 		for _, key := range audience.Participants {
-			keys = append(keys, "participant:"+key+"@"+origin)
+			// A JSON tuple keeps fields that contain separators apart: an ID
+			// of "batch/1" never collides with ID "batch" and DedupeKey "1/...".
+			tuple, err := json.Marshal([]string{key, source.Key, source.SnapshotRef, source.ID, source.DedupeKey})
+			if err != nil {
+				return ""
+			}
+			keys = append(keys, fmt.Sprintf("participant:%x", sha256.Sum256(tuple)))
 		}
 	}
 	return deriveDedupeKey(identity, event, keys, channels)
