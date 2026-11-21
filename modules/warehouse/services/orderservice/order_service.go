@@ -92,6 +92,12 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 	//}
 	var completedEntity order.Order
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The order is read under its row lock: of two concurrent completions
+		// the second waits, reads complete and is refused, so only one
+		// transition is saved and announced.
+		if err := s.repo.Lock(txCtx, id); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, id)
 		if err != nil {
 			return err

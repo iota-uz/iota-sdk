@@ -8,8 +8,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
@@ -66,4 +68,9 @@ func TestPublishInTx_NeedsATenantAndATransaction(t *testing.T) {
 
 	require.Error(t, events.PublishInTx(ctx, uuid.New(), publishTxEvent, nil, payload), "the subject is checked against the declaration")
 	require.Error(t, events.PublishInTx(context.Background(), uuid.New(), publishTxEvent, ref, payload), "without a transaction or pool there is nowhere to write")
+
+	// A pool is not a transaction: a row written through it would commit at once,
+	// outside the change it reports.
+	poolOnly := composables.WithPool(context.Background(), &pgxpool.Pool{})
+	require.ErrorIs(t, events.PublishInTx(poolOnly, uuid.New(), publishTxEvent, ref, payload), composables.ErrNoTx)
 }

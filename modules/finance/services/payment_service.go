@@ -111,6 +111,11 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 
 	var updatedEntity payment.Payment
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// The stored state is read under the row lock, so the changed fields are
+		// measured against what the previous writer committed.
+		if err := s.repo.Lock(txCtx, entity.ID()); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, entity.ID())
 		if err != nil {
 			return err

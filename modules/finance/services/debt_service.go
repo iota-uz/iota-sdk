@@ -230,6 +230,11 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -290,6 +295,11 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -329,6 +339,11 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -392,21 +407,20 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 	return entity, nil
 }
 
-// publishAfterCommit announces a committed change on the eventbus. The change
-// is already saved, so a failure to build or publish the event is logged and
-// does not change the result of the call.
+// publishAfterCommit announces a change on the eventbus once the transaction
+// that holds it has committed: inside a caller's transaction that is when the
+// caller commits, and a rollback announces nothing. The change is already
+// saved by then, so a failure to build or publish the event is logged and does
+// not change the result of the call.
 func (s *DebtService) publishAfterCommit(ctx context.Context, op string, build func() (any, error)) {
-	defer func() {
-		if r := recover(); r != nil {
-			composables.UseLogger(ctx).WithField("op", op).Errorf("publishing the event after commit panicked: %v", r)
+	composables.AfterCommit(ctx, func(hookCtx context.Context) {
+		event, err := build()
+		if err != nil {
+			composables.UseLoggerOrDefault(hookCtx).WithError(err).WithField("op", op).Error("building the event after commit failed")
+			return
 		}
-	}()
-	event, err := build()
-	if err != nil {
-		composables.UseLogger(ctx).WithError(err).WithField("op", op).Error("building the event after commit failed")
-		return
-	}
-	s.publisher.Publish(event)
+		s.publisher.Publish(event)
+	})
 }
 
 func (s *DebtService) recordDebtChange(ctx context.Context, eventType string, before, after debt.Debt) error {

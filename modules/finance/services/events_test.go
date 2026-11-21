@@ -3,6 +3,8 @@ package services_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -259,4 +261,125 @@ func TestDebtService_Settle_WithoutSession(t *testing.T) {
 	} {
 		require.NoError(t, call(f.newDebt(t)), name)
 	}
+}
+
+// committedPayloads are the payloads of the committed rows of the event, oldest first.
+func committedPayloads(t *testing.T, f financeEventsFixture, event string) []json.RawMessage {
+	t.Helper()
+	rows, err := f.env.Pool.Query(context.Background(),
+		`SELECT payload FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2 ORDER BY seq`, f.env.TenantID(), event)
+	require.NoError(t, err)
+	defer rows.Close()
+	var out []json.RawMessage
+	for rows.Next() {
+		var p json.RawMessage
+		require.NoError(t, rows.Scan(&p))
+		out = append(out, p)
+	}
+	require.NoError(t, rows.Err())
+	return out
+}
+
+func runConcurrently(n int, call func(i int) error) []error {
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := range errs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = call(i)
+		}()
+	}
+	wg.Wait()
+	return errs
+}
+
+// Two settlements racing on one debt are applied one after the other, and each
+// event reports the transition it actually made: the outstanding amounts of the
+// two events chain from the debt's balance instead of both claiming the same
+// starting point.
+func TestDebtEvents_ConcurrentSettlementsAnnounceTheirOwnTransitions(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	created := f.newDebt(t) // 500.00 USD = 50000 minor units
+	f.env.CommitTx(t)
+	ctx := committedCtx(f.env)
+
+	errs := runConcurrently(2, func(int) error {
+		_, err := f.debts.Settle(ctx, created.ID(), 100.00, nil)
+		return err
+	})
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+
+	stored, err := f.debts.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.EqualValues(t, 30000, stored.OutstandingAmount().Amount(), "both settlements are in the balance")
+
+	payloads := committedPayloads(t, f, services.DebtSettledEventID)
+	outstanding := make([]int64, 0, len(payloads))
+	for _, raw := range payloads {
+		var p services.DebtSettledPayload
+		require.NoError(t, json.Unmarshal(raw, &p))
+		require.EqualValues(t, 10000, p.SettledAmount.Amount)
+		outstanding = append(outstanding, p.OutstandingAmount.Amount)
+	}
+	require.Equal(t, []int64{40000, 30000}, outstanding, "each event is consistent with the balance transition it made")
+}
+
+// Identical updates racing on one payment change it once: the second finds the
+// stored state already equal and announces nothing.
+func TestPaymentEvents_ConcurrentIdenticalUpdatesAnnounceOnce(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	created, err := f.payments.Create(f.ctx, f.payment(t))
+	require.NoError(t, err)
+	f.env.CommitTx(t)
+	ctx := committedCtx(f.env)
+
+	updated := created.UpdateComment("Invoice 7, paid")
+	errs := runConcurrently(2, func(int) error {
+		_, err := f.payments.Update(ctx, updated)
+		return err
+	})
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+	rows := committedPayloads(t, f, services.PaymentUpdatedEventID)
+	require.Len(t, rows, 1)
+	require.JSONEq(t, `{"paymentId":"`+created.ID().String()+`","amount":{"amount":"150050","currency":"USD"},"changed":["comment"]}`, string(rows[0]))
+}
+
+// The eventbus events of a debt change are published when the transaction that
+// holds it commits: a caller's transaction that rolls back after Settle returned
+// announces nothing.
+func TestDebtService_EventbusFollowsTheOwnersCommit(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	created := f.newDebt(t)
+	f.env.CommitTx(t)
+	ctx := committedCtx(f.env)
+	bus, err := composition.Resolve[eventbus.EventBus](f.env.Container)
+	require.NoError(t, err)
+	var mu sync.Mutex
+	announced := 0
+	defer bus.Subscribe(func(*debt.Settled) { mu.Lock(); announced++; mu.Unlock() })()
+	count := func() int { mu.Lock(); defer mu.Unlock(); return announced }
+	errLater := errors.New("the caller's later step failed")
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		_, err := f.debts.Settle(txCtx, created.ID(), 100.00, nil)
+		require.NoError(t, err)
+		require.Zero(t, count(), "the eventbus event waits for the caller's commit")
+		return errLater
+	})
+	require.ErrorIs(t, err, errLater)
+	require.Zero(t, count(), "a rolled back settlement is not announced")
+	require.Empty(t, committedPayloads(t, f, services.DebtSettledEventID))
+	stored, err := f.debts.GetByID(ctx, created.ID())
+	require.NoError(t, err)
+	require.EqualValues(t, 50000, stored.OutstandingAmount().Amount())
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		_, err := f.debts.Settle(txCtx, created.ID(), 100.00, nil)
+		return err
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, count())
 }

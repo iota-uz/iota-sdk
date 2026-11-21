@@ -30,6 +30,9 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Debt, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Debt, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Debt, error)
+	// Lock takes the row lock of the debt until the transaction ends, so a
+	// read-modify-write of it is serialized with concurrent ones.
+	Lock(ctx context.Context, id uuid.UUID) error
 	GetByCounterpartyID(ctx context.Context, counterpartyID uuid.UUID) ([]Debt, error)
 	GetCounterpartyAggregates(ctx context.Context) ([]CounterpartyAggregate, error)
 	// OpenPayableTotals sums what is still owed on open payable debts, one

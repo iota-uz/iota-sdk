@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -93,12 +94,17 @@ func publishOrderCompleted(ctx context.Context, completed order.Order) error {
 }
 
 // publishAggregateEvents publishes the events the aggregate accumulated on the
-// eventbus once the change committed.
+// eventbus once the transaction holding the change has committed: inside a
+// caller's transaction that is when the caller commits, and a rollback
+// publishes nothing.
 func (s *OrderService) publishAggregateEvents(ctx context.Context, o order.Order) {
 	if s.publisher == nil || o == nil {
 		return
 	}
-	for _, event := range o.Events() {
-		s.publisher.Publish(event)
-	}
+	pending := o.Events()
+	composables.AfterCommit(ctx, func(context.Context) {
+		for _, event := range pending {
+			s.publisher.Publish(event)
+		}
+	})
 }

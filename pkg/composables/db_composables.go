@@ -81,11 +81,18 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 		}
 	}()
 
-	if err := fn(WithTx(ctx, tx)); err != nil {
+	txCtx, hooks := WithCommitHooks(WithTx(ctx, tx))
+	if err := fn(txCtx); err != nil {
+		hooks.Discard()
 		if rErr := tx.Rollback(ctx); rErr != nil {
 			return errors.Join(err, rErr)
 		}
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		hooks.Discard()
+		return err
+	}
+	hooks.Run(ctx)
+	return nil
 }

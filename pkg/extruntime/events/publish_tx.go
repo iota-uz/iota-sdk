@@ -6,13 +6,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // PublishInTx enqueues a native event in the transaction held by ctx
-// (composables.UseTx), so the event commits or rolls back with the change it
+// (composables.UseTx; a pool is not one), so the event commits or rolls back with the change it
 // reports; it is the publisher of a service that runs inside composables.InTx.
 //
 // The event belongs to tenantID, the tenant of the entity, not the tenant of
@@ -26,6 +27,11 @@ func PublishInTx[P any](ctx context.Context, tenantID uuid.UUID, ev *native.Even
 	const op = serrors.Op("extruntime.events.PublishInTx")
 	if tenantID == uuid.Nil {
 		return serrors.New(serrors.Invalid, "event "+ev.ID()+" has no tenant").WithOp(op)
+	}
+	// UseTx falls back to the pool, and a row written through the pool commits
+	// at once, outside the change it reports: only a transaction will do.
+	if ctx.Value(constants.TxKey) == nil {
+		return serrors.Wrap(op, composables.ErrNoTx)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
