@@ -8,3 +8,4 @@ packages:
   - web/runtime
   - web/chat-ui
   - pkg/extruntime/configurator/web
+  - modules/automations/presentation/integrations/web

@@ -50,12 +50,27 @@ const (
 	PlatformOptIn PlatformPolicy = "opt_in"
 )
 
+// Category groups connectors on the integrations page; empty is CategoryOther.
+type Category string
+
+const (
+	CategoryMessaging Category = "messaging"
+	CategoryEmail     Category = "email"
+	CategoryAI        Category = "ai"
+	CategoryDocuments Category = "documents"
+	CategoryOther     Category = "other"
+)
+
 // Descriptor describes a connector for the integrations page and the store.
 type Descriptor struct {
 	Kind  catalog.ConnectorKind
 	Title manifest.Label
-	Icon  string
-	Auth  AuthKind
+	// Description is one line on the connector's card (optional).
+	Description manifest.Label
+	// Category groups the card (empty: CategoryOther).
+	Category Category
+	Icon     string
+	Auth     AuthKind
 	// Credentials is the JSON Schema of the credentials form; a property with "x-secret": true is never
 	// returned to a client.
 	Credentials json.RawMessage

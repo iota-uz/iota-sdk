@@ -55,3 +55,21 @@ func TestEmptyKeysIsNoKeyring(t *testing.T) {
 		t.Fatalf("the error shows the key: %v", err)
 	}
 }
+
+func TestPlatformCredentialsFromConfig(t *testing.T) {
+	t.Parallel()
+	cfg := automationconfig.Config{Platform: automationconfig.PlatformConfig{Credentials: `{"openai":{"api_key":"sk-secret"}}`}}
+	creds, err := cfg.PlatformCredentials()
+	if err != nil {
+		t.Fatalf("PlatformCredentials: %v", err)
+	}
+	if creds["openai"].Credentials["api_key"] != "sk-secret" {
+		t.Fatalf("credentials %v", creds)
+	}
+	cfg.Platform.Credentials = `{"openai":{"api_key":42}}`
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("a non-string field is accepted")
+	} else if strings.Contains(err.Error(), "42") {
+		t.Fatalf("the error shows the value: %v", err)
+	}
+}

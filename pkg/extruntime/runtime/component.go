@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/configurator"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/originguard"
@@ -129,9 +130,21 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil && !composition.IsNotProvided(err) {
 			return nil, err
 		}
+		// Without Secrets in the configuration, the resolver a module provides
+		// (the automations module serves connection secrets) answers secrets.get.
+		cfg := c.cfg
+		if cfg.Secrets == nil {
+			secrets, err := composition.Resolve[host.SecretResolver](container)
+			switch {
+			case err == nil:
+				cfg.Secrets = secrets
+			case !composition.IsNotProvided(err):
+				return nil, err
+			}
+		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
-		return New(c.cfg, Deps{
+		return New(cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
 			NativeDeps: container, Dispatcher: outbox,
 			// Without the core, Go consumers contributed to the container are

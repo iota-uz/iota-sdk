@@ -1,0 +1,190 @@
+{
+  "Modules": {
+    "Automations": "Automações"
+  },
+  "NavigationLinks": {
+    "Integrations": "Integrações"
+  },
+  "Permissions": {
+    "Automations.Read": "Ver automações",
+    "Automations.Author": "Editar automações",
+    "Automations.Enable": "Ativar automações",
+    "Automations.Operate": "Operar execuções de automações",
+    "Connections.Manage": "Gerenciar integrações"
+  },
+  "PermissionSets": {
+    "Automations": {
+      "View": {
+        "Label": "Ver automações",
+        "_Description": "Abrir automações e suas execuções"
+      },
+      "Author": {
+        "Label": "Editar automações",
+        "_Description": "Criar e alterar grafos de automação e escolher conexões nos nós"
+      },
+      "Enable": {
+        "Label": "Ativar automações",
+        "_Description": "Ativar e desativar versões de automações"
+      },
+      "Operate": {
+        "Label": "Operar execuções",
+        "_Description": "Repetir e cancelar execuções de automações"
+      },
+      "ConnectionsManage": {
+        "Label": "Gerenciar integrações",
+        "_Description": "Conectar, verificar, desativar e excluir as contas da organização em serviços externos"
+      }
+    }
+  },
+  "Settings": {
+    "Hub": {
+      "Pages": {
+        "Integrations": {
+          "Name": "Integrações",
+          "Summary": "Conectar serviços externos usados pelas automações"
+        }
+      }
+    }
+  },
+  "Automations": {
+    "Integrations": {
+      "Title": "Integrações",
+      "Subtitle": "Contas em serviços externos com as quais suas automações trabalham.",
+      "NotConfigured": "Não é possível salvar conexões: o aplicativo não tem chave de criptografia configurada. Peça ao administrador do aplicativo para configurá-la.",
+      "Empty": {
+        "Title": "As integrações não estão configuradas neste aplicativo",
+        "Text": "As integrações aparecem aqui quando o aplicativo registra conectores."
+      },
+      "LoadFailed": "Não foi possível carregar as integrações.",
+      "Offline": "Sem conexão com o servidor.",
+      "Retry": "Tentar novamente",
+      "Auth": {
+        "api_key": "Chave de API",
+        "basic": "Login e senha",
+        "oauth2": "Entrar pelo serviço",
+        "custom": "Parâmetros de conexão"
+      },
+      "Status": {
+        "connected": "Conectado",
+        "needs_reauth": "Entrar novamente",
+        "error": "Erro",
+        "disabled": "Desativado"
+      },
+      "NoConnections": "Ainda não há conexões.",
+      "NodesUnlock": "Conecte uma conta para usar: {nodes}.",
+      "Connect": "Conectar",
+      "ConnectAnother": "Conectar outra conta",
+      "SignInAgain": "Entrar novamente",
+      "Actions": "Ações de {name}",
+      "Menu": {
+        "Test": "Verificar",
+        "Edit": "Editar",
+        "Disable": "Desativar",
+        "Enable": "Ativar",
+        "Delete": "Excluir"
+      },
+      "DeleteBlocked": "Em uso em automações: desative em vez de excluir.",
+      "Platform": {
+        "Label": "Chave da plataforma",
+        "Available": "Há uma chave da plataforma disponível",
+        "Use": "Usar a chave da plataforma",
+        "Override": "Uma conexão da sua organização tem prioridade sobre a chave da plataforma.",
+        "Unavailable": "A chave da plataforma não está configurada.",
+        "Enabled": "A chave da plataforma está ativada.",
+        "Disabled": "A chave da plataforma está desativada.",
+        "Failed": "Não foi possível alterar a chave da plataforma. {reason}"
+      },
+      "Form": {
+        "TitleNew": "Conectar {connector}",
+        "TitleEdit": "Editar {name}",
+        "DisplayName": "Nome",
+        "DisplayNameHint": "Como a equipe vê a conexão, por exemplo «Bot de vendas».",
+        "Name": "Nome do sistema",
+        "NameHint": "Letras latinas, dígitos e _; começa com uma letra. As automações se referem à conexão por ele.",
+        "SecretSet": "••••• definido",
+        "Replace": "Substituir",
+        "KeepSecret": "Manter o valor atual",
+        "Show": "Mostrar",
+        "Hide": "Ocultar",
+        "Save": "Salvar",
+        "Saving": "Verificando a conexão…",
+        "Cancel": "Cancelar",
+        "StillWaiting": "Ainda aguardando a resposta do serviço. Nada será salvo duas vezes.",
+        "TestFailed": "O serviço recusou a conexão: {message}",
+        "TestFailedHint": "Verifique os valores e salve novamente.",
+        "SignInWith": "Entrar com {connector}",
+        "Redirecting": "Abrindo {connector}…",
+        "OAuthHint": "Você será levado a {connector} para permitir o acesso e depois voltará aqui.",
+        "Required": "Preencha este campo.",
+        "Invalid": "Verifique este valor.",
+        "NameFormat": "Use letras latinas, dígitos e _, começando com uma letra (até 40).",
+        "NameTaken": "Este nome do sistema já é usado por outra conexão deste serviço.",
+        "VersionConflict": "Alguém alterou esta conexão. Feche o formulário e abra-o novamente.",
+        "Unavailable": "As conexões não estão configuradas neste aplicativo.",
+        "Failed": "Não foi possível salvar. Tente novamente em um minuto."
+      },
+      "Test": {
+        "Running": "Verificando…",
+        "Connected": "Conectado como {identity}",
+        "ConnectedPlain": "A conexão funciona",
+        "Failed": "A verificação falhou: {message}",
+        "Reauth": "O serviço pede para entrar novamente.",
+        "Error": "Não foi possível verificar a conexão. Tente novamente em um minuto."
+      },
+      "Toast": {
+        "Saved": "{name} conectado",
+        "Updated": "{name} salvo",
+        "Disabled": "{name} desativado",
+        "Enabled": "{name} ativado",
+        "Deleted": "{name} excluído",
+        "Undo": "Desfazer",
+        "Failed": "Não foi possível concluir a ação. Tente novamente em um minuto."
+      },
+      "OAuth": {
+        "Connected": "A conta foi conectada.",
+        "denied": "O acesso não foi concedido. Tente novamente e permita o acesso na página do serviço.",
+        "state": "O link de entrada expirou ou foi aberto por outro usuário. Comece a entrada novamente.",
+        "exchange": "O serviço não confirmou a entrada. Tente novamente em um minuto.",
+        "unavailable": "A entrada por este serviço não está configurada no aplicativo.",
+        "Close": "Fechar"
+      },
+      "Usage": {
+        "Title": "Onde {name} é usado",
+        "Empty": "Nenhuma automação usa esta conexão.",
+        "Version": "versão {version}",
+        "Enabled": "ativada",
+        "NotEnabled": "não ativada",
+        "Open": "Abrir",
+        "Node": "nó {node}",
+        "Close": "Fechar",
+        "LoadFailed": "Não foi possível carregar a lista."
+      },
+      "Delete": {
+        "Title": "Excluir {name}?",
+        "Text": "A conexão e as credenciais salvas serão excluídas. Isso não pode ser desfeito.",
+        "Nodes": "As automações não poderão mais usar: {nodes}.",
+        "Confirm": "Excluir conexão",
+        "Cancel": "Cancelar",
+        "InUseTitle": "{name} está em uso",
+        "InUseText": "Automações usam esta conexão, por isso ela não pode ser excluída. Desative-a: as automações deixam de usá-la até você ativá-la novamente.",
+        "DisableInstead": "Desativar",
+        "Close": "Fechar"
+      },
+      "Close": "Fechar",
+      "Categories": {
+        "Messaging": "Mensagens",
+        "Email": "E-mail",
+        "AI": "IA",
+        "Documents": "Documentos",
+        "Misc": "Outros"
+      },
+      "UsedBy": {
+        "Singular": "Usado em {count} automação",
+        "Paucal": "Usado em {count} automações",
+        "Multiple": "Usado em {count} automações",
+        "Plural": "Usado em {count} automações",
+        "None": "Não usado"
+      }
+    }
+  }
+}

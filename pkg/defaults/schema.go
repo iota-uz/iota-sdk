@@ -6,6 +6,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 
+	automationsPerms "github.com/iota-uz/iota-sdk/modules/automations/permissions"
+
 	billingPerms "github.com/iota-uz/iota-sdk/modules/billing/permissions"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	crmPerms "github.com/iota-uz/iota-sdk/modules/crm/permissions"
@@ -57,6 +59,7 @@ func (b *permissionSetBuilder) manageSet(resource string, create, read, update, 
 func AllPermissions() []permission.Permission {
 	// Pre-calculate total capacity to avoid slice re-allocations
 	totalCapacity := len(corePerms.Permissions) +
+		len(automationsPerms.Permissions) +
 		len(bichatPerms.Permissions) +
 		len(billingPerms.Permissions) +
 		len(crmPerms.Permissions) +
@@ -68,6 +71,7 @@ func AllPermissions() []permission.Permission {
 
 	permissions := make([]permission.Permission, 0, totalCapacity)
 	permissions = append(permissions, corePerms.Permissions...)
+	permissions = append(permissions, automationsPerms.Permissions...)
 	permissions = append(permissions, bichatPerms.Permissions...)
 	permissions = append(permissions, billingPerms.Permissions...)
 	permissions = append(permissions, crmPerms.Permissions...)
@@ -214,7 +218,29 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 		},
 	)
 
+	// Automations module
+	sets = append(sets, automationPermissionSets()...)
+
 	return sets
+}
+
+// automationPermissionSets are the sets of the automations module: every set includes reading, and
+// connection management stands on its own (an integrations administrator need not author graphs).
+func automationPermissionSets() []rbac.PermissionSet {
+	set := func(key, name string, perms ...permission.Permission) rbac.PermissionSet {
+		return rbac.PermissionSet{
+			Key: key, Label: "PermissionSets.Automations." + name + ".Label",
+			Description: "PermissionSets.Automations." + name + "._Description",
+			Module:      "Automations", Permissions: perms,
+		}
+	}
+	return []rbac.PermissionSet{
+		set("automations_view", "View", automationsPerms.AutomationsRead),
+		set("automations_author", "Author", automationsPerms.AutomationsRead, automationsPerms.AutomationsAuthor),
+		set("automations_enable", "Enable", automationsPerms.AutomationsRead, automationsPerms.AutomationsEnable),
+		set("automations_operate", "Operate", automationsPerms.AutomationsRead, automationsPerms.AutomationsOperate),
+		set("connections_manage", "ConnectionsManage", automationsPerms.ConnectionsManage),
+	}
 }
 
 // appendRemainingPermissionSets adds remaining modules as individual permission sets

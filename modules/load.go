@@ -2,6 +2,7 @@
 package modules
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/automations"
 	"github.com/iota-uz/iota-sdk/modules/billing"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -40,6 +41,7 @@ func Components() []composition.Component {
 		oidc.NewComponent(&oidc.ModuleOptions{}),
 		jobs.NewComponent(),
 		testkit.NewComponent(),
+		automations.NewComponent(),
 	}
 }
 
