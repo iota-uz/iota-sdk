@@ -148,9 +148,25 @@ type dryToken struct {
 	waiting bool
 	parked  bool // it forked: it waits for its join or its items
 	done    bool
+	// writes are the node outputs the token set since it was created (joins of its own branches
+	// included), in the order first set: what a join takes from an arrived branch.
+	writes  map[string]NodeState
+	order   []string
 	group   *dryGroup // the parallel or foreach it is a branch or an item of; nil: the main path
 	key     string    // its branch
 	index   int       // its item
+}
+
+// set writes a node's output in the token's context and records it among its writes.
+func (t *dryToken) set(id string, ns NodeState) {
+	t.ctx.Nodes[id] = ns
+	if t.writes == nil {
+		t.writes = map[string]NodeState{}
+	}
+	if _, ok := t.writes[id]; !ok {
+		t.order = append(t.order, id)
+	}
+	t.writes[id] = ns
 }
 
 // dryGroup is the tokens of one fork or one foreach.
@@ -292,7 +308,7 @@ func (d *dryRun) takeFailed(t *dryToken, node, message string) (string, bool) {
 		return "", false
 	}
 	out := map[string]any{"error": d.i.fitError(message)}
-	t.ctx.Nodes[node] = NodeState{Output: out}
+	t.set(node, NodeState{Output: out})
 	d.emit(t, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}})
 	return failedOutcome, true
 }
@@ -396,7 +412,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 				return
 			}
 			d.emit(t, TraceStep{Node: node.ID, Outcome: outcome, ContextPatch: dryPatch(step.Effects, output)})
-			t.ctx.Nodes[node.ID] = NodeState{Output: output}
+			t.set(node.ID, NodeState{Output: output})
 			t.from = node.ID
 			current, ok = i.Next(node.ID, outcome)
 			continue
@@ -424,7 +440,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 		}
 		d.emit(t, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: dryPatch(step.Effects, step.Output)})
 		if step.Output != nil {
-			t.ctx.Nodes[node.ID] = NodeState{Output: step.Output}
+			t.set(node.ID, NodeState{Output: step.Output})
 		}
 		t.from = node.ID
 		current, ok = i.Next(node.ID, step.Outcome)
@@ -577,12 +593,14 @@ func (d *dryRun) decideJoin(g *dryGroup) {
 	p := g.parent
 	for _, c := range g.tokens {
 		if _, ok := g.state.Arrived[c.key]; ok {
-			for id, ns := range c.ctx.Nodes {
-				p.ctx.Nodes[id] = ns
+			// Only what the branch wrote since the fork: its copy of the rest may be older than the
+			// parent's (a loop that forks again).
+			for _, id := range c.order {
+				p.set(id, c.writes[id])
 			}
 		}
 	}
-	p.ctx.Nodes[g.join] = NodeState{Output: st.Output}
+	p.set(g.join, NodeState{Output: st.Output})
 	d.emit(p, TraceStep{Node: g.join, Outcome: st.Outcome, ContextPatch: dryPatch(nil, st.Output)})
 	p.parked = false
 	d.dropTimer(nil)
@@ -603,7 +621,7 @@ func (d *dryRun) foreachDone(g *dryGroup) {
 		return
 	}
 	p := g.parent
-	p.ctx.Nodes[g.node] = NodeState{Output: st.Output}
+	p.set(g.node, NodeState{Output: st.Output})
 	d.emit(p, TraceStep{Node: g.node, Outcome: st.Outcome, ContextPatch: dryPatch(nil, st.Output)})
 	p.parked = false
 	d.advance(p, g.node, st.Outcome)
@@ -646,7 +664,7 @@ func (d *dryRun) timeout() {
 	t := next.token
 	w := t.at
 	outcome, output := d.i.Wake(w, nil)
-	t.ctx.Nodes[w] = NodeState{Output: output} // an earlier wake's event is not this timeout's output
+	t.set(w, NodeState{Output: output}) // an earlier wake's event is not this timeout's output
 	d.emit(t, TraceStep{Node: w, Outcome: outcome})
 	t.waiting = false
 	d.advance(t, w, outcome)
@@ -679,7 +697,7 @@ func (d *dryRun) event(ev Event) {
 			continue
 		}
 		outcome, output := d.i.Wake(w, ev)
-		t.ctx.Nodes[w] = NodeState{Output: output}
+		t.set(w, NodeState{Output: output})
 		d.emit(t, TraceStep{Node: w, Outcome: outcome, ContextPatch: map[string]any{"output": output}})
 		t.waiting = false
 		d.dropTimer(nil)

@@ -602,17 +602,21 @@ func (i *Interpreter) Join(joinID, token string, st JoinState) Step {
 			cancel = append(cancel, BranchToken(token, of, b))
 		}
 	}
-	output := map[string]any{"branches": result}
-	if big := i.tooLarge(output, "the output of "+joinID); big != nil && (arrived >= need || st.TimedOut || arrived+open < need) {
-		big.Cancel = cancel
-		return *big
+	// The outcome first: only an output the join returns is built and held to MaxValueBytes.
+	take := func(outcome string) Step {
+		output := map[string]any{"branches": result}
+		if big := i.tooLarge(output, "the output of "+joinID); big != nil {
+			big.Cancel = cancel
+			return *big
+		}
+		return Step{Kind: StepOutcome, Outcome: outcome, Output: output, Cancel: cancel}
 	}
 	switch {
 	case arrived >= need:
-		return Step{Kind: StepOutcome, Outcome: OutcomeJoined, Output: output, Cancel: cancel}
+		return take(OutcomeJoined)
 	case st.TimedOut || arrived+open < need:
 		if _, connected := i.Next(joinID, OutcomeTimeout); connected && params["timeout"] != nil {
-			return Step{Kind: StepOutcome, Outcome: OutcomeTimeout, Output: output, Cancel: cancel}
+			return take(OutcomeTimeout)
 		}
 		s := failed(FailJoinIncomplete, "%s waits for %d branches of %s; %d arrived and %d may still", joinID, need, of, arrived, open)
 		s.Cancel = cancel

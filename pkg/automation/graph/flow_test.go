@@ -477,3 +477,44 @@ func TestFlowReviewRoundTwo(t *testing.T) {
 		t.Fatalf("foreach results over the limit: %+v", st)
 	}
 }
+
+// Review round 3 of #1366: a join takes only what its arrived branches wrote since the fork, so a loop
+// that forks again reads the new outputs; an impossible join is JOIN_INCOMPLETE whatever its would-be
+// output's size.
+func TestFlowReviewRoundThree(t *testing.T) {
+	c := flowCatalog(t)
+	loop := flowGraph(t, `{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "wa", "type": "wait", "params": {"event": "pull_request.opened"}},
+		{"id": "wb", "type": "wait", "params": {"event": "manual"}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "all"}},
+		{"id": "check", "type": "branch", "params": {"expression": "nodes.wa.output.event.number == 2"}}`,
+		strings.Join([]string{edge("labeled", "fired", "split"), edge("split", "a", "wa"), edge("split", "b", "wb"),
+			edge("wa", "matched", "j"), edge("wb", "matched", "j"), edge("j", "joined", "check"),
+			edge("check", "true", "ignore"), edge("check", "false", "split")}, ","))
+	pr := func(n int) graph.DryRunInput {
+		return graph.DryRunInput{Event: graph.Event{"kind": "pull_request.opened", "number": n, "repository": "a"}}
+	}
+	manual := graph.DryRunInput{Event: graph.Event{"kind": "manual", "actor": map[string]any{"kind": "person"}}}
+	trace := dryRun(t, c, loop, graph.Options{}, nil, pr(1), manual, pr(2), manual)
+	var checks []string
+	for _, s := range trace {
+		if s.Node == "check" {
+			checks = append(checks, s.Outcome)
+		}
+	}
+	if !reflect.DeepEqual(checks, []string{"false", "true"}) || trace[len(trace)-1].Node != graph.Ignore {
+		t.Fatalf("the second round reads its own outputs: checks %v\n%+v", checks, trace)
+	}
+
+	in, err := graph.NewInterpreter(c, joinGraph(t, "all", ""), graph.Options{Limits: graph.Limits{MaxValueBytes: 128}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := in.Join("j", "", graph.JoinState{
+		Arrived: map[string]graph.Arrival{"a": {Of: "split", Token: "split.a", Value: map[string]any{"text": strings.Repeat("x", 60)}}},
+		Gone:    map[string]bool{"b": true},
+	})
+	if st.Kind != graph.StepFailed || st.Code != graph.FailJoinIncomplete || !reflect.DeepEqual(st.Cancel, []string{"split.c"}) {
+		t.Fatalf("an impossible join: %+v", st)
+	}
+}
