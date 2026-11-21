@@ -292,6 +292,26 @@ The Code node lets an author write a TypeScript function that runs in the kafig 
 - Before a graph that contains a Code node is enabled, a human sees its code and the
   names of the secrets it can reach (never their values). Enabling is a human-only action (§8).
 
+The sandbox is `pkg/automation/code` (#1329):
+
+- `Compiler` transpiles with esbuild (ES2020 IIFE, types stripped, never checked); any
+  static `import`/`require` is a compile error with its position; the source is at most
+  100 000 characters.
+- `Engine` compiles the kafig runtime once per process and gives every run a fresh
+  instance: a wasm page cap (default 2048 pages, 128 MiB) is the hard memory limit, the
+  context deadline (default 30 s, at most 5 min, closing the instance when it passes) is
+  the hard time limit. Concurrent runs are bounded by a memory budget
+  (`budget / (4 × cap)`) and per tenant.
+- The Go router of host calls is the trust boundary: `fetch`, `log`, `uuid`, `digest` and
+  the one-time result are the only calls, and each parameter is checked in Go.
+- `NewGuardedFetcher` is the network policy: https on port 443, no local or metadata
+  names, a name with any private DNS answer is refused as a whole, the dialed address is
+  checked again, at most 20 redirects each checked the same way, credentials dropped once
+  a redirect leaves the origin, no proxy, the body capped after decoding.
+- Output, logs, error messages and stacks are masked (`Masker`: exact, JSON-escaped and
+  URL-encoded forms) before they leave the package. Stacks are mapped to the source.
+- `Declarations` writes the `.d.ts` that types `ctx` and `env` in the editor.
+
 **Open item:** type checking of TypeScript in the editor was a proposal before this ADR. It is not decided here and remains open.
 
 ## 10. Phases and the notification replacement

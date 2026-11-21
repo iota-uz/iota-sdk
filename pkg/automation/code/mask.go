@@ -62,21 +62,25 @@ func NewMasker(secrets map[string]string) Masker {
 // JSON.stringify escape), URL-encoded (query, path and encodeURIComponent).
 func secretForms(v string) []string {
 	forms := []string{v, url.QueryEscape(v), url.PathEscape(v), encodeURIComponent(v)}
-	for _, html := range []bool{true, false} {
-		var b bytes.Buffer
-		enc := json.NewEncoder(&b)
-		enc.SetEscapeHTML(html)
-		if enc.Encode(v) == nil {
-			s := strings.TrimSuffix(b.String(), "\n")
-			forms = append(forms, strings.TrimSuffix(strings.TrimPrefix(s, `"`), `"`))
-		}
-	}
-	forms = append(forms, jsJSONEscape(v))
-	// A JSON string inside a JSON string (output that embeds serialized JSON) escapes the escapes.
-	if inner := jsJSONEscape(v); inner != v {
-		forms = append(forms, jsJSONEscape(inner))
+	// JSON-escaped, and escaped twice for output that embeds serialized JSON.
+	for _, once := range jsonEscapes(v) {
+		forms = append(forms, once)
+		forms = append(forms, jsonEscapes(once)...)
 	}
 	return forms
+}
+
+// jsonEscapes are the bodies of v as a JSON string: as JSON.stringify writes it and as Go writes it with
+// HTML escaping.
+func jsonEscapes(v string) []string {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(true)
+	if err := enc.Encode(v); err != nil {
+		return []string{jsJSONEscape(v)}
+	}
+	html := strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(b.String(), `"`), "\n"), `"`)
+	return []string{jsJSONEscape(v), html}
 }
 
 // jsJSONEscape is the body of JSON.stringify(v) without the quotes: only ", \ and control characters are
@@ -239,6 +243,8 @@ func quoteJSON(s string) json.RawMessage {
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)
-	_ = enc.Encode(s)
+	if err := enc.Encode(s); err != nil {
+		return json.RawMessage(`""`)
+	}
 	return bytes.TrimSuffix(b.Bytes(), []byte("\n"))
 }

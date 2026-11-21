@@ -205,7 +205,10 @@ func TestEnvCrypto(t *testing.T) {
 	if res.Err != nil {
 		t.Fatal(res.Err)
 	}
-	var out struct{ UUID, Sha string }
+	var out struct {
+		UUID string `json:"uuid"`
+		Sha  string `json:"sha"`
+	}
 	if err := json.Unmarshal(res.Output, &out); err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +255,7 @@ func TestTenantConcurrencyIsBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer eng.Close(context.Background())
+	defer func() { _ = eng.Close(context.Background()) }()
 	c := mustCompile(t, LangJS, `export default async () => { const end = Date.now() + 150; while (Date.now() < end) {} return { outcome: "done" } }`)
 	var wg sync.WaitGroup
 	start := time.Now()

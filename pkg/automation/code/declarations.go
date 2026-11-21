@@ -73,7 +73,7 @@ func Declarations(scope expr.Scope, outcomes []string, secrets []string) string 
 
 func literalUnion(values []string) string {
 	seen := map[string]bool{}
-	var parts []string
+	parts := make([]string, 0, len(values))
 	for _, v := range values {
 		if seen[v] {
 			continue
@@ -114,6 +114,8 @@ func tsType(f expr.Field, indent string) string {
 		return "number"
 	case expr.Bool:
 		return "boolean"
+	case expr.Dyn:
+		return "any"
 	case expr.Enum:
 		return literalUnion(f.Enum)
 	case expr.List:

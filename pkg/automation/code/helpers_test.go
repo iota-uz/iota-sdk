@@ -10,60 +10,60 @@ import (
 var (
 	sharedOnce   sync.Once
 	sharedEngine Engine
-	sharedErr    error
+	errShared    error
 )
 
 // testEngine is one engine for the package's tests, as in production: one runtime, fresh instances.
-func testEngine(t testing.TB) Engine {
-	t.Helper()
+func testEngine(tb testing.TB) Engine {
+	tb.Helper()
 	sharedOnce.Do(func() {
-		sharedEngine, sharedErr = NewEngine(context.Background(), WithMaxConcurrent(16), WithTenantConcurrency(16))
+		sharedEngine, errShared = NewEngine(context.Background(), WithMaxConcurrent(16), WithTenantConcurrency(16))
 	})
-	if sharedErr != nil {
-		t.Fatalf("NewEngine: %v", sharedErr)
+	if errShared != nil {
+		tb.Fatalf("NewEngine: %v", errShared)
 	}
 	return sharedEngine
 }
 
-func mustCompile(t testing.TB, lang Lang, code string) *Compiled {
-	t.Helper()
+func mustCompile(tb testing.TB, lang Lang, code string) *Compiled {
+	tb.Helper()
 	c, err := NewCompiler().Compile(context.Background(), Source{Code: code, Lang: lang})
 	if err != nil {
-		t.Fatalf("Compile: %v", err)
+		tb.Fatalf("Compile: %v", err)
 	}
 	return c
 }
 
 // runCode compiles and runs code (TypeScript) with in; Outcomes default to ["done"].
-func runCode(t testing.TB, code string, in RunInput) *RunResult {
-	t.Helper()
+func runCode(tb testing.TB, code string, in RunInput) *RunResult {
+	tb.Helper()
 	if in.Outcomes == nil {
 		in.Outcomes = []string{"done"}
 	}
-	res, err := testEngine(t).Run(context.Background(), mustCompile(t, LangTS, code), in)
+	res, err := testEngine(tb).Run(context.Background(), mustCompile(tb, LangTS, code), in)
 	if err != nil {
-		t.Fatalf("Run: %v", err)
+		tb.Fatalf("Run: %v", err)
 	}
 	return res
 }
 
-func wantReason(t testing.TB, res *RunResult, want FailureReason) {
-	t.Helper()
+func wantReason(tb testing.TB, res *RunResult, want FailureReason) {
+	tb.Helper()
 	if res.Err == nil {
-		t.Fatalf("want %s, got outcome %q output %s", want, res.Outcome, res.Output)
+		tb.Fatalf("want %s, got outcome %q output %s", want, res.Outcome, res.Output)
 	}
 	if res.Err.Reason != want {
-		t.Fatalf("want %s, got %s: %s\n%s", want, res.Err.Reason, res.Err.Message, res.Err.Stack)
+		tb.Fatalf("want %s, got %s: %s\n%s", want, res.Err.Reason, res.Err.Message, res.Err.Stack)
 	}
 	if res.Outcome != OutcomeFailed {
-		t.Fatalf("failed run has outcome %q", res.Outcome)
+		tb.Fatalf("failed run has outcome %q", res.Outcome)
 	}
 }
 
 // within fails when a run took longer than its deadline plus the 50 ms the sandbox may overshoot.
-func within(t testing.TB, took, deadline time.Duration) {
-	t.Helper()
+func within(tb testing.TB, took, deadline time.Duration) {
+	tb.Helper()
 	if took > deadline+50*time.Millisecond {
-		t.Fatalf("took %s, deadline %s", took, deadline)
+		tb.Fatalf("took %s, deadline %s", took, deadline)
 	}
 }

@@ -223,7 +223,8 @@ func (s *runState) fetch(ctx context.Context, params json.RawMessage) (json.RawM
 }
 
 // parseFetch validates the parameters of a fetch host call; msg explains a refusal.
-func parseFetch(params json.RawMessage) (req FetchRequest, msg string) {
+func parseFetch(params json.RawMessage) (FetchRequest, string) {
+	var req FetchRequest
 	var p struct {
 		URL      string            `json:"url"`
 		Method   string            `json:"method"`

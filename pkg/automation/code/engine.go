@@ -2,7 +2,9 @@ package code
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,15 +17,23 @@ import (
 	"sync/atomic"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	kafig "github.com/iota-uz/kafig/kafig-go"
 	"github.com/tetratelabs/wazero"
 	"golang.org/x/sync/semaphore"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 //go:embed driver.js
 var driverJS string
+
+// driverLines is how many lines the driver takes in front of a script in the program a run evaluates.
+var driverLines = strings.Count(driverJS, "\n")
+
+// bytecodeCacheSize is how many compiled programs (driver + script) the engine keeps.
+const bytecodeCacheSize = 256
 
 // Engine defaults.
 const (
@@ -113,6 +123,11 @@ type engine struct {
 
 	mu      sync.Mutex
 	tenants map[string]*tenantSlot
+
+	// bytecode keeps the QuickJS bytecode of programs this runtime compiled from source, by sha256 of the
+	// program; kafig seals it so no other bytecode is ever evaluated.
+	bytecode *lru.Cache[string, []byte]
+	compiles singleflight.Group
 }
 
 type tenantSlot struct {
@@ -141,7 +156,6 @@ func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 
 	var cache wazero.CompilationCache
 	rtOpts := []kafig.RuntimeOption{
-		kafig.WithPrelude(driverJS),
 		kafig.WithWASMMemoryLimitPages(o.pages),
 		kafig.WithCloseOnContextDone(o.closeOnCtxDn),
 		kafig.WithLogger(o.logger),
@@ -161,7 +175,13 @@ func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 		}
 		return nil, serrors.Wrap(op, err)
 	}
+	bytecode, err := lru.New[string, []byte](bytecodeCacheSize)
+	if err != nil {
+		_ = rt.Close(ctx)
+		return nil, serrors.Wrap(op, err)
+	}
 	return &engine{
+		bytecode:  bytecode,
 		rt:        rt,
 		cache:     cache,
 		jsHeap:    uint32(capBytes / 8 * 7),
@@ -288,16 +308,23 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		}
 		return nil, serrors.Wrap(op, err)
 	}
-	var src strings.Builder
-	src.Grow(len(script.Script) + len(ctxJSON) + len(secretsJSON) + 64)
-	src.WriteString(script.Script)
-	src.WriteString("\n;__codeRun(typeof __mod === \"undefined\" ? undefined : __mod,")
-	src.Write(quoteJSON(string(ctxJSON)))
-	src.WriteString(",")
-	src.Write(quoteJSON(string(secretsJSON)))
-	src.WriteString(");\n")
-
-	_, evalErr := inst.Eval(evalCtx, src.String(), kafig.WithAsync())
+	program := driverJS + script.Script
+	var evalErr error
+	if bc := e.compiled(evalCtx, program); bc != nil {
+		_, evalErr = inst.EvalCompiled(evalCtx, bc, kafig.WithAsync())
+	} else {
+		_, evalErr = inst.Eval(evalCtx, program, kafig.WithAsync())
+	}
+	if evalErr == nil {
+		var call strings.Builder
+		call.Grow(len(ctxJSON) + len(secretsJSON) + 64)
+		call.WriteString("__codeRun(typeof __mod === \"undefined\" ? undefined : __mod,")
+		call.Write(quoteJSON(string(ctxJSON)))
+		call.WriteString(",")
+		call.Write(quoteJSON(string(secretsJSON)))
+		call.WriteString(")")
+		_, evalErr = inst.Eval(evalCtx, call.String(), kafig.WithAsync())
+	}
 	_ = inst.Close(context.WithoutCancel(ctx))
 	duration := time.Since(start)
 
@@ -307,6 +334,28 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	}
 	res.Duration = duration
 	return res, nil
+}
+
+// compiled returns the sealed bytecode of a program, compiling it on first use; nil when it cannot be
+// compiled in time, and the program is then evaluated from source.
+func (e *engine) compiled(ctx context.Context, program string) []byte {
+	sum := sha256.Sum256([]byte(program))
+	key := hex.EncodeToString(sum[:])
+	if bc, ok := e.bytecode.Get(key); ok {
+		return bc
+	}
+	v, err, _ := e.compiles.Do(key, func() (any, error) {
+		bc, err := e.rt.Compile(ctx, program)
+		if err != nil {
+			return nil, err
+		}
+		e.bytecode.Add(key, bc)
+		return bc, nil
+	})
+	if err != nil {
+		return nil
+	}
+	return v.([]byte)
 }
 
 func normalizeCtx(raw json.RawMessage) ([]byte, error) {
@@ -329,7 +378,9 @@ func (e *engine) result(st *runState, script *Compiled, evalErr error, parent, r
 	st.mu.Lock()
 	logs := append([]string(nil), st.logs...)
 	st.mu.Unlock()
-	timedOut := errors.Is(runCtx.Err(), context.DeadlineExceeded)
+	dl, _ := runCtx.Deadline()
+	// The interrupt callback can stop the code a moment before the context's timer fires.
+	timedOut := errors.Is(runCtx.Err(), context.DeadlineExceeded) || !time.Now().Before(dl)
 	fail := func(err *RunError) (*RunResult, error) {
 		err.Message = st.masker.Mask(err.Message)
 		err.Stack = st.masker.Mask(err.Stack)
@@ -388,6 +439,8 @@ func (e *engine) result(st *runState, script *Compiled, evalErr error, parent, r
 			return fail(oomError())
 		case kafig.ErrorCodeStackOverflow:
 			return fail(&RunError{Reason: ReasonStackOverflow, Message: "maximum call stack size exceeded"})
+		case kafig.ErrorCodeCPULimitExceeded, kafig.ErrorCodeRuntimeError, kafig.ErrorCodeDeadlineExceeded, kafig.ErrorCodeCanceled:
+			// classified below, with the deadline
 		}
 	}
 	if timedOut {
@@ -440,7 +493,7 @@ func (e *engine) jsFailure(st *runState, script *Compiled, name, message, stack 
 	if sm != nil && sm.source != "" {
 		filename = sm.source
 	}
-	out.Stack, out.Line, out.Column = mapStack(stack, sm, filename, strings.Count(script.Script, "\n")+1)
+	out.Stack, out.Line, out.Column = mapStack(stack, sm, filename, driverLines, strings.Count(script.Script, "\n")+1)
 	return out
 }
 

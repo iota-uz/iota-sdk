@@ -81,7 +81,16 @@
     });
   };
 
+  // The stack of a fetch error is the stack of the call: after the await only the driver is on it.
+  const fail = (err, site) => {
+    try {
+      defineProperty(err, "stack", { value: site.stack, writable: true, configurable: true });
+    } catch (_) {}
+    return err;
+  };
+
   const fetch = async (url, init) => {
+    const site = new ErrorCtor();
     const req = { url: Str(url) };
     if (init !== undefined && init !== null) {
       if (init.method !== undefined) req.method = Str(init.method);
@@ -94,8 +103,8 @@
       if (init.redirect !== undefined) req.redirect = Str(init.redirect);
     }
     const r = await rpc("fetch", req);
-    if (r.blocked) throw new NetworkBlocked(Str(r.blocked));
-    if (r.error) throw new TypeErrorCtor("fetch failed: " + Str(r.error));
+    if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
+    if (r.error) throw fail(new TypeErrorCtor("fetch failed: " + Str(r.error)), site);
     return response(r);
   };
 

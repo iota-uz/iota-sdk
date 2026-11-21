@@ -100,26 +100,30 @@ func (sm *sourceMap) lookup(line, col int) (int, int, bool) {
 	return segs[i].line + 1, segs[i].col + 1, true
 }
 
-// evalFrame is a position in the evaluated script as QuickJS prints it in a stack.
-var evalFrame = regexp.MustCompile(`<eval>:(\d+):(\d+)`)
+// evalFrame is a position in the evaluated program as QuickJS prints it in a stack: <compile> for bytecode,
+// <eval> for source.
+var evalFrame = regexp.MustCompile(`<(?:eval|compile)>:(\d+):(\d+)`)
 
 // mapStack rewrites the positions of a QuickJS stack into source positions and drops the frames of the
-// driver and of the script's glue. It returns the stack and the innermost source position (0, 0 if none).
-func mapStack(stack string, sm *sourceMap, filename string, scriptLines int) (string, int, int) {
-	var out []string
+// driver and of the script's glue. The script occupies lines offset+1 … offset+scriptLines of the program.
+// It returns the stack and the innermost source position (0, 0 if none).
+func mapStack(stack string, sm *sourceMap, filename string, offset, scriptLines int) (string, int, int) {
+	frames := strings.Split(strings.TrimRight(stack, "\n"), "\n")
+	out := make([]string, 0, len(frames))
 	firstLine, firstCol := 0, 0
-	for _, frame := range strings.Split(strings.TrimRight(stack, "\n"), "\n") {
+	for _, frame := range frames {
 		if strings.TrimSpace(frame) == "" {
 			continue
 		}
 		m := evalFrame.FindStringSubmatchIndex(frame)
 		if m == nil {
-			continue // a frame of the driver (<compile>) or of a native function
+			continue // a native function
 		}
 		line, _ := strconv.Atoi(frame[m[2]:m[3]])
 		col, _ := strconv.Atoi(frame[m[4]:m[5]])
-		if line > scriptLines {
-			continue // the driver call appended after the script
+		line -= offset
+		if line < 1 || line > scriptLines {
+			continue // a frame of the driver
 		}
 		srcLine, srcCol, ok := sm.lookup(line, col)
 		if !ok {

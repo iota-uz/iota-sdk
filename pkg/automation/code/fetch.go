@@ -326,7 +326,7 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		}
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, f.maxBody+1))
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
