@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -140,6 +141,12 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtCreate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
+	if err := checkEntityTenant(ctx, "DebtService.Create", entity.TenantID()); err != nil {
+		return nil, err
+	}
 	if err := s.checkAccount(ctx, entity); err != nil {
 		return nil, err
 	}
@@ -159,22 +166,32 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		if err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: DebtCreated, Version: 1, Resource: DebtResource, ID: createdEntity.ID().String(),
 			After: debtSnapshot(createdEntity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishDebtCreated(txCtx, createdEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	createdEvent.Result = createdEntity
-	s.publisher.Publish(createdEvent)
+	if err := composables.AfterCommit(ctx, func() {
+		createdEvent.Result = createdEntity
+		s.publisher.Publish(createdEvent)
+	}); err != nil {
+		return nil, err
+	}
 	return createdEntity, nil
 }
 
 func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, error) {
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
+		return nil, err
+	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.GetByID(ctx, entity.ID())
@@ -215,8 +232,12 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 
-	updatedEvent.Result = updatedEntity
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() {
+		updatedEvent.Result = updatedEntity
+		s.publisher.Publish(updatedEvent)
+	}); err != nil {
+		return nil, err
+	}
 	return updatedEntity, nil
 }
 
@@ -224,9 +245,17 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -263,18 +292,20 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtSettled, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtSettled, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtSettled(txCtx, entity, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish debt settled event
-	settledEvent, err := debt.NewDebtSettledEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(settledEvent)
+	// The settlement is committed: a failure to announce it on the eventbus is
+	// logged, never returned, or a caller would retry a settlement that is saved.
+	s.publishAfterCommit(ctx, "DebtService.Settle", func() (any, error) {
+		return debt.NewDebtSettledEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -282,9 +313,17 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -300,18 +339,18 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtWrittenOff(txCtx, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Publish debt written off event
-	writtenOffEvent, err := debt.NewDebtWrittenOffEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(writtenOffEvent)
+	s.publishAfterCommit(ctx, "DebtService.WriteOff", func() (any, error) {
+		return debt.NewDebtWrittenOffEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -321,9 +360,17 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
+	if err := composables.CheckAfterCommit(ctx); err != nil {
+		return nil, err
+	}
 
 	var updatedEntity debt.Debt
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Read under the row lock: the balance a concurrent settlement left is the
+		// one this change starts from.
+		if err := s.repo.Lock(txCtx, debtID); err != nil {
+			return err
+		}
 		entity, err := s.repo.GetByID(txCtx, debtID)
 		if err != nil {
 			return err
@@ -340,17 +387,18 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 		if err != nil {
 			return err
 		}
-		return s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity)
+		if err := s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity); err != nil {
+			return err
+		}
+		return publishDebtCancelled(txCtx, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	cancelledEvent, err := debt.NewDebtCancelledEvent(ctx, updatedEntity)
-	if err != nil {
-		return nil, err
-	}
-	s.publisher.Publish(cancelledEvent)
+	s.publishAfterCommit(ctx, "DebtService.Cancel", func() (any, error) {
+		return debt.NewDebtCancelledEvent(ctx, updatedEntity)
+	})
 	return updatedEntity, nil
 }
 
@@ -384,6 +432,23 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+// publishAfterCommit announces a change on the eventbus once the transaction
+// that holds it has committed: inside a caller's transaction that is when the
+// caller commits, and a rollback announces nothing. The change is already
+// saved by then, so a failure to build the event is logged and does not change
+// the result of the call. The transaction's owner was checked before the change
+// (composables.CheckAfterCommit), so registering the callback cannot be refused.
+func (s *DebtService) publishAfterCommit(ctx context.Context, op string, build func() (any, error)) {
+	event, err := build()
+	if err != nil {
+		logrus.WithError(err).WithField("op", op).Error("building the event after commit failed")
+		return
+	}
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(event) }); err != nil {
+		logrus.WithError(err).WithField("op", op).Error("the event after commit was not registered")
+	}
 }
 
 func (s *DebtService) recordDebtChange(ctx context.Context, eventType string, before, after debt.Debt) error {

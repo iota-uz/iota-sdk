@@ -49,7 +49,7 @@ func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (cli
 func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 	var createdClient client.Client
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		created, err := s.create(txCtx, data)
+		created, err := s.createPublished(txCtx, data)
 		if err != nil {
 			return err
 		}
@@ -59,13 +59,28 @@ func (s *ClientService) Create(ctx context.Context, data client.Client) error {
 	if err != nil {
 		return err
 	}
-	createdEvent, err := client.NewCreatedEvent(ctx, data)
+	createdEvent, err := client.NewCreatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
 	createdEvent.Result = createdClient
-	s.publisher.Publish(createdEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return err
+	}
 	return nil
+}
+
+// createPublished creates the client and enqueues crm.client.created.v1 in the
+// same transaction.
+func (s *ClientService) createPublished(txCtx context.Context, data client.Client) (client.Client, error) {
+	created, err := s.create(txCtx, data)
+	if err != nil {
+		return nil, err
+	}
+	if err := publishClientChange(txCtx, nil, created); err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 func (s *ClientService) create(txCtx context.Context, data client.Client) (client.Client, error) {
@@ -85,6 +100,11 @@ func (s *ClientService) create(txCtx context.Context, data client.Client) (clien
 func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 	var updatedClient client.Client
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// The row is locked before the baseline of the diff is read: of two
+		// concurrent saves of one change only the first reports it.
+		if err := s.repo.LockByID(txCtx, data.ID()); err != nil {
+			return err
+		}
 		before, err := s.repo.GetByID(txCtx, data.ID())
 		if err != nil {
 			return err
@@ -94,26 +114,35 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 			return err
 		}
 		updatedClient = updated
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: ClientUpdated, Version: 1, Resource: ClientResource, ID: strconv.FormatUint(uint64(data.ID()), 10),
 			Before: clientSnapshot(before), After: clientSnapshot(updated),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishClientChange(txCtx, before, updated)
 	})
 	if err != nil {
 		return err
 	}
-	updatedEvent, err := client.NewUpdatedEvent(ctx, data)
+	updatedEvent, err := client.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
 	updatedEvent.Result = updatedClient
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
 	var entity client.Client
 	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Locked before it is read, so the deleted state is that of the row removed.
+		if err := s.repo.LockByID(txCtx, id); err != nil {
+			return err
+		}
 		var err error
 		entity, err = s.repo.GetByID(txCtx, id)
 		if err != nil {
@@ -122,20 +151,25 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 		if err := s.repo.Delete(txCtx, id); err != nil {
 			return err
 		}
-		return history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
+		if err := history.RecordMutation(txCtx, s.historyWriter, history.Mutation{
 			Type: ClientDeleted, Version: 1, Resource: ClientResource, ID: strconv.FormatUint(uint64(id), 10),
 			Before: clientSnapshot(entity),
-		})
+		}); err != nil {
+			return err
+		}
+		return publishClientDeleted(txCtx, entity)
 	})
 	if err != nil {
 		return nil, err
 	}
-	deletedEvent, err := client.NewDeletedEvent(ctx, entity)
+	deletedEvent, err := client.NewDeletedEvent(composables.WithoutTx(ctx), entity)
 	if err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = entity
-	s.publisher.Publish(deletedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return nil, err
+	}
 	return entity, nil
 }
 

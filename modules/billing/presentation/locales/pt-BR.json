@@ -1,0 +1,10 @@
+{
+  "Resources": {
+    "billing_transaction": "Transações de faturamento"
+  },
+  "Permissions": {
+    "BillingTransaction": {
+      "Read": "Visualizar transação de faturamento"
+    }
+  }
+}

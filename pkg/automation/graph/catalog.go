@@ -46,6 +46,7 @@ type SubjectSpec struct {
 type EventSpec struct {
 	Key           string
 	Title         string // localized by the caller
+	Description   string // localized by the caller; optional
 	Group         string
 	Subject       string // the entity the event is about; conversation and none are allowed
 	Payload       expr.Fields
@@ -82,6 +83,11 @@ const (
 	BehaviorEffect Behavior = "effect"
 	BehaviorCall   Behavior = "call"
 	BehaviorEnd    Behavior = "end"
+	// Flow behaviors: several tokens of one run (FlowBehaviors).
+	BehaviorParallel Behavior = "parallel"
+	BehaviorJoin     Behavior = "join"
+	BehaviorForeach  Behavior = "foreach"
+	BehaviorCollect  Behavior = "collect"
 )
 
 // NodeSpec is a node type of the catalog.
@@ -159,8 +165,8 @@ func (v ValueOrParam) Of(params map[string]any) string {
 // IsZero reports whether neither a value nor a param is set.
 func (v ValueOrParam) IsZero() bool { return v.Param == "" && v.Value == "" }
 
-// reservedVars are the variables every scope has; a subject's context may not declare them.
-var reservedVars = map[string]bool{"event": true, "nodes": true, "tenant": true, "now": true}
+// reservedVars are the variables every scope has (foreach: inside a foreach's body); a subject's context may not declare them.
+var reservedVars = map[string]bool{"event": true, "nodes": true, "tenant": true, "now": true, "foreach": true}
 
 // Check reports a catalog that cannot be used: an unknown behavior, a subject that does not exist, a
 // context variable that shadows event, nodes, tenant or now.
@@ -299,6 +305,7 @@ type subjectJSON struct {
 
 type eventJSON struct {
 	Title         string                `json:"title"`
+	Description   string                `json:"description"`
 	Group         string                `json:"group"`
 	Subject       string                `json:"subject"`
 	Payload       expr.Fields           `json:"payload"`
@@ -372,7 +379,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 	for _, key := range events {
 		e := cj.Events[key]
 		spec := EventSpec{
-			Key: key, Title: e.Title, Group: e.Group, Subject: e.Subject, Payload: e.Payload,
+			Key: key, Title: e.Title, Description: e.Description, Group: e.Group, Subject: e.Subject, Payload: e.Payload,
 			Match: e.Match, NoTrigger: e.NoTrigger, MatchHook: e.MatchHook,
 		}
 		if spec.Title == "" {
@@ -402,6 +409,18 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			continue
 		case n.Behavior == BehaviorWait && n.Params == nil && n.ParamsSchema == nil:
 			c.Nodes[typ] = withType(waitNode(on, events), typ)
+			continue
+		case isFlowBehavior(n.Behavior):
+			// parallel, join, foreach and collect take the built-in params and outputs: the interpreter
+			// reads them, so a catalog cannot change them.
+			spec := withType(flowNode(n.Behavior, on), typ)
+			if n.Title != "" {
+				spec.Title = n.Title
+			}
+			if n.Description != "" {
+				spec.Description = n.Description
+			}
+			c.Nodes[typ] = spec
 			continue
 		}
 		spec := NodeSpec{

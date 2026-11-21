@@ -1,1 +1,10 @@
-{}
+{
+  "Resources": {
+    "billing_transaction": "计费交易"
+  },
+  "Permissions": {
+    "BillingTransaction": {
+      "Read": "查看计费交易"
+    }
+  }
+}

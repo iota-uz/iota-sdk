@@ -86,14 +86,34 @@ persisted notifications intact; Pub/Sub has no replay. The UI recovers on
 reconnect or reload. Existing broad realtime handlers also check tenant and read
 permissions before sending authenticated fragments.
 
-The built-in user-created handler has a five-second enqueue deadline. Inside a
-caller-owned transaction it uses a savepoint, so an enqueue failure is logged
-without aborting user creation. There is no durable domain-event outbox: a crash
-between business commit and enqueue can lose an event. Producers requiring that
-guarantee must enqueue in their business transaction or use an application outbox
-and retry a stable identity. Queue durability starts once the job commits.
+Notifications of business events are delivered from the transactional outbox.
+`core.user.created.v1` is published in the transaction that creates the user;
+the outbox consumer `notifications` (`services.NewNotificationOutboxBridge`)
+enqueues the notification in the transaction of the event's delivery, with the
+delivery receipt. A rolled back creation leaves neither the user nor the
+notification, a crash right after the commit only delays it, and a redelivery
+of the same outbox row (the notification ID is the outbox row ID) queues no
+second notice. The initiator of the event is historical attribution: an
+initiator deleted before the delivery is left out of the `actor` recipient and
+the rule's other recipients are still notified.
 
-Monitor `failed to persist user-created notifications`,
+The outbox dispatcher belongs to the component that declares it serves the
+outbox (`events.DispatcherOwner`): `pkg/extruntime/wiring`, or the extension
+runtime composed directly, with its own settings. A composition without either
+(`modules.Components()` alone) gets core's private fallback dispatcher, started
+with the API or worker capability unless `DisableNotificationWorker` or
+`DisableOutboxDispatcher` is set; a process always runs one dispatcher.
+
+Upgrading from the eventbus handler: the bridge enqueues user-created
+notifications under the handler's identity `user-created:<user ID>`
+(`notifications.WithDedupeKey`), so a retained outbox row the handler already
+notified is a no-op, a creation it missed is notified, and a replica still
+running the handler during a rolling upgrade adds nothing, whichever enqueues
+first. Jobs the handler queued (Data without payload) still deliver when
+processed (`notifications.WithLegacyEvents`); a new Data-only submission is
+refused.
+
+Monitor failed and dead `notifications` receipts in `extruntime.subscription_receipts`,
 `notification delivery batch failed; durable retry scheduled`, and realtime
 publication/subscription logs. Settings show a single delivery status line:
 everything is being delivered, or how many jobs are retrying with a retry action
@@ -177,6 +197,34 @@ realtime dropdown/history, read persistence, membership removal and disabling.
 Telegram, administrator-authored expressions/templates,
 quiet hours, per-user preferences, retention jobs and durable domain-event replay
 remain outside these notification tasks.
+
+## Event-backed definitions
+
+A business event is declared once, as a `native.Event` with its key, localized
+`Label` and `Descriptions`, subject, `ReadPermission` and `Sensitive` payload
+fields. The notification definition is its projection for delivery, built with
+`notifications.FromEvent`:
+
+```go
+notifications.FromEvent(services.UserCreatedEvent,
+    notifications.WithModule("core"),
+    notifications.WithRequiredPermission(permissions.UserRead),
+    notifications.WithLevel(notification.LevelSuccess),
+    notifications.WithData(userCreatedData), // payload → Data for renderers and rules
+    notifications.WithRecipients(actor, createdUser),
+    notifications.WithRender(render),
+)
+```
+
+The event supplies `Key` (a different `Key` is a registration error), `Name`,
+`Description` (overridable with `WithName` / `WithDescription`), the payload
+fields and the check of `Event.Payload` against the event contract. Without
+`WithData` the payload is projected flat into `Data`: top-level camelCase keys
+become snake_case, values strings, nested values JSON. `WithDefaultRecipients`
+names the semantic recipients used while the tenant has no rule for the event;
+any saved rule, disabled included, replaces that default. Event-backed
+definitions are delivered by the outbox bridge; explicit notices (`tx.notify`,
+audience sends) stay a separate kind.
 
 ## Runtime definition sources
 

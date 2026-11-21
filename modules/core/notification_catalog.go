@@ -2,72 +2,112 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
-
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 )
 
-const UserCreatedNotificationEvent = "core.user.created.v1"
+// UserCreatedNotificationEvent is the key of the user-created notification:
+// the ID of the core.user.created.v1 event it is built from.
+const UserCreatedNotificationEvent = services.UserCreatedEventID
+
+// LegacyUserCreatedNotificationPrefix starts the ID of the user-created
+// notifications the removed eventbus handler queued ("user-created:<user ID>").
+const LegacyUserCreatedNotificationPrefix = "user-created:"
 
 func newCoreNotificationCatalog(extra []notifications.Definition) (*notifications.Catalog, error) {
 	catalog := notifications.NewCatalog()
-	definitions := append([]notifications.Definition{notifications.TestDefinition(), {
-		Module: "core",
-		Key:    UserCreatedNotificationEvent,
-		Name: map[string]string{
-			"en": "User created", "ru": "Создан пользователь", "uz": "Foydalanuvchi yaratildi",
-			"uz-Cyrl": "Фойдаланувчи яратилди", "pt-BR": "Usuário criado", "zh": "用户已创建",
-		},
-		Description: map[string]string{
-			"en":      "Notify selected users when a back-office account is created. Recipients need permission to read users.",
-			"ru":      "Уведомлять выбранных получателей о создании пользователя. Получателям нужно право просмотра пользователей.",
-			"uz":      "Hisob yaratilganda tanlangan oluvchilarni xabardor qilish. Oluvchilarda foydalanuvchilarni ko‘rish huquqi bo‘lishi kerak.",
-			"uz-Cyrl": "Ҳисоб яратилганда танланган олувчиларни хабардор қилиш. Олувчиларда фойдаланувчиларни кўриш ҳуқуқи бўлиши керак.",
-			"pt-BR":   "Notificar os destinatários quando uma conta é criada. Exige permissão para visualizar usuários.",
-			"zh":      "创建账户时通知选定的收件人。收件人需要查看用户的权限。",
-		},
-		RequiredPermission: permissions.UserRead,
-		DefaultLevel:       notification.LevelSuccess,
-		PayloadFields:      []notifications.PayloadField{{Key: "user_id", Required: true}, {Key: "name", Required: true}},
-		ValidatePayload: func(event notifications.Event) error {
-			id, err := strconv.ParseUint(event.Data["user_id"], 10, 32)
-			if err != nil || id == 0 {
-				return fmt.Errorf("invalid user-created user_id")
-			}
-			return nil
-		},
-		RecipientKeys: []notifications.RecipientDefinition{
-			{Key: "actor", Name: map[string]string{"en": "Event actor", "ru": "Инициатор события", "uz": "Voqea tashabbuskori", "uz-Cyrl": "Воқеа ташаббускори", "pt-BR": "Responsável pelo evento", "zh": "事件发起人"}, Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
-				if event.ActorUserID == 0 {
-					return nil, nil
-				}
-				return []uint{event.ActorUserID}, nil
-			}},
-			{Key: "created_user", Name: map[string]string{"en": "Created user", "ru": "Созданный пользователь", "uz": "Yaratilgan foydalanuvchi", "uz-Cyrl": "Яратилган фойдаланувчи", "pt-BR": "Usuário criado", "zh": "新建用户"}, Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
-				id, err := strconv.ParseUint(event.Data["user_id"], 10, 32)
-				if err != nil {
-					return nil, err
-				}
-				return []uint{uint(id)}, nil
-			}},
-		},
-		Render: func(event notifications.Event, language string) (notifications.Content, error) {
-			id, err := strconv.ParseUint(event.Data["user_id"], 10, 64)
-			if err != nil || id == 0 || event.Data["name"] == "" {
-				return notifications.Content{}, fmt.Errorf("invalid user-created notification payload")
-			}
-			titles := map[string]string{"en": "User created", "ru": "Создан пользователь", "uz": "Foydalanuvchi yaratildi", "uz-Cyrl": "Фойдаланувчи яратилди", "pt-BR": "Usuário criado", "zh": "用户已创建"}
-			return notifications.Content{Title: notifications.Localized(titles, language), Body: event.Data["name"], ActionURL: fmt.Sprintf("/users/%d", id)}, nil
-		},
-	}}, extra...)
+	definitions := append([]notifications.Definition{notifications.TestDefinition(), userCreatedNotification()}, coreEventNotifications()...)
+	definitions = append(definitions, extra...)
 	for _, definition := range definitions {
 		if err := catalog.Register(definition); err != nil {
 			return nil, err
 		}
 	}
 	return catalog, nil
+}
+
+// userCreatedNotification delivers core.user.created.v1 from the outbox
+// (services.NewNotificationOutboxBridge), in the transaction of the event's
+// delivery.
+func userCreatedNotification() notifications.Definition {
+	recipientName := func(en, ru, uz, uzCyrl, pt, zh string) map[string]string {
+		return map[string]string{"en": en, "ru": ru, "uz": uz, "uz-Cyrl": uzCyrl, "pt-BR": pt, "zh": zh}
+	}
+	return notifications.FromEvent(services.UserCreatedEvent,
+		notifications.WithModule("core"),
+		notifications.WithRequiredPermission(permissions.UserRead),
+		notifications.WithLevel(notification.LevelSuccess),
+		notifications.WithData(userCreatedData),
+		// The eventbus handler this definition replaced queued the notification
+		// as "user-created:<user ID>". The bridge uses the same identity, so a
+		// replica still running the handler during a rolling upgrade and the
+		// bridge enqueue one notification between them, whichever runs first,
+		// and a retained outbox row the handler already notified is a no-op.
+		notifications.WithDedupeKey(func(event notifications.Event) string {
+			return LegacyUserCreatedNotificationPrefix + event.Subject.ID
+		}),
+		// The jobs the handler queued carry user_id and name in Data and no
+		// payload; they still deliver when processed.
+		notifications.WithLegacyEvents(func(event notifications.Event) bool {
+			return strings.HasPrefix(event.ID, LegacyUserCreatedNotificationPrefix)
+		}),
+		notifications.WithPayloadFields(
+			notifications.PayloadField{Key: "user_id", Required: true},
+			notifications.PayloadField{Key: "name", Required: true},
+		),
+		notifications.WithRecipients(
+			notifications.RecipientDefinition{
+				Key:  "actor",
+				Name: recipientName("Event actor", "Инициатор события", "Voqea tashabbuskori", "Воқеа ташаббускори", "Responsável pelo evento", "事件发起人"),
+				Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
+					if event.ActorUserID == 0 {
+						return nil, nil
+					}
+					return []uint{event.ActorUserID}, nil
+				},
+			},
+			notifications.RecipientDefinition{
+				Key:  "created_user",
+				Name: recipientName("Created user", "Созданный пользователь", "Yaratilgan foydalanuvchi", "Яратилган фойдаланувчи", "Usuário criado", "新建用户"),
+				Resolve: func(_ context.Context, event notifications.Event) ([]uint, error) {
+					id, err := strconv.ParseUint(event.Data["user_id"], 10, 32)
+					if err != nil {
+						return nil, err
+					}
+					return []uint{uint(id)}, nil
+				},
+			},
+		),
+		notifications.WithRender(func(event notifications.Event, language string) (notifications.Content, error) {
+			id, err := strconv.ParseUint(event.Data["user_id"], 10, 64)
+			if err != nil || id == 0 || event.Data["name"] == "" {
+				return notifications.Content{}, fmt.Errorf("invalid user-created notification payload")
+			}
+			return notifications.Content{Title: notifications.Localized(services.UserCreatedEvent.Label(), language), Body: event.Data["name"], ActionURL: fmt.Sprintf("/users/%d", id)}, nil
+		}),
+	)
+}
+
+// userCreatedData keeps the Data the user-created rules and renderer read:
+// user_id and the display name (#ID for an account without a name).
+func userCreatedData(payload json.RawMessage) (map[string]string, error) {
+	var p services.UserCreatedPayload
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return nil, fmt.Errorf("decode %s payload: %w", services.UserCreatedEventID, err)
+	}
+	if p.UserID <= 0 || p.UserID > 1<<32-1 {
+		return nil, fmt.Errorf("invalid user-created user_id")
+	}
+	name := strings.TrimSpace(p.FirstName + " " + p.LastName)
+	if name == "" {
+		name = fmt.Sprintf("#%d", p.UserID)
+	}
+	return map[string]string{"user_id": strconv.FormatInt(p.UserID, 10), "name": name}, nil
 }

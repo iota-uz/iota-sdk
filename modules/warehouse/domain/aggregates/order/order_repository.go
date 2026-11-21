@@ -24,6 +24,9 @@ type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]Order, error)
 	GetByID(ctx context.Context, id uint) (Order, error)
+	// Lock takes the row lock of the order until the transaction ends, so a
+	// read-modify-write of it is serialized with concurrent ones.
+	Lock(ctx context.Context, id uint) error
 	Create(ctx context.Context, data Order) (Order, error)
 	Update(ctx context.Context, data Order) error
 	Delete(ctx context.Context, id uint) error

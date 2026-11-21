@@ -113,15 +113,16 @@ func BuiltinNodes(subjects []string, waitEvents []string) []NodeSpec {
 	}
 }
 
-// BuiltinsJSONSchema is the params schema of each built-in node type, by type; wait's event is any key.
+// BuiltinsJSONSchema is the params schema of each built-in node type (BuiltinNodes and FlowNodes), by
+// type; wait's event is any key.
 func BuiltinsJSONSchema() json.RawMessage {
 	wait := `{"type": "object", "properties": {
 		"event": {"type": "string", "minLength": 1, "description": "an event key of the catalog"},
 		"filter": ` + expressionSchema + `,
 		"timeout": ` + durationSchema + `
 	}, "required": ["event"], "additionalProperties": false}`
-	out := fmt.Sprintf(`{"branch": %s, "switch": %s, "wait": %s, "delay": %s, "end": %s}`,
-		branchSchema(), switchSchema(), wait, delaySchema(), endSchema())
+	out := fmt.Sprintf(`{"branch": %s, "switch": %s, "wait": %s, "delay": %s, "end": %s, "parallel": %s, "join": %s, "foreach": %s, "collect": %s}`,
+		branchSchema(), switchSchema(), wait, delaySchema(), endSchema(), parallelSchema(), joinSchema(), foreachSchema(), collectSchema())
 	var compact json.RawMessage
 	if err := json.Unmarshal([]byte(out), &compact); err != nil {
 		panic(err)

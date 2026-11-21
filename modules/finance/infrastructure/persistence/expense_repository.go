@@ -179,6 +179,7 @@ func (g *GormExpenseRepository) queryExpensesWithAttachments(ctx context.Context
 		// Create options including attachments if provided
 		opts := []expense.Option{
 			expense.WithID(data.domainExpense.ID()),
+			expense.WithTenantID(data.domainExpense.TenantID()),
 			expense.WithComment(data.domainExpense.Comment()),
 			expense.WithTransactionID(data.domainExpense.TransactionID()),
 			expense.WithAccountingPeriod(data.domainExpense.AccountingPeriod()),

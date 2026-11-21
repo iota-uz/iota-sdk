@@ -4,6 +4,8 @@ package billing
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+
 	billingdom "github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/providers"
@@ -61,6 +63,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.ProvideFuncAs[billingdom.Repository](builder, persistence.NewBillingRepository)
 	composition.ProvideFunc(builder, newBillingService)
 

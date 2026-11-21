@@ -841,6 +841,12 @@
         "_Description": "Full project stage management capabilities"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "View Billing Transactions",
+        "_Description": "View billing transaction information and its status events"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "View Products",

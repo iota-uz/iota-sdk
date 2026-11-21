@@ -61,7 +61,14 @@ var LocaleFiles embed.FS
 
 type ModuleOptions struct {
 	// DisableNotificationWorker leaves durable jobs for a dedicated worker process.
+	// It also keeps core's fallback outbox dispatcher stopped.
 	DisableNotificationWorker bool
+	// DisableOutboxDispatcher keeps core's fallback outbox dispatcher stopped,
+	// for example in a process that leaves event delivery to a dedicated
+	// worker. The fallback runs only in a composition where no component
+	// serves the outbox (events.DispatcherOwner: pkg/extruntime/wiring or the
+	// extension runtime); there this option has no effect.
+	DisableOutboxDispatcher bool
 	// NotificationChannels installs provider adapters for email, SMS and push.
 	// In-app delivery is always available. Without an adapter its channel cannot
 	// be selected on a rule.
@@ -234,6 +241,9 @@ func (c *component) Build(builder *composition.Builder) error {
 		return dispatch
 	})
 	composition.ProvideFunc(builder, services.NewNotificationDispatchWorker)
+	// Event-backed notification definitions (notifications.FromEvent) are
+	// delivered from the outbox, in the transaction of the event's delivery.
+	c.buildOutboxDelivery(builder)
 	composition.ContributeMiddleware(builder, func(container *composition.Container) ([]mux.MiddlewareFunc, error) {
 		service, err := composition.Resolve[*services.NotificationService](container)
 		if err != nil {
@@ -277,10 +287,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
-	composition.ProvideFunc(builder, handlers.NewNotificationHandler)
-	composition.ContributeEventHandlerFunc(builder, func(h *handlers.NotificationHandler) any {
-		return h.OnUserCreated
-	})
 	// Revoke active sessions whenever a user's password changes so that
 	// leaked credentials stop being honoured after a reset.
 	composition.ProvideFunc(builder, handlers.NewUserHandler)

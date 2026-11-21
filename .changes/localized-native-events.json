@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Native events declare localized descriptions, a read permission, sensitive payload fields and a category under one snake_case key grammar; notifications.FromEvent builds notification definitions from them, and core.user.created.v1 notifications are delivered from the transactional outbox instead of the eventbus."}

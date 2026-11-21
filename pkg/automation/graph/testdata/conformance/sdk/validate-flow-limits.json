@@ -1,0 +1,282 @@
+{
+  "name": "validate-flow-limits",
+  "format": 2,
+  "kind": "validate",
+  "description": "Limits: at most 20 branches, a concurrency of at most 20, max_items of at most 1000; each is code limit at its param.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join",
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "b0",
+            "b1",
+            "b2",
+            "b3",
+            "b4",
+            "b5",
+            "b6",
+            "b7",
+            "b8",
+            "b9",
+            "b10",
+            "b11",
+            "b12",
+            "b13",
+            "b14",
+            "b15",
+            "b16",
+            "b17",
+            "b18",
+            "b19",
+            "b20"
+          ]
+        }
+      },
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "issue.labels",
+          "concurrency": 21,
+          "max_items": 1001
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b0"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b1"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b2"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b3"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b4"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b5"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b6"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b7"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b8"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b9"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b10"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b11"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b12"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b13"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b14"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b15"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b16"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b17"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b18"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b19"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "b20"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[0].params.branches",
+      "code": "limit"
+    },
+    {
+      "path": "nodes[1].params.concurrency",
+      "code": "limit"
+    },
+    {
+      "path": "nodes[1].params.max_items",
+      "code": "limit"
+    }
+  ]
+}

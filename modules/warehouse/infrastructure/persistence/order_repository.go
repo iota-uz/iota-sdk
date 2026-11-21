@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence/mappers"
@@ -166,6 +168,26 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 		return nil, ErrOrderNotFound
 	}
 	return orders[0], nil
+}
+
+// Lock takes the row lock of the order until the transaction ends.
+func (g *GormOrderRepository) Lock(ctx context.Context, id uint) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	var locked uint
+	if err := tx.QueryRow(ctx, "SELECT id FROM warehouse_orders WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrOrderNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) (order.Order, error) {
@@ -429,13 +451,12 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		if err != nil {
 			return nil, err
 		}
+		// Hydration, not an addition: SetItems records no ItemAddedEvent.
+		items := make([]order.Item, 0, len(domainProducts))
 		for _, p := range domainProducts {
-			domainOrder, err = domainOrder.AddItem(p.Position(), p)
-			if err != nil {
-				return nil, err
-			}
+			items = append(items, order.NewItem(p.Position(), p))
 		}
-		orders[i] = domainOrder
+		orders[i] = domainOrder.SetItems(items)
 	}
 
 	if err := rows.Err(); err != nil {
