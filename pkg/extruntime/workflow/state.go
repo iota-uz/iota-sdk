@@ -595,6 +595,11 @@ func (e *Engine) finishSuspended(ctx context.Context, rs *runState) error {
 // finishTransient releases the lease after an infrastructure failure so the
 // instance is replayed after a backoff; repeated failures block it.
 func (e *Engine) finishTransient(ctx context.Context, rs *runState, cause error) error {
+	if ctx.Err() != nil {
+		// The engine is stopping (ctx is the scheduler's context): an error
+		// the shutdown caused is never counted against the instance.
+		return e.abandon(ctx, rs)
+	}
 	failures := rs.inst.Failures + 1
 	if failures >= e.cfg.MaxRunFailures {
 		return e.finishBlocked(ctx, rs, BlockFailing, fmt.Sprintf("%d consecutive runs failed; last: %v", failures, cause))

@@ -251,17 +251,18 @@ func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 		e.cfg.Logger.Info("extruntime: native workflow run abandoned", "instance", inst.ID, "reason", code)
 		return nil
 	}
+	if parent.Err() != nil {
+		// The engine is stopping. Whatever the run ended with (an aborted
+		// primitive whose database call the shutdown cut short, a block, a
+		// result) is not decided here: the lease is released without counting
+		// a failure, and the next process replays the run.
+		return e.abandon(parent, rs)
+	}
 	if b := rs.blockedInfo(); b != nil {
 		return e.finishBlocked(parent, rs, b.reason, b.detail)
 	}
 	if ab := rs.aborted(); ab != nil {
 		return e.finishTransient(parent, rs, ab)
-	}
-	if parent.Err() != nil {
-		// The engine is stopping: the run is not the instance's failure. Its
-		// lease is released without counting a failure, so the next process
-		// claims it at once.
-		return e.abandon(parent, rs)
 	}
 	if err := runCtx.Err(); err != nil {
 		// The run outlived its timeout: whatever the runner returned after

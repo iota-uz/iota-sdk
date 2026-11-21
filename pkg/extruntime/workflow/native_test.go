@@ -1494,3 +1494,60 @@ func TestNative_ShutdownDuringSubjectLoadDoesNotCountAsAFailure(t *testing.T) {
 	require.Equal(t, 1, n)
 	require.Equal(t, workflow.StatusCompleted, env.inst(eng, id).Status)
 }
+
+// An infrastructure failure that only wraps the cancellation of a stopping
+// engine (a primitive's database call cut short by shutdown) is not the
+// instance's failure: the run is released for the next process, not blocked.
+func TestNative_ShutdownInfrastructureErrorDoesNotBlock(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		call func(ctx context.Context, run workflow.NativeRun, entered chan<- struct{}) error
+	}{
+		{"effect", func(ctx context.Context, run workflow.NativeRun, entered chan<- struct{}) error {
+			_, err := run.Effect(ctx, "e", 0, func(ctx context.Context, _ workflow.EffectAttempt) (json.RawMessage, error) {
+				entered <- struct{}{}
+				<-ctx.Done()
+				return nil, &host.InfraError{Err: ctx.Err()}
+			})
+			return err
+		}},
+		{"transaction", func(ctx context.Context, run workflow.NativeRun, entered chan<- struct{}) error {
+			_, err := run.Transaction(ctx, "t", 0, func(ctx context.Context, _ pgx.Tx) (json.RawMessage, error) {
+				entered <- struct{}{}
+				<-ctx.Done()
+				return nil, &host.InfraError{Err: fmt.Errorf("query cut short: %w", ctx.Err())}
+			})
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newNativeEnv(t)
+			started := make(chan struct{}, 1)
+			runs := 0
+			runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+				if runs++; runs > 1 {
+					return json.RawMessage(`"retried"`), nil
+				}
+				// started is sent from inside the primitive's callback, so the
+				// engine stops while that database call is in flight.
+				return nil, tc.call(ctx, run, started)
+			})
+			eng := env.engine(map[string]workflow.NativeContract{"test.infra": {Runner: runner, Concurrency: 1}}, func(c *workflow.Config) { c.MaxRunFailures = 1 })
+			id := env.start(eng, "test.infra", "i1", `{}`)
+			eng.Serve(context.Background())
+			select {
+			case <-started:
+			case <-time.After(10 * time.Second):
+				require.FailNow(t, "the run did not start")
+			}
+			eng.Shutdown()
+			inst := env.inst(eng, id)
+			require.Equal(t, workflow.StatusRunning, inst.Status, "blocked: %s %s", inst.BlockedReason, inst.BlockedDetail)
+			require.Zero(t, inst.Failures)
+			n, err := eng.RunOnce(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, 1, n, "the instance is claimable at once")
+			require.JSONEq(t, `"retried"`, string(env.inst(eng, id).Result))
+		})
+	}
+}

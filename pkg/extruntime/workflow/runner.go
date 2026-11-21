@@ -372,6 +372,10 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 		e.cfg.Logger.Info("extruntime: workflow run abandoned", "instance", inst.ID, "reason", code)
 		return nil
 	}
+	if parent.Err() != nil {
+		// The engine is stopping: released for the next process, no failure.
+		return e.abandon(parent, rs)
+	}
 	if b := rs.blockedInfo(); b != nil {
 		return e.finishBlocked(parent, rs, b.reason, b.detail)
 	}
