@@ -1,0 +1,133 @@
+{
+  "name": "validate-foreach-item-scope",
+  "format": 2,
+  "kind": "validate",
+  "description": "foreach.<id> is read only inside that foreach's body (its collect and nested constructs included): after the foreach it is an expression_type error.",
+  "requires": [
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "issue.labels"
+        }
+      },
+      {
+        "id": "note",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "{{ foreach.each.item }}"
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each",
+          "value": "foreach.each.index"
+        }
+      },
+      {
+        "id": "after",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "{{ foreach.each.item }}"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "note"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "done"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "note",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "after"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "after",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "after",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[3].params.text",
+      "code": "expression_type"
+    }
+  ]
+}

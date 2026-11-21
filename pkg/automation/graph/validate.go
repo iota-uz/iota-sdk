@@ -13,6 +13,7 @@ const maxErrors = 100
 // buildView parses the params of every node and indexes the edges.
 func buildView(c Catalog, g Graph, o Options) *GraphView {
 	v := newView(c, g, o.behaviors())
+	v.limits = o.Limits
 	g = v.graph
 	for _, n := range g.Nodes {
 		spec, ok := v.catalog.Nodes[n.Type]
@@ -298,9 +299,19 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	for _, n := range g.Nodes {
 		order = append(order, n.ID)
 	}
+	inside := insideConstructs(v)
 	for _, id := range order {
+		failedOutcome := ""
+		if n, ok := v.Node(id); ok && inside[id] {
+			failedOutcome = c.Nodes[n.Type].FailedOutcome
+		}
 		for _, outcome := range v.Outcomes(id) {
-			if !connected[id][outcome] {
+			// Inside a branch or a foreach's body a failed outcome may have no edge: the token ends there,
+			// the branch does not arrive and the item is not ok.
+			if outcome == failedOutcome && failedOutcome != "" {
+				continue
+			}
+			if !connected[id][outcome] && !v.MayLeaveUnconnected(id, outcome) {
 				errs.add(v.where[id], CodeUnconnected, "outcome %s of %s is not connected (connect it, or to %s)", outcome, id, Ignore)
 			}
 		}
@@ -327,10 +338,12 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		// A built-in kind ends or suspends by what it is; a registered kind declares it: no outcomes ends a
 		// path, a WaitSpec suspends the run.
 		builtin := isBuiltinBehavior(spec.Behavior)
-		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || !builtin && outcomes != nil && len(outcomes) == 0 {
+		if outcomes := v.Outcomes(n.ID); spec.Behavior == BehaviorEnd || spec.Behavior == BehaviorCollect || !builtin && outcomes != nil && len(outcomes) == 0 {
 			ends[n.ID] = true
 		}
-		if spec.Behavior == BehaviorWait || !builtin && spec.Wait != nil {
+		// A call waits for its answer (ask, a script); a cycle through a foreach is cycle_through_foreach,
+		// its own error, so it is not reported twice.
+		if spec.Behavior == BehaviorWait || spec.Behavior == BehaviorCall || spec.Behavior == BehaviorForeach || !builtin && spec.Wait != nil {
 			waits[n.ID] = true
 		}
 	}
@@ -373,8 +386,14 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 
 	// CEL.
 	x := newExprs(v, o.Limits.Expr)
+	each := foreachScopes(v)
 	check := func(path, event string, withNodes bool, src string, want expr.Type) {
-		if _, issues := x.program(event, withNodes, src, want); len(issues) > 0 {
+		if _, issues := x.programIn(event, withNodes, each[""], src, want); len(issues) > 0 {
+			errs.push(exprError(path, issues[0]))
+		}
+	}
+	checkIn := func(node, path, event string, src string, want expr.Type) {
+		if _, issues := x.programIn(event, true, each[node], src, want); len(issues) > 0 {
 			errs.push(exprError(path, issues[0]))
 		}
 	}
@@ -397,17 +416,17 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		at := fmt.Sprintf("nodes[%d]", i)
 		for _, e := range nodeExpressions(c, spec, params) {
 			if e.template {
-				if _, issues := x.template(e.event, e.source); len(issues) > 0 {
+				if _, issues := x.templateIn(e.event, each[n.ID], e.source); len(issues) > 0 {
 					errs.push(exprError(at+"."+e.path, issues[0]))
 				}
 				continue
 			}
-			check(at+"."+e.path, e.event, true, e.source, e.want)
+			checkIn(n.ID, at+"."+e.path, e.event, e.source, e.want)
 		}
 		// A filter fixed by the node type reads the event it waits for.
 		if spec.Wait != nil && spec.Wait.Filter.Value != "" {
 			if kind := spec.Wait.Event.Of(params); kind != "" {
-				check(at+".type", kind, true, spec.Wait.Filter.Value, expr.TypeBool)
+				checkIn(n.ID, at+".type", kind, spec.Wait.Filter.Value, expr.TypeBool)
 			}
 		}
 	}
@@ -421,8 +440,16 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 }
 
 func isBuiltinBehavior(b Behavior) bool {
-	switch b {
+	switch b { //nolint:exhaustive // the other behaviors are flow behaviors or registered ones
 	case BehaviorBranch, BehaviorSwitch, BehaviorWait, BehaviorEffect, BehaviorCall, BehaviorEnd:
+		return true
+	}
+	return isFlowBehavior(b)
+}
+
+func isFlowBehavior(b Behavior) bool {
+	switch b { //nolint:exhaustive // only the four flow behaviors
+	case BehaviorParallel, BehaviorJoin, BehaviorForeach, BehaviorCollect:
 		return true
 	}
 	return false
