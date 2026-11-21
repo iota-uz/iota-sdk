@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -79,6 +80,18 @@ func TestUserService_Create_PublishesUserCreatedEventInTheCreatingTransaction(t 
 	_, err = userService.Create(ctx, user.New("Dup", "User", email, user.UILanguageEN, user.WithTenantID(tenantID)))
 	require.Error(t, err)
 	require.Len(t, userCreatedEvents(t, ctx, tenantID), before+1)
+
+	// A creation that rolls back takes its event with it.
+	tx, err := composables.UseTx(ctx)
+	require.NoError(t, err)
+	savepoint, err := tx.(pgx.Tx).Begin(ctx)
+	require.NoError(t, err)
+	spCtx := composables.WithTx(ctx, savepoint)
+	_, err = userService.Create(spCtx, user.New("Rolled", "Back", internet.MustParseEmail("event-rollback@example.com"), user.UILanguageEN, user.WithTenantID(tenantID)))
+	require.NoError(t, err)
+	require.Len(t, userCreatedEvents(t, spCtx, tenantID), before+2, "the event is in the creating transaction")
+	require.NoError(t, savepoint.Rollback(ctx))
+	require.Len(t, userCreatedEvents(t, ctx, tenantID), before+1, "rolling the creation back removes its event")
 }
 
 func TestUserCreatedEvent_IsInTheNativeCatalogWithAVersionedPayload(t *testing.T) {

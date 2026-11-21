@@ -17,6 +17,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
 // MaxPayloadBytes bounds the raw JSON payload of one event.
@@ -24,7 +26,8 @@ const MaxPayloadBytes = 64 * 1024
 
 const TestEventKey = "core.notification.test.v1"
 
-var eventKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+\.v[1-9][0-9]*$`)
+// eventKeyPattern is the key grammar shared with native events.
+var eventKeyPattern = regexp.MustCompile(native.EventKeyPattern)
 
 type SubjectReference struct {
 	Type string `json:"type"`
@@ -66,6 +69,24 @@ type RecipientDefinition struct {
 	Resolve func(context.Context, Event) ([]uint, error)
 }
 type Definition struct {
+	// Event is the business event the definition delivers (FromEvent). It
+	// sets Key, Name, Description, PayloadFields and the check of Payload
+	// against the event contract; Name and Description may be overridden.
+	// Nil for definitions that are not backed by an event.
+	Event EventRef
+	// Data projects the typed payload of an event-backed definition into
+	// Event.Data (WithData); nil uses FlatData.
+	Data func(payload json.RawMessage) (map[string]string, error)
+	// LegacyEvent accepts, in persisted dispatch jobs only, an event of an
+	// event-backed definition queued before the definition was built from its
+	// event (Data without Payload), so queued jobs still deliver after an
+	// upgrade (WithLegacyEvents).
+	LegacyEvent func(Event) bool
+	// DedupeKey derives the delivery identity the outbox bridge gives the
+	// events it enqueues (WithDedupeKey); nil keeps the outbox row ID.
+	DedupeKey func(Event) string
+	// contract is the payload type of Event, set at registration.
+	contract             *manifest.Type
 	ActionURL            func(Event) (string, error)
 	DefaultLevel         notification.Level
 	PayloadFields        []PayloadField
@@ -188,6 +209,12 @@ func (c *Catalog) Register(d Definition) error {
 
 // prepare validates a definition and fills defaults. The caller holds c.mu.
 func (c *Catalog) prepare(d Definition) (Definition, error) {
+	if d.Event != nil {
+		var err error
+		if d, err = prepareEvent(d); err != nil {
+			return Definition{}, err
+		}
+	}
 	if !eventKeyPattern.MatchString(d.Key) || d.Name["en"] == "" {
 		return Definition{}, fmt.Errorf("invalid notification definition")
 	}
@@ -300,7 +327,17 @@ func TestDefinition() Definition {
 		return Content{Title: Localized(names, language), Body: Localized(bodies, language), ActionURL: "/notifications"}, nil
 	}}
 }
-func (c *Catalog) Normalize(event Event) (Event, error) {
+
+// Normalize validates a new event and fills its envelope defaults. An event of
+// an event-backed definition needs the payload of its event.
+func (c *Catalog) Normalize(event Event) (Event, error) { return c.normalize(event, false) }
+
+// NormalizeStored is Normalize for the event of a persisted dispatch job: it
+// also admits the legacy events of the definition (WithLegacyEvents), queued
+// before the definition was built from its business event.
+func (c *Catalog) NormalizeStored(event Event) (Event, error) { return c.normalize(event, true) }
+
+func (c *Catalog) normalize(event Event, stored bool) (Event, error) {
 	d, ok := c.For(event)
 	if !ok {
 		return event, fmt.Errorf("unknown notification event")
@@ -332,6 +369,17 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 	if (event.Subject.Type == "") != (event.Subject.ID == "") {
 		return event, fmt.Errorf("invalid notification subject")
 	}
+	// For an event-backed definition the payload is authoritative: Data is
+	// always its projection, so the content and the rules never read values
+	// that differ from the validated payload. Only a legacy event of a
+	// persisted job (no payload) keeps the Data it was queued with.
+	if d.Event != nil && len(event.Payload) > 0 {
+		data, err := d.DataOf(event.Payload)
+		if err != nil {
+			return event, fmt.Errorf("project notification payload: %w", err)
+		}
+		event.Data = data
+	}
 	for _, field := range d.PayloadFields {
 		if field.Required && strings.TrimSpace(event.Data[field.Key]) == "" {
 			return event, fmt.Errorf("missing notification payload field: %s", field.Key)
@@ -345,6 +393,9 @@ func (c *Catalog) Normalize(event Event) (Event, error) {
 		if _, err := notification.New(1, "validation", "", notification.WithActionURL(action)); err != nil {
 			return event, err
 		}
+	}
+	if err := d.checkPayload(event, stored); err != nil {
+		return event, err
 	}
 	if d.ValidatePayload != nil {
 		if err := d.ValidatePayload(event); err != nil {

@@ -284,7 +284,7 @@ func TestReplacementBindingOfNativeCommand(t *testing.T) {
 	require.Equal(t, serrors.PermissionDenied, serrors.CodeOf(err))
 	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "noSuchExport")
 	require.Equal(t, serrors.Invalid, serrors.CodeOf(err), "only an export the version implements for that contract can be bound")
-	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.events.userCreated.v1", other, "1.0.0", "rejectIncoming")
+	_, err = e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.events.user_created.v1", other, "1.0.0", "rejectIncoming")
 	require.Equal(t, serrors.Invalid, serrors.CodeOf(err))
 	genBefore := e.cat.Generation()
 	b, err := e.svc.Bind(ctx, e.admin, manage.SlotCommand, "core.commands.rejectIncoming", other, "1.0.0", "rejectIncoming")
@@ -421,7 +421,7 @@ func TestForeignImplementationsAreValidatedAgainstTheCatalogAtPublish(t *testing
 	// a query implementation of a command, an event as a command, an unknown contract
 	require.Equal(t, []string{"contract.kindMismatch", "contract.kindMismatch", "contract.unknown"}, publishDiags("1.0.1", base(
 		manifest.Implementation{Export: "a", Implements: "core.commands.rejectIncoming", Kind: manifest.ImplQuery},
-		manifest.Implementation{Export: "b", Implements: "core.events.userCreated.v1", Kind: manifest.ImplCommand},
+		manifest.Implementation{Export: "b", Implements: "core.events.user_created.v1", Kind: manifest.ImplCommand},
 		manifest.Implementation{Export: "c", Implements: "core.commands.Nope", Kind: manifest.ImplCommand})))
 	// an own implementation must match its own contract
 	own := base(manifest.Implementation{Export: "o", Implements: other + ".dummy", Kind: manifest.ImplCommand})

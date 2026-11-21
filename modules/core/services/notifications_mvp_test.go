@@ -1,8 +1,13 @@
 package services_test
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
 
@@ -12,38 +17,88 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
-// A phone-only account has no name and must still produce its notification.
-// Falsely green if a name is supplied or the notification rule has no recipient.
-func TestNotificationsMVP_UserCreatedWithoutName(t *testing.T) {
+// outboxDispatcher is a dispatcher of one process: it delivers the committed
+// outbox events to the notification bridge only.
+func outboxDispatcher(t *testing.T, f *itf.TestEnvironment) *events.Dispatcher {
+	t.Helper()
+	router := itf.GetService[services.NotificationRoutingService](f)
+	dispatch := itf.GetService[services.NotificationDispatchService](f)
+	d, err := events.NewDispatcher(events.Config{
+		DB:        f.Pool,
+		Consumers: events.StaticConsumers(services.NewNotificationOutboxBridge(router.Catalog(), dispatch)),
+		Subjects: host.SubjectLoaderFunc(func(context.Context, uuid.UUID, int64, spi.SubjectKind) (spi.Subject, error) {
+			return spi.Subject{}, events.ErrNoSubject
+		}),
+	})
+	require.NoError(t, err)
+	return d
+}
+
+func deliveryCtx(f *itf.TestEnvironment) context.Context {
+	return itf.TestExecution(composables.WithPool(context.Background(), f.Pool))
+}
+
+// userCreatedRow reads the outbox envelope of the created user's event.
+func userCreatedRow(t *testing.T, f *itf.TestEnvironment, userID uint) events.Envelope {
+	t.Helper()
+	ev := events.Envelope{Event: services.UserCreatedEventID, TenantID: f.TenantID(), Subject: &spi.ObjectRef{}}
+	require.NoError(t, f.Pool.QueryRow(context.Background(), `
+		SELECT id::text, seq, subject_entity, subject_key, payload, initiator_user_id, occurred_at
+		FROM extruntime.outbox_events WHERE tenant_id = $1 AND event = $2 AND subject_key = $3`,
+		f.TenantID(), services.UserCreatedEventID, fmt.Sprint(userID)).
+		Scan(&ev.ID, &ev.Seq, &ev.Subject.Entity, &ev.Subject.Key, &ev.Payload, &ev.InitiatorUserID, &ev.OccurredAt))
+	return ev
+}
+
+func setupUserCreatedNotification(t *testing.T) (*itf.TestEnvironment, context.Context) {
+	t.Helper()
 	f := setupNotificationTest(t, permissions.UserCreate, permissions.UserRead)
 	for _, p := range []permission.Permission{permissions.UserCreate, permissions.UserRead} {
 		require.NoError(t, persistence.NewPermissionRepository().Save(f.Ctx, p))
 	}
-	actor, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(f.Ctx, user.New("Business", "Admin", internet.MustParseEmail("notification-admin@example.com"), user.UILanguageEN,
+	actor, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(f.Ctx, user.New("Business", "Admin", internet.MustParseEmail(uuid.NewString()+"@example.com"), user.UILanguageEN,
 		user.WithTenantID(f.TenantID()), user.WithPermissions([]permission.Permission{permissions.UserCreate, permissions.UserRead})))
 	require.NoError(t, err)
 	f.User = actor
+	// Delivery reads committed outbox rows, so the fixture is committed.
 	require.NoError(t, f.Tx.Commit(f.Ctx))
-	ctx := userCommittedCtx(f)
+	return f, userCommittedCtx(f)
+}
+
+// A phone-only account has no name and must still produce its notification.
+// Falsely green if a name is supplied or the notification rule has no recipient.
+func TestNotificationsMVP_UserCreatedWithoutName(t *testing.T) {
+	f, ctx := setupUserCreatedNotification(t)
 	router := itf.GetService[services.NotificationRoutingService](f)
 	inbox := itf.GetService[services.NotificationService](f)
 	dispatch := itf.GetService[services.NotificationDispatchService](f)
-	require.NoError(t, router.SaveRule(ctx, notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{actor.ID()}}))
+	require.NoError(t, router.SaveRule(ctx, notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{f.User.ID()}}))
 	created, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(ctx, user.New("", "", internet.MustParseEmail("phone-only@generated.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
 	require.NoError(t, err)
-	handlers.NewNotificationHandler(f.Pool, dispatch, logrus.New()).OnUserCreated(user.NewCreatedEvent(ctx, created))
+	actorID := int64(f.User.ID())
+	bridge := services.NewNotificationOutboxBridge(router.Catalog(), dispatch)
+	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+		tx, err := composables.UseTx(txCtx)
+		require.NoError(t, err)
+		return bridge.Deliver(txCtx, tx.(pgx.Tx), events.Envelope{
+			ID: uuid.NewString(), TenantID: f.TenantID(), Event: services.UserCreatedEventID, InitiatorUserID: &actorID,
+			Subject: &spi.ObjectRef{Entity: "core.user", Key: fmt.Sprint(created.ID())}, OccurredAt: time.Now(),
+			Payload: json.RawMessage(fmt.Sprintf(`{"userId":"%d","email":"phone-only@generated.com","firstName":"","lastName":"","userType":"user"}`, created.ID())),
+		})
+	}))
 	_, err = dispatch.Process(ctx)
 	require.NoError(t, err)
 	items, err := inbox.List(ctx, notification.FindParams{UnreadOnly: true})
@@ -53,25 +108,28 @@ func TestNotificationsMVP_UserCreatedWithoutName(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("/users/%d", created.ID()), items[0].ActionURL())
 }
 
+// The user-created notification is delivered from the outbox: it commits with
+// the delivery of the committed event, a rolled back creation leaves neither
+// a user nor a notification, a process that dies right after the commit loses
+// nothing and a redelivery of the same outbox row queues no second notice.
 func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
-	f := setupNotificationTest(t, permissions.UserCreate, permissions.UserRead)
-	for _, p := range []permission.Permission{permissions.UserCreate, permissions.UserRead} {
-		require.NoError(t, persistence.NewPermissionRepository().Save(f.Ctx, p))
-	}
-	actor, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(f.Ctx, user.New("Business", "Admin", internet.MustParseEmail("admin@example.com"), user.UILanguageEN,
-		user.WithTenantID(f.TenantID()), user.WithPermissions([]permission.Permission{permissions.UserCreate, permissions.UserRead})))
-	require.NoError(t, err)
-	f.User = actor
-	// The production event handler deliberately uses a fresh context after commit.
-	require.NoError(t, f.Tx.Commit(f.Ctx))
-	ctx := userCommittedCtx(f)
+	f, ctx := setupUserCreatedNotification(t)
 	router := itf.GetService[services.NotificationRoutingService](f)
 	inbox := itf.GetService[services.NotificationService](f)
 	dispatch := itf.GetService[services.NotificationDispatchService](f)
 	users := itf.GetService[services.UserService](f)
 	rule := notifications.Rule{EventKey: core.UserCreatedNotificationEvent, Enabled: true, UserIDs: []uint{f.User.ID()}}
 	require.NoError(t, router.SaveRule(ctx, rule))
+
+	// The process dies right after the commit: nothing was delivered yet.
 	created, err := users.Create(ctx, user.New("Business", "Trial", internet.MustParseEmail("trial@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	jobs, err := dispatch.Jobs(ctx)
+	require.NoError(t, err)
+	require.Empty(t, jobs, "the notification is not queued by the creating transaction")
+
+	// The next process delivers the committed event.
+	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))
 	require.NoError(t, err)
 	_, err = dispatch.Process(ctx)
 	require.NoError(t, err)
@@ -81,44 +139,59 @@ func TestNotificationsMVP_UserCreationToInbox(t *testing.T) {
 	require.Equal(t, core.UserCreatedNotificationEvent, items[0].EventKey())
 	require.Equal(t, "Business Trial", items[0].Body())
 	require.Equal(t, fmt.Sprintf("/users/%d", created.ID()), items[0].ActionURL())
+	jobs, err = dispatch.Jobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, jobs, 1)
 	require.NoError(t, inbox.MarkRead(ctx, items[0].ID()))
 	count, err := inbox.UnreadCount(ctx)
 	require.NoError(t, err)
 	require.Zero(t, count)
+
+	// A redelivery of the same outbox row queues no second notice.
+	row := userCreatedRow(t, f, created.ID())
+	bridge := services.NewNotificationOutboxBridge(router.Catalog(), dispatch)
+	for range 2 {
+		require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
+			tx, err := composables.UseTx(txCtx)
+			require.NoError(t, err)
+			return bridge.Deliver(txCtx, tx.(pgx.Tx), row)
+		}))
+	}
+	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))
+	require.NoError(t, err)
+	_, err = dispatch.Process(ctx)
+	require.NoError(t, err)
+	jobs, err = dispatch.Jobs(ctx)
+	require.NoError(t, err)
+	require.Len(t, jobs, 1, "a redelivered outbox row is the same notification")
+	items, err = inbox.List(ctx, notification.FindParams{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	// A rolled back creation leaves neither the user nor a notification.
 	tx, err := f.Pool.Begin(ctx)
 	require.NoError(t, err)
-	txCtx := composables.WithTx(ctx, tx)
-	_, err = users.Create(txCtx, user.New("Rolled", "Back", internet.MustParseEmail("rollback@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	_, err = users.Create(composables.WithTx(ctx, tx), user.New("Rolled", "Back", internet.MustParseEmail("rollback@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
 	require.NoError(t, err)
-	inside, err := inbox.List(txCtx, notification.FindParams{})
-	require.NoError(t, err)
-	require.Len(t, inside, 1)
-	jobs, err := dispatch.Jobs(txCtx)
-	require.NoError(t, err)
-	require.Len(t, jobs, 2, "caller transaction contains the notification intent")
 	require.NoError(t, tx.Rollback(ctx))
+	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))
+	require.NoError(t, err)
+	_, err = dispatch.Process(ctx)
+	require.NoError(t, err)
+	found, err := users.GetByEmail(ctx, "rollback@example.com")
+	require.Error(t, err, "the rolled back user does not exist: %v", found)
 	items, err = inbox.List(ctx, notification.FindParams{})
 	require.NoError(t, err)
 	require.Len(t, items, 1, "rolling back user creation must roll back its notification")
-	failureTx, err := f.Pool.Begin(ctx)
-	require.NoError(t, err)
-	defer func() { _ = failureTx.Rollback(ctx) }()
-	failureCtx := composables.WithTx(ctx, failureTx)
-	_, err = failureTx.Exec(ctx, fmt.Sprintf(`ALTER TABLE core.notification_dispatches ADD CONSTRAINT notification_failure_test CHECK (tenant_id <> '%s'::uuid) NOT VALID`, f.TenantID()))
-	require.NoError(t, err)
-	createdWithoutNotification, err := users.Create(failureCtx, user.New("Notification", "Failure", internet.MustParseEmail("notification-failure@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
-	require.NoError(t, err)
-	_, err = failureTx.Exec(ctx, `ALTER TABLE core.notification_dispatches DROP CONSTRAINT notification_failure_test`)
-	require.NoError(t, err, "notification SQL errors must not abort the caller transaction")
-	require.NoError(t, failureTx.Commit(ctx))
-	_, err = persistence.NewUserRepository(persistence.NewUploadRepository()).GetByID(ctx, createdWithoutNotification.ID())
-	require.NoError(t, err, "user creation must remain committed after a notification failure")
-	items, err = inbox.List(ctx, notification.FindParams{})
-	require.NoError(t, err)
-	require.Len(t, items, 1, "failed notification writes must roll back to the savepoint")
+
+	// A disabled rule delivers nothing.
 	rule.Enabled = false
 	require.NoError(t, router.SaveRule(ctx, rule))
 	_, err = users.Create(ctx, user.New("Disabled", "Trial", internet.MustParseEmail("disabled@example.com"), user.UILanguageEN, user.WithTenantID(f.TenantID())))
+	require.NoError(t, err)
+	_, err = outboxDispatcher(t, f).RunOnce(deliveryCtx(f))
+	require.NoError(t, err)
+	_, err = dispatch.Process(ctx)
 	require.NoError(t, err)
 	items, err = inbox.List(ctx, notification.FindParams{})
 	require.NoError(t, err)

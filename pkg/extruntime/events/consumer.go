@@ -127,3 +127,11 @@ func AfterCommit(ctx context.Context, fn func(context.Context)) bool {
 	ac.fns = append(ac.fns, fn)
 	return true
 }
+
+// DispatcherOwner declares that a component serves the outbox dispatcher of
+// the process (pkg/extruntime/wiring, or the extension runtime composed
+// directly), with its own settings. Components contribute it with
+// composition.Contribute. A module's fallback dispatcher (the core module's,
+// for compositions without the extension core) runs only when nothing is
+// contributed, so a process never runs two.
+type DispatcherOwner struct{ Name string }

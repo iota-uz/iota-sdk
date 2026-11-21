@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/build"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
@@ -487,60 +485,12 @@ func SubjectFromContext(ctx context.Context) (spi.Subject, error) {
 	}, nil
 }
 
-func permissionNames(ps []permission.Permission) []string {
-	out := make([]string, 0, len(ps))
-	for _, p := range ps {
-		out = append(out, p.Name())
-	}
-	return out
-}
+func permissionNames(ps []permission.Permission) []string { return host.PermissionNames(ps) }
 
-// UserSubjects loads the current rights of a user (direct, role and group
-// grants). It serves triggers (events, schedules, workflow runs) as a
-// host.SubjectLoader and contact resolvers as a notify.SubjectResolver.
-type UserSubjects struct {
-	Users    user.Repository
-	Universe []permission.Permission
-	// Pool is put into the context of repository reads: triggers run in
-	// background goroutines whose context carries no database.
-	Pool *pgxpool.Pool
-}
+// UserSubjects loads the current rights of a user (see host.UserSubjects).
+type UserSubjects = host.UserSubjects
 
 var (
 	_ notify.SubjectResolver = (*UserSubjects)(nil)
 	_ host.SubjectLoader     = (*UserSubjects)(nil)
 )
-
-func (s *UserSubjects) load(ctx context.Context, tenantID uuid.UUID, userID int64, kind spi.SubjectKind) (spi.Subject, error) {
-	if userID <= 0 {
-		return spi.Subject{}, &host.SubjectBlockedError{TenantID: tenantID, UserID: userID, Reason: "no user"}
-	}
-	ctx = composables.WithTenantID(ctx, tenantID)
-	if s.Pool != nil && ctx.Value(constants.TxKey) == nil {
-		ctx = composables.WithPool(ctx, s.Pool)
-	}
-	u, err := s.Users.GetByID(ctx, uint(userID))
-	if err != nil {
-		if serrors.CodeOf(err) == serrors.NotFound {
-			return spi.Subject{}, &host.SubjectBlockedError{TenantID: tenantID, UserID: userID, Reason: "user not found"}
-		}
-		return spi.Subject{}, err
-	}
-	if u.IsBlocked() {
-		return spi.Subject{}, &host.SubjectBlockedError{TenantID: tenantID, UserID: userID, Reason: "user is blocked"}
-	}
-	return spi.Subject{
-		TenantID: tenantID, UserID: userID, Kind: kind,
-		Permissions: permissionNames(user.EffectivePermissions(u)), Locale: string(u.UILanguage()),
-	}, nil
-}
-
-// LoadSubject implements host.SubjectLoader.
-func (s *UserSubjects) LoadSubject(ctx context.Context, tenantID uuid.UUID, userID int64, kind spi.SubjectKind) (spi.Subject, error) {
-	return s.load(ctx, tenantID, userID, kind)
-}
-
-// ResolveSubject implements notify.SubjectResolver.
-func (s *UserSubjects) ResolveSubject(ctx context.Context, tenantID uuid.UUID, userID int64) (spi.Subject, error) {
-	return s.load(ctx, tenantID, userID, spi.SubjectOwner)
-}

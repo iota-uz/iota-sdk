@@ -88,6 +88,14 @@
           "id": "core.user.created.v1",
           "kind": "event",
           "contractHash": "e3d9470226f2757ef9269af0cfa055a77c89fcc50352549de67ee3d227f7e569",
+          "label": {
+            "en": "User created",
+            "pt-BR": "Usuário criado",
+            "ru": "Создан пользователь",
+            "uz": "Foydalanuvchi yaratildi",
+            "uz-Cyrl": "Фойдаланувчи яратилди",
+            "zh": "用户已创建"
+          },
           "description": "A user account was created. Published in the transaction that creates the user.",
           "payload": {
             "kind": "object",
@@ -251,7 +259,8 @@
           "label": {
             "en": "Client created",
             "ru": "Клиент создан",
-            "uz": "Mijoz yaratildi"
+            "uz": "Mijoz yaratildi",
+            "uz-Cyrl": "Мижоз яратилди"
           },
           "description": "A CRM client was created. Published in the transaction that creates the client.",
           "payload": {
@@ -308,7 +317,8 @@
           "label": {
             "en": "Client updated",
             "ru": "Клиент изменён",
-            "uz": "Mijoz o'zgartirildi"
+            "uz": "Mijoz o'zgartirildi",
+            "uz-Cyrl": "Мижоз ўзгартирилди"
           },
           "description": "A CRM client was updated. Published in the transaction that updates the client; changed lists the crm.client fields the update changed.",
           "payload": {

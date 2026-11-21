@@ -62,7 +62,7 @@ func newEnv(t *testing.T, opts ...func(*manage.Config)) *env {
 	set := native.NewSet()
 	require.NoError(t, set.Add(native.Entity(data.CoreUser()), native.Entity(data.CRMClient()),
 		native.Command[struct{}, struct{}]("core.commands.rejectIncoming", native.Spec{}, nil),
-		native.Event[struct{}]("core.events.userCreated.v1", native.EventSpec{})))
+		native.Event[struct{}]("core.events.user_created.v1", native.EventSpec{})))
 	e.natives = catalog.Natives(set)
 	e.cat = catalog.New(e.db, e.natives)
 	cfg := manage.Config{DB: e.db, Builder: e.builder, Kits: e.kits, Artifacts: e.arts, Catalog: e.cat, Natives: data.DefaultNatives()}
@@ -138,7 +138,7 @@ func insuranceManifest(numberType manifest.Type, extra ...manifest.Field) manife
 			{Export: "renew", Implements: ns + ".renewPolicy", Kind: manifest.ImplCommand},
 			{Export: "activate", Implements: ns + ".activatePolicy", Kind: manifest.ImplAtomic},
 		},
-		Subscriptions: []manifest.Subscription{{ID: ns + ".onRenewed", Export: "onRenewed", Event: "core.events.userCreated.v1"}},
+		Subscriptions: []manifest.Subscription{{ID: ns + ".onRenewed", Export: "onRenewed", Event: "core.events.user_created.v1"}},
 	}
 }
 

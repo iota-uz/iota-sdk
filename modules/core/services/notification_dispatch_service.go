@@ -344,7 +344,7 @@ func (s *NotificationDispatchService) Process(ctx context.Context) (bool, error)
 		users := len(job.RecipientIDs)
 		delivered := 0
 		if from, to := min(job.Cursor, users), min(end, users); from < to {
-			n, err := s.router.deliverUsers(txCtx, job.Event, job.Rule, job.RecipientIDs[from:to], job.Mode)
+			n, err := s.router.deliverUsers(txCtx, job.Event, job.Rule, job.RecipientIDs[from:to], job.Mode, true)
 			if err != nil {
 				return err
 			}

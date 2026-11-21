@@ -90,6 +90,9 @@ func contributedConsumers(container *composition.Container) events.ConsumerSourc
 // buildCore provides the always-on part: the native set, the subject loader
 // and the outbox dispatcher.
 func (c *component) buildCore(b *composition.Builder, natives *native.Set, core coreConfig) {
+	composition.Contribute(b, func(*composition.Container) ([]events.DispatcherOwner, error) {
+		return []events.DispatcherOwner{{Name: "wiring"}}, nil
+	})
 	composition.Provide[*native.Set](b, natives)
 	// Applications with their own user model replace the loader.
 	composition.ProvideDefault[host.SubjectLoader](b, func(container *composition.Container) (host.SubjectLoader, error) {
