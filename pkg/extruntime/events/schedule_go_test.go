@@ -748,11 +748,11 @@ func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 		status   string
 		attempts int
 		msg      string
-		gen      time.Time
+		gen      int64
 	}
 	row := func() receipt {
 		var r receipt
-		require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts, last_error, updated_at FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&r.status, &r.attempts, &r.msg, &r.gen))
+		require.NoError(t, env.DB.QueryRow(ctx, `SELECT status, attempts, last_error, generation FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&r.status, &r.attempts, &r.msg, &r.gen))
 		return r
 	}
 
@@ -770,8 +770,10 @@ func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
 	require.Contains(t, second.msg, "second")
 
 	// Another pass recorded a blocked state with zero attempts whose deadline
-	// has already passed: the late write of the first pass is dropped.
-	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET status = 'blocked', attempts = 0, last_error = 'newer', next_at = now() - interval '1 minute', updated_at = now() WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
+	// has already passed, in a transaction that got the very same updated_at
+	// (now() is the transaction's start): the late write of the first pass is
+	// dropped, because the generation counter moved.
+	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET status = 'blocked', attempts = 0, last_error = 'newer', next_at = now() - interval '1 minute', generation = generation + 1 WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
 	require.NoError(t, err)
 	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 0, &gen, errors.New("stale")))
 	newer := row()
@@ -790,8 +792,15 @@ func TestRejectedCommitIsRecordedAsAFailedAttempt(t *testing.T) {
 	env := hosttest.New(t)
 	ctx := context.Background()
 	tenant := env.Tenant
-	h := &goSlots{}
-	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant, Handler: h}
+	var mu sync.Mutex
+	calls := 0 // counted at entry, whatever the call then does
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
+		Handler: events.SlotHandlerFunc(func(context.Context, pgx.Tx, events.Slot) error {
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			return nil
+		})}
 	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
 	now := slot.Add(20 * time.Second)
 	s := goScheduler(t, env, events.StaticSchedules(def), &now, func(c *events.SchedulerConfig) { c.BackoffBase = time.Minute })
@@ -809,7 +818,9 @@ func TestRejectedCommitIsRecordedAsAFailedAttempt(t *testing.T) {
 	require.Equal(t, 1, attempts)
 	_, err = s.RunOnce(ctx)
 	require.NoError(t, err)
-	require.Len(t, h.slots(), 1, "the handler ran once: the slot waits out its backoff")
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, calls, "the handler ran once: the slot waits out its backoff")
 }
 
 // The shared limiter registry does not keep closed pools alive.

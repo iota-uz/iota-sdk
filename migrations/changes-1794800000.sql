@@ -7,6 +7,10 @@ ALTER TABLE extruntime.schedule_runs
 ALTER TABLE extruntime.schedule_runs
     ADD CONSTRAINT schedule_runs_status_check CHECK (status IN ('done', 'failed', 'dead', 'blocked', 'skipped')) NOT VALID;
 
+-- A counter every change of a receipt increments: a late writer proves nobody recorded a result since it claimed the slot.
+ALTER TABLE extruntime.schedule_runs
+    ADD COLUMN generation bigint NOT NULL DEFAULT 0;
+
 -- Every slot of the schedule at or before accounted_through has a schedule_runs receipt (run or skipped).
 CREATE TABLE extruntime.schedule_accounting (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -17,6 +21,9 @@ CREATE TABLE extruntime.schedule_accounting (
 
 -- +migrate Down
 DROP TABLE IF EXISTS extruntime.schedule_accounting;
+
+ALTER TABLE extruntime.schedule_runs
+    DROP COLUMN IF EXISTS generation;
 
 DELETE FROM extruntime.schedule_runs
 WHERE status = 'skipped';
