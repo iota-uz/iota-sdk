@@ -278,13 +278,20 @@ func (e *Engine) runNative(runCtx, parent context.Context, rs *runState) error {
 }
 
 // safeRun turns a panic of the runner into a failure of the run.
-func safeRun(ctx context.Context, r NativeRunner, run NativeRun) (out json.RawMessage, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			out, err = nil, internalErr("workflow.runnerPanic", "native workflow runner panicked: %v", p)
-		}
+func safeRun(ctx context.Context, r NativeRunner, run NativeRun) (json.RawMessage, error) {
+	var (
+		out json.RawMessage
+		err error
+	)
+	func() {
+		defer func() {
+			if p := recover(); p != nil {
+				out, err = nil, internalErr("workflow.runnerPanic", "native workflow runner panicked: %v", p)
+			}
+		}()
+		out, err = r.Run(ctx, run)
 	}()
-	return r.Run(ctx, run)
+	return out, err
 }
 
 // failureOf is the recorded error of a failed native run or effect.

@@ -1271,3 +1271,17 @@ func TestNative_StatusObserverSeesTheWrittenInstance(t *testing.T) {
 	require.JSONEq(t, `{"n":1}`, string(obs.last.Result))
 	require.NotNil(t, obs.last.FinishedAt)
 }
+
+// A panicking runner fails its instance instead of the process.
+func TestNative_RunnerPanicFailsTheInstance(t *testing.T) {
+	env := newNativeEnv(t)
+	boom := workflow.NativeRunnerFunc(func(context.Context, workflow.NativeRun) (json.RawMessage, error) { panic("bug") })
+	eng := env.engine(map[string]workflow.NativeContract{"test.panic": {Runner: boom}})
+	id := env.start(eng, "test.panic", "p1", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusFailed }, "fails")
+	var we struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(env.inst(eng, id).Error, &we))
+	require.Equal(t, "workflow.runnerPanic", we.Code)
+}
