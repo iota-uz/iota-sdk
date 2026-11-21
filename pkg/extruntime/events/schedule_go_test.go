@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -250,11 +252,17 @@ func TestFailingGoHandlerRollsBackRetriesThenDeadLetters(t *testing.T) {
 	h := &goSlots{}
 	tenant := env.Tenant
 	// The handler writes, then fails: the write must roll back with the receipt.
+	var mu sync.Mutex
+	written := 0
 	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
 		Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, slot events.Slot) error {
 			if _, err := tx.Exec(ctx, `INSERT INTO host_items (tenant_id, label) VALUES ($1, 'partial')`, slot.TenantID); err != nil {
+				t.Errorf("the handler's write failed: %v", err)
 				return err
 			}
+			mu.Lock()
+			written++
+			mu.Unlock()
 			return errors.New("boom")
 		})}
 	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
@@ -271,6 +279,9 @@ func TestFailingGoHandlerRollsBackRetriesThenDeadLetters(t *testing.T) {
 	var rows int
 	require.NoError(t, env.DB.QueryRow(context.Background(), `SELECT count(*) FROM host_items`).Scan(&rows))
 	require.Zero(t, rows, "the handler's write rolled back with the failed attempts")
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 3, written, "every attempt wrote successfully before failing")
 }
 
 func TestGoHandlerWithoutSubjectBlocksTheSlotUntilItResolves(t *testing.T) {
@@ -677,7 +688,7 @@ func claimBlocked(env *hosttest.Env) bool {
 	return err == nil && n > 0
 }
 
-func TestSlotCommitRejectedByTheDatabaseCountsAsAFailedAttempt(t *testing.T) {
+func TestDeferredConstraintViolationCountsAsAFailedAttemptAndIsNotRetriedBeforeTheBackoff(t *testing.T) {
 	env := hosttest.New(t)
 	ctx := context.Background()
 	_, err := env.DB.Exec(ctx, `
@@ -685,9 +696,14 @@ func TestSlotCommitRejectedByTheDatabaseCountsAsAFailedAttempt(t *testing.T) {
 		CREATE TABLE slot_children (id int, parent int REFERENCES slot_parents (id) DEFERRABLE INITIALLY DEFERRED)`)
 	require.NoError(t, err)
 	tenant := env.Tenant
+	var mu sync.Mutex
+	calls := 0
 	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant,
 		Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, _ events.Slot) error {
-			_, err := tx.Exec(ctx, `INSERT INTO slot_children VALUES (1, 404)`) // checked at commit
+			mu.Lock()
+			calls++
+			mu.Unlock()
+			_, err := tx.Exec(ctx, `INSERT INTO slot_children VALUES (1, 404)`) // checked by the scheduler before commit
 			return err
 		})}
 	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
@@ -704,6 +720,63 @@ func TestSlotCommitRejectedByTheDatabaseCountsAsAFailedAttempt(t *testing.T) {
 	n, err = s.RunOnce(ctx)
 	require.NoError(t, err)
 	require.Zero(t, n, "the slot is not retried before its backoff")
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 1, calls, "the handler was not called again, not even to fail")
+}
+
+func TestCommitFailureClassification(t *testing.T) {
+	require.True(t, events.CommitRejected(&pgconn.PgError{Code: "40001"}), "a serialization failure at commit is a confirmed rollback")
+	require.True(t, events.CommitRejected(fmt.Errorf("commit: %w", &pgconn.PgError{Code: "23503"})))
+	require.True(t, events.CommitRejected(pgx.ErrTxCommitRollback))
+	require.False(t, events.CommitRejected(errors.New("conn closed")), "a connection failure leaves the outcome unknown")
+	require.False(t, events.CommitRejected(context.DeadlineExceeded))
+}
+
+// When the claiming transaction is gone, the failure is recorded outside it,
+// but only over the receipt this pass saw: a pass that advanced the receipt
+// meanwhile keeps its result.
+func TestOutOfTransactionFailureDoesNotOverwriteANewerReceipt(t *testing.T) {
+	env := hosttest.New(t)
+	ctx := context.Background()
+	tenant := env.Tenant
+	def := events.ScheduleDef{ID: "automation:a1:t1", Cron: "* * * * *", TenantID: &tenant}
+	now := time.Date(2026, 6, 1, 10, 30, 20, 0, time.UTC)
+	s := goScheduler(t, env, events.StaticSchedules(def), &now)
+	slot := time.Date(2026, 6, 1, 10, 30, 0, 0, time.UTC)
+
+	// No receipt (the claim insert rolled back): the failure is inserted.
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 1, errors.New("rejected")))
+	require.Equal(t, events.StatusFailed, statusOf(t, env, def.ID, slot))
+
+	// Another pass claimed it again and recorded a second failure with a
+	// future retry time. The first pass, which had claimed the slot when it was
+	// at one attempt (its claim returned 2), writes late: its write is dropped.
+	_, err := env.DB.Exec(ctx, `UPDATE extruntime.schedule_runs SET attempts = 2, last_error = 'newer', next_at = now() + interval '1 hour' WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot)
+	require.NoError(t, err)
+	require.NoError(t, events.FailSlotOutside(s, ctx, def, env.Tenant, slot, 2, errors.New("stale")))
+	var attempts int
+	var msg string
+	require.NoError(t, env.DB.QueryRow(ctx, `SELECT attempts, last_error FROM extruntime.schedule_runs WHERE tenant_id = $1 AND schedule = $2 AND slot = $3`, env.Tenant, def.ID, slot).Scan(&attempts, &msg))
+	require.Equal(t, 2, attempts)
+	require.Equal(t, "newer", msg, "the newer receipt is untouched")
+}
+
+// The shared limiter registry does not keep closed pools alive.
+func TestSharedLimiterRegistryForgetsCollectedPools(t *testing.T) {
+	env := hosttest.New(t)
+	before := events.ConnSlotPools()
+	func() {
+		db, err := pgxpool.NewWithConfig(context.Background(), env.DB.Config())
+		require.NoError(t, err)
+		require.NoError(t, events.AcquireConnSlot(context.Background(), db))
+		require.Equal(t, before+1, events.ConnSlotPools())
+		db.Close()
+	}()
+	waitFor(t, func() bool {
+		runtime.GC()
+		return events.ConnSlotPools() == before
+	}, 10*time.Second, 50*time.Millisecond, "the entry of the collected pool is dropped")
 }
 
 func TestSlotHandlerCannotFinalizeTheTransaction(t *testing.T) {

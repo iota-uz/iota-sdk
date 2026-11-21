@@ -775,7 +775,7 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 	)
 	if def.Handler == nil {
 		if s.cfg.Runner == nil {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "",
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "",
 				fmt.Sprintf("schedule %s is a package schedule and the extension runtime is not enabled", def.ID))
 		}
 		var found bool
@@ -785,11 +785,11 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 			return false, serrors.Wrap(opScheduleD, err)
 		}
 		if !found {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "", fmt.Sprintf("schedule %s has no owner-user in tenant %s", def.ID, tenant))
 		}
 		subject, err = s.cfg.Subjects.LoadSubject(ctx, tenant, ownerID, spi.SubjectOwner)
 		if errors.Is(err, host.ErrSubjectBlocked) {
-			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, "", err.Error())
+			return false, s.record(ctx, def, tenant, slot, StatusBlocked, prior, prior, "", err.Error())
 		}
 		if err != nil {
 			return false, serrors.Wrap(opScheduleD, err)
@@ -865,6 +865,10 @@ func (s *Scheduler) runSlot(ctx context.Context, def ScheduleDef, tenant uuid.UU
 		// its claim, so the failed state is recorded before anyone else can
 		// claim the slot.
 		if _, err := tx.Exec(ctx, `SET CONSTRAINTS ALL IMMEDIATE`); err != nil && ctx.Err() == nil {
+			var pg *pgconn.PgError
+			if !errors.As(err, &pg) {
+				return false, serrors.FromDB(opScheduleD, err) // the connection failed: the outcome is unknown, no attempt is counted
+			}
 			runErr = fmt.Errorf("schedule %s: the slot's deferred constraints failed: %w", def.ID, err)
 		}
 	}
@@ -983,7 +987,7 @@ func (s *Scheduler) failSlot(ctx context.Context, tx pgx.Tx, def ScheduleDef, te
 		// it outside, as a last resort.
 		_ = tx.Rollback(wc)
 	}
-	return s.record(ctx, def, tenant, slot, status, failedAttempts, invocationID, msg)
+	return s.record(ctx, def, tenant, slot, status, failedAttempts, max(attempts-1, 0), invocationID, msg)
 }
 
 // backoff is the delay before a failed or blocked slot is due again.
@@ -1012,8 +1016,10 @@ func callHandler(ctx context.Context, h SlotHandler, tx pgx.Tx, slot Slot) (err 
 // record stores a non-delivered run state (failed, dead, blocked) outside any
 // slot transaction: a slot that was blocked before it was claimed, or the last
 // resort when the claiming transaction itself failed. It never overwrites a
-// committed run.
-func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, status string, attempts int, invocationID, msg string) error {
+// committed run, and it writes over an existing receipt only while that
+// receipt still is what the caller saw (expected attempts, still due): a pass
+// that advanced it meanwhile keeps its result.
+func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUID, slot time.Time, status string, attempts, expected int, invocationID, msg string) error {
 	delay := s.backoff(status, attempts)
 	attempts = max(attempts, 0)
 	var inv any
@@ -1027,8 +1033,8 @@ func (s *Scheduler) record(ctx context.Context, def ScheduleDef, tenant uuid.UUI
 		SET status = EXCLUDED.status,
 		    attempts = CASE WHEN EXCLUDED.status = 'blocked' THEN r.attempts ELSE EXCLUDED.attempts END, next_at = EXCLUDED.next_at, last_error = EXCLUDED.last_error,
 		    invocation_id = COALESCE(EXCLUDED.invocation_id, r.invocation_id), updated_at = now()
-		WHERE r.status IN ('failed', 'blocked')`,
-		tenant, def.ID, slot, status, attempts, delay.String(), msg, inv)
+		WHERE r.status IN ('failed', 'blocked') AND r.attempts = $9 AND r.next_at <= now()`,
+		tenant, def.ID, slot, status, attempts, delay.String(), msg, inv, expected)
 	if err != nil {
 		return serrors.FromDB(opScheduleD, err)
 	}
