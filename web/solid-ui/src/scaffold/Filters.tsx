@@ -52,7 +52,7 @@ export function FilterDropdown(props: FilterDropdownProps) {
       <div class="flex">
         {selected().length > 0 && <button type="button" class="flex items-center justify-center cursor-pointer border border-default rounded-md rounded-r-none px-2" aria-label="Clear filter" onClick={() => setValues([])}><XIcon /></button>}
         <button ref={trigger} type="button" aria-haspopup="true" aria-expanded={expanded()} class={classes('w-full border border-default rounded-md shadow-sm cursor-pointer flex items-center justify-between px-4 py-2', selected().length > 0 && 'rounded-l-none border-l-0')} onClick={() => setOpen(!expanded())}>
-          <span class="text-gray-700 font-medium">{local.label}</span><span class={classes('text-gray-700 duration-200', expanded() && 'rotate-180')}><CaretIcon /></span>
+          <span class="text-200 font-medium">{local.label}</span><span class={classes('text-gray-700 duration-200', expanded() && 'rotate-180')}><CaretIcon /></span>
         </button>
       </div>
       {expanded() && <ul aria-label={`${typeof local.label === 'string' ? local.label : 'Filter'} options`} class="absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit border border-subtle rounded-md shadow-lg">

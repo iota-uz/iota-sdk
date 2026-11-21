@@ -3,6 +3,8 @@ package toast
 import (
 	"bytes"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -41,8 +43,8 @@ func TestContainer_LabelsEveryDismissButton(t *testing.T) {
 
 			var buf bytes.Buffer
 			require.NoError(t, Container().Render(ctx, &buf))
-			// One per toast variant: success, error, warning, info.
-			require.Equal(t, 4, strings.Count(buf.String(), tt.want))
+			// One variant-agnostic toast template carries the single dismiss button.
+			require.Equal(t, 1, strings.Count(buf.String(), tt.want))
 		})
 	}
 }
@@ -66,5 +68,54 @@ func TestContainer_ExposesErrorTextsForHTMXFailures(t *testing.T) {
 		`data-error-network="No connection to the server"`,
 	} {
 		require.Contains(t, html, want)
+	}
+}
+
+// The action slot and the politeness split are part of the markup contract
+// shared with the Solid toast.
+func TestContainer_RendersActionSlotAndLiveRoles(t *testing.T) {
+	t.Parallel()
+
+	ctx := composables.WithPageCtx(
+		t.Context(),
+		types.NewPageContext(language.English, &url.URL{Path: "/"}, nil),
+	)
+	var buf bytes.Buffer
+	require.NoError(t, Container().Render(ctx, &buf))
+	html := buf.String()
+	for _, want := range []string{
+		`data-toast-region`,
+		`:role="polite ? &#39;status&#39; : &#39;alert&#39;"`,
+		`:aria-live="polite ? &#39;polite&#39; : false"`,
+		`data-toast-action`,
+		`@click="runAction()"`,
+		`:href="action.href"`,
+		`Math.max(duration, 8000)`,
+		`@focusin=`,
+		`@mouseenter=`,
+	} {
+		require.Contains(t, html, want)
+	}
+	// The region no longer interrupts: politeness is per toast.
+	require.NotContains(t, html, `aria-live="assertive"`)
+}
+
+// Regression guard for templ parity: the Solid toast uses the same class
+// strings, so a drift on either side shows up here before the VR run.
+func TestContainer_ClassesMatchSolidToast(t *testing.T) {
+	t.Parallel()
+
+	solid, err := os.ReadFile(filepath.Join("..", "..", "..", "web", "solid-ui", "src", "overlays", "Toast.tsx"))
+	require.NoError(t, err)
+	source := string(solid)
+	for name, class := range map[string]string{
+		"surface": surfaceClass,
+		"action":  actionClass,
+		"close":   closeClass,
+	} {
+		require.Containsf(t, source, "'"+class+"'", "Solid toast must use the templ %s classes verbatim", name)
+	}
+	for _, part := range strings.Split(regionClass, " ") {
+		require.Containsf(t, source, part, "Solid toast region must use the templ region class %q", part)
 	}
 }

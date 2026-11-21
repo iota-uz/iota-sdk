@@ -24,6 +24,19 @@ afterEach(() => {
 })
 
 describe('Combobox', () => {
+  // axe aria-valid-attr-value: the active option is referenced only while the listbox exists.
+  it('references the active option only while the listbox is open', () => {
+    mount(() => <Combobox searchable defaultValue={['one']} options={[{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }]} />)
+    const input = host.querySelector<HTMLInputElement>('[role="combobox"]')!
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false)
+    input.focus()
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    const active = input.getAttribute('aria-activedescendant')
+    expect(active && document.getElementById(active)).toBeTruthy()
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(input.hasAttribute('aria-activedescendant')).toBe(false)
+  })
+
   it('keeps the canonical classes and owns a multiple selection', () => {
     const changed = vi.fn()
     mount(() => <Combobox multiple searchable name="team" label="Team" placeholder="Choose" defaultValue={['one']} options={[

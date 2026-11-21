@@ -5,8 +5,10 @@ A flexible toast notification system for IOTA SDK using Alpine.js and HTMX.
 ## Features
 
 - 4 notification variants: Success, Error, Warning, Info
-- Auto-dismiss after 8 seconds (configurable)
-- Pause on hover
+- One optional action ("Undo", "Retry") with the same markup as the Solid toast
+- Auto-dismiss after 8 seconds (`duration` in ms, `0` keeps the toast); a toast with an action stays at least 8 seconds
+- Pause while hovered or focused
+- Light SDK surface in both themes; on phones (≤ 480 px) nearly full width at the bottom, above a bottom action bar whose height the page sets in `--iota-toast-offset-bottom`, with `safe-area-inset` padding
 - Smooth animations
 - Up to 20 notifications in stack
 - Dark mode support
@@ -63,6 +65,21 @@ func (c *Controller) SaveData(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
+### Toast with an action
+
+```go
+htmx.TriggerToastWithAction(w, htmx.ToastVariantSuccess, "Archived", "The product is hidden.",
+    htmx.ToastAction{Label: undoLabel /* localized verb */, HxPost: "/products/42/unarchive"})
+```
+
+`HxPost` posts through HTMX without a swap (HX-Trigger events of the response, such as a
+follow-up toast, still run); `Href` renders the action as a link. Clicking the action runs it
+and closes the toast. `toast.Action` is an alias of `htmx.ToastAction`. From the client:
+
+```html
+<button @click="$dispatch('notify', { variant: 'error', title: 'Publish failed', action: { label: 'Retry', hxPost: '/products/42/publish' } })">…</button>
+```
+
 ### 4. Failed requests
 
 A global listener turns `htmx:responseError`, `htmx:sendError` and `htmx:timeout`
@@ -105,7 +122,9 @@ The region re-runs its own request, so scroll position and open drawers stay put
 {
     variant: 'success' | 'error' | 'danger' | 'warning' | 'info',
     title: string,
-    message: string
+    message: string,
+    duration?: number,                 // ms; 0 keeps the toast; with an action at least 8000
+    action?: { label: string, hxPost?: string, href?: string }
 }
 ```
 
@@ -145,6 +164,6 @@ The toast container is positioned at the top-right corner by default. To customi
 
 ## Accessibility
 
-- Uses appropriate ARIA roles (`role="status"` for info/success, `role="alert"` for errors/warnings)
-- Includes `aria-live="assertive"` on the container
-- Close buttons have `aria-label="Close notification"`
+- Success and info toasts are `role="status"` with `aria-live="polite"`; errors and warnings are `role="alert"`. The region itself does not interrupt.
+- Close buttons have a localized `aria-label` ("Close notification" by default)
+- Markup and classes match `Toast` from `@iota-uz/sdk/solid-ui`; `web/solid-ui/vr/templ-parity.spec.ts` compares both

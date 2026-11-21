@@ -208,7 +208,7 @@ export function Combobox(props: ComboboxProps) {
             readOnly={local.readOnly || (!local.searchable && !local.loadOptions && !local.endpoint)}
             aria-expanded={open()}
             aria-controls={listID()}
-            aria-activedescendant={activeIndex() >= 0 ? `${id()}-option-${activeIndex()}` : undefined}
+            aria-activedescendant={open() && !inactive() && activeIndex() >= 0 ? `${id()}-option-${activeIndex()}` : undefined}
             aria-autocomplete={local.searchable || local.loadOptions || local.endpoint ? 'list' : 'none'}
             onFocus={() => setOpen(true)}
             onClick={() => !inactive() && setOpen(true)}

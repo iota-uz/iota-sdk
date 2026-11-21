@@ -35,7 +35,7 @@ func RegularItem(label templ.Component, value templ.Component) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex p-3 justify-between items-center bg-gray-100 gap-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex p-3 justify-between items-center bg-surface-100 gap-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -280,7 +280,7 @@ func Link(text, href string, classes templ.CSSClasses, attrs templ.Attributes) t
 			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var13 = []any{twmerge.Merge("font-medium text-sm text-brand-500 underline text-right", classes.String())}
+		var templ_7745c5c3_Var13 = []any{twmerge.Merge("font-medium text-sm text-brand-500 dark:text-primary-300 underline text-right", classes.String())}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -322,7 +322,7 @@ func Link(text, href string, classes templ.CSSClasses, attrs templ.Attributes) t
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/description-list/description_list.templ`, Line: 41, Col: 153}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/description-list/description_list.templ`, Line: 41, Col: 175}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -425,7 +425,7 @@ func ListSubtitle(text templ.Component, classes templ.CSSClasses, attrs templ.At
 			templ_7745c5c3_Var21 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var22 = []any{twmerge.Merge("text-brand-500 text-sm", classes.String())}
+		var templ_7745c5c3_Var22 = []any{twmerge.Merge("text-brand-500 dark:text-primary-300 text-sm", classes.String())}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var22...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

@@ -95,6 +95,7 @@ func UsageBar(props UsageBarProps) templ.Component {
 					Target:      uint(max(props.Limit, 1)),
 					ValueLabel:  fmt.Sprintf("%d", props.Current),
 					TargetLabel: fmt.Sprintf("%d", props.Limit),
+					Label:       props.Entity,
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

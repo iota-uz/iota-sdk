@@ -4,9 +4,15 @@ import { expect, test, type Browser, type Locator, type Page, type TestInfo } fr
 const templOrigin = `http://127.0.0.1:${process.env.SOLID_UI_TEMPL_VR_PORT ?? '61011'}`
 
 type Fixture = {
-  specimen: 'button' | 'input' | 'checkbox' | 'select' | 'radio' | 'switch' | 'tabs' | 'badge' | 'avatar' | 'pagination' | 'table' | 'dialog' | 'drawer' | 'combobox' | 'search-select' | 'date-picker' | 'copy-button' | 'language-select'
+  specimen: 'button' | 'input' | 'checkbox' | 'select' | 'radio' | 'switch' | 'tabs' | 'badge' | 'avatar' | 'pagination' | 'table' | 'dialog' | 'drawer' | 'combobox' | 'search-select' | 'date-picker' | 'copy-button' | 'language-select' | 'toast' | 'toast-action'
   state: string
-  solidSpecimen: 'buttons' | 'form-controls' | 'advanced-forms' | 'display' | 'navigation' | 'data' | 'dialog' | 'drawer' | 'selection' | 'utilities'
+  /** Fixture route; defaults to `specimen`. */
+  templSpecimen?: string
+  /** Solid gallery state; defaults to `state`. */
+  solidState?: string
+  /** Fixture state; defaults to `state`. */
+  templState?: string
+  solidSpecimen: 'buttons' | 'form-controls' | 'advanced-forms' | 'display' | 'navigation' | 'data' | 'dialog' | 'drawer' | 'selection' | 'utilities' | 'toasts'
   solidTarget: string
   templTarget: string
   solidStateTarget?: string
@@ -109,6 +115,22 @@ const baseFixtures: readonly Fixture[] = [
     specimen: 'search-select', state, solidSpecimen: 'selection',
     solidTarget: '#search-select-solid-input', templTarget: '[data-parity-target="search-select"]',
     properties: ['width', 'height', 'font-size', 'font-weight', 'padding', 'border-radius', 'border-color', 'background-color', 'color', 'box-shadow', 'opacity'],
+  })),
+  // The toast surface without and with its action, and the action button itself.
+  {
+    specimen: 'toast', state: 'default', solidSpecimen: 'toasts', solidState: 'open',
+    solidTarget: '[data-toast-region] > :first-child [data-toast]', templTarget: '[data-toast]',
+    properties: ['width', 'height', 'padding', 'border-radius', 'border-color', 'background-color', 'color', 'box-shadow', 'opacity'],
+  },
+  {
+    specimen: 'toast', state: 'action', solidSpecimen: 'toasts',
+    solidTarget: '[data-vr-target="toast-action"] [data-toast]', templTarget: '[data-toast]',
+    properties: ['width', 'height', 'padding', 'border-radius', 'border-color', 'background-color', 'color', 'box-shadow', 'opacity'],
+  },
+  ...['default', 'hover', 'focus'].map((state): Fixture => ({
+    specimen: 'toast-action', templSpecimen: 'toast', templState: 'action', state, solidSpecimen: 'toasts', solidState: 'action',
+    solidTarget: '[data-vr-target="toast-action"] [data-toast-action]', templTarget: '[data-toast-action]',
+    properties: ['width', 'height', 'font-size', 'font-weight', 'padding', 'border-radius', 'background-color', 'color', 'outline-color', 'outline-offset', 'outline-style', 'outline-width', 'opacity'],
   })),
 ]
 
@@ -300,8 +322,8 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
   })
   const solid = await context.newPage()
   const templ = await context.newPage()
-  const solidQuery = new URLSearchParams({ specimen: fixture.solidSpecimen, theme: fixture.theme, state: fixture.state })
-  const templQuery = new URLSearchParams({ specimen: fixture.specimen, theme: fixture.theme, state: fixture.state })
+  const solidQuery = new URLSearchParams({ specimen: fixture.solidSpecimen, theme: fixture.theme, state: fixture.solidState ?? fixture.state })
+  const templQuery = new URLSearchParams({ specimen: fixture.templSpecimen ?? fixture.specimen, theme: fixture.theme, state: fixture.templState ?? fixture.state })
   await Promise.all([
     solid.goto(`http://127.0.0.1:${process.env.SOLID_UI_VR_PORT ?? '61010'}/?${solidQuery}`, { waitUntil: 'domcontentloaded' }),
     templ.goto(`${templOrigin}/?${templQuery}`, { waitUntil: 'domcontentloaded' }),
@@ -354,7 +376,8 @@ async function compareFixture(browser: Browser, fixture: ThemedFixture, testInfo
   ])
   expect(solidContract, 'Solid DOMRect/computed styles must equal the rendered templ primitive').toEqual(templContract)
 
-  const requiresSameDocumentPaint = ['select', 'language-select'].includes(fixture.specimen)
+  // Toasts float over different page content in the two hosts; paint them on one background.
+  const requiresSameDocumentPaint = ['select', 'language-select', 'toast', 'toast-action'].includes(fixture.specimen)
     || (fixture.specimen === 'tabs' && fixture.state === 'focus')
   const [solidPNG, templPNG] = requiresSameDocumentPaint
     ? await deterministicTargetScreenshots(solid, solidTarget, templTarget, fixture.state)
