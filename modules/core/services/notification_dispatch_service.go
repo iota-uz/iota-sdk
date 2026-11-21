@@ -224,13 +224,19 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 	if err != nil {
 		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
 	}
+	// Identities stored before rule mode reserved the namespace may still
+	// collide. A rule notice is detected before any job is queued; the notice
+	// upsert leaves an existing row unchanged, so nothing is written then.
+	if notice.Mode != notifications.NoticeExplicit {
+		return conflict()
+	}
 	job, err := s.repo.Enqueue(ctx, notifications.DispatchRequest{Event: event, Rule: rule, Mode: notifications.NoticeExplicit, RecipientIDs: resolved.UserIDs, Addressees: resolved.Addressees})
 	if err != nil {
 		return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
 	}
-	// Identities stored before rule mode reserved the namespace may still
-	// collide: never report a rule's notice or job as this send's receipt.
-	if notice.Mode != notifications.NoticeExplicit || job.Mode != notifications.NoticeExplicit {
+	// The job upsert returns an existing rule job unchanged: never report it
+	// as this send's receipt.
+	if job.Mode != notifications.NoticeExplicit {
 		return conflict()
 	}
 	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total()}, nil

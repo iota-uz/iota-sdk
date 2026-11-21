@@ -384,3 +384,24 @@ func TestNotificationAudience_ReplayDoesNotResolveParticipantsAgain(t *testing.T
 	_, err = c.sender.Resolve(c.committed, notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Participants: []string{"created_user"}}, Source: &gone, Producer: producer})
 	require.Error(t, err, "a dry run still resolves and reports the failure")
 }
+
+// A legacy rule notice without a job is detected before a job is queued, so
+// a caller that commits despite the Conflict still leaves no audience job.
+func TestNotificationAudience_LegacyRuleNoticeConflictQueuesNothing(t *testing.T) {
+	c := setupAudience(t, 1)
+	legacy := c.event(uuid.NewString())
+	_, err := persistence.NewNotificationNoticeRepository().Ensure(c.committed, notifications.Notice{
+		TenantID: legacy.TenantID, EventKey: legacy.Key, EventID: "addressed:notice-only", Mode: notifications.NoticeRule, Event: legacy,
+	})
+	require.NoError(t, err)
+	send := c.event(uuid.NewString())
+	send.DedupeKey = "notice-only"
+	tx, err := c.f.Pool.Begin(c.committed)
+	require.NoError(t, err)
+	_, err = c.sender.SendTx(c.committed, tx, notifications.AudienceRequest{Event: send, Audience: notifications.Audience{Users: c.people}})
+	require.Error(t, err)
+	require.Equal(t, serrors.Conflict, serrors.CodeOf(err))
+	require.NoError(t, tx.Commit(c.committed))
+	require.Zero(t, c.count(t, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1 AND event_id='addressed:notice-only'", c.f.TenantID()))
+	require.Equal(t, 1, c.count(t, "SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1 AND event_id='addressed:notice-only' AND mode='rule'", c.f.TenantID()))
+}
