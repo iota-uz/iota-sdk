@@ -609,6 +609,18 @@ export const onPointsChanged = subscribe("acme.loyalty.onPointsChanged", c.Point
   payload carries the client's published fields (`clientId`, `firstName`, optional `lastName`, `middleName`,
   `phone`, `email`; never PIN or passport) and, for updates, `changed`: the `crm.client` field IDs the write changed.
   A save that rolls back publishes nothing.
+* Finance, warehouse, billing and projects publish their business events the same way, each in the transaction of
+  the change, next to the module's eventbus events after commit (dual publish): `finance.payment.created.v1` /
+  `finance.payment.updated.v1` (only when a field changed; `changed` lists the `finance.payment` field IDs),
+  `finance.expense.created.v1`, `finance.debt.created.v1`, `finance.debt.settled.v1` (every settlement, partial or
+  final: `status` is `partial` or `settled`), `finance.debt.written_off.v1`, `finance.debt.cancelled.v1`,
+  `billing.transaction.status_changed.v1` (only when the status differs from the stored one, so a repeated gateway
+  callback publishes nothing; a callback has no initiator, so a subscription that runs as the initiator runs as the
+  trigger owner), `warehouse.order.created.v1`, `warehouse.order.completed.v1` and `projects.acceptance.signed.v1`.
+  Money is `{amount, currency}`: `amount` is a decimal string in minor units (`wire:"int64"`), `currency` the ISO 4217
+  code; a float never travels. Each event is read with the permission of its subject (`Payment.Read`, `Expense.Read`,
+  `Debt.Read`, `BillingTransaction.Read`, `Order.Read`, `Project.Read`). The event belongs to the tenant of the
+  entity; an entity without a tenant fails the change.
 
 ```ts
 export const onClientUpdated = subscribe("acme.loyalty.onClientUpdated", crm.Updated, async (tx, event) => {

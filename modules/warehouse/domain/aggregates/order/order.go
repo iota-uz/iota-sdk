@@ -13,6 +13,15 @@ type Option func(o *order)
 
 // --- Option setters ---
 
+// Reconstituted marks an order rebuilt from storage: it did not just come into
+// being, so it carries no OrderCreatedEvent and its events are only the changes
+// made to it since.
+func Reconstituted() Option {
+	return func(o *order) {
+		o.reconstituted = true
+	}
+}
+
 func WithID(id uint) Option {
 	return func(o *order) {
 		o.id = id

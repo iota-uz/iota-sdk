@@ -142,8 +142,26 @@ func (s *BillingService) Save(ctx context.Context, entity billing.Transaction) (
 
 	var savedTransaction billing.Transaction
 	if err := composables.InTx(ctx, func(txCtx context.Context) error {
-		savedTransaction, err = s.repo.Save(txCtx, entity)
-		return err
+		// The previous status is read under a row lock held until commit, so
+		// concurrent callbacks of a gateway see each other's outcome and only
+		// the one that changes the status announces it.
+		var from billing.Status
+		if !isCreate {
+			before, err := s.repo.GetByIDForUpdate(txCtx, entity.ID())
+			if err != nil {
+				return err
+			}
+			from = before.Status()
+		}
+		saved, err := s.repo.Save(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		savedTransaction = saved
+		if isCreate {
+			return nil
+		}
+		return publishStatusChange(txCtx, from, saved)
 	}); err != nil {
 		return nil, err
 	}
@@ -218,6 +236,8 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 			return err
 		}
 
+		from := entity.Status()
+
 		// If provider exists, use it
 		if provider := s.providers[entity.Gateway()]; provider != nil {
 			providedTransaction, err := provider.Cancel(txCtx, entity)
@@ -225,13 +245,19 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 				return err
 			}
 			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
-			return err
+			if err != nil {
+				return err
+			}
+			return publishStatusChange(txCtx, from, updatedTransaction)
 		}
 
 		// For Details-only gateways, just update status to Canceled
 		entity = entity.SetStatus(billing.Canceled)
 		updatedTransaction, err = s.repo.Save(txCtx, entity)
-		return err
+		if err != nil {
+			return err
+		}
+		return publishStatusChange(txCtx, from, updatedTransaction)
 	})
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -304,6 +330,7 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 			return err
 		}
 
+		from := entity.Status()
 		provider := s.providers[entity.Gateway()]
 
 		// A gateway that records refunded sums can only learn the new sum from its
@@ -320,7 +347,10 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 				return err
 			}
 			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
-			return err
+			if err != nil {
+				return err
+			}
+			return publishStatusChange(txCtx, from, updatedTransaction)
 		}
 
 		// For Details-only gateways, update status based on refund amount
@@ -330,7 +360,10 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 			entity = entity.SetStatus(billing.PartiallyRefunded)
 		}
 		updatedTransaction, err = s.repo.Save(txCtx, entity)
-		return err
+		if err != nil {
+			return err
+		}
+		return publishStatusChange(txCtx, from, updatedTransaction)
 	})
 	if err != nil {
 		return nil, serrors.Wrap(op, err)

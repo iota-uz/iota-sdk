@@ -42,6 +42,9 @@ type testBillingRepo struct {
 		filters []billing.DetailsFieldFilter,
 	) ([]billing.Transaction, error)
 	save func(ctx context.Context, tx billing.Transaction) (billing.Transaction, error)
+	// stored are the transactions GetByIDForUpdate finds by ID: BillingService.Save
+	// reads the stored status of a transaction it updates.
+	stored []billing.Transaction
 }
 
 func (r *testBillingRepo) Count(_ context.Context, _ *billing.FindParams) (int64, error) {
@@ -56,7 +59,12 @@ func (r *testBillingRepo) GetByID(_ context.Context, _ uuid.UUID) (billing.Trans
 	return nil, errors.New("not implemented")
 }
 
-func (r *testBillingRepo) GetByIDForUpdate(_ context.Context, _ uuid.UUID) (billing.Transaction, error) {
+func (r *testBillingRepo) GetByIDForUpdate(_ context.Context, id uuid.UUID) (billing.Transaction, error) {
+	for _, tx := range r.stored {
+		if tx.ID() == id {
+			return tx, nil
+		}
+	}
 	return nil, errors.New("not implemented")
 }
 

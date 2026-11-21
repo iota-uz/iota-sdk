@@ -845,6 +845,12 @@
         "_Description": "完整的项目阶段管理功能"
       }
     },
+    "Billing": {
+      "TransactionView": {
+        "Label": "查看计费交易",
+        "_Description": "查看计费交易及其状态变更事件"
+      }
+    },
     "Warehouse": {
       "ProductView": {
         "Label": "查看产品",

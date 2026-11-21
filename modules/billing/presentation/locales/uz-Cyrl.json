@@ -1,1 +1,10 @@
-{}
+{
+  "Resources": {
+    "billing_transaction": "Billing транзакциялари"
+  },
+  "Permissions": {
+    "BillingTransaction": {
+      "Read": "Billing транзакцияларини кўриш"
+    }
+  }
+}

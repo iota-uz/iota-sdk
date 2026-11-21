@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/acceptance"
@@ -10,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -60,6 +62,27 @@ func (r *AcceptanceRepository) GetByID(ctx context.Context, id uuid.UUID) (accep
 		return nil, serrors.Wrap(op, acceptance.ErrNotFound)
 	}
 	return documents[0], nil
+}
+
+// Lock takes the row lock of the document until the transaction ends.
+func (r *AcceptanceRepository) Lock(ctx context.Context, id uuid.UUID) error {
+	const op serrors.Op = "AcceptanceRepository.Lock"
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	var locked uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM project_acceptance_documents WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, id, tenantID).Scan(&locked); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return serrors.Wrap(op, acceptance.ErrNotFound)
+		}
+		return serrors.FromDB(op, err)
+	}
+	return nil
 }
 
 func (r *AcceptanceRepository) GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]acceptance.Document, error) {
