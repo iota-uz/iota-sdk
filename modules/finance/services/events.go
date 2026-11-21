@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -47,11 +48,14 @@ type PaymentCreatedPayload struct {
 }
 
 // PaymentUpdatedPayload is the payload of finance.payment.updated.v1: the
-// payment after the update and the IDs of the finance.payment fields it changed.
+// payment after the update and the attributes of the payment it changed. The
+// vocabulary of Changed is declared by the payload type itself (the amount, the
+// account, the date and the comment live in the payment's transaction, not in
+// columns of the finance.payment entity, so they are not entity fields).
 type PaymentUpdatedPayload struct {
 	PaymentID uuid.UUID  `json:"paymentId"`
 	Amount    money.Wire `json:"amount"`
-	Changed   []string   `json:"changed"`
+	Changed   []string   `json:"changed" wire:"enum=accountId|accountingPeriod|amount|categoryId|comment|counterpartyId|transactionDate"`
 }
 
 // ExpenseCreatedPayload is the payload of finance.expense.created.v1.
@@ -114,11 +118,11 @@ var PaymentCreatedEvent = native.Event[PaymentCreatedPayload](PaymentCreatedEven
 	Category:       "finance.payments",
 })
 
-// PaymentUpdatedEvent is published by PaymentService.Update when a field changed.
+// PaymentUpdatedEvent is published by PaymentService.Update when an attribute changed.
 var PaymentUpdatedEvent = native.Event[PaymentUpdatedPayload](PaymentUpdatedEventID, native.EventSpec{
 	Subject:     PaymentResource,
 	Label:       eventLabel("Payment updated", "Платёж изменён", "To'lov o'zgartirildi", "Тўлов ўзгартирилди"),
-	Description: "A payment was updated. Published in the transaction that updates the payment, only when a field changed; changed lists the finance.payment fields.",
+	Description: "A payment was updated. Published in the transaction that updates the payment, only when an attribute changed; changed lists the changed payment attributes (amount, accountId, categoryId, counterpartyId, transactionDate, accountingPeriod, comment).",
 	Descriptions: eventLabel(
 		"A payment was updated; the changed fields are listed.",
 		"Платёж изменён; перечислены изменённые поля.",
@@ -233,15 +237,15 @@ func debtTypeWire(t debt.DebtType) string {
 	return "receivable"
 }
 
-// paymentFields maps the history snapshot keys of a payment to the
-// finance.payment field IDs a changed list may name.
+// paymentFields maps the history snapshot keys of a payment to the attribute
+// IDs of PaymentUpdatedPayload.Changed.
 var paymentFields = []struct{ snapshot, field string }{
 	{"amount", "amount"}, {"account_id", "accountId"}, {"category_id", "categoryId"},
 	{"counterparty_id", "counterpartyId"}, {"transaction_date", "transactionDate"},
 	{"accounting_period", "accountingPeriod"}, {"comment", "comment"},
 }
 
-// changedPaymentFields lists the finance.payment fields whose values differ.
+// changedPaymentFields lists the payment attributes whose values differ.
 func changedPaymentFields(before, after history.Snapshot) []string {
 	out := []string{}
 	for _, f := range paymentFields {
@@ -380,4 +384,22 @@ func publishDebtCancelled(ctx context.Context, closed debt.Debt) error {
 		return serrors.Wrap(op, err)
 	}
 	return serrors.Wrap(op, events.PublishInTx(ctx, closed.TenantID(), DebtCancelledEvent, ref(DebtResource, closed.ID()), p))
+}
+
+// checkEntityTenant refuses an entity without a tenant, or of another tenant than
+// the context's, before the repository normalizes the tenant: an event belongs to
+// the tenant of the entity, so a missing or foreign tenant fails the change
+// instead of being replaced.
+func checkEntityTenant(ctx context.Context, op serrors.Op, entityTenant uuid.UUID) error {
+	if entityTenant == uuid.Nil {
+		return serrors.New(serrors.Invalid, "the entity has no tenant").WithOp(op)
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if entityTenant != tenantID {
+		return serrors.New(serrors.Invalid, "the entity belongs to another tenant than the context").WithOp(op)
+	}
+	return nil
 }

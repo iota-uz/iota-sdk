@@ -3,6 +3,7 @@ package finance
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"

@@ -3,6 +3,7 @@ package projects
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 
 	"github.com/iota-uz/iota-sdk/modules/logging/history"

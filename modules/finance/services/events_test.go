@@ -454,3 +454,29 @@ func TestPaymentService_EventbusFollowsTheOwnersCommit(t *testing.T) {
 	}))
 	require.Equal(t, 1, count())
 }
+
+// An entity without a tenant, or of another tenant than the context's, fails the
+// create before the repository could replace its tenant, and publishes nothing.
+func TestCreate_RefusesAMissingOrForeignEntityTenant(t *testing.T) {
+	f := newFinanceEventsFixture(t)
+	tenant := f.env.TenantID()
+	for name, entityTenant := range map[string]uuid.UUID{"no tenant": uuid.Nil, "another tenant": uuid.New()} {
+		t.Run(name, func(t *testing.T) {
+			day := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+			p := payment.New(money.New(1500, "USD"), f.newPaymentCategory(t),
+				payment.WithTenantID(entityTenant), payment.WithAccount(f.newAccount(t)),
+				payment.WithCounterpartyID(f.newCounterparty(t).ID()),
+				payment.WithTransactionDate(day), payment.WithAccountingPeriod(day),
+			)
+			_, err := f.payments.Create(f.ctx, p)
+			require.ErrorContains(t, err, "tenant")
+
+			d := f.debt().UpdateCounterpartyID(f.newCounterparty(t).ID()).UpdateTenantID(entityTenant)
+			_, err = f.debts.Create(f.ctx, d)
+			require.ErrorContains(t, err, "tenant")
+
+			require.Empty(t, outboxRows(t, f.ctx, tenant, services.PaymentCreatedEventID))
+			require.Empty(t, outboxRows(t, f.ctx, tenant, services.DebtCreatedEventID))
+		})
+	}
+}

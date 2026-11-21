@@ -144,6 +144,9 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
+	if err := checkEntityTenant(ctx, "DebtService.Create", entity.TenantID()); err != nil {
+		return nil, err
+	}
 	if err := s.checkAccount(ctx, entity); err != nil {
 		return nil, err
 	}

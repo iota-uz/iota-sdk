@@ -2056,14 +2056,14 @@
         {
           "id": "finance.payment.updated.v1",
           "kind": "event",
-          "contractHash": "6a20ca490e8d9f0f5717e25f01c2f4d7517f1fc5d64d64c69f1f9f809d820f4d",
+          "contractHash": "016b6facdc0848f1d7e6a1adf25525c14ab4b7693449c8e67a89dce827c14fe4",
           "label": {
             "en": "Payment updated",
             "ru": "Платёж изменён",
             "uz": "To'lov o'zgartirildi",
             "uz-Cyrl": "Тўлов ўзгартирилди"
           },
-          "description": "A payment was updated. Published in the transaction that updates the payment, only when a field changed; changed lists the finance.payment fields.",
+          "description": "A payment was updated. Published in the transaction that updates the payment, only when an attribute changed; changed lists the changed payment attributes (amount, accountId, categoryId, counterpartyId, transactionDate, accountingPeriod, comment).",
           "payload": {
             "kind": "object",
             "properties": [
@@ -2098,7 +2098,16 @@
                 "type": {
                   "kind": "array",
                   "items": {
-                    "kind": "string"
+                    "kind": "enum",
+                    "values": [
+                      "accountId",
+                      "accountingPeriod",
+                      "amount",
+                      "categoryId",
+                      "comment",
+                      "counterpartyId",
+                      "transactionDate"
+                    ]
                   }
                 }
               }
