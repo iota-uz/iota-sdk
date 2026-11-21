@@ -9,10 +9,12 @@
 //
 // The core is always on and needs no Node: the native.Set composed from the
 // contributors, the transactional outbox and its one dispatcher (with
-// pruning), and the host.SubjectLoader consumers resolve run-as subjects
-// with. Modules and applications register Go consumers of the outbox with
-// ContributeConsumers. The dispatcher runs in Start unless DisableBackground
-// is set.
+// pruning), the host.SubjectLoader consumers resolve run-as subjects with,
+// and the one *workflow.Engine of the process, which runs the Go
+// implementations of workflow contracts. Modules and applications register Go
+// consumers of the outbox with ContributeConsumers and native workflows with
+// ContributeNativeWorkflows. The dispatcher and the engine run in Start
+// unless DisableBackground is set.
 //
 // The component reads the extruntimeconfig section (EXTRUNTIME_* environment
 // variables) from the config source of the build context. While the section
@@ -111,13 +113,18 @@ func (c *component) Build(b *composition.Builder) error {
 		return serrors.Wrap(op, err)
 	}
 	logger := b.Context().Logger()
-	core := coreConfig{retention: section.Events.Retention, events: c.opts.Events, disableBackground: section.DisableBackground}
+	core := coreConfig{
+		retention: section.Events.Retention, events: c.opts.Events, disableBackground: section.DisableBackground,
+		workflowConcurrency: section.WorkflowConcurrency,
+	}
 	if !configured || !section.Enabled {
 		c.buildCore(b, natives, core)
+		c.buildWorkflows(b, natives, core, false)
 		if logger != nil {
-			logger.Info("extension runtime is disabled (EXTRUNTIME_ENABLED is not set); the event core runs without it")
+			logger.Info("extension runtime is disabled (EXTRUNTIME_ENABLED is not set); the event core and native workflows run without it")
 		}
 		startCore(b, core)
+		startWorkflows(b, core)
 		return nil
 	}
 	cfg, dist, err := runtimeConfig(section, c.opts, natives)
@@ -128,7 +135,9 @@ func (c *component) Build(b *composition.Builder) error {
 	// runtime configuration: the core's dispatcher is the one that applies them.
 	core.events = mergeEvents(core.events, cfg.Events)
 	core.disableBackground = cfg.DisableBackground
+	core.workflowConcurrency = cfg.Workflow.Concurrency
 	c.buildCore(b, natives, core)
+	c.buildWorkflows(b, natives, core, true)
 	if logger != nil {
 		logger.Infof("extension runtime is enabled: pool=%d, @iota-uz/sdk %s at %s, ui=%t, configurator=%t",
 			cfg.PoolSize, dist.Identity.ReleaseVersion, dist.Dir, cfg.UI != nil, cfg.Configurator != nil)
@@ -141,6 +150,7 @@ func (c *component) Build(b *composition.Builder) error {
 		return err
 	}
 	startCore(b, core)
+	startWorkflows(b, core)
 	return nil
 }
 

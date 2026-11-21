@@ -23,7 +23,7 @@ import (
 func (e *Engine) RunOnce(ctx context.Context) (int, error) {
 	n := 0
 	for {
-		inst, claimed, err := e.claim(ctx)
+		inst, claimed, err := e.claim(ctx, claimFilter{})
 		if err != nil {
 			return n, err
 		}
@@ -38,9 +38,38 @@ func (e *Engine) RunOnce(ctx context.Context) (int, error) {
 	}
 }
 
-// Serve runs the scheduler in the background: Concurrency workers claim ready
-// instances, woken by NOTIFY (start, signal, decision) and by a poll that
-// catches timers and expired leases.
+// wakeHub fans the scheduler's wake-ups out to every worker.
+type wakeHub struct {
+	mu   sync.Mutex
+	subs []chan struct{}
+}
+
+func (h *wakeHub) subscribe() chan struct{} {
+	c := make(chan struct{}, 1)
+	h.mu.Lock()
+	h.subs = append(h.subs, c)
+	h.mu.Unlock()
+	return c
+}
+
+func (h *wakeHub) poke() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, s := range h.subs {
+		select {
+		case s <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// Serve runs the scheduler in the background, woken by NOTIFY (start, signal,
+// decision) and by a poll that catches timers and expired leases. Each native
+// contract has its own pool of NativeContract.Concurrency workers, so native
+// runs never take the slots of package workflows; package workflows get
+// Config.Concurrency workers (or Packages.Concurrency). Attach the package
+// executor before Serve: without it the package workers block every ready
+// package instance as unavailable.
 func (e *Engine) Serve(ctx context.Context) {
 	e.mu.Lock()
 	if e.cancel != nil {
@@ -49,20 +78,22 @@ func (e *Engine) Serve(ctx context.Context) {
 	}
 	ctx, e.cancel = context.WithCancel(ctx)
 	e.done = make(chan struct{})
-	done := e.done
+	e.serving, e.wake, e.wg = ctx, &wakeHub{}, &sync.WaitGroup{}
+	done, hub, wg, pkgSlots := e.done, e.wake, e.wg, e.pkgConcurrency
 	e.mu.Unlock()
 
-	wake := listen(ctx, e.cfg.DB, NotifyChannel, e.cfg.PollInterval, e.cfg.Logger)
-	var wg sync.WaitGroup
-	signals := make([]chan struct{}, e.cfg.Concurrency)
-	for i := range signals {
-		signals[i] = make(chan struct{}, 1)
-		wg.Add(1)
-		go func(sig chan struct{}) {
-			defer wg.Done()
-			e.worker(ctx, sig)
-		}(signals[i])
+	// Package workers run with or without the package executor: without it
+	// they block the ready package instances as unavailable (run), so an
+	// instance never waits silently in a process that cannot execute it.
+	e.startWorkers(ctx, pkgSlots, claimFilter{native: boolPtr(false)})
+	natives, err := e.allNatives()
+	if err != nil {
+		e.cfg.Logger.Error("extruntime: native workflows are not served", "error", err)
 	}
+	for id, nc := range natives {
+		e.startWorkers(ctx, nc.Concurrency, claimFilter{native: boolPtr(true), workflow: id})
+	}
+	wake := listen(ctx, e.cfg.DB, NotifyChannel, e.cfg.PollInterval, e.cfg.Logger)
 	go func() {
 		defer close(done)
 		for {
@@ -71,20 +102,33 @@ func (e *Engine) Serve(ctx context.Context) {
 				wg.Wait()
 				return
 			case <-wake:
-				for _, s := range signals {
-					select {
-					case s <- struct{}{}:
-					default:
-					}
-				}
+				hub.poke()
 			}
 		}
 	}()
 }
 
-func (e *Engine) worker(ctx context.Context, wake <-chan struct{}) {
+// startWorkers starts n workers that claim what filter selects.
+func (e *Engine) startWorkers(ctx context.Context, n int, filter claimFilter) {
+	e.mu.Lock()
+	hub, wg := e.wake, e.wg
+	e.mu.Unlock()
+	if hub == nil {
+		return
+	}
+	for range n {
+		sig := hub.subscribe()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			e.worker(ctx, filter, sig)
+		}()
+	}
+}
+
+func (e *Engine) worker(ctx context.Context, filter claimFilter, wake <-chan struct{}) {
 	for ctx.Err() == nil {
-		inst, claimed, err := e.claim(ctx)
+		inst, claimed, err := e.claim(ctx, filter)
 		if err != nil {
 			if ctx.Err() == nil {
 				e.cfg.Logger.Error("extruntime: workflow claim failed", "error", err)
@@ -106,7 +150,7 @@ func (e *Engine) worker(ctx context.Context, wake <-chan struct{}) {
 func (e *Engine) Shutdown() {
 	e.mu.Lock()
 	cancel, done := e.cancel, e.done
-	e.cancel, e.done = nil, nil
+	e.cancel, e.done, e.serving = nil, nil, nil
 	e.mu.Unlock()
 	if cancel == nil {
 		return
@@ -135,23 +179,38 @@ func (e *Engine) runByToken(token string) *runState {
 
 // cancelLocal aborts the in-flight run of the instance in this process.
 func (e *Engine) cancelLocal(instance string) {
-	e.mu.Lock()
-	var victims []*runState
-	for _, rs := range e.runs {
-		if rs.inst.ID.String() == instance {
-			victims = append(victims, rs)
-		}
-	}
-	e.mu.Unlock()
-	for _, rs := range victims {
+	for _, rs := range e.localRuns(instance) {
 		rs.markStale(errTerminated)
 		rs.cancel()
 	}
 }
 
-// heartbeat renews the lease while the run is active. A fenced renewal that
-// matches no row means the lease was taken over or the instance terminated:
-// the run is aborted and records nothing more.
+// staleLocal lets the in-flight run of the instance finish its current step
+// and rejects its further host calls.
+func (e *Engine) staleLocal(instance string) {
+	for _, rs := range e.localRuns(instance) {
+		rs.markStale(errTerminated)
+	}
+}
+
+func (e *Engine) localRuns(instance string) []*runState {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []*runState
+	for _, rs := range e.runs {
+		if rs.inst.ID.String() == instance {
+			out = append(out, rs)
+		}
+	}
+	return out
+}
+
+// heartbeat renews the lease while the run is active. A renewal matches only
+// a lease that is still valid on the database clock, so an expired lease is
+// never resurrected. No matched row means the lease expired or was taken
+// over (the run is aborted and records nothing more) or the instance was
+// terminated: then its in-flight step may finish, and every further host call
+// and write is fenced.
 func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 	hb, cancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
@@ -166,10 +225,17 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 				return
 			case <-t.C:
 				tag, err := e.cfg.DB.Exec(hb, `
-					UPDATE extruntime.workflow_instances SET lease_until = now() + $4::interval
-					WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
+					UPDATE extruntime.workflow_instances SET lease_until = clock_timestamp() + $4::interval
+					WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running' AND lease_until > clock_timestamp()`,
 					rs.inst.ID, rs.inst.TenantID, rs.epoch, e.cfg.LeaseTTL.String())
 				if err == nil && tag.RowsAffected() == 0 {
+					var status string
+					serr := e.cfg.DB.QueryRow(hb, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`,
+						rs.inst.ID, rs.inst.TenantID).Scan(&status)
+					if serr == nil && status == StatusTerminated {
+						rs.markStale(errTerminated)
+						return
+					}
 					rs.markStale(errLeaseLost)
 					rs.cancel()
 					return
@@ -183,26 +249,41 @@ func (e *Engine) heartbeat(ctx context.Context, rs *runState) func() {
 // runClaimed replays one claimed instance up to its next suspension and
 // records how the run ended. All writes are fenced by the claim's epoch.
 func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
-	runCtx, cancel := context.WithTimeout(ctx, e.cfg.RunTimeout)
+	timeout := e.cfg.RunTimeout
+	nc, native := e.Native(inst.Workflow)
+	native = native && inst.Native
+	if native {
+		timeout = nc.RunTimeout
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	rs := &runState{
 		inst: *inst, epoch: inst.LeaseEpoch, cancel: cancel,
 		token:   fmt.Sprintf("%s:%d", inst.ID, inst.LeaseEpoch),
 		journal: map[occKey]Occurrence{},
+		lazy:    inst.Native,
 	}
 	e.register(rs)
 	defer e.unregister(rs)
 	stopHB := e.heartbeat(runCtx, rs)
 	defer stopHB()
 
-	if err := e.run(runCtx, ctx, rs); err != nil && ctx.Err() == nil {
+	run := e.run
+	if inst.Native {
+		run = e.runNative
+	}
+	if err := run(runCtx, ctx, rs); err != nil && ctx.Err() == nil {
 		e.cfg.Logger.Error("extruntime: workflow run bookkeeping failed", "instance", inst.ID, "error", err)
 	}
 }
 
 func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 	inst := rs.inst
-	if gate, ok := e.cfg.Impl.(PackageGate); ok {
+	deps := e.deps()
+	if !deps.complete() {
+		return e.finishBlocked(parent, rs, BlockUnavailable, fmt.Sprintf("workflow %s is a package workflow and this process has no package runtime (EXTRUNTIME_ENABLED is off); resume the instance where the runtime runs", inst.Workflow))
+	}
+	if gate, ok := deps.impl.(PackageGate); ok {
 		active, gerr := gate.PackageActive(runCtx, inst.Package)
 		switch {
 		case gerr != nil:
@@ -221,7 +302,7 @@ func (e *Engine) run(runCtx, parent context.Context, rs *runState) error {
 	subject.TenantID, subject.UserID, subject.Kind = inst.TenantID, inst.SubjectUserID, inst.SubjectKind
 	rs.subject = subject
 
-	art, secrets, err := e.cfg.Artifacts.ResolveArtifact(runCtx, inst.Package, inst.Version)
+	art, secrets, err := deps.artifacts.ResolveArtifact(runCtx, inst.Package, inst.Version)
 	if err != nil {
 		return e.finishBlocked(parent, rs, BlockArtifact, fmt.Sprintf("pinned artifact %s@%s is unavailable: %v", inst.Package, inst.Version, err))
 	}
@@ -315,7 +396,11 @@ func (e *Engine) checkOutput(ctx context.Context, inst Instance, out []byte) *po
 // none or the catalog cannot say: an unknown contract is not a reason to fail
 // a run that completed.
 func (e *Engine) declaredOutput(ctx context.Context, workflow string) *manifest.Type {
-	res, ok, err := e.cfg.Catalog.Resolve(ctx, workflow)
+	cat := e.catalog()
+	if cat == nil {
+		return nil
+	}
+	res, ok, err := cat.Resolve(ctx, workflow)
 	if err != nil || !ok {
 		return nil
 	}

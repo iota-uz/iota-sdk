@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/helpdocs"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -124,11 +125,17 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil && !composition.IsNotProvided(err) {
 			return nil, err
 		}
+		// The core builds the one workflow engine of the process; the runtime
+		// attaches its package executor to it.
+		engine, err := composition.Resolve[*workflow.Engine](container)
+		if err != nil && !composition.IsNotProvided(err) {
+			return nil, err
+		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
 		return New(c.cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
-			NativeDeps: container, Dispatcher: outbox,
+			NativeDeps: container, Dispatcher: outbox, Workflows: engine,
 			// Without the core, Go consumers contributed to the container are
 			// served by the runtime's own dispatcher.
 			Consumers: events.ConsumerSourceFunc(func(ctx context.Context) ([]events.Consumer, error) {

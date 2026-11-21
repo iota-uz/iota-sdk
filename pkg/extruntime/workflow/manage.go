@@ -39,8 +39,11 @@ type Task struct {
 	Decision           json.RawMessage
 	DecidedBy          *int64
 	DueAt              *time.Time
-	CreatedAt          time.Time
-	DecidedAt          *time.Time
+	// Title is the localized title a native workflow gave the task (empty for
+	// package workflows).
+	Title     manifest.Label
+	CreatedAt time.Time
+	DecidedAt *time.Time
 }
 
 // Who a human task is assigned to.
@@ -90,6 +93,10 @@ type ListFilter struct {
 	TenantID uuid.UUID
 	Status   string
 	Workflow string
+	// Native, when set, keeps only native (true) or package (false) instances.
+	Native *bool
+	// ParentID, when set, keeps only the children of that instance.
+	ParentID *uuid.UUID
 	Limit    int
 	Offset   int
 }
@@ -102,7 +109,8 @@ func (e *Engine) List(ctx context.Context, f ListFilter) ([]Instance, error) {
 	rows, err := e.cfg.DB.Query(ctx, `
 		SELECT `+instanceCols+` FROM extruntime.workflow_instances
 		WHERE tenant_id = $1 AND ($2 = '' OR status = $2) AND ($3 = '' OR workflow = $3)
-		ORDER BY created_at DESC, id LIMIT $4 OFFSET $5`, f.TenantID, f.Status, f.Workflow, f.Limit, f.Offset)
+		  AND ($6::boolean IS NULL OR native = $6) AND ($7::uuid IS NULL OR parent_instance_id = $7)
+		ORDER BY created_at DESC, id LIMIT $4 OFFSET $5`, f.TenantID, f.Status, f.Workflow, f.Limit, f.Offset, f.Native, f.ParentID)
 	if err != nil {
 		return nil, serrors.FromDB(opManage, err)
 	}
@@ -153,14 +161,14 @@ func (e *Engine) Get(ctx context.Context, tenant, id uuid.UUID) (History, error)
 	}
 
 	trows, err := e.cfg.DB.Query(ctx, `
-		SELECT id, instance_id, name, n, subject_entity, subject_key, assignee_kind, COALESCE(assignee_user_id, 0), assignee_permission, decision_schema, status, decision, decided_by, due_at, created_at, decided_at
+		SELECT id, instance_id, name, n, subject_entity, subject_key, assignee_kind, COALESCE(assignee_user_id, 0), assignee_permission, decision_schema, status, decision, decided_by, due_at, title, created_at, decided_at
 		FROM extruntime.human_tasks WHERE instance_id = $1 AND tenant_id = $2 ORDER BY created_at, name, n`, id, tenant)
 	if err != nil {
 		return h, serrors.FromDB(opManage, err)
 	}
 	for trows.Next() {
 		var t Task
-		if err := trows.Scan(&t.ID, &t.InstanceID, &t.Name, &t.N, &t.SubjectEntity, &t.SubjectKey, &t.AssigneeKind, &t.AssigneeUserID, &t.AssigneePermission, &t.DecisionSchema, &t.Status, &t.Decision, &t.DecidedBy, &t.DueAt, &t.CreatedAt, &t.DecidedAt); err != nil {
+		if err := trows.Scan(&t.ID, &t.InstanceID, &t.Name, &t.N, &t.SubjectEntity, &t.SubjectKey, &t.AssigneeKind, &t.AssigneeUserID, &t.AssigneePermission, &t.DecisionSchema, &t.Status, &t.Decision, &t.DecidedBy, &t.DueAt, &t.Title, &t.CreatedAt, &t.DecidedAt); err != nil {
 			trows.Close()
 			return h, serrors.FromDB(opManage, err)
 		}
@@ -291,14 +299,11 @@ func (e *Engine) deliverSignal(ctx context.Context, q queryer, r signalReq) erro
 	if r.workflow != "" && r.workflow != inst.Workflow {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: %w", ErrInvalid, &mismatchError{got: r.workflow, want: inst.Workflow}))
 	}
-	res, ok, err := e.cfg.Catalog.Resolve(ctx, inst.Workflow)
+	signals, permission, err := e.signalContract(ctx, inst)
 	if err != nil {
-		return serrors.Wrap(opManage, err)
+		return err
 	}
-	if !ok {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s is not in the catalog", ErrInvalid, inst.Workflow))
-	}
-	typ, declared := res.Resource.Signals[r.name]
+	typ, declared := signals[r.name]
 	if !declared {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: %w", ErrInvalid, &unknownSignalError{workflow: inst.Workflow, name: r.name}))
 	}
@@ -318,8 +323,8 @@ func (e *Engine) deliverSignal(ctx context.Context, q queryer, r signalReq) erro
 		if err != nil {
 			return serrors.Wrap(opManage, fmt.Errorf("%w: %w", errSignalDenied, err))
 		}
-		if !current.Has(res.Resource.Permission) {
-			return serrors.Wrap(opManage, fmt.Errorf("%w: permission %s is required for %s", errSignalDenied, res.Resource.Permission, inst.Workflow))
+		if !current.Has(permission) {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: permission %s is required for %s", errSignalDenied, permission, inst.Workflow))
 		}
 	}
 	// Locking the instance row first serializes with a run that is suspending.
@@ -351,6 +356,31 @@ func (e *Engine) deliverSignal(ctx context.Context, q queryer, r signalReq) erro
 		return serrors.FromDB(opManage, err)
 	}
 	return notify(ctx, q)
+}
+
+// signalContract is what a signal to the instance is checked against: the
+// signals and the permission of its workflow contract, from Config.Natives for
+// a native instance and from the catalog for a package one.
+func (e *Engine) signalContract(ctx context.Context, inst Instance) (map[string]manifest.Type, string, error) {
+	if inst.Native {
+		nc, ok := e.Native(inst.Workflow)
+		if !ok {
+			return nil, "", serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s has no Go implementation in this process", ErrInvalid, inst.Workflow))
+		}
+		return nc.Signals, nc.Permission, nil
+	}
+	cat := e.catalog()
+	if cat == nil {
+		return nil, "", serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s is a package workflow and the package runtime is not attached", ErrInvalid, inst.Workflow))
+	}
+	res, ok, err := cat.Resolve(ctx, inst.Workflow)
+	if err != nil {
+		return nil, "", serrors.Wrap(opManage, err)
+	}
+	if !ok {
+		return nil, "", serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s is not in the catalog", ErrInvalid, inst.Workflow))
+	}
+	return res.Resource.Signals, res.Resource.Permission, nil
 }
 
 // signalWire maps the engine's sentinel errors to the typed wire errors the
@@ -484,36 +514,138 @@ func (e *Engine) mayDecide(actor spi.Subject, kind string, assignee int64, permi
 
 // Terminate stops an instance: no further steps, open tasks and timers are
 // cancelled, later signals are rejected, an in-flight run is aborted. Effects
-// already committed stay (no compensation) and children keep running.
+// already committed stay (no compensation) and children keep running (see
+// TerminateTree).
 func (e *Engine) Terminate(ctx context.Context, tenant, id uuid.UUID) error {
-	tx, err := e.cfg.DB.Begin(ctx)
+	var stopped []uuid.UUID
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		inst, err := e.lockInstance(ctx, tx, tenant, id)
+		if err != nil {
+			return err
+		}
+		if !live(inst.Status) {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
+		}
+		if err := e.terminateLocked(ctx, tx, inst); err != nil {
+			return err
+		}
+		stopped = append(stopped, id)
+		return nil
+	})
 	if err != nil {
-		return serrors.FromDB(opManage, err)
+		return err
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	tag, err := tx.Exec(ctx, `
+	for _, s := range stopped {
+		e.cancelLocal(s.String())
+	}
+	return nil
+}
+
+// TerminateTree terminates an instance and every unfinished descendant (by
+// parent) in one transaction. A descendant's running step finishes, but its
+// further host calls are rejected. The root must be live; finished
+// descendants are left as they are.
+func (e *Engine) TerminateTree(ctx context.Context, tenant, id uuid.UUID) error {
+	var stopped []uuid.UUID
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		root, err := e.lockInstance(ctx, tx, tenant, id)
+		if err != nil {
+			return err
+		}
+		if !live(root.Status) {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
+		}
+		// Level by level: a level's rows are locked before their children are
+		// read in a new statement. A child insert holds a key-share lock on its
+		// parent row (the parent_instance_id foreign key), so it either
+		// committed before the parent lock was granted and is seen by the next
+		// level's read, or waits for this transaction and then finds its parent
+		// terminated (a run's fence fails, its insert rolls back).
+		var descendants []Instance
+		frontier := []uuid.UUID{root.ID}
+		for len(frontier) > 0 {
+			level, err := e.lockChildren(ctx, tx, tenant, frontier)
+			if err != nil {
+				return err
+			}
+			frontier = frontier[:0]
+			for _, c := range level {
+				frontier = append(frontier, c.ID)
+				if live(c.Status) {
+					descendants = append(descendants, c)
+				}
+			}
+		}
+		for _, inst := range append([]Instance{root}, descendants...) {
+			if err := e.terminateLocked(ctx, tx, inst); err != nil {
+				return err
+			}
+			stopped = append(stopped, inst.ID)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// The root's in-flight run is aborted as by Terminate; a descendant's
+	// running step finishes, and its further host calls are rejected.
+	e.cancelLocal(id.String())
+	for _, s := range stopped[1:] {
+		e.staleLocal(s.String())
+	}
+	return nil
+}
+
+// lockChildren locks and returns the children of the given instances, in id
+// order, whatever their status (a finished child may have live children).
+func (e *Engine) lockChildren(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, parents []uuid.UUID) ([]Instance, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT `+instanceCols+` FROM extruntime.workflow_instances
+		WHERE tenant_id = $1 AND parent_instance_id = ANY($2)
+		ORDER BY id FOR UPDATE`, tenant, parents)
+	if err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	defer rows.Close()
+	var out []Instance
+	for rows.Next() {
+		c, err := scanInstance(rows)
+		if err != nil {
+			return nil, serrors.FromDB(opManage, err)
+		}
+		out = append(out, c)
+	}
+	return out, serrors.FromDB(opManage, rows.Err())
+}
+
+func live(status string) bool {
+	return status == StatusRunning || status == StatusWaiting || status == StatusBlocked
+}
+
+// lockInstance reads the instance row under FOR UPDATE.
+func (e *Engine) lockInstance(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (Instance, error) {
+	inst, err := scanInstance(tx.QueryRow(ctx, `SELECT `+instanceCols+` FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, id, tenant))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Instance{}, serrors.Wrap(opManage, fmt.Errorf("%w: instance %s", ErrNotFound, id))
+	}
+	return inst, serrors.FromDB(opManage, err)
+}
+
+// terminateLocked terminates a live instance whose row tx has locked, with
+// its open tasks and waits, and tells the contract's StatusObserver.
+func (e *Engine) terminateLocked(ctx context.Context, tx pgx.Tx, inst Instance) error {
+	if _, err := tx.Exec(ctx, `
 		UPDATE extruntime.workflow_instances
 		SET status = 'terminated', wake_at = NULL, lease_owner = NULL, lease_until = NULL, finished_at = now(), updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND status IN ('running', 'waiting', 'blocked')`, id, tenant)
-	if err != nil {
+		WHERE id = $1 AND tenant_id = $2`, inst.ID, inst.TenantID); err != nil {
 		return serrors.FromDB(opManage, err)
 	}
-	if tag.RowsAffected() == 0 {
-		if _, gerr := e.instance(ctx, tx, tenant, id); gerr != nil {
-			return gerr
-		}
-		return serrors.Wrap(opManage, fmt.Errorf("%w: instance %s is already finished", ErrNotAccepting, id))
+	if err := cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
+		return err
 	}
-	if _, err := tx.Exec(ctx, `UPDATE extruntime.human_tasks SET status = 'cancelled' WHERE instance_id = $1 AND tenant_id = $2 AND status = 'open'`, id, tenant); err != nil {
-		return serrors.FromDB(opManage, err)
+	if err := e.afterTransition(ctx, tx, inst, inst.Status, StatusTerminated); err != nil {
+		return serrors.Wrap(opManage, err)
 	}
-	if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now() WHERE instance_id = $1 AND tenant_id = $2 AND status = 'waiting'`, id, tenant); err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	e.cancelLocal(id.String())
 	return nil
 }
 
@@ -531,17 +663,31 @@ func (e *Engine) StartV2(ctx context.Context, actor spi.Subject, predecessor uui
 		return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: terminate instance %s before starting a new version", ErrNotAccepting, predecessor))
 	}
 	var impl Implementation
-	if version == "" {
-		impl, err = e.cfg.Impl.Active(ctx, old.Workflow)
+	if old.Native {
+		if version != "" {
+			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: a native workflow has no package versions", ErrInvalid))
+		}
+		if _, ok := e.Native(old.Workflow); !ok {
+			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: workflow %s has no Go implementation in this process", ErrInvalid, old.Workflow))
+		}
+		impl = Implementation{Native: true}
 	} else {
-		impl, err = e.cfg.Impl.At(ctx, old.Workflow, old.Package, version)
-	}
-	if err != nil {
-		return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: %v", ErrInvalid, err))
-	}
-	if res, ok, rerr := e.cfg.Catalog.Resolve(ctx, old.Workflow); rerr == nil && ok && res.Resource.Input != nil {
-		if verr := manifest.ValidateValue(*res.Resource.Input, old.Input); verr != nil {
-			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: input no longer matches the workflow contract: %v", ErrInvalid, verr))
+		deps := e.deps()
+		if deps.impl == nil || deps.catalog == nil {
+			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: the package runtime is not attached", ErrInvalid))
+		}
+		if version == "" {
+			impl, err = deps.impl.Active(ctx, old.Workflow)
+		} else {
+			impl, err = deps.impl.At(ctx, old.Workflow, old.Package, version)
+		}
+		if err != nil {
+			return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: %v", ErrInvalid, err))
+		}
+		if res, ok, rerr := deps.catalog.Resolve(ctx, old.Workflow); rerr == nil && ok && res.Resource.Input != nil {
+			if verr := manifest.ValidateValue(*res.Resource.Input, old.Input); verr != nil {
+				return uuid.Nil, serrors.Wrap(opManage, fmt.Errorf("%w: input no longer matches the workflow contract: %v", ErrInvalid, verr))
+			}
 		}
 	}
 	tx, err := e.cfg.DB.Begin(ctx)
