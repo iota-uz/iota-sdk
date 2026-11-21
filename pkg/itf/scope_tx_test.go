@@ -163,26 +163,3 @@ func TestCommitTx_ReappliesTxSettings(t *testing.T) {
 }
 
 var probeSeq uint32
-
-// CommitTx runs the callbacks services registered with AfterCommit after the
-// commit, in a context that no longer holds the committed transaction: a
-// callback that reads committed data goes through the pool.
-func TestCommitTx_RunsAfterCommitCallbacksOutsideTheClosedTransaction(t *testing.T) {
-	env := Setup(t)
-	ran := false
-	var queryErr error
-	composables.AfterCommit(env.Ctx, func(ctx context.Context) {
-		ran = true
-		tx, err := composables.UseTx(ctx)
-		if err != nil {
-			queryErr = err
-			return
-		}
-		var n int
-		queryErr = tx.QueryRow(ctx, "SELECT 1").Scan(&n)
-	})
-	require.False(t, ran, "the callback waits for the commit")
-	env.CommitTx(t)
-	require.True(t, ran)
-	require.NoError(t, queryErr)
-}

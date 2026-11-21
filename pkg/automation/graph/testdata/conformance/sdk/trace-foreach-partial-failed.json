@@ -1,0 +1,264 @@
+{
+  "name": "trace-foreach-partial-failed",
+  "format": 2,
+  "kind": "trace",
+  "description": "A failure in the body marks its item ok false and does not stop the others; an item that ends without its collect fails too; any item not ok is partial_failed.",
+  "requires": [
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "[\"1\", \"x\", \"3\", \"skip\"]"
+        }
+      },
+      {
+        "id": "skip",
+        "type": "branch",
+        "params": {
+          "expression": "foreach.each.item == \"skip\""
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each",
+          "value": "int(foreach.each.item)"
+        }
+      },
+      {
+        "id": "warn",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "some failed"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "skip"
+      },
+      {
+        "from": {
+          "node": "skip",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "skip",
+          "outcome": "false"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "warn"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "warn",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "warn",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "skip",
+      "outcome": "false",
+      "context_patch": {},
+      "token": "each[0]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 1
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "skip",
+      "outcome": "false",
+      "context_patch": {},
+      "token": "each[1]"
+    },
+    {
+      "node": "c",
+      "outcome": "failed",
+      "context_patch": {
+        "code": "EXPRESSION_FAILED",
+        "message": "*"
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "skip",
+      "outcome": "false",
+      "context_patch": {},
+      "token": "each[2]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 3
+      },
+      "token": "each[2]"
+    },
+    {
+      "node": "skip",
+      "outcome": "true",
+      "context_patch": {},
+      "token": "each[3]"
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {},
+      "token": "each[3]"
+    },
+    {
+      "node": "each",
+      "outcome": "partial_failed",
+      "context_patch": {
+        "output": {
+          "results": [
+            {
+              "index": 0,
+              "ok": true,
+              "value": 1
+            },
+            {
+              "error": "*",
+              "index": 1,
+              "ok": false,
+              "value": null
+            },
+            {
+              "index": 2,
+              "ok": true,
+              "value": 3
+            },
+            {
+              "error": "*",
+              "index": 3,
+              "ok": false,
+              "value": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "node": "warn",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "notify",
+              "text": "some failed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

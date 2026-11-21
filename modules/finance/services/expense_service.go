@@ -66,7 +66,7 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +96,9 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (ex
 		return nil, err
 	}
 
-	composables.AfterCommit(ctx, func(context.Context) { s.publisher.Publish(createdEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
 	return created, nil
 }
 
@@ -104,7 +106,7 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (ex
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -135,7 +137,9 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (ex
 		return nil, err
 	}
 
-	composables.AfterCommit(ctx, func(context.Context) { s.publisher.Publish(updatedEvent) })
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return nil, err
+	}
 	return updated, nil
 }
 

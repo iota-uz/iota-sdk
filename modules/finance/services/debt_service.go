@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -140,7 +141,7 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtCreate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 	if err := s.checkAccount(ctx, entity); err != nil {
@@ -174,10 +175,12 @@ func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 
-	composables.AfterCommit(ctx, func(context.Context) {
+	if err := composables.AfterCommit(ctx, func() {
 		createdEvent.Result = createdEntity
 		s.publisher.Publish(createdEvent)
-	})
+	}); err != nil {
+		return nil, err
+	}
 	return createdEntity, nil
 }
 
@@ -185,7 +188,7 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.GetByID(ctx, entity.ID())
@@ -226,10 +229,12 @@ func (s *DebtService) Update(ctx context.Context, entity debt.Debt) (debt.Debt, 
 		return nil, err
 	}
 
-	composables.AfterCommit(ctx, func(context.Context) {
+	if err := composables.AfterCommit(ctx, func() {
 		updatedEvent.Result = updatedEntity
 		s.publisher.Publish(updatedEvent)
-	})
+	}); err != nil {
+		return nil, err
+	}
 	return updatedEntity, nil
 }
 
@@ -237,7 +242,7 @@ func (s *DebtService) Settle(ctx context.Context, debtID uuid.UUID, settlementAm
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -305,7 +310,7 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -334,7 +339,7 @@ func (s *DebtService) WriteOff(ctx context.Context, debtID uuid.UUID) (debt.Debt
 		if err := s.recordDebtChange(txCtx, DebtWrittenOff, entity, updatedEntity); err != nil {
 			return err
 		}
-		return publishDebtClosed(txCtx, DebtWrittenOffEvent, updatedEntity)
+		return publishDebtWrittenOff(txCtx, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -352,7 +357,7 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
 		return nil, err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -382,7 +387,7 @@ func (s *DebtService) Cancel(ctx context.Context, debtID uuid.UUID) (debt.Debt, 
 		if err := s.recordDebtChange(txCtx, DebtCancelled, entity, updatedEntity); err != nil {
 			return err
 		}
-		return publishDebtClosed(txCtx, DebtCancelledEvent, updatedEntity)
+		return publishDebtCancelled(txCtx, updatedEntity)
 	})
 	if err != nil {
 		return nil, err
@@ -429,17 +434,18 @@ func (s *DebtService) Delete(ctx context.Context, id uuid.UUID) (debt.Debt, erro
 // publishAfterCommit announces a change on the eventbus once the transaction
 // that holds it has committed: inside a caller's transaction that is when the
 // caller commits, and a rollback announces nothing. The change is already
-// saved by then, so a failure to build or publish the event is logged and does
-// not change the result of the call.
+// saved by then, so a failure to build the event is logged and does not change
+// the result of the call. The transaction's owner was checked before the change
+// (composables.CheckAfterCommit), so registering the callback cannot be refused.
 func (s *DebtService) publishAfterCommit(ctx context.Context, op string, build func() (any, error)) {
-	composables.AfterCommit(ctx, func(hookCtx context.Context) {
-		event, err := build()
-		if err != nil {
-			composables.UseLoggerOrDefault(hookCtx).WithError(err).WithField("op", op).Error("building the event after commit failed")
-			return
-		}
-		s.publisher.Publish(event)
-	})
+	event, err := build()
+	if err != nil {
+		logrus.WithError(err).WithField("op", op).Error("building the event after commit failed")
+		return
+	}
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(event) }); err != nil {
+		logrus.WithError(err).WithField("op", op).Error("the event after commit was not registered")
+	}
 }
 
 func (s *DebtService) recordDebtChange(ctx context.Context, eventType string, before, after debt.Debt) error {

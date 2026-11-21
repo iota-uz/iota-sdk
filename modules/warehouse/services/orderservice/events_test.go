@@ -66,7 +66,7 @@ func commitsAndRollsBack(t *testing.T, ctx context.Context, tenantID uuid.UUID, 
 	savepoint, err := tx.(pgx.Tx).Begin(ctx)
 	require.NoError(t, err)
 	// The test owns the savepoint, so it owns its commit hooks too.
-	spCtx, _ := composables.WithCommitHooks(composables.WithTx(ctx, savepoint))
+	spCtx, _ := composables.OwnTx(ctx, savepoint)
 	act(spCtx)
 	require.Len(t, outboxRows(t, spCtx, tenantID, event), before+1, "the event is in the transaction of the change")
 	require.NoError(t, savepoint.Rollback(ctx))
@@ -215,12 +215,11 @@ func TestOrderEvents_EventbusFollowsTheOwnersCommit(t *testing.T) {
 }
 
 // A service that promises an eventbus announcement after commit refuses to run
-// in a transaction whose owner offers no commit hooks (opened with the pool and
-// handed over with WithTx, or a savepoint begun by hand): it would save the
-// change and never announce it. It refuses before it writes anything. The owner
-// can attach hooks (WithCommitHooks), and InSavepoint nests with announcements:
-// they move to the enclosing transaction on release and are dropped on rollback.
-func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
+// in a transaction nobody declared the owner of (opened with the pool and handed
+// over with WithTx, or a savepoint begun by hand): it would save the change and
+// never announce it. It refuses before it writes anything. An owner that begins
+// its transaction with composables.OwnTx runs the announcement after its commit.
+func TestOrderEvents_EventbusNeedsADeclaredTransactionOwner(t *testing.T) {
 	env := itf.Setup(t,
 		itf.WithComponents(modules.Components()...),
 		itf.WithUser(itf.User(permissions.OrderCreate, permissions.OrderRead, permissions.OrderUpdate)),
@@ -244,7 +243,7 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	tx, err := env.Pool.Begin(ctx)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() // frees the connection if an assertion fails
-	require.ErrorIs(t, create(composables.WithTx(ctx, tx)), composables.ErrNoCommitHooks)
+	require.ErrorIs(t, create(composables.WithTx(ctx, tx)), composables.ErrNoCommitOwner)
 	require.NoError(t, tx.Commit(ctx))
 	require.Zero(t, count())
 	require.Zero(t, committedOutbox(t, env, orderservice.OrderCreatedEventID))
@@ -252,67 +251,32 @@ func TestOrderEvents_EventbusNeedsAnOwnerThatOffersCommitHooks(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, orders, "the refused call changed nothing")
 
-	// The same owner, once it attaches hooks and runs them after its commit.
+	// The same owner, once it declares itself (OwnTx) and runs the callbacks after its commit.
 	tx, err = env.Pool.Begin(ctx)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	hookCtx, hooks := composables.WithCommitHooks(composables.WithTx(ctx, tx))
-	require.NoError(t, create(hookCtx))
+	ownCtx, callbacks := composables.OwnTx(ctx, tx)
+	require.NoError(t, create(ownCtx))
 	require.Zero(t, count())
 	require.NoError(t, tx.Commit(ctx))
-	hooks.Run(ctx)
-	require.Equal(t, 1, count(), "an owner that offers hooks gets its announcement after its commit")
+	callbacks.Run()
+	require.Equal(t, 1, count(), "an owner that declares itself gets its announcement after its commit")
 	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
 
-	// A savepoint begun by hand inside InTx has no hooks of its own: refused.
+	// A savepoint begun by hand inside InTx has no owner of its own: refused.
 	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
 		raw, err := txCtx.Value(constants.TxKey).(pgx.Tx).Begin(txCtx)
 		if err != nil {
 			return err
 		}
 		defer func() { _ = raw.Rollback(context.WithoutCancel(txCtx)) }()
-		if err := create(composables.WithTx(txCtx, raw)); !errors.Is(err, composables.ErrNoCommitHooks) {
-			return fmt.Errorf("a savepoint without hooks must be refused, got %v", err)
+		if err := create(composables.WithTx(txCtx, raw)); !errors.Is(err, composables.ErrNoCommitOwner) {
+			return fmt.Errorf("a savepoint without an owner must be refused, got %v", err)
 		}
 		return nil
 	}))
 	require.Equal(t, 1, count())
 	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
-
-	// InSavepoint: rollback drops, release hands over to the caller.
-	errLater := errors.New("rolled back by the caller")
-	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
-		err := composables.InSavepoint(txCtx, func(spCtx context.Context) error {
-			if err := create(spCtx); err != nil {
-				return err
-			}
-			return errLater
-		})
-		if !errors.Is(err, errLater) {
-			return fmt.Errorf("the savepoint must roll back with the caller's error, got %v", err)
-		}
-		return nil
-	}))
-	require.Equal(t, 1, count())
-	require.Equal(t, 1, committedOutbox(t, env, orderservice.OrderCreatedEventID))
-
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := composables.InSavepoint(txCtx, create); err != nil {
-			return err
-		}
-		if count() != 1 {
-			return errors.New("announced before the caller's commit")
-		}
-		return errLater
-	})
-	require.ErrorIs(t, err, errLater)
-	require.Equal(t, 1, count(), "the caller rolled back after the release")
-
-	require.NoError(t, composables.InTx(ctx, func(txCtx context.Context) error {
-		return composables.InSavepoint(txCtx, create)
-	}))
-	require.Equal(t, 2, count())
-	require.Equal(t, 2, committedOutbox(t, env, orderservice.OrderCreatedEventID))
 }
 
 // An order read from storage reports no item as added: completing an order that

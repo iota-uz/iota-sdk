@@ -473,7 +473,7 @@ func TestFinanceHistory_RollbackLeavesNoEvents(t *testing.T) {
 	savepoint, err := f.env.Tx.Begin(f.env.Ctx)
 	require.NoError(t, err)
 	// The test owns the savepoint, so it owns its commit hooks too.
-	spCtx, _ := composables.WithCommitHooks(composables.WithTx(f.env.Ctx, savepoint))
+	spCtx, _ := composables.OwnTx(f.env.Ctx, savepoint)
 	operation := itf.TestExecution(spCtx)
 
 	_, err = f.debts.Settle(operation, created.ID(), 500, nil)

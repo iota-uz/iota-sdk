@@ -97,12 +97,12 @@ func publishOrderCompleted(ctx context.Context, completed order.Order) error {
 // eventbus once the transaction holding the change has committed: inside a
 // caller's transaction that is when the caller commits, and a rollback
 // publishes nothing.
-func (s *OrderService) publishAggregateEvents(ctx context.Context, o order.Order) {
+func (s *OrderService) publishAggregateEvents(ctx context.Context, o order.Order) error {
 	if s.publisher == nil || o == nil {
-		return
+		return nil
 	}
 	pending := o.Events()
-	composables.AfterCommit(ctx, func(context.Context) {
+	return composables.AfterCommit(ctx, func() {
 		for _, event := range pending {
 			s.publisher.Publish(event)
 		}

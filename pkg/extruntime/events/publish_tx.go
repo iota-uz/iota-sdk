@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -13,32 +14,30 @@ import (
 )
 
 // PublishInTx enqueues a native event in the transaction held by ctx
-// (composables.UseTx; a pool is not one), so the event commits or rolls back with the change it
-// reports; it is the publisher of a service that runs inside composables.InTx.
+// (composables.InTx), so the event commits or rolls back with the change it
+// reports. It is the publisher of the SDK modules' services.
 //
-// The event belongs to tenantID, the tenant of the entity, not the tenant of
-// the caller: an empty tenant is an error, and so is a ctx without a
-// transaction, so the caller's change rolls back instead of committing without
-// its event. The acting user of ctx, when there is one and the entity belongs
-// to the user's tenant, is the event initiator; a change without an acting
-// user (a gateway callback, a job) has no initiator, and a consumer that runs
-// as the initiator then runs as the owner of its trigger.
+// tenantID is the tenant of the changed entity; the nil UUID is an error, so a
+// publication never lands in a wrong tenant and its transaction rolls back.
+// The initiator is the acting user of ctx when that user belongs to the
+// event's tenant (a superadmin of another tenant is no subject of it); a
+// system or job context (history.IsJob) has none, even when it carries the
+// user it is authorized as. A context without a transaction is an
+// error: a published event must never outlive a failed change.
 func PublishInTx[P any](ctx context.Context, tenantID uuid.UUID, ev *native.EventDef[P], subject *spi.ObjectRef, payload P) error {
 	const op = serrors.Op("extruntime.events.PublishInTx")
 	if tenantID == uuid.Nil {
 		return serrors.New(serrors.Invalid, "event "+ev.ID()+" has no tenant").WithOp(op)
 	}
-	// UseTx falls back to the pool, and a row written through the pool commits
-	// at once, outside the change it reports: only a transaction will do.
 	if ctx.Value(constants.TxKey) == nil {
-		return serrors.Wrap(op, composables.ErrNoTx)
+		return serrors.New(serrors.Invalid, "event "+ev.ID()+" must be published in the transaction of the change").WithOp(op)
 	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
 	var initiator int64
-	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil && actor.TenantID() == tenantID {
+	if actor, actorErr := composables.UseUser(ctx); actorErr == nil && actor != nil && actor.TenantID() == tenantID && !history.IsJob(ctx) {
 		initiator = int64(actor.ID())
 	}
 	_, err = Publish(ctx, tx, spi.Scope{Subject: spi.Subject{TenantID: tenantID, UserID: initiator, Kind: spi.SubjectInitiator}}, ev, subject, payload)

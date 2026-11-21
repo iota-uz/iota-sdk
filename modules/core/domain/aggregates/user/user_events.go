@@ -77,7 +77,8 @@ type CreatedEvent struct {
 	Result  User
 }
 
-// Context preserves a caller-owned transaction for atomic event consumers.
+// Context is the context of the change without its transaction: the event is
+// delivered after the transaction committed, so subscribers use the pool.
 func (e *CreatedEvent) Context() context.Context { return e.ctx }
 
 type UpdatedEvent struct {

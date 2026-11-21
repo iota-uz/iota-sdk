@@ -352,15 +352,32 @@ func publishDebtSettled(ctx context.Context, before, after debt.Debt) error {
 	}))
 }
 
-// publishDebtClosed publishes finance.debt.written_off.v1 or
-// finance.debt.cancelled.v1 for the closed debt.
-func publishDebtClosed(ctx context.Context, ev *native.EventDef[DebtClosedPayload], closed debt.Debt) error {
-	const op = serrors.Op("DebtService.publishDebtClosed")
+func debtClosedPayload(closed debt.Debt) (DebtClosedPayload, error) {
 	original, err := money.ToWire(closed.OriginalAmount())
+	if err != nil {
+		return DebtClosedPayload{}, err
+	}
+	return DebtClosedPayload{
+		DebtID: closed.ID(), Type: debtTypeWire(closed.Type()), CounterpartyID: closed.CounterpartyID(), OriginalAmount: original,
+	}, nil
+}
+
+// publishDebtWrittenOff publishes finance.debt.written_off.v1 for the debt.
+func publishDebtWrittenOff(ctx context.Context, closed debt.Debt) error {
+	const op = serrors.Op("DebtService.publishDebtWrittenOff")
+	p, err := debtClosedPayload(closed)
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	return serrors.Wrap(op, events.PublishInTx(ctx, closed.TenantID(), ev, ref(DebtResource, closed.ID()), DebtClosedPayload{
-		DebtID: closed.ID(), Type: debtTypeWire(closed.Type()), CounterpartyID: closed.CounterpartyID(), OriginalAmount: original,
-	}))
+	return serrors.Wrap(op, events.PublishInTx(ctx, closed.TenantID(), DebtWrittenOffEvent, ref(DebtResource, closed.ID()), p))
+}
+
+// publishDebtCancelled publishes finance.debt.cancelled.v1 for the debt.
+func publishDebtCancelled(ctx context.Context, closed debt.Debt) error {
+	const op = serrors.Op("DebtService.publishDebtCancelled")
+	p, err := debtClosedPayload(closed)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	return serrors.Wrap(op, events.PublishInTx(ctx, closed.TenantID(), DebtCancelledEvent, ref(DebtResource, closed.ID()), p))
 }

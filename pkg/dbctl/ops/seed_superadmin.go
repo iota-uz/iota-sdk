@@ -87,7 +87,7 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 		coreseed.CreateSubscriptionEntitlements,
 	)
 
-	ctxWithTenant := composables.WithTenantID(composables.WithTx(ctx, e.Tx), defaultTenant.ID)
+	ctxWithTenant := composables.WithTenantID(composables.WithSilentTx(ctx, e.Tx), defaultTenant.ID)
 	if err := seeder.Seed(ctxWithTenant, seedDeps); err != nil {
 		return serrors.WrapContext(op, err, "seed superadmin dataset")
 	}

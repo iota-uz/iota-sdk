@@ -63,7 +63,7 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err := composables.CanUser(ctx, permissions.OrderCreate); err != nil {
 		return err
 	}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return err
 	}
 	entity, err := data.ToEntity()
@@ -85,15 +85,14 @@ func (s *OrderService) Create(ctx context.Context, data order.CreateDTO) error {
 	if err != nil {
 		return err
 	}
-	s.publishAggregateEvents(ctx, created)
-	return nil
+	return s.publishAggregateEvents(ctx, created)
 }
 
 func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, error) {
 	//if err := composables.CanUser(ctx, permissions.OrderComplete); err != nil {
 	//	return err
 	//}
-	if err := composables.RequireCommitHooks(ctx); err != nil {
+	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
 	var completedEntity order.Order
@@ -123,7 +122,9 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 	if err != nil {
 		return nil, err
 	}
-	s.publishAggregateEvents(ctx, completedEntity)
+	if err := s.publishAggregateEvents(ctx, completedEntity); err != nil {
+		return nil, err
+	}
 	return completedEntity, nil
 }
 

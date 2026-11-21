@@ -51,7 +51,7 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 		return nil, err
 	}
 
-	createdEvent, err := role.NewCreatedEvent(ctx, data)
+	createdEvent, err := role.NewCreatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,19 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, er
 		if err != nil {
 			return err
 		}
-		return recordRoleChange(txCtx, s.historyWriter, nil, createdRole)
+		if err := recordRoleChange(txCtx, s.historyWriter, nil, createdRole); err != nil {
+			return err
+		}
+		return publishRoleCreated(txCtx, createdRole)
 	})
 	if err != nil {
 		return nil, err
 	}
 	createdEvent.Result = createdRole
 
-	s.publisher.Publish(createdEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(createdEvent) }); err != nil {
+		return nil, err
+	}
 
 	return createdRole, nil
 }
@@ -85,7 +90,7 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 		return err
 	}
 
-	updatedEvent, err := role.NewUpdatedEvent(ctx, data)
+	updatedEvent, err := role.NewUpdatedEvent(composables.WithoutTx(ctx), data)
 	if err != nil {
 		return err
 	}
@@ -113,7 +118,9 @@ func (s *RoleService) Update(ctx context.Context, data role.Role) error {
 
 	updatedEvent.Result = updatedRole
 
-	s.publisher.Publish(updatedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(updatedEvent) }); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -124,7 +131,7 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	deletedEvent, err := role.NewDeletedEvent(ctx)
+	deletedEvent, err := role.NewDeletedEvent(composables.WithoutTx(ctx))
 	if err != nil {
 		return err
 	}
@@ -148,7 +155,9 @@ func (s *RoleService) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 	deletedEvent.Result = deletedRole
-	s.publisher.Publish(deletedEvent)
+	if err := composables.AfterCommit(ctx, func() { s.publisher.Publish(deletedEvent) }); err != nil {
+		return err
+	}
 
 	return nil
 }

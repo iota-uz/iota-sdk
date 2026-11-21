@@ -1,0 +1,288 @@
+{
+  "name": "trace-join-timeout",
+  "format": 2,
+  "kind": "trace",
+  "description": "A join's timeout counts from the fork: it fires while a branch still waits, cancels it (arrived false) and continues with timeout.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "legal",
+            "sales"
+          ]
+        }
+      },
+      {
+        "id": "pr",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened"
+        }
+      },
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "approval",
+          "text": "Approve {{ issue.title }}?"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all",
+          "timeout": "2h"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "late",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "late"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "legal"
+        },
+        "to": "pr"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "sales"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "pr",
+          "outcome": "matched"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "timeout"
+        },
+        "to": "late"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "late",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 5,
+      "repository": "acme/app"
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "pr",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "approve",
+      "outcome": "waiting",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "human",
+            "params": {
+              "reason": "approval",
+              "text": "Approve Crash on save?"
+            }
+          }
+        ],
+        "output": {
+          "waits_for": "manual"
+        }
+      },
+      "token": "split.sales"
+    },
+    {
+      "node": "pr",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": {
+          "event": {
+            "number": 5,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "split.legal"
+    },
+    {
+      "node": "approve",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.sales"
+    },
+    {
+      "node": "j",
+      "outcome": "timeout",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "legal": {
+              "arrived": true,
+              "output": {
+                "event": {
+                  "number": 5,
+                  "repository": "acme/app"
+                }
+              }
+            },
+            "sales": {
+              "arrived": false,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "late",
+      "outcome": "done",
+      "context_patch": {
+        "effects": [
+          {
+            "node": "action",
+            "params": {
+              "action": "notify",
+              "text": "late"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

@@ -75,3 +75,12 @@ func Middleware() mux.MiddlewareFunc {
 		})
 	}
 }
+
+// IsJob reports whether ctx runs a background job or a system executor on its
+// own account: its execution is a job, or names a service or system actor. A
+// user the context still carries is then the identity the work is authorized
+// as, not the person who made the change.
+func IsJob(ctx context.Context) bool {
+	e, ok := UseExecution(ctx)
+	return ok && (e.Channel == businessevent.ChannelJob || e.Actor != nil)
+}

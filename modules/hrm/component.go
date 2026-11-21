@@ -4,6 +4,7 @@ package hrm
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
@@ -36,6 +37,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewPositionRepository)
 	composition.ProvideFunc(builder, persistence.NewEmployeeRepository)
 	history.ContributeDefinitions(builder, services.HistoryDefinitions()...)
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.ProvideFunc(builder, services.NewPositionService)
 	composition.ProvideFunc(builder, services.NewEmployeeService)
 

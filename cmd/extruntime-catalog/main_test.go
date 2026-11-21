@@ -48,7 +48,8 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[string]string{
-		"core.user": "int64", "crm.client": "int64",
+		"core.user": "int64", "core.role": "int64", "core.group": "uuid",
+		"crm.client": "int64", "crm.chat": "int64", "hrm.employee": "int64",
 		"finance.payment": "uuid", "finance.expense": "uuid", "finance.debt": "uuid",
 		"warehouse.order": "int64", "billing.transaction": "uuid", "projects.acceptance": "uuid",
 	}, keyTypes, "native entities carry their key type")

@@ -3,6 +3,7 @@ package finance
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
@@ -36,6 +37,7 @@ func (c *component) LocaleFS() []*embed.FS {
 
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddNavNodes(builder, FinanceLink, FinanceEnumsLink, FinanceReportsLink)
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 
 	composition.ProvideFunc(builder, persistence.NewMoneyAccountRepository)
 	composition.ProvideFunc(builder, persistence.NewTransactionRepository)

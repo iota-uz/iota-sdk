@@ -3,7 +3,6 @@ package composables
 import (
 	"context"
 	"errors"
-	"reflect"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -16,31 +15,17 @@ var (
 	ErrNoPool = errors.New("no database pool found in context")
 )
 
-// WithTx returns a context that runs in tx. Joining the transaction ctx already
-// runs in keeps its commit hooks. A different transaction (a savepoint, a new
-// owner) has its own outcome, which only its owner knows, so the hooks of the
-// enclosing one do not follow it: the owner attaches its own with
-// WithCommitHooks.
+// WithTx returns a context that carries tx. The owner declared for the same
+// transaction (WithAfterCommit, OwnTx, InTx) is kept, so rebinding a
+// transaction does not lose it; the owner of another transaction is dropped,
+// because it does not answer for tx. Without an owner, AfterCommit reports
+// ErrNoCommitOwner for changes made in tx.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
-	same := sameTx(ctx.Value(constants.TxKey), tx)
-	ctx = context.WithValue(ctx, constants.TxKey, tx)
-	if h, _ := ctx.Value(afterCommitKey{}).(*CommitHooks); h != nil && !same {
-		ctx = context.WithValue(ctx, afterCommitKey{}, (*CommitHooks)(nil))
+	owner, _ := ctx.Value(constants.AfterCommitKey).(*afterCommitOwner)
+	if owner != nil && owner.tx == tx {
+		return context.WithValue(ctx, constants.TxKey, tx)
 	}
-	return ctx
-}
-
-// sameTx reports whether current is the transaction tx. Transactions are
-// pointers; an incomparable dynamic type is never the same.
-func sameTx(current any, tx pgx.Tx) bool {
-	if current == nil || tx == nil {
-		return false
-	}
-	a, b := reflect.TypeOf(current), reflect.TypeOf(tx)
-	if a != b || !a.Comparable() {
-		return false
-	}
-	return current == any(tx)
+	return context.WithValue(context.WithValue(ctx, constants.AfterCommitKey, nil), constants.TxKey, tx)
 }
 
 func UseTx(ctx context.Context) (repo.Tx, error) {
@@ -105,18 +90,16 @@ func InTx(ctx context.Context, fn func(context.Context) error) error {
 		}
 	}()
 
-	txCtx, hooks := WithCommitHooks(WithTx(ctx, tx))
-	if err := fn(txCtx); err != nil {
-		hooks.Discard()
+	callbacks := &TxCallbacks{}
+	if err := fn(WithAfterCommit(WithTx(ctx, tx), tx, callbacks.Add)); err != nil {
 		if rErr := tx.Rollback(ctx); rErr != nil {
 			return errors.Join(err, rErr)
 		}
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		hooks.Discard()
 		return err
 	}
-	hooks.Run(ctx)
+	callbacks.Run()
 	return nil
 }

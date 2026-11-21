@@ -1,0 +1,242 @@
+{
+  "name": "trace-join-timeout-order",
+  "format": 2,
+  "kind": "trace",
+  "description": "A join's timer counts from the fork, not from the first arrival: with delays of 1h and 150m and a 2h join timeout, the first timeout wakes the 1h branch, the second fires the join at 2h and cancels the 150m branch.",
+  "requires": [
+    "behavior:parallel",
+    "behavior:join"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "parallel": {
+        "behavior": "parallel"
+      },
+      "join": {
+        "behavior": "join"
+      },
+      "delay": {
+        "behavior": "wait",
+        "params": {
+          "duration": "string"
+        },
+        "wait": {
+          "timeout_param": "duration",
+          "timeout_outcome": "done"
+        }
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "split",
+        "type": "parallel",
+        "params": {
+          "branches": [
+            "fast",
+            "slow"
+          ]
+        }
+      },
+      {
+        "id": "short",
+        "type": "delay",
+        "params": {
+          "duration": "1h"
+        }
+      },
+      {
+        "id": "long",
+        "type": "delay",
+        "params": {
+          "duration": "150m"
+        }
+      },
+      {
+        "id": "j",
+        "type": "join",
+        "params": {
+          "of": "split",
+          "mode": "all",
+          "timeout": "2h"
+        }
+      },
+      {
+        "id": "go",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "late",
+        "type": "end",
+        "params": {
+          "column": "attention"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "split"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "fast"
+        },
+        "to": "short"
+      },
+      {
+        "from": {
+          "node": "split",
+          "outcome": "slow"
+        },
+        "to": "long"
+      },
+      {
+        "from": {
+          "node": "short",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "long",
+          "outcome": "done"
+        },
+        "to": "j"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "joined"
+        },
+        "to": "go"
+      },
+      {
+        "from": {
+          "node": "j",
+          "outcome": "timeout"
+        },
+        "to": "late"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "timeout": true
+    },
+    {
+      "timeout": true
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "short",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "timeout_ms": 3600000
+        }
+      },
+      "token": "split.fast"
+    },
+    {
+      "node": "long",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "timeout_ms": 9000000
+        }
+      },
+      "token": "split.slow"
+    },
+    {
+      "node": "short",
+      "outcome": "done",
+      "context_patch": {},
+      "token": "split.fast"
+    },
+    {
+      "node": "j",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": {}
+      },
+      "token": "split.fast"
+    },
+    {
+      "node": "long",
+      "outcome": "cancelled",
+      "context_patch": {},
+      "token": "split.slow"
+    },
+    {
+      "node": "j",
+      "outcome": "timeout",
+      "context_patch": {
+        "output": {
+          "branches": {
+            "fast": {
+              "arrived": true,
+              "output": {}
+            },
+            "slow": {
+              "arrived": false,
+              "output": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "node": "late",
+      "outcome": "end",
+      "context_patch": {},
+      "end": {
+        "column": "attention"
+      }
+    }
+  ]
+}

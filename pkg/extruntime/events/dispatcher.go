@@ -323,17 +323,17 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 	// The context carries the delivery transaction and the event's tenant, so
 	// repositories that read them from the context (composables.UseTx,
 	// UseTenantID) work inside the delivery and need no second connection.
-	serviceCommits := &composables.CommitHooks{}
-	dctx := serviceCommits.Attach(context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits))
+	dctx := context.WithValue(composables.WithTenantID(composables.WithTx(ctx, tx), ev.TenantID), afterCommitKey{}, commits)
+	// composables.AfterCommit of a service the consumer calls waits for the
+	// delivery commit too.
+	dctx = composables.WithAfterCommit(dctx, tx, func(fn func()) { commits.fns = append(commits.fns, func(context.Context) { fn() }) })
 	runErr := c.Deliver(dctx, tx, ev.Envelope)
 	if runErr == nil {
 		runErr = tx.Commit(ctx)
 		if runErr == nil {
 			for _, fn := range commits.fns {
-				d.runAfterCommit(ctx, fn)
+				fn(ctx)
 			}
-			// What services called by the consumer registered with composables.AfterCommit.
-			serviceCommits.Run(ctx)
 			return true, nil
 		}
 		// A failed commit (a deferred constraint, a transaction the consumer
@@ -348,18 +348,6 @@ func (d *Dispatcher) deliver(ctx context.Context, c Consumer, ev outboxRow) (boo
 		return false, d.recordBlocked(ctx, c.ID(), ev, runErr.Error())
 	}
 	return false, d.recordFailure(ctx, c.ID(), ev, attempts, runErr)
-}
-
-// runAfterCommit runs one after-commit callback of a committed delivery. The
-// receipt is already done, so a panicking callback is logged and the rest, and
-// the services' composables.AfterCommit hooks, still run.
-func (d *Dispatcher) runAfterCommit(ctx context.Context, fn func(context.Context)) {
-	defer func() {
-		if r := recover(); r != nil {
-			d.cfg.Logger.Error("extruntime: event after-commit callback panicked", "panic", r)
-		}
-	}()
-	fn(ctx)
 }
 
 func (d *Dispatcher) backoff(attempts int) time.Duration {

@@ -64,7 +64,7 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 			q := &hostTx{e: e, h: h}
 			defer q.done.Store(true)
 			var err error
-			out, err = e.native.RunQuery(e.nativeCtx(ctx, tx, nil), q, in)
+			out, err = e.native.RunQuery(e.nativeCtx(ctx, tx, h), q, in)
 			return err
 		})
 		return out, err
@@ -82,20 +82,25 @@ func (e *execution) runNative(ctx context.Context, txh *txHandle) (json.RawMessa
 // nativeCtx is the context a Go handler gets: the caller's values (request
 // user, session, localizer when the root came from HTTP), the transaction for
 // repositories (composables.UseTx; none for an ordinary command), the
-// subject's tenant and the database pool. When the transaction's handle can run
-// after-commit callbacks, services called with this context register theirs
-// with composables.AfterCommit and the handle runs them after its commit.
+// subject's tenant and the database pool.
+//
+// The handle h owns the transaction: composables.AfterCommit callbacks of
+// the services the handler calls join its after-commit hooks, which run when
+// the transaction commits (and not when it rolls back, or when it belongs to a
+// caller that cannot run them).
 func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx, h *txHandle) context.Context {
 	if tx != nil {
 		ctx = composables.WithTx(ctx, tx)
-		if h != nil {
-			hooks := &composables.CommitHooks{}
-			if err := h.afterCommit(hooks.Run); err == nil {
-				ctx = hooks.Attach(ctx)
-			}
+		// Only a handle that keeps the callbacks owns the transaction: a
+		// caller-owned one that does not collect them leaves AfterCommit to
+		// report composables.ErrNoCommitOwner instead of losing the event.
+		if h != nil && (!h.external || h.collect) {
+			ctx = composables.WithAfterCommit(ctx, tx, func(fn func()) {
+				_ = h.afterCommit(func(context.Context) { fn() })
+			})
 		}
 	} else if ctx.Value(constants.TxKey) != nil {
-		ctx = composables.WithoutCommitHooks(context.WithValue(ctx, constants.TxKey, nil))
+		ctx = context.WithValue(ctx, constants.TxKey, nil)
 	}
 	if tid, err := composables.UseTenantID(ctx); err != nil || tid != e.scope.Subject.TenantID {
 		ctx = composables.WithTenantID(ctx, e.scope.Subject.TenantID)

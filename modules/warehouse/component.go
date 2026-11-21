@@ -3,6 +3,7 @@ package warehouse
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 
 	"github.com/iota-uz/iota-sdk/modules/logging/history"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
@@ -41,6 +42,7 @@ func (c *component) LocaleFS() []*embed.FS {
 
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddNavNodes(builder, WarehouseLink)
+	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.AddAssets(builder, &assets.FS)
 
 	composition.ProvideFunc(builder, persistence.NewUnitRepository)

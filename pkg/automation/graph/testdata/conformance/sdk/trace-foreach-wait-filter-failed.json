@@ -1,0 +1,215 @@
+{
+  "name": "trace-foreach-wait-filter-failed",
+  "format": 2,
+  "kind": "trace",
+  "description": "A wait filter that fails inside a foreach's body ends only its item (ok false); the next item runs and the foreach is partial_failed.",
+  "requires": [
+    "behavior:foreach",
+    "behavior:collect"
+  ],
+  "catalog_patch": {
+    "nodes": {
+      "foreach": {
+        "behavior": "foreach"
+      },
+      "collect": {
+        "behavior": "collect"
+      }
+    }
+  },
+  "graph": {
+    "name": "SDK",
+    "triggers": [
+      {
+        "id": "labeled",
+        "event": "issue.labeled"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "each",
+        "type": "foreach",
+        "params": {
+          "items": "[0, 1]"
+        }
+      },
+      {
+        "id": "hold",
+        "type": "wait",
+        "params": {
+          "event": "pull_request.opened",
+          "filter": "event.number / foreach.each.item > 0"
+        }
+      },
+      {
+        "id": "c",
+        "type": "collect",
+        "params": {
+          "of": "each",
+          "value": "foreach.each.item"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "labeled",
+          "outcome": "fired"
+        },
+        "to": "each"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "item"
+        },
+        "to": "hold"
+      },
+      {
+        "from": {
+          "node": "hold",
+          "outcome": "matched"
+        },
+        "to": "c"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "done"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "partial_failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "each",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {
+    "issue": {
+      "repository": "acme/app",
+      "number": 7,
+      "title": "Crash on save",
+      "labels": [
+        "bug",
+        "ui"
+      ],
+      "state": "open"
+    },
+    "card": {
+      "column": "in_progress",
+      "tags": [
+        "mobile"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "kind": "issue.labeled",
+      "label": "x"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 1,
+      "repository": "acme/app"
+    },
+    {
+      "kind": "pull_request.opened",
+      "number": 2,
+      "repository": "acme/app"
+    }
+  ],
+  "trace": [
+    {
+      "node": "labeled",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "hold",
+      "outcome": "failed",
+      "context_patch": {
+        "code": "EXPRESSION_FAILED",
+        "message": "*"
+      },
+      "token": "each[0]"
+    },
+    {
+      "node": "hold",
+      "outcome": "waiting",
+      "context_patch": {
+        "output": {
+          "waits_for": "pull_request.opened"
+        }
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "hold",
+      "outcome": "matched",
+      "context_patch": {
+        "output": {
+          "event": {
+            "number": 2,
+            "repository": "acme/app"
+          }
+        }
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "c",
+      "outcome": "arrived",
+      "context_patch": {
+        "value": 1
+      },
+      "token": "each[1]"
+    },
+    {
+      "node": "each",
+      "outcome": "partial_failed",
+      "context_patch": {
+        "output": {
+          "results": [
+            {
+              "error": "*",
+              "index": 0,
+              "ok": false,
+              "value": null
+            },
+            {
+              "index": 1,
+              "ok": true,
+              "value": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}
