@@ -118,6 +118,9 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (pa
 	if err := composables.CheckAfterCommit(ctx); err != nil {
 		return nil, err
 	}
+	if err := checkEntityTenant(ctx, "PaymentService.Update", entity.TenantID()); err != nil {
+		return nil, err
+	}
 
 	updatedEvent, err := payment.NewUpdatedEvent(ctx, entity, entity)
 	if err != nil {

@@ -67,10 +67,10 @@ func TestPublishInTx_NeedsATenantAndATransaction(t *testing.T) {
 	require.Equal(t, 1, tx.inserts(), "the event is written in the transaction of ctx")
 
 	require.Error(t, events.PublishInTx(ctx, uuid.New(), publishTxEvent, nil, payload), "the subject is checked against the declaration")
-	require.Error(t, events.PublishInTx(context.Background(), uuid.New(), publishTxEvent, ref, payload), "without a transaction or pool there is nowhere to write")
+	require.ErrorContains(t, events.PublishInTx(context.Background(), uuid.New(), publishTxEvent, ref, payload), "transaction of the change", "without a transaction there is nowhere to write")
 
 	// A pool is not a transaction: a row written through it would commit at once,
 	// outside the change it reports.
 	poolOnly := composables.WithPool(context.Background(), &pgxpool.Pool{})
-	require.ErrorIs(t, events.PublishInTx(poolOnly, uuid.New(), publishTxEvent, ref, payload), composables.ErrNoTx)
+	require.ErrorContains(t, events.PublishInTx(poolOnly, uuid.New(), publishTxEvent, ref, payload), "transaction of the change")
 }

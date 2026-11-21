@@ -468,6 +468,8 @@ func TestCreate_RefusesAMissingOrForeignEntityTenant(t *testing.T) {
 				payment.WithCounterpartyID(f.newCounterparty(t).ID()),
 				payment.WithTransactionDate(day), payment.WithAccountingPeriod(day),
 			)
+			paymentsBefore := len(outboxRows(t, f.ctx, tenant, services.PaymentCreatedEventID))
+			debtsBefore := len(outboxRows(t, f.ctx, tenant, services.DebtCreatedEventID))
 			_, err := f.payments.Create(f.ctx, p)
 			require.ErrorContains(t, err, "tenant")
 
@@ -475,8 +477,19 @@ func TestCreate_RefusesAMissingOrForeignEntityTenant(t *testing.T) {
 			_, err = f.debts.Create(f.ctx, d)
 			require.ErrorContains(t, err, "tenant")
 
-			require.Empty(t, outboxRows(t, f.ctx, tenant, services.PaymentCreatedEventID))
-			require.Empty(t, outboxRows(t, f.ctx, tenant, services.DebtCreatedEventID))
+			require.Len(t, outboxRows(t, f.ctx, tenant, services.PaymentCreatedEventID), paymentsBefore)
+			require.Len(t, outboxRows(t, f.ctx, tenant, services.DebtCreatedEventID), debtsBefore)
+
+			// An update of an existing payment carrying that tenant is refused too:
+			// the stored payment and the outbox stay as they were.
+			stored, err := f.payments.Create(f.ctx, f.payment(t))
+			require.NoError(t, err)
+			_, err = f.payments.Update(f.ctx, stored.UpdateTenantID(entityTenant).UpdateComment("changed"))
+			require.ErrorContains(t, err, "tenant")
+			after, err := f.payments.GetByID(f.ctx, stored.ID())
+			require.NoError(t, err)
+			require.Equal(t, stored.Comment(), after.Comment())
+			require.Empty(t, outboxRows(t, f.ctx, tenant, services.PaymentUpdatedEventID))
 		})
 	}
 }
