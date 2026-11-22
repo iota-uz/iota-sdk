@@ -361,3 +361,12 @@ func TestTimeoutMessageNamesTheEffectiveDeadline(t *testing.T) {
 		t.Fatalf("message %q", res.Err.Message)
 	}
 }
+
+func TestMaskedOutputStaysWithinTheCap(t *testing.T) {
+	res := runCode(t, `export default async (_: any, env: any) => ({ outcome: "done", output: Array(250).fill(env.secrets.K) })`,
+		RunInput{Secrets: map[string]string{"K": "ab"}, Limits: Limits{MaxOutputBytes: 1500}})
+	wantReason(t, res, ReasonOutputInvalid)
+	if !strings.Contains(res.Err.Message, "masked output") {
+		t.Fatalf("message %q", res.Err.Message)
+	}
+}

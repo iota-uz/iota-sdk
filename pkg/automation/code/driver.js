@@ -21,9 +21,9 @@
   const rpc = H.rpc;
   const rpcSync = H.rpcSync;
 
-  // Request bytes that may wait in the host's queue at once, across all fetches of the run.
-  const MAX_QUEUED_REQUEST_BYTES = 16 << 20;
-  const MAX_REQUEST_BODY = 10 << 20;
+  // An upper bound of the UTF-8 bytes of a string: an ASCII unit is one byte, any other unit at most three.
+  const nonASCII = /[\x00-\x7f]+/g;
+  const utf8Bytes = (str) => str.length + 2 * str.replace(nonASCII, "").length;
 
   const deepFreeze = (v) => {
     if (v !== null && typeof v === "object") {
@@ -117,18 +117,32 @@
       if (init !== undefined && init !== null) {
         if (init.method !== undefined) req.method = Str(init.method);
         if (init.headers !== undefined && init.headers !== null) {
+          const names = keys(init.headers);
+          if (names.length > limits.maxHeaders) {
+            throw fail(new TypeErrorCtor("fetch failed: at most " + limits.maxHeaders + " headers"), site);
+          }
           const h = {};
-          for (const k of keys(init.headers)) h[Str(k)] = Str(init.headers[k]);
+          for (const k of names) h[Str(k)] = Str(init.headers[k]);
           req.headers = h;
         }
         if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
         if (init.redirect !== undefined) req.redirect = Str(init.redirect);
       }
-      if (req.body && req.body.length > MAX_REQUEST_BODY) {
+      // What kafig copies into Go before any check there: the serialized request. Its size is bounded per
+      // request and across the requests waiting for the host.
+      const body = req.body;
+      delete req.body;
+      const head = utf8Bytes(stringify(req));
+      const bodyBytes = body === undefined ? 0 : utf8Bytes(stringify(body));
+      if (head > limits.maxRequestHeadBytes) {
+        throw fail(new TypeErrorCtor("fetch failed: URL and headers are too long"), site);
+      }
+      if (body !== undefined && utf8Bytes(body) > limits.maxRequestBodyBytes) {
         throw fail(new TypeErrorCtor("fetch failed: request body is too long"), site);
       }
-      const size = req.url.length + (req.body ? req.body.length : 0);
-      if (queuedBytes + size > MAX_QUEUED_REQUEST_BYTES) {
+      if (body !== undefined) req.body = body;
+      const size = head + bodyBytes;
+      if (queuedBytes + size > limits.maxQueuedRequestBytes) {
         throw fail(new TypeErrorCtor("fetch failed: too much request data in flight"), site);
       }
       queuedBytes += size;

@@ -21,7 +21,6 @@ import (
 	kafig "github.com/iota-uz/kafig/kafig-go"
 	"github.com/tetratelabs/wazero"
 	"golang.org/x/sync/semaphore"
-	"golang.org/x/sync/singleflight"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -146,8 +145,9 @@ type engine struct {
 
 	// bytecode keeps the QuickJS bytecode of programs this runtime compiled from source, by sha256 of the
 	// program; kafig seals it so no other bytecode is ever evaluated.
-	bytecode *lru.Cache[string, []byte]
-	compiles singleflight.Group
+	bytecode  *lru.Cache[string, []byte]
+	compileMu sync.Mutex
+	compiling map[string]*compileCall
 }
 
 type tenantSlot struct {
@@ -213,6 +213,7 @@ func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 		perTenant: int64(o.tenantRuns),
 		queueWait: o.queueTimeout,
 		tenants:   map[string]*tenantSlot{},
+		compiling: map[string]*compileCall{},
 	}, nil
 }
 
@@ -315,7 +316,19 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		}
 		return nil, serrors.Wrap(op, err)
 	}
-	defer release()
+	// A compile this run started and left unfinished keeps the run's slots until it ends: the compile holds
+	// a sandbox of its own, which the engine's memory budget must still count.
+	var keepSlots <-chan struct{}
+	defer func() {
+		if keepSlots == nil {
+			release()
+			return
+		}
+		go func() {
+			<-keepSlots
+			release()
+		}()
+	}()
 	if e.closed.Load() {
 		return nil, serrors.Wrap(op, errClosed)
 	}
@@ -342,7 +355,9 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	}
 	program := driverJS + script.Script
 	var evalErr error
-	if bc := e.compiled(evalCtx, program); bc != nil {
+	bc, unfinished := e.compiled(evalCtx, program)
+	keepSlots = unfinished
+	if bc != nil {
 		_, evalErr = inst.EvalCompiled(evalCtx, bc, kafig.WithAsync())
 	} else {
 		_, evalErr = inst.Eval(evalCtx, program, kafig.WithAsync())
@@ -373,34 +388,49 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	return res, nil
 }
 
+// compileCall is one compile in progress; done closes when it ends, with bc set on success.
+type compileCall struct {
+	done chan struct{}
+	bc   []byte
+}
+
 // compiled returns the sealed bytecode of a program, compiling it on first use. The compile has its own
-// deadline, shared by every run waiting for the same program; a run stops waiting at its own deadline. nil
-// means no bytecode in time, and the run evaluates the program from source.
-func (e *engine) compiled(ctx context.Context, program string) []byte {
+// deadline and is shared by every run waiting for the same program; each run stops waiting at its own
+// deadline, and then evaluates the program from source. When the run that started the compile stops
+// waiting before it ends, the second result is the compile's done channel: that run keeps its slots until then.
+func (e *engine) compiled(ctx context.Context, program string) ([]byte, <-chan struct{}) {
 	sum := sha256.Sum256([]byte(program))
 	key := hex.EncodeToString(sum[:])
 	if bc, ok := e.bytecode.Get(key); ok {
-		return bc
-	}
-	ch := e.compiles.DoChan(key, func() (any, error) {
-		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), compileTimeout)
-		defer cancel()
-		bc, err := e.rt.Compile(cctx, program)
-		if err != nil {
-			return nil, err
-		}
-		e.bytecode.Add(key, bc)
 		return bc, nil
-	})
+	}
+	e.compileMu.Lock()
+	call, running := e.compiling[key]
+	if !running {
+		call = &compileCall{done: make(chan struct{})}
+		e.compiling[key] = call
+		go func() {
+			cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), compileTimeout)
+			defer cancel()
+			if out, err := e.rt.Compile(cctx, program); err == nil {
+				call.bc = out
+				e.bytecode.Add(key, out)
+			}
+			e.compileMu.Lock()
+			delete(e.compiling, key)
+			e.compileMu.Unlock()
+			close(call.done)
+		}()
+	}
+	e.compileMu.Unlock()
 	select {
-	case res := <-ch:
-		if res.Err != nil {
-			return nil
-		}
-		bc, _ := res.Val.([]byte)
-		return bc
+	case <-call.done:
+		return call.bc, nil
 	case <-ctx.Done():
-		return nil
+		if running {
+			return nil, nil
+		}
+		return nil, call.done
 	}
 }
 
@@ -411,8 +441,10 @@ func driverLimits(l Limits, secrets map[string]string) []byte {
 	for _, v := range secrets {
 		longest = max(longest, len(v))
 	}
-	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d}`,
-		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes)
+	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d,`+
+		`"maxHeaders":%d,"maxRequestHeadBytes":%d,"maxRequestBodyBytes":%d,"maxQueuedRequestBytes":%d}`,
+		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes,
+		maxFetchHeaders, maxFetchHeadBytes, maxFetchBodyBytes, maxQueuedFetchBytes)
 }
 
 func normalizeCtx(raw json.RawMessage) ([]byte, error) {
@@ -467,7 +499,12 @@ func (e *engine) result(st *runState, script *Compiled, evalErr error, parent, r
 			if !json.Valid(out) {
 				return fail(&RunError{Reason: ReasonOutputInvalid, Message: "output is not JSON"})
 			}
-			res.Output = st.masker.MaskJSON(out)
+			masked := st.masker.MaskJSON(out)
+			// Masking can lengthen the output (a short secret becomes "***"): the cap applies to what leaves.
+			if len(masked) > st.limits.MaxOutputBytes {
+				return fail(&RunError{Reason: ReasonOutputInvalid, Message: fmt.Sprintf("masked output is %d bytes, at most %d", len(masked), st.limits.MaxOutputBytes)})
+			}
+			res.Output = masked
 		}
 		return res, nil
 	}

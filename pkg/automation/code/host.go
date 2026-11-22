@@ -20,10 +20,19 @@ import (
 
 // Bounds of one env.fetch call, checked in Go.
 const (
-	maxFetchURLBytes  = 16 << 10
-	maxFetchHeaders   = 100
+	maxFetchURLBytes = 16 << 10
+	maxFetchHeaders  = 100
+	// maxFetchHeaderBytes bounds the names and values of a request's headers together.
+	maxFetchHeaderBytes = 64 << 10
+	// maxFetchHeadBytes bounds a serialized request without its body: URL, method, headers, redirect.
+	maxFetchHeadBytes = maxFetchURLBytes + maxFetchHeaderBytes + 4<<10
 	maxFetchBodyBytes = 10 << 20
-	maxDigestBytes    = 10 << 20
+	// maxFetchParamsBytes bounds the serialized parameters of one fetch call (escaping included).
+	maxFetchParamsBytes = maxFetchHeadBytes + maxQueuedFetchBytes
+	// maxQueuedFetchBytes bounds the serialized requests of one run that wait for the host together; the
+	// driver enforces it before a request crosses into Go, where kafig queues it unchecked.
+	maxQueuedFetchBytes = 16 << 20
+	maxDigestBytes      = 10 << 20
 	// maxHeldBodyBytes bounds the response bodies one run's fetches keep in Go until the code reads them.
 	maxHeldBodyBytes = 64 << 20
 )
@@ -291,6 +300,9 @@ func parseFetch(params json.RawMessage) (FetchRequest, string) {
 		Body     *string           `json:"body"`
 		Redirect string            `json:"redirect"`
 	}
+	if len(params) > maxFetchParamsBytes {
+		return req, "request is too large"
+	}
 	if err := json.Unmarshal(params, &p); err != nil {
 		return req, "invalid fetch arguments"
 	}
@@ -315,7 +327,12 @@ func parseFetch(params json.RawMessage) (FetchRequest, string) {
 		return req, "too many headers"
 	}
 	header := make(http.Header, len(p.Headers))
+	headerBytes := 0
 	for k, v := range p.Headers {
+		headerBytes += len(k) + len(v)
+		if headerBytes > maxFetchHeaderBytes {
+			return req, "headers are too long"
+		}
 		if !httpguts.ValidHeaderFieldName(k) || !httpguts.ValidHeaderFieldValue(v) {
 			return req, "invalid header " + k
 		}

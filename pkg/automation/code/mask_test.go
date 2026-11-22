@@ -46,6 +46,10 @@ func TestMaskJSONKeepsJSON(t *testing.T) {
 	if string(got) != want {
 		t.Fatalf("got  %s\nwant %s", got, want)
 	}
+	lits := NewMasker(map[string]string{"A": "true", "B": "null", "C": "false"})
+	if got := lits.MaskJSON(json.RawMessage(`{"a":true,"b":null,"c":[false,"x"]}`)); string(got) != `{"a":"***","b":"***","c":["***","x"]}` {
+		t.Fatalf("literals not masked: %s", got)
+	}
 	if got := m.MaskJSON(json.RawMessage(`not json tok`)); string(got) != `"not json ***"` {
 		t.Fatalf("got %s", got)
 	}

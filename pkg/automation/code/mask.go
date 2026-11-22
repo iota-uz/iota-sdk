@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -218,14 +219,17 @@ func (m masker) maskValue(dec *json.Decoder, b *bytes.Buffer) error {
 		} else {
 			b.WriteString(v.String())
 		}
-	case bool:
-		if v {
-			b.WriteString("true")
-		} else {
-			b.WriteString("false")
+	case bool, nil:
+		// A literal is masked like a number: a secret equal to it is not written verbatim.
+		lit := "null"
+		if bv, ok := v.(bool); ok {
+			lit = strconv.FormatBool(bv)
 		}
-	case nil:
-		b.WriteString("null")
+		if masked := m.Mask(lit); masked != lit {
+			b.Write(quoteJSON(masked))
+		} else {
+			b.WriteString(lit)
+		}
 	default:
 		return errNotJSON
 	}

@@ -130,7 +130,7 @@ func TestCompileWaitKeepsEachDeadline(t *testing.T) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "// %d\n", time.Now().UnixNano())
 	for i := 0; i < 1500; i++ {
-		fmt.Fprintf(&b, "function f%d(a: number) { return a * %d + (a > %d ? 1 : 2) }\n", i, i, i)
+		fmt.Fprintf(&b, "globalThis.v%d = [%d, { k: %d > 1 }];\n", i, i, i)
 	}
 	b.WriteString(`export default async () => ({ outcome: "done" })`)
 	c := mustCompile(t, LangTS, b.String())
@@ -189,5 +189,82 @@ func TestCloseDuringARunIsAHostError(t *testing.T) {
 	res, err := eng.Run(context.Background(), c, RunInput{Outcomes: []string{"done"}, Limits: Limits{Timeout: 5 * time.Second}})
 	if err == nil {
 		t.Fatalf("no host error, result %+v", res.Err)
+	}
+}
+
+// Header-heavy requests are bounded by their serialized size before they cross into Go.
+func TestHostMemoryHeaderHeavyFetches(t *testing.T) {
+	if testing.Short() || raceEnabled {
+		t.Skip("serializes ~50 MiB of headers in the sandbox; measured without -short and -race")
+	}
+	srv := slowServer(t, time.Second)
+	var res *RunResult
+	grew := heapPeak(func() {
+		res = runCode(t, `export default async (_: any, env: any) => {
+  const headers: Record<string, string> = {};
+  for (let i = 0; i < 100; i++) headers["X-H" + i] = "é".repeat(200); // 400 UTF-8 bytes, 200 UTF-16 units
+  let refused = 0;
+  for (let i = 0; i < 800; i++) env.fetch("https://example.com/", { headers }).catch(() => { refused++ });
+  await null;
+  return { outcome: "done", output: refused };
+}`, RunInput{Fetcher: testFetcher(srv), Limits: Limits{MaxFetches: 5000, Timeout: 10 * time.Second}})
+	})
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	t.Logf("live Go heap peak growth %d MiB, %s fetches refused before the host", grew>>20, res.Output)
+	if string(res.Output) == "0" {
+		t.Fatal("no request was refused by the queue budget")
+	}
+	if grew > 64<<20 {
+		t.Fatalf("Go heap grew by %d MiB", grew>>20)
+	}
+
+	// One request whose headers are over the limit never reaches the host.
+	res = runCode(t, `export default async (_: any, env: any) => {
+  await env.fetch("https://example.com/", { headers: { "X-Big": "x".repeat(100000) } });
+  return { outcome: "done" };
+}`, RunInput{Fetcher: testFetcher(srv)})
+	wantReason(t, res, ReasonException)
+	if !strings.Contains(res.Err.Message, "too long") {
+		t.Fatalf("message %q", res.Err.Message)
+	}
+}
+
+// A compile left unfinished by the run that started it keeps that run's slot until it ends.
+func TestUnfinishedCompileKeepsItsSlot(t *testing.T) {
+	eng, err := NewEngine(context.Background(), WithMaxConcurrent(1), WithQueueTimeout(5*time.Millisecond))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = eng.Close(context.Background()) }()
+	trivial := mustCompile(t, LangJS, `export default async () => ({ outcome: "done" })`)
+	in := RunInput{Outcomes: []string{"done"}}
+	if _, err := eng.Run(context.Background(), trivial, in); err != nil { // its bytecode is cached now
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "// %d\n", time.Now().UnixNano())
+	for i := 0; b.Len() < MaxSourceChars-200; i++ {
+		fmt.Fprintf(&b, "globalThis.v%d = [%d, { k: %d > 1 }];\n", i, i, i)
+	}
+	b.WriteString(`export default async () => ({ outcome: "done" })`)
+	big := mustCompile(t, LangJS, b.String())
+	res, err := eng.Run(context.Background(), big, RunInput{Outcomes: []string{"done"}, Limits: Limits{Timeout: time.Millisecond}})
+	if err != nil || res.Err == nil {
+		t.Fatalf("big run: %v %+v", err, res)
+	}
+	if _, err := eng.Run(context.Background(), trivial, in); !errors.Is(err, ErrBusy) {
+		t.Fatalf("a run took the slot of an unfinished compile: %v", err)
+	}
+	deadline := time.Now().Add(compileTimeout)
+	for {
+		if _, err := eng.Run(context.Background(), trivial, in); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the slot never came back")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
