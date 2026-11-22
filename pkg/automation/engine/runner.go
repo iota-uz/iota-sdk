@@ -219,6 +219,11 @@ func (x *execution) failRun(ctx context.Context, e StepError) error {
 	if err != nil {
 		return infra(err)
 	}
+	// The waits endRun closed may have armed child instances: they are terminated now, as the run's
+	// own completion policy cancels only occurrences and tasks.
+	if err := x.release(ctx); err != nil {
+		return infra(err)
+	}
 	return failure(e)
 }
 

@@ -682,12 +682,22 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 		return RunRef{}, err
 	}
 	switch old.status() {
-	case RunDone, RunFailed, RunCancelled, RunBlocked:
+	case RunDone, RunFailed, RunCancelled:
+	case RunBlocked:
+		if old.InstanceID != nil {
+			// A blocked instance is still live: it resumes or is cancelled, never run twice.
+			return RunRef{}, fmt.Errorf("%w: a blocked run with an instance is resumed or cancelled, not restarted", ErrInvalidInput)
+		}
 	case RunQueued, RunRunning, RunWaiting, RunFilterFailed:
 		return RunRef{}, fmt.Errorf("%w: a %s run does not restart", ErrInvalidInput, old.status())
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, old.AutomationID, false); err != nil {
+	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, old.AutomationID, false)
+	if err != nil {
 		return RunRef{}, err
+	}
+	// Only code a human enabled runs: the enabled version, or the version the run already ran on.
+	if version != old.Version && (am.EnabledVersion == nil || version != *am.EnabledVersion) {
+		return RunRef{}, fmt.Errorf("%w: version %d is neither enabled nor the run's own", ErrForbidden, version)
 	}
 	v, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, old.AutomationID, version)
 	if err != nil {
@@ -741,6 +751,9 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, old.Subject, uuid.Nil)); err != nil {
 				return err
 			}
+		}
+		if req.runAs != nil && req.depth > s.r.cfg.Limits.MaxDepth {
+			req.runAs, req.startState, req.reason = nil, startBlocked, "depth_exceeded"
 		}
 		var err error
 		ref, err = s.r.startRun(ctx, tx, req)

@@ -98,7 +98,7 @@ func (c *consumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope) e
 	r := c.r
 	r.metrics.eventLag(ctx, ev.OccurredAt)
 	var causeRaw []byte
-	if err := tx.QueryRow(ctx, `SELECT cause FROM extruntime.outbox_events WHERE id = $1`, ev.ID).Scan(&causeRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err := tx.QueryRow(ctx, `SELECT cause FROM extruntime.outbox_events WHERE id = $1 AND tenant_id = $2`, ev.ID, ev.TenantID).Scan(&causeRaw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return &host.InfraError{Err: serrors.FromDB(opRoute, err)}
 	}
 	var by *cause
@@ -337,7 +337,9 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 	if err != nil {
 		_ = sp.Rollback(ctx)
 		if we, ok := pool.AsWireError(err); ok && (we.Code == workflow.CodeInstanceNotAccepting || we.Code == workflow.CodeInstanceNotFound || we.Code == workflow.CodeSignalDenied) {
-			// The run finished meanwhile, or its run-as lost its rights (the instance blocks on its own).
+			// The run finished meanwhile, or its run-as user is blocked (automation.run declares no
+			// permission, so only a refused subject is denied): the instance blocks on its next claim and
+			// an operator decides what it waits for after Resume.
 			r.cfg.Logger.Info("automation: wait not signalled", "run_id", w.runID.String(), "wait_id", w.waitID, "reason", we.Code)
 			return nil
 		}

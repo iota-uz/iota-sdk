@@ -85,6 +85,9 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
+		if stopsRun(st) {
+			return behavior, m.stop(ctx, tok, node.ID, behavior, 0, nil, stepErr(st))
+		}
 		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, stepErr(st))
 	case graph.StepEnd:
 		if _, err := m.record(ctx, tok, node.ID, behavior, nil, graph.TraceEnd, st.End, nil, true); err != nil {
@@ -305,6 +308,8 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if err != nil {
 		return err
 	}
+	// As for a subscription's watermark (events.Watermark): an event whose seq was drawn before the
+	// wait opened is an event before it, whatever its commit order.
 	after, err := events.Watermark(ctx, m.tx)
 	if err != nil {
 		return err
@@ -449,15 +454,44 @@ func (m *mover) noEdge(ctx context.Context, tok *tokenRow) error {
 	return m.finish(ctx, tok, false, nil, reason, nil)
 }
 
+// stopsRun reports a step that ends the whole run wherever its token is, as in a dry run: missing
+// context, and a fork or a foreach over Limits.MaxTokens, whatever outcomes the node has.
+func stopsRun(st graph.Step) bool {
+	return st.Kind == graph.StepMissingContext || (st.Kind == graph.StepFailed && st.Code == graph.FailLimit)
+}
+
+// stop fails the token and the run, even inside a branch or an item.
+func (m *mover) stop(ctx context.Context, tok *tokenRow, nodeID, behavior string, seq int, input any, e StepError) error {
+	if seq > 0 {
+		if err := m.closeStep(ctx, tok, seq, graph.TraceFailed, nil, &e); err != nil {
+			return err
+		}
+	} else if _, err := m.record(ctx, tok, nodeID, behavior, input, graph.TraceFailed, nil, &e, true); err != nil {
+		return err
+	}
+	tok.Status = tokFailed
+	if err := saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok); err != nil {
+		return err
+	}
+	return m.endRun(ctx, nil, &e)
+}
+
 // nodeFailed sends a node's failure down its failed outcome when its type has one, else fails the token.
-// seq > 0 closes the token's open step instead of recording one.
+// Missing context stops the run. seq > 0 closes the token's open step instead of recording one.
 func (m *mover) nodeFailed(ctx context.Context, tok *tokenRow, nodeID, behavior string, seq int, input any, e StepError) error {
+	if e.Code == CodeMissingContext {
+		return m.stop(ctx, tok, nodeID, behavior, seq, input, e)
+	}
 	fo := m.in().FailedOutcome(nodeID)
 	if fo == "" {
 		return m.fail(ctx, tok, nodeID, seq, e, behavior, input)
 	}
 	out := map[string]any{"error": e.Message, "code": e.Code}
 	out["error"] = m.fitError(e.Message, out)
+	if big := m.tooLarge(out, "the failed output of "+nodeID); big != nil {
+		// Even the fixed fields do not fit: the run fails.
+		return m.stop(ctx, tok, nodeID, behavior, seq, input, *big)
+	}
 	if seq > 0 {
 		if err := m.closeStep(ctx, tok, seq, fo, out, &e); err != nil {
 			return err
@@ -621,6 +655,9 @@ func (m *mover) decideJoin(ctx context.Context, parent *tokenRow) error {
 		}
 		join := f.Join
 		parent.Flow = nil
+		if stopsRun(st) {
+			return m.stop(ctx, parent, join, string(graph.BehaviorJoin), 0, nil, stepErr(st))
+		}
 		return m.fail(ctx, parent, join, 0, stepErr(st), string(graph.BehaviorJoin))
 	}
 	if err := m.cancel(ctx, parent, st.Cancel); err != nil {
@@ -706,7 +743,8 @@ func (m *mover) foreachDone(ctx context.Context, parent *tokenRow) error {
 	parent.Flow = nil
 	st := m.in().ForeachDone(node, results)
 	if st.Kind == graph.StepFailed {
-		return m.nodeFailed(ctx, parent, node, string(graph.BehaviorForeach), 0, nil, stepErr(st))
+		// The output keeps the interpreter's code (VALUE_TOO_LARGE), as a dry run's does.
+		return m.nodeFailed(ctx, parent, node, string(graph.BehaviorForeach), 0, nil, StepError{Code: st.Code, Message: st.Message})
 	}
 	parent.set(node, graph.NodeState{Output: st.Output})
 	if _, err := m.record(ctx, parent, node, string(graph.BehaviorForeach), nil, st.Outcome, st.Output, nil, true); err != nil {
@@ -839,6 +877,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	if st != nil {
 		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
 			return err
+		}
+		if stopsRun(*st) {
+			return m.stop(ctx, tok, w.NodeID, "", w.Spec.Seq, nil, stepErr(*st))
 		}
 		return m.fail(ctx, tok, w.NodeID, w.Spec.Seq, stepErr(*st))
 	}

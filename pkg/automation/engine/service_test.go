@@ -395,3 +395,79 @@ func TestStatusOf(t *testing.T) {
 	require.ErrorIs(t, &engine.ConflictError{Latest: 2}, engine.ErrVersionConflict)
 	assert.True(t, strings.HasPrefix((&engine.ValidationError{}).Error(), "automation: VALIDATION_FAILED"))
 }
+
+func TestMissingContextInABranchStopsTheRun(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	human := e.human()
+	// Branch a reads what branch b writes before b ran: missing context ends the run, not the branch,
+	// although the node has a failed outcome.
+	e.create(p, human, `{"name": "Early", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	 "nodes": [
+	  {"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+	  {"id": "na", "type": "acme.note", "params": {"text": "{{ nodes.nb.output.text }}"}},
+	  {"id": "nb", "type": "acme.note", "params": {"text": "b"}},
+	  {"id": "all", "type": "join", "params": {"of": "split", "mode": "all"}},
+	  {"id": "fin", "type": "end", "params": {}}
+	 ],
+	 "edges": [
+	  {"from": {"node": "created", "outcome": "fired"}, "to": "split"},
+	  {"from": {"node": "split", "outcome": "a"}, "to": "na"},
+	  {"from": {"node": "split", "outcome": "b"}, "to": "nb"},
+	  {"from": {"node": "na", "outcome": "done"}, "to": "all"},
+	  {"from": {"node": "na", "outcome": "failed"}, "to": "all"},
+	  {"from": {"node": "nb", "outcome": "done"}, "to": "all"},
+	  {"from": {"node": "nb", "outcome": "failed"}, "to": "all"},
+	  {"from": {"node": "all", "outcome": "joined"}, "to": "fin"}
+	 ]}`)
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, human)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunFailed }, "missing context fails the run")
+	d := e.run(p, human, run.RunID)
+	require.NotNil(t, d.Error)
+	assert.Equal(t, engine.CodeMissingContext, d.Error.Code)
+	assert.Empty(t, e.effects(run.RunID), "branch b never ran its note")
+}
+
+func TestTokenLimitFailsTheRunWhateverTheOutcomes(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc(func(c *engine.Config) { c.Limits.MaxTokens = 2 })
+	human := e.human()
+	e.create(p, human, `{"name": "Wide", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	 "nodes": [
+	  {"id": "each", "type": "foreach", "params": {"items": "[1, 2, 3]", "concurrency": 3}},
+	  {"id": "take", "type": "collect", "params": {"of": "each"}},
+	  {"id": "fin", "type": "end", "params": {}}
+	 ],
+	 "edges": [
+	  {"from": {"node": "created", "outcome": "fired"}, "to": "each"},
+	  {"from": {"node": "each", "outcome": "item"}, "to": "take"},
+	  {"from": {"node": "each", "outcome": "done"}, "to": "fin"},
+	  {"from": {"node": "each", "outcome": "partial_failed"}, "to": "fin"},
+	  {"from": {"node": "each", "outcome": "failed"}, "to": "fin"}
+	 ]}`)
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, human)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunFailed }, "the token limit fails the run")
+	assert.Equal(t, engine.CodeLimitExceeded, e.run(p, human, run.RunID).Error.Code)
+}
+
+func TestRestartRunsOnlyEnabledCode(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	human := e.human()
+	agent := e.actor(e.tenant, 1, engine.OriginAgent)
+	am := e.create(p, human, noteGraph("v1"))
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, human)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	v2, err := p.rt.Service().SaveVersion(ctx, agent, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(noteGraph("v2"))})
+	require.NoError(t, err)
+	_, err = p.rt.Service().Restart(ctx, agent, run.RunID, v2.Version)
+	require.ErrorIs(t, err, engine.ErrForbidden, "a version nobody enabled does not run through a restart")
+	ref, err := p.rt.Service().Restart(ctx, agent, run.RunID, 1)
+	require.NoError(t, err)
+	p.until(func() bool { return e.status(p, ref.RunID) == engine.RunDone }, "the restart on the enabled version runs")
+	assert.Equal(t, []string{"note:v1"}, e.effects(ref.RunID))
+}
