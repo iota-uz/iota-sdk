@@ -128,7 +128,7 @@ func (u *usage) Uses(_ context.Context, _, id uuid.UUID) ([]connectors.Use, erro
 type fakeOAuth struct {
 	identity connectors.Identity
 	err      error
-	tokenErr error // Token, CheckToken and Begin fail with it
+	tokenErr error  // Token, CheckToken and Begin fail with it
 	token    string // the access token of the grant (default goodToken)
 }
 
@@ -155,7 +155,9 @@ func (f *fakeOAuth) Complete(context.Context, uuid.UUID, string, string) (connec
 	panic("the service saves the connection itself")
 }
 
-func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "", f.tokenErr }
+func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) {
+	return "", f.tokenErr
+}
 
 func (f *fakeOAuth) CheckToken(context.Context, uuid.UUID, uuid.UUID) (string, error) {
 	return "", f.tokenErr
