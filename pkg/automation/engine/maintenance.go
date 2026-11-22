@@ -74,7 +74,8 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 
 // releasePending finishes what closed waits still hold (release_pending) when their run is not driven
 // again: a child instance is terminated here; a live run is woken so its runner cancels its own timer
-// and task occurrences; a finished run's occurrences were cancelled with it.
+// and task occurrences and clears the mark; a blocked run keeps the mark for its runner after Resume; a
+// finished run (or one without an instance) has no occurrence left (CancelPending), so its mark is cleared.
 func (r *Runtime) releasePending(ctx context.Context) error {
 	ws, err := queryWaitsWithRun(ctx, r.cfg.DB)
 	if err != nil {
@@ -96,6 +97,9 @@ func (r *Runtime) releasePending(ctx context.Context) error {
 			}
 			continue
 		}
+		if !w.finished {
+			continue // blocked: only its own runner may cancel its occurrences
+		}
 		if _, err := r.cfg.DB.Exec(ctx, `UPDATE automation.waits SET release_pending = false WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`,
 			w.tenant, w.RunID, w.WaitID); err != nil {
 			errs = append(errs, serrors.FromDB(opMaintain, err))
@@ -106,17 +110,18 @@ func (r *Runtime) releasePending(ctx context.Context) error {
 
 type pendingWait struct {
 	waitRow
-	tenant uuid.UUID
-	inst   *uuid.UUID
-	live   bool
-	txSeq  int64
+	tenant   uuid.UUID
+	inst     *uuid.UUID
+	live     bool
+	finished bool // the instance ended, or the run never had one
+	txSeq    int64
 }
 
 func queryWaitsWithRun(ctx context.Context, q querier) ([]pendingWait, error) {
 	rows, err := q.Query(ctx, `
 		SELECT w.run_id, w.token_id, w.wait_id, w.kind, w.node_id, w.subject_entity, w.subject_key, w.event_kind, w.filter_cel,
 			w.timeout_at, w.status, w.after_seq, w.release_pending, w.spec, w.tenant_id, r.instance_id,
-			coalesce(i.status IN ('running', 'waiting'), false), r.tx_seq
+			coalesce(i.status IN ('running', 'waiting'), false), coalesce(i.status IN ('completed', 'failed', 'terminated'), true), r.tx_seq
 		FROM automation.waits w
 		JOIN automation.runs r ON r.tenant_id = w.tenant_id AND r.id = w.run_id
 		LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
@@ -132,7 +137,7 @@ func queryWaitsWithRun(ctx context.Context, q querier) ([]pendingWait, error) {
 		var entity, key *string
 		var spec []byte
 		if err := rows.Scan(&p.RunID, &p.TokenID, &p.WaitID, &p.Kind, &p.NodeID, &entity, &key, &p.EventKind, &p.Filter, &p.TimeoutAt,
-			&p.Status, &p.AfterSeq, &p.Release, &spec, &p.tenant, &p.inst, &p.live, &p.txSeq); err != nil {
+			&p.Status, &p.AfterSeq, &p.Release, &spec, &p.tenant, &p.inst, &p.live, &p.finished, &p.txSeq); err != nil {
 			return nil, serrors.FromDB(opMaintain, err)
 		}
 		if len(spec) > 0 {
@@ -188,6 +193,11 @@ func (r *Runtime) UsageIndex() connectors.UsageIndex { return usageIndex{r: r} }
 type usageIndex struct{ r *Runtime }
 
 func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) ([]connectors.Use, error) {
+	// The catalog first: it may need a pool connection of its own, which open rows would hold.
+	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := u.r.cfg.DB.Query(ctx, `
 		SELECT a.id, a.name, v.version, v.graph, coalesce(a.enabled_version = v.version, false)
 		FROM automation.versions v JOIN automation.automations a ON a.tenant_id = v.tenant_id AND a.id = v.automation_id
@@ -199,10 +209,6 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 		return nil, serrors.FromDB(opMaintain, err)
 	}
 	defer rows.Close()
-	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
-	if err != nil {
-		return nil, err
-	}
 	want := connectionID.String()
 	var out []connectors.Use
 	for rows.Next() {

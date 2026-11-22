@@ -620,7 +620,7 @@ func decodeMap(raw json.RawMessage) (map[string]any, error) {
 	return m, nil
 }
 
-// maxCatchUp bounds the events one catch-up of a wait signals.
+// maxCatchUp is the batch size of a wait's catch-up query.
 const maxCatchUp = 200
 
 // catchUp signals a new event wait with the matching events the router could not route to it: an event
@@ -636,32 +636,42 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) error {
 	if w.Subject != nil {
 		entity, key = w.Subject.Entity, w.Subject.Key
 	}
-	rows, err := x.r.cfg.DB.Query(ctx, `
-		SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
-		WHERE tenant_id = $1 AND event = $2 AND seq > $3
-		  AND ($4::text IS NULL OR (subject_entity = $4 AND subject_key = $5))
-		ORDER BY seq LIMIT $6`, x.tenant, *w.EventKind, w.AfterSeq, entity, key, maxCatchUp)
-	if err != nil {
-		return serrors.FromDB(opRun, err)
-	}
 	type found struct {
 		id       uuid.UUID
 		seq      int64
 		payload  []byte
 		occurred time.Time
 	}
+	// Every matching event after the watermark, a batch at a time, before caught_up is set.
 	var list []found
-	for rows.Next() {
-		var f found
-		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
-			rows.Close()
+	after := w.AfterSeq
+	for {
+		rows, err := x.r.cfg.DB.Query(ctx, `
+			SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
+			WHERE tenant_id = $1 AND event = $2 AND seq > $3
+			  AND ($4::text IS NULL OR (subject_entity = $4 AND subject_key = $5))
+			ORDER BY seq LIMIT $6`, x.tenant, *w.EventKind, after, entity, key, maxCatchUp)
+		if err != nil {
 			return serrors.FromDB(opRun, err)
 		}
-		list = append(list, f)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return serrors.FromDB(opRun, err)
+		n := 0
+		for rows.Next() {
+			var f found
+			if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
+				rows.Close()
+				return serrors.FromDB(opRun, err)
+			}
+			list = append(list, f)
+			after = f.seq
+			n++
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return serrors.FromDB(opRun, err)
+		}
+		if n < maxCatchUp {
+			break
+		}
 	}
 	return x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
 		for _, f := range list {
