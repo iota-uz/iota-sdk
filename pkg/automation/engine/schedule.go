@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -103,13 +104,25 @@ func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot) erro
 			return err
 		}
 		req.startState, req.reason = startFilterFailed, "invalid_graph: "+err.Error()
-		_, err := r.startRun(ctx, tx, req)
-		return err
+		if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
+			return err
+		}
+		return nil
 	}
 	req.in = ie.in
 	ev := events.Envelope{ID: req.key, TenantID: slot.TenantID, Event: EventSchedule, OccurredAt: slot.At}
-	runAs, err := events.ResolveSubject(ctx, tx, r.cfg.Users, ev, ownerTrigger(id), events.RunAsOwner)
+	var runAs spi.Subject
+	if graph.RunAs(v.RunAs) == graph.RunAsInitiator {
+		// A slot has no initiator: a version that runs as the initiator does not run as the owner
+		// instead (saving it is refused; this is a version saved before that rule).
+		err = fmt.Errorf("%w: a schedule has no initiator", events.ErrNoSubject)
+		req.reason = "no_initiator"
+	} else {
+		runAs, err = events.ResolveSubject(ctx, tx, r.cfg.Users, ev, ownerTrigger(id), events.RunAsOwner)
+	}
 	switch {
+	case errors.Is(err, events.ErrNoSubject) && req.reason == "no_initiator":
+		req.startState = startBlocked
 	case errors.Is(err, events.ErrNoSubject):
 		req.startState, req.reason = startBlocked, "no_owner"
 	case err != nil:
@@ -127,6 +140,8 @@ func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot) erro
 			return nil
 		}
 	}
-	_, err = r.startRun(ctx, tx, req)
-	return err
+	if _, err = r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
+		return err
+	}
+	return nil
 }

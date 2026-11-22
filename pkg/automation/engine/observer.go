@@ -108,13 +108,11 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 	return nil
 }
 
-// notifyOwner tells the graph's owner that a run failed, once per run: owner_notified_at is set in the
-// transaction of the transition, so a transition the engine retries (its transaction rolled back)
-// notifies again only together with it, and a second failed transition never.
+// notifyOwner publishes automation.run.failed.v1 for the graph's owner, once per run: owner_notified_at
+// is set in the transaction of the transition, so a transition the engine retries (its transaction
+// rolled back) publishes again only together with it, and a second failed transition never. The
+// notification definition of package ownernotice delivers the event to the owner.
 func (o *observer) notifyOwner(ctx context.Context, tx pgx.Tx, run runRow) error {
-	if o.r.cfg.Notifier == nil {
-		return nil
-	}
 	var owner *int64
 	var name string
 	err := tx.QueryRow(ctx, `
@@ -131,12 +129,17 @@ func (o *observer) notifyOwner(ctx context.Context, tx pgx.Tx, run runRow) error
 	if owner == nil {
 		return nil // a graph never enabled by a person has nobody to tell
 	}
-	failed, err := loadRun(ctx, tx, run.TenantID, run.ID)
-	if err != nil {
+	code := "failed"
+	if failed, err := loadRun(ctx, tx, run.TenantID, run.ID); err != nil {
 		return err
+	} else if e := failed.stepError(); e != nil && e.Code != "" {
+		code = e.Code
 	}
-	return o.r.cfg.Notifier.RunFailed(ctx, tx, FailureNotice{
-		TenantID: run.TenantID, RunID: run.ID, AutomationID: run.AutomationID, Version: run.Version, Name: name,
-		OwnerUserID: *owner, Error: failed.stepError(), Key: "automation.run.failed:" + run.ID.String(),
-	})
+	payload := RunFailedPayload{RunID: run.ID.String(), AutomationID: run.AutomationID.String(), AutomationName: name,
+		Version: run.Version, OwnerUserID: *owner, Code: code}
+	if _, err := events.Publish(ctx, tx, spi.Scope{Subject: spi.Subject{TenantID: run.TenantID}}, RunFailedEvent,
+		&spi.ObjectRef{Entity: SubjectRun, Key: run.ID.String()}, payload); err != nil {
+		return serrors.Wrap(opObserve, err)
+	}
+	return nil
 }

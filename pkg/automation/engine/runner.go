@@ -180,7 +180,8 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 			return nil, err
 		}
 		var seq int64
-		if err := tx.QueryRow(ctx, `SELECT tx_seq FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, x.tenant, x.run.ID).Scan(&seq); err != nil {
+		var sens []byte
+		if err := tx.QueryRow(ctx, `SELECT tx_seq, sensitive FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, x.tenant, x.run.ID).Scan(&seq, &sens); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		if seq != n {
@@ -190,7 +191,7 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 		if _, err := tx.Exec(ctx, `SELECT set_config('app.automation_cause', $1, true)`, string(cause)); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
-		s := &stepState{}
+		s := &stepState{sensitive: decodeRefs(sens)}
 		if err := tx.QueryRow(ctx, `SELECT now()`).Scan(&s.now); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
@@ -202,10 +203,18 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 				return nil, err
 			}
 		}
+		var sensUpdate any
+		if s.sensitiveChanged {
+			b, err := json.Marshal(s.sensitive)
+			if err != nil {
+				return nil, err
+			}
+			sensUpdate = b
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE automation.runs SET tx_seq = tx_seq + 1, inbox_seq = inbox_seq + $3, steps_count = steps_count + $4,
-				output = coalesce($5, output), error = coalesce($6, error), updated_at = now()
-			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure)); err != nil {
+				output = coalesce($5, output), error = coalesce($6, error), sensitive = coalesce($7, sensitive), updated_at = now()
+			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure), sensUpdate); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		return nil, nil
@@ -224,6 +233,20 @@ type stepState struct {
 	steps   int             // node steps taken
 	output  json.RawMessage // the run completed with this output
 	failure json.RawMessage // the run failed with this error
+	// sensitive are the sensitive fields the run read up to now; steps record them as their provenance.
+	sensitive        []sensitiveRef
+	sensitiveChanged bool
+}
+
+func (s *stepState) sensitiveJSON() []byte {
+	if len(s.sensitive) == 0 {
+		return []byte(`[]`)
+	}
+	b, err := json.Marshal(s.sensitive)
+	if err != nil {
+		return []byte(`[]`)
+	}
+	return b
 }
 
 func nullJSON(b json.RawMessage) any {

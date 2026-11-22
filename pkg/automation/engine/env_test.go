@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -91,25 +90,6 @@ func (permNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepConte
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO test_effects (run_id, node_id, text) VALUES ($1, $2, $3)`, run.RunID, node.ID, text)
 	return map[string]any{}, err
-}
-
-// notices is the OwnerNotifier double.
-type notices struct {
-	mu   sync.Mutex
-	list []engine.FailureNotice
-}
-
-func (n *notices) RunFailed(_ context.Context, _ pgx.Tx, f engine.FailureNotice) error {
-	n.mu.Lock()
-	n.list = append(n.list, f)
-	n.mu.Unlock()
-	return nil
-}
-
-func (n *notices) all() []engine.FailureNotice {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	return append([]engine.FailureNotice(nil), n.list...)
 }
 
 // codeNode is a node with code a human reviews.

@@ -63,18 +63,30 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	}
 	defer rows.Close()
 	page := Page[RunSummary]{Items: []RunSummary{}}
+	proj := s.r.projector(a.TenantID)
+	viewer := a.Subject
+	viewer.TenantID = a.TenantID
 	for rows.Next() {
 		var r runRow
 		var nodes []string
-		var input, output, errj []byte
+		var input, output, errj, sens []byte
 		if err := rows.Scan(&r.TenantID, &r.ID, &r.AutomationID, &r.Version, &r.InstanceID, &r.StartKey, &r.StartState, &r.StartReason,
 			&r.TriggerID, &r.TriggerEventID, &r.TriggerKind, &input, &r.Subject.Entity, &r.Subject.Key, &r.RunAsUserID, &r.RunAsKind,
 			&r.InitiatorID, &r.InboxSeq, &r.TxSeq, &r.StepsCount, &r.Depth, &r.CauseRunID, &r.RestartedFrom, &output, &errj,
-			&r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &nodes); err != nil {
+			&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &nodes); err != nil {
 			return Page[RunSummary]{}, serrors.FromDB(opService, err)
 		}
-		r.Input, r.Output, r.Error = input, output, errj
+		r.Input, r.Output, r.Error, r.Sensitive = input, output, errj, decodeRefs(sens)
 		sum := summaryOf(r)
+		if sum.Error != nil && len(r.Sensitive) > 0 {
+			ok, err := proj.readable(ctx, r.Sensitive, &viewer)
+			if err != nil {
+				return Page[RunSummary]{}, err
+			}
+			if !ok {
+				sum.Error = &StepError{Code: sum.Error.Code, Message: Hidden, Path: sum.Error.Path}
+			}
+		}
 		sum.CurrentNodes = nodes
 		page.Items = append(page.Items, sum)
 	}
@@ -134,17 +146,15 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	if err != nil {
 		return RunDetail{}, err
 	}
-	eventOf := map[string]string{} // token|seq → the event a wait step woke on
 	for _, w := range waits {
 		wv := WaitView{TokenID: w.TokenID, WaitID: w.WaitID, Kind: w.Kind, TimeoutAt: w.TimeoutAt, Status: w.Status}
 		if w.EventKind != nil {
 			wv.EventKind = *w.EventKind
-			eventOf[fmt.Sprintf("%s|%d", w.TokenID, w.Spec.Seq)] = *w.EventKind
 		}
 		d.Waits = append(d.Waits, wv)
 	}
 	rows, err := s.r.cfg.DB.Query(ctx, `
-		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, started_at, ended_at FROM (
+		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at FROM (
 			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
 		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
 	if err != nil {
@@ -154,21 +164,11 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	proj := s.r.projector(a.TenantID)
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
-	// The sensitive values the viewer may not read, from the trigger's event and the events waits woke on.
-	rd := newRedactor()
-	if input, err := decodeMap(run.Input); err == nil {
-		if kind, _ := input["kind"].(string); kind != "" {
-			delete(input, "kind")
-			if err := rd.collect(ctx, proj, kind, input, &viewer); err != nil {
-				return RunDetail{}, err
-			}
-		}
-	}
 	for rows.Next() {
 		var sv StepView
-		var in, out, errj []byte
+		var in, out, errj, sens []byte
 		var ended *time.Time
-		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sv.StartedAt, &ended); err != nil {
+		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended); err != nil {
 			return RunDetail{}, serrors.FromDB(opService, err)
 		}
 		sv.Input, sv.Output, sv.EndedAt = in, out, ended
@@ -178,20 +178,16 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 				sv.Error = &e
 			}
 		}
-		// The event a wait woke on is shown with the viewer's rights.
-		if ev, ok := eventOf[fmt.Sprintf("%s|%d", sv.TokenID, sv.Seq)]; ok && len(out) > 0 {
-			if m, err := decodeMap(out); err == nil {
-				if p, ok := m["event"].(map[string]any); ok {
-					if err := rd.collect(ctx, proj, ev, p, &viewer); err != nil {
-						return RunDetail{}, err
-					}
-					if _, err := proj.project(ctx, ev, p, &viewer); err != nil {
-						return RunDetail{}, err
-					}
-					if b, err := json.Marshal(m); err == nil {
-						sv.Output = b
-					}
-				}
+		// A step that ran after the run read a sensitive field the viewer may not read can carry it in
+		// any form (rendered, transformed by CEL or a node): its data is left out.
+		ok, err := proj.readable(ctx, decodeRefs(sens), &viewer)
+		if err != nil {
+			return RunDetail{}, err
+		}
+		if !ok {
+			sv.Hidden, sv.Input, sv.Output = true, nil, nil
+			if sv.Error != nil {
+				sv.Error = &StepError{Code: sv.Error.Code, Message: Hidden, Path: sv.Error.Path}
 			}
 		}
 		d.Steps = append(d.Steps, sv)
@@ -199,13 +195,15 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	if err := rows.Err(); err != nil {
 		return RunDetail{}, serrors.FromDB(opService, err)
 	}
-	// Values of those fields wherever later steps carried them: rendered params, outputs, errors.
-	for i := range d.Steps {
-		d.Steps[i].Input = rd.raw(d.Steps[i].Input)
-		d.Steps[i].Output = rd.raw(d.Steps[i].Output)
-		d.Steps[i].Error = rd.stepError(d.Steps[i].Error)
+	if d.Error != nil {
+		ok, err := proj.readable(ctx, run.Sensitive, &viewer)
+		if err != nil {
+			return RunDetail{}, err
+		}
+		if !ok {
+			d.Error = &StepError{Code: d.Error.Code, Message: Hidden, Path: d.Error.Path}
+		}
 	}
-	d.Error = rd.stepError(d.Error)
 	if d.CurrentNodes == nil {
 		d.CurrentNodes = []string{}
 	}

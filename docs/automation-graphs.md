@@ -233,6 +233,11 @@ queued conversation runs, runs of disabled graphs, retention.
   consumes the signal `inbox#<inbox_seq>` and applies it in the next transaction, which moves
   `inbox_seq` on; a timer is the sleep occurrence `timer:<wait_id>`, a core-opened task the
   task occurrence `task:<wait_id>`.
+- **Owner notice.** A failed run publishes `automation.run.failed.v1` once; the composition
+  contributes `ownernotice.Contribute`, whose core notification definition delivers it to the
+  graph's owner.
+- **Run history.** Each step keeps the sensitive event fields the run had read when it ran
+  (`steps.sensitive`); `GetRun` hides the data of a step whose fields the viewer may not read.
 - **Node executors.** An effect node type implements `engine.EffectNode` (applied in the step's
   transaction); call and human nodes go through `Config.Calls` / `Config.Tasks`; a Code node
   type implements `engine.CodeNode` so `EnableReview` shows its code and digest.

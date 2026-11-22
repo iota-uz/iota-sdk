@@ -731,17 +731,20 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 	req := startRequest{
 		tenant: a.TenantID, automationID: old.AutomationID, version: version, in: ie.in, triggerID: old.TriggerID, kind: old.TriggerKind,
 		key: "restart:" + uuid.NewString(), subject: old.Subject, initiator: old.InitiatorID,
-		depth: old.Depth, cause: old.CauseRunID, restarted: &old.ID, predecessor: old.InstanceID,
+		depth: old.Depth, cause: old.CauseRunID, restarted: &old.ID, predecessor: old.InstanceID, restartOf: old.Version,
 	}
 	if old.TriggerEventID != nil {
 		req.eventID = *old.TriggerEventID
 	}
 	var ref RunRef
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		// The predecessor's status is checked again under its locks: a blocked instance that resumed or
-		// finished meanwhile is judged as it is now. It is never touched (StartV2).
-		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, a.TenantID, old.ID); err != nil {
-			return serrors.FromDB(opService, err)
+		// Locks in the order steps take them: the subject, then the predecessor's instance (shared, so its
+		// status cannot change under us; no run row is locked while waiting for it). The status is checked
+		// again under them. The predecessor is never touched (StartV2).
+		if normSubject(old.Subject).Entity != graph.SubjectNone {
+			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, old.Subject, uuid.Nil)); err != nil {
+				return err
+			}
 		}
 		if old.InstanceID != nil {
 			if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2 FOR SHARE`, a.TenantID, *old.InstanceID); err != nil {
@@ -792,11 +795,6 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 			gev["kind"] = kind
 		}
 		req.event = gev
-		if normSubject(old.Subject).Entity != graph.SubjectNone {
-			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, old.Subject, uuid.Nil)); err != nil {
-				return err
-			}
-		}
 		if req.runAs != nil && req.depth > s.r.cfg.Limits.MaxDepth {
 			req.runAs, req.startState, req.reason = nil, startBlocked, "depth_exceeded"
 		}

@@ -864,6 +864,16 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	if err != nil {
 		return err
 	}
+	// The signal was projected for the rights the run-as had when it was routed; the step reads only
+	// what it may read now, and remembers which sensitive fields it read.
+	proj := m.x.r.projector(m.x.tenant)
+	if payload, err = proj.project(ctx, ev.Kind, payload, &m.x.subject); err != nil {
+		return &host.InfraError{Err: err}
+	}
+	refs, err := proj.sensitiveIn(ctx, ev.Kind, payload)
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
 	gev := graph.Event{}
 	for k, v := range payload {
 		gev[k] = v
@@ -889,6 +899,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitFired); err != nil {
 		return err
 	}
+	var changed bool
+	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
+	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
 	outcome, output := m.in().Wake(w.NodeID, gev)
 	return m.applyResult(ctx, tok, w, outcome, output, nil)
 }
@@ -964,9 +977,9 @@ func (m *mover) record(ctx context.Context, tok *tokenRow, node, behavior string
 		oc = outcome
 	}
 	_, err = m.tx.Exec(ctx, `
-		INSERT INTO automation.steps (tenant_id, run_id, token_id, seq, node_id, attempt, behavior, input, outcome, output, error, started_at, ended_at)
-		VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $9, $10, $11, CASE WHEN $12 THEN $11::timestamptz END)`,
-		m.x.tenant, m.x.run.ID, tok.ID, seq, node, behavior, in, oc, out, errj, m.s.now, ended)
+		INSERT INTO automation.steps (tenant_id, run_id, token_id, seq, node_id, attempt, behavior, input, outcome, output, error, sensitive, started_at, ended_at)
+		VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $9, $10, $13, $11, CASE WHEN $12 THEN $11::timestamptz END)`,
+		m.x.tenant, m.x.run.ID, tok.ID, seq, node, behavior, in, oc, out, errj, m.s.now, ended, m.s.sensitiveJSON())
 	return seq, serrors.FromDB(opRun, err)
 }
 
@@ -979,8 +992,8 @@ func (m *mover) closeStep(ctx context.Context, tok *tokenRow, seq int, outcome s
 	if err != nil {
 		return err
 	}
-	_, err = m.tx.Exec(ctx, `UPDATE automation.steps SET outcome = $5, output = $6, error = $7, ended_at = $8
-		WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`, m.x.tenant, m.x.run.ID, tok.ID, seq, outcome, out, errj, m.s.now)
+	_, err = m.tx.Exec(ctx, `UPDATE automation.steps SET outcome = $5, output = $6, error = $7, ended_at = $8, sensitive = $9
+		WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`, m.x.tenant, m.x.run.ID, tok.ID, seq, outcome, out, errj, m.s.now, m.s.sensitiveJSON())
 	return serrors.FromDB(opRun, err)
 }
 

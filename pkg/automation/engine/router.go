@@ -228,8 +228,10 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 			return err
 		}
 		req.startState, req.reason = startFilterFailed, "invalid_graph: "+err.Error()
-		_, err := r.startRun(ctx, tx, req)
-		return infra(err)
+		if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
+			return infra(err)
+		}
+		return nil
 	}
 	req.in = ie.in
 	mode := events.RunAsOwner
@@ -288,7 +290,7 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 	default:
 		req.runAs = as
 	}
-	if _, err := r.startRun(ctx, tx, req); err != nil {
+	if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
 		return infra(err)
 	}
 	return nil

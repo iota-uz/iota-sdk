@@ -95,6 +95,8 @@ CREATE TABLE automation.runs (
     cancel_requested boolean NOT NULL DEFAULT false,
     -- the graph's owner was told the run failed (once, whatever retried the transition)
     owner_notified_at timestamp with time zone,
+    -- the sensitive event fields ({event, path}) the run has read so far: what its steps may derive from
+    sensitive jsonb NOT NULL DEFAULT '[]'::jsonb,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, id),
@@ -162,6 +164,8 @@ CREATE TABLE automation.steps (
     outcome text,
     output jsonb,
     error jsonb,
+    -- the run's sensitive fields when the step ran: a viewer who may not read one of them sees no data
+    sensitive jsonb NOT NULL DEFAULT '[]'::jsonb,
     started_at timestamp with time zone NOT NULL DEFAULT now(),
     ended_at timestamp with time zone,
     PRIMARY KEY (tenant_id, run_id, token_id, seq),

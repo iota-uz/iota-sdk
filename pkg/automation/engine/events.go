@@ -20,6 +20,30 @@ const (
 	EventRunFinished = "automation.run.finished.v1"
 )
 
+// EventRunFailed is published when a run fails, for its graph's owner (owner_user_id): the notification
+// definition of package ownernotice delivers it. It only wakes waits (NoTrigger).
+const EventRunFailed = "automation.run.failed.v1"
+
+// RunFailedPayload is the payload of automation.run.failed.v1. It carries no error message: a message
+// may hold values of sensitive fields the owner may not read.
+type RunFailedPayload struct {
+	RunID          string `json:"run_id"`
+	AutomationID   string `json:"automation_id"`
+	AutomationName string `json:"automation_name"`
+	Version        int    `json:"version"`
+	OwnerUserID    int64  `json:"owner_user_id,string" wire:"int64"`
+	Code           string `json:"code"`
+}
+
+// RunFailedEvent is the native event of a failed run, published once per run in the transaction in which its
+// instance fails.
+var RunFailedEvent = native.Event[RunFailedPayload](EventRunFailed, native.EventSpec{
+	Subject:      SubjectRun,
+	Label:        manifest.Label{"en": "Automation run failed", "ru": "Запуск автоматизации завершился ошибкой", "uz": "Avtomatlashtirish ishga tushishi xato bilan tugadi"},
+	Descriptions: manifest.Label{"en": "A run of an automation you own failed and needs attention.", "ru": "Запуск вашей автоматизации завершился ошибкой и требует внимания.", "uz": "Sizning avtomatlashtirishingiz ishga tushishi xato bilan tugadi."},
+	Category:     "automation",
+})
+
 // SubjectRun is the entity of EventRunFinished: a run, keyed by its ID.
 const SubjectRun = "automation.run"
 
@@ -87,6 +111,18 @@ func (engineTriggers) Events() []graph.EventSpec {
 				{Name: "version", Field: expr.IntField},
 				{Name: "status", Field: expr.StringField},
 				{Name: "output", Field: expr.DynField},
+			},
+		},
+		{
+			Key: EventRunFailed, Title: "Automation run failed", Group: "automation", Subject: SubjectRun, NoTrigger: true,
+			Description: "A run of a graph failed.",
+			Payload: expr.Fields{
+				{Name: "run_id", Field: expr.StringField},
+				{Name: "automation_id", Field: expr.StringField},
+				{Name: "automation_name", Field: expr.StringField},
+				{Name: "version", Field: expr.IntField},
+				{Name: "owner_user_id", Field: expr.StringField},
+				{Name: "code", Field: expr.StringField},
 			},
 		},
 	}

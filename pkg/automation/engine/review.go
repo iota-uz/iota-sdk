@@ -37,7 +37,8 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	opts := r.graphOptions()
 	connections := catalog.ConnectionRule(view)
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
-		return append(connections(g), r.executorRule(view, g)...)
+		out := append(connections(g), r.executorRule(view, g)...)
+		return append(out, runAsRule(view, g)...)
 	}
 	errs = graph.Validate(view.Catalog, g, opts)
 	errs = connectionErrors(view, g, errs)
@@ -79,6 +80,21 @@ func connectionErrors(view catalog.View, g graph.Graph, errs []graph.GraphError)
 		out = append(out, e)
 	}
 	return out
+}
+
+// runAsRule refuses run_as initiator for a graph with a schedule trigger: a slot has no initiator, and
+// the run must not fall back to the owner's rights.
+func runAsRule(view catalog.View, g graph.Graph) []graph.GraphError {
+	if g.RunAs != graph.RunAsInitiator {
+		return nil
+	}
+	for i, t := range g.Triggers {
+		if triggerKind(view, t.Event) == KindSchedule {
+			return []graph.GraphError{{Path: fmt.Sprintf("triggers[%d].event", i), Code: graph.CodeInvalid,
+				Message: "a schedule has no initiator: a graph with a schedule trigger runs as its owner"}}
+		}
+	}
+	return nil
 }
 
 // executorRule refuses call and human nodes this process cannot execute.

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -38,7 +39,35 @@ type startRequest struct {
 	// startState and reason, when set, record a run that does not start.
 	startState string
 	reason     string
+	// restartOf is the version of the run a Restart starts from: the new run may take it or the enabled
+	// version. Other starts need the graph enabled on version.
+	restartOf int
 }
+
+// eligible checks, under the graph's row lock (the lock disableTx holds while it marks the live runs),
+// that the graph may still start the run: not deleted, and enabled on the version (a restart: on it or
+// on the run's own). A start that waited for a Disable sees it here and starts nothing.
+func eligible(ctx context.Context, tx pgx.Tx, req startRequest) error {
+	var enabled *int
+	var deleted bool
+	err := tx.QueryRow(ctx, `SELECT enabled_version, deleted_at IS NOT NULL FROM automation.automations WHERE tenant_id = $1 AND id = $2 FOR SHARE`,
+		req.tenant, req.automationID).Scan(&enabled, &deleted)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows) || (err == nil && deleted):
+		return ErrNotFound
+	case err != nil:
+		return serrors.FromDB(opStart, err)
+	case req.restartOf > 0 && req.version == req.restartOf:
+		return nil
+	case enabled == nil || *enabled != req.version:
+		return fmt.Errorf("%w: version %d of %s is not enabled", ErrNotEnabled, req.version, req.automationID)
+	}
+	return nil
+}
+
+// notEligible reports a start the graph's state refused (deleted, disabled, another version enabled):
+// an event or a schedule slot then starts nothing.
+func notEligible(err error) bool { return errors.Is(err, ErrNotEnabled) || errors.Is(err, ErrNotFound) }
 
 // normSubject is the subject a run is about: none when the event has none.
 func normSubject(s SubjectRef) SubjectRef {
@@ -80,6 +109,9 @@ func lockSubjects(ctx context.Context, tx pgx.Tx, keys ...string) error {
 // startRun records a run and, unless it is a run that does not start or a queued conversation run, starts
 // its instance. A repeated start key returns the run it created before.
 func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (RunRef, error) {
+	if err := eligible(ctx, tx, req); err != nil {
+		return RunRef{}, err
+	}
 	subject := normSubject(req.subject)
 	if req.event == nil {
 		req.event = graph.Event{}
@@ -87,6 +119,18 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	input, err := json.Marshal(req.event)
 	if err != nil {
 		return RunRef{}, serrors.Wrap(opStart, err)
+	}
+	sensitive := []byte(`[]`)
+	if kind := req.event.Kind(); kind != "" {
+		refs, err := r.projector(req.tenant).sensitiveIn(ctx, kind, map[string]any(req.event))
+		if err != nil {
+			return RunRef{}, &host.InfraError{Err: err}
+		}
+		if len(refs) > 0 {
+			if sensitive, err = json.Marshal(refs); err != nil {
+				return RunRef{}, err
+			}
+		}
 	}
 	id := uuid.New()
 	var runAsUser *int64
@@ -115,12 +159,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.runs (tenant_id, id, automation_id, version, start_key, start_state, start_reason, trigger_id,
 			trigger_event_id, trigger_kind, input, subject_entity, subject_key, run_as_user_id, run_as_kind, initiator_user_id,
-			depth, cause_run_id, restarted_from)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+			depth, cause_run_id, restarted_from, sensitive)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		ON CONFLICT (tenant_id, start_key) DO NOTHING
 		RETURNING id`,
 		req.tenant, id, req.automationID, req.version, key, state, reason, req.triggerID, eventID, req.kind, input,
-		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted).Scan(&got)
+		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, err := r.runByKey(ctx, tx, req.tenant, req.key)
 		if err != nil {
@@ -195,7 +239,7 @@ func subjectBusy(ctx context.Context, q querier, tenant uuid.UUID, s SubjectRef,
 	var busy bool
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1`+runFrom+`
-			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4 AND `+liveSQL+`)`,
+			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4 AND `+liveSQL+` AND NOT `+supersededSQL+`)`,
 		tenant, s.Entity, s.Key, except).Scan(&busy)
 	return busy, serrors.FromDB(opStart, err)
 }
@@ -212,7 +256,7 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 	err := tx.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1`+runFrom+`
 			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4
-			  AND r.instance_id IS NOT NULL AND i.status IN ('running', 'waiting', 'blocked'))`,
+			  AND r.instance_id IS NOT NULL AND i.status IN ('running', 'waiting', 'blocked') AND NOT `+supersededSQL+`)`,
 		tenant, s.Entity, s.Key, except).Scan(&busy)
 	if err != nil || busy {
 		return serrors.FromDB(opStart, err)

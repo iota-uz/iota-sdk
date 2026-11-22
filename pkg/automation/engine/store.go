@@ -31,6 +31,11 @@ const statusSQL = `(CASE i.status
 	ELSE CASE r.start_state WHEN 'queued' THEN 'queued' WHEN 'filter_failed' THEN 'filter_failed'
 		WHEN 'blocked' THEN 'blocked' WHEN 'cancelled' THEN 'cancelled' ELSE 'running' END END)`
 
+// supersededSQL is true for a run row r whose blocked instance a Restart replaced: it keeps its instance
+// (StartV2 leaves it as it is) but no longer holds its conversation subject, so the replacement starts.
+// Should the predecessor be resumed, its steps still take the subject's lock: steps never interleave.
+const supersededSQL = `(i.status = 'blocked' AND EXISTS (SELECT 1 FROM automation.runs s WHERE s.tenant_id = r.tenant_id AND s.restarted_from = r.id))`
+
 // liveSQL is true for a run row r (with instance i) that is still active: queued or a live instance.
 const liveSQL = `(r.start_state = 'queued' OR i.status IN ('running', 'waiting', 'blocked'))`
 
@@ -128,6 +133,7 @@ type runRow struct {
 	RestartedFrom  *uuid.UUID
 	Output         json.RawMessage
 	Error          json.RawMessage
+	Sensitive      []sensitiveRef
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	// joined from the instance
@@ -140,18 +146,18 @@ type runRow struct {
 const runCols = `r.tenant_id, r.id, r.automation_id, r.version, r.instance_id, r.start_key, r.start_state, r.start_reason,
 	r.trigger_id, r.trigger_event_id, r.trigger_kind, r.input, r.subject_entity, r.subject_key, r.run_as_user_id, r.run_as_kind,
 	r.initiator_user_id, r.inbox_seq, r.tx_seq, r.steps_count, r.depth, r.cause_run_id, r.restarted_from, r.output, r.error,
-	r.created_at, r.updated_at, i.status, i.blocked_reason, i.blocked_detail, i.updated_at`
+	r.sensitive, r.created_at, r.updated_at, i.status, i.blocked_reason, i.blocked_detail, i.updated_at`
 
 const runFrom = ` FROM automation.runs r LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id`
 
 func scanRun(row pgx.Row) (runRow, error) {
 	var r runRow
-	var input, output, errj []byte
+	var input, output, errj, sens []byte
 	err := row.Scan(&r.TenantID, &r.ID, &r.AutomationID, &r.Version, &r.InstanceID, &r.StartKey, &r.StartState, &r.StartReason,
 		&r.TriggerID, &r.TriggerEventID, &r.TriggerKind, &input, &r.Subject.Entity, &r.Subject.Key, &r.RunAsUserID, &r.RunAsKind,
 		&r.InitiatorID, &r.InboxSeq, &r.TxSeq, &r.StepsCount, &r.Depth, &r.CauseRunID, &r.RestartedFrom, &output, &errj,
-		&r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated)
-	r.Input, r.Output, r.Error = input, output, errj
+		&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated)
+	r.Input, r.Output, r.Error, r.Sensitive = input, output, errj, decodeRefs(sens)
 	return r, err
 }
 
