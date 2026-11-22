@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -38,6 +39,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	connections := catalog.ConnectionRule(view)
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
 		out := append(connections(g), r.executorRule(view, g)...)
+		out = append(out, scheduleRule(view, g)...)
 		return append(out, runAsRule(view, g)...)
 	}
 	errs = graph.Validate(view.Catalog, g, opts)
@@ -78,6 +80,28 @@ func connectionErrors(view catalog.View, g graph.Graph, errs []graph.GraphError)
 		}
 		seen[k] = true
 		out = append(out, e)
+	}
+	return out
+}
+
+// scheduleRule refuses a schedule trigger whose cron is not five calendar fields or whose time zone is
+// unknown (checkSchedule).
+func scheduleRule(view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, t := range g.Triggers {
+		if triggerKind(view, t.Event) != KindSchedule {
+			continue
+		}
+		var p scheduleParams
+		p.Cron, _ = t.Params["cron"].(string)
+		p.Timezone, _ = t.Params["timezone"].(string)
+		if err := checkSchedule(p); err != nil {
+			path := fmt.Sprintf("triggers[%d].params.cron", i)
+			if p.Timezone != "" && strings.Contains(err.Error(), "time zone") {
+				path = fmt.Sprintf("triggers[%d].params.timezone", i)
+			}
+			out = append(out, graph.GraphError{Path: path, Code: graph.CodeParams, Message: err.Error()})
+		}
 	}
 	return out
 }

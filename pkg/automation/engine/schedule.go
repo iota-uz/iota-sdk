@@ -56,8 +56,8 @@ func (r *Runtime) activeSchedules(ctx context.Context) ([]events.ScheduleDef, er
 			return nil, serrors.FromDB(opSchedule, err)
 		}
 		var p scheduleParams
-		if err := json.Unmarshal(raw, &p); err != nil || p.Cron == "" {
-			continue
+		if err := json.Unmarshal(raw, &p); err != nil || checkSchedule(p) != nil {
+			continue // an interval or a bad cron of a version saved before the rule: never planned
 		}
 		t := tenant
 		gen := scheduleGen{version: version, since: since}
@@ -76,17 +76,31 @@ type scheduleGen struct {
 	since   time.Time
 }
 
-var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+// calendarParser reads the schedules a graph may have: five calendar fields, no descriptors. An
+// interval (@every) has no calendar: the scheduler re-anchors it on its moving lookback window, so its
+// slots would shift between passes; it is refused on save (scheduleRule).
+var calendarParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
-// isTick reports whether at is a planned time of the cron in the time zone. An interval (@every) has
-// no calendar of its own (the scheduler plans it from its own anchor): every slot it plans is one.
+// checkSchedule reports why schedule params cannot run: a cron that is not five calendar fields, or an
+// unknown time zone.
+func checkSchedule(p scheduleParams) error {
+	if _, err := calendarParser.Parse(p.Cron); err != nil {
+		return fmt.Errorf("a schedule is five cron fields (minute hour day month weekday): %w", err)
+	}
+	if p.Timezone != "" {
+		if _, err := time.LoadLocation(p.Timezone); err != nil {
+			return fmt.Errorf("unknown time zone %q", p.Timezone)
+		}
+	}
+	return nil
+}
+
+// isTick reports whether at is a planned time of the calendar cron in the time zone. Anything else (an
+// interval of a version saved before the rule) has no tick a slot could be checked against.
 func isTick(p scheduleParams, at time.Time) bool {
-	spec, err := cronParser.Parse(p.Cron)
+	spec, err := calendarParser.Parse(p.Cron)
 	if err != nil {
 		return false
-	}
-	if _, interval := spec.(cron.ConstantDelaySchedule); interval {
-		return true
 	}
 	loc := time.UTC
 	if p.Timezone != "" {

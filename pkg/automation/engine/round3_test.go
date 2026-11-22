@@ -76,30 +76,68 @@ func TestStaleScheduleListingJudgesSlotsByTheCurrentEnable(t *testing.T) {
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.runs`), "a slot of the current enable runs, whichever listing carries it")
 }
 
-// scheduler is the real scheduler over the engine's schedules.
-func scheduler(t *testing.T, e *env, p *proc, now *time.Time, attempts int) *events.Scheduler {
-	t.Helper()
-	s, err := events.NewScheduler(events.SchedulerConfig{
-		DB: e.db, Schedules: p.rt.Schedules(), Lookback: time.Hour, MaxAttempts: attempts, Logger: e.logger,
-		Now: func() time.Time { return *now },
-	})
-	require.NoError(t, err)
-	return s
+func TestIntervalSchedulesAreRefused(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	for _, cron := range []string{"@every 5m", "@every 1h", "@hourly", "*/5 * * * * *"} {
+		_, _, err := p.rt.Service().Create(context.Background(), e.human(), engine.CreateInput{Graph: json.RawMessage(`{"name": "Often",
+		 "triggers": [{"id": "often", "event": "automation.schedule.v1", "params": {"cron": "` + cron + `"}}],
+		 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "often", "outcome": "fired"}, "to": "fin"}]}`)})
+		var verr *engine.ValidationError
+		require.ErrorAs(t, err, &verr, cron)
+		assert.Equal(t, "triggers[0].params.cron", verr.Errors[0].Path, cron)
+	}
+	_, _, err := p.rt.Service().Create(context.Background(), e.human(), engine.CreateInput{Graph: json.RawMessage(`{"name": "Zoned",
+	 "triggers": [{"id": "z", "event": "automation.schedule.v1", "params": {"cron": "0 3 * * *", "timezone": "Mars/Olympus"}}],
+	 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "z", "outcome": "fired"}, "to": "fin"}]}`)})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, "triggers[0].params.timezone", verr.Errors[0].Path)
 }
 
-func TestIntervalScheduleRunsTheSlotsTheSchedulerPlans(t *testing.T) {
+func TestHourlyCronRunsOnItsTickWithTheDefaultLookback(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
 	ctx := context.Background()
-	e.create(p, e.human(), `{"name": "Often", "triggers": [{"id": "often", "event": "automation.schedule.v1", "params": {"cron": "@every 5m"}}],
-	 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "often", "outcome": "fired"}, "to": "fin"}]}`)
-	now := time.Now().UTC().Add(6 * time.Minute)
-	s := scheduler(t, e, p, &now, 3)
-	_, err := s.RunOnce(ctx)
+	e.create(p, e.human(), `{"name": "Hourly", "triggers": [{"id": "h", "event": "automation.schedule.v1", "params": {"cron": "0 * * * *"}}],
+	 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "h", "outcome": "fired"}, "to": "fin"}]}`)
+	now := time.Now().UTC().Truncate(time.Hour).Add(time.Hour + 10*time.Second)
+	s, err := events.NewScheduler(events.SchedulerConfig{DB: e.db, Schedules: p.rt.Schedules(), Logger: e.logger, Now: func() time.Time { return now }})
 	require.NoError(t, err)
-	require.Positive(t, e.count(`SELECT count(*) FROM extruntime.schedule_runs WHERE status = 'done'`), "the scheduler ran a slot")
-	assert.Equal(t, e.count(`SELECT count(*) FROM extruntime.schedule_runs WHERE status = 'done'`), e.count(`SELECT count(*) FROM automation.runs`),
-		"every slot the scheduler ran started a run")
+	for i := 0; i < 2; i++ {
+		_, err = s.RunOnce(ctx)
+		require.NoError(t, err)
+		now = now.Add(10 * time.Second)
+	}
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.runs`), "one run on the hour's tick, none again on the next poll")
+}
+
+func TestStaleMinutelyListingDoesNotStartTheHourlyVersionEarly(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	human := e.human()
+	am := e.create(p, human, `{"name": "Minutely", "triggers": [{"id": "tick", "event": "automation.schedule.v1", "params": {"cron": "* * * * *"}}],
+	 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "tick", "outcome": "fired"}, "to": "fin"}]}`)
+	old, err := p.rt.Schedules().ActiveSchedules(ctx)
+	require.NoError(t, err)
+	v2, err := p.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(`{"name": "Hourly",
+	 "triggers": [{"id": "tick", "event": "automation.schedule.v1", "params": {"cron": "0 * * * *"}}],
+	 "nodes": [{"id": "fin", "type": "end", "params": {}}], "edges": [{"from": {"node": "tick", "outcome": "fired"}, "to": "fin"}]}`)})
+	require.NoError(t, err)
+	_, err = p.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v2.Version})
+	require.NoError(t, err)
+	// The next minute is not on the hour (unless the test runs at :59, then the next one after it is).
+	now := time.Now().UTC().Truncate(time.Minute).Add(time.Minute + 5*time.Second)
+	if now.Minute() == 0 {
+		now = now.Add(time.Minute)
+	}
+	s, err := events.NewScheduler(events.SchedulerConfig{DB: e.db, Schedules: events.StaticSchedules(old...), Lookback: time.Minute, MaxAttempts: 1,
+		Logger: e.logger, Now: func() time.Time { return now }})
+	require.NoError(t, err)
+	_, err = s.RunOnce(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, e.count(`SELECT count(*) FROM automation.runs`), "a slot of the old minutely schedule is not a tick of the hourly one")
 }
 
 func TestStaleListingDoesNotExhaustAnEligibleSlot(t *testing.T) {

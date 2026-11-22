@@ -77,7 +77,7 @@ var RunFinished = native.Event[RunFinishedPayload](EventRunFinished, native.Even
 })
 
 const scheduleParamsSchema = `{"type": "object", "properties": {
-	"cron": {"type": "string", "minLength": 9, "maxLength": 120, "description": "5-field cron expression"},
+	"cron": {"type": "string", "minLength": 9, "maxLength": 120, "description": "5 calendar cron fields (minute hour day month weekday); no @-descriptors or intervals"},
 	"timezone": {"type": "string", "maxLength": 64, "description": "IANA time zone; UTC by default"}
 }, "required": ["cron"], "additionalProperties": false}`
 
