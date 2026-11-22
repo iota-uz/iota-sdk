@@ -414,6 +414,8 @@ type waitSpecJSON struct {
 	// CaughtUp: the events committed between the wait's watermark and its own commit were looked up
 	// (catchUp); every later one reaches it through the router.
 	CaughtUp bool `json:"caught_up,omitempty"`
+	// CatchUpSeq is the last outbox seq the catch-up has signalled: its pages resume after it.
+	CatchUpSeq int64 `json:"catch_up_seq,omitempty"`
 }
 
 // Wait kinds and states.

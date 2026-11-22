@@ -642,9 +642,14 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) error {
 		payload  []byte
 		occurred time.Time
 	}
-	// Every matching event after the watermark, a batch at a time, before caught_up is set.
-	var list []found
+	// Page after page, each signalled in its own fenced transaction that also records how far it got
+	// (catch_up_seq): memory and transaction work stay bounded, a retry resumes after the last page, and
+	// the router's signal keys keep a repeated event from reaching the wait twice. caught_up is set by
+	// the last (short) page only.
 	after := w.AfterSeq
+	if w.Spec.CatchUpSeq > after {
+		after = w.Spec.CatchUpSeq
+	}
 	for {
 		rows, err := x.r.cfg.DB.Query(ctx, `
 			SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
@@ -654,52 +659,54 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) error {
 		if err != nil {
 			return serrors.FromDB(opRun, err)
 		}
-		n := 0
+		page := make([]found, 0, maxCatchUp)
 		for rows.Next() {
 			var f found
 			if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
 				rows.Close()
 				return serrors.FromDB(opRun, err)
 			}
-			list = append(list, f)
-			after = f.seq
-			n++
+			page = append(page, f)
 		}
 		rows.Close()
 		if err := rows.Err(); err != nil {
 			return serrors.FromDB(opRun, err)
 		}
-		if n < maxCatchUp {
-			break
+		last := len(page) < maxCatchUp
+		if len(page) > 0 {
+			after = page[len(page)-1].seq
+		}
+		err = x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
+			for _, f := range page {
+				payload, err := decodeMap(f.payload)
+				if err != nil {
+					continue
+				}
+				if payload, err = x.r.projector(x.tenant).project(ctx, *w.EventKind, payload, &x.subject); err != nil {
+					return &host.InfraError{Err: err}
+				}
+				raw, err := json.Marshal(payload)
+				if err != nil {
+					return err
+				}
+				msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.WaitID},
+					Event: &inboxEvent{ID: f.id.String(), Seq: f.seq, Kind: *w.EventKind, Payload: raw, OccurredAt: f.occurred}})
+				if err != nil {
+					return err
+				}
+				if err := x.r.cfg.Workflows.SignalInTx(ctx, tx, spi.Scope{Subject: x.subject}, host.SignalIntent{
+					Workflow: WorkflowID, Instance: x.nr.Instance().ID.String(), Name: InboxSignal, Payload: msg,
+					Key: "event:" + f.id.String() + ":" + w.WaitID, Producer: spi.Producer{EventID: f.id.String()},
+				}); err != nil {
+					return err
+				}
+			}
+			_, err := tx.Exec(ctx, `UPDATE automation.waits SET spec = jsonb_set(jsonb_set(spec, '{catch_up_seq}', to_jsonb($4::bigint)), '{caught_up}', to_jsonb($5::boolean))
+				WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, x.tenant, x.run.ID, w.WaitID, after, last)
+			return serrors.FromDB(opRun, err)
+		})
+		if err != nil || last {
+			return err
 		}
 	}
-	return x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
-		for _, f := range list {
-			payload, err := decodeMap(f.payload)
-			if err != nil {
-				continue
-			}
-			if payload, err = x.r.projector(x.tenant).project(ctx, *w.EventKind, payload, &x.subject); err != nil {
-				return &host.InfraError{Err: err}
-			}
-			raw, err := json.Marshal(payload)
-			if err != nil {
-				return err
-			}
-			msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.WaitID},
-				Event: &inboxEvent{ID: f.id.String(), Seq: f.seq, Kind: *w.EventKind, Payload: raw, OccurredAt: f.occurred}})
-			if err != nil {
-				return err
-			}
-			if err := x.r.cfg.Workflows.SignalInTx(ctx, tx, spi.Scope{Subject: x.subject}, host.SignalIntent{
-				Workflow: WorkflowID, Instance: x.nr.Instance().ID.String(), Name: InboxSignal, Payload: msg,
-				Key: "event:" + f.id.String() + ":" + w.WaitID, Producer: spi.Producer{EventID: f.id.String()},
-			}); err != nil {
-				return err
-			}
-		}
-		_, err := tx.Exec(ctx, `UPDATE automation.waits SET spec = jsonb_set(spec, '{caught_up}', 'true') WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`,
-			x.tenant, x.run.ID, w.WaitID)
-		return serrors.FromDB(opRun, err)
-	})
 }
