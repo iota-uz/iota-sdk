@@ -62,6 +62,7 @@ type telegram struct {
 	accept       string                    // another token the provider accepts
 	tested       atomic.Int32
 	policy       connectors.PlatformPolicy
+	auth         connectors.AuthKind // default api_key
 	nodes        []catalog.NodeType
 }
 
@@ -70,10 +71,17 @@ func (c *telegram) Nodes() []catalog.NodeType         { return c.nodes }
 func (c *telegram) Triggers() []catalog.TriggerSource { return nil }
 func (c *telegram) Descriptor() connectors.Descriptor {
 	return connectors.Descriptor{
-		Kind: catalog.KindTelegramBot, Title: map[string]string{"en": "Telegram bot"}, Auth: connectors.AuthAPIKey, Platform: c.policy,
+		Kind: catalog.KindTelegramBot, Title: map[string]string{"en": "Telegram bot"}, Auth: c.authKind(), Platform: c.policy,
 		Category:    connectors.CategoryMessaging,
 		Credentials: json.RawMessage(`{"type":"object","required":["token"],"properties":{"token":{"type":"string","x-secret":true},"chat":{"type":"string"}},"additionalProperties":false}`),
 	}
+}
+
+func (c *telegram) authKind() connectors.AuthKind {
+	if c.auth == "" {
+		return connectors.AuthAPIKey
+	}
+	return c.auth
 }
 
 // Test refuses badToken and, like a careless provider, echoes it in the message.
@@ -120,10 +128,14 @@ func (u *usage) Uses(_ context.Context, _, id uuid.UUID) ([]connectors.Use, erro
 type fakeOAuth struct {
 	identity connectors.Identity
 	err      error
+	tokenErr error // Token, CheckToken and Begin fail with it
 	token    string // the access token of the grant (default goodToken)
 }
 
 func (f *fakeOAuth) Begin(_ context.Context, _ uuid.UUID, _ catalog.ConnectorKind, redirect string) (string, string, error) {
+	if f.tokenErr != nil {
+		return "", "", f.tokenErr
+	}
 	state := uuid.NewString()
 	return "https://provider.test/auth?state=" + state + "&redirect_uri=" + redirect, state, nil
 }
@@ -143,7 +155,11 @@ func (f *fakeOAuth) Complete(context.Context, uuid.UUID, string, string) (connec
 	panic("the service saves the connection itself")
 }
 
-func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "", nil }
+func (f *fakeOAuth) Token(context.Context, uuid.UUID, uuid.UUID) (string, error) { return "", f.tokenErr }
+
+func (f *fakeOAuth) CheckToken(context.Context, uuid.UUID, uuid.UUID) (string, error) {
+	return "", f.tokenErr
+}
 
 // ---- environment
 
@@ -1143,4 +1159,38 @@ func TestCredentialRotationKeepsTheNameReferencesResolveBy(t *testing.T) {
 	v, err := connectors.SecretResolver(e.store, dir, nil).Secret(e.ctx, spi.Scope{Subject: spi.Subject{TenantID: e.tenant}}, "sales_bot.token")
 	require.NoError(t, err)
 	assert.Equal(t, goodToken, v)
+}
+
+// An OAuth2 implementation's own error never leaves the service with its text (the RPC logs errors it
+// does not recognise): refresh, check and sign-in start fail as ErrOAuthProvider; sentinels stay.
+func TestOAuthImplementationErrorsAreDropped(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	e.tg.auth = connectors.AuthOAuth2
+	leak := "refresh failed: client_secret=" + goodToken
+	e.oauth.tokenErr = errors.New(leak)
+
+	_, err := e.svc.Test(e.ctx, e.actor(), c.Connection.ID)
+	require.ErrorIs(t, err, services.ErrOAuthProvider)
+	assert.NotContains(t, err.Error(), goodToken)
+
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true)
+	require.NoError(t, err)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false) // CheckToken of the disabled row
+	require.ErrorIs(t, err, services.ErrOAuthProvider)
+	assert.NotContains(t, err.Error(), goodToken)
+
+	_, err = e.svc.OAuthStart(e.ctx, e.actor(), catalog.KindTelegramBot, "other_bot", "", uuid.Nil, "https://app.test/cb")
+	require.ErrorIs(t, err, services.ErrOAuthProvider)
+	assert.NotContains(t, err.Error(), goodToken)
+
+	// Documented sentinels keep their meaning, without the text around them.
+	e.oauth.tokenErr = fmt.Errorf("%s: %w", leak, context.DeadlineExceeded)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NotContains(t, err.Error(), goodToken)
+	e.oauth.tokenErr = fmt.Errorf("wrapped %s: %w", leak, connectors.ErrNeedsReauth)
+	res, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusNeedsReauth, res.Connection.Status)
 }

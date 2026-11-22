@@ -60,6 +60,9 @@ var (
 	ErrOAuthRefused = errors.New("automations: the connector refused the token of the sign-in")
 	// ErrOAuthExchange: the provider did not confirm the sign-in (the code exchange failed).
 	ErrOAuthExchange = errors.New("automations: the provider did not confirm the sign-in")
+	// ErrOAuthProvider: an OAuth2 call (a token, a refresh, the start of a sign-in) failed in the
+	// provider or the OAuth2 implementation; its own error is dropped (it may carry provider text).
+	ErrOAuthProvider = errors.New("automations: the OAuth2 provider call failed")
 )
 
 // RequestState is what a reserved idempotency key says about its request.
@@ -637,7 +640,7 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 			case errors.Is(err, connectors.ErrNotConnected):
 				// The status changed meanwhile: check with the stored credentials.
 			default:
-				return connectors.Connection{}, nil, nil, false, err
+				return connectors.Connection{}, nil, nil, false, oauthFailure(err)
 			}
 		} else if cur, creds, err = s.store.Get(ctx, tenantID, id); err != nil {
 			return connectors.Connection{}, nil, nil, false, err
@@ -752,7 +755,7 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 		if errors.Is(err, connectors.ErrNotConfigured) {
 			return "", ErrOAuthUnavailable
 		}
-		return "", serrors.Wrap(op, err)
+		return "", serrors.Wrap(op, oauthFailure(err))
 	}
 	if err := s.states.Put(ctx, OAuthState{
 		Hash: StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: kind, Name: name, DisplayName: truncate(strings.TrimSpace(displayName), 200),
@@ -876,6 +879,22 @@ func failedStatus(conn connectors.Connector, r Reason) (connectors.ConnectionSta
 		return connectors.StatusNeedsReauth, string(ReasonReauth)
 	}
 	return connectors.StatusError, string(r)
+}
+
+// oauthFailure is what of an OAuth2 implementation's error may leave the service (the RPC logs what it
+// does not recognise): the documented sentinels and a cancellation as such, anything else as
+// ErrOAuthProvider without its text. A built-in or custom implementation may put a provider's response,
+// and with it credentials, in its error.
+func oauthFailure(err error) error {
+	for _, keep := range []error{
+		connectors.ErrNotFound, connectors.ErrNotConfigured, connectors.ErrUndecryptable, connectors.ErrVersionConflict,
+		connectors.ErrNeedsReauth, connectors.ErrNotConnected, connectors.ErrInvalid, context.Canceled, context.DeadlineExceeded,
+	} {
+		if errors.Is(err, keep) {
+			return keep
+		}
+	}
+	return ErrOAuthProvider
 }
 
 // StateHash is the stored form of an OAuth2 state.
