@@ -442,7 +442,7 @@
     "version": "0.49.0",
     "source": "d9c71bc88c73441ae9b4e2da0213602d8acf8b7e",
     "sha": "aafc942046e97b752678f177be22ffcf2cc10a95",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "45025087237"
   },
   "ready": {
