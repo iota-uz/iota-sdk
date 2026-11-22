@@ -1,0 +1,1041 @@
+package engine
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
+)
+
+// mover moves the tokens of a run inside one fenced transaction. It mirrors graph.DryRun, durably: a
+// token's context is its ancestors' writes and its own, a fork parks the forking token until its join, a
+// foreach parks it until its items end.
+type mover struct {
+	x    *execution
+	tx   pgx.Tx
+	s    *stepState
+	vars map[string]any
+}
+
+func (m *mover) in() *graph.Interpreter { return m.x.ie.in }
+
+func (m *mover) spec(nodeID string) (graph.Node, graph.NodeSpec, bool) {
+	node, ok := m.in().View().Node(nodeID)
+	if !ok {
+		return node, graph.NodeSpec{}, false
+	}
+	spec, ok := m.x.ie.specs[node.Type]
+	return node, spec, ok
+}
+
+// stepErr is the error of a stopping step of the interpreter.
+func stepErr(st graph.Step) StepError {
+	if st.Kind == graph.StepMissingContext {
+		return StepError{Code: CodeMissingContext, Message: st.Message, Path: st.Path}
+	}
+	switch st.Code {
+	case graph.FailValueTooLarge, graph.FailLimit:
+		return StepError{Code: CodeLimitExceeded, Message: st.Message}
+	}
+	code := st.Code
+	if code == "" {
+		code = graph.FailInvalidGraph
+	}
+	return StepError{Code: code, Message: st.Message}
+}
+
+// enter takes the step of a running token on the node it is at.
+func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
+	in := m.in()
+	if tok.NodeID == graph.Ignore {
+		if _, err := m.record(ctx, tok, graph.Ignore, "", nil, graph.TraceEnded, nil, nil, true); err != nil {
+			return "", err
+		}
+		return "ignore", m.finish(ctx, tok, false, nil, "ended at "+graph.Ignore, nil)
+	}
+	node, spec, ok := m.spec(tok.NodeID)
+	if !ok {
+		return "", m.fail(ctx, tok, tok.NodeID, 0, StepError{Code: graph.FailInvalidGraph, Message: "no node " + tok.NodeID})
+	}
+	behavior := string(spec.Behavior)
+	if m.x.ie.unavailable[node.Type] {
+		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: CodeConnectionUnavailable,
+			Message: fmt.Sprintf("%s needs a connection the tenant does not have", node.Type)})
+	}
+	gctx, err := m.context(ctx, tok)
+	if err != nil {
+		return behavior, err
+	}
+	active, err := m.activeTokens(ctx)
+	if err != nil {
+		return behavior, err
+	}
+	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
+	switch st.Kind {
+	case graph.StepFailed, graph.StepMissingContext:
+		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, stepErr(st))
+	case graph.StepEnd:
+		if _, err := m.record(ctx, tok, node.ID, behavior, nil, graph.TraceEnd, st.End, nil, true); err != nil {
+			return behavior, err
+		}
+		reason, _ := st.End["reason"].(string)
+		if reason == "" {
+			reason = "ended at " + node.ID
+		}
+		return behavior, m.finish(ctx, tok, false, nil, reason, st.End)
+	case graph.StepCall:
+		return behavior, m.call(ctx, tok, node, spec, st)
+	case graph.StepWait:
+		return behavior, m.wait(ctx, tok, node, spec, st)
+	case graph.StepFork:
+		return behavior, m.fork(ctx, tok, node, st)
+	case graph.StepEach:
+		return behavior, m.each(ctx, tok, node, st)
+	case graph.StepArrive:
+		if _, err := m.record(ctx, tok, node.ID, behavior, nil, graph.TraceArrived, map[string]any{"value": st.Arrive.Value}, nil, true); err != nil {
+			return behavior, err
+		}
+		return behavior, m.finish(ctx, tok, true, st.Arrive.Value, "", nil)
+	case graph.StepOutcome:
+	}
+	output := st.Output
+	var input any
+	if len(st.Effects) > 0 {
+		input = effectInput(st.Effects)
+		out, serr, err := m.applyEffects(ctx, tok, node, st.Effects)
+		if err != nil {
+			return behavior, err
+		}
+		if serr != nil {
+			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
+		}
+		if out != nil {
+			output = out
+		}
+	}
+	if _, err := m.record(ctx, tok, node.ID, behavior, input, st.Outcome, output, nil, true); err != nil {
+		return behavior, err
+	}
+	if output != nil {
+		tok.set(node.ID, graph.NodeState{Output: output})
+	}
+	return behavior, m.advance(ctx, tok, node.ID, st.Outcome)
+}
+
+func effectInput(effects []graph.Effect) any {
+	if len(effects) == 1 {
+		return effects[0].Params
+	}
+	return effects
+}
+
+// applyEffects applies a node's effects inside the step's transaction, each in a savepoint so a failed
+// effect leaves the step usable. A failure of the platform aborts the step (err); any other is the node's.
+func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node, effects []graph.Effect) (map[string]any, *StepError, error) {
+	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
+	en, isEffect := nt.(EffectNode)
+	if !ok || !isEffect {
+		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+	}
+	var out map[string]any
+	for _, e := range effects {
+		sp, err := m.tx.Begin(ctx)
+		if err != nil {
+			return nil, nil, serrors.FromDB(opRun, err)
+		}
+		o, err := en.ApplyEffect(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, e)
+		if err != nil {
+			_ = sp.Rollback(ctx)
+			if host.IsInfrastructure(err) || ctx.Err() != nil {
+				return nil, nil, err
+			}
+			var se *StepError
+			if errors.As(err, &se) {
+				return nil, se, nil
+			}
+			return nil, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
+		}
+		if err := sp.Commit(ctx); err != nil {
+			return nil, nil, serrors.FromDB(opRun, err)
+		}
+		if o != nil {
+			out = o
+		}
+	}
+	if out != nil {
+		if serr := m.tooLarge(out, "the output of "+node.ID); serr != nil {
+			return nil, serr, nil
+		}
+	}
+	return out, nil, nil
+}
+
+func (m *mover) tooLarge(v any, what string) *StepError {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return &StepError{Code: graph.FailInvalidInput, Message: fmt.Sprintf("%s is not JSON: %v", what, err)}
+	}
+	if most := m.x.r.cfg.Limits.PayloadBytes; len(b) > most {
+		return &StepError{Code: CodeLimitExceeded, Message: fmt.Sprintf("%s has %d bytes, at most %d", what, len(b), most)}
+	}
+	return nil
+}
+
+func (m *mover) stepContext(tok *tokenRow, seq int) StepContext {
+	return StepContext{
+		TenantID: m.x.tenant, RunID: m.x.run.ID, TokenID: tok.ID, Seq: seq,
+		AutomationID: m.x.run.AutomationID, Version: m.x.run.Version,
+		RunAs: m.x.nr.Subject(), Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
+	}
+}
+
+// call registers a call or a human task as a wait: the executor starts it, its result comes later.
+func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec graph.NodeSpec, st graph.Step) error {
+	behavior := string(spec.Behavior)
+	input := effectInput(st.Effects)
+	nt, _ := m.x.r.cfg.Catalog.Node(node.Type)
+	human := false
+	if h, ok := nt.(HumanNode); ok && h.Human() {
+		human = true
+	}
+	var begin func(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, input json.RawMessage) (WaitSpec, error)
+	kind := waitCall
+	switch {
+	case human && m.x.r.cfg.Tasks != nil:
+		begin, kind = m.x.r.cfg.Tasks.Begin, waitTask
+	case !human && m.x.r.cfg.Calls != nil:
+		begin = m.x.r.cfg.Calls.Begin
+	default:
+		return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, StepError{Code: CodeConnectionUnavailable, Message: node.Type + " cannot run in this process"})
+	}
+	raw, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	if len(raw) > m.x.r.cfg.Limits.PayloadBytes {
+		return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, StepError{Code: CodeLimitExceeded, Message: "the request of " + node.ID + " is too large"})
+	}
+	seq := tok.StepSeq + 1
+	sp, err := m.tx.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	ws, err := begin(ctx, sp, m.stepContext(tok, seq), node, raw)
+	if err != nil {
+		_ = sp.Rollback(ctx)
+		if host.IsInfrastructure(err) || ctx.Err() != nil {
+			return err
+		}
+		var se *StepError
+		if !errors.As(err, &se) {
+			se = &StepError{Code: CodeEffectFailed, Message: err.Error()}
+		}
+		return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *se)
+	}
+	if err := sp.Commit(ctx); err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	if ws.WaitID == "" {
+		ws.WaitID = fmt.Sprintf("%s/%d", tok.ID, seq)
+	}
+	if ws.Kind != "" {
+		kind = ws.Kind
+	}
+	if kind != waitCall && kind != waitTask {
+		kind = waitCall
+	}
+	if _, err := m.record(ctx, tok, node.ID, behavior, input, "", nil, nil, false); err != nil {
+		return err
+	}
+	w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: ws.WaitID, Kind: kind, NodeID: node.ID, Spec: waitSpecJSON{Seq: seq, Exec: &ws}}
+	if t := m.capWait(ws.Timeout); t > 0 {
+		at := m.s.now.Add(t)
+		w.TimeoutAt, w.Spec.Timer = &at, true
+	}
+	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
+		return err
+	}
+	tok.Status = tokWaiting
+	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+func (m *mover) capWait(d time.Duration) time.Duration {
+	if most := m.x.r.cfg.Limits.WaitMax; d > most {
+		return most
+	}
+	return d
+}
+
+// wait registers a wait for an event (with its filter and timeout) or a delay.
+func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec graph.NodeSpec, st graph.Step) error {
+	behavior := string(spec.Behavior)
+	var input any
+	params, _ := m.in().View().Params(node.ID)
+	if len(st.Effects) > 0 {
+		input = effectInput(st.Effects)
+		params = st.Effects[0].Params
+		if _, serr, err := m.applyEffects(ctx, tok, node, st.Effects); err != nil {
+			return err
+		} else if serr != nil {
+			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
+		}
+	}
+	wi := st.Wait
+	kind := waitEvent
+	if wi.Event == "" {
+		kind = waitTimer
+	}
+	timeout := m.capWait(wi.Timeout)
+	if kind == waitEvent && timeout == 0 {
+		timeout = m.x.r.cfg.Limits.WaitMax // a wait never outlives WaitMax
+	}
+	seq, err := m.record(ctx, tok, node.ID, behavior, input, "", nil, nil, false)
+	if err != nil {
+		return err
+	}
+	after, err := events.Watermark(ctx, m.tx)
+	if err != nil {
+		return err
+	}
+	w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: fmt.Sprintf("%s/%d", tok.ID, seq), Kind: kind, NodeID: node.ID, AfterSeq: after, Spec: waitSpecJSON{Seq: seq}}
+	if kind == waitEvent {
+		ev := wi.Event
+		w.EventKind = &ev
+		if wi.Filter != "" {
+			f := wi.Filter
+			w.Filter = &f
+		}
+		w.Subject = m.waitSubject(node, ev, params)
+	}
+	if timeout > 0 {
+		at := m.s.now.Add(timeout)
+		w.TimeoutAt, w.Spec.Timer = &at, true
+	}
+	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
+		return err
+	}
+	tok.Status = tokWaiting
+	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the
+// node type's (WaitKeyer) when it names one, else none (match by kind and filter).
+func (m *mover) waitSubject(node graph.Node, event string, params map[string]any) *SubjectRef {
+	if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok {
+		if wk, ok := nt.(WaitKeyer); ok {
+			if s, ok := wk.WaitSubject(params); ok {
+				return &s
+			}
+		}
+	}
+	es, ok := m.x.ie.events[event]
+	run := normSubject(m.x.run.Subject)
+	if ok && run.Entity != graph.SubjectNone && es.Subject == run.Entity {
+		return &run
+	}
+	return nil
+}
+
+// fork starts a token per branch of a parallel; the forking token waits for the join.
+func (m *mover) fork(ctx context.Context, tok *tokenRow, node graph.Node, st graph.Step) error {
+	f := &flowState{Kind: string(graph.BehaviorParallel), Node: node.ID, Join: m.x.ie.joinOf[node.ID],
+		State: graph.JoinState{Arrived: map[string]graph.Arrival{}, Gone: map[string]bool{}}}
+	branches := make([]string, 0, len(st.Fork))
+	for _, fk := range st.Fork {
+		seg := fk.Token[strings.LastIndex(fk.Token, "/")+1:]
+		branch := strings.TrimPrefix(seg, node.ID+".")
+		parent := tok.ID
+		child := tokenRow{ID: uuid.New(), Parent: &parent, Path: fk.Token, NodeID: fk.Node, From: node.ID, Status: tokRunning, Branch: &branch}
+		if err := insertToken(ctx, m.tx, m.x.tenant, m.x.run.ID, child); err != nil {
+			return err
+		}
+		f.Children = append(f.Children, child.ID)
+		branches = append(branches, branch)
+	}
+	if _, err := m.record(ctx, tok, node.ID, string(graph.BehaviorParallel), nil, "fork", map[string]any{"branches": branches}, nil, true); err != nil {
+		return err
+	}
+	if st.Wait != nil && st.Wait.Timeout > 0 && f.Join != "" {
+		at := m.s.now.Add(m.capWait(st.Wait.Timeout))
+		w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: fmt.Sprintf("%s/%d", tok.ID, tok.StepSeq), Kind: waitJoin, NodeID: f.Join,
+			TimeoutAt: &at, Spec: waitSpecJSON{Seq: tok.StepSeq, Timer: true}}
+		if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
+			return err
+		}
+	}
+	tok.Status, tok.Flow = tokWaiting, f
+	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// each starts the first items of a foreach (at most its concurrency); the forking token waits for all.
+func (m *mover) each(ctx context.Context, tok *tokenRow, node graph.Node, st graph.Step) error {
+	target, ok := m.in().Next(node.ID, graph.OutcomeItem)
+	if !ok {
+		return m.fail(ctx, tok, node.ID, 0, StepError{Code: graph.FailInvalidGraph, Message: node.ID + " has no edge from item"})
+	}
+	items := st.Each.Items
+	conc := st.Each.Concurrency
+	if conc < 1 {
+		conc = 1
+	}
+	f := &flowState{Kind: string(graph.BehaviorForeach), Node: node.ID, Count: len(items), Target: target, Left: len(items), Concurrency: conc}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return err
+	}
+	if _, err := m.tx.Exec(ctx, `UPDATE automation.tokens SET items = $4 WHERE tenant_id = $1 AND run_id = $2 AND id = $3`, m.x.tenant, m.x.run.ID, tok.ID, raw); err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	if _, err := m.record(ctx, tok, node.ID, string(graph.BehaviorForeach), nil, "each", map[string]any{"items": len(items)}, nil, true); err != nil {
+		return err
+	}
+	for f.Next < len(items) && f.Next < conc {
+		if err := m.startItem(ctx, tok, f, items[f.Next]); err != nil {
+			return err
+		}
+	}
+	tok.Status, tok.Flow = tokWaiting, f
+	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+func (m *mover) startItem(ctx context.Context, parent *tokenRow, f *flowState, item any) error {
+	k := f.Next
+	f.Next++
+	raw, err := json.Marshal(item)
+	if err != nil {
+		return err
+	}
+	pid := parent.ID
+	ref := f.Node
+	child := tokenRow{ID: uuid.New(), Parent: &pid, Path: graph.ItemToken(parent.Path, f.Node, k), NodeID: f.Target, From: f.Node,
+		Status: tokRunning, ForeachRef: &ref, ForeachIndex: &k, Item: raw}
+	return insertToken(ctx, m.tx, m.x.tenant, m.x.run.ID, child)
+}
+
+// advance moves a token along the edge of an outcome.
+func (m *mover) advance(ctx context.Context, tok *tokenRow, from, outcome string) error {
+	tok.From = from
+	next, ok := m.in().Next(from, outcome)
+	if !ok {
+		return m.noEdge(ctx, tok)
+	}
+	tok.NodeID, tok.Status = next, tokRunning
+	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// noEdge ends a token on an outcome without an edge: inside a construct its branch does not arrive (its
+// item is not ok); on the main path (a valid graph connects every outcome there) the run ends.
+func (m *mover) noEdge(ctx context.Context, tok *tokenRow) error {
+	reason := "an outcome of " + tok.From + " has no edge"
+	for _, w := range tok.Writes {
+		if w.Node == tok.From {
+			if msg, ok := w.State.Output["error"].(string); ok && msg != "" {
+				reason = msg
+			}
+		}
+	}
+	return m.finish(ctx, tok, false, nil, reason, nil)
+}
+
+// nodeFailed sends a node's failure down its failed outcome when its type has one, else fails the token.
+// seq > 0 closes the token's open step instead of recording one.
+func (m *mover) nodeFailed(ctx context.Context, tok *tokenRow, nodeID, behavior string, seq int, input any, e StepError) error {
+	fo := m.in().FailedOutcome(nodeID)
+	if fo == "" {
+		return m.fail(ctx, tok, nodeID, seq, e, behavior, input)
+	}
+	out := map[string]any{"error": e.Message, "code": e.Code}
+	out["error"] = m.fitError(e.Message, out)
+	if seq > 0 {
+		if err := m.closeStep(ctx, tok, seq, fo, out, &e); err != nil {
+			return err
+		}
+	} else if _, err := m.record(ctx, tok, nodeID, behavior, input, fo, out, &e, true); err != nil {
+		return err
+	}
+	tok.set(nodeID, graph.NodeState{Output: out})
+	return m.advance(ctx, tok, nodeID, fo)
+}
+
+// fitError shortens a failure message so the failed output stays within PayloadBytes.
+func (m *mover) fitError(message string, with map[string]any) string {
+	out := map[string]any{}
+	for k, v := range with {
+		out[k] = v
+	}
+	fits := func(s string) bool {
+		out["error"] = s
+		return m.tooLarge(out, "") == nil
+	}
+	for !fits(message) && message != "" {
+		cut := len(message) - len(message)/4 - 1
+		for cut > 0 && !utf8.RuneStart(message[cut]) {
+			cut--
+		}
+		message = message[:cut]
+	}
+	return message
+}
+
+// fail ends a token on a failure without a failed outcome: the run on the main path, only the token
+// inside a branch or an item. extra is the behavior and input of the step to record.
+func (m *mover) fail(ctx context.Context, tok *tokenRow, nodeID string, seq int, e StepError, extra ...any) error {
+	behavior := ""
+	var input any
+	if len(extra) > 0 {
+		behavior, _ = extra[0].(string)
+	}
+	if len(extra) > 1 {
+		input = extra[1]
+	}
+	if seq > 0 {
+		if err := m.closeStep(ctx, tok, seq, graph.TraceFailed, nil, &e); err != nil {
+			return err
+		}
+	} else if _, err := m.record(ctx, tok, nodeID, behavior, input, graph.TraceFailed, nil, &e, true); err != nil {
+		return err
+	}
+	tok.Status = tokFailed
+	if err := saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok); err != nil {
+		return err
+	}
+	if tok.Parent == nil {
+		return m.endRun(ctx, nil, &e)
+	}
+	return m.inGroup(ctx, tok, false, nil, e.Message)
+}
+
+// finish ends a token: it arrived at a join or a collect with a value, or it ended without arriving.
+// A main token ends the run with endOutput.
+func (m *mover) finish(ctx context.Context, tok *tokenRow, arrived bool, value any, reason string, endOutput map[string]any) error {
+	tok.Status = tokDone
+	if arrived {
+		tok.Status = tokJoined
+	}
+	tok.Flow = nil
+	if err := saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok); err != nil {
+		return err
+	}
+	if tok.Parent == nil {
+		if endOutput == nil {
+			endOutput = map[string]any{}
+		}
+		return m.endRun(ctx, endOutput, nil)
+	}
+	return m.inGroup(ctx, tok, arrived, value, reason)
+}
+
+// inGroup tells the forking token that one of its branches or items ended.
+func (m *mover) inGroup(ctx context.Context, tok *tokenRow, arrived bool, value any, reason string) error {
+	a := arrival{OK: arrived, Value: value}
+	if !arrived {
+		a.Error = m.fitError(reason, nil)
+	}
+	raw, err := json.Marshal(a)
+	if err != nil {
+		return err
+	}
+	if _, err := m.tx.Exec(ctx, `UPDATE automation.tokens SET arrival = $4 WHERE tenant_id = $1 AND run_id = $2 AND id = $3`, m.x.tenant, m.x.run.ID, tok.ID, raw); err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	parent, err := loadToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok.Parent, true)
+	if err != nil {
+		return err
+	}
+	if parent.Flow == nil || tokenTerminal(parent.Status) {
+		return nil // the group closed: a join any already continued, or the parent was cancelled
+	}
+	f := parent.Flow
+	switch f.Kind {
+	case string(graph.BehaviorParallel):
+		branch := ""
+		if tok.Branch != nil {
+			branch = *tok.Branch
+		}
+		if arrived {
+			f.State.Arrived[branch] = graph.Arrival{Of: f.Node, Token: tok.Path, Value: value}
+		} else {
+			f.State.Gone[branch] = true
+		}
+		return m.decideJoin(ctx, &parent)
+	case string(graph.BehaviorForeach):
+		f.Left--
+		if f.Left <= 0 {
+			return m.foreachDone(ctx, &parent)
+		}
+		if f.Next < f.Count {
+			var item json.RawMessage
+			if err := m.tx.QueryRow(ctx, `SELECT items -> $4::int FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 AND id = $3`,
+				m.x.tenant, m.x.run.ID, parent.ID, f.Next).Scan(&item); err != nil {
+				return serrors.FromDB(opRun, err)
+			}
+			var v any
+			if err := json.Unmarshal(item, &v); err != nil {
+				return err
+			}
+			if err := m.startItem(ctx, &parent, f, v); err != nil {
+				return err
+			}
+		}
+		return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, parent)
+	}
+	return nil
+}
+
+// decideJoin decides a parallel's join for the token that forked it.
+func (m *mover) decideJoin(ctx context.Context, parent *tokenRow) error {
+	f := parent.Flow
+	if f.Join == "" {
+		var live int
+		if err := m.tx.QueryRow(ctx, `SELECT count(*) FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 AND id = ANY($3) AND status IN ('running', 'waiting')`,
+			m.x.tenant, m.x.run.ID, f.Children).Scan(&live); err != nil {
+			return serrors.FromDB(opRun, err)
+		}
+		if live > 0 {
+			return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *parent)
+		}
+		return m.finish(ctx, parent, false, nil, "the branches of "+f.Node+" ended", nil)
+	}
+	st := m.in().Join(f.Join, parent.Path, f.State)
+	switch st.Kind {
+	case graph.StepWait:
+		return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *parent)
+	case graph.StepFailed, graph.StepMissingContext:
+		if err := m.cancel(ctx, parent, st.Cancel); err != nil {
+			return err
+		}
+		if err := m.closeJoinWait(ctx, parent); err != nil {
+			return err
+		}
+		join := f.Join
+		parent.Flow = nil
+		return m.fail(ctx, parent, join, 0, stepErr(st), string(graph.BehaviorJoin))
+	}
+	if err := m.cancel(ctx, parent, st.Cancel); err != nil {
+		return err
+	}
+	if err := m.closeJoinWait(ctx, parent); err != nil {
+		return err
+	}
+	// Only what an arrived branch wrote since the fork, in the order of the branches.
+	children, err := queryTokens(ctx, m.tx, `SELECT `+tokenCols+` FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 AND id = ANY($3) ORDER BY created_seq`,
+		m.x.tenant, m.x.run.ID, f.Children)
+	if err != nil {
+		return err
+	}
+	for _, c := range children {
+		if c.Branch == nil {
+			continue
+		}
+		if _, ok := f.State.Arrived[*c.Branch]; !ok {
+			continue
+		}
+		for _, w := range c.Writes {
+			parent.set(w.Node, w.State)
+		}
+	}
+	join := f.Join
+	parent.Flow = nil
+	parent.set(join, graph.NodeState{Output: st.Output})
+	if _, err := m.record(ctx, parent, join, string(graph.BehaviorJoin), nil, st.Outcome, st.Output, nil, true); err != nil {
+		return err
+	}
+	return m.advance(ctx, parent, join, st.Outcome)
+}
+
+// closeJoinWait cancels the timeout of a parallel's join.
+func (m *mover) closeJoinWait(ctx context.Context, parent *tokenRow) error {
+	ws, err := queryWaits(ctx, m.tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND kind = 'join' AND status = 'open'`,
+		m.x.tenant, m.x.run.ID, parent.ID)
+	if err != nil {
+		return err
+	}
+	for _, w := range ws {
+		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// foreachDone continues the foreach's token once every item ended: done, partial_failed, or its failed
+// outcome when the results do not fit.
+func (m *mover) foreachDone(ctx context.Context, parent *tokenRow) error {
+	f := parent.Flow
+	rows, err := m.tx.Query(ctx, `SELECT foreach_index, arrival FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 AND parent_token_id = $3 AND foreach_ref = $4 ORDER BY foreach_index`,
+		m.x.tenant, m.x.run.ID, parent.ID, f.Node)
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	var results []graph.ItemResult
+	for rows.Next() {
+		var idx int
+		var raw []byte
+		if err := rows.Scan(&idx, &raw); err != nil {
+			rows.Close()
+			return serrors.FromDB(opRun, err)
+		}
+		var a arrival
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &a); err != nil {
+				rows.Close()
+				return err
+			}
+		} else {
+			a.Error = "the item did not end"
+		}
+		results = append(results, graph.ItemResult{Index: idx, OK: a.OK, Value: a.Value, Error: a.Error})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	node := f.Node
+	parent.Flow = nil
+	st := m.in().ForeachDone(node, results)
+	if st.Kind == graph.StepFailed {
+		return m.nodeFailed(ctx, parent, node, string(graph.BehaviorForeach), 0, nil, stepErr(st))
+	}
+	parent.set(node, graph.NodeState{Output: st.Output})
+	if _, err := m.record(ctx, parent, node, string(graph.BehaviorForeach), nil, st.Outcome, st.Output, nil, true); err != nil {
+		return err
+	}
+	return m.advance(ctx, parent, node, st.Outcome)
+}
+
+// cancel ends live tokens named by their paths, and every token they started, with their waits.
+func (m *mover) cancel(ctx context.Context, parent *tokenRow, paths []string) error {
+	if len(paths) == 0 {
+		return nil
+	}
+	rows, err := m.tx.Query(ctx, `
+		UPDATE automation.tokens SET status = 'cancelled', flow = NULL, updated_at = now()
+		WHERE tenant_id = $1 AND run_id = $2 AND status IN ('running', 'waiting') AND id <> $4
+		  AND EXISTS (SELECT 1 FROM unnest($3::text[]) p WHERE path = p OR starts_with(path, p || '/'))
+		RETURNING id`, m.x.tenant, m.x.run.ID, paths, parent.ID)
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	return m.cancelWaits(ctx, ids)
+}
+
+func (m *mover) cancelWaits(ctx context.Context, tokens []uuid.UUID) error {
+	if len(tokens) == 0 {
+		return nil
+	}
+	ws, err := queryWaits(ctx, m.tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND token_id = ANY($3) AND status = 'open'`,
+		m.x.tenant, m.x.run.ID, tokens)
+	if err != nil {
+		return err
+	}
+	for _, w := range ws {
+		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
+			return err
+		}
+		if _, err := m.tx.Exec(ctx, `UPDATE automation.steps SET outcome = $5, ended_at = now() WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4 AND ended_at IS NULL`,
+			m.x.tenant, m.x.run.ID, w.TokenID, w.Spec.Seq, graph.TraceCancelled); err != nil {
+			return serrors.FromDB(opRun, err)
+		}
+	}
+	return nil
+}
+
+// endRun ends the run: every live token is cancelled with its waits, and the run keeps its output (or its
+// failure) for the workflow engine.
+func (m *mover) endRun(ctx context.Context, output map[string]any, e *StepError) error {
+	rows, err := m.tx.Query(ctx, `
+		UPDATE automation.tokens SET status = 'cancelled', flow = NULL, updated_at = now()
+		WHERE tenant_id = $1 AND run_id = $2 AND status IN ('running', 'waiting') RETURNING id`, m.x.tenant, m.x.run.ID)
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	if err := m.cancelWaits(ctx, ids); err != nil {
+		return err
+	}
+	if e != nil {
+		b, err := json.Marshal(e)
+		if err != nil {
+			return err
+		}
+		m.s.failure = b
+		return nil
+	}
+	b, err := json.Marshal(output)
+	if err != nil {
+		return err
+	}
+	m.s.output = b
+	return nil
+}
+
+// timedOut fires the timer of a wait.
+func (m *mover) timedOut(ctx context.Context, tok *tokenRow, w waitRow) error {
+	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitTimedOut); err != nil {
+		return err
+	}
+	switch w.Kind {
+	case waitJoin:
+		if tok.Flow == nil {
+			return nil
+		}
+		tok.Flow.State.TimedOut = true
+		return m.decideJoin(ctx, tok)
+	case waitTask, waitCall:
+		_, spec, _ := m.spec(w.NodeID)
+		for _, o := range m.in().View().Outcomes(w.NodeID) {
+			if o == CodeTimeout {
+				return m.applyResult(ctx, tok, w, CodeTimeout, map[string]any{}, nil)
+			}
+		}
+		return m.nodeFailed(ctx, tok, w.NodeID, string(spec.Behavior), w.Spec.Seq, nil, StepError{Code: CodeTimeout, Message: w.NodeID + " got no answer in time"})
+	}
+	outcome, output := m.in().Wake(w.NodeID, nil)
+	return m.applyResult(ctx, tok, w, outcome, output, nil)
+}
+
+// wakeEvent wakes a wait with a matched event, when its filter still matches in the token's context.
+func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inboxEvent) error {
+	payload, err := decodeMap(ev.Payload)
+	if err != nil {
+		return err
+	}
+	gev := graph.Event{}
+	for k, v := range payload {
+		gev[k] = v
+	}
+	gev["kind"] = ev.Kind
+	gctx, err := m.context(ctx, tok)
+	if err != nil {
+		return err
+	}
+	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
+	if st != nil {
+		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
+			return err
+		}
+		return m.fail(ctx, tok, w.NodeID, w.Spec.Seq, stepErr(*st))
+	}
+	if !matched {
+		return nil
+	}
+	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitFired); err != nil {
+		return err
+	}
+	outcome, output := m.in().Wake(w.NodeID, gev)
+	return m.applyResult(ctx, tok, w, outcome, output, nil)
+}
+
+// result applies the result of a call or a task.
+func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitResult) error {
+	if w.Kind == waitEvent || w.Kind == waitTimer || w.Kind == waitJoin {
+		return nil // only calls and tasks take results
+	}
+	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitFired); err != nil {
+		return err
+	}
+	_, spec, _ := m.spec(w.NodeID)
+	behavior := string(spec.Behavior)
+	output, err := decodeMap(wr.Output)
+	if err != nil {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
+	}
+	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
+	}
+	outcome := wr.Outcome
+	fo := m.in().FailedOutcome(w.NodeID)
+	if wr.Error != nil && (outcome == "" || outcome == fo) {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *wr.Error)
+	}
+	if outcome == "" && spec.Answer != nil {
+		o, st := m.in().CallOutcome(w.NodeID, output)
+		if st != nil {
+			return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, stepErr(*st))
+		}
+		outcome = o
+	}
+	known := false
+	for _, o := range m.in().View().Outcomes(w.NodeID) {
+		if o == outcome {
+			known = true
+		}
+	}
+	if !known {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s has no outcome %q", w.NodeID, outcome)})
+	}
+	return m.applyResult(ctx, tok, w, outcome, output, nil)
+}
+
+// applyResult closes a waiting node's step with its outcome and moves the token on.
+func (m *mover) applyResult(ctx context.Context, tok *tokenRow, w waitRow, outcome string, output map[string]any, e *StepError) error {
+	if err := m.closeStep(ctx, tok, w.Spec.Seq, outcome, output, e); err != nil {
+		return err
+	}
+	tok.set(w.NodeID, graph.NodeState{Output: output}) // an earlier wake's event is not this one's output
+	return m.advance(ctx, tok, w.NodeID, outcome)
+}
+
+// record inserts a step of the token; ended=false leaves it open (a wait).
+func (m *mover) record(ctx context.Context, tok *tokenRow, node, behavior string, input any, outcome string, output any, e *StepError, ended bool) (int, error) {
+	tok.StepSeq++
+	seq := tok.StepSeq
+	in, err := jsonOrNil(input)
+	if err != nil {
+		return 0, err
+	}
+	out, err := jsonOrNil(output)
+	if err != nil {
+		return 0, err
+	}
+	errj, err := jsonOrNil(e)
+	if err != nil {
+		return 0, err
+	}
+	var oc any
+	if outcome != "" {
+		oc = outcome
+	}
+	_, err = m.tx.Exec(ctx, `
+		INSERT INTO automation.steps (tenant_id, run_id, token_id, seq, node_id, attempt, behavior, input, outcome, output, error, started_at, ended_at)
+		VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8, $9, $10, $11, CASE WHEN $12 THEN $11::timestamptz END)`,
+		m.x.tenant, m.x.run.ID, tok.ID, seq, node, behavior, in, oc, out, errj, m.s.now, ended)
+	return seq, serrors.FromDB(opRun, err)
+}
+
+func (m *mover) closeStep(ctx context.Context, tok *tokenRow, seq int, outcome string, output any, e *StepError) error {
+	out, err := jsonOrNil(output)
+	if err != nil {
+		return err
+	}
+	errj, err := jsonOrNil(e)
+	if err != nil {
+		return err
+	}
+	_, err = m.tx.Exec(ctx, `UPDATE automation.steps SET outcome = $5, output = $6, error = $7, ended_at = $8
+		WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`, m.x.tenant, m.x.run.ID, tok.ID, seq, outcome, out, errj, m.s.now)
+	return serrors.FromDB(opRun, err)
+}
+
+func jsonOrNil(v any) (any, error) {
+	switch x := v.(type) {
+	case nil:
+		return nil, nil
+	case *StepError:
+		if x == nil {
+			return nil, nil
+		}
+	case map[string]any:
+		if x == nil {
+			return nil, nil
+		}
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// activeTokens counts the tokens that run: not finished and not waiting for their own branches.
+func (m *mover) activeTokens(ctx context.Context) (int, error) {
+	var n int
+	err := m.tx.QueryRow(ctx, `SELECT count(*) FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 AND status IN ('running', 'waiting') AND flow IS NULL`,
+		m.x.tenant, m.x.run.ID).Scan(&n)
+	return n, serrors.FromDB(opRun, err)
+}
+
+// context is what a token's step reads: the trigger's event, the node outputs of its ancestors and its
+// own, the subject's variables (with the run-as rights), the tenant and the step's time.
+func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, error) {
+	chain, err := ancestors(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+	if err != nil {
+		return graph.Context{}, err
+	}
+	nodes := map[string]graph.NodeState{}
+	each := map[string]graph.ForeachItem{}
+	all := append([]tokenRow{*tok}, chain...)
+	for i := len(all) - 1; i >= 0; i-- {
+		t := all[i]
+		for _, w := range t.Writes {
+			nodes[w.Node] = w.State
+		}
+		if t.ForeachRef != nil && t.ForeachIndex != nil {
+			var item any
+			if len(t.Item) > 0 {
+				if err := json.Unmarshal(t.Item, &item); err != nil {
+					return graph.Context{}, err
+				}
+				item, err = numbers(item)
+				if err != nil {
+					return graph.Context{}, err
+				}
+			}
+			each[*t.ForeachRef] = graph.ForeachItem{Item: item, Index: *t.ForeachIndex}
+		}
+	}
+	event, err := decodeMap(m.x.run.Input)
+	if err != nil {
+		return graph.Context{}, err
+	}
+	vars, err := m.subjectVars(ctx)
+	if err != nil {
+		return graph.Context{}, err
+	}
+	return graph.Context{Event: event, Nodes: nodes, Vars: vars, Now: m.s.now, Tenant: map[string]any{"id": m.x.tenant.String()}, Foreach: each}, nil
+}
+
+// numbers re-reads a value with numbers as json.Number, as the format reads values.
+func numbers(v any) (any, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var out any
+	err = expr.UnmarshalJSON(b, &out)
+	return out, err
+}
+
+// subjectVars loads the subject's variables with the run-as rights, once per step.
+func (m *mover) subjectVars(ctx context.Context) (map[string]any, error) {
+	if m.vars != nil {
+		return m.vars, nil
+	}
+	m.vars = map[string]any{}
+	s := normSubject(m.x.run.Subject)
+	if m.x.r.cfg.Subjects == nil || s.Entity == graph.SubjectNone {
+		return m.vars, nil
+	}
+	raw, err := m.x.r.cfg.Subjects.Load(ctx, m.x.nr.Subject(), s)
+	if errors.Is(err, ErrNotFound) {
+		return m.vars, nil // not visible: an expression that reads it is missing_context
+	}
+	if err != nil {
+		return nil, err
+	}
+	vars, err := decodeMap(raw)
+	if err != nil {
+		return nil, err
+	}
+	m.vars = vars
+	return vars, nil
+}
