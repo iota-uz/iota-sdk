@@ -70,11 +70,14 @@ func classify(msg string) Reason {
 	return ReasonUnknown
 }
 
-// secretSet tells which credential fields are secret: the x-secret fields of the connector's schema;
-// every field when the schema declares none (an OAuth2 token set).
+// secretSet tells which credential fields are secret: every field of an OAuth2 connector (a token set,
+// whatever its schema marks) or of a schema that declares none; else the x-secret fields of the schema.
 type secretSet func(field string) bool
 
 func secretsOf(d connectors.Descriptor) secretSet {
+	if d.Auth == connectors.AuthOAuth2 {
+		return func(string) bool { return true }
+	}
 	fields := connectors.SecretFields(d)
 	if len(fields) == 0 {
 		return func(string) bool { return true }

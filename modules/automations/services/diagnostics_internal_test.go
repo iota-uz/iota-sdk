@@ -101,3 +101,17 @@ func TestMergeKeepsBlankSecretsOfASchemalessConnector(t *testing.T) {
 	got = mergeCredentials(d, stored, connectors.Credentials{"token": "", "chat": ""})
 	assert.Equal(t, connectors.Credentials{"token": "t0k3n"}, got, "a public field is removed when blank")
 }
+
+// An OAuth2 token set is secret as a whole: a schema that marks only refresh_token does not make the
+// access token showable.
+func TestOAuth2TokenFieldsAreAllSecret(t *testing.T) {
+	d := connectors.Descriptor{Auth: connectors.AuthOAuth2, Credentials: []byte(`{"type":"object","properties":{
+		"access_token":{"type":"string"},"refresh_token":{"type":"string","x-secret":true}}}`)}
+	secret := secretsOf(d)
+	assert.True(t, secret("access_token"))
+	creds := connectors.Credentials{"access_token": "abcdef"}
+	got := validIdentity(connectors.Identity{Display: "@abcdef", Kind: connectors.IdentityHandle}, secret, creds)
+	assert.Empty(t, got.Display)
+	plain := connectors.Descriptor{Auth: connectors.AuthAPIKey, Credentials: d.Credentials}
+	assert.False(t, secretsOf(plain)("access_token"), "other connectors keep the schema's selection")
+}
