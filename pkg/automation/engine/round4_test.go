@@ -108,3 +108,60 @@ func TestSupersessionOutlivesTheReplacement(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, engine.RunQueued, next.Status, "the superseded predecessor still does not hold the conversation")
 }
+
+func TestCatchUpReadsPastAFullBatch(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, `{"name": "Filtered wait", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	 "nodes": [{"id": "w", "type": "wait", "params": {"event": "acme.order.paid.v1", "filter": "event.amount == 999", "timeout": "1h"}},
+	  {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "created", "outcome": "fired"}, "to": "w"}, {"from": {"node": "w", "outcome": "matched"}, "to": "fin"},
+	  {"from": {"node": "w", "outcome": "timeout"}, "to": "fin"}]}`)
+	// While the wait's step is uncommitted, 201 payments are delivered: 200 the filter refuses, then the one it takes.
+	var once atomic.Bool
+	p.rt.SetTestHook(func(ctx context.Context, tx pgx.Tx, label string) error {
+		if label != "step" {
+			return nil
+		}
+		var open int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`).Scan(&open); err != nil || open == 0 || once.Swap(true) {
+			return err
+		}
+		for i := 0; i < 200; i++ {
+			e.publish(e.tenant, orderPaid, "o-1", order{Amount: i}, 0)
+		}
+		e.publish(e.tenant, orderPaid, "o-1", order{Amount: 999}, 0)
+		for i := 0; i < 10; i++ {
+			if _, err := p.disp.RunOnce(ctx); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the 201st payment, past a full catch-up batch, wakes the wait")
+	require.True(t, once.Load())
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.steps WHERE run_id = $1 AND node_id = 'w' AND outcome = 'matched'`, run.RunID))
+}
+
+func TestMaintenanceKeepsTheReleaseMarkOfABlockedRun(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	a := e.human()
+	e.create(p, a, followUp)
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
+	// A closed wait still holds its timer, and the instance blocks before its runner releases it.
+	_, err := e.db.Exec(ctx, `UPDATE automation.waits SET status = 'cancelled', release_pending = true, updated_at = now() - interval '1 hour' WHERE run_id = $1`, run.RunID)
+	require.NoError(t, err)
+	_, err = e.db.Exec(ctx, `UPDATE extruntime.workflow_instances i SET status = 'blocked', blocked_reason = 'ambiguous', lease_owner = NULL, lease_until = NULL
+		FROM automation.runs r WHERE r.instance_id = i.id AND r.id = $1`, run.RunID)
+	require.NoError(t, err)
+	require.NoError(t, p.rt.Maintain(ctx))
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.waits WHERE run_id = $1 AND release_pending`, run.RunID),
+		"the mark stays for the runner after Resume")
+}

@@ -36,6 +36,12 @@ const finishedAtSQL = `coalesce(i.finished_at, r.updated_at)`
 // the runs that finished more than Retention.Runs ago. Live runs are never pruned.
 func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 	var total int64
+	// Steps go at the earlier of the two cutoffs: a run is deleted only after its steps are, so its
+	// deletion never cascades to a large batch of steps (Retention.Steps longer than Retention.Runs).
+	stepsAfter := r.cfg.Retention.Steps
+	if r.cfg.Retention.Runs < stepsAfter {
+		stepsAfter = r.cfg.Retention.Runs
+	}
 	for {
 		tag, err := r.cfg.DB.Exec(ctx, `
 			DELETE FROM automation.steps WHERE (tenant_id, run_id, token_id, seq) IN (
@@ -44,7 +50,7 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
 				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
 				ORDER BY s.tenant_id, s.run_id, s.token_id, s.seq LIMIT $2)`,
-			pgInterval(r.cfg.Retention.Steps.Seconds()), pruneStepsBatch)
+			pgInterval(stepsAfter.Seconds()), pruneStepsBatch)
 		if err != nil {
 			return total, serrors.FromDB(opMaintain, err)
 		}
