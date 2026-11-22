@@ -94,6 +94,21 @@ type Condition struct {
 	Values []string
 }
 
+// FlagValue is what a flag (bool) condition means, "true" or "false": "is
+// not false" is "true". Empty when the condition holds no single flag value.
+func (c Condition) FlagValue() string {
+	if len(c.Values) != 1 || (c.Values[0] != "true" && c.Values[0] != "false") {
+		return ""
+	}
+	if c.Op != OpIsNot {
+		return c.Values[0]
+	}
+	if c.Values[0] == "true" {
+		return "false"
+	}
+	return "true"
+}
+
 // FilterSet is an ordered list of conditions AND-ed together.
 type FilterSet []Condition
 

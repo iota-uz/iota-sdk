@@ -244,8 +244,8 @@ const maxChipValues = 3
 // localized label, everything else renders verbatim.
 func chipValueSummary(pageCtx types.PageContext, f FieldDef, c filterq.Condition) string {
 	if f.Type == filterq.FieldTypeBool {
-		if len(c.Values) == 1 {
-			return pageCtx.T(boolKey(c.Values[0]))
+		if v := c.FlagValue(); v != "" {
+			return pageCtx.T(boolKey(v))
 		}
 		return ""
 	}

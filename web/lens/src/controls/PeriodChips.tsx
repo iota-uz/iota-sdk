@@ -20,11 +20,28 @@ function installKitStyles(): void {
   document.head.appendChild(style)
 }
 
+/** "01.07.2026 – 30.09.2026"; a half-open range keeps its open side empty. */
 function displayRange(value: PeriodValue): string {
   const start = parseISODate(value.start)
   const end = parseISODate(value.end)
-  if (!start || !end) return ''
-  return `${formatDisplayDate(start)} – ${formatDisplayDate(end)}`
+  if (!start && !end) return ''
+  return `${start ? formatDisplayDate(start) : '…'} – ${end ? formatDisplayDate(end) : '…'}`
+}
+
+/**
+ * The range a chip edit may write: ordered, inside the period's min / max
+ * (clamped, so the URL never carries a range the server would reject), and
+ * closed unless the period allows open ends. Undefined rejects the edit.
+ */
+export function chipRange(period: NonNullable<Filter['period']>, start: string, end: string): PeriodValue | undefined {
+  if (start && end && end < start) [start, end] = [end, start]
+  if (!period.allowEmpty && (!start || !end)) return undefined
+  if (!start && !end) return undefined
+  if (period.min && start && start < period.min) start = period.min
+  if (period.max && end && end > period.max) end = period.max
+  if (period.max && start && start > period.max) return undefined
+  if (period.min && end && end < period.min) return undefined
+  return { start, end }
 }
 
 export interface PeriodChipsProps {
@@ -61,7 +78,9 @@ export function PeriodChips(props: PeriodChipsProps) {
   }))
   const conditions = (): FilterCondition[] => periods().flatMap((filter) => {
     const value = currentPeriodValue(filter.period!, values)
-    if (!value.start || !value.end) return []
+    // A half-open range stays a chip: dropping it would read as "removed"
+    // the next time another period is applied.
+    if (!value.start && !value.end) return []
     const preset = choices(filter).find((choice) => choice.value.start === value.start && choice.value.end === value.end)
     return [{ field: filter.id, operator: 'between', values: [value.start, value.end], ...(preset ? { preset: preset.id } : {}) }]
   })
@@ -71,7 +90,9 @@ export function PeriodChips(props: PeriodChipsProps) {
       const current = currentPeriodValue(filter.period!, values)
       if (condition && condition.values.length === 2) {
         const [start, end] = condition.values as [string, string]
-        if (start && end && (start !== current.start || end !== current.end)) setPeriod(filter, start <= end ? { start, end } : { start: end, end: start })
+        if (start === current.start && end === current.end) continue
+        const range = chipRange(filter.period!, start, end)
+        if (range && (range.start !== current.start || range.end !== current.end)) setPeriod(filter, range)
       } else if (!condition && filter.period!.allowEmpty && (current.start || current.end)) {
         setPeriod(filter, { start: '', end: '' })
       }
@@ -85,6 +106,9 @@ export function PeriodChips(props: PeriodChipsProps) {
       conditions={conditions()}
       onConditionsChange={apply}
       operatorLabel={() => ''}
+      addLabel={translate('filter.chips.add', 'Add filter')}
+      addDialogLabel={translate('filter.chips.addDialog', 'Add filter')}
+      searchPlaceholder={translate('filter.chips.searchFields', 'Search fields')}
       formatSummary={(field, condition) => {
         const preset = condition.preset ? field.presetOptions?.find((item) => item.id === condition.preset) : undefined
         return preset?.label ?? displayRange({ start: condition.values[0] ?? '', end: condition.values[1] ?? '' })

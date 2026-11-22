@@ -78,6 +78,21 @@ export interface FilterEditorProps {
   boolLabels?: { yes: string; no: string }
 }
 
+/** The value a flag condition means: "is not false" is "true". */
+export function flagValue(condition: FilterCondition): string {
+  const value = condition.values[0] ?? ''
+  if (condition.operator !== 'is_not' || (value !== 'true' && value !== 'false')) return value
+  return value === 'true' ? 'false' : 'true'
+}
+
+/** A flag condition meaning value, in an operator the field allows: "is" when
+ * it may, otherwise "is not" with the opposite value. */
+export function flagCondition(field: FilterBuilderField, value: string): FilterCondition {
+  const allowed = field.operators?.length ? field.operators : ['is', 'is_not']
+  if (allowed.includes('is') || !allowed.includes('is_not')) return { field: field.key, operator: 'is', values: [value] }
+  return { field: field.key, operator: 'is_not', values: [value === 'true' ? 'false' : 'true'] }
+}
+
 export function FilterEditor(props: FilterEditorProps) {
   const baseOperators = () => props.field.operators?.length ? props.field.operators : props.field.type === 'number' || props.field.type === 'date' ? ['is', 'before', 'after', 'between'] : ['is', 'is_not']
   // A nullable field also offers "is empty", which carries no values (pkg/filterq OpEmpty).
@@ -86,15 +101,15 @@ export function FilterEditor(props: FilterEditorProps) {
   const [values, setValues] = createSignal<string[]>([...(props.condition?.values ?? [])])
   const apply = () => props.onApply({ field: props.field.key, operator: operator(), values: operator() === 'empty' ? [] : values() })
   const applyPreset = (preset: FilterBuilderPreset) => props.onApply({ field: props.field.key, operator: 'between', values: [...preset.values], preset: preset.id })
-  const applyFlag = (value: string) => props.onApply({ field: props.field.key, operator: 'is', values: [value] })
+  const applyFlag = (value: string) => props.onApply(flagCondition(props.field, value))
   if (props.field.type === 'bool') {
-    const current = () => props.condition?.values[0] ?? ''
+    const current = () => props.condition ? flagValue(props.condition) : ''
     return <div class="flex gap-1.5" role="group" aria-label={props.field.label}>
       <For each={['true', 'false']}>{(value) => <button type="button" class={classes('flex-1 rounded-md border border-default px-3 py-1.5 text-sm cursor-pointer hover:border-brand hover:bg-surface-400 duration-100', current() === value && 'bg-surface-400 font-medium border-brand')} aria-pressed={current() === value} onClick={() => applyFlag(value)}>{value === 'true' ? props.boolLabels?.yes ?? 'Yes' : props.boolLabels?.no ?? 'No'}</button>}</For>
     </div>
   }
   return <div class="flex flex-col gap-2.5" onKeyDown={(event) => { if (event.key === 'Enter' && !(event.target instanceof HTMLButtonElement)) { event.preventDefault(); apply() } }}>
-    {props.field.type === 'date' && (props.field.presetOptions?.length ?? 0) > 0 && <div class="flex flex-wrap gap-1.5" role="group" aria-label={props.field.label}>
+    {props.field.type === 'date' && (props.field.presetOptions?.length ?? 0) > 0 && operators().includes('between') && <div class="flex flex-wrap gap-1.5" role="group" aria-label={props.field.label}>
       <For each={props.field.presetOptions}>{(preset) => <button type="button" class={classes('rounded-md border border-default px-2 py-1 text-xs cursor-pointer hover:border-brand hover:bg-surface-400 duration-100', props.condition?.preset === preset.id && 'bg-surface-400 font-medium')} aria-pressed={props.condition?.preset === preset.id} onClick={() => applyPreset(preset)}>{preset.label}</button>}</For>
     </div>}
     {operators().length > 1 && <select class="min-w-20 w-full appearance-none form-control form-control-input h-[2.6875rem] pr-8" value={operator()} onChange={(event) => setOperator(event.currentTarget.value)}>{operators().map((item) => <option value={item}>{props.operatorLabel?.(item) ?? item}</option>)}</select>}
@@ -116,6 +131,8 @@ export interface FilterBuilderProps extends Omit<JSX.HTMLAttributes<HTMLDivEleme
   addLabel?: JSX.Element
   clearLabel?: JSX.Element
   searchPlaceholder?: string
+  /** Accessible name of the add-filter dialog. */
+  addDialogLabel?: string
   showResetAlways?: boolean
   /** A chip's value text; the default joins the values (a preset shows its label). */
   formatSummary?: (field: FilterBuilderField, condition: FilterCondition) => string
@@ -128,7 +145,7 @@ export interface FilterBuilderProps extends Omit<JSX.HTMLAttributes<HTMLDivEleme
 
 /** The default chip text: a preset's label, a range as "from – to", otherwise the values. */
 export function defaultFilterSummary(field: FilterBuilderField, condition: FilterCondition, boolLabels?: { yes: string; no: string }): string {
-  if (field.type === 'bool') return condition.values[0] === 'false' ? boolLabels?.no ?? 'No' : boolLabels?.yes ?? 'Yes'
+  if (field.type === 'bool') return flagValue(condition) === 'false' ? boolLabels?.no ?? 'No' : boolLabels?.yes ?? 'Yes'
   const preset = condition.preset ? field.presetOptions?.find((item) => item.id === condition.preset) : undefined
   if (preset) return preset.label
   if (condition.operator === 'between' && condition.values.length === 2) return `${condition.values[0]} – ${condition.values[1]}`
@@ -139,7 +156,7 @@ export function defaultFilterSummary(field: FilterBuilderField, condition: Filte
 const defaultCodec: FilterConditionCodec = { encode: (condition) => JSON.stringify(condition) }
 
 export function FilterBuilder(props: FilterBuilderProps) {
-  const [local, native] = splitProps(props, ['fields', 'conditions', 'defaultConditions', 'onConditionsChange', 'codec', 'addLabel', 'clearLabel', 'searchPlaceholder', 'showResetAlways', 'class', 'onKeyDown', 'formatSummary', 'operatorLabel', 'applyLabel', 'removeLabel', 'boolLabels'])
+  const [local, native] = splitProps(props, ['fields', 'conditions', 'defaultConditions', 'onConditionsChange', 'codec', 'addLabel', 'clearLabel', 'searchPlaceholder', 'addDialogLabel', 'showResetAlways', 'class', 'onKeyDown', 'formatSummary', 'operatorLabel', 'applyLabel', 'removeLabel', 'boolLabels'])
   const instance = createUniqueId()
   const [internal, setInternal] = createSignal<FilterCondition[]>([...(local.defaultConditions ?? [])])
   const [adding, setAdding] = createSignal(false)
@@ -172,8 +189,8 @@ export function FilterBuilder(props: FilterBuilderProps) {
     <Show when={local.fields.some((item) => !(item.required && conditions().some((condition) => condition.field === item.key)))}>
     <div class="relative">
       <button ref={addTrigger} type="button" class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm cursor-pointer border border-dashed border-default text-200 hover:border-brand hover:text-100 hover:bg-surface-100 duration-150" aria-expanded={adding()} onClick={() => { setAdding(!adding()); setDraftField(undefined) }}><Icon type="plus" size={14} />{local.addLabel ?? 'Add filter'}</button>
-      {adding() && <div ref={addPopover} role="dialog" aria-label="Add filter" data-fb-popover class={classes('absolute z-30 max-h-[calc(100vh-1rem)] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-secondary bg-surface-300 drop-shadow-sm', ...floatingPlacementClasses(addFloating.placement(), 'mt-1'))}>
-        {!draftField() ? <><div class="flex items-center gap-2 border-b border-secondary px-3 py-2"><Icon type="search" class="text-200 shrink-0" /><input type="text" class="w-full bg-transparent text-sm outline-none" placeholder={local.searchPlaceholder ?? 'Search fields'} value={search()} onInput={(event) => setSearch(event.currentTarget.value)} autocomplete="off" /></div><div class="max-h-72 overflow-y-auto p-1.5"><For each={visibleFields()}>{(item) => <button type="button" class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer duration-100 hover:bg-surface-400" data-fb-label={item.label} onClick={() => item.type === 'bool' ? add({ field: item.key, operator: 'is', values: ['true'] }) : setDraftField(item)}><Icon type={item.type} class="text-200 shrink-0" />{item.label}</button>}</For></div></>
+      {adding() && <div ref={addPopover} role="dialog" aria-label={local.addDialogLabel ?? 'Add filter'} data-fb-popover class={classes('absolute z-30 max-h-[calc(100vh-1rem)] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border border-secondary bg-surface-300 drop-shadow-sm', ...floatingPlacementClasses(addFloating.placement(), 'mt-1'))}>
+        {!draftField() ? <><div class="flex items-center gap-2 border-b border-secondary px-3 py-2"><Icon type="search" class="text-200 shrink-0" /><input type="text" class="w-full bg-transparent text-sm outline-none" placeholder={local.searchPlaceholder ?? 'Search fields'} value={search()} onInput={(event) => setSearch(event.currentTarget.value)} autocomplete="off" /></div><div class="max-h-72 overflow-y-auto p-1.5"><For each={visibleFields()}>{(item) => <button type="button" class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm cursor-pointer duration-100 hover:bg-surface-400" data-fb-label={item.label} onClick={() => item.type === 'bool' ? add(flagCondition(item, 'true')) : setDraftField(item)}><Icon type={item.type} class="text-200 shrink-0" />{item.label}</button>}</For></div></>
           : <div class="p-3"><button type="button" class="mb-2 inline-flex items-center gap-1 text-xs text-200 hover:text-100 cursor-pointer" onClick={() => setDraftField(undefined)}><Icon type="back" size={12} />{draftField()!.label}</button>{editor(draftField()!, undefined, add)}</div>}
       </div>}
     </div>

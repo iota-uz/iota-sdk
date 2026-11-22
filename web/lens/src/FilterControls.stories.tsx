@@ -291,22 +291,35 @@ function RefetchErrorScene() {
 export const RefetchError = () => <RefetchErrorScene />
 RefetchError.storyName = 'Refetch error'
 
+/**
+ * Clicks the element once it exists, however late it mounts (a lazily loaded
+ * control included): the observer stays until the click or the story's
+ * cleanup, never on a frame budget that a slow chunk could outlast.
+ */
 function clickWhenReady(find: () => HTMLElement | null | undefined): () => void {
   let cancelled = false
-  let attempts = 0
+  let observer: MutationObserver | undefined
   const click = () => {
-    if (cancelled) return
+    if (cancelled) return true
     const element = find()
-    if (element) {
-      element.click()
-      return
-    }
-    if (attempts++ < 60) window.requestAnimationFrame(click)
+    if (!element) return false
+    observer?.disconnect()
+    element.click()
+    return true
   }
   void window.document.fonts.ready.then(() => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(click))
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (click()) return
+      observer = new MutationObserver(() => {
+        if (click()) observer?.disconnect()
+      })
+      observer.observe(window.document.body, { childList: true, subtree: true })
+    }))
   })
-  return () => { cancelled = true }
+  return () => {
+    cancelled = true
+    observer?.disconnect()
+  }
 }
 
 /** Clicks the period trigger once mounted so the popover is the subject. */

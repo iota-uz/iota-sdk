@@ -42,12 +42,19 @@ func (c Condition) MatchValues(vs []string) bool {
 	return false
 }
 
-// MatchBool reports whether a flag satisfies an "is true/false" condition.
+// MatchBool reports whether a flag satisfies an "is true/false" condition
+// ("is not false" means true, as in SQL).
 func (c Condition) MatchBool(v bool) bool {
-	if c.Op != OpIs || len(c.Values) != 1 {
+	if c.Op != OpIs && c.Op != OpIsNot {
 		return false
 	}
-	return (c.Values[0] == "true") == v
+	switch c.FlagValue() {
+	case "true":
+		return v
+	case "false":
+		return !v
+	}
+	return false
 }
 
 // MatchDate reports whether a date satisfies the condition, comparing whole

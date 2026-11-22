@@ -2988,7 +2988,11 @@ let fbPanel = (cfg = {}) => ({
   value: cfg.value || '',
   applyBool(v) {
     this.value = v;
-    this.$dispatch('fb-apply', { field: cfg.field, op: 'is', values: [v], chip: cfg.chip });
+    // Keep the chip's operator: a field that allows only "is not" stores
+    // "Yes" as "is not false".
+    const op = this.op === 'isnot' ? 'isnot' : 'is';
+    const stored = op === 'isnot' ? (v === 'true' ? 'false' : 'true') : v;
+    this.$dispatch('fb-apply', { field: cfg.field, op, values: [stored], chip: cfg.chip });
   },
   apply() {
     // Enter on a Yes / No button: the panel's keydown handler stops the

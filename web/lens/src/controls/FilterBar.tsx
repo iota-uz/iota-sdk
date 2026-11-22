@@ -123,12 +123,16 @@ interface ActiveChip {
 
 export function FilterControls(props: { filters: Filter[]; today?: CalendarDate }) {
   const facets = () => props.filters.filter((filter) => filter.kind === 'facet' && filter.facet)
+  // A filter_chips period renders as a chip of the shared builder, wherever
+  // its controls render: the dashboard bar or the tab it is placed in.
+  const chipPeriods = () => props.filters.filter((filter) => filter.kind === 'period' && filter.period?.chips)
   return (
     <>
+      <Show when={chipPeriods().length > 0}>
+        <PeriodChips filters={chipPeriods()} today={props.today} />
+      </Show>
       <For each={props.filters}>
         {(filter) => (
-          // A filter_chips period renders as a chip of the shared builder
-          // (PeriodChips, in FilterBar), not as the calendar trigger.
           filter.kind === 'period' && filter.period && !filter.period.chips
             ? <PeriodFilterControl filter={filter} today={props.today} />
             : filter.kind === 'compare' && filter.compare
@@ -207,14 +211,10 @@ export function FilterBar(props: FilterBarProps) {
   const inlineFilters = (list: Filter[]) => list.filter((filter) => !secondary(filter))
   const overflowFilters = (list: Filter[]) => list.filter(secondary)
   const contextFilters = globalFilters.filter((filter) => filter.kind !== 'period' && filter.kind !== 'facet')
-  const chipPeriods = globalFilters.filter((filter) => filter.kind === 'period' && filter.period?.chips)
 
   return (
     <div aria-label={translate('filter.bar.label', 'Dashboard filters')} class="lens-filter-bar" role="group">
       <div class="lens-dashboard-scope">
-        <Show when={chipPeriods.length > 0}>
-          <PeriodChips filters={chipPeriods} today={props.today} />
-        </Show>
         {/* Declaration order is render order, and the row only wraps — it never
             reorders — so a control keeps the same neighbours at every width. */}
         <ToolbarOverflowContext.Provider value={props.compact ? overflow : undefined}>

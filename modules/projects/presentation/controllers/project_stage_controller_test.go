@@ -2,7 +2,10 @@ package controllers_test
 
 import (
 	"fmt"
+	"html"
 	"net/url"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -157,8 +161,21 @@ func TestProjectStageController_List_FilterChips(t *testing.T) {
 	// conditions on.
 	query := "?Search=stage&f=project:is:" + alpha.ID().String() + "&fb=1&limit=1"
 	first := suite.GET(ProjectStageBasePath + query).Expect(t).Status(200)
-	first.Contains("page=2").Contains("f=project%3Ais%3A" + alpha.ID().String()).Contains("Search=stage")
-	second := suite.GET(ProjectStageBasePath + query + "&page=2").HTMX().Expect(t).Status(200)
+	match := regexp.MustCompile(`href="([^"]*[?&](?:amp;)?page=2[^"]*)"`).FindStringSubmatch(first.Body())
+	require.NotNil(t, match, "the first page links to page 2")
+	link, err := url.Parse(html.UnescapeString(match[1]))
+	require.NoError(t, err)
+	got := link.Query()
+	assert.Equal(t, "stage", got.Get("Search"))
+	assert.Equal(t, []string{"project:is:" + alpha.ID().String()}, got["f"])
+	assert.Equal(t, "1", got.Get("fb"))
+	assert.Equal(t, "1", got.Get("limit"))
+
+	// Follow the generated link itself, not a hand-built one.
+	second := suite.GET(link.Path + "?" + link.RawQuery).HTMX().Expect(t).Status(200)
+	body := second.Body()
+	assert.True(t, strings.Contains(body, "Alpha finished stage") || strings.Contains(body, "Alpha open stage"),
+		"page 2 shows one of Alpha's stages")
 	second.NotContains("Beta open stage")
 }
 

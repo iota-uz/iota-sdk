@@ -134,3 +134,20 @@ func TestLegacyDateRange(t *testing.T) {
 	assert.Empty(t, q[ParamName], "the input is not modified")
 	assert.Equal(t, q, LegacyDateRange(q, "CreatedAt.From", "Missing", "created_at"))
 }
+
+func TestFlagConditionHonoursIsNot(t *testing.T) {
+	t.Parallel()
+	schema := Schema{Fields: []Field{{Key: "overdue", Type: FieldTypeBool, Operators: []Operator{OpIsNot}}}}
+	cols := map[string]Column{"overdue": {Expr: "d.overdue"}}
+	notFalse := Condition{Field: "overdue", Op: OpIsNot, Values: []string{"false"}}
+	sql, _ := AppendSQL(FilterSet{notFalse}, schema, cols, time.Now(), nil)
+	if sql != " AND (d.overdue IS TRUE)" {
+		t.Fatalf("is not false must read as true, got %q", sql)
+	}
+	if !notFalse.MatchBool(true) || notFalse.MatchBool(false) {
+		t.Fatal("MatchBool must treat is-not-false as true")
+	}
+	if got := (Condition{Op: OpIs, Values: []string{"false"}}).FlagValue(); got != "false" {
+		t.Fatalf("is false must stay false, got %q", got)
+	}
+}

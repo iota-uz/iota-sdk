@@ -6,6 +6,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const solidUI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../solid-ui')
-if (!existsSync(path.join(solidUI, 'package-dist/index.d.ts'))) {
+// Both declarations Lens maps (tsconfig.package.json): a build that stopped
+// after tsc leaves index.d.ts without embedded-css.d.ts, and a retry must
+// rebuild rather than skip.
+const required = ['package-dist/index.d.ts', 'package-dist/embedded-css.d.ts']
+if (!required.every((file) => existsSync(path.join(solidUI, file)))) {
   execFileSync('pnpm', ['build:package'], { cwd: solidUI, stdio: 'inherit' })
 }

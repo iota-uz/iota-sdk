@@ -216,8 +216,16 @@ export function periodChoices(
   translate: (key: string, fallback: string) => string,
 ): Array<{ id: string; label: string; value: PeriodValue }> {
   const declared = declaredPresets(period)
+  // A declared preset may reuse a catalogue id ("thisMonth") for another
+  // range; ids must stay unique so a chip resolves to its own label.
+  const taken = new Set<string>()
   return [...declared, ...popoverPresets(period, today, translate, declared)]
-    .map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
+    .map((preset) => {
+      let id = preset.id
+      for (let n = 2; taken.has(id); n++) id = `${preset.id}-${n}`
+      taken.add(id)
+      return { id, label: preset.label, value: preset.value }
+    })
 }
 
 function draftFromValue(value: PeriodValue): RangeDraft {

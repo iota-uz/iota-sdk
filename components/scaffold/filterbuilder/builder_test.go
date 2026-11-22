@@ -401,3 +401,15 @@ func TestFlagChipShowsItsValueAndOpensAnEditor(t *testing.T) {
 		assert.Contains(t, html, `&#34;value&#34;:&#34;`+tc.value+`&#34;`, "the editor knows the current value")
 	}
 }
+
+func TestNegatedFlagChipShowsWhatItMeans(t *testing.T) {
+	reg := NewRegistry(FieldDef{Key: "overdue", Type: filterq.FieldTypeBool, Label: "Overdue",
+		Operators: []filterq.Operator{filterq.OpIsNot}})
+	fs := reg.Decode(url.Values{filterq.ParamName: {"overdue:isnot:false"}})
+	html := renderComponent(t, Props{Registry: reg, Filters: fs}, false)
+	chip := html[strings.Index(html, "data-fb-chip-wrapper"):strings.Index(html, "data-fb-popover")]
+	assert.Contains(t, chip, "Scaffold.FilterBuilder.Yes", "is not false reads as Yes")
+	assert.NotContains(t, chip, "Scaffold.FilterBuilder.No")
+	assert.Contains(t, html, `&#34;value&#34;:&#34;true&#34;`, "the editor presses Yes")
+	assert.Contains(t, html, `&#34;op&#34;:&#34;isnot&#34;`, "the editor keeps the chip's operator")
+}

@@ -760,10 +760,10 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 // boolValue is the current value of a flag chip ("true" / "false"), so its
 // editor shows which one is on; empty for other fields and the add popover.
 func boolValue(field FieldDef, cond *filterq.Condition) string {
-	if field.Type != filterq.FieldTypeBool || cond == nil || len(cond.Values) != 1 {
+	if field.Type != filterq.FieldTypeBool || cond == nil {
 		return ""
 	}
-	return cond.Values[0]
+	return cond.FlagValue()
 }
 
 func condValues(cond *filterq.Condition) []string {
