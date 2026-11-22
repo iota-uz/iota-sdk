@@ -27,14 +27,6 @@ ALTER TABLE extruntime.human_tasks
 ALTER TABLE extruntime.human_tasks
     ADD CONSTRAINT human_tasks_assignee_check CHECK ((assignee_kind = '' AND assignee_user_id IS NULL AND assignee_permission = '') OR (assignee_kind = 'user' AND assignee_user_id IS NOT NULL AND assignee_permission = '') OR (assignee_kind = 'permission' AND assignee_user_id IS NULL AND assignee_permission <> ''));
 
--- An applied escalation step is an occurrence of its own (kind
--- 'escalation'): its key makes a repeat after a crash a no-op.
-ALTER TABLE extruntime.workflow_occurrences
-    DROP CONSTRAINT IF EXISTS workflow_occurrences_kind_check;
-
-ALTER TABLE extruntime.workflow_occurrences
-    ADD CONSTRAINT workflow_occurrences_kind_check CHECK (kind IN ('transaction', 'step', 'sleep', 'waitFor', 'task', 'call', 'start', 'now', 'uuid', 'escalation'));
-
 CREATE TABLE extruntime.human_task_assignees (
     id bigserial PRIMARY KEY,
     task_id uuid NOT NULL REFERENCES extruntime.human_tasks (id) ON DELETE CASCADE,
@@ -69,6 +61,18 @@ CREATE TABLE extruntime.human_task_decisions (
     PRIMARY KEY (task_id, user_id)
 );
 
+-- One row per applied escalation step, committed with the task change: its
+-- key makes a repeat after a crash a no-op. Kept apart from
+-- workflow_occurrences so no workflow occurrence name can take its key.
+CREATE TABLE extruntime.human_task_escalations (
+    task_id uuid NOT NULL REFERENCES extruntime.human_tasks (id) ON DELETE CASCADE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    step integer NOT NULL CHECK (step >= 0),
+    added jsonb,
+    applied_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (task_id, step)
+);
+
 CREATE INDEX human_task_decisions_tenant_user_idx ON extruntime.human_task_decisions (tenant_id, user_id);
 
 INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, ref, added_at)
@@ -98,18 +102,11 @@ WHERE
     AND decided_by IS NOT NULL;
 
 -- +migrate Down
+DROP TABLE IF EXISTS extruntime.human_task_escalations;
+
 DROP TABLE IF EXISTS extruntime.human_task_decisions;
 
 DROP TABLE IF EXISTS extruntime.human_task_assignees;
-
-DELETE FROM extruntime.workflow_occurrences
-WHERE kind = 'escalation';
-
-ALTER TABLE extruntime.workflow_occurrences
-    DROP CONSTRAINT IF EXISTS workflow_occurrences_kind_check;
-
-ALTER TABLE extruntime.workflow_occurrences
-    ADD CONSTRAINT workflow_occurrences_kind_check CHECK (kind IN ('transaction', 'step', 'sleep', 'waitFor', 'task', 'call', 'start', 'now', 'uuid'));
 
 -- Tasks without a single user or permission assignee cannot be represented
 -- by the previous schema.

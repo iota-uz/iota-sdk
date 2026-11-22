@@ -333,13 +333,19 @@ func (e *Engine) normalizeAssignees(list []TaskAssignee, min int) ([]TaskAssigne
 	return out, nil
 }
 
-// taskRowOf validates a TaskSpec.
+// taskRowOf validates a TaskSpec of a native task: a zero Timeout is none.
 func (e *Engine) taskRowOf(spec TaskSpec) (taskRow, error) {
+	return e.taskRowWith(spec, spec.Timeout > 0)
+}
+
+// taskRowWith validates a TaskSpec whose timeout is set (hasTimeout, even
+// when zero: the task is due at once) or absent.
+func (e *Engine) taskRowWith(spec TaskSpec, hasTimeout bool) (taskRow, error) {
 	assignees, err := e.normalizeAssignees(spec.Assignees, 1)
 	if err != nil {
 		return taskRow{}, err
 	}
-	row := taskRow{assignees: assignees, required: spec.Required, timeout: spec.Timeout, hasTimeout: spec.Timeout > 0, allowDelegation: spec.AllowDelegation}
+	row := taskRow{assignees: assignees, required: spec.Required, timeout: spec.Timeout, hasTimeout: hasTimeout, allowDelegation: spec.AllowDelegation}
 	if spec.Timeout < 0 {
 		return taskRow{}, invalidTask("a task timeout cannot be negative")
 	}
@@ -706,17 +712,13 @@ func insertAssignees(ctx context.Context, tx pgx.Tx, tenant, task uuid.UUID, lis
 	return nil
 }
 
-// escalationName is the occurrence name of the escalation steps of task
-// occurrence (name, n); the occurrence's n is the step index.
-func escalationName(name string, n int) string {
-	return name + "#" + strconv.Itoa(n) + ".escalation"
-}
-
 // dueTask handles an open task whose due time passed, in the run's fenced
 // transaction: it applies the next escalation step (assignees added, due
-// time extended), or closes the task with a timeout. The applied step is an
-// occurrence of its own committed with the task change: a run that crashed
-// before the commit applies it again, one that committed never does.
+// time extended), or closes the task with a timeout. The applied step is a
+// record of its own (human_task_escalations, keyed by task and step, apart
+// from the workflow's occurrence keys) committed with the task change: a run
+// that crashed before the commit applies it again, one that committed never
+// does.
 func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uuid.UUID, name string, n, level int, raw []byte) (open bool, due *time.Time, err error) {
 	steps, err := decodeEscalation(raw)
 	if err != nil {
@@ -725,16 +727,19 @@ func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uu
 	if level < len(steps) {
 		step := steps[level]
 		tag, err := tx.Exec(ctx, `
-			INSERT INTO extruntime.workflow_occurrences (instance_id, tenant_id, name, n, kind, status, result, attempts)
-			VALUES ($1, $2, $3, $4, 'escalation', 'completed', $5, 1) ON CONFLICT (instance_id, name, n) DO NOTHING`,
-			rs.inst.ID, rs.inst.TenantID, escalationName(name, n), level, []byte(marshal(map[string]any{"task": taskID, "step": level, "add": step.Add})))
+			INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at)
+			VALUES ($1, $2, $3, $4, clock_timestamp()) ON CONFLICT (task_id, step) DO NOTHING`,
+			taskID, rs.inst.TenantID, level, []byte(marshal(step.Add)))
 		if err != nil {
 			return false, nil, serrors.FromDB(opCall, err)
 		}
-		if tag.RowsAffected() == 1 {
-			if err := insertAssignees(ctx, tx, rs.inst.TenantID, taskID, step.Add); err != nil {
-				return false, nil, err
-			}
+		if tag.RowsAffected() == 0 {
+			// The step and the level advance commit together under the task
+			// row's lock: a recorded step with the level behind it is damage.
+			return false, nil, internalErr("workflow.corruptJournal", "task %s#%d: escalation step %d is recorded but not applied", name, n, level)
+		}
+		if err := insertAssignees(ctx, tx, rs.inst.TenantID, taskID, step.Add); err != nil {
+			return false, nil, err
 		}
 		if step.Extend > 0 {
 			var next time.Time
@@ -1086,21 +1091,28 @@ func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t T
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, t.InstanceID, actor.TenantID); err != nil {
 		return serrors.FromDB(opManage, err)
 	}
-	var (
-		status    string
-		delegated bool
-	)
-	err := tx.QueryRow(ctx, `
-		SELECT status, EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $3)
-		FROM extruntime.human_tasks t WHERE id = $1 AND tenant_id = $2 FOR UPDATE OF t`, t.ID, actor.TenantID, actor.UserID).Scan(&status, &delegated)
+	status, err := lockTask(ctx, tx, actor.TenantID, t.ID)
 	if err != nil {
-		return serrors.FromDB(opManage, err)
+		return err
 	}
 	if status != "open" {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was decided or expired first", ErrTaskClosed, t.ID))
 	}
-	if delegated {
+	// Read after the lock, in a statement of its own: under READ COMMITTED it
+	// sees every delegation committed by whoever held the lock before.
+	st, err := taskStanding(ctx, tx, t.ID, actor.UserID)
+	if err != nil {
+		return err
+	}
+	if st.delegated {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d delegated task %s", ErrForbidden, actor.UserID, t.ID))
+	}
+	if st.decided {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, t.ID))
+	}
+	// A delegation the right was judged on must still be there.
+	if from != nil && !st.delegatedTo(*from) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: the delegation of task %s to user %d changed", ErrForbidden, t.ID, actor.UserID))
 	}
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO extruntime.human_task_decisions (task_id, tenant_id, user_id, choice, decision, delegated_from, decided_at)
@@ -1168,7 +1180,7 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 	if err != nil {
 		return err
 	}
-	ok, _, err := e.rightToDecide(ctx, current, t)
+	ok, from, err := e.rightToDecide(ctx, current, t)
 	if err != nil {
 		return err
 	}
@@ -1191,30 +1203,34 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 	}
 	return retryConflicts(ctx, func() error {
 		return e.inTx(ctx, func(tx pgx.Tx) error {
-			var (
-				status   string
-				conflict string
-			)
-			err := tx.QueryRow(ctx, `
-				SELECT status, CASE
-					WHEN EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $3) THEN 'actor delegated'
-					WHEN EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $3) THEN 'actor decided'
-					WHEN EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $4) THEN 'target delegated'
-					WHEN EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $4) THEN 'target decided'
-					ELSE '' END
-				FROM extruntime.human_tasks t WHERE id = $1 AND tenant_id = $2 FOR UPDATE OF t`, taskID, actor.TenantID, actor.UserID, to).Scan(&status, &conflict)
+			status, err := lockTask(ctx, tx, actor.TenantID, taskID)
 			if err != nil {
-				return serrors.FromDB(opManage, err)
+				return err
+			}
+			if status != "open" {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was closed first", ErrTaskClosed, taskID))
+			}
+			// Read after the lock (see decideTx).
+			mine, err := taskStanding(ctx, tx, taskID, actor.UserID)
+			if err != nil {
+				return err
+			}
+			theirs, err := taskStanding(ctx, tx, taskID, to)
+			if err != nil {
+				return err
 			}
 			switch {
-			case status != "open":
-				return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was closed first", ErrTaskClosed, taskID))
-			case conflict == "actor delegated":
+			case mine.delegated:
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d delegated task %s", ErrForbidden, actor.UserID, taskID))
-			case conflict == "actor decided":
+			case mine.decided:
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
-			case conflict != "":
-				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d %s task %s", ErrDelegation, to, strings.TrimPrefix(conflict, "target "), taskID))
+			case theirs.delegated:
+				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already delegated task %s", ErrDelegation, to, taskID))
+			case theirs.decided:
+				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already decided task %s", ErrDelegation, to, taskID))
+			}
+			if from != nil && !mine.delegatedTo(*from) {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: the delegation of task %s to user %d changed", ErrForbidden, taskID, actor.UserID))
 			}
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, delegated_from, comment, added_at)
@@ -1227,6 +1243,36 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 			})
 		})
 	})
+}
+
+// lockTask locks a task row of the tenant and returns its status.
+func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, error) {
+	var status string
+	err := tx.QueryRow(ctx, `SELECT status FROM extruntime.human_tasks WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, id, tenant).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", serrors.Wrap(opManage, fmt.Errorf("%w: task %s", ErrNotFound, id))
+	}
+	return status, serrors.FromDB(opManage, err)
+}
+
+// standing is what a user did on a task, read under the task lock.
+type standing struct {
+	delegated bool    // the user passed the task on
+	decided   bool    // the user decided it
+	from      []int64 // who passed the task to the user
+}
+
+func (s standing) delegatedTo(from int64) bool { return slices.Contains(s.from, from) }
+
+func taskStanding(ctx context.Context, tx pgx.Tx, task uuid.UUID, user int64) (standing, error) {
+	var s standing
+	err := tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM extruntime.human_task_assignees WHERE task_id = $1 AND delegated_from = $2),
+		       EXISTS (SELECT 1 FROM extruntime.human_task_decisions WHERE task_id = $1 AND user_id = $2),
+		       COALESCE((SELECT array_agg(delegated_from) FROM extruntime.human_task_assignees
+		                 WHERE task_id = $1 AND user_id = $2 AND delegated_from IS NOT NULL), '{}')`,
+		task, user).Scan(&s.delegated, &s.decided, &s.from)
+	return s, serrors.FromDB(opManage, err)
 }
 
 // Tasks is the actor's inbox: the tasks of the actor's tenant they may
@@ -1370,7 +1416,13 @@ func (r *nativeRun) Task(ctx context.Context, name string, n int, spec TaskSpec)
 	}
 	switch {
 	case ok && o.Status == OccCancelled:
-		return TaskResult{Outcome: TaskCancelled}, nil
+		// The occurrence was cancelled with its task: the result carries the
+		// decisions recorded before, read from the task on every call.
+		decisions, err := r.e.cancelledDecisions(ctx, r.rs, name, n)
+		if err != nil {
+			return TaskResult{}, r.exit(err)
+		}
+		return TaskResult{Outcome: TaskCancelled, Decisions: decisions}, nil
 	case ok && o.Status == OccCompleted:
 		var tr TaskResult
 		if err := json.Unmarshal(o.Result, &tr); err != nil {
@@ -1400,6 +1452,29 @@ func (r *nativeRun) Task(ctx context.Context, name string, n int, spec TaskSpec)
 		return TaskResult{}, internalErr("workflow.corruptJournal", "occurrence %s#%d has an unreadable result", name, n)
 	}
 	return tr, nil
+}
+
+// cancelledDecisions reads the decisions of the task of a cancelled
+// occurrence (none when it never had a task).
+func (e *Engine) cancelledDecisions(ctx context.Context, rs *runState, name string, n int) ([]TaskDecision, error) {
+	rows, err := e.cfg.DB.Query(ctx, `
+		SELECT d.user_id, d.choice, d.decision, d.delegated_from, d.decided_at
+		FROM extruntime.human_tasks t JOIN extruntime.human_task_decisions d ON d.task_id = t.id
+		WHERE t.instance_id = $1 AND t.tenant_id = $2 AND t.name = $3 AND t.n = $4
+		ORDER BY d.decided_at, d.user_id`, rs.inst.ID, rs.inst.TenantID, name, n)
+	if err != nil {
+		return nil, &host.InfraError{Err: serrors.FromDB(opNative, err)}
+	}
+	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (TaskDecision, error) {
+		var d TaskDecision
+		err := r.Scan(&d.UserID, &d.Choice, &d.Decision, &d.DelegatedFrom, &d.DecidedAt)
+		d.Decision, d.DecidedAt = nonNull(d.Decision), d.DecidedAt.UTC()
+		return d, err
+	})
+	if err != nil {
+		return nil, &host.InfraError{Err: serrors.FromDB(opNative, err)}
+	}
+	return out, nil
 }
 
 // taskAssignee is the wire form of a package task's assignee: a user
@@ -1567,7 +1642,9 @@ func (e *Engine) packageTaskRow(ctx context.Context, a wfTaskArgs) (taskRow, err
 		}
 		spec.Decision = &typ
 	}
-	row, err := e.taskRowOf(spec)
+	// A timeout the workflow wrote, even "0s", makes the task due; none
+	// leaves it open until decided (as wf.task always did).
+	row, err := e.taskRowWith(spec, a.Timeout != "")
 	if err != nil {
 		return taskRow{}, err
 	}

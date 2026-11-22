@@ -81,10 +81,6 @@ const (
 	KindStart       = "start"
 	KindNow         = "now"
 	KindUUID        = "uuid"
-	// KindEscalation records one applied escalation step of a human task
-	// (name "<task>#<n>.escalation", n the step index). It is the engine's
-	// own record: workflow code never addresses it.
-	KindEscalation = "escalation"
 )
 
 // Occurrence states.

@@ -246,7 +246,7 @@ func (rs *runState) journalPayload() json.RawMessage {
 	defer rs.mu.Unlock()
 	entries := make([]journalEntry, 0, len(rs.journal))
 	for _, o := range rs.journal {
-		if !o.terminal() || o.Kind == KindEscalation {
+		if !o.terminal() {
 			continue
 		}
 		entries = append(entries, journalEntry{Name: o.Name, N: o.N, Kind: o.Kind, Status: o.Status, InputHash: o.InputHash, Result: o.Result, Error: o.Error})

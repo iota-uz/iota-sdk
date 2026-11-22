@@ -319,8 +319,8 @@ func TestTasks_EscalationAndTimeout(t *testing.T) {
 
 	var steps int
 	require.NoError(t, s.env.db.QueryRow(context.Background(),
-		`SELECT count(*) FROM extruntime.workflow_occurrences WHERE instance_id = $1 AND kind = 'escalation'`, id).Scan(&steps))
-	require.Equal(t, 2, steps, "one occurrence per applied step")
+		`SELECT count(*) FROM extruntime.human_task_escalations WHERE task_id = $1`, task.ID).Scan(&steps))
+	require.Equal(t, 2, steps, "one record per applied step")
 	require.Equal(t, []string{"created", "decision", "escalated", "escalated", "closed"}, s.log.seen(), "the failed escalation left no trace")
 }
 
@@ -331,11 +331,17 @@ func TestTasks_TimeoutWithoutEscalation(t *testing.T) {
 	require.Equal(t, workflow.TaskTimeout, s.result(id).Outcome)
 }
 
-// Cancel closes the task as cancelled and rejects later decisions.
+// Cancel closes the task as cancelled and rejects later decisions; the
+// result keeps the decisions made before, read in the run that cancelled and
+// on the replay of a later run.
 func TestTasks_CancelRejectsDecisions(t *testing.T) {
 	env := newNativeEnv(t)
 	log := &changeLog{fail: map[string]int{}}
-	spec := workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(51)}}
+	spec := workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(51), userAssignee(52)}, Required: 2, Outcomes: []string{"yes", "no"}}
+	var (
+		mu   sync.Mutex
+		seen []workflow.TaskResult
+	)
 	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
 		if _, err := run.Task(ctx, "review", 0, spec); err != nil && !errors.Is(err, workflow.ErrSuspend) {
 			return nil, err
@@ -350,6 +356,12 @@ func TestTasks_CancelRejectsDecisions(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
+		mu.Lock()
+		seen = append(seen, r)
+		mu.Unlock()
+		if _, err := run.WaitFor(ctx, "go", 1, "go", 0); err != nil {
+			return nil, err
+		}
 		return json.Marshal(r)
 	})
 	eng := env.engine(map[string]workflow.NativeContract{
@@ -360,12 +372,154 @@ func TestTasks_CancelRejectsDecisions(t *testing.T) {
 	h, err := eng.Get(context.Background(), env.tenant, id)
 	require.NoError(t, err)
 	taskID := h.Tasks[0].ID
+	require.NoError(t, eng.DecideTask(context.Background(), env.subject(51), taskID, json.RawMessage(`{"outcome":"yes"}`)))
+	require.NoError(t, eng.Signal(context.Background(), env.tenant, 1, id, "go", json.RawMessage(`{}`), ""))
+	env.drainUntil(eng, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(seen) == 1 && env.inst(eng, id).Status == workflow.StatusWaiting
+	}, "the run that cancelled waits again")
 	require.NoError(t, eng.Signal(context.Background(), env.tenant, 1, id, "go", json.RawMessage(`{}`), ""))
 	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
-	require.JSONEq(t, `{"outcome":"cancelled"}`, string(env.inst(eng, id).Result))
-	err = eng.DecideTask(context.Background(), env.subject(51), taskID, json.RawMessage(`{}`))
+
+	mu.Lock()
+	require.Len(t, seen, 2, "read in the cancelling run and replayed in the next")
+	for _, r := range seen {
+		require.Equal(t, workflow.TaskCancelled, r.Outcome)
+		require.Len(t, r.Decisions, 1)
+		require.EqualValues(t, 51, r.Decisions[0].UserID)
+		require.Equal(t, "yes", r.Decisions[0].Choice)
+	}
+	mu.Unlock()
+	err = eng.DecideTask(context.Background(), env.subject(52), taskID, json.RawMessage(`{"outcome":"yes"}`))
 	require.ErrorIs(t, err, workflow.ErrTaskClosed)
-	require.Equal(t, []string{"created", "closed"}, log.seen())
+	require.Equal(t, []string{"created", "decision", "closed"}, log.seen())
+}
+
+// A decision and a delegation of the same user racing on one task: exactly
+// one of them wins, never both (the delegator's vote is never counted).
+// Two users delegating to each other at once: exactly one delegation wins.
+func TestTasks_ConcurrentDecideAndDelegate(t *testing.T) {
+	const a, b = int64(61), int64(62)
+	s := newTaskStack(t, workflow.TaskSpec{
+		Assignees: []workflow.TaskAssignee{userAssignee(a), userAssignee(b)}, Required: 2, Outcomes: []string{"yes", "no"}, AllowDelegation: true,
+	})
+	ctx := context.Background()
+	race := func(fns ...func() error) []error {
+		errs := make([]error, len(fns))
+		var start, done sync.WaitGroup
+		start.Add(1)
+		for i, fn := range fns {
+			done.Add(1)
+			go func() {
+				defer done.Done()
+				start.Wait()
+				errs[i] = fn()
+			}()
+		}
+		start.Done()
+		done.Wait()
+		return errs
+	}
+	for i := range 8 {
+		id, task := s.startWaiting(fmt.Sprintf("race-%d", i))
+		errs := race(
+			func() error { return s.decide(a, task.ID, `{"outcome":"yes"}`) },
+			func() error { return s.eng.DelegateTask(ctx, s.env.subject(a), task.ID, b, "") },
+		)
+		got := s.task(id)
+		switch {
+		case errs[0] == nil:
+			require.ErrorIs(t, errs[1], workflow.ErrAlreadyDecided, "round %d", i)
+			require.Empty(t, got.Delegations)
+			require.Len(t, got.Decisions, 1)
+		case errs[1] == nil:
+			require.ErrorIs(t, errs[0], workflow.ErrForbidden, "round %d", i)
+			require.Len(t, got.Delegations, 1)
+			require.Empty(t, got.Decisions, "the delegator's vote was not taken")
+		default:
+			require.Failf(t, "neither won", "round %d: %v, %v", i, errs[0], errs[1])
+		}
+
+		id, task = s.startWaiting(fmt.Sprintf("cross-%d", i))
+		errs = race(
+			func() error { return s.eng.DelegateTask(ctx, s.env.subject(a), task.ID, b, "") },
+			func() error { return s.eng.DelegateTask(ctx, s.env.subject(b), task.ID, a, "") },
+		)
+		require.True(t, (errs[0] == nil) != (errs[1] == nil), "round %d: exactly one delegation wins: %v, %v", i, errs[0], errs[1])
+		require.Len(t, s.task(id).Delegations, 1)
+	}
+}
+
+// Escalation records have keys of their own: a workflow occurrence named
+// like the task's escalation, written before or after the escalation, takes
+// nothing from it.
+func TestTasks_EscalationKeysAreApartFromOccurrences(t *testing.T) {
+	for _, before := range []bool{true, false} {
+		t.Run(fmt.Sprintf("before=%v", before), func(t *testing.T) {
+			env := newNativeEnv(t)
+			spec := workflow.TaskSpec{
+				Assignees: []workflow.TaskAssignee{userAssignee(71)}, Timeout: 200 * time.Millisecond,
+				Escalation: []workflow.EscalationStep{{Add: []workflow.TaskAssignee{userAssignee(72)}, Extend: 200 * time.Millisecond}},
+			}
+			write := func(ctx context.Context, run workflow.NativeRun) error {
+				_, err := run.Transaction(ctx, "review#0.escalation", 0, func(context.Context, pgx.Tx) (json.RawMessage, error) {
+					return json.RawMessage(`"mine"`), nil
+				})
+				return err
+			}
+			runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+				if before {
+					if err := write(ctx, run); err != nil {
+						return nil, err
+					}
+				}
+				r, err := run.Task(ctx, "review", 0, spec)
+				if err != nil {
+					return nil, err
+				}
+				if !before {
+					if err := write(ctx, run); err != nil {
+						return nil, err
+					}
+				}
+				return json.Marshal(r)
+			})
+			eng := env.engine(map[string]workflow.NativeContract{"test.keys": {Runner: runner}})
+			id := env.start(eng, "test.keys", "k", `{}`)
+			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes after the escalation and the timeout")
+			require.JSONEq(t, `{"outcome":"timeout"}`, string(env.inst(eng, id).Result))
+			h, err := eng.Get(context.Background(), env.tenant, id)
+			require.NoError(t, err)
+			require.Equal(t, []workflow.TaskAssignee{userAssignee(71), userAssignee(72)}, h.Tasks[0].Assignees, "the step added its assignee")
+			require.Equal(t, 1, h.Tasks[0].EscalationLevel)
+			o, ok := occ(h, "review#0.escalation", 0)
+			require.True(t, ok)
+			require.Equal(t, workflow.KindTransaction, o.Kind)
+			require.JSONEq(t, `"mine"`, string(o.Result))
+		})
+	}
+}
+
+// A package task's explicit timeout "0s" is due at once; an absent timeout
+// leaves the task open.
+func TestTasks_PackageZeroTimeoutIsDue(t *testing.T) {
+	env := hosttest.New(t)
+	im := newImpls()
+	publishFlow(t, env, im, "acme.a", "1.0.0", `
+export const flow = async (wf, input) => wf.task("approve", {
+  subject: { entity: "acme.test.item", key: "1" }, assignee: { userId: "7" },
+  decision: { type: { kind: "object" } }, timeout: input.who === "zero" ? "0s" : undefined });`)
+	im.Activate(flowID, "acme.a", "1.0.0")
+	env.Subjects.Grant(7)
+	st := newStack(t, env, im)
+	zero := st.start(7, "zero", `{"who":"zero"}`)
+	none := st.start(7, "none", `{"who":"none"}`)
+	st.until(10*time.Second, func() bool { return st.status(zero) == workflow.StatusCompleted }, "the zero timeout expires the task")
+	require.JSONEq(t, `{"outcome":"timeout"}`, string(st.instance(zero).Result))
+	require.Equal(t, workflow.StatusWaiting, st.status(none))
+	require.Nil(t, st.history(none).Tasks[0].DueAt, "no timeout: no due time")
+	require.Equal(t, "open", st.history(none).Tasks[0].Status)
 }
 
 // Invalid specs fail the Task call and create nothing.

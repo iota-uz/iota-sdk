@@ -466,11 +466,15 @@ workflow, a native one or a graph asks.
   (`ErrDelegation`).
 * **Escalation.** When the due time (`Timeout`) passes, the run applies the next of up to five steps: `Add` joins the
   assignees, `Extend` sets the new due time (0: the task times out right after the step). Without steps left the task
-  closes as a timeout whose result carries the decisions collected so far. Each applied step is an occurrence of its own
-  (kind `escalation`, name `<task>#<n>.escalation`, n the step index) committed with the task change in the run's fenced
-  transaction, so a run that crashed while escalating applies the step again from scratch and one that committed never
-  repeats it.
-* **Cancel.** `NativeRun.Cancel`, `CancelPending` and terminate close open tasks as `cancelled`.
+  closes as a timeout whose result carries the decisions collected so far. Each applied step is a record of its own
+  (`human_task_escalations`, keyed by task and step, apart from the workflow's occurrence keys) committed with the task
+  change in the run's fenced transaction, so a run that crashed while escalating applies the step again from scratch and
+  one that committed never repeats it. A package task's explicit `timeout`, even `"0s"`, makes it due; without one it
+  stays open until decided.
+* **Cancel.** `NativeRun.Cancel`, `CancelPending` and terminate close open tasks as `cancelled`; a native `TaskResult`
+  of a cancelled task carries the decisions made before.
+* **Concurrency.** `DecideTask` and `DelegateTask` lock the task row and only then read its delegations and decisions,
+  in a statement of their own, so a delegation and a decision of one user never both win.
 * **Observers.** `Config.TaskObservers` (contributed with `wiring.ContributeTaskObservers`) are called in order in the
   transaction of every change — `created`, `decision`, `delegated`, `escalated` (with the new assignees), `closed` — and
   an error of any rolls it back (for a run, the run is retried). The task model itself sends nothing.
