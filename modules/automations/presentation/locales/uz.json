@@ -119,10 +119,13 @@
         "Invalid": "Qiymatni tekshiring.",
         "NameFormat": "Lotin harflari, raqamlar va _, harf bilan boshlanadi (40 tagacha).",
         "NameTaken": "Bu tizim nomi ushbu xizmatning boshqa ulanishida band.",
-        "VersionConflict": "Ulanish bu orada oʻzgartirildi. Formani yoping va qayta oching.",
+        "VersionConflict": "Forma ochiq turganda kimdir bu ulanishni o‘zgartirdi. Uning versiyasini yuklang: siz kiritgan qiymatlar formada qoladi.",
         "Unavailable": "Bu ilovada ulanishlar sozlanmagan.",
         "Failed": "Saqlab boʻlmadi. Bir daqiqadan soʻng qayta urining.",
-        "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi."
+        "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi.",
+        "LoadLatest": "Oxirgi versiyani yuklash",
+        "Reloaded": "Oxirgi versiya yuklandi. Formani tekshirib, qayta saqlang.",
+        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang."
       },
       "Test": {
         "Running": "Tekshiryapmiz…",

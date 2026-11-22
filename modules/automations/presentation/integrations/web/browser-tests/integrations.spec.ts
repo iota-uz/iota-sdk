@@ -182,6 +182,69 @@ test('F3: Retry after a lost answer resends the same key and creates one connect
   await expect(page.locator('[data-testid="connection-lost_bot"]')).toHaveCount(1)
 })
 
+test('F3: a draft changed before Retry of a lost create says how to recover', async ({ page }) => {
+  await open(page, 'lossy')
+  await page.getByTestId('connect-telegram_bot').click()
+  const form = page.getByTestId('connection-form')
+  await form.locator('[data-field="display_name"]').fill('Lost bot')
+  await form.locator('[data-field="bot_token"]').fill('good-token')
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-save')).toHaveText('Retry')
+  await form.locator('[data-field="display_name"]').fill('Lost bot 2')
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toHaveText('The first save may have gone through with the earlier values. Close the form and edit the connection from the list.')
+  await expect(form.locator('[data-field="idempotency_key"]')).toHaveCount(0)
+  // The list shows what the first request saved.
+  await expect(page.locator('[data-testid="connection-lost_bot"]')).toHaveCount(1)
+})
+
+test('F2: a version conflict offers the latest version and keeps what was typed', async ({ page }) => {
+  await open(page, 'conflictOnce')
+  await menu(page, 'sales_bot')
+  await row(page, 'sales_bot').getByTestId('menu-edit').click()
+  const form = page.getByTestId('connection-form')
+  await form.locator('[data-field="display_name"]').fill('My bot')
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toHaveText('Someone changed this connection meanwhile. Load their version: what you typed stays in the form.')
+  await form.getByTestId('form-reload').click()
+  await expect(form.getByTestId('form-notice')).toHaveText('The latest version is loaded. Check the form and save again.')
+  await expect(form.locator('[data-field="display_name"]')).toHaveValue('My bot')
+  await expect(form.locator('[data-field="chat_id"]')).toHaveValue('-1009999', { timeout: 5_000 })
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  const updates = await callsOf(page, 'connections.update')
+  expect(updates).toHaveLength(2)
+  expect(updates[1]!.params).toMatchObject({ version: 2, display_name: 'My bot' })
+  expect(updates[1]!.params.credentials).toBeUndefined()
+  expect(updates[1]!.params.idempotency_key).not.toBe(updates[0]!.params.idempotency_key)
+})
+
+test('D1: history from one edit drawer to another opens a new draft', async ({ page }) => {
+  await open(page)
+  await menu(page, 'sales_bot')
+  await row(page, 'sales_bot').getByTestId('menu-edit').click()
+  const form = page.getByTestId('connection-form')
+  await form.locator('[data-field="display_name"]').fill('Draft for sales')
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '?edit=00000000-0000-4000-8000-000000000002')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await expect(form).toContainText('Edit Support bot')
+  await expect(form.locator('[data-field="display_name"]')).toHaveValue('Support bot')
+})
+
+test('F8: the platform switch waits for its request and returns to the saved value', async ({ page }) => {
+  await open(page, 'platformFails&delay=400')
+  const panel = page.getByTestId('connector-openai').getByTestId('platform-key')
+  const sw = panel.getByRole('switch', { name: 'Use the platform key' })
+  await panel.getByText('Use the platform key', { exact: true }).click()
+  await expect(sw).toBeChecked()
+  await expect(sw).toBeDisabled()
+  await expect(sw).not.toBeChecked({ timeout: 5_000 })
+  await expect(sw).toBeEnabled()
+  expect(await callsOf(page, 'platform.set_enabled')).toHaveLength(1)
+})
+
 test('IN4: a used connection lists its uses with editor links and cannot be deleted', async ({ page }) => {
   await open(page)
   await row(page, 'sales_bot').getByTestId('used-by').click()
@@ -257,7 +320,10 @@ test('IN2: editing an OAuth connection updates it; Sign in again re-authorizes t
   await expect(page).toHaveURL(/edit=00000000-0000-4000-8000-000000000004/)
   // The fake returns to ?edit=<id> only for a start that named the connection (connection_id).
   await expect(page.getByTestId('connection-form')).toContainText('The account is connected.')
-  await expect(page.getByTestId('connection-form')).toContainText('Edit Company drive') // the fixture reseeds on reload
+  // The fake keeps its catalog across the provider round trip: the edit and the new sign-in are there.
+  await expect(page.getByTestId('connection-form')).toContainText('Edit Docs drive')
+  await page.getByTestId('connection-form').getByRole('button', { name: 'Cancel' }).click()
+  await expect(row(page, 'drive').locator('[data-status="connected"]')).toHaveText('Connected')
 })
 
 test('IN2: a failed OAuth return reopens the form it came from', async ({ page }) => {
@@ -287,6 +353,11 @@ test('IN2: OAuth returns to the same form with its result', async ({ page }) => 
   await form.getByTestId('form-save').click()
   await expect(page).toHaveURL(/connected=/)
   await expect(page.getByTestId('connection-form')).toContainText('The account is connected.')
+  // The new connection is in the list the page loaded after the return.
+  const id = new URL(page.url()).searchParams.get('connected')!
+  await page.getByTestId('connection-form').getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByTestId('connector-google_drive').locator('[data-testid^="connection-"]')).toHaveCount(2)
+  expect(id).toMatch(/^00000000-0000-4000-8000-0000000001/)
 
   await page.goto('/?oauth_error=denied&kind=google_drive')
   await expect(page.getByTestId('connection-form').getByRole('alert')).toContainText('Access was not granted.')
@@ -303,6 +374,9 @@ test('IN7: actions are absent from the DOM without the right', async ({ page }) 
 test('IN8/T6: 390 px has one column and no horizontal scroll; the form fills the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await open(page, 'lang=ru')
+  // The populated layout, not a page before mount or after a load error, is what is measured.
+  await expect(page.locator('article')).toHaveCount(4)
+  await expect(page.getByTestId('connector-telegram_bot')).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
   const boxes = await page.locator('article').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width))

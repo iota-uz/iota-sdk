@@ -40,7 +40,15 @@ function scopeUtilities(file) {
   }
   const end = i - 1 // the brace closing the layer
   const body = css.slice(start + open.length, end)
-  writeFileSync(file, css.slice(0, start) + open + SCOPE + '{' + body + '}' + css.slice(end))
+  let scoped = css.slice(0, start) + open + SCOPE + '{' + body + '}' + css.slice(end)
+  // The theme tokens the utilities read are declared on the same mount, not on :root: an application's
+  // own tokens (a custom --spacing) stay what they are outside the screen. (theme(reference) would emit
+  // none, and the host stylesheet declares only the tokens it uses itself.)
+  const root = '@layer theme{:root,:host{'
+  if (!scoped.includes(root)) throw new Error('no theme layer in the bundle stylesheet')
+  scoped = scoped.replace(root, '@layer theme{' + SCOPE + '{')
+  if (/:root|:host/.test(scoped)) throw new Error('the bundle stylesheet still declares global selectors')
+  writeFileSync(file, scoped)
 }
 
 function files(dir, base = dir) {

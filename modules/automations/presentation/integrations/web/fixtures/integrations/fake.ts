@@ -20,6 +20,8 @@ export interface FakeOptions {
   oauthFail: string
   /** The first connections.test fails in transport (a 502). */
   testFailOnce: boolean
+  /** The first update meets a version conflict: another manager saved the connection meanwhile. */
+  conflictOnce: boolean
   calls: { method: string; params: unknown }[]
 }
 
@@ -86,8 +88,26 @@ const usages: Record<string, UsageView[]> = {}
 
 type Handler = (params: never) => unknown
 
+// An OAuth2 start leaves the page for the provider and comes back to a new document: the catalog it
+// changed is carried across that one navigation (and only that one), as the server would keep it.
+const CARRIED = 'automations-fake-oauth'
+
+function carried(): { connectors: ConnectorView[]; seq: number } | undefined {
+  try {
+    const raw = window.sessionStorage.getItem(CARRIED)
+    window.sessionStorage.removeItem(CARRIED)
+    return raw ? JSON.parse(raw) as { connectors: ConnectorView[]; seq: number } : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export function installFake(rpcPath: string, opts: FakeOptions): void {
-  const connectors = seed(opts.scenario)
+  const kept = carried()
+  const connectors = kept?.connectors ?? seed(opts.scenario)
+  const carry = () => {
+    try { window.sessionStorage.setItem(CARRIED, JSON.stringify({ connectors, seq })) } catch { /* a private window: the return reseeds */ }
+  }
   const sales = connectors[0]?.connections[0]
   if (sales) {
     usages[sales.id] = [
@@ -103,8 +123,16 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     return undefined
   }
   const notFound = () => { throw { code: 'not_found', message: 'connection not found', data: { code: 'not_found' } } }
-  let seq = 100
+  let seq = kept?.seq ?? 100
+  let conflicted = false
   const keys = new Map<string, ConnectionView>()
+  // Like the service, the key of a request that was saved is bound to its payload (a refused one is
+  // released and may be reused).
+  const payloads = new Map<string, string>()
+  const body = (p: unknown) => { const { idempotency_key: _, ...rest } = p as Record<string, unknown>; return JSON.stringify(rest) }
+  const mismatch = (key: string | undefined, p: unknown) => Boolean(key && payloads.has(key) && payloads.get(key) !== body(p))
+  const record = (key: string | undefined, p: unknown) => { if (key) payloads.set(key, body(p)) }
+  const changed = { ok: false, error: 'invalid_input', fields: { idempotency_key: 'invalid' } }
   let lost = false
   let testFailed = false
   const loseOnce = () => {
@@ -124,6 +152,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     'automations.connections.create': (p: RPC['automations.connections.create']['params']) => {
       const c = connectors.find((x) => x.kind === p.kind)
       if (!c) return notFound()
+      if (mismatch(p.idempotency_key, p)) return changed
       // Like the service: a retried key answers with what the first request made.
       if (p.idempotency_key && keys.has(p.idempotency_key)) return { ok: true, connection: keys.get(p.idempotency_key) }
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(p.name)) return { ok: false, error: 'invalid_input', fields: { name: 'name' } }
@@ -135,6 +164,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const created = conn(c.kind, p.name, p.display_name || p.name, { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz' })
       c.connections.push(created)
       if (key) keys.set(key, created)
+      record(key, p)
       loseOnce()
       return { ok: true, connection: created }
     },
@@ -151,22 +181,30 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         const f = find(p.connection_id)
         if (!f) return notFound()
         Object.assign(f.connection, { status: 'connected', status_reason: null, version: f.connection.version + 1 })
+        carry()
         return { authorize_url: `${window.location.pathname}?connected=${p.connection_id}&kind=${p.kind}&edit=${p.connection_id}` }
       }
       const created = conn(c.kind, p.name || 'drive_2', 'docs@acme.uz', { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: 'docs@acme.uz' })
       c.connections.push(created)
+      carry()
       return { authorize_url: `${window.location.pathname}${window.location.search.replace(/[?&](connect|kind)=[^&]*/g, '').replace(/^&/, '?') || '?'}&connected=${created.id}&kind=${c.kind}` }
     },
     'automations.connections.update': (p: RPC['automations.connections.update']['params']) => {
       const f = find(p.id)
       if (!f) return notFound()
       const key = p.idempotency_key
+      if (mismatch(key, p)) return changed
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
+      if (opts.conflictOnce && !conflicted) {
+        conflicted = true
+        Object.assign(f.connection, { display_name: 'Renamed elsewhere', version: f.connection.version + 1, fields: { ...f.connection.fields, chat_id: '-1009999' } })
+      }
       if (p.version !== f.connection.version) return { ok: false, error: 'version_conflict' }
       if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', reason: 'auth' }
       Object.assign(f.connection, { display_name: p.display_name ?? f.connection.display_name, version: f.connection.version + 1 })
       if (p.credentials && f.connection.status !== 'disabled') Object.assign(f.connection, { status: 'connected', status_reason: null })
       if (key) keys.set(key, f.connection)
+      record(key, p)
       loseOnce()
       return { ok: true, connection: f.connection }
     },

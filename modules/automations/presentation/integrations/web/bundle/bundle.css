@@ -1,6 +1,7 @@
 /*
  * The utilities of the screen and of the solid-ui components it uses, for a page that already carries
- * the SDK stylesheet (preflight, tokens, component classes): no preflight, no tokens, no fonts.
+ * the SDK stylesheet (preflight, tokens, component classes): no preflight, no fonts. The theme tokens
+ * the utilities read are scoped to the screen's mount by scripts/build-bundle.mjs, never global.
  */
 @config "../../../../../../tailwind.config.js";
 @layer theme, base, components, utilities;

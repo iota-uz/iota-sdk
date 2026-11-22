@@ -119,10 +119,13 @@
         "Invalid": "Verifique este valor.",
         "NameFormat": "Use letras latinas, dígitos e _, começando com uma letra (até 40).",
         "NameTaken": "Este nome do sistema já é usado por outra conexão deste serviço.",
-        "VersionConflict": "Alguém alterou esta conexão. Feche o formulário e abra-o novamente.",
+        "VersionConflict": "Alguém alterou esta conexão enquanto o formulário estava aberto. Carregue a versão dessa pessoa: o que você digitou continua no formulário.",
         "Unavailable": "As conexões não estão configuradas neste aplicativo.",
         "Failed": "Não foi possível salvar. Tente novamente em um minuto.",
-        "InProgress": "A primeira tentativa ainda está sendo processada. Tente novamente em alguns segundos; nada será salvo duas vezes."
+        "InProgress": "A primeira tentativa ainda está sendo processada. Tente novamente em alguns segundos; nada será salvo duas vezes.",
+        "LoadLatest": "Carregar a versão mais recente",
+        "Reloaded": "A versão mais recente foi carregada. Verifique o formulário e salve novamente.",
+        "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista."
       },
       "Test": {
         "Running": "Verificando…",

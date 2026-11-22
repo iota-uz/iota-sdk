@@ -119,10 +119,13 @@
         "Invalid": "Check this value.",
         "NameFormat": "Use Latin letters, digits and _, starting with a letter (up to 40).",
         "NameTaken": "This system name is already used by another connection of this service.",
-        "VersionConflict": "Someone changed this connection meanwhile. Close the form and open it again.",
+        "VersionConflict": "Someone changed this connection meanwhile. Load their version: what you typed stays in the form.",
         "Unavailable": "Connections are not configured in this application.",
         "Failed": "Could not save. Try again in a minute.",
-        "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice."
+        "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice.",
+        "LoadLatest": "Load the latest version",
+        "Reloaded": "The latest version is loaded. Check the form and save again.",
+        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list."
       },
       "Test": {
         "Running": "Checking…",

@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, 
 import { FetchRPCTransport, RPCClient, createRPCQuery, useClientHost, type SolidRouteProps } from '@iota-uz/sdk/solid'
 import {
   Button, ConfirmationDialog, Dialog, DialogBusyStatus, Dropdown, DropdownItem, EmptyState, Input, PasswordInput, Skeleton,
-  Switch, ToastProvider, ViewDrawer, useToast,
+  Switch, Textarea, ToastProvider, ViewDrawer, useToast,
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
@@ -90,7 +90,15 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
   }
   onCleanup(() => clearTimeout(highlightTimer))
 
-  const [form, setForm] = createSignal<FormState>()
+  const [form, setFormSignal] = createSignal<FormState>()
+  // A form session is one drawer for one target: opening the same target again (a history step back to
+  // it) keeps its draft; another target starts a new session.
+  const target = (s: FormState) => s.mode === 'create' ? `create:${s.connector.kind}` : `edit:${s.connection.id}`
+  const setForm = (s: FormState | undefined) => {
+    const cur = form()
+    if (s && cur && !s.oauth && target(s) === target(cur)) return
+    setFormSignal(() => s)
+  }
   const [usage, setUsage] = createSignal<ConnectionView>()
   const [deleting, setDeleting] = createSignal<{ connector: ConnectorView; connection: ConnectionView }>()
   const [oauthBanner, setOauthBanner] = createSignal<string>()
@@ -212,12 +220,14 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
           </Show>
         )}
       </Show>
-      <Show when={form()}>
-        {(s) => <ConnectionForm ctx={ctx} state={s()} onClose={closeForm} onSaved={(c, created) => {
+      {/* Keyed by the form session: another target (history from edit A to edit B) is a new draft with
+          its own idempotency key; a save that finishes after its session ended closes nothing. */}
+      <Show when={form()} keyed>
+        {(s) => <ConnectionForm ctx={ctx} state={s} onClose={closeForm} onSaved={(c, created) => {
           highlight(c.id)
           refetch()
           toast.notify({ variant: 'success', title: t(created ? 'Toast.Saved' : 'Toast.Updated', { name: c.display_name || c.name }) })
-          closeForm()
+          if (form() === s) closeForm()
         }} />}
       </Show>
       <Show when={usage()}>{(c) => <UsageDialog ctx={ctx} connection={c()} onClose={() => setUsage(undefined)} />}</Show>
@@ -340,20 +350,29 @@ function ConnectorCard(props: { ctx: Ctx; connector: ConnectorView }) {
 function PlatformRow(props: { ctx: Ctx; connector: ConnectorView }) {
   const t = props.ctx.t
   const p = () => props.connector.platform!
-  // Optimistic: the switch moves at once and returns when the server refuses (F8).
+  // Optimistic: the switch moves at once and returns when the server refuses (F8). One request runs at a
+  // time (the switch waits for it), so requests cannot reach the server out of order, and a refusal
+  // returns the switch to the last value the server accepted, not to the inverse of the request.
+  const [saved, setSaved] = createSignal(p().enabled_for_tenant)
   const [enabled, setEnabled] = createSignal(p().enabled_for_tenant)
+  const [pending, setPending] = createSignal(false)
   const [error, setError] = createSignal<string>()
-  createEffect(() => setEnabled(p().enabled_for_tenant))
+  createEffect(() => { const v = p().enabled_for_tenant; if (!pending()) { setSaved(v); setEnabled(v) } })
   const toggle = async (next: boolean) => {
+    if (pending()) return
+    setPending(true)
     setEnabled(next)
     setError(undefined)
     try {
       await props.ctx.call('automations.platform.set_enabled', { kind: props.connector.kind, enabled: next })
+      setSaved(next)
       props.ctx.refetch()
     } catch (e) {
       console.warn('automations: platform.set_enabled failed', errorCode(e))
-      setEnabled(!next)
+      setEnabled(saved())
       setError(t('Platform.Failed', { reason: t('Toast.Failed') }))
+    } finally {
+      setPending(false)
     }
   }
   return (
@@ -363,7 +382,7 @@ function PlatformRow(props: { ctx: Ctx; connector: ConnectorView }) {
         <span class="text-200">· {t('Platform.Available')}</span>
       </div>
       <Show when={p().policy === 'opt_in' && props.ctx.canManage()}>
-        <Switch size="sm" checked={enabled()} label={t('Platform.Use')} onChange={(e) => void toggle(e.currentTarget.checked)} data-testid="platform-switch" />
+        <Switch size="sm" checked={enabled()} disabled={pending()} aria-busy={pending()} label={t('Platform.Use')} onChange={(e) => void toggle(e.currentTarget.checked)} data-testid="platform-switch" />
       </Show>
       <Show when={error()}><p role="alert" class="text-pink">{error()}</p></Show>
       <p class="text-xs text-200">{t('Platform.Override')}</p>
@@ -468,7 +487,10 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
 function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void; onSaved: (c: ConnectionView, created: boolean) => void }) {
   const t = props.ctx.t
   const connector = () => props.state.connector
-  const editing = () => (props.state.mode === 'edit' ? props.state.connection : undefined)
+  // The version the edit applies to: the one the drawer opened with, or the latest one the user loaded
+  // after a version conflict.
+  const [base, setBase] = createSignal(props.state.mode === 'edit' ? props.state.connection : undefined)
+  const editing = () => base()
   const fields = createMemo(() => schemaFields(connector().credential_schema))
   const initial = (): Record<string, string> => ({ ...(editing()?.fields ?? {}) })
   const [values, setValues] = createSignal<Record<string, string>>(initial())
@@ -480,8 +502,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [nameTouched, setNameTouched] = createSignal(Boolean(editing() || prefill()?.name))
   // One key per intent (this form): «Retry» after an ambiguous failure resends the same key, so the
   // server answers with what the first request did instead of doing it twice (F3).
-  const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  const newKey = () => typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
+  let idempotencyKey = newKey()
   const [retry, setRetry] = createSignal(false)
+  const [conflict, setConflict] = createSignal(false)
+  const [notice, setNotice] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
   const [busy, setBusy] = createSignal(false)
@@ -497,7 +522,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
   const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
 
-  const begin = () => { setBusy(true); setSlow(false); setError(undefined); setRetry(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
+  const begin = () => { setBusy(true); setSlow(false); setError(undefined); setNotice(undefined); setRetry(false); setConflict(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
 
   const submit = async (event: Event) => {
@@ -526,17 +551,60 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         })
       if (result.ok && result.connection) { end(); props.onSaved(result.connection, !e); return }
       end()
-      setFieldErrors(result.fields ?? {})
+      const { idempotency_key: changedRetry, ...fieldsLeft } = result.fields ?? {}
+      setFieldErrors(fieldsLeft)
+      if (changedRetry) {
+        // The key belongs to the first payload, whose answer was lost, and the draft changed since: the
+        // first save may have gone through. The list shows what was saved; the edit goes through it.
+        setError(t('Form.RetryChanged'))
+        props.ctx.refetch()
+        return
+      }
       setError(saveErrorText(t, result))
       if (result.error === 'in_progress') setRetry(true) // the first request is still running: retry with the same key
-      if (result.fields) focusFirstError(result.fields)
+      if (result.error === 'version_conflict') setConflict(true)
+      if (result.fields) focusFirstError(fieldsLeft)
     } catch (e) {
       end()
       const code = errorCode(e)
       console.warn('automations: save failed', code)
       if (code === 'unavailable') setError(t(oauth() ? 'OAuth.unavailable' : 'Form.Unavailable'))
-      else if (code === 'version_conflict') setError(t('Form.VersionConflict'))
+      else if (code === 'version_conflict') { setError(t('Form.VersionConflict')); setConflict(true) }
       else { setError(t('Form.Failed')); setRetry(true) } // the answer was lost: «Retry» with the same key
+    }
+  }
+  // After a version conflict the user loads the latest version explicitly: what they did not change
+  // follows it, what they typed stays, and the next save (a new intent, a new key) applies the draft to it.
+  const reload = async () => {
+    const e = editing()
+    if (!e || busy()) return
+    begin()
+    try {
+      const list = await props.ctx.call('automations.connectors.list', {})
+      end()
+      const latest = list.connectors.flatMap((c) => c.connections).find((x) => x.id === e.id)
+      if (!latest) { setError(t('Form.Failed')); return }
+      const before = e.fields ?? {}
+      const after = latest.fields ?? {}
+      setValues((cur) => {
+        const next = { ...cur }
+        for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
+          if ((cur[k] ?? '') !== (before[k] ?? '')) continue
+          if (k in after) next[k] = after[k]!
+          else delete next[k]
+        }
+        return next
+      })
+      if (displayName() === (e.display_name ?? '')) setDisplayName(latest.display_name ?? '')
+      setBase(latest)
+      idempotencyKey = newKey()
+      setNotice(t('Form.Reloaded'))
+      props.ctx.refetch()
+    } catch (err) {
+      end()
+      console.warn('automations: reload failed', errorCode(err))
+      setError(t('Form.Failed'))
+      setConflict(true)
     }
   }
   const reauth = async () => {
@@ -591,10 +659,14 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
             onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} />}</For>
         </Show>
         <Show when={error()}>
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col items-start gap-2">
             <p role="alert" class="text-sm text-pink" data-testid="form-error">{error()}</p>
+            <Show when={conflict() && editing()}>
+              <Button type="button" size="sm" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void reload()} disabled={busy()} data-testid="form-reload">{t('Form.LoadLatest')}</Button>
+            </Show>
           </div>
         </Show>
+        <Show when={notice()}><p role="status" class="text-sm text-200" data-testid="form-notice">{notice()}</p></Show>
         <Show when={slow()}><p role="status" class="text-sm text-200">{t('Form.StillWaiting')}</p></Show>
         <div class="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-subtle bg-surface-300 pt-4 sm:flex-row sm:justify-end">
           <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
@@ -619,9 +691,15 @@ function CredentialField(props: {
     <Show when={f().kind === 'secret'} fallback={
       <Show when={f().kind === 'boolean'} fallback={
         <Show when={f().kind === 'enum'} fallback={
+          <Show when={f().kind === 'textarea'} fallback={
           <Input label={f().title} description={f().description} type={f().kind === 'number' ? 'number' : 'text'} value={props.value}
             onInput={(e) => props.onInput(e.currentTarget.value)} error={props.error} disabled={props.disabled} required={f().required}
             placeholder={f().placeholder} data-field={f().name} autocomplete="off" spellcheck={false} />
+          }>
+            <Textarea label={f().title} description={f().description} value={props.value} rows={4}
+              onInput={(e) => props.onInput(e.currentTarget.value)} error={props.error} disabled={props.disabled} required={f().required}
+              placeholder={f().placeholder} data-field={f().name} autocomplete="off" spellcheck={false} />
+          </Show>
         }>
           <label class="flex flex-col gap-2 text-sm">
             <span class="form-control-label">{f().title}{f().required ? ' *' : ''}</span>
