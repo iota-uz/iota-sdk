@@ -961,6 +961,19 @@ func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence,
 			return nil, true, err
 		}
 		return nonNull(result), true, nil
+	case finished && outcome == "error" && isPackageUnavailable(errJSON):
+		// The command reached a package export without the runtime, and the
+		// mark of callOrdinary was not written (the process stopped first):
+		// the same operator decision applies, never a terminal failure.
+		pending := o
+		pending.Meta = marshal(map[string]any{
+			awaitingOperator: host.CodePackageUnavailable, "invocation": o.InvocationID,
+			"committedTxCount": committed, "partiallyCommitted": partial,
+		})
+		if err := e.record(ctx, rs, pending); err != nil {
+			return nil, true, err
+		}
+		return nil, true, blockedWire(rs.block(BlockUnavailable, unavailableDetail(host.CodePackageUnavailable, command, o.Name, o.N, o.InvocationID, committed)))
 	case finished && outcome == "error":
 		next := o
 		next.Status, next.Error, next.Meta = OccFailed, nonNull(errJSON), meta
@@ -973,6 +986,13 @@ func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence,
 	return nil, true, blockedWire(rs.block(BlockAmbiguous, fmt.Sprintf(
 		"command %s (occurrence %s#%d, invocation %s) has no recorded outcome (%s) and committed %d transaction(s); resolve, retry or terminate it manually",
 		command, o.Name, o.N, o.InvocationID, outcome, committed)))
+}
+
+// isPackageUnavailable reports whether a recorded invocation error is the
+// host's CodePackageUnavailable.
+func isPackageUnavailable(errJSON []byte) bool {
+	var we pool.WireError
+	return json.Unmarshal(errJSON, &we) == nil && we.Code == host.CodePackageUnavailable
 }
 
 // awaitingOperator marks the meta of a started call occurrence that only an

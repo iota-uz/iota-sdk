@@ -1643,15 +1643,20 @@ func TestNative_ReleasedRunIsFencedDuringBackoff(t *testing.T) {
 // the occurrence, and both still work.
 func TestNative_ResumeKeepsAnUnresolvedNestedPackageCallBlocked(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		commit bool
-		fix    func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID)
+		name     string
+		commit   bool
+		unmarked bool
+		fix      func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID)
 	}{
-		{"resolve", false, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
+		{"resolve", false, false, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
 			t.Helper()
 			require.NoError(t, eng.Resolve(context.Background(), env.tenant, id, "c", 0, json.RawMessage(`{"rows":0}`)))
 		}},
-		{"retry after a commit", true, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
+		{"retry after a commit", true, false, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
+			t.Helper()
+			require.NoError(t, eng.Retry(context.Background(), env.tenant, id, "c", 0))
+		}},
+		{"mark lost, retry", true, true, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
 			t.Helper()
 			require.NoError(t, eng.Retry(context.Background(), env.tenant, id, "c", 0))
 		}},
@@ -1690,6 +1695,11 @@ func TestNative_ResumeKeepsAnUnresolvedNestedPackageCallBlocked(t *testing.T) {
 			id := env.start(eng, "test.nested", "n1", `{}`)
 			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks")
 
+			if tc.unmarked {
+				// The process stopped before the mark was written.
+				_, err := env.db.Exec(context.Background(), `UPDATE extruntime.workflow_occurrences SET meta = NULL WHERE instance_id = $1 AND name = 'c'`, id)
+				require.NoError(t, err)
+			}
 			// Resume without resolving: blocked again, never failed.
 			require.NoError(t, eng.Resume(context.Background(), env.tenant, id))
 			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks again")
