@@ -1,0 +1,70 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Adds pkg/automation/code, the Code node sandbox: a Compiler (esbuild, imports refused) and an Engine that runs JS/TS in a fresh QuickJS-ng wasm instance per run (github.com/iota-uz/kafig) under a wasm page cap and a context deadline, with Go-validated host calls, NewGuardedFetcher (SSRF policy), secret masking and Declarations for the editor's .d.ts. New dependencies: github.com/iota-uz/kafig/kafig-go, github.com/tetratelabs/wazero, github.com/evanw/esbuild, code.dny.dev/ssrf."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add pkg/automation/catalog (registry of node types, trigger sources and connectors with a per-tenant catalog filtered by connections and author rights) and pkg/automation/connectors (AES-256-GCM connection store in the new automation schema with key rotation, platform credentials, usage, OAuth2 and a host.SecretResolver bridge), configured by AUTOMATION_CONNECTIONS_KEYS. graph.EventSpec and EventView gain an optional Description."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the @iota-uz/sdk/automation-editor subpath: the Solid automation graph editor over @xyflow/system with a lazy canvas chunk."
+    },
+    {
+      "bump": "minor",
+      "summary": "pkg/automation/graph: parallel, join, foreach and collect behaviors with tokens in the validator, interpreter and dry run (StepFork/StepEach/StepArrive, Interpreter.Join and ForeachDone, flow Limits, token-aware traces), with SDK conformance fixtures; expr gains TypeList."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add pkg/automation/graph and pkg/automation/expr: the automation graph format, CEL expressions and templates, validator, pure step interpreter and dry run, with conformance fixtures."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add modules/automations (Automations.* and Connections.Manage permissions, settings hub entry, connection store, OAuth2 and SecretResolver wiring, AUTOMATION_PLATFORM_CREDENTIALS) with the /settings/integrations Solid screen served from an embedded bundle, solid.Bind/solid.NewRPCHandler (a JSON-RPC server for Solid screen methods), connectors.OAuth2.Exchange (exchange and test a sign-in without saving), connectors.Store.SaveWith/Fingerprint/MatchesFingerprint, connectors.OAuth2Checker (refresh a disabled connection's token for a check), composition.Has, and connectors.Identity.Kind (handle, email, phone: only a typed identity is shown). Credential values are validated as the scalar type their schema declares. The extension runtime now uses a container-provided host.SecretResolver when wiring.Options.Secrets is unset."
+    },
+    {
+      "bump": "none",
+      "summary": "CI: the test Postgres keeps track_activities on, so tests that wait on pg_stat_activity see their LISTEN query and lock waits."
+    },
+    {
+      "bump": "minor",
+      "summary": "Core, CRM and HRM publish 17 native events (user updated/blocked/unblocked/deleted/role_assigned, role created/permission_granted, group created/member_added/member_removed, client deleted, chat message_added, employee created/updated) to the outbox in the transaction of the change and list them in the notification settings catalog; modules.Natives includes hrm.Natives. composables.AfterCommit defers the services' eventbus events until the owning transaction commits: a caller that passes its own transaction to a service declares its owner with composables.OwnTx (or WithAfterCommit / WithSilentTx), otherwise the service returns composables.ErrNoCommitOwner. Event initiators are the acting request user only (job and system contexts have none), crm.client.updated.v1 names passport/pin edits and is not published for a no-op update, and chat, client and employee rows are locked before their change is measured."
+    },
+    {
+      "bump": "minor",
+      "summary": "The native event catalog, the outbox and its dispatcher (with pruning) become an always-on Go core composed by wiring.NewComponent, independent of EXTRUNTIME_ENABLED and of the @iota-uz/sdk Node distribution, so the outbox no longer grows without bound when the runtime is off (EXTRUNTIME_EVENTS_RETENTION, default 168h). Modules and applications register Go outbox consumers with wiring.ContributeConsumers (events.Consumer: receipt per event in the delivery transaction, per-consumer retries and dead-letter, run-as via events.ResolveSubject). With the runtime enabled the process runs one dispatcher and package subscriptions are its consumers (events.PackageConsumers). Adds composition.Contribute/Contributions and triggerowner.Assign. Direct callers of events.NewDispatcher: Config.Runner and Config.Subscriptions are replaced by Config.Consumers (events.PackageConsumers(subs, runner, subjects))."
+    },
+    {
+      "bump": "minor",
+      "summary": "Filter chips review fixes: flag (bool) chips open for editing — the chip names its value (Yes / No) and its editor switches it by click or keyboard; pagination.NewWithQuery keeps the list's query (search, chips, page size) in every page link, and the project stages list uses it so page 2 keeps its conditions. Lens: a date-range variable with Component lens.VariableComponentFilterChips renders as a chip of the shared solid-ui FilterBuilder (presets, custom range, required when the period cannot be empty) over the same URL parameters, so drill, export and links keep the period; the kit loads lazily. solid-ui FilterBuilder: date presets, required fields, editable flag chips, custom summary and labels. components/filters: Search and PageSize render the request's search, search field and page size, so a reload or a page link keeps them for the next filter change."
+    },
+    {
+      "bump": "minor",
+      "summary": "finance, warehouse, billing and projects publish 11 versioned native events (payments, expenses, debts, warehouse orders, billing transaction status, signed acceptance documents) in the transaction of the change; money travels as money.Wire; BillingTransaction.Read is a new permission; DebtService.Settle no longer fails after commit when the context has a user but no session; OrderService publishes the order aggregate events after commit."
+    },
+    {
+      "bump": "minor",
+      "summary": "Extension runtime schedules support a tenant scope, a missed-slot window recorded as skipped, and Go slot handlers served by the Go-only core scheduler (wiring.ContributeSchedules)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Human tasks are assigned to users, permissions, roles and groups and support a quorum with veto outcomes, delegation and escalation steps; adds Engine.DelegateTask and Engine.Tasks (inbox), workflow.TaskAudience with a core implementation, TaskObservers via wiring.ContributeTaskObservers, GET /tasks and POST /tasks/{id}/delegate, and a migration that backfills assignees and decisions of existing tasks."
+    },
+    {
+      "bump": "minor",
+      "summary": "Native events declare localized descriptions, a read permission, sensitive payload fields and a category under one snake_case key grammar; notifications.FromEvent builds notification definitions from them, and core.user.created.v1 notifications are delivered from the transactional outbox instead of the eventbus."
+    },
+    {
+      "bump": "minor",
+      "summary": "Run workflow contracts with a Go implementation (NativeContract) in the extruntime engine, which the Go-only core builds and serves without Node; host.New works without a pool, and Request gains InvocationID and Tx."
+    },
+    {
+      "bump": "patch",
+      "summary": "Automations locales name the automation and connection permission resources (Resources.automation, Resources.connection) in every language, so the default permission schema is translated."
+    }
+  ],
+  "source": "a797ceb15c48f858c5c66133bac209d9f5f31d7c",
+  "version": "0.49.0"
+}
