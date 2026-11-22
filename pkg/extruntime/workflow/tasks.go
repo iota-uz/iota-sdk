@@ -50,11 +50,13 @@ const (
 
 // Limits of a TaskSpec.
 const (
-	MaxTaskAssignees      = 20
-	MaxTaskRequired       = 100
-	MaxTaskOutcomes       = 20
-	MaxTaskEscalation     = 5
-	MaxTaskInbox          = 200
+	MaxTaskAssignees  = 20
+	MaxTaskRequired   = 100
+	MaxTaskOutcomes   = 20
+	MaxTaskEscalation = 5
+	MaxTaskInbox      = 200
+	// MaxTaskDuration bounds a task timeout and an escalation extension.
+	MaxTaskDuration       = 10 * 365 * 24 * time.Hour
 	maxDelegationComment  = 2000
 	defaultTaskInboxLimit = 50
 )
@@ -351,8 +353,8 @@ func (e *Engine) taskRowWith(spec TaskSpec, hasTimeout bool) (taskRow, error) {
 		return taskRow{}, err
 	}
 	row := taskRow{assignees: assignees, required: spec.Required, timeout: spec.Timeout, hasTimeout: hasTimeout, allowDelegation: spec.AllowDelegation}
-	if spec.Timeout < 0 {
-		return taskRow{}, invalidTask("a task timeout cannot be negative")
+	if spec.Timeout < 0 || spec.Timeout > MaxTaskDuration {
+		return taskRow{}, invalidTask("a task timeout is 0 to %s", MaxTaskDuration)
 	}
 	if row.required == 0 {
 		row.required = 1
@@ -384,8 +386,8 @@ func (e *Engine) taskRowWith(spec TaskSpec, hasTimeout bool) (taskRow, error) {
 		return taskRow{}, invalidTask("escalation steps need a task timeout")
 	}
 	for _, s := range spec.Escalation {
-		if s.Extend < 0 {
-			return taskRow{}, invalidTask("an escalation step cannot extend by a negative duration")
+		if s.Extend < 0 || s.Extend > MaxTaskDuration {
+			return taskRow{}, invalidTask("an escalation step extends by 0 to %s", MaxTaskDuration)
 		}
 		add, err := e.normalizeAssignees(s.Add, 0)
 		if err != nil {
@@ -1315,16 +1317,18 @@ func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]
 	if len(statuses) == 0 {
 		statuses = []string{"open"}
 	}
-	current, err := e.currentSubject(ctx, actor)
-	if err != nil {
-		return nil, err
-	}
 	tx, err := e.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, serrors.FromDB(opManage, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	out, err := e.inbox(txContext(ctx, tx), tx, current, statuses, f)
+	// The actor's rights come from the same snapshot as the tasks.
+	tctx := txContext(ctx, tx)
+	current, err := e.currentSubject(tctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	out, err := e.inbox(tctx, tx, current, statuses, f)
 	if err != nil {
 		return nil, err
 	}

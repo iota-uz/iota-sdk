@@ -535,6 +535,8 @@ func TestTasks_SpecValidation(t *testing.T) {
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Outcomes: []string{"a"}, Veto: []string{"b"}},
 		{Assignees: []workflow.TaskAssignee{reviewers}}, // no TaskAudience
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Escalation: []workflow.EscalationStep{{}}},
+		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Timeout: time.Hour, Escalation: []workflow.EscalationStep{{Extend: time.Duration(1<<63 - 1)}}},
+		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Timeout: workflow.MaxTaskDuration + 1},
 		{Assignees: []workflow.TaskAssignee{{Kind: workflow.TaskAssignRole, Ref: "admins"}}},
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Outcomes: []string{"a", "b"}, Decision: &manifest.Type{Kind: manifest.KindObject}},
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Outcomes: []string{"approve", "reject"}, Veto: []string{"reject"},

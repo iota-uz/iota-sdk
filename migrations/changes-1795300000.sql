@@ -104,9 +104,10 @@ WHERE
 -- +migrate Down
 -- A task still pending (open, or closed while its workflow occurrence still
 -- waits for the result) that the previous schema cannot represent — no single
--- user or permission assignee, a quorum, added or delegated assignees, or a
--- vote that has not closed it — would lose its assignees or votes: the
--- downgrade is refused while one exists. Finished tasks of that shape are
+-- user or permission assignee, a quorum, added or delegated assignees, a
+-- vote that has not closed it, or escalation steps not yet applied — would
+-- lose its assignees, votes or planned steps: the downgrade is refused while
+-- one exists, before anything is dropped. Finished tasks of that shape are
 -- history and are removed below.
 -- +migrate StatementBegin
 DO $$
@@ -119,7 +120,8 @@ BEGIN
           AND (t.assignee_kind NOT IN ('user', 'permission')
                OR t.required > 1
                OR (SELECT count(*) FROM extruntime.human_task_assignees a WHERE a.task_id = t.id) > 1
-               OR (t.status = 'open' AND EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id))))
+               OR (t.status = 'open' AND EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id))
+               OR (t.status = 'open' AND t.escalation_level < COALESCE(jsonb_array_length(t.escalation), 0))))
     THEN
         RAISE EXCEPTION 'extruntime.human_tasks: pending tasks use assignees, quorums, delegations or votes the previous schema cannot hold; decide or cancel them before downgrading';
     END IF;
