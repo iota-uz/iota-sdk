@@ -50,9 +50,16 @@ test.describe('user direct permission editing', () => {
 				throw new Error('save-form was not rendered');
 			}
 
-			const inputs = Array.from(
+			const all = Array.from(
 				document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name="PermissionIDs"]'),
-			).filter((input) => !input.checked);
+			);
+			// A permission can sit in several sets (automations' Read is in each
+			// of its sets), so the page renders one toggle per set. Pick toggles
+			// whose permission appears once: the check after saving then names
+			// exactly one input.
+			const occurrences = new Map<string, number>();
+			for (const input of all) occurrences.set(input.value, (occurrences.get(input.value) ?? 0) + 1);
+			const inputs = all.filter((input) => !input.checked && occurrences.get(input.value) === 1);
 
 			if (inputs.length < 2) {
 				throw new Error('expected at least two unchecked permission toggles');
