@@ -2,18 +2,22 @@
 // `__mod.default(ctx, env)`, waits for it and reports the result to the host exactly once.
 //
 // It captures kafig's `host` bridge and removes it from the global object before the code runs, so the
-// code reaches the host only through `env`. That lets the driver bound what the code can queue for the host
-// (fetch count, request bytes in flight, log lines and their length) before anything crosses into Go
-// memory. The host still validates every call (see host.go): the driver is not the boundary of trust, only
-// the bound on what a flood of calls can make the host hold.
+// code reaches the host only through `env`. kafig's bridge serializes call parameters with the global JSON
+// and queues async calls in Go before any check, so the driver also freezes JSON, and an async call carries
+// nothing the code sizes: a fetch request is first staged with a synchronous call, where Go admits its exact
+// bytes against the run's budget, and the async fetch carries only the staging ticket. The host validates
+// every call (see host.go); the driver only keeps the code's calls to small, counted ones.
 (() => {
   "use strict";
   const G = globalThis;
   const H = G.host;
   delete G.host;
-  const { freeze, keys, defineProperty } = Object;
-  const parse = JSON.parse;
-  const stringify = JSON.stringify;
+  const { freeze, keys, defineProperty, create } = Object;
+  const JSONObj = G.JSON;
+  freeze(JSONObj);
+  defineProperty(G, "JSON", { value: JSONObj, writable: false, configurable: false, enumerable: false });
+  const parse = JSONObj.parse;
+  const stringify = JSONObj.stringify;
   const isArray = Array.isArray;
   const Str = String;
   const ErrorCtor = Error;
@@ -21,9 +25,18 @@
   const rpc = H.rpc;
   const rpcSync = H.rpcSync;
 
-  // An upper bound of the UTF-8 bytes of a string: an ASCII unit is one byte, any other unit at most three.
-  const nonASCII = /[\x00-\x7f]+/g;
-  const utf8Bytes = (str) => str.length + 2 * str.replace(nonASCII, "").length;
+
+  // What the bridge serializes is a primitive or a null-prototype object of primitives: no toJSON or other
+  // prototype property the code changed takes part in it.
+  const bare = (o) => {
+    const out = create(null);
+    const names = keys(o);
+    for (let i = 0; i < names.length; i++) {
+      const v = o[names[i]];
+      out[names[i]] = v !== null && typeof v === "object" ? bare(v) : v;
+    }
+    return out;
+  };
 
   const deepFreeze = (v) => {
     if (v !== null && typeof v === "object") {
@@ -105,7 +118,6 @@
 
   const makeEnv = (secrets, limits) => {
     let fetches = 0;
-    let queuedBytes = 0;
     let logLines = 0;
 
     const fetch = async (url, init) => {
@@ -113,45 +125,28 @@
       if (++fetches > limits.maxFetches) {
         throw fail(new TypeErrorCtor("fetch failed: at most " + limits.maxFetches + " fetches per run"), site);
       }
-      const req = { url: Str(url) };
+      // The request is built from null-prototype objects and primitive strings and serialized once here,
+      // so nothing the code changed in the prototypes or built-ins takes part in what reaches the host.
+      const req = create(null);
+      req.url = Str(url);
       if (init !== undefined && init !== null) {
         if (init.method !== undefined) req.method = Str(init.method);
         if (init.headers !== undefined && init.headers !== null) {
+          const h = create(null);
           const names = keys(init.headers);
-          if (names.length > limits.maxHeaders) {
-            throw fail(new TypeErrorCtor("fetch failed: at most " + limits.maxHeaders + " headers"), site);
-          }
-          const h = {};
-          for (const k of names) h[Str(k)] = Str(init.headers[k]);
+          for (let i = 0; i < names.length; i++) h[Str(names[i])] = Str(init.headers[names[i]]);
           req.headers = h;
         }
         if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
         if (init.redirect !== undefined) req.redirect = Str(init.redirect);
       }
-      // What kafig copies into Go before any check there: the serialized request. Its size is bounded per
-      // request and across the requests waiting for the host.
-      const body = req.body;
-      delete req.body;
-      const head = utf8Bytes(stringify(req));
-      const bodyBytes = body === undefined ? 0 : utf8Bytes(stringify(body));
-      if (head > limits.maxRequestHeadBytes) {
-        throw fail(new TypeErrorCtor("fetch failed: URL and headers are too long"), site);
-      }
-      if (body !== undefined && utf8Bytes(body) > limits.maxRequestBodyBytes) {
-        throw fail(new TypeErrorCtor("fetch failed: request body is too long"), site);
-      }
-      if (body !== undefined) req.body = body;
-      const size = head + bodyBytes;
-      if (queuedBytes + size > limits.maxQueuedRequestBytes) {
-        throw fail(new TypeErrorCtor("fetch failed: too much request data in flight"), site);
-      }
-      queuedBytes += size;
-      let r;
+      let ticket;
       try {
-        r = await rpc("fetch", req);
-      } finally {
-        queuedBytes -= size;
+        ticket = rpcSync("fetchStage", stringify(req));
+      } catch (e) {
+        throw fail(new TypeErrorCtor("fetch failed: " + Str(e && e.message)), site);
       }
+      const r = await rpc("fetch", ticket);
       if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
       if (r.error) throw fail(new TypeErrorCtor("fetch failed: " + Str(r.error)), site);
       return response(r);
@@ -163,19 +158,20 @@
       log: (...args) => {
         if (logLines > limits.maxLogLines) return;
         logLines++;
-        let line = args.map(format).join(" ");
-        if (line.length > limits.maxLogChars) line = line.slice(0, limits.maxLogChars);
-        rpcSync("log", [line]);
+        let line = "";
+        for (let i = 0; i < args.length; i++) line += (i > 0 ? " " : "") + format(args[i]);
+        if (line.length > limits.maxLogChars) line = Str(line.slice(0, limits.maxLogChars));
+        rpcSync("log", Str(line));
       },
       crypto: freeze({
         randomUUID: () => rpcSync("uuid", null),
-        digest: async (alg, data) => rpcSync("digest", { alg: Str(alg), data: Str(data) }),
+        digest: async (alg, data) => rpcSync("digest", bare({ alg: Str(alg), data: Str(data) })),
       }),
     });
   };
 
   const report = (r) => {
-    rpcSync("__result", r);
+    rpcSync("__result", bare(r));
   };
 
   const run = async (mod, ctxJSON, secretsJSON, limitsJSON) => {
@@ -193,7 +189,7 @@
     }
     try {
       if (res === null || typeof res !== "object" || isArray(res)) {
-        report({ invalid: "run must return { outcome, output? }, got " + format(res).slice(0, 200) });
+        report({ invalid: "run must return { outcome, output? }, got " + Str(format(res)).slice(0, 200) });
         return;
       }
       const outcome = res.outcome;

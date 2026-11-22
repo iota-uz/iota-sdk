@@ -241,29 +241,58 @@ func TestRouterValidatesEveryCall(t *testing.T) {
 		t.Fatalf("result %v, done %d", st.reported(), done)
 	}
 	for name, call := range map[string]func() (json.RawMessage, error){
-		"log not a list":  func() (json.RawMessage, error) { return st.log(ctx, json.RawMessage(`"x"`)) },
-		"digest md5":      func() (json.RawMessage, error) { return st.digest(ctx, json.RawMessage(`{"alg":"MD5","data":"x"}`)) },
-		"body unknown id": func() (json.RawMessage, error) { return st.body(ctx, json.RawMessage(`7`)) },
-		"result garbage":  func() (json.RawMessage, error) { return st.report(ctx, json.RawMessage(`[`)) },
+		"log not a string": func() (json.RawMessage, error) { return st.log(ctx, json.RawMessage(`["x"]`)) },
+		"digest md5":       func() (json.RawMessage, error) { return st.digest(ctx, json.RawMessage(`{"alg":"MD5","data":"x"}`)) },
+		"body unknown id":  func() (json.RawMessage, error) { return st.body(ctx, json.RawMessage(`7`)) },
+		"result garbage":   func() (json.RawMessage, error) { return st.report(ctx, json.RawMessage(`[`)) },
 	} {
 		if _, err := call(); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
 	for params, want := range map[string]string{
-		`{"url":"https://example.com","method":"TRACE"}`:                   "unsupported method",
-		`{"url":"https://example.com","redirect":"sometimes"}`:             "redirect must be",
-		`{"url":"https://example.com","headers":{"Host":"x"}}`:             "cannot be set",
-		`{"url":"https://example.com","headers":{"Bad Name":"x"}}`:         "invalid header",
-		`{"url":"https://example.com","headers":{"X":"a\r\nInjected: 1"}}`: "invalid header",
-		`{"url":"https://example.com","body":"x"}`:                         "cannot have a body",
+		`{"url":"https://example.com","method":"TRACE"}`:                                                                              "unsupported method",
+		`{"url":"https://example.com","redirect":"sometimes"}`:                                                                        "redirect must be",
+		`{"url":"https://example.com","headers":{"Host":"x"}}`:                                                                        "cannot be set",
+		`{"url":"https://example.com","headers":{"Bad Name":"x"}}`:                                                                    "invalid header",
+		`{"url":"https://example.com","headers":{"X":"a\r\nInjected: 1"}}`:                                                            "invalid header",
+		`{"url":"https://example.com","body":"x"}`:                                                                                    "cannot have a body",
+		`{"url":"https://example.com","headers":{"A":"` + strings.Repeat("x", 40000) + `","B":"` + strings.Repeat("y", 40000) + `"}}`: "headers are too long",
 		`{"url":""}`: "invalid URL",
 		`[1]`:        "invalid fetch arguments",
 	} {
-		reply, err := st.fetch(ctx, json.RawMessage(params))
+		ticket, err := st.stage(ctx, quoteJSON(params))
+		if err != nil {
+			t.Fatalf("%s: stage: %v", params, err)
+		}
+		reply, err := st.fetch(ctx, ticket)
 		if err != nil || !strings.Contains(string(reply), want) {
 			t.Errorf("%s: got %s %v, want %q", params, reply, err, want)
 		}
+	}
+	if reply, _ := st.fetch(ctx, json.RawMessage(`99`)); !strings.Contains(string(reply), "unknown fetch ticket") {
+		t.Errorf("unknown ticket: %s", reply)
+	}
+	// Staging admits exact bytes against the run's budget, and a fetch gives its bytes back when it ends.
+	big := quoteJSON(`{"url":"https://example.com","method":"POST","body":"` + strings.Repeat("z", 6<<20) + `"}`)
+	t1, err := st.stage(ctx, big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.stage(ctx, big); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.stage(ctx, big); err == nil || !strings.Contains(err.Error(), "wait for the network") {
+		t.Fatalf("third 6 MiB request admitted: %v", err)
+	}
+	if _, err := st.fetch(ctx, t1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.stage(ctx, big); err != nil {
+		t.Fatalf("bytes not given back: %v", err)
+	}
+	if _, err := st.stage(ctx, json.RawMessage(strings.Repeat("x", maxStagedFetchBytes+1))); err == nil {
+		t.Fatal("an oversized request was staged")
 	}
 }
 

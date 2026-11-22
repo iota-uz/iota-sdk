@@ -192,7 +192,8 @@ func TestCloseDuringARunIsAHostError(t *testing.T) {
 	}
 }
 
-// Header-heavy requests are bounded by their serialized size before they cross into Go.
+// Header-heavy requests are bounded by their exact staged bytes, whatever the code did to the built-ins
+// before: the driver serializes with intrinsics captured before the code ran.
 func TestHostMemoryHeaderHeavyFetches(t *testing.T) {
 	if testing.Short() || raceEnabled {
 		t.Skip("serializes ~50 MiB of headers in the sandbox; measured without -short and -race")
@@ -201,6 +202,14 @@ func TestHostMemoryHeaderHeavyFetches(t *testing.T) {
 	var res *RunResult
 	grew := heapPeak(func() {
 		res = runCode(t, `export default async (_: any, env: any) => {
+  // Everything the code can change that a size estimate or a serializer could consult.
+  (String.prototype as any).replace = () => "";
+  (RegExp.prototype as any)[Symbol.replace] = () => "";
+  (Object.prototype as any).toJSON = function () { return "x".repeat(1 << 20) };
+  (String.prototype as any).toJSON = function () { return "x".repeat(1 << 20) };
+  let jsonFrozen = false;
+  try { (JSON as any).stringify = () => "x".repeat(1 << 24) } catch (e) { jsonFrozen = true }
+  if (!jsonFrozen) throw new Error("JSON.stringify could be replaced");
   const headers: Record<string, string> = {};
   for (let i = 0; i < 100; i++) headers["X-H" + i] = "é".repeat(200); // 400 UTF-8 bytes, 200 UTF-16 units
   let refused = 0;

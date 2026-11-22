@@ -24,14 +24,13 @@ const (
 	maxFetchHeaders  = 100
 	// maxFetchHeaderBytes bounds the names and values of a request's headers together.
 	maxFetchHeaderBytes = 64 << 10
-	// maxFetchHeadBytes bounds a serialized request without its body: URL, method, headers, redirect.
-	maxFetchHeadBytes = maxFetchURLBytes + maxFetchHeaderBytes + 4<<10
-	maxFetchBodyBytes = 10 << 20
-	// maxFetchParamsBytes bounds the serialized parameters of one fetch call (escaping included).
-	maxFetchParamsBytes = maxFetchHeadBytes + maxQueuedFetchBytes
-	// maxQueuedFetchBytes bounds the serialized requests of one run that wait for the host together; the
-	// driver enforces it before a request crosses into Go, where kafig queues it unchecked.
-	maxQueuedFetchBytes = 16 << 20
+	maxFetchBodyBytes   = 10 << 20
+	// maxStagedFetchBytes bounds, in the exact bytes Go received, the staged requests of one run that wait
+	// for their fetch together (and so one request). A request is staged by a synchronous call, admitted
+	// here before it is kept; the async fetch call that kafig queues carries only the ticket.
+	maxStagedFetchBytes = 16 << 20
+	// maxFetchParamsBytes bounds the serialized request inside a staged payload.
+	maxFetchParamsBytes = maxStagedFetchBytes
 	maxDigestBytes      = 10 << 20
 	// maxHeldBodyBytes bounds the response bodies one run's fetches keep in Go until the code reads them.
 	maxHeldBodyBytes = 64 << 20
@@ -80,6 +79,9 @@ type runState struct {
 	logsDropped bool
 	result      *reported
 	bodies      map[int64][]byte // response bodies not read yet, by id
+	staged      map[int64][]byte // fetch requests staged and not fetched yet, by ticket
+	stagedBytes int64
+	nextTicket  int64
 	heldBytes   int64
 	nextBody    int64
 }
@@ -94,6 +96,7 @@ func newRunState(in RunInput, limits Limits, masker Masker, done func()) *runSta
 		done:     done,
 		fetchSem: make(chan struct{}, limits.MaxConcurrentFetches),
 		bodies:   map[int64][]byte{},
+		staged:   map[int64][]byte{},
 	}
 }
 
@@ -105,6 +108,7 @@ func (s *runState) router() *kafig.RPCRouter {
 		WithSync("digest", s.digest).
 		WithSync("body", s.body).
 		WithSync("__result", s.report).
+		WithSync("fetchStage", s.stage).
 		WithAsync("fetch", s.fetch)
 }
 
@@ -131,11 +135,11 @@ func (s *runState) report(_ context.Context, params json.RawMessage) (json.RawMe
 }
 
 func (s *runState) log(_ context.Context, params json.RawMessage) (json.RawMessage, error) {
-	var args []string
-	if err := json.Unmarshal(params, &args); err != nil {
-		return nil, errors.New("log takes a list of strings")
+	var line string
+	if err := json.Unmarshal(params, &line); err != nil {
+		return nil, errors.New("log takes a string")
 	}
-	line := s.masker.Mask(strings.Join(args, " "))
+	line = s.masker.Mask(line)
 	if cut, ok := truncateRunes(line, s.limits.MaxLogLineChars); ok {
 		line = cut + "…"
 	}
@@ -241,8 +245,55 @@ type fetchReply struct {
 
 func replyError(msg string) (json.RawMessage, error) { return json.Marshal(fetchReply{Error: msg}) }
 
+// stage admits one fetch request by the exact bytes Go received and returns its ticket. The bytes stay
+// counted until the fetch that takes the ticket ends.
+func (s *runState) stage(_ context.Context, params json.RawMessage) (json.RawMessage, error) {
+	n := int64(len(params))
+	if n > maxStagedFetchBytes {
+		return nil, errors.New("request is too large")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stagedBytes+n > maxStagedFetchBytes {
+		return nil, fmt.Errorf("more than %d MiB of requests wait for the network", maxStagedFetchBytes>>20)
+	}
+	s.nextTicket++
+	s.staged[s.nextTicket] = params
+	s.stagedBytes += n
+	return json.Marshal(s.nextTicket)
+}
+
+// takeStaged returns a staged request and a func that stops counting its bytes.
+func (s *runState) takeStaged(params json.RawMessage) ([]byte, func(), bool) {
+	var ticket int64
+	if err := json.Unmarshal(params, &ticket); err != nil {
+		return nil, nil, false
+	}
+	s.mu.Lock()
+	data, ok := s.staged[ticket]
+	delete(s.staged, ticket)
+	s.mu.Unlock()
+	if !ok {
+		return nil, nil, false
+	}
+	return data, func() {
+		s.mu.Lock()
+		s.stagedBytes -= int64(len(data))
+		s.mu.Unlock()
+	}, true
+}
+
 func (s *runState) fetch(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
-	req, msg := parseFetch(params)
+	staged, done, ok := s.takeStaged(params)
+	if !ok {
+		return replyError("unknown fetch ticket")
+	}
+	defer done()
+	var wire string // the staged payload is the request serialized once by the driver
+	if err := json.Unmarshal(staged, &wire); err != nil {
+		return replyError("invalid fetch arguments")
+	}
+	req, msg := parseFetch(json.RawMessage(wire))
 	if msg != "" {
 		return replyError(msg)
 	}

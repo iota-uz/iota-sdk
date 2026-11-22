@@ -441,10 +441,8 @@ func driverLimits(l Limits, secrets map[string]string) []byte {
 	for _, v := range secrets {
 		longest = max(longest, len(v))
 	}
-	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d,`+
-		`"maxHeaders":%d,"maxRequestHeadBytes":%d,"maxRequestBodyBytes":%d,"maxQueuedRequestBytes":%d}`,
-		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes,
-		maxFetchHeaders, maxFetchHeadBytes, maxFetchBodyBytes, maxQueuedFetchBytes)
+	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d}`,
+		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes)
 }
 
 func normalizeCtx(raw json.RawMessage) ([]byte, error) {

@@ -304,10 +304,12 @@ The sandbox is `pkg/automation/code` (#1329):
   (`budget / (4 × cap)`) and per tenant.
 - The Go router of host calls is the trust boundary: `fetch`, `log`, `uuid`, `digest`,
   reading a response body and the one-time result are the only calls, and each parameter
-  is checked in Go. The driver removes kafig's `host` global before the code runs, so
-  the code reaches the host only through `env`, which bounds what it can queue in Go
-  (fetches, request bytes in flight, log lines); response bodies wait in Go until read,
-  at most 64 MiB per run.
+  is checked in Go. The driver removes kafig's `host` global and freezes `JSON` before
+  the code runs, so the code reaches the host only through `env`. A fetch request is
+  serialized once from null-prototype objects and staged by a synchronous call, where Go
+  admits its exact bytes (16 MiB of staged requests per run); the async call kafig
+  queues carries only the ticket, and the driver caps the number of fetches. Response
+  bodies wait in Go until read, at most 64 MiB per run.
 - `NewGuardedFetcher` is the network policy: https on port 443, no local or metadata
   names, a name with any private DNS answer is refused as a whole, the dialed address is
   checked again, at most 20 redirects each checked the same way, only safelisted headers
