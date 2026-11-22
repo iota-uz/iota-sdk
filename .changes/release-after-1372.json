@@ -1,0 +1,1 @@
+{"bump": "patch", "summary": "Automations locales name the automation and connection permission resources (Resources.automation, Resources.connection) in every language, so the default permission schema is translated."}

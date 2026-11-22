@@ -12,6 +12,10 @@
     "Automations.Operate": "Автоматлаштириш ишга туширишларини бошқариш",
     "Connections.Manage": "Интегратсияларни бошқариш"
   },
+  "Resources": {
+    "automation": "Автоматлаштириш",
+    "connection": "Уланишлар"
+  },
   "PermissionSets": {
     "Automations": {
       "View": {

@@ -12,6 +12,10 @@
     "Automations.Operate": "Управление запусками автоматизаций",
     "Connections.Manage": "Управление интеграциями"
   },
+  "Resources": {
+    "automation": "Автоматизации",
+    "connection": "Подключения"
+  },
   "PermissionSets": {
     "Automations": {
       "View": {

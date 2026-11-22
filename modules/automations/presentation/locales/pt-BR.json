@@ -12,6 +12,10 @@
     "Automations.Operate": "Operar execuções de automações",
     "Connections.Manage": "Gerenciar integrações"
   },
+  "Resources": {
+    "automation": "Automações",
+    "connection": "Conexões"
+  },
   "PermissionSets": {
     "Automations": {
       "View": {

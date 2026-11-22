@@ -12,6 +12,10 @@
     "Automations.Operate": "Operate automation runs",
     "Connections.Manage": "Manage integrations"
   },
+  "Resources": {
+    "automation": "Automations",
+    "connection": "Connections"
+  },
   "PermissionSets": {
     "Automations": {
       "View": {
