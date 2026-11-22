@@ -136,7 +136,7 @@ func (r *Runtime) Natives() map[string]workflow.NativeContract {
 	return map[string]workflow.NativeContract{
 		WorkflowID: {
 			Runner:         &runner{r: r},
-			Signals:        map[string]manifest.Type{InboxSignal: {Kind: manifest.KindJSON}},
+			Signals:        map[string]manifest.Type{InboxSignal: {Kind: manifest.KindJSON}, SubjectSignal: {Kind: manifest.KindJSON}},
 			Input:          &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{{Name: "run_id", Type: manifest.Type{Kind: manifest.KindString}}}},
 			Concurrency:    r.cfg.Limits.Concurrency,
 			Completion:     workflow.CancelPending,
@@ -169,6 +169,9 @@ func (r *Runtime) Maintain(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 	if err := r.cancelOrphans(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.wakeFreeAwaiting(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	if _, err := r.Prune(ctx); err != nil {

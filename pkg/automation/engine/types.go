@@ -22,6 +22,9 @@ const WorkflowID = "automation.run"
 // ConsumerID is the receipt key of the engine's one outbox consumer.
 const ConsumerID = "automations"
 
+// SubjectSignal wakes a resumed, superseded run that waits for its conversation subject.
+const SubjectSignal = "subject"
+
 // InboxSignal is the signal of automation.run every input of a run arrives on: a matched event, the
 // result of a call or a task.
 const InboxSignal = "inbox"

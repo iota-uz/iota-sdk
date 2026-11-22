@@ -77,6 +77,66 @@ type execution struct {
 	log    *slog.Logger
 	// subject is the run-as with the rights it holds now, loaded at the start of every transaction.
 	subject spi.Subject
+	// holdsSubject: this claim checked that the run may step on its conversation (acquireSubject).
+	holdsSubject bool
+}
+
+// acquireSubject makes a resumed run that a Restart superseded take its conversation back before it
+// steps: while another run of the conversation is live (its replacement, a run queued after it, or an
+// older waiting predecessor) it waits for SubjectSignal and takes no step. wait reports that the caller
+// must wait; other runs hold their conversation from their start (the queue) and never wait here.
+func (x *execution) acquireSubject(ctx context.Context) (bool, error) {
+	if x.holdsSubject || normSubject(x.run.Subject).Entity != graph.SubjectConversation {
+		x.holdsSubject = true
+		return false, nil
+	}
+	var superseded bool
+	if err := x.r.cfg.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.runs WHERE tenant_id = $1 AND restarted_from = $2)`,
+		x.tenant, x.run.ID).Scan(&superseded); err != nil {
+		return false, serrors.FromDB(opRun, err)
+	}
+	if !superseded {
+		x.holdsSubject = true
+		return false, nil
+	}
+	// The wait of an earlier attempt is cancelled first: left waiting with an unconsumed signal it would
+	// keep waking the instance after the run took the subject.
+	var pending *int64
+	if err := x.r.cfg.DB.QueryRow(ctx, `SELECT subject_wait_n FROM automation.runs WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID).Scan(&pending); err != nil {
+		return false, serrors.FromDB(opRun, err)
+	}
+	if pending != nil {
+		if err := x.nr.Cancel(ctx, "subject", int(*pending)); err != nil {
+			return false, err
+		}
+	}
+	wait := false
+	next := x.run.TxSeq + 1 // the occurrence the caller waits on: tx_seq after this transaction
+	// Under the subject's lock (x.tx takes it first), so two waiters never both take the subject.
+	err := x.tx(ctx, "subject", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
+		var held bool
+		err := tx.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1`+runFrom+`
+				WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4
+				  AND i.status IN ('running', 'waiting', 'blocked') AND NOT `+supersededSQL+`
+				  AND (NOT r.awaiting_subject OR (r.created_at, r.id) < ($5, $4)))`,
+			x.tenant, x.run.Subject.Entity, x.run.Subject.Key, x.run.ID, x.run.CreatedAt).Scan(&held)
+		if err != nil {
+			return serrors.FromDB(opRun, err)
+		}
+		wait = held
+		var n any
+		if held {
+			n = next
+		}
+		_, err = tx.Exec(ctx, `UPDATE automation.runs SET awaiting_subject = $3, subject_wait_n = $4 WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, held, n)
+		return serrors.FromDB(opRun, err)
+	})
+	if err != nil {
+		return false, err
+	}
+	x.holdsSubject = !wait
+	return wait, nil
 }
 
 // refreshSubject reloads the run-as rights for the next step. A user that is blocked now aborts the
@@ -143,6 +203,18 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 			}
 			// The version cannot run against the tenant's catalog (an event it uses left it): the run fails.
 			return nil, x.failRun(ctx, StepError{Code: CodeConnectionUnavailable, Message: err.Error()})
+		}
+		wait, err := x.acquireSubject(ctx)
+		if err != nil {
+			return nil, infra(err)
+		}
+		if wait {
+			// A new occurrence per attempt (tx_seq moved on), so a wake that finds the subject still
+			// held waits again instead of spinning.
+			if _, err := x.nr.WaitFor(ctx, "subject", int(x.run.TxSeq), SubjectSignal, 0); err != nil {
+				return nil, infra(err)
+			}
+			continue
 		}
 		progressed, err := x.stepOne(ctx)
 		if err != nil {

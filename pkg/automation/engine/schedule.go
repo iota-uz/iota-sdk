@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/robfig/cron/v3"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -35,7 +36,7 @@ func (r *Runtime) Schedules() events.ScheduleSource {
 
 func (r *Runtime) activeSchedules(ctx context.Context) ([]events.ScheduleDef, error) {
 	rows, err := r.cfg.DB.Query(ctx, `
-		SELECT t.tenant_id, t.automation_id, t.trigger_id, t.schedule, t.created_at
+		SELECT t.tenant_id, t.automation_id, t.trigger_id, t.schedule, t.created_at, t.version
 		FROM automation.triggers t
 		JOIN automation.automations a ON a.tenant_id = t.tenant_id AND a.id = t.automation_id AND a.enabled_version = t.version AND a.deleted_at IS NULL
 		WHERE t.kind = 'schedule'
@@ -50,7 +51,8 @@ func (r *Runtime) activeSchedules(ctx context.Context) ([]events.ScheduleDef, er
 		var trigger string
 		var raw []byte
 		var since time.Time
-		if err := rows.Scan(&tenant, &id, &trigger, &raw, &since); err != nil {
+		var version int
+		if err := rows.Scan(&tenant, &id, &trigger, &raw, &since, &version); err != nil {
 			return nil, serrors.FromDB(opSchedule, err)
 		}
 		var p scheduleParams
@@ -58,12 +60,37 @@ func (r *Runtime) activeSchedules(ctx context.Context) ([]events.ScheduleDef, er
 			continue
 		}
 		t := tenant
+		gen := scheduleGen{version: version, since: since}
 		out = append(out, events.ScheduleDef{
 			ID: scheduleID(id, trigger), Cron: p.Cron, Timezone: p.Timezone, ActiveFrom: since, TenantID: &t,
-			Handler: events.SlotHandlerFunc(r.runSlot),
+			Handler: events.SlotHandlerFunc(func(ctx context.Context, tx pgx.Tx, slot events.Slot) error { return r.runSlot(ctx, tx, slot, gen) }),
 		})
 	}
 	return out, serrors.FromDB(opSchedule, rows.Err())
+}
+
+// scheduleGen is the enable a listed schedule definition comes from: its version and when its trigger
+// was written.
+type scheduleGen struct {
+	version int
+	since   time.Time
+}
+
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
+// isTick reports whether at is a planned time of the cron in the time zone.
+func isTick(p scheduleParams, at time.Time) bool {
+	spec, err := cronParser.Parse(p.Cron)
+	if err != nil {
+		return false
+	}
+	loc := time.UTC
+	if p.Timezone != "" {
+		if loc, err = time.LoadLocation(p.Timezone); err != nil {
+			return false
+		}
+	}
+	return spec.Next(at.In(loc).Add(-time.Second)).Equal(at)
 }
 
 func scheduleID(automation uuid.UUID, trigger string) string {
@@ -71,7 +98,7 @@ func scheduleID(automation uuid.UUID, trigger string) string {
 }
 
 // runSlot starts the run of a schedule slot with start key schedule:<def>:<tick>.
-func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot) error {
+func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot, gen scheduleGen) error {
 	rest, ok := strings.CutPrefix(slot.ScheduleID, "automation:")
 	if !ok {
 		return fmt.Errorf("automation engine: schedule %s is not a graph's", slot.ScheduleID)
@@ -81,14 +108,43 @@ func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot) erro
 	if !ok || err != nil {
 		return fmt.Errorf("automation engine: schedule %s is not a graph's", slot.ScheduleID)
 	}
-	a, err := loadAutomation(ctx, tx, slot.TenantID, id, false)
-	if errors.Is(err, ErrNotFound) || (err == nil && a.EnabledVersion == nil) {
+	// Under the graph's row lock (the lock Enable and Disable hold): the trigger of the current enable.
+	var enabled *int
+	err = tx.QueryRow(ctx, `SELECT enabled_version FROM automation.automations WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL FOR SHARE`,
+		slot.TenantID, id).Scan(&enabled)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && enabled == nil) {
 		return nil // disabled or deleted since the scheduler listed it
 	}
 	if err != nil {
-		return &host.InfraError{Err: err}
+		return &host.InfraError{Err: serrors.FromDB(opSchedule, err)}
 	}
-	v, err := loadVersion(ctx, tx, slot.TenantID, id, *a.EnabledVersion)
+	var raw []byte
+	var since time.Time
+	var tversion int
+	err = tx.QueryRow(ctx, `SELECT schedule, created_at, version FROM automation.triggers WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND kind = 'schedule'`,
+		slot.TenantID, id, trigger).Scan(&raw, &since, &tversion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // the enabled version has no such schedule any more
+	}
+	if err != nil {
+		return &host.InfraError{Err: serrors.FromDB(opSchedule, err)}
+	}
+	if tversion != *enabled {
+		return nil
+	}
+	if tversion != gen.version || !since.Equal(gen.since) {
+		// The definition this handler was listed with is not the current one: the slot is retried with
+		// the handler of the current listing, which judges it by the current trigger.
+		return fmt.Errorf("automation engine: schedule %s was enabled again; the slot is retried with the current definition", slot.ScheduleID)
+	}
+	var p scheduleParams
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return fmt.Errorf("automation engine: schedule %s: %w", slot.ScheduleID, err)
+	}
+	if slot.At.Before(since) || !isTick(p, slot.At) {
+		return nil // not a slot of this enable: before it, or not on its cron
+	}
+	v, err := loadVersion(ctx, tx, slot.TenantID, id, tversion)
 	if err != nil {
 		return &host.InfraError{Err: err}
 	}

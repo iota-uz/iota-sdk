@@ -59,8 +59,15 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 		return serrors.FromDB(opObserve, err)
 	}
 	output := json.RawMessage(`null`)
+	withheld := false
 	if status == RunDone && len(run.Output) > 0 {
-		output = run.Output
+		// Whatever the end node returns may derive from the sensitive fields the run read; the generic
+		// event carries no provenance, so the output does not leave the run then.
+		if len(run.Sensitive) > 0 {
+			withheld = true
+		} else {
+			output = run.Output
+		}
 	}
 	if status == RunFailed && len(run.Error) == 0 && len(inst.Error) > 0 {
 		var we struct {
@@ -79,7 +86,7 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 	if _, err := tx.Exec(ctx, `UPDATE automation.runs SET updated_at = now() WHERE tenant_id = $1 AND id = $2`, inst.TenantID, run.ID); err != nil {
 		return serrors.FromDB(opObserve, err)
 	}
-	payload := RunFinishedPayload{RunID: run.ID.String(), AutomationID: run.AutomationID.String(), Version: run.Version, Status: string(status), Output: output}
+	payload := RunFinishedPayload{RunID: run.ID.String(), AutomationID: run.AutomationID.String(), Version: run.Version, Status: string(status), Output: output, OutputWithheld: withheld}
 	if _, err := events.Publish(ctx, tx, spi.Scope{Subject: spi.Subject{TenantID: inst.TenantID}}, RunFinished,
 		&spi.ObjectRef{Entity: SubjectRun, Key: run.ID.String()}, payload); err != nil {
 		return serrors.Wrap(opObserve, err)
@@ -103,6 +110,10 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 			if err := o.r.dequeue(ctx, tx, inst.TenantID, s, run.ID); err != nil {
 				return err
 			}
+		}
+		// Resumed predecessors waiting for the conversation try to take it now (the oldest wins).
+		if err := o.r.wakeAwaiting(ctx, tx, inst.TenantID, s, run.ID); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -166,9 +166,28 @@ func (p *projector) sensitiveIn(ctx context.Context, event string, payload map[s
 	return out, nil
 }
 
-// readable reports whether the viewer may read every sensitive field of refs.
+// known reports whether the tenant's system catalog has the event.
+func (p *projector) known(ctx context.Context, event string) (bool, error) {
+	if p.system == nil {
+		v, err := p.r.cfg.Catalog.ForTenant(ctx, p.tenant)
+		if err != nil {
+			return false, err
+		}
+		p.system = &v
+	}
+	_, ok := p.system.Catalog.Events[event]
+	return ok, nil
+}
+
+// readable reports whether the viewer may read every sensitive field of refs. It fails closed: a
+// reference to an event the tenant's catalog no longer has (its connector left) cannot be checked, so
+// what derives from it is not shown.
 func (p *projector) readable(ctx context.Context, refs []sensitiveRef, viewer *spi.Subject) (bool, error) {
 	for _, ref := range refs {
+		ok, err := p.known(ctx, ref.Event)
+		if err != nil || !ok {
+			return false, err
+		}
 		hidden, err := p.hiddenPaths(ctx, ref.Event, viewer)
 		if err != nil {
 			return false, err

@@ -93,6 +93,10 @@ CREATE TABLE automation.runs (
     -- Disable or Delete of the graph asked to cancel the run: kept until its instance is terminated,
     -- across a process failure and a later Enable
     cancel_requested boolean NOT NULL DEFAULT false,
+    -- a resumed run that a Restart superseded waits for its conversation subject before it steps
+    awaiting_subject boolean NOT NULL DEFAULT false,
+    -- the subject#n wait occurrence it waits on, cancelled before the next attempt
+    subject_wait_n bigint,
     -- the graph's owner was told the run failed (once, whatever retried the transition)
     owner_notified_at timestamp with time zone,
     -- the sensitive event fields ({event, path}) the run has read so far: what its steps may derive from

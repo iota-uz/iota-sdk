@@ -12,7 +12,9 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -40,8 +42,11 @@ type startRequest struct {
 	startState string
 	reason     string
 	// restartOf is the version of the run a Restart starts from: the new run may take it or the enabled
-	// version. Other starts need the graph enabled on version.
+	// version. Other starts need the graph enabled on version, with the trigger of that enable.
 	restartOf int
+	// eventSeq is the outbox seq of the starting event: it must follow the trigger's watermark as it is
+	// now (a Disable and Enable of the same version between the selection and the start move it).
+	eventSeq int64
 }
 
 // eligible checks, under the graph's row lock (the lock disableTx holds while it marks the live runs),
@@ -61,6 +66,20 @@ func eligible(ctx context.Context, tx pgx.Tx, req startRequest) error {
 		return nil
 	case enabled == nil || *enabled != req.version:
 		return fmt.Errorf("%w: version %d of %s is not enabled", ErrNotEnabled, req.version, req.automationID)
+	case req.restartOf > 0:
+		return nil
+	}
+	// The trigger as the current enable wrote it (Enable rebuilds the triggers under the same lock).
+	var after int64
+	err = tx.QueryRow(ctx, `SELECT after_seq FROM automation.triggers WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND version = $4`,
+		req.tenant, req.automationID, req.triggerID, req.version).Scan(&after)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return fmt.Errorf("%w: %s has no trigger %s now", ErrNotEnabled, req.automationID, req.triggerID)
+	case err != nil:
+		return serrors.FromDB(opStart, err)
+	case req.eventSeq > 0 && req.eventSeq <= after:
+		return fmt.Errorf("%w: the event precedes the trigger's current enable", ErrNotEnabled)
 	}
 	return nil
 }
@@ -333,6 +352,104 @@ func (r *Runtime) startQueued(ctx context.Context) error {
 			return r.dequeue(ctx, tx, x.tenant, x.s, uuid.Nil)
 		})
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// wakeAwaiting signals the live runs of a conversation that wait for it (acquireSubject), except one
+// that is finishing in the caller's transaction. A run whose run-as is refused blocks on its own.
+func (r *Runtime) wakeAwaiting(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s SubjectRef, except uuid.UUID) error {
+	rows, err := tx.Query(ctx, `SELECT r.instance_id, r.run_as_user_id, r.run_as_kind, r.tx_seq`+runFrom+`
+		WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4 AND r.awaiting_subject
+		  AND r.run_as_user_id IS NOT NULL AND i.status IN ('running', 'waiting')`, tenant, s.Entity, s.Key, except)
+	if err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	type waiter struct {
+		inst uuid.UUID
+		user int64
+		kind string
+		seq  int64
+	}
+	var list []waiter
+	for rows.Next() {
+		var w waiter
+		if err := rows.Scan(&w.inst, &w.user, &w.kind, &w.seq); err != nil {
+			rows.Close()
+			return serrors.FromDB(opStart, err)
+		}
+		list = append(list, w)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	for _, w := range list {
+		as, err := r.cfg.Users.LoadSubject(ctx, tenant, w.user, spi.SubjectKind(w.kind))
+		if errors.Is(err, host.ErrSubjectBlocked) {
+			continue
+		}
+		if err != nil {
+			return &host.InfraError{Err: err}
+		}
+		as.TenantID, as.UserID, as.Kind = tenant, w.user, spi.SubjectKind(w.kind)
+		sp, err := tx.Begin(ctx)
+		if err != nil {
+			return serrors.FromDB(opStart, err)
+		}
+		err = r.cfg.Workflows.SignalInTx(ctx, sp, spi.Scope{Subject: as}, host.SignalIntent{
+			Workflow: WorkflowID, Instance: w.inst.String(), Name: SubjectSignal, Payload: json.RawMessage(`{}`),
+			Key: fmt.Sprintf("subject:%s:%d", except, w.seq),
+		})
+		if err != nil {
+			_ = sp.Rollback(ctx)
+			if _, ok := pool.AsWireError(err); ok {
+				continue // finished or refused meanwhile
+			}
+			return err
+		}
+		if err := sp.Commit(ctx); err != nil {
+			return serrors.FromDB(opStart, err)
+		}
+	}
+	return nil
+}
+
+// wakeFreeAwaiting signals waiting runs whose conversation is free: the observer's signal can be lost
+// to a run that started waiting after the holder finished.
+func (r *Runtime) wakeFreeAwaiting(ctx context.Context) error {
+	rows, err := r.cfg.DB.Query(ctx, `SELECT r.tenant_id, r.instance_id, r.tx_seq`+runFrom+`
+		WHERE r.awaiting_subject AND i.status = 'waiting' AND NOT EXISTS (SELECT 1 FROM automation.runs o
+			JOIN extruntime.workflow_instances oi ON oi.id = o.instance_id
+			WHERE o.tenant_id = r.tenant_id AND o.subject_entity = r.subject_entity AND o.subject_key = r.subject_key AND o.id <> r.id
+			  AND oi.status IN ('running', 'waiting', 'blocked') AND NOT o.awaiting_subject
+			  AND NOT (oi.status = 'blocked' AND EXISTS (SELECT 1 FROM automation.runs s WHERE s.tenant_id = o.tenant_id AND s.restarted_from = o.id)))
+		LIMIT 200`)
+	if err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	type waiter struct {
+		tenant, inst uuid.UUID
+		seq          int64
+	}
+	var list []waiter
+	for rows.Next() {
+		var w waiter
+		if err := rows.Scan(&w.tenant, &w.inst, &w.seq); err != nil {
+			rows.Close()
+			return serrors.FromDB(opStart, err)
+		}
+		list = append(list, w)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	for _, w := range list {
+		err := r.cfg.Workflows.Signal(ctx, w.tenant, 0, w.inst, SubjectSignal, json.RawMessage(`{}`), fmt.Sprintf("subject-free:%d", w.seq))
+		if err != nil && !errors.Is(err, workflow.ErrNotAccepting) && !errors.Is(err, workflow.ErrNotFound) {
 			return err
 		}
 	}

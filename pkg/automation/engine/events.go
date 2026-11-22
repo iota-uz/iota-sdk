@@ -54,6 +54,9 @@ type RunFinishedPayload struct {
 	Version      int             `json:"version"`
 	Status       string          `json:"status"`
 	Output       json.RawMessage `json:"output"`
+	// OutputWithheld: the run read sensitive event fields, so its output (which may derive from them)
+	// is not carried by this generic event; Output is null. Read it from the run with its access rules.
+	OutputWithheld bool `json:"outputWithheld,omitempty"`
 }
 
 // RunFinished is the native event the engine publishes when a run's instance completes, fails or is
@@ -68,6 +71,7 @@ var RunFinished = native.Event[RunFinishedPayload](EventRunFinished, native.Even
 		{Name: "version", Type: manifest.Type{Kind: manifest.KindInt}},
 		{Name: "status", Type: manifest.Type{Kind: manifest.KindString}},
 		{Name: "output", Type: manifest.Type{Kind: manifest.KindJSON, Optional: true, Nullable: true}},
+		{Name: "outputWithheld", Type: manifest.Type{Kind: manifest.KindBool, Optional: true}},
 	}},
 	Category: "automation",
 })
@@ -111,6 +115,7 @@ func (engineTriggers) Events() []graph.EventSpec {
 				{Name: "version", Field: expr.IntField},
 				{Name: "status", Field: expr.StringField},
 				{Name: "output", Field: expr.DynField},
+				{Name: "outputWithheld", Field: expr.OptionalOf(expr.BoolField)},
 			},
 		},
 		{

@@ -217,7 +217,7 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 	req := startRequest{
 		tenant: ev.TenantID, automationID: t.automationID, version: t.version, triggerID: t.triggerID, kind: t.kind,
 		eventID: ev.ID, key: fmt.Sprintf("%s@%d:%s", t.automationID, t.version, ev.ID), subject: subject,
-		initiator: ev.InitiatorUserID,
+		initiator: ev.InitiatorUserID, eventSeq: ev.Seq,
 	}
 	if by != nil {
 		req.depth, req.cause = by.Depth+1, &by.RunID
