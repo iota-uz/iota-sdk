@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 )
 
 func TestEventDeliveredWhileTheWaitOpensStillWakesIt(t *testing.T) {
@@ -198,4 +200,27 @@ func TestRecoveredEventBeforeTheDeadlineBeatsTheTimer(t *testing.T) {
 	require.True(t, delivered.Load())
 	require.True(t, delayed.Load())
 	assert.Equal(t, []string{"note:order 6", "paid:paid 6"}, e.effects(run.RunID), "the payment came before the deadline: it wins over the timeout")
+}
+
+func TestConsumedEventIsAppliedBeforeTheTimerAfterARollback(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, followUp) // the payment wait times out after 1s
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
+	// The payment's apply fails once, after the deadline has passed; its inbox receipt is recorded.
+	var failed atomic.Bool
+	p.rt.SetTestHook(func(_ context.Context, _ pgx.Tx, label string) error {
+		if label == "consume" && !failed.Swap(true) {
+			time.Sleep(1500 * time.Millisecond)
+			return &host.InfraError{Err: errors.New("apply rolled back")}
+		}
+		return nil
+	})
+	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 2}, 0)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	require.True(t, failed.Load())
+	assert.Equal(t, []string{"note:order 2", "paid:paid 2"}, e.effects(run.RunID), "the consumed payment is applied before the timer")
 }

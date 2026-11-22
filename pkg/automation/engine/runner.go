@@ -223,6 +223,20 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 			// The version cannot run against the tenant's catalog (an event it uses left it): the run fails.
 			return nil, x.failRun(ctx, StepError{Code: CodeConnectionUnavailable, Message: err.Error()})
 		}
+		// An inbox signal consumed before a crash or a rolled-back apply is applied before anything else:
+		// its receipt is recorded, so a timer must not overtake it.
+		if o, ok, err := x.nr.Lookup(ctx, "inbox", int(x.run.InboxSeq)); err != nil {
+			return nil, infra(err)
+		} else if ok && o.Status == workflow.OccCompleted {
+			res, err := x.nr.WaitFor(ctx, "inbox", int(x.run.InboxSeq), InboxSignal, 0)
+			if err != nil {
+				return nil, infra(err)
+			}
+			if err := x.consume(ctx, res.Payload); err != nil {
+				return nil, infra(err)
+			}
+			continue
+		}
 		wait, err := x.acquireSubject(ctx)
 		if err != nil {
 			return nil, infra(err)
@@ -418,7 +432,12 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 			if _, err := x.catchUp(ctx, w); err != nil {
 				return false, err
 			}
-			// Another pass either takes the next page or, once caught up, arms the wait's timer.
+			// Signals ready in the inbox are applied before the next page, so a match closes the wait and
+			// ends its scan; otherwise another pass takes the next page or, once caught up, arms the timer.
+			ready, err := x.inboxReady(ctx)
+			if err != nil || ready {
+				return false, err
+			}
 			return true, nil
 		}
 		if w.Spec.Exec != nil && w.Spec.Exec.Task != nil {
@@ -638,6 +657,15 @@ func decodeMap(raw json.RawMessage) (map[string]any, error) {
 
 // maxCatchUp is the batch size of a wait's catch-up query.
 const maxCatchUp = 200
+
+// inboxReady reports an unconsumed inbox signal: a WaitFor on the inbox returns at once.
+func (x *execution) inboxReady(ctx context.Context) (bool, error) {
+	var ready bool
+	err := x.r.cfg.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_signals
+		WHERE tenant_id = $1 AND instance_id = $2 AND name = $3 AND consumed_name IS NULL)`,
+		x.tenant, x.nr.Instance().ID, InboxSignal).Scan(&ready)
+	return ready, serrors.FromDB(opRun, err)
+}
 
 // earlyEventPending reports an unconsumed inbox signal for the wait whose event happened by its deadline.
 func (x *execution) earlyEventPending(ctx context.Context, w waitRow) (bool, error) {
