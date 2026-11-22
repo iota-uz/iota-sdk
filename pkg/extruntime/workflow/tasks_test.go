@@ -920,26 +920,35 @@ export const flow = async (wf) => {
 }
 
 // The final deadline is judged when the vote (or delegation) is written: one
-// that passes while the rights are being checked refuses it.
+// that passes while the rights are being checked (after the deadline check
+// under the lock, before the write) refuses it. Each operation has a task of
+// its own, so each reaches its own write.
 func TestTasks_DeadlinePassingDuringTheCheckRefusesTheWrite(t *testing.T) {
-	const timeout = 1500 * time.Millisecond
-	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{reviewers}, Timeout: timeout, AllowDelegation: true})
-	s.audience.set(reviewers, 99, true)
-	ctx := context.Background()
-	id, task := s.startWaiting("late-write")
-	require.Greater(t, time.Until(*task.DueAt), 200*time.Millisecond, "the deadline is still ahead when the calls start")
-	// The deadline passes while the membership is being checked: after the
-	// deadline check of the lock, before the write.
-	due := *task.DueAt
-	s.audience.mu.Lock()
-	s.audience.slow = func() { time.Sleep(time.Until(due) + 100*time.Millisecond) }
-	s.audience.mu.Unlock()
-	errs := make(chan error, 2)
-	go func() { errs <- s.decide(99, task.ID, `{}`) }()
-	go func() { errs <- s.eng.DelegateTask(ctx, s.env.subject(99), task.ID, 98, "") }()
-	require.ErrorIs(t, <-errs, workflow.ErrTaskClosed)
-	require.ErrorIs(t, <-errs, workflow.ErrTaskClosed)
-	got := s.task(id)
-	require.Empty(t, got.Decisions, "no vote after the deadline")
-	require.Empty(t, got.Delegations)
+	ops := map[string]func(s *taskStack, task uuid.UUID) error{
+		"decide": func(s *taskStack, task uuid.UUID) error { return s.decide(99, task, `{}`) },
+		"delegate": func(s *taskStack, task uuid.UUID) error {
+			return s.eng.DelegateTask(context.Background(), s.env.subject(99), task, 98, "")
+		},
+	}
+	for name, op := range ops {
+		t.Run(name, func(t *testing.T) {
+			s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{reviewers}, Timeout: 1500 * time.Millisecond, AllowDelegation: true})
+			s.audience.set(reviewers, 99, true)
+			id, task := s.startWaiting("late-" + name)
+			due := *task.DueAt
+			var started []time.Time
+			s.audience.mu.Lock()
+			s.audience.slow = func() {
+				started = append(started, time.Now())
+				time.Sleep(time.Until(due) + 100*time.Millisecond)
+			}
+			s.audience.mu.Unlock()
+			require.ErrorIs(t, op(s, task.ID), workflow.ErrTaskClosed)
+			require.Len(t, started, 1, "the membership check ran once")
+			require.True(t, started[0].Before(due), "it started before the deadline, so the lock's deadline check passed")
+			got := s.task(id)
+			require.Empty(t, got.Decisions, "no vote after the deadline")
+			require.Empty(t, got.Delegations)
+		})
+	}
 }
