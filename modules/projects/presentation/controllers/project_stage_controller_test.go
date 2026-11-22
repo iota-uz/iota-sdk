@@ -177,6 +177,16 @@ func TestProjectStageController_List_FilterChips(t *testing.T) {
 	assert.True(t, strings.Contains(body, "Alpha finished stage") || strings.Contains(body, "Alpha open stage"),
 		"page 2 shows one of Alpha's stages")
 	second.NotContains("Beta open stage")
+
+	// Opened as a full page (reload, or the link in a new tab), the form the
+	// next chip change serializes holds the same search and page size.
+	full := suite.GET(link.Path + "?" + link.RawQuery).Expect(t).Status(200)
+	full.Contains(`name="Search"`)
+	assert.Regexp(t, `name="Search"[^>]*value="stage"|value="stage"[^>]*name="Search"`, full.Body(), "the search box keeps the search")
+	assert.Regexp(t, `<option value="1" selected`, full.Body(), "the page size keeps limit=1")
+	// A chip change sends that form: page 1 with the search and size kept.
+	changed := suite.GET(ProjectStageBasePath + "?Search=stage&limit=1&f=project:is:" + alpha.ID().String() + "&f=factual_end:empty:&fb=1").HTMX().Expect(t).Status(200)
+	changed.Contains("Alpha open stage").NotContains("Alpha finished stage").NotContains("Beta open stage")
 }
 
 func TestProjectStageController_List_HTMX_Request(t *testing.T) {
