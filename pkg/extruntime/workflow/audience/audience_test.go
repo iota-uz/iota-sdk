@@ -100,6 +100,7 @@ func TestCoreAudience(t *testing.T) {
 	require.False(t, member(outsider, role))
 	require.False(t, member(blocked, role), "a blocked user is nobody")
 	require.True(t, member(grouped, group))
+	require.True(t, member(grouped, workflow.TaskAssignee{Kind: workflow.TaskAssignGroup, Ref: "urn:uuid:" + committee.String()}), "any form uuid.Parse takes")
 	require.False(t, member(direct, group))
 	require.True(t, member(viaGroup, permission), "a permission through a group's role")
 	require.False(t, member(outsider, permission))

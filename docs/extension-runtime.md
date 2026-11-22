@@ -446,8 +446,8 @@ workflow contract may have a Go implementation. The full rules are §9.8. In sho
 
 **Human tasks (#1327)**
 
-`wf.task` and `NativeRun.Task` (`workflow.TaskSpec`) open one task for one inbox (`Engine.Tasks`), whether a package
-workflow, a native one or a graph asks.
+`wf.task` and `NativeRun.Task` (`workflow.TaskSpec`) open one task for one inbox (`Engine.Tasks`) for a package
+workflow or a native one. The graph human node does not open tasks through these entry points yet (#1336).
 
 * **Assignees** are 1..20 of: a user, the holders of a permission, the members of a role (role id) or of a group (group
   uuid). Who may decide is judged when the decision comes, by current rights: the actor's permissions as
@@ -469,17 +469,20 @@ workflow, a native one or a graph asks.
   closes as a timeout whose result carries the decisions collected so far. Each applied step is a record of its own
   (`human_task_escalations`, keyed by task and step, apart from the workflow's occurrence keys) committed with the task
   change in the run's fenced transaction, so a run that crashed while escalating applies the step again from scratch and
-  one that committed never repeats it. A package task's explicit `timeout`, even `"0s"`, makes it due; without one it
+  one that committed never repeats it. Once the final due time (no step left) has passed, decisions get `ErrTaskClosed`
+and the task leaves the inbox, even before the run closes it. A package task's explicit `timeout`, even `"0s"`, makes it due; without one it
   stays open until decided.
 * **Cancel.** `NativeRun.Cancel`, `CancelPending` and terminate close open tasks as `cancelled`; a native `TaskResult`
-  of a cancelled task carries the decisions made before.
+  of a cancelled task carries the decisions made before. `NativeRun.Cancel` of a task that already closed is a no-op: the
+  next `Task` returns its outcome.
 * **Concurrency.** `DecideTask` and `DelegateTask` lock the task row and only then read its delegations and decisions,
   in statements of their own, and judge the actor's rights (and a delegation target's) by their current state there, so a decision and a delegation of one user never both win and a membership revoked while a call waited for the lock counts. Those checks run with the transaction in the context (`composables.WithTx`); the core's `SubjectLoader` and `TaskAudience` read through it, so a call holding the lock never waits for a second pool connection, and an application's own implementations must do the same.
 * **Observers.** `Config.TaskObservers` (contributed with `wiring.ContributeTaskObservers`) are called in order in the
   transaction of every change — `created`, `decision`, `delegated`, `escalated` (with the new assignees), `closed` — and
   an error of any rolls it back (for a run, the run is retried). The task model itself sends nothing.
 * **Management API.** `GET /tasks` (the actor's inbox: open tasks they may decide now and neither decided nor delegated,
-  by due time; `status`, `overdue`, `workflow`, `limit` ≤ 200, `after` cursor), `POST /tasks/{id}/decide`,
+  by due time, read from one snapshot; `status`, `overdue`, `workflow`, `limit` ≤ 200, `after` =
+  `workflow.CursorAfter(last task)`, `<dueAt RFC 3339 or empty>/<id>`, the sort key the page returned), `POST /tasks/{id}/decide`,
   `POST /tasks/{id}/delegate` (`{to, comment}`).
 
 **Persistence identities (decided now to avoid a second schema change)**

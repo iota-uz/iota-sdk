@@ -254,8 +254,8 @@ type TaskFilter struct {
 	Workflow string
 	// Limit is at most MaxTaskInbox; 0 means 50.
 	Limit int
-	// After is the cursor: the last task of the previous page.
-	After *uuid.UUID
+	// After is the cursor: CursorAfter of the last task of the previous page.
+	After *TaskCursor
 }
 
 // ---- validation ----
@@ -456,8 +456,10 @@ func choiceOf(outcomes []string, decision json.RawMessage) (string, error) {
 
 // escalationJSON is the stored form of an escalation step.
 type escalationJSON struct {
-	Add      []TaskAssignee `json:"add,omitempty"`
-	ExtendMs int64          `json:"extendMs"`
+	Add []TaskAssignee `json:"add,omitempty"`
+	// ExtendUs is Extend in microseconds (the precision of the due time),
+	// rounded up so a positive extension never becomes an immediate expiry.
+	ExtendUs int64 `json:"extendUs"`
 }
 
 func encodeEscalation(steps []EscalationStep) any {
@@ -466,7 +468,11 @@ func encodeEscalation(steps []EscalationStep) any {
 	}
 	out := make([]escalationJSON, len(steps))
 	for i, s := range steps {
-		out[i] = escalationJSON{Add: s.Add, ExtendMs: s.Extend.Milliseconds()}
+		us := s.Extend / time.Microsecond
+		if s.Extend%time.Microsecond != 0 {
+			us++
+		}
+		out[i] = escalationJSON{Add: s.Add, ExtendUs: int64(us)}
 	}
 	return []byte(marshal(out))
 }
@@ -481,7 +487,7 @@ func decodeEscalation(raw []byte) ([]EscalationStep, error) {
 	}
 	out := make([]EscalationStep, len(in))
 	for i, s := range in {
-		out[i] = EscalationStep{Add: s.Add, Extend: time.Duration(s.ExtendMs) * time.Millisecond}
+		out[i] = EscalationStep{Add: s.Add, Extend: time.Duration(s.ExtendUs) * time.Microsecond}
 	}
 	return out, nil
 }
@@ -1098,6 +1104,16 @@ func (e *Engine) authorizeLocked(ctx context.Context, tx pgx.Tx, actor spi.Subje
 	if t.Status != "open" {
 		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: task %s is %s", ErrTaskClosed, taskID, t.Status))
 	}
+	// A task past its final deadline is the run's to close as a timeout; one
+	// with an escalation step pending still takes decisions (the run applies
+	// the step, then judges the due time it sets).
+	var late bool
+	if err := tx.QueryRow(ctx, `SELECT `+pastFinalDeadline+` FROM extruntime.human_tasks t WHERE t.id = $1`, taskID).Scan(&late); err != nil {
+		return Task{}, nil, serrors.FromDB(opManage, err)
+	}
+	if late {
+		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: task %s is past its deadline", ErrTaskClosed, taskID))
+	}
 	if decided(t, actor.UserID) {
 		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
 	}
@@ -1231,13 +1247,63 @@ func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, err
 	return status, serrors.FromDB(opManage, err)
 }
 
+// TaskCursor is the inbox position after a task: its sort key as the page
+// returned it, so a task whose due time changes later moves no other task
+// across pages.
+type TaskCursor struct {
+	DueAt *time.Time
+	ID    uuid.UUID
+}
+
+// CursorAfter is the cursor after a task of a page.
+func CursorAfter(t Task) TaskCursor { return TaskCursor{DueAt: t.DueAt, ID: t.ID} }
+
+// String encodes the cursor as "<RFC 3339 due time>/<id>" ("/<id>" without a
+// due time).
+func (c TaskCursor) String() string {
+	due := ""
+	if c.DueAt != nil {
+		due = c.DueAt.UTC().Format(time.RFC3339Nano)
+	}
+	return due + "/" + c.ID.String()
+}
+
+// ParseTaskCursor reads a TaskCursor.String.
+func ParseTaskCursor(s string) (TaskCursor, error) {
+	due, id, ok := strings.Cut(s, "/")
+	if !ok {
+		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
+	}
+	var c TaskCursor
+	var err error
+	if c.ID, err = uuid.Parse(id); err != nil {
+		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
+	}
+	if due != "" {
+		t, err := time.Parse(time.RFC3339Nano, due)
+		if err != nil {
+			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
+		}
+		c.DueAt = &t
+	}
+	return c, nil
+}
+
+// pastFinalDeadline is true of an open task whose due time passed with no
+// escalation step left: the run closes it as a timeout, and no decision is
+// accepted meanwhile.
+const pastFinalDeadline = `(t.due_at IS NOT NULL AND t.due_at <= clock_timestamp()
+	AND t.escalation_level >= COALESCE(jsonb_array_length(t.escalation), 0))`
+
 // Tasks is the actor's inbox: the tasks of the actor's tenant they may
 // decide now by their current rights (an assignee covers them, or a
 // delegation passed the task to them), which they neither decided nor
-// delegated, ordered by due time (tasks without one last). Another status
-// filter lists the tasks with those statuses that cover the actor. The task
-// admin permission does not fill the inbox: it lets an operator decide a
-// task found elsewhere.
+// delegated, ordered by due time (tasks without one last). An open task past
+// its final deadline is not listed. Another status filter lists the tasks
+// with those statuses that cover the actor. The task admin permission does
+// not fill the inbox: it lets an operator decide a task found elsewhere.
+// The candidates and the page are read from one snapshot, so every returned
+// task matches the filters as of that read.
 func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]Task, error) {
 	if f.Limit <= 0 {
 		f.Limit = defaultTaskInboxLimit
@@ -1253,6 +1319,19 @@ func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]
 	if err != nil {
 		return nil, err
 	}
+	tx, err := e.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	out, err := e.inbox(txContext(ctx, tx), tx, current, statuses, f)
+	if err != nil {
+		return nil, err
+	}
+	return out, serrors.FromDB(opManage, tx.Commit(ctx))
+}
+
+func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, statuses []string, f TaskFilter) ([]Task, error) {
 	perms := current.Permissions
 	if perms == nil {
 		perms = []string{}
@@ -1262,34 +1341,44 @@ func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]
 	cursor := f.After
 	var ids []uuid.UUID
 	for len(ids) < f.Limit {
-		rows, err := e.cfg.DB.Query(ctx, `
-			SELECT t.id,
+		var (
+			hasCursor bool
+			afterDue  *time.Time
+			afterID   uuid.UUID
+		)
+		if cursor != nil {
+			hasCursor, afterDue, afterID = true, cursor.DueAt, cursor.ID
+		}
+		rows, err := tx.Query(ctx, `
+			SELECT t.id, t.due_at,
 				EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))))
 			`+taskFrom+`
 			WHERE t.tenant_id = $1 AND t.status = ANY($4)
 			  AND ($5 = '' OR i.workflow = $5)
 			  AND ($6::boolean IS NULL OR (t.due_at IS NOT NULL AND t.due_at < now()) = $6)
-			  AND ($7::uuid IS NULL OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) >
-			       (SELECT COALESCE(c.due_at, 'infinity'::timestamptz), c.id FROM extruntime.human_tasks c WHERE c.id = $7 AND c.tenant_id = $1))
+			  AND (NOT $7 OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
+			  AND (t.status <> 'open' OR NOT `+pastFinalDeadline+`)
 			  AND NOT EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $2)
 			  AND (t.status <> 'open' OR NOT EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $2))
 			  AND EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))
-					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $8)))
+					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
 			ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id
-			LIMIT $9`,
-			actor.TenantID, actor.UserID, perms, statuses, f.Workflow, f.Overdue, cursor, audience, batch)
+			LIMIT $11`,
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}
 		type candidate struct {
 			id     uuid.UUID
+			due    *time.Time
 			direct bool
 		}
 		cands, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (candidate, error) {
 			var c candidate
-			return c, r.Scan(&c.id, &c.direct)
+			err := r.Scan(&c.id, &c.due, &c.direct)
+			return c, err
 		})
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
@@ -1302,7 +1391,7 @@ func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]
 		}
 		covered := map[uuid.UUID]bool{}
 		if len(indirect) > 0 {
-			if covered, err = e.coveredByAudience(ctx, current, indirect); err != nil {
+			if covered, err = e.coveredByAudience(ctx, tx, current, indirect); err != nil {
 				return nil, err
 			}
 		}
@@ -1317,19 +1406,19 @@ func (e *Engine) Tasks(ctx context.Context, actor spi.Subject, f TaskFilter) ([]
 		if len(cands) < batch {
 			break
 		}
-		last := cands[len(cands)-1].id
-		cursor = &last
+		last := cands[len(cands)-1]
+		cursor = &TaskCursor{DueAt: last.due, ID: last.id}
 	}
 	if len(ids) == 0 {
 		return []Task{}, nil
 	}
-	return e.queryTasks(ctx, e.cfg.DB, actor.TenantID, `t.id = ANY($2) ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id`, ids)
+	return e.queryTasks(ctx, tx, current.TenantID, `t.id = ANY($2) ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id`, ids)
 }
 
 // coveredByAudience reports which tasks a role or group assignee covers the
 // subject in, asking the TaskAudience once per distinct assignee.
-func (e *Engine) coveredByAudience(ctx context.Context, subj spi.Subject, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
-	rows, err := e.cfg.DB.Query(ctx, `
+func (e *Engine) coveredByAudience(ctx context.Context, q taskQueryer, subj spi.Subject, ids []uuid.UUID) (map[uuid.UUID]bool, error) {
+	rows, err := q.Query(ctx, `
 		SELECT task_id, kind, ref FROM extruntime.human_task_assignees
 		WHERE tenant_id = $1 AND task_id = ANY($2) AND kind IN ('role', 'group') AND delegated_from IS NULL`, subj.TenantID, ids)
 	if err != nil {
@@ -1341,7 +1430,8 @@ func (e *Engine) coveredByAudience(ctx context.Context, subj spi.Subject, ids []
 	}
 	refs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (ref, error) {
 		var x ref
-		return x, r.Scan(&x.task, &x.a.Kind, &x.a.Ref)
+		err := r.Scan(&x.task, &x.a.Kind, &x.a.Ref)
+		return x, err
 	})
 	if err != nil {
 		return nil, serrors.FromDB(opManage, err)
@@ -1458,6 +1548,11 @@ func (a taskAssignee) spec() (TaskAssignee, error) {
 		return TaskAssignee{Kind: TaskAssignRole, Ref: a.Role}, nil
 	case a.Group != "":
 		return TaskAssignee{Kind: TaskAssignGroup, Ref: a.Group}, nil
+	}
+	// A user is a core.user reference; a bare key (no entity) is read as a
+	// user id, as wf.task always did.
+	if a.Entity != "" && a.Entity != "core.user" {
+		return TaskAssignee{}, invalidAssignee("task assignee entity %q is not core.user", a.Entity)
 	}
 	id, err := strconv.ParseInt(a.Key, 10, 64)
 	if err != nil {

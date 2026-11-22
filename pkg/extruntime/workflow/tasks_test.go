@@ -619,6 +619,8 @@ func holdTask(t *testing.T, s *taskStack, task uuid.UUID) (pgx.Tx, func()) {
 	ctx := context.Background()
 	tx, err := s.env.db.Begin(ctx)
 	require.NoError(t, err)
+	// A failing test releases the lock before the harness closes the pool.
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
 	_, err = tx.Exec(ctx, `SELECT 1 FROM extruntime.human_tasks WHERE id = $1 FOR UPDATE`, task)
 	require.NoError(t, err)
 	return tx, func() { require.NoError(t, tx.Commit(ctx)) }
@@ -763,4 +765,137 @@ func TestTasks_ChecksUnderTheLockNeedNoSecondConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "decided", h.Tasks[0].Status)
 	require.EqualValues(t, b, *h.Tasks[0].Decisions[1].DelegatedFrom)
+}
+
+// The inbox cursor carries the sort key the page returned: a task whose due
+// time moves later after its page moves no other task across pages.
+func TestTasks_InboxCursorKeepsThePageOrder(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(91)}, Timeout: time.Hour})
+	ctx := context.Background()
+	_, a := s.startWaiting("page-a")
+	_, b := s.startWaiting("page-b")
+	page, err := s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, a.ID, page[0].ID, "a is due first")
+	cursor := workflow.CursorAfter(page[0])
+	parsed, err := workflow.ParseTaskCursor(cursor.String())
+	require.NoError(t, err)
+	require.Equal(t, cursor.ID, parsed.ID)
+	require.True(t, cursor.DueAt.Equal(*parsed.DueAt))
+
+	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours' WHERE id = $1`, a.ID)
+	require.NoError(t, err)
+	page, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{Limit: 1, After: &parsed})
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, b.ID, page[0].ID, "b is not skipped")
+}
+
+// After the final due time no decision is accepted, even before the run
+// closes the task; with an escalation step pending, decisions still count.
+func TestTasks_NoDecisionAfterTheFinalDeadline(t *testing.T) {
+	env := newNativeEnv(t)
+	final := workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(95)}, Timeout: 100 * time.Millisecond}
+	pending := final
+	pending.Escalation = []workflow.EscalationStep{{Add: []workflow.TaskAssignee{userAssignee(96)}, Extend: time.Hour}}
+	eng := env.engine(map[string]workflow.NativeContract{"test.final": {Runner: taskFlow(final)}, "test.pending": {Runner: taskFlow(pending)}})
+	ctx := context.Background()
+	open := func(wf string) (uuid.UUID, uuid.UUID) {
+		id := env.start(eng, wf, wf, `{}`)
+		_, err := eng.RunOnce(ctx)
+		require.NoError(t, err)
+		h, err := eng.Get(ctx, env.tenant, id)
+		require.NoError(t, err)
+		require.Len(t, h.Tasks, 1)
+		return id, h.Tasks[0].ID
+	}
+	finalID, finalTask := open("test.final")
+	_, pendingTask := open("test.pending")
+	_, err := env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = now() - interval '1 second'`)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, eng.DecideTask(ctx, env.subject(95), finalTask, json.RawMessage(`{}`)), workflow.ErrTaskClosed)
+	inbox, err := eng.Tasks(ctx, env.subject(95), workflow.TaskFilter{})
+	require.NoError(t, err)
+	require.Len(t, inbox, 1, "only the task with a step pending")
+	require.Equal(t, pendingTask, inbox[0].ID)
+	require.NoError(t, eng.DecideTask(ctx, env.subject(95), pendingTask, json.RawMessage(`{}`)))
+	env.drainUntil(eng, func() bool { return env.inst(eng, finalID).Status == workflow.StatusCompleted }, "the run times the task out")
+	require.JSONEq(t, `{"outcome":"timeout"}`, string(env.inst(eng, finalID).Result))
+}
+
+// A positive extension below a millisecond survives the round trip.
+func TestTasks_SubMillisecondExtendIsKept(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{
+		Assignees: []workflow.TaskAssignee{userAssignee(97)}, Timeout: time.Hour,
+		Escalation: []workflow.EscalationStep{{Extend: 500 * time.Microsecond}, {Extend: 1500 * time.Nanosecond}},
+	})
+	_, task := s.startWaiting("ext")
+	require.Equal(t, 500*time.Microsecond, task.Escalation[0].Extend)
+	require.Equal(t, 2*time.Microsecond, task.Escalation[1].Extend, "rounded up, never to zero")
+}
+
+// Cancelling a task whose closing decision committed before the cancel keeps
+// the decision: the occurrence is not cancelled and Task returns it.
+func TestTasks_CancelAfterTheDecisionKeepsIt(t *testing.T) {
+	env := newNativeEnv(t)
+	spec := workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(98)}}
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if _, ok, err := run.Lookup(ctx, "review", 0); err != nil {
+			return nil, err
+		} else if !ok {
+			if _, err := run.Task(ctx, "review", 0, spec); err != nil && !errors.Is(err, workflow.ErrSuspend) {
+				return nil, err
+			}
+		}
+		if _, err := run.WaitFor(ctx, "go", 0, "go", 0); err != nil {
+			return nil, err
+		}
+		if err := run.Cancel(ctx, "review", 0); err != nil {
+			return nil, err
+		}
+		r, err := run.Task(ctx, "review", 0, spec)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(r)
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.late": {Runner: runner, Signals: map[string]manifest.Type{"go": anyPayload()}}})
+	ctx := context.Background()
+	id := env.start(eng, "test.late", "late", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusWaiting }, "waits")
+	h, err := eng.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	require.NoError(t, eng.DecideTask(ctx, env.subject(98), h.Tasks[0].ID, json.RawMessage(`{"ok":true}`)))
+	require.NoError(t, eng.Signal(ctx, env.tenant, 1, id, "go", json.RawMessage(`{}`), ""))
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+	var r workflow.TaskResult
+	require.NoError(t, json.Unmarshal(env.inst(eng, id).Result, &r))
+	require.Equal(t, workflow.TaskDecided, r.Outcome, "the decision, not a cancel")
+	require.JSONEq(t, `{"ok":true}`, string(r.Decision))
+	h, err = eng.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	require.Equal(t, "decided", h.Tasks[0].Status)
+}
+
+// A package task's user assignee must reference core.user.
+func TestTasks_PackageAssigneeMustBeACoreUser(t *testing.T) {
+	env := hosttest.New(t)
+	im := newImpls()
+	publishFlow(t, env, im, "acme.a", "1.0.0", `
+export const flow = async (wf) => {
+  let code = "";
+  try {
+    await wf.task("approve", { subject: { entity: "acme.test.item", key: "1" }, assignee: { entity: "sales.customer", key: "42" }, decision: { type: { kind: "object" } } });
+  } catch (e) { code = e.code; }
+  return { code };
+};`)
+	im.Activate(flowID, "acme.a", "1.0.0")
+	env.Subjects.Grant(7)
+	st := newStack(t, env, im)
+	id := st.start(7, "k", `{"who":"w"}`)
+	require.Equal(t, 1, st.drain())
+	require.JSONEq(t, `{"code":"workflow.invalidAssignee"}`, string(st.instance(id).Result))
+	require.Empty(t, st.history(id).Tasks)
 }

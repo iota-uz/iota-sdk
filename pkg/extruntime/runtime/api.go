@@ -633,11 +633,11 @@ func (a *API) taskInbox(_ http.ResponseWriter, r *http.Request, actor spi.Subjec
 		f.Limit = n
 	}
 	if v := q.Get("after"); v != "" {
-		id, err := uuid.Parse(v)
+		c, err := workflow.ParseTaskCursor(v)
 		if err != nil {
 			return 0, nil, serrors.New(serrors.Invalid, "invalid after")
 		}
-		f.After = &id
+		f.After = &c
 	}
 	out, err := a.svc.Tasks(r.Context(), actor, f)
 	return http.StatusOK, out, err

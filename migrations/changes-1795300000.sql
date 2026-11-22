@@ -102,14 +102,39 @@ WHERE
     AND decided_by IS NOT NULL;
 
 -- +migrate Down
+-- A task still pending (open, or closed while its workflow occurrence still
+-- waits for the result) that the previous schema cannot represent — no single
+-- user or permission assignee, a quorum, added or delegated assignees, or a
+-- vote that has not closed it — would lose its assignees or votes: the
+-- downgrade is refused while one exists. Finished tasks of that shape are
+-- history and are removed below.
+-- +migrate StatementBegin
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM extruntime.human_tasks t
+        WHERE (t.status = 'open'
+               OR EXISTS (SELECT 1 FROM extruntime.workflow_occurrences o
+                          WHERE o.instance_id = t.instance_id AND o.name = t.name AND o.n = t.n AND o.status = 'waiting'))
+          AND (t.assignee_kind NOT IN ('user', 'permission')
+               OR t.required > 1
+               OR (SELECT count(*) FROM extruntime.human_task_assignees a WHERE a.task_id = t.id) > 1
+               OR (t.status = 'open' AND EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id))))
+    THEN
+        RAISE EXCEPTION 'extruntime.human_tasks: pending tasks use assignees, quorums, delegations or votes the previous schema cannot hold; decide or cancel them before downgrading';
+    END IF;
+END
+$$;
+-- +migrate StatementEnd
+
 DROP TABLE IF EXISTS extruntime.human_task_escalations;
 
 DROP TABLE IF EXISTS extruntime.human_task_decisions;
 
 DROP TABLE IF EXISTS extruntime.human_task_assignees;
 
--- Tasks without a single user or permission assignee cannot be represented
--- by the previous schema.
+-- Finished tasks without a single user or permission assignee cannot be
+-- represented by the previous schema (pending ones refused the downgrade).
 DELETE FROM extruntime.human_tasks
 WHERE assignee_kind NOT IN ('user', 'permission');
 

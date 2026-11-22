@@ -131,7 +131,8 @@ type NativeRun interface {
 	// current instance as parent.
 	Start(ctx context.Context, name string, n int, workflow string, input json.RawMessage, opts StartOptions) (uuid.UUID, error)
 	// Cancel cancels a waiting occurrence, and its task when it is one. A
-	// repeat (or an occurrence that is not waiting) is a no-op.
+	// repeat (or an occurrence that is not waiting) is a no-op, and so is the
+	// cancel of a task that already closed: Task then returns its outcome.
 	Cancel(ctx context.Context, name string, n int) error
 	// Lookup reads the journal on demand.
 	Lookup(ctx context.Context, name string, n int) (Occurrence, bool, error)
@@ -709,6 +710,22 @@ func (r *nativeRun) Cancel(ctx context.Context, name string, n int) error {
 		return nil
 	}
 	err = r.e.inFence(ctx, r.rs, func(tx pgx.Tx) (func(), error) {
+		if o.Kind == KindTask {
+			// A task that closed (decided, expired) before the cancel keeps its
+			// outcome: the occurrence stays waiting and the next Task returns
+			// it, so the workflow never reports another outcome than the task.
+			var status string
+			err := tx.QueryRow(ctx, `
+				SELECT status FROM extruntime.human_tasks
+				WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 FOR UPDATE`,
+				r.rs.inst.ID, r.rs.inst.TenantID, name, n).Scan(&status)
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, serrors.FromDB(opNative, err)
+			}
+			if err == nil && status != "open" {
+				return nil, nil
+			}
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now()
 			WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 AND status = 'waiting'`,

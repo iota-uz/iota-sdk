@@ -97,8 +97,13 @@ func ref(a workflow.TaskAssignee) (string, bool) {
 		_, err := strconv.ParseInt(a.Ref, 10, 64)
 		return a.Ref, err == nil
 	case workflow.TaskAssignGroup:
-		_, err := uuid.Parse(a.Ref)
-		return a.Ref, err == nil
+		// The canonical form: uuid.Parse also takes forms PostgreSQL does not
+		// (urn:uuid:…).
+		id, err := uuid.Parse(a.Ref)
+		if err != nil {
+			return "", false
+		}
+		return id.String(), true
 	}
 	return a.Ref, a.Ref != ""
 }
