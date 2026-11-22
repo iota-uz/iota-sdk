@@ -41,6 +41,10 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 	if err != nil {
 		return serrors.FromDB(opObserve, err)
 	}
+	// The graph's row before any run row: Disable and Delete lock the graph, then its runs (disableTx).
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.automations WHERE tenant_id = $1 AND id = $2 FOR SHARE`, inst.TenantID, run.AutomationID); err != nil {
+		return serrors.FromDB(opObserve, err)
+	}
 	// What the run left open: a terminated run's tokens and waits (the engine cancels its occurrences).
 	if _, err := tx.Exec(ctx, `UPDATE automation.tokens SET status = 'cancelled', flow = NULL, updated_at = now()
 		WHERE tenant_id = $1 AND run_id = $2 AND status IN ('running', 'waiting')`, inst.TenantID, run.ID); err != nil {
@@ -80,6 +84,11 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 		&spi.ObjectRef{Entity: SubjectRun, Key: run.ID.String()}, payload); err != nil {
 		return serrors.Wrap(opObserve, err)
 	}
+	if status == RunFailed {
+		if err := o.notifyOwner(ctx, tx, run); err != nil {
+			return err
+		}
+	}
 	o.r.metrics.runFinished(ctx, status)
 	o.r.cfg.Logger.Info("automation run finished", "run_id", run.ID.String(), "automation_id", run.AutomationID.String(), "status", string(status))
 	// The next queued run of a conversation starts now when its subject's lock is free; else the
@@ -97,4 +106,37 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 		}
 	}
 	return nil
+}
+
+// notifyOwner tells the graph's owner that a run failed, once per run: owner_notified_at is set in the
+// transaction of the transition, so a transition the engine retries (its transaction rolled back)
+// notifies again only together with it, and a second failed transition never.
+func (o *observer) notifyOwner(ctx context.Context, tx pgx.Tx, run runRow) error {
+	if o.r.cfg.Notifier == nil {
+		return nil
+	}
+	var owner *int64
+	var name string
+	err := tx.QueryRow(ctx, `
+		UPDATE automation.runs r SET owner_notified_at = now()
+		FROM automation.automations a
+		WHERE r.tenant_id = $1 AND r.id = $2 AND r.owner_notified_at IS NULL AND a.tenant_id = r.tenant_id AND a.id = r.automation_id
+		RETURNING a.owner_user_id, a.name`, run.TenantID, run.ID).Scan(&owner, &name)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return serrors.FromDB(opObserve, err)
+	}
+	if owner == nil {
+		return nil // a graph never enabled by a person has nobody to tell
+	}
+	failed, err := loadRun(ctx, tx, run.TenantID, run.ID)
+	if err != nil {
+		return err
+	}
+	return o.r.cfg.Notifier.RunFailed(ctx, tx, FailureNotice{
+		TenantID: run.TenantID, RunID: run.ID, AutomationID: run.AutomationID, Version: run.Version, Name: name,
+		OwnerUserID: *owner, Error: failed.stepError(), Key: "automation.run.failed:" + run.ID.String(),
+	})
 }

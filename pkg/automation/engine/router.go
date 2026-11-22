@@ -297,7 +297,16 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 // wake signals an open wait of a running graph with the event, when the wait's filter does not reject it
 // already from the event alone (the run checks it again in the token's context).
 func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fanWait, proj *projector) error {
-	as := spi.Subject{TenantID: ev.TenantID, UserID: w.runAsUser, Kind: spi.SubjectKind(w.runAsKind)}
+	// The run-as with the rights it holds now: the payload and the filter see what it may read.
+	as, err := r.cfg.Users.LoadSubject(ctx, ev.TenantID, w.runAsUser, spi.SubjectKind(w.runAsKind))
+	if errors.Is(err, host.ErrSubjectBlocked) {
+		r.cfg.Logger.Info("automation: wait not signalled, the run-as is blocked", "run_id", w.runID.String(), "wait_id", w.waitID)
+		return nil
+	}
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
+	as.TenantID, as.UserID, as.Kind = ev.TenantID, w.runAsUser, spi.SubjectKind(w.runAsKind)
 	payload, err := decodeMap(ev.Payload)
 	if err != nil {
 		payload = map[string]any{}

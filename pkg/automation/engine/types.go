@@ -442,6 +442,26 @@ type CodeNode interface {
 	Review(params map[string]any) CodeNodeReview
 }
 
+// OwnerNotifier tells a graph's owner that a run failed ("Требует внимания"). It is called once per
+// failed run, in the transaction in which the run's instance fails: an error rolls the transition back.
+// The module adapts it to the notification service (an addressed notice to OwnerUserID, deduplicated by
+// Key).
+type OwnerNotifier interface {
+	RunFailed(ctx context.Context, tx pgx.Tx, n FailureNotice) error
+}
+
+// FailureNotice is a failed run as its owner is told about it.
+type FailureNotice struct {
+	TenantID     uuid.UUID
+	RunID        uuid.UUID
+	AutomationID uuid.UUID
+	Version      int
+	Name         string // the graph's name
+	OwnerUserID  int64
+	Error        *StepError
+	Key          string // automation.run.failed:<run_id>, stable for deduplication
+}
+
 // StepContext is what a node executor gets about the step it runs in.
 type StepContext struct {
 	TenantID, RunID, TokenID uuid.UUID

@@ -474,11 +474,31 @@ func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automatio
 	return s.Get(ctx, a, id)
 }
 
+// disableTx stops a graph in the caller's transaction, which holds the graph's row lock: no trigger
+// starts it any more, its queued runs are cancelled, and every live run is marked cancel_requested, so the
+// cancellation survives a process failure before cancelRunsOf and a later Enable. Queued runs are
+// promoted only under the same row lock (dequeue), so none starts once this commits.
 func disableTx(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) error {
-	if _, err := tx.Exec(ctx, `UPDATE automation.automations SET enabled_version = NULL, disabled_at = now(), updated_at = now() WHERE tenant_id = $1 AND id = $2`, tenant, id); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE automation.automations SET enabled_version = NULL, updated_at = now() WHERE tenant_id = $1 AND id = $2`, tenant, id); err != nil {
 		return serrors.FromDB(opService, err)
 	}
-	_, err := tx.Exec(ctx, `DELETE FROM automation.triggers WHERE tenant_id = $1 AND automation_id = $2`, tenant, id)
+	if _, err := tx.Exec(ctx, `DELETE FROM automation.triggers WHERE tenant_id = $1 AND automation_id = $2`, tenant, id); err != nil {
+		return serrors.FromDB(opService, err)
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM automation.subject_queue q USING automation.runs r
+		WHERE q.tenant_id = $1 AND r.tenant_id = q.tenant_id AND r.id = q.run_id AND r.automation_id = $2`, tenant, id); err != nil {
+		return serrors.FromDB(opService, err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE automation.runs SET start_state = 'cancelled', updated_at = now()
+		WHERE tenant_id = $1 AND automation_id = $2 AND instance_id IS NULL AND start_state = 'queued'`, tenant, id); err != nil {
+		return serrors.FromDB(opService, err)
+	}
+	_, err := tx.Exec(ctx, `
+		UPDATE automation.runs r SET cancel_requested = true, updated_at = now()
+		FROM extruntime.workflow_instances i
+		WHERE r.tenant_id = $1 AND r.automation_id = $2 AND i.id = r.instance_id AND i.status IN ('running', 'waiting', 'blocked')`, tenant, id)
 	return serrors.FromDB(opService, err)
 }
 
@@ -509,7 +529,7 @@ func (s *service) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
 // cancelRunsOf cancels the live runs of a graph: queued ones never start, the instances of the others
 // are terminated with their children (a step that is running finishes; it cannot write after).
 func (r *Runtime) cancelRunsOf(ctx context.Context, tenant, id uuid.UUID) error {
-	rows, err := r.cfg.DB.Query(ctx, `SELECT r.id, r.instance_id, r.start_state`+runFrom+` WHERE r.tenant_id = $1 AND r.automation_id = $2 AND `+liveSQL, tenant, id)
+	rows, err := r.cfg.DB.Query(ctx, `SELECT r.id, r.instance_id, r.start_state`+runFrom+` WHERE r.tenant_id = $1 AND r.automation_id = $2 AND r.cancel_requested AND `+liveSQL, tenant, id)
 	if err != nil {
 		return serrors.FromDB(opService, err)
 	}
@@ -681,15 +701,8 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 	if err != nil {
 		return RunRef{}, err
 	}
-	switch old.status() {
-	case RunDone, RunFailed, RunCancelled:
-	case RunBlocked:
-		if old.InstanceID != nil {
-			// A blocked instance is still live: it resumes or is cancelled, never run twice.
-			return RunRef{}, fmt.Errorf("%w: a blocked run with an instance is resumed or cancelled, not restarted", ErrInvalidInput)
-		}
-	case RunQueued, RunRunning, RunWaiting, RunFilterFailed:
-		return RunRef{}, fmt.Errorf("%w: a %s run does not restart", ErrInvalidInput, old.status())
+	if err := restartable(old); err != nil {
+		return RunRef{}, err
 	}
 	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, old.AutomationID, false)
 	if err != nil {
@@ -714,9 +727,10 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 	if err != nil {
 		return RunRef{}, err
 	}
+	kind, _ := event["kind"].(string)
 	req := startRequest{
 		tenant: a.TenantID, automationID: old.AutomationID, version: version, in: ie.in, triggerID: old.TriggerID, kind: old.TriggerKind,
-		key: "restart:" + uuid.NewString(), event: graph.Event(event), subject: old.Subject, initiator: old.InitiatorID,
+		key: "restart:" + uuid.NewString(), subject: old.Subject, initiator: old.InitiatorID,
 		depth: old.Depth, cause: old.CauseRunID, restarted: &old.ID, predecessor: old.InstanceID,
 	}
 	if old.TriggerEventID != nil {
@@ -724,29 +738,60 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 	}
 	var ref RunRef
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		if old.RunAsUserID != nil && old.RunAsKind != nil {
-			sub, err := s.r.cfg.Users.LoadSubject(ctx, a.TenantID, *old.RunAsUserID, spi.SubjectKind(*old.RunAsKind))
-			if err != nil {
-				return fmt.Errorf("%w: the run's run-as user: %v", ErrForbidden, err)
-			}
-			sub.TenantID, sub.UserID, sub.Kind = a.TenantID, *old.RunAsUserID, spi.SubjectKind(*old.RunAsKind)
-			req.runAs = &sub
-		} else {
-			ev := events.Envelope{ID: req.key, TenantID: a.TenantID, Event: old.TriggerKind, InitiatorUserID: old.InitiatorID}
-			mode := events.RunAsOwner
-			if graph.RunAs(v.RunAs) == graph.RunAsInitiator {
-				mode = events.RunAsInitiator
-			}
-			sub, err := events.ResolveSubject(ctx, tx, s.r.cfg.Users, ev, ownerTrigger(old.AutomationID), mode)
-			switch {
-			case errors.Is(err, events.ErrNoSubject):
-				req.startState, req.reason = startBlocked, "no_owner"
-			case err != nil:
-				return err
-			default:
-				req.runAs = &sub
+		// The predecessor's status is checked again under its locks: a blocked instance that resumed or
+		// finished meanwhile is judged as it is now. It is never touched (StartV2).
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, a.TenantID, old.ID); err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		if old.InstanceID != nil {
+			if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2 FOR SHARE`, a.TenantID, *old.InstanceID); err != nil {
+				return serrors.FromDB(opService, err)
 			}
 		}
+		now, err := loadRun(ctx, tx, a.TenantID, old.ID)
+		if err != nil {
+			return err
+		}
+		if err := restartable(now); err != nil {
+			return err
+		}
+		// Run-as by the chosen version's policy: its owner now, or the original initiator.
+		ev := events.Envelope{ID: req.key, TenantID: a.TenantID, Event: kind, InitiatorUserID: old.InitiatorID}
+		mode := events.RunAsOwner
+		if graph.RunAs(v.RunAs) == graph.RunAsInitiator {
+			mode = events.RunAsInitiator
+		}
+		sub, err := events.ResolveSubject(ctx, tx, s.r.cfg.Users, ev, ownerTrigger(old.AutomationID), mode)
+		var as *spi.Subject
+		switch {
+		case errors.Is(err, events.ErrNoSubject):
+			req.startState, req.reason = startBlocked, "no_owner"
+		case err != nil:
+			return err
+		default:
+			as = &sub
+			req.runAs = as
+		}
+		// The retained input is what the new run-as may read of it.
+		payload := map[string]any{}
+		for k, val := range event {
+			if k != "kind" {
+				payload[k] = val
+			}
+		}
+		if kind != "" {
+			if payload, err = s.r.projector(a.TenantID).project(ctx, kind, payload, as); err != nil {
+				return err
+			}
+		}
+		gev := graph.Event{}
+		for k, val := range payload {
+			gev[k] = val
+		}
+		if kind != "" {
+			gev["kind"] = kind
+		}
+		req.event = gev
 		if normSubject(old.Subject).Entity != graph.SubjectNone {
 			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, old.Subject, uuid.Nil)); err != nil {
 				return err
@@ -755,9 +800,19 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 		if req.runAs != nil && req.depth > s.r.cfg.Limits.MaxDepth {
 			req.runAs, req.startState, req.reason = nil, startBlocked, "depth_exceeded"
 		}
-		var err error
 		ref, err = s.r.startRun(ctx, tx, req)
 		return err
 	})
 	return ref, err
+}
+
+// restartable reports whether a run may restart: finished, or blocked (also with a live blocked
+// instance, which StartV2 leaves as it is).
+func restartable(r runRow) error {
+	switch r.status() {
+	case RunDone, RunFailed, RunCancelled, RunBlocked:
+		return nil
+	case RunQueued, RunRunning, RunWaiting, RunFilterFailed:
+	}
+	return fmt.Errorf("%w: a %s run does not restart", ErrInvalidInput, r.status())
 }

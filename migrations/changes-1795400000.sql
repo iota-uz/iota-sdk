@@ -16,8 +16,6 @@ CREATE TABLE automation.automations (
     created_origin text NOT NULL CHECK (created_origin IN ('human', 'agent')),
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    -- when the graph was last disabled: live runs started before it are cancelled
-    disabled_at timestamp with time zone,
     deleted_at timestamp with time zone,
     PRIMARY KEY (tenant_id, id),
     CHECK (enabled_version IS NULL OR enabled_version <= latest_version)
@@ -92,6 +90,11 @@ CREATE TABLE automation.runs (
     restarted_from uuid,
     output jsonb,
     error jsonb,
+    -- Disable or Delete of the graph asked to cancel the run: kept until its instance is terminated,
+    -- across a process failure and a later Enable
+    cancel_requested boolean NOT NULL DEFAULT false,
+    -- the graph's owner was told the run failed (once, whatever retried the transition)
+    owner_notified_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, id),
@@ -109,6 +112,10 @@ CREATE INDEX runs_tenant_automation_created_idx ON automation.runs (tenant_id, a
 CREATE INDEX runs_tenant_created_idx ON automation.runs (tenant_id, created_at DESC, id);
 
 CREATE INDEX runs_tenant_subject_idx ON automation.runs (tenant_id, subject_entity, subject_key);
+
+CREATE INDEX runs_cancel_requested_idx ON automation.runs (tenant_id, id)
+WHERE
+    cancel_requested;
 
 CREATE TABLE automation.tokens (
     tenant_id uuid NOT NULL,

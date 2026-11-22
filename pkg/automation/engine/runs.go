@@ -154,6 +154,16 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	proj := s.r.projector(a.TenantID)
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
+	// The sensitive values the viewer may not read, from the trigger's event and the events waits woke on.
+	rd := newRedactor()
+	if input, err := decodeMap(run.Input); err == nil {
+		if kind, _ := input["kind"].(string); kind != "" {
+			delete(input, "kind")
+			if err := rd.collect(ctx, proj, kind, input, &viewer); err != nil {
+				return RunDetail{}, err
+			}
+		}
+	}
 	for rows.Next() {
 		var sv StepView
 		var in, out, errj []byte
@@ -172,6 +182,9 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		if ev, ok := eventOf[fmt.Sprintf("%s|%d", sv.TokenID, sv.Seq)]; ok && len(out) > 0 {
 			if m, err := decodeMap(out); err == nil {
 				if p, ok := m["event"].(map[string]any); ok {
+					if err := rd.collect(ctx, proj, ev, p, &viewer); err != nil {
+						return RunDetail{}, err
+					}
 					if _, err := proj.project(ctx, ev, p, &viewer); err != nil {
 						return RunDetail{}, err
 					}
@@ -186,6 +199,13 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	if err := rows.Err(); err != nil {
 		return RunDetail{}, serrors.FromDB(opService, err)
 	}
+	// Values of those fields wherever later steps carried them: rendered params, outputs, errors.
+	for i := range d.Steps {
+		d.Steps[i].Input = rd.raw(d.Steps[i].Input)
+		d.Steps[i].Output = rd.raw(d.Steps[i].Output)
+		d.Steps[i].Error = rd.stepError(d.Steps[i].Error)
+	}
+	d.Error = rd.stepError(d.Error)
 	if d.CurrentNodes == nil {
 		d.CurrentNodes = []string{}
 	}

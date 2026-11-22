@@ -217,14 +217,33 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 	if err != nil || busy {
 		return serrors.FromDB(opStart, err)
 	}
-	var run uuid.UUID
+	var run, automation uuid.UUID
+	err = tx.QueryRow(ctx, `
+		SELECT q.run_id, r.automation_id FROM automation.subject_queue q JOIN automation.runs r ON r.tenant_id = q.tenant_id AND r.id = q.run_id
+		WHERE q.tenant_id = $1 AND q.subject_entity = $2 AND q.subject_key = $3 ORDER BY q.seq LIMIT 1`, tenant, s.Entity, s.Key).Scan(&run, &automation)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	// The graph's row lock serializes the promotion with Disable and Delete (disableTx): after them the
+	// queue row is gone and the run cancelled.
+	var live bool
+	err = tx.QueryRow(ctx, `SELECT deleted_at IS NULL FROM automation.automations WHERE tenant_id = $1 AND id = $2 FOR SHARE`, tenant, automation).Scan(&live)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil || !live {
+		return serrors.FromDB(opStart, err)
+	}
 	var user *int64
 	var kind *string
 	err = tx.QueryRow(ctx, `
 		DELETE FROM automation.subject_queue q USING automation.runs r
-		WHERE q.tenant_id = $1 AND r.tenant_id = q.tenant_id AND r.id = q.run_id AND q.run_id = (
-			SELECT run_id FROM automation.subject_queue WHERE tenant_id = $1 AND subject_entity = $2 AND subject_key = $3 ORDER BY seq LIMIT 1)
-		RETURNING q.run_id, r.run_as_user_id, r.run_as_kind`, tenant, s.Entity, s.Key).Scan(&run, &user, &kind)
+		WHERE q.tenant_id = $1 AND q.run_id = $2 AND r.tenant_id = q.tenant_id AND r.id = q.run_id
+		  AND r.start_state = 'queued' AND NOT r.cancel_requested
+		RETURNING r.run_as_user_id, r.run_as_kind`, tenant, run).Scan(&user, &kind)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}

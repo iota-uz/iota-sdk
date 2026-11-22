@@ -43,15 +43,12 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 
 func pgInterval(seconds float64) string { return fmt.Sprintf("%f seconds", seconds) }
 
-// cancelOrphans cancels live runs of graphs that were deleted, or disabled after the run started: a
-// Disable whose process stopped before it cancelled them all.
+// cancelOrphans finishes the cancellations a Disable or Delete recorded (cancel_requested) when its
+// process stopped before it terminated every run.
 func (r *Runtime) cancelOrphans(ctx context.Context) error {
 	rows, err := r.cfg.DB.Query(ctx, `
 		SELECT r.tenant_id, r.id, r.instance_id`+runFrom+`
-		JOIN automation.automations a ON a.tenant_id = r.tenant_id AND a.id = r.automation_id
-		WHERE (a.deleted_at IS NOT NULL OR (a.enabled_version IS NULL AND a.disabled_at IS NOT NULL AND r.created_at <= a.disabled_at
-			AND r.trigger_kind <> 'manual' AND r.restarted_from IS NULL))
-		  AND `+liveSQL+` LIMIT 200`)
+		WHERE r.cancel_requested AND `+liveSQL+` LIMIT 200`)
 	if err != nil {
 		return serrors.FromDB(opMaintain, err)
 	}

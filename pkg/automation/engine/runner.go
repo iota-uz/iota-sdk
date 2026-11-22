@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -74,6 +75,25 @@ type execution struct {
 	run    runRow
 	ie     *interpEntry
 	log    *slog.Logger
+	// subject is the run-as with the rights it holds now, loaded at the start of every transaction.
+	subject spi.Subject
+}
+
+// refreshSubject reloads the run-as rights for the next step. A user that is blocked now aborts the
+// run as a platform failure: the engine claims the instance again, its own subject load is refused and
+// the instance blocks (BlockSubject), so no step runs with rights the user lost.
+func (x *execution) refreshSubject(ctx context.Context) error {
+	if x.run.RunAsUserID == nil || x.run.RunAsKind == nil {
+		x.subject = x.nr.Subject()
+		return nil
+	}
+	sub, err := x.r.cfg.Users.LoadSubject(ctx, x.tenant, *x.run.RunAsUserID, spi.SubjectKind(*x.run.RunAsKind))
+	if err != nil {
+		return &host.InfraError{Err: fmt.Errorf("run-as of run %s: %w", x.run.ID, err)}
+	}
+	sub.TenantID, sub.UserID, sub.Kind = x.tenant, *x.run.RunAsUserID, spi.SubjectKind(*x.run.RunAsKind)
+	x.subject = sub
+	return nil
 }
 
 func (x *execution) interp(ctx context.Context) (*interpEntry, error) {
@@ -152,6 +172,9 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 // step publishes, then fn, then the run's counters; the fence and the receipt commit with it.
 func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Context, tx pgx.Tx, s *stepState) error) error {
 	n := x.run.TxSeq
+	if err := x.refreshSubject(ctx); err != nil {
+		return err
+	}
 	_, err := x.nr.Transaction(ctx, "tx", int(n), func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		if err := lockSubjects(ctx, tx, subjectLockKey(x.tenant, x.run.Subject, x.run.ID)); err != nil {
 			return nil, err

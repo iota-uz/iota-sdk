@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,6 +81,37 @@ func (n *noteNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepCo
 	return map[string]any{"text": text}, nil
 }
 
+// permNode records whether the step's run-as holds the secret permission now.
+type permNode struct{ specNode }
+
+func (permNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepContext, node graph.Node, _ graph.Effect) (map[string]any, error) {
+	text := "lacks"
+	if run.RunAs.Has(permSec) {
+		text = "has"
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO test_effects (run_id, node_id, text) VALUES ($1, $2, $3)`, run.RunID, node.ID, text)
+	return map[string]any{}, err
+}
+
+// notices is the OwnerNotifier double.
+type notices struct {
+	mu   sync.Mutex
+	list []engine.FailureNotice
+}
+
+func (n *notices) RunFailed(_ context.Context, _ pgx.Tx, f engine.FailureNotice) error {
+	n.mu.Lock()
+	n.list = append(n.list, f)
+	n.mu.Unlock()
+	return nil
+}
+
+func (n *notices) all() []engine.FailureNotice {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]engine.FailureNotice(nil), n.list...)
+}
+
 // codeNode is a node with code a human reviews.
 type codeNode struct{ specNode }
 
@@ -143,6 +175,9 @@ func newEnv(t *testing.T) *env {
 		Templates: []string{"text"}, Output: expr.Fields{{Name: "text", Field: expr.StringField}}}
 	e.note = &noteNode{specNode: specNode{noteSpec}}
 	require.NoError(t, reg.RegisterNode(e.note))
+	permSpec := graph.NodeSpec{Type: "acme.perm", Title: "Perm", Behavior: graph.BehaviorEffect,
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}
+	require.NoError(t, reg.RegisterNode(permNode{specNode{permSpec}}))
 	emitSpec := graph.NodeSpec{Type: "acme.emit", Title: "Emit", Behavior: graph.BehaviorEffect,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}
 	require.NoError(t, reg.RegisterNode(emitNode{specNode{emitSpec}}))

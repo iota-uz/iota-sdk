@@ -200,7 +200,7 @@ func (m *mover) stepContext(tok *tokenRow, seq int) StepContext {
 	return StepContext{
 		TenantID: m.x.tenant, RunID: m.x.run.ID, TokenID: tok.ID, Seq: seq,
 		AutomationID: m.x.run.AutomationID, Version: m.x.run.Version,
-		RunAs: m.x.nr.Subject(), Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
+		RunAs: m.x.subject, Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
 	}
 }
 
@@ -1070,7 +1070,7 @@ func (m *mover) subjectVars(ctx context.Context) (map[string]any, error) {
 	if m.x.r.cfg.Subjects == nil || s.Entity == graph.SubjectNone {
 		return m.vars, nil
 	}
-	raw, err := m.x.r.cfg.Subjects.Load(ctx, m.x.nr.Subject(), s)
+	raw, err := m.x.r.cfg.Subjects.Load(ctx, m.x.subject, s)
 	if errors.Is(err, ErrNotFound) {
 		return m.vars, nil // not visible: an expression that reads it is missing_context
 	}

@@ -51,6 +51,9 @@ type Config struct {
 	Subjects SubjectLoader
 	Calls    CallExecutor // nil → graphs with call nodes fail validation (connection_unavailable)
 	Tasks    TaskBridge   // nil → human nodes fail validation
+	// Notifier tells a graph's owner when a run fails; nil: nobody is told (the
+	// automation.run.finished.v1 event still is published).
+	Notifier OwnerNotifier
 	// Behaviors are the behaviors graphs run with; the registry's own (default graph.DefaultBehaviors).
 	Behaviors *graph.Behaviors
 	// MatchHooks are the product's trigger matching hooks (graph.Options.MatchHooks).
