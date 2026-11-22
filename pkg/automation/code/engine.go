@@ -33,7 +33,10 @@ var driverJS string
 var driverLines = strings.Count(driverJS, "\n")
 
 // bytecodeCacheSize is how many compiled programs (driver + script) the engine keeps.
-const bytecodeCacheSize = 256
+const bytecodeCacheSize = 64
+
+// compileTimeout bounds compiling a program to bytecode; it runs apart from any one run's deadline.
+const compileTimeout = 10 * time.Second
 
 // Engine defaults.
 const (
@@ -58,6 +61,7 @@ type engineOptions struct {
 	tenantRuns   int
 	logger       *slog.Logger
 	closeOnCtxDn bool
+	queueTimeout time.Duration
 }
 
 // WithMemoryPages sets the wasm memory cap of every sandbox in 64 KiB pages (default 2048, 128 MiB).
@@ -93,12 +97,27 @@ func WithMaxConcurrent(n int) EngineOption {
 	}
 }
 
-// WithTenantConcurrency sets how many runs one tenant executes at once (default half of the engine's, at
-// least one), so a tenant cannot take every slot.
+// WithTenantConcurrency sets how many runs one tenant executes at once (default a quarter of the engine's,
+// at least one), so a tenant cannot take every slot.
 func WithTenantConcurrency(n int) EngineOption {
 	return func(o *engineOptions) {
 		if n > 0 {
 			o.tenantRuns = n
+		}
+	}
+}
+
+// DefaultQueueTimeout is how long a run waits for a free slot before Run returns ErrBusy.
+const DefaultQueueTimeout = time.Minute
+
+// ErrBusy is returned by Run when no slot of the engine or the tenant freed up within the queue timeout.
+var ErrBusy = errors.New("the code engine is busy")
+
+// WithQueueTimeout sets how long a run waits for a slot (default one minute).
+func WithQueueTimeout(d time.Duration) EngineOption {
+	return func(o *engineOptions) {
+		if d > 0 {
+			o.queueTimeout = d
 		}
 	}
 }
@@ -119,6 +138,7 @@ type engine struct {
 	logger    *slog.Logger
 	global    *semaphore.Weighted
 	perTenant int64
+	queueWait time.Duration
 	closed    atomic.Bool
 
 	mu      sync.Mutex
@@ -138,7 +158,10 @@ type tenantSlot struct {
 // NewEngine compiles the sandbox runtime once for the process. Every Run gets a fresh instance of it.
 func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 	const op = serrors.Op("automation.code.NewEngine")
-	o := engineOptions{pages: DefaultMemoryPages, budget: DefaultMemoryBudget, logger: slog.Default(), closeOnCtxDn: true}
+	o := engineOptions{
+		pages: DefaultMemoryPages, budget: DefaultMemoryBudget, logger: slog.Default(), closeOnCtxDn: true,
+		queueTimeout: DefaultQueueTimeout,
+	}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -150,7 +173,7 @@ func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 		}
 	}
 	if o.tenantRuns == 0 {
-		o.tenantRuns = max(1, o.maxRuns/2)
+		o.tenantRuns = max(1, o.maxRuns/4)
 	}
 	o.tenantRuns = min(o.tenantRuns, o.maxRuns)
 
@@ -188,6 +211,7 @@ func NewEngine(ctx context.Context, opts ...EngineOption) (Engine, error) {
 		logger:    o.logger,
 		global:    semaphore.NewWeighted(int64(o.maxRuns)),
 		perTenant: int64(o.tenantRuns),
+		queueWait: o.queueTimeout,
 		tenants:   map[string]*tenantSlot{},
 	}, nil
 }
@@ -252,6 +276,9 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		return nil, serrors.Wrap(op, errors.New("no compiled script"))
 	}
 	limits := in.Limits.WithDefaults()
+	if slices.Contains(in.Outcomes, OutcomeFailed) {
+		return nil, serrors.Wrap(op, errors.New(`"failed" is the node's own outcome, not one the code returns`))
+	}
 	ctxJSON, err := normalizeCtx(in.Ctx)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
@@ -279,8 +306,13 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		return nil, serrors.Wrap(op, err)
 	}
 
-	release, err := e.acquire(ctx, in.Tenant)
+	queueCtx, queueCancel := context.WithTimeout(ctx, e.queueWait)
+	release, err := e.acquire(queueCtx, in.Tenant)
+	queueCancel()
 	if err != nil {
+		if ctx.Err() == nil {
+			err = ErrBusy
+		}
 		return nil, serrors.Wrap(op, err)
 	}
 	defer release()
@@ -294,8 +326,8 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	evalCtx, stop := context.WithCancel(runCtx)
 	defer stop()
 	st := newRunState(in, limits, masker, stop)
-
 	dl, _ := runCtx.Deadline()
+	st.timeout = dl.Sub(start) // the parent's deadline may be the earlier one
 	inst, err := e.rt.Instance(evalCtx,
 		kafig.WithRouter(st.router()),
 		kafig.WithJSMemoryLimit(e.jsHeap),
@@ -322,11 +354,16 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		call.Write(quoteJSON(string(ctxJSON)))
 		call.WriteString(",")
 		call.Write(quoteJSON(string(secretsJSON)))
+		call.WriteString(",")
+		call.Write(quoteJSON(string(driverLimits(limits, in.Secrets))))
 		call.WriteString(")")
 		_, evalErr = inst.Eval(evalCtx, call.String(), kafig.WithAsync())
 	}
 	_ = inst.Close(context.WithoutCancel(ctx))
 	duration := time.Since(start)
+	if e.closed.Load() {
+		return nil, serrors.Wrap(op, errClosed)
+	}
 
 	res, err := e.result(st, script, evalErr, ctx, runCtx)
 	if err != nil {
@@ -336,26 +373,46 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	return res, nil
 }
 
-// compiled returns the sealed bytecode of a program, compiling it on first use; nil when it cannot be
-// compiled in time, and the program is then evaluated from source.
+// compiled returns the sealed bytecode of a program, compiling it on first use. The compile has its own
+// deadline, shared by every run waiting for the same program; a run stops waiting at its own deadline. nil
+// means no bytecode in time, and the run evaluates the program from source.
 func (e *engine) compiled(ctx context.Context, program string) []byte {
 	sum := sha256.Sum256([]byte(program))
 	key := hex.EncodeToString(sum[:])
 	if bc, ok := e.bytecode.Get(key); ok {
 		return bc
 	}
-	v, err, _ := e.compiles.Do(key, func() (any, error) {
-		bc, err := e.rt.Compile(ctx, program)
+	ch := e.compiles.DoChan(key, func() (any, error) {
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), compileTimeout)
+		defer cancel()
+		bc, err := e.rt.Compile(cctx, program)
 		if err != nil {
 			return nil, err
 		}
 		e.bytecode.Add(key, bc)
 		return bc, nil
 	})
-	if err != nil {
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			return nil
+		}
+		bc, _ := res.Val.([]byte)
+		return bc
+	case <-ctx.Done():
 		return nil
 	}
-	return v.([]byte)
+}
+
+// driverLimits are the bounds the driver applies before a call reaches the host. A log line keeps room for
+// the longest escaped form of a secret, so masking never sees a secret cut in half.
+func driverLimits(l Limits, secrets map[string]string) []byte {
+	longest := 0
+	for _, v := range secrets {
+		longest = max(longest, len(v))
+	}
+	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d}`,
+		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes)
 }
 
 func normalizeCtx(raw json.RawMessage) ([]byte, error) {
@@ -397,7 +454,7 @@ func (e *engine) result(st *runState, script *Compiled, evalErr error, parent, r
 		if rep.Outcome == nil || !slices.Contains(st.outcomes, *rep.Outcome) {
 			got := "no outcome"
 			if rep.Outcome != nil {
-				got = fmt.Sprintf("%q", *rep.Outcome)
+				got, _ = truncateRunes(string(quoteJSON(*rep.Outcome)), 200)
 			}
 			return fail(&RunError{Reason: ReasonUnknownOutcome, Message: fmt.Sprintf("the code returned %s; allowed: %s", got, strings.Join(quoteAll(st.outcomes), ", "))})
 		}
@@ -458,7 +515,7 @@ func (e *engine) result(st *runState, script *Compiled, evalErr error, parent, r
 }
 
 func timeoutError(st *runState) *RunError {
-	return &RunError{Reason: ReasonTimeout, Message: fmt.Sprintf("the code did not finish within %s", st.limits.Timeout)}
+	return &RunError{Reason: ReasonTimeout, Message: fmt.Sprintf("the code did not finish within %s", st.timeout.Round(time.Millisecond))}
 }
 
 func oomError() *RunError {
@@ -469,9 +526,10 @@ func oomError() *RunError {
 func (e *engine) jsFailure(st *runState, script *Compiled, name, message, stack string, timedOut bool) *RunError {
 	lower := strings.ToLower(message)
 	switch {
-	case strings.Contains(lower, "stack size exceeded"), strings.Contains(lower, "stack overflow"):
+	case (name == "RangeError" || name == "InternalError") &&
+		(lower == "maximum call stack size exceeded" || lower == "stack overflow"):
 		return &RunError{Reason: ReasonStackOverflow, Message: "maximum call stack size exceeded"}
-	case name == "InternalError" && strings.Contains(lower, "out of memory"):
+	case name == "InternalError" && lower == "out of memory":
 		return oomError()
 	case name == "InternalError" && lower == "interrupted":
 		if timedOut {
@@ -500,7 +558,7 @@ func (e *engine) jsFailure(st *runState, script *Compiled, name, message, stack 
 func quoteAll(list []string) []string {
 	out := make([]string, len(list))
 	for i, s := range list {
-		out[i] = fmt.Sprintf("%q", s)
+		out[i] = string(quoteJSON(s))
 	}
 	return out
 }

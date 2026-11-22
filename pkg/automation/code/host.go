@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"unicode/utf8"
+	"time"
 
 	"github.com/google/uuid"
 	kafig "github.com/iota-uz/kafig/kafig-go"
@@ -24,6 +24,8 @@ const (
 	maxFetchHeaders   = 100
 	maxFetchBodyBytes = 10 << 20
 	maxDigestBytes    = 10 << 20
+	// maxHeldBodyBytes bounds the response bodies one run's fetches keep in Go until the code reads them.
+	maxHeldBodyBytes = 64 << 20
 )
 
 var fetchMethods = map[string]bool{
@@ -53,6 +55,7 @@ type reported struct {
 // runState is the host side of one run: the router of host calls and everything they accumulate.
 type runState struct {
 	limits   Limits
+	timeout  time.Duration // the run's effective deadline from its start
 	outcomes []string
 	masker   Masker
 	fetcher  Fetcher
@@ -67,6 +70,9 @@ type runState struct {
 	logs        []string
 	logsDropped bool
 	result      *reported
+	bodies      map[int64][]byte // response bodies not read yet, by id
+	heldBytes   int64
+	nextBody    int64
 }
 
 func newRunState(in RunInput, limits Limits, masker Masker, done func()) *runState {
@@ -78,6 +84,7 @@ func newRunState(in RunInput, limits Limits, masker Masker, done func()) *runSta
 		sink:     in.Logger,
 		done:     done,
 		fetchSem: make(chan struct{}, limits.MaxConcurrentFetches),
+		bodies:   map[int64][]byte{},
 	}
 }
 
@@ -87,6 +94,7 @@ func (s *runState) router() *kafig.RPCRouter {
 		WithSync("log", s.log).
 		WithSync("uuid", s.uuid).
 		WithSync("digest", s.digest).
+		WithSync("body", s.body).
 		WithSync("__result", s.report).
 		WithAsync("fetch", s.fetch)
 }
@@ -119,9 +127,8 @@ func (s *runState) log(_ context.Context, params json.RawMessage) (json.RawMessa
 		return nil, errors.New("log takes a list of strings")
 	}
 	line := s.masker.Mask(strings.Join(args, " "))
-	if utf8.RuneCountInString(line) > s.limits.MaxLogLineChars {
-		runes := []rune(line)
-		line = string(runes[:s.limits.MaxLogLineChars]) + "…"
+	if cut, ok := truncateRunes(line, s.limits.MaxLogLineChars); ok {
+		line = cut + "…"
 	}
 	s.mu.Lock()
 	switch {
@@ -139,6 +146,54 @@ func (s *runState) log(_ context.Context, params json.RawMessage) (json.RawMessa
 		s.sink.Log("info", line)
 	}
 	return nil, nil
+}
+
+// truncateRunes cuts s to n runes; ok reports that it was longer.
+func truncateRunes(s string, n int) (string, bool) {
+	if len(s) <= n {
+		return s, false
+	}
+	count := 0
+	for i := range s {
+		if count == n {
+			return s[:i], true
+		}
+		count++
+	}
+	return s, false
+}
+
+// body hands the code a response body it reads and forgets it on the host.
+func (s *runState) body(_ context.Context, params json.RawMessage) (json.RawMessage, error) {
+	var id int64
+	if err := json.Unmarshal(params, &id); err != nil {
+		return nil, errors.New("body takes a response id")
+	}
+	s.mu.Lock()
+	data, ok := s.bodies[id]
+	delete(s.bodies, id)
+	s.heldBytes -= int64(len(data))
+	s.mu.Unlock()
+	if !ok {
+		return nil, errors.New("the body was already read")
+	}
+	return quoteJSON(strings.ToValidUTF8(string(data), "\uFFFD")), nil
+}
+
+// holdBody keeps a body until the code reads it; 0 for an empty body.
+func (s *runState) holdBody(data []byte) (int64, bool) {
+	if len(data) == 0 {
+		return 0, true
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.heldBytes+int64(len(data)) > maxHeldBodyBytes {
+		return 0, false
+	}
+	s.nextBody++
+	s.bodies[s.nextBody] = data
+	s.heldBytes += int64(len(data))
+	return s.nextBody, true
 }
 
 func (s *runState) uuid(context.Context, json.RawMessage) (json.RawMessage, error) {
@@ -165,12 +220,12 @@ func (s *runState) digest(_ context.Context, params json.RawMessage) (json.RawMe
 
 // fetchReply is what env.fetch receives: a response, or blocked / error, which it throws.
 type fetchReply struct {
-	Status     int               `json:"status,omitempty"`
-	StatusText string            `json:"statusText,omitempty"`
-	Headers    map[string]string `json:"headers,omitempty"`
-	Body       string            `json:"body,omitempty"`
-	URL        string            `json:"url,omitempty"`
-	Redirected bool              `json:"redirected,omitempty"`
+	Status     int               `json:"status"`
+	StatusText string            `json:"statusText"`
+	Headers    map[string]string `json:"headers"`
+	BodyID     int64             `json:"bodyId"` // read with the body call; 0: empty
+	URL        string            `json:"url"`
+	Redirected bool              `json:"redirected"`
 	Blocked    string            `json:"blocked,omitempty"`
 	Error      string            `json:"error,omitempty"`
 }
@@ -212,11 +267,15 @@ func (s *runState) fetch(ctx context.Context, params json.RawMessage) (json.RawM
 	for k, vs := range resp.Header {
 		headers[strings.ToLower(k)] = strings.Join(vs, ", ")
 	}
+	bodyID, ok := s.holdBody(resp.Body)
+	if !ok {
+		return replyError(fmt.Sprintf("unread response bodies exceed %d MiB: read the earlier responses first", maxHeldBodyBytes>>20))
+	}
 	return json.Marshal(fetchReply{
 		Status:     resp.Status,
 		StatusText: resp.StatusText,
 		Headers:    headers,
-		Body:       strings.ToValidUTF8(string(resp.Body), "�"),
+		BodyID:     bodyID,
 		URL:        resp.URL,
 		Redirected: resp.Redirected,
 	})

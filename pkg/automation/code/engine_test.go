@@ -217,36 +217,53 @@ func TestEnvCrypto(t *testing.T) {
 	}
 }
 
-func TestResultIsAcceptedOnce(t *testing.T) {
-	res := runCode(t, `export default async () => {
-  host.rpcSync("__result", { outcome: "done", output: "1" });
-  let second = "accepted";
-  try { host.rpcSync("__result", { outcome: "done", output: "2" }) } catch (e) { second = "refused" }
-  return { outcome: "done", output: second };
-}
-declare const host: any;`, RunInput{})
-	if res.Err != nil || string(res.Output) != "1" {
+func TestHostBridgeIsHidden(t *testing.T) {
+	res := runCode(t, `declare const globalThis: any;
+export default async () => ({ outcome: "done", output: [typeof globalThis.host, typeof globalThis.__codeRun] })`, RunInput{})
+	if res.Err != nil || string(res.Output) != `["undefined","function"]` {
 		t.Fatalf("got %+v %s", res.Err, res.Output)
 	}
 }
 
-func TestHostCallsValidateParameters(t *testing.T) {
-	res := runCode(t, `declare const host: any;
-export default async () => {
-  const out: string[] = [];
-  const tries: [string, any][] = [["log", "not a list"], ["digest", { alg: "MD5", data: "x" }], ["uuid", 1], ["nope", 1]];
-  for (const [m, p] of tries) {
-    try { host.rpcSync(m, p); out.push(m + ":ok") } catch (e) { out.push(m + ":refused") }
-  }
-  const f = await host.rpc("fetch", { url: "https://example.com", method: "TRACE" });
-  out.push("fetch:" + (f.error ? "refused" : "ok"));
-  return { outcome: "done", output: out };
-}`, RunInput{})
-	if res.Err != nil {
-		t.Fatal(res.Err)
+// The Go router is the boundary of trust: these are the calls hostile code would make if it reached the
+// bridge, so they are checked without the driver.
+func TestRouterValidatesEveryCall(t *testing.T) {
+	ctx := context.Background()
+	done := 0
+	st := newRunState(RunInput{}, Limits{}.WithDefaults(), NewMasker(nil), func() { done++ })
+	if _, err := st.report(ctx, json.RawMessage(`{"outcome":"done","output":"1"}`)); err != nil {
+		t.Fatal(err)
 	}
-	if string(res.Output) != `["log:refused","digest:refused","uuid:ok","nope:refused","fetch:refused"]` {
-		t.Fatalf("output %s", res.Output)
+	if _, err := st.report(ctx, json.RawMessage(`{"outcome":"done","output":"2"}`)); err == nil {
+		t.Fatal("a second result was accepted")
+	}
+	if done != 1 || *st.reported().Output != "1" {
+		t.Fatalf("result %v, done %d", st.reported(), done)
+	}
+	for name, call := range map[string]func() (json.RawMessage, error){
+		"log not a list":  func() (json.RawMessage, error) { return st.log(ctx, json.RawMessage(`"x"`)) },
+		"digest md5":      func() (json.RawMessage, error) { return st.digest(ctx, json.RawMessage(`{"alg":"MD5","data":"x"}`)) },
+		"body unknown id": func() (json.RawMessage, error) { return st.body(ctx, json.RawMessage(`7`)) },
+		"result garbage":  func() (json.RawMessage, error) { return st.report(ctx, json.RawMessage(`[`)) },
+	} {
+		if _, err := call(); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	for params, want := range map[string]string{
+		`{"url":"https://example.com","method":"TRACE"}`:                   "unsupported method",
+		`{"url":"https://example.com","redirect":"sometimes"}`:             "redirect must be",
+		`{"url":"https://example.com","headers":{"Host":"x"}}`:             "cannot be set",
+		`{"url":"https://example.com","headers":{"Bad Name":"x"}}`:         "invalid header",
+		`{"url":"https://example.com","headers":{"X":"a\r\nInjected: 1"}}`: "invalid header",
+		`{"url":"https://example.com","body":"x"}`:                         "cannot have a body",
+		`{"url":""}`: "invalid URL",
+		`[1]`:        "invalid fetch arguments",
+	} {
+		reply, err := st.fetch(ctx, json.RawMessage(params))
+		if err != nil || !strings.Contains(string(reply), want) {
+			t.Errorf("%s: got %s %v, want %q", params, reply, err, want)
+		}
 	}
 }
 
@@ -303,4 +320,44 @@ func (s *recordingSink) lines() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.got...)
+}
+
+func TestUserErrorsAreNotLimitFailures(t *testing.T) {
+	for _, msg := range []string{"upstream: stack overflow in parser", "out of memory", "interrupted"} {
+		res := runCode(t, `export default async () => { throw new Error("`+msg+`") }`, RunInput{})
+		wantReason(t, res, ReasonException)
+		if res.Err.Line != 1 {
+			t.Fatalf("%s: no position: %+v", msg, res.Err)
+		}
+	}
+}
+
+func TestUnknownOutcomeMessageIsMasked(t *testing.T) {
+	res := runCode(t, `export default async (_: any, env: any) => ({ outcome: env.secrets.K })`,
+		RunInput{Secrets: map[string]string{"K": "s3cr\x01t x"}})
+	wantReason(t, res, ReasonUnknownOutcome)
+	if strings.Contains(res.Err.Message, "s3cr") {
+		t.Fatalf("secret in %q", res.Err.Message)
+	}
+}
+
+func TestFailedIsNotACodeOutcome(t *testing.T) {
+	c := mustCompile(t, LangJS, `export default async () => ({ outcome: "failed" })`)
+	if _, err := testEngine(t).Run(context.Background(), c, RunInput{Outcomes: []string{"done", "failed"}}); err == nil {
+		t.Fatal("Outcomes with failed accepted")
+	}
+}
+
+func TestTimeoutMessageNamesTheEffectiveDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	c := mustCompile(t, LangJS, `export default async () => { for (;;) {} }`)
+	res, err := testEngine(t).Run(ctx, c, RunInput{Outcomes: []string{"done"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantReason(t, res, ReasonTimeout)
+	if strings.Contains(res.Err.Message, "30s") {
+		t.Fatalf("message %q", res.Err.Message)
+	}
 }

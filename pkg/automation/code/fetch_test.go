@@ -124,7 +124,7 @@ func TestGuardedFetcherRedirects(t *testing.T) {
 		case "/loop":
 			http.Redirect(w, r, "/loop", http.StatusFound)
 		case "/echo":
-			authSeen.Store(r.Host + " " + r.Header.Get("Authorization") + " " + r.Header.Get("Cookie"))
+			authSeen.Store(r.Host + " " + r.Header.Get("Authorization") + " " + r.Header.Get("Cookie") + " " + r.Header.Get("X-Api-Key") + " " + r.Header.Get("Accept"))
 			_, _ = w.Write([]byte("ok"))
 		}
 	}))
@@ -138,7 +138,7 @@ func TestGuardedFetcherRedirects(t *testing.T) {
 	}
 
 	resp, err := f.Fetch(ctx, FetchRequest{URL: "https://example.com/to-other", Header: http.Header{
-		"Authorization": {"Bearer s3cr3t"}, "Cookie": {"sid=1"}, "X-Keep": {"1"},
+		"Authorization": {"Bearer s3cr3t"}, "Cookie": {"sid=1"}, "X-Api-Key": {"s3cr3t"}, "Accept": {"text/plain"},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestGuardedFetcherRedirects(t *testing.T) {
 	if !resp.Redirected || resp.URL != "https://api.example.com/echo" {
 		t.Fatalf("got %+v", resp)
 	}
-	if got := authSeen.Load().(string); got != "api.example.com  " {
+	if got := authSeen.Load().(string); got != "api.example.com    text/plain" {
 		t.Fatalf("credentials reached another origin: %q", got)
 	}
 
@@ -175,6 +175,20 @@ func TestEnvFetchFromTheSandbox(t *testing.T) {
 	}
 	if string(res.Output) != `{"status":200,"ok":true,"type":"application/json","data":{"method":"POST","key":"k"}}` {
 		t.Fatalf("output %s", res.Output)
+	}
+}
+
+func TestEnvFetchEmptyBody(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	res := runCode(t, `export default async (_: any, env: any) => {
+  const r = await env.fetch("https://example.com/");
+  return { outcome: "done", output: [r.status, await r.text(), typeof r.headers, r.redirected, r.statusText] };
+}`, RunInput{Fetcher: testFetcher(srv)})
+	if res.Err != nil || string(res.Output) != `[204,"","object",false,"No Content"]` {
+		t.Fatalf("got %v %s", res.Err, res.Output)
 	}
 }
 

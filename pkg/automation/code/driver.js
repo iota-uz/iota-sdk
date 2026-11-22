@@ -1,11 +1,16 @@
 // The driver of a Code node run, evaluated in every fresh sandbox before the code. It builds `env`, calls
-// `__mod.default(ctx, env)`, waits for it and reports the result to the host exactly once. The intrinsics it
-// uses are captured here, before the code can replace them. Nothing here is a security boundary: the host
-// validates every call (see host.go).
+// `__mod.default(ctx, env)`, waits for it and reports the result to the host exactly once.
+//
+// It captures kafig's `host` bridge and removes it from the global object before the code runs, so the
+// code reaches the host only through `env`. That lets the driver bound what the code can queue for the host
+// (fetch count, request bytes in flight, log lines and their length) before anything crosses into Go
+// memory. The host still validates every call (see host.go): the driver is not the boundary of trust, only
+// the bound on what a flood of calls can make the host hold.
 (() => {
   "use strict";
-  const H = host;
   const G = globalThis;
+  const H = G.host;
+  delete G.host;
   const { freeze, keys, defineProperty } = Object;
   const parse = JSON.parse;
   const stringify = JSON.stringify;
@@ -15,6 +20,10 @@
   const TypeErrorCtor = TypeError;
   const rpc = H.rpc;
   const rpcSync = H.rpcSync;
+
+  // Request bytes that may wait in the host's queue at once, across all fetches of the run.
+  const MAX_QUEUED_REQUEST_BYTES = 16 << 20;
+  const MAX_REQUEST_BODY = 10 << 20;
 
   const deepFreeze = (v) => {
     if (v !== null && typeof v === "object") {
@@ -67,20 +76,6 @@
     }
   }
 
-  const response = (r) => {
-    const body = Str(r.body);
-    return freeze({
-      status: r.status,
-      statusText: r.statusText,
-      ok: r.status >= 200 && r.status < 300,
-      headers: freeze(r.headers),
-      url: r.url,
-      redirected: r.redirected,
-      text: async () => body,
-      json: async () => parse(body),
-    });
-  };
-
   // The stack of a fetch error is the stack of the call: after the await only the driver is on it.
   const fail = (err, site) => {
     try {
@@ -89,57 +84,102 @@
     return err;
   };
 
-  const fetch = async (url, init) => {
-    const site = new ErrorCtor();
-    const req = { url: Str(url) };
-    if (init !== undefined && init !== null) {
-      if (init.method !== undefined) req.method = Str(init.method);
-      if (init.headers !== undefined && init.headers !== null) {
-        const h = {};
-        for (const k of keys(init.headers)) h[Str(k)] = Str(init.headers[k]);
-        req.headers = h;
-      }
-      if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
-      if (init.redirect !== undefined) req.redirect = Str(init.redirect);
-    }
-    const r = await rpc("fetch", req);
-    if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
-    if (r.error) throw fail(new TypeErrorCtor("fetch failed: " + Str(r.error)), site);
-    return response(r);
+  const response = (r) => {
+    // The host keeps the body until it is read, so unread bodies never wait in the host's queue.
+    let body;
+    const text = () => {
+      if (body === undefined) body = r.bodyId ? Str(rpcSync("body", r.bodyId)) : "";
+      return body;
+    };
+    return freeze({
+      status: r.status,
+      statusText: Str(r.statusText),
+      ok: r.status >= 200 && r.status < 300,
+      headers: freeze(r.headers || {}),
+      url: Str(r.url),
+      redirected: r.redirected === true,
+      text: async () => text(),
+      json: async () => parse(text()),
+    });
   };
 
-  const makeEnv = (secrets) =>
-    freeze({
+  const makeEnv = (secrets, limits) => {
+    let fetches = 0;
+    let queuedBytes = 0;
+    let logLines = 0;
+
+    const fetch = async (url, init) => {
+      const site = new ErrorCtor();
+      if (++fetches > limits.maxFetches) {
+        throw fail(new TypeErrorCtor("fetch failed: at most " + limits.maxFetches + " fetches per run"), site);
+      }
+      const req = { url: Str(url) };
+      if (init !== undefined && init !== null) {
+        if (init.method !== undefined) req.method = Str(init.method);
+        if (init.headers !== undefined && init.headers !== null) {
+          const h = {};
+          for (const k of keys(init.headers)) h[Str(k)] = Str(init.headers[k]);
+          req.headers = h;
+        }
+        if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
+        if (init.redirect !== undefined) req.redirect = Str(init.redirect);
+      }
+      if (req.body && req.body.length > MAX_REQUEST_BODY) {
+        throw fail(new TypeErrorCtor("fetch failed: request body is too long"), site);
+      }
+      const size = req.url.length + (req.body ? req.body.length : 0);
+      if (queuedBytes + size > MAX_QUEUED_REQUEST_BYTES) {
+        throw fail(new TypeErrorCtor("fetch failed: too much request data in flight"), site);
+      }
+      queuedBytes += size;
+      let r;
+      try {
+        r = await rpc("fetch", req);
+      } finally {
+        queuedBytes -= size;
+      }
+      if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
+      if (r.error) throw fail(new TypeErrorCtor("fetch failed: " + Str(r.error)), site);
+      return response(r);
+    };
+
+    return freeze({
       fetch,
       secrets: freeze(secrets),
       log: (...args) => {
-        rpcSync("log", args.map(format));
+        if (logLines > limits.maxLogLines) return;
+        logLines++;
+        let line = args.map(format).join(" ");
+        if (line.length > limits.maxLogChars) line = line.slice(0, limits.maxLogChars);
+        rpcSync("log", [line]);
       },
       crypto: freeze({
         randomUUID: () => rpcSync("uuid", null),
         digest: async (alg, data) => rpcSync("digest", { alg: Str(alg), data: Str(data) }),
       }),
     });
+  };
 
   const report = (r) => {
     rpcSync("__result", r);
   };
 
-  const run = async (mod, ctxJSON, secretsJSON) => {
+  const run = async (mod, ctxJSON, secretsJSON, limitsJSON) => {
+    const limits = parse(limitsJSON);
     let res;
     try {
       const fn = mod !== null && typeof mod === "object" ? mod.default : undefined;
       if (typeof fn !== "function") {
         throw new TypeErrorCtor("the code must export default async function run(ctx, env)");
       }
-      res = await fn(deepFreeze(parse(ctxJSON)), makeEnv(parse(secretsJSON)));
+      res = await fn(deepFreeze(parse(ctxJSON)), makeEnv(parse(secretsJSON), limits));
     } catch (e) {
       report({ error: errorInfo(e) });
       return;
     }
     try {
       if (res === null || typeof res !== "object" || isArray(res)) {
-        report({ invalid: "run must return { outcome, output? }, got " + format(res) });
+        report({ invalid: "run must return { outcome, output? }, got " + format(res).slice(0, 200) });
         return;
       }
       const outcome = res.outcome;
@@ -154,6 +194,10 @@
         }
         if (out === undefined) {
           report({ invalid: "output is not JSON: " + typeof output });
+          return;
+        }
+        if (out.length > limits.maxOutputBytes) {
+          report({ invalid: "output is at least " + out.length + " bytes, at most " + limits.maxOutputBytes });
           return;
         }
       }

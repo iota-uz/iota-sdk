@@ -1,6 +1,7 @@
 package code
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -100,7 +101,8 @@ type guardedFetcher struct {
 // NewGuardedFetcher returns the Fetcher of the network policy: https only, port 443 unless allowed
 // otherwise, no local or metadata host names, no private, loopback, link-local or shared addresses (a name
 // with any private DNS answer is refused as a whole, and the address is checked again when dialing), at most
-// 20 redirects each checked the same way, credentials dropped once a redirect leaves the origin, no proxy,
+// 20 redirects each checked the same way, credentials and every non-safelisted header dropped once a
+// redirect leaves the origin, no proxy,
 // and the body capped after decoding.
 func NewGuardedFetcher(opts ...FetchOption) Fetcher {
 	f := &guardedFetcher{
@@ -242,6 +244,12 @@ func origin(u *url.URL) string {
 	return u.Scheme + "://" + strings.ToLower(u.Hostname()) + ":" + port
 }
 
+// crossOriginHeaders are the request headers that follow a redirect to another origin.
+var crossOriginHeaders = map[string]bool{
+	"Accept": true, "Accept-Language": true, "Content-Language": true, "Content-Type": true,
+	"User-Agent": true, "Cache-Control": true, "Pragma": true,
+}
+
 var errRedirectMode = errors.New(`redirect refused: the request was made with redirect: "error"`)
 
 func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchResponse, error) {
@@ -303,9 +311,13 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 				crossed = crossed || origin(v.URL) != start
 			}
 			if crossed {
-				next.Header.Del("Authorization")
-				next.Header.Del("Cookie")
-				next.Header.Del("Proxy-Authorization")
+				// Authorization, Cookie and Proxy-Authorization, and with them every header the code set that
+				// could carry a credential (an API key header): only the safelisted ones go to another origin.
+				for k := range next.Header {
+					if !crossOriginHeaders[http.CanonicalHeaderKey(k)] {
+						next.Header.Del(k)
+					}
+				}
 			}
 			redirects++
 			return nil
@@ -327,7 +339,13 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, f.maxBody+1))
+	// Sized up front when the length is known, so reading does not leave a trail of grown buffers.
+	var buf bytes.Buffer
+	if n := resp.ContentLength; n > 0 && n <= f.maxBody {
+		buf.Grow(int(n) + 1)
+	}
+	_, err = buf.ReadFrom(io.LimitReader(resp.Body, f.maxBody+1))
+	data := buf.Bytes()
 	if err != nil {
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
