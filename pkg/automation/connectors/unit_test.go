@@ -103,8 +103,7 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 	later := laterMigrations(t, name)
 	for i := len(later) - 1; i >= 0; i-- {
 		_, d := migrationSections(t, later[i])
-		_, err := e.db.Exec(e.ctx, d)
-		require.NoError(t, err, later[i])
+		require.NoError(t, execSection(e, d), later[i])
 	}
 
 	tables := func() int {
@@ -113,35 +112,67 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 		return n
 	}
 	assert.Equal(t, 3, tables())
-	_, err := e.db.Exec(e.ctx, down)
-	require.NoError(t, err)
+	require.NoError(t, execSection(e, down))
 	assert.Equal(t, 0, tables())
 	var schema int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'automation'`).Scan(&schema))
 	assert.Zero(t, schema)
-	_, err = e.db.Exec(e.ctx, up)
-	require.NoError(t, err)
+	require.NoError(t, execSection(e, up))
 	assert.Equal(t, 3, tables())
 	for _, m := range later {
 		u, _ := migrationSections(t, m)
-		_, err := e.db.Exec(e.ctx, u)
-		require.NoError(t, err, m)
+		require.NoError(t, execSection(e, u), m)
 	}
 
 	// Constraints of the table.
-	_, err = e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
+	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
 	require.Error(t, err, "a name that is not a slug")
 }
 
-// migrationSections are the Up and Down SQL of a migration file.
+// migrationSections are the Up and Down SQL of a migration file, each starting with the rest of its
+// "-- +migrate" line (" notransaction" for a section sql-migrate runs outside a transaction).
 func migrationSections(t *testing.T, name string) (string, string) {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("migrations", name))
 	require.NoError(t, err)
 	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
 	require.True(t, ok, name)
-	return strings.TrimPrefix(up, "-- +migrate Up"), down
+	_, up, ok = strings.Cut(up, "-- +migrate Up")
+	require.True(t, ok, name)
+	return up, down
+}
+
+// execSection runs a migration section as sql-migrate would. A notransaction section (CREATE INDEX
+// CONCURRENTLY) cannot run as one multi-statement request, which is an implicit transaction, so its
+// statements run one by one.
+func execSection(e *env, section string) error {
+	directive, sql, _ := strings.Cut(section, "\n")
+	if strings.TrimSpace(directive) != "notransaction" {
+		_, err := e.db.Exec(e.ctx, section)
+		return err
+	}
+	for _, statement := range strings.Split(sql, ";") {
+		if strings.TrimSpace(stripComments(statement)) == "" {
+			continue
+		}
+		if _, err := e.db.Exec(e.ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// stripComments drops "--" comment lines, so a chunk holding only comments is not sent.
+func stripComments(sql string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(sql, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 // laterMigrations are the migration files applied after name, oldest first.

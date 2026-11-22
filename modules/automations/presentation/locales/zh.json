@@ -12,6 +12,10 @@
     "Automations.Operate": "管理自动化运行",
     "Connections.Manage": "管理集成"
   },
+  "Resources": {
+    "automation": "自动化",
+    "connection": "连接"
+  },
   "PermissionSets": {
     "Automations": {
       "View": {
