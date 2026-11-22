@@ -21,6 +21,8 @@ interface Ctx {
   canManage: () => boolean
   configured: boolean
   refetch: () => void
+  /** The connectors list read from the server, never from the RPC cache (a conflict needs the latest). */
+  loadLatest: () => Promise<ListResult>
   highlight: (id: string) => void
   highlighted: () => string | undefined
   openForm: (s: FormState) => void
@@ -174,6 +176,10 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     t, lang, call, automationsPath: init.automationsPath, configured: init.configured,
     canManage: () => Boolean(data()?.can_manage),
     refetch, highlight, highlighted, openForm,
+    loadLatest: () => {
+      client.cache.invalidate('automations', ['automations.connectors.list'])
+      return call('automations.connectors.list', {})
+    },
     openUsage: (c) => setUsage(c),
     openDelete: (connector, connection) => setDeleting({ connector, connection }),
     setDisabled,
@@ -580,7 +586,8 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!e || busy()) return
     begin()
     try {
-      const list = await props.ctx.call('automations.connectors.list', {})
+      // A conflict that came as an RPC error did not invalidate the cached list: read past the cache.
+      const list = await props.ctx.loadLatest()
       end()
       const latest = list.connectors.flatMap((c) => c.connections).find((x) => x.id === e.id)
       if (!latest) { setError(t('Form.Failed')); return }

@@ -102,7 +102,7 @@ pnpm test:browser --update-snapshots # обновить Linux-baseline (browser-
 Fixture `fixtures/integrations` открывается так же (сначала стили fixture — `fixture.generated.css` не
 коммитится): `node ./fixtures/integrations/build-css.mjs && pnpm vite fixtures/integrations`
 с параметрами `?scenario=empty|error|loading|fresh`, `?lang=ru`, `?theme=dark`,
-`?delay=<мс>`, `?testDelay=<мс>`, `?testFailOnce`, `?lossy`, `?conflictOnce`, `?oauthFail=<код>`, `?platformFails`,
+`?delay=<мс>`, `?testDelay=<мс>`, `?testFailOnce`, `?lossy`, `?conflictOnce[=error]`, `?oauthFail=<код>`, `?platformFails`,
 `?manage=0`, `?unconfigured`.
 
 ## Ответы провайдеров

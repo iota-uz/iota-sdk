@@ -20,8 +20,10 @@ export interface FakeOptions {
   oauthFail: string
   /** The first connections.test fails in transport (a 502). */
   testFailOnce: boolean
-  /** The first update meets a version conflict: another manager saved the connection meanwhile. */
-  conflictOnce: boolean
+  /** The first update meets a version conflict (another manager saved the connection meanwhile):
+   * as a result ('result') or as an RPC error ('error'); '' for none. */
+  conflictOnce: '' | 'result' | 'error'
+
   calls: { method: string; params: unknown }[]
 }
 
@@ -199,7 +201,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         conflicted = true
         Object.assign(f.connection, { display_name: 'Renamed elsewhere', version: f.connection.version + 1, fields: { ...f.connection.fields, chat_id: '-1009999' } })
       }
-      if (p.version !== f.connection.version) return { ok: false, error: 'version_conflict' }
+      if (p.version !== f.connection.version) {
+        if (opts.conflictOnce === 'error') throw { code: 'version_conflict', message: 'version conflict', data: { code: 'version_conflict' } }
+        return { ok: false, error: 'version_conflict' }
+      }
       if (p.credentials && Object.values(p.credentials).includes('bad')) return { ok: false, error: 'test_failed', reason: 'auth' }
       Object.assign(f.connection, { display_name: p.display_name ?? f.connection.display_name, version: f.connection.version + 1 })
       if (p.credentials && f.connection.status !== 'disabled') Object.assign(f.connection, { status: 'connected', status_reason: null })

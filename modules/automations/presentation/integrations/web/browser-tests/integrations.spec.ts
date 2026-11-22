@@ -198,8 +198,9 @@ test('F3: a draft changed before Retry of a lost create says how to recover', as
   await expect(page.locator('[data-testid="connection-lost_bot"]')).toHaveCount(1)
 })
 
-test('F2: a version conflict offers the latest version and keeps what was typed', async ({ page }) => {
-  await open(page, 'conflictOnce')
+for (const mode of ['result', 'error'] as const) {
+test(`F2: a version conflict (${mode}) offers the latest version and keeps what was typed`, async ({ page }) => {
+  await open(page, `conflictOnce=${mode}`)
   await menu(page, 'sales_bot')
   await row(page, 'sales_bot').getByTestId('menu-edit').click()
   const form = page.getByTestId('connection-form')
@@ -218,6 +219,7 @@ test('F2: a version conflict offers the latest version and keeps what was typed'
   expect(updates[1]!.params.credentials).toBeUndefined()
   expect(updates[1]!.params.idempotency_key).not.toBe(updates[0]!.params.idempotency_key)
 })
+}
 
 test('D1: history from one edit drawer to another opens a new draft', async ({ page }) => {
   await open(page)

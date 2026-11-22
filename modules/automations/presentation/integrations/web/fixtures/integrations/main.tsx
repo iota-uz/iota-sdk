@@ -32,7 +32,7 @@ const fake: FakeOptions = {
   lossy: params.has('lossy'),
   oauthFail: params.get('oauthFail') ?? '',
   testFailOnce: params.has('testFailOnce'),
-  conflictOnce: params.has('conflictOnce'),
+  conflictOnce: params.has('conflictOnce') ? (params.get('conflictOnce') === 'error' ? 'error' : 'result') : '',
   calls: [],
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls

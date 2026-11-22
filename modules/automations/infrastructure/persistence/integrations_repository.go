@@ -117,47 +117,58 @@ func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerp
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}
 	owner := uuid.New()
-	tag, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, fingerprint, owner)
-		VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, fingerprint, owner)
-	if err != nil {
-		return services.Reservation{}, serrors.Wrap(op, err)
+	// The row can change between each statement and the next (released, replaced by another payload,
+	// completed, taken over): every miss reads the row again and classifies what is there now, a bounded
+	// number of times.
+	for attempt := 0; attempt < reserveAttempts; attempt++ {
+		tag, err := r.db.Exec(ctx, `INSERT INTO automation.connection_requests (tenant_id, key, fingerprint, owner)
+			VALUES ($1, $2, $3, $4) ON CONFLICT (tenant_id, key) DO NOTHING`, tenantID, key, fingerprint, owner)
+		if err != nil {
+			return services.Reservation{}, serrors.Wrap(op, err)
+		}
+		if tag.RowsAffected() == 1 {
+			return services.Reservation{State: services.RequestNew, Owner: owner}, nil
+		}
+		var (
+			fp    string
+			conn  *uuid.UUID
+			stale bool
+		)
+		err = r.db.QueryRow(ctx, `SELECT fingerprint, connection_id, created_at < now() - interval '`+staleReservation+`'
+			FROM automation.connection_requests WHERE tenant_id = $1 AND key = $2`, tenantID, key).Scan(&fp, &conn, &stale)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue // released or swept since the insert: reserve again
+		}
+		if err != nil {
+			return services.Reservation{}, serrors.Wrap(op, err)
+		}
+		switch {
+		case fp != fingerprint && (same == nil || !same(fp)):
+			return services.Reservation{State: services.RequestMismatch}, nil
+		case conn != nil:
+			return services.Reservation{State: services.RequestDone, ConnectionID: *conn}, nil
+		case !stale:
+			return services.Reservation{State: services.RequestInProgress}, nil
+		}
+		// A reservation of a request that died is taken over. The takeover gives it a new owner (the
+		// request it replaces is fenced out) and is bound to the row as read: fingerprint, no connection,
+		// still stale. A miss means the row changed: it is read again.
+		tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now(), owner = $3, fingerprint = $5
+			WHERE tenant_id = $1 AND key = $2 AND fingerprint = $4 AND connection_id IS NULL
+			AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key, owner, fp, fingerprint)
+		if err != nil {
+			return services.Reservation{}, serrors.Wrap(op, err)
+		}
+		if tag.RowsAffected() == 1 {
+			return services.Reservation{State: services.RequestNew, Owner: owner}, nil
+		}
 	}
-	if tag.RowsAffected() == 1 {
-		return services.Reservation{State: services.RequestNew, Owner: owner}, nil
-	}
-	var (
-		fp   string
-		conn *uuid.UUID
-	)
-	err = r.db.QueryRow(ctx, `SELECT fingerprint, connection_id FROM automation.connection_requests WHERE tenant_id = $1 AND key = $2`,
-		tenantID, key).Scan(&fp, &conn)
-	if errors.Is(err, pgx.ErrNoRows) {
-		// Released or swept between the two statements: reserve again.
-		return r.Reserve(ctx, tenantID, key, fingerprint, same)
-	}
-	if err != nil {
-		return services.Reservation{}, serrors.Wrap(op, err)
-	}
-	switch {
-	case fp != fingerprint && (same == nil || !same(fp)):
-		return services.Reservation{State: services.RequestMismatch}, nil
-	case conn != nil:
-		return services.Reservation{State: services.RequestDone, ConnectionID: *conn}, nil
-	}
-	// A reservation of a request that died is taken over; a live one is in progress.
-	// The takeover gives the reservation a new owner: the request it replaces is fenced out. It is
-	// bound to the fingerprint read above: a row replaced in between (another payload) is not taken.
-	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now(), owner = $3, fingerprint = $5
-		WHERE tenant_id = $1 AND key = $2 AND fingerprint = $4 AND connection_id IS NULL
-		AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key, owner, fp, fingerprint)
-	if err != nil {
-		return services.Reservation{}, serrors.Wrap(op, err)
-	}
-	if tag.RowsAffected() == 1 {
-		return services.Reservation{State: services.RequestNew, Owner: owner}, nil
-	}
+	// The row keeps changing under this request: another one is working on the key.
 	return services.Reservation{State: services.RequestInProgress}, nil
 }
+
+// reserveAttempts bounds how often Reserve reads a row that changed under it.
+const reserveAttempts = 4
 
 func (r *requests) Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, owner, connectionID uuid.UUID) error {
 	tag, err := tx.Exec(ctx, `UPDATE automation.connection_requests SET connection_id = $4

@@ -873,6 +873,58 @@ func TestReservationSurvivesKeyRotation(t *testing.T) {
 	assert.Equal(t, "k2:new", fp, "the taken-over reservation carries the active fingerprint")
 }
 
+// A row that changes between Reserve's read and its takeover is read again and classified as it is
+// now: completed is done, replaced by another payload is a mismatch, removed is a new reservation.
+func TestReservationReclassifiesARowChangedBeforeTakeover(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	reqs := persistence.NewRequests(e.db)
+	stale := func(key string) {
+		t.Helper()
+		_, err := reqs.Reserve(e.ctx, e.tenant, key, "k1:old", nil)
+		require.NoError(t, err)
+		_, err = e.db.Exec(e.ctx, `UPDATE automation.connection_requests SET created_at = now() - interval '3 minutes' WHERE key = $1`, key)
+		require.NoError(t, err)
+	}
+	// same runs after the read and before the takeover: it changes the row once, there.
+	between := func(change string, args ...any) func(string) bool {
+		done := false
+		return func(stored string) bool {
+			if !done {
+				done = true
+				_, err := e.db.Exec(e.ctx, change, args...)
+				require.NoError(t, err)
+			}
+			return stored == "k1:old"
+		}
+	}
+
+	stale("k-done")
+	got, err := reqs.Reserve(e.ctx, e.tenant, "k-done", "k2:new",
+		between(`UPDATE automation.connection_requests SET connection_id = $1 WHERE key = 'k-done'`, c.Connection.ID))
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestDone, got.State)
+	assert.Equal(t, c.Connection.ID, got.ConnectionID)
+
+	stale("k-replaced")
+	got, err = reqs.Reserve(e.ctx, e.tenant, "k-replaced", "k2:new",
+		between(`UPDATE automation.connection_requests SET fingerprint = 'k1:other', created_at = now() WHERE key = 'k-replaced'`))
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestMismatch, got.State)
+
+	stale("k-removed")
+	got, err = reqs.Reserve(e.ctx, e.tenant, "k-removed", "k2:new",
+		between(`DELETE FROM automation.connection_requests WHERE key = 'k-removed'`))
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestNew, got.State)
+
+	stale("k-taken")
+	got, err = reqs.Reserve(e.ctx, e.tenant, "k-taken", "k2:new",
+		between(`UPDATE automation.connection_requests SET created_at = now(), owner = gen_random_uuid() WHERE key = 'k-taken'`))
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestInProgress, got.State, "another request took it over first")
+}
+
 // The identity a connector reports is shown only when the connector declared its kind and it has that
 // kind's shape and carries no secret, however encoded.
 func TestIdentityIsValidatedIndependently(t *testing.T) {
