@@ -788,10 +788,19 @@ func TestTasks_InboxCursorKeepsThePageOrder(t *testing.T) {
 
 	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours' WHERE id = $1`, a.ID)
 	require.NoError(t, err)
-	page, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{Limit: 1, After: &parsed})
+	page, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{Limit: 1, Cursor: &parsed})
 	require.NoError(t, err)
 	require.Len(t, page, 1)
 	require.Equal(t, b.ID, page[0].ID, "b is not skipped")
+
+	// The contract's After (a task ID) pages by the cursor task's current
+	// sort key: after b comes a, now due last.
+	page, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{Limit: 1, After: &b.ID})
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, a.ID, page[0].ID)
+	_, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{After: new(uuid.UUID)})
+	require.ErrorIs(t, err, workflow.ErrNotFound, "an unknown cursor task")
 }
 
 // After the final due time no decision is accepted, even before the run

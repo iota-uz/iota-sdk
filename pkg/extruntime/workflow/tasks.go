@@ -256,8 +256,14 @@ type TaskFilter struct {
 	Workflow string
 	// Limit is at most MaxTaskInbox; 0 means 50.
 	Limit int
-	// After is the cursor: CursorAfter of the last task of the previous page.
-	After *TaskCursor
+	// After is the cursor of the issue's contract: the ID of the last task of
+	// the previous page. Its sort key is read as it is now, so a page whose
+	// last task's due time moved since can skip or repeat tasks; Cursor does
+	// not.
+	After *uuid.UUID
+	// Cursor, when set, is CursorAfter of the last task of the previous page:
+	// its sort key as that page returned it. It takes precedence over After.
+	Cursor *TaskCursor
 }
 
 // ---- validation ----
@@ -1295,6 +1301,17 @@ func ParseTaskCursor(s string) (TaskCursor, error) {
 	return c, nil
 }
 
+// cursorOf is the cursor after a task of the tenant, from its current sort
+// key; ErrNotFound for an unknown task.
+func cursorOf(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (TaskCursor, error) {
+	c := TaskCursor{ID: id}
+	err := tx.QueryRow(ctx, `SELECT due_at FROM extruntime.human_tasks WHERE id = $1 AND tenant_id = $2`, id, tenant).Scan(&c.DueAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TaskCursor{}, serrors.Wrap(opManage, fmt.Errorf("%w: cursor task %s", ErrNotFound, id))
+	}
+	return c, serrors.FromDB(opManage, err)
+}
+
 // pastFinalDeadline is true of an open task whose due time passed with no
 // escalation step left: the run closes it as a timeout, and no decision is
 // accepted meanwhile.
@@ -1346,7 +1363,14 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 	}
 	audience := e.cfg.TaskAudience != nil
 	batch := max(f.Limit*2, 50)
-	cursor := f.After
+	cursor := f.Cursor
+	if cursor == nil && f.After != nil {
+		c, err := cursorOf(ctx, tx, current.TenantID, *f.After)
+		if err != nil {
+			return nil, err
+		}
+		cursor = &c
+	}
 	var ids []uuid.UUID
 	for len(ids) < f.Limit {
 		var (

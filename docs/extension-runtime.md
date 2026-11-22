@@ -481,8 +481,9 @@ and the task leaves the inbox, even before the run closes it. A package task's e
   transaction of every change — `created`, `decision`, `delegated`, `escalated` (with the new assignees), `closed` — and
   an error of any rolls it back (for a run, the run is retried). The task model itself sends nothing.
 * **Management API.** `GET /tasks` (the actor's inbox: open tasks they may decide now and neither decided nor delegated,
-  by due time, read from one snapshot; `status`, `overdue`, `workflow`, `limit` ≤ 200, `after` =
-  `workflow.CursorAfter(last task)`, `<dueAt RFC 3339 or empty>/<id>`, the sort key the page returned), `POST /tasks/{id}/decide`,
+  by due time, read from one snapshot; `status`, `overdue`, `workflow`, `limit` ≤ 200, `after` = the
+  last task's ID (`TaskFilter.After`) or the stable `workflow.CursorAfter(last task)`, `<dueAt RFC 3339 or empty>/<id>`
+  (`TaskFilter.Cursor`), the sort key the page returned), `POST /tasks/{id}/decide`,
   `POST /tasks/{id}/delegate` (`{to, comment}`).
 
 **Persistence identities (decided now to avoid a second schema change)**

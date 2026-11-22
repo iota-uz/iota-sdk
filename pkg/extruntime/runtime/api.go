@@ -632,12 +632,16 @@ func (a *API) taskInbox(_ http.ResponseWriter, r *http.Request, actor spi.Subjec
 		}
 		f.Limit = n
 	}
+	// after is a task ID (the cursor of the contract) or the stable
+	// `<dueAt>/<id>` cursor of workflow.CursorAfter.
 	if v := q.Get("after"); v != "" {
-		c, err := workflow.ParseTaskCursor(v)
-		if err != nil {
+		if id, err := uuid.Parse(v); err == nil {
+			f.After = &id
+		} else if c, err := workflow.ParseTaskCursor(v); err == nil {
+			f.Cursor = &c
+		} else {
 			return 0, nil, serrors.New(serrors.Invalid, "invalid after")
 		}
-		f.After = &c
 	}
 	out, err := a.svc.Tasks(r.Context(), actor, f)
 	return http.StatusOK, out, err
