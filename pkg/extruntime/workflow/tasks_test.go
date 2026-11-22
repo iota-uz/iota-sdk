@@ -11,12 +11,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow/audience"
 )
 
 // fakeAudience is a TaskAudience whose memberships tests change at will.
@@ -688,4 +692,75 @@ func TestTasks_RightsAreJudgedUnderTheLock(t *testing.T) {
 	require.Len(t, decisions, 1)
 	require.NotNil(t, decisions[0].DelegatedFrom)
 	require.EqualValues(t, 83, *decisions[0].DelegatedFrom)
+}
+
+// With a pool of one connection, deciding and delegating a group task still
+// work: the core's subject loader and audience read through the transaction
+// that holds the task lock instead of waiting for a second connection.
+func TestTasks_ChecksUnderTheLockNeedNoSecondConnection(t *testing.T) {
+	env := newNativeEnv(t)
+	ctx := context.Background()
+	newUser := func(name string) int64 {
+		var id int64
+		require.NoError(t, env.db.QueryRow(ctx, `
+			INSERT INTO users (first_name, last_name, email, ui_language, type, tenant_id) VALUES ($1, 'T', $2, 'en', 'user', $3) RETURNING id`,
+			name, name+"-"+uuid.NewString()[:8]+"@x.test", env.tenant).Scan(&id))
+		return id
+	}
+	a, b, c := newUser("a"), newUser("b"), newUser("c")
+	_, err := env.db.Exec(ctx, `INSERT INTO user_groups (id, name, type, tenant_id) VALUES ($1, 'reviewers', 'user', $2)`, reviewers.Ref, env.tenant)
+	require.NoError(t, err)
+	_, err = env.db.Exec(ctx, `INSERT INTO group_users (group_id, user_id) VALUES ($1, $2), ($1, $3)`, reviewers.Ref, a, b)
+	require.NoError(t, err)
+
+	spec := workflow.TaskSpec{Assignees: []workflow.TaskAssignee{reviewers}, Required: 2, Outcomes: []string{"yes", "no"}, AllowDelegation: true}
+	creator := env.engine(map[string]workflow.NativeContract{"test.review": {Runner: taskFlow(spec)}}, func(cfg *workflow.Config) {
+		cfg.TaskAudience = audience.New(env.db)
+	})
+	id := env.start(creator, "test.review", "one-conn", `{}`)
+	env.drainUntil(creator, func() bool { return env.inst(creator, id).Status == workflow.StatusWaiting }, "the task is open")
+	h, err := creator.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	taskID := h.Tasks[0].ID
+	creator.Shutdown()
+
+	pcfg, err := pgxpool.ParseConfig(env.db.Config().ConnString())
+	require.NoError(t, err)
+	pcfg.MaxConns, pcfg.MinConns = 1, 0
+	one, err := pgxpool.NewWithConfig(ctx, pcfg)
+	require.NoError(t, err)
+	t.Cleanup(one.Close)
+	eng, err := workflow.New(workflow.Config{
+		DB: one, Logger: env.logger, Natives: map[string]workflow.NativeContract{"test.review": {Runner: taskFlow(spec)}},
+		Subjects:     &host.UserSubjects{Users: persistence.NewUserRepository(persistence.NewUploadRepository()), Pool: one},
+		TaskAudience: audience.New(one),
+	})
+	require.NoError(t, err)
+	subject := func(u int64) spi.Subject {
+		return spi.Subject{TenantID: env.tenant, UserID: u, Kind: spi.SubjectInitiator}
+	}
+	call := func(fn func(ctx context.Context) error) error {
+		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		return fn(cctx)
+	}
+
+	require.NoError(t, call(func(ctx context.Context) error {
+		inbox, err := eng.Tasks(ctx, subject(a), workflow.TaskFilter{})
+		if err == nil && len(inbox) != 1 {
+			return fmt.Errorf("inbox of a: %d tasks", len(inbox))
+		}
+		return err
+	}))
+	require.NoError(t, call(func(ctx context.Context) error { return eng.DelegateTask(ctx, subject(b), taskID, c, "") }))
+	require.NoError(t, call(func(ctx context.Context) error {
+		return eng.DecideTask(ctx, subject(a), taskID, json.RawMessage(`{"outcome":"yes"}`))
+	}))
+	require.NoError(t, call(func(ctx context.Context) error {
+		return eng.DecideTask(ctx, subject(c), taskID, json.RawMessage(`{"outcome":"yes"}`))
+	}))
+	h, err = eng.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	require.Equal(t, "decided", h.Tasks[0].Status)
+	require.EqualValues(t, b, *h.Tasks[0].Decisions[1].DelegatedFrom)
 }

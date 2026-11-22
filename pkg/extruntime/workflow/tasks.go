@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
@@ -199,6 +200,10 @@ type Task struct {
 // rights. The core implements it over its roles and groups
 // (pkg/extruntime/workflow/audience); an application with its own user model
 // provides its own.
+//
+// While a task lock is held, the engine calls it with the transaction in the
+// context (composables.WithTx); an implementation that reads the database
+// must read through that transaction, not take another connection.
 type TaskAudience interface {
 	// IsMember reports whether the user, of the tenant, is covered by the
 	// assignee now. A user, role or group of another tenant never is.
@@ -1083,6 +1088,9 @@ func (e *Engine) authorizeLocked(ctx context.Context, tx pgx.Tx, actor spi.Subje
 	if _, err := lockTask(ctx, tx, actor.TenantID, taskID); err != nil {
 		return Task{}, nil, err
 	}
+	// The checks below read through tx (see txContext): a call that holds the
+	// task lock never waits for a second connection of the pool.
+	ctx = txContext(ctx, tx)
 	t, err := e.loadTask(ctx, tx, actor.TenantID, taskID, false)
 	if err != nil {
 		return Task{}, nil, err
@@ -1189,7 +1197,7 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 			if decided(t, to) {
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already decided task %s", ErrDelegation, to, taskID))
 			}
-			if _, err := e.cfg.Subjects.LoadSubject(ctx, actor.TenantID, to, spi.SubjectInitiator); err != nil {
+			if _, err := e.cfg.Subjects.LoadSubject(txContext(ctx, tx), actor.TenantID, to, spi.SubjectInitiator); err != nil {
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not an active user of the tenant: %v", ErrDelegation, to, err))
 			}
 			if _, err := tx.Exec(ctx, `
@@ -1203,6 +1211,14 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 			})
 		})
 	})
+}
+
+// txContext carries tx (composables.WithTx) to the SubjectLoader and the
+// TaskAudience called while a task lock is held: an implementation that
+// reads the database reads through it (the core's do), so the check costs no
+// second connection and sees what the transaction sees.
+func txContext(ctx context.Context, tx pgx.Tx) context.Context {
+	return composables.WithTx(ctx, tx)
 }
 
 // lockTask locks a task row of the tenant and returns its status.

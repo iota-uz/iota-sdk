@@ -13,13 +13,16 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const op = serrors.Op("extruntime.workflow.audience")
 
-// Core is the TaskAudience of the core module. A member is an active (not
+// Core is the TaskAudience of the core module. It reads through the
+// transaction in the context (composables.WithTx) when there is one, as the
+// engine passes while it holds a task lock, and through DB otherwise. A member is an active (not
 // blocked) user of the tenant who:
 //   - user: is that user;
 //   - permission: holds the permission directly, through a role or through a
@@ -32,6 +35,18 @@ type Core struct {
 }
 
 var _ workflow.TaskAudience = (*Core)(nil)
+
+type queryer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+func (c *Core) q(ctx context.Context) queryer {
+	if tx, ok := ctx.Value(constants.TxKey).(pgx.Tx); ok && tx != nil {
+		return tx
+	}
+	return c.DB
+}
 
 // New returns the core audience over db.
 func New(db *pgxpool.Pool) *Core { return &Core{DB: db} }
@@ -99,7 +114,7 @@ func (c *Core) IsMember(ctx context.Context, tenantID uuid.UUID, userID int64, a
 		return false, nil
 	}
 	var member bool
-	if err := c.DB.QueryRow(ctx, `SELECT EXISTS (`+q+` AND u.id = $3)`, tenantID, r, userID).Scan(&member); err != nil {
+	if err := c.q(ctx).QueryRow(ctx, `SELECT EXISTS (`+q+` AND u.id = $3)`, tenantID, r, userID).Scan(&member); err != nil {
 		return false, serrors.FromDB(op, err)
 	}
 	return member, nil
@@ -115,7 +130,7 @@ func (c *Core) Users(ctx context.Context, tenantID uuid.UUID, a workflow.TaskAss
 	if !ok || limit <= 0 {
 		return []int64{}, nil
 	}
-	rows, err := c.DB.Query(ctx, q+` ORDER BY u.id LIMIT $3`, tenantID, r, limit)
+	rows, err := c.q(ctx).Query(ctx, q+` ORDER BY u.id LIMIT $3`, tenantID, r, limit)
 	if err != nil {
 		return nil, serrors.FromDB(op, err)
 	}
