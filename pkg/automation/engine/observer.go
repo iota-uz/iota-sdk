@@ -96,8 +96,6 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 			return err
 		}
 	}
-	o.r.metrics.runFinished(ctx, status)
-	o.r.cfg.Logger.Info("automation run finished", "run_id", run.ID.String(), "automation_id", run.AutomationID.String(), "status", string(status))
 	// The next queued run of a conversation starts now when its subject's lock is free; else the
 	// maintenance pass starts it (the lock holder may be queueing a run right now).
 	s := normSubject(run.Subject)
@@ -116,6 +114,11 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 			return err
 		}
 	}
+	// Last, once nothing of the observer can fail any more: what is left to roll the transition back is
+	// the engine's own commit. The substrate has no after-commit hook for observers; this is as late as
+	// the observer can report.
+	o.r.metrics.runFinished(ctx, status)
+	o.r.cfg.Logger.Info("automation run finished", "run_id", run.ID.String(), "automation_id", run.AutomationID.String(), "status", string(status))
 	return nil
 }
 

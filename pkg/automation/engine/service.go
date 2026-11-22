@@ -67,23 +67,29 @@ func (s *service) Create(ctx context.Context, a Actor, in CreateInput) (Automati
 		return Automation{}, Version{}, err
 	}
 	digest := codeDigest(s.r.codeNodes(v.g))
+	var am automationRow
+	var ver versionRow
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO automation.automations (tenant_id, id, name, latest_version, layout, created_by, created_origin)
 			VALUES ($1, $2, $3, 1, $4, $5, $6)`, a.TenantID, id, v.g.Name, layout, a.UserID, string(a.Origin)); err != nil {
 			return serrors.FromDB(opService, err)
 		}
-		return insertVersion(ctx, tx, a, id, 1, v, digest, in.Note)
+		if err := insertVersion(ctx, tx, a, id, 1, v, digest, in.Note); err != nil {
+			return err
+		}
+		// The response is read in the transaction: a failed read rolls the graph back, so a retry
+		// never creates a second one.
+		if am, err = loadAutomation(ctx, tx, a.TenantID, id, false); err != nil {
+			return err
+		}
+		ver, err = loadVersion(ctx, tx, a.TenantID, id, 1)
+		return err
 	})
 	if err != nil {
 		return Automation{}, Version{}, err
 	}
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
-	if err != nil {
-		return Automation{}, Version{}, err
-	}
-	ver, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, 1)
-	return am.Automation, ver.Version, err
+	return am.Automation, ver.Version, nil
 }
 
 func insertVersion(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID, version int, v validated, digest, note string) error {
@@ -366,11 +372,17 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	if err := s.authorize(a, PermRead); err != nil {
 		return nil, err
 	}
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	// One snapshot: the enabled flag and the versions describe the same committed configuration.
+	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, serrors.FromDB(opService, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	am, err := loadAutomation(ctx, tx, a.TenantID, id, false)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.r.cfg.DB.Query(ctx, `SELECT version, saved_by, saved_origin, note, created_at FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 ORDER BY version DESC`, a.TenantID, id)
+	rows, err := tx.Query(ctx, `SELECT version, saved_by, saved_origin, note, created_at FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 ORDER BY version DESC`, a.TenantID, id)
 	if err != nil {
 		return nil, serrors.FromDB(opService, err)
 	}
@@ -452,7 +464,9 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 	if err != nil {
 		return Automation{}, err
 	}
-	return s.Get(ctx, a, id)
+	// Enable and Disable answer under their own authorization: the caller may lack Automations.Read.
+	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	return am.Automation, err
 }
 
 func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
@@ -471,7 +485,9 @@ func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automatio
 	if err := s.r.cancelRunsOf(ctx, a.TenantID, id); err != nil {
 		return Automation{}, err
 	}
-	return s.Get(ctx, a, id)
+	// Enable and Disable answer under their own authorization: the caller may lack Automations.Read.
+	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	return am.Automation, err
 }
 
 // disableTx stops a graph in the caller's transaction, which holds the graph's row lock: no trigger
@@ -564,7 +580,9 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 	if inst == nil {
 		var n int64
 		err := pgx.BeginFunc(ctx, r.cfg.DB, func(tx pgx.Tx) error {
-			tag, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'cancelled', updated_at = now() WHERE tenant_id = $1 AND id = $2 AND start_state = 'queued'`, tenant, id)
+			// A queued run, or one recorded blocked without an instance (no owner, depth).
+			tag, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'cancelled', updated_at = now()
+				WHERE tenant_id = $1 AND id = $2 AND instance_id IS NULL AND start_state IN ('queued', 'blocked')`, tenant, id)
 			if err != nil {
 				return serrors.FromDB(opService, err)
 			}
@@ -572,10 +590,18 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 			_, err = tx.Exec(ctx, `DELETE FROM automation.subject_queue WHERE tenant_id = $1 AND run_id = $2`, tenant, id)
 			return serrors.FromDB(opService, err)
 		})
-		if err == nil && n == 0 {
+		if err != nil || n > 0 {
+			return err
+		}
+		// Nothing to cancel without an instance: a promotion may have started the run meanwhile.
+		run, err := loadRun(ctx, r.cfg.DB, tenant, id)
+		if err != nil {
+			return err
+		}
+		if run.InstanceID == nil || run.status().finished() {
 			return ErrRunFinished
 		}
-		return err
+		inst = run.InstanceID
 	}
 	err := r.cfg.Workflows.TerminateTree(ctx, tenant, *inst)
 	if errors.Is(err, workflow.ErrNotAccepting) || errors.Is(err, workflow.ErrNotFound) {

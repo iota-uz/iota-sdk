@@ -95,6 +95,8 @@ CREATE TABLE automation.runs (
     cancel_requested boolean NOT NULL DEFAULT false,
     -- a resumed run that a Restart superseded waits for its conversation subject before it steps
     awaiting_subject boolean NOT NULL DEFAULT false,
+    -- a Restart replaced this run: while blocked it no longer holds its conversation subject
+    superseded boolean NOT NULL DEFAULT false,
     -- the subject#n wait occurrence it waits on, cancelled before the next attempt
     subject_wait_n bigint,
     -- the graph's owner was told the run failed (once, whatever retried the transition)
@@ -155,6 +157,9 @@ CREATE TABLE automation.tokens (
 );
 
 CREATE INDEX tokens_run_status_idx ON automation.tokens (tenant_id, run_id, status);
+
+-- insertToken takes max(created_seq) of the run's tokens
+CREATE INDEX tokens_run_seq_idx ON automation.tokens (tenant_id, run_id, created_seq);
 
 CREATE TABLE automation.steps (
     tenant_id uuid NOT NULL,

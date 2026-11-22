@@ -2,8 +2,10 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,27 +17,37 @@ import (
 
 // projector removes the Sensitive fields of event payloads a subject may not read: the fields the
 // system view of the catalog has and the subject's author view (catalog.AsAuthor) removed. Views are
-// read once per projector.
+// read once per projector and cached by the rights snapshot of the subject (its user and permissions),
+// so a subject loaded again with other rights gets its own view.
 type projector struct {
 	r      *Runtime
 	tenant uuid.UUID
 	system *catalog.View
-	views  map[int64]*catalog.View
+	views  map[string]*catalog.View
 	hidden map[string][]string
+	blind  map[string]bool // event|rights the subject may not read at all
 }
 
 func (r *Runtime) projector(tenant uuid.UUID) *projector {
-	return &projector{r: r, tenant: tenant, views: map[int64]*catalog.View{}, hidden: map[string][]string{}}
+	return &projector{r: r, tenant: tenant, views: map[string]*catalog.View{}, hidden: map[string][]string{}, blind: map[string]bool{}}
 }
 
-// hiddenPaths are the dotted payload paths of event that as may not read. Without a subject (nil) every
-// sensitive field is hidden.
-func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subject) ([]string, error) {
-	var user int64 = -1
-	if as != nil {
-		user = as.UserID
+// rightsKey identifies the rights snapshot of a subject; nil is a subject without permissions.
+func rightsKey(as *spi.Subject) string {
+	if as == nil {
+		return "-"
 	}
-	key := fmt.Sprintf("%s|%d", event, user)
+	perms := append([]string(nil), as.Permissions...)
+	sort.Strings(perms)
+	sum := sha256.Sum256([]byte(strings.Join(perms, "\x00")))
+	return fmt.Sprintf("%d|%x", as.UserID, sum[:8])
+}
+
+// hiddenPaths are the dotted payload paths of event that as may not read ("*" stands for every entry of
+// a map). Without a subject (nil) every sensitive field is hidden.
+func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subject) ([]string, error) {
+	rights := rightsKey(as)
+	key := event + "|" + rights
 	if h, ok := p.hidden[key]; ok {
 		return h, nil
 	}
@@ -46,7 +58,7 @@ func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subje
 		}
 		p.system = &v
 	}
-	view, ok := p.views[user]
+	view, ok := p.views[rights]
 	if !ok {
 		author := spi.Subject{TenantID: p.tenant}
 		if as != nil {
@@ -57,7 +69,7 @@ func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subje
 			return nil, err
 		}
 		view = &v
-		p.views[user] = view
+		p.views[rights] = view
 	}
 	full, ok := p.system.Catalog.Events[event]
 	if !ok {
@@ -67,7 +79,9 @@ func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subje
 	seen, ok := view.Catalog.Events[event]
 	var hidden []string
 	if !ok {
-		// The subject may not read the event at all: nothing of its payload is kept.
+		// The subject may not read the event at all: nothing of its payload is kept (project drops
+		// undeclared keys too).
+		p.blind[key] = true
 		for _, f := range full.Payload {
 			hidden = append(hidden, f.Name)
 		}
@@ -78,11 +92,15 @@ func (p *projector) hiddenPaths(ctx context.Context, event string, as *spi.Subje
 	return hidden, nil
 }
 
-// project removes the hidden fields from a payload in place.
+// project removes the hidden fields from a payload in place; for an event the subject may not read at
+// all it keeps nothing, undeclared keys included.
 func (p *projector) project(ctx context.Context, event string, payload map[string]any, as *spi.Subject) (map[string]any, error) {
 	hidden, err := p.hiddenPaths(ctx, event, as)
-	if err != nil || len(hidden) == 0 {
+	if err != nil {
 		return payload, err
+	}
+	if p.blind[event+"|"+rightsKey(as)] {
+		return map[string]any{}, nil
 	}
 	for _, path := range hidden {
 		removePath(payload, strings.Split(path, "."))
@@ -90,7 +108,8 @@ func (p *projector) project(ctx context.Context, event string, payload map[strin
 	return payload, nil
 }
 
-// diffPaths are the fields of full that seen lacks, as dotted paths.
+// diffPaths are the fields of full that seen lacks, as dotted paths: a list is transparent, every entry
+// of a map is "*".
 func diffPaths(full, seen expr.Fields, prefix string) []string {
 	var out []string
 	for _, f := range full {
@@ -99,32 +118,38 @@ func diffPaths(full, seen expr.Fields, prefix string) []string {
 			out = append(out, prefix+f.Name)
 			continue
 		}
-		fp, sp := elemProps(f.Field), elemProps(s)
-		if len(fp) > 0 {
-			out = append(out, diffPaths(fp, sp, prefix+f.Name+".")...)
-		}
+		out = append(out, diffField(f.Field, s, prefix+f.Name+".")...)
 	}
 	return out
 }
 
-// elemProps are the props of an object, or of the objects of a list.
-func elemProps(f expr.Field) expr.Fields {
-	f = f.Unwrap()
-	for (f.Kind == expr.List || f.Kind == expr.Map) && f.Elem != nil {
-		f = f.Elem.Unwrap()
-	}
-	if f.Kind == expr.Object {
-		return f.Props
+func diffField(full, seen expr.Field, prefix string) []string {
+	f, s := full.Unwrap(), seen.Unwrap()
+	switch {
+	case f.Kind == expr.List && f.Elem != nil && s.Kind == expr.List && s.Elem != nil:
+		return diffField(*f.Elem, *s.Elem, prefix)
+	case f.Kind == expr.Map && f.Elem != nil && s.Kind == expr.Map && s.Elem != nil:
+		return diffField(*f.Elem, *s.Elem, prefix+"*.")
+	case f.Kind == expr.Object && s.Kind == expr.Object:
+		return diffPaths(f.Props, s.Props, prefix)
 	}
 	return nil
 }
 
+// removePath deletes a dotted path in a decoded value: lists are walked through, "*" visits every entry
+// of a map.
 func removePath(v any, path []string) {
 	if len(path) == 0 {
 		return
 	}
 	switch x := v.(type) {
 	case map[string]any:
+		if path[0] == "*" {
+			for _, e := range x {
+				removePath(e, path[1:])
+			}
+			return
+		}
 		if len(path) == 1 {
 			delete(x, path[0])
 			return
@@ -213,7 +238,8 @@ func (p *projector) readable(ctx context.Context, refs []sensitiveRef, viewer *s
 			return false, err
 		}
 		for _, h := range hidden {
-			if h == ref.Path || strings.HasPrefix(ref.Path, h+".") {
+			// The field itself, a field around it, or one inside it the viewer may not read.
+			if h == ref.Path || strings.HasPrefix(ref.Path, h+".") || strings.HasPrefix(h, ref.Path+".") {
 				return false, nil
 			}
 		}
@@ -255,6 +281,12 @@ func valuesAt(v any, path []string, add func(any)) {
 	}
 	switch x := v.(type) {
 	case map[string]any:
+		if path[0] == "*" {
+			for _, e := range x {
+				valuesAt(e, path[1:], add)
+			}
+			return
+		}
 		if next, ok := x[path[0]]; ok {
 			valuesAt(next, path[1:], add)
 		}

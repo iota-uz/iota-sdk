@@ -34,7 +34,8 @@ const statusSQL = `(CASE i.status
 // supersededSQL is true for a run row r whose blocked instance a Restart replaced: it keeps its instance
 // (StartV2 leaves it as it is) but no longer holds its conversation subject, so the replacement starts.
 // Should the predecessor be resumed, its steps still take the subject's lock: steps never interleave.
-const supersededSQL = `(i.status = 'blocked' AND EXISTS (SELECT 1 FROM automation.runs s WHERE s.tenant_id = r.tenant_id AND s.restarted_from = r.id))`
+// The mark is on the predecessor itself (runs.superseded), so it outlives the replacement's retention.
+const supersededSQL = `(i.status = 'blocked' AND r.superseded)`
 
 // liveSQL is true for a run row r (with instance i) that is still active: queued or a live instance.
 const liveSQL = `(r.start_state = 'queued' OR i.status IN ('running', 'waiting', 'blocked'))`
@@ -410,6 +411,9 @@ type waitSpecJSON struct {
 	Timer bool       `json:"timer"` // a timer occurrence timer:<wait_id> was armed
 	Exec  *WaitSpec  `json:"exec,omitempty"`
 	Child *uuid.UUID `json:"child,omitempty"`
+	// CaughtUp: the events committed between the wait's watermark and its own commit were looked up
+	// (catchUp); every later one reaches it through the router.
+	CaughtUp bool `json:"caught_up,omitempty"`
 }
 
 // Wait kinds and states.

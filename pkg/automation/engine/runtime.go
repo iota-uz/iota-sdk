@@ -174,6 +174,9 @@ func (r *Runtime) Maintain(ctx context.Context) error {
 	if err := r.wakeFreeAwaiting(ctx); err != nil {
 		errs = append(errs, err)
 	}
+	if err := r.releasePending(ctx); err != nil {
+		errs = append(errs, err)
+	}
 	if _, err := r.Prune(ctx); err != nil {
 		errs = append(errs, err)
 	}

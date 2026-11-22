@@ -228,6 +228,7 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 			return err
 		}
 		req.startState, req.reason = startFilterFailed, "invalid_graph: "+err.Error()
+		req.key = diagnosticKey(req.key, t.triggerID)
 		if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
 			return infra(err)
 		}
@@ -290,6 +291,9 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 	default:
 		req.runAs = as
 	}
+	if req.startState != "" {
+		req.key = diagnosticKey(req.key, t.triggerID)
+	}
 	if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
 		return infra(err)
 	}
@@ -333,7 +337,7 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 	if err != nil {
 		return err
 	}
-	msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.waitID}, Event: &inboxEvent{ID: ev.ID, Seq: ev.Seq, Kind: ev.Event, Payload: raw}})
+	msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.waitID}, Event: &inboxEvent{ID: ev.ID, Seq: ev.Seq, Kind: ev.Event, Payload: raw, OccurredAt: ev.OccurredAt}})
 	if err != nil {
 		return err
 	}
@@ -361,3 +365,8 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 
 // ownerTrigger is the trigger_owners ID of a graph: who runs it as owner.
 func ownerTrigger(id uuid.UUID) string { return "automation:" + id.String() }
+
+// diagnosticKey is the start key of a run that does not start (filter_failed, blocked): one per trigger,
+// so it never takes the version's key for the event, which the first trigger (by id) that starts a run
+// takes, whatever the order of the triggers whose filters failed.
+func diagnosticKey(key, trigger string) string { return key + "/" + trigger }

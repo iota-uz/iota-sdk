@@ -173,10 +173,11 @@ func TestRedeliveryAndTenantFanOut(t *testing.T) {
 	assert.Equal(t, 6, e.count(`SELECT count(*) FROM automation.runs`))
 	for tenant, autos := range ids {
 		runs := e.runs(p, e.actor(tenant, 1, engine.OriginHuman), engine.RunFilter{})
-		require.Len(t, runs, 3, "each tenant sees its own runs")
+		got := make([]uuid.UUID, 0, len(runs))
 		for _, r := range runs {
-			assert.Contains(t, autos, r.AutomationID)
+			got = append(got, r.AutomationID)
 		}
+		assert.ElementsMatch(t, autos, got, "each tenant sees exactly one run of each of its graphs")
 	}
 }
 

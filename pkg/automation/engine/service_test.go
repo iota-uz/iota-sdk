@@ -304,14 +304,22 @@ func TestScheduleSlotStartsOneRun(t *testing.T) {
 	assert.Equal(t, "0 3 * * *", def.Cron)
 	assert.Equal(t, "Asia/Tashkent", def.Timezone)
 	require.NotNil(t, def.TenantID)
-	slot := events.Slot{ScheduleID: def.ID, TenantID: *def.TenantID, At: time.Date(2026, 11, 22, 22, 0, 0, 0, time.UTC)}
+	// The next 03:00 in Tashkent after now: a slot after the enable.
+	tashkent, err := time.LoadLocation("Asia/Tashkent")
+	require.NoError(t, err)
+	local := time.Now().In(tashkent)
+	tick := time.Date(local.Year(), local.Month(), local.Day(), 3, 0, 0, 0, tashkent)
+	if !tick.After(local) {
+		tick = tick.AddDate(0, 0, 1)
+	}
+	slot := events.Slot{ScheduleID: def.ID, TenantID: *def.TenantID, At: tick.UTC()}
 	for i := 0; i < 2; i++ {
 		require.NoError(t, pgx.BeginFunc(ctx, e.db, func(tx pgx.Tx) error { return def.Handler.RunSlot(ctx, tx, slot) }))
 	}
 	run := onlyRun(t, e, p, human)
 	assert.Equal(t, engine.KindSchedule, run.TriggerKind)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the scheduled run ends")
-	assert.Equal(t, []string{"note:at 2026-11-22T22:00:00Z"}, e.effects(run.RunID))
+	assert.Equal(t, []string{"note:at " + tick.UTC().Format(time.RFC3339)}, e.effects(run.RunID))
 }
 
 func TestForeachAndParallelAll(t *testing.T) {

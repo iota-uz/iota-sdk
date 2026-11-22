@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -120,15 +121,21 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	if err := s.authorize(a, PermRead); err != nil {
 		return RunDetail{}, err
 	}
-	run, err := loadRun(ctx, s.r.cfg.DB, a.TenantID, runID)
+	// One snapshot: the status, the tokens, the waits and the steps describe the same moment.
+	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return RunDetail{}, serrors.FromDB(opService, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	run, err := loadRun(ctx, tx, a.TenantID, runID)
 	if err != nil {
 		return RunDetail{}, err
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, run.AutomationID, false); err != nil {
+	if _, err := loadAutomation(ctx, tx, a.TenantID, run.AutomationID, false); err != nil {
 		return RunDetail{}, err
 	}
 	d := RunDetail{RunSummary: summaryOf(run), InstanceID: run.InstanceID, Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
-	toks, err := queryTokens(ctx, s.r.cfg.DB, `SELECT `+tokenCols+` FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 ORDER BY created_seq`, a.TenantID, run.ID)
+	toks, err := queryTokens(ctx, tx, `SELECT `+tokenCols+` FROM automation.tokens WHERE tenant_id = $1 AND run_id = $2 ORDER BY created_seq`, a.TenantID, run.ID)
 	if err != nil {
 		return RunDetail{}, err
 	}
@@ -142,7 +149,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 			d.CurrentNodes = append(d.CurrentNodes, t.NodeID)
 		}
 	}
-	waits, err := queryWaits(ctx, s.r.cfg.DB, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 ORDER BY created_at, wait_id`, a.TenantID, run.ID)
+	waits, err := queryWaits(ctx, tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 ORDER BY created_at, wait_id`, a.TenantID, run.ID)
 	if err != nil {
 		return RunDetail{}, err
 	}
@@ -153,7 +160,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		}
 		d.Waits = append(d.Waits, wv)
 	}
-	rows, err := s.r.cfg.DB.Query(ctx, `
+	rows, err := tx.Query(ctx, `
 		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at FROM (
 			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
 		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)

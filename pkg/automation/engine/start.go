@@ -194,6 +194,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	if err != nil {
 		return RunRef{}, serrors.FromDB(opStart, err)
 	}
+	if req.restarted != nil {
+		// The predecessor keeps the mark while it lives, whatever happens to this run's row.
+		if _, err := tx.Exec(ctx, `UPDATE automation.runs SET superseded = true WHERE tenant_id = $1 AND id = $2`, req.tenant, *req.restarted); err != nil {
+			return RunRef{}, serrors.FromDB(opStart, err)
+		}
+	}
 	if req.startState != "" {
 		return RunRef{RunID: id, Status: StatusOf("", req.startState)}, nil
 	}
@@ -344,6 +350,8 @@ func (r *Runtime) startQueued(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return serrors.FromDB(opStart, err)
 	}
+	// One subject that cannot start its head run does not hold back the others.
+	var errs []error
 	for _, x := range list {
 		err := pgx.BeginFunc(ctx, r.cfg.DB, func(tx pgx.Tx) error {
 			if err := lockSubjects(ctx, tx, subjectLockKey(x.tenant, x.s, uuid.Nil)); err != nil {
@@ -352,8 +360,11 @@ func (r *Runtime) startQueued(ctx context.Context) error {
 			return r.dequeue(ctx, tx, x.tenant, x.s, uuid.Nil)
 		})
 		if err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("subject %s/%s of %s: %w", x.s.Entity, x.s.Key, x.tenant, err))
 		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
@@ -425,7 +436,7 @@ func (r *Runtime) wakeFreeAwaiting(ctx context.Context) error {
 			JOIN extruntime.workflow_instances oi ON oi.id = o.instance_id
 			WHERE o.tenant_id = r.tenant_id AND o.subject_entity = r.subject_entity AND o.subject_key = r.subject_key AND o.id <> r.id
 			  AND oi.status IN ('running', 'waiting', 'blocked') AND NOT o.awaiting_subject
-			  AND NOT (oi.status = 'blocked' AND EXISTS (SELECT 1 FROM automation.runs s WHERE s.tenant_id = o.tenant_id AND s.restarted_from = o.id)))
+			  AND NOT (oi.status = 'blocked' AND o.superseded))
 		LIMIT 200`)
 	if err != nil {
 		return serrors.FromDB(opStart, err)
@@ -447,11 +458,13 @@ func (r *Runtime) wakeFreeAwaiting(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return serrors.FromDB(opStart, err)
 	}
+	// One instance that refuses the signal does not hold back the recovery of the others.
+	var errs []error
 	for _, w := range list {
 		err := r.cfg.Workflows.Signal(ctx, w.tenant, 0, w.inst, SubjectSignal, json.RawMessage(`{}`), fmt.Sprintf("subject-free:%d", w.seq))
 		if err != nil && !errors.Is(err, workflow.ErrNotAccepting) && !errors.Is(err, workflow.ErrNotFound) {
-			return err
+			errs = append(errs, fmt.Errorf("instance %s: %w", w.inst, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -20,25 +21,128 @@ const opMaintain = serrors.Op("automation.engine.maintain")
 // finishedSQL is true for a run row r (with instance i) that ended.
 const finishedSQL = `(i.status IN ('completed', 'failed', 'terminated') OR (r.instance_id IS NULL AND r.start_state IN ('filter_failed', 'blocked', 'cancelled')))`
 
-// Prune removes the steps of finished runs older than Retention.Steps and finished runs older than
-// Retention.Runs. Live runs are never pruned.
+// Retention batch sizes: each batch is its own statement (and transaction), so a backlog after a long
+// pause neither holds locks long nor writes one huge WAL record.
+const (
+	pruneStepsBatch = 1000
+	pruneRunsBatch  = 100
+)
+
+// finishedAtSQL is when a finished run r (with instance i) ended: its instance's finish, or the last
+// change of a run that never had an instance.
+const finishedAtSQL = `coalesce(i.finished_at, r.updated_at)`
+
+// Prune removes, in bounded batches, the steps of runs that finished more than Retention.Steps ago and
+// the runs that finished more than Retention.Runs ago. Live runs are never pruned.
 func (r *Runtime) Prune(ctx context.Context) (int64, error) {
-	tag, err := r.cfg.DB.Exec(ctx, `
-		DELETE FROM automation.steps s USING automation.runs r LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-		WHERE s.tenant_id = r.tenant_id AND s.run_id = r.id AND s.started_at < now() - $1::interval AND `+finishedSQL,
-		pgInterval(r.cfg.Retention.Steps.Seconds()))
-	if err != nil {
-		return 0, serrors.FromDB(opMaintain, err)
+	var total int64
+	for {
+		tag, err := r.cfg.DB.Exec(ctx, `
+			DELETE FROM automation.steps WHERE (tenant_id, run_id, token_id, seq) IN (
+				SELECT s.tenant_id, s.run_id, s.token_id, s.seq FROM automation.steps s
+				JOIN automation.runs r ON r.tenant_id = s.tenant_id AND r.id = s.run_id
+				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				ORDER BY s.tenant_id, s.run_id, s.token_id, s.seq LIMIT $2)`,
+			pgInterval(r.cfg.Retention.Steps.Seconds()), pruneStepsBatch)
+		if err != nil {
+			return total, serrors.FromDB(opMaintain, err)
+		}
+		total += tag.RowsAffected()
+		if tag.RowsAffected() < pruneStepsBatch || ctx.Err() != nil {
+			break
+		}
 	}
-	n := tag.RowsAffected()
-	tag, err = r.cfg.DB.Exec(ctx, `
-		DELETE FROM automation.runs x USING automation.runs r LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-		WHERE x.tenant_id = r.tenant_id AND x.id = r.id AND r.created_at < now() - $1::interval AND `+finishedSQL,
-		pgInterval(r.cfg.Retention.Runs.Seconds()))
-	if err != nil {
-		return n, serrors.FromDB(opMaintain, err)
+	for {
+		tag, err := r.cfg.DB.Exec(ctx, `
+			DELETE FROM automation.runs WHERE (tenant_id, id) IN (
+				SELECT r.tenant_id, r.id FROM automation.runs r
+				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				ORDER BY r.tenant_id, r.id LIMIT $2)`,
+			pgInterval(r.cfg.Retention.Runs.Seconds()), pruneRunsBatch)
+		if err != nil {
+			return total, serrors.FromDB(opMaintain, err)
+		}
+		total += tag.RowsAffected()
+		if tag.RowsAffected() < pruneRunsBatch || ctx.Err() != nil {
+			break
+		}
 	}
-	return n + tag.RowsAffected(), nil
+	return total, ctx.Err()
+}
+
+// releasePending finishes what closed waits still hold (release_pending) when their run is not driven
+// again: a child instance is terminated here; a live run is woken so its runner cancels its own timer
+// and task occurrences; a finished run's occurrences were cancelled with it.
+func (r *Runtime) releasePending(ctx context.Context) error {
+	ws, err := queryWaitsWithRun(ctx, r.cfg.DB)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, w := range ws {
+		if c := w.child(); c != nil && w.Status != waitFired {
+			if err := r.cfg.Workflows.TerminateTree(ctx, w.tenant, *c); err != nil && !errors.Is(err, workflow.ErrNotAccepting) && !errors.Is(err, workflow.ErrNotFound) {
+				errs = append(errs, err)
+				continue
+			}
+		}
+		if w.live && w.inst != nil {
+			// The run's next pass releases the rest and clears the mark.
+			err := r.cfg.Workflows.Signal(ctx, w.tenant, 0, *w.inst, InboxSignal, json.RawMessage(`{}`), fmt.Sprintf("release:%s:%d", w.RunID, w.txSeq))
+			if err != nil && !errors.Is(err, workflow.ErrNotAccepting) && !errors.Is(err, workflow.ErrNotFound) {
+				errs = append(errs, err)
+			}
+			continue
+		}
+		if _, err := r.cfg.DB.Exec(ctx, `UPDATE automation.waits SET release_pending = false WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`,
+			w.tenant, w.RunID, w.WaitID); err != nil {
+			errs = append(errs, serrors.FromDB(opMaintain, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+type pendingWait struct {
+	waitRow
+	tenant uuid.UUID
+	inst   *uuid.UUID
+	live   bool
+	txSeq  int64
+}
+
+func queryWaitsWithRun(ctx context.Context, q querier) ([]pendingWait, error) {
+	rows, err := q.Query(ctx, `
+		SELECT w.run_id, w.token_id, w.wait_id, w.kind, w.node_id, w.subject_entity, w.subject_key, w.event_kind, w.filter_cel,
+			w.timeout_at, w.status, w.after_seq, w.release_pending, w.spec, w.tenant_id, r.instance_id,
+			coalesce(i.status IN ('running', 'waiting'), false), r.tx_seq
+		FROM automation.waits w
+		JOIN automation.runs r ON r.tenant_id = w.tenant_id AND r.id = w.run_id
+		LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
+		WHERE w.release_pending AND w.updated_at < now() - interval '1 minute'
+		ORDER BY w.updated_at LIMIT 200`)
+	if err != nil {
+		return nil, serrors.FromDB(opMaintain, err)
+	}
+	defer rows.Close()
+	var out []pendingWait
+	for rows.Next() {
+		var p pendingWait
+		var entity, key *string
+		var spec []byte
+		if err := rows.Scan(&p.RunID, &p.TokenID, &p.WaitID, &p.Kind, &p.NodeID, &entity, &key, &p.EventKind, &p.Filter, &p.TimeoutAt,
+			&p.Status, &p.AfterSeq, &p.Release, &spec, &p.tenant, &p.inst, &p.live, &p.txSeq); err != nil {
+			return nil, serrors.FromDB(opMaintain, err)
+		}
+		if len(spec) > 0 {
+			if err := json.Unmarshal(spec, &p.Spec); err != nil { //nolint:musttag // workflow.TaskSpec keeps Go's field names
+				return nil, err
+			}
+		}
+		out = append(out, p)
+	}
+	return out, serrors.FromDB(opMaintain, rows.Err())
 }
 
 func pgInterval(seconds float64) string { return fmt.Sprintf("%f seconds", seconds) }
@@ -95,6 +199,10 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 		return nil, serrors.FromDB(opMaintain, err)
 	}
 	defer rows.Close()
+	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
 	want := connectionID.String()
 	var out []connectors.Use
 	for rows.Next() {
@@ -108,15 +216,25 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 			continue
 		}
 		seen := map[string]bool{}
-		for _, n := range g.Nodes {
-			if c, _ := n.Params[catalog.ConnectionParam].(string); c == want {
-				seen[n.ID] = true
+		// A node or trigger that names no connection uses the one the catalog resolves for its kinds,
+		// as validation and execution do: deleting that connection breaks it too.
+		uses := func(id string, kinds []catalog.ConnectorKind, param any) {
+			if c, _ := param.(string); c == want {
+				seen[id] = true
+				return
+			}
+			if param != nil || len(kinds) == 0 {
+				return
+			}
+			if ref, _, err := catalog.ResolveConnection(view.Connections, kinds, nil); err == nil && ref.ID == want {
+				seen[id] = true
 			}
 		}
+		for _, n := range g.Nodes {
+			uses(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
+		}
 		for _, t := range g.Triggers {
-			if c, _ := t.Params[catalog.ConnectionParam].(string); c == want {
-				seen[t.ID] = true
-			}
+			uses(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
 		}
 		if len(seen) == 0 {
 			continue

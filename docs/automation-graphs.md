@@ -228,11 +228,16 @@ queued conversation runs, runs of disabled graphs, retention.
   each transaction takes the subject's advisory lock first and sets
   `app.automation_cause`, so events it publishes carry `{run_id, depth}` in
   `outbox_events.cause`.
-- **Inputs.** Every input arrives on the signal `inbox`: the consumer signals a matched event
-  wait (`{wait_id, event}`), a call or task executor of #1336 signals a `WaitResult`. The run
-  consumes the signal `inbox#<inbox_seq>` and applies it in the next transaction, which moves
-  `inbox_seq` on; a timer is the sleep occurrence `timer:<wait_id>`, a core-opened task the
-  task occurrence `task:<wait_id>`.
+- **Inputs.** Matched events and executor results arrive on the signal `inbox`: the consumer
+  signals a matched event wait (`{wait_id, event}`; a new wait also looks up, once, the events
+  delivered while its own transaction was open), a call executor of #1336 signals a
+  `WaitResult`. The run consumes the signal `inbox#<inbox_seq>` and applies it in the next
+  transaction, which moves `inbox_seq` on. A timer is the sleep occurrence `timer:<wait_id>`.
+- **Task decisions.** A task the core opens for a wait (`WaitSpec.Task`) is the occurrence
+  `task:<wait_id>`: the runner reads its decision through `NativeRun.Task` and applies it
+  (`TaskResolver`, or the decision's `outcome`). Its decision never arrives on `inbox`; a
+  `TaskBridge` that sets `WaitSpec.Task` adds no delivery of its own.
+- **Wait filters** read `now` as the time of the event they test, at the router and in the run.
 - **Owner notice.** A failed run publishes `automation.run.failed.v1` once; the composition
   contributes `ownernotice.Contribute`, whose core notification definition delivers it to the
   graph's owner.
