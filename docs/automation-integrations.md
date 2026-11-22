@@ -99,7 +99,8 @@ pnpm test:browser                    # Playwright: сценарии и VR+axe в
 pnpm test:browser --update-snapshots # обновить Linux-baseline (browser-tests/__screenshots__)
 ```
 
-Fixture `fixtures/integrations` открывается так же: `pnpm vite fixtures/integrations`
+Fixture `fixtures/integrations` открывается так же (сначала стили fixture — `fixture.generated.css` не
+коммитится): `node ./fixtures/integrations/build-css.mjs && pnpm vite fixtures/integrations`
 с параметрами `?scenario=empty|error|loading|fresh`, `?lang=ru`, `?theme=dark`,
 `?delay=<мс>`, `?testDelay=<мс>`, `?testFailOnce`, `?lossy`, `?oauthFail=<код>`, `?platformFails`,
 `?manage=0`, `?unconfigured`.
@@ -134,7 +135,9 @@ Identity показывается только с явным происхожд�
 
 Форма шлёт `idempotency_key` (один на открытие формы). Ключ резервируется до обращения к
 провайдеру и привязан к HMAC-отпечатку запроса (`connectors.Store.Fingerprint`, ключ
-шифрования подключений): тот же ключ с другим содержимым — ошибка. Пока первый запрос
+шифрования подключений): тот же ключ с другим содержимым — ошибка. Отпечаток сверяется ключом, которым
+он сделан (`connectors.Store.MatchesFingerprint`), поэтому повтор после ротации ключа, пока старый ключ
+читается, получает результат первого запроса. Пока первый запрос
 идёт, повтор получает `in_progress` и не обращается к провайдеру. Связь ключа с
 подключением пишется в той же транзакции, что и само изменение
 (`connectors.Store.SaveWith`), поэтому повтор после потерянного ответа всегда получает

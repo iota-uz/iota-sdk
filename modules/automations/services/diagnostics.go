@@ -32,18 +32,36 @@ func IsReason(s string) bool {
 	return false
 }
 
+// statusCode finds a status code where a status stands: at the start of the message (an SMTP reply,
+// "401 Unauthorized"), after "HTTP" / "HTTP/1.1", or after "status" / "status code" / "code". A number
+// elsewhere (a request reference, an ID) is not a status.
+var statusCode = regexp.MustCompile(`(?i)(?:^\s*|\bhttp(?:/[0-9.]+)?\s+|\bstatus(?:\s+code)?\s*[:=]?\s*|\bcode\s*[:=]?\s*)([1-5][0-9]{2})\b`)
+
+var statusReasons = map[string]Reason{
+	"429": ReasonRateLimit, "421": ReasonRateLimit, "450": ReasonRateLimit, "451": ReasonRateLimit, "452": ReasonRateLimit,
+	"401": ReasonAuth, "403": ReasonAuth, "530": ReasonAuth, "534": ReasonAuth, "535": ReasonAuth,
+	"500": ReasonNetwork, "502": ReasonNetwork, "503": ReasonNetwork, "504": ReasonNetwork,
+	"400": ReasonConfig, "404": ReasonConfig, "422": ReasonConfig, "550": ReasonConfig, "553": ReasonConfig,
+}
+
 var reasonPatterns = []struct {
 	reason Reason
 	re     *regexp.Regexp
 }{
-	{ReasonRateLimit, regexp.MustCompile(`(?i)\b429\b|rate.?limit|too many requests|quota`)},
-	{ReasonAuth, regexp.MustCompile(`(?i)\b(401|403|535)\b|unauthori[sz]ed|forbidden|authenticat|invalid[ _-]?(api[ _-]?key|token|credentials|grant|client)|incorrect (password|login)|access denied|permission denied|revoked`)},
-	{ReasonNetwork, regexp.MustCompile(`(?i)\b(50[234])\b|timeout|timed out|deadline exceeded|connection (refused|reset)|no such host|dial tcp|\beof\b|unreachable|tls|certificate|service unavailable`)},
-	{ReasonConfig, regexp.MustCompile(`(?i)\b(400|404|422)\b|not found|bad request|invalid|unknown (chat|host|user)`)},
+	{ReasonRateLimit, regexp.MustCompile(`(?i)rate.?limit|too many requests|quota`)},
+	{ReasonAuth, regexp.MustCompile(`(?i)unauthori[sz]ed|forbidden|authenticat|invalid[ _-]?(api[ _-]?key|token|credentials|grant|client)|incorrect (password|login)|access denied|permission denied|revoked`)},
+	{ReasonNetwork, regexp.MustCompile(`(?i)timeout|timed out|deadline exceeded|connection (refused|reset)|no such host|dial tcp|\beof\b|unreachable|tls|certificate|service unavailable|bad gateway`)},
+	{ReasonConfig, regexp.MustCompile(`(?i)not found|bad request|invalid|unknown (chat|host|user)`)},
 }
 
-// classify is the Reason of a provider's message.
+// classify is the Reason of a provider's message: by its status code when the message has one in a
+// status position, else by its words.
 func classify(msg string) Reason {
+	if m := statusCode.FindStringSubmatch(msg); m != nil {
+		if r, ok := statusReasons[m[1]]; ok {
+			return r
+		}
+	}
 	for _, p := range reasonPatterns {
 		if p.re.MatchString(msg) {
 			return p.reason

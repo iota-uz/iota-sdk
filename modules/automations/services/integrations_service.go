@@ -88,7 +88,9 @@ type Reservation struct {
 // bound to a fingerprint of the payload; Complete runs in the transaction of the save, so the key
 // records the connection exactly when the change commits; Release frees a key whose request failed.
 type Requests interface {
-	Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string) (Reservation, error)
+	// Reserve takes key for a request with fingerprint; same tells whether a stored fingerprint is of
+	// the same payload (it may have been made under a key that has since rotated).
+	Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string, same func(stored string) bool) (Reservation, error)
 	Complete(ctx context.Context, tx pgx.Tx, tenantID uuid.UUID, key string, owner, connectionID uuid.UUID) error
 	Release(ctx context.Context, tenantID uuid.UUID, key string, owner uuid.UUID) error
 }
@@ -416,12 +418,18 @@ func (r request) complete(ctx context.Context, tx pgx.Tx, saved connectors.Conne
 	return r.s.requests.Complete(ctx, tx, r.tenantID, r.key, r.owner, saved.ID)
 }
 
+// releaseTimeout bounds the cleanup of a failed request's key.
+const releaseTimeout = 5 * time.Second
+
 func (r request) release(ctx context.Context) {
 	if r.key == "" {
 		return
 	}
-	// Even when the request's context is gone the key must not wait out its expiry.
-	_ = r.s.requests.Release(context.WithoutCancel(ctx), r.tenantID, r.key, r.owner)
+	// Even when the request's context is gone the key must not wait out its expiry; the cleanup has its
+	// own deadline so that a saturated pool cannot hold the original error back (the key then expires).
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+	defer cancel()
+	_ = r.s.requests.Release(cctx, r.tenantID, r.key, r.owner)
 }
 
 func deref(e *ConnectionEntry) ConnectionEntry {
@@ -450,7 +458,7 @@ func (s *IntegrationsService) reserve(ctx context.Context, tenantID uuid.UUID, k
 	if err != nil {
 		return request{}, nil, err
 	}
-	res, err := s.requests.Reserve(ctx, tenantID, key, fp)
+	res, err := s.requests.Reserve(ctx, tenantID, key, fp, func(stored string) bool { return s.store.MatchesFingerprint(stored, data) })
 	if err != nil {
 		return request{}, nil, err
 	}
@@ -564,8 +572,9 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 		return TestResult{}, mapStoreError(op, err)
 	}
 	if reauth {
-		// OAuth2.Token already recorded needs_reauth in its locked transaction: writing it again here
-		// could overwrite a disable or re-authorization committed since.
+		// OAuth2.Token already recorded needs_reauth in its locked transaction (a disabled connection's
+		// check records nothing and stays disabled): writing it here could overwrite a disable or
+		// re-authorization committed since.
 		s.touch(ctx, a.TenantID, id)
 		return TestResult{NeedsReauth: true, Reason: ReasonReauth}, nil
 	}
@@ -606,8 +615,22 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 	if !ok {
 		return connectors.Connection{}, nil, nil, false, connectors.ErrNotFound
 	}
-	if conn.Descriptor().Auth == connectors.AuthOAuth2 && s.oauth != nil && cur.Status == connectors.StatusConnected {
-		if _, err := s.oauth.Token(ctx, tenantID, id); err != nil {
+	if conn.Descriptor().Auth != connectors.AuthOAuth2 || s.oauth == nil {
+		return cur, conn, creds, false, nil
+	}
+	// A connected connection gets its token as a node would; a disabled one (being enabled, or checked)
+	// gets it refreshed without a status change, so an expired access token with a valid refresh token
+	// does not read as a refused sign-in.
+	token := s.oauth.Token
+	switch checker, ok := s.oauth.(connectors.OAuth2Checker); {
+	case cur.Status == connectors.StatusConnected:
+	case cur.Status == connectors.StatusDisabled && ok:
+		token = checker.CheckToken
+	default:
+		token = nil
+	}
+	if token != nil {
+		if _, err := token(ctx, tenantID, id); err != nil {
 			switch {
 			case errors.Is(err, connectors.ErrNeedsReauth):
 				return cur, conn, nil, true, nil
@@ -635,15 +658,24 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			return ConnectionEntry{}, mapStoreError(op, err)
 		}
 	} else {
-		cur, conn, creds, _, err := s.load(ctx, a.TenantID, id)
+		cur, conn, creds, reauth, err := s.load(ctx, a.TenantID, id)
 		if err != nil {
 			return ConnectionEntry{}, mapStoreError(op, err)
 		}
 		if cur.Status == connectors.StatusDisabled {
 			next := cur
-			identity, testErr := s.test(ctx, conn, creds)
+			var (
+				identity connectors.Identity
+				testErr  error
+			)
+			if !reauth {
+				identity, testErr = s.test(ctx, conn, creds)
+			}
 			var failed *TestFailedError
 			switch {
+			case reauth:
+				// The provider refused the refresh token (the check wrote nothing): a sign-in is needed.
+				next.Status, next.StatusReason = connectors.StatusNeedsReauth, string(ReasonReauth)
 			case testErr == nil:
 				next.Identity, next.Status, next.StatusReason = identity, connectors.StatusConnected, ""
 			case errors.As(testErr, &failed):
@@ -758,7 +790,9 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	case errors.Is(err, connectors.ErrOAuth2Refused):
 		return connectors.Connection{}, pending, ErrOAuthRefused
 	default:
-		return connectors.Connection{}, pending, serrors.Wrap(op, errors.Join(ErrOAuthExchange, err))
+		// An OAuth2 implementation other than the built-in one may carry provider text in its error: only
+		// the classification leaves (the callback logs it).
+		return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
 	}
 	if grant.Kind != pending.Kind {
 		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
@@ -857,12 +891,13 @@ func (s *IntegrationsService) entry(ctx context.Context, tenantID uuid.UUID, c c
 		return ConnectionEntry{}, err
 	}
 	if s.checks != nil {
-		checked, err := s.checks.LastChecked(ctx, tenantID)
-		if err != nil {
-			return ConnectionEntry{}, err
-		}
-		if at, ok := checked[c.ID]; ok {
-			e.LastChecked = &at
+		// The time of the last check is informational: entry also answers a committed create or update,
+		// which must not read as failed (and be retried into name_taken or a version conflict) because
+		// this lookup failed.
+		if checked, err := s.checks.LastChecked(ctx, tenantID); err == nil {
+			if at, ok := checked[c.ID]; ok {
+				e.LastChecked = &at
+			}
 		}
 	}
 	return s.reveal(ctx, tenantID, e, withFields)
@@ -908,7 +943,9 @@ func (s *IntegrationsService) reveal(ctx context.Context, tenantID uuid.UUID, e 
 	if carriesSecret(c.DisplayName, secret, creds) {
 		e.Connection.DisplayName = ""
 	}
-	if withFields && known {
+	// An OAuth2 connection's credentials are a token set the exchange stores whatever the schema says:
+	// none of it is a form field.
+	if withFields && known && conn.Descriptor().Auth != connectors.AuthOAuth2 {
 		e.Fields = connectors.RedactedCredentials(conn.Descriptor(), creds)
 	}
 	return e, nil
@@ -962,7 +999,8 @@ func toCredentials(in map[string]any) (connectors.Credentials, map[string]string
 // mergeCredentials lays given over stored: an empty secret field keeps its stored value, an empty
 // plain field is removed, a field the schema does not declare is dropped.
 func mergeCredentials(d connectors.Descriptor, stored, given connectors.Credentials) connectors.Credentials {
-	secret := connectors.SecretFields(d)
+	// The same predicate as the metadata checks: without x-secret fields every field is secret.
+	secret := secretsOf(d)
 	declared := declaredFields(d)
 	out := connectors.Credentials{}
 	for k, v := range stored {
@@ -973,7 +1011,7 @@ func mergeCredentials(d connectors.Descriptor, stored, given connectors.Credenti
 			continue
 		}
 		switch {
-		case v == "" && secret[k]:
+		case v == "" && secret(k):
 		case v == "":
 			delete(out, k)
 		default:

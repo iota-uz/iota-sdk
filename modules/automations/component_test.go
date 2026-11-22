@@ -20,6 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/sdkidentity"
@@ -73,7 +75,8 @@ func (noop) Test(context.Context, connectors.Credentials) (connectors.Identity, 
 // The module provides the directory, the registry, the store and the secret resolver the extension
 // runtime serves secrets.get with; with a host manifest the settings hub lists the page.
 func TestComponentWiresConnectionsAndTheSettingsPage(t *testing.T) {
-	t.Setenv("AUTOMATION_CONNECTIONS_KEYS", "k1:"+string(bytes.Repeat([]byte("ab"), 32)))
+	src, err := config.Build(static.New(map[string]any{"automation.connections.keys": "k1:" + string(bytes.Repeat([]byte("ab"), 32))}))
+	require.NoError(t, err)
 	manifest := clienthost.Manifest{
 		Package: "app", PackageVersion: "1.0.0", SDKCommit: strings.Repeat("a", 40), SDKReleaseVersion: sdkidentity.ReleaseVersion,
 		ProtocolVersion: sdkidentity.ProtocolVersion, Entry: "/assets/app.js",
@@ -85,7 +88,7 @@ func TestComponentWiresConnectionsAndTheSettingsPage(t *testing.T) {
 		}
 	}
 	components = append(components, automations.NewComponent(automations.WithConnectors(noop{}), automations.WithHostManifest(manifest)))
-	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()))
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
 
 	dir, err := composition.Resolve[connectors.Directory](f.Container)
 	require.NoError(t, err)
@@ -97,11 +100,14 @@ func TestComponentWiresConnectionsAndTheSettingsPage(t *testing.T) {
 	require.NoError(t, err)
 	_, err = composition.Resolve[host.SecretResolver](f.Container)
 	require.NoError(t, err)
-	// Without keys in the environment of the harness the store may be unconfigured; it must still list.
 	_, err = store.List(f.Ctx, uuid.New(), "")
-	if err != nil {
-		require.ErrorIs(t, err, connectors.ErrNotConfigured)
-	}
+	require.NoError(t, err)
+	// The configured keyring reaches the store: fingerprinting needs the active key.
+	full, err := composition.Resolve[connectors.Store](f.Container)
+	require.NoError(t, err)
+	fp, err := full.Fingerprint([]byte("payload"))
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(fp, "k1:"), fp)
 
 	var pages []string
 	for _, s := range f.Container.SettingsSections() {
@@ -112,4 +118,23 @@ func TestComponentWiresConnectionsAndTheSettingsPage(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"organization:/settings/integrations"}, pages)
+}
+
+// Without connection keys the module still builds; the store refuses with ErrNotConfigured (the page
+// shows a warning) instead of failing the application.
+func TestComponentWithoutKeysIsUnconfigured(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{}))
+	require.NoError(t, err)
+	components := []composition.Component{}
+	for _, c := range modules.Components() {
+		if c.Descriptor().Name != "automations" {
+			components = append(components, c)
+		}
+	}
+	components = append(components, automations.NewComponent(automations.WithConnectors(noop{})))
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
+	store, err := composition.Resolve[connectors.ConnectionStore](f.Container)
+	require.NoError(t, err)
+	_, err = store.List(f.Ctx, uuid.New(), "")
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 }

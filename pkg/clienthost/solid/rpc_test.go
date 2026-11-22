@@ -88,3 +88,15 @@ func TestRPCHandlerKeepsLargeNumbersExact(t *testing.T) {
 	call(h, `{"jsonrpc":"2.0","id":1,"method":"demo.any","params":{"chat":-1001234567890123456}}`)
 	require.Equal(t, "-1001234567890123456", fmt.Sprint(got))
 }
+
+// A nil result is answered as "result": null, never as an envelope with neither result nor error.
+func TestRPCHandlerKeepsANullResult(t *testing.T) {
+	t.Parallel()
+	h, err := NewRPCHandler([]Binding{
+		Bind(Action[echoReq, any]("demo.nothing"), func(context.Context, echoReq) (any, error) { return nil, nil }), //nolint:nilnil // a nil result is what is tested
+	})
+	require.NoError(t, err)
+	rec := call(h, `{"jsonrpc":"2.0","id":1,"method":"demo.nothing","params":{}}`)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `{"jsonrpc":"2.0","id":1,"result":null}`, rec.Body.String())
+}

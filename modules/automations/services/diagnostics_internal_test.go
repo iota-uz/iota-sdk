@@ -74,3 +74,30 @@ func TestValidIdentityKeepsOnlyTypedShapes(t *testing.T) {
 		assert.Empty(t, got.Kind, id.Display)
 	}
 }
+
+// A status code decides only where a status stands; other numbers in the text are not statuses.
+func TestClassifyReadsStatusInItsPosition(t *testing.T) {
+	cases := map[string]Reason{
+		"HTTP 503 Service Unavailable (request reference 401)": ReasonNetwork,
+		"401 Unauthorized: token is not accepted":              ReasonAuth,
+		"535 5.7.8 Authentication credentials invalid":         ReasonAuth,
+		"telegram: status code: 429, retry later":              ReasonRateLimit,
+		"HTTP/1.1 404 chat 401 not found":                      ReasonConfig,
+		"request 401 failed: dial tcp: i/o timeout":            ReasonNetwork,
+		"order 503 was rejected":                               ReasonUnknown,
+		"invalid api key":                                      ReasonAuth,
+	}
+	for msg, want := range cases {
+		assert.Equal(t, want, classify(msg), msg)
+	}
+}
+
+// Without x-secret fields every field is secret: a blank one keeps its stored value on an edit.
+func TestMergeKeepsBlankSecretsOfASchemalessConnector(t *testing.T) {
+	stored := connectors.Credentials{"token": "t0k3n", "chat": "-100"}
+	got := mergeCredentials(connectors.Descriptor{}, stored, connectors.Credentials{"token": "", "chat": "-200"})
+	assert.Equal(t, connectors.Credentials{"token": "t0k3n", "chat": "-200"}, got)
+	d := connectors.Descriptor{Credentials: []byte(`{"type":"object","properties":{"token":{"type":"string","x-secret":true},"chat":{"type":"string"}}}`)}
+	got = mergeCredentials(d, stored, connectors.Credentials{"token": "", "chat": ""})
+	assert.Equal(t, connectors.Credentials{"token": "t0k3n"}, got, "a public field is removed when blank")
+}

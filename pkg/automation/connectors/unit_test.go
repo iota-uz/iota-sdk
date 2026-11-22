@@ -158,3 +158,52 @@ func laterMigrations(t *testing.T, name string) []string {
 	sort.Strings(out)
 	return out
 }
+
+// A fingerprint stays verifiable with the key that made it after the active key rotates, and only
+// for the same payload.
+func TestFingerprintSurvivesKeyRotation(t *testing.T) {
+	k1, err := connectors.NewKeyring("k1", map[string][]byte{"k1": key('a')})
+	require.NoError(t, err)
+	k2, err := connectors.NewKeyring("k2", map[string][]byte{"k1": key('a'), "k2": key('b')})
+	require.NoError(t, err)
+	before := connectors.NewStore(nil, k1, nil, nil, nil)
+	after := connectors.NewStore(nil, k2, nil, nil, nil)
+	fp, err := before.Fingerprint([]byte("payload"))
+	require.NoError(t, err)
+	now, err := after.Fingerprint([]byte("payload"))
+	require.NoError(t, err)
+	assert.NotEqual(t, fp, now)
+	assert.True(t, after.MatchesFingerprint(fp, []byte("payload")))
+	assert.False(t, after.MatchesFingerprint(fp, []byte("other")))
+	assert.False(t, connectors.NewStore(nil, k1, nil, nil, nil).MatchesFingerprint(now, []byte("payload")), "k2 is not readable")
+	assert.False(t, after.MatchesFingerprint("garbage", []byte("payload")))
+}
+
+// A credential is text; a property declared integer, number or boolean is validated as that scalar
+// read from the text, exact digits included.
+func TestValidateCredentialsReadsDeclaredScalars(t *testing.T) {
+	d := connectors.Descriptor{Credentials: []byte(`{"type":"object","properties":{
+		"port":{"type":"integer","minimum":1},"ratio":{"type":"number"},"tls":{"type":"boolean"},"host":{"type":"string"}}}`)}
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"port": "587", "ratio": "0.5", "tls": "true", "host": "42"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"port": "9007199254740993"}))
+	for _, bad := range []connectors.Credentials{{"port": "58.7"}, {"port": "0"}, {"port": "abc"}, {"tls": "yes"}, {"ratio": "1e"}} {
+		assert.Error(t, connectors.ValidateCredentials(d, bad), "%v", bad)
+	}
+}
+
+// A text that still decodes past the examined depth into something long enough to hold a value is
+// refused; ordinary identities stay.
+func TestCarriesSecretFailsClosedPastTheDecodingDepth(t *testing.T) {
+	token := "Zx9-kQ7p"
+	all := func(string) bool { return true }
+	creds := connectors.Credentials{"token": token}
+	layered := token
+	for i := 0; i < 5; i++ {
+		layered = base64.RawURLEncoding.EncodeToString([]byte(layered))
+	}
+	assert.True(t, connectors.CarriesSecret(layered, all, creds), "five layers")
+	assert.Empty(t, connectors.SafeIdentity(connectors.Identity{Display: layered + "@acme.uz", Kind: connectors.IdentityEmail}, all, creds).Display)
+	for _, ok := range []string{"robot@acme.uz", "@acme_sales_bot", "+998 90 123 45 67", "Sales bot", "docs.team+drive@acme-group.uz"} {
+		assert.False(t, connectors.CarriesSecret(ok, all, creds), ok)
+	}
+}

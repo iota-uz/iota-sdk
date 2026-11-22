@@ -4,6 +4,7 @@
 package automationconfig
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,16 +63,33 @@ func (c *Config) PlatformCredentials() (map[catalog.ConnectorKind]connectors.Pla
 	if raw == "" {
 		return out, nil
 	}
-	var doc map[string]map[string]string
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		return nil, errors.New("automationconfig: platform.credentials is not a JSON object of objects of strings")
+	// Decoded as raw values first: a JSON null would otherwise pass as an empty object or string.
+	shape := errors.New("automationconfig: platform.credentials is not a JSON object of objects of strings")
+	var doc map[string]map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil || doc == nil {
+		return nil, shape
 	}
 	for name, fields := range doc {
+		if fields == nil {
+			return nil, shape
+		}
+		creds := connectors.Credentials{}
+		for field, v := range fields {
+			var s string
+			if !bytes.HasPrefix(bytes.TrimSpace(v), []byte(`"`)) || json.Unmarshal(v, &s) != nil {
+				return nil, shape
+			}
+			creds[field] = s
+		}
 		name = strings.TrimSpace(name)
 		if name == "" {
 			return nil, errors.New("automationconfig: platform.credentials has an entry without a name")
 		}
-		out[catalog.ConnectorKind(name)] = connectors.PlatformCredential{Credentials: connectors.Credentials(fields)}
+		if _, dup := out[catalog.ConnectorKind(name)]; dup {
+			// Two entries that are the same name once trimmed: which one wins would depend on map order.
+			return nil, errors.New("automationconfig: platform.credentials names an entry twice")
+		}
+		out[catalog.ConnectorKind(name)] = connectors.PlatformCredential{Credentials: creds}
 	}
 	return out, nil
 }

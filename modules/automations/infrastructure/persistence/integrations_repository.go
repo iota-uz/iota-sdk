@@ -111,7 +111,7 @@ func NewRequests(db *pgxpool.Pool) services.Requests { return &requests{db: db} 
 // request that made it is taken to have failed (it rolled back or its process died).
 const staleReservation = "2 minutes"
 
-func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string) (services.Reservation, error) {
+func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerprint string, same func(stored string) bool) (services.Reservation, error) {
 	const op = serrors.Op("automations.Requests.Reserve")
 	if _, err := r.db.Exec(ctx, `DELETE FROM automation.connection_requests WHERE created_at < now() - interval '1 day'`); err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
@@ -133,21 +133,23 @@ func (r *requests) Reserve(ctx context.Context, tenantID uuid.UUID, key, fingerp
 		tenantID, key).Scan(&fp, &conn)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Released or swept between the two statements: reserve again.
-		return r.Reserve(ctx, tenantID, key, fingerprint)
+		return r.Reserve(ctx, tenantID, key, fingerprint, same)
 	}
 	if err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}
 	switch {
-	case fp != fingerprint:
+	case fp != fingerprint && (same == nil || !same(fp)):
 		return services.Reservation{State: services.RequestMismatch}, nil
 	case conn != nil:
 		return services.Reservation{State: services.RequestDone, ConnectionID: *conn}, nil
 	}
 	// A reservation of a request that died is taken over; a live one is in progress.
-	// The takeover gives the reservation a new owner: the request it replaces is fenced out.
-	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now(), owner = $3
-		WHERE tenant_id = $1 AND key = $2 AND connection_id IS NULL AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key, owner)
+	// The takeover gives the reservation a new owner: the request it replaces is fenced out. It is
+	// bound to the fingerprint read above: a row replaced in between (another payload) is not taken.
+	tag, err = r.db.Exec(ctx, `UPDATE automation.connection_requests SET created_at = now(), owner = $3, fingerprint = $5
+		WHERE tenant_id = $1 AND key = $2 AND fingerprint = $4 AND connection_id IS NULL
+		AND created_at < now() - interval '`+staleReservation+`'`, tenantID, key, owner, fp, fingerprint)
 	if err != nil {
 		return services.Reservation{}, serrors.Wrap(op, err)
 	}

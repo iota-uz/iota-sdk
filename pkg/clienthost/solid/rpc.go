@@ -146,6 +146,23 @@ type rpcResponse struct {
 	Error   *rpcWireError   `json:"error,omitempty"`
 }
 
+// rpcSuccess is the envelope of a result: "result" is always present, null included (a response has
+// exactly one of result and error).
+type rpcSuccess struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  any             `json:"result"`
+}
+
+// MarshalJSON encodes a success with its result even when it is nil, an error without one.
+func (r rpcResponse) MarshalJSON() ([]byte, error) {
+	if r.Error == nil {
+		return json.Marshal(rpcSuccess{JSONRPC: r.JSONRPC, ID: r.ID, Result: r.Result})
+	}
+	type wire rpcResponse
+	return json.Marshal(wire(r))
+}
+
 func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)

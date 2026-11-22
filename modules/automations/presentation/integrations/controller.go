@@ -73,9 +73,27 @@ var screen = solid.Import[Props]("./web/Integrations.tsx", solid.WithRPC(
 	solid.Action[PlatformRequest, OKResponse]("automations.platform.set_enabled", solid.Invalidates("automations.connectors.list")),
 ))
 
+// Service is what the controller calls; *services.IntegrationsService implements it, and a test or an
+// application may supply another.
+type Service interface {
+	List(ctx context.Context, a services.Actor, opts services.ListOptions) ([]services.ConnectorEntry, error)
+	ConnectionUsage(ctx context.Context, a services.Actor, id uuid.UUID) ([]connectors.Use, error)
+	Create(ctx context.Context, a services.Actor, in services.CreateInput) (services.ConnectionEntry, error)
+	Update(ctx context.Context, a services.Actor, in services.UpdateInput) (services.ConnectionEntry, error)
+	Test(ctx context.Context, a services.Actor, id uuid.UUID) (services.TestResult, error)
+	SetDisabled(ctx context.Context, a services.Actor, id uuid.UUID, disabled bool) (services.ConnectionEntry, error)
+	Delete(ctx context.Context, a services.Actor, id uuid.UUID) error
+	SetPlatformEnabled(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, enabled bool) error
+	OAuthStart(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error)
+	OAuthComplete(ctx context.Context, a services.Actor, state, code string) (connectors.Connection, services.OAuthState, error)
+	OAuthAbandon(ctx context.Context, a services.Actor, state string) (services.OAuthState, error)
+}
+
+var _ Service = (*services.IntegrationsService)(nil)
+
 // Config configures the controller.
 type Config struct {
-	Service *services.IntegrationsService
+	Service Service
 	// Host is the client host bundle manifest the page is rendered with. Without it the page is not
 	// mounted (the RPC and the OAuth2 callback still are).
 	Host *clienthost.Manifest

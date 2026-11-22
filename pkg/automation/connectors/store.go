@@ -54,6 +54,9 @@ type Store interface {
 	// credentials without storing anything a value could be guessed back from. ErrNotConfigured without
 	// a keyring.
 	Fingerprint(data []byte) (string, error)
+	// MatchesFingerprint reports whether fp (from Fingerprint) is data's fingerprint under the key that
+	// made it, so a record stays verifiable after the active key rotates while that key is readable.
+	MatchesFingerprint(fp string, data []byte) bool
 }
 
 // NewStore is the connection store. keys nil: tenant connections are unavailable (ErrNotConfigured)
@@ -340,10 +343,29 @@ func (s *store) Fingerprint(data []byte) (string, error) {
 		return "", serrors.Wrap("automation.connectors.Store.Fingerprint", err)
 	}
 	id, key := s.keys.Active()
+	return fingerprint(id, key, data), nil
+}
+
+func (s *store) MatchesFingerprint(fp string, data []byte) bool {
+	if s.configured() != nil {
+		return false
+	}
+	id, _, ok := strings.Cut(fp, ":")
+	if !ok {
+		return false
+	}
+	key, ok := s.keys.Key(id)
+	if !ok {
+		return false
+	}
+	return hmac.Equal([]byte(fingerprint(id, key, data)), []byte(fp))
+}
+
+func fingerprint(id string, key, data []byte) string {
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte("automation-request-fingerprint\x00"))
 	_, _ = mac.Write(data)
-	return id + ":" + hex.EncodeToString(mac.Sum(nil)), nil
+	return id + ":" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func (s *store) create(ctx context.Context, q querier, c Connection, identity []byte, creds Credentials) (Connection, error) {

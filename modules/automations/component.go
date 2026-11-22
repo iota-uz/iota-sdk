@@ -220,15 +220,9 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		usage := c.usage
-		if usage == nil {
-			provided, err := composition.Resolve[connectors.UsageIndex](container)
-			switch {
-			case err == nil:
-				usage = provided
-			case !composition.IsNotProvided(err):
-				return nil, err
-			}
+		usage, err := c.usageIndex(container)
+		if err != nil {
+			return nil, err
 		}
 		platform, err := composition.Resolve[connectors.PlatformCredentials](container)
 		if err != nil {
@@ -274,40 +268,25 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return connectors.SecretResolver(st, dir, nil), nil
 	})
-	composition.Provide[*services.IntegrationsService](b, func(container *composition.Container) (*services.IntegrationsService, error) {
-		db, err := composition.Resolve[*pgxpool.Pool](container)
+	// Required dependencies are the constructor's parameters; only the optional usage index is looked
+	// up through the container.
+	composition.ProvideFunc(b, func(
+		container *composition.Container,
+		db *pgxpool.Pool,
+		dir connectors.Directory,
+		st connectors.Store,
+		platform connectors.PlatformCredentials,
+		grants connectors.PlatformGrants,
+		oauth connectors.OAuth2,
+	) (*services.IntegrationsService, error) {
+		usage, err := c.usageIndex(container)
 		if err != nil {
 			return nil, err
 		}
-		deps := services.IntegrationsDeps{States: persistence.NewOAuthStates(db), Checks: persistence.NewConnectionChecks(db), Requests: persistence.NewRequests(db)}
-		if deps.Directory, err = composition.Resolve[connectors.Directory](container); err != nil {
-			return nil, err
-		}
-		st, err := composition.Resolve[connectors.Store](container)
-		if err != nil {
-			return nil, err
-		}
-		deps.Store = st
-		deps.Usage = c.usage
-		if deps.Usage == nil {
-			u, err := composition.Resolve[connectors.UsageIndex](container)
-			switch {
-			case err == nil:
-				deps.Usage = u
-			case !composition.IsNotProvided(err):
-				return nil, err
-			}
-		}
-		if deps.Platform, err = composition.Resolve[connectors.PlatformCredentials](container); err != nil {
-			return nil, err
-		}
-		if deps.Grants, err = composition.Resolve[connectors.PlatformGrants](container); err != nil {
-			return nil, err
-		}
-		if deps.OAuth, err = composition.Resolve[connectors.OAuth2](container); err != nil {
-			return nil, err
-		}
-		return services.NewIntegrationsService(deps), nil
+		return services.NewIntegrationsService(services.IntegrationsDeps{
+			Directory: dir, Store: st, Usage: usage, Platform: platform, Grants: grants, OAuth: oauth,
+			States: persistence.NewOAuthStates(db), Checks: persistence.NewConnectionChecks(db), Requests: persistence.NewRequests(db),
+		}), nil
 	})
 
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
@@ -402,4 +381,17 @@ func MessageKeys() ([]string, error) {
 	walk("", doc)
 	sort.Strings(keys)
 	return keys, nil
+}
+
+// usageIndex is the index given with WithUsageIndex, else the one the container provides, else nil
+// (no usage: "used in" is empty and deletion is not blocked). A provided index that fails to build
+// fails the build: a nested missing dependency must not read as "no index" and unblock deletion.
+func (c *component) usageIndex(container *composition.Container) (connectors.UsageIndex, error) {
+	if c.usage != nil {
+		return c.usage, nil
+	}
+	if !composition.Has[connectors.UsageIndex](container) {
+		return nil, nil //nolint:nilnil // no index is an outcome: usage is then empty
+	}
+	return composition.Resolve[connectors.UsageIndex](container)
 }

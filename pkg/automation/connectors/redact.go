@@ -81,13 +81,18 @@ const (
 
 // CarriesSecret reports whether s — as it is or after up to maxDecodeDepth layers of URL, base64 and
 // hex encodings in any order — contains a secret credential value. It also reports true when s cannot
-// be examined within maxCandidates: an output that cannot be shown to be safe is not shown.
+// be examined within maxCandidates, or when a text still decodes past maxDecodeDepth into one long
+// enough to hold a value: an output that cannot be shown to be safe is not shown.
 func CarriesSecret(s string, secret func(field string) bool, creds ...Credentials) bool {
 	var values [][]byte
+	shortest := 0
 	for _, c := range creds {
 		for field, v := range c {
 			if v != "" && secret(field) {
 				values = append(values, bytes.ToLower([]byte(v)))
+				if shortest == 0 || len(v) < shortest {
+					shortest = len(v)
+				}
 			}
 		}
 	}
@@ -106,6 +111,12 @@ func CarriesSecret(s string, secret func(field string) bool, creds ...Credential
 				}
 			}
 			if depth == maxDecodeDepth {
+				// One more layer that could still hold a value is beyond what is examined: refuse.
+				for _, d := range decodeOnce(cand) {
+					if len(d) >= shortest && !seen[d] {
+						return true
+					}
+				}
 				continue
 			}
 			for _, d := range decodeOnce(cand) {

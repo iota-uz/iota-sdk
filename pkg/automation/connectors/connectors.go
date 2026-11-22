@@ -264,6 +264,16 @@ type OAuth2 interface {
 	Token(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error)
 }
 
+// OAuth2Checker is an OAuth2 that can refresh the token of a disabled connection, to check it before it
+// is enabled again. The built-in OAuth2 implements it; a caller asserts it and falls back to the stored
+// token without it.
+type OAuth2Checker interface {
+	// CheckToken is Token for a disabled connection: an expiring access token is refreshed and stored
+	// and the status is kept (disabled). A refused refresh is ErrNeedsReauth and writes nothing, so the
+	// caller records the outcome of its check with its own versioned save.
+	CheckToken(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error)
+}
+
 var (
 	ErrNotConfigured   = errors.New("automation connections: encryption key is not configured")
 	ErrNotFound        = errors.New("automation connections: not found")

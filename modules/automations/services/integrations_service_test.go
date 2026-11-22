@@ -484,10 +484,12 @@ func (e *env) putNamed(state, name string) {
 
 func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	e := newEnv(t)
+	e.oauth.token = "grant-a-first-0001"
 	e.putNamed("a", "account_a")
 	a, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
 	require.NoError(t, err)
 	e.oauth.identity = connectors.Identity{Display: "@acct_b", External: "acct-2", Kind: connectors.IdentityHandle}
+	e.oauth.token = "grant-b-first-0002"
 	e.putNamed("b", "account_b")
 	b, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "b", "code")
 	require.NoError(t, err)
@@ -498,6 +500,7 @@ func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Re-authorizing A, the administrator signs in as account B.
+	e.oauth.token = "grant-a-second-0003"
 	e.putState("again", a.ID)
 	got, pending, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
 	require.NoError(t, err)
@@ -505,9 +508,13 @@ func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	assert.Equal(t, a.ID, pending.ConnectionID)
 	assert.Equal(t, connectors.StatusConnected, got.Status)
 	assert.Equal(t, "@acct_b", got.Identity.Display)
-	bAfter, _, err := e.store.Get(e.ctx, e.tenant, b.ID)
+	bAfter, bCreds, err := e.store.Get(e.ctx, e.tenant, b.ID)
 	require.NoError(t, err)
 	assert.Equal(t, bBefore, bAfter, "B is not touched: still disabled, same version")
+	assert.Equal(t, "grant-b-first-0002", bCreds["token"], "B keeps its own grant")
+	_, aCreds, err := e.store.Get(e.ctx, e.tenant, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "grant-a-second-0003", aCreds["token"], "A holds the new grant")
 	conns, err := e.store.List(e.ctx, e.tenant, "")
 	require.NoError(t, err)
 	assert.Len(t, conns, 2)
@@ -550,6 +557,7 @@ func TestOAuthProviderFailureKeepsTheFormContext(t *testing.T) {
 	e.putNamed("y", "my_bot")
 	_, pending, err = e.svc.OAuthComplete(e.ctx, e.actor(), "y", "code")
 	require.ErrorIs(t, err, services.ErrOAuthExchange)
+	assert.NotContains(t, err.Error(), "cannot fetch token", "the implementation's text is not kept")
 	assert.Equal(t, catalog.KindTelegramBot, pending.Kind)
 }
 
@@ -669,6 +677,8 @@ func TestOverlappingRetryWaitsForTheFirstRequest(t *testing.T) {
 	e := newEnv(t)
 	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-overlap"}
 	inside, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
 	e.tg.during = func() { e.tg.during = nil; close(inside); <-release }
 	done := make(chan error, 1)
 	var first services.ConnectionEntry
@@ -677,11 +687,22 @@ func TestOverlappingRetryWaitsForTheFirstRequest(t *testing.T) {
 		first, err = e.svc.Create(e.ctx, e.actor(), in)
 		done <- err
 	}()
-	<-inside
+	// The worker is joined on every exit, a failed assertion included.
+	t.Cleanup(func() { unblock(); <-done })
+	select {
+	case <-inside:
+	case err := <-done:
+		done <- err
+		t.Fatalf("the first request returned before asking the provider: %v", err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("the first request did not reach the provider")
+	}
 	_, err := e.svc.Create(e.ctx, e.actor(), in)
 	require.ErrorIs(t, err, services.ErrRequestInProgress)
-	close(release)
-	require.NoError(t, <-done)
+	unblock()
+	err = <-done
+	done <- err
+	require.NoError(t, err)
 	again, err := e.svc.Create(e.ctx, e.actor(), in)
 	require.NoError(t, err)
 	assert.Equal(t, first.Connection.ID, again.Connection.ID)
@@ -790,19 +811,19 @@ func TestTakenOverReservationIsFencedFromItsFormerOwner(t *testing.T) {
 	e := newEnv(t)
 	c := e.create("sales_bot")
 	reqs := persistence.NewRequests(e.db)
-	first, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	first, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp", nil)
 	require.NoError(t, err)
 	require.Equal(t, services.RequestNew, first.State)
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.connection_requests SET created_at = now() - interval '3 minutes' WHERE key = 'k-fence'`)
 	require.NoError(t, err)
-	second, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	second, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp", nil)
 	require.NoError(t, err)
 	require.Equal(t, services.RequestNew, second.State, "an expired reservation is taken over")
 	require.NotEqual(t, first.Owner, second.Owner)
 
 	// The former owner's cleanup does not free the new owner's reservation…
 	require.NoError(t, reqs.Release(e.ctx, e.tenant, "k-fence", first.Owner))
-	third, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	third, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp", nil)
 	require.NoError(t, err)
 	assert.Equal(t, services.RequestInProgress, third.State)
 
@@ -814,10 +835,42 @@ func TestTakenOverReservationIsFencedFromItsFormerOwner(t *testing.T) {
 	require.NoError(t, pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
 		return reqs.Complete(e.ctx, tx, e.tenant, "k-fence", second.Owner, c.Connection.ID)
 	}))
-	done, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp")
+	done, err := reqs.Reserve(e.ctx, e.tenant, "k-fence", "fp", nil)
 	require.NoError(t, err)
 	assert.Equal(t, services.RequestDone, done.State)
 	assert.Equal(t, c.Connection.ID, done.ConnectionID)
+}
+
+// A reservation made under a key that has since rotated still answers a retry of the same payload,
+// and still refuses another payload; a stale takeover is bound to the fingerprint it read.
+func TestReservationSurvivesKeyRotation(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("sales_bot")
+	reqs := persistence.NewRequests(e.db)
+	first, err := reqs.Reserve(e.ctx, e.tenant, "k-rot", "k1:old", nil)
+	require.NoError(t, err)
+	require.NoError(t, pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
+		return reqs.Complete(e.ctx, tx, e.tenant, "k-rot", first.Owner, c.Connection.ID)
+	}))
+	same := func(stored string) bool { return stored == "k1:old" }
+	done, err := reqs.Reserve(e.ctx, e.tenant, "k-rot", "k2:new", same)
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestDone, done.State)
+	other, err := reqs.Reserve(e.ctx, e.tenant, "k-rot", "k2:other", func(string) bool { return false })
+	require.NoError(t, err)
+	assert.Equal(t, services.RequestMismatch, other.State)
+
+	stale, err := reqs.Reserve(e.ctx, e.tenant, "k-stale", "k1:old", nil)
+	require.NoError(t, err)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.connection_requests SET created_at = now() - interval '3 minutes' WHERE key = 'k-stale'`)
+	require.NoError(t, err)
+	took, err := reqs.Reserve(e.ctx, e.tenant, "k-stale", "k2:new", same)
+	require.NoError(t, err)
+	require.Equal(t, services.RequestNew, took.State)
+	require.NotEqual(t, stale.Owner, took.Owner)
+	var fp string
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT fingerprint FROM automation.connection_requests WHERE key = 'k-stale'`).Scan(&fp))
+	assert.Equal(t, "k2:new", fp, "the taken-over reservation carries the active fingerprint")
 }
 
 // The identity a connector reports is shown only when the connector declared its kind and it has that

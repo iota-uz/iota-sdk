@@ -312,6 +312,26 @@ func fresh(c Credentials) bool {
 }
 
 func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error) {
+	return o.token(ctx, tenantID, connectionID, false)
+}
+
+var _ OAuth2Checker = (*oauth)(nil)
+
+func (o *oauth) CheckToken(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error) {
+	return o.token(ctx, tenantID, connectionID, true)
+}
+
+// serves is the status token works on: connected, or disabled for a check (CheckToken).
+func serves(status ConnectionStatus, check bool) bool {
+	if check {
+		return status == StatusDisabled
+	}
+	return status == StatusConnected
+}
+
+// token is Token, or CheckToken with check: then the connection must be disabled, and a refused refresh
+// is reported without recording needs_reauth.
+func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, check bool) (string, error) {
 	const op = serrors.Op("automation.connectors.OAuth2.Token")
 	c, creds, err := o.s.load(ctx, o.s.db, tenantID, connectionID, false)
 	if err != nil {
@@ -320,7 +340,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 	if c.Status == StatusNeedsReauth {
 		return "", serrors.Wrap(op, ErrNeedsReauth)
 	}
-	if c.Status != StatusConnected {
+	if !serves(c.Status, check) {
 		return "", serrors.Wrap(op, ErrNotConnected)
 	}
 	if fresh(creds) {
@@ -337,15 +357,21 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			return err
 		}
 		// The row may have changed while this call waited for the lock: check it again.
-		switch c.Status {
-		case StatusConnected:
-		case StatusNeedsReauth:
+		switch {
+		case serves(c.Status, check):
+		case c.Status == StatusNeedsReauth:
 			reauth = true
 			return nil
-		case StatusError, StatusDisabled:
-			return ErrNotConnected
 		default:
 			return ErrNotConnected
+		}
+		refused := func(reason string) error {
+			if check {
+				// A check records nothing: its caller saves the outcome against the version it read.
+				reauth = true
+				return nil
+			}
+			return o.markReauth(ctx, tx, c, reason, &reauth)
 		}
 		if fresh(creds) {
 			token = creds[OAuth2AccessToken]
@@ -362,7 +388,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			return err
 		}
 		if creds[OAuth2RefreshToken] == "" {
-			return o.markReauth(ctx, tx, c, "no refresh token", &reauth)
+			return refused("no refresh token")
 		}
 		expired := &oauth2.Token{AccessToken: creds[OAuth2AccessToken], RefreshToken: creds[OAuth2RefreshToken], Expiry: now().Add(-time.Minute)}
 		tok, err := cfg.TokenSource(o.ctx(ctx), expired).Token()
@@ -371,7 +397,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			// Only a refused grant needs the user; invalid_client, 429 and the like are the platform's or
 			// transient and must not send every tenant to re-authorize.
 			if errors.As(err, &re) && re.ErrorCode == "invalid_grant" {
-				return o.markReauth(ctx, tx, c, "the provider refused the refresh token", &reauth)
+				return refused("the provider refused the refresh token")
 			}
 			return tokenError(err)
 		}

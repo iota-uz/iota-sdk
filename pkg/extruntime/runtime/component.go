@@ -139,14 +139,12 @@ func (c *component) Build(builder *composition.Builder) error {
 		// Without Secrets in the configuration, the resolver a module provides
 		// (the automations module serves connection secrets) answers secrets.get.
 		cfg := c.cfg
-		if cfg.Secrets == nil {
+		if cfg.Secrets == nil && composition.Has[host.SecretResolver](container) {
 			secrets, err := composition.Resolve[host.SecretResolver](container)
-			switch {
-			case err == nil:
-				cfg.Secrets = secrets
-			case !composition.IsNotProvided(err):
+			if err != nil {
 				return nil, err
 			}
+			cfg.Secrets = secrets
 		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.

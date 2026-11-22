@@ -859,3 +859,52 @@ func TestRefreshScrubsMetadataCarryingTheOldToken(t *testing.T) {
 	assert.Equal(t, "sheets_access", got.Name, "the name is never changed")
 	assert.Equal(t, "sheets_access", got.DisplayName, "the display falls back to the name")
 }
+
+// A disabled connection's token is refreshed for a check without enabling it; a refused refresh writes
+// nothing. Token itself still refuses a disabled connection.
+func TestCheckTokenRefreshesADisabledConnection(t *testing.T) {
+	e := newEnv(t)
+	ts := newTokenServer(t)
+	conn := telegramConnector(t)
+	conn.kind = "google_sheets"
+	conn.nodes, conn.sources = nil, nil
+	conn.auth = connectors.AuthOAuth2
+	conn.oauth = &connectors.OAuth2Config{AuthURL: ts.URL + "/auth", TokenURL: ts.URL + "/token", ClientCredential: "google_client"}
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(conn))
+	platform := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		"google_client": {Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}},
+	})
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, platform, nil)
+	o, err := connectors.NewOAuth2(store, dir, platform, connectors.WithHTTPClient(ts.Client()))
+	require.NoError(t, err)
+	expired := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	save := func(name string) connectors.Connection {
+		c, err := store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: "google_sheets", Name: name, Status: connectors.StatusDisabled},
+			connectors.Credentials{"access_token": "access-1", "refresh_token": "refresh-1", "expires_at": expired})
+		require.NoError(t, err)
+		return c
+	}
+	c := save("sheets")
+	_, err = o.Token(e.ctx, e.tenant, c.ID)
+	require.ErrorIs(t, err, connectors.ErrNotConnected)
+
+	checker, ok := o.(connectors.OAuth2Checker)
+	require.True(t, ok)
+	tok, err := checker.CheckToken(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "access-2", tok)
+	got, creds, err := store.Get(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusDisabled, got.Status, "the check does not enable it")
+	assert.Equal(t, "access-2", creds["access_token"])
+
+	refused := save("sheets_refused")
+	ts.refuse.Store("invalid_grant")
+	_, err = checker.CheckToken(e.ctx, e.tenant, refused.ID)
+	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
+	after, _, err := store.Get(e.ctx, e.tenant, refused.ID)
+	require.NoError(t, err)
+	assert.Equal(t, refused.Version, after.Version, "a refused check writes nothing")
+	assert.Equal(t, connectors.StatusDisabled, after.Status)
+}

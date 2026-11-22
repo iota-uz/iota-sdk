@@ -38,6 +38,7 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 			require.NoError(t, rows.Scan(&n))
 			out = append(out, n)
 		}
+		require.NoError(t, rows.Err())
 		return out
 	}
 	want := []string{"connection_checks", "connection_requests", "oauth_states"}
