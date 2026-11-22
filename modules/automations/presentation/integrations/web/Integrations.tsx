@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, type Component, type JSX } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack, type Component, type JSX } from 'solid-js'
 import { FetchRPCTransport, RPCClient, createRPCQuery, useClientHost, type SolidRouteProps } from '@iota-uz/sdk/solid'
 import {
   Button, ConfirmationDialog, Dialog, DialogBusyStatus, Dropdown, DropdownItem, EmptyState, Input, PasswordInput, Skeleton,
@@ -363,7 +363,9 @@ function PlatformRow(props: { ctx: Ctx; connector: ConnectorView }) {
   const [enabled, setEnabled] = createSignal(p().enabled_for_tenant)
   const [pending, setPending] = createSignal(false)
   const [error, setError] = createSignal<string>()
-  createEffect(() => { const v = p().enabled_for_tenant; if (!pending()) { setSaved(v); setEnabled(v) } })
+  // Only fresh list data moves the saved value (a new platform object from a refresh), never the end of
+  // a request: after a success the accepted value stays even when the following refresh fails.
+  createEffect(on(p, (platform) => { if (!untrack(pending)) { setSaved(platform.enabled_for_tenant); setEnabled(platform.enabled_for_tenant) } }, { defer: true }))
   const toggle = async (next: boolean) => {
     if (pending()) return
     setPending(true)

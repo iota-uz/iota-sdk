@@ -20,6 +20,8 @@ export interface FakeOptions {
   oauthFail: string
   /** The first connections.test fails in transport (a 502). */
   testFailOnce: boolean
+  /** Every list after the first fails (a refresh that does not arrive). */
+  refreshFails: boolean
   /** The first update meets a version conflict (another manager saved the connection meanwhile):
    * as a result ('result') or as an RPC error ('error'); '' for none. */
   conflictOnce: '' | 'result' | 'error'
@@ -127,6 +129,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   const notFound = () => { throw { code: 'not_found', message: 'connection not found', data: { code: 'not_found' } } }
   let seq = kept?.seq ?? 100
   let conflicted = false
+  let listed = 0
   const keys = new Map<string, ConnectionView>()
   // Like the service, the key of a request that was saved is bound to its payload (a refused one is
   // released and may be reused).
@@ -144,7 +147,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   }
   const handlers: Record<keyof RPC, Handler> = {
     'automations.connectors.list': () => {
-      if (opts.scenario === 'error') throw { code: 'internal', message: 'internal error' }
+      if (opts.scenario === 'error' || (opts.refreshFails && listed++ > 0)) throw { code: 'internal', message: 'internal error' }
       return { connectors, can_manage: opts.manage }
     },
     'automations.connections.usage': (p: { id: string }) => {

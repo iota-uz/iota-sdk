@@ -32,6 +32,7 @@ const fake: FakeOptions = {
   lossy: params.has('lossy'),
   oauthFail: params.get('oauthFail') ?? '',
   testFailOnce: params.has('testFailOnce'),
+  refreshFails: params.has('refreshFails'),
   conflictOnce: params.has('conflictOnce') ? (params.get('conflictOnce') === 'error' ? 'error' : 'result') : '',
   calls: [],
 }

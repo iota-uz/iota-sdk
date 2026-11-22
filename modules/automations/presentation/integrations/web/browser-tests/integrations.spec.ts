@@ -285,6 +285,18 @@ test('U1: disabling is undone from the toast', async ({ page }) => {
   await expect(row(page, 'sales_bot').locator('[data-status="connected"]')).toBeVisible()
 })
 
+test('F8: an accepted platform switch stays when the refresh after it fails', async ({ page }) => {
+  await open(page, 'refreshFails')
+  const panel = page.getByTestId('connector-openai').getByTestId('platform-key')
+  const sw = panel.getByRole('switch', { name: 'Use the platform key' })
+  await panel.getByText('Use the platform key', { exact: true }).click()
+  await expect(sw).toBeEnabled()
+  // The refresh after the success failed: the screen says so, and the switch keeps the accepted value.
+  await expect(page.getByText('Could not load integrations.').first()).toBeVisible({ timeout: 5_000 })
+  await expect(sw).toBeChecked()
+  expect(await callsOf(page, 'platform.set_enabled')).toHaveLength(1)
+})
+
 test('IN6/F8: the platform key switch rolls back when the server refuses', async ({ page }) => {
   await open(page, 'platformFails')
   const panel = page.getByTestId('connector-openai').getByTestId('platform-key')
