@@ -3,6 +3,8 @@ package connectors_test
 import (
 	"encoding/base64"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -94,11 +96,16 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 // The migration applies and rolls back: its Down then its Up run on a migrated database.
 func TestMigrationRollsBackAndApplies(t *testing.T) {
 	e := newEnv(t)
-	body, err := os.ReadFile("migrations/changes-1795256615.sql")
-	require.NoError(t, err)
-	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
-	require.True(t, ok)
-	up = strings.TrimPrefix(up, "-- +migrate Up")
+	const name = "changes-1795256615.sql"
+	up, down := migrationSections(t, name)
+	// Later migrations may depend on these tables: they are rolled back first, newest first, and
+	// applied again after.
+	later := laterMigrations(t, name)
+	for i := len(later) - 1; i >= 0; i-- {
+		_, d := migrationSections(t, later[i])
+		_, err := e.db.Exec(e.ctx, d)
+		require.NoError(t, err, later[i])
+	}
 
 	tables := func() int {
 		var n int
@@ -106,7 +113,7 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 		return n
 	}
 	assert.Equal(t, 3, tables())
-	_, err = e.db.Exec(e.ctx, down)
+	_, err := e.db.Exec(e.ctx, down)
 	require.NoError(t, err)
 	assert.Equal(t, 0, tables())
 	var schema int
@@ -115,9 +122,88 @@ func TestMigrationRollsBackAndApplies(t *testing.T) {
 	_, err = e.db.Exec(e.ctx, up)
 	require.NoError(t, err)
 	assert.Equal(t, 3, tables())
+	for _, m := range later {
+		u, _ := migrationSections(t, m)
+		_, err := e.db.Exec(e.ctx, u)
+		require.NoError(t, err, m)
+	}
 
 	// Constraints of the table.
 	_, err = e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
 	require.Error(t, err, "a name that is not a slug")
+}
+
+// migrationSections are the Up and Down SQL of a migration file.
+func migrationSections(t *testing.T, name string) (string, string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("migrations", name))
+	require.NoError(t, err)
+	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
+	require.True(t, ok, name)
+	return strings.TrimPrefix(up, "-- +migrate Up"), down
+}
+
+// laterMigrations are the migration files applied after name, oldest first.
+func laterMigrations(t *testing.T, name string) []string {
+	t.Helper()
+	entries, err := os.ReadDir("migrations")
+	require.NoError(t, err)
+	var out []string
+	for _, entry := range entries {
+		if n := entry.Name(); strings.HasSuffix(n, ".sql") && n > name {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// A fingerprint stays verifiable with the key that made it after the active key rotates, and only
+// for the same payload.
+func TestFingerprintSurvivesKeyRotation(t *testing.T) {
+	k1, err := connectors.NewKeyring("k1", map[string][]byte{"k1": key('a')})
+	require.NoError(t, err)
+	k2, err := connectors.NewKeyring("k2", map[string][]byte{"k1": key('a'), "k2": key('b')})
+	require.NoError(t, err)
+	before := connectors.NewStore(nil, k1, nil, nil, nil)
+	after := connectors.NewStore(nil, k2, nil, nil, nil)
+	fp, err := before.Fingerprint([]byte("payload"))
+	require.NoError(t, err)
+	now, err := after.Fingerprint([]byte("payload"))
+	require.NoError(t, err)
+	assert.NotEqual(t, fp, now)
+	assert.True(t, after.MatchesFingerprint(fp, []byte("payload")))
+	assert.False(t, after.MatchesFingerprint(fp, []byte("other")))
+	assert.False(t, connectors.NewStore(nil, k1, nil, nil, nil).MatchesFingerprint(now, []byte("payload")), "k2 is not readable")
+	assert.False(t, after.MatchesFingerprint("garbage", []byte("payload")))
+}
+
+// A credential is text; a property declared integer, number or boolean is validated as that scalar
+// read from the text, exact digits included.
+func TestValidateCredentialsReadsDeclaredScalars(t *testing.T) {
+	d := connectors.Descriptor{Credentials: []byte(`{"type":"object","properties":{
+		"port":{"type":"integer","minimum":1},"ratio":{"type":"number"},"tls":{"type":"boolean"},"host":{"type":"string"}}}`)}
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"port": "587", "ratio": "0.5", "tls": "true", "host": "42"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"port": "9007199254740993"}))
+	for _, bad := range []connectors.Credentials{{"port": "58.7"}, {"port": "0"}, {"port": "abc"}, {"tls": "yes"}, {"ratio": "1e"}} {
+		assert.Error(t, connectors.ValidateCredentials(d, bad), "%v", bad)
+	}
+}
+
+// A text that still decodes past the examined depth into something long enough to hold a value is
+// refused; ordinary identities stay.
+func TestCarriesSecretFailsClosedPastTheDecodingDepth(t *testing.T) {
+	token := "Zx9-kQ7p"
+	all := func(string) bool { return true }
+	creds := connectors.Credentials{"token": token}
+	layered := token
+	for i := 0; i < 5; i++ {
+		layered = base64.RawURLEncoding.EncodeToString([]byte(layered))
+	}
+	assert.True(t, connectors.CarriesSecret(layered, all, creds), "five layers")
+	assert.Empty(t, connectors.SafeIdentity(connectors.Identity{Display: layered + "@acme.uz", Kind: connectors.IdentityEmail}, all, creds).Display)
+	for _, ok := range []string{"robot@acme.uz", "@acme_sales_bot", "+998 90 123 45 67", "Sales bot", "docs.team+drive@acme-group.uz"} {
+		assert.False(t, connectors.CarriesSecret(ok, all, creds), ok)
+	}
 }

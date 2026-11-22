@@ -482,6 +482,17 @@ func Resolve[T any](container *Container) (T, error) {
 	return ResolveKey[T](container, KeyFor[T]())
 }
 
+// Has reports whether a provider for T is registered, without resolving it. An optional dependency
+// is looked up with Has and then Resolve, so that a registered provider whose own dependency is
+// missing fails the build instead of reading as "not provided" (IsNotProvided matches either).
+func Has[T any](container *Container) bool {
+	if container == nil {
+		return false
+	}
+	_, ok := container.providers[KeyFor[T]()]
+	return ok
+}
+
 func ResolveKey[T any](container *Container, key Key) (T, error) {
 	if container == nil {
 		var zero T

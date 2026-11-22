@@ -1,0 +1,225 @@
+{
+  "Modules": {
+    "Automations": "Avtomatlashtirish"
+  },
+  "NavigationLinks": {
+    "Integrations": "Integratsiyalar"
+  },
+  "Permissions": {
+    "Automations.Read": "Avtomatlashtirishlarni koʻrish",
+    "Automations.Author": "Avtomatlashtirishlarni tahrirlash",
+    "Automations.Enable": "Avtomatlashtirishlarni yoqish",
+    "Automations.Operate": "Avtomatlashtirish ishga tushirishlarini boshqarish",
+    "Connections.Manage": "Integratsiyalarni boshqarish"
+  },
+  "PermissionSets": {
+    "Automations": {
+      "View": {
+        "Label": "Avtomatlashtirishlarni koʻrish",
+        "_Description": "Avtomatlashtirishlar va ularning ishga tushirishlarini ochish"
+      },
+      "Author": {
+        "Label": "Avtomatlashtirishlarni tahrirlash",
+        "_Description": "Avtomatlashtirish graflarini yaratish va oʻzgartirish, tugunlarda ulanishni tanlash"
+      },
+      "Enable": {
+        "Label": "Avtomatlashtirishlarni yoqish",
+        "_Description": "Avtomatlashtirish versiyalarini yoqish va oʻchirish"
+      },
+      "Operate": {
+        "Label": "Ishga tushirishlarni boshqarish",
+        "_Description": "Ishga tushirishlarni takrorlash va bekor qilish"
+      },
+      "ConnectionsManage": {
+        "Label": "Integratsiyalarni boshqarish",
+        "_Description": "Tashkilotning tashqi xizmatlardagi akkauntlarini ulash, tekshirish, oʻchirish va oʻchirib tashlash"
+      }
+    }
+  },
+  "Settings": {
+    "Hub": {
+      "Pages": {
+        "Integrations": {
+          "Name": "Integratsiyalar",
+          "Summary": "Avtomatlashtirishlar ishlatadigan tashqi xizmatlarni ulash"
+        }
+      }
+    }
+  },
+  "Automations": {
+    "Integrations": {
+      "Title": "Integratsiyalar",
+      "Subtitle": "Avtomatlashtirishlaringiz ishlaydigan tashqi xizmatlardagi akkauntlar.",
+      "NotConfigured": "Ulanishlarni saqlab boʻlmaydi: ilovada shifrlash kaliti sozlanmagan. Ilova administratoridan uni sozlashni soʻrang.",
+      "Empty": {
+        "Title": "Bu ilovada integratsiyalar sozlanmagan",
+        "Text": "Ilova konnektorlarni roʻyxatdan oʻtkazganda integratsiyalar shu yerda paydo boʻladi."
+      },
+      "LoadFailed": "Integratsiyalarni yuklab boʻlmadi.",
+      "Offline": "Server bilan aloqa yoʻq.",
+      "Retry": "Qayta urinish",
+      "Auth": {
+        "api_key": "API kaliti",
+        "basic": "Login va parol",
+        "oauth2": "Xizmat orqali kirish",
+        "custom": "Ulanish parametrlari"
+      },
+      "Status": {
+        "connected": "Ulangan",
+        "needs_reauth": "Qayta kirish kerak",
+        "error": "Xato",
+        "disabled": "Oʻchirilgan"
+      },
+      "NoConnections": "Hozircha ulanishlar yoʻq.",
+      "NodesUnlock": "Quyidagilardan foydalanish uchun akkauntni ulang: {nodes}.",
+      "Connect": "Ulash",
+      "ConnectAnother": "Yana akkaunt ulash",
+      "SignInAgain": "Qayta kirish",
+      "Actions": "{name} bilan amallar",
+      "Menu": {
+        "Test": "Tekshirish",
+        "Edit": "Oʻzgartirish",
+        "Disable": "Oʻchirish",
+        "Enable": "Yoqish",
+        "Delete": "Oʻchirib tashlash"
+      },
+      "DeleteBlocked": "Avtomatlashtirishlarda ishlatiladi: oʻchirib tashlash oʻrniga oʻchiring.",
+      "Platform": {
+        "Label": "Platforma kaliti",
+        "Available": "Platforma kaliti mavjud",
+        "Use": "Platforma kalitidan foydalanish",
+        "Override": "Tashkilotingiz ulanishi platforma kaliti oʻrniga ishlatiladi.",
+        "Unavailable": "Platforma kaliti sozlanmagan.",
+        "Enabled": "Platforma kaliti yoqilgan.",
+        "Disabled": "Platforma kaliti oʻchirilgan.",
+        "Failed": "Platforma kalitini almashtirib boʻlmadi. {reason}"
+      },
+      "Form": {
+        "TitleNew": "Ulash: {connector}",
+        "TitleEdit": "{name}ni oʻzgartirish",
+        "DisplayName": "Nomi",
+        "DisplayNameHint": "Jamoangiz ulanishni qanday koʻradi, masalan «Savdo boti».",
+        "Name": "Tizim nomi",
+        "NameHint": "Lotin harflari, raqamlar va _; harf bilan boshlanadi. Avtomatlashtirishlar ulanishga shu nom orqali murojaat qiladi.",
+        "SecretSet": "••••• berilgan",
+        "Replace": "Almashtirish",
+        "KeepSecret": "Joriy qiymatni qoldirish",
+        "Show": "Koʻrsatish",
+        "Hide": "Yashirish",
+        "Save": "Saqlash",
+        "Saving": "Ulanishni tekshiryapmiz…",
+        "Cancel": "Bekor qilish",
+        "StillWaiting": "Xizmat javobini hali kutyapmiz. Hech narsa ikki marta saqlanmaydi.",
+        "TestFailed": "Xizmat ulanishni qabul qilmadi: {message}",
+        "TestFailedHint": "Qiymatlarni tekshirib, qayta saqlang.",
+        "SignInWith": "{connector} orqali kirish",
+        "Redirecting": "{connector} ochilmoqda…",
+        "OAuthHint": "{connector} ochiladi: ruxsat bering va bu yerga qaytasiz.",
+        "Required": "Maydonni toʻldiring.",
+        "Invalid": "Qiymatni tekshiring.",
+        "NameFormat": "Lotin harflari, raqamlar va _, harf bilan boshlanadi (40 tagacha).",
+        "NameTaken": "Bu tizim nomi ushbu xizmatning boshqa ulanishida band.",
+        "VersionConflict": "Forma ochiq turganda kimdir bu ulanishni o‘zgartirdi. Uning versiyasini yuklang: siz kiritgan qiymatlar formada qoladi.",
+        "Unavailable": "Bu ilovada ulanishlar sozlanmagan.",
+        "Failed": "Saqlab boʻlmadi. Bir daqiqadan soʻng qayta urining.",
+        "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi.",
+        "LoadLatest": "Oxirgi versiyani yuklash",
+        "Reloaded": "Oxirgi versiya yuklandi. Formani tekshirib, qayta saqlang.",
+        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang."
+      },
+      "Test": {
+        "Running": "Tekshiryapmiz…",
+        "Connected": "{identity} sifatida ulangan",
+        "ConnectedPlain": "Ulanish ishlayapti",
+        "Failed": "Tekshiruvdan oʻtmadi: {message}",
+        "Reauth": "Xizmat qayta kirishni soʻrayapti.",
+        "Error": "Ulanishni tekshirib boʻlmadi. Bir daqiqadan soʻng qayta urining.",
+        "Slow": "Xizmat javobini hali kutyapmiz. Tekshiruvni xavfsiz takrorlash mumkin."
+      },
+      "Toast": {
+        "Saved": "{name} ulandi",
+        "Updated": "{name} saqlandi",
+        "Disabled": "{name} oʻchirildi",
+        "Enabled": "{name} yoqildi",
+        "Deleted": "{name} oʻchirib tashlandi",
+        "Undo": "Bekor qilish",
+        "Failed": "Amalni bajarib boʻlmadi. Bir daqiqadan soʻng qayta urining."
+      },
+      "OAuth": {
+        "Connected": "Akkaunt ulandi.",
+        "denied": "Ruxsat berilmadi. Qayta urining va xizmat sahifasida ruxsat bering.",
+        "state": "Kirish havolasi eskirgan yoki boshqa foydalanuvchi tomonidan ochilgan. Kirishni qaytadan boshlang.",
+        "exchange": "Xizmat kirishni tasdiqlamadi. Bir daqiqadan soʻng qayta urining.",
+        "unavailable": "Bu xizmat orqali kirish ilovada sozlanmagan.",
+        "Close": "Yopish",
+        "refused": "Kirish bajarildi, lekin bu akkauntni konnektor uchun ishlatib boʻlmaydi. Boshqa akkaunt bilan kiring.",
+        "name_taken": "Bu tizim nomi ushbu xizmatning boshqa ulanishida band. Boshqa nom tanlang va qayta kiring.",
+        "version_conflict": "Ulanish bu orada oʻzgartirildi. Uni qayta oching va yana kiring.",
+        "not_found": "Ulanish bu orada oʻchirib tashlandi."
+      },
+      "Usage": {
+        "Title": "{name} qayerda ishlatiladi",
+        "Empty": "Bu ulanish hech bir avtomatlashtirishda ishlatilmaydi.",
+        "Version": "{version}-versiya",
+        "Enabled": "yoqilgan",
+        "NotEnabled": "yoqilmagan",
+        "Open": "Ochish",
+        "Node": "{node} tuguni",
+        "Close": "Yopish",
+        "LoadFailed": "Roʻyxatni yuklab boʻlmadi."
+      },
+      "Delete": {
+        "Title": "{name} oʻchirib tashlansinmi?",
+        "Text": "Ulanish va saqlangan kirish maʼlumotlari oʻchiriladi. Buni qaytarib boʻlmaydi.",
+        "Nodes": "Avtomatlashtirishlar endi quyidagilardan foydalana olmaydi: {nodes}.",
+        "Confirm": "Ulanishni oʻchirib tashlash",
+        "Cancel": "Bekor qilish",
+        "InUseTitle": "{name} ishlatilmoqda",
+        "InUseText": "Bu ulanishni avtomatlashtirishlar ishlatadi, shuning uchun uni oʻchirib tashlab boʻlmaydi. Uni oʻchiring: qayta yoqmaguningizcha avtomatlashtirishlar undan foydalanmaydi.",
+        "DisableInstead": "Oʻchirish",
+        "Close": "Yopish"
+      },
+      "Close": "Yopish",
+      "Categories": {
+        "Messaging": "Xabarlar",
+        "Email": "Pochta",
+        "AI": "AI",
+        "Documents": "Hujjatlar",
+        "Misc": "Boshqa"
+      },
+      "UsedBy": {
+        "Singular": "{count} ta avtomatlashtirishda ishlatiladi",
+        "Paucal": "{count} ta avtomatlashtirishda ishlatiladi",
+        "Multiple": "{count} ta avtomatlashtirishda ishlatiladi",
+        "Plural": "{count} ta avtomatlashtirishda ishlatiladi",
+        "None": "Ishlatilmaydi"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "xizmat kirish maʼlumotlarini qabul qilmadi",
+          "Fix": "Kalit yoki parolni tekshiring yoki xizmatda yangisini chiqarib, almashtiring."
+        },
+        "network": {
+          "Text": "xizmat javob bermadi",
+          "Fix": "Manzilni tekshiring va bir daqiqadan soʻng qayta urining."
+        },
+        "rate_limit": {
+          "Text": "xizmat bu akkaunt soʻrovlarini cheklayapti",
+          "Fix": "Bir necha daqiqa kuting va qayta tekshiring."
+        },
+        "config": {
+          "Text": "ulanish parametri notoʻgʻri",
+          "Fix": "Manzil, identifikatorlar va boshqa maydonlarni tekshiring."
+        },
+        "reauth": {
+          "Text": "xizmat qayta kirishni soʻrayapti",
+          "Fix": "Xizmat orqali qayta kiring."
+        },
+        "unknown": {
+          "Text": "xizmat ulanishni qabul qilmadi",
+          "Fix": "Qiymatlarni tekshiring; takrorlansa, quyida xizmat javobini oching."
+        }
+      }
+    }
+  }
+}

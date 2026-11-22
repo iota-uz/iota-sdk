@@ -206,31 +206,42 @@ func usable(c Credentials) bool {
 	return err == nil && at.After(now())
 }
 
-func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
-	const op = serrors.Op("automation.connectors.OAuth2.Complete")
+func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code string) (OAuth2Grant, error) {
+	const op = serrors.Op("automation.connectors.OAuth2.Exchange")
 	if err := o.s.configured(); err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	st, err := o.openState(state)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	if st.Tenant != tenantID {
-		return Connection{}, serrors.Wrap(op, errBadState)
+		return OAuth2Grant{}, serrors.Wrap(op, errBadState)
 	}
 	conn, cfg, err := o.config(st.Kind, st.Redirect)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
+		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
 	tok, err := cfg.Exchange(o.ctx(ctx), code, oauth2.VerifierOption(st.Verifier))
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, tokenError(err))
+		return OAuth2Grant{}, serrors.Wrap(op, tokenError(err))
 	}
 	creds := tokenCredentials(tok, nil)
 	identity, err := conn.Test(ctx, creds)
 	if err != nil {
-		return Connection{}, serrors.Wrap(op, fmt.Errorf("automation connections: the connector refused the new token"))
+		return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
 	}
+	return OAuth2Grant{Kind: st.Kind, Identity: SafeIdentity(identity, allSecret, creds), Credentials: creds}, nil
+}
+
+func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
+	const op = serrors.Op("automation.connectors.OAuth2.Complete")
+	g, err := o.Exchange(ctx, tenantID, state, code)
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	st := oauthState{Kind: g.Kind}
+	creds, identity := g.Credentials, g.Identity
 	// The same identity re-authorized: refresh that connection.
 	if identity.External != "" {
 		existing, err := o.s.List(ctx, tenantID, st.Kind)
@@ -239,7 +250,12 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 		}
 		for _, c := range existing {
 			if c.Identity.External == identity.External {
-				c.Identity, c.Status, c.StatusReason = identity, StatusConnected, ""
+				_, old, err := o.s.load(ctx, o.s.db, tenantID, c.ID, false)
+				if err != nil {
+					return Connection{}, serrors.Wrap(op, err)
+				}
+				c = scrubAcrossChange(c, old, creds)
+				c.Identity, c.Status, c.StatusReason = SafeIdentity(identity, allSecret, creds, old), StatusConnected, ""
 				saved, err := o.s.Save(ctx, c, creds)
 				return saved, serrors.Wrap(op, err)
 			}
@@ -296,6 +312,26 @@ func fresh(c Credentials) bool {
 }
 
 func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error) {
+	return o.token(ctx, tenantID, connectionID, false)
+}
+
+var _ OAuth2Checker = (*oauth)(nil)
+
+func (o *oauth) CheckToken(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error) {
+	return o.token(ctx, tenantID, connectionID, true)
+}
+
+// serves is the status token works on: connected, or disabled for a check (CheckToken).
+func serves(status ConnectionStatus, check bool) bool {
+	if check {
+		return status == StatusDisabled
+	}
+	return status == StatusConnected
+}
+
+// token is Token, or CheckToken with check: then the connection must be disabled, and a refused refresh
+// is reported without recording needs_reauth.
+func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, check bool) (string, error) {
 	const op = serrors.Op("automation.connectors.OAuth2.Token")
 	c, creds, err := o.s.load(ctx, o.s.db, tenantID, connectionID, false)
 	if err != nil {
@@ -304,7 +340,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 	if c.Status == StatusNeedsReauth {
 		return "", serrors.Wrap(op, ErrNeedsReauth)
 	}
-	if c.Status != StatusConnected {
+	if !serves(c.Status, check) {
 		return "", serrors.Wrap(op, ErrNotConnected)
 	}
 	if fresh(creds) {
@@ -321,15 +357,21 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			return err
 		}
 		// The row may have changed while this call waited for the lock: check it again.
-		switch c.Status {
-		case StatusConnected:
-		case StatusNeedsReauth:
+		switch {
+		case serves(c.Status, check):
+		case c.Status == StatusNeedsReauth:
 			reauth = true
 			return nil
-		case StatusError, StatusDisabled:
-			return ErrNotConnected
 		default:
 			return ErrNotConnected
+		}
+		refused := func(reason string) error {
+			if check {
+				// A check records nothing: its caller saves the outcome against the version it read.
+				reauth = true
+				return nil
+			}
+			return o.markReauth(ctx, tx, c, reason, &reauth)
 		}
 		if fresh(creds) {
 			token = creds[OAuth2AccessToken]
@@ -346,7 +388,7 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			return err
 		}
 		if creds[OAuth2RefreshToken] == "" {
-			return o.markReauth(ctx, tx, c, "no refresh token", &reauth)
+			return refused("no refresh token")
 		}
 		expired := &oauth2.Token{AccessToken: creds[OAuth2AccessToken], RefreshToken: creds[OAuth2RefreshToken], Expiry: now().Add(-time.Minute)}
 		tok, err := cfg.TokenSource(o.ctx(ctx), expired).Token()
@@ -355,11 +397,15 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			// Only a refused grant needs the user; invalid_client, 429 and the like are the platform's or
 			// transient and must not send every tenant to re-authorize.
 			if errors.As(err, &re) && re.ErrorCode == "invalid_grant" {
-				return o.markReauth(ctx, tx, c, "the provider refused the refresh token", &reauth)
+				return refused("the provider refused the refresh token")
 			}
 			return tokenError(err)
 		}
 		next := tokenCredentials(tok, creds)
+		// The tokens change and the metadata stays: once the old token is gone it could no longer be
+		// recognised in the display name or the identity, so they are checked against both now (a row
+		// written before this check included).
+		c = scrubAcrossChange(c, creds, next)
 		identity, _ := json.Marshal(c.Identity)
 		if _, err := o.s.update(ctx, tx, c, identity, next); err != nil {
 			return err
@@ -383,4 +429,19 @@ func (o *oauth) markReauth(ctx context.Context, tx pgx.Tx, c Connection, reason 
 		*reauth = true
 	}
 	return err
+}
+
+// allSecret treats every field as secret: a token set has no public fields.
+func allSecret(string) bool { return true }
+
+// scrubAcrossChange is c with the metadata it keeps across a credential change cleared where it carries
+// a value of the old or the new credentials: the display name (the name stays: it is chosen by an
+// administrator or derived from the kind, never from a provider, and references resolve by it) and the
+// identity (SafeIdentity).
+func scrubAcrossChange(c Connection, old, next Credentials) Connection {
+	if CarriesSecret(c.DisplayName, allSecret, old, next) {
+		c.DisplayName = c.Name
+	}
+	c.Identity = SafeIdentity(c.Identity, allSecret, old, next)
+	return c
 }
