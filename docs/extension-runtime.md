@@ -474,7 +474,7 @@ workflow, a native one or a graph asks.
 * **Cancel.** `NativeRun.Cancel`, `CancelPending` and terminate close open tasks as `cancelled`; a native `TaskResult`
   of a cancelled task carries the decisions made before.
 * **Concurrency.** `DecideTask` and `DelegateTask` lock the task row and only then read its delegations and decisions,
-  in a statement of their own, so a delegation and a decision of one user never both win.
+  in statements of their own, and judge the actor's rights (and a delegation target's) by their current state there, so a decision and a delegation of one user never both win and a membership revoked while a call waited for the lock counts.
 * **Observers.** `Config.TaskObservers` (contributed with `wiring.ContributeTaskObservers`) are called in order in the
   transaction of every change — `created`, `decision`, `delegated`, `escalated` (with the new assignees), `closed` — and
   an error of any rolls it back (for a run, the run is retried). The task model itself sends nothing.

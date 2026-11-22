@@ -423,8 +423,10 @@ func checkOutcomeSchema(t manifest.Type, outcomes []string) error {
 		if p.Type.Kind != manifest.KindEnum || p.Type.Optional || p.Type.Nullable || len(p.Type.Values) != len(outcomes) {
 			break
 		}
-		for _, v := range p.Type.Values {
-			if !slices.Contains(outcomes, v) {
+		// Same length, distinct values all among the (distinct) outcomes:
+		// the two sets are equal, so every outcome (and veto) is reachable.
+		for i, v := range p.Type.Values {
+			if !slices.Contains(outcomes, v) || slices.Contains(p.Type.Values[:i], v) {
 				return invalidTask("the decision's outcome enum must be exactly the task outcomes")
 			}
 		}
@@ -1040,26 +1042,14 @@ func (e *Engine) currentSubject(ctx context.Context, actor spi.Subject) (spi.Sub
 // task's timeout race on a compare-and-set of the task status, so a late
 // decision gets ErrTaskClosed.
 func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, decision json.RawMessage) error {
+	// The schema, outcomes and quorum never change after creation: the
+	// decision is validated against them before any lock is taken.
 	t, err := e.loadTask(ctx, e.cfg.DB, actor.TenantID, taskID, false)
 	if err != nil {
 		return err
 	}
 	if t.Status != "open" {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s is %s", ErrTaskClosed, taskID, t.Status))
-	}
-	if decided(t, actor.UserID) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
-	}
-	current, err := e.currentSubject(ctx, actor)
-	if err != nil {
-		return err
-	}
-	ok, from, err := e.rightToDecide(ctx, current, t)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d may not decide task %s (assigned to %s)", ErrForbidden, actor.UserID, taskID, describeAssignees(t.Assignees)))
 	}
 	if len(decision) > 0 && !json.Valid(decision) {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: decision is not valid JSON", ErrInvalid))
@@ -1078,12 +1068,46 @@ func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.
 	}
 	return retryConflicts(ctx, func() error {
 		return e.inTx(ctx, func(tx pgx.Tx) error {
-			return e.decideTx(ctx, tx, actor, t, decision, choice, from)
+			return e.decideTx(ctx, tx, actor, t, decision, choice)
 		})
 	})
 }
 
-func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t Task, decision json.RawMessage, choice string, from *int64) error {
+// authorizeLocked locks the task row and, only then, reads the task afresh
+// (each statement after the lock sees what its previous holder committed)
+// and judges the actor's right to decide by their rights as they are now: a
+// membership revoked or a delegation committed while this waited for the
+// lock counts. It returns the task and the user whose delegation the actor
+// decides for (the earliest delegation to them, as a sequential call would).
+func (e *Engine) authorizeLocked(ctx context.Context, tx pgx.Tx, actor spi.Subject, taskID uuid.UUID, verb string) (Task, *int64, error) {
+	if _, err := lockTask(ctx, tx, actor.TenantID, taskID); err != nil {
+		return Task{}, nil, err
+	}
+	t, err := e.loadTask(ctx, tx, actor.TenantID, taskID, false)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	if t.Status != "open" {
+		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: task %s is %s", ErrTaskClosed, taskID, t.Status))
+	}
+	if decided(t, actor.UserID) {
+		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
+	}
+	current, err := e.currentSubject(ctx, actor)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	ok, from, err := e.rightToDecide(ctx, current, t)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	if !ok {
+		return Task{}, nil, serrors.Wrap(opManage, fmt.Errorf("%w: user %d may not %s task %s (assigned to %s)", ErrForbidden, actor.UserID, verb, taskID, describeAssignees(t.Assignees)))
+	}
+	return t, from, nil
+}
+
+func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t Task, decision json.RawMessage, choice string) error {
 	// The instance row is locked first, as every run write does (fence), and
 	// the wake is decided under that lock: a run that is suspending commits its
 	// wait before this proceeds, so the instance is `waiting` here and gets
@@ -1091,28 +1115,9 @@ func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t T
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, t.InstanceID, actor.TenantID); err != nil {
 		return serrors.FromDB(opManage, err)
 	}
-	status, err := lockTask(ctx, tx, actor.TenantID, t.ID)
+	_, from, err := e.authorizeLocked(ctx, tx, actor, t.ID, "decide")
 	if err != nil {
 		return err
-	}
-	if status != "open" {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was decided or expired first", ErrTaskClosed, t.ID))
-	}
-	// Read after the lock, in a statement of its own: under READ COMMITTED it
-	// sees every delegation committed by whoever held the lock before.
-	st, err := taskStanding(ctx, tx, t.ID, actor.UserID)
-	if err != nil {
-		return err
-	}
-	if st.delegated {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d delegated task %s", ErrForbidden, actor.UserID, t.ID))
-	}
-	if st.decided {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, t.ID))
-	}
-	// A delegation the right was judged on must still be there.
-	if from != nil && !st.delegatedTo(*from) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: the delegation of task %s to user %d changed", ErrForbidden, t.ID, actor.UserID))
 	}
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO extruntime.human_task_decisions (task_id, tenant_id, user_id, choice, decision, delegated_from, decided_at)
@@ -1158,79 +1163,34 @@ func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t T
 // must allow delegation, the actor must have the right to decide (as for
 // DecideTask) and not have decided. A chain is allowed; a delegation to a
 // user who already delegated this task (back along the chain) or decided it
-// is not (ErrDelegation).
+// is not (ErrDelegation). Rights and the target are judged under the task's
+// lock.
 func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, to int64, comment string) error {
-	t, err := e.loadTask(ctx, e.cfg.DB, actor.TenantID, taskID, false)
-	if err != nil {
-		return err
-	}
-	if t.Status != "open" {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s is %s", ErrTaskClosed, taskID, t.Status))
-	}
-	if !t.AllowDelegation {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s does not allow delegation", ErrDelegation, taskID))
-	}
 	if len(comment) > maxDelegationComment {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: a delegation comment has at most %d bytes", ErrInvalid, maxDelegationComment))
 	}
-	if decided(t, actor.UserID) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
-	}
-	current, err := e.currentSubject(ctx, actor)
-	if err != nil {
-		return err
-	}
-	ok, from, err := e.rightToDecide(ctx, current, t)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d may not decide task %s, so may not delegate it", ErrForbidden, actor.UserID, taskID))
-	}
-	if to == actor.UserID || to <= 0 {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: delegate to another user", ErrDelegation))
-	}
-	for _, d := range t.Delegations {
-		if d.From == to {
-			return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already delegated task %s", ErrDelegation, to, taskID))
-		}
-	}
-	if decided(t, to) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already decided task %s", ErrDelegation, to, taskID))
-	}
-	if _, err := e.cfg.Subjects.LoadSubject(ctx, actor.TenantID, to, spi.SubjectInitiator); err != nil {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not an active user of the tenant: %v", ErrDelegation, to, err))
-	}
 	return retryConflicts(ctx, func() error {
 		return e.inTx(ctx, func(tx pgx.Tx) error {
-			status, err := lockTask(ctx, tx, actor.TenantID, taskID)
+			t, _, err := e.authorizeLocked(ctx, tx, actor, taskID, "delegate")
 			if err != nil {
 				return err
 			}
-			if status != "open" {
-				return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was closed first", ErrTaskClosed, taskID))
+			if !t.AllowDelegation {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: task %s does not allow delegation", ErrDelegation, taskID))
 			}
-			// Read after the lock (see decideTx).
-			mine, err := taskStanding(ctx, tx, taskID, actor.UserID)
-			if err != nil {
-				return err
+			if to == actor.UserID || to <= 0 {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: delegate to another user", ErrDelegation))
 			}
-			theirs, err := taskStanding(ctx, tx, taskID, to)
-			if err != nil {
-				return err
+			for _, d := range t.Delegations {
+				if d.From == to {
+					return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already delegated task %s", ErrDelegation, to, taskID))
+				}
 			}
-			switch {
-			case mine.delegated:
-				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d delegated task %s", ErrForbidden, actor.UserID, taskID))
-			case mine.decided:
-				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, taskID))
-			case theirs.delegated:
-				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already delegated task %s", ErrDelegation, to, taskID))
-			case theirs.decided:
+			if decided(t, to) {
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d already decided task %s", ErrDelegation, to, taskID))
 			}
-			if from != nil && !mine.delegatedTo(*from) {
-				return serrors.Wrap(opManage, fmt.Errorf("%w: the delegation of task %s to user %d changed", ErrForbidden, taskID, actor.UserID))
+			if _, err := e.cfg.Subjects.LoadSubject(ctx, actor.TenantID, to, spi.SubjectInitiator); err != nil {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not an active user of the tenant: %v", ErrDelegation, to, err))
 			}
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, delegated_from, comment, added_at)
@@ -1253,26 +1213,6 @@ func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, err
 		return "", serrors.Wrap(opManage, fmt.Errorf("%w: task %s", ErrNotFound, id))
 	}
 	return status, serrors.FromDB(opManage, err)
-}
-
-// standing is what a user did on a task, read under the task lock.
-type standing struct {
-	delegated bool    // the user passed the task on
-	decided   bool    // the user decided it
-	from      []int64 // who passed the task to the user
-}
-
-func (s standing) delegatedTo(from int64) bool { return slices.Contains(s.from, from) }
-
-func taskStanding(ctx context.Context, tx pgx.Tx, task uuid.UUID, user int64) (standing, error) {
-	var s standing
-	err := tx.QueryRow(ctx, `
-		SELECT EXISTS (SELECT 1 FROM extruntime.human_task_assignees WHERE task_id = $1 AND delegated_from = $2),
-		       EXISTS (SELECT 1 FROM extruntime.human_task_decisions WHERE task_id = $1 AND user_id = $2),
-		       COALESCE((SELECT array_agg(delegated_from) FROM extruntime.human_task_assignees
-		                 WHERE task_id = $1 AND user_id = $2 AND delegated_from IS NOT NULL), '{}')`,
-		task, user).Scan(&s.delegated, &s.decided, &s.from)
-	return s, serrors.FromDB(opManage, err)
 }
 
 // Tasks is the actor's inbox: the tasks of the actor's tenant they may

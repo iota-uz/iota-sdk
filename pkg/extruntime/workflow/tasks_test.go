@@ -533,6 +533,9 @@ func TestTasks_SpecValidation(t *testing.T) {
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Escalation: []workflow.EscalationStep{{}}},
 		{Assignees: []workflow.TaskAssignee{{Kind: workflow.TaskAssignRole, Ref: "admins"}}},
 		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Outcomes: []string{"a", "b"}, Decision: &manifest.Type{Kind: manifest.KindObject}},
+		{Assignees: []workflow.TaskAssignee{userAssignee(1)}, Outcomes: []string{"approve", "reject"}, Veto: []string{"reject"},
+			Decision: &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
+				{Name: "outcome", Type: manifest.Type{Kind: manifest.KindEnum, Values: []string{"approve", "approve"}}}}}}, // reject unreachable
 	}
 	var (
 		mu   sync.Mutex
@@ -603,4 +606,86 @@ export const flow = async (wf) => wf.task("approve", {
 	decisions := got["decisions"].([]any)
 	require.Len(t, decisions, 2)
 	require.Equal(t, "8", decisions[1].(map[string]any)["delegatedFrom"])
+}
+
+// holdTask locks the task row in a transaction of its own until release is
+// called, and waitBlocked waits until another session queues behind a lock.
+func holdTask(t *testing.T, s *taskStack, task uuid.UUID) (pgx.Tx, func()) {
+	t.Helper()
+	ctx := context.Background()
+	tx, err := s.env.db.Begin(ctx)
+	require.NoError(t, err)
+	_, err = tx.Exec(ctx, `SELECT 1 FROM extruntime.human_tasks WHERE id = $1 FOR UPDATE`, task)
+	require.NoError(t, err)
+	return tx, func() { require.NoError(t, tx.Commit(ctx)) }
+}
+
+func waitBlocked(t *testing.T, s *taskStack) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var n int
+		err := s.env.db.QueryRow(context.Background(),
+			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n)
+		return err == nil && n > 0
+	}, 10*time.Second, 10*time.Millisecond, "the call waits for the task lock")
+}
+
+func async(fn func() error) <-chan error {
+	ch := make(chan error, 1)
+	go func() { ch <- fn() }()
+	return ch
+}
+
+// Rights are judged after the task lock is taken: a membership revoked, or a
+// target blocked, while the call waited for the lock refuses it, and a
+// delegation committed meanwhile is the origin of the vote.
+func TestTasks_RightsAreJudgedUnderTheLock(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{
+		Assignees: []workflow.TaskAssignee{reviewers, userAssignee(82)}, Required: 2, Outcomes: []string{"yes", "no"}, AllowDelegation: true,
+	})
+	ctx := context.Background()
+	s.audience.set(reviewers, 81, true)
+	s.audience.set(reviewers, 83, true)
+	_, task := s.startWaiting("lock-1")
+
+	// A member removed while their decision waits is refused.
+	_, release := holdTask(t, s, task.ID)
+	got := async(func() error { return s.decide(81, task.ID, `{"outcome":"yes"}`) })
+	waitBlocked(t, s)
+	s.audience.set(reviewers, 81, false)
+	release()
+	require.ErrorIs(t, <-got, workflow.ErrForbidden)
+
+	// A member removed while their delegation waits is refused, and so is a
+	// delegation to a user blocked meanwhile.
+	_, release = holdTask(t, s, task.ID)
+	got = async(func() error { return s.eng.DelegateTask(ctx, s.env.subject(83), task.ID, 84, "") })
+	waitBlocked(t, s)
+	s.audience.set(reviewers, 83, false)
+	release()
+	require.ErrorIs(t, <-got, workflow.ErrForbidden)
+	s.audience.set(reviewers, 83, true)
+	_, release = holdTask(t, s, task.ID)
+	got = async(func() error { return s.eng.DelegateTask(ctx, s.env.subject(83), task.ID, 84, "") })
+	waitBlocked(t, s)
+	s.env.subjects.Block(84, "left")
+	release()
+	require.ErrorIs(t, <-got, workflow.ErrDelegation)
+	require.Empty(t, s.task(task.InstanceID).Delegations)
+
+	// User 82 is assigned directly; a delegation 83 → 82 committed while
+	// 82's decision waits is recorded as its origin.
+	hold, release := holdTask(t, s, task.ID)
+	got = async(func() error { return s.decide(82, task.ID, `{"outcome":"yes"}`) })
+	waitBlocked(t, s)
+	_, err := hold.Exec(ctx, `
+		INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, delegated_from, added_at)
+		VALUES ($1, $2, 'user', 82, 83, clock_timestamp())`, task.ID, s.env.tenant)
+	require.NoError(t, err)
+	release()
+	require.NoError(t, <-got)
+	decisions := s.task(task.InstanceID).Decisions
+	require.Len(t, decisions, 1)
+	require.NotNil(t, decisions[0].DelegatedFrom)
+	require.EqualValues(t, 83, *decisions[0].DelegatedFrom)
 }
