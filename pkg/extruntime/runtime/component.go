@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/ui"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/helpdocs"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -130,6 +131,12 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil && !composition.IsNotProvided(err) {
 			return nil, err
 		}
+		// The core builds the one workflow engine of the process; the runtime
+		// attaches its package executor to it.
+		engine, err := composition.Resolve[*workflow.Engine](container)
+		if err != nil && !composition.IsNotProvided(err) {
+			return nil, err
+		}
 		// The same for the scheduler: the process has one, which serves the Go
 		// schedules and, through the contribution below, the package ones.
 		scheduler, err := composition.Resolve[*events.Scheduler](container)
@@ -140,7 +147,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		// container when first invoked.
 		return New(c.cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
-			NativeDeps: container, Dispatcher: outbox, Scheduler: scheduler,
+			NativeDeps: container, Dispatcher: outbox, Workflows: engine, Scheduler: scheduler,
 			// Without the core, Go consumers contributed to the container are
 			// served by the runtime's own dispatcher.
 			Consumers: events.ConsumerSourceFunc(func(ctx context.Context) ([]events.Consumer, error) {

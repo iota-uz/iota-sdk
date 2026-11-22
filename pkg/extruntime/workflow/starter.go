@@ -59,6 +59,15 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 	if in.Producer.InstanceID != "" {
 		pid, err := uuid.Parse(in.Producer.InstanceID)
 		if err == nil {
+			// A replay of a start that already created this producer's child
+			// returns it, even after the producer finished; only a new child
+			// needs a live producer.
+			if id, ok, err := e.existingChild(ctx, tx, sc.Subject.TenantID, pid, in.Workflow, in.Key); err != nil || ok {
+				return id, err
+			}
+			if err := e.lockLiveParent(ctx, tx, sc.Subject.TenantID, pid); err != nil {
+				return "", err
+			}
 			spec.parent = &pid
 		}
 	}
@@ -67,6 +76,43 @@ func (e *Engine) Start(ctx context.Context, tx pgx.Tx, sc spi.Scope, in spi.Star
 		return "", serrors.Wrap(opStart, err)
 	}
 	return id.String(), nil
+}
+
+// existingChild returns the instance a start with this key already created
+// for the same producer and workflow.
+func (e *Engine) existingChild(ctx context.Context, tx pgx.Tx, tenant, parent uuid.UUID, workflow, key string) (string, bool, error) {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `
+		SELECT id FROM extruntime.workflow_instances
+		WHERE tenant_id = $1 AND start_key = $2 AND parent_instance_id = $3 AND workflow = $4`, tenant, key, parent, workflow).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, serrors.FromDB(opStart, err)
+	}
+	return id.String(), true, nil
+}
+
+// lockLiveParent holds the producing instance against termination for the
+// rest of tx (a key-share lock conflicts with the row lock Terminate and
+// TerminateTree take) and requires it to be live. A command a terminated
+// instance started before it noticed cannot add a child to the stopped tree.
+func (e *Engine) lockLiveParent(ctx context.Context, tx pgx.Tx, tenant, parent uuid.UUID) error {
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR KEY SHARE`, parent, tenant); err != nil {
+		return serrors.FromDB(opStart, err)
+	}
+	var status string
+	err := tx.QueryRow(ctx, `SELECT status FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, parent, tenant).Scan(&status)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotFound, Message: fmt.Sprintf("producing instance %s does not exist", parent)}
+	case err != nil:
+		return serrors.FromDB(opStart, err)
+	case !live(status):
+		return &pool.WireError{Kind: pool.ErrKindInternal, Code: CodeInstanceNotAccepting, Message: fmt.Sprintf("producing instance %s is %s and starts no children", parent, status)}
+	}
+	return nil
 }
 
 // CodeStartDenied is the typed error of tx.start / wf.start by a subject that
@@ -83,7 +129,27 @@ type startPlan struct {
 // prepareStart resolves the workflow contract and the implementation to pin
 // and validates the input, before any lock is taken.
 func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.RawMessage) (startPlan, error) {
-	res, ok, err := e.cfg.Catalog.Resolve(ctx, workflow)
+	nc, ok, err := e.lookupNative(workflow)
+	if err != nil {
+		// Without the registrations the start cannot tell a native contract
+		// from a package one; it is retried, never routed to either.
+		return startPlan{}, &host.InfraError{Err: err}
+	}
+	if ok {
+		// A Go implementation pins nothing: the instance runs whatever this
+		// process registered for the contract.
+		if nc.Input != nil {
+			if verr := manifest.ValidateValue(*nc.Input, nonNull(input)); verr != nil {
+				return startPlan{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
+			}
+		}
+		return startPlan{impl: Implementation{Native: true}, permission: nc.Permission}, nil
+	}
+	deps := e.deps()
+	if deps.catalog == nil || deps.impl == nil {
+		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: workflow + " has no Go implementation and the package runtime is not attached"}
+	}
+	res, ok, err := deps.catalog.Resolve(ctx, workflow)
 	if err != nil {
 		return startPlan{}, serrors.Wrap(opPrepare, err)
 	}
@@ -95,7 +161,7 @@ func (e *Engine) prepareStart(ctx context.Context, workflow string, input json.R
 			return startPlan{}, &pool.WireError{Kind: pool.ErrKindValidation, Code: "runtime.invalidValue", Message: verr.Error()}
 		}
 	}
-	impl, err := e.cfg.Impl.Active(ctx, workflow)
+	impl, err := deps.impl.Active(ctx, workflow)
 	if err != nil {
 		return startPlan{}, &pool.WireError{Kind: pool.ErrKindInternal, Code: "workflow.noImplementation", Message: fmt.Sprintf("%s has no active implementation: %v", workflow, err)}
 	}
@@ -149,12 +215,12 @@ func (e *Engine) insertInstance(ctx context.Context, tx queryer, s startSpec) (u
 	err := tx.QueryRow(ctx, `
 		INSERT INTO extruntime.workflow_instances
 			(id, tenant_id, workflow, package, version, artifact_hash, export, input, subject_user_id, subject_kind,
-			 predecessor_id, parent_instance_id, start_invocation_id, start_key)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14)
+			 predecessor_id, parent_instance_id, start_invocation_id, start_key, native)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::uuid, $14, $15)
 		ON CONFLICT (tenant_id, start_key) WHERE start_key IS NOT NULL DO NOTHING
 		RETURNING id`,
 		id, s.subject.TenantID, s.workflow, s.impl.Package, s.impl.Version, s.impl.Artifact.Hash, s.impl.Export, []byte(input),
-		s.subject.UserID, string(kind), s.predecessor, s.parent, inv, key).Scan(&got)
+		s.subject.UserID, string(kind), s.predecessor, s.parent, inv, key, s.impl.Native).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `SELECT id FROM extruntime.workflow_instances WHERE tenant_id = $1 AND start_key = $2`, s.subject.TenantID, s.key).Scan(&got)
 		if err != nil {

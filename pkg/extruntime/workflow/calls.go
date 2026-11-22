@@ -57,6 +57,18 @@ func parseDuration(s string) (time.Duration, error) {
 	return time.Duration(v * float64(unit)), nil
 }
 
+// pgInterval spells a duration as a PostgreSQL interval in whole
+// microseconds (PostgreSQL's resolution). A positive remainder rounds up, so
+// a timer never fires before its duration; Go's own spelling ("1µs") is not
+// an interval PostgreSQL accepts.
+func pgInterval(d time.Duration) string {
+	us := d / time.Microsecond
+	if d > 0 && d%time.Microsecond != 0 {
+		us++
+	}
+	return strconv.FormatInt(int64(us), 10) + " microseconds"
+}
+
 func suspendError(reason string, wakeAt *time.Time) *pool.WireError {
 	info := map[string]any{"reason": reason}
 	if wakeAt != nil {
@@ -293,7 +305,9 @@ func (e *Engine) wfStepBegin(ctx context.Context, call host.WorkflowCall, rs *ru
 	if err != nil {
 		return nil, err
 	}
-	return marshal(map[string]any{"replay": false, "idempotencyKey": idempotencyKey(rs, a.Name, a.N)}), nil
+	// attempt > 1 tells the step an earlier attempt may have run; workers that
+	// predate it ignore the field.
+	return marshal(map[string]any{"replay": false, "idempotencyKey": idempotencyKey(rs, a.Name, a.N), "attempt": next.Attempts}), nil
 }
 
 func (e *Engine) wfStepEnd(ctx context.Context, rs *runState, args json.RawMessage) (json.RawMessage, error) {
@@ -352,16 +366,29 @@ func (e *Engine) wfSleep(ctx context.Context, rs *runState, args json.RawMessage
 			return json.RawMessage(`null`), nil
 		}
 	}
+	done, wake, err := e.sleepRecord(ctx, rs, a.Name, a.N, d, o, ok)
+	if err != nil {
+		return nil, err
+	}
+	if done {
+		return json.RawMessage(`null`), nil
+	}
+	return nil, suspendError("sleep:"+a.Name, wake)
+}
+
+// sleepRecord records a new sleep occurrence or completes a waiting one whose
+// time has come. o and ok are the recorded occurrence (waiting, when ok).
+func (e *Engine) sleepRecord(ctx context.Context, rs *runState, name string, n int, d time.Duration, o Occurrence, ok bool) (bool, *time.Time, error) {
 	var wake *time.Time
 	done := false
-	err = e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
+	err := e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
 		var at time.Time
 		due := false
 		if !ok {
-			if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, d.String()).Scan(&at); err != nil {
+			if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(d)).Scan(&at); err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
-			o = Occurrence{Name: a.Name, N: a.N, Kind: KindSleep, Status: OccWaiting, WakeAt: &at, Attempts: 1}
+			o = Occurrence{Name: name, N: n, Kind: KindSleep, Status: OccWaiting, WakeAt: &at, Attempts: 1}
 			due = d <= 0
 		} else {
 			at = *o.WakeAt
@@ -378,13 +405,7 @@ func (e *Engine) wfSleep(ctx context.Context, rs *runState, args json.RawMessage
 		}
 		return func() { rs.set(o) }, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	if done {
-		return json.RawMessage(`null`), nil
-	}
-	return nil, suspendError("sleep:"+a.Name, wake)
+	return done, wake, err
 }
 
 // ---- wf.waitFor ----
@@ -415,6 +436,32 @@ func (e *Engine) wfWaitFor(ctx context.Context, rs *runState, args json.RawMessa
 			return terminalReply(o)
 		}
 	}
+	result, wake, err := e.waitRecord(ctx, rs, a.Name, a.N, a.Signal, timeout, a.Timeout != "", o, ok)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil {
+		return result, nil
+	}
+	return nil, suspendError("waitFor:"+a.Name, wake)
+}
+
+// waitRecord consumes the oldest unconsumed signal of the name, or records the
+// wait (and its timeout), or times a waiting one out. The result is nil while
+// the wait goes on; wake is its timeout.
+func (e *Engine) waitRecord(ctx context.Context, rs *runState, name string, n int, signal string, timeout time.Duration, hasTimeout bool, o Occurrence, ok bool) (json.RawMessage, *time.Time, error) {
+	if ok {
+		// The wake computation (finishSuspended) looks for the signal the
+		// journal recorded: a replay that waits for another one would park the
+		// instance on the wrong name.
+		var meta struct {
+			Signal string `json:"signal"`
+		}
+		if err := json.Unmarshal(nonNull(o.Meta), &meta); err != nil || meta.Signal != signal {
+			return nil, nil, blockedWire(rs.block(BlockNondeterminism, fmt.Sprintf(
+				"occurrence %s#%d waits for signal %q but the workflow code now waits for %q there", name, n, meta.Signal, signal)))
+		}
+	}
 	var result json.RawMessage
 	var wake *time.Time
 	err := e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
@@ -424,23 +471,23 @@ func (e *Engine) wfWaitFor(ctx context.Context, rs *runState, args json.RawMessa
 		err := tx.QueryRow(ctx, `
 			SELECT id, payload FROM extruntime.workflow_signals
 			WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND consumed_name IS NULL
-			ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1`, rs.inst.ID, rs.inst.TenantID, a.Signal).Scan(&sid, &payload)
+			ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 1`, rs.inst.ID, rs.inst.TenantID, signal).Scan(&sid, &payload)
 		switch {
 		case err == nil:
-			if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_signals SET consumed_name = $2, consumed_n = $3, consumed_at = now() WHERE id = $1`, sid, a.Name, a.N); err != nil {
+			if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_signals SET consumed_name = $2, consumed_n = $3, consumed_at = now() WHERE id = $1`, sid, name, n); err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
 			result = marshal(map[string]any{"outcome": "received", "payload": json.RawMessage(payload)})
 			if !ok {
-				o = Occurrence{Name: a.Name, N: a.N, Kind: KindWaitFor, Attempts: 1, Meta: marshal(map[string]string{"signal": a.Signal})}
+				o = Occurrence{Name: name, N: n, Kind: KindWaitFor, Attempts: 1, Meta: marshal(map[string]string{"signal": signal})}
 			}
 			o.Status, o.Result = OccCompleted, result
 		case errors.Is(err, pgx.ErrNoRows):
 			if !ok {
-				o = Occurrence{Name: a.Name, N: a.N, Kind: KindWaitFor, Status: OccWaiting, Attempts: 1, Meta: marshal(map[string]string{"signal": a.Signal})}
-				if a.Timeout != "" {
+				o = Occurrence{Name: name, N: n, Kind: KindWaitFor, Status: OccWaiting, Attempts: 1, Meta: marshal(map[string]string{"signal": signal})}
+				if hasTimeout {
 					var at time.Time
-					if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, timeout.String()).Scan(&at); err != nil {
+					if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(timeout)).Scan(&at); err != nil {
 						return nil, serrors.FromDB(opCall, err)
 					}
 					o.WakeAt = &at
@@ -464,13 +511,7 @@ func (e *Engine) wfWaitFor(ctx context.Context, rs *runState, args json.RawMessa
 		}
 		return func() { rs.set(o) }, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	if result != nil {
-		return result, nil
-	}
-	return nil, suspendError("waitFor:"+a.Name, wake)
+	return result, wake, err
 }
 
 // ---- wf.task ----
@@ -502,7 +543,11 @@ func (e *Engine) resolveAssignee(ctx context.Context, a taskAssignee, declared b
 			return resolvedAssignee{}, invalidAssignee("task assignee names both a user and a permission")
 		}
 		if declared {
-			res, found, err := e.cfg.Catalog.Resolve(ctx, a.Permission)
+			cat := e.catalog()
+			if cat == nil {
+				return resolvedAssignee{}, invalidAssignee("task assignee permission %q cannot be checked without a catalog", a.Permission)
+			}
+			res, found, err := cat.Resolve(ctx, a.Permission)
 			if err != nil {
 				return resolvedAssignee{}, serrors.Wrap(opCall, err)
 			}
@@ -553,41 +598,85 @@ func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage)
 	if err != nil {
 		return nil, err
 	}
+	spec := taskRow{subject: a.Subject, assignee: assignee, schema: a.Decision, timeout: timeout, hasTimeout: a.Timeout != ""}
+	result, wake, err := e.taskRecord(ctx, rs, a.Name, a.N, spec, o, ok, func(t taskState) (json.RawMessage, bool) {
+		switch t.status {
+		case "decided":
+			by := "0"
+			if t.decidedBy != nil {
+				by = strconv.FormatInt(*t.decidedBy, 10)
+			}
+			return marshal(map[string]any{"outcome": "decided", "decision": json.RawMessage(t.decision), "by": by}), true
+		case "expired":
+			return marshal(map[string]string{"outcome": "timeout"}), true
+		}
+		return nil, false
+	})
+	if err != nil {
+		return nil, err
+	}
+	if result != nil {
+		return result, nil
+	}
+	return nil, suspendError("task:"+a.Name, wake)
+}
+
+// taskRow is what a new human_tasks row holds.
+type taskRow struct {
+	subject    spi.ObjectRef
+	assignee   resolvedAssignee
+	schema     json.RawMessage
+	title      json.RawMessage
+	timeout    time.Duration
+	hasTimeout bool
+}
+
+// taskState is the closed state of a task: decided, expired or cancelled.
+type taskState struct {
+	status    string
+	decision  []byte
+	decidedBy *int64
+	decidedAt *time.Time
+}
+
+// taskRecord creates the task of a new occurrence, or reads the task of a
+// waiting one (expiring it when its due time passed). render turns a closed
+// task into the occurrence result; a state it does not render (false) is
+// nondeterminism. The result is nil while the task is open.
+func (e *Engine) taskRecord(ctx context.Context, rs *runState, name string, n int, spec taskRow, o Occurrence, ok bool, render func(taskState) (json.RawMessage, bool)) (json.RawMessage, *time.Time, error) {
 	var result json.RawMessage
 	var wake *time.Time
-	err = e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
+	err := e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
 		var (
-			taskID    uuid.UUID
-			status    string
-			decision  []byte
-			decidedBy *int64
-			due       *time.Time
+			taskID uuid.UUID
+			st     taskState
+			due    *time.Time
 		)
 		err := tx.QueryRow(ctx, `
-			SELECT id, status, decision, decided_by, due_at FROM extruntime.human_tasks
+			SELECT id, status, decision, decided_by, decided_at, due_at FROM extruntime.human_tasks
 			WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 FOR UPDATE`,
-			rs.inst.ID, rs.inst.TenantID, a.Name, a.N).Scan(&taskID, &status, &decision, &decidedBy, &due)
+			rs.inst.ID, rs.inst.TenantID, name, n).Scan(&taskID, &st.status, &st.decision, &st.decidedBy, &st.decidedAt, &due)
 		if errors.Is(err, pgx.ErrNoRows) {
 			var at *time.Time
-			if a.Timeout != "" {
+			if spec.hasTimeout {
 				var t time.Time
-				if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, timeout.String()).Scan(&t); err != nil {
+				if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + $1::interval`, pgInterval(spec.timeout)).Scan(&t); err != nil {
 					return nil, serrors.FromDB(opCall, err)
 				}
 				at = &t
 			}
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO extruntime.human_tasks (id, tenant_id, instance_id, name, n, subject_entity, subject_key, assignee_kind, assignee_user_id, assignee_permission, decision_schema, due_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-				uuid.New(), rs.inst.TenantID, rs.inst.ID, a.Name, a.N, a.Subject.Entity, a.Subject.Key, assignee.kind, assignee.userID, assignee.permission, jsonArg(a.Decision), at); err != nil {
+				INSERT INTO extruntime.human_tasks (id, tenant_id, instance_id, name, n, subject_entity, subject_key, assignee_kind, assignee_user_id, assignee_permission, decision_schema, due_at, title)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+				uuid.New(), rs.inst.TenantID, rs.inst.ID, name, n, spec.subject.Entity, spec.subject.Key, spec.assignee.kind, spec.assignee.userID, spec.assignee.permission, jsonArg(spec.schema), at, jsonArg(spec.title)); err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
-			o = Occurrence{Name: a.Name, N: a.N, Kind: KindTask, Status: OccWaiting, Attempts: 1, WakeAt: at}
+			o = Occurrence{Name: name, N: n, Kind: KindTask, Status: OccWaiting, Attempts: 1, WakeAt: at}
 			wake = at
 		} else if err != nil {
 			return nil, serrors.FromDB(opCall, err)
 		} else {
-			if status == "open" && due != nil {
+			if st.status == "open" && due != nil {
 				var past bool
 				if err := tx.QueryRow(ctx, `SELECT $1::timestamptz <= clock_timestamp()`, *due).Scan(&past); err != nil {
 					return nil, serrors.FromDB(opCall, err)
@@ -599,26 +688,21 @@ func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage)
 						return nil, serrors.FromDB(opCall, err)
 					}
 					if tag.RowsAffected() == 1 {
-						status = "expired"
+						st.status = "expired"
 					}
 				}
 			}
-			switch status {
-			case "decided":
-				by := "0"
-				if decidedBy != nil {
-					by = strconv.FormatInt(*decidedBy, 10)
-				}
-				result = marshal(map[string]any{"outcome": "decided", "decision": json.RawMessage(decision), "by": by})
-			case "expired":
-				result = marshal(map[string]string{"outcome": "timeout"})
-			case "open":
+			if st.status == "open" {
 				wake = due
-			default:
-				return nil, rs.nondeterminism(a.Name, a.N, KindTask, Occurrence{Name: a.Name, N: a.N, Kind: KindTask, Status: "task " + status})
+			} else {
+				r, rendered := render(st)
+				if !rendered {
+					return nil, rs.nondeterminism(name, n, KindTask, Occurrence{Name: name, N: n, Kind: KindTask, Status: "task " + st.status})
+				}
+				result = r
 			}
 			if !ok {
-				o = Occurrence{Name: a.Name, N: a.N, Kind: KindTask, Attempts: 1, WakeAt: due}
+				o = Occurrence{Name: name, N: n, Kind: KindTask, Attempts: 1, WakeAt: due}
 			}
 			if result != nil {
 				o.Status, o.Result = OccCompleted, result
@@ -631,13 +715,7 @@ func (e *Engine) wfTask(ctx context.Context, rs *runState, args json.RawMessage)
 		}
 		return func() { rs.set(o) }, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	if result != nil {
-		return result, nil
-	}
-	return nil, suspendError("task:"+a.Name, wake)
+	return result, wake, err
 }
 
 // ---- wf.now / wf.uuid ----
@@ -772,7 +850,11 @@ func (e *Engine) wfCall(ctx context.Context, call host.WorkflowCall, rs *runStat
 			return terminalReply(o)
 		}
 	}
-	rc, found, err := e.cfg.Catalog.Resolve(ctx, a.Command)
+	deps := e.deps()
+	if deps.catalog == nil || deps.bindings == nil {
+		return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf("command %s cannot be called: the package runtime is not attached", a.Command)))
+	}
+	rc, found, err := deps.catalog.Resolve(ctx, a.Command)
 	if err != nil {
 		return nil, err
 	}
@@ -780,7 +862,7 @@ func (e *Engine) wfCall(ctx context.Context, call host.WorkflowCall, rs *runStat
 		return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf("command %s is not available in the catalog", a.Command)))
 	}
 	// The newest binding is selected for a NEW call; a recorded one never moves.
-	if _, err := e.cfg.Bindings.Resolve(ctx, a.Command); err != nil {
+	if _, err := deps.bindings.Resolve(ctx, a.Command); err != nil {
 		if ctx.Err() != nil {
 			return nil, err
 		}
@@ -841,6 +923,14 @@ func (e *Engine) forget(ctx context.Context, rs *runState, name string, n int) e
 // An unfinished or worker-lost invocation is ambiguous: the instance blocks
 // and shows how many transactions the command committed.
 func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence, command string) (json.RawMessage, bool, error) {
+	var mark map[string]any
+	if json.Unmarshal(o.Meta, &mark) == nil && mark[awaitingOperator] != nil {
+		// Kept for the operator (a nested package call without the runtime):
+		// only Resolve or Retry decides it, a Resume alone blocks again.
+		committed, _ := mark["committedTxCount"].(float64)
+		return nil, true, blockedWire(rs.block(BlockUnavailable, unavailableDetail(
+			fmt.Sprintf("%v", mark[awaitingOperator]), command, o.Name, o.N, o.InvocationID, int(committed))))
+	}
 	if o.InvocationID == "" {
 		return nil, false, nil
 	}
@@ -871,6 +961,19 @@ func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence,
 			return nil, true, err
 		}
 		return nonNull(result), true, nil
+	case finished && outcome == "error" && isPackageUnavailable(errJSON):
+		// The command reached a package export without the runtime, and the
+		// mark of callOrdinary was not written (the process stopped first):
+		// the same operator decision applies, never a terminal failure.
+		pending := o
+		pending.Meta = marshal(map[string]any{
+			awaitingOperator: host.CodePackageUnavailable, "invocation": o.InvocationID,
+			"committedTxCount": committed, "partiallyCommitted": partial,
+		})
+		if err := e.record(ctx, rs, pending); err != nil {
+			return nil, true, err
+		}
+		return nil, true, blockedWire(rs.block(BlockUnavailable, unavailableDetail(host.CodePackageUnavailable, command, o.Name, o.N, o.InvocationID, committed)))
 	case finished && outcome == "error":
 		next := o
 		next.Status, next.Error, next.Meta = OccFailed, nonNull(errJSON), meta
@@ -885,7 +988,29 @@ func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence,
 		command, o.Name, o.N, o.InvocationID, outcome, committed)))
 }
 
-func (e *Engine) callOrdinary(ctx context.Context, call host.WorkflowCall, rs *runState, name string, n int, command string, input json.RawMessage, inputHash, contractHash string, prev Occurrence, hadPrev bool) (json.RawMessage, error) {
+// isPackageUnavailable reports whether a recorded invocation error is the
+// host's CodePackageUnavailable.
+func isPackageUnavailable(errJSON []byte) bool {
+	var we pool.WireError
+	return json.Unmarshal(errJSON, &we) == nil && we.Code == host.CodePackageUnavailable
+}
+
+// awaitingOperator marks the meta of a started call occurrence that only an
+// operator's Resolve or Retry decides.
+const awaitingOperator = "awaitingOperator"
+
+func unavailableDetail(reason, command, name string, n int, invocation string, committed int) string {
+	return fmt.Sprintf("%s; command %s (occurrence %s#%d, invocation %s) committed %d transaction(s) before it and may have had other effects: resolve or retry the occurrence, then resume",
+		reason, command, name, n, invocation, committed)
+}
+
+// commandCaller dispatches an ordinary command as a new invocation with a
+// pre-allocated ID: host.WorkflowCall for package runs, the host for native ones.
+type commandCaller interface {
+	CallCommand(ctx context.Context, contract string, input json.RawMessage, invocationID string) (host.CallResult, error)
+}
+
+func (e *Engine) callOrdinary(ctx context.Context, call commandCaller, rs *runState, name string, n int, command string, input json.RawMessage, inputHash, contractHash string, prev Occurrence, hadPrev bool) (json.RawMessage, error) {
 	invID := uuid.NewString()
 	attempts := 1
 	if hadPrev {
@@ -934,6 +1059,8 @@ func (e *Engine) callOrdinary(ctx context.Context, call host.WorkflowCall, rs *r
 			return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("command %s: %s", command, we.Error())))
 		case errors.Is(err, host.ErrNoBinding):
 			return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf("command %s has no active binding", command)))
+		case isWire && we.Code == host.CodePackageUnavailable:
+			return nil, blockedWire(rs.block(BlockUnavailable, we.Message))
 		}
 		return nil, err
 	}
@@ -942,6 +1069,24 @@ func (e *Engine) callOrdinary(ctx context.Context, call host.WorkflowCall, rs *r
 			return nil, ferr
 		}
 		return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("command %s: %s", command, we.Error())))
+	}
+	if isWire && we.Code == host.CodePackageUnavailable {
+		// The command reached a package export (a nested call) in a process
+		// without the runtime: not its own failure. The command may already
+		// have had effects outside the database (an ordinary command makes
+		// external requests freely), so its started occurrence stays for
+		// Resolve or Retry, as an ambiguous call does, whatever it committed.
+		// The mark keeps a Resume without that decision blocked (resolveStarted)
+		// instead of reading the invocation's error as the call's outcome.
+		pending := started
+		pending.Meta = marshal(map[string]any{
+			awaitingOperator: host.CodePackageUnavailable, "invocation": res.InvocationID,
+			"committedTxCount": res.CommittedTxCount, "partiallyCommitted": res.PartiallyCommitted,
+		})
+		if rerr := e.record(ctx, rs, pending); rerr != nil {
+			return nil, rerr
+		}
+		return nil, blockedWire(rs.block(BlockUnavailable, unavailableDetail(we.Message, command, name, n, res.InvocationID, res.CommittedTxCount)))
 	}
 	failed := started
 	failed.Status, failed.Meta, failed.InvocationID = OccFailed, callMeta(res), res.InvocationID
@@ -978,6 +1123,8 @@ func (e *Engine) callAtomic(ctx context.Context, call host.WorkflowCall, rs *run
 			}
 		case isWire && we.Kind == pool.ErrKindDenied:
 			return nil, blockedWire(rs.block(BlockDenied, fmt.Sprintf("command %s: %s", command, we.Error())))
+		case isWire && we.Code == host.CodePackageUnavailable:
+			return nil, blockedWire(rs.block(BlockUnavailable, we.Message))
 		}
 		return nil, err
 	}

@@ -26,44 +26,49 @@ const (
 
 // Instance is one workflow_instances row.
 type Instance struct {
-	ID               uuid.UUID
-	TenantID         uuid.UUID
-	Workflow         string
-	Package          string
-	Version          string
-	ArtifactHash     string
-	Export           string
-	Input            json.RawMessage
-	Status           string
-	Result           json.RawMessage
-	Error            json.RawMessage
-	BlockedReason    string
-	BlockedDetail    string
-	SubjectUserID    int64
-	SubjectKind      spi.SubjectKind
-	PredecessorID    *uuid.UUID
-	ParentInstanceID *uuid.UUID
-	StartInvocation  *uuid.UUID
-	StartKey         *string
-	WakeAt           *time.Time
-	LeaseEpoch       int64
-	RunCount         int
-	Failures         int
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	FinishedAt       *time.Time
+	ID            uuid.UUID
+	TenantID      uuid.UUID
+	Workflow      string
+	Package       string
+	Version       string
+	ArtifactHash  string
+	Export        string
+	Input         json.RawMessage
+	Status        string
+	Result        json.RawMessage
+	Error         json.RawMessage
+	BlockedReason string
+	BlockedDetail string
+	SubjectUserID int64
+	SubjectKind   spi.SubjectKind
+	PredecessorID *uuid.UUID
+	// ParentID is the instance that started this one (wf.start,
+	// NativeRun.Start, or a tx.start inside a workflow transaction).
+	ParentID        *uuid.UUID
+	StartInvocation *uuid.UUID
+	StartKey        *string
+	WakeAt          *time.Time
+	LeaseEpoch      int64
+	RunCount        int
+	Failures        int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	FinishedAt      *time.Time
+	// Native is set for an instance of a workflow contract with a Go
+	// implementation (Config.Natives).
+	Native bool
 }
 
 const instanceCols = `id, tenant_id, workflow, package, version, artifact_hash, export, input, status, result, error,
 	blocked_reason, blocked_detail, subject_user_id, subject_kind, predecessor_id, parent_instance_id, start_invocation_id,
-	start_key, wake_at, lease_epoch, run_count, failures, created_at, updated_at, finished_at`
+	start_key, wake_at, lease_epoch, run_count, failures, created_at, updated_at, finished_at, native`
 
 func scanInstance(row pgx.Row) (Instance, error) {
 	var i Instance
 	var kind string
 	err := row.Scan(&i.ID, &i.TenantID, &i.Workflow, &i.Package, &i.Version, &i.ArtifactHash, &i.Export, &i.Input, &i.Status, &i.Result, &i.Error,
-		&i.BlockedReason, &i.BlockedDetail, &i.SubjectUserID, &kind, &i.PredecessorID, &i.ParentInstanceID, &i.StartInvocation,
-		&i.StartKey, &i.WakeAt, &i.LeaseEpoch, &i.RunCount, &i.Failures, &i.CreatedAt, &i.UpdatedAt, &i.FinishedAt)
+		&i.BlockedReason, &i.BlockedDetail, &i.SubjectUserID, &kind, &i.PredecessorID, &i.ParentID, &i.StartInvocation,
+		&i.StartKey, &i.WakeAt, &i.LeaseEpoch, &i.RunCount, &i.Failures, &i.CreatedAt, &i.UpdatedAt, &i.FinishedAt, &i.Native)
 	i.SubjectKind = spi.SubjectKind(kind)
 	return i, err
 }
@@ -105,11 +110,21 @@ type occKey struct {
 // journal and the diagnostics the run must end with. It is created by the
 // claim, keyed by the run token, and discarded when the run ends.
 type runState struct {
-	inst    Instance
-	epoch   int64
+	inst  Instance
+	epoch int64
+	// owner is the lease_owner the claim wrote (Config.Owner).
+	owner   string
 	subject spi.Subject
 	token   string
 	cancel  context.CancelFunc
+
+	// lazy marks a native run: journal is a cache filled on demand by
+	// Engine.occ, not a preload of the whole journal.
+	lazy bool
+	// native is the contract a native run resolved once at claim (its timeout
+	// and its dispatch use the same lookup); nativeErr is why it could not.
+	native    *NativeContract
+	nativeErr error
 
 	mu      sync.Mutex
 	journal map[occKey]Occurrence
@@ -127,6 +142,25 @@ func (rs *runState) get(name string, n int) (Occurrence, bool) {
 	defer rs.mu.Unlock()
 	o, ok := rs.journal[occKey{name, n}]
 	return o, ok
+}
+
+// occ returns the occurrence (name, n) of the run's instance. A package run
+// answers from the journal it preloaded; a native run reads the row on
+// demand and caches it, so a wake costs what it reads, not the journal size.
+func (e *Engine) occ(ctx context.Context, rs *runState, name string, n int) (Occurrence, bool, error) {
+	if o, ok := rs.get(name, n); ok || !rs.lazy {
+		return o, ok, nil
+	}
+	o, err := scanOccurrence(e.cfg.DB.QueryRow(ctx, `SELECT `+occurrenceCols+` FROM extruntime.workflow_occurrences
+		WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4`, rs.inst.ID, rs.inst.TenantID, name, n))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Occurrence{}, false, nil
+	}
+	if err != nil {
+		return Occurrence{}, false, serrors.FromDB(opLoad, err)
+	}
+	rs.set(o)
+	return o, true, nil
 }
 
 func (rs *runState) set(o Occurrence) {
@@ -245,19 +279,30 @@ func (e *Engine) loadJournal(ctx context.Context, inst Instance) (map[occKey]Occ
 // claim takes one ready instance: a new or crashed one (no live lease), or a
 // waiting one whose wake_at passed. The epoch is bumped, which fences any
 // previous runner of the instance. The boolean is false when none is ready.
-func (e *Engine) claim(ctx context.Context) (*Instance, bool, error) {
+// claimFilter narrows claim: native (nil: either kind) and workflow ("": any).
+type claimFilter struct {
+	native   *bool
+	workflow string
+}
+
+func (e *Engine) claim(ctx context.Context, f claimFilter) (*Instance, bool, error) {
+	var wf any
+	if f.workflow != "" {
+		wf = f.workflow
+	}
 	row := e.cfg.DB.QueryRow(ctx, `
 		UPDATE extruntime.workflow_instances i
-		SET status = 'running', lease_owner = $1, lease_until = now() + $2::interval, lease_epoch = i.lease_epoch + 1,
+		SET status = 'running', lease_owner = $1, lease_until = clock_timestamp() + $2::interval, lease_epoch = i.lease_epoch + 1,
 		    run_count = i.run_count + 1, wake_at = NULL, updated_at = now()
 		WHERE i.id = (
 			SELECT w.id FROM extruntime.workflow_instances w
-			WHERE (w.status = 'running' AND (w.lease_until IS NULL OR w.lease_until < now()))
-			   OR (w.status = 'waiting' AND w.wake_at IS NOT NULL AND w.wake_at <= now())
+			WHERE ((w.status = 'running' AND (w.lease_until IS NULL OR w.lease_until < now()))
+			   OR (w.status = 'waiting' AND w.wake_at IS NOT NULL AND w.wake_at <= now()))
+			  AND ($3::boolean IS NULL OR w.native = $3) AND ($4::text IS NULL OR w.workflow = $4)
 			ORDER BY w.updated_at
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1)
-		RETURNING `+instanceCols, e.cfg.Owner, e.cfg.LeaseTTL.String())
+		RETURNING `+instanceCols, e.cfg.Owner, pgInterval(e.cfg.LeaseTTL), f.native, wf)
 	inst, err := scanInstance(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil
@@ -272,28 +317,60 @@ func (e *Engine) claim(ctx context.Context) (*Instance, bool, error) {
 // the run still owns the instance and locks the row, serializing the write
 // against takeover, termination, signals and task decisions.
 func (e *Engine) fence(ctx context.Context, q queryer, rs *runState) error {
-	tag, err := q.Exec(ctx, `
-		UPDATE extruntime.workflow_instances SET updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
+	lease, err := lockLease(ctx, q, rs)
 	if err != nil {
-		return serrors.FromDB(opFence, err)
+		return err
 	}
-	if tag.RowsAffected() == 1 {
-		return nil
-	}
-	var status string
-	var epoch int64
-	err = q.QueryRow(ctx, `SELECT status, lease_epoch FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID).Scan(&status, &epoch)
 	switch {
-	case err != nil:
+	case lease.live:
+		_, err := q.Exec(ctx, `UPDATE extruntime.workflow_instances SET updated_at = now() WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID)
 		return serrors.FromDB(opFence, err)
-	case status == StatusTerminated:
+	case lease.status == StatusTerminated:
 		rs.markStale(errTerminated)
 		return errTerminated
 	default:
 		rs.markStale(errLeaseLost)
 		return errLeaseLost
 	}
+}
+
+// leaseState is the instance row as the run's lease sees it under the lock.
+type leaseState struct {
+	status string
+	// live: the instance is running under this run's epoch and the lease is
+	// still valid on the database clock.
+	live bool
+}
+
+// lockLease locks the instance row (q must be a transaction) and then, in a
+// separate statement that runs after the lock is granted, reads whether the
+// run still holds a live lease. Checking the lease in the locking UPDATE
+// itself is not enough: PostgreSQL may evaluate the predicate before it waits
+// for a lock holder that leaves the row unchanged, and the lease can expire
+// during that wait. Every write of a run (fence, heartbeat, terminal and
+// suspend transitions, release) checks its lease this way, so an owner whose
+// lease expired writes nothing, whether or not another runner took over.
+// The lease must also still be this run's: release and abandon clear
+// lease_owner (a retry backoff keeps lease_until in the future), and from then
+// on a write left in flight by the released run is fenced.
+func lockLease(ctx context.Context, q queryer, rs *runState) (leaseState, error) {
+	if _, err := q.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, rs.inst.ID, rs.inst.TenantID); err != nil {
+		return leaseState{}, serrors.FromDB(opFence, err)
+	}
+	var (
+		st    leaseState
+		epoch int64
+		valid bool
+		owned bool
+	)
+	err := q.QueryRow(ctx, `
+		SELECT status, lease_epoch, COALESCE(lease_until > clock_timestamp(), false), COALESCE(lease_owner = $3, false)
+		FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID, rs.owner).Scan(&st.status, &epoch, &valid, &owned)
+	if err != nil {
+		return leaseState{}, serrors.FromDB(opFence, err)
+	}
+	st.live = st.status == StatusRunning && epoch == rs.epoch && valid && owned
+	return st, nil
 }
 
 // inFence runs fn in a new transaction after the fence and commits it. fn
@@ -351,26 +428,128 @@ func nullString(s string) any {
 
 // ---- run lifecycle writes (all fenced) ----
 
-func (e *Engine) fencedUpdate(ctx context.Context, rs *runState, set string, args ...any) error {
-	all := append([]any{rs.inst.ID, rs.inst.TenantID, rs.epoch}, args...)
-	_, err := e.cfg.DB.Exec(context.WithoutCancel(ctx), `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, all...)
-	// No affected row means the lease was lost or the instance terminated
-	// meanwhile: the new owner decides.
-	return serrors.FromDB(opFinish, err)
+// transition moves the run's instance out of running in one fenced
+// transaction: the row update, for a native contract the completion policy
+// (CancelPending) and its StatusObserver. No affected row means the lease was
+// lost or the instance terminated meanwhile: the new owner decides. A failing
+// observer rolls the transition back and the run is retried after a backoff.
+func (e *Engine) transition(ctx context.Context, rs *runState, to, set string, args ...any) error {
+	ctx = context.WithoutCancel(ctx)
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		// Only the owner of a live lease moves the instance; otherwise the
+		// next owner (a takeover, or the claim of the expired lease) decides.
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
+		}
+		all := append([]any{rs.inst.ID, rs.inst.TenantID, rs.epoch}, args...)
+		// The observer sees the row as this transition wrote it (result,
+		// error, blocked reason, finish time).
+		updated, err := scanInstance(tx.QueryRow(ctx, `UPDATE extruntime.workflow_instances SET `+set+`, updated_at = now(), lease_owner = NULL, lease_until = NULL
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'
+			RETURNING `+instanceCols, all...))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return serrors.FromDB(opFinish, err)
+		}
+		return e.afterTransition(ctx, tx, updated, StatusRunning, to)
+	})
+	var oe *observerError
+	if !errors.As(err, &oe) {
+		return err
+	}
+	e.cfg.Logger.Warn("extruntime: workflow transition rolled back; it is retried after a backoff", "instance", rs.inst.ID, "to", to, "error", oe.err)
+	if to == StatusBlocked {
+		return e.release(ctx, rs, oe.err)
+	}
+	return e.finishTransient(ctx, rs, oe.err)
+}
+
+// observerError rolls a transition back for a retry with backoff: a
+// StatusObserver failure, or native registrations that could not be loaded
+// (the completion policy and observer of the contract are unknown).
+type observerError struct{ err error }
+
+func (o *observerError) Error() string {
+	return "extruntime workflow: status observer: " + o.err.Error()
+}
+func (o *observerError) Unwrap() error { return o.err }
+
+// afterTransition runs in the transaction that changed the instance's status:
+// for a native contract, its completion policy and its status observer.
+func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, from, to string) error {
+	if !inst.Native {
+		return nil
+	}
+	nc, ok, err := e.lookupNative(inst.Workflow)
+	if err != nil {
+		return &observerError{err: err}
+	}
+	if !ok {
+		return nil
+	}
+	if (to == StatusCompleted || to == StatusFailed) && nc.Completion == CancelPending {
+		if err := cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
+			return err
+		}
+	}
+	if nc.StatusObserver == nil {
+		return nil
+	}
+	switch to {
+	case StatusBlocked, StatusTerminated, StatusFailed, StatusCompleted:
+	default:
+		return nil
+	}
+	if err := nc.StatusObserver.InstanceStatusChanged(ctx, tx, inst, from, to); err != nil {
+		return &observerError{err: err}
+	}
+	return nil
+}
+
+// cancelOpen cancels the open tasks and waiting occurrences of an instance.
+func cancelOpen(ctx context.Context, q queryer, tenant, id uuid.UUID) error {
+	if _, err := q.Exec(ctx, `UPDATE extruntime.human_tasks SET status = 'cancelled' WHERE instance_id = $1 AND tenant_id = $2 AND status = 'open'`, id, tenant); err != nil {
+		return serrors.FromDB(opFinish, err)
+	}
+	if _, err := q.Exec(ctx, `UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now() WHERE instance_id = $1 AND tenant_id = $2 AND status = 'waiting'`, id, tenant); err != nil {
+		return serrors.FromDB(opFinish, err)
+	}
+	return nil
+}
+
+// inTx runs fn in a transaction of the pool and commits it.
+func (e *Engine) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	tx, err := e.cfg.DB.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opFinish, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return serrors.FromDB(opFinish, tx.Commit(ctx))
 }
 
 func (e *Engine) finishCompleted(ctx context.Context, rs *runState, result json.RawMessage) error {
-	return e.fencedUpdate(ctx, rs, `status = 'completed', result = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(nonNull(result)))
+	return e.transition(ctx, rs, StatusCompleted, `status = 'completed', result = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(nonNull(result)))
 }
 
 func (e *Engine) finishFailed(ctx context.Context, rs *runState, we *pool.WireError) error {
-	return e.fencedUpdate(ctx, rs, `status = 'failed', error = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(marshal(we)))
+	return e.transition(ctx, rs, StatusFailed, `status = 'failed', error = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(marshal(we)))
 }
 
 func (e *Engine) finishBlocked(ctx context.Context, rs *runState, reason, detail string) error {
+	if ctx.Err() != nil {
+		// The engine is stopping (ctx is the scheduler's context): a block
+		// decided now may be the shutdown's doing (a lookup it cut short). The
+		// run is released instead; the next process decides again.
+		return e.abandon(ctx, rs)
+	}
 	e.cfg.Logger.Warn("extruntime: workflow instance blocked", "instance", rs.inst.ID, "reason", reason, "detail", detail)
-	return e.fencedUpdate(ctx, rs, `status = 'blocked', blocked_reason = $4, blocked_detail = $5, wake_at = NULL`, reason, detail)
+	return e.transition(ctx, rs, StatusBlocked, `status = 'blocked', blocked_reason = $4, blocked_detail = $5, wake_at = NULL`, reason, detail)
 }
 
 func nonNull(b json.RawMessage) json.RawMessage {
@@ -392,14 +571,11 @@ func (e *Engine) finishSuspended(ctx context.Context, rs *runState) error {
 		return serrors.FromDB(opFinish, err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	tag, err := tx.Exec(ctx, `
-		UPDATE extruntime.workflow_instances SET updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
-	if err != nil {
-		return serrors.FromDB(opFinish, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return nil
+	// An owner whose lease expired does not suspend: the next claim replays
+	// up to the same suspension.
+	lease, err := lockLease(ctx, tx, rs)
+	if err != nil || !lease.live {
+		return err
 	}
 	var wake *time.Time
 	err = tx.QueryRow(ctx, `
@@ -431,18 +607,55 @@ func (e *Engine) finishSuspended(ctx context.Context, rs *runState) error {
 // finishTransient releases the lease after an infrastructure failure so the
 // instance is replayed after a backoff; repeated failures block it.
 func (e *Engine) finishTransient(ctx context.Context, rs *runState, cause error) error {
+	if ctx.Err() != nil {
+		// The engine is stopping (ctx is the scheduler's context): an error
+		// the shutdown caused is never counted against the instance.
+		return e.abandon(ctx, rs)
+	}
 	failures := rs.inst.Failures + 1
 	if failures >= e.cfg.MaxRunFailures {
 		return e.finishBlocked(ctx, rs, BlockFailing, fmt.Sprintf("%d consecutive runs failed; last: %v", failures, cause))
 	}
+	return e.release(ctx, rs, cause)
+}
+
+// abandon releases the lease of a run the engine stopped (shutdown) without
+// counting a failure: the instance is claimable at once.
+func (e *Engine) abandon(ctx context.Context, rs *runState) error {
+	ctx = context.WithoutCancel(ctx)
+	return e.inTx(ctx, func(tx pgx.Tx) error {
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			UPDATE extruntime.workflow_instances SET lease_owner = NULL, lease_until = NULL, updated_at = now()
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`, rs.inst.ID, rs.inst.TenantID, rs.epoch)
+		return serrors.FromDB(opFinish, err)
+	})
+}
+
+// release frees the lease for a retry after a backoff that doubles with
+// every consecutive failure.
+func (e *Engine) release(ctx context.Context, rs *runState, _ error) error {
+	failures := rs.inst.Failures + 1
 	delay := e.cfg.RetryBackoff
-	for i := 1; i < failures; i++ {
+	for i := 1; i < failures && delay < time.Hour; i++ {
 		delay *= 2
 	}
-	_, err := e.cfg.DB.Exec(context.WithoutCancel(ctx), `
-		UPDATE extruntime.workflow_instances
-		SET lease_owner = NULL, lease_until = now() + $4::interval, failures = $5, updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
-		rs.inst.ID, rs.inst.TenantID, rs.epoch, delay.String(), failures)
-	return serrors.FromDB(opFinish, err)
+	delay = min(delay, time.Hour)
+	ctx = context.WithoutCancel(ctx)
+	return e.inTx(ctx, func(tx pgx.Tx) error {
+		// An expired lease is already claimable; its owner does not move it.
+		lease, err := lockLease(ctx, tx, rs)
+		if err != nil || !lease.live {
+			return err
+		}
+		_, err = tx.Exec(ctx, `
+			UPDATE extruntime.workflow_instances
+			SET lease_owner = NULL, lease_until = clock_timestamp() + $4::interval, failures = $5, updated_at = now()
+			WHERE id = $1 AND tenant_id = $2 AND lease_epoch = $3 AND status = 'running'`,
+			rs.inst.ID, rs.inst.TenantID, rs.epoch, pgInterval(delay), failures)
+		return serrors.FromDB(opFinish, err)
+	})
 }

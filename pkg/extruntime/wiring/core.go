@@ -25,6 +25,10 @@ type coreConfig struct {
 	events            events.Config
 	schedules         events.SchedulerConfig
 	disableBackground bool
+	// workflowConcurrency is the number of package workflow runs the engine
+	// executes at once (EXTRUNTIME_WORKFLOWCONCURRENCY, or the runtime
+	// configuration after Tune); 0 selects the engine default.
+	workflowConcurrency int
 }
 
 // mergeSchedules fills the zero settings of primary from fallback.
