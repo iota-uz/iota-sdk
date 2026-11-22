@@ -246,7 +246,7 @@ func (rs *runState) journalPayload() json.RawMessage {
 	defer rs.mu.Unlock()
 	entries := make([]journalEntry, 0, len(rs.journal))
 	for _, o := range rs.journal {
-		if !o.terminal() {
+		if !o.terminal() || o.Kind == KindEscalation {
 			continue
 		}
 		entries = append(entries, journalEntry{Name: o.Name, N: o.N, Kind: o.Kind, Status: o.Status, InputHash: o.InputHash, Result: o.Result, Error: o.Error})
@@ -491,8 +491,10 @@ func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, 
 		return nil
 	}
 	if (to == StatusCompleted || to == StatusFailed) && nc.Completion == CancelPending {
-		if err := cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
-			return err
+		if err := e.cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
+			// A failing TaskObserver rolls the transition back like a
+			// failing StatusObserver.
+			return &observerError{err: err}
 		}
 	}
 	if nc.StatusObserver == nil {
@@ -510,11 +512,11 @@ func (e *Engine) afterTransition(ctx context.Context, tx pgx.Tx, inst Instance, 
 }
 
 // cancelOpen cancels the open tasks and waiting occurrences of an instance.
-func cancelOpen(ctx context.Context, q queryer, tenant, id uuid.UUID) error {
-	if _, err := q.Exec(ctx, `UPDATE extruntime.human_tasks SET status = 'cancelled' WHERE instance_id = $1 AND tenant_id = $2 AND status = 'open'`, id, tenant); err != nil {
-		return serrors.FromDB(opFinish, err)
+func (e *Engine) cancelOpen(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) error {
+	if err := e.cancelTasks(ctx, tx, tenant, id, nil); err != nil {
+		return err
 	}
-	if _, err := q.Exec(ctx, `UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now() WHERE instance_id = $1 AND tenant_id = $2 AND status = 'waiting'`, id, tenant); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now() WHERE instance_id = $1 AND tenant_id = $2 AND status = 'waiting'`, id, tenant); err != nil {
 		return serrors.FromDB(opFinish, err)
 	}
 	return nil

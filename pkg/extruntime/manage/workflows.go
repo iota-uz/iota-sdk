@@ -19,6 +19,8 @@ type Workflows interface {
 	Get(ctx context.Context, tenant, id uuid.UUID) (workflow.History, error)
 	Signal(ctx context.Context, tenant uuid.UUID, sender int64, instance uuid.UUID, name string, payload json.RawMessage, key string) error
 	DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, decision json.RawMessage) error
+	DelegateTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, to int64, comment string) error
+	Tasks(ctx context.Context, actor spi.Subject, f workflow.TaskFilter) ([]workflow.Task, error)
 	Terminate(ctx context.Context, tenant, id uuid.UUID) error
 	StartV2(ctx context.Context, actor spi.Subject, predecessor uuid.UUID, version string) (uuid.UUID, error)
 	Resolve(ctx context.Context, tenant, id uuid.UUID, name string, n int, result json.RawMessage) error
@@ -30,6 +32,7 @@ type Workflows interface {
 const (
 	ActionWorkflowSignal    = "workflow.signal"
 	ActionWorkflowDecide    = "workflow.decide"
+	ActionWorkflowDelegate  = "workflow.delegate"
 	ActionWorkflowTerminate = "workflow.terminate"
 	ActionWorkflowStartV2   = "workflow.startv2"
 	ActionWorkflowResolve   = "workflow.resolve"
@@ -60,7 +63,8 @@ func engineError(err error) error {
 		return serrors.New(serrors.PermissionDenied, err.Error()).WithCause(err)
 	case errors.Is(err, workflow.ErrInvalid):
 		return serrors.New(serrors.Invalid, err.Error()).WithCause(err)
-	case errors.Is(err, workflow.ErrNotAccepting), errors.Is(err, workflow.ErrTaskClosed):
+	case errors.Is(err, workflow.ErrNotAccepting), errors.Is(err, workflow.ErrTaskClosed),
+		errors.Is(err, workflow.ErrAlreadyDecided), errors.Is(err, workflow.ErrDelegation):
 		return serrors.New(serrors.FailedPrecondition, err.Error()).WithCause(err)
 	}
 	return err
@@ -127,6 +131,26 @@ func (s *Service) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid
 	return s.workflowAction(ctx, actor, "", e, func(w Workflows) error {
 		return w.DecideTask(ctx, actor, taskID, decision)
 	})
+}
+
+// DelegateTask passes the actor's decision of a human task to another user
+// of the tenant. The engine decides who may (whoever may decide the task).
+func (s *Service) DelegateTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, to int64, comment string) error {
+	e := wfEntry(ActionWorkflowDelegate, taskID, map[string]any{"to": to})
+	return s.workflowAction(ctx, actor, "", e, func(w Workflows) error {
+		return w.DelegateTask(ctx, actor, taskID, to, comment)
+	})
+}
+
+// Tasks is the actor's inbox of human tasks: the ones they may decide now.
+// It needs no permission: the engine lists only tasks assigned to the actor.
+func (s *Service) Tasks(ctx context.Context, actor spi.Subject, f workflow.TaskFilter) ([]workflow.Task, error) {
+	w, err := s.engine()
+	if err != nil {
+		return nil, err
+	}
+	out, err := w.Tasks(ctx, actor, f)
+	return out, engineError(err)
 }
 
 // TerminateWorkflow stops an instance (done effects stay).

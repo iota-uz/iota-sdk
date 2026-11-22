@@ -22,37 +22,6 @@ const (
 	opManage = serrors.Op("extruntime.workflow.manage")
 )
 
-// Task is one human_tasks row.
-type Task struct {
-	ID            uuid.UUID
-	InstanceID    uuid.UUID
-	Name          string
-	N             int
-	SubjectEntity string
-	SubjectKey    string
-	// AssigneeKind is TaskAssigneeUser (AssigneeUserID names the one user) or TaskAssigneePermission (anyone holding
-	// AssigneePermission may decide; AssigneeUserID is 0).
-	AssigneeKind       string
-	AssigneeUserID     int64
-	AssigneePermission string
-	DecisionSchema     json.RawMessage
-	Status             string
-	Decision           json.RawMessage
-	DecidedBy          *int64
-	DueAt              *time.Time
-	// Title is the localized title a native workflow gave the task (empty for
-	// package workflows).
-	Title     manifest.Label
-	CreatedAt time.Time
-	DecidedAt *time.Time
-}
-
-// Who a human task is assigned to.
-const (
-	TaskAssigneeUser       = "user"
-	TaskAssigneePermission = "permission"
-)
-
 // Signal is one workflow_signals row.
 type Signal struct {
 	ID           uuid.UUID
@@ -161,24 +130,11 @@ func (e *Engine) Get(ctx context.Context, tenant, id uuid.UUID) (History, error)
 		return h, serrors.FromDB(opManage, err)
 	}
 
-	trows, err := e.cfg.DB.Query(ctx, `
-		SELECT id, instance_id, name, n, subject_entity, subject_key, assignee_kind, COALESCE(assignee_user_id, 0), assignee_permission, decision_schema, status, decision, decided_by, due_at, title, created_at, decided_at
-		FROM extruntime.human_tasks WHERE instance_id = $1 AND tenant_id = $2 ORDER BY created_at, name, n`, id, tenant)
+	tasks, err := e.queryTasks(ctx, e.cfg.DB, tenant, `t.instance_id = $2 ORDER BY t.created_at, t.name, t.n`, id)
 	if err != nil {
-		return h, serrors.FromDB(opManage, err)
+		return h, err
 	}
-	for trows.Next() {
-		var t Task
-		if err := trows.Scan(&t.ID, &t.InstanceID, &t.Name, &t.N, &t.SubjectEntity, &t.SubjectKey, &t.AssigneeKind, &t.AssigneeUserID, &t.AssigneePermission, &t.DecisionSchema, &t.Status, &t.Decision, &t.DecidedBy, &t.DueAt, &t.Title, &t.CreatedAt, &t.DecidedAt); err != nil {
-			trows.Close()
-			return h, serrors.FromDB(opManage, err)
-		}
-		h.Tasks = append(h.Tasks, t)
-	}
-	trows.Close()
-	if err := trows.Err(); err != nil {
-		return h, serrors.FromDB(opManage, err)
-	}
+	h.Tasks = tasks
 
 	srows, err := e.cfg.DB.Query(ctx, `
 		SELECT id, name, payload, sender_user_id, COALESCE(signal_key, ''), COALESCE(consumed_name, ''), consumed_n, created_at, consumed_at
@@ -428,94 +384,6 @@ func signalWire(err error) error {
 	return err
 }
 
-// DecideTask records the decision of an open human task. The actor must be
-// the assignee, hold the permission the task is assigned to, or hold
-// Config.TaskAdminPermission, judged by their CURRENT rights; the decision must match the task's decision schema. A decision and
-// the task's timeout race on a compare-and-set of the task status, so exactly
-// one wins; a late decision gets ErrTaskClosed.
-func (e *Engine) DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, decision json.RawMessage) error {
-	var (
-		instanceID uuid.UUID
-		kind       string
-		assignee   int64
-		permission string
-		schema     []byte
-		status     string
-	)
-	err := e.cfg.DB.QueryRow(ctx, `
-		SELECT instance_id, assignee_kind, COALESCE(assignee_user_id, 0), assignee_permission, decision_schema, status
-		FROM extruntime.human_tasks WHERE id = $1 AND tenant_id = $2`,
-		taskID, actor.TenantID).Scan(&instanceID, &kind, &assignee, &permission, &schema, &status)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s", ErrNotFound, taskID))
-	}
-	if err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	if status != "open" {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s is %s", ErrTaskClosed, taskID, status))
-	}
-	current, err := e.cfg.Subjects.LoadSubject(ctx, actor.TenantID, actor.UserID, spi.SubjectInitiator)
-	if err != nil {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: %v", ErrForbidden, err))
-	}
-	if !e.mayDecide(current, kind, assignee, permission) {
-		if kind == TaskAssigneePermission {
-			return serrors.Wrap(opManage, fmt.Errorf("%w: task %s is assigned to the holders of permission %s", ErrForbidden, taskID, permission))
-		}
-		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not the assignee of task %s", ErrForbidden, actor.UserID, taskID))
-	}
-	if len(schema) > 0 {
-		var typ manifest.Type
-		if err := json.Unmarshal(schema, &typ); err == nil {
-			if verr := manifest.ValidateValue(typ, decision); verr != nil {
-				return serrors.Wrap(opManage, fmt.Errorf("%w: decision: %v", ErrInvalid, verr))
-			}
-		}
-	}
-	tx, err := e.cfg.DB.Begin(ctx)
-	if err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	// The instance row is locked first, as every run write does (fence), and
-	// the wake is decided under that lock: a run that is suspending commits its
-	// wait before this proceeds, so the instance is `waiting` here and gets
-	// woken; a run that has not suspended yet sees the decision when it does.
-	// Updating only `status = 'waiting'` rows without the lock would lose a
-	// decision committed between the run's wake computation and its commit.
-	if _, err := tx.Exec(ctx, `
-		UPDATE extruntime.workflow_instances
-		SET wake_at = CASE WHEN status = 'waiting' THEN now() ELSE wake_at END, updated_at = now()
-		WHERE id = $1 AND tenant_id = $2`, instanceID, actor.TenantID); err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	tag, err := tx.Exec(ctx, `
-		UPDATE extruntime.human_tasks SET status = 'decided', decision = $3, decided_by = $4, decided_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND status = 'open'`, taskID, actor.TenantID, []byte(decision), actor.UserID)
-	if err != nil {
-		return serrors.FromDB(opManage, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return serrors.Wrap(opManage, fmt.Errorf("%w: task %s was decided or expired first", ErrTaskClosed, taskID))
-	}
-	if err := notify(ctx, tx); err != nil {
-		return err
-	}
-	return serrors.FromDB(opManage, tx.Commit(ctx))
-}
-
-// mayDecide is the authorization of a decision, over the actor's current rights.
-func (e *Engine) mayDecide(actor spi.Subject, kind string, assignee int64, permission string) bool {
-	switch {
-	case kind == TaskAssigneePermission && permission != "" && actor.Has(permission):
-		return true
-	case kind != TaskAssigneePermission && actor.UserID == assignee:
-		return true
-	}
-	return e.cfg.TaskAdminPermission != "" && actor.Has(e.cfg.TaskAdminPermission)
-}
-
 // Terminate stops an instance: no further steps, open tasks and timers are
 // cancelled, later signals are rejected, an in-flight run is aborted. Effects
 // already committed stay (no compensation) and children keep running (see
@@ -671,7 +539,7 @@ func (e *Engine) terminateLocked(ctx context.Context, tx pgx.Tx, inst Instance) 
 	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
-	if err := cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
+	if err := e.cancelOpen(ctx, tx, inst.TenantID, inst.ID); err != nil {
 		return err
 	}
 	if err := e.afterTransition(ctx, tx, updated, inst.Status, StatusTerminated); err != nil {

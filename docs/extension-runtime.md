@@ -397,8 +397,14 @@ workflow contract may have a Go implementation. The full rules are §9.8. In sho
   input_hash, result, error, attempts, wake_at, invocation_id, PK(instance_id,name,n))`
 * `workflow_signals(id, instance_id, name, payload, consumed_name, consumed_n, created_at)`
 * `human_tasks(id, tenant_id, instance_id, name, n, subject_entity, subject_key,
-  assignee_kind user|permission, assignee_user_id (null for a permission), assignee_permission, decision_schema,
-  status open|decided|expired|cancelled, decision, decided_by, due_at)` (exactly one of user and permission is set)
+  assignee_kind ''|user|permission, assignee_user_id, assignee_permission, decision_schema,
+  status open|decided|expired|cancelled, choice, decision, decided_by, due_at, required, outcomes, veto, escalation,
+  escalation_level, allow_delegation)`; the `assignee_*` columns name the one user or permission of a task created with
+  exactly one (compatibility), `''` otherwise
+* `human_task_assignees(task_id, tenant_id, kind user|permission|role|group, user_id, ref, delegated_from, comment,
+  added_at)` — who may decide: the task's assignees, those escalation steps added, and the users delegations passed it to
+  (`delegated_from` set); `human_task_decisions(task_id, tenant_id, user_id, choice, decision, delegated_from,
+  decided_at, PK(task_id, user_id))` — one decision per user
 * `outbox_events(seq bigserial, id uuid, tenant_id, event, subject_entity, subject_key,
   payload, initiator_user_id, occurred_at)`; `subscription_cursors(subscription, from_seq)`;
   `subscription_receipts(subscription, event_id, invocation_id, PK(subscription,event_id))`;
@@ -412,7 +418,7 @@ workflow contract may have a Go implementation. The full rules are §9.8. In sho
 | `wf.step(name, fx)` | short tx marks `started`, attempts++; fx runs in Node with key `instance:name:n`; result recorded | completed → stored; `started` → fx runs again (at-least-once, same key) |
 | `wf.sleep(name, d)` | record `wake_at`; suspend | `now ≥ wake_at` → complete |
 | `wf.waitFor(name, signal, {timeout})` | consume unconsumed signal or suspend | consumed → payload |
-| `wf.task(name, spec)` | create `human_tasks` row (the assignee is a `core.user` ref, or `{permission}`: any holder of a permission an active package declares, else `workflow.invalidAssignee`); suspend | decided → `{outcome:"decided", decision, by}`; due → `{outcome:"timeout"}` |
+| `wf.task(name, spec)` | create `human_tasks` row (the assignee is a `core.user` ref, `{permission}`: any holder of a permission an active package declares, else `workflow.invalidAssignee`, `{role}` or `{group}`; or `assignees: [...]`, with optional `required`, `outcomes`, `veto`, `escalation: [{add, extend}]`, `allowDelegation`, see "Human tasks" below); suspend | decided → `{outcome:"decided", decision, by}` (+ `choice`, `decisions` for a task with outcomes or a quorum); due → `{outcome:"timeout"}` (+ `decisions` collected so far) |
 | `wf.call(name, command, input)` | new invocation selecting the **current** active binding (recorded); atomic: receipt in the command tx; ordinary: `started` recorded before dispatch | completed → stored; `started` without result → instance `blocked` (`ambiguous`, manual review) |
 | `wf.start(name, workflow, input)` | instance row with `start_key=instance:name:n` | stored instance ref |
 
@@ -437,6 +443,40 @@ workflow contract may have a Go implementation. The full rules are §9.8. In sho
   (assigned at activation; activation fails without one).
 
 ## 9. Revisions after architecture review (2026-11-11, Opus 5.5) — supersede §2–§8 where they differ
+
+**Human tasks (#1327)**
+
+`wf.task` and `NativeRun.Task` (`workflow.TaskSpec`) open one task for one inbox (`Engine.Tasks`), whether a package
+workflow, a native one or a graph asks.
+
+* **Assignees** are 1..20 of: a user, the holders of a permission, the members of a role (role id) or of a group (group
+  uuid). Who may decide is judged when the decision comes, by current rights: the actor's permissions as
+  `SubjectLoader` loads them now, and role and group membership as `Config.TaskAudience` reports it now (the core's
+  implementation, `workflow/audience`, reads `user_roles`, `group_users` and `group_roles` of the actor's tenant; blocked
+  users are nobody). A user removed from the group after the task was created can no longer decide it, and it leaves
+  their inbox. `Config.TaskAdminPermission` (operate) may decide any task but does not fill the inbox. Without a
+  `TaskAudience`, a role or group assignee is invalid.
+* **Quorum.** `Required` (1..100) decisions with the same outcome close the task with `Choice` = that outcome; an outcome in
+  `Veto` closes it with the first decision. `Outcomes` are the values of the decision's `outcome` field (an enum of
+  exactly them in the decision schema; a native task without a schema gets that object). Without outcomes `Required` is 1.
+  Each user decides once (`ErrAlreadyDecided`); a decision after the task closed gets `ErrTaskClosed`.
+* **Delegation** (`AllowDelegation`): `DelegateTask` passes the actor's decision to one active user of the tenant; the
+  actor loses the task, the delegate decides for themselves and the decision records `DelegatedFrom`. A chain is
+  allowed; a delegation to a user who already delegated the task (back along the chain) or decided it is refused
+  (`ErrDelegation`).
+* **Escalation.** When the due time (`Timeout`) passes, the run applies the next of up to five steps: `Add` joins the
+  assignees, `Extend` sets the new due time (0: the task times out right after the step). Without steps left the task
+  closes as a timeout whose result carries the decisions collected so far. Each applied step is an occurrence of its own
+  (kind `escalation`, name `<task>#<n>.escalation`, n the step index) committed with the task change in the run's fenced
+  transaction, so a run that crashed while escalating applies the step again from scratch and one that committed never
+  repeats it.
+* **Cancel.** `NativeRun.Cancel`, `CancelPending` and terminate close open tasks as `cancelled`.
+* **Observers.** `Config.TaskObservers` (contributed with `wiring.ContributeTaskObservers`) are called in order in the
+  transaction of every change — `created`, `decision`, `delegated`, `escalated` (with the new assignees), `closed` — and
+  an error of any rolls it back (for a run, the run is retried). The task model itself sends nothing.
+* **Management API.** `GET /tasks` (the actor's inbox: open tasks they may decide now and neither decided nor delegated,
+  by due time; `status`, `overdue`, `workflow`, `limit` ≤ 200, `after` cursor), `POST /tasks/{id}/decide`,
+  `POST /tasks/{id}/delegate` (`{to, comment}`).
 
 **Persistence identities (decided now to avoid a second schema change)**
 * Single `extruntime.bindings(id, slot_kind command|screen|shell, target_id, package, version,

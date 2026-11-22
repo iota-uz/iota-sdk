@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -44,6 +47,77 @@ func ContributeNativeWorkflows(b *composition.Builder, factory func(*composition
 	})
 }
 
+// taskObservers is one contribution of ContributeTaskObservers.
+type taskObservers []workflow.TaskObserver
+
+// ContributeTaskObservers registers observers of the human tasks of the
+// core's *workflow.Engine (workflow.Config.TaskObservers): the factory runs
+// once when the application is composed. Contributions are called in the
+// order they were made, each in the transaction of the task change; an error
+// rolls the change back. The TaskAudience the engine uses is resolved from
+// the container (the core's roles and groups unless the application
+// provides its own).
+func ContributeTaskObservers(b *composition.Builder, factory func(*composition.Container) ([]workflow.TaskObserver, error)) {
+	if factory == nil {
+		return
+	}
+	composition.Contribute(b, func(c *composition.Container) ([]taskObservers, error) {
+		list, err := factory(c)
+		if err != nil || len(list) == 0 {
+			return nil, err
+		}
+		return []taskObservers{list}, nil
+	})
+}
+
+func collectTaskObservers(c *composition.Container) ([]workflow.TaskObserver, error) {
+	list, err := composition.Contributions[taskObservers](c)
+	if err != nil {
+		return nil, err
+	}
+	var out []workflow.TaskObserver
+	for _, l := range list {
+		out = append(out, l...)
+	}
+	return out, nil
+}
+
+// lazyTaskObservers calls the contributed observers, collected on first use
+// (a failed collection is retried by the next change, which it rolls back).
+type lazyTaskObservers struct {
+	load func() ([]workflow.TaskObserver, error)
+
+	mu     sync.Mutex
+	loaded bool
+	list   []workflow.TaskObserver
+}
+
+func (l *lazyTaskObservers) observers() ([]workflow.TaskObserver, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.loaded {
+		list, err := l.load()
+		if err != nil {
+			return nil, err
+		}
+		l.list, l.loaded = list, true
+	}
+	return l.list, nil
+}
+
+func (l *lazyTaskObservers) TaskChanged(ctx context.Context, tx pgx.Tx, t workflow.Task, change workflow.TaskChange) error {
+	list, err := l.observers()
+	if err != nil {
+		return err
+	}
+	for _, o := range list {
+		if err := o.TaskChanged(ctx, tx, t, change); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // collectNativeWorkflows merges the contributions; a duplicate ID is an error.
 func collectNativeWorkflows(c *composition.Container) (map[string]workflow.NativeContract, error) {
 	list, err := composition.Contributions[nativeWorkflows](c)
@@ -81,11 +155,18 @@ func (c *component) buildWorkflows(b *composition.Builder, natives *native.Set, 
 		if err != nil {
 			return nil, err
 		}
+		audience, err := composition.Resolve[workflow.TaskAudience](container)
+		if err != nil {
+			return nil, err
+		}
 		// The contributions are collected after the providers are built: the
 		// engine reads them on first use (Ready at start, or the first start
 		// or run without background work).
 		cfg := workflow.Config{
 			DB: db, Subjects: subjects, TaskAdminPermission: manage.PermOperate, Logger: c.opts.Logger,
+			// Contributions are read once the container is compiled: on the
+			// first task change.
+			TaskAudience: audience, TaskObservers: []workflow.TaskObserver{&lazyTaskObservers{load: func() ([]workflow.TaskObserver, error) { return collectTaskObservers(container) }}},
 			Concurrency:  core.workflowConcurrency,
 			NativeSource: func() (map[string]workflow.NativeContract, error) { return collectNativeWorkflows(container) },
 		}

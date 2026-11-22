@@ -109,6 +109,12 @@ func (f *fakeEngine) Signal(_ context.Context, tenant uuid.UUID, sender int64, _
 func (f *fakeEngine) DecideTask(_ context.Context, a spi.Subject, _ uuid.UUID, _ json.RawMessage) error {
 	return f.rec("decide")
 }
+func (f *fakeEngine) DelegateTask(context.Context, spi.Subject, uuid.UUID, int64, string) error {
+	return f.rec("delegate")
+}
+func (f *fakeEngine) Tasks(context.Context, spi.Subject, workflow.TaskFilter) ([]workflow.Task, error) {
+	return nil, f.rec("tasks")
+}
 func (f *fakeEngine) Terminate(context.Context, uuid.UUID, uuid.UUID) error {
 	return f.rec("terminate")
 }

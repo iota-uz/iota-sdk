@@ -37,6 +37,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/reference"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow/audience"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -163,6 +164,11 @@ type Deps struct {
 	// claims every ready instance, so a second would take the first one's.
 	// Nil: the runtime builds and serves its own.
 	Workflows *workflow.Engine
+	// TaskAudience and TaskObservers configure the human tasks of the engine
+	// the runtime builds when Workflows is nil (the core's roles and groups
+	// when TaskAudience is nil).
+	TaskAudience  workflow.TaskAudience
+	TaskObservers []workflow.TaskObserver
 	// Scheduler is the application's schedule scheduler, served by the core
 	// (pkg/extruntime/wiring); the package schedules reach it as a
 	// ScheduleSource (see Runtime.Manage.ScheduleSource). Nil makes the
@@ -364,6 +370,7 @@ func New(cfg Config, deps Deps) (*Runtime, error) {
 		rt.Workflows, err = workflow.New(workflow.Config{
 			DB: deps.DB, Catalog: rt.Catalog, Bindings: rt.Bindings, Artifacts: rt.Manage, Impl: rt.Manage.Implementations(),
 			Subjects: subjects, Concurrency: cfg.Workflow.Concurrency, TaskAdminPermission: manage.PermOperate, Logger: cfg.Logger,
+			TaskAudience: taskAudience(deps), TaskObservers: deps.TaskObservers,
 		})
 		if err != nil {
 			return fail(err)
@@ -548,3 +555,10 @@ var (
 	_ notify.SubjectResolver = (*UserSubjects)(nil)
 	_ host.SubjectLoader     = (*UserSubjects)(nil)
 )
+
+func taskAudience(deps Deps) workflow.TaskAudience {
+	if deps.TaskAudience != nil {
+		return deps.TaskAudience
+	}
+	return audience.New(deps.DB)
+}

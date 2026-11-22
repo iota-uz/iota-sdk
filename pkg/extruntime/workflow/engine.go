@@ -81,6 +81,10 @@ const (
 	KindStart       = "start"
 	KindNow         = "now"
 	KindUUID        = "uuid"
+	// KindEscalation records one applied escalation step of a human task
+	// (name "<task>#<n>.escalation", n the step index). It is the engine's
+	// own record: workflow code never addresses it.
+	KindEscalation = "escalation"
 )
 
 // Occurrence states.
@@ -189,7 +193,14 @@ type Config struct {
 	RetryBackoff time.Duration
 	// TaskAdminPermission lets holders decide tasks they are not assigned to.
 	TaskAdminPermission string
-	Logger              *slog.Logger
+	// TaskAudience judges membership in the role and group assignees of
+	// human tasks, by current rights. Required for role and group assignees:
+	// without it a task naming one is invalid.
+	TaskAudience TaskAudience
+	// TaskObservers follow the lifecycle of human tasks, called in order in
+	// the transaction of each change; an error of any rolls the change back.
+	TaskObservers []TaskObserver
+	Logger        *slog.Logger
 }
 
 func (c *Config) defaults() error {
@@ -505,6 +516,10 @@ var (
 	ErrTaskClosed   = errors.New("extruntime workflow: task is no longer open")
 	ErrForbidden    = errors.New("extruntime workflow: actor may not perform this action")
 	ErrInvalid      = errors.New("extruntime workflow: invalid request")
+	// ErrAlreadyDecided: each user decides a task once.
+	ErrAlreadyDecided = errors.New("extruntime workflow: actor already decided this task")
+	// ErrDelegation: the task does not allow delegation, or not to that user.
+	ErrDelegation = errors.New("extruntime workflow: delegation is not allowed")
 )
 
 // Fencing errors surface to the worker as wire errors that end the run.

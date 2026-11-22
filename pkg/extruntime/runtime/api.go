@@ -600,6 +600,49 @@ func (a *API) decideTask(w http.ResponseWriter, r *http.Request, actor spi.Subje
 	return http.StatusNoContent, nil, a.svc.DecideTask(r.Context(), actor, id, in.Decision)
 }
 
+func (a *API) delegateTask(w http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	id, err := uuidVar(r, "id")
+	if err != nil {
+		return 0, nil, err
+	}
+	var in delegateRequest
+	if err := decode(r, w, &in); err != nil {
+		return 0, nil, err
+	}
+	return http.StatusNoContent, nil, a.svc.DelegateTask(r.Context(), actor, id, in.To, in.Comment)
+}
+
+func (a *API) taskInbox(_ http.ResponseWriter, r *http.Request, actor spi.Subject) (int, any, error) {
+	q := r.URL.Query()
+	f := workflow.TaskFilter{Workflow: q.Get("workflow")}
+	if v := q.Get("status"); v != "" {
+		f.Status = strings.Split(v, ",")
+	}
+	if v := q.Get("overdue"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid overdue")
+		}
+		f.Overdue = &b
+	}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid limit")
+		}
+		f.Limit = n
+	}
+	if v := q.Get("after"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return 0, nil, serrors.New(serrors.Invalid, "invalid after")
+		}
+		f.After = &id
+	}
+	out, err := a.svc.Tasks(r.Context(), actor, f)
+	return http.StatusOK, out, err
+}
+
 // reference serves the live API reference to the configurator. The route
 // requires Extensions.Read, so the model is the full one; it is still built
 // for the actor, which keeps the reader's locale. The Help Center and the MCP
