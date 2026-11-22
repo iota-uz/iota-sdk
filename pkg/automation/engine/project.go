@@ -179,12 +179,32 @@ func (p *projector) known(ctx context.Context, event string) (bool, error) {
 	return ok, nil
 }
 
+// resolvable reports whether the catalog still classifies a stored reference: its event is known and
+// its path is (under) a sensitive path of the event now. A field the event lost, or one no longer
+// marked sensitive, has no access rule left to check it by, so it is not treated as readable.
+func (p *projector) resolvable(ctx context.Context, ref sensitiveRef) (bool, error) {
+	ok, err := p.known(ctx, ref.Event)
+	if err != nil || !ok {
+		return false, err
+	}
+	sensitive, err := p.hiddenPaths(ctx, ref.Event, nil)
+	if err != nil {
+		return false, err
+	}
+	for _, h := range sensitive {
+		if h == ref.Path || strings.HasPrefix(ref.Path, h+".") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // readable reports whether the viewer may read every sensitive field of refs. It fails closed: a
 // reference to an event the tenant's catalog no longer has (its connector left) cannot be checked, so
 // what derives from it is not shown.
 func (p *projector) readable(ctx context.Context, refs []sensitiveRef, viewer *spi.Subject) (bool, error) {
 	for _, ref := range refs {
-		ok, err := p.known(ctx, ref.Event)
+		ok, err := p.resolvable(ctx, ref)
 		if err != nil || !ok {
 			return false, err
 		}

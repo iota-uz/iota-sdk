@@ -156,6 +156,24 @@ func (x *execution) refreshSubject(ctx context.Context) error {
 	return nil
 }
 
+// checkRetained refuses to step a run whose run-as may no longer read a sensitive field the run already
+// read: its trigger input, token outputs and foreach items may hold it in any form, so nothing is
+// evaluated with them. The run is retried as a platform failure and blocks (failing) after the
+// workflow engine's retries; it resumes once the right is back.
+func (x *execution) checkRetained(ctx context.Context) error {
+	if len(x.run.Sensitive) == 0 {
+		return nil
+	}
+	ok, err := x.r.projector(x.tenant).readable(ctx, x.run.Sensitive, &x.subject)
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
+	if !ok {
+		return &host.InfraError{Err: fmt.Errorf("run %s: its run-as may no longer read a sensitive field the run read; the run waits for the right", x.run.ID)}
+	}
+	return nil
+}
+
 func (x *execution) interp(ctx context.Context) (*interpEntry, error) {
 	if x.ie != nil {
 		return x.ie, nil
@@ -246,6 +264,13 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 	n := x.run.TxSeq
 	if err := x.refreshSubject(ctx); err != nil {
 		return err
+	}
+	switch label {
+	case "release", "fail": // cleanup and failing the run evaluate nothing
+	default:
+		if err := x.checkRetained(ctx); err != nil {
+			return err
+		}
 	}
 	_, err := x.nr.Transaction(ctx, "tx", int(n), func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		if err := lockSubjects(ctx, tx, subjectLockKey(x.tenant, x.run.Subject, x.run.ID)); err != nil {

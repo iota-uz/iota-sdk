@@ -78,11 +78,15 @@ type scheduleGen struct {
 
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
 
-// isTick reports whether at is a planned time of the cron in the time zone.
+// isTick reports whether at is a planned time of the cron in the time zone. An interval (@every) has
+// no calendar of its own (the scheduler plans it from its own anchor): every slot it plans is one.
 func isTick(p scheduleParams, at time.Time) bool {
 	spec, err := cronParser.Parse(p.Cron)
 	if err != nil {
 		return false
+	}
+	if _, interval := spec.(cron.ConstantDelaySchedule); interval {
+		return true
 	}
 	loc := time.UTC
 	if p.Timezone != "" {
@@ -133,9 +137,11 @@ func (r *Runtime) runSlot(ctx context.Context, tx pgx.Tx, slot events.Slot, gen 
 		return nil
 	}
 	if tversion != gen.version || !since.Equal(gen.since) {
-		// The definition this handler was listed with is not the current one: the slot is retried with
-		// the handler of the current listing, which judges it by the current trigger.
-		return fmt.Errorf("automation engine: schedule %s was enabled again; the slot is retried with the current definition", slot.ScheduleID)
+		// The definition this handler was listed with is not the current one. The slot is judged by the
+		// current trigger below (its activation and its cron), not handed back: a retry would spend the
+		// scheduler's attempts on a slot the current enable may run.
+		r.cfg.Logger.Debug("automation: schedule slot of an earlier listing, judged by the current trigger",
+			"schedule", slot.ScheduleID, "listed_version", gen.version, "version", tversion)
 	}
 	var p scheduleParams
 	if err := json.Unmarshal(raw, &p); err != nil {
