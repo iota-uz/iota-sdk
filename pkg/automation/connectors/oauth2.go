@@ -231,7 +231,7 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 	if err != nil {
 		return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
 	}
-	return OAuth2Grant{Kind: st.Kind, Identity: identity, Credentials: creds}, nil
+	return OAuth2Grant{Kind: st.Kind, Identity: SafeIdentity(identity, allSecret, creds), Credentials: creds}, nil
 }
 
 func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
@@ -250,7 +250,12 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 		}
 		for _, c := range existing {
 			if c.Identity.External == identity.External {
-				c.Identity, c.Status, c.StatusReason = identity, StatusConnected, ""
+				_, old, err := o.s.load(ctx, o.s.db, tenantID, c.ID, false)
+				if err != nil {
+					return Connection{}, serrors.Wrap(op, err)
+				}
+				c = scrubAcrossChange(c, old, creds)
+				c.Identity, c.Status, c.StatusReason = SafeIdentity(identity, allSecret, creds, old), StatusConnected, ""
 				saved, err := o.s.Save(ctx, c, creds)
 				return saved, serrors.Wrap(op, err)
 			}
@@ -371,6 +376,10 @@ func (o *oauth) Token(ctx context.Context, tenantID, connectionID uuid.UUID) (st
 			return tokenError(err)
 		}
 		next := tokenCredentials(tok, creds)
+		// The tokens change and the metadata stays: once the old token is gone it could no longer be
+		// recognised in the display name or the identity, so they are checked against both now (a row
+		// written before this check included).
+		c = scrubAcrossChange(c, creds, next)
 		identity, _ := json.Marshal(c.Identity)
 		if _, err := o.s.update(ctx, tx, c, identity, next); err != nil {
 			return err
@@ -394,4 +403,19 @@ func (o *oauth) markReauth(ctx context.Context, tx pgx.Tx, c Connection, reason 
 		*reauth = true
 	}
 	return err
+}
+
+// allSecret treats every field as secret: a token set has no public fields.
+func allSecret(string) bool { return true }
+
+// scrubAcrossChange is c with the metadata it keeps across a credential change cleared where it carries
+// a value of the old or the new credentials: the display name (the name stays: it is chosen by an
+// administrator or derived from the kind, never from a provider, and references resolve by it) and the
+// identity (SafeIdentity).
+func scrubAcrossChange(c Connection, old, next Credentials) Connection {
+	if CarriesSecret(c.DisplayName, allSecret, old, next) {
+		c.DisplayName = c.Name
+	}
+	c.Identity = SafeIdentity(c.Identity, allSecret, old, next)
+	return c
 }

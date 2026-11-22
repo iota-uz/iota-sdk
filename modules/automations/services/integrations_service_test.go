@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
@@ -972,7 +973,7 @@ func TestCredentialReplacementScrubsMetadataCarryingTheOldSecret(t *testing.T) {
 	e := newEnv(t)
 	const old = "oldpw1"
 	c, err := e.store.Save(e.ctx, connectors.Connection{
-		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "n_" + old, DisplayName: "docs " + old,
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "legacy_row", DisplayName: "docs " + old,
 		Identity: connectors.Identity{Display: "@acct_" + old, Kind: connectors.IdentityHandle}, Status: connectors.StatusConnected,
 	}, connectors.Credentials{"token": old})
 	require.NoError(t, err)
@@ -982,13 +983,15 @@ func TestCredentialReplacementScrubsMetadataCarryingTheOldSecret(t *testing.T) {
 
 	got, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.ID, Version: c.Version, Credentials: map[string]any{"token": goodToken}})
 	require.NoError(t, err)
-	assert.NotContains(t, fmt.Sprintf("%+v", got), old, "the update's answer")
+	assert.NotContains(t, got.Connection.DisplayName+got.Connection.Identity.Display, old, "the update's answer")
+	assert.Equal(t, "legacy_row", got.Connection.Name, "the name is an identifier: never changed")
 	after, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
 	require.NoError(t, err)
-	assert.NotContains(t, fmt.Sprintf("%+v", after), old, "later lists")
+	shown := after[0].Connections[0].Connection
+	assert.NotContains(t, shown.DisplayName+shown.Identity.Display+shown.Identity.External, old, "later lists")
 	stored, _, err := e.store.Get(e.ctx, e.tenant, c.ID)
 	require.NoError(t, err)
-	assert.NotContains(t, stored.DisplayName+stored.Name+stored.Identity.Display, old, "nothing of the old secret is kept")
+	assert.NotContains(t, stored.DisplayName+stored.Identity.Display, old, "the display name and identity keep nothing of it")
 }
 
 // A re-authorization replaces the tokens: retained metadata carrying the old token is scrubbed too.
@@ -996,7 +999,7 @@ func TestReauthorizationScrubsMetadataCarryingTheOldToken(t *testing.T) {
 	e := newEnv(t)
 	const old = "oldtok9"
 	c, err := e.store.Save(e.ctx, connectors.Connection{
-		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "drive_" + old, DisplayName: "docs " + old, Status: connectors.StatusNeedsReauth,
+		TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "legacy_drive", DisplayName: "docs " + old, Status: connectors.StatusNeedsReauth,
 	}, connectors.Credentials{"token": old})
 	require.NoError(t, err)
 	e.oauth.token = "newtok8"
@@ -1004,8 +1007,35 @@ func TestReauthorizationScrubsMetadataCarryingTheOldToken(t *testing.T) {
 	saved, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "re", "code")
 	require.NoError(t, err)
 	assert.Equal(t, c.ID, saved.ID)
-	assert.NotContains(t, saved.DisplayName+saved.Name, old)
+	assert.NotContains(t, saved.DisplayName, old)
+	assert.Equal(t, "legacy_drive", saved.Name, "the name is never changed")
 	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{WithFields: true})
 	require.NoError(t, err)
-	assert.NotContains(t, fmt.Sprintf("%+v", list), old)
+	shown := list[0].Connections[0].Connection
+	assert.NotContains(t, shown.DisplayName+shown.Identity.Display, old)
+}
+
+// A credential rotation never changes the name: package secrets and nodes refer to the connection by
+// it. A short credential found inside the name (sales_bot) changes nothing.
+func TestCredentialRotationKeepsTheNameReferencesResolveBy(t *testing.T) {
+	e := newEnv(t)
+	e.tg.accept = "sal"
+	c, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", DisplayName: "Sales bot", Credentials: map[string]any{"token": "sal"}})
+	require.NoError(t, err)
+	got, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.Connection.ID, Version: c.Connection.Version, Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err)
+	assert.Equal(t, "sales_bot", got.Connection.Name)
+	stored, _, err := e.store.Get(e.ctx, e.tenant, c.Connection.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "sales_bot", stored.Name)
+	list, err := e.svc.List(e.ctx, e.actor(), services.ListOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "sales_bot", list[0].Connections[0].Connection.Name)
+
+	// The reference <name>.<field> still resolves, to the new value.
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(telegramConnector(t)))
+	v, err := connectors.SecretResolver(e.store, dir, nil).Secret(e.ctx, spi.Scope{Subject: spi.Subject{TenantID: e.tenant}}, "sales_bot.token")
+	require.NoError(t, err)
+	assert.Equal(t, goodToken, v)
 }

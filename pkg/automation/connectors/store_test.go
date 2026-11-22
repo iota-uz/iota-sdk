@@ -819,3 +819,43 @@ func TestSecretResolverChecksTheRowItReads(t *testing.T) {
 	require.ErrorIs(t, err, connectors.ErrNotFound)
 	assert.Empty(t, v)
 }
+
+// An automatic refresh replaces the tokens and keeps the metadata: a display name or identity that
+// carries the old access token — a row written before this check, through the public Save — is cleared
+// as the token changes, since the old token could not be recognised in it afterwards. The name stays.
+func TestRefreshScrubsMetadataCarryingTheOldToken(t *testing.T) {
+	e := newEnv(t)
+	ts := newTokenServer(t)
+	conn := telegramConnector(t)
+	conn.kind = "google_sheets"
+	conn.nodes, conn.sources = nil, nil
+	conn.auth = connectors.AuthOAuth2
+	conn.oauth = &connectors.OAuth2Config{AuthURL: ts.URL + "/auth", TokenURL: ts.URL + "/token", ClientCredential: "google_client"}
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(conn))
+	platform := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		"google_client": {Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}},
+	})
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, platform, nil)
+	o, err := connectors.NewOAuth2(store, dir, platform, connectors.WithHTTPClient(ts.Client()))
+	require.NoError(t, err)
+
+	// A legacy row: the provider's display, with the access token in it, copied into the metadata.
+	legacy, err := store.Save(e.ctx, connectors.Connection{
+		TenantID: e.tenant, Kind: "google_sheets", Name: "sheets_access", DisplayName: "docs access-1",
+		Identity: connectors.Identity{Display: "@access_1", External: "acct access-1", Kind: connectors.IdentityHandle},
+		Status:   connectors.StatusConnected,
+	}, connectors.Credentials{"access_token": "access-1", "refresh_token": "refresh-1", "expires_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339)})
+	require.NoError(t, err)
+
+	tok, err := o.Token(e.ctx, e.tenant, legacy.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "access-2", tok, "refreshed")
+	got, creds, err := store.Get(e.ctx, e.tenant, legacy.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "access-2", creds["access_token"])
+	assert.NotContains(t, got.DisplayName, "access-1")
+	assert.NotContains(t, got.Identity.External, "access-1")
+	assert.Equal(t, "sheets_access", got.Name, "the name is never changed")
+	assert.Equal(t, "sheets_access", got.DisplayName, "the display falls back to the name")
+}

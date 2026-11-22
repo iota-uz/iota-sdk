@@ -868,22 +868,21 @@ func (s *IntegrationsService) entry(ctx context.Context, tenantID uuid.UUID, c c
 	return s.reveal(ctx, tenantID, e, withFields)
 }
 
-// scrubRetained clears metadata a connection keeps across a credential change when it carries a value
-// of the old or the new credentials: the display name (the store falls back to the name) and the name
-// (replaced by one made from the connection's ID).
+// scrubRetained clears the display name a connection keeps across a credential change when it carries
+// a value of the old or the new credentials (the store falls back to the name). The name itself is never
+// changed: an administrator chose it (or it was derived from the kind, never from a provider) and
+// package secrets and nodes refer to the connection by it.
 func scrubRetained(c *connectors.Connection, secret secretSet, old, next connectors.Credentials) {
 	if carriesSecret(c.DisplayName, secret, old, next) {
 		c.DisplayName = ""
-	}
-	if carriesSecret(c.Name, secret, old, next) {
-		c.Name = "connection_" + strings.ReplaceAll(c.ID.String(), "-", "")[:12]
 	}
 }
 
 // reveal is the output boundary of a connection: whatever wrote the row (this service, Store.Save,
 // OAuth2.Complete of the shared connector API), what leaves the service is checked against the
-// connection's current credentials — the identity by validIdentity, the display name and the name by
-// carriesSecret; what fails is emptied. A row whose credentials cannot be read shows no identity and
+// connection's current credentials — the identity by validIdentity, the display name by carriesSecret;
+// what fails is emptied. The name is shown as stored: it is an identifier an administrator chose
+// (references resolve by it), never provider text. A row whose credentials cannot be read shows no identity and
 // no display name, since it cannot be checked.
 func (s *IntegrationsService) reveal(ctx context.Context, tenantID uuid.UUID, e ConnectionEntry, withFields bool) (ConnectionEntry, error) {
 	// Metadata and credentials come from the same read of the row: a list read earlier may predate a
@@ -908,9 +907,6 @@ func (s *IntegrationsService) reveal(ctx context.Context, tenantID uuid.UUID, e 
 	e.Connection.Identity = validIdentity(c.Identity, secret, creds)
 	if carriesSecret(c.DisplayName, secret, creds) {
 		e.Connection.DisplayName = ""
-	}
-	if carriesSecret(c.Name, secret, creds) {
-		e.Connection.Name = ""
 	}
 	if withFields && known {
 		e.Fields = connectors.RedactedCredentials(conn.Descriptor(), creds)
