@@ -3,6 +3,7 @@ package connectors
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"sync"
 
@@ -129,9 +130,13 @@ func ValidateCredentials(d Descriptor, c Credentials) error {
 	if err != nil {
 		return fmt.Errorf("%w: credentials schema: %v", ErrInvalid, err)
 	}
+	// Credentials are strings (in the form, on the wire and stored); a property the schema declares as
+	// integer, number or boolean is validated as that scalar read from its text, so its exact digits are
+	// kept. Text that is not such a scalar stays a string and fails the type.
+	types := propertyTypes(d.Credentials)
 	raw := make(map[string]any, len(c))
 	for k, v := range c {
-		raw[k] = v
+		raw[k] = scalar(types[k], v)
 	}
 	if _, issues := p.Parse(raw); len(issues) > 0 {
 		fields := make([]string, 0, len(issues))
@@ -145,6 +150,40 @@ func ValidateCredentials(d Descriptor, c Credentials) error {
 		return fmt.Errorf("%w: credentials: check %v", ErrInvalid, fields)
 	}
 	return nil
+}
+
+func propertyTypes(schema json.RawMessage) map[string]string {
+	var doc struct {
+		Properties map[string]struct {
+			Type json.RawMessage `json:"type"`
+		} `json:"properties"`
+	}
+	if json.Unmarshal(schema, &doc) != nil {
+		return nil
+	}
+	out := make(map[string]string, len(doc.Properties))
+	for k, p := range doc.Properties {
+		var t string
+		if json.Unmarshal(p.Type, &t) == nil {
+			out[k] = t
+		}
+	}
+	return out
+}
+
+var (
+	integerText = regexp.MustCompile(`^-?(0|[1-9][0-9]*)$`)
+	numberText  = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
+)
+
+func scalar(typ, v string) any {
+	switch {
+	case typ == "integer" && integerText.MatchString(v), typ == "number" && numberText.MatchString(v):
+		return json.Number(v)
+	case typ == "boolean" && (v == "true" || v == "false"):
+		return v == "true"
+	}
+	return v
 }
 
 // RedactedCredentials is what a client may see of credentials: the fields the credentials schema

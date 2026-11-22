@@ -50,12 +50,27 @@ const (
 	PlatformOptIn PlatformPolicy = "opt_in"
 )
 
+// Category groups connectors on the integrations page; empty is CategoryOther.
+type Category string
+
+const (
+	CategoryMessaging Category = "messaging"
+	CategoryEmail     Category = "email"
+	CategoryAI        Category = "ai"
+	CategoryDocuments Category = "documents"
+	CategoryOther     Category = "other"
+)
+
 // Descriptor describes a connector for the integrations page and the store.
 type Descriptor struct {
 	Kind  catalog.ConnectorKind
 	Title manifest.Label
-	Icon  string
-	Auth  AuthKind
+	// Description is one line on the connector's card (optional).
+	Description manifest.Label
+	// Category groups the card (empty: CategoryOther).
+	Category Category
+	Icon     string
+	Auth     AuthKind
 	// Credentials is the JSON Schema of the credentials form; a property with "x-secret": true is never
 	// returned to a client.
 	Credentials json.RawMessage
@@ -71,7 +86,20 @@ type Credentials = catalog.Credentials
 type Identity struct {
 	Display  string `json:"display"`
 	External string `json:"external"` // the provider's identifier
+	// Kind declares what Display is: a provider-issued public identifier of a known shape. Only a typed
+	// Display (handle, email, phone) is shown to people; an untyped one is kept out of every response,
+	// since free text from a provider may carry the credentials it was given.
+	Kind IdentityKind `json:"kind,omitempty"`
 }
+
+// IdentityKind is the type of a public identity.
+type IdentityKind string
+
+const (
+	IdentityHandle IdentityKind = "handle" // @name: a bot or account handle
+	IdentityEmail  IdentityKind = "email"
+	IdentityPhone  IdentityKind = "phone" // digits, optionally with + and separators
+)
 
 // ConnectionStatus is the state of a connection.
 type ConnectionStatus string
@@ -213,15 +241,37 @@ type OAuth2Config struct {
 	ClientCredential string
 }
 
+// OAuth2Grant is an exchanged authorization: the connector kind of the state, who the token belongs
+// to and the credentials to save.
+type OAuth2Grant struct {
+	Kind        catalog.ConnectorKind
+	Identity    Identity
+	Credentials Credentials
+}
+
 // OAuth2 authorizes connections and keeps their tokens fresh.
 type OAuth2 interface {
 	// Begin returns the provider's authorization URL and the state to check on the callback.
 	Begin(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind, redirectURL string) (authURL string, state string, err error)
 	// Complete exchanges the code and saves the connection (a new one, or the one of the same identity).
 	Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error)
+	// Exchange exchanges the code and checks the token with the connector without saving anything: the
+	// caller saves the connection it chose (a re-authorization of a given connection, a new one under a
+	// given name).
+	Exchange(ctx context.Context, tenantID uuid.UUID, state, code string) (OAuth2Grant, error)
 	// Token is a valid access token, refreshed 15 minutes before it expires under the row lock; when
 	// the provider refuses the refresh the connection becomes needs_reauth and ErrNeedsReauth is returned.
 	Token(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error)
+}
+
+// OAuth2Checker is an OAuth2 that can refresh the token of a disabled connection, to check it before it
+// is enabled again. The built-in OAuth2 implements it; a caller asserts it and falls back to the stored
+// token without it.
+type OAuth2Checker interface {
+	// CheckToken is Token for a disabled connection: an expiring access token is refreshed and stored
+	// and the status is kept (disabled). A refused refresh is ErrNeedsReauth and writes nothing, so the
+	// caller records the outcome of its check with its own versioned save.
+	CheckToken(ctx context.Context, tenantID, connectionID uuid.UUID) (string, error)
 }
 
 var (
@@ -236,6 +286,8 @@ var (
 	ErrNotConnected = errors.New("automation connections: connection is not connected")
 	// ErrUndecryptable: the credentials do not decrypt (a row changed outside the store).
 	ErrUndecryptable = errors.New("automation connections: credentials do not decrypt")
+	// ErrOAuth2Refused: the connector refused the token the provider issued (Exchange, Complete).
+	ErrOAuth2Refused = errors.New("automation connections: the connector refused the new token")
 	// ErrInvalid: a connection or an argument the store refuses.
 	ErrInvalid = errors.New("automation connections: invalid")
 )

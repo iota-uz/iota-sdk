@@ -487,7 +487,20 @@ export function createWorkflowContext(deps: Deps) {
     },
     async task(
       name: string,
-      spec: { subject: unknown; assignee: unknown; decision: { type: unknown }; timeout?: string },
+      spec: {
+        subject: unknown;
+        assignee?: unknown;
+        decision: { type: unknown };
+        timeout?: string;
+        // Quorum, delegation and escalation (#1327): passed through as the
+        // host call expects them.
+        assignees?: unknown[];
+        required?: number;
+        outcomes?: string[];
+        veto?: string[];
+        escalation?: { add?: unknown[]; extend?: string }[];
+        allowDelegation?: boolean;
+      },
     ): Promise<unknown> {
       const n = next(name);
       const hit = replayed(name, n, "task");
@@ -495,9 +508,22 @@ export function createWorkflowContext(deps: Deps) {
       await quiesce();
       return call("wf.task", name, n, {
         subject: spec.subject,
-        assignee: assignee(spec.assignee),
+        ...(spec.assignee === undefined ? {} : { assignee: assignee(spec.assignee) }),
+        ...(spec.assignees === undefined ? {} : { assignees: spec.assignees.map(assignee) }),
         decision: spec.decision.type,
         ...(spec.timeout === undefined ? {} : { timeout: spec.timeout }),
+        ...(spec.required === undefined ? {} : { required: spec.required }),
+        ...(spec.outcomes === undefined ? {} : { outcomes: spec.outcomes }),
+        ...(spec.veto === undefined ? {} : { veto: spec.veto }),
+        ...(spec.escalation === undefined
+          ? {}
+          : {
+              escalation: spec.escalation.map((step) => ({
+                ...(step.add === undefined ? {} : { add: step.add.map(assignee) }),
+                ...(step.extend === undefined ? {} : { extend: step.extend }),
+              })),
+            }),
+        ...(spec.allowDelegation === undefined ? {} : { allowDelegation: spec.allowDelegation }),
       });
     },
     async call(name: string, command: Resource, input: unknown): Promise<unknown> {

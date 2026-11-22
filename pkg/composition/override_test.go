@@ -1036,3 +1036,23 @@ func TestProvideDefaultAs_PanicsWhenTargetNotInterface(t *testing.T) {
 		})
 	})
 }
+
+// Has reports a registration without resolving it.
+func TestHas_ReportsRegistration(t *testing.T) {
+	type missing struct{}
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "c"},
+		build: func(builder *Builder) error {
+			Provide[*overrideRepo](builder, func() *overrideRepo { return &overrideRepo{} })
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	require.True(t, Has[*overrideRepo](container))
+	require.False(t, Has[*missing](container))
+	require.False(t, Has[*overrideRepo](nil))
+}

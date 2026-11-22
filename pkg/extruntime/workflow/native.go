@@ -131,7 +131,8 @@ type NativeRun interface {
 	// current instance as parent.
 	Start(ctx context.Context, name string, n int, workflow string, input json.RawMessage, opts StartOptions) (uuid.UUID, error)
 	// Cancel cancels a waiting occurrence, and its task when it is one. A
-	// repeat (or an occurrence that is not waiting) is a no-op.
+	// repeat (or an occurrence that is not waiting) is a no-op, and so is the
+	// cancel of a task that already closed: Task then returns its outcome.
 	Cancel(ctx context.Context, name string, n int) error
 	// Lookup reads the journal on demand.
 	Lookup(ctx context.Context, name string, n int) (Occurrence, bool, error)
@@ -156,58 +157,6 @@ type StartOptions struct {
 	// Subject is who the child acts as; nil: the parent's subject. It must
 	// belong to the parent's tenant.
 	Subject *spi.Subject
-}
-
-// Task assignee kinds of a TaskSpec. #1327 adds roles and groups.
-const (
-	TaskAssignUser       = "user"
-	TaskAssignPermission = "permission"
-)
-
-// TaskAssignee is one assignee of a human task.
-type TaskAssignee struct {
-	// Kind is TaskAssignUser (UserID) or TaskAssignPermission (Ref is the
-	// permission name).
-	Kind   string
-	UserID *int64
-	Ref    string
-}
-
-// TaskSpec describes a human task. Assignees and Required are lists from the
-// start so that quorum tasks do not change the call; for now exactly one
-// assignee (user or permission) and Required == 1 are accepted.
-type TaskSpec struct {
-	Assignees []TaskAssignee
-	// Required is the quorum; 0 means 1.
-	Required int
-	Decision *manifest.Type
-	// Timeout 0: none.
-	Timeout time.Duration
-	Subject *spi.ObjectRef
-	Title   manifest.Label
-}
-
-// Task outcomes.
-const (
-	TaskDecided   = "decided"
-	TaskTimeout   = "timeout"
-	TaskCancelled = "cancelled"
-)
-
-// TaskResult is the outcome of a Task.
-type TaskResult struct {
-	Outcome  string          `json:"outcome"`
-	Decision json.RawMessage `json:"decision,omitempty"`
-	By       *int64          `json:"by,omitempty"`
-	// Decisions are every decision that made the quorum; one for now.
-	Decisions []TaskDecision `json:"decisions,omitempty"`
-}
-
-// TaskDecision is one decision of a task.
-type TaskDecision struct {
-	UserID    int64           `json:"userId"`
-	Decision  json.RawMessage `json:"decision"`
-	DecidedAt time.Time       `json:"decidedAt"`
 }
 
 // fencedError is a fencing failure as a native runner sees it.
@@ -503,98 +452,6 @@ func (r *nativeRun) Sleep(ctx context.Context, name string, n int, d time.Durati
 	return nil
 }
 
-func (r *nativeRun) Task(ctx context.Context, name string, n int, spec TaskSpec) (TaskResult, error) {
-	o, ok, err := r.lookup(ctx, name, n, KindTask)
-	if err != nil {
-		return TaskResult{}, err
-	}
-	switch {
-	case ok && o.Status == OccCancelled:
-		return TaskResult{Outcome: TaskCancelled}, nil
-	case ok && o.Status == OccCompleted:
-		var tr TaskResult
-		if err := json.Unmarshal(o.Result, &tr); err != nil {
-			return TaskResult{}, internalErr("workflow.corruptJournal", "occurrence %s#%d has an unreadable result", name, n)
-		}
-		return tr, nil
-	case ok && o.Status != OccWaiting:
-		return TaskResult{}, r.rs.nondeterminism(name, n, KindTask, o)
-	}
-	row, err := taskRowOf(spec)
-	if err != nil {
-		return TaskResult{}, err
-	}
-	result, _, err := r.e.taskRecord(ctx, r.rs, name, n, row, o, ok, renderNativeTask)
-	if err != nil {
-		return TaskResult{}, r.exit(err)
-	}
-	if result == nil {
-		return TaskResult{}, suspended("task", name, n)
-	}
-	var tr TaskResult
-	if err := json.Unmarshal(result, &tr); err != nil {
-		return TaskResult{}, internalErr("workflow.corruptJournal", "occurrence %s#%d has an unreadable result", name, n)
-	}
-	return tr, nil
-}
-
-// taskRowOf validates a TaskSpec: one user or permission assignee and a
-// quorum of one, until #1327 adds the rest.
-func taskRowOf(spec TaskSpec) (taskRow, error) {
-	if len(spec.Assignees) != 1 {
-		return taskRow{}, invalidAssignee("a task needs exactly one assignee, got %d", len(spec.Assignees))
-	}
-	if spec.Required != 0 && spec.Required != 1 {
-		return taskRow{}, invalidAssignee("a task needs one decision, got a quorum of %d", spec.Required)
-	}
-	row := taskRow{timeout: spec.Timeout, hasTimeout: spec.Timeout > 0}
-	switch a := spec.Assignees[0]; a.Kind {
-	case TaskAssignUser:
-		if a.UserID == nil || a.Ref != "" {
-			return taskRow{}, invalidAssignee("a user assignee needs UserID and no Ref")
-		}
-		id := *a.UserID
-		row.assignee = resolvedAssignee{kind: TaskAssigneeUser, userID: &id}
-	case TaskAssignPermission:
-		if a.Ref == "" || a.UserID != nil {
-			return taskRow{}, invalidAssignee("a permission assignee needs Ref and no UserID")
-		}
-		row.assignee = resolvedAssignee{kind: TaskAssigneePermission, permission: a.Ref}
-	default:
-		return taskRow{}, invalidAssignee("assignee kind %q is not supported", a.Kind)
-	}
-	if spec.Subject != nil {
-		row.subject = *spec.Subject
-	}
-	if spec.Decision != nil {
-		row.schema = marshal(spec.Decision)
-	}
-	if len(spec.Title) > 0 {
-		row.title = marshal(spec.Title)
-	}
-	return row, nil
-}
-
-func renderNativeTask(t taskState) (json.RawMessage, bool) {
-	switch t.status {
-	case "decided":
-		tr := TaskResult{Outcome: TaskDecided, Decision: nonNull(t.decision), By: t.decidedBy}
-		if t.decidedBy != nil {
-			d := TaskDecision{UserID: *t.decidedBy, Decision: nonNull(t.decision)}
-			if t.decidedAt != nil {
-				d.DecidedAt = t.decidedAt.UTC()
-			}
-			tr.Decisions = []TaskDecision{d}
-		}
-		return marshal(tr), true
-	case "expired":
-		return marshal(TaskResult{Outcome: TaskTimeout}), true
-	case "cancelled":
-		return marshal(TaskResult{Outcome: TaskCancelled}), true
-	}
-	return nil, false
-}
-
 func (r *nativeRun) Effect(ctx context.Context, name string, n int, fn func(ctx context.Context, a EffectAttempt) (json.RawMessage, error)) (json.RawMessage, error) {
 	o, ok, err := r.lookup(ctx, name, n, KindStep)
 	if err != nil {
@@ -853,6 +710,22 @@ func (r *nativeRun) Cancel(ctx context.Context, name string, n int) error {
 		return nil
 	}
 	err = r.e.inFence(ctx, r.rs, func(tx pgx.Tx) (func(), error) {
+		if o.Kind == KindTask {
+			// A task that closed (decided, expired) before the cancel keeps its
+			// outcome: the occurrence stays waiting and the next Task returns
+			// it, so the workflow never reports another outcome than the task.
+			var status string
+			err := tx.QueryRow(ctx, `
+				SELECT status FROM extruntime.human_tasks
+				WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 FOR UPDATE`,
+				r.rs.inst.ID, r.rs.inst.TenantID, name, n).Scan(&status)
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, serrors.FromDB(opNative, err)
+			}
+			if err == nil && status != "open" {
+				return func() {}, nil // nothing to apply: the occurrence stays waiting
+			}
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE extruntime.workflow_occurrences SET status = 'cancelled', wake_at = NULL, updated_at = now()
 			WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 AND status = 'waiting'`,
@@ -860,11 +733,8 @@ func (r *nativeRun) Cancel(ctx context.Context, name string, n int) error {
 			return nil, serrors.FromDB(opNative, err)
 		}
 		if o.Kind == KindTask {
-			if _, err := tx.Exec(ctx, `
-				UPDATE extruntime.human_tasks SET status = 'cancelled'
-				WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4 AND status = 'open'`,
-				r.rs.inst.ID, r.rs.inst.TenantID, name, n); err != nil {
-				return nil, serrors.FromDB(opNative, err)
+			if err := r.e.cancelTasks(ctx, tx, r.rs.inst.TenantID, r.rs.inst.ID, &occKey{name: name, n: n}); err != nil {
+				return nil, &host.InfraError{Err: err}
 			}
 		}
 		cancelled := o

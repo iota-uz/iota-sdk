@@ -143,9 +143,19 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil && !composition.IsNotProvided(err) {
 			return nil, err
 		}
+		// Without Secrets in the configuration, the resolver a module provides
+		// (the automations module serves connection secrets) answers secrets.get.
+		cfg := c.cfg
+		if cfg.Secrets == nil && composition.Has[host.SecretResolver](container) {
+			secrets, err := composition.Resolve[host.SecretResolver](container)
+			if err != nil {
+				return nil, err
+			}
+			cfg.Secrets = secrets
+		}
 		// The Go defaults of native contracts resolve their services from the
 		// container when first invoked.
-		return New(c.cfg, Deps{
+		return New(cfg, Deps{
 			DB: db, Dispatch: dispatch, Notices: notices, Renderers: renderers, Contacts: contacts, Policies: policies, Users: users,
 			NativeDeps: container, Dispatcher: outbox, Workflows: engine, Scheduler: scheduler,
 			// Without the core, Go consumers contributed to the container are

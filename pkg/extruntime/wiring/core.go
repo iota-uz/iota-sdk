@@ -16,6 +16,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow/audience"
 )
 
 // coreConfig is what configures the core: the section and, with the runtime
@@ -212,6 +214,15 @@ func (c *component) buildCore(b *composition.Builder, natives *native.Set, core 
 			return nil, err
 		}
 		return &runtime.UserSubjects{Users: users, Universe: corePerms.Permissions, Pool: db}, nil
+	})
+	// Role and group assignees of human tasks are judged over the core's
+	// roles and groups; applications with their own user model replace it.
+	composition.ProvideDefault[workflow.TaskAudience](b, func(container *composition.Container) (workflow.TaskAudience, error) {
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		return audience.New(db), nil
 	})
 	composition.Provide[*events.Dispatcher](b, func(container *composition.Container) (*events.Dispatcher, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)

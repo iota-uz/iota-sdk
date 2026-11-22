@@ -55,3 +55,42 @@ func TestEmptyKeysIsNoKeyring(t *testing.T) {
 		t.Fatalf("the error shows the key: %v", err)
 	}
 }
+
+func TestPlatformCredentialsFromConfig(t *testing.T) {
+	t.Parallel()
+	cfg := automationconfig.Config{Platform: automationconfig.PlatformConfig{Credentials: `{"openai":{"api_key":"sk-secret"}}`}}
+	creds, err := cfg.PlatformCredentials()
+	if err != nil {
+		t.Fatalf("PlatformCredentials: %v", err)
+	}
+	if creds["openai"].Credentials["api_key"] != "sk-secret" {
+		t.Fatalf("credentials %v", creds)
+	}
+	cfg.Platform.Credentials = `{"openai":{"api_key":42}}`
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("a non-string field is accepted")
+	} else if strings.Contains(err.Error(), "42") {
+		t.Fatalf("the error shows the value: %v", err)
+	}
+}
+
+// JSON null anywhere and names that collide once trimmed are refused, without quoting names or values.
+func TestPlatformCredentialsRefusesNullAndCollisions(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{
+		`null`, `{"openai":null}`, `{"openai":{"api_key":null}}`, `{"openai":{"api_key":"a"}," openai ":{"api_key":"b"}}`,
+	} {
+		cfg := automationconfig.Config{Platform: automationconfig.PlatformConfig{Credentials: raw}}
+		_, err := cfg.PlatformCredentials()
+		if err == nil {
+			t.Fatalf("%s is accepted", raw)
+		}
+		if strings.Contains(err.Error(), "openai") || strings.Contains(err.Error(), "api_key") {
+			t.Fatalf("the error names the entry: %v", err)
+		}
+	}
+	cfg := automationconfig.Config{Platform: automationconfig.PlatformConfig{Credentials: `{"openai":{}}`}}
+	if _, err := cfg.PlatformCredentials(); err != nil {
+		t.Fatalf("an empty credential object: %v", err)
+	}
+}

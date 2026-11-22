@@ -1,0 +1,225 @@
+{
+  "Modules": {
+    "Automations": "Automations"
+  },
+  "NavigationLinks": {
+    "Integrations": "Integrations"
+  },
+  "Permissions": {
+    "Automations.Read": "View automations",
+    "Automations.Author": "Edit automations",
+    "Automations.Enable": "Enable automations",
+    "Automations.Operate": "Operate automation runs",
+    "Connections.Manage": "Manage integrations"
+  },
+  "PermissionSets": {
+    "Automations": {
+      "View": {
+        "Label": "View automations",
+        "_Description": "Open automations and their runs"
+      },
+      "Author": {
+        "Label": "Edit automations",
+        "_Description": "Create and change automation graphs and pick connections in their nodes"
+      },
+      "Enable": {
+        "Label": "Enable automations",
+        "_Description": "Turn automation versions on and off"
+      },
+      "Operate": {
+        "Label": "Operate runs",
+        "_Description": "Retry and cancel automation runs"
+      },
+      "ConnectionsManage": {
+        "Label": "Manage integrations",
+        "_Description": "Connect, check, disable and delete the organization's accounts in external services"
+      }
+    }
+  },
+  "Settings": {
+    "Hub": {
+      "Pages": {
+        "Integrations": {
+          "Name": "Integrations",
+          "Summary": "Connect external services that automations use"
+        }
+      }
+    }
+  },
+  "Automations": {
+    "Integrations": {
+      "Title": "Integrations",
+      "Subtitle": "Accounts in external services that your automations work with.",
+      "NotConfigured": "Connections cannot be saved: the application has no encryption key configured. Ask the administrator of the application to set it up.",
+      "Empty": {
+        "Title": "Integrations are not set up in this application",
+        "Text": "Integrations appear here when the application registers connectors."
+      },
+      "LoadFailed": "Could not load integrations.",
+      "Offline": "No connection to the server.",
+      "Retry": "Retry",
+      "Auth": {
+        "api_key": "API key",
+        "basic": "Login and password",
+        "oauth2": "Sign-in with the service",
+        "custom": "Connection settings"
+      },
+      "Status": {
+        "connected": "Connected",
+        "needs_reauth": "Sign-in required",
+        "error": "Error",
+        "disabled": "Disabled"
+      },
+      "NoConnections": "No connections yet.",
+      "NodesUnlock": "Connect an account to use: {nodes}.",
+      "Connect": "Connect",
+      "ConnectAnother": "Connect another account",
+      "SignInAgain": "Sign in again",
+      "Actions": "Actions for {name}",
+      "Menu": {
+        "Test": "Check",
+        "Edit": "Edit",
+        "Disable": "Disable",
+        "Enable": "Enable",
+        "Delete": "Delete"
+      },
+      "DeleteBlocked": "Used in automations: disable it instead of deleting.",
+      "Platform": {
+        "Label": "Platform key",
+        "Available": "A platform key is available",
+        "Use": "Use the platform key",
+        "Override": "A connection of your organization takes priority over the platform key.",
+        "Unavailable": "The platform key is not configured.",
+        "Enabled": "The platform key is on.",
+        "Disabled": "The platform key is off.",
+        "Failed": "Could not change the platform key. {reason}"
+      },
+      "Form": {
+        "TitleNew": "Connect {connector}",
+        "TitleEdit": "Edit {name}",
+        "DisplayName": "Name",
+        "DisplayNameHint": "How the connection is shown to your team, for example «Sales bot».",
+        "Name": "System name",
+        "NameHint": "Latin letters, digits and _; starts with a letter. Automations refer to the connection by it.",
+        "SecretSet": "••••• set",
+        "Replace": "Replace",
+        "KeepSecret": "Keep the current value",
+        "Show": "Show",
+        "Hide": "Hide",
+        "Save": "Save",
+        "Saving": "Checking the connection…",
+        "Cancel": "Cancel",
+        "StillWaiting": "Still waiting for the service to answer. Nothing will be saved twice.",
+        "TestFailed": "The service refused the connection: {message}",
+        "TestFailedHint": "Check the values and save again.",
+        "SignInWith": "Sign in with {connector}",
+        "Redirecting": "Opening {connector}…",
+        "OAuthHint": "You will be sent to {connector} to allow access and then come back here.",
+        "Required": "Fill in this field.",
+        "Invalid": "Check this value.",
+        "NameFormat": "Use Latin letters, digits and _, starting with a letter (up to 40).",
+        "NameTaken": "This system name is already used by another connection of this service.",
+        "VersionConflict": "Someone changed this connection meanwhile. Load their version: what you typed stays in the form.",
+        "Unavailable": "Connections are not configured in this application.",
+        "Failed": "Could not save. Try again in a minute.",
+        "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice.",
+        "LoadLatest": "Load the latest version",
+        "Reloaded": "The latest version is loaded. Check the form and save again.",
+        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list."
+      },
+      "Test": {
+        "Running": "Checking…",
+        "Connected": "Connected as {identity}",
+        "ConnectedPlain": "Connection works",
+        "Failed": "Check failed: {message}",
+        "Reauth": "The service asks to sign in again.",
+        "Error": "Could not check the connection. Try again in a minute.",
+        "Slow": "Still waiting for the service. The check is safe to repeat."
+      },
+      "Toast": {
+        "Saved": "{name} is connected",
+        "Updated": "{name} is saved",
+        "Disabled": "{name} is disabled",
+        "Enabled": "{name} is enabled",
+        "Deleted": "{name} is deleted",
+        "Undo": "Undo",
+        "Failed": "Could not complete the action. Try again in a minute."
+      },
+      "OAuth": {
+        "Connected": "The account is connected.",
+        "denied": "Access was not granted. Try again and allow access on the service page.",
+        "state": "The sign-in link expired or was opened by another user. Start the sign-in again.",
+        "exchange": "The service did not confirm the sign-in. Try again in a minute.",
+        "unavailable": "Sign-in with this service is not configured in the application.",
+        "Close": "Close",
+        "refused": "The service signed you in, but the account cannot be used for this connector. Sign in with another account.",
+        "name_taken": "This system name is already used by another connection of this service. Choose another name and sign in again.",
+        "version_conflict": "The connection changed meanwhile. Open it again and sign in again.",
+        "not_found": "The connection was deleted meanwhile."
+      },
+      "Usage": {
+        "Title": "Where {name} is used",
+        "Empty": "No automation uses this connection.",
+        "Version": "version {version}",
+        "Enabled": "enabled",
+        "NotEnabled": "not enabled",
+        "Open": "Open",
+        "Node": "node {node}",
+        "Close": "Close",
+        "LoadFailed": "Could not load the list."
+      },
+      "Delete": {
+        "Title": "Delete {name}?",
+        "Text": "The connection and its saved credentials will be deleted. This cannot be undone.",
+        "Nodes": "Automations will no longer be able to use: {nodes}.",
+        "Confirm": "Delete connection",
+        "Cancel": "Cancel",
+        "InUseTitle": "{name} is in use",
+        "InUseText": "Automations use this connection, so it cannot be deleted. Disable it instead: the automations stop using it until you enable it again.",
+        "DisableInstead": "Disable",
+        "Close": "Close"
+      },
+      "Close": "Close",
+      "Categories": {
+        "Messaging": "Messaging",
+        "Email": "Email",
+        "AI": "AI",
+        "Documents": "Documents",
+        "Misc": "Other"
+      },
+      "UsedBy": {
+        "Singular": "Used in {count} automation",
+        "Paucal": "Used in {count} automations",
+        "Multiple": "Used in {count} automations",
+        "Plural": "Used in {count} automations",
+        "None": "Not used"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "the service did not accept the credentials",
+          "Fix": "Check the key or the password, or issue a new one in the service, and replace it."
+        },
+        "network": {
+          "Text": "the service did not answer",
+          "Fix": "Check the address and try again in a minute."
+        },
+        "rate_limit": {
+          "Text": "the service limits requests of this account",
+          "Fix": "Wait a few minutes and check again."
+        },
+        "config": {
+          "Text": "a connection setting is wrong",
+          "Fix": "Check the address, the IDs and the other fields."
+        },
+        "reauth": {
+          "Text": "the service asks to sign in again",
+          "Fix": "Sign in again with the service."
+        },
+        "unknown": {
+          "Text": "the service refused the connection",
+          "Fix": "Check the values; if it repeats, open the service’s answer below."
+        }
+      }
+    }
+  }
+}

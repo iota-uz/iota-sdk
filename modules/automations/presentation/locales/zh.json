@@ -1,0 +1,225 @@
+{
+  "Modules": {
+    "Automations": "自动化"
+  },
+  "NavigationLinks": {
+    "Integrations": "集成"
+  },
+  "Permissions": {
+    "Automations.Read": "查看自动化",
+    "Automations.Author": "编辑自动化",
+    "Automations.Enable": "启用自动化",
+    "Automations.Operate": "管理自动化运行",
+    "Connections.Manage": "管理集成"
+  },
+  "PermissionSets": {
+    "Automations": {
+      "View": {
+        "Label": "查看自动化",
+        "_Description": "打开自动化及其运行记录"
+      },
+      "Author": {
+        "Label": "编辑自动化",
+        "_Description": "创建和修改自动化流程图，并在节点中选择连接"
+      },
+      "Enable": {
+        "Label": "启用自动化",
+        "_Description": "开启和关闭自动化版本"
+      },
+      "Operate": {
+        "Label": "管理运行",
+        "_Description": "重试和取消自动化运行"
+      },
+      "ConnectionsManage": {
+        "Label": "管理集成",
+        "_Description": "连接、检查、停用和删除组织在外部服务中的账户"
+      }
+    }
+  },
+  "Settings": {
+    "Hub": {
+      "Pages": {
+        "Integrations": {
+          "Name": "集成",
+          "Summary": "连接自动化所使用的外部服务"
+        }
+      }
+    }
+  },
+  "Automations": {
+    "Integrations": {
+      "Title": "集成",
+      "Subtitle": "自动化所使用的外部服务账户。",
+      "NotConfigured": "无法保存连接：应用未配置加密密钥。请联系应用管理员进行配置。",
+      "Empty": {
+        "Title": "此应用未配置集成",
+        "Text": "应用注册连接器后，集成将显示在这里。"
+      },
+      "LoadFailed": "无法加载集成。",
+      "Offline": "与服务器的连接已断开。",
+      "Retry": "重试",
+      "Auth": {
+        "api_key": "API 密钥",
+        "basic": "用户名和密码",
+        "oauth2": "通过服务登录",
+        "custom": "连接参数"
+      },
+      "Status": {
+        "connected": "已连接",
+        "needs_reauth": "需要重新登录",
+        "error": "错误",
+        "disabled": "已停用"
+      },
+      "NoConnections": "暂无连接。",
+      "NodesUnlock": "连接账户后可使用：{nodes}。",
+      "Connect": "连接",
+      "ConnectAnother": "再连接一个账户",
+      "SignInAgain": "重新登录",
+      "Actions": "{name} 的操作",
+      "Menu": {
+        "Test": "检查",
+        "Edit": "编辑",
+        "Disable": "停用",
+        "Enable": "启用",
+        "Delete": "删除"
+      },
+      "DeleteBlocked": "已在自动化中使用：请停用而不是删除。",
+      "Platform": {
+        "Label": "平台密钥",
+        "Available": "可使用平台密钥",
+        "Use": "使用平台密钥",
+        "Override": "贵组织的连接优先于平台密钥。",
+        "Unavailable": "未配置平台密钥。",
+        "Enabled": "平台密钥已开启。",
+        "Disabled": "平台密钥已关闭。",
+        "Failed": "无法切换平台密钥。{reason}"
+      },
+      "Form": {
+        "TitleNew": "连接 {connector}",
+        "TitleEdit": "编辑 {name}",
+        "DisplayName": "名称",
+        "DisplayNameHint": "团队看到的连接名称，例如「销售机器人」。",
+        "Name": "系统名称",
+        "NameHint": "拉丁字母、数字和 _，以字母开头。自动化通过它引用连接。",
+        "SecretSet": "••••• 已设置",
+        "Replace": "替换",
+        "KeepSecret": "保留当前值",
+        "Show": "显示",
+        "Hide": "隐藏",
+        "Save": "保存",
+        "Saving": "正在检查连接…",
+        "Cancel": "取消",
+        "StillWaiting": "仍在等待服务响应。不会重复保存。",
+        "TestFailed": "服务拒绝了连接：{message}",
+        "TestFailedHint": "请检查填写的值后再次保存。",
+        "SignInWith": "通过 {connector} 登录",
+        "Redirecting": "正在打开 {connector}…",
+        "OAuthHint": "将打开 {connector}：授权访问后会返回此页。",
+        "Required": "请填写此字段。",
+        "Invalid": "请检查此值。",
+        "NameFormat": "使用拉丁字母、数字和 _，以字母开头（最多 40 个）。",
+        "NameTaken": "此系统名称已被该服务的另一个连接使用。",
+        "VersionConflict": "在表单打开期间，有人修改了此连接。加载其版本：您输入的内容会保留在表单中。",
+        "Unavailable": "此应用未配置连接。",
+        "Failed": "无法保存。请稍后重试。",
+        "InProgress": "第一次尝试仍在处理中。请几秒后重试，不会重复保存。",
+        "LoadLatest": "加载最新版本",
+        "Reloaded": "已加载最新版本。请检查表单并再次保存。",
+        "RetryChanged": "第一次保存可能已使用之前的值完成。请关闭表单，并从列表中编辑该连接。"
+      },
+      "Test": {
+        "Running": "正在检查…",
+        "Connected": "已连接为 {identity}",
+        "ConnectedPlain": "连接正常",
+        "Failed": "检查未通过：{message}",
+        "Reauth": "服务要求重新登录。",
+        "Error": "无法检查连接。请稍后重试。",
+        "Slow": "仍在等待服务响应。可以安全地重新检查。"
+      },
+      "Toast": {
+        "Saved": "{name} 已连接",
+        "Updated": "{name} 已保存",
+        "Disabled": "{name} 已停用",
+        "Enabled": "{name} 已启用",
+        "Deleted": "{name} 已删除",
+        "Undo": "撤销",
+        "Failed": "无法完成操作。请稍后重试。"
+      },
+      "OAuth": {
+        "Connected": "账户已连接。",
+        "denied": "未获得授权。请重试并在服务页面允许访问。",
+        "state": "登录链接已过期或由其他用户打开。请重新开始登录。",
+        "exchange": "服务未确认登录。请稍后重试。",
+        "unavailable": "应用未配置通过此服务登录。",
+        "Close": "关闭",
+        "refused": "已登录，但此账户无法用于该连接器。请使用其他账户登录。",
+        "name_taken": "此系统名称已被该服务的另一个连接使用。请选择其他名称并重新登录。",
+        "version_conflict": "连接已被他人修改。请重新打开并再次登录。",
+        "not_found": "连接已被删除。"
+      },
+      "Usage": {
+        "Title": "{name} 的使用位置",
+        "Empty": "没有自动化使用此连接。",
+        "Version": "版本 {version}",
+        "Enabled": "已启用",
+        "NotEnabled": "未启用",
+        "Open": "打开",
+        "Node": "节点 {node}",
+        "Close": "关闭",
+        "LoadFailed": "无法加载列表。"
+      },
+      "Delete": {
+        "Title": "删除 {name}？",
+        "Text": "连接及其保存的凭据将被删除。此操作无法撤销。",
+        "Nodes": "自动化将无法再使用：{nodes}。",
+        "Confirm": "删除连接",
+        "Cancel": "取消",
+        "InUseTitle": "{name} 正在使用中",
+        "InUseText": "自动化正在使用此连接，因此无法删除。请停用它：在重新启用之前，自动化将不再使用它。",
+        "DisableInstead": "停用",
+        "Close": "关闭"
+      },
+      "Close": "关闭",
+      "Categories": {
+        "Messaging": "消息",
+        "Email": "邮件",
+        "AI": "AI",
+        "Documents": "文档",
+        "Misc": "其他"
+      },
+      "UsedBy": {
+        "Singular": "用于 {count} 个自动化",
+        "Paucal": "用于 {count} 个自动化",
+        "Multiple": "用于 {count} 个自动化",
+        "Plural": "用于 {count} 个自动化",
+        "None": "未使用"
+      },
+      "Reasons": {
+        "auth": {
+          "Text": "服务未接受凭据",
+          "Fix": "请检查密钥或密码，或在服务中重新生成并替换。"
+        },
+        "network": {
+          "Text": "服务未响应",
+          "Fix": "请检查地址并稍后重试。"
+        },
+        "rate_limit": {
+          "Text": "服务限制了此账户的请求",
+          "Fix": "请等待几分钟后再检查。"
+        },
+        "config": {
+          "Text": "连接参数有误",
+          "Fix": "请检查地址、ID 和其他字段。"
+        },
+        "reauth": {
+          "Text": "服务要求重新登录",
+          "Fix": "请通过服务重新登录。"
+        },
+        "unknown": {
+          "Text": "服务拒绝了连接",
+          "Fix": "请检查填写的值；如果再次出现，请查看下方的服务响应。"
+        }
+      }
+    }
+  }
+}
