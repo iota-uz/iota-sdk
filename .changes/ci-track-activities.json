@@ -1,0 +1,1 @@
+{"bump":"none","summary":"CI: the test Postgres keeps track_activities on, so tests that wait on pg_stat_activity see their LISTEN query and lock waits."}
