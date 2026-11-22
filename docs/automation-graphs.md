@@ -302,12 +302,17 @@ The sandbox is `pkg/automation/code` (#1329):
   context deadline (default 30 s, at most 5 min, closing the instance when it passes) is
   the hard time limit. Concurrent runs are bounded by a memory budget
   (`budget / (4 × cap)`) and per tenant.
-- The Go router of host calls is the trust boundary: `fetch`, `log`, `uuid`, `digest` and
-  the one-time result are the only calls, and each parameter is checked in Go.
+- The Go router of host calls is the trust boundary: `fetch`, `log`, `uuid`, `digest`,
+  reading a response body and the one-time result are the only calls, and each parameter
+  is checked in Go. The driver removes kafig's `host` global before the code runs, so
+  the code reaches the host only through `env`, which bounds what it can queue in Go
+  (fetches, request bytes in flight, log lines); response bodies wait in Go until read,
+  at most 64 MiB per run.
 - `NewGuardedFetcher` is the network policy: https on port 443, no local or metadata
   names, a name with any private DNS answer is refused as a whole, the dialed address is
-  checked again, at most 20 redirects each checked the same way, credentials dropped once
-  a redirect leaves the origin, no proxy, the body capped after decoding.
+  checked again, at most 20 redirects each checked the same way, only safelisted headers
+  (no `Authorization`, `Cookie` or API-key headers) once a redirect leaves the origin, no
+  proxy, the body capped after decoding.
 - Output, logs, error messages and stacks are masked (`Masker`: exact, JSON-escaped and
   URL-encoded forms) before they leave the package. Stacks are mapped to the source.
 - `Declarations` writes the `.d.ts` that types `ctx` and `env` in the editor.
