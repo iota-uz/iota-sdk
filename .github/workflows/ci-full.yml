@@ -539,7 +539,7 @@ jobs:
                                  -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
                                  -c log_statement=none -c log_checkpoints=off \
                                  -c log_connections=off -c log_disconnections=off \
-                                 -c autovacuum=off -c track_activities=off \
+                                 -c autovacuum=off \
                                  -c track_counts=off -c jit=off -c huge_pages=try \
                                  -c temp_buffers=128MB -c max_prepared_transactions=0 \
                                  -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
@@ -717,7 +717,7 @@ jobs:
                                  -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
                                  -c log_statement=none -c log_checkpoints=off \
                                  -c log_connections=off -c log_disconnections=off \
-                                 -c autovacuum=off -c track_activities=off \
+                                 -c autovacuum=off \
                                  -c track_counts=off -c jit=off -c huge_pages=try \
                                  -c temp_buffers=128MB -c max_prepared_transactions=0 \
                                  -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
