@@ -886,6 +886,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	if !ev.OccurredAt.IsZero() {
 		// A wait's filter reads `now` as the event's time, as the router did when it routed it.
 		gctx.Now = ev.OccurredAt
+		if w.TimeoutAt != nil && ev.OccurredAt.After(*w.TimeoutAt) {
+			return nil // it came after the deadline: the timer decides the wait
+		}
 	}
 	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
 	if st != nil {

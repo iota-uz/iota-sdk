@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -412,9 +413,13 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 	}
 	for _, w := range waits {
 		if w.Kind == waitEvent && !w.Spec.CaughtUp {
-			if err := x.catchUp(ctx, w); err != nil {
+			// One bounded page per pass; the loop takes its steps between pages. The wait's timer does
+			// not fire before its catch-up ended: a recovered event may have come before the deadline.
+			if _, err := x.catchUp(ctx, w); err != nil {
 				return false, err
 			}
+			// Another pass either takes the next page or, once caught up, arms the wait's timer.
+			return true, nil
 		}
 		if w.Spec.Exec != nil && w.Spec.Exec.Task != nil {
 			res, err := x.nr.Task(ctx, "task:"+w.WaitID, 0, *w.Spec.Exec.Task)
@@ -432,6 +437,17 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 		}
 		if w.TimeoutAt == nil || !w.Spec.Timer {
 			continue
+		}
+		if w.Kind == waitEvent {
+			// An event that happened before the deadline and waits in the inbox wins over the timer: the
+			// loop applies the inbox first.
+			early, err := x.earlyEventPending(ctx, w)
+			if err != nil {
+				return false, err
+			}
+			if early {
+				continue
+			}
 		}
 		d := time.Until(*w.TimeoutAt)
 		if d < 0 {
@@ -623,18 +639,43 @@ func decodeMap(raw json.RawMessage) (map[string]any, error) {
 // maxCatchUp is the batch size of a wait's catch-up query.
 const maxCatchUp = 200
 
+// earlyEventPending reports an unconsumed inbox signal for the wait whose event happened by its deadline.
+func (x *execution) earlyEventPending(ctx context.Context, w waitRow) (bool, error) {
+	var early bool
+	err := x.r.cfg.DB.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM extruntime.workflow_signals
+			WHERE tenant_id = $1 AND instance_id = $2 AND name = $3 AND consumed_name IS NULL
+			  AND payload->>'wait_id' = $4 AND (payload->'event'->>'occurred_at')::timestamptz <= $5)`,
+		x.tenant, x.nr.Instance().ID, InboxSignal, w.WaitID, *w.TimeoutAt).Scan(&early)
+	return early, serrors.FromDB(opRun, err)
+}
+
 // catchUp signals a new event wait with the matching events the router could not route to it: an event
 // with a seq after the wait's watermark that was delivered while the wait's transaction was still open
-// (the router reads committed waits only). It runs once per wait, after the wait committed: an event
-// delivered from then on finds the wait. The signal key is the router's, so an event both paths see
-// reaches the wait once.
-func (x *execution) catchUp(ctx context.Context, w waitRow) error {
+// (the router reads committed waits only). Its range is fixed when it begins: up to the outbox watermark
+// of then (catch_up_until), as every later event finds the committed wait through the router. One call
+// signals one bounded page in a fenced transaction that records how far it got (catch_up_seq); done is
+// true once the range is covered, when caught_up is set. The signal key is the router's, so an event both
+// paths see reaches the wait once.
+func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 	if w.EventKind == nil {
-		return nil
+		return true, nil
 	}
 	var entity, key any
 	if w.Subject != nil {
 		entity, key = w.Subject.Entity, w.Subject.Key
+	}
+	until := w.Spec.CatchUpUntil
+	if until == 0 {
+		mark, err := events.Watermark(ctx, x.r.cfg.DB)
+		if err != nil {
+			return false, err
+		}
+		until = mark
+	}
+	after := w.AfterSeq
+	if w.Spec.CatchUpSeq > after {
+		after = w.Spec.CatchUpSeq
 	}
 	type found struct {
 		id       uuid.UUID
@@ -642,71 +683,61 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) error {
 		payload  []byte
 		occurred time.Time
 	}
-	// Page after page, each signalled in its own fenced transaction that also records how far it got
-	// (catch_up_seq): memory and transaction work stay bounded, a retry resumes after the last page, and
-	// the router's signal keys keep a repeated event from reaching the wait twice. caught_up is set by
-	// the last (short) page only.
-	after := w.AfterSeq
-	if w.Spec.CatchUpSeq > after {
-		after = w.Spec.CatchUpSeq
+	rows, err := x.r.cfg.DB.Query(ctx, `
+		SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
+		WHERE tenant_id = $1 AND event = $2 AND seq > $3 AND seq <= $4
+		  AND ($5::text IS NULL OR (subject_entity = $5 AND subject_key = $6))
+		ORDER BY seq LIMIT $7`, x.tenant, *w.EventKind, after, until, entity, key, maxCatchUp)
+	if err != nil {
+		return false, serrors.FromDB(opRun, err)
 	}
-	for {
-		rows, err := x.r.cfg.DB.Query(ctx, `
-			SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
-			WHERE tenant_id = $1 AND event = $2 AND seq > $3
-			  AND ($4::text IS NULL OR (subject_entity = $4 AND subject_key = $5))
-			ORDER BY seq LIMIT $6`, x.tenant, *w.EventKind, after, entity, key, maxCatchUp)
-		if err != nil {
-			return serrors.FromDB(opRun, err)
+	page := make([]found, 0, maxCatchUp)
+	for rows.Next() {
+		var f found
+		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
+			rows.Close()
+			return false, serrors.FromDB(opRun, err)
 		}
-		page := make([]found, 0, maxCatchUp)
-		for rows.Next() {
-			var f found
-			if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
-				rows.Close()
-				return serrors.FromDB(opRun, err)
-			}
-			page = append(page, f)
-		}
-		rows.Close()
-		if err := rows.Err(); err != nil {
-			return serrors.FromDB(opRun, err)
-		}
-		last := len(page) < maxCatchUp
-		if len(page) > 0 {
-			after = page[len(page)-1].seq
-		}
-		err = x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
-			for _, f := range page {
-				payload, err := decodeMap(f.payload)
-				if err != nil {
-					continue
-				}
-				if payload, err = x.r.projector(x.tenant).project(ctx, *w.EventKind, payload, &x.subject); err != nil {
-					return &host.InfraError{Err: err}
-				}
-				raw, err := json.Marshal(payload)
-				if err != nil {
-					return err
-				}
-				msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.WaitID},
-					Event: &inboxEvent{ID: f.id.String(), Seq: f.seq, Kind: *w.EventKind, Payload: raw, OccurredAt: f.occurred}})
-				if err != nil {
-					return err
-				}
-				if err := x.r.cfg.Workflows.SignalInTx(ctx, tx, spi.Scope{Subject: x.subject}, host.SignalIntent{
-					Workflow: WorkflowID, Instance: x.nr.Instance().ID.String(), Name: InboxSignal, Payload: msg,
-					Key: "event:" + f.id.String() + ":" + w.WaitID, Producer: spi.Producer{EventID: f.id.String()},
-				}); err != nil {
-					return err
-				}
-			}
-			_, err := tx.Exec(ctx, `UPDATE automation.waits SET spec = jsonb_set(jsonb_set(spec, '{catch_up_seq}', to_jsonb($4::bigint)), '{caught_up}', to_jsonb($5::boolean))
-				WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, x.tenant, x.run.ID, w.WaitID, after, last)
-			return serrors.FromDB(opRun, err)
-		})
-		if err != nil || last {
-			return err
-		}
+		page = append(page, f)
 	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, serrors.FromDB(opRun, err)
+	}
+	done := len(page) < maxCatchUp
+	if len(page) > 0 {
+		after = page[len(page)-1].seq
+		done = done || after >= until
+	}
+	err = x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
+		for _, f := range page {
+			payload, err := decodeMap(f.payload)
+			if err != nil {
+				continue
+			}
+			if payload, err = x.r.projector(x.tenant).project(ctx, *w.EventKind, payload, &x.subject); err != nil {
+				return &host.InfraError{Err: err}
+			}
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				return err
+			}
+			msg, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: w.WaitID},
+				Event: &inboxEvent{ID: f.id.String(), Seq: f.seq, Kind: *w.EventKind, Payload: raw, OccurredAt: f.occurred}})
+			if err != nil {
+				return err
+			}
+			if err := x.r.cfg.Workflows.SignalInTx(ctx, tx, spi.Scope{Subject: x.subject}, host.SignalIntent{
+				Workflow: WorkflowID, Instance: x.nr.Instance().ID.String(), Name: InboxSignal, Payload: msg,
+				Key: "event:" + f.id.String() + ":" + w.WaitID, Producer: spi.Producer{EventID: f.id.String()},
+			}); err != nil {
+				return err
+			}
+		}
+		_, err := tx.Exec(ctx, `
+			UPDATE automation.waits SET spec = spec || jsonb_build_object('catch_up_seq', $4::bigint, 'catch_up_until', $5::bigint, 'caught_up', $6::boolean)
+			WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, x.tenant, x.run.ID, w.WaitID, after, until, done)
+		return serrors.FromDB(opRun, err)
+	})
+	return done, err
 }

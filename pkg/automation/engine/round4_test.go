@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
@@ -164,4 +165,37 @@ func TestMaintenanceKeepsTheReleaseMarkOfABlockedRun(t *testing.T) {
 	require.NoError(t, p.rt.Maintain(ctx))
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.waits WHERE run_id = $1 AND release_pending`, run.RunID),
 		"the mark stays for the runner after Resume")
+}
+
+func TestRecoveredEventBeforeTheDeadlineBeatsTheTimer(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, followUp) // the payment wait times out after 1s
+	var delivered, delayed atomic.Bool
+	p.rt.SetTestHook(func(ctx context.Context, tx pgx.Tx, label string) error {
+		switch label {
+		case "step":
+			// The payment arrives and is delivered while the wait's transaction is still open.
+			var open int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`).Scan(&open); err != nil || open == 0 || delivered.Swap(true) {
+				return err
+			}
+			e.publish(e.tenant, orderPaid, "o-1", order{Amount: 6}, 0)
+			_, err := p.disp.RunOnce(ctx)
+			return err
+		case "catchup":
+			// The catch-up that recovers it commits only after the deadline.
+			if !delayed.Swap(true) {
+				time.Sleep(1500 * time.Millisecond)
+			}
+		}
+		return nil
+	})
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 6}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	require.True(t, delivered.Load())
+	require.True(t, delayed.Load())
+	assert.Equal(t, []string{"note:order 6", "paid:paid 6"}, e.effects(run.RunID), "the payment came before the deadline: it wins over the timeout")
 }
