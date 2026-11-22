@@ -254,14 +254,14 @@ func TestTasks_Delegation(t *testing.T) {
 	require.Len(t, got.Delegations, 1)
 	require.Equal(t, workflow.TaskDelegation{From: a, To: b, Comment: "on leave", At: got.Delegations[0].At}, got.Delegations[0])
 	require.Equal(t, []workflow.TaskAssignee{userAssignee(a)}, got.Assignees, "a delegation is not an assignee")
-	require.EqualValues(t, a, got.AssigneeUserID)
+	require.Equal(t, a, got.AssigneeUserID)
 
 	require.NoError(t, s.decide(b, task.ID, `{"ok":true}`))
 	r := s.result(id)
-	require.EqualValues(t, b, *r.By)
+	require.Equal(t, b, *r.By)
 	require.Len(t, r.Decisions, 1)
 	require.NotNil(t, r.Decisions[0].DelegatedFrom)
-	require.EqualValues(t, a, *r.Decisions[0].DelegatedFrom)
+	require.Equal(t, a, *r.Decisions[0].DelegatedFrom)
 	require.Equal(t, []string{"created", "delegated", "decision", "closed"}, s.log.seen())
 }
 
@@ -315,7 +315,7 @@ func TestTasks_EscalationAndTimeout(t *testing.T) {
 	r := s.result(id)
 	require.Equal(t, workflow.TaskTimeout, r.Outcome)
 	require.Len(t, r.Decisions, 1, "the decisions collected until the timeout")
-	require.EqualValues(t, first, r.Decisions[0].UserID)
+	require.Equal(t, first, r.Decisions[0].UserID)
 	got = s.task(id)
 	require.Equal(t, "expired", got.Status)
 	require.Equal(t, 2, got.EscalationLevel)
@@ -450,7 +450,7 @@ func TestTasks_ConcurrentDecideAndDelegate(t *testing.T) {
 			func() error { return s.eng.DelegateTask(ctx, s.env.subject(a), task.ID, b, "") },
 			func() error { return s.eng.DelegateTask(ctx, s.env.subject(b), task.ID, a, "") },
 		)
-		require.True(t, (errs[0] == nil) != (errs[1] == nil), "round %d: exactly one delegation wins: %v, %v", i, errs[0], errs[1])
+		require.NotEqual(t, errs[0] == nil, errs[1] == nil, "round %d: exactly one delegation wins: %v, %v", i, errs[0], errs[1])
 		require.Len(t, s.task(id).Delegations, 1)
 	}
 }
@@ -766,7 +766,7 @@ func TestTasks_ChecksUnderTheLockNeedNoSecondConnection(t *testing.T) {
 	h, err = eng.Get(ctx, env.tenant, id)
 	require.NoError(t, err)
 	require.Equal(t, "decided", h.Tasks[0].Status)
-	require.EqualValues(t, b, *h.Tasks[0].Decisions[1].DelegatedFrom)
+	require.Equal(t, b, *h.Tasks[0].Decisions[1].DelegatedFrom)
 }
 
 // The inbox cursor carries the sort key the page returned: a task whose due

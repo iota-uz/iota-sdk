@@ -723,7 +723,7 @@ func (r *nativeRun) Cancel(ctx context.Context, name string, n int) error {
 				return nil, serrors.FromDB(opNative, err)
 			}
 			if err == nil && status != "open" {
-				return nil, nil
+				return func() {}, nil // nothing to apply: the occurrence stays waiting
 			}
 		}
 		if _, err := tx.Exec(ctx, `

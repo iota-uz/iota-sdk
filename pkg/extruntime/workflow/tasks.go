@@ -303,7 +303,7 @@ func (e *Engine) normalizeAssignee(a TaskAssignee) (TaskAssignee, error) {
 		if a.UserID != nil {
 			return a, invalidAssignee("a %s assignee needs Ref and no UserID", a.Kind)
 		}
-		ref := a.Ref
+		var ref string
 		if a.Kind == TaskAssignRole {
 			id, err := strconv.ParseInt(a.Ref, 10, 64)
 			if err != nil || id <= 0 {
@@ -325,9 +325,9 @@ func (e *Engine) normalizeAssignee(a TaskAssignee) (TaskAssignee, error) {
 	return a, invalidAssignee("assignee kind %q is not supported", a.Kind)
 }
 
-func (e *Engine) normalizeAssignees(list []TaskAssignee, min int) ([]TaskAssignee, error) {
-	if len(list) < min || len(list) > MaxTaskAssignees {
-		return nil, invalidAssignee("a task needs %d to %d assignees, got %d", min, MaxTaskAssignees, len(list))
+func (e *Engine) normalizeAssignees(list []TaskAssignee, least int) ([]TaskAssignee, error) {
+	if len(list) < least || len(list) > MaxTaskAssignees {
+		return nil, invalidAssignee("a task needs %d to %d assignees, got %d", least, MaxTaskAssignees, len(list))
 	}
 	out := make([]TaskAssignee, 0, len(list))
 	for _, a := range list {
@@ -734,7 +734,7 @@ func insertAssignees(ctx context.Context, tx pgx.Tx, tenant, task uuid.UUID, lis
 // from the workflow's occurrence keys) committed with the task change: a run
 // that crashed before the commit applies it again, one that committed never
 // does.
-func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uuid.UUID, name string, n, level int, raw []byte) (open bool, due *time.Time, err error) {
+func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uuid.UUID, name string, n, level int, raw []byte) (bool, *time.Time, error) {
 	steps, err := decodeEscalation(raw)
 	if err != nil {
 		return false, nil, internalErr("workflow.corruptJournal", "task %s#%d has an unreadable escalation", name, n)
@@ -756,6 +756,10 @@ func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uu
 		if err := insertAssignees(ctx, tx, rs.inst.TenantID, taskID, step.Add); err != nil {
 			return false, nil, err
 		}
+		var (
+			open bool
+			due  *time.Time
+		)
 		if step.Extend > 0 {
 			var next time.Time
 			if err := tx.QueryRow(ctx, `
@@ -907,7 +911,7 @@ func renderPackageTask(t taskState) (json.RawMessage, bool) {
 		if t.decidedBy != nil {
 			by = strconv.FormatInt(*t.decidedBy, 10)
 		}
-		out = map[string]any{"outcome": "decided", "decision": json.RawMessage(nonNull(t.decision)), "by": by}
+		out = map[string]any{"outcome": "decided", "decision": nonNull(t.decision), "by": by}
 		if t.choice != "" {
 			out["choice"] = t.choice
 		}
