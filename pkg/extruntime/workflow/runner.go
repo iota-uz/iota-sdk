@@ -289,7 +289,7 @@ func (e *Engine) runClaimed(ctx context.Context, inst *Instance) {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	rs := &runState{
-		inst: *inst, epoch: inst.LeaseEpoch, cancel: cancel,
+		inst: *inst, epoch: inst.LeaseEpoch, owner: e.cfg.Owner, cancel: cancel,
 		token:   fmt.Sprintf("%s:%d", inst.ID, inst.LeaseEpoch),
 		journal: map[occKey]Occurrence{},
 		lazy:    inst.Native,

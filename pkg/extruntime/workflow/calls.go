@@ -923,6 +923,14 @@ func (e *Engine) forget(ctx context.Context, rs *runState, name string, n int) e
 // An unfinished or worker-lost invocation is ambiguous: the instance blocks
 // and shows how many transactions the command committed.
 func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence, command string) (json.RawMessage, bool, error) {
+	var mark map[string]any
+	if json.Unmarshal(o.Meta, &mark) == nil && mark[awaitingOperator] != nil {
+		// Kept for the operator (a nested package call without the runtime):
+		// only Resolve or Retry decides it, a Resume alone blocks again.
+		committed, _ := mark["committedTxCount"].(float64)
+		return nil, true, blockedWire(rs.block(BlockUnavailable, unavailableDetail(
+			fmt.Sprintf("%v", mark[awaitingOperator]), command, o.Name, o.N, o.InvocationID, int(committed))))
+	}
 	if o.InvocationID == "" {
 		return nil, false, nil
 	}
@@ -965,6 +973,15 @@ func (e *Engine) resolveStarted(ctx context.Context, rs *runState, o Occurrence,
 	return nil, true, blockedWire(rs.block(BlockAmbiguous, fmt.Sprintf(
 		"command %s (occurrence %s#%d, invocation %s) has no recorded outcome (%s) and committed %d transaction(s); resolve, retry or terminate it manually",
 		command, o.Name, o.N, o.InvocationID, outcome, committed)))
+}
+
+// awaitingOperator marks the meta of a started call occurrence that only an
+// operator's Resolve or Retry decides.
+const awaitingOperator = "awaitingOperator"
+
+func unavailableDetail(reason, command, name string, n int, invocation string, committed int) string {
+	return fmt.Sprintf("%s; command %s (occurrence %s#%d, invocation %s) committed %d transaction(s) before it and may have had other effects: resolve or retry the occurrence, then resume",
+		reason, command, name, n, invocation, committed)
 }
 
 // commandCaller dispatches an ordinary command as a new invocation with a
@@ -1039,9 +1056,17 @@ func (e *Engine) callOrdinary(ctx context.Context, call commandCaller, rs *runSt
 		// have had effects outside the database (an ordinary command makes
 		// external requests freely), so its started occurrence stays for
 		// Resolve or Retry, as an ambiguous call does, whatever it committed.
-		return nil, blockedWire(rs.block(BlockUnavailable, fmt.Sprintf(
-			"%s; command %s (occurrence %s#%d, invocation %s) committed %d transaction(s) before it: resolve or retry the occurrence, then resume",
-			we.Message, command, name, n, res.InvocationID, res.CommittedTxCount)))
+		// The mark keeps a Resume without that decision blocked (resolveStarted)
+		// instead of reading the invocation's error as the call's outcome.
+		pending := started
+		pending.Meta = marshal(map[string]any{
+			awaitingOperator: host.CodePackageUnavailable, "invocation": res.InvocationID,
+			"committedTxCount": res.CommittedTxCount, "partiallyCommitted": res.PartiallyCommitted,
+		})
+		if rerr := e.record(ctx, rs, pending); rerr != nil {
+			return nil, rerr
+		}
+		return nil, blockedWire(rs.block(BlockUnavailable, unavailableDetail(we.Message, command, name, n, res.InvocationID, res.CommittedTxCount)))
 	}
 	failed := started
 	failed.Status, failed.Meta, failed.InvocationID = OccFailed, callMeta(res), res.InvocationID

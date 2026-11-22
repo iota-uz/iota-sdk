@@ -110,8 +110,10 @@ type occKey struct {
 // journal and the diagnostics the run must end with. It is created by the
 // claim, keyed by the run token, and discarded when the run ends.
 type runState struct {
-	inst    Instance
-	epoch   int64
+	inst  Instance
+	epoch int64
+	// owner is the lease_owner the claim wrote (Config.Owner).
+	owner   string
 	subject spi.Subject
 	token   string
 	cancel  context.CancelFunc
@@ -348,6 +350,9 @@ type leaseState struct {
 // during that wait. Every write of a run (fence, heartbeat, terminal and
 // suspend transitions, release) checks its lease this way, so an owner whose
 // lease expired writes nothing, whether or not another runner took over.
+// The lease must also still be this run's: release and abandon clear
+// lease_owner (a retry backoff keeps lease_until in the future), and from then
+// on a write left in flight by the released run is fenced.
 func lockLease(ctx context.Context, q queryer, rs *runState) (leaseState, error) {
 	if _, err := q.Exec(ctx, `SELECT 1 FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, rs.inst.ID, rs.inst.TenantID); err != nil {
 		return leaseState{}, serrors.FromDB(opFence, err)
@@ -356,14 +361,15 @@ func lockLease(ctx context.Context, q queryer, rs *runState) (leaseState, error)
 		st    leaseState
 		epoch int64
 		valid bool
+		owned bool
 	)
 	err := q.QueryRow(ctx, `
-		SELECT status, lease_epoch, COALESCE(lease_until > clock_timestamp(), false)
-		FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID).Scan(&st.status, &epoch, &valid)
+		SELECT status, lease_epoch, COALESCE(lease_until > clock_timestamp(), false), COALESCE(lease_owner = $3, false)
+		FROM extruntime.workflow_instances WHERE id = $1 AND tenant_id = $2`, rs.inst.ID, rs.inst.TenantID, rs.owner).Scan(&st.status, &epoch, &valid, &owned)
 	if err != nil {
 		return leaseState{}, serrors.FromDB(opFence, err)
 	}
-	st.live = st.status == StatusRunning && epoch == rs.epoch && valid
+	st.live = st.status == StatusRunning && epoch == rs.epoch && valid && owned
 	return st, nil
 }
 

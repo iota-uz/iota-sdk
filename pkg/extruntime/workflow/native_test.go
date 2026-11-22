@@ -1589,3 +1589,123 @@ func TestPackage_ShutdownDuringArtifactResolutionDoesNotBlock(t *testing.T) {
 	require.NoError(t, env.db.QueryRow(context.Background(), `SELECT lease_until IS NULL FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&claimable))
 	require.True(t, claimable, "the lease is released for the next process")
 }
+
+// A run whose lease the engine released for a retry backoff (lease_owner
+// cleared, lease_until set to the retry deadline) can no longer write: a
+// transaction its runner left in flight is fenced.
+func TestNative_ReleasedRunIsFencedDuringBackoff(t *testing.T) {
+	env := newNativeEnv(t)
+	inFn := make(chan struct{})
+	release := make(chan struct{})
+	result := make(chan error, 1)
+	runs := 0
+	runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+		if runs++; runs > 1 {
+			return nil, nil
+		}
+		id := run.Instance().ID
+		go func() {
+			_, err := run.Transaction(context.WithoutCancel(ctx), "late", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
+				close(inFn)
+				<-release
+				return nil, writeState(ctx, tx, id, "late")
+			})
+			result <- err
+		}()
+		<-inFn
+		// The runner gives up with a platform failure: the engine releases the
+		// run for a retry after a backoff while the transaction is in flight.
+		return nil, &host.InfraError{Err: errors.New("database hiccup")}
+	})
+	eng := env.engine(map[string]workflow.NativeContract{"test.backoff": {Runner: runner}}, func(c *workflow.Config) {
+		c.RetryBackoff, c.Heartbeat = time.Minute, time.Hour
+	})
+	id := env.start(eng, "test.backoff", "b1", `{}`)
+	_, err := eng.RunOnce(context.Background())
+	require.NoError(t, err)
+	var owner *string
+	var future bool
+	require.NoError(t, env.db.QueryRow(context.Background(), `SELECT lease_owner, lease_until > clock_timestamp() FROM extruntime.workflow_instances WHERE id = $1`, id).Scan(&owner, &future))
+	require.Nil(t, owner, "the run was released")
+	require.True(t, future, "for a retry backoff")
+	close(release)
+	select {
+	case err = <-result:
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the transaction did not return")
+	}
+	require.ErrorIs(t, err, workflow.ErrFenced)
+	require.Empty(t, env.stateRows(id), "nothing committed during the backoff")
+}
+
+// Resume does not turn an unresolved nested package call into a terminal
+// failure: the instance blocks again until the operator resolves or retries
+// the occurrence, and both still work.
+func TestNative_ResumeKeepsAnUnresolvedNestedPackageCallBlocked(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		commit bool
+		fix    func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID)
+	}{
+		{"resolve", false, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
+			t.Helper()
+			require.NoError(t, eng.Resolve(context.Background(), env.tenant, id, "c", 0, json.RawMessage(`{"rows":0}`)))
+		}},
+		{"retry after a commit", true, func(t *testing.T, eng *workflow.Engine, env *nativeEnv, id uuid.UUID) {
+			t.Helper()
+			require.NoError(t, eng.Retry(context.Background(), env.tenant, id, "c", 0))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newNativeEnv(t)
+			var available atomic.Bool
+			outer := native.Command("test.cmd.outer", native.Spec{}, func(native.Deps) (native.CommandFunc[stepIn, stepOut], error) {
+				return func(ctx context.Context, c native.CommandContext, in stepIn) (stepOut, error) {
+					if available.Load() {
+						return stepOut{Rows: 1}, nil
+					}
+					if tc.commit {
+						if err := c.Transaction(ctx, func(context.Context, native.Tx) error { return nil }); err != nil {
+							return stepOut{}, err
+						}
+					}
+					_, err := c.Call(ctx, "acme.pkg.cmd", json.RawMessage(`{}`))
+					return stepOut{}, err
+				}, nil
+			})
+			set := native.NewSet()
+			require.NoError(t, set.Add(outer))
+			cat := hosttest.NewCatalog()
+			for _, r := range set.Resources() {
+				cat.Add(spi.ResolvedResource{Resource: r, Native: true})
+			}
+			cat.Add(spi.ResolvedResource{Package: "acme", Version: "1.0.0", Resource: hosttest.Command("acme.pkg.cmd", false, nil, nil)})
+			runner := workflow.NativeRunnerFunc(func(ctx context.Context, run workflow.NativeRun) (json.RawMessage, error) {
+				return run.Call(ctx, "c", 0, "test.cmd.outer", json.RawMessage(`{"step":"x"}`))
+			})
+			eng := env.engine(map[string]workflow.NativeContract{"test.nested": {Runner: runner}}, func(c *workflow.Config) { c.Catalog = cat })
+			h, err := host.New(host.Config{DB: env.db, Bindings: pkgBindings{}, Catalog: cat, Data: data.NewStore(cat, nil, nil), Natives: native.Bind(set, nil), Logger: env.logger})
+			require.NoError(t, err)
+			eng.SetCommands(h)
+			id := env.start(eng, "test.nested", "n1", `{}`)
+			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks")
+
+			// Resume without resolving: blocked again, never failed.
+			require.NoError(t, eng.Resume(context.Background(), env.tenant, id))
+			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusBlocked }, "blocks again")
+			inst := env.inst(eng, id)
+			require.Equal(t, workflow.BlockUnavailable, inst.BlockedReason)
+			hist, err := eng.Get(context.Background(), env.tenant, id)
+			require.NoError(t, err)
+			o, ok := occ(hist, "c", 0)
+			require.True(t, ok)
+			require.Equal(t, workflow.OccStarted, o.Status)
+
+			// The operator's decision still applies.
+			available.Store(true)
+			tc.fix(t, eng, env, id)
+			require.NoError(t, eng.Resume(context.Background(), env.tenant, id))
+			env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusCompleted }, "completes")
+		})
+	}
+}
