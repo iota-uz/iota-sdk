@@ -1155,14 +1155,26 @@ func (e *Engine) decideTx(ctx context.Context, tx pgx.Tx, actor spi.Subject, t T
 	if err != nil {
 		return err
 	}
+	// The final deadline is judged by the statement that records the vote, at
+	// the instant it is written (its decided_at): checks made before it take
+	// time, and a vote must not count once the deadline passed meanwhile.
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO extruntime.human_task_decisions (task_id, tenant_id, user_id, choice, decision, delegated_from, decided_at)
-		VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp()) ON CONFLICT (task_id, user_id) DO NOTHING`,
+		SELECT $1, $2, $3, $4, $5, $6, clock_timestamp() FROM extruntime.human_tasks t
+		WHERE t.id = $1 AND t.tenant_id = $2 AND NOT `+pastFinalDeadline+`
+		ON CONFLICT (task_id, user_id) DO NOTHING`,
 		t.ID, actor.TenantID, actor.UserID, choice, jsonArg(decision), from)
 	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
 	if tag.RowsAffected() == 0 {
+		var late bool
+		if err := tx.QueryRow(ctx, `SELECT `+pastFinalDeadline+` FROM extruntime.human_tasks t WHERE t.id = $1`, t.ID).Scan(&late); err != nil {
+			return serrors.FromDB(opManage, err)
+		}
+		if late {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: task %s passed its deadline before the decision was recorded", ErrTaskClosed, t.ID))
+		}
 		return serrors.Wrap(opManage, fmt.Errorf("%w: user %d, task %s", ErrAlreadyDecided, actor.UserID, t.ID))
 	}
 	var agree int
@@ -1228,10 +1240,16 @@ func (e *Engine) DelegateTask(ctx context.Context, actor spi.Subject, taskID uui
 			if _, err := e.cfg.Subjects.LoadSubject(txContext(ctx, tx), actor.TenantID, to, spi.SubjectInitiator); err != nil {
 				return serrors.Wrap(opManage, fmt.Errorf("%w: user %d is not an active user of the tenant: %v", ErrDelegation, to, err))
 			}
-			if _, err := tx.Exec(ctx, `
+			// The deadline is judged at the write, as for a decision.
+			tag, err := tx.Exec(ctx, `
 				INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, delegated_from, comment, added_at)
-				VALUES ($1, $2, 'user', $3, $4, $5, clock_timestamp())`, taskID, actor.TenantID, to, actor.UserID, comment); err != nil {
+				SELECT $1, $2, 'user', $3, $4, $5, clock_timestamp() FROM extruntime.human_tasks t
+				WHERE t.id = $1 AND t.tenant_id = $2 AND NOT `+pastFinalDeadline, taskID, actor.TenantID, to, actor.UserID, comment)
+			if err != nil {
 				return serrors.FromDB(opManage, err)
+			}
+			if tag.RowsAffected() == 0 {
+				return serrors.Wrap(opManage, fmt.Errorf("%w: task %s passed its deadline before the delegation was recorded", ErrTaskClosed, taskID))
 			}
 			actorID, target := actor.UserID, to
 			return e.observeTask(ctx, tx, actor.TenantID, taskID, TaskChange{

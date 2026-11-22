@@ -28,6 +28,8 @@ type fakeAudience struct {
 	mu      sync.Mutex
 	members map[workflow.TaskAssignee]map[int64]bool
 	tenant  uuid.UUID
+	// slow, when set, runs before every IsMember answer (outside the lock).
+	slow func()
 }
 
 func newFakeAudience(tenant uuid.UUID) *fakeAudience {
@@ -44,6 +46,12 @@ func (f *fakeAudience) set(a workflow.TaskAssignee, user int64, member bool) {
 }
 
 func (f *fakeAudience) IsMember(_ context.Context, tenant uuid.UUID, user int64, a workflow.TaskAssignee) (bool, error) {
+	f.mu.Lock()
+	slow := f.slow
+	f.mu.Unlock()
+	if slow != nil {
+		slow()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return tenant == f.tenant && f.members[a][user], nil
@@ -909,4 +917,29 @@ export const flow = async (wf) => {
 	require.Equal(t, 1, st.drain())
 	require.JSONEq(t, `{"code":"workflow.invalidAssignee"}`, string(st.instance(id).Result))
 	require.Empty(t, st.history(id).Tasks)
+}
+
+// The final deadline is judged when the vote (or delegation) is written: one
+// that passes while the rights are being checked refuses it.
+func TestTasks_DeadlinePassingDuringTheCheckRefusesTheWrite(t *testing.T) {
+	const timeout = 1500 * time.Millisecond
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{reviewers}, Timeout: timeout, AllowDelegation: true})
+	s.audience.set(reviewers, 99, true)
+	ctx := context.Background()
+	id, task := s.startWaiting("late-write")
+	require.Greater(t, time.Until(*task.DueAt), 200*time.Millisecond, "the deadline is still ahead when the calls start")
+	// The deadline passes while the membership is being checked: after the
+	// deadline check of the lock, before the write.
+	due := *task.DueAt
+	s.audience.mu.Lock()
+	s.audience.slow = func() { time.Sleep(time.Until(due) + 100*time.Millisecond) }
+	s.audience.mu.Unlock()
+	errs := make(chan error, 2)
+	go func() { errs <- s.decide(99, task.ID, `{}`) }()
+	go func() { errs <- s.eng.DelegateTask(ctx, s.env.subject(99), task.ID, 98, "") }()
+	require.ErrorIs(t, <-errs, workflow.ErrTaskClosed)
+	require.ErrorIs(t, <-errs, workflow.ErrTaskClosed)
+	got := s.task(id)
+	require.Empty(t, got.Decisions, "no vote after the deadline")
+	require.Empty(t, got.Delegations)
 }
