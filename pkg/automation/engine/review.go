@@ -105,7 +105,7 @@ func (r *Runtime) executorRule(view catalog.View, g graph.Graph) []graph.GraphEr
 
 // codeNodes are the Code nodes of a graph as the reviewer sees them, ordered by node id.
 func (r *Runtime) codeNodes(g graph.Graph) []CodeNodeReview {
-	var out []CodeNodeReview
+	out := make([]CodeNodeReview, 0, len(g.Nodes))
 	for _, n := range g.Nodes {
 		nt, ok := r.cfg.Catalog.Node(n.Type)
 		if !ok {

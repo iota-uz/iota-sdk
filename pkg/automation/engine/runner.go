@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -431,11 +432,14 @@ func defaultTaskResult(res workflow.TaskResult) WaitResult {
 		Outcome string `json:"outcome"`
 	}
 	_ = json.Unmarshal(res.Decision, &d)
-	out := map[string]any{"decision": json.RawMessage(nonNull(res.Decision))}
+	out := map[string]any{"decision": nonNull(res.Decision)}
 	if res.By != nil {
 		out["by"] = *res.By
 	}
-	b, _ := json.Marshal(out)
+	b, err := json.Marshal(out)
+	if err != nil {
+		return WaitResult{Error: &StepError{Code: graph.FailInvalidAnswer, Message: "the decision is not JSON"}}
+	}
 	return WaitResult{Outcome: d.Outcome, Output: b}
 }
 

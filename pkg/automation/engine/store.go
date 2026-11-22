@@ -212,9 +212,9 @@ type flowState struct {
 	Kind string `json:"kind"` // parallel | foreach
 	Node string `json:"node"`
 	// parallel
-	Join  string          `json:"join,omitempty"`
-	State graph.JoinState `json:"state"`
-	Children []uuid.UUID `json:"children,omitempty"` // the branch tokens, in fork order
+	Join     string          `json:"join,omitempty"`
+	State    graph.JoinState `json:"state"`
+	Children []uuid.UUID     `json:"children,omitempty"` // the branch tokens, in fork order
 	// foreach: the items are in the token's items column, the results on the item tokens (arrival)
 	Count       int    `json:"count,omitempty"`
 	Target      string `json:"target,omitempty"`
@@ -431,7 +431,7 @@ func (w waitRow) child() *uuid.UUID {
 	return nil
 }
 
-const waitCols =`run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, release_pending, spec`
+const waitCols = `run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, release_pending, spec`
 
 func scanWait(row pgx.Row) (waitRow, error) {
 	var w waitRow
@@ -447,7 +447,7 @@ func scanWait(row pgx.Row) (waitRow, error) {
 		}
 	}
 	if len(spec) > 0 {
-		if err := json.Unmarshal(spec, &w.Spec); err != nil {
+		if err := json.Unmarshal(spec, &w.Spec); err != nil { //nolint:musttag // workflow.TaskSpec keeps Go's field names
 			return w, err
 		}
 	}
@@ -472,7 +472,7 @@ func queryWaits(ctx context.Context, q querier, sql string, args ...any) ([]wait
 }
 
 func insertWait(ctx context.Context, q querier, tenant uuid.UUID, w waitRow) error {
-	spec, err := json.Marshal(w.Spec)
+	spec, err := json.Marshal(w.Spec) //nolint:musttag // workflow.TaskSpec keeps Go's field names
 	if err != nil {
 		return err
 	}

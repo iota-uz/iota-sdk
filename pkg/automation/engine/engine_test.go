@@ -61,12 +61,12 @@ func TestEventWaitTimeoutEndSurvivesRestart(t *testing.T) {
 	p1.wf.Shutdown()
 	p1.disp.Stop()
 	p2 := e.proc()
-	require.Equal(t, steps, len(e.run(p2, a, run.RunID).Steps), "a restart takes no step")
+	require.Len(t, e.run(p2, a, run.RunID).Steps, steps, "a restart takes no step")
 	p2.until(func() bool { return e.status(p2, run.RunID) == engine.RunDone }, "the wait times out and the run ends")
 
 	d := e.run(p2, a, run.RunID)
 	assert.Equal(t, []string{"late:late", "note:order 42"}, e.effects(run.RunID), "every effect once")
-	var nodes []string
+	nodes := make([]string, 0, len(d.Steps))
 	for _, s := range d.Steps {
 		nodes = append(nodes, s.NodeID+"/"+s.Outcome)
 	}
@@ -118,8 +118,8 @@ func TestCrashBetweenInboxAndApplyTakesOneStep(t *testing.T) {
 	})
 	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 3}, 0)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run recovers and ends")
-	assert.Less(t, consumeFails.Load(), int32(0), "the apply was killed")
-	assert.Less(t, stepFails.Load(), int32(0), "a step was killed")
+	assert.Negative(t, consumeFails.Load(), "the apply was killed")
+	assert.Negative(t, stepFails.Load(), "a step was killed")
 	assert.Equal(t, []string{"note:order 3", "paid:paid 3"}, e.effects(run.RunID), "exactly one step of each node")
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.steps WHERE run_id = $1 AND node_id = 'paid'`, run.RunID))
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.steps WHERE run_id = $1 AND node_id = 'pay' AND outcome = 'matched'`, run.RunID))
@@ -246,7 +246,7 @@ func TestJoinAnyCancelsLosingWaitAndTask(t *testing.T) {
 	// The cancelled wait no longer wakes on the payment: only the wait after the join does.
 	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 1}, 0)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the payment wakes the wait after the join")
-	var tokens []string
+	tokens := make([]string, 0, 4)
 	for _, tk := range e.run(p, a, run.RunID).Tokens {
 		tokens = append(tokens, tk.Branch+":"+tk.Status)
 	}
@@ -283,4 +283,20 @@ func TestTaskDecisionContinuesTheRun(t *testing.T) {
 	require.NoError(t, p.wf.DecideTask(context.Background(), spiSubject(e.tenant, 1), task, []byte(`{"outcome": "reject"}`)))
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the decision continues the run")
 	assert.Equal(t, []string{"no:rejected"}, e.effects(run.RunID))
+}
+
+func TestWaitWithoutTimeoutFailsAtWaitMax(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc(func(c *engine.Config) { c.Limits.WaitMax = time.Second })
+	a := e.human()
+	e.create(p, a, `{"name": "Forever", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	 "nodes": [{"id": "pay", "type": "wait", "params": {"event": "acme.order.paid.v1"}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "created", "outcome": "fired"}, "to": "pay"}, {"from": {"node": "pay", "outcome": "matched"}, "to": "fin"}]}`)
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunFailed }, "the wait fails at WaitMax")
+	d := e.run(p, a, run.RunID)
+	require.NotNil(t, d.Error)
+	assert.Equal(t, engine.CodeTimeout, d.Error.Code)
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1 AND payload->>'status' = 'failed'`, engine.EventRunFinished))
 }

@@ -124,7 +124,7 @@ func (c *consumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope) e
 		subject = SubjectRef{Entity: ev.Subject.Entity, Key: ev.Subject.Key}
 	}
 	// Subject locks first (all of them, in a stable order), instances after: the order steps keep.
-	var keys []string
+	keys := make([]string, 0, len(waits)+1)
 	if normSubject(subject).Entity != graph.SubjectNone && len(triggers) > 0 {
 		keys = append(keys, subjectLockKey(ev.TenantID, subject, uuid.Nil))
 	}

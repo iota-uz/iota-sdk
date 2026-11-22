@@ -64,7 +64,10 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 			Message string `json:"message"`
 		}
 		_ = json.Unmarshal(inst.Error, &we)
-		b, _ := json.Marshal(StepError{Code: we.Code, Message: we.Message})
+		b, err := json.Marshal(StepError{Code: we.Code, Message: we.Message})
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `UPDATE automation.runs SET error = $3 WHERE tenant_id = $1 AND id = $2`, inst.TenantID, run.ID, b); err != nil {
 			return serrors.FromDB(opObserve, err)
 		}

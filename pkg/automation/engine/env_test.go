@@ -3,7 +3,6 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"os"
 	"testing"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
@@ -58,7 +58,7 @@ func (n nativeEvents) Events() []native.EventDefinition { return n }
 // specNode is a node type of a fixed spec.
 type specNode struct{ spec graph.NodeSpec }
 
-func (n specNode) Spec() graph.NodeSpec                { return n.spec }
+func (n specNode) Spec() graph.NodeSpec              { return n.spec }
 func (n specNode) Requires() []catalog.ConnectorKind { return nil }
 
 // noteNode is an effect: it writes a row of test_effects in the step's transaction.
@@ -139,8 +139,8 @@ func newEnv(t *testing.T) *env {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
 	noteSpec := graph.NodeSpec{Type: "acme.note", Title: "Note", Behavior: graph.BehaviorEffect, FailedOutcome: "failed", Outcomes: []string{"done", "failed"},
-		Params: graph.MustSchemaParams(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
-		Templates: []string{"text"}, Output: nil}
+		Params:    graph.MustSchemaParams(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
+		Templates: []string{"text"}, Output: expr.Fields{{Name: "text", Field: expr.StringField}}}
 	e.note = &noteNode{specNode: specNode{noteSpec}}
 	require.NoError(t, reg.RegisterNode(e.note))
 	emitSpec := graph.NodeSpec{Type: "acme.emit", Title: "Emit", Behavior: graph.BehaviorEffect,
@@ -295,8 +295,6 @@ func (e *env) status(p *proc, id uuid.UUID) engine.RunStatus {
 	e.t.Helper()
 	return e.run(p, e.human(), id).Status
 }
-
-func graphJSON(format string, args ...any) string { return fmt.Sprintf(format, args...) }
 
 func spiSubject(tenant uuid.UUID, user int64) spi.Subject {
 	return spi.Subject{TenantID: tenant, UserID: user, Kind: spi.SubjectInitiator, Permissions: allPerms}

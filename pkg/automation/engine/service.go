@@ -277,23 +277,27 @@ type cursor struct {
 }
 
 func encodeCursor(at time.Time, id uuid.UUID) string {
-	b, _ := json.Marshal(cursor{At: at, ID: id})
+	b, err := json.Marshal(cursor{At: at, ID: id})
+	if err != nil {
+		panic(fmt.Sprintf("automation engine: marshal a cursor: %v", err))
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-func decodeCursor(s string) (*cursor, error) {
+// decodeCursor reads a cursor; "" is the first page (ok false).
+func decodeCursor(s string) (cursor, bool, error) {
 	if s == "" {
-		return nil, nil
+		return cursor{}, false, nil
 	}
 	b, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return nil, fmt.Errorf("%w: cursor", ErrInvalidInput)
+		return cursor{}, false, fmt.Errorf("%w: cursor", ErrInvalidInput)
 	}
 	var c cursor
 	if err := json.Unmarshal(b, &c); err != nil {
-		return nil, fmt.Errorf("%w: cursor", ErrInvalidInput)
+		return cursor{}, false, fmt.Errorf("%w: cursor", ErrInvalidInput)
 	}
-	return &c, nil
+	return c, true, nil
 }
 
 func pageLimit(n int) int {
@@ -310,7 +314,7 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 	if err := s.authorize(a, PermRead); err != nil {
 		return Page[Automation]{}, err
 	}
-	c, err := decodeCursor(f.Cursor)
+	c, after, err := decodeCursor(f.Cursor)
 	if err != nil {
 		return Page[Automation]{}, err
 	}
@@ -328,7 +332,7 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 			where = append(where, "enabled_version IS NULL")
 		}
 	}
-	if c != nil {
+	if after {
 		args = append(args, c.At, c.ID)
 		where = append(where, fmt.Sprintf("(updated_at, id) < ($%d, $%d)", len(args)-1, len(args)))
 	}

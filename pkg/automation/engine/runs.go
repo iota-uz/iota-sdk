@@ -16,7 +16,7 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	if err := s.authorize(a, PermRead); err != nil {
 		return Page[RunSummary]{}, err
 	}
-	c, err := decodeCursor(f.Cursor)
+	c, after, err := decodeCursor(f.Cursor)
 	if err != nil {
 		return Page[RunSummary]{}, err
 	}
@@ -49,7 +49,7 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 		args = append(args, *f.Until)
 		where = append(where, fmt.Sprintf("r.created_at < $%d", len(args)))
 	}
-	if c != nil {
+	if after {
 		args = append(args, c.At, c.ID)
 		where = append(where, fmt.Sprintf("(r.created_at, r.id) < ($%d, $%d)", len(args)-1, len(args)))
 	}

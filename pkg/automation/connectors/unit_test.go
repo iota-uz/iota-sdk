@@ -91,14 +91,28 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 	require.NoError(t, dir.Register(leaky))
 }
 
-// The migration applies and rolls back: its Down then its Up run on a migrated database.
-func TestMigrationRollsBackAndApplies(t *testing.T) {
-	e := newEnv(t)
-	body, err := os.ReadFile("migrations/changes-1795256615.sql")
+// readMigration is the Up and Down sections of a migration file.
+func readMigration(t *testing.T, name string) (string, string) {
+	t.Helper()
+	body, err := os.ReadFile("migrations/" + name)
 	require.NoError(t, err)
 	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
 	require.True(t, ok)
-	up = strings.TrimPrefix(up, "-- +migrate Up")
+	return strings.TrimPrefix(up, "-- +migrate Up"), down
+}
+
+// The migration applies and rolls back: its Down then its Up run on a migrated database.
+func TestMigrationRollsBackAndApplies(t *testing.T) {
+	e := newEnv(t)
+	up, down := readMigration(t, "changes-1795256615.sql")
+	// The engine's tables (#1335) live in the same schema and are rolled back first, as the migrator does.
+	engineUp, engineDown := readMigration(t, "changes-1795400000.sql")
+	_, err := e.db.Exec(e.ctx, engineDown)
+	require.NoError(t, err)
+	defer func() {
+		_, err := e.db.Exec(e.ctx, engineUp)
+		require.NoError(t, err)
+	}()
 
 	tables := func() int {
 		var n int

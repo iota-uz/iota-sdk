@@ -456,9 +456,9 @@ type StepContext struct {
 
 // WaitSpec is a wait a node executor registers.
 type WaitSpec struct {
-	WaitID  string        // unique within the run
-	Kind    string        // call | task
-	Timeout time.Duration // 0 = node default
+	WaitID  string        `json:"wait_id"` // unique within the run
+	Kind    string        `json:"kind"`    // call | task
+	Timeout time.Duration `json:"timeout"` // 0 = node default
 	// Task, when set, is the human task the core opens for the wait after the step commits (the
 	// occurrence "task:<WaitID>"); its decision completes the wait. Without it the result arrives on the
 	// inbox as a WaitResult.

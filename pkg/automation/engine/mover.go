@@ -609,7 +609,7 @@ func (m *mover) decideJoin(ctx context.Context, parent *tokenRow) error {
 		return m.finish(ctx, parent, false, nil, "the branches of "+f.Node+" ended", nil)
 	}
 	st := m.in().Join(f.Join, parent.Path, f.State)
-	switch st.Kind {
+	switch st.Kind { //nolint:exhaustive // a join waits, fails or takes an outcome
 	case graph.StepWait:
 		return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *parent)
 	case graph.StepFailed, graph.StepMissingContext:
@@ -810,6 +810,13 @@ func (m *mover) timedOut(ctx context.Context, tok *tokenRow, w waitRow) error {
 		return m.nodeFailed(ctx, tok, w.NodeID, string(spec.Behavior), w.Spec.Seq, nil, StepError{Code: CodeTimeout, Message: w.NodeID + " got no answer in time"})
 	}
 	outcome, output := m.in().Wake(w.NodeID, nil)
+	if _, connected := m.in().Next(w.NodeID, outcome); !connected {
+		// A wait without a timeout of its own reached WaitMax: the node fails, the run does not end
+		// on an outcome the graph does not draw.
+		_, spec, _ := m.spec(w.NodeID)
+		return m.nodeFailed(ctx, tok, w.NodeID, string(spec.Behavior), w.Spec.Seq, nil,
+			StepError{Code: CodeTimeout, Message: fmt.Sprintf("%s waited the longest a wait may (%s)", w.NodeID, m.x.r.cfg.Limits.WaitMax)})
+	}
 	return m.applyResult(ctx, tok, w, outcome, output, nil)
 }
 
@@ -936,7 +943,8 @@ func (m *mover) closeStep(ctx context.Context, tok *tokenRow, seq int, outcome s
 	return serrors.FromDB(opRun, err)
 }
 
-func jsonOrNil(v any) (any, error) {
+// jsonOrNil is v as JSON, or nil (SQL NULL) for a nil value.
+func jsonOrNil(v any) ([]byte, error) {
 	switch x := v.(type) {
 	case nil:
 		return nil, nil
@@ -949,11 +957,7 @@ func jsonOrNil(v any) (any, error) {
 			return nil, nil
 		}
 	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	return json.Marshal(v)
 }
 
 // activeTokens counts the tokens that run: not finished and not waiting for their own branches.

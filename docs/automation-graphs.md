@@ -212,6 +212,31 @@ The subject's permissions are reloaded on every step, not once per run, so a lon
 run honors permission changes made while it waits; a subject that lost the right blocks
 the run.
 
+### The engine (`pkg/automation/engine`)
+
+`engine.NewRuntime` builds the engine over the workflow engine, the catalog registry and the
+user loader. A composition registers four things from it: `Runtime.Natives()` (the native
+contract `automation.run`, with its own `Limits.Concurrency` slots) through
+`wiring.ContributeNativeWorkflows`, `Runtime.Consumer()` (outbox consumer `automations`)
+through `wiring.ContributeConsumers`, `Runtime.Schedules()` through
+`wiring.ContributeSchedules`, and `engine.Triggers()` in the catalog registry (the schedule,
+manual and `automation.run.finished.v1` events). `Runtime.Serve` runs the maintenance loop:
+queued conversation runs, runs of disabled graphs, retention.
+
+- **State.** A run is an `automation.runs` row and an instance whose input is `{run_id}`. Its
+  tokens, steps and waits are written in fenced `NativeRun.Transaction`s named `tx#<tx_seq>`;
+  each transaction takes the subject's advisory lock first and sets
+  `app.automation_cause`, so events it publishes carry `{run_id, depth}` in
+  `outbox_events.cause`.
+- **Inputs.** Every input arrives on the signal `inbox`: the consumer signals a matched event
+  wait (`{wait_id, event}`), a call or task executor of #1336 signals a `WaitResult`. The run
+  consumes the signal `inbox#<inbox_seq>` and applies it in the next transaction, which moves
+  `inbox_seq` on; a timer is the sleep occurrence `timer:<wait_id>`, a core-opened task the
+  task occurrence `task:<wait_id>`.
+- **Node executors.** An effect node type implements `engine.EffectNode` (applied in the step's
+  transaction); call and human nodes go through `Config.Calls` / `Config.Tasks`; a Code node
+  type implements `engine.CodeNode` so `EnableReview` shows its code and digest.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).
