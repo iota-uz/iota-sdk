@@ -67,6 +67,10 @@ type (
 	decideRequest struct {
 		Decision json.RawMessage `json:"decision"`
 	}
+	delegateRequest struct {
+		To      int64  `json:"to"`
+		Comment string `json:"comment,omitempty"`
+	}
 	requeueRequest struct {
 		Event string `json:"event"`
 	}
@@ -210,6 +214,11 @@ var routes = []route{
 	{method: http.MethodPost, path: "/workflows/{id}/resolve", handle: (*API).resolveOccurrence, id: "manage.resolveOccurrence", summary: "Resolve a stuck occurrence with a result", perm: "operate", audit: manage.ActionWorkflowResolve, in: typeOf[occurrenceRequest](), status: 204},
 	{method: http.MethodPost, path: "/workflows/{id}/retry", handle: (*API).retryOccurrence, id: "manage.retryOccurrence", summary: "Retry a failed occurrence", perm: "operate", audit: manage.ActionWorkflowRetry, in: typeOf[retryRequest](), status: 204},
 	{method: http.MethodPost, path: "/workflows/{id}/resume", handle: (*API).resumeWorkflow, id: "manage.resumeWorkflow", summary: "Resume a blocked instance", perm: "operate", audit: manage.ActionWorkflowResume, status: 204},
+	{method: http.MethodGet, path: "/tasks", handle: (*API).taskInbox, id: "manage.taskInbox", summary: "List the human tasks you may decide now", perm: "",
+		query: []openapi.Param{q("status", "Comma-separated statuses (default open)."), q("overdue", "true: only tasks past their due time; false: only the others."),
+			q("workflow", "Only tasks of this workflow."), qInt("limit", "Page size (default 50, max 200)."), q("after", "Cursor: the ID of the last task of the previous page, or the stable `<its dueAt, RFC 3339, or empty>/<its id>` (workflow.CursorAfter), which keeps the order when that task's due time changed since.")},
+		status: 200, out: typeOf[[]workflow.Task]()},
+	{method: http.MethodPost, path: "/tasks/{id}/delegate", handle: (*API).delegateTask, id: "manage.delegateTask", summary: "Delegate your decision of a human task to another user", perm: "operate", alt: "you may decide the task", audit: manage.ActionWorkflowDelegate, in: typeOf[delegateRequest](), status: 204},
 	{method: http.MethodPost, path: "/tasks/{id}/decide", handle: (*API).decideTask, id: "manage.decideTask", summary: "Decide a human task", perm: "operate", alt: "you are the assignee of the task, or hold the permission it is assigned to", in: typeOf[decideRequest](), status: 204},
 	{method: http.MethodPost, path: "/subscriptions/{subscription}/requeue", handle: (*API).requeueReceipts, id: "manage.requeueReceipts", summary: "Give dead-lettered and blocked deliveries a fresh start", perm: "operate", audit: manage.ActionEventsRequeue, in: typeOf[requeueRequest](), inOptional: true, status: 200, out: typeOf[requeuedResponse]()},
 }
