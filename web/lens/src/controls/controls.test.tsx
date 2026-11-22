@@ -6,7 +6,9 @@ import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { stackedCalendarMediaQuery } from '../breakpoints'
 import { Calendar } from './Calendar'
-import { FilterBar } from './FilterBar'
+import { FilterBar, FilterControls } from './FilterBar'
+import { chipRange } from './PeriodChips'
+import { periodChoices } from './PeriodFilterControl'
 import { FacetFilterMenu, stagedFilterURL } from './FacetFilterMenu'
 import type { RangeSelection } from './model'
 
@@ -1175,5 +1177,93 @@ describe('SegmentedFilterControl', () => {
     expect(params.get('ActualRangeStart')).toBe('2025-01-01')
     expect(params.get('ActualRangeEnd')).toBe('2025-12-31')
     expect(params.get('PeriodGrain')).toBe('year')
+  })
+})
+
+/** A period declared with the filter_chips component: the shared kit's chip. */
+function chipPeriodDocument(value: { start: string; end: string }): DashboardDocument {
+  const base = documentWithPeriod(value)
+  const period = base.filters![0]!
+  return parseDocument({
+    ...base,
+    filters: [{ ...period, period: { ...period.period!, allowEmpty: false, chips: true } }],
+  })
+}
+
+function chipPeriodFetcher(calls: Array<string>): typeof fetch {
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    calls.push(`${url.pathname}${url.search}`)
+    const start = url.searchParams.get('ActualRangeStart')
+    const end = url.searchParams.get('ActualRangeEnd')
+    const value = start !== null && end !== null ? { start, end } : { start: '2026-01-01', end: '2026-07-22' }
+    return Promise.resolve(new Response(
+      JSON.stringify(chipPeriodDocument(value)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+  }
+}
+
+describe('Period chips (shared filter builder)', () => {
+  it('shows the period as a required chip and applies a preset through the document URL', async () => {
+    window.history.replaceState(null, '', '/report')
+    const calls: Array<string> = []
+    const view = render(() => <FiltersFixture fetcher={chipPeriodFetcher(calls)} />)
+    const chips = await screen.findByTestId('period-chips')
+    // The calendar control is replaced, not duplicated.
+    expect(screen.queryByRole('button', { name: /Change period/ })).not.toBeInTheDocument()
+    const chip = within(chips).getByRole('button', { name: /Period.*Current fiscal year/ })
+    // Required: no remove button and no "Clear all".
+    expect(within(chips).queryByRole('button', { name: 'Remove filter' })).not.toBeInTheDocument()
+    expect(within(chips).queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument()
+    fireEvent.click(chip)
+    const editor = await screen.findByRole('dialog', { name: 'Edit Period' })
+    fireEvent.click(within(editor).getByRole('button', { name: '2025' }))
+    await waitFor(() => expect(calls.some((call) => call.includes('ActualRangeStart=2025-01-01') && call.includes('ActualRangeEnd=2025-12-31'))).toBe(true))
+    expect(await within(chips).findByRole('button', { name: /Period.*2025/ })).toBeInTheDocument()
+    expect(new URL(window.location.href).searchParams.get('ActualRangeStart')).toBe('2025-01-01')
+    view.unmount()
+  })
+})
+
+describe('Period chips: ranges, ids and placement', () => {
+  const period = { startParam: 'a', endParam: 'b', value: { start: '', end: '' }, min: '2025-01-01', max: '2026-12-31' }
+
+  it('orders, clamps and rejects chip ranges so the URL never holds one the server refuses', () => {
+    expect(chipRange({ ...period, allowEmpty: false }, '2026-03-01', '2026-01-01')).toEqual({ start: '2026-01-01', end: '2026-03-01' })
+    expect(chipRange({ ...period, allowEmpty: false }, '2024-06-01', '2027-06-01')).toEqual({ start: '2025-01-01', end: '2026-12-31' })
+    expect(chipRange({ ...period, allowEmpty: false }, '2027-01-01', '2027-02-01')).toBeUndefined()
+    expect(chipRange({ ...period, allowEmpty: false }, '2026-01-01', '')).toBeUndefined()
+    expect(chipRange({ ...period, allowEmpty: true }, '2026-01-01', '')).toEqual({ start: '2026-01-01', end: '' })
+  })
+
+  it('gives a declared preset that reuses a catalogue id its own id', () => {
+    const today = { year: 2026, month: 7, day: 22 }
+    const translate = (_key: string, fallback: string) => fallback
+    const catalogue = periodChoices({ ...period, allowEmpty: true }, today, translate)
+    const [first] = catalogue
+    const declared = { id: first!.id, label: 'Season', value: { start: '2025-03-01', end: '2025-05-31' } }
+    const merged = periodChoices({ ...period, allowEmpty: true, presets: [declared] }, today, translate)
+    expect(new Set(merged.map((choice) => choice.id)).size).toBe(merged.length)
+    expect(merged.find((choice) => choice.label === 'Season')?.id).toBe(first!.id)
+    expect(merged.find((choice) => choice.label === first!.label)?.id).toBe(`${first!.id}-2`)
+  })
+
+  it('renders a chip for a period wherever its controls render (a tab) and keeps a half-open range', async () => {
+    const doc = documentWithPeriod({ start: '2026-01-01', end: '' })
+    const chipPeriod = { ...doc.filters![0]!, period: { ...doc.filters![0]!.period!, chips: true } }
+    const fetcher: typeof fetch = () => Promise.resolve(new Response(JSON.stringify(doc), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    render(() => (
+      <div class="lens-root">
+        <DocumentProvider fetcher={fetcher} src="/lens/document">
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">{() => <FilterControls filters={[chipPeriod]} today={{ year: 2026, month: 7, day: 22 }} />}</DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>
+    ))
+    const chips = await screen.findByTestId('period-chips')
+    expect(within(chips).getByRole('button', { name: /Period.*01\.01\.2026 – …/ })).toBeInTheDocument()
+    // Optional period: removable, and its add flow is translatable.
+    expect(within(chips).getByRole('button', { name: 'Remove filter' })).toBeInTheDocument()
   })
 })

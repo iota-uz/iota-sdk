@@ -1138,6 +1138,8 @@
       "RemoveChip": "Филтрни олиб ташлаш"
     },
     "FilterBuilder": {
+      "Yes": "Ҳа",
+      "No": "Йўқ",
       "AddFilter": "Филтр қўшиш",
       "ClearAll": "Ҳаммасини тозалаш",
       "Apply": "Қўллаш",

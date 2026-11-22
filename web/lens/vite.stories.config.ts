@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import solid from 'vite-plugin-solid'
 import { defineConfig } from 'vite'
+import { kitCss } from './kitCss'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
@@ -39,9 +40,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/solid-index.ts'),
+      // The shared filter-chip kit (PeriodChips). External in the package:
+      // the host resolves it from the same @iota-uz/sdk install.
+      '@iota-uz/sdk/solid-ui/embedded-css': path.resolve(rootDir, 'src/controls/solidUiEmbeddedCss.dev.ts'),
+      '@iota-uz/sdk/solid-ui': path.resolve(rootDir, '../solid-ui/src/index.ts'),
     },
   },
-  plugins: [solid(), storyMeta(), storyRoot()],
+  plugins: [kitCss(), solid(), storyMeta(), storyRoot()],
   server: {
     port: 61000,
     watch: { usePolling: true, interval: 300 },

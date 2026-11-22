@@ -400,25 +400,29 @@ const (
 	I18nFilterFacetSearch          = "filter.facet.search"
 	I18nFilterFacetSearchIn        = "filter.facet.searchIn"
 	I18nFilterFacetStaged          = "filter.facet.staged"
-	I18nFilterCompareOff           = "filter.compare.off"
-	I18nFilterComparePrevious      = "filter.compare.previous"
-	I18nFilterCompareYearAgo       = "filter.compare.yearAgo"
-	I18nFilterCompareCustom        = "filter.compare.custom"
-	I18nFilterCompareStart         = "filter.compare.start"
-	I18nFilterCompareEnd           = "filter.compare.end"
-	I18nFilterAllTime              = "filter.period.allTime"
-	I18nFilterApply                = "filter.period.apply"
-	I18nFilterCancel               = "filter.period.cancel"
-	I18nFilterCompleted            = "filter.period.completed"
-	I18nFilterCustom               = "filter.period.custom"
-	I18nFilterDateFormat           = "filter.period.dateFormat"
-	I18nFilterDuration             = "filter.period.duration"
-	I18nFilterFrom                 = "filter.period.from"
-	I18nFilterOpen                 = "filter.period.open"
-	I18nFilterPrevious             = "filter.period.previous"
-	I18nFilterNext                 = "filter.period.next"
-	I18nFilterQuickSelect          = "filter.period.quickSelect"
-	I18nFilterTo                   = "filter.period.to"
+	// Period chips (filter_chips component): the shared builder's add flow.
+	I18nFilterChipsAdd          = "filter.chips.add"
+	I18nFilterChipsAddDialog    = "filter.chips.addDialog"
+	I18nFilterChipsSearchFields = "filter.chips.searchFields"
+	I18nFilterCompareOff        = "filter.compare.off"
+	I18nFilterComparePrevious   = "filter.compare.previous"
+	I18nFilterCompareYearAgo    = "filter.compare.yearAgo"
+	I18nFilterCompareCustom     = "filter.compare.custom"
+	I18nFilterCompareStart      = "filter.compare.start"
+	I18nFilterCompareEnd        = "filter.compare.end"
+	I18nFilterAllTime           = "filter.period.allTime"
+	I18nFilterApply             = "filter.period.apply"
+	I18nFilterCancel            = "filter.period.cancel"
+	I18nFilterCompleted         = "filter.period.completed"
+	I18nFilterCustom            = "filter.period.custom"
+	I18nFilterDateFormat        = "filter.period.dateFormat"
+	I18nFilterDuration          = "filter.period.duration"
+	I18nFilterFrom              = "filter.period.from"
+	I18nFilterOpen              = "filter.period.open"
+	I18nFilterPrevious          = "filter.period.previous"
+	I18nFilterNext              = "filter.period.next"
+	I18nFilterQuickSelect       = "filter.period.quickSelect"
+	I18nFilterTo                = "filter.period.to"
 
 	// Relative period presets rendered by the runtime's built-in catalog
 	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
@@ -849,6 +853,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterFacetApply, I18nFilterFacetClear, I18nFilterFacetClearAll, I18nFilterFacetEmpty, I18nFilterFacetError,
 		I18nFilterFacetFilters, I18nFilterFacetLoading, I18nFilterFacetRemove, I18nFilterFacetSearch,
 		I18nFilterFacetSearchIn, I18nFilterFacetStaged,
+		I18nFilterChipsAdd, I18nFilterChipsAddDialog, I18nFilterChipsSearchFields,
 		I18nFilterCompareOff, I18nFilterComparePrevious, I18nFilterCompareYearAgo,
 		I18nFilterCompareCustom, I18nFilterCompareStart, I18nFilterCompareEnd,
 		I18nFilterCompleted, I18nFilterCustom,

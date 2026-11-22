@@ -1141,6 +1141,8 @@
       "RemoveChip": "Remover filtro"
     },
     "FilterBuilder": {
+      "Yes": "Sim",
+      "No": "Não",
       "AddFilter": "Adicionar filtro",
       "ClearAll": "Limpar tudo",
       "Apply": "Aplicar",

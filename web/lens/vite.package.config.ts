@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@iota-uz/sdk/client-host': path.resolve(rootDir, '../client-host/src/solid-index.ts'),
+
     },
     dedupe: ['solid-js'],
   },
@@ -19,7 +20,7 @@ export default defineConfig({
     cssCodeSplit: false,
     lib: { entry: path.resolve(rootDir, 'src/index.ts'), formats: ['es'], fileName: 'index' },
     rollupOptions: {
-      external: ['solid-js', 'solid-js/web', 'solid-js/store', '@iota-uz/sdk/client-host'],
+      external: ['solid-js', 'solid-js/web', 'solid-js/store', '@iota-uz/sdk/client-host', '@iota-uz/sdk/solid-ui', '@iota-uz/sdk/solid-ui/embedded-css'],
       output: { assetFileNames: (asset) => asset.name?.endsWith('.css') ? 'style.css' : 'assets/[name]-[hash][extname]' },
     },
   },

@@ -2,7 +2,10 @@ package controllers_test
 
 import (
 	"fmt"
+	"html"
 	"net/url"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,6 +155,38 @@ func TestProjectStageController_List_FilterChips(t *testing.T) {
 		}
 		response.Contains(`hx-swap-oob="outerHTML"`)
 	}
+
+	// Paging keeps the search and the chips: with one stage per page the
+	// second page of "Alpha" stages is still Alpha's, and its links carry the
+	// conditions on.
+	query := "?Search=stage&f=project:is:" + alpha.ID().String() + "&fb=1&limit=1"
+	first := suite.GET(ProjectStageBasePath + query).Expect(t).Status(200)
+	match := regexp.MustCompile(`href="([^"]*[?&](?:amp;)?page=2[^"]*)"`).FindStringSubmatch(first.Body())
+	require.NotNil(t, match, "the first page links to page 2")
+	link, err := url.Parse(html.UnescapeString(match[1]))
+	require.NoError(t, err)
+	got := link.Query()
+	assert.Equal(t, "stage", got.Get("Search"))
+	assert.Equal(t, []string{"project:is:" + alpha.ID().String()}, got["f"])
+	assert.Equal(t, "1", got.Get("fb"))
+	assert.Equal(t, "1", got.Get("limit"))
+
+	// Follow the generated link itself, not a hand-built one.
+	second := suite.GET(link.Path + "?" + link.RawQuery).HTMX().Expect(t).Status(200)
+	body := second.Body()
+	assert.True(t, strings.Contains(body, "Alpha finished stage") || strings.Contains(body, "Alpha open stage"),
+		"page 2 shows one of Alpha's stages")
+	second.NotContains("Beta open stage")
+
+	// Opened as a full page (reload, or the link in a new tab), the form the
+	// next chip change serializes holds the same search and page size.
+	full := suite.GET(link.Path + "?" + link.RawQuery).Expect(t).Status(200)
+	full.Contains(`name="Search"`)
+	assert.Regexp(t, `name="Search"[^>]*value="stage"|value="stage"[^>]*name="Search"`, full.Body(), "the search box keeps the search")
+	assert.Regexp(t, `<option value="1" selected`, full.Body(), "the page size keeps limit=1")
+	// A chip change sends that form: page 1 with the search and size kept.
+	changed := suite.GET(ProjectStageBasePath + "?Search=stage&limit=1&f=project:is:" + alpha.ID().String() + "&f=factual_end:empty:&fb=1").HTMX().Expect(t).Status(200)
+	changed.Contains("Alpha open stage").NotContains("Alpha finished stage").NotContains("Beta open stage")
 }
 
 func TestProjectStageController_List_HTMX_Request(t *testing.T) {

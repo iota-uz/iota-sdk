@@ -1,5 +1,5 @@
 
-import { createEffect, createSignal, createUniqueId, For, onCleanup, Show, type JSX } from 'solid-js'
+import { createEffect, createSignal, createUniqueId, For, lazy, onCleanup, Show, type JSX } from 'solid-js'
 import { useDashboard, useFilters, useTranslate } from '../runtime'
 import { DotsThree, X } from '../icons'
 import { CompareFilterControl } from './CompareFilterControl'
@@ -11,6 +11,10 @@ import type { CalendarDate } from './model'
 import { clearRendererStateFromURL } from '../runtime/url'
 import type { Filter } from '../contract'
 import { ToolbarOverflowContext } from './toolbarOverflow'
+
+/** Loaded only by dashboards that declare a chip period: the shared kit and
+ * its utility sheet stay out of the core entry. */
+const PeriodChips = lazy(() => import('./PeriodChips').then((module) => ({ default: module.PeriodChips })))
 
 export interface FilterBarProps {
   /** Fixed "today" for deterministic stories and visual regression. */
@@ -119,11 +123,17 @@ interface ActiveChip {
 
 export function FilterControls(props: { filters: Filter[]; today?: CalendarDate }) {
   const facets = () => props.filters.filter((filter) => filter.kind === 'facet' && filter.facet)
+  // A filter_chips period renders as a chip of the shared builder, wherever
+  // its controls render: the dashboard bar or the tab it is placed in.
+  const chipPeriods = () => props.filters.filter((filter) => filter.kind === 'period' && filter.period?.chips)
   return (
     <>
+      <Show when={chipPeriods().length > 0}>
+        <PeriodChips filters={chipPeriods()} today={props.today} />
+      </Show>
       <For each={props.filters}>
         {(filter) => (
-          filter.kind === 'period' && filter.period
+          filter.kind === 'period' && filter.period && !filter.period.chips
             ? <PeriodFilterControl filter={filter} today={props.today} />
             : filter.kind === 'compare' && filter.compare
               ? <CompareFilterControl filter={filter} />

@@ -1138,6 +1138,8 @@
       "RemoveChip": "Filtrni olib tashlash"
     },
     "FilterBuilder": {
+      "Yes": "Ha",
+      "No": "Yo‘q",
       "AddFilter": "Filtr qoʻshish",
       "ClearAll": "Hammasini tozalash",
       "Apply": "Qoʻllash",

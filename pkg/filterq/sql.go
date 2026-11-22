@@ -90,13 +90,13 @@ func predicate(t FieldType, col Column, c Condition, now time.Time, p *Params) (
 	case FieldTypeReference:
 		return referencePredicate(col, c, p)
 	case FieldTypeBool:
-		if len(c.Values) != 1 {
-			return "", false
-		}
-		if c.Values[0] == "true" {
+		switch c.FlagValue() {
+		case "true":
 			return col.Expr + " IS TRUE", true
+		case "false":
+			return col.Expr + " IS NOT TRUE", true
 		}
-		return col.Expr + " IS NOT TRUE", true
+		return "", false
 	case FieldTypeDate:
 		return datePredicate("("+col.Expr+")::date", c, now, p)
 	case FieldTypeNumber:

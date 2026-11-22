@@ -24,17 +24,15 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 			<div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm">
 				<button
 					type="button"
-					class={
-						"inline-flex min-w-0 items-center gap-1.5 pl-3 pr-2 duration-150",
-						templ.KV("cursor-pointer hover:bg-surface-400", field.Type != filterq.FieldTypeBool),
-						templ.KV("cursor-default", field.Type == filterq.FieldTypeBool),
-					}
-					if field.Type != filterq.FieldTypeBool {
-						x-on:click={ fmt.Sprintf("edit(%d)", idx) }
-					}
+					class="inline-flex min-w-0 items-center gap-1.5 pl-3 pr-2 duration-150 cursor-pointer hover:bg-surface-400"
+					x-on:click={ fmt.Sprintf("edit(%d)", idx) }
+					x-bind:aria-expanded={ fmt.Sprintf("editing === %d", idx) }
 				>
 					<span class="font-medium whitespace-nowrap">{ field.Label }</span>
-					if field.Type != filterq.FieldTypeBool {
+					if field.Type == filterq.FieldTypeBool {
+						<!-- A flag chip states its value: "Overdue: no" must not read as "Overdue". -->
+						<span class="text-200 whitespace-nowrap">{ chipValueSummary(pageCtx, field, c) }</span>
+					} else {
 						{{ _, isPreset := c.Preset() }}
 						if !isPreset {
 							<span class="text-200 whitespace-nowrap">{ pageCtx.T(operatorKey(c.Op)) }</span>
@@ -53,18 +51,16 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 					@icons.X(icons.Props{Size: "14"})
 				</button>
 			</div>
-			if field.Type != filterq.FieldTypeBool {
-				<div
-					x-cloak
-					x-show={ fmt.Sprintf("editing === %d", idx) }
-					x-transition.opacity.duration.100ms
-					role="dialog"
-					data-fb-popover
-					class="absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
-				>
-					@editorPanel(field, &c, idx)
-				</div>
-			}
+			<div
+				x-cloak
+				x-show={ fmt.Sprintf("editing === %d", idx) }
+				x-transition.opacity.duration.100ms
+				role="dialog"
+				data-fb-popover
+				class="absolute z-30 left-0 top-full mt-1 w-full sm:w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
+			>
+				@editorPanel(field, &c, idx)
+			</div>
 		</div>
 	}
 }
@@ -91,6 +87,7 @@ func panelArgs(field FieldDef, cond *filterq.Condition, chipIdx int) string {
 		"op":     op,
 		"chip":   chipIdx,
 		"preset": preset,
+		"value":  boolValue(field, cond),
 	})
 	if err != nil {
 		return "{}"
@@ -147,6 +144,22 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 		}
 		<div class="flex flex-col gap-2.5" x-show="op !== 'empty'">
 			switch field.Type {
+				case filterq.FieldTypeBool:
+					<!-- Yes / No: choosing one applies it, the current value is pressed. -->
+					<div class="flex gap-1.5" role="group" aria-label={ field.Label }>
+						for _, v := range []string{"true", "false"} {
+							<button
+								type="button"
+								class="flex-1 rounded-md border border-default px-3 py-1.5 text-sm cursor-pointer hover:border-brand hover:bg-surface-400 duration-100"
+								:class={ "value === '" + v + "' ? 'bg-surface-400 font-medium border-brand' : ''" }
+								x-bind:aria-pressed={ "value === '" + v + "'" }
+								x-on:click={ "applyBool('" + v + "')" }
+								data-fb-bool={ v }
+							>
+								{ pageCtx.T(boolKey(v)) }
+							</button>
+						}
+					</div>
 				case filterq.FieldTypeReference:
 					if usesCheckboxList(field.Options) && !field.Single {
 						@CheckboxOptions(field.Options, condValues(cond))
@@ -229,17 +242,28 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 					</div>
 			}
 		</div>
-		@button.Primary(button.Props{
-			Size:  button.SizeSM,
-			Class: "justify-center",
-			Attrs: templ.Attributes{
-				"type":       "button",
-				"x-on:click": "apply()",
-			},
-		}) {
-			{ pageCtx.T("Scaffold.FilterBuilder.Apply") }
+		if field.Type != filterq.FieldTypeBool {
+			@button.Primary(button.Props{
+				Size:  button.SizeSM,
+				Class: "justify-center",
+				Attrs: templ.Attributes{
+					"type":       "button",
+					"x-on:click": "apply()",
+				},
+			}) {
+				{ pageCtx.T("Scaffold.FilterBuilder.Apply") }
+			}
 		}
 	</div>
+}
+
+// boolValue is the current value of a flag chip ("true" / "false"), so its
+// editor shows which one is on; empty for other fields and the add popover.
+func boolValue(field FieldDef, cond *filterq.Condition) string {
+	if field.Type != filterq.FieldTypeBool || cond == nil {
+		return ""
+	}
+	return cond.FlagValue()
 }
 
 func condValues(cond *filterq.Condition) []string {

@@ -682,6 +682,7 @@ export const PeriodFilterSchema: z.ZodType<Contract.PeriodFilter> = z.lazy(() =>
   max: z.string().optional(),
   allowEmpty: z.boolean().optional(),
   presets: z.array(z.lazy(() => PeriodPresetSchema)).optional(),
+  chips: z.boolean().optional(),
 }).strict())
 
 export const PeriodPresetSchema: z.ZodType<Contract.PeriodPreset> = z.lazy(() => z.object({

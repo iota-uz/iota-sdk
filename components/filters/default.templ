@@ -45,8 +45,9 @@ templ SearchFields(fields []SearchField) {
 			Trigger: &base.Trigger{Render: func(props *base.TriggerProps) templ.Component {
 				return SearchFieldsTrigger(props)
 			}}}) {
+			{{ chosen := currentQuery(ctx).Get("Field") }}
 			for _, field := range fields {
-				<option value={ field.Key }>{ field.Label }</option>
+				<option value={ field.Key } selected?={ field.Key == chosen }>{ field.Label }</option>
 			}
 		}
 	}
@@ -66,6 +67,9 @@ templ Search(fields []SearchField) {
 		Placeholder: pageCtx.T("Search"),
 		Attrs: templ.Attributes{
 			"name": "Search",
+			// The current search survives a reload and a page link (they
+			// carry ?Search=), so the next filter change sends it again.
+			"value": currentQuery(ctx).Get("Search"),
 		},
 	})
 }
@@ -73,16 +77,16 @@ templ Search(fields []SearchField) {
 // PageSize renders a select dropdown for choosing the number of items per page.
 templ PageSize() {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ limit, sizes := pageSize(ctx) }}
 	@base.Select(&base.SelectProps{
 		Prefix: pageCtx.T("PerPage"),
 		Attrs: templ.Attributes{
 			"name": "limit",
 		},
 	}) {
-		<option value="15">15</option>
-		<option value="25" selected>25</option>
-		<option value="50">50</option>
-		<option value="100">100</option>
+		for _, size := range sizes {
+			<option value={ strconv.Itoa(size) } selected?={ size == limit }>{ strconv.Itoa(size) }</option>
+		}
 	}
 }
 

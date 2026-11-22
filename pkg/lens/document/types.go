@@ -349,6 +349,10 @@ type PeriodFilter struct {
 	// Presets are one-click ranges (years, quarters, "all time"). Labels are
 	// already localized by the producer.
 	Presets []PeriodPreset `json:"presets,omitempty"`
+	// Chips renders the period as a required chip of the shared filter
+	// builder (the variable's component is filter_chips) instead of the
+	// calendar trigger. Same parameters, presets and value.
+	Chips bool `json:"chips,omitempty"`
 }
 
 // PeriodValue is a closed or half-open date range. Empty strings mean the

@@ -66,3 +66,35 @@ test("an empty value select applies nothing", () => {
   instance.apply();
   assert.deepEqual(dispatched, []);
 });
+
+function flagPanel(value, focused, op = "is") {
+  const dispatched = [];
+  const instance = factory({ field: "overdue", type: "bool", op, chip: 0, value });
+  instance.$root = { ownerDocument: { activeElement: focused } };
+  instance.$dispatch = (name, detail) => dispatched.push({ name, detail });
+  return { instance, dispatched };
+}
+
+test("flag editor knows the current value and switches it", () => {
+  const { instance, dispatched } = flagPanel("true");
+  assert.equal(instance.value, "true");
+  instance.applyBool("false");
+  assert.equal(instance.value, "false");
+  assert.deepEqual(JSON.parse(JSON.stringify(dispatched[0].detail)), { field: "overdue", op: "is", values: ["false"], chip: 0 });
+});
+
+test("a flag chip stored as is-not keeps its operator when edited", () => {
+  const { instance, dispatched } = flagPanel("false", undefined, "isnot");
+  instance.applyBool("true");
+  assert.equal(instance.value, "true");
+  assert.deepEqual(JSON.parse(JSON.stringify(dispatched[0].detail)), { field: "overdue", op: "isnot", values: ["false"], chip: 0 });
+});
+
+test("Enter on a focused Yes / No button applies that value", () => {
+  const { instance, dispatched } = flagPanel("true", { dataset: { fbBool: "false" } });
+  instance.apply();
+  assert.deepEqual(Array.from(dispatched[0].detail.values), ["false"]);
+  const idle = flagPanel("true", { dataset: {} });
+  idle.instance.apply();
+  assert.deepEqual(idle.dispatched, []);
+});
