@@ -2,6 +2,8 @@ package controllers_test
 
 import (
 	"fmt"
+	"html"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -492,4 +494,48 @@ func TestDebtAggregateController_List_FilterChips(t *testing.T) {
 	// Back to a chip URL after a history-cache miss gets the whole page.
 	suite.GET(DebtAggregateBasePath + "?f=type:is:RECEIVABLE").HTMX().HTMXHistoryRestore().Expect(t).Status(200).
 		Contains("<html").Contains(`x-data="filterBuilder"`)
+}
+
+// A counterparty with debts in two currencies gets a summary row per currency
+// — sums in different money are never added — and each row's drawer lists
+// only the debts that row sums.
+func TestDebtAggregateController_CurrenciesAreNotMixed(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(permissions.DebtRead, permissions.DebtCreate)
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewComponent()).Build().AsUser(adminUser)
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD, currency.EUR)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	suite.Register(controllers.NewDebtAggregateController(debtService, counterpartyService))
+
+	cp, err := counterpartyService.Create(env.Ctx, counterparty.New(
+		"Chip Delta LLC", counterparty.Customer, counterparty.LLC, counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	for _, amount := range []*money.Money{money.NewFromFloat(300, "EUR"), money.NewFromFloat(150, "USD")} {
+		_, err := debtService.Create(env.Ctx, debtAggregate.New(debtAggregate.DebtTypeReceivable, amount,
+			debtAggregate.WithTenantID(env.Tenant.ID), debtAggregate.WithCounterpartyID(cp.ID())))
+		require.NoError(t, err)
+	}
+
+	body := suite.GET(DebtAggregateBasePath + "?f=currency:is:EUR,USD&f=counterparty:is:" + cp.ID().String()).
+		HTMX().Expect(t).Status(200).Body()
+	require.Contains(t, body, "300.00")
+	require.Contains(t, body, "150.00")
+	require.NotContains(t, body, "450.00", "euros and dollars are not added together")
+	drawer := regexp.MustCompile(`/finance/debt-aggregates/` + cp.ID().String() + `/drawer\?[^"']*`)
+	links := drawer.FindAllString(body, -1)
+	require.Len(t, links, 2, "one row per currency")
+
+	var usdLink string
+	for _, link := range links {
+		if strings.Contains(html.UnescapeString(link), "currency%3Ais%3AUSD") {
+			usdLink = html.UnescapeString(link)
+		}
+	}
+	require.NotEmpty(t, usdLink, "the dollar row carries its currency to the drawer")
+	suite.GET(usdLink).HTMX().Expect(t).Status(200).Contains("150.00").NotContains("300.00")
 }

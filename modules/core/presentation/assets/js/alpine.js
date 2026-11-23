@@ -2978,6 +2978,17 @@ let filterBuilder = () => ({
   },
 });
 
+// Back to a page with filter chips. The builder edits the chips in the page
+// (clear all, remove, apply) before its request, and htmx stores its history
+// snapshot after that: a restored snapshot showed the old URL's rows without
+// its chips. Chips and rows are built by the server from the URL, so a page
+// with a builder restored from history — cache hit or miss — is reloaded.
+if (typeof document !== 'undefined') {
+  document.addEventListener('htmx:historyRestore', () => {
+    if (document.querySelector('[x-data="filterBuilder"]')) window.location.reload();
+  });
+}
+
 // fbPanel is the polymorphic operator+value editor inside filterBuilder
 // popovers. It collects values from its nameless embedded controls and hands
 // them up to filterBuilder via the `fb-apply` event.

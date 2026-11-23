@@ -31,7 +31,8 @@ const (
 			   created_at, updated_at
 		FROM debts`
 	debtCountQuery = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
-	// debtAggregateSelect sums the debts per counterparty; the caller adds
+	// debtAggregateSelect sums the debts per counterparty and currency — sums
+	// in different currencies are never added together; the caller adds
 	// WHERE (debt filters), GROUP BY, HAVING (summed filters) and ORDER BY.
 	debtAggregateSelect = `
 		SELECT 
@@ -41,9 +42,9 @@ const (
 			SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_receivable,
 			SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_payable,
 			COUNT(*) as debt_count,
-			MAX(original_amount_currency_id) as currency_code
+			original_amount_currency_id as currency_code
 		FROM debts`
-	debtAggregateOrder = `ORDER BY (SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) + SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END)) DESC`
+	debtAggregateOrder = `ORDER BY (SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) + SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END)) DESC, counterparty_id, original_amount_currency_id`
 	debtInsertQuery    = `
 		INSERT INTO debts (
 			tenant_id, type, status, counterparty_id,
@@ -236,7 +237,7 @@ func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context, filt
 		}
 		args = append(args, f.Filter.Value()...)
 	}
-	query := repo.Join(debtAggregateSelect, repo.JoinWhere(where...), "GROUP BY counterparty_id")
+	query := repo.Join(debtAggregateSelect, repo.JoinWhere(where...), "GROUP BY counterparty_id, original_amount_currency_id")
 	if len(having) > 0 {
 		query = repo.Join(query, "HAVING "+strings.Join(having, " AND "))
 	}

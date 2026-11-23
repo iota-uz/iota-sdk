@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -216,8 +217,10 @@ func (c *DebtAggregateController) List(
 			table.Cell(templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)), aggVM.DebtCount),
 		}
 
+		// The drawer lists the debts this row sums: the row's currency and
+		// the side chip of the page.
 		row := table.Row(cells...).ApplyOpts(
-			table.WithDrawer(fmt.Sprintf("%s/%s/drawer", c.basePath, aggVM.CounterpartyID)),
+			table.WithDrawer(fmt.Sprintf("%s/%s/drawer?%s", c.basePath, aggVM.CounterpartyID, drawerQuery(conditions, agg.CurrencyCode()).Encode())),
 		)
 		rows = append(rows, row)
 	}
@@ -260,6 +263,9 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 		http.Error(w, "Error retrieving debts", http.StatusInternalServerError)
 		return
 	}
+	// Only the debts the summary row was summed from: its currency and the
+	// side chip carried by the row's link.
+	debts = drawerDebts(debts, r.URL.Query())
 
 	counterparty, err := c.counterpartyService.GetByID(ctx, counterpartyID)
 	if err != nil {
@@ -329,6 +335,46 @@ func canonicalCounterparties(conditions filterq.FilterSet) filterq.FilterSet {
 			c.Values = values
 		}
 		out[i] = c
+	}
+	return out
+}
+
+// drawerQuery is what a summary row passes to its drawer: the row's currency
+// and the side chip, the conditions that narrow which debts are summed.
+// "Has outstanding" filters the summed rows, not the debts, so it stays out.
+func drawerQuery(conditions filterq.FilterSet, currency string) url.Values {
+	kept := filterq.FilterSet{{Field: debtAggFilterCurrency, Op: filterq.OpIs, Values: []string{currency}}}
+	for _, c := range conditions {
+		if c.Field == debtAggFilterType {
+			kept = append(kept, c)
+		}
+	}
+	return filterq.Encode(kept)
+}
+
+// drawerDebts keeps the debts matching the currency and side conditions of
+// the drawer link (drawerQuery).
+func drawerDebts(debts []debt.Debt, q url.Values) []debt.Debt {
+	var conditions filterq.FilterSet
+	for _, raw := range q[filterq.ParamName] {
+		if c, ok := filterq.DecodeCondition(raw); ok && (c.Field == debtAggFilterCurrency || c.Field == debtAggFilterType) {
+			conditions = append(conditions, c)
+		}
+	}
+	out := make([]debt.Debt, 0, len(debts))
+	for _, d := range debts {
+		keep := true
+		for _, c := range conditions {
+			switch c.Field {
+			case debtAggFilterCurrency:
+				keep = keep && d.OriginalAmount() != nil && c.MatchValue(d.OriginalAmount().Currency().Code)
+			case debtAggFilterType:
+				keep = keep && c.MatchValue(string(d.Type()))
+			}
+		}
+		if keep {
+			out = append(out, d)
+		}
 	}
 	return out
 }
