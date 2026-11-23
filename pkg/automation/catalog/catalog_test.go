@@ -473,7 +473,7 @@ func TestWaitOnAnUnavailableEventHidesTheNode(t *testing.T) {
 	p, err := graph.FieldsParams(expr.Fields{})
 	require.NoError(t, err)
 	require.NoError(t, reg.RegisterNode(node{spec: graph.NodeSpec{
-		Type: "telegram.await", Behavior: graph.BehaviorWait, Params: p,
+		Type: "telegram.await", Behavior: graph.BehaviorWait, DryRun: graph.DryRunExecute, Params: p,
 		Wait: &graph.WaitSpec{Event: graph.ValueOrParam{Value: "telegram.message"}, Matched: "matched"},
 	}}))
 	v, err := reg.ForTenant(context.Background(), uuid.New())

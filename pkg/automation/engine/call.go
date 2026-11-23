@@ -57,6 +57,7 @@ type CallRequest struct {
 	Input          json.RawMessage `json:"input"`                   // rendered params, no secrets
 	IdempotencyKey string          `json:"idempotency_key"`         // "run:node:token:seq"; stable across retries
 	Deadline       time.Time       `json:"deadline"`                // node timeout from params, ≤ CallLimits.MaxTimeout
+	TimeoutMS      int64           `json:"timeout_ms,omitempty"`    // the node's timeout: an operator's Retry gets a new deadline of it
 	Subject        SubjectRef      `json:"subject"`
 	// RunAs is who the call acts as; the child instance runs as this subject with the rights it holds now.
 	RunAs spi.Subject `json:"-"`
@@ -188,7 +189,7 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 		TenantID: run.TenantID, AutomationID: run.AutomationID, RunID: run.RunID, TokenID: run.TokenID, Seq: run.Seq,
 		WaitID: waitID, NodeID: node.ID, NodeType: node.Type, Input: input, Subject: run.Subject,
 		IdempotencyKey: fmt.Sprintf("%s:%s:%s:%d", run.RunID, node.ID, run.TokenID, run.Seq),
-		Deadline:       now.Add(timeout), FailedConnected: run.FailedConnected, RunAs: run.RunAs,
+		Deadline:       now.Add(timeout), TimeoutMS: timeout.Milliseconds(), FailedConnected: run.FailedConnected, RunAs: run.RunAs,
 	}
 	if run.Native != nil {
 		req.ParentInstance = run.Native.Instance().ID
@@ -240,6 +241,15 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.invalidInput", Message: "automation.call needs a call request"}
 	}
 	req.RunAs = nr.Subject()
+	// An operator's Retry of a blocked call gives it a new deadline (automation.call_deadlines).
+	var renewed *time.Time
+	if err := c.r.cfg.DB.QueryRow(ctx, `SELECT deadline FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2`,
+		req.TenantID, nr.Instance().ID).Scan(&renewed); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, infra(serrors.FromDB(opCall, err))
+	}
+	if renewed != nil && renewed.After(req.Deadline) {
+		req.Deadline = *renewed
+	}
 	x := &callExec{c: c, nr: nr, req: req}
 	res, err := x.run(ctx)
 	if err != nil {
@@ -251,6 +261,9 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 		return nil, err
 	}
 	_, err = nr.Transaction(ctx, "result", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
+		if _, err := tx.Exec(ctx, `DELETE FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2`, req.TenantID, nr.Instance().ID); err != nil {
+			return nil, serrors.FromDB(opCall, err)
+		}
 		if req.ParentInstance == uuid.Nil {
 			return nil, nil
 		}
@@ -355,6 +368,9 @@ func (x *callExec) connector(nt catalog.NodeType) string {
 	return "none"
 }
 
+// errSlotDeadline: the call's deadline passed while it waited for a slot.
+var errSlotDeadline = errors.New("automation: the call's deadline passed while it waited for a slot")
+
 // slot takes one of the tenant's PerTenant call slots before an attempt runs: under the tenant's
 // advisory lock it drops the slots of calls that no longer run (finished, or a lease that expired with
 // its process), counts the rest and takes one. A call that finds none sleeps and checks again on its
@@ -377,8 +393,13 @@ func (x *callExec) slot(ctx context.Context) error {
 				return nil
 			}
 		}
-		// No slot (or a wait already pending): wait, then check again with the next occurrence.
-		if err := x.nr.Sleep(ctx, "slot", n, time.Second); err != nil {
+		// No slot (or a wait already pending): wait, then check again with the next occurrence. A wait
+		// never outlives the call's deadline.
+		left := time.Until(x.req.Deadline)
+		if left <= 0 {
+			return errSlotDeadline
+		}
+		if err := x.nr.Sleep(ctx, "slot", n, min(time.Second, left)); err != nil {
 			return err
 		}
 	}
@@ -484,11 +505,17 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 			conn = &openConnection{masker: code.NewMasker(nil)}
 		}
 	}
-	if !done || o.Status == workflow.OccStarted {
-		if err := x.slot(ctx); err != nil {
+	// An attempt that will call the provider holds a slot. A started attempt of a call that may not
+	// repeat calls nothing (its outcome is unknown); one whose deadline passed while it waited goes on
+	// without a slot to record its timeout (or its unknown outcome) without calling the provider.
+	if (!done || o.Status == workflow.OccStarted) && (!done || cn.Idempotent()) {
+		switch err := x.slot(ctx); {
+		case errors.Is(err, errSlotDeadline):
+		case err != nil:
 			return callRecord{}, err
+		default:
+			defer x.release(ctx)
 		}
-		defer x.release(ctx)
 	}
 	raw, err := x.nr.Effect(ctx, "call", k, func(ctx context.Context, a workflow.EffectAttempt) (json.RawMessage, error) {
 		rec, err := x.execute(ctx, cn, k, a, conn, token, afterSeq)

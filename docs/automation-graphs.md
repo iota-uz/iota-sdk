@@ -293,7 +293,8 @@ queued conversation runs, runs of disabled graphs, retention.
   trigger sets `include_self`.
 - **Human node.** `engine.NewHumanNode()` (type `human`) with `engine.NewHumanBridge` as
   `Config.Tasks` opens a task of #1327 (assignees, quorum, veto, delegation, escalation); its
-  buttons are its outcomes, its timeout `timeout`. `engine.NewTaskAssignedObserver` is the
+  buttons are its outcomes, its timeout `timeout`; the observer below also refuses a decision without
+  the comment its button requires or with fields its form refuses. `engine.NewTaskAssignedObserver` is the
   `workflow.TaskObserver` that publishes `automation.task.assigned.v1` (`engine.TaskAssigned`)
   with the newly assigned users on creation, delegation and escalation, in the task's transaction.
 - **Context.** `Runtime.BuildRunContext` is the one builder of a run's context (live trigger and
@@ -302,7 +303,7 @@ queued conversation runs, runs of disabled graphs, retention.
   `engine.CheckRunContext` lists the required fields a context leaves out.
 - **Authoring.** `Runtime.Authoring()`: `DryRun` runs the interpreter with the node types'
   `DryRun` modes (`execute` runs for real unless `Decisions` is `scripted`, `capture` traces the
-  rendered params, `forbid` stops; a node with an effect must declare it, `dry_run_undeclared`);
+  rendered params, `forbid` stops on entry; every node type declares its mode, `dry_run_undeclared`);
   `cached` decisions of `engine.DecisionNode`s come from `automation.decision_cache` (30 days).
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
   rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.

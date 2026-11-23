@@ -71,7 +71,7 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 	case err != nil:
 		return &host.InfraError{Err: serrors.FromDB(opCollect, err)}
 	case !deadline.After(at):
-		if err := r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key); err != nil {
+		if err := r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key, false); err != nil {
 			return err
 		}
 	}
@@ -90,7 +90,7 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 		return &host.InfraError{Err: serrors.FromDB(opCollect, err)}
 	}
 	if count >= trig.Collect.MaxEvents() {
-		return r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key)
+		return r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key, false)
 	}
 	if !events.AfterCommit(ctx, r.pokeServe) {
 		r.pokeServe(ctx)
@@ -131,7 +131,7 @@ func (r *Runtime) flushCollects(ctx context.Context) error {
 	var errs []error
 	for _, w := range due {
 		err := pgx.BeginFunc(ctx, r.cfg.DB, func(tx pgx.Tx) error {
-			return r.closeWindow(ctx, tx, w.tenant, w.automation, w.trigger, w.key)
+			return r.closeWindow(ctx, tx, w.tenant, w.automation, w.trigger, w.key, true)
 		})
 		if err != nil {
 			errs = append(errs, err)
@@ -162,14 +162,17 @@ func readCollected(raw []byte) []collected {
 }
 
 // closeWindow removes a window and starts its run: event is its last event, events all of them.
-func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation uuid.UUID, trigger, key string) error {
+// due: only when its deadline has passed, checked under the row's lock (a sweep that read the key
+// before an event extended or replaced the window leaves the new one open).
+func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation uuid.UUID, trigger, key string, due bool) error {
 	var version int
 	var raw []byte
 	err := tx.QueryRow(ctx, `
 		DELETE FROM automation.inbound_collect WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND collect_key = $4
-		RETURNING version, events`, tenant, automation, trigger, key).Scan(&version, &raw)
+		  AND (NOT $5 OR deadline <= now())
+		RETURNING version, events`, tenant, automation, trigger, key, due).Scan(&version, &raw)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil // another process closed it
+		return nil // another process closed it, or it is not due any more
 	}
 	if err != nil {
 		return serrors.FromDB(opCollect, err)

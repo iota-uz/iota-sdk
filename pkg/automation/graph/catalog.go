@@ -113,9 +113,8 @@ type NodeSpec struct {
 	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
 	// DryRun is what a dry run does with the node: execute it for real (no external effect: a read, an
 	// HTTP GET, a decision of a model), capture it (an external effect: send, ask, a write; its rendered
-	// params are traced and its outcome comes from the context) or stop on it. A node with an effect (a
-	// call, an effect, a wait that emits one, any behavior a product registers) must declare it
-	// (ValidateCatalog: dry_run_undeclared); control flow nodes are pure and execute.
+	// params are traced and its outcome comes from the context) or stop on it. Every node type declares
+	// it (ValidateCatalog: dry_run_undeclared); the built-in nodes execute.
 	DryRun DryRunMode
 	// Optional is an outcome a call has only when a param is set (a human task's timeout).
 	Optional *OptionalOutcome
@@ -224,14 +223,14 @@ func ValidateCatalog(c Catalog, b *Behaviors) []GraphError {
 	return []GraphError{{Path: "catalog", Code: CodeInvalid, Message: err.Error()}}
 }
 
-// CheckDryRun reports a node type whose DryRun is missing while it has an effect, or is not a mode.
+// CheckDryRun reports a node type whose DryRun is missing or is not a mode.
 func CheckDryRun(n NodeSpec) error {
 	switch {
 	case n.DryRun != "" && !n.DryRun.valid():
 		return &CatalogError{Path: "nodes." + n.Type + ".dry_run", Code: CodeInvalid, Message: fmt.Sprintf("node %s: dry_run is execute, capture or forbid", n.Type)}
-	case n.DryRun == "" && n.NeedsDryRun():
+	case n.DryRun == "":
 		return &CatalogError{Path: "nodes." + n.Type + ".dry_run", Code: CodeDryRunUndeclared,
-			Message: fmt.Sprintf("node %s: a %s node declares what a dry run does with it (execute, capture or forbid)", n.Type, n.Behavior)}
+			Message: fmt.Sprintf("node %s: a node type declares what a dry run does with it (execute, capture or forbid)", n.Type)}
 	}
 	return nil
 }
@@ -589,10 +588,13 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			}
 			spec.Wait = ws
 		}
-		if spec.DryRun == "" && spec.NeedsDryRun() {
+		if spec.DryRun == "" {
 			// A catalog written as data describes a product's nodes without running them: an effect it
-			// does not declare is captured.
-			spec.DryRun = DryRunCapture
+			// does not declare is captured, a pure node executes.
+			spec.DryRun = DryRunExecute
+			if spec.NeedsDryRun() {
+				spec.DryRun = DryRunCapture
+			}
 		}
 		c.Nodes[typ] = spec
 	}

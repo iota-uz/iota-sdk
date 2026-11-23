@@ -401,6 +401,11 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			d.stop(t, current, failed(FailInvalidGraph, "no node %s", current))
 			return
 		}
+		if d.mode(node) == DryRunForbid {
+			// Checked on entry, before anything of the node is evaluated.
+			d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
+			return
+		}
 		step := i.start(node.ID, &StepContext{Ctx: t.ctx, Token: t.name, From: t.from}, false)
 		// MaxTokens by the trace's schedule, whatever the concurrency: a fork adds its branches, a foreach
 		// one item at a time. The run fails, whatever outcomes the node has.

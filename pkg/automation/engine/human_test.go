@@ -158,3 +158,24 @@ func TestHumanNodeRefusesBadParams(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, time.Hour, spec.Timeout, "capped by WaitMax")
 }
+
+// A decision that breaks the node's rules (a comment its button requires, the form's fields) is refused
+// and does not count toward the quorum.
+func TestHumanDecisionKeepsTheRules(t *testing.T) {
+	ae, _ := humanEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), humanGraph(`{"title": "Approve", "assignees": [{"kind": "user", "user_id": 1}], `+humanButtons+`,
+		"form": {"type": "object", "properties": {"amount": {"type": "integer", "minimum": 1}}, "required": ["amount"], "additionalProperties": false}}`, false))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 7}, 0)
+	p.until(func() bool { return ae.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`) == 1 }, "the task opens")
+	task := ae.openTask(t)
+	ctx := context.Background()
+	decide := func(d string) error { return p.wf.DecideTask(ctx, spiSubject(ae.tenant, 1), task, json.RawMessage(d)) }
+	require.ErrorIs(t, decide(`{"outcome": "reject", "fields": {"amount": 1}}`), workflow.ErrInvalid, "reject needs a comment")
+	require.ErrorIs(t, decide(`{"outcome": "approve", "fields": {"amount": 0}}`), workflow.ErrInvalid, "the form's minimum")
+	require.ErrorIs(t, decide(`{"outcome": "approve"}`), workflow.ErrInvalid, "the form's required field")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.human_task_decisions`), "refused decisions are not recorded")
+	require.NoError(t, decide(`{"outcome": "reject", "comment": "too much", "fields": {"amount": 3}}`))
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the valid decision moves the run")
+	assert.Equal(t, []string{"rejected"}, noteTexts(t, ae.env))
+}

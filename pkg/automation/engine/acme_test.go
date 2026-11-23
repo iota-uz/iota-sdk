@@ -217,6 +217,8 @@ func (n *acmeSend) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		}
 		time.Sleep(300 * time.Millisecond)
 		n.a.active.Add(-1)
+	case mode == "hold_long":
+		time.Sleep(2500 * time.Millisecond)
 	case mode == "unauth":
 		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnauthorized, Message: "bad token", Retryable: true}
 	case mode == "unavail":
@@ -269,8 +271,9 @@ func (n *acmeHTTP) Spec() graph.NodeSpec {
 }
 func (n *acmeHTTP) Requires() []catalog.ConnectorKind { return nil }
 func (n *acmeHTTP) Idempotent() bool                  { return true }
-func (n *acmeHTTP) Execute(_ context.Context, in catalog.CallInput) (catalog.CallResult, error) {
+func (n *acmeHTTP) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
 	n.a.record(acmeCall{Node: "acme.http", Key: in.IdempotencyKey, Attempt: in.Attempt})
+	engine.Log(ctx, "GET /me with Bearer %s", in.Credentials["token"])
 	return catalog.CallResult{Outcome: "ok", Output: map[string]any{"headers": map[string]any{"Authorization": "Bearer " + in.Credentials["token"]}}}, nil
 }
 

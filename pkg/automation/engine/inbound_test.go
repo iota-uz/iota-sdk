@@ -431,3 +431,20 @@ func (s *syncBuffer) String() string {
 	defer s.mu.Unlock()
 	return s.b.String()
 }
+
+// A sweep that read a window as due before an event extended it leaves the window open.
+func TestStaleSweepLeavesAnExtendedWindow(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	am := ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1", "collect": {"key": "event.from", "window": "60s"}}`))
+	ctx := context.Background()
+	ev := acmeUpdate{ID: "s-1", Event: evMessage, Text: "m1", From: "ann"}.event(ae.conn.ID.String())
+	ev.TenantID, ev.ConnectionID = ae.tenant, ae.conn.ID.String()
+	require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err }))
+	_, err := p.disp.RunOnce(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect WHERE deadline > now()`), "the window is open")
+	require.NoError(t, p.rt.SweepWindow(ctx, ae.tenant, am.ID, "m", "ann"))
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect`), "a window that is not due stays")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
+}

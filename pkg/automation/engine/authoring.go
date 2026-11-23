@@ -302,6 +302,7 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	started := time.Now()
 	res := TestNodeResult{}
 	logs := &logCollector{}
+	masker := code.NewMasker(nil)
 	ctx = withLogs(ctx, logs)
 	st := interp.Start(node.ID, &graph.StepContext{Ctx: gctx})
 	switch st.Kind { //nolint:exhaustive // flow steps (end, fork, each, arrive) are reported by their kind
@@ -316,6 +317,9 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
 			subject: subject, key: "test:" + uuid.NewString(), decisions: DecisionsLive})
 		res.Outcome, res.Output, res.Error = dr.outcome, dr.output, dr.err
+		if dr.masker != nil {
+			masker = dr.masker
+		}
 	case graph.StepOutcome, graph.StepWait:
 		res.Outcome = st.Outcome
 		if st.Output != nil {
@@ -350,6 +354,9 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 		res.Output = json.RawMessage(`{}`)
 	}
 	res.Logs = logs.lines()
+	for i, l := range res.Logs {
+		res.Logs[i] = masker.Mask(l)
+	}
 	res.DurationMS = time.Since(started).Milliseconds()
 	return res, nil
 }
@@ -424,6 +431,7 @@ type directResult struct {
 	outcome string
 	output  json.RawMessage
 	err     *StepError
+	masker  Masker // the connection's: what the node logged is masked with it
 }
 
 // execDirect runs a call node once, as the actor, with the connection the actor may use; the output and
@@ -474,7 +482,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 					Output  json.RawMessage `json:"output"`
 				}
 				if json.Unmarshal(raw, &d) == nil {
-					return directResult{outcome: d.Outcome, output: nonNull(d.Output)}
+					return directResult{masker: masker, outcome: d.Outcome, output: nonNull(d.Output)}
 				}
 			}
 		}
@@ -489,16 +497,16 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
-			return directResult{outcome: nt.Spec().FailedOutcome, err: &StepError{Code: ce.Code, Message: masker.Mask(ce.Message), Retryable: ce.Retryable}}
+			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: ce.Code, Message: masker.Mask(ce.Message), Retryable: ce.Retryable}}
 		}
 		if callCtx.Err() != nil {
-			return directResult{outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}}
+			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}}
 		}
-		return directResult{outcome: nt.Spec().FailedOutcome, err: &StepError{Code: "exception", Message: masker.Mask(err.Error())}}
+		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: "exception", Message: masker.Mask(err.Error())}}
 	}
 	out, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {
-		return directResult{err: &StepError{Code: graph.FailInvalidAnswer, Message: "the output is not JSON"}}
+		return directResult{masker: masker, err: &StepError{Code: graph.FailInvalidAnswer, Message: "the output is not JSON"}}
 	}
 	out = masker.MaskJSON(out)
 	if cacheKey != "" {
@@ -508,7 +516,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 			}
 		}
 	}
-	return directResult{outcome: res.Outcome, output: out}
+	return directResult{masker: masker, outcome: res.Outcome, output: out}
 }
 
 // logCollector collects the log lines a node writes during a test (Log).

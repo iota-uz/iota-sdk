@@ -105,6 +105,7 @@ func TestTestNodeRunsOnceWithoutARun(t *testing.T) {
 	assert.Equal(t, "ok", res.Outcome)
 	assert.JSONEq(t, `{"headers": {"Authorization": "Bearer ***"}}`, string(res.Output))
 	assert.NotContains(t, string(res.Output), acmeToken)
+	assert.Equal(t, []string{"GET /me with Bearer ***"}, res.Logs, "what the node logged is masked")
 	assert.Len(t, ae.acme.callsOf("acme.http"), 1)
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.steps`))

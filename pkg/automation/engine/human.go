@@ -263,7 +263,62 @@ func (b humanBridge) Begin(_ context.Context, _ pgx.Tx, run StepContext, _ graph
 	if err != nil {
 		return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: err.Error()}
 	}
-	return WaitSpec{Kind: waitTask, Task: &spec}, nil
+	ws := WaitSpec{Kind: waitTask, Task: &spec}
+	rules := p.Rules()
+	if len(rules.CommentRequired) > 0 || len(rules.Form) > 0 {
+		if len(rules.Form) > 0 {
+			if _, err := graph.SchemaParams(rules.Form); err != nil {
+				return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "form: " + err.Error()}
+			}
+		}
+		ws.Decision = &rules
+	}
+	return ws, nil
+}
+
+// Rules are the decision rules of the params: the buttons that need a comment and the form.
+func (p HumanParams) Rules() DecisionRules {
+	var r DecisionRules
+	for _, b := range p.Buttons {
+		if b.RequireComment {
+			r.CommentRequired = append(r.CommentRequired, b.Outcome)
+		}
+	}
+	if len(p.Form) > 0 && string(p.Form) != "null" {
+		r.Form = p.Form
+	}
+	return r
+}
+
+// Check refuses a decision ({outcome, comment, fields}) that breaks the rules.
+func (r DecisionRules) Check(decision json.RawMessage) error {
+	var d struct {
+		Outcome string          `json:"outcome"`
+		Comment string          `json:"comment"`
+		Fields  json.RawMessage `json:"fields"`
+	}
+	if err := json.Unmarshal(decision, &d); err != nil {
+		return fmt.Errorf("%w: the decision is not an object", workflow.ErrInvalid)
+	}
+	if slices.Contains(r.CommentRequired, d.Outcome) && strings.TrimSpace(d.Comment) == "" {
+		return fmt.Errorf("%w: %s needs a comment", workflow.ErrInvalid, d.Outcome)
+	}
+	if len(r.Form) > 0 {
+		spec, err := graph.SchemaParams(r.Form)
+		if err != nil {
+			return fmt.Errorf("%w: the form of the task is not a schema", workflow.ErrInvalid)
+		}
+		fields := map[string]any{}
+		if len(d.Fields) > 0 && string(d.Fields) != "null" {
+			if err := expr.UnmarshalJSON(d.Fields, &fields); err != nil || fields == nil {
+				return fmt.Errorf("%w: fields are an object", workflow.ErrInvalid)
+			}
+		}
+		if _, issues := spec.Parse(fields); len(issues) > 0 {
+			return fmt.Errorf("%w: fields: %s", workflow.ErrInvalid, issues[0].Message)
+		}
+	}
+	return nil
 }
 
 // humanDecision is a decision of a human task as the node's output shows it.
@@ -382,12 +437,14 @@ func (o *taskAssignedObserver) TaskChanged(ctx context.Context, tx pgx.Tx, t wor
 	if t.Workflow != WorkflowID || !strings.HasPrefix(t.Name, "task:") {
 		return nil
 	}
+	waitID := strings.TrimPrefix(t.Name, "task:")
 	switch change.Kind {
 	case workflow.TaskChangeCreated, workflow.TaskChangeDelegated, workflow.TaskChangeEscalated:
+	case workflow.TaskChangeDecision:
+		return checkDecision(ctx, tx, t, waitID, change)
 	default:
 		return nil
 	}
-	waitID := strings.TrimPrefix(t.Name, "task:")
 	var (
 		tenant, runID, automationID uuid.UUID
 		nodeID                      string
@@ -433,6 +490,34 @@ func (o *taskAssignedObserver) TaskChanged(ctx context.Context, tx pgx.Tx, t wor
 	if _, err := events.Publish(ctx, tx, spi.Scope{Subject: spi.Subject{TenantID: tenant}}, TaskAssigned,
 		&spi.ObjectRef{Entity: SubjectTask, Key: t.ID.String()}, payload); err != nil {
 		return serrors.Wrap(opHuman, err)
+	}
+	return nil
+}
+
+// checkDecision refuses the decision of a human node's task that breaks the node's rules (a comment its
+// button requires, the fields of its form): it rolls back before it counts toward the quorum.
+func checkDecision(ctx context.Context, tx pgx.Tx, t workflow.Task, waitID string, change workflow.TaskChange) error {
+	var raw []byte
+	err := tx.QueryRow(ctx, `
+		SELECT w.spec->'exec'->'decision' FROM automation.runs r
+		JOIN automation.waits w ON w.tenant_id = r.tenant_id AND w.run_id = r.id AND w.wait_id = $2
+		WHERE r.instance_id = $1`, t.InstanceID, waitID).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) || len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	if err != nil {
+		return serrors.FromDB(opHuman, err)
+	}
+	var rules DecisionRules
+	if err := json.Unmarshal(raw, &rules); err != nil {
+		return serrors.Wrap(opHuman, err)
+	}
+	// The decision just recorded: the actor's latest.
+	for i := len(t.Decisions) - 1; i >= 0; i-- {
+		d := t.Decisions[i]
+		if change.ActorID == nil || d.UserID == *change.ActorID {
+			return rules.Check(d.Decision)
+		}
 	}
 	return nil
 }

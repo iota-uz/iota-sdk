@@ -478,6 +478,16 @@ type WaitSpec struct {
 	Task *workflow.TaskSpec `json:"task,omitempty"`
 	// Child, when set, is the child instance that answers the wait: cancelling the wait terminates its tree.
 	Child *uuid.UUID `json:"child,omitempty"`
+	// Decision, when set, are the rules a decision of the wait's task must keep beyond its schema; the
+	// engine's task observer refuses a decision that breaks them.
+	Decision *DecisionRules `json:"decision,omitempty"`
+}
+
+// DecisionRules are the rules of a human task's decisions: the outcomes that need a comment and the
+// JSON Schema of the extra fields.
+type DecisionRules struct {
+	CommentRequired []string        `json:"comment_required,omitempty"`
+	Form            json.RawMessage `json:"form,omitempty"`
 }
 
 // WaitResult is delivered to the run inbox; the core maps it to an outcome of the waiting node.

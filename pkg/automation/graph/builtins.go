@@ -57,7 +57,7 @@ func branchNode(subjects []string) NodeSpec {
 	return NodeSpec{
 		Type: "branch", Title: "Branch", Behavior: BehaviorBranch,
 		Description: "A CEL expression of type bool: outcome true or false.",
-		Params:      MustSchemaParams(branchSchema()), Subjects: subjects,
+		Params:      MustSchemaParams(branchSchema()), Subjects: subjects, DryRun: DryRunExecute,
 		Expressions: []ExprParam{{Param: "expression", Type: expr.TypeBool}},
 	}
 }
@@ -66,7 +66,7 @@ func switchNode(subjects []string) NodeSpec {
 	return NodeSpec{
 		Type: "switch", Title: "Switch", Behavior: BehaviorSwitch,
 		Description: "A CEL expression of type string: the outcome of the first case with that value, else default.",
-		Params:      MustSchemaParams(switchSchema()), Subjects: subjects,
+		Params:      MustSchemaParams(switchSchema()), Subjects: subjects, DryRun: DryRunExecute,
 		Expressions: []ExprParam{{Param: "expression", Type: expr.TypeString}},
 	}
 }
@@ -75,7 +75,7 @@ func waitNode(subjects, events []string) NodeSpec {
 	return NodeSpec{
 		Type: "wait", Title: "Wait", Behavior: BehaviorWait,
 		Description: "Sleeps until an event of this kind about the run's subject passes the filter, or the timeout.",
-		Params:      MustSchemaParams(waitSchema(events)), Subjects: subjects,
+		Params:      MustSchemaParams(waitSchema(events)), Subjects: subjects, DryRun: DryRunExecute,
 		Expressions: []ExprParam{{Param: "filter", Type: expr.TypeBool}},
 		Wait: &WaitSpec{
 			Event: ValueOrParam{Param: "event"}, Filter: ValueOrParam{Param: "filter"}, TimeoutParam: "timeout",
@@ -88,7 +88,7 @@ func delayNode(subjects []string) NodeSpec {
 	return NodeSpec{
 		Type: "delay", Title: "Delay", Behavior: BehaviorWait,
 		Description: "Sleeps for a duration, then continues with done.",
-		Params:      MustSchemaParams(delaySchema()), Subjects: subjects,
+		Params:      MustSchemaParams(delaySchema()), Subjects: subjects, DryRun: DryRunExecute,
 		Wait: &WaitSpec{TimeoutParam: "duration", TimeoutOutcome: "done"},
 	}
 }
@@ -97,7 +97,7 @@ func endNode(subjects []string) NodeSpec {
 	return NodeSpec{
 		Type: "end", Title: "End", Behavior: BehaviorEnd,
 		Description: "Ends the run.",
-		Params:      MustSchemaParams(endSchema()), Subjects: subjects,
+		Params:      MustSchemaParams(endSchema()), Subjects: subjects, DryRun: DryRunExecute,
 	}
 }
 

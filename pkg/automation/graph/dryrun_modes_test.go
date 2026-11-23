@@ -168,3 +168,29 @@ func TestCollectIsValidated(t *testing.T) {
 		t.Fatalf("collect key %q %v %v", key, ok, st)
 	}
 }
+
+// Every node type declares its dry run mode, a pure one too; forbid on a pure node stops the dry run on
+// entry.
+func TestPureNodesDeclareTheirDryRun(t *testing.T) {
+	c := testCatalog(t)
+	b := c.Nodes["branch"]
+	b.DryRun = ""
+	c.Nodes["branch"] = b
+	errs := graph.ValidateCatalog(c, nil)
+	if len(errs) != 1 || errs[0].Code != graph.CodeDryRunUndeclared {
+		t.Fatalf("an undeclared pure node: %v", errs)
+	}
+	b.DryRun = graph.DryRunForbid
+	c.Nodes["branch"] = b
+	g := mustDecode(t, orderGraph)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := in.DryRun(graph.Subject{Entity: "order", Key: "o"}, graph.Context{},
+		[]graph.DryRunInput{{Event: graph.Event{"kind": "order.created", "total": 500.0, "channel": "web"}}}, graph.DryRunOptions{Modes: true})
+	last := trace[len(trace)-1]
+	if last.Node != "check" || last.ContextPatch["code"] != graph.FailDryRunForbidden {
+		t.Fatalf("forbid on entry, before the branch reads its context: %v", trace)
+	}
+}

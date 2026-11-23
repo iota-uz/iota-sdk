@@ -257,3 +257,59 @@ func TestRetryableReachesTheFailedOutput(t *testing.T) {
 	assert.Equal(t, []string{"unavailable true"}, noteTexts(t, ae.env))
 	assert.Len(t, ae.acme.callsOf("acme.send"), 1, "a call that may not repeat is not retried")
 }
+
+// A call that waits for a tenant slot does not wait past its deadline: it times out without calling
+// the provider.
+func TestSlotWaitEndsAtTheDeadline(t *testing.T) {
+	ae := newAcmeEnv(t)
+	one := func(c *engine.Config) { c.CallLimits.PerTenant = 1 }
+	p := ae.proc(one)
+	ae.create(p, ae.human(), sendGraph("acme.send", "hold_long", "1s", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	ae.publish(ae.tenant, orderCreated, "o-2", order{Amount: 2}, 0)
+	for _, q := range []*proc{p, ae.proc(one)} {
+		stop := q.drive()
+		defer stop()
+	}
+	started := time.Now()
+	deadline := started.Add(20 * time.Second)
+	for time.Now().Before(deadline) && len(noteTexts(t, ae.env)) < 2 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	notes := noteTexts(t, ae.env)
+	require.Len(t, notes, 2)
+	assert.True(t, strings.HasPrefix(notes[1], "sent ") || strings.HasPrefix(notes[0], "sent "), notes)
+	timedOut := 0
+	for _, n := range notes {
+		if strings.HasPrefix(n, "timeout: ") {
+			timedOut++
+		}
+	}
+	assert.Equal(t, 1, timedOut, "the waiting call timed out: %v", notes)
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1, "the provider was called once")
+}
+
+// A Retry after the call's deadline passed gives it a new deadline: the provider is called again.
+func TestRetryAfterTheDeadlineCallsTheProvider(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash_once", "1s", false))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunBlocked }, "blocked")
+	time.Sleep(1200 * time.Millisecond) // the first deadline is gone
+	run := runOf(t, ae.env, p2)
+	var waitID string
+	for _, w := range ae.run(p2, ae.human(), run.RunID).Waits {
+		if w.Kind == "call" && w.Status == "open" {
+			waitID = w.WaitID
+		}
+	}
+	require.NoError(t, p2.rt.Operations().Retry(context.Background(), ae.human(), run.RunID, waitID))
+	p2.until(func() bool { return ae.status(p2, run.RunID) == engine.RunDone }, "the retried call completes")
+	require.Len(t, ae.acme.callsOf("acme.send"), 2)
+	assert.Len(t, ae.effects(run.RunID), 1)
+	assert.True(t, strings.HasPrefix(ae.effects(run.RunID)[0], "ok:sent "), ae.effects(run.RunID))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.call_deadlines`), "the renewed deadline goes with the call")
+}

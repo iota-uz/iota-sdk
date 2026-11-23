@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -110,6 +111,24 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 	b, err := o.blocked(ctx, a, runID, waitID)
 	if err != nil {
 		return err
+	}
+	// The retried attempt gets the node's timeout again from now: its first deadline may be gone.
+	var req CallRequest
+	var raw []byte
+	if err := o.r.cfg.DB.QueryRow(ctx, `SELECT input FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`, a.TenantID, b.child).Scan(&raw); err != nil {
+		return serrors.FromDB(opOperate, err)
+	}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return serrors.Wrap(opOperate, err)
+	}
+	timeout := time.Duration(req.TimeoutMS) * time.Millisecond
+	if timeout <= 0 {
+		timeout = o.r.cfg.CallLimits.DefaultTimeout
+	}
+	if _, err := o.r.cfg.DB.Exec(ctx, `
+		INSERT INTO automation.call_deadlines (tenant_id, instance_id, deadline) VALUES ($1, $2, now() + $3::interval)
+		ON CONFLICT (tenant_id, instance_id) DO UPDATE SET deadline = EXCLUDED.deadline`, a.TenantID, b.child, pgInterval(timeout.Seconds())); err != nil {
+		return serrors.FromDB(opOperate, err)
 	}
 	if err := o.r.cfg.Workflows.Retry(ctx, a.TenantID, b.child, "call", b.callN); err != nil {
 		return serrors.Wrap(opOperate, err)

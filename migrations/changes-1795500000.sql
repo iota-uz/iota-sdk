@@ -75,6 +75,14 @@ CREATE TABLE automation.call_slots (
     PRIMARY KEY (tenant_id, instance_id)
 );
 
+-- The deadline an operator's Retry gave a blocked call (its first one may have passed).
+CREATE TABLE automation.call_deadlines (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    instance_id uuid NOT NULL,
+    deadline timestamp with time zone NOT NULL,
+    PRIMARY KEY (tenant_id, instance_id)
+);
+
 -- Decisions a dry run took from a model (cached mode): sha256 of prompt, input, model and its params.
 CREATE TABLE automation.decision_cache (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -87,6 +95,8 @@ CREATE TABLE automation.decision_cache (
 CREATE INDEX decision_cache_created_idx ON automation.decision_cache (created_at);
 
 -- +migrate Down
+DROP TABLE IF EXISTS automation.call_deadlines;
+
 DROP TABLE IF EXISTS automation.call_slots;
 
 DROP TABLE IF EXISTS automation.decision_cache;
