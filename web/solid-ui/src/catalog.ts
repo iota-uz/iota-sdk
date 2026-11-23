@@ -33,6 +33,12 @@ export const SPECIMENS = [
     states: ['default'],
   },
   {
+    id: 'metrics',
+    title: 'Metrics',
+    description: 'KPI band above a table with currency rows, fold, narrowed and empty states, its skeleton, and dashboard tiles.',
+    states: ['default', 'open'],
+  },
+  {
     id: 'navigation',
     title: 'Navigation',
     description: 'Breadcrumbs, line tabs, animated navigation tabs, pagination, and dropdowns.',

@@ -1791,6 +1791,10 @@ td:has(.table-cell-link):not(.sticky) {
     text-decoration: underline;
   }
 
+  html.dark .iota-mx-a {
+    color: oklch(var(--primary-300));
+  }
+
   .iota-mx-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1816,7 +1820,7 @@ td:has(.table-cell-link):not(.sticky) {
     flex-direction: column;
     gap: 0.375rem;
     min-width: 0;
-    padding: var(--mx-py) var(--mx-px);
+    padding: var(--mx-py, 0.75rem) var(--mx-px, 1rem);
   }
 
   .iota-mx-label {
@@ -1914,6 +1918,10 @@ td:has(.table-cell-link):not(.sticky) {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
+  html.dark .iota-mx-sk {
+    background: oklch(var(--black-800));
+  }
+
   .iota-mx-sk--label {
     height: 0.75rem;
     width: 6rem;
@@ -1935,5 +1943,44 @@ td:has(.table-cell-link):not(.sticky) {
     height: 0.75rem;
     width: 6rem;
     margin: 0.25rem 0 0.25rem auto;
+  }
+
+  /* Dashboard tiles (Solid KpiTile): the band's cards in a framed row. */
+  .iota-mx-tiles {
+    --mx-px: 1rem;
+    --mx-py: 0.75rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    color: oklch(var(--clr-text-100));
+    border: 1px solid oklch(var(--clr-border-subtle));
+    border-radius: 0.5rem;
+    background: oklch(var(--clr-surface-300));
+  }
+
+  .iota-mx-tiles > .iota-mx-card + .iota-mx-card {
+    border-top: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  @media (min-width: 640px) {
+    .iota-mx-tiles {
+      grid-template-columns: repeat(var(--mx-n, 4), minmax(0, 1fr));
+    }
+
+    .iota-mx-tiles > .iota-mx-card + .iota-mx-card {
+      border-top: 0;
+      border-left: 1px solid oklch(var(--clr-border-subtle));
+    }
+  }
+
+  .iota-mx-tiles .iota-mx-v--big {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .iota-mx-d {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: oklch(var(--clr-text-300));
   }
 }

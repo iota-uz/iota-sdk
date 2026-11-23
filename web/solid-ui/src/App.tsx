@@ -3,6 +3,7 @@ import { Dynamic } from 'solid-js/web'
 import { Alert } from './display/Alert'
 import { Badge } from './display/Badge'
 import { Card, CardHeader } from './display/Card'
+import { KpiTile, KpiTiles, Metrics, MetricsSkeleton, money, order, type Metric } from './display/Metrics'
 import { Progress } from './display/Progress'
 import { Skeleton } from './display/Skeleton'
 import { Spinner } from './display/Spinner'
@@ -153,6 +154,52 @@ function DisplaySpecimen() {
         <Spinner label="Loading products" />
         <Skeleton variant="card" class="specimen-skeleton" />
       </div>
+    </section>
+  )
+}
+
+const METRIC_ITEMS: Metric[] = [
+  { label: 'Income', kind: 'in', values: { UZS: money(1837951390776n), USD: money(18806588) } },
+  { label: 'Outflow', kind: 'out', values: { UZS: money(1929625692367n), USD: money(17678300), RUB: money(16500000) } },
+  { label: 'Balance', kind: 'net', values: { UZS: money(-91674301591n), USD: money(1128288), RUB: money(-16500000) }, hint: 'Income minus outflow per currency' },
+]
+const METRIC_MANY: Metric[] = [
+  { label: 'Total', kind: 'plain', values: { UZS: money(120000000), USD: money(450000), EUR: money(12000), RUB: money(800000), KZT: money(3000000) } },
+  { label: 'Operations', kind: 'count', values: { '': { minor: 2751, decimals: 0 } } },
+]
+
+function MetricsSpecimen() {
+  return (
+    <section class="specimen specimen-stack" aria-label="Metrics specimens" data-testid="specimen-metrics">
+      <Metrics
+        data-vr-target="metrics-band"
+        attach="standalone"
+        scope={{ period: '1–30 November 2026', filters: 2, total: 2751 }}
+        items={METRIC_ITEMS}
+        currencies={order('UZS', ['USD'], ...METRIC_ITEMS)}
+      />
+      <Metrics
+        data-vr-target="metrics-fold"
+        attach="standalone"
+        scope={{ total: 2751 }}
+        items={METRIC_MANY}
+        currencies={order('UZS', ['USD'], ...METRIC_MANY)}
+      />
+      <Metrics
+        attach="standalone"
+        scope={{ total: 2751, matched: 0, filters: 1 }}
+        items={METRIC_ITEMS.map((item) => ({ ...item, values: { UZS: money(0) } }))}
+        currencies={['UZS']}
+        state="empty"
+        onReset={() => undefined}
+      />
+      <MetricsSkeleton attach="standalone" items={3} currencies={4} />
+      <KpiTiles data-vr-target="metrics-tiles">
+        <KpiTile label="Policies" v={12480} delta="in 2026" />
+        <KpiTile label="Total premium" v={money(1860000000000n)} cur="UZS" />
+        <KpiTile label="Collected" v={money(1790000000000n)} cur="UZS" kind="in" delta="96,2 % of premium" />
+        <KpiTile label="Sum insured" v={money(120400000000000n)} cur="UZS" />
+      </KpiTiles>
     </section>
   )
 }
@@ -432,6 +479,7 @@ const SPECIMEN_RENDERERS: Record<SpecimenID, Component<SpecimenProps>> = {
   'form-controls': FormControlsSpecimen,
   'advanced-forms': AdvancedFormsSpecimen,
   display: DisplaySpecimen,
+  metrics: MetricsSpecimen,
   navigation: NavigationSpecimen,
   dialog: DialogSpecimen,
   drawer: DrawerSpecimen,

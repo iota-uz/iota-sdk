@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Solid UI: Metrics KPI band, MetricsSkeleton and KpiTile/KpiTiles dashboard tiles on the shared .iota-mx-* styles, with BigInt-exact formatAmount, formatCompact, order and sign helpers; dark-mode contrast for the band links."}
