@@ -411,7 +411,10 @@ func (o *taskAssignedObserver) TaskChanged(ctx context.Context, tx pgx.Tx, t wor
 	if cut {
 		warning := fmt.Sprintf("the task of %s has more than %d new assignees; the notification names the first %d", nodeID, MaxAssignedUsers, MaxAssignedUsers)
 		o.logger.Warn("automation: "+warning, "task_id", t.ID.String(), "run_id", runID.String())
-		warn, _ := json.Marshal([]string{warning})
+		warn, err := json.Marshal([]string{warning})
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `UPDATE automation.steps SET warnings = coalesce(warnings, '[]'::jsonb) || $5::jsonb
 			WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`, tenant, runID, tokenID, seq, warn); err != nil {
 			return serrors.FromDB(opHuman, err)

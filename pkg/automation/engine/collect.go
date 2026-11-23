@@ -138,6 +138,15 @@ func (r *Runtime) nextCollect(ctx context.Context) (time.Time, bool, error) {
 	return *at, true, nil
 }
 
+// readCollected reads the events of a window; unreadable ones are none.
+func readCollected(raw []byte) []collected {
+	var items []collected
+	if json.Unmarshal(raw, &items) != nil {
+		return nil
+	}
+	return items
+}
+
 // closeWindow removes a window and starts its run: event is its last event, events all of them.
 func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation uuid.UUID, trigger, key string) error {
 	var version int
@@ -151,9 +160,9 @@ func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation
 	if err != nil {
 		return serrors.FromDB(opCollect, err)
 	}
-	var items []collected
-	if err := json.Unmarshal(raw, &items); err != nil || len(items) == 0 {
-		return nil
+	items := readCollected(raw)
+	if len(items) == 0 {
+		return nil // nothing readable to start
 	}
 	v, err := loadVersion(ctx, tx, tenant, automation, version)
 	if errors.Is(err, ErrNotFound) {

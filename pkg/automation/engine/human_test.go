@@ -51,6 +51,7 @@ func (f *failOnce) TaskChanged(_ context.Context, _ pgx.Tx, _ workflow.Task, c w
 }
 
 func humanEnv(t *testing.T) (*acmeEnv, *failOnce) {
+	t.Helper()
 	ae := newAcmeEnv(t)
 	aud := fakeAudience{members: map[string][]int64{"group:6f0c1c1e-0000-4000-8000-000000000001": {1, 2, 3}, "role:77": {2, 4}}}
 	fail := &failOnce{}
@@ -88,7 +89,7 @@ func TestHumanQuorumOfAGroup(t *testing.T) {
 	require.NoError(t, decide(2, "approve"))
 	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the quorum moves the run")
 	assert.Equal(t, []string{"approve 2"}, noteTexts(t, ae.env))
-	assert.ErrorIs(t, decide(3, "reject"), workflow.ErrTaskClosed, "the task is closed for the third")
+	require.ErrorIs(t, decide(3, "reject"), workflow.ErrTaskClosed, "the task is closed for the third")
 	run := runOf(t, ae.env, p)
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "done")
 	var title string
@@ -148,10 +149,10 @@ func TestHumanNodeRefusesBadParams(t *testing.T) {
 	require.NoError(t, err)
 	p, _ := engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees": [{"kind": "user", "user_id": 1}], "buttons": [{"outcome": "timeout", "label": "T"}]}`))
 	_, err = p.TaskSpec(time.Hour, engine.SubjectRef{})
-	assert.Error(t, err, "timeout is not a button")
+	require.Error(t, err, "timeout is not a button")
 	p, _ = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees": [{"kind": "user", "user_id": 1}], "buttons": [{"outcome": "ok", "label": "OK"}], "escalation": [{"extend": "1h"}]}`))
 	_, err = p.TaskSpec(time.Hour, engine.SubjectRef{})
-	assert.Error(t, err, "escalation needs a timeout")
+	require.Error(t, err, "escalation needs a timeout")
 	p, _ = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees": [{"kind": "user", "user_id": 1}], "buttons": [{"outcome": "ok", "label": "OK"}], "timeout": "90d"}`))
 	spec, err := p.TaskSpec(time.Hour, engine.SubjectRef{})
 	require.NoError(t, err)

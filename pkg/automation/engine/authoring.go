@@ -304,7 +304,7 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	logs := &logCollector{}
 	ctx = withLogs(ctx, logs)
 	st := interp.Start(node.ID, &graph.StepContext{Ctx: gctx})
-	switch st.Kind {
+	switch st.Kind { //nolint:exhaustive // flow steps (end, fork, each, arrive) are reported by their kind
 	case graph.StepFailed, graph.StepMissingContext:
 		e := stepErr(st)
 		res.Error = &e
@@ -319,7 +319,9 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	case graph.StepOutcome, graph.StepWait:
 		res.Outcome = st.Outcome
 		if st.Output != nil {
-			res.Output, _ = json.Marshal(st.Output)
+			if res.Output, err = json.Marshal(st.Output); err != nil {
+				return TestNodeResult{}, err
+			}
 		}
 		if len(st.Effects) > 0 {
 			out, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, node, st.Effects)
@@ -329,11 +331,16 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 			if serr != nil {
 				res.Error = serr
 			} else if out != nil {
-				res.Output, _ = json.Marshal(out)
+				if res.Output, err = json.Marshal(out); err != nil {
+					return TestNodeResult{}, err
+				}
 			}
 		}
 		if st.Kind == graph.StepWait {
-			w, _ := json.Marshal(map[string]any{"waits_for": st.Wait.Event, "timeout_ms": st.Wait.Timeout.Milliseconds()})
+			w, err := json.Marshal(map[string]any{"waits_for": st.Wait.Event, "timeout_ms": st.Wait.Timeout.Milliseconds()})
+			if err != nil {
+				return TestNodeResult{}, err
+			}
 			res.Output = w
 		}
 	default:

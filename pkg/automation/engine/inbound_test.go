@@ -3,7 +3,6 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -121,7 +120,9 @@ func TestOwnEventsDoNotStartTheGraphAgain(t *testing.T) {
 	p.until(func() bool {
 		return ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evCreated) == 2
 	}, "the run published its own order event")
-	p.until(func() bool { return ae.count(`SELECT count(*) FROM automation.runs r JOIN extruntime.workflow_instances i ON i.id = r.instance_id WHERE i.status = 'completed'`) == 1 }, "done")
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM automation.runs r JOIN extruntime.workflow_instances i ON i.id = r.instance_id WHERE i.status = 'completed'`) == 1
+	}, "done")
 	for i := 0; i < 5; i++ {
 		p.pass()
 	}
@@ -204,7 +205,9 @@ func TestTwoAnswersOfAnAskGiveOneTransition(t *testing.T) {
 	p := ae.proc()
 	ae.create(p, ae.human(), askGraph)
 	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
-	p.until(func() bool { return ae.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1 }, "the answer wait opens")
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the answer wait opens")
 	calls := ae.acme.callsOf("acme.ask")
 	require.Len(t, calls, 1)
 	token := calls[0].Token
@@ -234,7 +237,7 @@ func TestTwoAnswersOfAnAskGiveOneTransition(t *testing.T) {
 		_, err := p.rt.Inbound().Publish(context.Background(), tx, ev)
 		return err
 	})
-	assert.True(t, errors.Is(err, engine.ErrCorrelationClosed), "%v", err)
+	require.ErrorIs(t, err, engine.ErrCorrelationClosed)
 }
 
 // An answer that arrives before the parent opened its wait is found by the wait's catch-up.

@@ -131,7 +131,7 @@ func (n NodeSpec) StructuredFailure() bool {
 	if _, declared := n.Output.Get("error"); declared {
 		return false // the node declares its own error field (a catalog of another product)
 	}
-	switch n.Behavior {
+	switch n.Behavior { //nolint:exhaustive // the pure built-in behaviors fall through
 	case BehaviorCall, BehaviorEffect:
 		return true
 	}
@@ -175,13 +175,14 @@ func (m DryRunMode) valid() bool {
 	return m == DryRunExecute || m == DryRunCapture || m == DryRunForbid
 }
 
-// CodeDryRunUndeclared: a node type with an effect does not say what a dry run does with it.
+// CodeDryRunUndeclared is the code of a node type with an effect that does not say what a dry run does
+// with it.
 const CodeDryRunUndeclared = "dry_run_undeclared"
 
 // NeedsDryRun reports whether a node type must declare DryRun: its behavior has an effect or is not one
 // of the pure built-in ones.
 func (n NodeSpec) NeedsDryRun() bool {
-	switch n.Behavior {
+	switch n.Behavior { //nolint:exhaustive // the pure built-in behaviors fall through
 	case BehaviorCall, BehaviorEffect:
 		return true
 	case BehaviorWait:

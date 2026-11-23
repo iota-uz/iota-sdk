@@ -87,7 +87,8 @@ const (
 // cancelled meanwhile is skipped, and a wait started while it is handled does not see it. A timeout input fires the earliest pending timer — a wait's, counted from when it started
 // waiting, or a join's, counted from its parallel's fork — the first one created on a tie.
 func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput, o DryRunOptions) []TraceStep {
-	run := Context{Event: map[string]any{}, Nodes: map[string]NodeState{}, Vars: ctx.Vars, Now: ctx.Now, Tenant: ctx.Tenant, Foreach: map[string]ForeachItem{}}
+	run := Context{Event: map[string]any{}, Nodes: map[string]NodeState{}, Vars: ctx.Vars, Now: ctx.Now, Tenant: ctx.Tenant, Foreach: map[string]ForeachItem{},
+		Subject: ctx.Subject, Run: ctx.Run}
 	for id, st := range ctx.Nodes {
 		// A call's given answer is its answer, not an output: it is visible once the call has run.
 		if node, ok := i.view.Node(id); ok && i.view.catalog.Nodes[node.Type].Behavior == BehaviorCall {

@@ -268,7 +268,7 @@ func notFound(w http.ResponseWriter) { w.WriteHeader(http.StatusNotFound) }
 
 // hookTarget reads the connection or the platform kind from the path: …/hooks/{id} or
 // …/hooks/platform/{kind}.
-func hookTarget(path string) (id string, platform string, ok bool) {
+func hookTarget(path string) (string, string, bool) {
 	i := strings.LastIndex(path, "/hooks/")
 	if i < 0 {
 		return "", "", false

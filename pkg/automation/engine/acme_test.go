@@ -29,11 +29,11 @@ import (
 // answer event, a webhook and a poller.
 
 const (
-	kindAcme  catalog.ConnectorKind = "acme"
-	evMessage                       = "acme.message.v1"
-	evAnswer                        = "acme.answer.v1"
-	acmeToken                       = "tok-SECRET-42"
-	acmeSig                         = "sig-SECRET-7"
+	kindAcme  = catalog.ConnectorKind("acme")
+	evMessage = "acme.message.v1"
+	evAnswer  = "acme.answer.v1"
+	acmeToken = "tok-SECRET-42"
+	acmeSig   = "sig-SECRET-7"
 )
 
 type acmeCall struct {
@@ -130,7 +130,10 @@ func (u acmeUpdate) event(connection string) engine.InboundEvent {
 	if u.Event == evAnswer {
 		payload = map[string]any{"choice": u.Choice}
 	}
-	raw, _ := json.Marshal(payload)
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		panic(err)
+	}
 	from := u.From
 	if from == "" {
 		from = "anyone"
@@ -171,8 +174,7 @@ func (a *acme) Poll(_ context.Context, c connectors.Connection, _ connectors.Cre
 	if n >= len(a.pollQ) {
 		return nil, cursor, nil
 	}
-	next, _ := json.Marshal(n + 1)
-	return a.pollQ[n], next, nil
+	return a.pollQ[n], json.RawMessage(fmt.Sprint(n + 1)), nil
 }
 
 const acmeParams = `{"type":"object","properties":{"mode":{"type":"string"},"text":{"type":"string"},"timeout":{"type":"string"}},"additionalProperties":false}`
@@ -237,8 +239,8 @@ func (n *acmeAsk) Answer(payload json.RawMessage) (string, json.RawMessage, erro
 	if err := json.Unmarshal(payload, &p); err != nil {
 		return "", nil, err
 	}
-	out, _ := json.Marshal(map[string]any{"choice": p.Choice})
-	return p.Choice, out, nil
+	out, err := json.Marshal(map[string]any{"choice": p.Choice})
+	return p.Choice, out, err
 }
 
 // acmeHTTP is a GET that echoes the authorization header it sent.
@@ -255,7 +257,6 @@ func (n *acmeHTTP) Execute(_ context.Context, in catalog.CallInput) (catalog.Cal
 	n.a.record(acmeCall{Node: "acme.http", Key: in.IdempotencyKey, Attempt: in.Attempt})
 	return catalog.CallResult{Outcome: "ok", Output: map[string]any{"headers": map[string]any{"Authorization": "Bearer " + in.Credentials["token"]}}}, nil
 }
-
 
 // acmeClassify is a model's decision: sales or support. Its provider calls are counted.
 type acmeClassify struct{ a *acme }
@@ -339,7 +340,7 @@ func (ae *acmeEnv) hookPath() string { return "/automations/hooks/" + ae.conn.ID
 
 // drive runs the process in the background until stop is called: the dispatcher, the workflow engine
 // (with a context the stop cancels, as a process that dies) and maintenance.
-func (p *proc) drive() (stop func()) {
+func (p *proc) drive() func() {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {

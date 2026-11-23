@@ -129,7 +129,10 @@ type callRecord struct {
 // ResolvedCall is the result an operator records for a blocked call (Operations.Resolve): the journal
 // value the child continues with.
 func resolvedCall(outcome string, output json.RawMessage) json.RawMessage {
-	b, _ := json.Marshal(callRecord{Kind: "result", Outcome: outcome, Output: nonNull(output)})
+	b, err := json.Marshal(callRecord{Kind: "result", Outcome: outcome, Output: nonNull(output)})
+	if err != nil {
+		return json.RawMessage(`{"kind":"result"}`)
+	}
 	return b
 }
 
@@ -327,7 +330,10 @@ func (x *callExec) failed(nt catalog.NodeType, code, message string, retryable b
 		result = CodeOutcomeUnknown
 	}
 	x.c.r.metrics.call(context.Background(), x.connector(nt), x.req.NodeType, result)
-	out, _ := json.Marshal(graph.FailedOutput(code, message, retryable))
+	out, err := json.Marshal(graph.FailedOutput(code, message, retryable))
+	if err != nil {
+		out = json.RawMessage(`{}`)
+	}
 	fo := ""
 	if nt != nil {
 		fo = nt.Spec().FailedOutcome
@@ -457,11 +463,16 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 		}
 		return callRecord{}, err
 	}
+	return readRecord(raw), nil
+}
+
+// readRecord reads the journal value of an attempt; an unreadable one fails the call.
+func readRecord(raw json.RawMessage) callRecord {
 	var rec callRecord
-	if err := json.Unmarshal(raw, &rec); err != nil || rec.Kind == "" {
-		return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: "the recorded result of the call is not readable"}, nil
+	if json.Unmarshal(raw, &rec) != nil || rec.Kind == "" {
+		return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: "the recorded result of the call is not readable"}
 	}
-	return rec, nil
+	return rec
 }
 
 // openConnection is what a call attempt runs with: the connection, its credentials and their masker.
