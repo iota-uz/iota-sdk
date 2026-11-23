@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -42,15 +43,21 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 	if r.cfg.Retention.Runs < stepsAfter {
 		stepsAfter = r.cfg.Retention.Runs
 	}
+	// One clock for both loops: each statement's now() is its own, so a run that ended between the
+	// two would be too new for the steps and old enough for the runs.
+	var now time.Time
+	if err := r.cfg.DB.QueryRow(ctx, `SELECT now()`).Scan(&now); err != nil {
+		return 0, serrors.FromDB(opMaintain, err)
+	}
 	for {
 		tag, err := r.cfg.DB.Exec(ctx, `
 			DELETE FROM automation.steps WHERE (tenant_id, run_id, token_id, seq) IN (
 				SELECT s.tenant_id, s.run_id, s.token_id, s.seq FROM automation.steps s
 				JOIN automation.runs r ON r.tenant_id = s.tenant_id AND r.id = s.run_id
 				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < $3::timestamptz - $1::interval
 				ORDER BY s.tenant_id, s.run_id, s.token_id, s.seq LIMIT $2)`,
-			pgInterval(stepsAfter.Seconds()), pruneStepsBatch)
+			pgInterval(stepsAfter.Seconds()), pruneStepsBatch, now)
 		if err != nil {
 			return total, serrors.FromDB(opMaintain, err)
 		}
@@ -59,14 +66,22 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 			break
 		}
 	}
+	if h := r.testHook; h != nil {
+		if err := h(ctx, nil, "prune-runs"); err != nil {
+			return total, err
+		}
+	}
 	for {
 		tag, err := r.cfg.DB.Exec(ctx, `
 			DELETE FROM automation.runs WHERE (tenant_id, id) IN (
 				SELECT r.tenant_id, r.id FROM automation.runs r
 				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < $3::timestamptz - $1::interval
+				  -- A run whose steps are still kept (they were not old enough, or the step loop
+				  -- stopped early) is not deleted: its delete would cascade to them unbounded.
+				  AND NOT EXISTS (SELECT 1 FROM automation.steps s WHERE s.tenant_id = r.tenant_id AND s.run_id = r.id)
 				ORDER BY r.tenant_id, r.id LIMIT $2)`,
-			pgInterval(r.cfg.Retention.Runs.Seconds()), pruneRunsBatch)
+			pgInterval(r.cfg.Retention.Runs.Seconds()), pruneRunsBatch, now)
 		if err != nil {
 			return total, serrors.FromDB(opMaintain, err)
 		}
@@ -228,25 +243,10 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 			continue
 		}
 		seen := map[string]bool{}
-		// A node or trigger that names no connection uses the one the catalog resolves for its kinds,
-		// as validation and execution do: deleting that connection breaks it too.
-		uses := func(id string, kinds []catalog.ConnectorKind, param any) {
-			if c, _ := param.(string); c == want {
-				seen[id] = true
-				return
-			}
-			if param != nil || len(kinds) == 0 {
-				return
-			}
-			if ref, _, err := catalog.ResolveConnection(view.Connections, kinds, nil); err == nil && ref.ID == want {
+		for id, conn := range connectionUses(view, g) {
+			if conn == want {
 				seen[id] = true
 			}
-		}
-		for _, n := range g.Nodes {
-			uses(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
-		}
-		for _, t := range g.Triggers {
-			uses(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
 		}
 		if len(seen) == 0 {
 			continue
@@ -258,4 +258,29 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 		out = append(out, use)
 	}
 	return out, serrors.FromDB(opMaintain, rows.Err())
+}
+
+// connectionUses maps each node and trigger of g that uses a connection to its ID. One that names no
+// connection uses the one the catalog resolves for its kinds, as validation and execution do.
+func connectionUses(view catalog.View, g graph.Graph) map[string]string {
+	out := map[string]string{}
+	use := func(id string, kinds []catalog.ConnectorKind, param any) {
+		if c, _ := param.(string); c != "" {
+			out[id] = c
+			return
+		}
+		if param != nil || len(kinds) == 0 {
+			return
+		}
+		if ref, _, err := catalog.ResolveConnection(view.Connections, kinds, nil); err == nil {
+			out[id] = ref.ID
+		}
+	}
+	for _, n := range g.Nodes {
+		use(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
+	}
+	for _, t := range g.Triggers {
+		use(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
+	}
+	return out
 }

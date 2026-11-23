@@ -194,14 +194,17 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	if err != nil {
 		return RunRef{}, serrors.FromDB(opStart, err)
 	}
+	if req.startState != "" {
+		// A run that does not start (blocked, filter_failed) replaces nothing: its predecessor keeps its
+		// conversation.
+		return RunRef{RunID: id, Status: StatusOf("", req.startState)}, nil
+	}
 	if req.restarted != nil {
-		// The predecessor keeps the mark while it lives, whatever happens to this run's row.
+		// The predecessor keeps the mark while it lives, whatever happens to this run's row: the
+		// replacement takes the conversation over or queues for it.
 		if _, err := tx.Exec(ctx, `UPDATE automation.runs SET superseded = true WHERE tenant_id = $1 AND id = $2`, req.tenant, *req.restarted); err != nil {
 			return RunRef{}, serrors.FromDB(opStart, err)
 		}
-	}
-	if req.startState != "" {
-		return RunRef{RunID: id, Status: StatusOf("", req.startState)}, nil
 	}
 	// The main token enters the node the trigger's fired edge leads to.
 	first, ok := req.in.Next(req.triggerID, graph.TriggerOutcome)
@@ -326,10 +329,26 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil)
 }
 
+func (r *Runtime) queueBatch() int {
+	if r.queueScanBatch > 0 {
+		return r.queueScanBatch
+	}
+	return 200
+}
+
 // startQueued starts the queued runs whose subject is free (the observer's attempt can lose the race
 // with a start that queued a run while the subject's run was finishing).
 func (r *Runtime) startQueued(ctx context.Context) error {
-	rows, err := r.cfg.DB.Query(ctx, `SELECT DISTINCT tenant_id, subject_entity, subject_key FROM automation.subject_queue LIMIT 200`)
+	// Only subjects without a live holder (dequeue's busy check) count toward the batch: busy
+	// conversations keep their queued runs, and a batch of them would hide a free subject on every pass.
+	// The oldest queued run first. dequeue checks again under the subject's lock.
+	rows, err := r.cfg.DB.Query(ctx, `
+		SELECT q.tenant_id, q.subject_entity, q.subject_key FROM automation.subject_queue q
+		WHERE NOT EXISTS (SELECT 1`+runFrom+`
+			WHERE r.tenant_id = q.tenant_id AND r.subject_entity = q.subject_entity AND r.subject_key = q.subject_key
+			  AND r.instance_id IS NOT NULL AND i.status IN ('running', 'waiting', 'blocked') AND NOT `+supersededSQL+`)
+		GROUP BY q.tenant_id, q.subject_entity, q.subject_key
+		ORDER BY min(q.seq) LIMIT $1`, r.queueBatch())
 	if err != nil {
 		return serrors.FromDB(opStart, err)
 	}
