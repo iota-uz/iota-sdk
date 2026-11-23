@@ -175,23 +175,25 @@ func (k *kernel) unlease() int {
 	return k.leases
 }
 
-// resetNamespace clears the Python namespace before the next exec (policy
-// FreshNamespace on reuse). It is a no-op for a kernel that never ran code.
-func (k *kernel) resetNamespace() error {
+// leaseForReuse takes a lease on a pooled kernel. With fresh (policy
+// FreshNamespace) the kernel must be unshared and idle, and the result says
+// whether it ran code, so its namespace must be reset before use.
+func (k *kernel) leaseForReuse(fresh bool) (bool, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	if k.inFlight || k.leases > 0 {
-		return pykernel.ErrKernelBusy
+	if fresh && (k.inFlight || k.leases > 0) {
+		return false, pykernel.ErrKernelBusy
 	}
-	if k.execs == 0 {
-		return nil
-	}
-	if err := k.br.ResetNamespace(context.Background()); err != nil {
-		return err
-	}
+	k.leases++
+	return fresh && k.execs > 0, nil
+}
+
+// markReset records a namespace reset the kernel has been told to perform.
+func (k *kernel) markReset() {
+	k.mu.Lock()
 	k.nsReset = true
 	k.filesPreserved = true
-	return nil
+	k.mu.Unlock()
 }
 
 func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pykernel.ExecEvent, error) {
@@ -415,11 +417,19 @@ func (k *kernel) watchQuota() {
 		case <-t.C:
 		}
 		cur := dirUsage(k.opts.workdir, k.opts.workdirEntries)
-		over := cur.bytes > k.opts.workdirQuota || (k.opts.workdirEntries > 0 && cur.entries > k.opts.workdirEntries)
-		grew := cur.bytes > prev.bytes || cur.entries > prev.entries
+		// Past the entry cap the walk stops, so growth is no longer
+		// measurable: a saturated workdir counts as growing.
+		saturated := k.opts.workdirEntries > 0 && cur.entries > k.opts.workdirEntries
+		over := saturated || cur.bytes > k.opts.workdirQuota
+		grew := saturated || cur.bytes > prev.bytes || cur.entries > prev.entries
 		prev = cur
 		if !over || !grew {
 			continue
+		}
+		select {
+		case <-k.closed:
+			return // disposed during the walk: the process may be reaped
+		default:
 		}
 		k.mu.Lock()
 		a := k.active
@@ -427,7 +437,7 @@ func (k *kernel) watchQuota() {
 		if a != nil {
 			k.stop(a, pykernel.ReasonQuotaExceeded)
 		} else {
-			_ = k.proc.Kill()
+			_ = k.proc.Kill() // reap-safe: a no-op once the leader is reaped
 		}
 	}
 }

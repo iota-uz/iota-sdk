@@ -61,9 +61,11 @@ type dispatcher struct {
 }
 
 func (d *dispatcher) Dispatch(_ context.Context, call bridge.Call) bridge.Reply {
-	// A call that does not belong to the running exec (a thread outliving a
-	// cancelled or finished exec, a parked kernel) is refused: every
-	// capability call is bounded by the context of a live exec.
+	// A call that does not carry the id of the running exec (a parked kernel,
+	// a call after the exec ended) is refused, so every capability call is
+	// bounded by the context of a live exec. The id comes from the kernel: a
+	// thread that outlived exec N can still act within exec N+1 of the same
+	// kernel, which is why keys must be scoped to one tenant and user.
 	ctx, ok := d.exec(call.ExecID)
 	if !ok {
 		return bridge.Reply{Err: &bridge.CallError{Type: "KernelCancelled", Message: "no exec is running: capability calls are allowed only inside an exec"}}

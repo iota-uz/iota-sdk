@@ -54,6 +54,9 @@ func prepareState(workdir string, cred *isolation.Credential, writeMarker bool) 
 	return preserved, nil
 }
 
+// maxHandOver bounds how many top-level entries one handOver inspects.
+const maxHandOver = 1 << 17
+
 // handOver gives the workdir and its direct entries owned by the host to the
 // kernel uid. Entries the kernel created are already its own; deeper host
 // entries are not expected (the host creates top-level directories only).
@@ -66,10 +69,14 @@ func handOver(wfd int, cred isolation.Credential) error {
 		return err
 	}
 	dir := os.NewFile(uintptr(dup), "workdir")
-	names, err := dir.Readdirnames(-1)
-	_ = dir.Close()
-	if err != nil {
-		return err
+	defer dir.Close()
+	var names []string
+	for len(names) < maxHandOver {
+		chunk, err := dir.Readdirnames(1024)
+		names = append(names, chunk...)
+		if err != nil {
+			break // io.EOF: done
+		}
 	}
 	self := uint32(os.Geteuid())
 	for _, name := range names {

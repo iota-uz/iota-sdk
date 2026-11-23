@@ -416,6 +416,10 @@ def _landlock(cfg, report):
     try:
         read = _FS_READ_FILE | _FS_READ_DIR
         read_exec = read | _FS_EXECUTE
+        # REFER (link/rename across directories) must stay limited to the
+        # workdir: with it on a read path, the kernel could hard-link host
+        # files into its workdir, which the host then hands to the kernel uid.
+        assert not (read_exec & _FS_REFER)
         write = handled_fs & ~(_FS_EXECUTE | _FS_MAKE_CHAR | _FS_MAKE_BLOCK | _FS_MAKE_SOCK | _FS_IOCTL_DEV)
         rules = [(p, read_exec) for p in sorted(_runtime_paths()) if os.path.isabs(p) and not _within(p, workdir)]
         rules += [(p, read) for p in cfg.get("read_paths") or [] if p and os.path.isabs(p)]

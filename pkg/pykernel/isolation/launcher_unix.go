@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 )
 
@@ -93,11 +94,25 @@ func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, e
 	return &unixProcess{cmd: cmd}, nil
 }
 
-type unixProcess struct{ cmd *exec.Cmd }
+// unixProcess guards the group kill against pid reuse: once the leader is
+// reaped its pid (and group id) may belong to an unrelated process, so Kill
+// and Signal become no-ops then. Wait first waits for the exit without
+// reaping, marks the process reaped under the lock, and only then reaps.
+type unixProcess struct {
+	cmd    *exec.Cmd
+	mu     sync.Mutex
+	reaped bool
+}
 
 func (p *unixProcess) PID() int { return p.cmd.Process.Pid }
 
-func (p *unixProcess) Wait() error { return p.cmd.Wait() }
+func (p *unixProcess) Wait() error {
+	waitExited(p.cmd.Process.Pid)
+	p.mu.Lock()
+	p.reaped = true
+	p.mu.Unlock()
+	return p.cmd.Wait()
+}
 
 // Signal sends sig to the process. For a syscall.Signal it targets the whole
 // process group (negative pid); any other os.Signal falls back to
@@ -107,6 +122,11 @@ func (p *unixProcess) Signal(sig os.Signal) error {
 	if !ok {
 		return p.cmd.Process.Signal(sig)
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.reaped {
+		return nil
+	}
 	// Negative pid targets the process group.
 	if err := syscall.Kill(-p.cmd.Process.Pid, ssig); err != nil && err != syscall.ESRCH {
 		return err
@@ -114,7 +134,14 @@ func (p *unixProcess) Signal(sig os.Signal) error {
 	return nil
 }
 
-func (p *unixProcess) Kill() error { return killGroup(p.cmd.Process.Pid) }
+func (p *unixProcess) Kill() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.reaped {
+		return nil
+	}
+	return killGroup(p.cmd.Process.Pid)
+}
 
 func killGroup(pid int) error {
 	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {

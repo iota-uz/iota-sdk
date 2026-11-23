@@ -183,8 +183,12 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 	if decision == lifecycle.ReuseIdle {
 		if k, ok := m.kernels[sess.Key()]; ok {
 			if !k.isDisposed() {
+				needReset, err := m.leaseForReuseLocked(k, sess)
 				m.mu.Unlock()
-				return m.reuse(k, sess)
+				if err != nil {
+					return nil, err
+				}
+				return m.finishReuse(k, needReset)
 			}
 			// The entry is a dead kernel (its serve loop exited); evict it now so
 			// it doesn't linger until Sweep, then fall through to spawn a fresh one.
@@ -219,12 +223,17 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			// Lost a same-key spawn race against a live kernel: keep the established
 			// one and discard our freshly-spawned spare. A policy that spawns per
 			// Acquire never shares a kernel between two holders.
+			var needReset bool
+			err := fmt.Errorf("pykernel/manager: key %q is already leased: %w", sess.Key(), pykernel.ErrKernelBusy)
+			if decision != lifecycle.SpawnNew {
+				needReset, err = m.leaseForReuseLocked(existing, sess)
+			}
 			m.mu.Unlock()
 			_ = k.Dispose(context.Background())
-			if decision == lifecycle.SpawnNew {
-				return nil, fmt.Errorf("pykernel/manager: key %q is already leased: %w", sess.Key(), pykernel.ErrKernelBusy)
+			if err != nil {
+				return nil, err
 			}
-			return m.reuse(existing, sess)
+			return m.finishReuse(existing, needReset)
 		}
 		// The entry is a dead kernel: replace it with our fresh one and dispose
 		// the stale entry asynchronously so its process is reaped, not leaked.
@@ -240,20 +249,50 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 	return k, nil
 }
 
-// reuse hands out a live pooled kernel for sess. The tenant and Mode frozen on
-// the kernel at spawn must match: a key is never reused across tenants or
-// from a plan run into an apply run.
-func (m *Manager) reuse(k *kernel, sess pykernel.Session) (pykernel.Kernel, error) {
+// leaseForReuseLocked leases a live pooled kernel for sess; caller holds m.mu,
+// so the lease is atomic with eviction and Release. The tenant and Mode frozen
+// on the kernel at spawn must match: a key is never reused across tenants or
+// from a plan run into an apply run. A FreshNamespace kernel is never shared.
+// It reports whether the namespace must be reset before the kernel is handed
+// out.
+func (m *Manager) leaseForReuseLocked(k *kernel, sess pykernel.Session) (bool, error) {
 	if k.tenant != sess.TenantID() || k.mode != sess.Mode() {
-		return nil, pykernel.ErrSessionMismatch
+		return false, pykernel.ErrSessionMismatch
 	}
-	if m.cfg.Policy.ResetMode() == lifecycle.FreshNamespace {
-		if err := k.resetNamespace(); err != nil {
-			return nil, fmt.Errorf("pykernel/manager: reset namespace: %w", err)
-		}
+	return k.leaseForReuse(m.cfg.Policy.ResetMode() == lifecycle.FreshNamespace)
+}
+
+// finishReuse resets the namespace of a just-leased kernel when required. The
+// write happens with no lock held and is bounded: a kernel that does not read
+// its control socket is disposed instead of wedging the Manager.
+func (m *Manager) finishReuse(k *kernel, needReset bool) (pykernel.Kernel, error) {
+	if !needReset {
+		return k, nil
 	}
-	k.lease()
+	done := make(chan error, 1)
+	go func() { done <- k.br.ResetNamespace(context.Background()) }()
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(m.cfg.Sandbox.StartTimeout):
+		err = errors.New("kernel does not read its control socket")
+	}
+	if err != nil {
+		m.dropKernel(k)
+		return nil, fmt.Errorf("pykernel/manager: reset namespace: %w", err)
+	}
+	k.markReset()
 	return k, nil
+}
+
+// dropKernel removes k from the pool and disposes it.
+func (m *Manager) dropKernel(k *kernel) {
+	m.mu.Lock()
+	if m.kernels[k.key] == k {
+		delete(m.kernels, k.key)
+	}
+	m.mu.Unlock()
+	_ = k.Dispose(context.Background())
 }
 
 // prepareWorkdir creates the workdir and its state directory and, when the
@@ -261,6 +300,9 @@ func (m *Manager) reuse(k *kernel, sess pykernel.Session) (pykernel.Kernel, erro
 func (m *Manager) prepareWorkdir(workdir string) error {
 	if workdir == "" {
 		return errors.New("pykernel/manager: session workdir is empty")
+	}
+	if n := m.cfg.Limits.WorkdirEntries; n > 0 && dirUsage(workdir, n).entries > n {
+		return fmt.Errorf("pykernel/manager: %w", pykernel.ErrWorkdirQuota)
 	}
 	if _, err := prepareState(workdir, m.runAs(), false); err != nil {
 		return fmt.Errorf("pykernel/manager: workdir: %w", err)
@@ -290,18 +332,22 @@ func (m *Manager) Release(kk pykernel.Kernel) error {
 	if !ok {
 		return errForeignKernel
 	}
+	// Unlease and the dispose decision happen under m.mu, so a concurrent
+	// reuse either leased first (and the kernel stays) or finds it gone.
+	m.mu.Lock()
 	if k.unlease() > 0 {
+		m.mu.Unlock()
 		return nil // another holder still uses it
 	}
-	if m.cfg.Policy.OnRelease(k.Info()) == lifecycle.Dispose {
-		m.mu.Lock()
-		if m.kernels[k.key] == k {
-			delete(m.kernels, k.key)
-		}
+	if m.cfg.Policy.OnRelease(k.Info()) != lifecycle.Dispose {
 		m.mu.Unlock()
-		return k.Dispose(context.Background())
+		return nil // Park: leave it parked in the pool for reuse.
 	}
-	return nil // Park: leave it parked in the pool for reuse.
+	if m.kernels[k.key] == k {
+		delete(m.kernels, k.key)
+	}
+	m.mu.Unlock()
+	return k.Dispose(context.Background())
 }
 
 func (m *Manager) Evict(key string) error {

@@ -2,8 +2,10 @@ package manager
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -211,4 +213,23 @@ func TestAcquire_RefusesReuseAcrossTenants(t *testing.T) {
 
 	_, err = m.Acquire(context.Background(), testSess("shared-key", wd)) // testSess mints a new tenant
 	require.ErrorIs(t, err, pykernel.ErrSessionMismatch)
+}
+
+func TestAcquire_RefusesWorkdirOverEntryQuota(t *testing.T) {
+	t.Parallel()
+	m, err := New(Config{
+		Policy:       lifecycle.Ephemeral(),
+		Launcher:     &fakeLauncher{},
+		Sandbox:      isolation.Profile{Mode: isolation.ModeInsecureDisabled},
+		Limits:       isolation.ResourceLimits{WorkdirEntries: 5},
+		DisposeGrace: 100 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
+	wd := t.TempDir()
+	for i := 0; i < 10; i++ {
+		require.NoError(t, os.WriteFile(filepath.Join(wd, fmt.Sprintf("f%d", i)), nil, 0o600))
+	}
+	_, err = m.Acquire(context.Background(), testSess("full", wd))
+	require.ErrorIs(t, err, pykernel.ErrWorkdirQuota)
 }

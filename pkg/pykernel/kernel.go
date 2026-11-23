@@ -116,6 +116,9 @@ var (
 	ErrPoolExhausted = errors.New("pykernel: parallel-kernel cap reached")
 	// ErrKernelDisposed is returned when operating on a disposed kernel.
 	ErrKernelDisposed = errors.New("pykernel: kernel disposed")
+	// ErrWorkdirQuota is returned by Acquire when the session workdir holds
+	// more entries than the Manager allows; the host must clean it up.
+	ErrWorkdirQuota = errors.New("pykernel: session workdir is over its entry quota")
 	// ErrSessionMismatch is returned by Acquire when a live kernel for the key
 	// was bound to a different tenant or Mode; keys must be scoped so that
 	// never happens.
