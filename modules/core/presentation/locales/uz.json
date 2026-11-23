@@ -1965,5 +1965,24 @@
       "Workflows": "Jarayonlar",
       "Working": "Bajarilmoqda…"
     }
-  }
+  },
+	"Metrics": {
+		"Title": "Tanlov bo'yicha jami",
+		"Records": {
+			"one": "{{.Count}} yozuv",
+			"other": "{{.Count}} yozuv"
+		},
+		"Matched": "{{.Total}} tadan {{.Matched}} ta topildi",
+		"Filters": {
+			"one": "{{.Count}} filtr",
+			"other": "{{.Count}} filtr"
+		},
+		"ShowAll": "Hammasini ko'rsatish",
+		"MoreCurrencies": {
+			"one": "Yana {{.Count}} valyuta",
+			"other": "Yana {{.Count}} valyuta"
+		},
+		"FewerCurrencies": "Valyutalarni yig'ish",
+		"Empty": "Hech narsa topilmadi: summalar nolga teng. Davr yoki filtrlarni o'zgartiring."
+	}
 }

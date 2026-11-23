@@ -71,3 +71,27 @@ func TestDeferredPanelRender(t *testing.T) {
 	// Default skeleton painted immediately (no blocking query).
 	assert.Contains(t, html, "animate-pulse")
 }
+
+func TestDeferredPanelPlacement(t *testing.T) {
+	cfg := &TableConfig{ID: "orders", DeferredPanels: []DeferredPanel{
+		{ID: "above", URL: "/a"},
+		{ID: "inside", URL: "/b", Placement: PanelInTable},
+	}}
+	require.Len(t, cfg.PanelsAt(PanelAbove), 1)
+	assert.Equal(t, "above", cfg.PanelsAt(PanelAbove)[0].ID)
+	require.Len(t, cfg.PanelsAt(PanelInTable), 1)
+	assert.Equal(t, "inside", cfg.PanelsAt(PanelInTable)[0].ID)
+
+	var section strings.Builder
+	require.NoError(t, TableSection(cfg).Render(testPageCtx(t, "/orders"), &section))
+	html := section.String()
+	above := strings.Index(html, `id="above"`)
+	frame := strings.Index(html, "bg-surface-600 border border-subtle")
+	inside := strings.Index(html, `id="inside"`)
+	head := strings.Index(html, "<table")
+	require.True(t, above >= 0 && frame >= 0 && inside >= 0 && head >= 0, html)
+	assert.Less(t, above, frame, "a default panel stays above the table frame")
+	assert.Less(t, frame, inside, "an in-table panel renders inside the frame")
+	assert.Less(t, inside, head, "an in-table panel renders above the table head")
+	assert.Equal(t, 1, strings.Count(html, `id="inside"`))
+}

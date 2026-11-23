@@ -1966,5 +1966,24 @@
       "Workflows": "Workflows",
       "Working": "Working…"
     }
-  }
+  },
+	"Metrics": {
+		"Title": "Totals for selection",
+		"Records": {
+			"one": "{{.Count}} record",
+			"other": "{{.Count}} records"
+		},
+		"Matched": "Found {{.Matched}} of {{.Total}}",
+		"Filters": {
+			"one": "{{.Count}} filter",
+			"other": "{{.Count}} filters"
+		},
+		"ShowAll": "Show all",
+		"MoreCurrencies": {
+			"one": "{{.Count}} more currency",
+			"other": "{{.Count}} more currencies"
+		},
+		"FewerCurrencies": "Fewer currencies",
+		"Empty": "Nothing found: totals are zero. Change the period or filters."
+	}
 }
