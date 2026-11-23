@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -156,7 +157,7 @@ func (c *DebtAggregateController) List(
 	// Counterparty, currency and type narrow the summed debts; "has
 	// outstanding" keeps the counterparties whose summed outstanding amount
 	// is not zero.
-	filters := filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[debt.AggregateField]{
+	filters := filterq.RepoFilters(canonicalCounterparties(conditions), registry.Schema(), map[string]filterq.RepoField[debt.AggregateField]{
 		// Compared as text: a garbled id in the URL matches nothing instead of
 		// failing the ::uuid cast and the whole page.
 		debtAggFilterCounterparty:   {Column: debt.AggregateCounterpartyField, Expr: func(col string) string { return col + "::text" }},
@@ -311,4 +312,23 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 	})
 
 	templ.Handler(drawerWithTable, templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// canonicalCounterparties lowercases the counterparty ids of the conditions:
+// the column is compared as text, and PostgreSQL prints a UUID in lowercase,
+// so an id typed in uppercase would otherwise stop matching. A malformed value
+// stays malformed and still matches nothing.
+func canonicalCounterparties(conditions filterq.FilterSet) filterq.FilterSet {
+	out := make(filterq.FilterSet, len(conditions))
+	for i, c := range conditions {
+		if c.Field == debtAggFilterCounterparty {
+			values := make([]string, len(c.Values))
+			for j, v := range c.Values {
+				values[j] = strings.ToLower(v)
+			}
+			c.Values = values
+		}
+		out[i] = c
+	}
+	return out
 }

@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -459,6 +460,8 @@ func TestDebtAggregateController_List_FilterChips(t *testing.T) {
 		{"currency and outstanding", "?f=currency:is:USD&f=has_outstanding:is:true", []counterparty.Counterparty{alpha}, []counterparty.Counterparty{beta, gamma}},
 		// A garbled id in the URL matches nothing instead of failing the query.
 		{"malformed counterparty id", "?f=counterparty:is:not-a-uuid", nil, []counterparty.Counterparty{alpha, beta, gamma}},
+		// An id typed in uppercase still finds its counterparty.
+		{"uppercase counterparty id", "?f=counterparty:is:" + strings.ToUpper(beta.ID().String()), []counterparty.Counterparty{beta}, []counterparty.Counterparty{alpha, gamma}},
 	}
 	for _, tc := range cases {
 		response := suite.GET(DebtAggregateBasePath + tc.query).HTMX().Expect(t).Status(200)
