@@ -1,4 +1,4 @@
 {
   "bump": "patch",
-  "summary": "Lens: install the filter-chip kit stylesheet ahead of the host's stylesheets, so its plain utilities (e.g. `.hidden`) no longer override the host's responsive ones and hide the desktop sidebar on pages with a dashboard period chip."
+  "summary": "Solid UI kit embedded sheet (`@iota-uz/sdk/solid-ui/embedded-css`): utility selectors ship at zero specificity (`:where(…)`), so a host page's own Tailwind utilities win regardless of sheet order. A plain kit `.hidden` installed after the host's `lg:block` (Lens period chip, runtime kit installer) hid the host's desktop sidebar. Lens also installs the sheet first in <head>."
 }

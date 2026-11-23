@@ -12,13 +12,13 @@ import { parseISODate, type CalendarDate } from './model'
  * components use, so a host whose lists filter by chips and its dashboard
  * render the same chip.
  *
- * The sheet goes first in <head>, ahead of the host's own. Both are Tailwind
- * builds, and their `@layer utilities` blocks merge into one layer where the
- * later rule wins on equal specificity: appended, the kit's plain `.hidden`
- * landed after the host's `lg:block` and hid the host's desktop sidebar on
- * every page with a dashboard period chip. First in the head, the kit only
- * fills in what the host does not define. Its layer order (properties, theme,
- * base, components, utilities) is Tailwind's own, so declaring the layers
+ * Both this sheet and the host's are Tailwind builds whose `@layer utilities`
+ * blocks merge into one layer. The kit's utilities ship at zero specificity
+ * (`:where(…)`, see solid-ui/scripts/kit-utilities.mjs), so the host's own
+ * utility wins wherever both define one, whatever the order; a plain kit
+ * `.hidden` once overrode the host's `lg:block` and hid its desktop sidebar.
+ * The sheet still goes first in <head>, so its theme tokens do not shadow the
+ * host's either. Its layer order is Tailwind's own, so declaring the layers
  * first does not reorder the host's.
  */
 export function installKitStyles(sheet: string = kitStyles): void {
