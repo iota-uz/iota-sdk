@@ -61,12 +61,19 @@ func TestAFailedFilterDoesNotTakeAnotherTriggersStart(t *testing.T) {
 			 "edges": [{"from": {"node": "`+failing+`", "outcome": "fired"}, "to": "fin"}, {"from": {"node": "`+passing+`", "outcome": "fired"}, "to": "fin"}]}`)
 			e.publish(e.tenant, orderCreated, "o-1", order{Amount: 0}, 0)
 			p.until(func() bool { return len(e.runs(p, a, engine.RunFilter{})) == 2 }, "a diagnostic row and a run")
-			statuses := map[engine.RunStatus]int{}
-			for _, r := range e.runs(p, a, engine.RunFilter{}) {
-				statuses[r.Status]++
+			byTrigger := func() map[string]engine.RunSummary {
+				out := map[string]engine.RunSummary{}
+				for _, r := range e.runs(p, a, engine.RunFilter{}) {
+					out[r.TriggerID] = r
+				}
+				return out
 			}
-			assert.Equal(t, 1, statuses[engine.RunFilterFailed])
-			assert.Equal(t, 1, len(e.runs(p, a, engine.RunFilter{}))-statuses[engine.RunFilterFailed], "the passing trigger starts its run in either order")
+			runs := byTrigger()
+			require.Len(t, runs, 2, "one row per trigger")
+			assert.Equal(t, engine.RunFilterFailed, runs[failing].Status, "the failing trigger's row is its diagnostic")
+			pass := runs[passing].RunID
+			p.until(func() bool { return e.status(p, pass) == engine.RunDone }, "the passing trigger's run completes in either order")
+			assert.Equal(t, engine.RunFilterFailed, byTrigger()[failing].Status)
 		})
 	}
 }
@@ -173,7 +180,7 @@ func TestRecoveredEventBeforeTheDeadlineBeatsTheTimer(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
 	a := e.human()
-	e.create(p, a, followUp) // the payment wait times out after 1s
+	e.create(p, a, followUpTimeout) // the payment wait times out after 1s
 	var delivered, delayed atomic.Bool
 	p.rt.SetTestHook(func(ctx context.Context, tx pgx.Tx, label string) error {
 		switch label {
@@ -206,7 +213,7 @@ func TestConsumedEventIsAppliedBeforeTheTimerAfterARollback(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
 	a := e.human()
-	e.create(p, a, followUp) // the payment wait times out after 1s
+	e.create(p, a, followUpTimeout) // the payment wait times out after 1s
 	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
 	run := onlyRun(t, e, p, a)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
@@ -252,7 +259,7 @@ func TestTimelyPaymentRoutedBeforeTheTimeoutAppliesWins(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
 	a := e.human()
-	e.create(p, a, followUp) // the payment wait times out after 1s
+	e.create(p, a, followUpTimeout) // the payment wait times out after 1s
 	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
 	run := onlyRun(t, e, p, a)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
