@@ -59,6 +59,11 @@ describe('formatCompact', () => {
     expect(compactUnits('en-US')).toEqual(words)
   })
 
+  it('falls back to English words when the locale groups by other magnitudes', () => {
+    expect(compactUnits('ja')).toEqual(compactUnits('en-US'))
+    expect(formatCompact({ minor: 1000000n, decimals: 0 }, { locale: 'ja' }).unit).toBe(compactUnits('en-US')[0])
+  })
+
   it('prints a comma mantissa with the magnitude word', () => {
     expect(formatCompact(money(1929625692367n), { locale: 'ru' })).toEqual({ number: '19,30', unit: 'млрд' })
     expect(formatCompact(money(1929625692367n), { locale: 'ru', digits: 1 })).toEqual({ number: '19,3', unit: 'млрд' })

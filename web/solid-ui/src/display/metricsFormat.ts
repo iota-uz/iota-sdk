@@ -137,12 +137,16 @@ export function compactUnits(locale = 'en-US'): readonly string[] {
   const cached = unitCache.get(locale)
   if (cached) return cached
   const formatter = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short' })
-  const units = COMPACT_EXPONENTS.map((exponent) => formatter
-    .formatToParts(10 ** exponent)
-    .filter((part) => part.type === 'compact')
-    .map((part) => part.value)
-    .join('')
-    .trim())
+  // formatCompact divides by 10^6, 10^9 and 10^12, so a word is usable only if
+  // the locale prints exactly "1 <word>" for that power. Locales that group by
+  // other magnitudes (ja 万 = 10^4, hi lakh/crore) fall back to the English words.
+  const words = COMPACT_EXPONENTS.map((exponent) => {
+    const parts = formatter.formatToParts(10 ** exponent)
+    const integer = parts.filter((part) => part.type === 'integer').map((part) => part.value).join('')
+    const word = parts.filter((part) => part.type === 'compact').map((part) => part.value).join('').trim()
+    return integer === '1' && word ? word : undefined
+  })
+  const units = words.every(Boolean) ? (words as string[]) : (locale === 'en-US' ? words.map((w) => w ?? '') : compactUnits('en-US'))
   unitCache.set(locale, units)
   return units
 }

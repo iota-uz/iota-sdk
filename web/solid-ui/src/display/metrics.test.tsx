@@ -152,3 +152,18 @@ describe('KpiTile', () => {
     expect(count('.iota-mx-v--neg')).toBe(1)
   })
 })
+
+describe('KpiTiles style', () => {
+  it('keeps string and object styles next to the column count', () => {
+    mount(() => <KpiTiles columns={2} style="padding: 2rem"><span /></KpiTiles>)
+    let tiles = host.querySelector('.iota-mx-tiles') as HTMLElement
+    expect(tiles.style.getPropertyValue('--mx-n')).toBe('2')
+    expect(tiles.style.padding).toBe('2rem')
+    dispose?.()
+    document.body.replaceChildren()
+    mount(() => <KpiTiles style={{ padding: '1rem' }}><span /></KpiTiles>)
+    tiles = host.querySelector('.iota-mx-tiles') as HTMLElement
+    expect(tiles.style.getPropertyValue('--mx-n')).toBe('4')
+    expect(tiles.style.padding).toBe('1rem')
+  })
+})

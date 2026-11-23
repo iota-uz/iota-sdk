@@ -338,7 +338,9 @@ export function KpiTiles(props: KpiTilesProps) {
     <div
       {...native}
       class={classes('iota-mx-tiles', local.class)}
-      style={{ ...gridStyle(local.columns ?? 4), ...(typeof local.style === 'object' ? local.style : {}) }}
+      style={typeof local.style === 'string'
+        ? `--mx-n:${Math.max(local.columns ?? 4, 1)};${local.style}`
+        : { ...gridStyle(local.columns ?? 4), ...(local.style ?? {}) }}
     >
       {local.children}
     </div>
