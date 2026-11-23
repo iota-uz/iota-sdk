@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs'
 import postcss from 'postcss'
 import tailwindcss from '@tailwindcss/postcss'
 import type { Plugin } from 'vite'
+// Shared with the solid-ui package build, so dev and published sheets match.
+import { lowerKitUtilities } from '../solid-ui/scripts/kit-utilities.mjs'
 
 const suffix = '?kit-css'
 const prefix = '\0kit-css:'
@@ -32,7 +34,8 @@ export function kitCss(): Plugin {
       for (const message of result.messages) {
         if (message.type === 'dependency' && typeof message.file === 'string') this.addWatchFile(message.file)
       }
-      return `export default ${JSON.stringify(result.css)}`
+      // Same zero-specificity utilities as the published sheet (package-assets.mjs).
+      return `export default ${JSON.stringify(lowerKitUtilities(result.css))}`
     },
   }
 }

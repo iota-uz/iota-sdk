@@ -404,6 +404,9 @@ importers:
       jsdom:
         specifier: 25.0.1
         version: 25.0.1
+      postcss:
+        specifier: 8.4.49
+        version: 8.4.49
       typescript:
         specifier: 5.7.2
         version: 5.7.2

@@ -11,13 +11,21 @@ import { parseISODate, type CalendarDate } from './model'
  * an embedded dashboard sits on; the sheet adds only the utilities the chip
  * components use, so a host whose lists filter by chips and its dashboard
  * render the same chip.
+ *
+ * Both this sheet and the host's are Tailwind builds whose layers merge. The
+ * kit's base utilities and theme tokens ship at zero specificity (`:where(…)`,
+ * see solid-ui/scripts/kit-utilities.mjs), so the host's own rule wins wherever
+ * both define one — a plain kit `.hidden` once overrode the host's `lg:block`
+ * and hid its desktop sidebar. Its variants keep their weight and the sheet
+ * goes after the host's, as the runtime installer adopts it, so a variant only
+ * the kit defines still overrides a host base utility at its breakpoint.
  */
-function installKitStyles(): void {
+export function installKitStyles(sheet: string = kitStyles): void {
   if (typeof document === 'undefined' || document.querySelector('style[data-lens-solid-ui]')) return
   const style = document.createElement('style')
   style.dataset.lensSolidUi = ''
-  style.textContent = kitStyles
-  document.head.appendChild(style)
+  style.textContent = sheet
+  document.head.append(style)
 }
 
 /** "01.07.2026 – 30.09.2026"; a half-open range keeps its open side empty. */

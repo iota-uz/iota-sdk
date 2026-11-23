@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Solid UI kit embedded sheet (`@iota-uz/sdk/solid-ui/embedded-css`): base utility selectors and theme tokens ship at zero specificity (`:where(…)`), variants keep theirs, so a host page's own utilities and tokens win over the kit's base ones regardless of sheet order, while a kit-only variant still applies. A plain kit `.hidden` installed after the host's `lg:block` (Lens period chip, runtime kit installer) hid the host's desktop sidebar."
+}

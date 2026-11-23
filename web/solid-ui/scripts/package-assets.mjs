@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { lowerKitUtilities } from './kit-utilities.mjs'
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const repositoryRoot = path.resolve(packageRoot, '../..')
@@ -28,6 +29,8 @@ await writeFile(stylesheetPath, stylesheet.replaceAll('/assets/fonts/', './fonts
 
 // The embedded sheet (src/embedded.css) travels as a string module: the runtime host bundles it into the same lazy chunk as the
 // kit, so the kit and its utilities always come together and from the same release.
-const embedded = await readFile(path.join(outputRoot, 'embedded.css'), 'utf8')
+// Its utilities go at zero specificity so the host's own utilities win wherever both define one (see kit-utilities.mjs).
+const embedded = lowerKitUtilities(await readFile(path.join(outputRoot, 'embedded.css'), 'utf8'))
+await writeFile(path.join(outputRoot, 'embedded.css'), embedded)
 await writeFile(path.join(outputRoot, 'embedded-css.js'), `export default ${JSON.stringify(embedded.trim())}\n`)
 await writeFile(path.join(outputRoot, 'embedded-css.d.ts'), 'declare const css: string\nexport default css\n')
