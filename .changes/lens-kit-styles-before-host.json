@@ -1,4 +1,4 @@
 {
   "bump": "patch",
-  "summary": "Solid UI kit embedded sheet (`@iota-uz/sdk/solid-ui/embedded-css`): utility selectors ship at zero specificity (`:where(…)`), so a host page's own Tailwind utilities win regardless of sheet order. A plain kit `.hidden` installed after the host's `lg:block` (Lens period chip, runtime kit installer) hid the host's desktop sidebar. Lens also installs the sheet first in <head>."
+  "summary": "Solid UI kit embedded sheet (`@iota-uz/sdk/solid-ui/embedded-css`): base utility selectors ship at zero specificity (`:where(…)`), variants keep theirs, so a host page's responsive utilities win over the kit's base ones regardless of sheet order. A plain kit `.hidden` installed after the host's `lg:block` (Lens period chip, runtime kit installer) hid the host's desktop sidebar. Lens also installs the sheet first in <head>."
 }
