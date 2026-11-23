@@ -77,15 +77,17 @@ func collectSchema() string {
 }
 
 var (
+	// A branch that did not arrive has no output and a failed item no value: optional, so reading the
+	// others is not missing context.
 	joinOutput = expr.Fields{{Name: "branches", Field: expr.MapOf(expr.ObjectOf(expr.Fields{
-		{Name: "output", Field: expr.DynField},
+		{Name: "output", Field: expr.OptionalOf(expr.DynField)},
 		{Name: "arrived", Field: expr.BoolField},
 	}))}}
 	foreachOutput = expr.Fields{
 		{Name: "results", Field: expr.ListOf(expr.ObjectOf(expr.Fields{
 			{Name: "index", Field: expr.IntField},
 			{Name: "ok", Field: expr.BoolField},
-			{Name: "value", Field: expr.DynField},
+			{Name: "value", Field: expr.OptionalOf(expr.DynField)},
 			{Name: "error", Field: expr.OptionalOf(expr.StringField)},
 		}))},
 		{Name: "error", Field: expr.OptionalOf(expr.StringField)},

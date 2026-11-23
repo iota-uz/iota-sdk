@@ -175,14 +175,22 @@ func stripComments(sql string) string {
 	return b.String()
 }
 
-// laterMigrations are the migration files applied after name, oldest first.
+// laterMigrations are the migration files applied after name that use the automation schema (the
+// ones that can depend on its tables), oldest first. Others are left alone: a notransaction
+// migration cannot run as one statement batch.
 func laterMigrations(t *testing.T, name string) []string {
 	t.Helper()
 	entries, err := os.ReadDir("migrations")
 	require.NoError(t, err)
 	var out []string
 	for _, entry := range entries {
-		if n := entry.Name(); strings.HasSuffix(n, ".sql") && n > name {
+		n := entry.Name()
+		if !strings.HasSuffix(n, ".sql") || n <= name {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join("migrations", n))
+		require.NoError(t, err)
+		if strings.Contains(string(body), "automation.") {
 			out = append(out, n)
 		}
 	}
