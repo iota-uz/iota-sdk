@@ -92,6 +92,9 @@ type Manager struct {
 	// pending counts spawns that passed the capacity check but are not
 	// registered yet; it is part of the MaxParallel count.
 	pending int
+	// retiring counts kernels removed from the pool whose process group is
+	// still being torn down; they keep their MaxParallel slot until it is.
+	retiring int
 }
 
 var _ pykernel.Manager = (*Manager)(nil)
@@ -213,13 +216,26 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			// it doesn't linger until Sweep, then fall through to spawn a fresh one.
 			// Dispose it asynchronously so its process is reaped, not leaked.
 			delete(m.kernels, sess.Key())
-			go func(k *kernel) { _ = k.Dispose(context.Background()) }(k)
+			go m.retireLocked(k)()
 		}
 	}
-	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels)+m.pending >= maxParallel {
-		if !m.evictIdleLocked() {
+	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 {
+		for len(m.kernels)+m.pending+m.retiring >= maxParallel {
+			victim := m.evictIdleLocked()
+			if victim == nil {
+				m.mu.Unlock()
+				return nil, pykernel.ErrPoolExhausted
+			}
+			// Tear the victim down before its replacement starts, so the
+			// number of live process groups never exceeds the cap.
+			done := m.retireLocked(victim)
 			m.mu.Unlock()
-			return nil, pykernel.ErrPoolExhausted
+			done()
+			m.mu.Lock()
+			if m.closing {
+				m.mu.Unlock()
+				return nil, errShuttingDown
+			}
 		}
 	}
 	_, seen := m.seen[sess.Key()]
@@ -249,8 +265,9 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			if decision != lifecycle.SpawnNew {
 				needReset, err = m.leaseForReuseLocked(existing, sess)
 			}
+			done := m.retireLocked(k)
 			m.mu.Unlock()
-			_ = k.Dispose(context.Background())
+			done()
 			if err != nil {
 				return nil, err
 			}
@@ -258,7 +275,7 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 		}
 		// The entry is a dead kernel: replace it with our fresh one and dispose
 		// the stale entry asynchronously so its process is reaped, not leaked.
-		go func(k *kernel) { _ = k.Dispose(context.Background()) }(existing)
+		go m.retireLocked(existing)()
 	}
 	m.kernels[sess.Key()] = k
 	if len(m.seen) >= maxSeenKeys {
@@ -312,8 +329,9 @@ func (m *Manager) dropKernel(k *kernel) {
 	if m.kernels[k.key] == k {
 		delete(m.kernels, k.key)
 	}
+	done := m.retireLocked(k)
 	m.mu.Unlock()
-	_ = k.Dispose(context.Background())
+	done()
 }
 
 // prepareWorkdir creates the workdir and its state directory and, when the
@@ -367,21 +385,24 @@ func (m *Manager) Release(kk pykernel.Kernel) error {
 	if m.kernels[k.key] == k {
 		delete(m.kernels, k.key)
 	}
+	done := m.retireLocked(k)
 	m.mu.Unlock()
-	return k.Dispose(context.Background())
+	done()
+	return nil
 }
 
 func (m *Manager) Evict(key string) error {
 	m.mu.Lock()
 	k, ok := m.kernels[key]
-	if ok {
-		delete(m.kernels, key)
-	}
-	m.mu.Unlock()
 	if !ok {
+		m.mu.Unlock()
 		return nil
 	}
-	return k.Dispose(context.Background())
+	delete(m.kernels, key)
+	done := m.retireLocked(k)
+	m.mu.Unlock()
+	done()
+	return nil
 }
 
 func (m *Manager) Shutdown(ctx context.Context) error {
@@ -405,16 +426,28 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 func (m *Manager) Sweep() {
 	m.mu.Lock()
 	view := poolView{m.snapshotLocked()}
-	var victims []*kernel
+	var victims []func()
 	for key, k := range m.kernels {
 		if m.cfg.Policy.ShouldEvict(k.Info(), view) {
-			victims = append(victims, k)
 			delete(m.kernels, key)
+			victims = append(victims, m.retireLocked(k))
 		}
 	}
 	m.mu.Unlock()
-	for _, k := range victims {
+	for _, done := range victims {
+		done()
+	}
+}
+
+// retireLocked keeps k's MaxParallel slot until its process group is torn
+// down; caller holds m.mu and runs the returned func without it.
+func (m *Manager) retireLocked(k *kernel) func() {
+	m.retiring++
+	return func() {
 		_ = k.Dispose(context.Background())
+		m.mu.Lock()
+		m.retiring--
+		m.mu.Unlock()
 	}
 }
 
@@ -426,10 +459,11 @@ func (m *Manager) snapshotLocked() []pykernel.KernelInfo {
 	return out
 }
 
-// evictIdleLocked disposes one kernel to make room; caller holds mu. It takes
+// evictIdleLocked removes one kernel to make room and returns it for teardown
+// (nil when none may go); caller holds mu. It takes
 // a kernel the policy's ShouldEvict selects, else, for a PressureEvicter
 // policy, the least-recently-used kernel that is neither leased nor running.
-func (m *Manager) evictIdleLocked() bool {
+func (m *Manager) evictIdleLocked() *kernel {
 	view := poolView{m.snapshotLocked()}
 	var lruKey string
 	var lru *kernel
@@ -440,23 +474,18 @@ func (m *Manager) evictIdleLocked() bool {
 			continue // never take a kernel from its holder to make room
 		}
 		if m.cfg.Policy.ShouldEvict(info, view) {
-			m.evictLocked(key, k)
-			return true
+			delete(m.kernels, key)
+			return k
 		}
 		if lru == nil || info.LastActiveAt.Before(lruAt) {
 			lruKey, lru, lruAt = key, k, info.LastActiveAt
 		}
 	}
 	if pe, ok := m.cfg.Policy.(lifecycle.PressureEvicter); ok && pe.EvictLRUOnPressure() && lru != nil {
-		m.evictLocked(lruKey, lru)
-		return true
+		delete(m.kernels, lruKey)
+		return lru
 	}
-	return false
-}
-
-func (m *Manager) evictLocked(key string, k *kernel) {
-	delete(m.kernels, key)
-	go func(k *kernel) { _ = k.Dispose(context.Background()) }(k)
+	return nil
 }
 
 type poolView struct{ infos []pykernel.KernelInfo }

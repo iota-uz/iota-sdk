@@ -299,11 +299,7 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 			WithRetryAfter(busyRetryAfter.Milliseconds())
 	}
 	if err != nil && ctx.Err() != nil {
-		// The caller gave up while the runtime was starting: nothing ran.
-		return Result{
-			RunID: uuid.NewString(), Status: StatusCancelled, Emitted: []json.RawMessage{}, Artifacts: []Artifact{},
-			OperationIDs: []string{}, Error: &RunError{Code: ErrorCancelled, Message: "the run was cancelled before it started"},
-		}, nil
+		return cancelledBeforeStart(), nil
 	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
@@ -325,6 +321,9 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	if errors.Is(err, pykernel.ErrKernelBusy) {
 		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "another run is in progress in this session").
 			WithRetryAfter(busyRetryAfter.Milliseconds())
+	}
+	if err != nil && ctx.Err() != nil {
+		return cancelledBeforeStart(), nil
 	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
@@ -364,6 +363,15 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	return res, nil
 }
 
+// cancelledBeforeStart is the result of a run the caller cancelled before the
+// kernel took its code: nothing ran.
+func cancelledBeforeStart() Result {
+	return Result{
+		RunID: uuid.NewString(), Status: StatusCancelled, Emitted: []json.RawMessage{}, Artifacts: []Artifact{},
+		OperationIDs: []string{}, Error: &RunError{Code: ErrorCancelled, Message: "the run was cancelled before it started"},
+	}
+}
+
 func (r *Runner) limits(in Input) (time.Duration, int, error) {
 	l := r.cfg.Limits
 	if len(in.Code) > l.MaxCodeBytes {
@@ -397,8 +405,10 @@ func (r *Runner) namespace(key, id string, k pykernel.Kernel) Namespace {
 	gen := generation{kernel: k, id: uuid.NewString()}
 	r.generations[key] = gen
 	// After a host restart this process has not seen the session, but the
-	// kernel knows from the workdir that an earlier namespace was lost.
-	return Namespace{ID: id, Generation: gen.id, Reset: seen || info.NamespaceReset, FilesPreserved: seen || info.FilesPreserved}
+	// kernel knows from its host-owned record that an earlier namespace was
+	// lost. Whether files survived is only what the kernel verified (the
+	// same workdir directory), never inferred from having seen the session.
+	return Namespace{ID: id, Generation: gen.id, Reset: seen || info.NamespaceReset, FilesPreserved: info.FilesPreserved}
 }
 
 func classify(ctx context.Context, execErr *pykernel.ExecError, done *pykernel.DonePayload, pastDeadline bool) (string, *RunError) {

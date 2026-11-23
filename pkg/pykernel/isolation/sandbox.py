@@ -17,7 +17,8 @@ every child it forks:
      call (connect, bind, listen, accept, sendmsg, sendto with an address), so
      a socketpair and the inherited bridge are the only sockets; it also
      refuses ptrace, namespaces, mounts, bpf,
-     keyrings, perf, io_uring, cross-process memory access and session/process
+     keyrings, perf, io_uring, host IPC (SysV, POSIX mqueue), cross-process
+     memory access and session/process
      group changes, and kills the process on a foreign syscall ABI.
 
 apply() returns a report of what is really in force, verified by probing the
@@ -113,13 +114,16 @@ _QUOTA_FILTER_FLAGS = _SECCOMP_FILTER_FLAG_NEW_LISTENER | _SECCOMP_FILTER_FLAG_W
 _CLONE_THREAD = 0x00010000
 _CLONE_FILES = 0x00000400
 _O_CREAT = 0o100
+# O_TMPFILE creates an unnamed inode without O_CREAT; it is metered as an
+# entry creation as well (__O_TMPFILE, the part not shared with O_DIRECTORY).
+_O_TMPFILE_BIT = 0o20000000
 
 # Calls the host supervisor handles for the workdir quota. "emulate": every
 # write-family call, whatever the fd, is performed by the host on a duplicate
 # of the caller's open file description, so what is checked is what is
 # written (no check-then-continue race, no fd-number trust). "always": entry
 # creation, counted. "creat_flag": open/openat counted when the flags argument
-# at the given index has O_CREAT. "refuse": allocation paths the supervisor
+# at the given index has O_CREAT or O_TMPFILE. "refuse": allocation paths the supervisor
 # does not perform, refused with the given errno (callers such as shutil fall
 # back to plain writes).
 _QUOTA_CALLS = {
@@ -127,7 +131,7 @@ _QUOTA_CALLS = {
         "emulate": [1, 18, 20, 296, 328, 77],      # write pwrite64 writev pwritev pwritev2 ftruncate
         "spawn": [56, 57, 58],                      # clone fork vfork: allowed only while an exec runs
         "always": [85, 437, 83, 258, 133, 259,      # creat openat2 mkdir mkdirat mknod mknodat
-                   86, 265, 88, 266],               # link linkat symlink symlinkat
+                   86, 265, 88, 266, 319],          # link linkat symlink symlinkat memfd_create
         "creat_flag": [(2, 1), (257, 2)],           # open(flags=arg1) openat(flags=arg2)
         "refuse": {
             "fallocate": (285, 95), "truncate": (76, 1), "io_setup": (206, 1), "io_submit": (209, 1),
@@ -139,7 +143,7 @@ _QUOTA_CALLS = {
     "aarch64": {
         "emulate": [64, 68, 66, 70, 287, 46],
         "spawn": [220],
-        "always": [437, 34, 33, 37, 36],
+        "always": [437, 34, 33, 37, 36, 279],
         "creat_flag": [(56, 2)],
         "refuse": {
             "fallocate": (47, 95), "truncate": (45, 1), "io_setup": (0, 1), "io_submit": (2, 1),
@@ -213,6 +217,14 @@ _ARCHES = {
             "adjtimex": 159, "iopl": 172, "ioperm": 173, "lookup_dcookie": 212,
             "vhangup": 153, "setsid": 112, "setpgid": 109, "syslog": 103,
             "sethostname": 170, "setdomainname": 171, "uselib": 134,
+            # Host IPC: SysV shared memory, message queues and semaphores and
+            # POSIX message queues live in the host IPC namespace, outside the
+            # workdir and its quota, and reach any peer file modes allow.
+            "shmget": 29, "shmat": 30, "shmctl": 31, "shmdt": 67,
+            "semget": 64, "semop": 65, "semctl": 66, "semtimedop": 220,
+            "msgget": 68, "msgsnd": 69, "msgrcv": 70, "msgctl": 71,
+            "mq_open": 240, "mq_unlink": 241, "mq_timedsend": 242, "mq_timedreceive": 243,
+            "mq_notify": 244, "mq_getsetattr": 245, "process_madvise": 440,
             # Address-bearing socket calls: a socketpair is the only socket a
             # kernel can make, and it must not reach a pathname endpoint.
             "connect": 42, "accept": 43, "bind": 49, "listen": 50, "accept4": 288,
@@ -246,6 +258,11 @@ _ARCHES = {
             "adjtimex": 171, "lookup_dcookie": 18, "vhangup": 58,
             "setsid": 157, "setpgid": 154, "syslog": 116,
             "sethostname": 161, "setdomainname": 162,
+            "msgget": 186, "msgctl": 187, "msgrcv": 188, "msgsnd": 189,
+            "semget": 190, "semctl": 191, "semtimedop": 192, "semop": 193,
+            "shmget": 194, "shmctl": 195, "shmat": 196, "shmdt": 197,
+            "mq_open": 180, "mq_unlink": 181, "mq_timedsend": 182, "mq_timedreceive": 183,
+            "mq_notify": 184, "mq_getsetattr": 185, "process_madvise": 440,
             "connect": 203, "accept": 202, "bind": 200, "listen": 201, "accept4": 242,
             "sendmsg": 211, "sendmmsg": 269,
         },
@@ -618,7 +635,7 @@ def _quota_program(arch):
         prog += [
             (_BPF_JEQ_K, 0, 4, nr),
             (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0 + 8 * arg),
-            (_BPF_JSET_K, 0, 1, _O_CREAT),
+            (_BPF_JSET_K, 0, 1, _O_CREAT | _O_TMPFILE_BIT),
             (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
             (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
         ]
@@ -786,6 +803,10 @@ def _probe():
     out = report.as_dict()
     sys.stdout.write(json.dumps(out) + "\n")
     sys.stdout.flush()
+    # Stay alive (confined, idle) so the host can prove it can act for a
+    # confined process; it kills the probe when done.
+    import time
+    time.sleep(30)
     return 0 if not out["missing"] else 3
 
 

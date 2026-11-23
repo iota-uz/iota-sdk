@@ -183,9 +183,15 @@ func TestAcquire_EvictsLRUIdleKernelAtCapacity(t *testing.T) {
 	require.NoError(t, m.Release(b))
 
 	// The pool is full of idle kernels younger than the TTL: the least
-	// recently used one (a) makes room.
+	// recently used one (a) makes room — torn down before c starts.
+	aProc := a.(*kernel).proc.(*fakeProcess)
 	c, err := m.Acquire(context.Background(), testSess("c", t.TempDir()))
 	require.NoError(t, err)
+	select {
+	case <-aProc.killed:
+	default:
+		t.Fatal("the evicted kernel must be torn down before its replacement is handed out")
+	}
 	_, aLive := m.Get("a")
 	_, bLive := m.Get("b")
 	assert.False(t, aLive, "the LRU kernel is evicted")
@@ -316,4 +322,39 @@ func TestSpawn_RestartRecordIsHostOwned(t *testing.T) {
 	assert.True(t, k.Info().NamespaceReset)
 	assert.False(t, k.Info().FilesPreserved)
 	require.NoError(t, m.Release(k))
+}
+
+// closingProcess is a fake process whose kill closes the kernel's end of the
+// control channel, as a real dying process does.
+type closingProcess struct {
+	*fakeProcess
+	conn net.Conn
+}
+
+func (p *closingProcess) Kill() error {
+	_ = p.conn.Close()
+	return p.fakeProcess.Kill()
+}
+
+func TestExec_StoppedSubmissionReportsItsOutcome(t *testing.T) {
+	t.Parallel()
+	hostConn, kernConn := net.Pipe() // nobody reads the kernel side: Submit blocks
+	proc := &closingProcess{fakeProcess: newFakeProcess(), conn: kernConn}
+	k := newKernel(testSess("stuck", t.TempDir()), proc, bridge.New(hostConn),
+		kernelOptions{outputCap: defaultOutputCap, grace: 50 * time.Millisecond})
+	k.start()
+	t.Cleanup(func() { _ = k.Dispose(context.Background()) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1"})
+	require.NoError(t, err, "a stopped submission is an outcome, not a transport error")
+	var done *pykernel.DonePayload
+	for ev := range ch {
+		if ev.Kind == pykernel.EventDone {
+			done = ev.Done
+		}
+	}
+	require.NotNil(t, done)
+	assert.Equal(t, pykernel.ReasonCancelled, done.Reason)
 }

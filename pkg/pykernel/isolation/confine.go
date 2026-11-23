@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -432,13 +433,14 @@ func probeChild(ctx context.Context, opts CheckOptions) (Report, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var stdout, stderr bytes.Buffer
+	var stderr bytes.Buffer
+	lines := newLineWriter()
 	proc, err := l.Launch(ctx, SandboxSpec{
 		Command: []string{opts.PythonPath, "-s", shim, "--probe"},
 		Workdir: work,
 		Env:     AllowedEnv("PATH", "LANG", "LC_ALL"),
 		Limits:  opts.Limits.WithDefaults(),
-		Stdout:  &stdout,
+		Stdout:  lines,
 		Stderr:  &stderr,
 		Confinement: &Confinement{
 			Workdir:   work,
@@ -451,19 +453,71 @@ func probeChild(ctx context.Context, opts CheckOptions) (Report, error) {
 	}
 	waitErr := make(chan error, 1)
 	go func() { waitErr <- proc.Wait() }()
-	select {
-	case <-waitErr:
-	case <-ctx.Done():
+	defer func() {
 		_ = proc.Kill()
 		<-waitErr
+	}()
+	var line []byte
+	select {
+	case line = <-lines.first:
+	case <-waitErr:
+		waitErr <- nil // for the deferred receive
+		select {
+		case line = <-lines.first:
+		default:
+		}
+	case <-ctx.Done():
 		return Report{}, fmt.Errorf("probe did not finish: %w", ctx.Err())
 	}
-	line := bytes.TrimSpace(stdout.Bytes())
-	if i := bytes.LastIndexByte(line, '\n'); i >= 0 {
-		line = line[i+1:]
-	}
+	line = bytes.TrimSpace(line)
 	if len(line) == 0 {
 		return Report{}, fmt.Errorf("probe printed no report: %s", strings.TrimSpace(stderr.String()))
 	}
-	return ParseChildReport(line)
+	rep, err := ParseChildReport(line)
+	if err != nil {
+		return Report{}, err
+	}
+	// The quota supervisor acts for the kernel (pidfd_getfd, memory reads)
+	// with the kernel's credentials; prove this host allows it on a real
+	// confined process instead of assuming it.
+	if rep.Enabled(BoundaryWorkdirQuota) {
+		if err := verifyActFor(proc.PID(), opts.Profile.RunAs); err != nil {
+			rep.set(BoundaryWorkdirQuota, false, "the host cannot act for a confined kernel: "+err.Error()+
+				" (needs pidfd_getfd and process_vm_readv or /proc/<pid>/mem; in Docker grant the application CAP_SYS_PTRACE)")
+		} else {
+			rep.set(BoundaryWorkdirQuota, true, "seccomp user notification, and the host acts for a confined kernel")
+		}
+	}
+	return rep, nil
+}
+
+func (r *Report) set(b Boundary, enabled bool, detail string) {
+	for i := range r.Boundaries {
+		if r.Boundaries[i].Boundary == b {
+			r.Boundaries[i].Enabled, r.Boundaries[i].Detail = enabled, detail
+		}
+	}
+}
+
+// lineWriter delivers the first complete line written to it.
+type lineWriter struct {
+	mu    sync.Mutex
+	buf   []byte
+	sent  bool
+	first chan []byte
+}
+
+func newLineWriter() *lineWriter { return &lineWriter{first: make(chan []byte, 1)} }
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.sent {
+		w.buf = append(w.buf, p...)
+		if i := bytes.IndexByte(w.buf, '\n'); i >= 0 {
+			w.first <- append([]byte(nil), w.buf[:i]...)
+			w.sent = true
+		}
+	}
+	return len(p), nil
 }

@@ -32,7 +32,7 @@ const (
 	reconcileMinGap  = 250 * time.Millisecond
 	idleCheckEvery   = time.Second
 	idleCPUBudget    = time.Second // net CPU a kernel may accumulate while no exec runs
-	idleCPUAllowance = 0.02        // share of an idle interval that is forgiven
+	idleCPUAllowance = 0.0         // nothing is forgiven: an idle kernel uses no CPU
 	clockTicks       = 100         // USER_HZ
 	maxIovecs        = 1024
 	maxFileChunk     = 1 << 20  // bytes copied per step of an emulated file write
@@ -70,12 +70,12 @@ type quotaCalls struct {
 var callsByArch = map[string]quotaCalls{
 	"amd64": {
 		write: 1, pwrite64: 18, writev: 20, pwritev: 296, pwritev2: 328, ftruncate: 77,
-		creates: map[int32]bool{2: true, 257: true, 85: true, 437: true, 83: true, 258: true, 133: true, 259: true, 86: true, 265: true, 88: true, 266: true},
+		creates: map[int32]bool{2: true, 257: true, 85: true, 437: true, 83: true, 258: true, 133: true, 259: true, 86: true, 265: true, 88: true, 266: true, 319: true},
 		spawns:  map[int32]bool{56: true, 57: true, 58: true},
 	},
 	"arm64": {
 		write: 64, pwrite64: 68, writev: 66, pwritev: 70, pwritev2: 287, ftruncate: 46,
-		creates: map[int32]bool{56: true, 437: true, 34: true, 33: true, 37: true, 36: true},
+		creates: map[int32]bool{56: true, 437: true, 34: true, 33: true, 37: true, 36: true, 279: true},
 		spawns:  map[int32]bool{220: true},
 	},
 }
@@ -310,9 +310,18 @@ func (s *supervisor) reconcile() error {
 		}
 		return nil
 	})
-	held, err := s.heldInodes()
+	held, open, err := s.heldInodes()
 	if err != nil {
 		return err
+	}
+	// Unnamed inodes the kernel holds (O_TMPFILE, unlinked files, memfd)
+	// cost an entry and their size until the last reference closes.
+	var unnamed, unnamedEntries int64
+	for ino, size := range open {
+		unnamedEntries++
+		if _, ok := s.ledger[ino]; !ok {
+			unnamed += size
+		}
 	}
 	for ino := range s.ledger {
 		if size, ok := visible[ino]; ok {
@@ -327,8 +336,8 @@ func (s *supervisor) reconcile() error {
 			baseline += size
 		}
 	}
-	s.baseline = baseline + other
-	s.walked = walked
+	s.baseline = baseline + other + unnamed
+	s.walked = walked + unnamedEntries
 	// Creations approved before this walk started are in it now.
 	s.entryPrev, s.entryCur = s.entryCur-startCur, 0
 	if s.entryPrev < 0 {
@@ -379,15 +388,16 @@ func (s *supervisor) groupStats() ([]int, uint64) {
 // Inodes are matched by number only: /proc/<pid>/maps reports the device of
 // the underlying layer on overlayfs and btrfs, so a mismatch errs on keeping
 // the charge.
-func (s *supervisor) heldInodes() (map[uint64]bool, error) {
+func (s *supervisor) heldInodes() (map[uint64]bool, map[inode]int64, error) {
 	pids, _ := s.groupStats()
 	held := map[uint64]bool{}
+	open := map[inode]int64{} // unnamed regular files held by an fd, with their charge
 	for _, pid := range pids {
 		base := "/proc/" + strconv.Itoa(pid)
 		ents, err := os.ReadDir(base + "/fd")
 		if err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return nil, err
+				return nil, nil, err
 			}
 			continue // exited meanwhile
 		}
@@ -395,12 +405,15 @@ func (s *supervisor) heldInodes() (map[uint64]bool, error) {
 			var st unix.Stat_t
 			if unix.Stat(base+"/fd/"+e.Name(), &st) == nil && st.Mode&unix.S_IFMT == unix.S_IFREG {
 				held[st.Ino] = true
+				if st.Nlink == 0 { // unnamed: O_TMPFILE, unlinked, memfd
+					open[inode{uint64(st.Dev), st.Ino}] = charge(max(st.Size, st.Blocks*512)) //nolint:unconvert // Dev width differs by arch
+				}
 			}
 		}
 		f, err := os.Open(base + "/maps")
 		if err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return nil, err
+				return nil, nil, err
 			}
 			continue
 		}
@@ -417,7 +430,7 @@ func (s *supervisor) heldInodes() (map[uint64]bool, error) {
 		}
 		_ = f.Close()
 	}
-	return held, nil
+	return held, open, nil
 }
 
 // checkIdle charges the CPU the kernel uses during intervals in which no
@@ -624,8 +637,28 @@ func (s *supervisor) emulate(n notification) {
 		s.respond(n.id, 0, unix.EBADF, false)
 		return
 	}
+	regular := st.Mode&unix.S_IFMT == unix.S_IFREG
+	own := -1
+	if regular {
+		// The host writes through its own description of the inode: flags
+		// the kernel controls on the shared one (O_APPEND via F_SETFL) cannot
+		// move a write away from the offset that was checked.
+		fd, errno := reopenForWrite(dup)
+		if errno != 0 {
+			_ = unix.Close(dup)
+			s.respond(n.id, 0, errno, false)
+			return
+		}
+		own = fd
+		defer unix.Close(own)
+	}
 	if n.nr == s.calls.ftruncate {
-		s.truncate(n, dup, st)
+		defer unix.Close(dup)
+		if !regular {
+			s.respond(n.id, 0, unix.EINVAL, false)
+			return
+		}
+		s.truncate(n, own, st)
 		return
 	}
 	spans, errno := s.spans(n)
@@ -634,12 +667,30 @@ func (s *supervisor) emulate(n notification) {
 		s.respond(n.id, 0, errno, false)
 		return
 	}
-	if st.Mode&unix.S_IFMT == unix.S_IFREG {
+	if regular {
 		defer unix.Close(dup)
-		s.writeFile(n, dup, st, spans)
+		s.writeFile(n, dup, own, st, spans)
 		return
 	}
 	s.writeStream(n, dup, spans)
+}
+
+// reopenForWrite opens a new, flag-free write description of the regular
+// file behind dup, if the caller's own description may write at all.
+func reopenForWrite(dup int) (int, syscall.Errno) {
+	flags, err := unix.FcntlInt(uintptr(dup), unix.F_GETFL, 0)
+	if err != nil {
+		return -1, unix.EBADF
+	}
+	if acc := flags & unix.O_ACCMODE; acc != unix.O_WRONLY && acc != unix.O_RDWR || flags&unix.O_PATH != 0 {
+		return -1, unix.EBADF
+	}
+	// A /proc/self/fd magic link reaches the inode even when it is unlinked.
+	fd, err := unix.Open("/proc/self/fd/"+strconv.Itoa(dup), unix.O_WRONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, errnoOf(err, unix.EPERM)
+	}
+	return fd, 0
 }
 
 // fileWrite is where and how a write-family call writes a regular file.
@@ -698,7 +749,7 @@ func (s *supervisor) placement(n notification, dup int, size int64) (fileWrite, 
 // writeFile writes the caller's data to the regular file behind dup at the
 // checked offset, within the quota and the file size limit, in chunks copied
 // out of the caller, and charges the result.
-func (s *supervisor) writeFile(n notification, dup int, st unix.Stat_t, spans []span) {
+func (s *supervisor) writeFile(n notification, dup, own int, st unix.Stat_t, spans []span) {
 	w, errno := s.placement(n, dup, st.Size)
 	if errno != 0 {
 		s.respond(n.id, 0, errno, false)
@@ -743,7 +794,7 @@ func (s *supervisor) writeFile(n notification, dup int, st unix.Stat_t, spans []
 				s.finishFile(n, dup, w, written, unix.EFAULT)
 				return
 			}
-			m, err := pwritev2(dup, buf, w.at+written, w.flags)
+			m, err := pwritev2(own, buf, w.at+written, w.flags)
 			if m > 0 {
 				written += int64(m)
 				off += uint64(m)
@@ -834,8 +885,8 @@ func (s *supervisor) settle(dup int, before unix.Stat_t) {
 	}
 }
 
-func (s *supervisor) truncate(n notification, dup int, st unix.Stat_t) {
-	defer unix.Close(dup)
+// truncate performs ftruncate on fd, the host's own description of the file.
+func (s *supervisor) truncate(n notification, fd int, st unix.Stat_t) {
 	length := int64(n.args[1])
 	switch {
 	case length < 0:
@@ -857,8 +908,8 @@ func (s *supervisor) truncate(n notification, dup int, st unix.Stat_t) {
 		}
 		s.reserve(st, length)
 	}
-	err := unix.Ftruncate(dup, length)
-	s.settle(dup, st)
+	err := unix.Ftruncate(fd, length)
+	s.settle(fd, st)
 	if err != nil {
 		s.respond(n.id, 0, errnoOf(err, unix.EIO), false)
 		return

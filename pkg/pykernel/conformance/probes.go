@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/iota-uz/iota-sdk/pkg/pykernel"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 )
@@ -68,9 +70,9 @@ def raw_syscall(nr, *args):
     return checked(_libc.syscall(ctypes.c_long(nr), *[ctypes.c_long(a) for a in args]))
 
 SYS = {
-    "x86_64": {"bpf": 321, "keyctl": 250, "perf_event_open": 298, "io_uring_setup": 425, "setns": 308,
+    "x86_64": {"shmget": 29, "msgget": 68, "semget": 64, "mq_open": 240, "bpf": 321, "keyctl": 250, "perf_event_open": 298, "io_uring_setup": 425, "setns": 308,
                "process_vm_readv": 310, "mount": 165, "capget": 125, "add_key": 248},
-    "aarch64": {"bpf": 280, "keyctl": 219, "perf_event_open": 241, "io_uring_setup": 425, "setns": 268,
+    "aarch64": {"shmget": 194, "msgget": 186, "semget": 190, "mq_open": 180, "bpf": 280, "keyctl": 219, "perf_event_open": 241, "io_uring_setup": 425, "setns": 268,
                 "process_vm_readv": 270, "mount": 40, "capget": 90, "add_key": 217},
 }.get(platform.machine().lower().replace("amd64", "x86_64").replace("arm64", "aarch64"), {})
 
@@ -101,6 +103,7 @@ var probes = []probe{
 	{"workdir_quota_unlinked_files", probeQuotaUnlinked},
 	{"workdir_quota_after_exec", probeQuotaAfterExec},
 	{"forged_exec_done", probeForgedDone},
+	{"host_ipc", probeHostIPC},
 	{"workdir_quota_bypasses", probeQuotaBypasses},
 	{"refused_allocators", probeRefusedAllocators},
 	{"idle_cpu_via_children", probeIdleForkEvasion},
@@ -630,27 +633,34 @@ report("exec returned while a thread keeps writing", True)
 
 func probeForgedDone(ctx context.Context, r *runner) Result {
 	return r.withKernel(ctx, "forged-done", nil, func(k pykernel.Kernel, s *session) Result {
+		const deadline = 3 * time.Second
+		start := time.Now()
 		ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: `
 import __main__
 # The interpreter owns the bridge: claim the exec is done, then keep working.
 __main__._notify("exec.done", {"exec_id": __main__._current_exec})
 while True:
     pass
-`, Timeout: r.opts.ProbeTimeout})
+`, Timeout: deadline})
 		if err != nil {
 			return Result{Error: err.Error()}
 		}
 		o := collect(ch)
-		res := Result{Checks: []Check{{Name: "the forged done ends the stream", OK: o.done != nil, Detail: reasonOf(o.done)}}}
-		killed := eventually(15*time.Second, func() bool {
-			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1", Timeout: time.Second})
-			if err == nil {
-				collect(ch)
-				return false
-			}
-			return errors.Is(err, pykernel.ErrKernelDisposed)
-		})
-		res.Checks = append(res.Checks, Check{Name: "a kernel that keeps running after its exec ended is killed", OK: killed})
+		took := time.Since(start)
+		res := Result{Checks: []Check{
+			{Name: "a done claimed by the worker does not end a running exec", OK: took >= deadline,
+				Detail: fmt.Sprintf("stream ended after %s", took.Round(time.Millisecond))},
+			{Name: "the exec ends at its deadline with reason timeout", OK: o.done != nil && o.done.Reason == pykernel.ReasonTimeout,
+				Detail: reasonOf(o.done)},
+		}}
+		// Interrupted or killed: either way the loop must not run any more.
+		pid := k.Info().PID
+		before := groupCPU(pid)
+		time.Sleep(time.Second)
+		_, alive := r.opts.Manager.Get(s.key)
+		burnt := groupCPU(pid) - before
+		res.Checks = append(res.Checks, Check{Name: "the runaway code no longer runs", OK: !alive || burnt < 200*time.Millisecond,
+			Detail: fmt.Sprintf("alive=%t, CPU in the next second %s", alive, burnt)})
 		return res
 	})
 }
@@ -952,13 +962,19 @@ except (OSError, ValueError):
     pass
 `},
 	{"flood the workdir with directories and long symlinks", `
-total = 0
+import time
+total, deadline, refused = 0, time.monotonic() + CFG["flood_seconds"], None
 try:
-    for i in range(1000000):
-        os.mkdir("d%d" % i)
-        os.symlink("x" * 4000, "s%d" % i)
-except OSError:
-    pass
+    i = 0
+    while time.monotonic() < deadline:
+        os.symlink("x" * 4000, "s%d" % i)  # a block each
+        if i % 16 == 0:
+            os.mkdir("d%d" % i)
+        i += 1
+except OSError as e:
+    refused = e.errno
+report("the entry flood is refused by the quota", refused == errno.EDQUOT,
+       "%d entries, stopped by %s" % (i, errno.errorcode.get(refused, refused)))
 `},
 	{"mmap, close and unlink a grown file", `
 _libc.mmap.restype = ctypes.c_void_p
@@ -987,18 +1003,31 @@ func probeQuotaBypasses(ctx context.Context, r *runner) Result {
 	limit := r.quotaLimit()
 	for _, attack := range quotaAttacks {
 		sub := r.withKernel(ctx, "quota-bypass", nil, func(k pykernel.Kernel, s *session) Result {
-			o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, quotaFill+attack.code+`
+			flood := r.opts.ProbeTimeout / 2
+			o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes, "flood_seconds": flood.Seconds()},
+				quotaFill+attack.code+`
 print("WRITTEN %d" % total)
 `, r.opts.ProbeTimeout)
 			if err != nil {
 				return Result{Error: err.Error()}
 			}
 			got := writtenOf(o.stdout)
-			return Result{Checks: []Check{{
+			usage := usageOf(s.workdir)
+			detail := fmt.Sprintf("allocated %d, workdir %d, quota %d; %s", got, usage, limit, reasonOf(o.done))
+			if o.err != nil {
+				detail += "; raised " + o.err.Error()
+			}
+			checks := append(o.checks, Check{
 				Name:   attack.name + " stays within the quota",
-				OK:     limit > 0 && got >= 0 && got <= limit && usageOf(s.workdir) <= limit,
-				Detail: fmt.Sprintf("allocated %d, workdir %d, quota %d", got, usageOf(s.workdir), limit),
-			}}}
+				OK:     limit > 0 && usage <= limit && (got < 0 || got <= limit),
+				Detail: detail,
+			})
+			if got < 0 {
+				// The attack did not finish: that is a failure of the probe,
+				// reported apart from any limit breach.
+				checks = append(checks, Check{Name: attack.name + " finished within the probe deadline", Detail: detail})
+			}
+			return Result{Checks: checks}
 		})
 		if sub.Error != "" {
 			sub.Checks = append(sub.Checks, Check{Name: attack.name, Detail: sub.Error})
@@ -1241,4 +1270,25 @@ report("writers blocked on a full FIFO", True)
 	res.Checks = append(res.Checks, Check{Name: "blocked stream writes do not hold host goroutines after dispose", OK: settled,
 		Detail: fmt.Sprintf("goroutines before %d, after %d", before, runtime.NumGoroutine())})
 	return res
+}
+
+func probeHostIPC(ctx context.Context, r *runner) Result {
+	key := int(time.Now().UnixNano()&0x3fffffff) | 1
+	id, err := unix.SysvShmGet(key, 4096, unix.IPC_CREAT|0o666)
+	cfg := map[string]any{"key": key}
+	if err == nil {
+		defer func() { _, _ = unix.SysvShmCtl(id, unix.IPC_RMID, nil) }()
+	} else {
+		cfg["key"] = 0
+	}
+	return r.pyProbe(ctx, "ipc", cfg, `
+IPC_CREAT, IPC_PRIVATE = 0o1000, 0
+if CFG["key"]:
+    denied("attach to a host SysV shared memory segment", lambda: raw_syscall(SYS["shmget"], CFG["key"], 0, 0o666))
+denied("create SysV shared memory", lambda: raw_syscall(SYS["shmget"], IPC_PRIVATE, 4096, IPC_CREAT | 0o600))
+denied("create a SysV message queue", lambda: raw_syscall(SYS["msgget"], IPC_PRIVATE, IPC_CREAT | 0o600))
+denied("create SysV semaphores", lambda: raw_syscall(SYS["semget"], IPC_PRIVATE, 1, IPC_CREAT | 0o600))
+name = ctypes.create_string_buffer(b"pykernel-conformance")
+denied("open a POSIX message queue", lambda: raw_syscall(SYS["mq_open"], ctypes.addressof(name), os.O_RDWR | os.O_CREAT, 0o600, 0))
+`)
 }

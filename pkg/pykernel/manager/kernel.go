@@ -23,6 +23,7 @@ const (
 	quotaPoll        = 500 * time.Millisecond
 	exitDrain        = 300 * time.Millisecond
 	maxStreams       = 16 // emulated stream writes waiting per kernel
+	settlePoll       = 5 * time.Millisecond
 )
 
 // kernelOptions are the per-kernel limits the Manager hands to a kernel.
@@ -85,6 +86,10 @@ type activeExec struct {
 	stop    pykernel.TerminationReason
 	errType string
 	err     *pykernel.ExecError
+	// claimed is the worker's own exec.done. In a supervised kernel it is
+	// untrusted: the exec ends only when the host has seen the kernel come
+	// to rest (settle); until then the watchdog stays armed.
+	claimed *pykernel.ExecEvent
 	quota   bool // the supervisor refused an allocation of this exec
 	dropped int
 	nsReset bool
@@ -217,6 +222,35 @@ func (k *kernel) leaseForReuse(fresh bool) (bool, error) {
 	return fresh && k.execs > 0, nil
 }
 
+// settle ends exec a after the worker claimed it was done, once the host
+// itself sees the kernel at rest: processes the exec started are killed, and
+// no thread of the kernel may be running. A kernel that keeps running is left
+// to the watchdog, which stops it at the exec's deadline with ReasonTimeout.
+func (k *kernel) settle(a *activeExec) {
+	for calm := 0; calm < 2; {
+		select {
+		case <-a.done:
+			return
+		case <-k.closed:
+			return
+		case <-time.After(settlePoll):
+		}
+		if atRest(k.pid) {
+			calm++
+		} else {
+			calm = 0
+		}
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.active != a || a.claimed == nil {
+		return
+	}
+	out := *a.claimed
+	out.Done = k.donePayloadLocked(a, out.Done, "")
+	k.finishLocked(out)
+}
+
 // noteQuota records that the supervisor refused an allocation of the
 // running exec, so its failure is reported as ReasonQuotaExceeded.
 func (k *kernel) noteQuota() {
@@ -324,10 +358,24 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	go k.watch(ctx, a, timeout)
 	if err := k.br.Submit(ctx, a.id, req.Code, limits); err != nil {
 		k.mu.Lock()
-		if k.active == a {
-			k.finishLocked()
+		defer k.mu.Unlock()
+		if k.active == a && a.stop != "" {
+			// The watchdog stopped a kernel that would not take the code:
+			// the consumer gets the typed outcome, not a transport error.
+			now := time.Now()
+			errEv := pykernel.ExecEvent{Kind: pykernel.EventError, Timestamp: now,
+				Err: &pykernel.ExecError{Type: "KernelCancelled", Message: "the exec was stopped before the kernel accepted it"}}
+			a.err = errEv.Err
+			doneEv := pykernel.ExecEvent{Kind: pykernel.EventDone, Done: k.donePayloadLocked(a, nil, a.stop), Timestamp: now}
+			k.finishLocked(errEv, doneEv)
+			return a.ch, nil
 		}
-		k.mu.Unlock()
+		if k.active != a {
+			// The exec already ended (stopped, or the kernel died while the
+			// code was being sent): its closed stream carries the outcome.
+			return a.ch, nil
+		}
+		k.finishLocked()
 		return nil, err
 	}
 	return a.ch, nil
@@ -358,8 +406,15 @@ func (k *kernel) Emit(execID string, ev bridge.RawEvent) {
 		return
 	}
 	if terminal {
-		out.Done = k.donePayloadLocked(a, out.Done, "")
-		k.finishLocked(out)
+		if !k.opts.supervised {
+			out.Done = k.donePayloadLocked(a, out.Done, "")
+			k.finishLocked(out)
+			return
+		}
+		if a.claimed == nil {
+			a.claimed = &out
+			go k.settle(a)
+		}
 		return
 	}
 	room := cap(a.ch) - len(a.ch)
