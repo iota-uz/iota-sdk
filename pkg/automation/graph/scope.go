@@ -226,7 +226,8 @@ func (x *exprs) triggersOf(owner string) []string {
 }
 
 // kindsAndSubjects are the distinct event kinds and subjects of triggers, in order.
-func (x *exprs) kindsAndSubjects(triggers []string) (kinds, subjects []string) {
+func (x *exprs) kindsAndSubjects(triggers []string) ([]string, []string) {
+	var kinds, subjects []string
 	for _, id := range triggers {
 		i, ok := x.triggerAt[id]
 		if !ok {
