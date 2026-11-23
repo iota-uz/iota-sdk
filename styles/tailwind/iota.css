@@ -1710,3 +1710,226 @@ td:has(.table-cell-link):not(.sticky) {
 [data-dialog-title]:focus {
   outline: none;
 }
+
+/*
+ * Metrics (KPI) band — components/base/metrics. Totals of the current
+ * selection: a scope line, then equal cards with one row per currency.
+ * Colours come from theme tokens only, so a tenant theme recolours it.
+ */
+@layer components {
+  .iota-mx {
+    --mx-px: 1rem;
+    --mx-py: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: oklch(var(--clr-text-100));
+  }
+
+  .iota-mx--table {
+    border-bottom: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  .iota-mx--standalone {
+    border: 1px solid oklch(var(--clr-border-subtle));
+    border-radius: 0.5rem;
+    background: oklch(var(--clr-surface-300));
+  }
+
+  .iota-mx-scope {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    padding: 0.625rem var(--mx-px);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: oklch(var(--clr-text-300));
+    border-bottom: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  .iota-mx-scope:last-child {
+    border-bottom: 0;
+  }
+
+  .iota-mx-scope-title {
+    color: oklch(var(--clr-text-200));
+    font-weight: 500;
+  }
+
+  .iota-mx-scope-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    white-space: nowrap;
+  }
+
+  .iota-mx-scope-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-left: auto;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .iota-mx-a {
+    color: oklch(var(--primary-500));
+    font-weight: 500;
+    cursor: pointer;
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .iota-mx-a:hover {
+    text-decoration: underline;
+  }
+
+  .iota-mx-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .iota-mx-grid > .iota-mx-card + .iota-mx-card {
+    border-top: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  @media (min-width: 640px) {
+    .iota-mx-grid {
+      grid-template-columns: repeat(var(--mx-n, 3), minmax(0, 1fr));
+    }
+
+    .iota-mx-grid > .iota-mx-card + .iota-mx-card {
+      border-top: 0;
+      border-left: 1px solid oklch(var(--clr-border-subtle));
+    }
+  }
+
+  .iota-mx-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-width: 0;
+    padding: var(--mx-py) var(--mx-px);
+  }
+
+  .iota-mx-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    color: oklch(var(--clr-text-200));
+  }
+
+  .iota-mx-icon,
+  .iota-mx-hint {
+    display: inline-flex;
+    color: oklch(var(--clr-text-300));
+  }
+
+  .iota-mx-v {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    color: oklch(var(--clr-text-100));
+  }
+
+  .iota-mx-v small {
+    margin-left: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: oklch(var(--clr-text-300));
+  }
+
+  .iota-mx-v--big {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .iota-mx-v--big small {
+    font-size: 0.75rem;
+  }
+
+  .iota-mx-v--none,
+  .iota-mx-card--empty .iota-mx-v {
+    color: oklch(var(--clr-text-300));
+  }
+
+  .iota-mx-v--neg {
+    color: oklch(var(--red-500));
+  }
+
+  .iota-mx-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    margin: 0.125rem 0 0;
+    padding-top: 0.5rem;
+    border-top: 1px dashed oklch(var(--clr-border-subtle));
+  }
+
+  .iota-mx-rows > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .iota-mx-rows dt {
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: oklch(var(--clr-text-300));
+  }
+
+  .iota-mx-rows dd {
+    margin: 0;
+    text-align: right;
+  }
+
+  .iota-mx-note {
+    padding: 0.625rem var(--mx-px);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: oklch(var(--clr-text-300));
+    border-top: 1px solid oklch(var(--clr-border-subtle));
+  }
+
+  .iota-mx-sk {
+    display: block;
+    border-radius: 0.1875rem;
+    background: oklch(var(--clr-surface-500));
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .iota-mx-sk--label {
+    height: 0.75rem;
+    width: 6rem;
+    margin: 0.125rem 0;
+  }
+
+  .iota-mx-sk--count {
+    height: 0.75rem;
+    width: 5rem;
+  }
+
+  .iota-mx-sk--big {
+    height: 1.25rem;
+    width: 62%;
+    margin: 0.25rem 0;
+  }
+
+  .iota-mx-sk--row {
+    height: 0.75rem;
+    width: 6rem;
+    margin: 0.25rem 0 0.25rem auto;
+  }
+}

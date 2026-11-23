@@ -707,6 +707,9 @@ templ TableContent(config *TableConfig) {
 				@config.FilterBar
 			</div>
 		}
+		if len(config.PanelsAt(PanelInTable)) > 0 {
+			@inTablePanels(config)
+		}
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
 				@Table(config)
@@ -739,7 +742,7 @@ templ tableSection(config *TableConfig, filterAction string) {
 		class={ templ.KV("flex-1 min-h-0", config.FullHeight) }
 		{ config.FormHxAttrs()... }
 	>
-		if len(config.DeferredPanels) > 0 {
+		if len(config.PanelsAt(PanelAbove)) > 0 {
 			@DeferredPanels(config)
 		}
 		if config.SideFilter != nil || len(config.Filters) > 0 {
@@ -808,7 +811,17 @@ templ DeferredPanels(config *TableConfig) {
 			),
 		}
 	>
-		for _, panel := range config.DeferredPanels {
+		for _, panel := range config.PanelsAt(PanelAbove) {
+			@deferredPanel(config, panel)
+		}
+	</div>
+}
+
+// inTablePanels renders PanelInTable panels inside the table frame, between
+// the toolbar and the table head.
+templ inTablePanels(config *TableConfig) {
+	<div class={ templ.Classes(templ.KV("shrink-0", config.FullHeight)) } data-table-panels>
+		for _, panel := range config.PanelsAt(PanelInTable) {
 			@deferredPanel(config, panel)
 		}
 	</div>

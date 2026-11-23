@@ -1967,5 +1967,30 @@
       "Workflows": "Процессы",
       "Working": "Выполняется…"
     }
-  }
+  },
+	"Metrics": {
+		"Title": "Итоги по выборке",
+		"Records": {
+			"one": "{{.Count}} запись",
+			"few": "{{.Count}} записи",
+			"many": "{{.Count}} записей",
+			"other": "{{.Count}} записи"
+		},
+		"Matched": "Найдено {{.Matched}} из {{.Total}}",
+		"Filters": {
+			"one": "{{.Count}} фильтр",
+			"few": "{{.Count}} фильтра",
+			"many": "{{.Count}} фильтров",
+			"other": "{{.Count}} фильтра"
+		},
+		"ShowAll": "Показать всё",
+		"MoreCurrencies": {
+			"one": "Ещё {{.Count}} валюта",
+			"few": "Ещё {{.Count}} валюты",
+			"many": "Ещё {{.Count}} валют",
+			"other": "Ещё {{.Count}} валюты"
+		},
+		"FewerCurrencies": "Свернуть валюты",
+		"Empty": "Ничего не нашлось: суммы равны нулю. Измените период или фильтры."
+	}
 }

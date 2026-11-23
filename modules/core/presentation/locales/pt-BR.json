@@ -1970,5 +1970,24 @@
       "Workflows": "Workflows",
       "Working": "Executando…"
     }
-  }
+  },
+	"Metrics": {
+		"Title": "Totais da seleção",
+		"Records": {
+			"one": "{{.Count}} registro",
+			"other": "{{.Count}} registros"
+		},
+		"Matched": "Encontrados {{.Matched}} de {{.Total}}",
+		"Filters": {
+			"one": "{{.Count}} filtro",
+			"other": "{{.Count}} filtros"
+		},
+		"ShowAll": "Mostrar tudo",
+		"MoreCurrencies": {
+			"one": "Mais {{.Count}} moeda",
+			"other": "Mais {{.Count}} moedas"
+		},
+		"FewerCurrencies": "Menos moedas",
+		"Empty": "Nada encontrado: os totais são zero. Altere o período ou os filtros."
+	}
 }

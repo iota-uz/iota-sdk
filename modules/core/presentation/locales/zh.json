@@ -1969,5 +1969,21 @@
       "Workflows": "工作流",
       "Working": "处理中…"
     }
-  }
+  },
+	"Metrics": {
+		"Title": "所选范围合计",
+		"Records": {
+			"other": "{{.Count}} 条记录"
+		},
+		"Matched": "共 {{.Total}} 条，找到 {{.Matched}} 条",
+		"Filters": {
+			"other": "{{.Count}} 个筛选"
+		},
+		"ShowAll": "显示全部",
+		"MoreCurrencies": {
+			"other": "另有 {{.Count}} 种货币"
+		},
+		"FewerCurrencies": "收起货币",
+		"Empty": "未找到内容：合计为零。请更改期间或筛选条件。"
+	}
 }

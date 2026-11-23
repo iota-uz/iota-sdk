@@ -1177,6 +1177,32 @@ type DeferredPanel struct {
 	Skeleton templ.Component
 	// Class is appended to the wrapper div's class list (layout/placement).
 	Class string
+	// Placement puts the panel above the table panel (default) or inside it,
+	// between the toolbar and the table head — where the metrics band sits.
+	Placement PanelPlacement
+}
+
+// PanelPlacement says where a DeferredPanel renders relative to the table.
+type PanelPlacement string
+
+const (
+	// PanelAbove renders the panel above the table panel, outside its frame.
+	PanelAbove PanelPlacement = ""
+	// PanelInTable renders the panel inside the table panel, under the
+	// toolbar and filter chips. When ContentID is set the panel is part of the
+	// swapped content and reloads with it.
+	PanelInTable PanelPlacement = "in-table"
+)
+
+// PanelsAt returns the deferred panels rendered at the given placement.
+func (c *TableConfig) PanelsAt(placement PanelPlacement) []DeferredPanel {
+	var out []DeferredPanel
+	for _, panel := range c.DeferredPanels {
+		if panel.Placement == placement {
+			out = append(out, panel)
+		}
+	}
+	return out
 }
 
 type TableConfig struct {

@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add the Metrics (KPI) band component (components/base/metrics) and an in-table placement for deferred table panels (DeferredPanel.Placement = PanelInTable)."
+}

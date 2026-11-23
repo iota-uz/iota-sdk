@@ -1,0 +1,182 @@
+package metrics
+
+import icons "github.com/iota-uz/icons/phosphor"
+
+// Metrics is the KPI band: the scope line, then one equal card per metric.
+templ Metrics(props Props) {
+	<section
+		if props.ID != "" {
+			id={ props.ID }
+		}
+		class={ "iota-mx", "iota-mx--" + string(props.attach()), props.Class }
+		if len(props.hidden()) > 0 {
+			x-data="{ all: false }"
+		}
+	>
+		@scopeLine(props)
+		if len(props.Items) > 0 {
+			<div class="iota-mx-grid" style={ gridStyle(len(props.Items)) }>
+				for _, item := range props.Items {
+					@card(props, item)
+				}
+			</div>
+		}
+		if props.State == StateEmpty {
+			<div class="iota-mx-note">
+				if props.EmptyNote != "" {
+					{ props.EmptyNote }
+				} else {
+					{ text(ctx, "Metrics.Empty", "Nothing found.") }
+				}
+			</div>
+		}
+		if n := len(props.hidden()); n > 0 {
+			<div class="iota-mx-note">
+				<button type="button" class="iota-mx-a" x-on:click="all = !all" x-bind:aria-expanded="all">
+					<span x-show="!all">{ moreLabel(ctx, n) }</span>
+					<span x-show="all" x-cloak>{ text(ctx, "Metrics.FewerCurrencies", "Fewer currencies") }</span>
+				</button>
+			</div>
+		}
+	</section>
+}
+
+templ scopeLine(props Props) {
+	<div class="iota-mx-scope">
+		<span class="iota-mx-scope-title">{ text(ctx, "Metrics.Title", "Totals for selection") }</span>
+		if props.Scope.Period != "" {
+			<span class="iota-mx-scope-meta">
+				@icons.CalendarBlank(icons.Props{Size: "14"})
+				{ props.Scope.Period }
+			</span>
+		}
+		if props.Scope.Filters > 0 {
+			<span class="iota-mx-scope-meta">
+				@icons.Funnel(icons.Props{Size: "14"})
+				{ filtersLabel(ctx, props.Scope.Filters) }
+			</span>
+		}
+		<span class="iota-mx-scope-count">
+			if props.Scope.Matched != nil {
+				{ matchedLabel(ctx, props.Scope) }
+			} else {
+				{ countLabel(ctx, props.Scope) }
+			}
+			if props.ResetAttrs != nil {
+				<span aria-hidden="true">·</span>
+				<button type="button" class="iota-mx-a" { props.ResetAttrs... }>
+					{ text(ctx, "Metrics.ShowAll", "Show all") }
+				</button>
+			}
+		</span>
+	</div>
+}
+
+templ card(props Props, item Metric) {
+	<div class={ "iota-mx-card", templ.KV("iota-mx-card--empty", props.State == StateEmpty) } data-kind={ string(item.Kind) }>
+		<div class="iota-mx-label">
+			@kindIcon(item.Kind)
+			<span>{ item.Label }</span>
+			if item.Hint != "" {
+				<span class="iota-mx-hint" title={ item.Hint } aria-label={ item.Hint }>
+					@icons.Info(icons.Props{Size: "14"})
+				</span>
+			}
+		</div>
+		if item.Kind == KindCount || len(props.Currencies) == 0 {
+			@value(item, "", true)
+		} else {
+			@value(item, props.Currencies[0], true)
+			if len(props.Currencies) > 1 {
+				<dl class="iota-mx-rows">
+					for _, code := range props.visible()[1:] {
+						@row(item, code, false)
+					}
+					for _, code := range props.hidden() {
+						@row(item, code, true)
+					}
+				</dl>
+			}
+		}
+	</div>
+}
+
+templ row(item Metric, code string, folded bool) {
+	<div
+		if folded {
+			x-show="all"
+			x-cloak
+		}
+	>
+		<dt>{ code }</dt>
+		<dd>
+			@value(item, code, false)
+		</dd>
+	</div>
+}
+
+templ value(item Metric, code string, big bool) {
+	if a, ok := item.value(code); ok {
+		<span
+			class={ "iota-mx-v", templ.KV("iota-mx-v--big", big), templ.KV("iota-mx-v--neg", negative(item.Kind, a)) }
+			title={ valueText(item.Kind, a) + " " + code }
+		>
+			{ valueText(item.Kind, a) }
+			if code != "" {
+				<small>{ code }</small>
+			}
+		</span>
+	} else {
+		<span class={ "iota-mx-v", "iota-mx-v--none", templ.KV("iota-mx-v--big", big) }>—</span>
+	}
+}
+
+templ kindIcon(kind Kind) {
+	switch kind {
+		case KindIn:
+			<span class="iota-mx-icon">
+				@icons.ArrowDownLeft(icons.Props{Size: "14"})
+			</span>
+		case KindOut:
+			<span class="iota-mx-icon">
+				@icons.ArrowUpRight(icons.Props{Size: "14"})
+			</span>
+		case KindNet:
+			<span class="iota-mx-icon">
+				@icons.Scales(icons.Props{Size: "14"})
+			</span>
+	}
+}
+
+// Skeleton keeps the exact box of the band while it loads, so the table
+// below does not jump.
+templ Skeleton(props SkeletonProps) {
+	<section
+		class={ "iota-mx", "iota-mx--" + string(skeletonAttach(props.Attach)) }
+		aria-busy="true"
+		aria-live="polite"
+	>
+		<div class="iota-mx-scope">
+			<span class="iota-mx-sk iota-mx-sk--label"></span>
+			<span class="iota-mx-scope-count"><span class="iota-mx-sk iota-mx-sk--count"></span></span>
+		</div>
+		<div class="iota-mx-grid" style={ gridStyle(props.Items) }>
+			for i := 0; i < max(props.Items, 1); i++ {
+				<div class="iota-mx-card">
+					<span class="iota-mx-sk iota-mx-sk--label"></span>
+					<span class="iota-mx-sk iota-mx-sk--big"></span>
+					if props.Currencies > 1 {
+						<div class="iota-mx-rows">
+							for j := 1; j < min(props.Currencies, VisibleCurrencies); j++ {
+								<span class="iota-mx-sk iota-mx-sk--row"></span>
+							}
+						</div>
+					}
+				</div>
+			}
+		</div>
+		if props.Currencies > VisibleCurrencies {
+			<div class="iota-mx-note"><span class="iota-mx-sk iota-mx-sk--count"></span></div>
+		}
+	</section>
+}
