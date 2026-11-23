@@ -685,34 +685,15 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
   }
   const reference = tidyLayout(subgraph, catalog)
   const hand = new Set<string>()
-  // A group Tidy left alone stands where Tidy puts it, plus one offset shared by the whole layout. A group
-  // whose items moved against each other is by hand; so is one moved as a whole, which shows as an offset
-  // other than the one most of the items share.
-  const offsets = new Map<string, string>()
-  const votes = new Map<string, number>()
+  // Tidy leaves the layout at the origin, so a group it laid out stands exactly where a Tidy of the known
+  // items puts it. A group whose items moved against each other is by hand; so is one moved as a whole,
+  // which shows as a shared offset other than zero. Positions alone carry this: nothing is stored beside
+  // the layout, and it holds after a reload.
   for (const group of layoutGroups(graph)) {
     const placed = group.items.filter((id) => known.has(id))
     if (placed.length < 2) continue
-    const first = placed[0]!
-    const dx = layout[first]!.x - reference[first]!.x
-    const dy = layout[first]!.y - reference[first]!.y
-    if (!placed.every((id) => layout[id]!.x - reference[id]!.x === dx && layout[id]!.y - reference[id]!.y === dy)) {
-      hand.add(group.key)
-      continue
-    }
-    const offset = `${dx},${dy}`
-    offsets.set(group.key, offset)
-    votes.set(offset, (votes.get(offset) ?? 0) + placed.length)
+    if (placed.some((id) => layout[id]!.x !== reference[id]!.x || layout[id]!.y !== reference[id]!.y)) hand.add(group.key)
   }
-  let usual = ''
-  let most = 0
-  for (const [offset, count] of votes) {
-    if (count > most) {
-      usual = offset
-      most = count
-    }
-  }
-  for (const [key, own] of offsets) if (own !== usual) hand.add(key)
   return hand
 }
 

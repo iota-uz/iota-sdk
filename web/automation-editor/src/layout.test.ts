@@ -28,6 +28,17 @@ function withGaps(graph: AutomationGraph, every = 3): AutomationLayout {
   return tidyLayout(earlier, catalog)
 }
 
+/** The layout an earlier Tidy left, before the groups for which `drop` is true were added. */
+function earlierTidy(graph: AutomationGraph, drop: (key: string) => boolean): AutomationLayout {
+  const keep = new Set(layoutGroups(graph).filter((g) => !drop(g.key)).flatMap((g) => g.items))
+  return tidyLayout({
+    ...graph,
+    triggers: graph.triggers.filter((t) => keep.has(t.id)),
+    nodes: graph.nodes.filter((n) => keep.has(n.id)),
+    edges: graph.edges.filter((e) => keep.has(e.from.node) && keep.has(e.to)),
+  }, catalog)
+}
+
 /** Crossings of the straight lines from a port to the target handle: independent of any router. */
 function straightCrossings(graph: AutomationGraph, layout: AutomationLayout, target: 'top' | 'left'): number {
   const { links } = linksOf(graph, catalog, layout)
@@ -176,13 +187,8 @@ describe('routes', () => {
 
 describe('arranged by hand', () => {
   it('keeps the positions of a group the person arranged when a new branch is laid out', () => {
-    const tidy = tidyLayout(multiTrigger, catalog)
-    const known: AutomationLayout = {}
+    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
     const hand = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
-    for (const group of layoutGroups(multiTrigger)) {
-      if (group.key === 'manual' || group.key === 'shared') continue
-      for (const id of group.items) known[id] = { ...tidy[id]! }
-    }
     // The person moved two steps of the client column by hand.
     known.b_vip = { x: known.b_vip!.x + 48, y: known.b_vip!.y + 32 }
     known.b_mail = { x: known.b_mail!.x - 16, y: known.b_mail!.y + 64 }
@@ -278,12 +284,8 @@ describe('review round', () => {
   })
 
   it('keeps a group a person moved as a whole when a new branch is laid out', () => {
-    const tidy = tidyLayout(multiTrigger, catalog)
-    const known: AutomationLayout = {}
-    for (const group of layoutGroups(multiTrigger)) {
-      if (group.key === 'manual' || group.key === 'shared') continue
-      for (const id of group.items) known[id] = { ...tidy[id]! }
-    }
+    const tidy = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
+    const known: AutomationLayout = { ...tidy }
     const moved = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
     for (const id of moved) known[id] = { x: tidy[id]!.x + 160, y: tidy[id]!.y + 96 }
     const next = ensureLayout(multiTrigger, catalog, known)
@@ -337,5 +339,80 @@ describe('review round', () => {
     expect(router.plan(['a.two'])).toEqual(['a.one', 'a.two'])
     router.route('a.one')
     expect(router.plan(['a.two'])).toEqual(['a.two'])
+  })
+})
+
+describe('arranged by hand, from positions alone', () => {
+  const newBranch = (): AutomationGraph => ({
+    ...foreachJoin,
+    triggers: [...foreachJoin.triggers, { id: 'again', event: 'core.manual' }],
+    nodes: [...foreachJoin.nodes, { id: 'x1', type: 'delay', params: {} }, { id: 'x2', type: 'delay', params: {} }, { id: 'x3', type: 'end', params: {} }],
+    edges: [
+      ...foreachJoin.edges,
+      { from: { node: 'again', outcome: 'fired' }, to: 'x1' },
+      { from: { node: 'x1', outcome: 'done' }, to: 'x2' },
+      { from: { node: 'x2', outcome: 'done' }, to: 'x3' },
+    ],
+  })
+  const onlyOld = (key: string) => key === 'again'
+
+  it('keeps the only positioned group when the person moved it, and lays the new branch beside it', () => {
+    const graph = newBranch()
+    const tidy = earlierTidy(graph, onlyOld)
+    const moved: AutomationLayout = {}
+    for (const [id, p] of Object.entries(tidy)) moved[id] = { x: p.x + 32, y: p.y + 16 }
+    const next = ensureLayout(graph, catalog, moved)
+    for (const [id, p] of Object.entries(moved)) expect(next[id]).toEqual(p)
+    expect(Object.keys(next)).toHaveLength(graph.triggers.length + graph.nodes.length)
+    expect(overlappingNodes(graph, catalog, next)).toBe(0)
+  })
+
+  it('keeps every group that was moved, whatever the offsets: tied or not', () => {
+    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
+    const groups = layoutGroups(multiTrigger)
+    const moved: AutomationLayout = { ...known }
+    const shifts: Record<string, [number, number]> = { user_created: [48, 0], client_created: [0, 64], schedule: [48, 0] }
+    for (const group of groups) {
+      const [dx, dy] = shifts[group.key] ?? [0, 0]
+      for (const id of group.items) if (moved[id]) moved[id] = { x: known[id]!.x + dx, y: known[id]!.y + dy }
+    }
+    const next = ensureLayout(multiTrigger, catalog, moved)
+    for (const [id, p] of Object.entries(moved)) expect(next[id]).toEqual(p)
+  })
+
+  it('lays a group Tidy left alone out again, also after the layout went through storage', () => {
+    const graph = newBranch()
+    const stored = JSON.parse(JSON.stringify(earlierTidy(graph, onlyOld))) as AutomationLayout
+    expect(ensureLayout(graph, catalog, stored)).toEqual(tidyLayout(graph, catalog))
+  })
+
+  it('moves everything on an explicit Tidy, positions by hand or not', () => {
+    const graph = newBranch()
+    const moved: AutomationLayout = {}
+    for (const [id, p] of Object.entries(earlierTidy(graph, onlyOld))) moved[id] = { x: p.x + 48, y: p.y + 48 }
+    // The automatic layout keeps what the person moved; the explicit Tidy puts it back.
+    expect(ensureLayout(graph, catalog, moved).start).toEqual(moved.start)
+    expect(tidyLayout(graph, catalog).start).toEqual(earlierTidy(graph, onlyOld).start)
+    expect(tidyLayout(graph, catalog).start).not.toEqual(moved.start)
+  })
+
+  it('returns a position below every card when the whole search window is taken', () => {
+    const graph: AutomationGraph = { name: 'p', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 'end', params: {} }], edges: [] }
+    const layout: AutomationLayout = {}
+    const crowded: AutomationGraph = { ...graph, nodes: [...graph.nodes] }
+    // Every candidate the search tries: 13 columns either side of the start, 100 rows.
+    let count = 0
+    for (let k = -13; k <= 13; k += 1) {
+      for (let r = 0; r <= 100; r += 1) {
+        const id = `c${count}`
+        count += 1
+        crowded.nodes.push({ id, type: 'end', params: {} })
+        layout[id] = { x: k * 288, y: r * 144 }
+      }
+    }
+    const p = placeNew(crowded, catalog, layout, 'n', { near: { x: 0, y: 0 } })
+    const bottom = Math.max(...Object.keys(layout).map((id) => layout[id]!.y + 96))
+    expect(p.y).toBeGreaterThanOrEqual(bottom)
+    for (const id of Object.keys(layout)) expect(rectsOverlap({ ...p, width: 224, height: 96 }, itemRect(crowded, catalog, layout, id)!, GRID)).toBe(false)
   })
 })
