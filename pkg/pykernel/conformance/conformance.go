@@ -169,16 +169,18 @@ func Run(ctx context.Context, opts Options) Report {
 // --- runner ---------------------------------------------------------------
 
 type runner struct {
-	opts     Options
-	root     string
-	ownRoot  bool
-	canary   string
-	tcp      *tcpTrap
-	udp      *udpTrap
-	abstract *tcpTrap
-	pathUnix *tcpTrap
-	sockPath string
-	restore  func()
+	opts      Options
+	root      string
+	ownRoot   bool
+	canary    string
+	tcp       *tcpTrap
+	udp       *udpTrap
+	abstract  *tcpTrap
+	pathUnix  *tcpTrap
+	sockPath  string
+	dgram     *udpTrap
+	dgramPath string
+	restore   func()
 }
 
 const canaryEnv = "PYKERNEL_CONFORMANCE_CANARY"
@@ -234,6 +236,14 @@ func newRunner(opts Options) (*runner, error) {
 	r.abstract, _ = listenTrap("unix", "@pykernel-conformance-"+suffix)
 	r.sockPath = filepath.Join(os.TempDir(), "pykernel-conformance-"+suffix+".sock")
 	r.pathUnix, _ = listenTrap("unix", r.sockPath)
+	r.dgramPath = filepath.Join(os.TempDir(), "pykernel-conformance-"+suffix+".dgram")
+	if c, err := net.ListenPacket("unixgram", r.dgramPath); err == nil {
+		r.dgram = newUDPTrap(c)
+	}
+	// World-writable, so only the sandbox (not file permissions) stands
+	// between the kernel and these endpoints.
+	_ = os.Chmod(r.sockPath, 0o777)
+	_ = os.Chmod(r.dgramPath, 0o777)
 	return r, nil
 }
 
@@ -246,7 +256,11 @@ func (r *runner) close() {
 	if r.udp != nil {
 		r.udp.close()
 	}
+	if r.dgram != nil {
+		r.dgram.close()
+	}
 	_ = os.Remove(r.sockPath)
+	_ = os.Remove(r.dgramPath)
 	if r.restore != nil {
 		r.restore()
 	}
@@ -416,6 +430,10 @@ func listenUDPTrap() (*udpTrap, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newUDPTrap(c), nil
+}
+
+func newUDPTrap(c net.PacketConn) *udpTrap {
 	t := &udpTrap{c: c}
 	t.wg.Add(1)
 	go func() {
@@ -428,7 +446,7 @@ func listenUDPTrap() (*udpTrap, error) {
 			t.hits.Add(1)
 		}
 	}()
-	return t, nil
+	return t
 }
 
 func (t *udpTrap) close() {

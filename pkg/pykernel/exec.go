@@ -116,6 +116,9 @@ type DonePayload struct {
 	// EventsDropped counts events discarded because the consumer did not read
 	// the stream fast enough; the bridge never blocks on a slow consumer.
 	EventsDropped int
+	// Error is the first exception of the exec (nil when none), repeated here
+	// so a consumer that lost the EventError to backpressure still has it.
+	Error *ExecError
 	// NamespaceReset and FilesPreserved repeat KernelInfo as it was when this
 	// exec started (see KernelInfo).
 	NamespaceReset bool

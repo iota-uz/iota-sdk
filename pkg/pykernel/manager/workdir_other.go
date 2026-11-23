@@ -10,17 +10,9 @@ import (
 )
 
 // prepareState is the unconfined fallback for platforms without the sandbox.
-func prepareState(workdir string, _ *isolation.Credential, writeMarker bool) (bool, error) {
-	ctrl := filepath.Join(workdir, stateDir)
-	if err := os.MkdirAll(filepath.Join(ctrl, "tmp"), 0o700); err != nil {
-		return false, err
-	}
-	_, err := os.Lstat(filepath.Join(ctrl, stateFile))
-	preserved := err == nil
-	if writeMarker {
-		if _, err := isolation.WriteFileAtomic(ctrl, stateFile, markerJSON()); err != nil {
-			return false, err
-		}
-	}
-	return preserved, nil
+func prepareState(workdir string, _ *isolation.Credential) error {
+	return os.MkdirAll(filepath.Join(workdir, stateDir, "tmp"), 0o700)
 }
+
+// dirIdentity is unavailable here: every kernel looks like a new directory.
+func dirIdentity(string) (uint64, uint64, error) { return 0, 0, nil }

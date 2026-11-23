@@ -133,6 +133,7 @@ func newFixture(t *testing.T, withRuntime bool) *fixture {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
 		cfg.Manager = m
+		cfg.InsecureAllowUnconfinedRuntime = m.Isolation().Err() != nil
 	}
 	runner, err := execute.NewRunner(cfg)
 	require.NoError(t, err)

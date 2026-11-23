@@ -4,6 +4,8 @@ package isolation
 
 import "golang.org/x/sys/unix"
 
+const canWaitWithoutReap = true
+
 // waitExited blocks until pid has exited without reaping it (WNOWAIT), so the
 // zombie still holds the pid and its process group id.
 func waitExited(pid int) {

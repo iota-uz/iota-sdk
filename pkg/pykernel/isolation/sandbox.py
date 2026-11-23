@@ -13,7 +13,10 @@ every child it forks:
   4. Landlock (ABI >= 6) limits the filesystem to read-only runtime paths and a
      read-write session workdir, denies TCP bind/connect, and scopes abstract
      unix sockets and signals to the sandbox;
-  5. a seccomp filter refuses socket creation, ptrace, namespaces, mounts, bpf,
+  5. a seccomp filter refuses socket creation and every address-bearing socket
+     call (connect, bind, listen, accept, sendmsg, sendto with an address), so
+     a socketpair and the inherited bridge are the only sockets; it also
+     refuses ptrace, namespaces, mounts, bpf,
      keyrings, perf, io_uring, cross-process memory access and session/process
      group changes, and kills the process on a foreign syscall ABI.
 
@@ -111,6 +114,8 @@ _BPF_RET_K = 0x06
 _OFF_NR = 0
 _OFF_ARCH = 4
 _OFF_ARG0 = 16
+_OFF_ARG4_LO = 16 + 8 * 4
+_OFF_ARG4_HI = _OFF_ARG4_LO + 4
 
 # Namespace flags refused in clone(2). CLONE_NEWTIME (0x80) overlaps the exit
 # signal byte of clone(2) and is only reachable through clone3/unshare, which
@@ -129,6 +134,7 @@ _ARCHES = {
         "capset": 126,
         "capget": 125,
         "socket": 41,
+        "sendto": 44,
         "clone": 56,
         "clone3": 435,
         "deny": {
@@ -148,6 +154,10 @@ _ARCHES = {
             "adjtimex": 159, "iopl": 172, "ioperm": 173, "lookup_dcookie": 212,
             "vhangup": 153, "setsid": 112, "setpgid": 109, "syslog": 103,
             "sethostname": 170, "setdomainname": 171, "uselib": 134,
+            # Address-bearing socket calls: a socketpair is the only socket a
+            # kernel can make, and it must not reach a pathname endpoint.
+            "connect": 42, "accept": 43, "bind": 49, "listen": 50, "accept4": 288,
+            "sendmsg": 46, "sendmmsg": 307,
         },
     },
     "aarch64": {
@@ -157,6 +167,7 @@ _ARCHES = {
         "capset": 91,
         "capget": 90,
         "socket": 198,
+        "sendto": 206,
         "clone": 220,
         "clone3": 435,
         "deny": {
@@ -176,6 +187,8 @@ _ARCHES = {
             "adjtimex": 171, "lookup_dcookie": 18, "vhangup": 58,
             "setsid": 157, "setpgid": 154, "syslog": 116,
             "sethostname": 161, "setdomainname": 162,
+            "connect": 203, "accept": 202, "bind": 200, "listen": 201, "accept4": 242,
+            "sendmsg": 211, "sendmmsg": 269,
         },
     },
 }
@@ -470,6 +483,17 @@ def _seccomp_program(arch):
             (_BPF_JEQ_K, 0, 1, nr),
             (_BPF_RET_K, 0, 0, action),
         ]
+    # sendto(2) is send(2) when its address (arg 4) is NULL; with an address
+    # it would reach a pathname datagram socket, so it is refused.
+    prog += [
+        (_BPF_JEQ_K, 0, 6, spec["sendto"]),
+        (_BPF_LD_W_ABS, 0, 0, _OFF_ARG4_LO),
+        (_BPF_JEQ_K, 0, 2, 0),
+        (_BPF_LD_W_ABS, 0, 0, _OFF_ARG4_HI),
+        (_BPF_JEQ_K, 1, 0, 0),
+        (_BPF_RET_K, 0, 0, eperm),
+        (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
+    ]
     prog += [
         (_BPF_JEQ_K, 0, 4, spec["clone"]),
         (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0),

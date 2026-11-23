@@ -14,13 +14,14 @@ import (
 )
 
 const (
-	// execBuffer is the per-exec event channel capacity. The last two slots
-	// are reserved for the terminal events (a synthetic error and EventDone),
+	// execBuffer is the per-exec event channel capacity. The last three slots
+	// are reserved for the first error and the terminal events,
 	// so the stream always ends with exactly one EventDone even when the
 	// consumer stopped reading.
 	execBuffer       = 256
-	reservedTerminal = 2
+	reservedTerminal = 3 // the first EventError, a synthetic error, EventDone
 	quotaPoll        = 500 * time.Millisecond
+	exitDrain        = 300 * time.Millisecond
 )
 
 // kernelOptions are the per-kernel limits the Manager hands to a kernel.
@@ -75,6 +76,7 @@ type activeExec struct {
 	done    chan struct{}
 	stop    pykernel.TerminationReason
 	errType string
+	err     *pykernel.ExecError
 	dropped int
 	nsReset bool
 	files   bool
@@ -132,6 +134,24 @@ func (k *kernel) start() {
 	}()
 	if k.opts.workdirQuota > 0 {
 		go k.watchQuota()
+	}
+	// The stream ends when the process dies, whatever the read loop is doing
+	// (it may be stuck in a capability handler that ignores its context).
+	if p, ok := k.proc.(interface{ Exited() <-chan struct{} }); ok {
+		go func() {
+			select {
+			case <-p.Exited():
+				// Let the read loop drain frames the kernel sent before it
+				// died; force the end only if it is stuck.
+				select {
+				case <-k.serveDone:
+				case <-time.After(exitDrain):
+					_ = k.br.Close()
+					k.onServeExit()
+				}
+			case <-k.closed:
+			}
+		}()
 	}
 }
 
@@ -240,6 +260,9 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 		limits.WallClockMS = timeout.Milliseconds()
 	}
 
+	// The watchdog is armed before the write: a kernel that stops reading its
+	// socket blocks Submit, and only the watchdog's kill can unblock it.
+	go k.watch(ctx, a, timeout)
 	if err := k.br.Submit(ctx, a.id, req.Code, limits); err != nil {
 		k.mu.Lock()
 		if k.active == a {
@@ -248,8 +271,6 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 		k.mu.Unlock()
 		return nil, err
 	}
-
-	go k.watch(ctx, a, timeout)
 	return a.ch, nil
 }
 
@@ -274,15 +295,27 @@ func (k *kernel) Emit(execID string, ev bridge.RawEvent) {
 	if a == nil || execID != a.id {
 		return
 	}
-	if out.Kind == pykernel.EventError && out.Err != nil {
-		a.errType = out.Err.Type
-	}
 	if terminal {
 		out.Done = k.donePayloadLocked(a, out.Done, "")
 		k.finishLocked(out)
 		return
 	}
-	if len(a.ch) >= cap(a.ch)-reservedTerminal {
+	room := cap(a.ch) - len(a.ch)
+	if out.Kind == pykernel.EventError && out.Err != nil {
+		a.errType = out.Err.Type
+		if a.err == nil {
+			// The first error is structured failure detail: it keeps a
+			// reserved slot and is repeated in DonePayload.Error.
+			a.err = out.Err
+			if room > reservedTerminal-1 {
+				a.ch <- out
+				return
+			}
+		}
+		a.dropped++
+		return
+	}
+	if room <= reservedTerminal {
 		a.dropped++
 		return
 	}
@@ -297,6 +330,7 @@ func (k *kernel) donePayloadLocked(a *activeExec, base *pykernel.DonePayload, ex
 		d = *base
 	}
 	d.EventsDropped = a.dropped
+	d.Error = a.err
 	d.NamespaceReset = a.nsReset
 	d.FilesPreserved = a.files
 	switch {
@@ -465,6 +499,9 @@ func (k *kernel) onServeExit() {
 		Kind:      pykernel.EventError,
 		Err:       &pykernel.ExecError{Type: "KernelExited", Message: "kernel process exited before completing the exec"},
 		Timestamp: now,
+	}
+	if a.err == nil {
+		a.err = errEv.Err
 	}
 	doneEv := pykernel.ExecEvent{Kind: pykernel.EventDone, Done: k.donePayloadLocked(a, nil, reason), Timestamp: now}
 	k.finishLocked(errEv, doneEv)

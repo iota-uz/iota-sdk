@@ -91,7 +91,15 @@ func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, e
 		return nil, err
 	}
 
-	return &unixProcess{cmd: cmd}, nil
+	p := &unixProcess{cmd: cmd}
+	if canWaitWithoutReap {
+		p.exited = make(chan struct{})
+		go func() {
+			waitExited(cmd.Process.Pid)
+			close(p.exited)
+		}()
+	}
+	return p, nil
 }
 
 // unixProcess guards the group kill against pid reuse: once the leader is
@@ -102,7 +110,12 @@ type unixProcess struct {
 	cmd    *exec.Cmd
 	mu     sync.Mutex
 	reaped bool
+	exited chan struct{}
 }
+
+// Exited is closed when the process has exited, before it is reaped; nil
+// (never ready) where that cannot be observed.
+func (p *unixProcess) Exited() <-chan struct{} { return p.exited }
 
 func (p *unixProcess) PID() int { return p.cmd.Process.Pid }
 

@@ -289,7 +289,7 @@ denied("unix socket creation", lambda: socket.socket(socket.AF_UNIX, socket.SOCK
 }
 
 func probeUnix(ctx context.Context, r *runner) Result {
-	cfg := map[string]any{"path": r.sockPath}
+	cfg := map[string]any{"path": r.sockPath, "dgram": r.dgramPath}
 	if r.abstract != nil {
 		cfg["abstract"] = strings.TrimPrefix(r.abstract.addr(), "@")
 	}
@@ -297,7 +297,25 @@ func probeUnix(ctx context.Context, r *runner) Result {
 if CFG.get("abstract"):
     denied("connect to a host abstract unix socket", lambda: connect(socket.AF_UNIX, socket.SOCK_STREAM, "\0" + CFG["abstract"]))
 denied("connect to a host unix socket file", lambda: connect(socket.AF_UNIX, socket.SOCK_STREAM, CFG["path"]))
+# A socketpair is creatable; it must not reach any pathname endpoint.
+a, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)
+denied("sendto a host datagram socket from a socketpair", lambda: a.sendto(b"x", CFG["dgram"]))
+denied("sendmsg to a host datagram socket from a socketpair", lambda: a.sendmsg([b"x"], [], 0, CFG["dgram"]))
+denied("connect a socketpair to a host datagram socket", lambda: a.connect(CFG["dgram"]))
+denied("connect a socketpair to a host stream socket", lambda: b.connect(CFG["path"]))
+denied("bind a socketpair in the workdir", lambda: a.bind(os.path.join(CFG["workdir"], "s.sock")))
+try:
+    a.send(b"ok")
+    report("a socketpair still works locally", b.recv(2) == b"ok")
+except OSError as e:
+    report("a socketpair still works locally", False, e)
+a.close(); b.close()
 `)
+	if r.dgram != nil {
+		time.Sleep(200 * time.Millisecond)
+		res.Checks = append(res.Checks, Check{Name: "host datagram socket received nothing", OK: r.dgram.hits.Load() == 0,
+			Detail: fmt.Sprintf("%d datagrams", r.dgram.hits.Load())})
+	}
 	for _, t := range []*tcpTrap{r.abstract, r.pathUnix} {
 		if t != nil {
 			res.Checks = append(res.Checks, Check{Name: "host " + t.addr() + " received no connection", OK: t.hits.Load() == 0,

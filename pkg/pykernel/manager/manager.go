@@ -34,7 +34,6 @@ const (
 	defaultDisposeGrace = 5 * time.Second
 	defaultStartTimeout = 20 * time.Second
 	stateDir            = ".pykernel"
-	stateFile           = "kernel.json"
 	maxSeenKeys         = 4096
 )
 
@@ -86,6 +85,9 @@ type Manager struct {
 	kernels map[string]*kernel
 	seen    map[string]struct{}
 	closing bool
+	// pending counts spawns that passed the capacity check but are not
+	// registered yet; it is part of the MaxParallel count.
+	pending int
 }
 
 var _ pykernel.Manager = (*Manager)(nil)
@@ -112,6 +114,12 @@ func New(cfg Config) (*Manager, error) {
 	}
 	if cfg.Sandbox.StartTimeout == 0 {
 		cfg.Sandbox.StartTimeout = defaultStartTimeout
+	}
+	switch cfg.Sandbox.Mode {
+	case isolation.ModeRequired, isolation.ModeInsecureDisabled:
+	default:
+		// Never fall back to the unconfined path for a value we do not know.
+		return nil, fmt.Errorf("pykernel/manager: unknown sandbox mode %v", cfg.Sandbox.Mode)
 	}
 	confined := cfg.Sandbox.Mode == isolation.ModeRequired
 	if confined {
@@ -197,22 +205,24 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			go func(k *kernel) { _ = k.Dispose(context.Background()) }(k)
 		}
 	}
-	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels) >= maxParallel {
+	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels)+m.pending >= maxParallel {
 		if !m.evictIdleLocked() {
 			m.mu.Unlock()
 			return nil, pykernel.ErrPoolExhausted
 		}
 	}
 	_, seen := m.seen[sess.Key()]
+	m.pending++ // the slot is reserved until the kernel is registered or the spawn fails
 	m.mu.Unlock()
 
 	// Spawn outside the lock: Launch + the ready handshake can take time.
 	k, err := m.spawn(ctx, sess, seen)
+	m.mu.Lock()
+	m.pending--
 	if err != nil {
+		m.mu.Unlock()
 		return nil, err
 	}
-
-	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
 		_ = k.Dispose(context.Background())
@@ -304,7 +314,7 @@ func (m *Manager) prepareWorkdir(workdir string) error {
 	if n := m.cfg.Limits.WorkdirEntries; n > 0 && dirUsage(workdir, n).entries > n {
 		return fmt.Errorf("pykernel/manager: %w", pykernel.ErrWorkdirQuota)
 	}
-	if _, err := prepareState(workdir, m.runAs(), false); err != nil {
+	if err := prepareState(workdir, m.runAs()); err != nil {
 		return fmt.Errorf("pykernel/manager: workdir: %w", err)
 	}
 	return nil
@@ -443,24 +453,57 @@ type poolView struct{ infos []pykernel.KernelInfo }
 func (p poolView) Len() int                     { return len(p.infos) }
 func (p poolView) Infos() []pykernel.KernelInfo { return p.infos }
 
-// kernelState is the marker a kernel leaves in its workdir. A later kernel of
-// the same workdir (after a crash, eviction or host restart) finds it and
-// reports that its namespace was reset while the files were preserved.
+// kernelState is the host-owned record that a kernel ran on a workdir. It
+// lives next to the workdir (".<name>.pykernel"), where no kernel can write,
+// and names the workdir's inode: a later kernel (after a crash, eviction or
+// host restart) reports that its namespace was reset, and that the files were
+// preserved only when it is still the same directory.
 type kernelState struct {
 	StartedAt time.Time `json:"started_at"`
+	Dev       uint64    `json:"dev"`
+	Ino       uint64    `json:"ino"`
 }
 
-func markerJSON() []byte {
-	raw, _ := json.Marshal(kernelState{StartedAt: time.Now().UTC()})
-	return raw
+func statePath(workdir string) string {
+	clean := filepath.Clean(workdir)
+	return filepath.Join(filepath.Dir(clean), "."+filepath.Base(clean)+".pykernel")
+}
+
+// recordKernel reads the previous record of workdir and replaces it with one
+// for the kernel about to start. It returns whether an earlier kernel ran
+// there and whether the directory it used still exists.
+func recordKernel(workdir string) (ranBefore, sameDir bool, err error) {
+	dev, ino, err := dirIdentity(workdir)
+	if err != nil {
+		return false, false, err
+	}
+	path := statePath(workdir)
+	if raw, rerr := os.ReadFile(path); rerr == nil {
+		var prev kernelState
+		if json.Unmarshal(raw, &prev) == nil {
+			ranBefore = true
+			sameDir = prev.Dev == dev && prev.Ino == ino
+		}
+	}
+	raw, err := json.Marshal(kernelState{StartedAt: time.Now().UTC(), Dev: dev, Ino: ino})
+	if err != nil {
+		return false, false, err
+	}
+	if _, err := isolation.WriteFileAtomic(filepath.Dir(path), filepath.Base(path), raw); err != nil {
+		return false, false, err
+	}
+	return ranBefore, sameDir, nil
 }
 
 func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (*kernel, error) {
 	workdir := sess.Workdir()
 	ctrl := filepath.Join(workdir, stateDir)
-	filesPreserved, err := prepareState(workdir, m.runAs(), true)
-	if err != nil {
+	if err := prepareState(workdir, m.runAs()); err != nil {
 		return nil, fmt.Errorf("pykernel/manager: workdir: %w", err)
+	}
+	ranBefore, filesPreserved, err := recordKernel(workdir)
+	if err != nil {
+		return nil, fmt.Errorf("pykernel/manager: kernel record: %w", err)
 	}
 
 	capsJSON, err := capSpecsJSON(sess.Capabilities())
@@ -516,7 +559,7 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		workdirQuota:   m.cfg.Limits.WorkdirBytes,
 		workdirEntries: m.cfg.Limits.WorkdirEntries,
 		workdir:        workdir,
-		nsReset:        seen || filesPreserved,
+		nsReset:        seen || ranBefore,
 		filesPreserved: filesPreserved,
 	})
 	k.start()
