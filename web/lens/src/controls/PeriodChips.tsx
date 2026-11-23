@@ -12,21 +12,20 @@ import { parseISODate, type CalendarDate } from './model'
  * components use, so a host whose lists filter by chips and its dashboard
  * render the same chip.
  *
- * Both this sheet and the host's are Tailwind builds whose `@layer utilities`
- * blocks merge into one layer. The kit's utilities ship at zero specificity
- * (`:where(…)`, see solid-ui/scripts/kit-utilities.mjs), so the host's own
- * utility wins wherever both define one, whatever the order; a plain kit
- * `.hidden` once overrode the host's `lg:block` and hid its desktop sidebar.
- * The sheet still goes first in <head>, so its theme tokens do not shadow the
- * host's either. Its layer order is Tailwind's own, so declaring the layers
- * first does not reorder the host's.
+ * Both this sheet and the host's are Tailwind builds whose layers merge. The
+ * kit's base utilities and theme tokens ship at zero specificity (`:where(…)`,
+ * see solid-ui/scripts/kit-utilities.mjs), so the host's own rule wins wherever
+ * both define one — a plain kit `.hidden` once overrode the host's `lg:block`
+ * and hid its desktop sidebar. Its variants keep their weight and the sheet
+ * goes after the host's, as the runtime installer adopts it, so a variant only
+ * the kit defines still overrides a host base utility at its breakpoint.
  */
 export function installKitStyles(sheet: string = kitStyles): void {
   if (typeof document === 'undefined' || document.querySelector('style[data-lens-solid-ui]')) return
   const style = document.createElement('style')
   style.dataset.lensSolidUi = ''
   style.textContent = sheet
-  document.head.prepend(style)
+  document.head.append(style)
 }
 
 /** "01.07.2026 – 30.09.2026"; a half-open range keeps its open side empty. */

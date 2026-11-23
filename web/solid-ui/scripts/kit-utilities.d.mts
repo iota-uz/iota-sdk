@@ -2,5 +2,5 @@
 export function zeroSpecificity(selector: string): string
 /** A variant utility selector (`lg\:block`, `hover\:bg-x`): its leading class carries a variant prefix. */
 export function isVariant(selector: string): boolean
-/** The kit sheet with every base utility selector of its utilities layer at zero specificity. */
+/** The kit sheet with its theme tokens and every base utility selector at zero specificity. */
 export function lowerKitUtilities(css: string): string

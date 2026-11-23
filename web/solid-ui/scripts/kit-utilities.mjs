@@ -7,7 +7,9 @@
 // `lg:block` then beats them whatever the order, and a host base utility of the same name carries the same declarations.
 // Variant utilities (`lg:block`, `hover:bg-…`, `dark:…`, recognisable by the escaped colon in the class name) keep their
 // specificity, so a variant only the kit defines still overrides a base utility the host defines, as Tailwind intends.
-// A pseudo-element stays outside `:where()`, which cannot hold one.
+// That needs the kit after the host, which is where both installers put it (the runtime adopts a constructed sheet, Lens
+// appends a style element). The kit's theme tokens (`:root{--…}`) go to zero specificity as well, so the host's own
+// tokens win whatever the order. A pseudo-element stays outside `:where()`, which cannot hold one.
 import postcss from 'postcss'
 
 /** Splits `.a:hover::before` into `.a:hover` and `::before`; a selector without a pseudo-element keeps an empty tail. */
@@ -58,21 +60,28 @@ export function zeroSpecificity(selector) {
   return compound ? `:where(${compound})${pseudoElement}` : trimmed
 }
 
-function insideUtilities(rule) {
+/** The cascade layer a rule sits in: `utilities`, `theme`, or undefined outside both. */
+function layerOf(rule) {
   for (let node = rule.parent; node; node = node.parent) {
-    if (node.type === 'atrule' && node.name === 'layer' && node.params.trim() === 'utilities') return true
+    if (node.type === 'atrule' && node.name === 'layer') {
+      const name = node.params.trim()
+      if (name === 'utilities' || name === 'theme') return name
+    }
   }
-  return false
+  return undefined
 }
 
-/** The kit sheet with every base utility selector of its utilities layer at zero specificity. */
+/** The kit sheet with its theme tokens and every base utility selector at zero specificity. */
 export function lowerKitUtilities(css) {
   const root = postcss.parse(css)
   root.walkRules((rule) => {
-    if (!insideUtilities(rule)) return
+    const layer = layerOf(rule)
+    if (!layer) return
     // A rule nested in another rule (Tailwind's `&` variants) inherits its parent's selector.
     if (rule.parent?.type === 'rule') return
-    rule.selectors = rule.selectors.map((selector) => (isVariant(selector) ? selector : zeroSpecificity(selector)))
+    rule.selectors = rule.selectors.map((selector) =>
+      layer === 'utilities' && isVariant(selector) ? selector : zeroSpecificity(selector),
+    )
   })
   return root.toString()
 }

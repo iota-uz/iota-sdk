@@ -8,6 +8,7 @@ describe('zeroSpecificity', () => {
     ['.placeholder\\:text-gray::placeholder', ':where(.placeholder\\:text-gray)::placeholder'],
     ['.before\\:content-\\[\\"x\\"\\]::before', ':where(.before\\:content-\\[\\"x\\"\\])::before'],
     ['.space-x-2>:not(:last-child)', ':where(.space-x-2>:not(:last-child))'],
+    [':root', ':where(:root)'],
     [':where(.already)', ':where(.already)'],
   ])('%s → %s', (selector, want) => {
     expect(zeroSpecificity(selector)).toBe(want)
@@ -31,7 +32,7 @@ describe('lowerKitUtilities', () => {
   // Base utilities lose to the host's (so a host `lg:block` beats the kit's
   // `.hidden`); variants keep their weight (so a kit-only `lg:block` still
   // beats the host's `.hidden` at its breakpoint).
-  it('lowers base utilities of the utilities layer only, variants keep their specificity', () => {
+  it('lowers theme tokens and base utilities, variants keep their specificity', () => {
     const css = [
       '@layer theme{:root{--color-primary:#000}}',
       '@layer utilities{.hidden{display:none}.a,.b::after{color:red}.hover\\:x:hover{color:blue}',
@@ -39,7 +40,7 @@ describe('lowerKitUtilities', () => {
       '@keyframes spin{to{transform:rotate(1turn)}}',
     ].join('')
     const out = lowerKitUtilities(css)
-    expect(out).toContain(':root{--color-primary:#000}')
+    expect(out).toContain(':where(:root){--color-primary:#000}')
     expect(out).toContain(':where(.hidden){display:none}')
     expect(out).toContain(':where(.a),:where(.b)::after{color:red}')
     expect(out).toContain('.hover\\:x:hover{color:blue}')
