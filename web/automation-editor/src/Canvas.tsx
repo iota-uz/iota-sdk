@@ -263,7 +263,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
   // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
   // orthogonal one until its own is ready.
-  const [routed, setRouted] = createStore<Record<string, { sig: string; d: string }>>({})
+  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string }>>({})
   const routeOwner = new Map<string, object>()
   const ROUTE_SLICE_MS = 6
   let routeTimer: ReturnType<typeof setTimeout> | undefined
@@ -293,7 +293,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
           if (!route || route.points.length === 0) continue
           const first = route.points[0]!
           const last = route.points[route.points.length - 1]!
-          setRouted(key, { sig: `${first.x},${first.y},${last.x},${last.y}`, d: routePath(route.points) })
+          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points) })
         }
       })
       if (todo.length > 0) routeTimer = setTimeout(run, 0)
@@ -871,7 +871,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const b = { x: q.x + handle.x, y: q.y + handle.y }
       if (settled) {
         const found = routed[source]
-        if (found && found.sig === `${a.x},${a.y},${b.x},${b.y}`) return found.d
+        if (found && found.ax === a.x && found.ay === a.y && found.bx === b.x && found.by === b.y) return found.d
       }
       return directPath(a, b)
     })
