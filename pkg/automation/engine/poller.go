@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -265,8 +266,10 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 			}
 			return now.Add(p.cfg.Rescan), nil
 		}
-		// A network failure keeps the cursor: the next poll asks again from it.
-		p.r.cfg.Logger.Warn("automation poller: poll failed", "connection_id", t.id.String(), "kind", string(t.kind), "error", err)
+		// A network failure keeps the cursor: the next poll asks again from it. The provider's error may
+		// echo the credentials the connector used: it is logged masked.
+		p.r.cfg.Logger.Warn("automation poller: poll failed", "connection_id", t.id.String(), "kind", string(t.kind),
+			"error", code.NewMasker(map[string]string(creds)).Mask(err.Error()))
 		return now.Add(interval), p.saveState(ctx, t, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
 	}
 	if len(evs) > 0 {

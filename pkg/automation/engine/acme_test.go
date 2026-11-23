@@ -50,6 +50,8 @@ type acme struct {
 	provider atomic.Int64
 	closed   atomic.Int64
 	polls    atomic.Int64
+	active   atomic.Int64 // calls of mode hold running now
+	peak     atomic.Int64 // the most that ran at once
 	pollQ    [][]engine.InboundEvent
 	pollErr  error
 }
@@ -205,6 +207,20 @@ func (n *acmeSend) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		n.a.entered <- n.typ
 		<-ctx.Done()
 		return catalog.CallResult{}, ctx.Err()
+	case mode == "hold":
+		now := n.a.active.Add(1)
+		for {
+			peak := n.a.peak.Load()
+			if now <= peak || n.a.peak.CompareAndSwap(peak, now) {
+				break
+			}
+		}
+		time.Sleep(300 * time.Millisecond)
+		n.a.active.Add(-1)
+	case mode == "unauth":
+		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnauthorized, Message: "bad token", Retryable: true}
+	case mode == "unavail":
+		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "down", Retryable: true}
 	case mode == "429":
 		return catalog.CallResult{RetryAfter: 10 * time.Minute}, nil
 	case mode == "reject":

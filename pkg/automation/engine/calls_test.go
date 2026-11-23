@@ -211,3 +211,49 @@ func TestInvocationIDIsStablePerKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, a, engine.InvocationIDOf("r:n:t:2"))
 }
+
+// PerTenant=1: a second call of the tenant does not run while the first one still runs.
+func TestPerTenantCallLimitHolds(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc(func(c *engine.Config) { c.CallLimits.PerTenant = 1 })
+	ae.create(p, ae.human(), sendGraph("acme.send", "hold", "", true))
+	for _, key := range []string{"o-1", "o-2", "o-3"} {
+		ae.publish(ae.tenant, orderCreated, key, order{Amount: 1}, 0)
+	}
+	// Three processes drive the calls at once.
+	for _, q := range []*proc{p, ae.proc(func(c *engine.Config) { c.CallLimits.PerTenant = 1 }), ae.proc(func(c *engine.Config) { c.CallLimits.PerTenant = 1 })} {
+		stop := q.drive()
+		defer stop()
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) && len(noteTexts(t, ae.env)) < 3 {
+		time.Sleep(50 * time.Millisecond)
+	}
+	require.Len(t, noteTexts(t, ae.env), 3, "every call ran")
+	assert.Equal(t, int64(1), ae.acme.peak.Load(), "never two calls of the tenant at once")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.call_slots`), "the slots are given back")
+}
+
+// A known client refusal is not repeated, even when the provider calls it retryable.
+func TestClientRefusalIsNotRetried(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.fetch", "unauth", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the run takes the failed outcome")
+	assert.Len(t, ae.acme.callsOf("acme.fetch"), 1, "one execution")
+	assert.Equal(t, []string{"unauthorized: bad token"}, noteTexts(t, ae.env))
+}
+
+// output.error.retryable reaches the node's output.
+func TestRetryableReachesTheFailedOutput(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	g := strings.Replace(sendGraph("acme.send", "unavail", "", true), `{{ nodes.send.output.error.code }}: {{ nodes.send.output.error.message }}`,
+		`{{ nodes.send.output.error.code }} {{ string(nodes.send.output.error.retryable) }}`, 1)
+	ae.create(p, ae.human(), g)
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the run takes the failed outcome")
+	assert.Equal(t, []string{"unavailable true"}, noteTexts(t, ae.env))
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1, "a call that may not repeat is not retried")
+}

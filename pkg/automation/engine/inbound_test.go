@@ -3,9 +3,12 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -323,4 +326,108 @@ func TestInboundRejectsWhatItCannotPublish(t *testing.T) {
 		err := pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := in.Publish(ctx, tx, ev); return err })
 		assert.ErrorIs(t, err, engine.ErrInboundInvalid, "case %d", i)
 	}
+}
+
+// A window whose deadline passed before the next event (its flush was late) is closed into its own
+// run; the later event opens a new window.
+func TestCollectClosesAnExpiredWindowBeforeALaterEvent(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1", "collect": {"key": "event.from", "window": "60s"}}`))
+	in := p.rt.Inbound()
+	ctx := context.Background()
+	base := time.Now().Add(-10 * time.Minute)
+	for i, text := range []string{"m1", "m2"} {
+		ev := acmeUpdate{ID: "x-" + text, Event: evMessage, Text: text, From: "ann"}.event(ae.conn.ID.String())
+		ev.TenantID, ev.ConnectionID, ev.OccurredAt = ae.tenant, ae.conn.ID.String(), base.Add(time.Duration(i)*5*time.Minute)
+		require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := in.Publish(ctx, tx, ev); return err }))
+	}
+	// Both events are delivered before any flush runs.
+	_, err := p.disp.RunOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.runs`), "m1's window closed when m2 came")
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect WHERE jsonb_array_length(events) = 1`))
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 2 }, "both windows ran")
+	assert.Equal(t, []string{"m1|m1|1|false", "m2|m2|1|false"}, noteTexts(t, ae.env))
+}
+
+// failingOpen is a CredentialSource whose platform lookup fails.
+type failingOpen struct {
+	connectors.ConnectionStore
+	err error
+}
+
+func (f failingOpen) Open(context.Context, uuid.UUID, string) (catalog.ConnectionInfo, connectors.Credentials, error) {
+	return catalog.ConnectionInfo{}, nil, f.err
+}
+
+// platformAcme is a platform credential of acme.
+type platformAcme struct{}
+
+func (platformAcme) Platform(catalog.ConnectorKind) (connectors.Credentials, connectors.Identity, bool) {
+	return connectors.Credentials{"secret": acmeSig}, connectors.Identity{}, true
+}
+
+// A platform webhook whose tenant lookup fails gets 5xx (the provider repeats it); a tenant without the
+// platform credential is skipped with 200.
+func TestPlatformWebhookFailsOnAStorageError(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	acme := &tenantAcme{acme: ae.acme, tenant: ae.tenant}
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(acme))
+	serve := func(openErr error) int {
+		h := engine.InboundHandler(engine.InboundConfig{Connections: failingOpen{ConnectionStore: ae.store, err: openErr}, Registry: ae.reg,
+			Inbound: p.rt.Inbound(), DB: ae.db, Connectors: dir, Platform: platformAcme{}})
+		return ae.hook(h, "/automations/hooks/platform/acme", acmeSig, acmeUpdate{ID: uuid.NewString(), Text: "x", From: "ann"}).Code
+	}
+	assert.Equal(t, http.StatusServiceUnavailable, serve(errors.New("connection refused")))
+	assert.Equal(t, http.StatusOK, serve(connectors.ErrNotFound))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage))
+}
+
+// tenantAcme is acme whose platform updates name the tenant.
+type tenantAcme struct {
+	*acme
+	tenant uuid.UUID
+}
+
+func (a *tenantAcme) Handle(ctx context.Context, w http.ResponseWriter, body []byte, c connectors.Connection, creds connectors.Credentials) ([]engine.InboundEvent, error) {
+	evs, err := a.acme.Handle(ctx, w, body, c, creds)
+	for i := range evs {
+		evs[i].TenantID = a.tenant
+	}
+	return evs, err
+}
+
+// A failed poll is logged with the credentials masked.
+func TestPollerMasksTheProviderError(t *testing.T) {
+	ae := newAcmeEnv(t)
+	var buf syncBuffer
+	p := ae.proc(func(c *engine.Config) { c.Logger = slog.New(slog.NewTextHandler(&buf, nil)) })
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ae.acme.pollErr = errors.New("GET https://api.acme.test/updates?token=" + acmeToken + ": timeout")
+	poller := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir})
+	_, err := poller.PollOnce(context.Background())
+	require.NoError(t, err)
+	out := buf.String()
+	assert.Contains(t, out, "token=***")
+	assert.NotContains(t, out, acmeToken)
+}
+
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }

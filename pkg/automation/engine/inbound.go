@@ -398,8 +398,12 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 				continue // the connector found no tenant (an unknown correlation)
 			case platform:
 				if src, ok := h.cfg.Connections.(connectors.CredentialSource); ok {
-					if _, _, err := src.Open(ctx, ev.TenantID, connID); err != nil {
+					_, _, err := src.Open(ctx, ev.TenantID, connID)
+					switch {
+					case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth):
 						continue // the platform credential is not the tenant's
+					case err != nil:
+						return err // a failure of the lookup: the provider repeats the update
 					}
 				}
 			case ev.TenantID == uuid.Nil:

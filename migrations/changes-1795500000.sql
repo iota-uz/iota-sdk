@@ -66,6 +66,15 @@ CREATE TABLE automation.inbound_collect (
 
 CREATE INDEX inbound_collect_deadline_idx ON automation.inbound_collect (deadline);
 
+-- Call slots of a tenant (CallLimits.PerTenant): a call instance holds one while an attempt runs. A
+-- slot of an instance that no longer runs (finished, or its lease expired) is dropped by the next taker.
+CREATE TABLE automation.call_slots (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    instance_id uuid NOT NULL,
+    acquired_at timestamp with time zone NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, instance_id)
+);
+
 -- Decisions a dry run took from a model (cached mode): sha256 of prompt, input, model and its params.
 CREATE TABLE automation.decision_cache (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -78,6 +87,8 @@ CREATE TABLE automation.decision_cache (
 CREATE INDEX decision_cache_created_idx ON automation.decision_cache (created_at);
 
 -- +migrate Down
+DROP TABLE IF EXISTS automation.call_slots;
+
 DROP TABLE IF EXISTS automation.decision_cache;
 
 DROP TABLE IF EXISTS automation.inbound_collect;

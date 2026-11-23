@@ -283,9 +283,6 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 	if !ok || !isCall {
 		return x.failed(nil, CodeUnsupported, req.NodeType+" has no call executor in this process", false), nil
 	}
-	if err := x.slot(ctx); err != nil {
-		return WaitResult{}, err
-	}
 	token, afterSeq := "", int64(0)
 	if _, asks := nt.(Asker); asks && req.AnswerWaitID != "" {
 		var err error
@@ -338,7 +335,7 @@ func (x *callExec) failed(nt catalog.NodeType, code, message string, retryable b
 	if nt != nil {
 		fo = nt.Spec().FailedOutcome
 	}
-	return WaitResult{Outcome: fo, Output: out, Error: &StepError{Code: code, Message: message}}
+	return WaitResult{Outcome: fo, Output: out, Error: &StepError{Code: code, Message: message, Retryable: retryable}}
 }
 
 func (x *callExec) connector(nt catalog.NodeType) string {
@@ -358,10 +355,12 @@ func (x *callExec) connector(nt catalog.NodeType) string {
 	return "none"
 }
 
-// slot holds the call until the tenant has fewer than PerTenant calls running.
+// slot takes one of the tenant's PerTenant call slots before an attempt runs: under the tenant's
+// advisory lock it drops the slots of calls that no longer run (finished, or a lease that expired with
+// its process), counts the rest and takes one. A call that finds none sleeps and checks again on its
+// wake. release gives the slot back after the attempt.
 func (x *callExec) slot(ctx context.Context) error {
-	per := x.c.r.cfg.CallLimits.PerTenant
-	for n := 0; n < 1000; n++ {
+	for n := 0; n < 100000; n++ {
 		o, ok, err := x.nr.Lookup(ctx, "slot", n)
 		if err != nil {
 			return err
@@ -369,24 +368,60 @@ func (x *callExec) slot(ctx context.Context) error {
 		if ok && o.Status == workflow.OccCompleted {
 			continue // an earlier wait for a slot is over
 		}
-		if ok {
-			// A wait for a slot is pending: it decides after its wake.
-			return x.nr.Sleep(ctx, "slot", n, time.Second)
+		if !ok {
+			acquired, err := x.acquire(ctx)
+			if err != nil {
+				return err
+			}
+			if acquired {
+				return nil
+			}
 		}
-		var running int
-		err = x.c.r.cfg.DB.QueryRow(ctx, `
-			SELECT count(*) FROM extruntime.workflow_instances
-			WHERE tenant_id = $1 AND workflow = $2 AND status = 'running' AND lease_owner IS NOT NULL AND id <> $3`,
-			x.req.TenantID, CallWorkflowID, x.nr.Instance().ID).Scan(&running)
-		if err != nil {
-			return serrors.FromDB(opCall, err)
+		// No slot (or a wait already pending): wait, then check again with the next occurrence.
+		if err := x.nr.Sleep(ctx, "slot", n, time.Second); err != nil {
+			return err
 		}
-		if running < per {
-			return nil
-		}
-		return x.nr.Sleep(ctx, "slot", n, time.Second)
 	}
 	return nil
+}
+
+func (x *callExec) acquire(ctx context.Context) (bool, error) {
+	acquired := false
+	err := pgx.BeginFunc(ctx, x.c.r.cfg.DB, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "automation.call|"+x.req.TenantID.String()); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM automation.call_slots s WHERE s.tenant_id = $1 AND s.instance_id <> $2 AND NOT EXISTS (
+				SELECT 1 FROM extruntime.workflow_instances i
+				WHERE i.id = s.instance_id AND i.status = 'running' AND i.lease_until > now())`, x.req.TenantID, x.nr.Instance().ID); err != nil {
+			return err
+		}
+		var taken int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.call_slots WHERE tenant_id = $1 AND instance_id <> $2`,
+			x.req.TenantID, x.nr.Instance().ID).Scan(&taken); err != nil {
+			return err
+		}
+		if taken >= x.c.r.cfg.CallLimits.PerTenant {
+			return nil
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO automation.call_slots (tenant_id, instance_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+			x.req.TenantID, x.nr.Instance().ID)
+		acquired = err == nil
+		return err
+	})
+	if err != nil {
+		return false, &host.InfraError{Err: serrors.FromDB(opCall, err)}
+	}
+	return acquired, nil
+}
+
+// release gives the call's slot back.
+func (x *callExec) release(ctx context.Context) {
+	if _, err := x.c.r.cfg.DB.Exec(context.WithoutCancel(ctx), `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`,
+		x.req.TenantID, x.nr.Instance().ID); err != nil {
+		x.c.r.cfg.Logger.Warn("automation: a call slot was not released; it expires with the call", "error", err)
+	}
 }
 
 // correlation issues the ask's correlation token once (a journaled transaction): it points at the
@@ -448,6 +483,12 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 			// connection is now.
 			conn = &openConnection{masker: code.NewMasker(nil)}
 		}
+	}
+	if !done || o.Status == workflow.OccStarted {
+		if err := x.slot(ctx); err != nil {
+			return callRecord{}, err
+		}
+		defer x.release(ctx)
 	}
 	raw, err := x.nr.Effect(ctx, "call", k, func(ctx context.Context, a workflow.EffectAttempt) (json.RawMessage, error) {
 		rec, err := x.execute(ctx, cn, k, a, conn, token, afterSeq)
@@ -549,6 +590,9 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 				return x.unknown(msg)
 			case ce.Code == catalog.CallRateLimited:
 				return x.repeat(k, 0, limits, CodeRateLimited, msg)
+			case clientRefusal(ce.Code):
+				// A refusal of the request itself: repeating it gives the same answer.
+				return callRecord{Kind: "failed", Code: ce.Code, Message: msg}, nil
 			case ce.Retryable && idempotent:
 				return x.repeat(k, 0, limits, ce.Code, msg)
 			}
@@ -615,6 +659,16 @@ func (x *callExec) repeat(k int, retryAfter time.Duration, limits CallLimits, co
 		return callRecord{Kind: "failed", Code: code, Message: msg, Retryable: true}, nil
 	}
 	return callRecord{Kind: "retry", AfterMS: d.Milliseconds()}, nil
+}
+
+// clientRefusal reports a CallError code the provider gives for the request itself (4xx except 429):
+// it is never repeated automatically.
+func clientRefusal(code string) bool {
+	switch code {
+	case catalog.CallInvalidRequest, catalog.CallUnauthorized, catalog.CallRejected, CodeForbidden, CodeInvalidInput:
+		return true
+	}
+	return false
 }
 
 func nonNilMap(m map[string]any) map[string]any {

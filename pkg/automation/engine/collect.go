@@ -61,6 +61,20 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 	if at.IsZero() {
 		at = time.Now()
 	}
+	// A window whose deadline passed before this event (its flush was late: a restart, a backlog) is
+	// closed into its run first; the event opens a new one.
+	var deadline time.Time
+	err = tx.QueryRow(ctx, `SELECT deadline FROM automation.inbound_collect WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND collect_key = $4 FOR UPDATE`,
+		ev.TenantID, t.automationID, t.triggerID, key).Scan(&deadline)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return &host.InfraError{Err: serrors.FromDB(opCollect, err)}
+	case !deadline.After(at):
+		if err := r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key); err != nil {
+			return err
+		}
+	}
 	var count int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.inbound_collect (tenant_id, automation_id, version, trigger_id, collect_key, events, count, first_at, deadline)
