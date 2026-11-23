@@ -31,6 +31,9 @@ type kernelOptions struct {
 	wallClock      time.Duration
 	workdirQuota   int64
 	workdirEntries int64
+	// supervised: a supervisor enforces the quota at allocation time, so the
+	// polling watcher is not started.
+	supervised     bool
 	workdir        string
 	nsReset        bool
 	filesPreserved bool
@@ -77,6 +80,7 @@ type activeExec struct {
 	stop    pykernel.TerminationReason
 	errType string
 	err     *pykernel.ExecError
+	quota   bool // the supervisor refused an allocation of this exec
 	dropped int
 	nsReset bool
 	files   bool
@@ -132,7 +136,7 @@ func (k *kernel) start() {
 		k.onServeExit()
 		close(k.serveDone)
 	}()
-	if k.opts.workdirQuota > 0 {
+	if k.opts.workdirQuota > 0 && !k.opts.supervised {
 		go k.watchQuota()
 	}
 	// The stream ends when the process dies, whatever the read loop is doing
@@ -207,6 +211,27 @@ func (k *kernel) leaseForReuse(fresh bool) (bool, error) {
 	k.leases++
 	return fresh && k.execs > 0, nil
 }
+
+// noteQuota records that the supervisor refused an allocation of the
+// running exec, so its failure is reported as ReasonQuotaExceeded.
+func (k *kernel) noteQuota() {
+	k.mu.Lock()
+	if k.active != nil {
+		k.active.quota = true
+	}
+	k.mu.Unlock()
+}
+
+// activity reports whether no exec runs, how many have run, and when the
+// kernel was last active.
+func (k *kernel) activity() (bool, int, time.Time) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.active == nil, k.execs, k.lastActive
+}
+
+// killIdle kills a kernel that keeps working while no exec runs.
+func (k *kernel) killIdle() { _ = k.proc.Kill() }
 
 // markReset records a namespace reset the kernel has been told to perform.
 func (k *kernel) markReset() {
@@ -340,6 +365,8 @@ func (k *kernel) donePayloadLocked(a *activeExec, base *pykernel.DonePayload, ex
 		// A host-initiated stop wins even when the code swallowed the
 		// interrupt and returned normally.
 		d.Reason = a.stop
+	case a.quota && a.errType != "":
+		d.Reason = pykernel.ReasonQuotaExceeded
 	case a.errType == "":
 		d.Reason = pykernel.ReasonCompleted
 	case a.errType == "KernelCancelled":

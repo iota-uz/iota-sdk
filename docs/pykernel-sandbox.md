@@ -10,10 +10,10 @@ verify it on its own hosts.
 | Area | Guarantee | Mechanism |
 |---|---|---|
 | Files | Writes only its session workdir; reads only the Python runtime (stdlib, site-packages, interpreter), shared libraries, `/etc/ld.so.cache`, `/etc/localtime`, zoneinfo, `/dev/null`, `/dev/zero`, `/dev/urandom` and the host's `Profile.ReadPaths`. No `/proc`, `$HOME`, `/data`, `/tmp`, `/etc/passwd`, application binary or config. No other session's workdir is reachable, and a read rule that contains the workdir is refused. `execve` of a file written to the workdir is refused; native code loaded with `ctypes` is not a boundary (Python itself can already make any syscall) — it runs under the same Landlock and seccomp. | Landlock (ABI ≥ 6) |
-| Network | No socket of any family can be created (TCP, UDP, raw, packet, netlink, unix). TCP bind/connect is also denied by Landlock; abstract unix sockets are scoped. The only channel to the host is the inherited bridge fd. | seccomp + Landlock |
+| Network | No socket of any family can be created (TCP, UDP, raw, packet, netlink, unix). Only an in-process `socketpair` is possible, and every address-bearing socket call is refused (`connect`, `bind`, `listen`, `accept`, `sendmsg`, `sendto` with an address), so no pathname or abstract unix endpoint is reachable. TCP bind/connect is also denied by Landlock; abstract unix sockets are scoped. The only channel to the host is the inherited bridge fd. | seccomp + Landlock |
 | Environment | Explicit allowlist (`Config.EnvAllowlist` + `ExtraEnv`); no DSN, S3 key, OIDC secret. Only fds 0–2 and the bridge are open. Data comes only through capabilities, which run in the host with the Session's tenant (and `CallContextBinder` identity) on every call. | host |
 | Privileges | `no_new_privs`, empty capability set, never uid 0. Refused: `ptrace`, `process_vm_*`, `mount`, `unshare`/`setns`/namespace `clone`, `clone3`, `bpf`, `keyctl`/`add_key`, `perf_event_open`, `io_uring_*`, `setsid`/`setpgid`, kexec/modules/swap/reboot/clock/hostname. Signals cannot leave the sandbox. A foreign syscall ABI (x32, 32-bit) kills the process. | seccomp + Landlock scope |
-| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap; workdir quota (bytes and entries, measured for the kernel's whole life, also between execs); output cap with explicit truncation flags. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host |
+| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap, armed before the code is sent; workdir quota in bytes and entries enforced at allocation time — every file write, extension and entry creation is approved by the host before it happens (seccomp user notification), including writes to unlinked files still held open, and fails with `EDQUOT` past the quota; `fallocate`, path `truncate` and AIO are refused; output cap with explicit truncation flags. A kernel that keeps using CPU while no exec runs (work continuing after a worker-reported done) is killed. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host supervisor |
 | Cancel | Cancelling an exec, its timeout or a quota stop cancel the context of running capability calls (nested SQL/tools) at once, interrupt the code, and free the slot. A capability call that does not belong to the running exec (a thread that outlived it) is refused. | host |
 
 ## Fail closed
@@ -22,7 +22,9 @@ verify it on its own hosts.
 starts a real child with the configured interpreter and limits, which applies
 the sandbox and probes it (`isolation.Check`). If any boundary in
 `isolation.RequiredBoundaries` is missing, `New` returns an error wrapping
-`isolation.ErrIsolationUnavailable` with the list. Every spawned kernel repeats
+`isolation.ErrIsolationUnavailable` with the list; an unknown `Mode` value is
+an error too. Notifications from the interpreter (output, `exec.done`) are
+untrusted: they never stop the host's timers, quota supervisor or idle guard. Every spawned kernel repeats
 the report in its `kernel.ready` handshake and is refused unless every
 required boundary is in force.
 
@@ -44,6 +46,8 @@ report := m.Isolation() // report.Err() == nil, report.Verified == true
 
 `isolation.Profile{Mode: isolation.ModeInsecureDisabled}` turns the sandbox
 off for development on macOS or old kernels. Never use it for real input.
+`execute.NewRunner` refuses a Manager whose `Isolation()` report is not
+complete and verified unless `InsecureAllowUnconfinedRuntime` is set.
 
 Requirements: Linux with Landlock ABI ≥ 6 (kernel 6.12+) in the LSM list,
 seccomp, CPython with `ctypes`. Namespaces, `bwrap` and `nsjail` are not used,
@@ -64,9 +68,11 @@ reparented to it.
   `RunAs` uid share that budget: a fork bomb in one kernel is contained (it
   cannot hurt the host and is killed with its kernel), but until then other
   kernels of the uid may fail to start threads.
-- The quota sees files in the workdir tree. Data written to files that were
-  unlinked while open is bounded only by `FileSizeBytes` × `MaxOpenFiles`;
-  put the workdirs on a dedicated volume.
+- The quota supervisor reads `/proc` of the kernel's tasks and, for
+  `writev`-style calls, their memory (Yama `ptrace_scope` ≤ 1). Where it cannot,
+  the call fails (`EPERM`) instead of running unmetered.
+- The restart record lives next to the workdir (`.<name>.pykernel`); remove it
+  with the workdir.
 - `FreshNamespace` clears the user's names and reinstalls capabilities; process
   state (threads, imported and patched modules, `os.environ`, children) stays
   with the process. Use the ephemeral policy when no state may carry over.

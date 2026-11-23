@@ -232,12 +232,16 @@ const (
 	BoundaryRlimits Boundary = "rlimits"
 	// BoundaryNPROC: the kernel runs as a uid for which RLIMIT_NPROC holds.
 	BoundaryNPROC Boundary = "nproc"
+	// BoundaryWorkdirQuota: every file write, extension and entry creation is
+	// approved by the host against the workdir quota before it happens
+	// (seccomp user notification), counting unlinked files still held open.
+	BoundaryWorkdirQuota Boundary = "workdir_quota"
 )
 
 // RequiredBoundaries is the full set a confined kernel must have.
 var RequiredBoundaries = []Boundary{
 	BoundaryNoNewPrivs, BoundaryNoCapabilities, BoundaryLandlockFS, BoundaryLandlockNet,
-	BoundaryLandlockScope, BoundarySeccomp, BoundaryRlimits, BoundaryNPROC,
+	BoundaryLandlockScope, BoundarySeccomp, BoundaryRlimits, BoundaryNPROC, BoundaryWorkdirQuota,
 }
 
 // BoundaryStatus is whether one boundary is in force, with the reason.

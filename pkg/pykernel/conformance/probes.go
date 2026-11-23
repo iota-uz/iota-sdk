@@ -9,10 +9,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/pykernel"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 )
 
 // prelude is prepended to every Python probe. CFG is set before it.
@@ -94,7 +97,9 @@ var probes = []probe{
 	{"memory_exhaustion", probeMemory},
 	{"fork_bomb", probeForkBomb},
 	{"workdir_quota", probeQuota},
+	{"workdir_quota_unlinked_files", probeQuotaUnlinked},
 	{"workdir_quota_after_exec", probeQuotaAfterExec},
+	{"forged_exec_done", probeForgedDone},
 	{"capability_outside_exec", probeCapabilityOutsideExec},
 	{"cancel_reaches_capability", probeCancel},
 	{"timeout_reaches_capability", probeTimeout},
@@ -457,23 +462,76 @@ while True:
 	})
 }
 
-func probeQuota(ctx context.Context, r *runner) Result {
-	return r.withKernel(ctx, "quota", nil, func(k pykernel.Kernel, s *session) Result {
-		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, `
+// quotaFill writes 1 MiB chunks into new files (each below RLIMIT_FSIZE)
+// until a write fails, and reports how far it got.
+const quotaFill = `
 import resource
 fsize = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
 per_file = min(64 << 20, fsize if fsize != resource.RLIM_INFINITY else 64 << 20)
 chunk = b"\0" * (1 << 20)
-written, n = 0, 0
-while written < CFG["max"]:
-    with open(os.path.join(CFG["workdir"], "fill-%d" % n), "wb") as f:
-        size = 0
-        while size + len(chunk) <= per_file and written < CFG["max"]:
-            f.write(chunk)
-            size += len(chunk)
-            written += len(chunk)
-    n += 1
-report("writing past the quota is stopped", False, "wrote %d bytes" % written)
+def fill(prefix, unlink=False):
+    written, n = 0, 0
+    try:
+        while written < CFG["max"]:
+            path = os.path.join(CFG["workdir"], "%s-%d" % (prefix, n))
+            f = open(path, "wb", buffering=0)
+            if unlink:
+                os.unlink(path)  # the data stays on disk while f is open
+                held.append(f)
+            size = 0
+            while size + len(chunk) <= per_file and written < CFG["max"]:
+                f.write(chunk)
+                size += len(chunk)
+                written += len(chunk)
+            if not unlink:
+                f.close()
+            n += 1
+    except OSError as e:
+        return written, e.errno
+    return written, 0
+held = []
+`
+
+func (r *runner) quotaLimit() int64 {
+	if l, ok := r.opts.Manager.(interface {
+		Limits() isolation.ResourceLimits
+	}); ok {
+		return l.Limits().WorkdirBytes
+	}
+	return 0
+}
+
+func usageOf(dir string) int64 {
+	var total int64
+	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+		if err == nil && info.Mode().IsRegular() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
+}
+
+func (r *runner) quotaChecks(written int64, workdir string) []Check {
+	limit := r.quotaLimit()
+	if limit == 0 {
+		return []Check{{Name: "the Manager reports its quota", Detail: "Limits() unavailable"}}
+	}
+	return []Check{
+		{Name: "the workdir never exceeds the quota", OK: usageOf(workdir) <= limit,
+			Detail: fmt.Sprintf("usage %d, quota %d", usageOf(workdir), limit)},
+		{Name: "no write beyond the quota was accepted", OK: written <= limit,
+			Detail: fmt.Sprintf("written %d, quota %d", written, limit)},
+	}
+}
+
+func probeQuota(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "quota", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, quotaFill+`
+written, err = fill("fill")
+report("a write past the quota fails with EDQUOT", err == errno.EDQUOT, "written %d, errno %s" % (written, err))
+print("WRITTEN %d" % written)
+raise OSError(err, "quota")
 `, r.opts.ProbeTimeout)
 		if err != nil {
 			return Result{Error: err.Error()}
@@ -481,6 +539,99 @@ report("writing past the quota is stopped", False, "wrote %d bytes" % written)
 		res := Result{Checks: o.checks}
 		res.Checks = append(res.Checks, Check{Name: "the exec ends with reason quota_exceeded",
 			OK: o.done != nil && o.done.Reason == pykernel.ReasonQuotaExceeded, Detail: reasonOf(o.done)})
+		res.Checks = append(res.Checks, r.quotaChecks(writtenOf(o.stdout), s.workdir)...)
+		return res
+	})
+}
+
+func probeQuotaUnlinked(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "quota-unlinked", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, quotaFill+`
+written, err = fill("hidden", unlink=True)
+report("writes to unlinked open files count against the quota", err == errno.EDQUOT, "written %d, errno %s" % (written, err))
+print("WRITTEN %d" % written)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		res.Checks = append(res.Checks, r.quotaChecks(writtenOf(o.stdout), s.workdir)...)
+		return res
+	})
+}
+
+func writtenOf(stdout string) int64 {
+	for _, line := range strings.Split(stdout, "\n") {
+		if v, ok := strings.CutPrefix(line, "WRITTEN "); ok {
+			n, _ := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+			return n
+		}
+	}
+	return -1
+}
+
+func probeQuotaAfterExec(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "quota-after", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, quotaFill+`
+import threading
+def bg():
+    global bg_state
+    bg_state = fill("bg")
+threading.Thread(target=bg, daemon=True).start()
+report("exec returned while a thread keeps writing", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		// Either the writer hits the quota, or the idle guard kills a kernel
+		// that keeps working after its exec ended. Both hold the quota.
+		var outcome string
+		eventually(r.opts.ProbeTimeout, func() bool {
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "print('STATE', globals().get('bg_state'))", Timeout: 5 * time.Second})
+			if err != nil {
+				outcome = "killed"
+				return errors.Is(err, pykernel.ErrKernelDisposed)
+			}
+			out := collect(ch).stdout
+			if !strings.Contains(out, "STATE None") {
+				outcome = strings.TrimSpace(out)
+				return true
+			}
+			time.Sleep(200 * time.Millisecond)
+			return false
+		})
+		ok := outcome == "killed" || strings.HasSuffix(outcome, fmt.Sprintf(", %d)", syscall.EDQUOT))
+		res.Checks = append(res.Checks, Check{Name: "a writer between execs hits the quota or its kernel is killed", OK: ok, Detail: outcome})
+		res.Checks = append(res.Checks, Check{Name: "the workdir never exceeds the quota", OK: r.quotaLimit() > 0 && usageOf(s.workdir) <= r.quotaLimit(),
+			Detail: fmt.Sprintf("usage %d, quota %d", usageOf(s.workdir), r.quotaLimit())})
+		return res
+	})
+}
+
+func probeForgedDone(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "forged-done", nil, func(k pykernel.Kernel, s *session) Result {
+		ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: `
+import __main__
+# The interpreter owns the bridge: claim the exec is done, then keep working.
+__main__._notify("exec.done", {"exec_id": __main__._current_exec})
+while True:
+    pass
+`, Timeout: r.opts.ProbeTimeout})
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		o := collect(ch)
+		res := Result{Checks: []Check{{Name: "the forged done ends the stream", OK: o.done != nil, Detail: reasonOf(o.done)}}}
+		killed := eventually(15*time.Second, func() bool {
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1", Timeout: time.Second})
+			if err == nil {
+				collect(ch)
+				return false
+			}
+			return errors.Is(err, pykernel.ErrKernelDisposed)
+		})
+		res.Checks = append(res.Checks, Check{Name: "a kernel that keeps running after its exec ended is killed", OK: killed})
 		return res
 	})
 }
@@ -631,43 +782,6 @@ denied("list another session's workdir", lambda: os.listdir(CFG["dir"]))
 denied("read another session's file", lambda: read(CFG["file"]))
 denied("write into another session's workdir", lambda: write(os.path.join(CFG["dir"], "planted")))
 `)
-}
-
-func probeQuotaAfterExec(ctx context.Context, r *runner) Result {
-	return r.withKernel(ctx, "quota-after", nil, func(k pykernel.Kernel, s *session) Result {
-		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, `
-import threading, resource
-fsize = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
-per_file = min(64 << 20, fsize if fsize != resource.RLIM_INFINITY else 64 << 20)
-def fill():
-    chunk, written, n = b"\0" * (1 << 20), 0, 0
-    while written < CFG["max"]:
-        with open(os.path.join(CFG["workdir"], "bg-%d" % n), "wb") as f:
-            size = 0
-            while size + len(chunk) <= per_file and written < CFG["max"]:
-                f.write(chunk)
-                size += len(chunk)
-                written += len(chunk)
-        n += 1
-threading.Thread(target=fill, daemon=True).start()
-report("exec returned while a thread keeps writing", True)
-`, r.opts.ProbeTimeout)
-		if err != nil {
-			return Result{Error: err.Error()}
-		}
-		res := Result{Checks: o.checks}
-		stopped := eventually(r.opts.ProbeTimeout, func() bool {
-			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1"})
-			if err == nil {
-				collect(ch) // still alive: finish this exec and look again
-				time.Sleep(200 * time.Millisecond)
-				return false
-			}
-			return errors.Is(err, pykernel.ErrKernelDisposed)
-		})
-		res.Checks = append(res.Checks, Check{Name: "a kernel writing past the quota between execs is stopped", OK: stopped})
-		return res
-	})
 }
 
 func probeCapabilityOutsideExec(ctx context.Context, r *runner) Result {

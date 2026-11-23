@@ -486,8 +486,13 @@ def _confine(sock_fd):
         spec = importlib.util.spec_from_file_location("pykernel_sandbox", os.path.join(here, "sandbox.py"))
         sandbox = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sandbox)
-        return sandbox.apply(json.loads(raw), keep_fds=(sock_fd,)).as_dict()
     except Exception as exc:  # report, never run unconfined by accident
+        os.write(sock_fd, b"X")  # the host expects the supervisor byte first
+        return {"error": "sandbox: %s: %s" % (type(exc).__name__, exc), "missing": ["sandbox"]}
+    try:
+        # apply writes the supervisor byte to the bridge in every case.
+        return sandbox.apply(json.loads(raw), keep_fds=(sock_fd,), bridge_fd=sock_fd).as_dict()
+    except Exception as exc:
         return {"error": "sandbox: %s: %s" % (type(exc).__name__, exc), "missing": ["sandbox"]}
 
 

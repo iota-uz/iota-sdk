@@ -48,6 +48,7 @@ BOUNDARIES = (
     "seccomp",
     "rlimits",
     "nproc",
+    "workdir_quota",
 )
 
 MIN_LANDLOCK_ABI = 6
@@ -103,6 +104,31 @@ _SECCOMP_FILTER_FLAG_TSYNC = 1
 _SECCOMP_RET_KILL_PROCESS = 0x80000000
 _SECCOMP_RET_ERRNO = 0x00050000
 _SECCOMP_RET_ALLOW = 0x7FFF0000
+_SECCOMP_RET_USER_NOTIF = 0x7FC00000
+_SECCOMP_FILTER_FLAG_NEW_LISTENER = 1 << 3
+_O_CREAT = 0o100
+
+# Calls the host supervisor approves against the workdir quota (bytes and
+# entries). fd_gated: notified only for fd >= 4 (stdio and the bridge pass);
+# always: always notified; creat_flag: notified when the flags argument at the
+# given index has O_CREAT.
+_QUOTA_CALLS = {
+    "x86_64": {
+        "fd_gated": [1, 18, 20, 296, 328],          # write pwrite64 writev pwritev pwritev2
+        "always": [77, 326, 40, 275,                # ftruncate copy_file_range sendfile splice
+                   85, 437, 83, 258, 133, 259,      # creat openat2 mkdir mkdirat mknod mknodat
+                   86, 265, 88, 266],               # link linkat symlink symlinkat
+        "creat_flag": [(2, 1), (257, 2)],           # open(flags=arg1) openat(flags=arg2)
+        # Allocation paths the supervisor cannot meter are refused.
+        "refuse": {"fallocate": (285, 95), "truncate": (76, 1), "io_setup": (206, 1), "io_submit": (209, 1)},
+    },
+    "aarch64": {
+        "fd_gated": [64, 68, 66, 70, 287],
+        "always": [46, 285, 71, 76, 437, 34, 33, 37, 36],
+        "creat_flag": [(56, 2)],
+        "refuse": {"fallocate": (47, 95), "truncate": (45, 1), "io_setup": (0, 1), "io_submit": (2, 1)},
+    },
+}
 
 _BPF_LD_W_ABS = 0x20
 _BPF_JEQ_K = 0x15
@@ -477,6 +503,8 @@ def _seccomp_program(arch):
         ]
     rules = [(nr, eperm) for nr in sorted(set(spec["deny"].values()))]
     rules.append((spec["socket"], _SECCOMP_RET_ERRNO | errno.EACCES))
+    for nr, err in _QUOTA_CALLS[arch]["refuse"].values():
+        rules.append((nr, _SECCOMP_RET_ERRNO | err))
     rules.append((spec["clone3"], _SECCOMP_RET_ERRNO | errno.ENOSYS))
     for nr, action in rules:
         prog += [
@@ -525,6 +553,73 @@ def _seccomp(arch, report):
     report.set("seccomp", True, "%d-instruction filter installed" % len(prog))
 
 
+def _quota_program(arch):
+    spec = _ARCHES[arch]
+    calls = _QUOTA_CALLS[arch]
+    prog = [
+        (_BPF_LD_W_ABS, 0, 0, _OFF_ARCH),
+        (_BPF_JEQ_K, 1, 0, spec["audit"]),
+        (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),  # the main filter kills foreign ABIs
+        (_BPF_LD_W_ABS, 0, 0, _OFF_NR),
+    ]
+    for nr in calls["fd_gated"]:
+        prog += [
+            (_BPF_JEQ_K, 0, 4, nr),
+            (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0),
+            (_BPF_JGE_K, 0, 1, 4),
+            (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
+            (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
+        ]
+    for nr in calls["always"]:
+        prog += [
+            (_BPF_JEQ_K, 0, 1, nr),
+            (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
+        ]
+    for nr, arg in calls["creat_flag"]:
+        prog += [
+            (_BPF_JEQ_K, 0, 4, nr),
+            (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0 + 8 * arg),
+            (_BPF_JSET_K, 0, 1, _O_CREAT),
+            (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
+            (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
+        ]
+    prog.append((_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW))
+    return prog
+
+
+def _quota_supervision(arch, report, bridge_fd):
+    """Install the user-notification filter and hand its listener to the host
+    over the bridge (one byte "N" with SCM_RIGHTS). Must run before the main
+    filter, which refuses sendmsg. Without a bridge (probe) the listener is
+    only created and closed."""
+    prog = _quota_program(arch)
+    filters = (_SockFilter * len(prog))(*[_SockFilter(*ins) for ins in prog])
+    fprog = _SockFprog(len(prog), filters)
+    try:
+        lfd = _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _SECCOMP_FILTER_FLAG_NEW_LISTENER, ctypes.addressof(fprog))
+    except OSError as exc:
+        report.set("workdir_quota", False, "seccomp user notification: %s" % exc)
+        return False
+    try:
+        if bridge_fd is None:
+            report.set("workdir_quota", True, "seccomp user notification available")
+            return False
+        import socket
+
+        s = socket.socket(fileno=os.dup(bridge_fd))
+        try:
+            socket.send_fds(s, [b"N"], [lfd])
+        finally:
+            s.close()
+        report.set("workdir_quota", True, "file writes and entry creation are approved by the host")
+        return True
+    except OSError as exc:
+        report.set("workdir_quota", False, "hand the listener to the host: %s" % exc)
+        return False
+    finally:
+        os.close(lfd)
+
+
 # --- Verification --------------------------------------------------------
 
 def _expect_denied(fn):
@@ -560,29 +655,42 @@ def _verify(arch, report, root_listable):
             report.set("no_new_privs", False, "prctl: %s" % exc)
 
 
-def apply(cfg, keep_fds=()):
+def apply(cfg, keep_fds=(), bridge_fd=None):
     """Confine the current process according to cfg and return the report.
 
     Call it from the main thread before any other thread starts: Landlock
     applies to the calling thread and the threads and processes it creates
     afterwards.
+
+    With bridge_fd, exactly one byte is written to it before any frame: "N"
+    carrying the quota supervisor's listener, or "X" when there is none.
     """
     report = _Report()
+    sent = False
+    try:
+        sent = _apply(cfg, keep_fds, bridge_fd, report)
+    finally:
+        if bridge_fd is not None and not sent:
+            os.write(bridge_fd, b"X")
+    return report
+
+
+def _apply(cfg, keep_fds, bridge_fd, report):
     if not sys.platform.startswith("linux"):
         for b in BOUNDARIES:
             report.set(b, False, "sandbox requires Linux (got %s)" % sys.platform)
-        return report
+        return False
     arch = _arch()
     if arch is None:
         for b in BOUNDARIES:
             report.set(b, False, "unsupported architecture %s" % platform.machine())
-        return report
+        return False
     try:
         _lib()
     except OSError as exc:
         for b in BOUNDARIES:
             report.set(b, False, "libc via ctypes unavailable: %s" % exc)
-        return report
+        return False
 
     try:
         os.listdir("/")
@@ -594,14 +702,16 @@ def apply(cfg, keep_fds=()):
     _apply_rlimits(cfg, report)
     _drop_capabilities(arch, report)
     _no_new_privs(report)
+    sent = False
     if report.boundaries["no_new_privs"]["enabled"]:
         _landlock(cfg, report)
+        sent = _quota_supervision(arch, report, bridge_fd)
         _seccomp(arch, report)
     else:
-        for b in ("landlock_fs", "landlock_net", "landlock_scope", "seccomp"):
+        for b in ("landlock_fs", "landlock_net", "landlock_scope", "seccomp", "workdir_quota"):
             report.set(b, False, "requires no_new_privs")
     _verify(arch, report, root_listable)
-    return report
+    return sent
 
 
 def _probe():

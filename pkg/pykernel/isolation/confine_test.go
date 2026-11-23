@@ -25,7 +25,9 @@ func TestParseChildReport_ListsMissingBoundaries(t *testing.T) {
 	for _, m := range rep.Missing() {
 		missing = append(missing, m.Boundary)
 	}
-	assert.Equal(t, []isolation.Boundary{isolation.BoundaryLandlockFS, isolation.BoundaryLandlockNet, isolation.BoundaryLandlockScope}, missing)
+	assert.Equal(t, []isolation.Boundary{
+		isolation.BoundaryLandlockFS, isolation.BoundaryLandlockNet, isolation.BoundaryLandlockScope, isolation.BoundaryWorkdirQuota,
+	}, missing)
 
 	err = rep.Err()
 	require.Error(t, err)

@@ -233,3 +233,87 @@ func TestAcquire_RefusesWorkdirOverEntryQuota(t *testing.T) {
 	_, err = m.Acquire(context.Background(), testSess("full", wd))
 	require.ErrorIs(t, err, pykernel.ErrWorkdirQuota)
 }
+
+func TestNew_RejectsUnknownSandboxMode(t *testing.T) {
+	t.Parallel()
+	_, err := New(Config{Policy: lifecycle.Ephemeral(), Sandbox: isolation.Profile{Mode: isolation.Mode(42)}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown sandbox mode")
+}
+
+// slowLauncher holds every launch until release is closed, so concurrent
+// Acquires are all in their spawn at once.
+type slowLauncher struct {
+	fakeLauncher
+	started chan struct{}
+	release chan struct{}
+}
+
+func (l *slowLauncher) Launch(ctx context.Context, spec isolation.SandboxSpec) (isolation.Process, error) {
+	l.started <- struct{}{}
+	<-l.release
+	return l.fakeLauncher.Launch(ctx, spec)
+}
+
+func TestAcquire_ConcurrentSpawnsRespectMaxParallel(t *testing.T) {
+	t.Parallel()
+	l := &slowLauncher{started: make(chan struct{}, 8), release: make(chan struct{})}
+	m, err := New(Config{
+		Policy: lifecycle.WarmPool(time.Hour, 2), Launcher: l,
+		Sandbox: isolation.Profile{Mode: isolation.ModeInsecureDisabled}, DisposeGrace: 100 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
+
+	errs := make(chan error, 4)
+	for i := 0; i < 4; i++ {
+		go func(i int) {
+			_, err := m.Acquire(context.Background(), testSess(fmt.Sprintf("k%d", i), t.TempDir()))
+			errs <- err
+		}(i)
+	}
+	<-l.started
+	<-l.started
+	// Two spawns hold both slots; the other two must be refused, not launched.
+	var exhausted int
+	for i := 0; i < 2; i++ {
+		require.ErrorIs(t, <-errs, pykernel.ErrPoolExhausted)
+		exhausted++
+	}
+	close(l.release)
+	for i := 0; i < 2; i++ {
+		require.NoError(t, <-errs)
+	}
+	assert.Equal(t, 2, exhausted)
+	assert.Len(t, l.started, 0, "no third launch happened")
+}
+
+func TestSpawn_RestartRecordIsHostOwned(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	wd := filepath.Join(root, "session")
+	m := newFakeManager(t, lifecycle.Ephemeral())
+
+	k, err := m.Acquire(context.Background(), testSess("s1", wd))
+	require.NoError(t, err)
+	assert.False(t, k.Info().NamespaceReset)
+	require.NoError(t, m.Release(k))
+	_, err = os.Stat(filepath.Join(root, ".session.pykernel"))
+	require.NoError(t, err, "the record lives next to the workdir, out of the kernel's reach")
+
+	// The kernel wiping its own state directory changes nothing.
+	require.NoError(t, os.RemoveAll(filepath.Join(wd, stateDir)))
+	k, err = m.Acquire(context.Background(), testSess("s2", wd))
+	require.NoError(t, err)
+	assert.True(t, k.Info().NamespaceReset)
+	assert.True(t, k.Info().FilesPreserved)
+	require.NoError(t, m.Release(k))
+
+	// A recreated workdir is a reset without preserved files.
+	require.NoError(t, os.RemoveAll(wd))
+	k, err = m.Acquire(context.Background(), testSess("s3", wd))
+	require.NoError(t, err)
+	assert.True(t, k.Info().NamespaceReset)
+	assert.False(t, k.Info().FilesPreserved)
+	require.NoError(t, m.Release(k))
+}

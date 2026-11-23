@@ -166,6 +166,9 @@ func New(cfg Config) (*Manager, error) {
 // Manager). A consumer enables untrusted execution only when its Err is nil.
 func (m *Manager) Isolation() isolation.Report { return m.report }
 
+// Limits returns the resource caps every kernel of this Manager gets.
+func (m *Manager) Limits() isolation.ResourceLimits { return m.cfg.Limits }
+
 func (m *Manager) confined() bool { return m.cfg.Sandbox.Mode == isolation.ModeRequired }
 
 func (m *Manager) cleanup() {
@@ -552,7 +555,21 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		return nil, err
 	}
 
+	listener := -1
+	if m.confined() {
+		// The kernel's first byte carries the quota supervisor's listener.
+		if listener, err = recvListener(hostConn, m.cfg.Sandbox.StartTimeout); err != nil || listener < 0 {
+			_ = proc.Kill()
+			_ = hostConn.Close()
+			_ = proc.Wait()
+			if err == nil {
+				err = errors.New("kernel did not hand over the quota supervisor")
+			}
+			return nil, fmt.Errorf("pykernel/manager: %w: %w", isolation.ErrIsolationUnavailable, err)
+		}
+	}
 	k := newKernel(sess, proc, bridge.New(hostConn), kernelOptions{
+		supervised:     m.confined(),
 		outputCap:      m.cfg.DefaultOutputCap,
 		grace:          m.cfg.DisposeGrace,
 		wallClock:      m.cfg.Limits.WallClock,
@@ -562,6 +579,12 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		nsReset:        seen || ranBefore,
 		filesPreserved: filesPreserved,
 	})
+	if m.confined() {
+		if err := startSupervisor(k, listener, m.runAs()); err != nil {
+			_ = k.Dispose(context.Background())
+			return nil, fmt.Errorf("pykernel/manager: %w: quota supervisor: %w", isolation.ErrIsolationUnavailable, err)
+		}
+	}
 	k.start()
 	if m.confined() {
 		if err := m.awaitReady(ctx, k); err != nil {

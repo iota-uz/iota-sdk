@@ -18,6 +18,7 @@ import (
 const (
 	landlockCreateRulesetVersion = 1
 	seccompGetActionAvail        = 2
+	seccompGetNotifSizes         = 3
 	seccompRetKillProcess        = 0x80000000
 	seccompRetErrno              = 0x00050000
 )
@@ -62,6 +63,12 @@ func hostReport(p Profile) Report {
 	}
 	set(BoundarySeccomp, seccompOK, seccompDetail)
 	set(BoundaryRlimits, true, "setrlimit/prlimit available")
+	var sizes [3]uint16
+	if _, _, e := unix.Syscall(unix.SYS_SECCOMP, seccompGetNotifSizes, 0, uintptr(unsafe.Pointer(&sizes))); e != 0 {
+		set(BoundaryWorkdirQuota, false, "seccomp user notification unavailable: "+e.Error())
+	} else {
+		set(BoundaryWorkdirQuota, true, "seccomp user notification available")
+	}
 
 	uid := uint32(os.Getuid())
 	if p.RunAs != nil {
