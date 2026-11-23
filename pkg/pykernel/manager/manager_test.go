@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/pykernel"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/lifecycle"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/manager"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/pykerneltest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,6 +42,7 @@ func newManager(t *testing.T) *manager.Manager {
 	t.Helper()
 	m, err := manager.New(manager.Config{
 		Policy:       lifecycle.Ephemeral(),
+		Sandbox:      pykerneltest.Sandbox(t),
 		EnvAllowlist: []string{"PATH"},
 		DisposeGrace: 2 * time.Second,
 	})

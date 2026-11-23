@@ -5,9 +5,12 @@ exposes host capabilities as callable Python functions, executes submitted code
 in a persistent namespace, and streams stdout/result/metric/log/done back over
 a length-prefixed JSON-RPC channel.
 
-All data access goes through capability calls over the socket: this process has
-no database credentials and (in production) no network egress, so importing a
-DB driver here is inert. The host enforces the plan/apply boundary and refuses a
+Before it reads any code from the host, the shim confines itself with the
+sandbox module that ships next to it (Landlock, seccomp, no_new_privs, rlimits;
+see pkg/pykernel/isolation) and reports what is in force in a kernel.ready
+frame. All data access goes through capability calls over the socket: this
+process has no database credentials and no network egress, so importing a DB
+driver here is inert. The host enforces the plan/apply boundary and refuses a
 write capability in plan mode by returning a JSON-RPC error whose data.type this
 shim raises as a Python exception at the call site.
 """
@@ -45,6 +48,8 @@ _worker_tid = None
 _exec_queue = _queue.Queue()
 _exc_types = {}
 _loop = None
+_cap_specs = []
+_RESET = object()
 
 
 # --- Framing -------------------------------------------------------------
@@ -331,6 +336,31 @@ def _run_code(exec_id, code, output_cap, separate_stderr):
     })
 
 
+def _install_capabilities():
+    for spec in _cap_specs:
+        proxy = _make_proxy(spec)
+        namespace = spec.get("namespace")
+        if namespace:
+            _ns.setdefault(namespace, types.SimpleNamespace())
+            setattr(_ns[namespace], spec["name"], proxy)
+        else:
+            _ns[spec["name"]] = proxy
+
+
+def _reset_namespace():
+    """Drop every user name and reinstall the capability proxies. Process
+    state (threads, imported modules, os.environ) and workdir files stay."""
+    global _loop
+    _ns.clear()
+    if _loop is not None:
+        try:
+            _loop.close()
+        except Exception:
+            pass
+        _loop = None
+    _install_capabilities()
+
+
 def _worker():
     global _worker_tid
     _worker_tid = threading.get_ident()
@@ -339,6 +369,9 @@ def _worker():
             item = _exec_queue.get()
             if item is None:
                 return
+            if item is _RESET:
+                _reset_namespace()
+                continue
             exec_id, code, output_cap, separate_stderr = item
             _run_code(exec_id, code, output_cap, separate_stderr)
         except KeyboardInterrupt:
@@ -413,6 +446,8 @@ def _reader():
                     limits.get("output_cap", 0),
                     bool(limits.get("separate_stderr")),
                 ))
+            elif method == "ns.reset":
+                _exec_queue.put(_RESET)
             elif method == "exec.cancel":
                 params = msg.get("params") or {}
                 _cancel_worker(params.get("exec_id"))
@@ -438,28 +473,58 @@ def _reader():
         _fail_pending("control socket closed")
 
 
+def _confine(sock_fd):
+    """Apply the host's sandbox configuration, if any, and return its report.
+    Runs in the main thread before any other thread exists."""
+    raw = os.environ.get("PYKERNEL_SANDBOX")
+    if not raw:
+        return None
+    import importlib.util
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    try:
+        spec = importlib.util.spec_from_file_location("pykernel_sandbox", os.path.join(here, "sandbox.py"))
+        sandbox = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sandbox)
+    except Exception as exc:  # report, never run unconfined by accident
+        os.write(sock_fd, b"X")  # the host expects the supervisor byte first
+        return {"error": "sandbox: %s: %s" % (type(exc).__name__, exc), "missing": ["sandbox"]}
+    try:
+        # apply writes the supervisor byte to the bridge in every case.
+        return sandbox.apply(json.loads(raw), keep_fds=(sock_fd,), bridge_fd=sock_fd).as_dict()
+    except Exception as exc:
+        return {"error": "sandbox: %s: %s" % (type(exc).__name__, exc), "missing": ["sandbox"]}
+
+
 def _main():
-    global _sock
+    global _sock, _cap_specs
     fd_env = os.environ.get("PYKERNEL_SOCKET_FD")
     if not fd_env:
         sys.stderr.write("pykernel: PYKERNEL_SOCKET_FD not set\n")
         sys.exit(1)
+    sock_fd = int(fd_env)
+
+    report = _confine(sock_fd)
+    _cap_specs = json.loads(os.environ.get("PYKERNEL_CAPABILITIES", "[]"))
+    for key in list(os.environ):
+        if key.startswith("PYKERNEL_"):
+            del os.environ[key]
 
     # The host passes the control socket as an inherited fd (no filesystem path,
     # so no sun_path length limit).
-    _sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, fileno=int(fd_env))
+    _sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, fileno=sock_fd)
     _sock.setblocking(True)
+    if report is not None and report.get("missing"):
+        # Fail closed: a kernel missing a required boundary never runs code.
+        _notify("kernel.ready", {"sandbox": report})
+        sys.stderr.write("pykernel: sandbox incomplete: %s\n" % (report.get("error") or report["missing"]))
+        sys.exit(3)
 
-    for spec in json.loads(os.environ.get("PYKERNEL_CAPABILITIES", "[]")):
-        proxy = _make_proxy(spec)
-        namespace = spec.get("namespace")
-        if namespace:
-            _ns.setdefault(namespace, types.SimpleNamespace())
-            setattr(_ns[namespace], spec["name"], proxy)
-        else:
-            _ns[spec["name"]] = proxy
-
+    _install_capabilities()
+    # Before kernel.ready: once the kernel is ready, the host lets it create
+    # threads and processes only while an exec runs.
     threading.Thread(target=_worker, daemon=True).start()
+    _notify("kernel.ready", {"sandbox": report})
     _reader()
 
 

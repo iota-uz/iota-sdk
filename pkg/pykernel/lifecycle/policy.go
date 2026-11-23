@@ -3,7 +3,8 @@
 // different consumers without forking the manager:
 //
 //   - WarmPool — per-session reuse with idle-TTL eviction and a MaxParallel
-//     cap, for the interactive Ali REPL;
+//     cap enforced by evicting the least-recently-used idle kernel, for the
+//     interactive Ali REPL;
 //   - Ephemeral — every Acquire spawns and every Release disposes, for the
 //     batch data-migration engine, whose durable state lives host-side so a
 //     kernel is safe to throw away.
@@ -67,12 +68,23 @@ type LifecyclePolicy interface {
 	// ShouldEvict is consulted by the background sweeper (idle TTL).
 	ShouldEvict(info pykernel.KernelInfo, pool PoolView) bool
 	// MaxParallel caps the number of concurrently live kernels; on Acquire beyond
-	// it the Manager evicts an idle kernel (or rejects with ErrPoolExhausted).
+	// it the Manager evicts a kernel ShouldEvict selects, else — when the policy
+	// implements PressureEvicter — the least-recently-used idle, unleased
+	// kernel, and otherwise rejects with ErrPoolExhausted.
 	MaxParallel() int
 	// ResetMode reports whether reused kernels keep or clear their namespace.
-	//
-	// Currently advisory: namespace reset on reuse is NOT yet enforced (a reused
-	// kernel always keeps its namespace via process reuse) and
-	// pykernel.KernelInfo.NamespaceReset is reserved for when it is.
+	// With FreshNamespace a confined kernel that ran code is replaced by a new
+	// process on reuse (a cleared namespace is not a fresh interpreter); an
+	// unconfined one has its namespace cleared in place. Either way
+	// KernelInfo.NamespaceReset reports it and workdir files are kept. A
+	// FreshNamespace kernel is never shared by two holders.
 	ResetMode() ResetMode
+}
+
+// PressureEvicter is an optional LifecyclePolicy extension. When the pool is
+// at MaxParallel and ShouldEvict selects nothing, the Manager evicts the
+// least-recently-used kernel that is neither leased nor running an exec if
+// EvictLRUOnPressure returns true.
+type PressureEvicter interface {
+	EvictLRUOnPressure() bool
 }

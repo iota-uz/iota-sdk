@@ -13,7 +13,17 @@ func applyRlimits(pid int, lim ResourceLimits) error {
 			return nil
 		}
 		rl := &unix.Rlimit{Cur: val, Max: val}
-		return unix.Prlimit(pid, resource, rl, nil)
+		err := unix.Prlimit(pid, resource, rl, nil)
+		if err == nil {
+			return nil
+		}
+		// A confined child may already have lowered its own limit; a limit at
+		// or below the requested one is what we wanted.
+		var cur unix.Rlimit
+		if gerr := unix.Prlimit(pid, resource, nil, &cur); gerr == nil && cur.Max <= val && cur.Cur <= val {
+			return nil
+		}
+		return err
 	}
 	if err := set(unix.RLIMIT_CPU, lim.CPUSeconds); err != nil {
 		return err

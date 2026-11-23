@@ -61,6 +61,14 @@ call `lookup` or `execute`.
   `output_schema` (the `data` of the `Result`) from the registry.
 - Application selectors (`report`, `entity`, …) are answered by `Select`.
 
+## Runtime isolation
+
+`execute` runs on `pkg/pykernel`, whose kernels are confined by Landlock and
+seccomp before the first instruction of the script; the Manager refuses to
+start without every boundary. See [pykernel-sandbox.md](pykernel-sandbox.md)
+for the contract and the conformance suite consumers run before enabling it.
+Results report `namespace.reset` and `namespace.files_preserved` separately.
+
 ## Python bindings
 
 Operation arguments are keyword arguments. A parameter named after a Python
