@@ -1,6 +1,7 @@
 package execute
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"mime"
@@ -28,14 +29,21 @@ type ArtifactStore interface {
 	Save(ctx context.Context, f ArtifactFile) (fileRef string, err error)
 }
 
-func (r *Runner) artifact(ctx context.Context, name string, f *os.File, size int64) (Artifact, bool) {
+// artifact reads the validated descriptor once, within the size limit, and
+// stores exactly those bytes: code still running in the kernel may change the
+// file, so the declared size is the length of what was read.
+func (r *Runner) artifact(ctx context.Context, name string, f *os.File) (Artifact, bool) {
+	body, err := io.ReadAll(io.LimitReader(f, r.cfg.MaxArtifactBytes+1))
+	if err != nil || int64(len(body)) > r.cfg.MaxArtifactBytes {
+		return Artifact{}, false
+	}
+	size := int64(len(body))
 	mimeType := mime.TypeByExtension(filepath.Ext(name))
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
 	ref, err := r.cfg.Artifacts.Save(ctx, ArtifactFile{
-		Name: name, MimeType: mimeType, Size: size,
-		Content: io.LimitReader(f, r.cfg.MaxArtifactBytes),
+		Name: name, MimeType: mimeType, Size: size, Content: bytes.NewReader(body),
 	})
 	if err != nil {
 		return Artifact{}, false

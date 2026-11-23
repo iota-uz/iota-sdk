@@ -18,8 +18,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/pkg/pykernel"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/bridge"
@@ -157,6 +161,10 @@ func New(cfg Config) (*Manager, error) {
 		if err := m.report.Err(); err != nil {
 			m.cleanup()
 			return nil, fmt.Errorf("pykernel/manager: %w", err)
+		}
+		if err := m.verifyQuota(); err != nil {
+			m.cleanup()
+			return nil, fmt.Errorf("pykernel/manager: %w: %s (%w)", isolation.ErrIsolationUnavailable, isolation.BoundaryWorkdirQuota, err)
 		}
 	}
 	return m, nil
@@ -498,7 +506,10 @@ func recordKernel(workdir string) (ranBefore, sameDir bool, err error) {
 	return ranBefore, sameDir, nil
 }
 
-func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (*kernel, error) {
+// quotaOverride replaces the workdir quota of one spawn (the self-test).
+type quotaOverride struct{ bytes, entries int64 }
+
+func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool, override ...quotaOverride) (*kernel, error) {
 	workdir := sess.Workdir()
 	ctrl := filepath.Join(workdir, stateDir)
 	if err := prepareState(workdir, m.runAs()); err != nil {
@@ -555,6 +566,10 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		return nil, err
 	}
 
+	quota := quotaOverride{bytes: m.cfg.Limits.WorkdirBytes, entries: m.cfg.Limits.WorkdirEntries}
+	if len(override) > 0 {
+		quota = override[0]
+	}
 	listener := -1
 	if m.confined() {
 		// The kernel's first byte carries the quota supervisor's listener.
@@ -573,8 +588,9 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		outputCap:      m.cfg.DefaultOutputCap,
 		grace:          m.cfg.DisposeGrace,
 		wallClock:      m.cfg.Limits.WallClock,
-		workdirQuota:   m.cfg.Limits.WorkdirBytes,
-		workdirEntries: m.cfg.Limits.WorkdirEntries,
+		workdirQuota:   quota.bytes,
+		workdirEntries: quota.entries,
+		fileSize:       int64(m.cfg.Limits.FileSizeBytes), //nolint:gosec // limits are far below MaxInt64
 		workdir:        workdir,
 		nsReset:        seen || ranBefore,
 		filesPreserved: filesPreserved,
@@ -623,4 +639,79 @@ func (m *Manager) awaitReady(ctx context.Context, k *kernel) error {
 	case <-timer.C:
 		return fmt.Errorf("pykernel/manager: kernel did not report ready within %s", m.cfg.Sandbox.StartTimeout)
 	}
+}
+
+// selfTestSession is the throwaway session of verifyQuota.
+type selfTestSession struct {
+	workdir string
+	caps    pykernel.CapabilitySet
+}
+
+func (s selfTestSession) Key() string                          { return "pykernel-self-test" }
+func (s selfTestSession) TenantID() uuid.UUID                  { return uuid.Nil }
+func (s selfTestSession) Capabilities() pykernel.CapabilitySet { return s.caps }
+func (s selfTestSession) Mode() pykernel.Mode                  { return pykernel.ModePlan }
+func (s selfTestSession) Workdir() string                      { return s.workdir }
+
+// verifyQuota proves that this host enforces the workdir quota for a real
+// kernel: a write past a 1 MiB test quota must fail with EDQUOT and leave the
+// workdir within it.
+func (m *Manager) verifyQuota() error {
+	const limit = 1 << 20
+	dir, err := os.MkdirTemp("", "pykernel-selftest-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if m.cfg.Sandbox.RunAs != nil {
+		if err := os.Chmod(dir, 0o711); err != nil {
+			return err
+		}
+	}
+	workdir := filepath.Join(dir, "work")
+	if err := m.prepareWorkdir(workdir); err != nil {
+		return err
+	}
+	caps, err := pykernel.NewCapabilitySet()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), m.cfg.Sandbox.StartTimeout)
+	defer cancel()
+	k, err := m.spawn(ctx, selfTestSession{workdir: workdir, caps: caps}, false, quotaOverride{bytes: limit, entries: 64})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = k.Dispose(context.Background()) }()
+	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: `
+import os
+fd = os.open("probe", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+try:
+    for _ in range(4):
+        os.pwrite(fd, b"\0" * (512 << 10), 0)
+    print("ALLOWED")
+except OSError as e:
+    print("ERRNO", e.errno)
+`})
+	if err != nil {
+		return err
+	}
+	var out strings.Builder
+	for ev := range ch {
+		if ev.Kind == pykernel.EventStdout {
+			out.Write(ev.Stdout)
+		}
+	}
+	switch got := strings.TrimSpace(out.String()); got {
+	case fmt.Sprintf("ERRNO %d", syscall.EDQUOT):
+	case fmt.Sprintf("ERRNO %d", syscall.EPERM):
+		return errors.New("the supervisor cannot act for the kernel: it needs pidfd_getfd and process_vm_readv or /proc/<pid>/mem " +
+			"on the kernel's tasks (Linux >= 5.6, Yama ptrace_scope <= 1; in Docker grant the application CAP_SYS_PTRACE)")
+	default:
+		return fmt.Errorf("a write past a test quota was not refused: %q", got)
+	}
+	if fi, err := os.Stat(filepath.Join(workdir, "probe")); err != nil || fi.Size() > limit {
+		return errors.New("the test workdir exceeded its quota")
+	}
+	return nil
 }

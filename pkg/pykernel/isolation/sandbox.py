@@ -108,27 +108,52 @@ _SECCOMP_RET_USER_NOTIF = 0x7FC00000
 _SECCOMP_FILTER_FLAG_NEW_LISTENER = 1 << 3
 _O_CREAT = 0o100
 
-# Calls the host supervisor approves against the workdir quota (bytes and
-# entries). fd_gated: notified only for fd >= 4 (stdio and the bridge pass);
-# always: always notified; creat_flag: notified when the flags argument at the
-# given index has O_CREAT.
+# Calls the host supervisor handles for the workdir quota. "emulate": every
+# write-family call, whatever the fd, is performed by the host on a duplicate
+# of the caller's open file description, so what is checked is what is
+# written (no check-then-continue race, no fd-number trust). "always": entry
+# creation, counted. "creat_flag": open/openat counted when the flags argument
+# at the given index has O_CREAT. "refuse": allocation paths the supervisor
+# does not perform, refused with the given errno (callers such as shutil fall
+# back to plain writes).
 _QUOTA_CALLS = {
     "x86_64": {
-        "fd_gated": [1, 18, 20, 296, 328],          # write pwrite64 writev pwritev pwritev2
-        "always": [77, 326, 40, 275,                # ftruncate copy_file_range sendfile splice
-                   85, 437, 83, 258, 133, 259,      # creat openat2 mkdir mkdirat mknod mknodat
+        "emulate": [1, 18, 20, 296, 328, 77],      # write pwrite64 writev pwritev pwritev2 ftruncate
+        "always": [85, 437, 83, 258, 133, 259,      # creat openat2 mkdir mkdirat mknod mknodat
                    86, 265, 88, 266],               # link linkat symlink symlinkat
         "creat_flag": [(2, 1), (257, 2)],           # open(flags=arg1) openat(flags=arg2)
-        # Allocation paths the supervisor cannot meter are refused.
-        "refuse": {"fallocate": (285, 95), "truncate": (76, 1), "io_setup": (206, 1), "io_submit": (209, 1)},
+        "refuse": {
+            "fallocate": (285, 95), "truncate": (76, 1), "io_setup": (206, 1), "io_submit": (209, 1),
+            "copy_file_range": (326, 18), "sendfile": (40, 22), "splice": (275, 22),
+            "setxattr": (188, 95), "lsetxattr": (189, 95), "fsetxattr": (190, 95), "setxattrat": (463, 95),
+        },
+        "ioctl": 16,
     },
     "aarch64": {
-        "fd_gated": [64, 68, 66, 70, 287],
-        "always": [46, 285, 71, 76, 437, 34, 33, 37, 36],
+        "emulate": [64, 68, 66, 70, 287, 46],
+        "always": [437, 34, 33, 37, 36],
         "creat_flag": [(56, 2)],
-        "refuse": {"fallocate": (47, 95), "truncate": (45, 1), "io_setup": (0, 1), "io_submit": (2, 1)},
+        "refuse": {
+            "fallocate": (47, 95), "truncate": (45, 1), "io_setup": (0, 1), "io_submit": (2, 1),
+            "copy_file_range": (285, 18), "sendfile": (71, 22), "splice": (76, 22),
+            "setxattr": (5, 95), "lsetxattr": (6, 95), "fsetxattr": (7, 95), "setxattrat": (463, 95),
+        },
+        "ioctl": 29,
     },
 }
+
+# ioctl requests a kernel may issue; anything else (FICLONE, filesystem space
+# reservation, terminal injection) fails with ENOTTY.
+_IOCTL_ALLOW = (
+    0x5401,  # TCGETS (isatty)
+    0x5413,  # TIOCGWINSZ
+    0x541B,  # FIONREAD
+    0x5421,  # FIONBIO
+    0x5450,  # FIONCLEX
+    0x5451,  # FIOCLEX
+)
+
+_PR_SET_CHILD_SUBREAPER = 36
 
 _BPF_LD_W_ABS = 0x20
 _BPF_JEQ_K = 0x15
@@ -511,6 +536,15 @@ def _seccomp_program(arch):
             (_BPF_JEQ_K, 0, 1, nr),
             (_BPF_RET_K, 0, 0, action),
         ]
+    allowed = _IOCTL_ALLOW
+    prog.append((_BPF_JEQ_K, 0, len(allowed) + 3, _QUOTA_CALLS[arch]["ioctl"]))
+    prog.append((_BPF_LD_W_ABS, 0, 0, _OFF_ARG0 + 8))
+    for j, req in enumerate(allowed):
+        prog.append((_BPF_JEQ_K, len(allowed) - j, 0, req))
+    prog += [
+        (_BPF_RET_K, 0, 0, _SECCOMP_RET_ERRNO | errno.ENOTTY),
+        (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
+    ]
     # sendto(2) is send(2) when its address (arg 4) is NULL; with an address
     # it would reach a pathname datagram socket, so it is refused.
     prog += [
@@ -562,15 +596,7 @@ def _quota_program(arch):
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),  # the main filter kills foreign ABIs
         (_BPF_LD_W_ABS, 0, 0, _OFF_NR),
     ]
-    for nr in calls["fd_gated"]:
-        prog += [
-            (_BPF_JEQ_K, 0, 4, nr),
-            (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0),
-            (_BPF_JGE_K, 0, 1, 4),
-            (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
-            (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
-        ]
-    for nr in calls["always"]:
+    for nr in calls["emulate"] + calls["always"]:
         prog += [
             (_BPF_JEQ_K, 0, 1, nr),
             (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
@@ -595,20 +621,34 @@ def _quota_supervision(arch, report, bridge_fd):
     prog = _quota_program(arch)
     filters = (_SockFilter * len(prog))(*[_SockFilter(*ins) for ins in prog])
     fprog = _SockFprog(len(prog), filters)
+    if bridge_fd is None:
+        # Probe: with no supervisor every write would fail, so install the
+        # filter in a short-lived child that exits without writing.
+        pid = os.fork()
+        if pid == 0:
+            try:
+                _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _SECCOMP_FILTER_FLAG_NEW_LISTENER, ctypes.addressof(fprog))
+                os._exit(0)
+            except BaseException:
+                os._exit(1)
+        _, status = os.waitpid(pid, 0)
+        ok = os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+        report.set("workdir_quota", ok, "seccomp user notification available; the Manager verifies enforcement with a test kernel"
+                   if ok else "seccomp user notification unavailable")
+        return False
     try:
         lfd = _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _SECCOMP_FILTER_FLAG_NEW_LISTENER, ctypes.addressof(fprog))
     except OSError as exc:
         report.set("workdir_quota", False, "seccomp user notification: %s" % exc)
         return False
     try:
-        if bridge_fd is None:
-            report.set("workdir_quota", True, "seccomp user notification available")
-            return False
         import socket
 
         s = socket.socket(fileno=os.dup(bridge_fd))
         try:
             socket.send_fds(s, [b"N"], [lfd])
+            global _HANDOFF_SENT
+            _HANDOFF_SENT = True
         finally:
             s.close()
         report.set("workdir_quota", True, "file writes and entry creation are approved by the host")
@@ -666,13 +706,16 @@ def apply(cfg, keep_fds=(), bridge_fd=None):
     carrying the quota supervisor's listener, or "X" when there is none.
     """
     report = _Report()
-    sent = False
     try:
-        sent = _apply(cfg, keep_fds, bridge_fd, report)
+        _apply(cfg, keep_fds, bridge_fd, report)
     finally:
-        if bridge_fd is not None and not sent:
+        # Exactly one handshake byte: "N" went out with the listener, or "X".
+        if bridge_fd is not None and not _HANDOFF_SENT:
             os.write(bridge_fd, b"X")
     return report
+
+
+_HANDOFF_SENT = False
 
 
 def _apply(cfg, keep_fds, bridge_fd, report):
@@ -704,6 +747,12 @@ def _apply(cfg, keep_fds, bridge_fd, report):
     _no_new_privs(report)
     sent = False
     if report.boundaries["no_new_privs"]["enabled"]:
+        # Every descendant stays a child of the kernel (and in its CPU
+        # accounting) instead of being reparented outside it.
+        try:
+            _prctl(_PR_SET_CHILD_SUBREAPER, 1)
+        except OSError:
+            pass
         _landlock(cfg, report)
         sent = _quota_supervision(arch, report, bridge_fd)
         _seccomp(arch, report)

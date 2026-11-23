@@ -13,7 +13,7 @@ verify it on its own hosts.
 | Network | No socket of any family can be created (TCP, UDP, raw, packet, netlink, unix). Only an in-process `socketpair` is possible, and every address-bearing socket call is refused (`connect`, `bind`, `listen`, `accept`, `sendmsg`, `sendto` with an address), so no pathname or abstract unix endpoint is reachable. TCP bind/connect is also denied by Landlock; abstract unix sockets are scoped. The only channel to the host is the inherited bridge fd. | seccomp + Landlock |
 | Environment | Explicit allowlist (`Config.EnvAllowlist` + `ExtraEnv`); no DSN, S3 key, OIDC secret. Only fds 0–2 and the bridge are open. Data comes only through capabilities, which run in the host with the Session's tenant (and `CallContextBinder` identity) on every call. | host |
 | Privileges | `no_new_privs`, empty capability set, never uid 0. Refused: `ptrace`, `process_vm_*`, `mount`, `unshare`/`setns`/namespace `clone`, `clone3`, `bpf`, `keyctl`/`add_key`, `perf_event_open`, `io_uring_*`, `setsid`/`setpgid`, kexec/modules/swap/reboot/clock/hostname. Signals cannot leave the sandbox. A foreign syscall ABI (x32, 32-bit) kills the process. | seccomp + Landlock scope |
-| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap, armed before the code is sent; workdir quota in bytes and entries enforced at allocation time — every file write, extension and entry creation is approved by the host before it happens (seccomp user notification), including writes to unlinked files still held open, and fails with `EDQUOT` past the quota; `fallocate`, path `truncate` and AIO are refused; output cap with explicit truncation flags. A kernel that keeps using CPU while no exec runs (work continuing after a worker-reported done) is killed. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host supervisor |
+| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap, armed before the code is sent; workdir quota in bytes and entries enforced at allocation time: every write-family call (`write`, `pwrite`, `writev`, `pwritev[2]`, `ftruncate`), whatever the fd, is performed by the host supervisor on a duplicate of the caller's open file description with data it copied out first, so the check covers exactly what is written; it fails with `EDQUOT` past the quota (and `EFBIG` past `FileSizeBytes`). Sizes the kernel produced stay charged in a per-inode ledger while any fd or mapping still holds the inode (unlinked or mapped files included). Entry creation is counted before it runs. `fallocate`, path `truncate`, AIO, `copy_file_range`, `sendfile`, `splice`, `setxattr` and all `ioctl`s but terminal queries are refused (`shutil` falls back to plain writes). A reconcile that finds the workdir over the quota anyway kills the kernel, and so does losing the supervisor. A kernel that keeps using CPU while no exec runs (work continuing after a worker-reported done, in threads or children) is killed after 1 s of net CPU. `manager.New` proves enforcement with a test kernel before it returns. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host supervisor |
 | Cancel | Cancelling an exec, its timeout or a quota stop cancel the context of running capability calls (nested SQL/tools) at once, interrupt the code, and free the slot. A capability call that does not belong to the running exec (a thread that outlived it) is refused. | host |
 
 ## Fail closed
@@ -62,15 +62,24 @@ directories must be traversable (`o+x`) by it. When the application is PID 1 of
 a container, the Manager reaps the processes of a disposed kernel that were
 reparented to it.
 
+The quota supervisor acts for the kernel with `pidfd_getfd`. Docker's default
+seccomp profile allows it only with `CAP_SYS_PTRACE`, so a Docker deployment
+grants the application that capability (`--cap-add SYS_PTRACE`); kernels drop
+every capability and their own filter refuses `ptrace`. Without it
+`manager.New` fails closed and says so.
+
 ### Known limits
 
 - `RLIMIT_NPROC` counts every task of the kernel uid. Kernels sharing one
   `RunAs` uid share that budget: a fork bomb in one kernel is contained (it
   cannot hurt the host and is killed with its kernel), but until then other
   kernels of the uid may fail to start threads.
-- The quota supervisor reads `/proc` of the kernel's tasks and, for
-  `writev`-style calls, their memory (Yama `ptrace_scope` ≤ 1). Where it cannot,
-  the call fails (`EPERM`) instead of running unmetered.
+- The supervisor acts for the kernel with the kernel's own credentials
+  (`pidfd_getfd`, `process_vm_readv`, `/proc`), which needs Linux ≥ 5.6 and
+  Yama `ptrace_scope` ≤ 1. Where it cannot, the call fails (`EPERM`) instead of
+  running unmetered. An emulated write moves at most 1 MiB to a file (64 KiB to
+  a pipe or socket) per call; callers see a short write, as POSIX allows.
+- CPU of background work is charged only in intervals in which no exec runs.
 - The restart record lives next to the workdir (`.<name>.pykernel`); remove it
   with the workdir.
 - `FreshNamespace` clears the user's names and reinstalls capabilities; process

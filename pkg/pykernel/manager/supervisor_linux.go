@@ -3,10 +3,12 @@
 package manager
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -23,34 +25,42 @@ import (
 )
 
 const (
-	supervisorTick  = 100 // ms between polls of the listener
-	refreshInterval = 500 * time.Millisecond
-	idleWindow      = 2 * time.Second
-	// idleCPUShare is the CPU a kernel may use while no exec runs. More means
-	// code kept running after its exec reported done (or never stopped): the
-	// kernel is killed.
-	idleCPUShare = 0.10
-	clockTicks   = 100 // USER_HZ
-	maxIovecs    = 1024
+	supervisorTick   = 100 // ms between polls of the listener
+	reconcileEvery   = 2 * time.Second
+	reconcileMinGap  = 250 * time.Millisecond
+	idleCheckEvery   = time.Second
+	idleCPUBudget    = time.Second // net CPU a kernel may accumulate while no exec runs
+	idleCPUAllowance = 0.02        // share of an idle interval that is forgiven
+	clockTicks       = 100         // USER_HZ
+	maxIovecs        = 1024
+	maxFileChunk     = 1 << 20 // bytes the host writes per emulated call to a file
+	maxStreamChunk   = 64 << 10
+	pidfdThread      = 0x80 // PIDFD_THREAD (O_EXCL)
+	rwfAppend        = 0x10
+	notifRespError   = 16
+	notifRespFlags   = 20
+	notifRespVal     = 8
+	notifArgsOffset  = 32
+	notifTIDOffset   = 8
+	notifNROffset    = 16
+	notifMinSize     = 80
+	notifRespMinSize = 24
 )
 
-// The calls the sandbox's notification filter hands to the supervisor, by
-// architecture (see isolation/sandbox.py _QUOTA_CALLS).
+// The calls the sandbox's notification filter hands to the supervisor (see
+// isolation/sandbox.py _QUOTA_CALLS).
 type quotaCalls struct {
-	write, pwrite64, writev, pwritev, pwritev2 int32
-	ftruncate, copyFileRange, sendfile, splice int32
-	creates                                    map[int32]bool
+	write, pwrite64, writev, pwritev, pwritev2, ftruncate int32
+	creates                                               map[int32]bool
 }
 
 var callsByArch = map[string]quotaCalls{
 	"amd64": {
-		write: 1, pwrite64: 18, writev: 20, pwritev: 296, pwritev2: 328,
-		ftruncate: 77, copyFileRange: 326, sendfile: 40, splice: 275,
+		write: 1, pwrite64: 18, writev: 20, pwritev: 296, pwritev2: 328, ftruncate: 77,
 		creates: map[int32]bool{2: true, 257: true, 85: true, 437: true, 83: true, 258: true, 133: true, 259: true, 86: true, 265: true, 88: true, 266: true},
 	},
 	"arm64": {
-		write: 64, pwrite64: 68, writev: 66, pwritev: 70, pwritev2: 287,
-		ftruncate: 46, copyFileRange: 285, sendfile: 71, splice: 76,
+		write: 64, pwrite64: 68, writev: 66, pwritev: 70, pwritev2: 287, ftruncate: 46,
 		creates: map[int32]bool{56: true, 437: true, 34: true, 33: true, 37: true, 36: true},
 	},
 }
@@ -72,8 +82,7 @@ func recvListener(conn net.Conn, timeout time.Duration) (int, error) {
 	}
 	var fds []int
 	if oobn > 0 {
-		msgs, perr := unix.ParseSocketControlMessage(oob[:oobn])
-		if perr == nil {
+		if msgs, perr := unix.ParseSocketControlMessage(oob[:oobn]); perr == nil {
 			for _, m := range msgs {
 				if got, err := unix.ParseUnixRights(&m); err == nil {
 					fds = append(fds, got...)
@@ -91,10 +100,26 @@ func recvListener(conn net.Conn, timeout time.Duration) (int, error) {
 	return fds[0], nil
 }
 
-// supervisor approves, for one kernel, every file write, extension and entry
-// creation against the workdir quota before it happens, and kills a kernel
-// that burns CPU while no exec runs. It reads /proc of the kernel's tasks,
-// so it runs on a locked OS thread whose filesystem uid is the kernel's.
+type inode struct{ dev, ino uint64 }
+
+// supervisor enforces the workdir quota for one kernel at allocation time and
+// guards its idle CPU.
+//
+// Every write-family call of the kernel is performed by the supervisor
+// itself, on a duplicate of the caller's open file description (pidfd_getfd),
+// with data it copied out of the caller first. What is checked is therefore
+// exactly what is written: no other thread can change the buffer, the length
+// or the file between the check and the write, and fd numbers mean nothing.
+// File sizes it produced are kept in a per-inode ledger that only shrinks
+// when a reconcile sees the inode gone from the workdir and from every fd and
+// mapping of the kernel, so data in unlinked-but-open or mapped files stays
+// charged. Entry creation is counted before it is let through. A reconcile
+// that finds usage over the quota anyway kills the kernel (backstop).
+//
+// It reads /proc and memory of the kernel's tasks, so it runs on a locked OS
+// thread whose credentials are the kernel's (a root host switches only that
+// thread). If it stops for any reason other than disposal, the kernel is
+// killed: no kernel ever runs without its supervisor.
 type supervisor struct {
 	k        *kernel
 	fd       int
@@ -103,17 +128,22 @@ type supervisor struct {
 	workdir  string
 	quota    int64
 	entries  int64
+	fileSize int64
 	cred     *isolation.Credential
-	measured usage
-	cur      usage // approved since the last refresh started
-	prev     usage // approved during the refresh before
-	lastRef  time.Time
 
-	cpuStart   uint64
-	cpuAt      time.Time
-	execsAt    int
+	ledger     map[inode]int64 // sizes of files the kernel grew
+	baseline   int64           // visible files not in the ledger
+	walked     int64           // entries seen by the last reconcile
+	entryCur   int64           // creations approved since the last reconcile started
+	entryPrev  int64           // creations approved during the one before
+	lastRecon  time.Time
 	notifSize  int
 	respSize   int
+	idleCPU    time.Duration
+	lastCPU    uint64
+	cpuSeen    bool
+	idleSeen   bool
+	execsSeen  int
 	lastIdleCk time.Time
 }
 
@@ -128,10 +158,10 @@ func startSupervisor(k *kernel, fd int, cred *isolation.Credential) error {
 	}
 	s := &supervisor{
 		k: k, fd: fd, calls: calls, pgid: k.pid, workdir: k.opts.workdir,
-		quota: k.opts.workdirQuota, entries: k.opts.workdirEntries, cred: cred,
-		notifSize: int(sizes[0]), respSize: int(sizes[1]),
+		quota: k.opts.workdirQuota, entries: k.opts.workdirEntries, fileSize: k.opts.fileSize, cred: cred,
+		ledger: map[inode]int64{}, notifSize: int(sizes[0]), respSize: int(sizes[1]),
 	}
-	if s.notifSize < 80 || s.respSize < 24 {
+	if s.notifSize < notifMinSize || s.respSize < notifRespMinSize {
 		return fmt.Errorf("unexpected seccomp notification layout %v", sizes)
 	}
 	ready := make(chan error, 1)
@@ -139,30 +169,45 @@ func startSupervisor(k *kernel, fd int, cred *isolation.Credential) error {
 	return <-ready
 }
 
-func (s *supervisor) run(ready chan<- error) {
-	// Never unlocked: the thread with a changed fsuid exits with the goroutine.
-	runtime.LockOSThread()
-	defer unix.Close(s.fd)
-	if s.cred != nil {
-		if err := unix.Setfsgid(int(s.cred.GID)); err != nil {
-			ready <- err
-			return
-		}
-		if err := unix.Setfsuid(int(s.cred.UID)); err != nil {
-			ready <- err
-			return
-		}
+// becomeKernel gives the locked thread the kernel's credentials, so /proc,
+// memory reads and pidfd_getfd pass the ptrace checks without capabilities.
+// Raw syscalls change only this thread; it exits with the goroutine.
+func (s *supervisor) becomeKernel() error {
+	if s.cred == nil {
+		return nil
 	}
-	if err := s.refresh(); err != nil {
+	if _, _, e := unix.RawSyscall(unix.SYS_SETRESGID, uintptr(s.cred.GID), uintptr(s.cred.GID), ^uintptr(0)); e != 0 {
+		return fmt.Errorf("setresgid: %w", e)
+	}
+	if _, _, e := unix.RawSyscall(unix.SYS_SETRESUID, uintptr(s.cred.UID), uintptr(s.cred.UID), ^uintptr(0)); e != 0 {
+		return fmt.Errorf("setresuid: %w", e)
+	}
+	return nil
+}
+
+func (s *supervisor) run(ready chan<- error) {
+	runtime.LockOSThread() // never unlocked: the switched thread dies with the goroutine
+	defer unix.Close(s.fd)
+	disposed := false
+	defer func() {
+		if !disposed {
+			_ = s.k.proc.Kill()
+		}
+	}()
+	if err := s.becomeKernel(); err != nil {
+		ready <- err
+		return
+	}
+	if err := s.reconcile(); err != nil {
 		ready <- fmt.Errorf("inspect the kernel: %w", err)
 		return
 	}
 	ready <- nil
 	notif := make([]byte, s.notifSize)
-	resp := make([]byte, s.respSize)
 	for {
 		select {
 		case <-s.k.closed:
+			disposed = true
 			return
 		default:
 		}
@@ -173,43 +218,92 @@ func (s *supervisor) run(ready chan<- error) {
 		}
 		if n > 0 {
 			if pfd[0].Revents&unix.POLLIN != 0 {
-				s.handle(notif, resp)
+				s.handle(notif)
 			} else if pfd[0].Revents&(unix.POLLHUP|unix.POLLERR) != 0 {
-				return // every task of the filter is gone
+				disposed = true // every task of the filter is gone
+				return
 			}
 		}
-		if time.Since(s.lastRef) >= refreshInterval {
-			_ = s.refresh()
+		if time.Since(s.lastRecon) >= reconcileEvery {
+			if err := s.reconcile(); err == nil && s.over() {
+				s.k.noteQuota()
+				return // backstop: the deferred kill stops the kernel
+			}
 		}
-		if time.Since(s.lastIdleCk) >= time.Second {
+		if time.Since(s.lastIdleCk) >= idleCheckEvery {
 			s.checkIdle()
 		}
 	}
 }
 
-// refresh measures the workdir (visible files and unlinked files the kernel
-// still holds open) and retires approvals older than the previous refresh.
-func (s *supervisor) refresh() error {
-	s.prev, s.cur = s.cur, usage{}
-	visible := dirUsage(s.workdir, s.entries)
-	hidden, err := s.heldUnlinked()
+func (s *supervisor) used() int64 {
+	total := s.baseline
+	for _, size := range s.ledger {
+		total += size
+	}
+	return total
+}
+
+func (s *supervisor) usedEntries() int64 { return s.walked + s.entryPrev + s.entryCur }
+
+func (s *supervisor) over() bool {
+	return s.used() > s.quota || (s.entries > 0 && s.walked > s.entries)
+}
+
+// reconcile measures the workdir and drops ledger entries for inodes that no
+// longer exist anywhere the kernel can reach. On any error nothing is credited.
+func (s *supervisor) reconcile() error {
+	s.lastRecon = time.Now()
+	startCur := s.entryCur
+	visible := map[inode]int64{}
+	var walked int64
+	_ = filepath.WalkDir(s.workdir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // a vanished entry is not an error for a measurement
+		}
+		walked++
+		if s.entries > 0 && walked > s.entries {
+			return filepath.SkipAll
+		}
+		if d.Type().IsRegular() {
+			if info, err := d.Info(); err == nil {
+				if st, ok := info.Sys().(*syscall.Stat_t); ok {
+					visible[inode{uint64(st.Dev), st.Ino}] = info.Size() //nolint:unconvert // Dev width differs by arch
+				}
+			}
+		}
+		return nil
+	})
+	held, err := s.heldInodes()
 	if err != nil {
 		return err
 	}
-	s.measured = usage{bytes: visible.bytes + hidden, entries: visible.entries}
-	s.lastRef = time.Now()
+	for ino := range s.ledger {
+		if size, ok := visible[ino]; ok {
+			s.ledger[ino] = size
+		} else if !held[ino] {
+			delete(s.ledger, ino)
+		}
+	}
+	var baseline int64
+	for ino, size := range visible {
+		if _, ok := s.ledger[ino]; !ok {
+			baseline += size
+		}
+	}
+	s.baseline = baseline
+	s.walked = walked
+	// Creations approved before this walk started are in it now.
+	s.entryPrev, s.entryCur = s.entryCur-startCur, 0
+	if s.entryPrev < 0 {
+		s.entryPrev = 0
+	}
 	return nil
 }
 
-func (s *supervisor) total() usage {
-	return usage{
-		bytes:   s.measured.bytes + s.prev.bytes + s.cur.bytes,
-		entries: s.measured.entries + s.prev.entries + s.cur.entries,
-	}
-}
-
-// groupPIDs lists the processes of the kernel's process group.
-func (s *supervisor) groupPIDs() ([]int, uint64) {
+// groupStats lists the processes of the kernel's process group and their
+// total CPU, children included.
+func (s *supervisor) groupStats() ([]int, uint64) {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return nil, 0
@@ -230,274 +324,449 @@ func (s *supervisor) groupPIDs() ([]int, uint64) {
 			continue
 		}
 		f := strings.Fields(string(raw[i+1:]))
-		if len(f) < 13 {
+		if len(f) < 15 {
 			continue
 		}
 		if pgrp, _ := strconv.Atoi(f[2]); pgrp != s.pgid {
 			continue
 		}
 		pids = append(pids, pid)
-		utime, _ := strconv.ParseUint(f[11], 10, 64)
-		stime, _ := strconv.ParseUint(f[12], 10, 64)
-		cpu += utime + stime
+		for _, idx := range []int{11, 12, 13, 14} { // utime stime cutime cstime
+			v, _ := strconv.ParseUint(f[idx], 10, 64)
+			cpu += v
+		}
 	}
 	return pids, cpu
 }
 
-// heldUnlinked sums regular files that the kernel's processes hold open after
-// they were unlinked: they still occupy the disk but no walk can see them.
-func (s *supervisor) heldUnlinked() (int64, error) {
-	pids, _ := s.groupPIDs()
-	type key struct{ dev, ino uint64 }
-	seen := map[key]bool{}
-	var total int64
+// heldInodes returns every inode an fd or a mapping of the kernel references.
+func (s *supervisor) heldInodes() (map[inode]bool, error) {
+	pids, _ := s.groupStats()
+	held := map[inode]bool{}
 	for _, pid := range pids {
-		dir := "/proc/" + strconv.Itoa(pid) + "/fd"
-		ents, err := os.ReadDir(dir)
+		base := "/proc/" + strconv.Itoa(pid)
+		ents, err := os.ReadDir(base + "/fd")
 		if err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return 0, err
+				return nil, err
 			}
 			continue // exited meanwhile
 		}
 		for _, e := range ents {
-			p := filepath.Join(dir, e.Name())
-			target, err := os.Readlink(p)
-			if err != nil || !strings.HasSuffix(target, " (deleted)") {
-				continue
-			}
 			var st unix.Stat_t
-			if unix.Stat(p, &st) != nil || st.Mode&unix.S_IFMT != unix.S_IFREG {
-				continue
-			}
-			k := key{uint64(st.Dev), st.Ino} //nolint:unconvert // Dev width differs by arch
-			if !seen[k] {
-				seen[k] = true
-				total += st.Size
+			if unix.Stat(base+"/fd/"+e.Name(), &st) == nil && st.Mode&unix.S_IFMT == unix.S_IFREG {
+				held[inode{uint64(st.Dev), st.Ino}] = true //nolint:unconvert // Dev width differs by arch
 			}
 		}
+		f, err := os.Open(base + "/maps")
+		if err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				return nil, err
+			}
+			continue
+		}
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			// addr perms offset dev(major:minor hex) inode path
+			fields := strings.Fields(sc.Text())
+			if len(fields) < 5 || fields[4] == "0" {
+				continue
+			}
+			maj, min, ok := strings.Cut(fields[3], ":")
+			if !ok {
+				continue
+			}
+			ma, _ := strconv.ParseUint(maj, 16, 32)
+			mi, _ := strconv.ParseUint(min, 16, 32)
+			ino, _ := strconv.ParseUint(fields[4], 10, 64)
+			held[inode{unix.Mkdev(uint32(ma), uint32(mi)), ino}] = true
+		}
+		_ = f.Close()
 	}
-	return total, nil
+	return held, nil
 }
 
-// checkIdle kills the kernel when it used more than idleCPUShare of a window
-// in which no exec ran: work that continues after a worker-declared done.
+// checkIdle charges the CPU the kernel uses during intervals in which no
+// exec ran at all — work that continues after a worker-declared done, in
+// threads or children (children's CPU is included once they are reaped, and
+// the kernel is their subreaper). The charge is kept for the kernel's life,
+// minus a small allowance per idle interval, so frequent execs do not reset
+// it; past idleCPUBudget the kernel is killed.
 func (s *supervisor) checkIdle() {
-	s.lastIdleCk = time.Now()
-	idle, execs, lastActive := s.k.activity()
-	_, cpu := s.groupPIDs()
 	now := time.Now()
-	if !idle || execs != s.execsAt || s.cpuAt.IsZero() || lastActive.After(s.cpuAt.Add(-time.Second)) {
-		s.cpuStart, s.cpuAt, s.execsAt = cpu, now, execs
+	elapsed := now.Sub(s.lastIdleCk)
+	s.lastIdleCk = now
+	idle, execs, _ := s.k.activity()
+	_, cpu := s.groupStats()
+	delta := uint64(0)
+	if s.cpuSeen && cpu > s.lastCPU {
+		delta = cpu - s.lastCPU
+	}
+	wasIdle := s.cpuSeen && s.idleSeen && idle && execs == s.execsSeen
+	s.lastCPU, s.cpuSeen, s.idleSeen, s.execsSeen = cpu, true, idle, execs
+	if !wasIdle {
 		return
 	}
-	elapsed := now.Sub(s.cpuAt)
-	if elapsed < idleWindow {
-		return
+	s.idleCPU += time.Duration(delta)*time.Second/clockTicks - time.Duration(idleCPUAllowance*float64(elapsed))
+	if s.idleCPU < 0 {
+		s.idleCPU = 0
 	}
-	used := time.Duration(cpu-s.cpuStart) * time.Second / clockTicks
-	if cpu >= s.cpuStart && float64(used) > idleCPUShare*float64(elapsed) {
+	if s.idleCPU > idleCPUBudget {
 		s.k.killIdle()
 	}
-	s.cpuStart, s.cpuAt = cpu, now
 }
 
-// handle receives one notification and answers it.
-func (s *supervisor) handle(notif, resp []byte) {
-	for i := range notif {
-		notif[i] = 0
+type notification struct {
+	id   uint64
+	tid  int
+	nr   int32
+	args [6]uint64
+}
+
+func (s *supervisor) handle(buf []byte) {
+	for i := range buf {
+		buf[i] = 0
 	}
-	if err := ioctl(s.fd, unix.SECCOMP_IOCTL_NOTIF_RECV, notif); err != nil {
+	if err := ioctl(s.fd, unix.SECCOMP_IOCTL_NOTIF_RECV, buf); err != nil {
 		return // the task died before we read it
 	}
-	id := binary.NativeEndian.Uint64(notif[0:])
-	tid := int(binary.NativeEndian.Uint32(notif[8:]))
-	nr := int32(binary.NativeEndian.Uint32(notif[16:]))
-	var args [6]uint64
-	for i := range args {
-		args[i] = binary.NativeEndian.Uint64(notif[32+8*i:])
+	n := notification{
+		id:  binary.NativeEndian.Uint64(buf[0:]),
+		tid: int(binary.NativeEndian.Uint32(buf[notifTIDOffset:])),
+		nr:  int32(binary.NativeEndian.Uint32(buf[notifNROffset:])),
 	}
-	errno := s.decide(tid, nr, args)
-	// The task must still be waiting on this exact notification, so what we
-	// read from /proc belonged to it.
-	if errno == 0 && !s.idValid(id) {
+	for i := range n.args {
+		n.args[i] = binary.NativeEndian.Uint64(buf[notifArgsOffset+8*i:])
+	}
+	if s.calls.creates[n.nr] {
+		s.respond(n.id, 0, s.approveCreate(), true)
 		return
 	}
-	for i := range resp {
-		resp[i] = 0
+	s.emulate(n)
+}
+
+// approveCreate counts one entry creation; the call itself then runs (its
+// arguments do not matter to the count).
+func (s *supervisor) approveCreate() syscall.Errno {
+	if s.entries <= 0 {
+		return 0
 	}
+	if s.usedEntries()+1 > s.entries && time.Since(s.lastRecon) >= reconcileMinGap {
+		_ = s.reconcile()
+	}
+	if s.usedEntries()+1 > s.entries {
+		s.k.noteQuota()
+		return unix.EDQUOT
+	}
+	s.entryCur++
+	return 0
+}
+
+// respond answers notification id: errno != 0 fails the call; otherwise cont
+// lets it run, or val is its result (emulated).
+func (s *supervisor) respond(id uint64, val int64, errno syscall.Errno, cont bool) {
+	resp := make([]byte, s.respSize)
 	binary.NativeEndian.PutUint64(resp[0:], id)
-	if errno == 0 {
-		binary.NativeEndian.PutUint32(resp[20:], unix.SECCOMP_USER_NOTIF_FLAG_CONTINUE)
-	} else {
-		binary.NativeEndian.PutUint32(resp[16:], uint32(-int32(errno)))
+	switch {
+	case errno != 0:
+		binary.NativeEndian.PutUint32(resp[notifRespError:], uint32(-int32(errno)))
+	case cont:
+		binary.NativeEndian.PutUint32(resp[notifRespFlags:], unix.SECCOMP_USER_NOTIF_FLAG_CONTINUE)
+	default:
+		binary.NativeEndian.PutUint64(resp[notifRespVal:], uint64(val))
 	}
 	_ = ioctl(s.fd, unix.SECCOMP_IOCTL_NOTIF_SEND, resp)
 }
 
-func (s *supervisor) idValid(id uint64) bool {
-	v := id
-	_, _, e := unix.Syscall(unix.SYS_IOCTL, uintptr(s.fd), unix.SECCOMP_IOCTL_NOTIF_ID_VALID, uintptr(unsafe.Pointer(&v)))
-	return e == 0
+// dupTarget duplicates the caller's fd into the host.
+func dupTarget(tid, fd int) (int, error) {
+	pidfd, err := unix.PidfdOpen(tid, pidfdThread)
+	if err != nil {
+		// Before PIDFD_THREAD (Linux 6.9) only a group leader has a pidfd;
+		// threads share its fd table.
+		tgid, terr := threadGroup(tid)
+		if terr != nil {
+			return -1, err
+		}
+		if pidfd, err = unix.PidfdOpen(tgid, 0); err != nil {
+			return -1, err
+		}
+	}
+	defer unix.Close(pidfd)
+	return unix.PidfdGetfd(pidfd, fd, 0)
 }
 
-// decide returns 0 to let the call run, or the errno to fail it with.
-func (s *supervisor) decide(tid int, nr int32, args [6]uint64) syscall.Errno {
-	c := s.calls
-	if c.creates[nr] {
-		t := s.total()
-		if s.entries > 0 && t.entries+1 > s.entries {
-			s.k.noteQuota()
-			return unix.EDQUOT
-		}
-		s.cur.entries++
-		return 0
-	}
-	var fd int
-	switch nr {
-	case c.copyFileRange, c.splice:
-		fd = int(int32(args[2]))
-	default:
-		fd = int(int32(args[0]))
-	}
-	f, err := s.target(tid, fd)
+func threadGroup(tid int) (int, error) {
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(tid) + "/status")
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return 0 // not an open fd (EBADF follows) or the task is gone
-		}
-		return unix.EPERM // cannot inspect: fail closed
-	}
-	if !f.regular {
-		return 0 // pipes, sockets, /dev/null
-	}
-	end, err := s.end(tid, nr, args, f)
-	if err != nil {
-		return unix.EPERM
-	}
-	growth := end - f.size
-	if growth <= 0 {
-		return 0
-	}
-	if s.total().bytes+growth > s.quota {
-		s.k.noteQuota()
-		return unix.EDQUOT
-	}
-	s.cur.bytes += growth
-	return 0
-}
-
-type fdTarget struct {
-	regular bool
-	size    int64
-	pos     int64
-	append  bool
-}
-
-func (s *supervisor) target(tid, fd int) (fdTarget, error) {
-	base := "/proc/" + strconv.Itoa(tid)
-	var st unix.Stat_t
-	if err := unix.Stat(base+"/fd/"+strconv.Itoa(fd), &st); err != nil {
-		if errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ESRCH) {
-			return fdTarget{}, os.ErrNotExist
-		}
-		return fdTarget{}, err
-	}
-	t := fdTarget{regular: st.Mode&unix.S_IFMT == unix.S_IFREG, size: st.Size}
-	if !t.regular {
-		return t, nil
-	}
-	raw, err := os.ReadFile(base + "/fdinfo/" + strconv.Itoa(fd))
-	if err != nil {
-		return fdTarget{}, err
+		return 0, err
 	}
 	for _, line := range strings.Split(string(raw), "\n") {
-		k, v, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		v = strings.TrimSpace(v)
-		switch k {
-		case "pos":
-			t.pos, _ = strconv.ParseInt(v, 10, 64)
-		case "flags":
-			flags, _ := strconv.ParseUint(v, 8, 64)
-			t.append = flags&unix.O_APPEND != 0
+		if v, ok := strings.CutPrefix(line, "Tgid:"); ok {
+			return strconv.Atoi(strings.TrimSpace(v))
 		}
 	}
-	return t, nil
+	return 0, errors.New("no Tgid")
 }
 
-// end computes the file size the call can produce at most.
-func (s *supervisor) end(tid int, nr int32, args [6]uint64, f fdTarget) (int64, error) {
+// emulate performs a write-family call for the kernel.
+func (s *supervisor) emulate(n notification) {
 	c := s.calls
-	at := f.pos
-	if f.append {
-		at = f.size
-	}
-	switch nr {
-	case c.write:
-		return at + int64(args[2]), nil
-	case c.pwrite64:
-		return int64(args[3]) + int64(args[2]), nil
-	case c.writev, c.pwritev, c.pwritev2:
-		n, err := s.iovLen(tid, uintptr(args[1]), int(args[2]))
-		if err != nil {
-			return 0, err
-		}
+	dup, err := dupTarget(n.tid, int(int32(n.args[0])))
+	if err != nil {
 		switch {
-		case nr == c.writev:
-		case nr == c.pwritev2 && (int64(args[3]) == -1 || args[5]&0x10 != 0): // current pos / RWF_APPEND
-			if args[5]&0x10 != 0 {
-				at = f.size
-			}
+		case errors.Is(err, unix.EBADF):
+			s.respond(n.id, 0, unix.EBADF, false)
+		case errors.Is(err, unix.ESRCH):
+			// the task is gone; nothing to answer
 		default:
-			at = int64(args[3])
+			s.respond(n.id, 0, unix.EPERM, false) // cannot act for it: fail closed
 		}
-		return at + n, nil
-	case c.ftruncate:
-		return int64(args[1]), nil
-	case c.copyFileRange, c.splice:
-		if args[3] != 0 {
-			off, err := s.readU64(tid, uintptr(args[3]))
-			if err != nil {
-				return 0, err
+		return
+	}
+	var st unix.Stat_t
+	if err := unix.Fstat(dup, &st); err != nil {
+		_ = unix.Close(dup)
+		s.respond(n.id, 0, unix.EBADF, false)
+		return
+	}
+	if n.nr == c.ftruncate {
+		s.truncate(n, dup, st)
+		return
+	}
+	regular := st.Mode&unix.S_IFMT == unix.S_IFREG
+	limit := maxStreamChunk
+	if regular {
+		limit = maxFileChunk
+	}
+	data, err := s.payload(n, limit)
+	if err != nil {
+		_ = unix.Close(dup)
+		s.respond(n.id, 0, errnoOf(err, unix.EFAULT), false)
+		return
+	}
+	if !regular {
+		// Pipes, sockets, /dev/null: no quota, but the write may block, so
+		// it runs off the supervisor thread (on the duplicate, which is the
+		// object that was checked).
+		go func() {
+			defer unix.Close(dup)
+			s.finishStream(n, dup, data)
+		}()
+		return
+	}
+	defer unix.Close(dup)
+	s.writeFile(n, dup, st, data)
+}
+
+// payload copies the bytes the call wants to write out of the caller, at
+// most limit; a shorter write is a legal result the caller handles.
+func (s *supervisor) payload(n notification, limit int) ([]byte, error) {
+	c := s.calls
+	switch n.nr {
+	case c.write, c.pwrite64:
+		size := int(min(n.args[2], uint64(limit)))
+		buf := make([]byte, size)
+		if size == 0 {
+			return buf, nil
+		}
+		return buf, s.readMem(n.tid, uintptr(n.args[1]), buf)
+	case c.writev, c.pwritev, c.pwritev2:
+		cnt := int(min(n.args[2], maxIovecs))
+		if cnt <= 0 {
+			return nil, nil
+		}
+		iov := make([]byte, 16*cnt)
+		if err := s.readMem(n.tid, uintptr(n.args[1]), iov); err != nil {
+			return nil, err
+		}
+		var out []byte
+		for i := 0; i < cnt && len(out) < limit; i++ {
+			base := binary.NativeEndian.Uint64(iov[16*i:])
+			l := binary.NativeEndian.Uint64(iov[16*i+8:])
+			l = min(l, uint64(limit-len(out)))
+			if l == 0 {
+				continue
 			}
-			at = int64(off)
+			chunk := make([]byte, l)
+			if err := s.readMem(n.tid, uintptr(base), chunk); err != nil {
+				return nil, err
+			}
+			out = append(out, chunk...)
 		}
-		return at + int64(args[4]), nil
-	case c.sendfile:
-		return at + int64(args[3]), nil
+		return out, nil
 	}
-	return 0, fmt.Errorf("unexpected syscall %d", nr)
+	return nil, unix.ENOSYS
 }
 
-func (s *supervisor) iovLen(tid int, addr uintptr, cnt int) (int64, error) {
-	if cnt <= 0 {
-		return 0, nil
+func (s *supervisor) finishStream(n notification, dup int, data []byte) {
+	c := s.calls
+	var written int
+	var err error
+	switch n.nr {
+	case c.pwrite64, c.pwritev, c.pwritev2:
+		if off := int64(n.args[3]); n.nr != c.pwrite64 && off == -1 {
+			written, err = unix.Write(dup, data)
+		} else {
+			written, err = unix.Pwrite(dup, data, off) // ESPIPE for pipes, as the kernel would say
+		}
+	default:
+		written, err = unix.Write(dup, data)
 	}
-	if cnt > maxIovecs {
-		cnt = maxIovecs
+	if err != nil {
+		s.respond(n.id, 0, errnoOf(err, unix.EIO), false)
+		return
 	}
-	buf := make([]byte, 16*cnt)
-	if err := s.readMem(tid, addr, buf); err != nil {
-		return 0, err
-	}
-	var total int64
-	for i := 0; i < cnt; i++ {
-		total += int64(binary.NativeEndian.Uint64(buf[16*i+8:]))
-	}
-	return total, nil
+	s.respond(n.id, int64(written), 0, false)
 }
 
-func (s *supervisor) readU64(tid int, addr uintptr) (uint64, error) {
-	buf := make([]byte, 8)
-	if err := s.readMem(tid, addr, buf); err != nil {
-		return 0, err
+// writeFile writes data to the regular file behind dup, within the quota and
+// the file size limit, and charges the growth.
+func (s *supervisor) writeFile(n notification, dup int, st unix.Stat_t, data []byte) {
+	c := s.calls
+	flags, err := unix.FcntlInt(uintptr(dup), unix.F_GETFL, 0)
+	if err != nil {
+		s.respond(n.id, 0, unix.EBADF, false)
+		return
 	}
-	return binary.NativeEndian.Uint64(buf), nil
+	appendMode := flags&unix.O_APPEND != 0
+	positional := false
+	var at int64
+	switch n.nr {
+	case c.pwrite64, c.pwritev:
+		at, positional = int64(n.args[3]), true
+	case c.pwritev2:
+		if int64(n.args[3]) != -1 {
+			at, positional = int64(n.args[3]), true
+		}
+		appendMode = appendMode || n.args[5]&rwfAppend != 0
+	}
+	if positional && at < 0 {
+		s.respond(n.id, 0, unix.EINVAL, false)
+		return
+	}
+	if !positional {
+		if at, err = unix.Seek(dup, 0, 1); err != nil {
+			s.respond(n.id, 0, errnoOf(err, unix.ESPIPE), false)
+			return
+		}
+	}
+	if appendMode {
+		at = st.Size // pwrite on an O_APPEND file appends as well
+	}
+	want := int64(len(data))
+	if s.fileSize > 0 && at+want > s.fileSize {
+		want = s.fileSize - at
+		if want <= 0 {
+			s.respond(n.id, 0, unix.EFBIG, false)
+			return
+		}
+	}
+	if allowed := s.allow(at, want, st.Size); allowed < want {
+		if allowed <= 0 {
+			s.k.noteQuota()
+			s.respond(n.id, 0, unix.EDQUOT, false)
+			return
+		}
+		want = allowed
+	}
+	var written int
+	switch {
+	case appendMode, !positional:
+		// The shared description carries the position and O_APPEND.
+		written, err = unix.Write(dup, data[:want])
+	default:
+		written, err = unix.Pwrite(dup, data[:want], at)
+	}
+	s.charge(dup)
+	if err != nil {
+		s.respond(n.id, 0, errnoOf(err, unix.EIO), false)
+		return
+	}
+	s.respond(n.id, int64(written), 0, false)
+}
+
+// allow returns how many of want bytes written at offset at of a file of the
+// given size fit in the quota (reconciling once when they seem not to).
+func (s *supervisor) allow(at, want, size int64) int64 {
+	fits := func() int64 {
+		growth := at + want - size
+		if growth <= 0 {
+			return want
+		}
+		room := s.quota - s.used()
+		if growth <= room {
+			return want
+		}
+		return want - (growth - room)
+	}
+	got := fits()
+	if got < want && time.Since(s.lastRecon) >= reconcileMinGap {
+		_ = s.reconcile()
+		got = fits()
+	}
+	return got
+}
+
+func (s *supervisor) truncate(n notification, dup int, st unix.Stat_t) {
+	defer unix.Close(dup)
+	length := int64(n.args[1])
+	switch {
+	case length < 0:
+		s.respond(n.id, 0, unix.EINVAL, false)
+		return
+	case st.Mode&unix.S_IFMT != unix.S_IFREG:
+		s.respond(n.id, 0, unix.EINVAL, false)
+		return
+	case s.fileSize > 0 && length > s.fileSize:
+		s.respond(n.id, 0, unix.EFBIG, false)
+		return
+	}
+	if length > st.Size && s.allow(st.Size, length-st.Size, st.Size) < length-st.Size {
+		s.k.noteQuota()
+		s.respond(n.id, 0, unix.EDQUOT, false)
+		return
+	}
+	err := unix.Ftruncate(dup, length)
+	s.charge(dup)
+	if err != nil {
+		s.respond(n.id, 0, errnoOf(err, unix.EIO), false)
+		return
+	}
+	s.respond(n.id, 0, 0, false)
+}
+
+// charge records the current size of the file behind dup in the ledger.
+func (s *supervisor) charge(dup int) {
+	var st unix.Stat_t
+	if unix.Fstat(dup, &st) == nil {
+		s.ledger[inode{uint64(st.Dev), st.Ino}] = st.Size //nolint:unconvert // Dev width differs by arch
+	}
 }
 
 func (s *supervisor) readMem(tid int, addr uintptr, buf []byte) error {
+	if len(buf) == 0 {
+		return nil
+	}
+	local := []unix.Iovec{{Base: &buf[0]}}
+	local[0].SetLen(len(buf))
+	remote := []unix.RemoteIovec{{Base: addr, Len: len(buf)}}
+	n, err := unix.ProcessVMReadv(tid, local, remote, 0)
+	if errors.Is(err, unix.EPERM) || errors.Is(err, unix.ENOSYS) {
+		// Container seccomp profiles often refuse process_vm_readv; the same
+		// bytes are readable through /proc with the kernel's credentials.
+		return readProcMem(tid, addr, buf)
+	}
+	if err != nil {
+		return err
+	}
+	if n != len(buf) {
+		return unix.EFAULT
+	}
+	return nil
+}
+
+func readProcMem(tid int, addr uintptr, buf []byte) error {
 	f, err := os.Open("/proc/" + strconv.Itoa(tid) + "/mem")
 	if err != nil {
 		return err
@@ -506,11 +775,19 @@ func (s *supervisor) readMem(tid int, addr uintptr, buf []byte) error {
 	n, err := f.ReadAt(buf, int64(addr))
 	if n != len(buf) {
 		if err == nil {
-			err = errors.New("short read")
+			err = unix.EFAULT
 		}
 		return err
 	}
 	return nil
+}
+
+func errnoOf(err error, fallback syscall.Errno) syscall.Errno {
+	var e syscall.Errno
+	if errors.As(err, &e) {
+		return e
+	}
+	return fallback
 }
 
 func ioctl(fd int, req uint, buf []byte) error {

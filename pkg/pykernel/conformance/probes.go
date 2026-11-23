@@ -100,6 +100,9 @@ var probes = []probe{
 	{"workdir_quota_unlinked_files", probeQuotaUnlinked},
 	{"workdir_quota_after_exec", probeQuotaAfterExec},
 	{"forged_exec_done", probeForgedDone},
+	{"workdir_quota_bypasses", probeQuotaBypasses},
+	{"refused_allocators", probeRefusedAllocators},
+	{"idle_cpu_via_children", probeIdleForkEvasion},
 	{"capability_outside_exec", probeCapabilityOutsideExec},
 	{"cancel_reaches_capability", probeCancel},
 	{"timeout_reaches_capability", probeTimeout},
@@ -811,10 +814,179 @@ report("exec started a thread that calls a capability later", True)
 		}
 		res := Result{Checks: o.checks}
 		late := filepath.Join(s.workdir, "late.txt")
-		eventually(10*time.Second, func() bool { _, err := os.Stat(late); return err == nil })
-		raw, _ := os.ReadFile(late)
+		var raw []byte
+		eventually(10*time.Second, func() bool { raw, _ = os.ReadFile(late); return len(raw) > 0 })
 		res.Checks = append(res.Checks, Check{Name: "a capability call after the exec ended is refused",
 			OK: string(raw) == "KernelCancelled" && len(called) == 0, Detail: fmt.Sprintf("outcome %q, handler ran %d times", raw, len(called))})
+		return res
+	})
+}
+
+// quotaAttacks are known ways around a naive quota; each prints how many
+// bytes it managed to allocate, which must stay within the quota.
+var quotaAttacks = []struct{ name, code string }{
+	{"dup2 a workdir file onto stdout", `
+total = 0
+try:
+    for i in range(100000):
+        fd = os.open("d%d" % i, os.O_WRONLY | os.O_CREAT, 0o600)
+        os.dup2(fd, 1)
+        os.close(fd)
+        for _ in range(per_file // len(chunk)):
+            total += os.write(1, chunk)
+except OSError:
+    pass
+`},
+	{"pwrite at offset 0 on an O_APPEND file", `
+total = 0
+try:
+    for i in range(100000):
+        fd = os.open("a%d" % i, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        for _ in range(per_file // len(chunk)):
+            total += os.pwrite(fd, chunk, 0)
+        os.close(fd)
+except OSError:
+    pass
+`},
+	{"copy_file_range with a huge length", `
+total = 0
+try:
+    src = os.open("src", os.O_RDWR | os.O_CREAT, 0o600)
+    total += os.write(src, chunk)
+    for i in range(100000):
+        dst = os.open("c%d" % i, os.O_WRONLY | os.O_CREAT, 0o600)
+        os.lseek(src, 0, 0)
+        total += os.copy_file_range(src, dst, 2**62)
+except OSError:
+    pass
+`},
+	{"race the iovec length from another thread", `
+import threading
+class iovec(ctypes.Structure):
+    _fields_ = [("base", ctypes.c_void_p), ("len", ctypes.c_size_t)]
+buf = ctypes.create_string_buffer(len(chunk))
+iov = iovec(ctypes.cast(buf, ctypes.c_void_p), 0)
+stop = False
+def flip():
+    while not stop:
+        iov.len = 0
+        iov.len = len(chunk)
+threading.Thread(target=flip, daemon=True).start()
+_libc.writev.restype = ctypes.c_ssize_t
+total, failed = 0, False
+for i in range(64):
+    fd = os.open("r%d" % i, os.O_WRONLY | os.O_CREAT, 0o600)
+    for _ in range(per_file // len(chunk)):
+        n = _libc.writev(fd, ctypes.byref(iov), 1)
+        if n < 0:
+            failed = True
+            break
+        total += n
+    os.close(fd)
+    if failed:
+        break
+stop = True
+`},
+	{"mmap, close and unlink a grown file", `
+_libc.mmap.restype = ctypes.c_void_p
+_libc.mmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_long]
+total, maps = 0, []
+try:
+    for i in range(10000):
+        path = "m%d" % i
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        os.ftruncate(fd, per_file)
+        p = _libc.mmap(None, per_file, 3, 1, fd, 0)  # PROT_READ|WRITE, MAP_SHARED
+        if p in (None, ctypes.c_void_p(-1).value):
+            break
+        ctypes.memset(p, 1, per_file)
+        os.close(fd)
+        os.unlink(path)
+        maps.append(p)
+        total += per_file
+except OSError:
+    pass
+`},
+}
+
+func probeQuotaBypasses(ctx context.Context, r *runner) Result {
+	var res Result
+	limit := r.quotaLimit()
+	for _, attack := range quotaAttacks {
+		sub := r.withKernel(ctx, "quota-bypass", nil, func(k pykernel.Kernel, s *session) Result {
+			o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, quotaFill+attack.code+`
+print("WRITTEN %d" % total)
+`, r.opts.ProbeTimeout)
+			if err != nil {
+				return Result{Error: err.Error()}
+			}
+			got := writtenOf(o.stdout)
+			return Result{Checks: []Check{{
+				Name:   attack.name + " stays within the quota",
+				OK:     limit > 0 && got >= 0 && got <= limit && usageOf(s.workdir) <= limit,
+				Detail: fmt.Sprintf("allocated %d, workdir %d, quota %d", got, usageOf(s.workdir), limit),
+			}}}
+		})
+		if sub.Error != "" {
+			sub.Checks = append(sub.Checks, Check{Name: attack.name, Detail: sub.Error})
+		}
+		res.Checks = append(res.Checks, sub.Checks...)
+	}
+	return res
+}
+
+func probeRefusedAllocators(ctx context.Context, r *runner) Result {
+	return r.pyProbe(ctx, "allocators", nil, `
+import fcntl
+fd = os.open(os.path.join(CFG["workdir"], "f"), os.O_RDWR | os.O_CREAT, 0o600)
+src = os.open(os.path.join(CFG["workdir"], "g"), os.O_RDWR | os.O_CREAT, 0o600)
+def expect(check, fn, errs):
+    try:
+        fn()
+    except OSError as e:
+        report(check, e.errno in errs, e)
+        return
+    report(check, False, "allowed")
+_libc.fallocate.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_long, ctypes.c_long]
+expect("fallocate is refused", lambda: checked(_libc.fallocate(fd, 0, 0, 1 << 20)), (errno.EOPNOTSUPP,))
+expect("truncate by path is refused", lambda: os.truncate(os.path.join(CFG["workdir"], "f"), 1 << 20), (errno.EPERM,))
+expect("setxattr is refused", lambda: os.setxattr(os.path.join(CFG["workdir"], "f"), "user.x", b"x" * 1000), (errno.EOPNOTSUPP,))
+expect("FICLONE is refused", lambda: fcntl.ioctl(fd, 0x40049409, src), (errno.ENOTTY,))
+expect("sendfile is refused", lambda: os.sendfile(fd, src, 0, 1), (errno.EINVAL,))
+report("isatty still works", os.isatty(fd) is False)
+`)
+}
+
+func probeIdleForkEvasion(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "idle-fork", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, nil, `
+import threading, time
+def burn():
+    while True:
+        pid = os.fork()
+        if pid == 0:
+            end = time.time() + 0.7
+            while time.time() < end:
+                pass
+            os._exit(0)
+        os.waitpid(pid, 0)
+threading.Thread(target=burn, daemon=True).start()
+report("exec returned while children keep burning CPU", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		killed := eventually(60*time.Second, func() bool {
+			time.Sleep(3 * time.Second) // stay idle, as a session between model turns
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1", Timeout: time.Second})
+			if err == nil {
+				collect(ch)
+				return false
+			}
+			return errors.Is(err, pykernel.ErrKernelDisposed)
+		})
+		res.Checks = append(res.Checks, Check{Name: "CPU burnt by short-lived children while idle kills the kernel", OK: killed})
 		return res
 	})
 }

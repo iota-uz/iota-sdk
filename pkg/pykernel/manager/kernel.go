@@ -31,6 +31,7 @@ type kernelOptions struct {
 	wallClock      time.Duration
 	workdirQuota   int64
 	workdirEntries int64
+	fileSize       int64
 	// supervised: a supervisor enforces the quota at allocation time, so the
 	// polling watcher is not started.
 	supervised     bool
@@ -64,6 +65,7 @@ type kernel struct {
 	nsReset        bool
 	filesPreserved bool
 	execs          int
+	resets         int
 	leases         int
 	lastActive     time.Time
 	pid            int
@@ -227,7 +229,7 @@ func (k *kernel) noteQuota() {
 func (k *kernel) activity() (bool, int, time.Time) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	return k.active == nil, k.execs, k.lastActive
+	return k.active == nil, k.execs + k.resets, k.lastActive
 }
 
 // killIdle kills a kernel that keeps working while no exec runs.
@@ -236,6 +238,10 @@ func (k *kernel) killIdle() { _ = k.proc.Kill() }
 // markReset records a namespace reset the kernel has been told to perform.
 func (k *kernel) markReset() {
 	k.mu.Lock()
+	// Clearing a namespace runs user __del__ code: host-requested work, not
+	// idle activity.
+	k.resets++
+	k.lastActive = time.Now()
 	k.nsReset = true
 	k.filesPreserved = true
 	k.mu.Unlock()

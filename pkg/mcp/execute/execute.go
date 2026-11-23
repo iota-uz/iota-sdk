@@ -298,6 +298,13 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "the runtime is at capacity").
 			WithRetryAfter(busyRetryAfter.Milliseconds())
 	}
+	if err != nil && ctx.Err() != nil {
+		// The caller gave up while the runtime was starting: nothing ran.
+		return Result{
+			RunID: uuid.NewString(), Status: StatusCancelled, Emitted: []json.RawMessage{}, Artifacts: []Artifact{},
+			OperationIDs: []string{}, Error: &RunError{Code: ErrorCancelled, Message: "the run was cancelled before it started"},
+		}, nil
+	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
 	}

@@ -205,9 +205,16 @@ jobs:
       - name: Conformance as container root (Python 3.11, app as PID 1)
         run: |
           CGO_ENABLED=0 go build -o "$RUNNER_TEMP/pykernel-conformance" ./cmd/pykernel-conformance
-          docker run --rm -v "$RUNNER_TEMP/pykernel-conformance:/app/run:ro" python:3.11-slim-bookworm /app/run -run-as-uid 65534
-          if docker run --rm -v "$RUNNER_TEMP/pykernel-conformance:/app/run:ro" python:3.11-slim-bookworm /app/run > /dev/null; then
+          run="docker run --rm -v $RUNNER_TEMP/pykernel-conformance:/app/run:ro"
+          # The quota supervisor acts for the kernel (pidfd_getfd), which
+          # Docker's default seccomp profile allows only with CAP_SYS_PTRACE.
+          $run --cap-add SYS_PTRACE python:3.11-slim-bookworm /app/run -run-as-uid 65534
+          if $run --cap-add SYS_PTRACE python:3.11-slim-bookworm /app/run > /dev/null; then
             echo "a root kernel without RunAs must fail closed" >&2
+            exit 1
+          fi
+          if $run python:3.11-slim-bookworm /app/run -run-as-uid 65534 > /dev/null; then
+            echo "a host whose supervisor cannot act for the kernel must fail closed" >&2
             exit 1
           fi
 

@@ -73,7 +73,7 @@ func (r *Runner) walkArtifacts(ctx context.Context, dirfd int, rel string, depth
 		case unix.S_IFREG:
 			f := os.NewFile(uintptr(fd), name)
 			if st.Size <= r.cfg.MaxArtifactBytes {
-				if a, ok := r.artifact(ctx, path.Join(rel, name), f, st.Size); ok {
+				if a, ok := r.artifact(ctx, path.Join(rel, name), f); ok {
 					*out = append(*out, a)
 				}
 			}
