@@ -16,6 +16,8 @@ type exprs struct {
 	outputs expr.Fields // nodes.<id>.output by node, in graph order
 	foreach expr.Fields // foreach.<id> by foreach node, in graph order
 	event   string      // the event kind all triggers share; "" when they differ
+	// run: the programs are for running a graph, not for checking it.
+	run bool
 	// triggerAt is the index of each trigger in the graph.
 	triggerAt map[string]int
 
@@ -106,7 +108,8 @@ func eventFieldOf(c Catalog, kinds []string) expr.Field {
 	return expr.ObjectOf(append(expr.Fields{{Name: "kind", Field: expr.StringField}}, common...))
 }
 
-// intersectFields keeps the fields of a that b has too; one typed differently in b is dyn.
+// intersectFields keeps the fields of a that b has too, each as what both declare: a nested object is
+// intersected in turn, and a field of different types is dyn.
 func intersectFields(a, b expr.Fields) expr.Fields {
 	var out expr.Fields
 	for _, p := range a {
@@ -114,10 +117,31 @@ func intersectFields(a, b expr.Fields) expr.Fields {
 		if !ok {
 			continue
 		}
-		if other.String() != p.Field.String() {
-			p.Field = expr.DynField
-		}
+		p.Field = intersectField(p.Field, other)
 		out = append(out, p)
+	}
+	return out
+}
+
+func intersectField(a, b expr.Field) expr.Field {
+	if a.String() == b.String() {
+		return a
+	}
+	optional := a.Kind == expr.Optional || b.Kind == expr.Optional
+	ua, ub := a.Unwrap(), b.Unwrap()
+	var out expr.Field
+	switch {
+	case ua.Kind == expr.Object && ub.Kind == expr.Object:
+		out = expr.ObjectOf(intersectFields(ua.Props, ub.Props))
+	case ua.Kind == expr.List && ub.Kind == expr.List:
+		out = expr.ListOf(intersectField(*ua.Elem, *ub.Elem))
+	case ua.Kind == expr.Map && ub.Kind == expr.Map:
+		out = expr.MapOf(intersectField(*ua.Elem, *ub.Elem))
+	default:
+		return expr.DynField
+	}
+	if optional {
+		return expr.OptionalOf(out)
 	}
 	return out
 }
@@ -192,9 +216,6 @@ func (x *exprs) kindsAndSubjects(triggers []string) (kinds, subjects []string) {
 			subjects = append(subjects, e.Subject)
 		}
 	}
-	if len(subjects) > 1 && x.view.catalog.MixedSubject != "" {
-		subjects = []string{x.view.catalog.MixedSubject} // the run's subject is the mixed one: its context is read
-	}
 	return kinds, subjects
 }
 
@@ -226,6 +247,10 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 			kinds = []string{event}
 		}
 		scope = ExprScopeOf(x.view.catalog, subjects, kinds, nodes)
+		if x.run && event == "*" && len(kinds) > 1 {
+			// A run passes the event it has, whole: the fields all kinds share are what the check allows.
+			scope.Vars["event"] = expr.MapOf(expr.DynField)
+		}
 	}
 	if withNodes {
 		// foreach.<id>.item and .index: read inside the foreach's body.

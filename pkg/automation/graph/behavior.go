@@ -265,8 +265,8 @@ func (v *GraphView) MayLeaveUnconnected(id, outcome string) bool {
 // reaches. A trigger reaches itself. Expressions of a node read what all of these triggers have.
 func (v *GraphView) Reaching(id string) []string { return append([]string(nil), v.reaching[id]...) }
 
-// SubjectsReaching are the subjects a node's expressions read: those of the events of the triggers that
-// reach it, or the catalog's mixed subject when they differ; empty for a node no trigger reaches.
+// SubjectsReaching are the subjects of the events of the triggers that reach a node; empty for a node no
+// trigger reaches.
 func (v *GraphView) SubjectsReaching(id string) []string {
 	var subjects []string
 	for _, t := range v.reaching[id] {
@@ -280,10 +280,21 @@ func (v *GraphView) SubjectsReaching(id string) []string {
 			break
 		}
 	}
-	if len(subjects) > 1 && v.catalog.MixedSubject != "" {
-		return []string{v.catalog.MixedSubject}
-	}
 	return subjects
+}
+
+// mixedRun reports whether a run about entity is about the catalog's mixed subject of a mixed graph and not
+// about the subject of one of its triggers' events: any of the triggers starts it.
+func (v *GraphView) mixedRun(entity string) bool {
+	if v.catalog.MixedSubject == "" || entity != v.catalog.MixedSubject || v.subject != v.catalog.MixedSubject {
+		return false
+	}
+	for _, t := range v.graph.Triggers {
+		if v.catalog.Events[t.Event].Subject == entity {
+			return false
+		}
+	}
+	return true
 }
 
 // Reachable is every node reachable from a node or trigger along edges (from itself included).

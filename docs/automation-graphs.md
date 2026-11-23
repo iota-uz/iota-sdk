@@ -147,10 +147,10 @@ subject variables (`<entity>.*`), `event.*` and the subject restriction of a nod
 (`human` takes a card) are checked against what **all** of those triggers have, with the
 same type. A variable some other trigger of the graph has but one of these lacks is
 `unknown_variable_for_trigger`; its message names the node, the variable and the trigger.
-When the triggers' subjects differ and the catalog has a mixed subject, a node they all
-lead to reads the mixed subject's context. The interpreter already runs by the subject of
-the event that started the run; its expressions are compiled in the scope of the same
-triggers.
+A mixed subject of the catalog only names such a graph; it does not stand for the
+subjects of its triggers. The interpreter runs by the subject of the event that started the
+run; its expressions are compiled in the scope of the same triggers, and a node several
+event kinds lead to is given the whole event, not only the fields the check allows.
 
 ### Tokens
 

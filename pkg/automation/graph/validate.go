@@ -520,10 +520,10 @@ func (x *exprs) exprError(owner, path string, i expr.Issue, src string) GraphErr
 }
 
 // unknownVariable looks for a variable of src (a `{{ }}` template or an expression) that a trigger leading to
-// owner does not have although another trigger of the graph does.
+// owner does not have although the catalog declares it for some subject or event.
 func (x *exprs) unknownVariable(owner, path, src string) (GraphError, bool) {
 	triggers := x.triggersOf(owner)
-	if len(triggers) == 0 || len(x.view.graph.Triggers) < 2 {
+	if len(triggers) == 0 {
 		return GraphError{}, false
 	}
 	var sources []string
@@ -562,15 +562,37 @@ func (x *exprs) unknownVariable(owner, path, src string) (GraphError, bool) {
 					continue
 				}
 				name := strings.Join(chain[:at+1], ".")
-				for _, other := range x.view.graph.Triggers {
-					if other.ID != id && missingAt(scopeOfTrigger(other.ID), chain[:at+1]) < 0 {
-						return GraphError{Path: path, Code: CodeUnknownVariableForTrigger, Message: x.variableMessage(owner, name, id)}, true
-					}
+				if x.catalogHas(chain[:at+1]) {
+					return GraphError{Path: path, Code: CodeUnknownVariableForTrigger, Message: x.variableMessage(owner, name, id)}, true
 				}
 			}
 		}
 	}
 	return GraphError{}, false
+}
+
+// catalogHas reports whether the catalog declares a chain: a variable of some subject, or a field of some
+// event (`event.mail.subject`).
+func (x *exprs) catalogHas(chain []string) bool {
+	c := x.view.catalog
+	if chain[0] == "event" {
+		for kind := range c.Events {
+			if missingAt(map[string]expr.Field{"event": eventField(c, kind)}, chain) < 0 {
+				return true
+			}
+		}
+		return false
+	}
+	for subject := range c.Subjects {
+		vars := map[string]expr.Field{}
+		for _, p := range subjectVars(c, subject) {
+			vars[p.Name] = p.Field
+		}
+		if missingAt(vars, chain) < 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (x *exprs) variableMessage(owner, name, trigger string) string {

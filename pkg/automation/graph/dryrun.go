@@ -92,7 +92,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 			}
 			for _, t := range i.view.graph.Triggers {
 				// A run about an entity starts only on a trigger about it (a mixed graph has several).
-				if subject.Entity != "" && subject.Entity != i.view.subject && i.view.catalog.Events[t.Event].Subject != subject.Entity {
+				if subject.Entity != "" && !i.view.mixedRun(subject.Entity) && i.view.catalog.Events[t.Event].Subject != subject.Entity {
 					continue
 				}
 				evCtx := run

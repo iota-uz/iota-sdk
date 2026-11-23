@@ -159,3 +159,97 @@ func compactJSON(t *testing.T, v any) string {
 	}
 	return string(b)
 }
+
+// A mixed subject does not stand for the subjects of the triggers: a node both a record and a mail lead to
+// reads what both have, and a node for records is refused after the mail.
+func TestReachableTriggersMixedSubject(t *testing.T) {
+	c := recordMailCatalog(t, "order")
+	g := mustDecode(t, strings.Replace(recordMailGraph, `event.kind != \"\"`, `order.status == \"new\"`, 1))
+	errs := graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Path != "nodes[4].params.expression" || !strings.Contains(errs[0].Message, "incoming") {
+		t.Fatalf("a shared node reads the record: %v", errs)
+	}
+	g = mustDecode(t, strings.Replace(recordMailGraph, `{"from": {"node": "urgent", "outcome": "false"}, "to": "both"}`, `{"from": {"node": "urgent", "outcome": "false"}, "to": "review"}`, 1))
+	errs = graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[1].type" {
+		t.Fatalf("a node for records after the mail: %v", errs)
+	}
+}
+
+// Two events that declare the same object with different fields share the fields both have.
+func TestReachableTriggersNestedFields(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	c.Events["mail.sent"] = graph.EventSpec{Key: "mail.sent", Subject: graph.SubjectNone, Payload: expr.Fields{
+		{Name: "mail", Field: expr.ObjectOf(expr.Fields{{Name: "to", Field: expr.StringField}})},
+	}}
+	c.Events["mail.received"] = graph.EventSpec{Key: "mail.received", Subject: graph.SubjectNone, Payload: expr.Fields{
+		{Name: "mail", Field: expr.ObjectOf(expr.Fields{{Name: "to", Field: expr.StringField}, {Name: "subject", Field: expr.StringField}})},
+	}}
+	graphOf := func(expression string) graph.Graph {
+		return mustDecode(t, `{"name": "Mail", "triggers": [{"id": "inbox", "event": "mail.received"}, {"id": "outbox", "event": "mail.sent"}],
+		"nodes": [{"id": "n", "type": "branch", "params": {"expression": "`+expression+`"}}],
+		"edges": [{"from": {"node": "inbox", "outcome": "fired"}, "to": "n"}, {"from": {"node": "outbox", "outcome": "fired"}, "to": "n"},
+		{"from": {"node": "n", "outcome": "true"}, "to": "ignore"}, {"from": {"node": "n", "outcome": "false"}, "to": "ignore"}]}`)
+	}
+	if errs := graph.Validate(c, graphOf(`event.mail.to != \"\"`), graph.Options{}); len(errs) > 0 {
+		t.Fatalf("a field both have: %v", errs)
+	}
+	errs := graph.Validate(c, graphOf(`event.mail.subject != \"\"`), graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Message != "node n reads event.mail.subject, which trigger outbox (on mail.sent) does not have" {
+		t.Fatalf("a field one has: %v", errs)
+	}
+}
+
+// What the check allows at a shared node does not cut the event a run passes: it is whole.
+func TestReachableTriggersRunKeepsEvent(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	c.Events["mail.sent"] = graph.EventSpec{Key: "mail.sent", Subject: graph.SubjectNone, Payload: expr.Fields{
+		{Name: "mail", Field: expr.ObjectOf(expr.Fields{{Name: "subject", Field: expr.StringField}, {Name: "to", Field: expr.StringField}})},
+	}}
+	g := mustDecode(t, `{"name": "Mail", "triggers": [{"id": "inbox", "event": "mail.received"}, {"id": "outbox", "event": "mail.sent"}],
+		"nodes": [{"id": "n", "type": "notify", "params": {"text": "{{ event }}"}}],
+		"edges": [{"from": {"node": "inbox", "outcome": "fired"}, "to": "n"}, {"from": {"node": "outbox", "outcome": "fired"}, "to": "n"},
+		{"from": {"node": "n", "outcome": "done"}, "to": "ignore"}, {"from": {"node": "n", "outcome": "failed"}, "to": "ignore"}]}`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := in.DryRun(graph.Subject{}, graph.Context{}, []graph.DryRunInput{
+		{Event: graph.Event{"kind": "mail.received", "mail": map[string]any{"subject": "s", "labels": []any{"a"}}}},
+	}, graph.DryRunOptions{})
+	if len(trace) < 2 || !strings.Contains(compactJSON(t, trace[1].ContextPatch), `labels`) {
+		t.Fatalf("the event at the shared node: %+v", trace)
+	}
+}
+
+// A run about a record starts on the record's trigger only, whether or not the catalog has a mixed subject.
+func TestReachableTriggersDryRunSubject(t *testing.T) {
+	for _, mixed := range []string{"", "order"} {
+		c := recordMailCatalog(t, mixed)
+		in, err := graph.NewInterpreter(c, mustDecode(t, recordMailGraph), graph.Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		trace := in.DryRun(graph.Subject{Entity: "order", Key: "1"}, graph.Context{Vars: map[string]any{"order": map[string]any{"total": 1.0, "status": "new"}}}, []graph.DryRunInput{
+			{Event: graph.Event{"kind": "mail.received", "mail": map[string]any{"subject": "URGENT", "labels": []any{}}}},
+		}, graph.DryRunOptions{})
+		for _, step := range trace {
+			if step.Node == "incoming" {
+				t.Errorf("mixed %q: a run about an order started on the mail trigger: %+v", mixed, trace)
+			}
+		}
+	}
+}
+
+// A graph with one trigger reports a variable the catalog has for another subject by the trigger.
+func TestReachableTriggersOneTrigger(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	g := mustDecode(t, `{"name": "Mail", "triggers": [{"id": "incoming", "event": "mail.received"}],
+		"nodes": [{"id": "n", "type": "branch", "params": {"expression": "order.status == \"new\""}}],
+		"edges": [{"from": {"node": "incoming", "outcome": "fired"}, "to": "n"},
+		{"from": {"node": "n", "outcome": "true"}, "to": "ignore"}, {"from": {"node": "n", "outcome": "false"}, "to": "ignore"}]}`)
+	errs := graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Message != "node n reads order, which trigger incoming (on mail.received) does not have" {
+		t.Fatalf("errors: %v", errs)
+	}
+}

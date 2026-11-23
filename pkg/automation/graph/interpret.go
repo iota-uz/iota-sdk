@@ -430,7 +430,9 @@ func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
 		return nil, fmt.Errorf("the graph is not valid: %s", strings.Join(msgs, "; "))
 	}
 	v := buildView(c, g, o)
-	return &Interpreter{view: v, opts: o, exprs: newExprs(v, o.Limits.Expr), next: v.next}, nil
+	x := newExprs(v, o.Limits.Expr)
+	x.run = true
+	return &Interpreter{view: v, opts: o, exprs: x, next: v.next}, nil
 }
 
 // Graph is the interpreted graph.
