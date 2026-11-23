@@ -189,11 +189,12 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if run.Native != nil {
 		req.ParentInstance = run.Native.Instance().ID
 	}
-	if kinds := nt.Requires(); len(kinds) > 0 {
-		view, err := c.r.cfg.Catalog.ForTenant(ctx, run.TenantID)
-		if err != nil {
-			return WaitSpec{}, &host.InfraError{Err: err}
-		}
+	view, err := c.r.cfg.Catalog.ForTenant(ctx, run.TenantID)
+	if err != nil {
+		return WaitSpec{}, &host.InfraError{Err: err}
+	}
+	// The node's own kinds and its connector's.
+	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
 		ref, _, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
 			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
