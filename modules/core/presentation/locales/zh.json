@@ -113,7 +113,10 @@
       "RevokeSuccess": "会话已成功撤销",
       "RevokeAllSuccess": "已撤销 %d 个会话",
       "EmptyState": "您仅在此设备上登录",
-      "CannotRevokeCurrent": "无法撤销当前会话"
+      "CannotRevokeCurrent": "无法撤销当前会话",
+      "ExpiresAt": "过期时间",
+      "CurrentSession": "当前会话",
+      "NoMatches": "没有符合这些筛选条件的会话"
     }
   },
   "Actions": "操作",
@@ -1602,7 +1605,12 @@
       "Revoke": "撤销",
       "ConfirmRevoke": "您确定要撤销此会话吗？",
       "EmptyState": "无活动会话",
-      "CurrentSession": "当前"
+      "CurrentSession": "当前",
+      "Status": "状态",
+      "StatusActive": "已登录",
+      "StatusPending2FA": "等待第二重验证",
+      "StatusPendingOnboarding": "账户尚未设置完成",
+      "ExpiresAt": "过期时间"
     },
     "Revoked": "会话已撤销"
   },
@@ -1802,6 +1810,9 @@
     "Search": "搜索",
     "NoPeople": "未找到人员。",
     "UserChannelsSaved": "渠道已保存。",
+    "FilterRole": "角色",
+    "FilterGroup": "组",
+    "FilterOptedOut": "已关闭的渠道",
     "InvalidChannels": "无法保存渠道。",
     "DynamicRecipients": "同时通知",
     "Unavailable": "不可用",

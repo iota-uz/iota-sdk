@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -36,13 +38,58 @@ func (r *NotificationRecipientDirectory) Search(ctx context.Context, query notif
 		args = append(args, "%"+notificationRecipientSearchEscaper.Replace(term)+"%")
 		where = append(where, fmt.Sprintf("concat_ws(' ', u.first_name, u.middle_name, u.last_name, u.email) ILIKE $%d", len(args)))
 	}
+	conditions, args := filterq.AppendSQL(query.Filters, notificationRecipientFilterSchema, notificationRecipientFilterColumns, time.Now(), args)
 	args = append(args, query.Limit, query.Offset)
-	sql := fmt.Sprintf("%s WHERE %s ORDER BY u.first_name, u.last_name, u.id LIMIT $%d OFFSET $%d", notificationRecipientColumns, strings.Join(where, " AND "), len(args)-1, len(args))
+	sql := fmt.Sprintf("%s WHERE %s%s ORDER BY u.first_name, u.last_name, u.id LIMIT $%d OFFSET $%d", notificationRecipientColumns, strings.Join(where, " AND "), conditions, len(args)-1, len(args))
 	recipients, err := queryNotificationRecipients(ctx, sql, args)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
 	return recipients, nil
+}
+
+// The recipient filters are memberships, so each is an EXISTS over the user.
+// IDs compare as text: a hand-edited value matches nobody instead of failing
+// the query.
+var notificationRecipientFilterSchema = filterq.Schema{Fields: []filterq.Field{
+	{Key: notifications.RecipientFilterRole, Type: filterq.FieldTypeReference},
+	{Key: notifications.RecipientFilterGroup, Type: filterq.FieldTypeReference},
+	{Key: notifications.RecipientFilterOptedOut, Type: filterq.FieldTypeReference},
+}}
+
+var notificationRecipientFilterColumns = map[string]filterq.Column{
+	// A role counts when held directly or through a group, as when a rule
+	// names the role (NotificationAudienceRepository.Resolve).
+	notifications.RecipientFilterRole: {Custom: notificationRecipientMembership(func(list string) string {
+		return "SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.tenant_id = u.tenant_id AND r.id::text = ANY(" + list + ")" +
+			" UNION ALL SELECT 1 FROM group_users gu JOIN user_groups g ON g.id = gu.group_id JOIN group_roles gr ON gr.group_id = g.id JOIN roles r ON r.id = gr.role_id" +
+			" WHERE gu.user_id = u.id AND g.tenant_id = u.tenant_id AND r.tenant_id = u.tenant_id AND r.id::text = ANY(" + list + ")"
+	})},
+	notifications.RecipientFilterGroup: {Custom: notificationRecipientMembership(func(list string) string {
+		return "SELECT 1 FROM group_users gu JOIN user_groups g ON g.id = gu.group_id WHERE gu.user_id = u.id AND g.tenant_id = u.tenant_id AND g.id::text = ANY(" + list + ")"
+	})},
+	notifications.RecipientFilterOptedOut: {Custom: notificationRecipientMembership(func(list string) string {
+		return "SELECT 1 FROM core.notification_channel_preferences p WHERE p.tenant_id = u.tenant_id AND p.user_id = u.id AND p.channel = ANY(" + list + ")"
+	})},
+}
+
+// notificationRecipientMembership renders "is" as EXISTS and "is not" as NOT
+// EXISTS of the subquery built for the condition's values.
+func notificationRecipientMembership(subquery func(list string) string) func(filterq.Condition, *filterq.Params) (string, bool) {
+	return func(c filterq.Condition, p *filterq.Params) (string, bool) {
+		if len(c.Values) == 0 {
+			return "", false
+		}
+		switch c.Op {
+		case filterq.OpIs:
+			return "EXISTS (" + subquery(p.Add(c.Values)+"::text[]") + ")", true
+		case filterq.OpIsNot:
+			return "NOT EXISTS (" + subquery(p.Add(c.Values)+"::text[]") + ")", true
+		case filterq.OpBefore, filterq.OpAfter, filterq.OpOn, filterq.OpBetween, filterq.OpEq, filterq.OpGt, filterq.OpLt, filterq.OpEmpty:
+			// Not membership operators.
+		}
+		return "", false
+	}
 }
 
 func (r *NotificationRecipientDirectory) GetByIDs(ctx context.Context, ids []uint) ([]notifications.Recipient, error) {

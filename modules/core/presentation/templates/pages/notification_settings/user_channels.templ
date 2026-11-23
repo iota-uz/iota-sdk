@@ -3,11 +3,28 @@ package notification_settings
 import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
+	"net/url"
 	"strconv"
 )
+
+const userChannelsPath = "/settings/notifications/users"
+
+// HTMX targets of the channels-per-person page: the list a search or chip
+// change replaces, and the "Show more" button the next page replaces.
+const (
+	UserChannelsListID = "notification-user-channels-list"
+	UserChannelsMoreID = "user-channels-more"
+)
+
+// ChannelLabelKey is the locale key naming a channel.
+func ChannelLabelKey(channel notifications.Channel) string {
+	return "NotificationSettings.Channel" + channelKey(channel)
+}
 
 // UserChannelRow is one person with the channels they opted out of.
 type UserChannelRow struct {
@@ -21,6 +38,30 @@ type UserChannelsProps struct {
 	Search     string
 	CanManage  bool
 	MessageKey string
+	// Filters is the filter chip bar; a nil Registry hides it.
+	Filters filterbuilder.Props
+	// Offset is where Rows start; HasMore says another page follows.
+	Offset  int
+	HasMore bool
+}
+
+// listQuery is the search and chips of the page, as the save forms and the
+// next page carry them.
+func (props *UserChannelsProps) listQuery() url.Values {
+	q := filterq.Encode(props.Filters.Filters)
+	if props.Search != "" {
+		q.Set("q", props.Search)
+	}
+	if props.Filters.Registry != nil {
+		q.Set(filterq.PresenceParam, "1")
+	}
+	return q
+}
+
+func (props *UserChannelsProps) nextPageURL() string {
+	q := props.listQuery()
+	q.Set("offset", strconv.Itoa(props.Offset+len(props.Rows)))
+	return userChannelsPath + "?" + q.Encode()
 }
 
 func channelEnabled(row UserChannelRow, channel notifications.Channel) bool {
@@ -50,38 +91,99 @@ templ UserChannelsContent(props *UserChannelsProps) {
 				<p role="status" class="text-sm text-200 mt-2">{ pageCtx.T("NotificationSettings."+props.MessageKey) }</p>
 			}
 		</header>
-		<form method="get" action="/settings/notifications/users" class="mb-4 flex gap-2">
-			<input type="search" name="q" value={ props.Search } maxlength="100" placeholder={ pageCtx.T("NotificationSettings.SearchPeople") } class="block w-full rounded-lg border border-secondary bg-surface-300 px-3 py-2"/>
+		<form
+			id="notification-user-channels-filters"
+			method="get"
+			action={ templ.SafeURL(userChannelsPath) }
+			class="mb-4 flex flex-wrap gap-2"
+			hx-get={ userChannelsPath }
+			hx-trigger="submit, keyup[!target.closest('[data-fb-popover]')] changed delay:500ms from:(#notification-user-channels-filters input[name='q']), filter-changed"
+			hx-target={ "#" + UserChannelsListID }
+			hx-swap="outerHTML"
+			hx-push-url="true"
+		>
+			<input type="search" name="q" value={ props.Search } maxlength="100" placeholder={ pageCtx.T("NotificationSettings.SearchPeople") } class="block min-w-0 flex-1 rounded-lg border border-secondary bg-surface-300 px-3 py-2"/>
 			@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
 				{ pageCtx.T("NotificationSettings.Search") }
 			}
+			if props.Filters.Registry != nil && len(props.Filters.Registry.Fields()) > 0 {
+				<div class="w-full">
+					@filterbuilder.Builder(props.Filters)
+				</div>
+			}
 		</form>
+		@UserChannelsList(props)
+	</main>
+}
+
+// UserChannelsListWithChips answers a search or chip change: the list plus the
+// chip bar, swapped out-of-band since it sits in the form above.
+templ UserChannelsListWithChips(props *UserChannelsProps) {
+	@UserChannelsList(props)
+	if props.Filters.Registry != nil && len(props.Filters.Registry.Fields()) > 0 {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
+
+templ UserChannelsList(props *UserChannelsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ UserChannelsListID }>
 		if len(props.Rows) == 0 {
 			<p class="text-sm text-200">{ pageCtx.T("NotificationSettings.NoPeople") }</p>
 		}
-		for _, row := range props.Rows {
-			<form method="post" action={ templ.SafeURL("/settings/notifications/users/" + strconv.FormatUint(uint64(row.Recipient.ID), 10)) } class="mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-secondary bg-surface-300 px-5 py-3" data-testid="user-channels-row">
-				<input type="hidden" name="q" value={ props.Search }/>
-				<span class="mr-auto">
-					<span class="font-medium">{ row.Recipient.Name }</span>
-					if row.Recipient.Hint != "" {
-						<span class="block text-sm text-200">{ row.Recipient.Hint }</span>
-					}
-				</span>
-				for _, channel := range props.Channels {
-					@input.Checkbox(&input.CheckboxProps{
-						Label:   pageCtx.T("NotificationSettings.Channel" + channelKey(channel)),
-						Class:   templ.Classes("text-sm font-normal"),
-						Checked: channelEnabled(row, channel),
-						Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
-					})
+		@UserChannelRows(props)
+	</div>
+}
+
+// UserChannelRows renders one page of people and, when more follow, the
+// button that loads the next page in its place.
+templ UserChannelRows(props *UserChannelsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	for _, row := range props.Rows {
+		<form method="post" action={ templ.SafeURL("/settings/notifications/users/" + strconv.FormatUint(uint64(row.Recipient.ID), 10)) } class="mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-secondary bg-surface-300 px-5 py-3" data-testid="user-channels-row">
+			for key, values := range props.listQuery() {
+				for _, value := range values {
+					<input type="hidden" name={ key } value={ value }/>
 				}
-				if props.CanManage {
-					@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
-						{ pageCtx.T("NotificationSettings.Save") }
-					}
+			}
+			<!-- The row's own page: after "Show more" a saved row sits past offset 0,
+			     and re-rendering from the top would drop it. Search and chip
+			     changes do not send it, so they start at the first page. -->
+			if props.Offset > 0 {
+				<input type="hidden" name="offset" value={ strconv.Itoa(props.Offset) }/>
+			}
+			<span class="mr-auto">
+				<span class="font-medium">{ row.Recipient.Name }</span>
+				if row.Recipient.Hint != "" {
+					<span class="block text-sm text-200">{ row.Recipient.Hint }</span>
 				}
-			</form>
-		}
-	</main>
+			</span>
+			for _, channel := range props.Channels {
+				@input.Checkbox(&input.CheckboxProps{
+					Label:   pageCtx.T(ChannelLabelKey(channel)),
+					Class:   templ.Classes("text-sm font-normal"),
+					Checked: channelEnabled(row, channel),
+					Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
+				})
+			}
+			if props.CanManage {
+				@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {
+					{ pageCtx.T("NotificationSettings.Save") }
+				}
+			}
+		</form>
+	}
+	if props.HasMore {
+		<div id={ UserChannelsMoreID } class="mb-3">
+			<a
+				href={ templ.SafeURL(props.nextPageURL()) }
+				hx-get={ props.nextPageURL() }
+				hx-target={ "#" + UserChannelsMoreID }
+				hx-swap="outerHTML"
+				class="text-sm text-200 hover:text-100"
+			>
+				{ pageCtx.T("NotificationSettings.ShowMore") }
+			</a>
+		</div>
+	}
 }

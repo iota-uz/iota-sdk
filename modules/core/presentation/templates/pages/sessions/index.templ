@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -25,10 +26,26 @@ type IndexPageProps struct {
 	TotalCount  int
 	HasMore     bool
 	SearchQuery string
+	// BasePath is where the list is served; empty means /settings/sessions.
+	BasePath string
+	// Query is the request query; the next page keeps its search and chips.
+	Query url.Values
+	// Filters is the filter chip bar; a nil Registry hides it.
+	Filters filterbuilder.Props
+}
+
+func (props *IndexPageProps) basePath() string {
+	if props.BasePath != "" {
+		return props.BasePath
+	}
+	return "/settings/sessions"
 }
 
 func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	params := url.Values{}
+	for k, v := range props.Query {
+		params[k] = append([]string(nil), v...)
+	}
 	params.Set("page", strconv.Itoa(props.Page+1))
 	params.Set("limit", strconv.Itoa(props.PerPage))
 	if props.SearchQuery != "" {
@@ -36,14 +53,14 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 	}
 
 	return templ.Attributes{
-		"hx-get":     "/settings/sessions?" + params.Encode(),
+		"hx-get":     props.basePath() + "?" + params.Encode(),
 		"hx-trigger": "intersect once",
 		"hx-swap":    "afterend",
 		"hx-target":  "this",
 	}
 }
 
-templ SessionRow(session *viewmodels.AdminSessionViewModel) {
+templ SessionRow(session *viewmodels.AdminSessionViewModel, attrs ...templ.Attributes) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		rowProps := &base.TableRowProps{
@@ -51,6 +68,12 @@ templ SessionRow(session *viewmodels.AdminSessionViewModel) {
 				"id":    fmt.Sprintf("session-row-%s", session.TokenID),
 				"class": "hide-on-load",
 			},
+		}
+		// The last row of a page carries the infinite-scroll request.
+		for _, extra := range attrs {
+			for k, v := range extra {
+				rowProps.Attrs[k] = v
+			}
 		}
 	}}
 	@base.TableRow(*rowProps) {
@@ -122,17 +145,49 @@ templ SessionRows(props *IndexPageProps) {
 		</td>
 	</tr>
 	for ix, session := range props.Sessions {
-		{{
-			isLastRow := ix == len(props.Sessions)-1
-			rowProps := &base.TableRowProps{
-				Attrs: templ.Attributes{},
-			}
-			if isLastRow && props.HasMore {
-				rowProps.Attrs = mkInfiniteAttrs(props)
-			}
-		}}
-		@SessionRow(session)
+		if ix == len(props.Sessions)-1 && props.HasMore {
+			@SessionRow(session, mkInfiniteAttrs(props))
+		} else {
+			@SessionRow(session)
+		}
 	}
+}
+
+// SessionRowsWithChips answers a search from a page whose form still targets
+// the table body: the rows plus the chip bar, swapped out-of-band.
+templ SessionRowsWithChips(props *IndexPageProps) {
+	@SessionRows(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
+
+// SessionsListWithChips answers a search or chip change: the list (table or
+// empty state) plus the chip bar, swapped out-of-band since it sits in the
+// form above.
+templ SessionsListWithChips(props *IndexPageProps) {
+	@SessionsList(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
+
+// SessionsList is the table of sessions, or the empty state; search and chip
+// changes replace it whole, so an empty result can turn back into rows.
+templ SessionsList(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id="sessions-list">
+		if len(props.Sessions) > 0 {
+			@SessionsTable(props)
+		} else {
+			<div class="p-8 text-center text-surface-200">
+				<div class="flex flex-col items-center gap-2">
+					@icons.ClockCounterClockwise(icons.Props{Size: "48", Class: "text-surface-300"})
+					<p class="text-lg">{ pageCtx.T("Sessions.List.EmptyState") }</p>
+				</div>
+			</div>
+		}
+	</div>
 }
 
 templ SessionsTable(props *IndexPageProps) {
@@ -157,14 +212,19 @@ templ SessionsContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-surface-600 border border-primary rounded-lg">
 		<form
-			class="p-4 flex items-center gap-3"
-			hx-get="/settings/sessions"
-			hx-trigger="keyup changed delay:500ms from:(form input)"
-			hx-target="#sessions-table-body"
-			hx-swap="innerHTML"
-			hx-indicator="#sessions-table-body"
+			class="p-4 flex flex-wrap items-center gap-3"
+			hx-get={ props.basePath() }
+			hx-trigger="keyup[!target.closest('[data-fb-popover]')] changed delay:500ms from:(form input), filter-changed"
+			hx-target="#sessions-list"
+			hx-swap="outerHTML"
+			hx-push-url="true"
+			hx-indicator="#sessions-list"
 		>
 			<input type="hidden" name="page" value="1"/>
+			<!-- A chip change keeps the page size the page was opened with. -->
+			if props.PerPage > 0 {
+				<input type="hidden" name="limit" value={ fmt.Sprint(props.PerPage) }/>
+			}
 			<div class="flex-1">
 				@input.Text(&input.Props{
 					AddonLeft: &input.Addon{
@@ -177,17 +237,13 @@ templ SessionsContent(props *IndexPageProps) {
 					},
 				})
 			</div>
-		</form>
-		if len(props.Sessions) > 0 {
-			@SessionsTable(props)
-		} else {
-			<div class="p-8 text-center text-surface-200">
-				<div class="flex flex-col items-center gap-2">
-					@icons.ClockCounterClockwise(icons.Props{Size: "48", Class: "text-surface-300"})
-					<p class="text-lg">{ pageCtx.T("Sessions.List.EmptyState") }</p>
+			if props.Filters.Registry != nil {
+				<div class="w-full">
+					@filterbuilder.Builder(props.Filters)
 				</div>
-			</div>
-		}
+			}
+		</form>
+		@SessionsList(props)
 	</div>
 }
 

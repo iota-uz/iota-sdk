@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -96,7 +97,13 @@ func (s *NotificationRoutingService) Rule(ctx context.Context, key string) (noti
 
 // SearchRecipients returns one page of the people a rule can name individually.
 func (s *NotificationRoutingService) SearchRecipients(ctx context.Context, search string, offset int) (RecipientPage, error) {
-	items, err := s.directory.Search(ctx, notifications.RecipientQuery{Search: search, Limit: recipientPageSize + 1, Offset: offset})
+	return s.FilterRecipients(ctx, search, nil, offset)
+}
+
+// FilterRecipients is SearchRecipients narrowed by filters on the
+// notifications.RecipientFilter* fields (role, group, turned-off channel).
+func (s *NotificationRoutingService) FilterRecipients(ctx context.Context, search string, filters filterq.FilterSet, offset int) (RecipientPage, error) {
+	items, err := s.directory.Search(ctx, notifications.RecipientQuery{Search: search, Limit: recipientPageSize + 1, Offset: offset, Filters: filters})
 	if err != nil {
 		return RecipientPage{}, err
 	}

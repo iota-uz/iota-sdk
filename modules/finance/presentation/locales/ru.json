@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "Товары не найдены",
         "_Description": "Пока нет товаров на складе. Нажмите 'Добавить товар', чтобы создать новый."
+      },
+      "Filters": {
+        "Currency": "Валюта"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "К получению остаток",
       "OutstandingPayable": "К оплате остаток",
       "NetAmount": "Чистая сумма",
-      "DebtCount": "Всего долгов"
+      "DebtCount": "Всего долгов",
+      "Filters": {
+        "Currency": "Валюта",
+        "Type": "Тип долга",
+        "HasOutstanding": "Есть остаток долга"
+      }
     },
     "Drawer": {
       "Title": "Детали долгов"

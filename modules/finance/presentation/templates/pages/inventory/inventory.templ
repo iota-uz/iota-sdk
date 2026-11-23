@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -16,6 +17,17 @@ import (
 type IndexPageProps struct {
 	Inventory       []*viewmodels.Inventory
 	PaginationState *pagination.State
+	// Filters is the filter chip bar; a nil Registry hides it.
+	Filters filterbuilder.Props
+}
+
+// InventoryTableWithChips answers a search or filter change: the table plus
+// the chip bar, swapped out-of-band since it sits in the form above.
+templ InventoryTableWithChips(props *IndexPageProps) {
+	@InventoryTable(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
 }
 
 templ InventoryTable(props *IndexPageProps) {
@@ -69,7 +81,7 @@ templ InventoryTable(props *IndexPageProps) {
 					}
 				}
 			}
-			if len(props.PaginationState.Pages()) > 1 {
+			if props.PaginationState != nil && len(props.PaginationState.Pages()) > 1 {
 				@pagination.Pagination(props.PaginationState)
 			}
 		}
@@ -87,25 +99,32 @@ templ InventoryContent(props *IndexPageProps) {
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
-				class="p-4 flex items-center gap-3"
+				class="p-4 flex flex-wrap items-center gap-3 [&>div]:min-w-0"
 				hx-get="/finance/inventory"
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-trigger="keyup[!target.closest('[data-fb-popover]')] changed delay:500ms from:(form input), change[!target.closest('[data-fb-popover]')] changed from:(form select), filter-changed"
 				hx-target=".table-wrapper"
 				hx-swap="outerHTML"
+				hx-push-url="true"
 			>
-				@filters.Default(&filters.Props{
-					Fields: []filters.SearchField{
+				<div class="w-full md:flex-1">
+					@filters.Search([]filters.SearchField{
 						{
 							Label: pageCtx.T("Inventory.List.Name"),
 							Key:   "name",
 						},
-					},
-				})
+					})
+				</div>
+				@filters.PageSize()
 				@button.Primary(button.Props{
 					Size: button.SizeNormal, Href: "/finance/inventory/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
 					{ pageCtx.T("Inventory.List.New") }
+				}
+				if props.Filters.Registry != nil {
+					<div class="w-full">
+						@filterbuilder.Builder(props.Filters)
+					</div>
 				}
 			</form>
 			@InventoryTable(props)

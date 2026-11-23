@@ -4,6 +4,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -29,8 +30,11 @@ const (
 			   money_account_id, project_id,
 			   created_at, updated_at
 		FROM debts`
-	debtCountQuery     = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
-	debtAggregateQuery = `
+	debtCountQuery = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
+	// debtAggregateSelect sums the debts per counterparty and currency — sums
+	// in different currencies are never added together; the caller adds
+	// WHERE (debt filters), GROUP BY, HAVING (summed filters) and ORDER BY.
+	debtAggregateSelect = `
 		SELECT 
 			counterparty_id,
 			SUM(CASE WHEN type = 'RECEIVABLE' THEN original_amount ELSE 0 END) as total_receivable,
@@ -38,12 +42,10 @@ const (
 			SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_receivable,
 			SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_payable,
 			COUNT(*) as debt_count,
-			MAX(original_amount_currency_id) as currency_code
-		FROM debts 
-		WHERE tenant_id = $1
-		GROUP BY counterparty_id
-		ORDER BY (SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) + SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END)) DESC`
-	debtInsertQuery = `
+			original_amount_currency_id as currency_code
+		FROM debts`
+	debtAggregateOrder = `ORDER BY (SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) + SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END)) DESC, counterparty_id, original_amount_currency_id`
+	debtInsertQuery    = `
 		INSERT INTO debts (
 			tenant_id, type, status, counterparty_id,
 			original_amount, original_amount_currency_id,
@@ -197,7 +199,21 @@ func (g *GormDebtRepository) GetByCounterpartyID(ctx context.Context, counterpar
 	return g.queryDebts(ctx, query, counterpartyID, tenantID)
 }
 
-func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context) ([]debt.CounterpartyAggregate, error) {
+// debtAggregateWhereColumns are the debt columns the summary filters narrow
+// before summing; debtAggregateHavingColumns are the summed values filtered
+// after grouping.
+var (
+	debtAggregateWhereColumns = map[debt.AggregateField]string{
+		debt.AggregateCounterpartyField: "counterparty_id",
+		debt.AggregateCurrencyField:     "original_amount_currency_id",
+		debt.AggregateTypeField:         "type",
+	}
+	debtAggregateHavingColumns = map[debt.AggregateField]string{
+		debt.AggregateOutstandingField: "SUM(outstanding_amount)",
+	}
+)
+
+func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context, filters ...debt.AggregateFilter) ([]debt.CounterpartyAggregate, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -208,7 +224,26 @@ func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context) ([]d
 		return nil, err
 	}
 
-	rows, err := tx.Query(ctx, debtAggregateQuery, tenantID)
+	where := []string{"tenant_id = $1"}
+	var having []string
+	args := []any{tenantID}
+	for _, f := range filters {
+		if column, ok := debtAggregateWhereColumns[f.Column]; ok {
+			where = append(where, f.Filter.String(column, len(args)+1))
+		} else if column, ok := debtAggregateHavingColumns[f.Column]; ok {
+			having = append(having, f.Filter.String(column, len(args)+1))
+		} else {
+			return nil, fmt.Errorf("unknown debt aggregate filter field: %v", f.Column)
+		}
+		args = append(args, f.Filter.Value()...)
+	}
+	query := repo.Join(debtAggregateSelect, repo.JoinWhere(where...), "GROUP BY counterparty_id, original_amount_currency_id")
+	if len(having) > 0 {
+		query = repo.Join(query, "HAVING "+strings.Join(having, " AND "))
+	}
+	query = repo.Join(query, debtAggregateOrder)
+
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

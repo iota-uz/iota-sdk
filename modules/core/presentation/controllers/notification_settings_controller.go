@@ -10,6 +10,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -18,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -306,12 +308,21 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 		RenderForbidden(w, r)
 		return
 	}
+	// ?q= stays the plain search box; chips come on top as ?f=. A save posts
+	// both back, so the list it re-renders is the one the person was looking at.
 	search := r.FormValue("q")
 	if utf8.RuneCountInString(search) > maxRecipientSearchLength {
 		http.Error(w, "Search is too long", http.StatusBadRequest)
 		return
 	}
-	page, err := s.SearchRecipients(r.Context(), search, 0)
+	offset, err := strconv.Atoi(r.Form.Get("offset"))
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+	channels := s.Channels()
+	registry := c.userChannelFilterRegistry(r, s, channels)
+	conditions := registry.Decode(r.Form)
+	page, err := s.FilterRecipients(r.Context(), search, recipientFilters(conditions, channels), offset)
 	if err != nil {
 		composables.UseLogger(r.Context()).WithError(err).Error("failed to search notification recipients")
 		http.Error(w, "Unable to load recipients", http.StatusInternalServerError)
@@ -326,15 +337,94 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 		http.Error(w, "Unable to load channel settings", http.StatusInternalServerError)
 		return
 	}
-	props := &settings.UserChannelsProps{Channels: s.Channels(), Search: search, MessageKey: message, CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil}
+	props := &settings.UserChannelsProps{
+		Channels: channels, Search: search, MessageKey: message,
+		CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil,
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "user-channel-filters", ShowResetAlways: true,
+		},
+		Offset:  offset,
+		HasMore: page.HasMore,
+	}
 	for _, item := range page.Items {
 		props.Rows = append(props.Rows, settings.UserChannelRow{Recipient: settings.Recipient{ID: item.ID, Name: item.Name, Hint: item.Hint}, Disabled: disabled[item.ID]})
 	}
 	component := settings.UserChannels(props)
-	if htmx.IsHxRequest(r) {
-		component = settings.UserChannelsContent(props)
+	// A history restore ("Back" to a pushed chip URL) needs the whole page.
+	if !htmx.WantsFullPage(r) {
+		switch htmx.Target(r) {
+		case settings.UserChannelsListID:
+			component = settings.UserChannelsListWithChips(props)
+		case settings.UserChannelsMoreID:
+			component = settings.UserChannelRows(props)
+		default:
+			component = settings.UserChannelsContent(props)
+		}
 	}
 	templ.Handler(component).ServeHTTP(w, r)
+}
+
+// userChannelFilterRegistry describes the chips of the channels-per-person
+// list: the person's roles and groups, and the channels they turned off
+// (offered only when there is more than the in-app channel to turn off).
+func (c *NotificationSettingsController) userChannelFilterRegistry(r *http.Request, s *services.NotificationRoutingService, channels []notifications.Channel) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var fields []filterbuilder.FieldDef
+	if roles, err := s.Roles(r.Context()); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Warn("failed to load roles for the channel filters")
+	} else if len(roles) > 0 {
+		options := make([]filterbuilder.Option, 0, len(roles))
+		for _, role := range roles {
+			options = append(options, filterbuilder.Opt(strconv.FormatUint(uint64(role.ID), 10), role.Name))
+		}
+		fields = append(fields, filterbuilder.FieldDef{
+			Key: notifications.RecipientFilterRole, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("NotificationSettings.FilterRole"), Options: options,
+		})
+	}
+	if groups, err := s.Groups(r.Context()); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Warn("failed to load groups for the channel filters")
+	} else if len(groups) > 0 {
+		options := make([]filterbuilder.Option, 0, len(groups))
+		for _, group := range groups {
+			options = append(options, filterbuilder.Opt(group.ID.String(), group.Name))
+		}
+		fields = append(fields, filterbuilder.FieldDef{
+			Key: notifications.RecipientFilterGroup, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("NotificationSettings.FilterGroup"), Options: options,
+		})
+	}
+	if len(channels) > 1 {
+		options := make([]filterbuilder.Option, 0, len(channels))
+		for _, channel := range channels {
+			options = append(options, filterbuilder.Opt(string(channel), pageCtx.T(settings.ChannelLabelKey(channel))))
+		}
+		fields = append(fields, filterbuilder.FieldDef{
+			Key: notifications.RecipientFilterOptedOut, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("NotificationSettings.FilterOptedOut"), Options: options,
+			// "is empty": every channel on the page is on for the person.
+			Nullable: true,
+		})
+	}
+	return filterbuilder.NewRegistry(fields...)
+}
+
+// recipientFilters hands the chips to the recipient directory. "No channel
+// turned off" means none of the channels shown, so an opt-out kept for a
+// channel that is not installed does not hide the person.
+func recipientFilters(conditions filterq.FilterSet, channels []notifications.Channel) filterq.FilterSet {
+	out := make(filterq.FilterSet, 0, len(conditions))
+	for _, cond := range conditions {
+		if cond.Field == notifications.RecipientFilterOptedOut && cond.Op == filterq.OpEmpty {
+			values := make([]string, 0, len(channels))
+			for _, channel := range channels {
+				values = append(values, string(channel))
+			}
+			cond = filterq.Condition{Field: cond.Field, Op: filterq.OpIsNot, Values: values}
+		}
+		out = append(out, cond)
+	}
+	return out
 }
 
 // SaveUserChannels stores which channels one person wants.

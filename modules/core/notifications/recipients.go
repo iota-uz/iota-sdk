@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 )
 
 // Recipient is a person who can be picked individually on a notification rule.
@@ -23,7 +24,22 @@ type RecipientQuery struct {
 	Search string
 	Limit  int
 	Offset int
+	// Filters narrows the page by the Recipient* filter fields below, AND-ed;
+	// "is" matches a person with any listed value, "is not" one with none.
+	// Conditions on other fields are ignored.
+	Filters filterq.FilterSet
 }
+
+// Filter fields of RecipientQuery.Filters.
+const (
+	// RecipientFilterRole holds role IDs; a role held through a group counts,
+	// as it does when a rule names the role.
+	RecipientFilterRole = "role"
+	// RecipientFilterGroup holds group IDs.
+	RecipientFilterGroup = "group"
+	// RecipientFilterOptedOut holds channels the person turned off.
+	RecipientFilterOptedOut = "opted_out"
+)
 
 // RecipientDirectory defines who can be picked individually on a rule. It never
 // returns a person who cannot receive notifications, so an ID that GetByIDs

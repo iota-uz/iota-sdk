@@ -98,3 +98,19 @@ test("Enter on a focused Yes / No button applies that value", () => {
   idle.instance.apply();
   assert.deepEqual(idle.dispatched, []);
 });
+
+test("a page with filter chips restored from history is reloaded", () => {
+  const begin = source.indexOf("// Back to a page with filter chips.");
+  const snippet = source.slice(begin, source.indexOf("// fbPanel is the polymorphic", begin));
+  for (const [hasBuilder, want] of [[true, 1], [false, 0]]) {
+    const listeners = {};
+    let reloads = 0;
+    const document = {
+      addEventListener: (name, fn) => { listeners[name] = fn; },
+      querySelector: (selector) => (hasBuilder && selector === '[x-data="filterBuilder"]' ? {} : null),
+    };
+    vm.runInNewContext(snippet, { document, window: { location: { reload: () => { reloads++; } } } });
+    listeners["htmx:historyRestore"]();
+    assert.equal(reloads, want);
+  }
+});

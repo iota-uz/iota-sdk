@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "Товарлар топилмади",
         "_Description": "Ҳали омборхонада товарлар йўқ. Янги яратиш учун 'Товар қўшиш' тугмасини босинг."
+      },
+      "Filters": {
+        "Currency": "Валюта"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "Олинадиган қолдиқ",
       "OutstandingPayable": "Тўланадиган қолдиқ",
       "NetAmount": "Аниқ сумма",
-      "DebtCount": "Жами қарзлар"
+      "DebtCount": "Жами қарзлар",
+      "Filters": {
+        "Currency": "Валюта",
+        "Type": "Қарз тури",
+        "HasOutstanding": "Қолдиқ қарзи бор"
+      }
     },
     "Drawer": {
       "Title": "Қарз тафсилотлари"

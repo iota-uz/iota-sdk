@@ -2,6 +2,9 @@ package controllers_test
 
 import (
 	"fmt"
+	"html"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -391,4 +394,148 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 		Contains("Second Counterparty").
 		Contains("200.00").
 		Contains("150.00")
+}
+
+func TestDebtAggregateController_List_FilterChips(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.DebtRead,
+		permissions.DebtCreate,
+	)
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD, currency.EUR)
+
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	suite.Register(controllers.NewDebtAggregateController(debtService, counterpartyService))
+
+	newCounterparty := func(name string) counterparty.Counterparty {
+		cp, err := counterpartyService.Create(env.Ctx, counterparty.New(
+			name, counterparty.Customer, counterparty.LLC, counterparty.WithTenantID(env.Tenant.ID),
+		))
+		require.NoError(t, err)
+		return cp
+	}
+	addDebt := func(cp counterparty.Counterparty, typ debtAggregate.DebtType, amount float64, code string, settled bool) {
+		d := debtAggregate.New(typ, money.NewFromFloat(amount, code),
+			debtAggregate.WithTenantID(env.Tenant.ID),
+			debtAggregate.WithCounterpartyID(cp.ID()),
+		)
+		if settled {
+			d = d.UpdateOutstandingAmount(money.New(0, code))
+		}
+		_, err := debtService.Create(env.Ctx, d)
+		require.NoError(t, err)
+	}
+
+	// Alpha owes us 700 and is owed 50, in dollars; Beta is owed by us in
+	// euros; Gamma's only debt is settled.
+	alpha := newCounterparty("Chip Alpha LLC")
+	beta := newCounterparty("Chip Beta LLC")
+	gamma := newCounterparty("Chip Gamma LLC")
+	addDebt(alpha, debtAggregate.DebtTypeReceivable, 700, "USD", false)
+	addDebt(alpha, debtAggregate.DebtTypePayable, 50, "USD", false)
+	addDebt(beta, debtAggregate.DebtTypePayable, 400, "EUR", false)
+	addDebt(gamma, debtAggregate.DebtTypeReceivable, 90, "USD", true)
+
+	// Names also show as chip options, so a row is told by its drawer link.
+	row := func(cp counterparty.Counterparty) string {
+		return fmt.Sprintf("%s/%s/drawer", DebtAggregateBasePath, cp.ID())
+	}
+	cases := []struct {
+		name    string
+		query   string
+		present []counterparty.Counterparty
+		absent  []counterparty.Counterparty
+	}{
+		{"counterparty", "?f=counterparty:is:" + beta.ID().String(), []counterparty.Counterparty{beta}, []counterparty.Counterparty{alpha, gamma}},
+		{"currency", "?f=currency:is:USD", []counterparty.Counterparty{alpha, gamma}, []counterparty.Counterparty{beta}},
+		{"payable side", "?f=type:is:PAYABLE", []counterparty.Counterparty{alpha, beta}, []counterparty.Counterparty{gamma}},
+		{"has outstanding", "?f=has_outstanding:is:true", []counterparty.Counterparty{alpha, beta}, []counterparty.Counterparty{gamma}},
+		{"nothing outstanding", "?f=has_outstanding:is:false", []counterparty.Counterparty{gamma}, []counterparty.Counterparty{alpha, beta}},
+		{"currency and outstanding", "?f=currency:is:USD&f=has_outstanding:is:true", []counterparty.Counterparty{alpha}, []counterparty.Counterparty{beta, gamma}},
+		// A garbled id in the URL matches nothing instead of failing the query.
+		{"malformed counterparty id", "?f=counterparty:is:not-a-uuid", nil, []counterparty.Counterparty{alpha, beta, gamma}},
+		// An id typed in uppercase still finds its counterparty.
+		{"uppercase counterparty id", "?f=counterparty:is:" + strings.ToUpper(beta.ID().String()), []counterparty.Counterparty{beta}, []counterparty.Counterparty{alpha, gamma}},
+		// "Is not" with the same uppercase id leaves that counterparty out.
+		{"uppercase counterparty id, is not", "?f=counterparty:isnot:" + strings.ToUpper(beta.ID().String()), []counterparty.Counterparty{alpha, gamma}, []counterparty.Counterparty{beta}},
+	}
+	for _, tc := range cases {
+		response := suite.GET(DebtAggregateBasePath + tc.query).HTMX().Expect(t).Status(200)
+		for _, cp := range tc.present {
+			response.Contains(row(cp))
+		}
+		for _, cp := range tc.absent {
+			response.NotContains(row(cp))
+		}
+		// The chip bar rides along with the rows so it shows what is applied.
+		response.Contains(`hx-swap-oob="outerHTML"`).Contains(`id="debt-aggregate-filters"`)
+	}
+
+	// The totals are summed over the filtered debts only: without the payable
+	// side Alpha's net amount is the whole receivable.
+	alphaOnly := "?f=counterparty:is:" + alpha.ID().String()
+	suite.GET(DebtAggregateBasePath + alphaOnly).HTMX().Expect(t).Status(200).
+		Contains("650.00")
+	suite.GET(DebtAggregateBasePath + alphaOnly + "&f=type:is:RECEIVABLE").HTMX().Expect(t).Status(200).
+		Contains("700.00").NotContains("650.00").NotContains("50.00")
+
+	page := suite.GET(DebtAggregateBasePath + "?f=type:is:RECEIVABLE").Expect(t).Status(200)
+	page.Contains(`x-data="filterBuilder"`).Contains(`value="type:is:RECEIVABLE"`).Contains("data-filter-bar").
+		Contains(row(alpha)).NotContains(row(beta))
+
+	// Back to a chip URL after a history-cache miss gets the whole page.
+	suite.GET(DebtAggregateBasePath + "?f=type:is:RECEIVABLE").HTMX().HTMXHistoryRestore().Expect(t).Status(200).
+		Contains("<html").Contains(`x-data="filterBuilder"`)
+}
+
+// A counterparty with debts in two currencies gets a summary row per currency
+// — sums in different money are never added — and each row's drawer lists
+// only the debts that row sums.
+func TestDebtAggregateController_CurrenciesAreNotMixed(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(permissions.DebtRead, permissions.DebtCreate)
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewComponent()).Build().AsUser(adminUser)
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD, currency.EUR)
+	debtService := itf.GetService[services.DebtService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	suite.Register(controllers.NewDebtAggregateController(debtService, counterpartyService))
+
+	cp, err := counterpartyService.Create(env.Ctx, counterparty.New(
+		"Chip Delta LLC", counterparty.Customer, counterparty.LLC, counterparty.WithTenantID(env.Tenant.ID),
+	))
+	require.NoError(t, err)
+	for _, amount := range []*money.Money{money.NewFromFloat(300, "EUR"), money.NewFromFloat(150, "USD")} {
+		_, err := debtService.Create(env.Ctx, debtAggregate.New(debtAggregate.DebtTypeReceivable, amount,
+			debtAggregate.WithTenantID(env.Tenant.ID), debtAggregate.WithCounterpartyID(cp.ID())))
+		require.NoError(t, err)
+	}
+
+	body := suite.GET(DebtAggregateBasePath + "?f=currency:is:EUR,USD&f=counterparty:is:" + cp.ID().String()).
+		HTMX().Expect(t).Status(200).Body()
+	require.Contains(t, body, "300.00")
+	require.Contains(t, body, "150.00")
+	require.NotContains(t, body, "450.00", "euros and dollars are not added together")
+	drawer := regexp.MustCompile(`/finance/debt-aggregates/` + cp.ID().String() + `/drawer\?[^"']*`)
+	links := drawer.FindAllString(body, -1)
+	require.Len(t, links, 2, "one row per currency")
+
+	var usdLink string
+	for _, link := range links {
+		if strings.Contains(html.UnescapeString(link), "currency%3Ais%3AUSD") {
+			usdLink = html.UnescapeString(link)
+		}
+	}
+	require.NotEmpty(t, usdLink, "the dollar row carries its currency to the drawer")
+	suite.GET(usdLink).HTMX().Expect(t).Status(200).Contains("150.00").NotContains("300.00")
 }

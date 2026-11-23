@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/money"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type DateRange struct {
@@ -25,6 +26,26 @@ type FindParams struct {
 	Status         *DebtStatus
 }
 
+// AggregateField is what the counterparty summary can be filtered on. The
+// debt fields narrow which debts are summed; AggregateOutstandingField is the
+// outstanding total of a counterparty and filters the summed rows.
+type AggregateField int
+
+const (
+	// AggregateCounterpartyField is the counterparty of a debt.
+	AggregateCounterpartyField AggregateField = iota
+	// AggregateCurrencyField is the currency of a debt's original amount.
+	AggregateCurrencyField
+	// AggregateTypeField is the debt type (receivable or payable).
+	AggregateTypeField
+	// AggregateOutstandingField is the outstanding amount of a counterparty,
+	// summed over its debts in minor units.
+	AggregateOutstandingField
+)
+
+// AggregateFilter is one condition of the counterparty summary.
+type AggregateFilter = repo.FieldFilter[AggregateField]
+
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]Debt, error)
@@ -34,7 +55,9 @@ type Repository interface {
 	// read-modify-write of it is serialized with concurrent ones.
 	Lock(ctx context.Context, id uuid.UUID) error
 	GetByCounterpartyID(ctx context.Context, counterpartyID uuid.UUID) ([]Debt, error)
-	GetCounterpartyAggregates(ctx context.Context) ([]CounterpartyAggregate, error)
+	// GetCounterpartyAggregates sums the debts per counterparty, limited by
+	// the filters (all AND-ed).
+	GetCounterpartyAggregates(ctx context.Context, filters ...AggregateFilter) ([]CounterpartyAggregate, error)
 	// OpenPayableTotals sums what is still owed on open payable debts, one
 	// amount per currency. A non-nil accountID limits it to that account.
 	OpenPayableTotals(ctx context.Context, accountID *uuid.UUID) ([]*money.Money, error)

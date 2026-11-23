@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -14,9 +15,15 @@ import (
 )
 
 type SessionsPageProps struct {
+	// Sessions are the sessions matching the chips.
 	Sessions     []*viewmodels.Session
 	CurrentToken string
-	Errors       map[string]string
+	// HasOtherSessions is true when the user has a session besides the
+	// current one, whatever the chips show.
+	HasOtherSessions bool
+	Errors           map[string]string
+	// Filters is the filter chip bar; a nil Registry hides it.
+	Filters filterbuilder.Props
 }
 
 templ SessionRow(session *viewmodels.Session) {
@@ -137,16 +144,46 @@ templ EmptyState() {
 	}
 }
 
+// NoMatchesState is shown when the chips leave no session.
+templ NoMatchesState() {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	@card.Card(card.Props{
+		Class: "flex flex-col items-center justify-center py-12",
+	}) {
+		<p class="text-sm text-gray-500 dark:text-gray-400">
+			{ pageCtx.T("Account.Sessions.NoMatches") }
+		</p>
+	}
+}
+
+// SessionsResults is the list part the chips re-render.
+templ SessionsResults(props *SessionsPageProps) {
+	<div id="account-sessions-results">
+		if len(props.Sessions) > 0 {
+			@SessionsList(props)
+		} else if len(props.Filters.Filters) > 0 {
+			@NoMatchesState()
+		} else {
+			@EmptyState()
+		}
+	</div>
+}
+
+// SessionsListWithChips answers a chip change: the list plus the chip bar,
+// swapped out-of-band since it sits in the form above.
+templ SessionsListWithChips(props *SessionsPageProps) {
+	@SessionsResults(props)
+	if props.Filters.Registry != nil {
+		@filterbuilder.BuilderOOB(props.Filters)
+	}
+}
+
 templ SessionsPage(props *SessionsPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-		hasOtherSessions := false
-		for _, s := range props.Sessions {
-			if !s.IsCurrent {
-				hasOtherSessions = true
-				break
-			}
-		}
+		hasOtherSessions := props.HasOtherSessions
 	}}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Sessions.Title")},
@@ -179,11 +216,21 @@ templ SessionsPage(props *SessionsPageProps) {
 							}
 						</div>
 					}
-					if len(props.Sessions) > 0 {
-						@SessionsList(props)
-					} else {
-						@EmptyState()
+					if props.Filters.Registry != nil {
+						<form
+							action="/account/sessions"
+							method="get"
+							class="mb-4"
+							hx-get="/account/sessions"
+							hx-trigger="filter-changed"
+							hx-target="#account-sessions-results"
+							hx-swap="outerHTML"
+							hx-push-url="true"
+						>
+							@filterbuilder.Builder(props.Filters)
+						</form>
 					}
+					@SessionsResults(props)
 				</div>
 			</div>
 		</div>

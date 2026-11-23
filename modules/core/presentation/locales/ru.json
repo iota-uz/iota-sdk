@@ -113,7 +113,10 @@
       "RevokeSuccess": "Сеанс успешно отозван",
       "RevokeAllSuccess": "Отозвано сеансов: %d",
       "EmptyState": "Вы вошли только на этом устройстве",
-      "CannotRevokeCurrent": "Нельзя отозвать текущий сеанс"
+      "CannotRevokeCurrent": "Нельзя отозвать текущий сеанс",
+      "ExpiresAt": "Истекает",
+      "CurrentSession": "Текущий сеанс",
+      "NoMatches": "Нет сеансов по этим фильтрам"
     }
   },
   "Actions": "Действия",
@@ -1600,7 +1603,12 @@
       "Revoke": "Отозвать",
       "ConfirmRevoke": "Вы уверены, что хотите отозвать эту сессию?",
       "EmptyState": "Активные сессии не найдены",
-      "CurrentSession": "Текущая"
+      "CurrentSession": "Текущая",
+      "Status": "Состояние",
+      "StatusActive": "Вход выполнен",
+      "StatusPending2FA": "Ждёт второго фактора",
+      "StatusPendingOnboarding": "Учётная запись не настроена",
+      "ExpiresAt": "Истекает"
     },
     "Revoked": "Сессия успешно отозвана"
   },
@@ -1800,6 +1808,9 @@
     "Search": "Найти",
     "NoPeople": "Никого не найдено.",
     "UserChannelsSaved": "Каналы сохранены.",
+    "FilterRole": "Роль",
+    "FilterGroup": "Группа",
+    "FilterOptedOut": "Отключённый канал",
     "InvalidChannels": "Не удалось сохранить каналы.",
     "DynamicRecipients": "Также сообщать",
     "Unavailable": "Недоступно",
