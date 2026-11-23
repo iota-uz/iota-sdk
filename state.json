@@ -469,10 +469,10 @@
   ],
   "candidate": {
     "version": "0.52.0",
-    "source": "37f2e88b4107c13c25303edcac1b7a4bf93bb917",
-    "sha": "e4fbfbab2c631a73557b42c9e1819ccbf7bcabb5",
-    "phase": "failed",
-    "run_id": "45238174470"
+    "source": "0a996d404c62aeed480e53e7f21695affbec1b55",
+    "sha": "33514b3e95e5b5eeb2a58b89e479f73a1fddde07",
+    "phase": "testing",
+    "run_id": "45252241474"
   },
   "ready": {
     "version": "0.51.0",
