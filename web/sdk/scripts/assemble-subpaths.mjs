@@ -39,6 +39,8 @@ await cp(lensDist, path.join(dist, 'lens'), { recursive: true })
 await cp(solidUIDist, path.join(dist, 'solid-ui'), { recursive: true })
 await cp(automationEditorDist, path.join(dist, 'automation-editor'), { recursive: true })
 await cp(path.join(repositoryRoot, 'styles/tailwind/iota.css'), path.join(dist, 'styles.css'))
+// styles.css imports ./metrics.css; it is also exported on its own for hosts with their own theme sheet.
+await cp(path.join(repositoryRoot, 'styles/tailwind/metrics.css'), path.join(dist, 'metrics.css'))
 
 const identity = {
   releaseVersion,

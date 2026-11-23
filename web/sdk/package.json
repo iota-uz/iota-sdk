@@ -47,6 +47,7 @@
       "import": "./dist/solid-ui/embedded-css.js"
     },
     "./styles.css": "./dist/styles.css",
+    "./metrics.css": "./dist/metrics.css",
     "./identity": {
       "types": "./dist/sdk-identity.d.ts",
       "import": "./dist/sdk-identity.js",

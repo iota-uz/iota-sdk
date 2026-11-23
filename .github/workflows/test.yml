@@ -121,6 +121,7 @@ jobs:
               - 'web/solid-ui/src/**'
               - 'web/testing/**'
               - 'styles/tailwind/iota.css'
+              - 'styles/tailwind/metrics.css'
               - 'pnpm-lock.yaml'
               - '.github/workflows/test.yml'
             client_host:
@@ -130,6 +131,7 @@ jobs:
               - 'web/sdk/**'
               - 'web/testing/**'
               - 'styles/tailwind/iota.css'
+              - 'styles/tailwind/metrics.css'
               - 'scripts/package-frontends.mjs'
               - 'scripts/verify-frontend-artifacts.mjs'
               - 'package.json'

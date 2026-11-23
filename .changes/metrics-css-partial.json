@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Metrics band styles move to styles/tailwind/metrics.css (imported by iota.css, shipped as @iota-uz/sdk/metrics.css) so hosts with their own theme sheet can import them; table.InTablePanels is exported; the band scope line uses --clr-text-200 for contrast."}
