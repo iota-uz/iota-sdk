@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add the Metrics (KPI) band component (components/base/metrics) and an in-table placement for deferred table panels (DeferredPanel.Placement = PanelInTable)."
+    }
+  ],
+  "source": "0bfc186beb36518fc4b3edf626f550e26a9ed81f",
+  "version": "0.51.0"
+}
