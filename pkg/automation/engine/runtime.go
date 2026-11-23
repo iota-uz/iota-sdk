@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -88,6 +89,8 @@ type Runtime struct {
 	calls   *CallRunner
 	// poke wakes Serve: a collect window opened or a new deadline came nearer.
 	poke chan struct{}
+	// passes counts the passes of Serve.
+	passes atomic.Int64
 
 	mu      sync.Mutex
 	interps map[string]*interpEntry
@@ -177,20 +180,46 @@ func (r *Runtime) CallRunner() *CallRunner { return r.calls }
 
 // Serve runs the maintenance loop until ctx ends: queued conversation runs start when their subject is
 // free, live runs of disabled or deleted graphs are cancelled, and finished runs are pruned.
+//
+// The loop wakes at its interval, or earlier only when a collect window is due: an idle engine runs no
+// pass between its planned ones.
 func (r *Runtime) Serve(ctx context.Context) {
-	t := time.NewTicker(r.cfg.MaintenanceInterval)
-	defer t.Stop()
+	planned := time.Now()
 	for {
+		r.passes.Add(1)
 		if err := r.Maintain(ctx); err != nil && ctx.Err() == nil {
 			r.cfg.Logger.Warn("automation engine: maintenance failed", "error", err)
 		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
+		now := time.Now()
+		for !planned.After(now) {
+			planned = planned.Add(r.cfg.MaintenanceInterval)
+		}
+		for {
+			wake := planned
+			if at, ok, err := r.nextCollect(ctx); err == nil && ok && at.Before(wake) {
+				wake = at
+			}
+			d := time.Until(wake)
+			if d < 0 {
+				d = 0
+			}
+			t := time.NewTimer(d)
+			select {
+			case <-ctx.Done():
+				t.Stop()
+				return
+			case <-r.poke:
+				t.Stop()
+				continue // a window opened: its deadline may come before the planned pass
+			case <-t.C:
+			}
+			break
 		}
 	}
 }
+
+// Passes is how many maintenance passes Serve ran.
+func (r *Runtime) Passes() int64 { return r.passes.Load() }
 
 // Maintain runs one maintenance pass.
 func (r *Runtime) Maintain(ctx context.Context) error {
@@ -205,6 +234,9 @@ func (r *Runtime) Maintain(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 	if err := r.releasePending(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := r.flushCollects(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	if _, err := r.Prune(ctx); err != nil {

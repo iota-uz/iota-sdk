@@ -75,6 +75,21 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 			break
 		}
 	}
+	// Inbound dedup keys live as long as steps; expired correlations and old cached decisions go.
+	for _, q := range []struct {
+		sql string
+		arg any
+	}{
+		{`DELETE FROM automation.inbound_dedup WHERE ctid IN (SELECT ctid FROM automation.inbound_dedup WHERE seen_at < now() - $1::interval LIMIT 1000)`, pgInterval(r.cfg.Retention.Steps.Seconds())},
+		{`DELETE FROM automation.correlations WHERE ctid IN (SELECT ctid FROM automation.correlations WHERE expires_at < now() - $1::interval LIMIT 1000)`, pgInterval(0)},
+		{`DELETE FROM automation.decision_cache WHERE ctid IN (SELECT ctid FROM automation.decision_cache WHERE created_at < now() - $1::interval LIMIT 1000)`, pgInterval(DecisionTTL.Seconds())},
+	} {
+		tag, err := r.cfg.DB.Exec(ctx, q.sql, q.arg)
+		if err != nil {
+			return total, serrors.FromDB(opMaintain, err)
+		}
+		total += tag.RowsAffected()
+	}
 	return total, ctx.Err()
 }
 

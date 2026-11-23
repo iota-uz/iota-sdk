@@ -31,6 +31,8 @@ type startRequest struct {
 	eventID      string
 	key          string
 	event        graph.Event
+	// events are the events a trigger's collect merged into the run (event is the last); nil: one.
+	events []graph.Event
 	subject      SubjectRef
 	runAs        *spi.Subject // nil: no instance (blocked, filter_failed)
 	initiator    *int64
@@ -139,6 +141,14 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	if err != nil {
 		return RunRef{}, serrors.Wrap(opStart, err)
 	}
+	var evs any
+	if len(req.events) > 0 {
+		b, err := json.Marshal(req.events)
+		if err != nil {
+			return RunRef{}, serrors.Wrap(opStart, err)
+		}
+		evs = b
+	}
 	sensitive := []byte(`[]`)
 	if kind := req.event.Kind(); kind != "" {
 		refs, err := r.projector(req.tenant).sensitiveIn(ctx, kind, map[string]any(req.event))
@@ -178,12 +188,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.runs (tenant_id, id, automation_id, version, start_key, start_state, start_reason, trigger_id,
 			trigger_event_id, trigger_kind, input, subject_entity, subject_key, run_as_user_id, run_as_kind, initiator_user_id,
-			depth, cause_run_id, restarted_from, sensitive)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+			depth, cause_run_id, restarted_from, sensitive, events)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		ON CONFLICT (tenant_id, start_key) DO NOTHING
 		RETURNING id`,
 		req.tenant, id, req.automationID, req.version, key, state, reason, req.triggerID, eventID, req.kind, input,
-		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive).Scan(&got)
+		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive, evs).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, err := r.runByKey(ctx, tx, req.tenant, req.key)
 		if err != nil {

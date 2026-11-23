@@ -325,6 +325,8 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 	}
 	if req.startState != "" {
 		req.key = diagnosticKey(req.key, t.triggerID)
+	} else if trig, ok := ie.in.Trigger(t.triggerID); ok && trig.Collect != nil {
+		return r.collect(ctx, tx, ev, t, trig, req, gctx)
 	}
 	if _, err := r.startRun(ctx, tx, req); err != nil && !notEligible(err) {
 		return infra(err)
