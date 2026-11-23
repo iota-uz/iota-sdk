@@ -64,12 +64,12 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 	var count int
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.inbound_collect (tenant_id, automation_id, version, trigger_id, collect_key, events, count, first_at, deadline)
-		VALUES ($1, $2, $3, $4, $5, jsonb_build_array($6::jsonb), 1, $7, $7 + make_interval(secs => $8))
+		VALUES ($1, $2, $3, $4, $5, jsonb_build_array($6::jsonb), 1, $7::timestamptz, $7::timestamptz + make_interval(secs => $8::float8))
 		ON CONFLICT (tenant_id, automation_id, trigger_id, collect_key) DO UPDATE SET
 			version = EXCLUDED.version,
 			events = automation.inbound_collect.events || EXCLUDED.events,
 			count = automation.inbound_collect.count + 1,
-			deadline = LEAST(EXCLUDED.first_at + make_interval(secs => $8), automation.inbound_collect.first_at + make_interval(secs => $8 * 2))
+			deadline = LEAST(EXCLUDED.first_at + make_interval(secs => $8::float8), automation.inbound_collect.first_at + make_interval(secs => $8::float8 * 2))
 		RETURNING count`,
 		ev.TenantID, t.automationID, t.version, t.triggerID, key, item, at, window.Seconds()).Scan(&count)
 	if err != nil {
