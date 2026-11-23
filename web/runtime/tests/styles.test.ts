@@ -159,3 +159,45 @@ describe('stylesheetPaths', () => {
     ])
   })
 })
+
+// A host that imports styles/tailwind/iota.css over its own Tailwind config (ERP's `just css-build`) must get the
+// same theme-class `dark:` the SDK builds with, even when that config sets no darkMode: Tailwind's default is the
+// OS preference, which painted the BiChat sidebar dark inside a light host.
+describe('iota.css dark variant', () => {
+  // The SDK's design tokens (iota.css applies them) without its darkMode, as a host config that sets none.
+  beforeAll(() => {
+    const sdk = readFileSync(join(layout.theme, 'tailwind.config.js'), 'utf8')
+    writeFileSync(join(layout.theme, 'host.config.js'), `${sdk}\ndelete module.exports.darkMode;\n`)
+  })
+
+  async function hostStylesheet(config: string, candidates: string[]): Promise<string> {
+    const tailwind = dirname(require.resolve('tailwindcss/package.json'))
+    const iota = join(repoRoot, 'styles', 'tailwind', 'iota.css')
+    const entry = `@config "${config}";\n@import "tailwindcss";\n@import "iota.css";`
+    const compiler = await compile(entry, {
+      base: tailwind,
+      async loadStylesheet(id, base) {
+        if (id === 'iota.css') return { path: iota, base: dirname(iota), content: readFileSync(iota, 'utf8') }
+        const name = id === 'tailwindcss' ? 'index.css' : id.replace('tailwindcss/', '').replace(/^\.\//, '')
+        return { path: id, base, content: readFileSync(join(tailwind, name), 'utf8') }
+      },
+      async loadModule(id, base) {
+        const mod: { exports: object } = { exports: {} }
+        new Function('module', 'exports', readFileSync(join(layout.theme, id), 'utf8'))(mod, mod.exports)
+        return { path: id, base, module: mod.exports as never }
+      },
+    })
+    return compiler.build(candidates)
+  }
+
+  it('keys dark: utilities on the theme class, not prefers-color-scheme, when the host config sets no darkMode', async () => {
+    const css = await hostStylesheet('host.config.js', ['bg-white', 'dark:bg-gray-900'])
+    expect(css).not.toContain('prefers-color-scheme')
+    expect(css).toMatch(/\.dark\\:bg-gray-900\s*\{\s*&:is\(\.dark \*\)/)
+  })
+
+  it('compiles dark: exactly as the SDK config does', async () => {
+    const candidates = ['dark:bg-gray-900', 'dark:hover:text-white']
+    expect(await hostStylesheet('host.config.js', candidates)).toBe(await hostStylesheet('tailwind.config.js', candidates))
+  })
+})
