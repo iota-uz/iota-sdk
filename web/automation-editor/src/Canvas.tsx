@@ -84,7 +84,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   const layout = createMemo(() => ensureLayout(props.graph, props.catalog, props.layout))
   const [positions, setPositions] = createStore<AutomationLayout>({})
-  createEffect(on(layout, (next) => setPositions(reconcile(structuredClone(next)))))
+  // `committed` is the layout as the host holds it, `positions` what is on screen (it follows a drag). Both are
+  // stores that reconcile, so an edge only re-reads them when a position it uses really changed.
+  const [committed, setCommitted] = createStore<AutomationLayout>({})
+  createEffect(on(layout, (next) => {
+    setPositions(reconcile(structuredClone(next)))
+    setCommitted(reconcile(structuredClone(next)))
+  }))
 
   // A Tidy moves the cards with a 200 ms transition (CSS; none under prefers-reduced-motion) while the
   // edges fade back in once the cards have landed.
@@ -257,16 +263,20 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
   // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
   // orthogonal one until its own is ready.
-  const routeCache = new Map<string, { sig: string; d: string; owner: object }>()
-  const [routeEpoch, setRouteEpoch] = createSignal(0)
+  const [routed, setRouted] = createStore<Record<string, { sig: string; d: string }>>({})
+  const routeOwner = new Map<string, object>()
   const ROUTE_SLICE_MS = 6
   let routeTimer: ReturnType<typeof setTimeout> | undefined
   createEffect(() => {
     const current = routing()
     // Edges that are gone leave the cache, and with them the router they were routed by.
     const targets = edgeTargets()
-    for (const key of routeCache.keys()) if (!targets.has(key)) routeCache.delete(key)
-    const wanted = visibleEdges().filter((key) => routeCache.get(key)?.owner !== current)
+    for (const key of [...routeOwner.keys()]) {
+      if (targets.has(key)) continue
+      routeOwner.delete(key)
+      setRouted(key, undefined as never)
+    }
+    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current)
     clearTimeout(routeTimer)
     if (wanted.length === 0) return
     let todo: string[] | null = null
@@ -275,15 +285,17 @@ export function Canvas(props: CanvasProps): JSX.Element {
       // One link per step, in port order, so the slice deadline is checked between links.
       todo ??= router.plan(wanted)
       const started = performance.now()
-      while (todo.length > 0 && performance.now() - started < ROUTE_SLICE_MS) {
-        const key = todo.shift()!
-        const route = router.route(key)
-        if (!route || route.points.length === 0) continue
-        const first = route.points[0]!
-        const last = route.points[route.points.length - 1]!
-        routeCache.set(key, { sig: `${first.x},${first.y},${last.x},${last.y}`, d: routePath(route.points), owner: current })
-      }
-      setRouteEpoch((n) => n + 1)
+      batch(() => {
+        while (todo!.length > 0 && performance.now() - started < ROUTE_SLICE_MS) {
+          const key = todo!.shift()!
+          const route = router.route(key)
+          routeOwner.set(key, current)
+          if (!route || route.points.length === 0) continue
+          const first = route.points[0]!
+          const last = route.points[route.points.length - 1]!
+          setRouted(key, { sig: `${first.x},${first.y},${last.x},${last.y}`, d: routePath(route.points) })
+        }
+      })
       if (todo.length > 0) routeTimer = setTimeout(run, 0)
     }
     routeTimer = setTimeout(run, 0)
@@ -854,13 +866,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const slot = g?.outcomes.find((o) => o.outcome === outcome)
       const handle = geometryMap().get(target)?.target
       if (!p || !q || !slot || !handle) return ''
-      const base = layout()
-      const settled = base[node]?.x === p.x && base[node]?.y === p.y && base[target]?.x === q.x && base[target]?.y === q.y
+      const settled = committed[node]?.x === p.x && committed[node]?.y === p.y && committed[target]?.x === q.x && committed[target]?.y === q.y
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
       const b = { x: q.x + handle.x, y: q.y + handle.y }
       if (settled) {
-        routeEpoch()
-        const found = routeCache.get(source)
+        const found = routed[source]
         if (found && found.sig === `${a.x},${a.y},${b.x},${b.y}`) return found.d
       }
       return routePath(directRoute(a, b).points)
