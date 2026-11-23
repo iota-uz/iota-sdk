@@ -1,0 +1,1 @@
+{"bump":"none","summary":"Release publishing waits up to 10 minutes for npm to expose a new SDK version before failing with npm_visibility_timeout."}

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { publishSDK } from './sdk-publisher.mjs'
+import { publishSDK, VISIBILITY_ATTEMPTS } from './sdk-publisher.mjs'
 import { releaseRegistry, RetryableRegistryError } from './npm-release-registry.mjs'
 
 // These tests would be falsely green if the fake registry always returned the
@@ -148,7 +148,7 @@ test('reports bounded visibility timeout and preserves the partial publication',
   f.args.verifyGo = async () => { verified = true }
   await assert.rejects(publishSDK(f.args), error => error.code === 'npm_visibility_timeout')
   assert.equal(f.state.publishCount, 1)
-  assert.equal(polls, 37)
+  assert.equal(polls, VISIBILITY_ATTEMPTS + 1)
   assert.equal(verified, false)
   assert.equal(f.state.tags[`tags/v${f.args.version}`].object.sha, f.args.sha)
 })
@@ -224,7 +224,7 @@ test('keeps the initial registry failure fatal and bounds post-publish retries',
   f.args.registry = async () => ++reads === 1 ? null : Promise.reject(failure)
   f.args.verifyGo = async () => { verified = true }
   await assert.rejects(publishSDK(f.args), error => error.code === 'npm_registry_timeout' && error.cause === failure)
-  assert.equal(reads, 37)
+  assert.equal(reads, VISIBILITY_ATTEMPTS + 1)
   assert.equal(f.state.publishCount, 1)
   assert.equal(verified, false)
 })
