@@ -148,11 +148,7 @@ const (
 // FormatAmount is the full value: digits grouped by spaces, comma decimals,
 // no sign (see Sign).
 func FormatAmount(a Amount) string {
-	minor := a.Minor
-	if minor < 0 {
-		minor = -minor
-	}
-	digits := strconv.FormatInt(minor, 10)
+	digits := strconv.FormatUint(magnitude(a.Minor), 10)
 	if a.Decimals <= 0 {
 		return group(digits)
 	}
@@ -165,10 +161,19 @@ func FormatAmount(a Amount) string {
 
 // FormatCount groups an integer count by spaces.
 func FormatCount(n int64) string {
+	digits := group(strconv.FormatUint(magnitude(n), 10))
 	if n < 0 {
-		return minus + group(strconv.FormatInt(-n, 10))
+		return minus + digits
 	}
-	return group(strconv.FormatInt(n, 10))
+	return digits
+}
+
+// magnitude is |n| without overflow at math.MinInt64.
+func magnitude(n int64) uint64 {
+	if n < 0 {
+		return uint64(-(n + 1)) + 1
+	}
+	return uint64(n)
 }
 
 func group(digits string) string {
@@ -263,21 +268,21 @@ func countLabel(ctx context.Context, s Scope) string {
 		id = "Metrics.Records"
 	}
 	n := FormatCount(s.Total)
-	return localize(ctx, id, n, map[string]any{"Count": n}, s.Total)
+	return localize(ctx, id, n+" records", map[string]any{"Count": n}, s.Total)
 }
 
 func matchedLabel(ctx context.Context, s Scope) string {
 	matched, total := FormatCount(*s.Matched), FormatCount(s.Total)
-	return localize(ctx, "Metrics.Matched", matched+" / "+total,
+	return localize(ctx, "Metrics.Matched", "Found "+matched+" of "+total,
 		map[string]any{"Matched": matched, "Total": total}, nil)
 }
 
 func filtersLabel(ctx context.Context, n int) string {
-	return localize(ctx, "Metrics.Filters", strconv.Itoa(n), map[string]any{"Count": n}, n)
+	return localize(ctx, "Metrics.Filters", strconv.Itoa(n)+" filters", map[string]any{"Count": n}, n)
 }
 
 func moreLabel(ctx context.Context, n int) string {
-	return localize(ctx, "Metrics.MoreCurrencies", "+"+strconv.Itoa(n), map[string]any{"Count": n}, n)
+	return localize(ctx, "Metrics.MoreCurrencies", strconv.Itoa(n)+" more currencies", map[string]any{"Count": n}, n)
 }
 
 func text(ctx context.Context, id, fallback string) string {

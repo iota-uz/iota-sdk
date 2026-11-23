@@ -26,7 +26,7 @@ templ Metrics(props Props) {
 				if props.EmptyNote != "" {
 					{ props.EmptyNote }
 				} else {
-					{ text(ctx, "Metrics.Empty", "") }
+					{ text(ctx, "Metrics.Empty", "Nothing found.") }
 				}
 			</div>
 		}
@@ -34,7 +34,7 @@ templ Metrics(props Props) {
 			<div class="iota-mx-note">
 				<button type="button" class="iota-mx-a" x-on:click="all = !all" x-bind:aria-expanded="all">
 					<span x-show="!all">{ moreLabel(ctx, n) }</span>
-					<span x-show="all" x-cloak>{ text(ctx, "Metrics.FewerCurrencies", "−") }</span>
+					<span x-show="all" x-cloak>{ text(ctx, "Metrics.FewerCurrencies", "Fewer currencies") }</span>
 				</button>
 			</div>
 		}
@@ -43,7 +43,7 @@ templ Metrics(props Props) {
 
 templ scopeLine(props Props) {
 	<div class="iota-mx-scope">
-		<span class="iota-mx-scope-title">{ text(ctx, "Metrics.Title", "") }</span>
+		<span class="iota-mx-scope-title">{ text(ctx, "Metrics.Title", "Totals for selection") }</span>
 		if props.Scope.Period != "" {
 			<span class="iota-mx-scope-meta">
 				@icons.CalendarBlank(icons.Props{Size: "14"})
@@ -65,7 +65,7 @@ templ scopeLine(props Props) {
 			if props.ResetAttrs != nil {
 				<span aria-hidden="true">·</span>
 				<button type="button" class="iota-mx-a" { props.ResetAttrs... }>
-					{ text(ctx, "Metrics.ShowAll", "") }
+					{ text(ctx, "Metrics.ShowAll", "Show all") }
 				</button>
 			}
 		</span>
@@ -175,5 +175,8 @@ templ Skeleton(props SkeletonProps) {
 				</div>
 			}
 		</div>
+		if props.Currencies > VisibleCurrencies {
+			<div class="iota-mx-note"><span class="iota-mx-sk iota-mx-sk--count"></span></div>
+		}
 	</section>
 }

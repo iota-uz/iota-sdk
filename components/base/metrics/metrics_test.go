@@ -96,3 +96,20 @@ func TestSkeletonMatchesBand(t *testing.T) {
 	assert.Equal(t, 3, strings.Count(html, "iota-mx-sk--row"))
 	assert.Contains(t, html, `aria-busy="true"`)
 }
+
+func TestFormatMinInt64(t *testing.T) {
+	assert.Equal(t, "−9 223 372 036 854 775 808", FormatCount(-9223372036854775808))
+	assert.Equal(t, "92 233 720 368 547 758,08", FormatAmount(Money(-9223372036854775808)))
+}
+
+func TestFallbackLabels(t *testing.T) {
+	html := render(t, Props{Scope: Scope{Total: 2}, ResetAttrs: map[string]any{"hx-get": "/x"}})
+	assert.Contains(t, html, "Show all", "reset stays labelled without a localizer")
+	assert.Contains(t, html, "Totals for selection")
+}
+
+func TestSkeletonReservesCurrencyToggle(t *testing.T) {
+	var b strings.Builder
+	require.NoError(t, Skeleton(SkeletonProps{Items: 1, Currencies: 4}).Render(context.Background(), &b))
+	assert.Contains(t, b.String(), "iota-mx-note")
+}
