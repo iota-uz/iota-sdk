@@ -462,6 +462,8 @@ func TestDebtAggregateController_List_FilterChips(t *testing.T) {
 		{"malformed counterparty id", "?f=counterparty:is:not-a-uuid", nil, []counterparty.Counterparty{alpha, beta, gamma}},
 		// An id typed in uppercase still finds its counterparty.
 		{"uppercase counterparty id", "?f=counterparty:is:" + strings.ToUpper(beta.ID().String()), []counterparty.Counterparty{beta}, []counterparty.Counterparty{alpha, gamma}},
+		// "Is not" with the same uppercase id leaves that counterparty out.
+		{"uppercase counterparty id, is not", "?f=counterparty:isnot:" + strings.ToUpper(beta.ID().String()), []counterparty.Counterparty{alpha, gamma}, []counterparty.Counterparty{beta}},
 	}
 	for _, tc := range cases {
 		response := suite.GET(DebtAggregateBasePath + tc.query).HTMX().Expect(t).Status(200)
