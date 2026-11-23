@@ -2,9 +2,9 @@ package graph
 
 import (
 	"crypto/sha256"
-	"errors"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
