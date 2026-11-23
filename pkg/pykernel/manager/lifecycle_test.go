@@ -174,7 +174,11 @@ func TestFreshNamespace_ClearsNamesOnReuseButKeepsCapabilities(t *testing.T) {
 
 	again, err := m.Acquire(context.Background(), sess)
 	require.NoError(t, err)
-	assert.Same(t, k, again, "the kernel process is reused")
+	if pykerneltest.Sandbox(t).Mode == isolation.ModeRequired {
+		assert.NotSame(t, k, again, "a supervised kernel that ran code is replaced by a fresh process")
+	} else {
+		assert.Same(t, k, again, "an unsupervised kernel is reset in place")
+	}
 	assert.True(t, again.Info().NamespaceReset)
 	out, execErr, done := run(t, again, pykernel.ExecRequest{Code: "print('x' in globals(), echo())"})
 	require.Nil(t, execErr)
@@ -275,8 +279,9 @@ func TestExec_WorkerClosingItsBridgeIsKilled(t *testing.T) {
 	_, _, done := run(t, k, pykernel.ExecRequest{Code: "import socket\nsocket.socket(fileno=3).shutdown(socket.SHUT_RDWR)\nwhile True:\n    pass", Timeout: time.Minute})
 	require.NotNil(t, done)
 	assert.Equal(t, pykernel.ReasonKernelExited, done.Reason)
-	assert.Eventually(t, func() bool { return errors.Is(syscall.Kill(-pid, 0), syscall.ESRCH) || isZombie(pid) },
-		5*time.Second, 20*time.Millisecond, "a kernel without its bridge must not keep running")
+	// The terminal event comes only after the group is confirmed gone.
+	assert.True(t, errors.Is(syscall.Kill(-pid, 0), syscall.ESRCH) || isZombie(pid),
+		"a kernel without its bridge must be gone before its exec is reported ended")
 }
 
 func isZombie(pid int) bool {
@@ -287,4 +292,27 @@ func isZombie(pid int) bool {
 	s := string(raw)
 	i := strings.LastIndexByte(s, ')')
 	return i >= 0 && len(s) > i+2 && s[i+2] == 'Z'
+}
+
+func TestExec_RejectedRequestKeepsTheResetNotice(t *testing.T) {
+	requirePython(t)
+	wd := t.TempDir()
+	sess := &testSession{key: "reset-notice", tenant: uuid.New(), caps: emptyCaps(t), mode: pykernel.ModeApply, wd: wd}
+	first := newManagerWith(t, lifecycle.WarmPool(time.Hour, 4))
+	k, err := first.Acquire(context.Background(), sess)
+	require.NoError(t, err)
+	_, execErr, _ := run(t, k, pykernel.ExecRequest{Code: "x = 1"})
+	require.Nil(t, execErr)
+	require.NoError(t, first.Shutdown(context.Background()))
+
+	second := newManagerWith(t, lifecycle.WarmPool(time.Hour, 4))
+	k, err = second.Acquire(context.Background(), sess)
+	require.NoError(t, err)
+	require.True(t, k.Info().NamespaceReset)
+	_, err = k.Exec(context.Background(), pykernel.ExecRequest{Code: "y = '" + strings.Repeat("a", 65<<20) + "'"})
+	require.ErrorIs(t, err, pykernel.ErrRequestTooLarge)
+	assert.True(t, k.Info().NamespaceReset, "a refused request must not consume the reset notice")
+	_, execErr, done := run(t, k, pykernel.ExecRequest{Code: "1"})
+	require.Nil(t, execErr)
+	assert.True(t, done.NamespaceReset)
 }

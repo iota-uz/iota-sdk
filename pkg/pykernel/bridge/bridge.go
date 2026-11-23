@@ -227,6 +227,18 @@ func peekExecID(params json.RawMessage) string {
 	return head.ExecID
 }
 
+// SubmitFits reports whether an exec.submit of code with limits fits one
+// frame, so a caller can refuse an oversized request before it changes any
+// state. Exec ids are UUIDs; a 36-byte id stands in for the real one.
+func SubmitFits(code string, limits Limits) bool {
+	params, err := json.Marshal(execSubmitParams{ExecID: "00000000-0000-0000-0000-000000000000", Code: code, Limits: limits})
+	if err != nil {
+		return false
+	}
+	msg, err := json.Marshal(&message{JSONRPC: jsonrpcVersion, Method: MethodExecSubmit, Params: params})
+	return err == nil && len(msg) <= maxFrameSize
+}
+
 func (b *bridge) Submit(_ context.Context, execID, code string, limits Limits) error {
 	params, err := json.Marshal(execSubmitParams{ExecID: execID, Code: code, Limits: limits})
 	if err != nil {

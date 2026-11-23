@@ -227,7 +227,10 @@ func (k *kernel) leaseForReuse(fresh bool) (bool, error) {
 	if fresh && (k.inFlight || k.leases > 0) {
 		return false, pykernel.ErrKernelBusy
 	}
-	if fresh && k.execs > 0 && k.opts.supervised && !pristine(k.pid) {
+	if fresh && k.execs > 0 && k.opts.supervised {
+		// A cleared namespace is not a fresh interpreter (patched modules,
+		// os.environ, threads, children): a supervised kernel that ran code
+		// is replaced by a new process instead.
 		return false, errNotPristine
 	}
 	k.leases++
@@ -355,6 +358,19 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	if w := k.opts.wallClock; w > 0 && (timeout <= 0 || timeout > w) {
 		timeout = w
 	}
+	outCap := req.OutputCap
+	if outCap == 0 {
+		outCap = k.opts.outputCap
+	}
+	limits := bridge.Limits{OutputCap: outCap, SeparateStderr: req.SeparateStderr}
+	if timeout > 0 {
+		limits.WallClockMS = timeout.Milliseconds()
+	}
+	// Validate the request before any state changes: a refused request must
+	// not consume the reset notice, thaw the kernel or arm a watchdog.
+	if !bridge.SubmitFits(req.Code, limits) {
+		return nil, fmt.Errorf("pykernel/manager: %w", pykernel.ErrRequestTooLarge)
+	}
 	k.mu.Lock()
 	if k.disposed || k.serveExited {
 		k.mu.Unlock()
@@ -386,15 +402,6 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	k.lastActive = time.Now()
 	k.mu.Unlock()
 
-	outCap := req.OutputCap
-	if outCap == 0 {
-		outCap = k.opts.outputCap
-	}
-	limits := bridge.Limits{OutputCap: outCap, SeparateStderr: req.SeparateStderr}
-	if timeout > 0 {
-		limits.WallClockMS = timeout.Milliseconds()
-	}
-
 	// The watchdog is armed before the write: a kernel that stops reading its
 	// socket blocks Submit, and only the watchdog's kill can unblock it.
 	go k.watch(ctx, a, timeout)
@@ -425,27 +432,13 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 			// code was being sent): its closed stream carries the outcome.
 			return a.ch, nil
 		}
-		// A broken submission means the kernel is dying: give its exit
-		// path (process watcher, read loop) the chance to finish the exec,
-		// and finish it as kernel_exited ourselves if it does not.
+		// A broken submission: the kernel cannot be trusted with this or
+		// any exec. Kill it; its exit path (read loop, process watcher)
+		// ends the exec as kernel_exited once the group is confirmed gone.
 		k.mu.Unlock()
-		select {
-		case <-a.done:
-		case <-time.After(exitDrain + time.Second):
-		}
+		_ = k.proc.Kill()
+		<-a.done
 		k.mu.Lock()
-		if k.active == a {
-			now := time.Now()
-			errEv := pykernel.ExecEvent{Kind: pykernel.EventError, Timestamp: now,
-				Err: &pykernel.ExecError{Type: "KernelExited", Message: "the kernel could not take the code: " + err.Error()}}
-			a.err = errEv.Err
-			reason := pykernel.ReasonKernelExited
-			if a.stop != "" {
-				reason = a.stop
-			}
-			doneEv := pykernel.ExecEvent{Kind: pykernel.EventDone, Done: k.donePayloadLocked(a, nil, reason), Timestamp: now}
-			k.finishLocked(errEv, doneEv)
-		}
 		return a.ch, nil
 	}
 	return a.ch, nil
@@ -673,11 +666,16 @@ func (k *kernel) watchQuota() {
 // terminal EventDone carrying the reason.
 func (k *kernel) onServeExit() {
 	// Without its bridge the kernel can never be used again, and code in it
-	// must not outlive the exec's watchdog: stop the whole group now.
+	// must not outlive the exec's watchdog: stop the whole group, and publish
+	// the terminal event only once the group is confirmed gone.
 	_ = k.proc.Kill()
 	k.mu.Lock()
-	defer k.mu.Unlock()
 	k.serveExited = true
+	k.mu.Unlock()
+	k.reap()
+	<-k.gone
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	a := k.active
 	if a == nil {
 		return

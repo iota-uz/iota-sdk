@@ -4,6 +4,8 @@ package manager
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -11,113 +13,148 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 )
 
+// groupMembers lists the processes of process group pgid. Every observation
+// must be positive: an entry that vanished (ENOENT) is gone, but one that
+// cannot be read might be a member, so ok is false then.
+func groupMembers(pgid int) (members []int, ok bool) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, false
+	}
+	want := strconv.Itoa(pgid)
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil {
+			continue
+		}
+		f, err := procStat("/proc/" + e.Name() + "/stat")
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil || len(f) < 3 {
+			return nil, false
+		}
+		if f[2] == want {
+			members = append(members, pid)
+		}
+	}
+	return members, true
+}
+
+// taskStates returns the scheduler state of every thread of process pid
+// (none when the process is gone); ok is false when one cannot be read.
+func taskStates(pid int) (states []string, ok bool) {
+	base := "/proc/" + strconv.Itoa(pid) + "/task"
+	tasks, err := os.ReadDir(base)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, true
+	}
+	if err != nil {
+		return nil, false
+	}
+	for _, t := range tasks {
+		f, err := procStat(base + "/" + t.Name() + "/stat")
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // the thread exited
+		}
+		if err != nil || len(f) == 0 {
+			return nil, false
+		}
+		states = append(states, f[0])
+	}
+	return states, true
+}
+
 // atRest reports whether the kernel with group leader pid is at rest: every
 // other live process of its process group is killed (an exec's lifetime ends
 // with the processes it started), and no thread of the leader is runnable.
+// Anything it cannot observe makes it not at rest.
 func atRest(pid int) bool {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
+	members, ok := groupMembers(pid)
+	if !ok {
 		return false
 	}
-	pgid := strconv.Itoa(pid)
-	rest := true
-	for _, e := range entries {
-		if e.Name() == pgid {
+	rest, sawLeader := true, false
+	for _, m := range members {
+		if m == pid {
+			sawLeader = true
 			continue
 		}
-		f, ok := procStat("/proc/" + e.Name() + "/stat")
-		if !ok || len(f) < 3 || f[2] != pgid || f[0] == "Z" || f[0] == "X" {
-			continue
+		states, ok := taskStates(m)
+		if !ok {
+			return false
 		}
-		if other, err := strconv.Atoi(e.Name()); err == nil {
-			isolation.KillMember(other, pid)
+		if live(states) {
+			isolation.KillMember(m, pid)
 			rest = false
 		}
 	}
-	tasks, err := os.ReadDir("/proc/" + pgid + "/task")
-	if err != nil {
+	if !sawLeader {
 		return false
 	}
-	for _, t := range tasks {
-		f, ok := procStat("/proc/" + pgid + "/task/" + t.Name() + "/stat")
-		if !ok || len(f) == 0 || f[0] == "R" {
-			return false // running, or not observable: not at rest
+	states, ok := taskStates(pid)
+	if !ok || len(states) == 0 {
+		return false
+	}
+	for _, st := range states {
+		if st == "R" {
+			return false
 		}
 	}
 	return rest
 }
 
-// pristine reports whether the kernel runs only its own two threads (the
-// bridge reader and the exec worker) and no other process.
-func pristine(pid int) bool {
-	tasks, err := os.ReadDir("/proc/" + strconv.Itoa(pid) + "/task")
-	if err != nil || len(tasks) > 2 {
-		return false
-	}
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return false
-	}
-	want := strconv.Itoa(pid)
-	for _, e := range entries {
-		if e.Name() == want {
-			continue
-		}
-		if f, ok := procStat("/proc/" + e.Name() + "/stat"); ok && len(f) > 2 && f[2] == want && f[0] != "Z" && f[0] != "X" {
-			return false
+func live(states []string) bool {
+	for _, st := range states {
+		if st != "Z" && st != "X" {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
-// groupStopped reports whether no thread of any live member of process group
-// pgid can run user code: each is stopped, or blocked in the kernel with the
-// stop pending.
+// groupStopped reports, from positive observation only, that no thread of
+// any member of process group pgid can run user code: the leader is seen,
+// and every thread of every member is stopped, exited, or blocked in the
+// kernel (D) with the stop pending — it handles the stop before it returns
+// to user code.
 func groupStopped(pgid int) bool {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
+	members, ok := groupMembers(pgid)
+	if !ok {
 		return false
 	}
-	want := strconv.Itoa(pgid)
-	for _, e := range entries {
-		if _, err := strconv.Atoi(e.Name()); err != nil {
-			continue
-		}
-		f, ok := procStat("/proc/" + e.Name() + "/stat")
-		if !ok || len(f) < 3 || f[2] != want {
-			continue
-		}
-		if st := f[0]; st == "Z" || st == "X" {
-			continue
-		}
-		tasks, err := os.ReadDir("/proc/" + e.Name() + "/task")
-		if err != nil {
+	sawLeader := false
+	for _, m := range members {
+		states, ok := taskStates(m)
+		if !ok {
 			return false
 		}
-		for _, t := range tasks {
-			tf, ok := procStat("/proc/" + e.Name() + "/task/" + t.Name() + "/stat")
-			if !ok || len(tf) == 0 {
-				return false // a thread we cannot see is not known to be stopped
+		if m == pgid {
+			if len(states) == 0 {
+				return false // the leader vanished while being observed
 			}
-			// D: blocked in the kernel (e.g. on a write the host performs);
-			// it handles the pending stop before it returns to user code.
-			if st := tf[0]; st != "T" && st != "t" && st != "D" && st != "Z" && st != "X" {
+			sawLeader = true
+		}
+		for _, st := range states {
+			switch st {
+			case "T", "t", "D", "Z", "X":
+			default:
 				return false
 			}
 		}
 	}
-	return true
+	return sawLeader
 }
 
 // procStat returns the fields of a /proc stat file after the command name.
-func procStat(path string) ([]string, bool) {
+func procStat(path string) ([]string, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 	i := bytes.LastIndexByte(raw, ')')
 	if i < 0 {
-		return nil, false
+		return nil, errors.New("malformed stat")
 	}
-	return strings.Fields(string(raw[i+1:])), true
+	return strings.Fields(string(raw[i+1:])), nil
 }

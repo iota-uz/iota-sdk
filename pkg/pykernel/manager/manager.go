@@ -244,10 +244,18 @@ spawn:
 				return nil, pykernel.ErrPoolExhausted
 			}
 			// Tear the victim down before its replacement starts, so the
-			// number of live process groups never exceeds the cap.
+			// number of live process groups never exceeds the cap. The
+			// retirement continues (and keeps the slot) if the caller gives
+			// up waiting.
 			done := m.retireLocked(victim)
 			m.mu.Unlock()
-			done()
+			finished := make(chan struct{})
+			go func() { done(); close(finished) }()
+			select {
+			case <-finished:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
 			m.mu.Lock()
 			if m.closing {
 				m.mu.Unlock()

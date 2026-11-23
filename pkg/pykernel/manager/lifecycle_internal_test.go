@@ -443,3 +443,28 @@ func TestExec_KernelDyingDuringSubmitReportsKernelExited(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t, pykernel.ReasonKernelExited, done.Reason)
 }
+
+func TestAcquire_GivesUpOnCancellationWhileAGroupRetires(t *testing.T) {
+	t.Parallel()
+	l := &lingeringLauncher{procs: make(chan *lingeringProcess, 4)}
+	m, err := New(Config{
+		Policy: lifecycle.WarmPool(time.Hour, 1), Launcher: l,
+		Sandbox: isolation.Profile{Mode: isolation.ModeInsecureDisabled}, DisposeGrace: 50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	a, err := m.Acquire(context.Background(), testSess("a", t.TempDir()))
+	require.NoError(t, err)
+	first := <-l.procs
+	t.Cleanup(func() { close(first.release) })
+	require.NoError(t, m.Release(a))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err = m.Acquire(ctx, testSess("b", t.TempDir()))
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 2*time.Second)
+	m.mu.Lock()
+	assert.Equal(t, 1, m.retiring, "the retiring group keeps its slot")
+	m.mu.Unlock()
+}

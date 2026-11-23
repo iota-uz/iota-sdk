@@ -85,9 +85,9 @@ every capability and their own filter refuses `ptrace`. Without it
 - An exec ends with the processes it started: children still running when the code returns are killed.
 - The restart record lives next to the workdir (`.<name>.pykernel`); remove it
   with the workdir.
-- `FreshNamespace` clears the user's names and reinstalls capabilities; process
-  state (threads, imported and patched modules, `os.environ`, children) stays
-  with the process. Use the ephemeral policy when no state may carry over.
+- `FreshNamespace` on a confined kernel that already ran code means a new
+  process (only the workdir carries over); on an unconfined kernel it clears
+  the user's names in place and process state stays.
 
 ## Terminal events
 
