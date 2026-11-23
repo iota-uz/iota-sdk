@@ -3,7 +3,9 @@ package controllers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors/serrorhttp"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -151,8 +154,9 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 		Search: strings.TrimSpace(r.URL.Query().Get("Search")),
 		Filters: filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[inventory.Field]{
 			inventoryFilterCurrency: {Column: inventory.CurrencyField},
-			// Prices are stored in minor units; the chip takes major units.
-			inventoryFilterPrice:     {Column: inventory.PriceField, Expr: func(col string) string { return col + " / 100.0" }},
+			// Prices are stored in minor units of the row's currency; the chip
+			// takes major units.
+			inventoryFilterPrice:     {Column: inventory.PriceField, Expr: func(col string) string { return majorUnits(col, "i.currency_id") }},
 			inventoryFilterQuantity:  {Column: inventory.QuantityField},
 			inventoryFilterCreatedAt: {Column: inventory.CreatedAtField},
 		}, time.Now()),
@@ -191,7 +195,8 @@ func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 		PaginationState: paginated.PaginationState,
 		Filters:         paginated.Filters,
 	}
-	if htmx.IsHxRequest(r) {
+	// A history restore (cache miss on Back) needs the whole document.
+	if !htmx.WantsFullPage(r) {
 		templ.Handler(inventoryTemplates.InventoryTableWithChips(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(inventoryTemplates.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -355,4 +360,33 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.Redirect(w, r, c.basePath)
+}
+
+// majorUnits renders amount (minor units) in major units of the currency in
+// currency: a yen price has no minor digits, a dinar has three. Only the
+// registered currencies whose fraction is not 2 get a case; codes come from
+// the money registry, never from the request.
+func majorUnits(amount, currency string) string {
+	var b strings.Builder
+	b.WriteString("(" + amount + ")::numeric / CASE " + currency)
+	for _, c := range money.RegisteredCurrencies() {
+		if c.Fraction == 2 || !isCurrencyCode(c.Code) {
+			continue
+		}
+		b.WriteString(" WHEN '" + c.Code + "' THEN " + strconv.FormatFloat(math.Pow10(c.Fraction), 'f', 0, 64))
+	}
+	b.WriteString(" ELSE 100 END")
+	return b.String()
+}
+
+func isCurrencyCode(code string) bool {
+	if code == "" {
+		return false
+	}
+	for _, r := range code {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }

@@ -457,6 +457,8 @@ func TestDebtAggregateController_List_FilterChips(t *testing.T) {
 		{"has outstanding", "?f=has_outstanding:is:true", []counterparty.Counterparty{alpha, beta}, []counterparty.Counterparty{gamma}},
 		{"nothing outstanding", "?f=has_outstanding:is:false", []counterparty.Counterparty{gamma}, []counterparty.Counterparty{alpha, beta}},
 		{"currency and outstanding", "?f=currency:is:USD&f=has_outstanding:is:true", []counterparty.Counterparty{alpha}, []counterparty.Counterparty{beta, gamma}},
+		// A garbled id in the URL matches nothing instead of failing the query.
+		{"malformed counterparty id", "?f=counterparty:is:not-a-uuid", nil, []counterparty.Counterparty{alpha, beta, gamma}},
 	}
 	for _, tc := range cases {
 		response := suite.GET(DebtAggregateBasePath + tc.query).HTMX().Expect(t).Status(200)
@@ -481,4 +483,8 @@ func TestDebtAggregateController_List_FilterChips(t *testing.T) {
 	page := suite.GET(DebtAggregateBasePath + "?f=type:is:RECEIVABLE").Expect(t).Status(200)
 	page.Contains(`x-data="filterBuilder"`).Contains(`value="type:is:RECEIVABLE"`).Contains("data-filter-bar").
 		Contains(row(alpha)).NotContains(row(beta))
+
+	// Back to a chip URL after a history-cache miss gets the whole page.
+	suite.GET(DebtAggregateBasePath + "?f=type:is:RECEIVABLE").HTMX().HTMXHistoryRestore().Expect(t).Status(200).
+		Contains("<html").Contains(`x-data="filterBuilder"`)
 }

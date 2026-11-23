@@ -295,7 +295,8 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		},
 	}
 
-	if htmx.IsHxRequest(r) {
+	// A history restore (cache miss on Back) needs the whole document.
+	if !htmx.WantsFullPage(r) {
 		templ.Handler(account.SessionsListWithChips(props)).ServeHTTP(w, r)
 		return
 	}

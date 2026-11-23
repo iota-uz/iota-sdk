@@ -151,4 +151,7 @@ func TestNotificationSettings_UserChannels_FilterChips(t *testing.T) {
 	assert.Equal(t, "Pager", got.Get("q"))
 	next := suite.GET(link.Path + "?" + link.RawQuery).HTMX().HTMXTarget("user-channels-more").Expect(t).Status(200)
 	next.Contains("Pager21 Chip").NotContains("Pager01 Chip").NotContains("Anna Chip").NotContains("offset=")
+	// Rows of the second page save back to their own page, so the saved row
+	// stays on screen.
+	next.Contains(`name="offset" value="20"`)
 }

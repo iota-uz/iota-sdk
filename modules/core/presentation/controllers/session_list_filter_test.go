@@ -122,6 +122,8 @@ func TestSessionController_List_FilterChips(t *testing.T) {
 	// Infinite scroll: with one session per page, the last row asks for page
 	// 2 with the search and chips; that page is still Alice's.
 	first := suite.GET("/settings/sessions?search=Alice&f=user:is:" + aliceID + "&fb=1&limit=1").Expect(t).Status(200)
+	// A chip change keeps the page size the page was opened with.
+	first.Contains(`name="limit" value="1"`)
 	match := regexp.MustCompile(`hx-get="([^"]*[?&](?:amp;)?page=2[^"]*)"`).FindStringSubmatch(first.Body())
 	require.NotNil(t, match, "the last row asks for page 2")
 	link, err := url.Parse(html.UnescapeString(match[1]))

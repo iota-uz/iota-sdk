@@ -146,6 +146,12 @@ templ UserChannelRows(props *UserChannelsProps) {
 					<input type="hidden" name={ key } value={ value }/>
 				}
 			}
+			<!-- The row's own page: after "Show more" a saved row sits past offset 0,
+			     and re-rendering from the top would drop it. Search and chip
+			     changes do not send it, so they start at the first page. -->
+			if props.Offset > 0 {
+				<input type="hidden" name="offset" value={ strconv.Itoa(props.Offset) }/>
+			}
 			<span class="mr-auto">
 				<span class="font-medium">{ row.Recipient.Name }</span>
 				if row.Recipient.Hint != "" {

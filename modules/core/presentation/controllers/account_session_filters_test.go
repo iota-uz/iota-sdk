@@ -93,4 +93,10 @@ func TestAccountSessionController_FilterChips(t *testing.T) {
 		require.NotContains(t, body, row(currentToken))
 		require.NotContains(t, body, "<html")
 	})
+
+	t.Run("history restore gets the whole page", func(t *testing.T) {
+		body := suite.GET("/account/sessions?f=current:is:false&fb=1").Cookie(cfg.SID, currentToken).HTMX().HTMXHistoryRestore().Expect(t).Status(http.StatusOK).Body()
+		require.Contains(t, body, "<html")
+		require.Contains(t, body, `x-data="filterBuilder"`)
+	})
 }

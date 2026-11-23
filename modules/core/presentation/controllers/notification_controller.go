@@ -72,10 +72,11 @@ func (c *NotificationController) Index(r *http.Request, w http.ResponseWriter, s
 		props.Notifications = items[:20]
 		props.NextCursor = notification.CursorFor(items[19])
 	}
-	if htmx.IsHxRequest(r) {
-		templ.Handler(notifications.ContentWithChips(props)).ServeHTTP(w, r)
-	} else {
+	// A history restore (cache miss on Back) needs the whole document.
+	if htmx.WantsFullPage(r) {
 		templ.Handler(notifications.Index(props)).ServeHTTP(w, r)
+	} else {
+		templ.Handler(notifications.ContentWithChips(props)).ServeHTTP(w, r)
 	}
 }
 

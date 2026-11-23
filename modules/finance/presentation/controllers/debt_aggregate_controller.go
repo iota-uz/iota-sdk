@@ -157,7 +157,9 @@ func (c *DebtAggregateController) List(
 	// outstanding" keeps the counterparties whose summed outstanding amount
 	// is not zero.
 	filters := filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[debt.AggregateField]{
-		debtAggFilterCounterparty:   {Column: debt.AggregateCounterpartyField, Type: "uuid"},
+		// Compared as text: a garbled id in the URL matches nothing instead of
+		// failing the ::uuid cast and the whole page.
+		debtAggFilterCounterparty:   {Column: debt.AggregateCounterpartyField, Expr: func(col string) string { return col + "::text" }},
 		debtAggFilterCurrency:       {Column: debt.AggregateCurrencyField},
 		debtAggFilterType:           {Column: debt.AggregateTypeField},
 		debtAggFilterHasOutstanding: {Column: debt.AggregateOutstandingField, Expr: func(col string) string { return col + " <> 0" }},
@@ -226,7 +228,8 @@ func (c *DebtAggregateController) List(
 
 	renderer := table.NewTableRenderer(definition, tableData)
 
-	if htmx.IsHxRequest(r) {
+	// A history restore (cache miss on Back) needs the whole document.
+	if !htmx.WantsFullPage(r) {
 		templ.Handler(renderer.RenderRows(), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(renderer.RenderFull(), templ.WithStreaming()).ServeHTTP(w, r)

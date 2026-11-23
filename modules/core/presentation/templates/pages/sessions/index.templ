@@ -221,6 +221,10 @@ templ SessionsContent(props *IndexPageProps) {
 			hx-indicator="#sessions-list"
 		>
 			<input type="hidden" name="page" value="1"/>
+			<!-- A chip change keeps the page size the page was opened with. -->
+			if props.PerPage > 0 {
+				<input type="hidden" name="limit" value={ fmt.Sprint(props.PerPage) }/>
+			}
 			<div class="flex-1">
 				@input.Text(&input.Props{
 					AddonLeft: &input.Addon{

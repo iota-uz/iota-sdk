@@ -492,7 +492,7 @@ func TestInventoryController_List_FilterChips(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, currency.USD, currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR, currency.JPY)
 
 	inventorySvc := itf.GetService[services.InventoryService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
@@ -506,6 +506,8 @@ func TestInventoryController_List_FilterChips(t *testing.T) {
 		{"Chip Cheap Bolt", money.NewFromFloat(5.50, "USD"), 1000},
 		{"Chip Dear Drill", money.NewFromFloat(250.00, "USD"), 3},
 		{"Chip Euro Saw", money.NewFromFloat(120.00, "EUR"), 40},
+		// The yen has no minor digits: 150 is stored as 150, not 15000.
+		{"Chip Yen Saw", money.NewFromFloat(150, "JPY"), 2},
 	} {
 		_, err := inventorySvc.Create(env.Ctx, inventory.New(it.name, it.price, it.quantity))
 		require.NoError(t, err)
@@ -520,7 +522,8 @@ func TestInventoryController_List_FilterChips(t *testing.T) {
 	}{
 		{"currency", "?f=currency:is:USD", []string{"Chip Cheap Bolt", "Chip Dear Drill"}, []string{"Chip Euro Saw"}},
 		{"currency is not", "?f=currency:isnot:USD", []string{"Chip Euro Saw"}, []string{"Chip Cheap Bolt", "Chip Dear Drill"}},
-		{"price in major units", "?f=price:between:100,200", []string{"Chip Euro Saw"}, []string{"Chip Cheap Bolt", "Chip Dear Drill"}},
+		{"price in major units", "?f=price:between:100,200", []string{"Chip Euro Saw", "Chip Yen Saw"}, []string{"Chip Cheap Bolt", "Chip Dear Drill"}},
+		{"price of a currency without minor digits", "?f=price:gt:149&f=currency:is:JPY", []string{"Chip Yen Saw"}, []string{"Chip Euro Saw"}},
 		{"quantity", "?f=quantity:gt:10", []string{"Chip Cheap Bolt", "Chip Euro Saw"}, []string{"Chip Dear Drill"}},
 		{"currency and price", "?f=currency:is:USD&f=price:lt:100", []string{"Chip Cheap Bolt"}, []string{"Chip Dear Drill", "Chip Euro Saw"}},
 		{"search and chip", "?Search=Drill&f=currency:is:USD", []string{"Chip Dear Drill"}, []string{"Chip Cheap Bolt", "Chip Euro Saw"}},
@@ -551,4 +554,8 @@ func TestInventoryController_List_FilterChips(t *testing.T) {
 	// Page links keep the chips and the search.
 	paged := suite.GET(InventoryBasePath + "?limit=1&Search=Chip&f=currency:is:USD").HTMX().Expect(t).Status(200)
 	paged.Contains("f=currency%3Ais%3AUSD").Contains("Search=Chip").Contains("page=2")
+
+	// Back to a chip URL after a history-cache miss gets the whole page.
+	suite.GET(InventoryBasePath + "?f=currency:is:EUR").HTMX().HTMXHistoryRestore().Expect(t).Status(200).
+		Contains("<html").Contains(`x-data="filterBuilder"`)
 }

@@ -97,4 +97,10 @@ func TestNotificationController_Index_FilterChips(t *testing.T) {
 		require.Contains(t, page2, "Paged success 00")
 		require.NotContains(t, page2, "Unread error alert")
 	})
+
+	t.Run("history restore gets the whole page", func(t *testing.T) {
+		body := suite.GET("/notifications?f=level:is:success&fb=1").HTMX().HTMXHistoryRestore().Expect(t).Status(http.StatusOK).Body()
+		require.Contains(t, body, "<html")
+		require.Contains(t, body, `x-data="filterBuilder"`)
+	})
 }
