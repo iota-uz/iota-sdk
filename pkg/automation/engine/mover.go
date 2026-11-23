@@ -144,23 +144,43 @@ func effectInput(effects []graph.Effect) any {
 	return effects
 }
 
-// applyEffects applies a node's effects inside the step's transaction, each in a savepoint so a failed
-// effect leaves the step usable. A failure of the platform aborts the step (err); any other is the node's.
+// applyEffects applies a node's effects inside the step's transaction. They share one savepoint that is
+// held until the node's output is checked: a node failure (an effect's error, an output over
+// PayloadBytes) rolls every effect of the node back before the failed outcome is taken, so a handler on
+// that edge never sees a write of the failed node. A failure of the platform aborts the step (err); any
+// other is the node's.
 func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node, effects []graph.Effect) (map[string]any, *StepError, error) {
 	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
 	en, isEffect := nt.(EffectNode)
 	if !ok || !isEffect {
 		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
+	sp, err := m.tx.Begin(ctx)
+	if err != nil {
+		return nil, nil, serrors.FromDB(opRun, err)
+	}
+	out, serr, err := m.applyEach(ctx, sp, tok, node, en, effects)
+	if err == nil && serr == nil && out != nil {
+		serr = m.tooLarge(out, "the output of "+node.ID)
+	}
+	if err != nil || serr != nil {
+		if rerr := sp.Rollback(ctx); rerr != nil && err == nil {
+			return nil, nil, serrors.FromDB(opRun, rerr)
+		}
+		return nil, serr, err
+	}
+	if err := sp.Commit(ctx); err != nil {
+		return nil, nil, serrors.FromDB(opRun, err)
+	}
+	return out, nil, nil
+}
+
+// applyEach applies the effects in order in the node's savepoint; the output is the last effect's.
+func (m *mover) applyEach(ctx context.Context, sp pgx.Tx, tok *tokenRow, node graph.Node, en EffectNode, effects []graph.Effect) (map[string]any, *StepError, error) {
 	var out map[string]any
 	for _, e := range effects {
-		sp, err := m.tx.Begin(ctx)
-		if err != nil {
-			return nil, nil, serrors.FromDB(opRun, err)
-		}
 		o, err := en.ApplyEffect(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, e)
 		if err != nil {
-			_ = sp.Rollback(ctx)
 			if host.IsInfrastructure(err) || ctx.Err() != nil {
 				return nil, nil, err
 			}
@@ -170,16 +190,8 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 			}
 			return nil, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
 		}
-		if err := sp.Commit(ctx); err != nil {
-			return nil, nil, serrors.FromDB(opRun, err)
-		}
 		if o != nil {
 			out = o
-		}
-	}
-	if out != nil {
-		if serr := m.tooLarge(out, "the output of "+node.ID); serr != nil {
-			return nil, serr, nil
 		}
 	}
 	return out, nil, nil
@@ -264,7 +276,10 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: ws.WaitID, Kind: kind, NodeID: node.ID, Spec: waitSpecJSON{Seq: seq, Exec: &ws}}
 	if t := m.capWait(ws.Timeout); t > 0 {
-		at := m.s.now.Add(t)
+		at, err := m.deadline(ctx, t)
+		if err != nil {
+			return err
+		}
 		w.TimeoutAt, w.Spec.Timer = &at, true
 	}
 	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
@@ -272,6 +287,17 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	tok.Status = tokWaiting
 	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// deadline is when a wait registered now for d ends: counted from the database's clock at the
+// registration, so neither the subject's lock nor the step's work before it (loading its context,
+// an executor's call) eats into the wait.
+func (m *mover) deadline(ctx context.Context, d time.Duration) (time.Time, error) {
+	var now time.Time
+	if err := m.tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		return time.Time{}, serrors.FromDB(opRun, err)
+	}
+	return now.Add(d), nil
 }
 
 func (m *mover) capWait(d time.Duration) time.Duration {
@@ -325,7 +351,10 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 		w.Subject = m.waitSubject(node, ev, params)
 	}
 	if timeout > 0 {
-		at := m.s.now.Add(timeout)
+		at, err := m.deadline(ctx, timeout)
+		if err != nil {
+			return err
+		}
 		w.TimeoutAt, w.Spec.Timer = &at, true
 	}
 	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
@@ -373,7 +402,10 @@ func (m *mover) fork(ctx context.Context, tok *tokenRow, node graph.Node, st gra
 		return err
 	}
 	if st.Wait != nil && st.Wait.Timeout > 0 && f.Join != "" {
-		at := m.s.now.Add(m.capWait(st.Wait.Timeout))
+		at, err := m.deadline(ctx, m.capWait(st.Wait.Timeout))
+		if err != nil {
+			return err
+		}
 		w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: fmt.Sprintf("%s/%d", tok.ID, tok.StepSeq), Kind: waitJoin, NodeID: f.Join,
 			TimeoutAt: &at, Spec: waitSpecJSON{Seq: tok.StepSeq, Timer: true}}
 		if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
@@ -616,7 +648,7 @@ func (m *mover) inGroup(ctx context.Context, tok *tokenRow, arrived bool, value 
 				return serrors.FromDB(opRun, err)
 			}
 			var v any
-			if err := json.Unmarshal(item, &v); err != nil {
+			if err := expr.UnmarshalJSON(item, &v); err != nil {
 				return err
 			}
 			if err := m.startItem(ctx, &parent, f, v); err != nil {
@@ -726,7 +758,7 @@ func (m *mover) foreachDone(ctx context.Context, parent *tokenRow) error {
 		}
 		var a arrival
 		if len(raw) > 0 {
-			if err := json.Unmarshal(raw, &a); err != nil {
+			if err := expr.UnmarshalJSON(raw, &a); err != nil {
 				rows.Close()
 				return err
 			}
@@ -1048,11 +1080,9 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 		if t.ForeachRef != nil && t.ForeachIndex != nil {
 			var item any
 			if len(t.Item) > 0 {
-				if err := json.Unmarshal(t.Item, &item); err != nil {
-					return graph.Context{}, err
-				}
-				item, err = numbers(item)
-				if err != nil {
+				// Numbers as json.Number, as the format reads values: decoding to float64 first would round
+				// an integer past 2^53.
+				if err := expr.UnmarshalJSON(t.Item, &item); err != nil {
 					return graph.Context{}, err
 				}
 			}
@@ -1068,17 +1098,6 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 		return graph.Context{}, err
 	}
 	return graph.Context{Event: event, Nodes: nodes, Vars: vars, Now: m.s.now, Tenant: map[string]any{"id": m.x.tenant.String()}, Foreach: each}, nil
-}
-
-// numbers re-reads a value with numbers as json.Number, as the format reads values.
-func numbers(v any) (any, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	err = expr.UnmarshalJSON(b, &out)
-	return out, err
 }
 
 // subjectVars loads the subject's variables with the run-as rights, once per step.

@@ -304,7 +304,9 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 			return nil, serrors.FromDB(opRun, err)
 		}
 		s := &stepState{sensitive: decodeRefs(sens)}
-		if err := tx.QueryRow(ctx, `SELECT now()`).Scan(&s.now); err != nil {
+		// The step's time is read after the subject's lock: now() is the transaction's start, which can
+		// lie long before it when the lock was held by another step.
+		if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&s.now); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		if err := fn(ctx, tx, s); err != nil {
