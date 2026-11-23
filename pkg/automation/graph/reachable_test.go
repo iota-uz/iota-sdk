@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -250,6 +251,71 @@ func TestReachableTriggersOneTrigger(t *testing.T) {
 		{"from": {"node": "n", "outcome": "true"}, "to": "ignore"}, {"from": {"node": "n", "outcome": "false"}, "to": "ignore"}]}`)
 	errs := graph.Validate(c, g, graph.Options{})
 	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Message != "node n reads order, which trigger incoming (on mail.received) does not have" {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+// twoMailGraph has two mail triggers (inbox, outbox) and one node both lead to.
+func twoMailGraph(t *testing.T, expression string) graph.Graph {
+	t.Helper()
+	return mustDecode(t, `{"name": "Mail", "triggers": [{"id": "inbox", "event": "mail.received"}, {"id": "outbox", "event": "mail.sent"}],
+		"nodes": [{"id": "n", "type": "branch", "params": {"expression": "`+expression+`"}}],
+		"edges": [{"from": {"node": "inbox", "outcome": "fired"}, "to": "n"}, {"from": {"node": "outbox", "outcome": "fired"}, "to": "n"},
+		{"from": {"node": "n", "outcome": "true"}, "to": "ignore"}, {"from": {"node": "n", "outcome": "false"}, "to": "ignore"}]}`)
+}
+
+func mailEvents(t *testing.T, received, sent expr.Fields) graph.Catalog {
+	t.Helper()
+	c := recordMailCatalog(t, "")
+	c.Events["mail.received"] = graph.EventSpec{Key: "mail.received", Subject: graph.SubjectNone, Payload: received}
+	c.Events["mail.sent"] = graph.EventSpec{Key: "mail.sent", Subject: graph.SubjectNone, Payload: sent}
+	return c
+}
+
+// A shared node runs with the types the check gave: a double read from a JSON integer, an absent optional, a
+// timestamp from its string.
+func TestReachableTriggersRunKeepsTypes(t *testing.T) {
+	payload := func(extra string) expr.Fields {
+		return expr.Fields{
+			{Name: "data", Field: expr.DoubleField}, {Name: "note", Field: expr.OptionalOf(expr.StringField)},
+			{Name: "at", Field: expr.TimestampField}, {Name: extra, Field: expr.StringField},
+		}
+	}
+	c := mailEvents(t, payload("from"), payload("to"))
+	g := twoMailGraph(t, `event.data / 2.0 == 2.0 && event.note == \"\" && event.at < now`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"mail.received", "mail.sent"} {
+		trace := in.DryRun(graph.Subject{}, graph.Context{Now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}, []graph.DryRunInput{
+			{Event: graph.Event{"kind": kind, "data": 4, "at": "2020-01-01T00:00:00Z", "from": "a", "to": "b"}},
+		}, graph.DryRunOptions{})
+		if len(trace) < 2 || trace[1].Node != "n" || trace[1].Outcome != "true" {
+			t.Fatalf("%s: %+v", kind, trace)
+		}
+	}
+}
+
+// Fields declared as an object by one event and as something else by the other are not shared.
+func TestReachableTriggersIncompatibleFields(t *testing.T) {
+	c := mailEvents(t,
+		expr.Fields{{Name: "data", Field: expr.ObjectOf(expr.Fields{{Name: "subject", Field: expr.StringField}})}},
+		expr.Fields{{Name: "data", Field: expr.StringField}})
+	errs := graph.Validate(c, twoMailGraph(t, `event.data.subject == \"x\"`), graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Message != "node n reads event.data.subject, which trigger outbox (on mail.sent) does not have" {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+// A field of a list element is checked by each trigger's element schema.
+func TestReachableTriggersListElementField(t *testing.T) {
+	list := func(name string) expr.Field {
+		return expr.ListOf(expr.ObjectOf(expr.Fields{{Name: name, Field: expr.StringField}}))
+	}
+	c := mailEvents(t, expr.Fields{{Name: "data", Field: list("url")}}, expr.Fields{{Name: "data", Field: list("title")}})
+	errs := graph.Validate(c, twoMailGraph(t, `event.data[0].url == \"x\"`), graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || errs[0].Message != "node n reads event.data[].url, which trigger outbox (on mail.sent) does not have" {
 		t.Fatalf("errors: %v", errs)
 	}
 }

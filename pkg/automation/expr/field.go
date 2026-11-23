@@ -60,6 +60,9 @@ type Field struct {
 	Enum  []string
 	Elem  *Field // List, Map, Optional
 	Props []Prop // Object, in declaration order
+	// Open: an object keeps the properties it was given that it does not declare (as dyn values), so a value
+	// read whole is whole. It does not extend what an expression may read, and is not part of the JSON form.
+	Open bool
 }
 
 // Prop is one property of an object field.
@@ -95,6 +98,25 @@ func OptionalOf(f Field) Field { return Field{Kind: Optional, Elem: &f} }
 
 // ObjectOf is {"object": props}.
 func ObjectOf(props Fields) Field { return Field{Kind: Object, Props: props} }
+
+// OpenObjects is the field with every object in it open (see Field.Open).
+func (f Field) OpenObjects() Field {
+	out := f.Clone()
+	var open func(f *Field)
+	open = func(f *Field) {
+		if f.Kind == Object {
+			f.Open = true
+		}
+		if f.Elem != nil {
+			open(f.Elem)
+		}
+		for i := range f.Props {
+			open(&f.Props[i].Field)
+		}
+	}
+	open(&out)
+	return out
+}
 
 // Get returns the property with this name.
 func (fs Fields) Get(name string) (Field, bool) {
@@ -137,7 +159,7 @@ var reserved = map[string]bool{
 
 // Clone is a deep copy: no slice or pointer of the copy is shared with f.
 func (f Field) Clone() Field {
-	out := Field{Kind: f.Kind}
+	out := Field{Kind: f.Kind, Open: f.Open}
 	if f.Enum != nil {
 		out.Enum = append([]string(nil), f.Enum...)
 	}

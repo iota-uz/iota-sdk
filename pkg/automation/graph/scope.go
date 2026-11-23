@@ -109,7 +109,8 @@ func eventFieldOf(c Catalog, kinds []string) expr.Field {
 }
 
 // intersectFields keeps the fields of a that b has too, each as what both declare: a nested object is
-// intersected in turn, and a field of different types is dyn.
+// intersected in turn, scalars of different types are dyn, and a field that is a list, a map or an object in
+// one and something else in the other is not kept (reading into it would be reading what one does not have).
 func intersectFields(a, b expr.Fields) expr.Fields {
 	var out expr.Fields
 	for _, p := range a {
@@ -117,15 +118,25 @@ func intersectFields(a, b expr.Fields) expr.Fields {
 		if !ok {
 			continue
 		}
-		p.Field = intersectField(p.Field, other)
-		out = append(out, p)
+		if f, ok := intersectField(p.Field, other); ok {
+			p.Field = f
+			out = append(out, p)
+		}
 	}
 	return out
 }
 
-func intersectField(a, b expr.Field) expr.Field {
+func composite(f expr.Field) bool {
+	switch f.Unwrap().Kind { //nolint:exhaustive // the scalars and dyn are not composite
+	case expr.Object, expr.List, expr.Map:
+		return true
+	}
+	return false
+}
+
+func intersectField(a, b expr.Field) (expr.Field, bool) {
 	if a.String() == b.String() {
-		return a
+		return a, true
 	}
 	optional := a.Kind == expr.Optional || b.Kind == expr.Optional
 	ua, ub := a.Unwrap(), b.Unwrap()
@@ -134,16 +145,28 @@ func intersectField(a, b expr.Field) expr.Field {
 	case ua.Kind == expr.Object && ub.Kind == expr.Object:
 		out = expr.ObjectOf(intersectFields(ua.Props, ub.Props))
 	case ua.Kind == expr.List && ub.Kind == expr.List:
-		out = expr.ListOf(intersectField(*ua.Elem, *ub.Elem))
+		elem, ok := intersectField(*ua.Elem, *ub.Elem)
+		if !ok {
+			return expr.Field{}, false
+		}
+		out = expr.ListOf(elem)
 	case ua.Kind == expr.Map && ub.Kind == expr.Map:
-		out = expr.MapOf(intersectField(*ua.Elem, *ub.Elem))
+		elem, ok := intersectField(*ua.Elem, *ub.Elem)
+		if !ok {
+			return expr.Field{}, false
+		}
+		out = expr.MapOf(elem)
+	case ua.Kind == expr.Dyn || ub.Kind == expr.Dyn:
+		return expr.DynField, true
+	case composite(ua) || composite(ub):
+		return expr.Field{}, false
 	default:
-		return expr.DynField
+		return expr.DynField, true
 	}
 	if optional {
-		return expr.OptionalOf(out)
+		return expr.OptionalOf(out), true
 	}
-	return out
+	return out, true
 }
 
 // subjectVars are the variables a subject declares in expressions; a subject the catalog lacks (conversation,
@@ -247,9 +270,14 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 			kinds = []string{event}
 		}
 		scope = ExprScopeOf(x.view.catalog, subjects, kinds, nodes)
-		if x.run && event == "*" && len(kinds) > 1 {
-			// A run passes the event it has, whole: the fields all kinds share are what the check allows.
-			scope.Vars["event"] = expr.MapOf(expr.DynField)
+		if x.run && len(triggers) > 1 {
+			// A run passes the event and the subject it has, whole: the fields all of them share, typed as the
+			// check types them, are what an expression may read.
+			for name, f := range scope.Vars {
+				if name != "nodes" && name != "tenant" && name != "now" {
+					scope.Vars[name] = f.OpenObjects()
+				}
+			}
 		}
 	}
 	if withNodes {

@@ -561,7 +561,7 @@ func (x *exprs) unknownVariable(owner, path, src string) (GraphError, bool) {
 				if at < 0 {
 					continue
 				}
-				name := strings.Join(chain[:at+1], ".")
+				name := strings.ReplaceAll(strings.Join(chain[:at+1], "."), "."+expr.IndexStep, expr.IndexStep)
 				if x.catalogHas(chain[:at+1]) {
 					return GraphError{Path: path, Code: CodeUnknownVariableForTrigger, Message: x.variableMessage(owner, name, id)}, true
 				}
@@ -613,11 +613,20 @@ func missingAt(vars map[string]expr.Field, chain []string) int {
 	}
 	for i := 1; i < len(chain); i++ {
 		f = f.Unwrap()
-		if f.Kind != expr.Object {
-			return -1
-		}
-		if f, ok = f.Prop(chain[i]); !ok {
-			return i
+		switch {
+		case f.Kind == expr.Dyn || f.Kind == expr.Map && chain[i] != expr.IndexStep:
+			return -1 // what is under a map or a dyn value is not declared
+		case chain[i] == expr.IndexStep:
+			if f.Kind != expr.List && f.Kind != expr.Map {
+				return i
+			}
+			f = *f.Elem
+		case f.Kind != expr.Object:
+			return i // a scalar, a list or a timestamp has no fields
+		default:
+			if f, ok = f.Prop(chain[i]); !ok {
+				return i
+			}
 		}
 	}
 	return -1

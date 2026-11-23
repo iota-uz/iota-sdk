@@ -118,7 +118,7 @@ func TestReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := env.References(`record.title + event.mail["subject"].x + prs[0].url + (a.l.exists(x, x.k == record.n && has(event.q.w)) ? "" : "")`)
-	want := [][]string{{"record", "title"}, {"event", "mail", "subject", "x"}, {"prs"}, {"a", "l"}, {"record", "n"}, {"event", "q", "w"}}
+	want := [][]string{{"record", "title"}, {"event", "mail", "subject", "x"}, {"prs", expr.IndexStep, "url"}, {"a", "l"}, {"record", "n"}, {"event", "q", "w"}}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}

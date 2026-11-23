@@ -185,6 +185,18 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 				out[p.Name] = nv
 			}
 		}
+		if f.Open {
+			for _, k := range sortedKeys(m) {
+				if m[k] == nil || hasProp(f.Props, k) {
+					continue
+				}
+				d, err := dynValue(m[k], appendPath(path, k))
+				if err != nil {
+					return nil, false, err
+				}
+				out[k] = d
+			}
+		}
 		return out, true, nil
 	}
 	return nil, false, &InputError{Path: pathString(path), Message: fmt.Sprintf("unknown field kind %d", int(f.Kind))}
@@ -540,4 +552,13 @@ func zeroAt(f Field, path []segment) any {
 	case String, Int, Double, Bool, Dyn, Enum, List, Timestamp:
 	}
 	return zero(f)
+}
+
+func hasProp(props []Prop, name string) bool {
+	for _, p := range props {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
 }

@@ -6,9 +6,14 @@ import (
 	"cel.dev/cel-go/common/types"
 )
 
+// IndexStep stands in a chain of References for an index that is not a string literal: `items[0].url` is
+// [items, IndexStep, url].
+const IndexStep = "[]"
+
 // References lists the select chains of src that start at a name not bound inside the expression:
 // `record.title`, `event.mail.subject`; `has(event.mail.x)` gives the chain of its field too. An index by a
-// string literal continues a chain (`m["a"]` is `m.a`); any other index ends it. The chains come in source
+// string literal continues a chain (`m["a"]` is `m.a`); any other index continues it with IndexStep (its own
+// expression is read for chains too). The chains come in source
 // order, each once. A source that does not parse has none.
 func (e *Env) References(src string) [][]string {
 	parsed, iss := e.cel.Parse(src)
@@ -26,13 +31,17 @@ func (e *Env) References(src string) [][]string {
 	}
 	var walk func(x ast.Expr, bound map[string]bool)
 	walk = func(x ast.Expr, bound map[string]bool) {
-		if base, fields := peelChain(x); base != nil && base.Kind() == ast.IdentKind {
+		if base, fields, indexes := peelChain(x); base != nil {
+			for _, ix := range indexes {
+				walk(ix, bound)
+			}
+			if base.Kind() != ast.IdentKind {
+				walk(base, bound) // the chain starts at a call or a literal, not at a name
+				return
+			}
 			if name := base.AsIdent(); !bound[name] {
 				add(append([]string{name}, fields...))
 			}
-			return
-		} else if base != nil {
-			walk(base, bound) // the chain starts at a call or a literal, not at a name
 			return
 		}
 		switch x.Kind() { //nolint:exhaustive // a literal reads no chain
@@ -82,13 +91,14 @@ func (e *Env) References(src string) [][]string {
 	return out
 }
 
-// peelChain strips the selects and the string-literal indexes off x: its base and the field names, outermost
-// last. base is nil when x is neither.
-func peelChain(x ast.Expr) (ast.Expr, []string) {
+// peelChain strips the selects and the indexes off x: its base, the field names (IndexStep for an index that
+// is not a string literal) and the index expressions. base is nil when x is neither.
+func peelChain(x ast.Expr) (ast.Expr, []string, []ast.Expr) {
 	var fields []string
+	var indexes []ast.Expr
 	base := x
 	for {
-		switch base.Kind() { //nolint:exhaustive // only selects and string indexes continue a chain
+		switch base.Kind() { //nolint:exhaustive // only selects and indexes continue a chain
 		case ast.SelectKind:
 			s := base.AsSelect()
 			fields = append(fields, s.FieldName())
@@ -96,21 +106,29 @@ func peelChain(x ast.Expr) (ast.Expr, []string) {
 			continue
 		case ast.CallKind:
 			c := base.AsCall()
-			if c.FunctionName() == operators.Index && len(c.Args()) == 2 && c.Args()[1].Kind() == ast.LiteralKind {
-				if key, ok := c.Args()[1].AsLiteral().(types.String); ok {
-					fields = append(fields, string(key))
-					base = c.Args()[0]
-					continue
+			if c.FunctionName() == operators.Index && len(c.Args()) == 2 {
+				var key types.String
+				isKey := false
+				if arg := c.Args()[1]; arg.Kind() == ast.LiteralKind {
+					key, isKey = arg.AsLiteral().(types.String)
 				}
+				if isKey {
+					fields = append(fields, string(key))
+				} else {
+					fields = append(fields, IndexStep)
+					indexes = append(indexes, c.Args()[1])
+				}
+				base = c.Args()[0]
+				continue
 			}
 		}
 		break
 	}
 	if len(fields) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	for i, j := 0, len(fields)-1; i < j; i, j = i+1, j-1 {
 		fields[i], fields[j] = fields[j], fields[i]
 	}
-	return base, fields
+	return base, fields, indexes
 }
