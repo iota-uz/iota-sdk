@@ -86,6 +86,10 @@ func TestExec_ReportsTerminationReasons(t *testing.T) {
 		{"error", pykernel.ExecRequest{Code: "raise ValueError('boom')"}, pykernel.ReasonError, "ValueError"},
 		{"timeout", pykernel.ExecRequest{Code: "while True:\n    pass", Timeout: 300 * time.Millisecond}, pykernel.ReasonTimeout, "KernelCancelled"},
 		{"kernel exited", pykernel.ExecRequest{Code: "import os\nos._exit(1)"}, pykernel.ReasonKernelExited, "KernelExited"},
+		{"timeout wins over a swallowed interrupt", pykernel.ExecRequest{
+			Code:    "import time\ntry:\n    while True:\n        time.sleep(0.01)\nexcept KeyboardInterrupt:\n    pass",
+			Timeout: 300 * time.Millisecond,
+		}, pykernel.ReasonTimeout, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

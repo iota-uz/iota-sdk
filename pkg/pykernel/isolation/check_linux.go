@@ -4,7 +4,6 @@ package isolation
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -118,15 +117,4 @@ func countTasks(uid uint32) uint64 {
 		}
 	}
 	return n
-}
-
-// ChownTree hands dir and everything below it to cred without following
-// symlinks, so a kernel running as cred can use a workdir the host created.
-func ChownTree(dir string, cred Credential) error {
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		return os.Lchown(path, int(cred.UID), int(cred.GID))
-	})
 }

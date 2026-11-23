@@ -5,6 +5,7 @@ package isolation
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -26,6 +27,13 @@ func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, e
 	cmd.Dir = spec.Workdir
 	cmd.Stdout = spec.Stdout
 	cmd.Stderr = spec.Stderr
+	if spec.Confinement != nil {
+		// Never hand a host descriptor (a TTY, a log file) to a confined
+		// child: os/exec passes an *os.File through as is, so hide it behind
+		// a plain writer and the child gets a pipe instead.
+		cmd.Stdout = pipeOnly(spec.Stdout)
+		cmd.Stderr = pipeOnly(spec.Stderr)
+	}
 	cmd.ExtraFiles = spec.ExtraFiles // inherited starting at fd 3
 
 	// Force an explicit environment. A nil cmd.Env would inherit the host's
@@ -113,4 +121,18 @@ func killGroup(pid int) error {
 		return err
 	}
 	return nil
+}
+
+type writerOnly struct{ w io.Writer }
+
+func (w writerOnly) Write(p []byte) (int, error) { return w.w.Write(p) }
+
+func pipeOnly(w io.Writer) io.Writer {
+	if w == nil {
+		return nil
+	}
+	if _, isFile := w.(*os.File); isFile {
+		return writerOnly{w}
+	}
+	return w
 }

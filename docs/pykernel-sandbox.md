@@ -9,12 +9,12 @@ verify it on its own hosts.
 
 | Area | Guarantee | Mechanism |
 |---|---|---|
-| Files | Writes only its session workdir; reads only the Python runtime (stdlib, site-packages, interpreter), shared libraries, `/etc/ld.so.cache`, `/etc/localtime`, zoneinfo, `/dev/null`, `/dev/zero`, `/dev/urandom` and the host's `Profile.ReadPaths`. No `/proc`, `$HOME`, `/data`, `/tmp`, `/etc/passwd`, application binary or config. Nothing written to the workdir can be executed. | Landlock (ABI ≥ 6) |
+| Files | Writes only its session workdir; reads only the Python runtime (stdlib, site-packages, interpreter), shared libraries, `/etc/ld.so.cache`, `/etc/localtime`, zoneinfo, `/dev/null`, `/dev/zero`, `/dev/urandom` and the host's `Profile.ReadPaths`. No `/proc`, `$HOME`, `/data`, `/tmp`, `/etc/passwd`, application binary or config. No other session's workdir is reachable, and a read rule that contains the workdir is refused. `execve` of a file written to the workdir is refused; native code loaded with `ctypes` is not a boundary (Python itself can already make any syscall) — it runs under the same Landlock and seccomp. | Landlock (ABI ≥ 6) |
 | Network | No socket of any family can be created (TCP, UDP, raw, packet, netlink, unix). TCP bind/connect is also denied by Landlock; abstract unix sockets are scoped. The only channel to the host is the inherited bridge fd. | seccomp + Landlock |
 | Environment | Explicit allowlist (`Config.EnvAllowlist` + `ExtraEnv`); no DSN, S3 key, OIDC secret. Only fds 0–2 and the bridge are open. Data comes only through capabilities, which run in the host with the Session's tenant (and `CallContextBinder` identity) on every call. | host |
 | Privileges | `no_new_privs`, empty capability set, never uid 0. Refused: `ptrace`, `process_vm_*`, `mount`, `unshare`/`setns`/namespace `clone`, `clone3`, `bpf`, `keyctl`/`add_key`, `perf_event_open`, `io_uring_*`, `setsid`/`setpgid`, kexec/modules/swap/reboot/clock/hostname. Signals cannot leave the sandbox. A foreign syscall ABI (x32, 32-bit) kills the process. | seccomp + Landlock scope |
-| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap; workdir quota; output cap with explicit truncation flags. | shim + host |
-| Cancel | Cancelling an exec, its timeout or a quota stop cancel the context of running capability calls (nested SQL/tools) at once, interrupt the code, and free the slot. | host |
+| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap; workdir quota (bytes and entries, measured for the kernel's whole life, also between execs); output cap with explicit truncation flags. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host |
+| Cancel | Cancelling an exec, its timeout or a quota stop cancel the context of running capability calls (nested SQL/tools) at once, interrupt the code, and free the slot. A capability call that does not belong to the running exec (a thread that outlived it) is refused. | host |
 
 ## Fail closed
 
@@ -23,7 +23,8 @@ starts a real child with the configured interpreter and limits, which applies
 the sandbox and probes it (`isolation.Check`). If any boundary in
 `isolation.RequiredBoundaries` is missing, `New` returns an error wrapping
 `isolation.ErrIsolationUnavailable` with the list. Every spawned kernel repeats
-the report in its `kernel.ready` handshake and is refused when it differs.
+the report in its `kernel.ready` handshake and is refused unless every
+required boundary is in force.
 
 ```go
 m, err := manager.New(manager.Config{
@@ -56,6 +57,19 @@ lease and makes its runtime directory readable. The workdir's parent
 directories must be traversable (`o+x`) by it. When the application is PID 1 of
 a container, the Manager reaps the processes of a disposed kernel that were
 reparented to it.
+
+### Known limits
+
+- `RLIMIT_NPROC` counts every task of the kernel uid. Kernels sharing one
+  `RunAs` uid share that budget: a fork bomb in one kernel is contained (it
+  cannot hurt the host and is killed with its kernel), but until then other
+  kernels of the uid may fail to start threads.
+- The quota sees files in the workdir tree. Data written to files that were
+  unlinked while open is bounded only by `FileSizeBytes` × `MaxOpenFiles`;
+  put the workdirs on a dedicated volume.
+- `FreshNamespace` clears the user's names and reinstalls capabilities; process
+  state (threads, imported and patched modules, `os.environ`, children) stays
+  with the process. Use the ephemeral policy when no state may carry over.
 
 ## Terminal events
 

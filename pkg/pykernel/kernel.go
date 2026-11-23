@@ -102,7 +102,8 @@ type KernelInfo struct {
 	// InFlight is true while an Exec is running.
 	InFlight bool
 	// Leased is true between Acquire and Release; the Manager never evicts a
-	// leased kernel to make room for another one.
+	// leased kernel to make room for another one (an idle-TTL Sweep still
+	// may, so a holder that never releases cannot pin a kernel forever).
 	Leased bool
 }
 

@@ -3,9 +3,6 @@
 package isolation
 
 import (
-	"io/fs"
-	"os"
-	"path/filepath"
 	"runtime"
 )
 
@@ -20,14 +17,3 @@ func hostReport(Profile) Report {
 }
 
 func countTasks(uint32) uint64 { return 0 }
-
-// ChownTree hands dir and everything below it to cred without following
-// symlinks.
-func ChownTree(dir string, cred Credential) error {
-	return filepath.WalkDir(dir, func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		return os.Lchown(path, int(cred.UID), int(cred.GID))
-	})
-}

@@ -49,7 +49,7 @@ func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
 // host identity, and routes every kernel cap.call through the central
 // plan/apply authorization. The kernel supplies only the capability name and
 // arguments; everything else is bound here, in one place, from the Session.
-// A call of the active exec runs under that exec's context, which is
+// A call runs only inside the active exec, under that exec's context, which is
 // cancelled when the exec is cancelled, times out or is stopped, and carries
 // the consumer's values when the exec asked for BindContext.
 type dispatcher struct {
@@ -60,9 +60,13 @@ type dispatcher struct {
 	exec   func(execID string) (context.Context, bool)
 }
 
-func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Reply {
-	if execCtx, ok := d.exec(call.ExecID); ok {
-		ctx = execCtx
+func (d *dispatcher) Dispatch(_ context.Context, call bridge.Call) bridge.Reply {
+	// A call that does not belong to the running exec (a thread outliving a
+	// cancelled or finished exec, a parked kernel) is refused: every
+	// capability call is bounded by the context of a live exec.
+	ctx, ok := d.exec(call.ExecID)
+	if !ok {
+		return bridge.Reply{Err: &bridge.CallError{Type: "KernelCancelled", Message: "no exec is running: capability calls are allowed only inside an exec"}}
 	}
 	if d.bind != nil {
 		ctx = d.bind(ctx)

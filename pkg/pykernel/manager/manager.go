@@ -217,9 +217,13 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 	if existing, ok := m.kernels[sess.Key()]; ok {
 		if !existing.isDisposed() {
 			// Lost a same-key spawn race against a live kernel: keep the established
-			// one and discard our freshly-spawned spare.
+			// one and discard our freshly-spawned spare. A policy that spawns per
+			// Acquire never shares a kernel between two holders.
 			m.mu.Unlock()
 			_ = k.Dispose(context.Background())
+			if decision == lifecycle.SpawnNew {
+				return nil, fmt.Errorf("pykernel/manager: key %q is already leased: %w", sess.Key(), pykernel.ErrKernelBusy)
+			}
 			return m.reuse(existing, sess)
 		}
 		// The entry is a dead kernel: replace it with our fresh one and dispose
@@ -253,42 +257,22 @@ func (m *Manager) reuse(k *kernel, sess pykernel.Session) (pykernel.Kernel, erro
 }
 
 // prepareWorkdir creates the workdir and its state directory and, when the
-// kernel runs as another uid, hands the tree to it (the host may have created
-// files there since the last lease).
+// kernel runs as another uid, hands host-created entries to it.
 func (m *Manager) prepareWorkdir(workdir string) error {
 	if workdir == "" {
 		return errors.New("pykernel/manager: session workdir is empty")
 	}
-	if err := os.MkdirAll(workdir, 0o700); err != nil {
+	if _, err := prepareState(workdir, m.runAs(), false); err != nil {
 		return fmt.Errorf("pykernel/manager: workdir: %w", err)
-	}
-	// The kernel can write its workdir, so the host never follows a link it
-	// may have planted where the state directory belongs.
-	for _, dir := range []string{filepath.Join(workdir, stateDir), filepath.Join(workdir, stateDir, "tmp")} {
-		if err := realDir(dir); err != nil {
-			return fmt.Errorf("pykernel/manager: workdir: %w", err)
-		}
-	}
-	if cred := m.cfg.Sandbox.RunAs; cred != nil && m.confined() {
-		if err := isolation.ChownTree(workdir, *cred); err != nil {
-			return fmt.Errorf("pykernel/manager: hand workdir to the kernel uid: %w", err)
-		}
 	}
 	return nil
 }
 
-// realDir makes path a real directory, replacing anything else (a symlink, a
-// file) that is there.
-func realDir(path string) error {
-	if fi, err := os.Lstat(path); err == nil {
-		if fi.IsDir() {
-			return nil
-		}
-		if err := os.Remove(path); err != nil {
-			return err
-		}
+func (m *Manager) runAs() *isolation.Credential {
+	if m.confined() {
+		return m.cfg.Sandbox.RunAs
 	}
-	return os.Mkdir(path, 0o700)
+	return nil
 }
 
 func (m *Manager) Get(key string) (pykernel.Kernel, bool) {
@@ -306,7 +290,9 @@ func (m *Manager) Release(kk pykernel.Kernel) error {
 	if !ok {
 		return errForeignKernel
 	}
-	k.unlease()
+	if k.unlease() > 0 {
+		return nil // another holder still uses it
+	}
 	if m.cfg.Policy.OnRelease(k.Info()) == lifecycle.Dispose {
 		m.mu.Lock()
 		if m.kernels[k.key] == k {
@@ -383,11 +369,14 @@ func (m *Manager) evictIdleLocked() bool {
 	var lruAt time.Time
 	for key, k := range m.kernels {
 		info := k.Info()
+		if info.InFlight || info.Leased {
+			continue // never take a kernel from its holder to make room
+		}
 		if m.cfg.Policy.ShouldEvict(info, view) {
 			m.evictLocked(key, k)
 			return true
 		}
-		if !info.InFlight && !info.Leased && (lru == nil || info.LastActiveAt.Before(lruAt)) {
+		if lru == nil || info.LastActiveAt.Before(lruAt) {
 			lruKey, lru, lruAt = key, k, info.LastActiveAt
 		}
 	}
@@ -415,21 +404,17 @@ type kernelState struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
+func markerJSON() []byte {
+	raw, _ := json.Marshal(kernelState{StartedAt: time.Now().UTC()})
+	return raw
+}
+
 func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (*kernel, error) {
 	workdir := sess.Workdir()
 	ctrl := filepath.Join(workdir, stateDir)
-	marker := filepath.Join(ctrl, stateFile)
-	_, statErr := os.Stat(marker)
-	filesPreserved := statErr == nil
-	state, err := json.Marshal(kernelState{StartedAt: time.Now().UTC()})
+	filesPreserved, err := prepareState(workdir, m.runAs(), true)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := isolation.WriteFileAtomic(ctrl, stateFile, state); err != nil {
-		return nil, err
-	}
-	if cred := m.cfg.Sandbox.RunAs; cred != nil && m.confined() {
-		_ = os.Lchown(marker, int(cred.UID), int(cred.GID))
+		return nil, fmt.Errorf("pykernel/manager: workdir: %w", err)
 	}
 
 	capsJSON, err := capSpecsJSON(sess.Capabilities())
@@ -483,6 +468,7 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool) (
 		grace:          m.cfg.DisposeGrace,
 		wallClock:      m.cfg.Limits.WallClock,
 		workdirQuota:   m.cfg.Limits.WorkdirBytes,
+		workdirEntries: m.cfg.Limits.WorkdirEntries,
 		workdir:        workdir,
 		nsReset:        seen || filesPreserved,
 		filesPreserved: filesPreserved,

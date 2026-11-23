@@ -137,6 +137,7 @@ func DefaultLimits() ResourceLimits {
 		ProcHeadroom:      64,
 		MaxOpenFiles:      256,
 		WorkdirBytes:      1 << 30,
+		WorkdirEntries:    100_000,
 	}
 }
 
@@ -163,6 +164,9 @@ func (l ResourceLimits) WithDefaults() ResourceLimits {
 	}
 	if l.WorkdirBytes == 0 {
 		l.WorkdirBytes = d.WorkdirBytes
+	}
+	if l.WorkdirEntries == 0 {
+		l.WorkdirEntries = d.WorkdirEntries
 	}
 	return l
 }
@@ -409,7 +413,8 @@ func probeChild(ctx context.Context, opts CheckOptions) (Report, error) {
 		if err := os.Chmod(rt, 0o755); err != nil {
 			return Report{}, err
 		}
-		if err := ChownTree(work, *opts.Profile.RunAs); err != nil {
+		// A fresh, empty directory nobody else writes.
+		if err := os.Lchown(work, int(opts.Profile.RunAs.UID), int(opts.Profile.RunAs.GID)); err != nil {
 			return Report{}, err
 		}
 	}

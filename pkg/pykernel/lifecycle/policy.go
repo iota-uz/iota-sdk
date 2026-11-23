@@ -73,9 +73,11 @@ type LifecyclePolicy interface {
 	// kernel, and otherwise rejects with ErrPoolExhausted.
 	MaxParallel() int
 	// ResetMode reports whether reused kernels keep or clear their namespace.
-	// With FreshNamespace the Manager clears the namespace of a reused kernel
-	// before its next exec and reports it in KernelInfo.NamespaceReset; files
-	// in the workdir are kept.
+	// With FreshNamespace the Manager clears the namespace (user names) of a
+	// reused kernel before its next exec and reports it in
+	// KernelInfo.NamespaceReset; files in the workdir and process state such
+	// as imported modules are kept. A FreshNamespace kernel is never shared by
+	// two holders.
 	ResetMode() ResetMode
 }
 

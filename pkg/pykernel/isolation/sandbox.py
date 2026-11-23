@@ -417,16 +417,16 @@ def _landlock(cfg, report):
         read = _FS_READ_FILE | _FS_READ_DIR
         read_exec = read | _FS_EXECUTE
         write = handled_fs & ~(_FS_EXECUTE | _FS_MAKE_CHAR | _FS_MAKE_BLOCK | _FS_MAKE_SOCK | _FS_IOCTL_DEV)
-        for p in sorted(_runtime_paths()):
-            if p == "/" or _within(p, workdir):
-                continue
-            _add_rule(ruleset_fd, p, read_exec, handled_fs)
-        for p in cfg.get("read_paths") or []:
-            if p and p != "/":
-                _add_rule(ruleset_fd, p, read, handled_fs)
-        for p in cfg.get("exec_paths") or []:
-            if p and p != "/":
-                _add_rule(ruleset_fd, p, read_exec, handled_fs)
+        rules = [(p, read_exec) for p in sorted(_runtime_paths()) if os.path.isabs(p) and not _within(p, workdir)]
+        rules += [(p, read) for p in cfg.get("read_paths") or [] if p and os.path.isabs(p)]
+        rules += [(p, read_exec) for p in cfg.get("exec_paths") or [] if p and os.path.isabs(p)]
+        for p, _ in rules:
+            if os.path.exists(p) and _within(workdir, p):
+                # A read rule above the workdir would also expose every
+                # sibling session's workdir: refuse the configuration.
+                raise OSError(errno.EINVAL, "read path %s contains the workdir" % p)
+        for p, access in rules:
+            _add_rule(ruleset_fd, p, access, handled_fs)
         _add_rule(ruleset_fd, "/dev/null", _FS_READ_FILE | _FS_WRITE_FILE | _FS_TRUNCATE, handled_fs)
         for dev in ("/dev/zero", "/dev/random", "/dev/urandom"):
             _add_rule(ruleset_fd, dev, _FS_READ_FILE, handled_fs)

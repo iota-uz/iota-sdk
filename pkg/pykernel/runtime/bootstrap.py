@@ -348,8 +348,8 @@ def _install_capabilities():
 
 
 def _reset_namespace():
-    """Drop every user name and reinstall the capability proxies, as a fresh
-    kernel would have them. Files in the workdir are untouched."""
+    """Drop every user name and reinstall the capability proxies. Process
+    state (threads, imported modules, os.environ) and workdir files stay."""
     global _loop
     _ns.clear()
     if _loop is not None:

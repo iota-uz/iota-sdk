@@ -29,6 +29,7 @@ type kernelOptions struct {
 	grace          time.Duration
 	wallClock      time.Duration
 	workdirQuota   int64
+	workdirEntries int64
 	workdir        string
 	nsReset        bool
 	filesPreserved bool
@@ -129,6 +130,9 @@ func (k *kernel) start() {
 		k.onServeExit()
 		close(k.serveDone)
 	}()
+	if k.opts.workdirQuota > 0 {
+		go k.watchQuota()
+	}
 }
 
 func (k *kernel) Info() pykernel.KernelInfo {
@@ -161,26 +165,33 @@ func (k *kernel) lease() {
 	k.mu.Unlock()
 }
 
-func (k *kernel) unlease() {
+// unlease drops one lease and reports how many remain.
+func (k *kernel) unlease() int {
 	k.mu.Lock()
+	defer k.mu.Unlock()
 	if k.leases > 0 {
 		k.leases--
 	}
-	k.mu.Unlock()
+	return k.leases
 }
 
 // resetNamespace clears the Python namespace before the next exec (policy
 // FreshNamespace on reuse). It is a no-op for a kernel that never ran code.
 func (k *kernel) resetNamespace() error {
 	k.mu.Lock()
-	if k.execs == 0 || k.inFlight {
-		k.mu.Unlock()
+	defer k.mu.Unlock()
+	if k.inFlight || k.leases > 0 {
+		return pykernel.ErrKernelBusy
+	}
+	if k.execs == 0 {
 		return nil
+	}
+	if err := k.br.ResetNamespace(context.Background()); err != nil {
+		return err
 	}
 	k.nsReset = true
 	k.filesPreserved = true
-	k.mu.Unlock()
-	return k.br.ResetNamespace(context.Background())
+	return nil
 }
 
 func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pykernel.ExecEvent, error) {
@@ -188,11 +199,6 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	if w := k.opts.wallClock; w > 0 && (timeout <= 0 || timeout > w) {
 		timeout = w
 	}
-	var quotaStart int64
-	if k.opts.workdirQuota > 0 {
-		quotaStart = dirSize(k.opts.workdir)
-	}
-
 	k.mu.Lock()
 	if k.disposed || k.serveExited {
 		k.mu.Unlock()
@@ -241,7 +247,7 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 		return nil, err
 	}
 
-	go k.watch(ctx, a, timeout, quotaStart)
+	go k.watch(ctx, a, timeout)
 	return a.ch, nil
 }
 
@@ -294,12 +300,12 @@ func (k *kernel) donePayloadLocked(a *activeExec, base *pykernel.DonePayload, ex
 	switch {
 	case exited != "":
 		d.Reason = exited
+	case a.stop != "":
+		// A host-initiated stop wins even when the code swallowed the
+		// interrupt and returned normally.
+		d.Reason = a.stop
 	case a.errType == "":
 		d.Reason = pykernel.ReasonCompleted
-	case a.stop != "":
-		// Any failure of a stopped exec is the stop surfacing (a cancelled
-		// capability call, the cooperative interrupt).
-		d.Reason = a.stop
 	case a.errType == "KernelCancelled":
 		d.Reason = pykernel.ReasonCancelled
 	default:
@@ -348,36 +354,31 @@ func (k *kernel) setStop(a *activeExec, reason pykernel.TerminationReason) bool 
 // watch enforces ctx cancellation, the wall-clock timeout and the workdir
 // quota: cooperative cancel first, then SIGKILL after the dispose grace if the
 // exec hasn't ended.
-func (k *kernel) watch(ctx context.Context, a *activeExec, timeout time.Duration, quotaStart int64) {
+func (k *kernel) watch(ctx context.Context, a *activeExec, timeout time.Duration) {
 	var timer <-chan time.Time
 	if timeout > 0 {
 		t := time.NewTimer(timeout)
 		defer t.Stop()
 		timer = t.C
 	}
-	var tick <-chan time.Time
-	if k.opts.workdirQuota > 0 {
-		t := time.NewTicker(quotaPoll)
-		defer t.Stop()
-		tick = t.C
-	}
 	var reason pykernel.TerminationReason
-	for reason == "" {
-		select {
-		case <-a.done:
-			return
-		case <-k.closed:
-			return
-		case <-ctx.Done():
-			reason = pykernel.ReasonCancelled
-		case <-timer:
-			reason = pykernel.ReasonTimeout
-		case <-tick:
-			if size := dirSize(k.opts.workdir); size > k.opts.workdirQuota && size > quotaStart {
-				reason = pykernel.ReasonQuotaExceeded
-			}
-		}
+	select {
+	case <-a.done:
+		return
+	case <-k.closed:
+		return
+	case <-ctx.Done():
+		reason = pykernel.ReasonCancelled
+	case <-timer:
+		reason = pykernel.ReasonTimeout
 	}
+	k.stop(a, reason)
+}
+
+// stop ends exec a for reason: its capability calls are cancelled at once,
+// the code gets a cooperative interrupt, and the process is killed if the
+// exec has not ended after the grace.
+func (k *kernel) stop(a *activeExec, reason pykernel.TerminationReason) {
 	if !k.setStop(a, reason) {
 		return
 	}
@@ -393,6 +394,41 @@ func (k *kernel) watch(ctx context.Context, a *activeExec, timeout time.Duration
 	case <-k.closed:
 	case <-time.After(grace):
 		_ = k.proc.Kill()
+	}
+}
+
+// watchQuota measures the workdir for the kernel's whole life — also between
+// execs, where a background thread or forked child may keep writing. Whenever
+// usage is over the quota and grew since the previous check (a session that
+// starts over quota may still delete files), the running exec is stopped with
+// ReasonQuotaExceeded, or, with no exec running, the kernel is killed.
+func (k *kernel) watchQuota() {
+	t := time.NewTicker(quotaPoll)
+	defer t.Stop()
+	prev := dirUsage(k.opts.workdir, k.opts.workdirEntries)
+	for {
+		select {
+		case <-k.closed:
+			return
+		case <-k.serveDone:
+			return
+		case <-t.C:
+		}
+		cur := dirUsage(k.opts.workdir, k.opts.workdirEntries)
+		over := cur.bytes > k.opts.workdirQuota || (k.opts.workdirEntries > 0 && cur.entries > k.opts.workdirEntries)
+		grew := cur.bytes > prev.bytes || cur.entries > prev.entries
+		prev = cur
+		if !over || !grew {
+			continue
+		}
+		k.mu.Lock()
+		a := k.active
+		k.mu.Unlock()
+		if a != nil {
+			k.stop(a, pykernel.ReasonQuotaExceeded)
+		} else {
+			_ = k.proc.Kill()
+		}
 	}
 }
 
@@ -470,20 +506,30 @@ func (k *kernel) Dispose(_ context.Context) error {
 	return nil
 }
 
-// dirSize sums the apparent size of regular files below dir without following
-// symlinks.
-func dirSize(dir string) int64 {
-	var total int64
+type usage struct {
+	bytes   int64
+	entries int64
+}
+
+// dirUsage sums the apparent size of regular files and counts entries below
+// dir without following symlinks. It stops counting once entries passes
+// maxEntries (when set), so a tree of millions of entries costs a bounded walk.
+func dirUsage(dir string, maxEntries int64) usage {
+	var u usage
 	_ = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // a vanished entry is not an error for a size estimate
 		}
+		u.entries++
+		if maxEntries > 0 && u.entries > maxEntries {
+			return filepath.SkipAll
+		}
 		if d.Type().IsRegular() {
 			if info, err := d.Info(); err == nil {
-				total += info.Size()
+				u.bytes += info.Size()
 			}
 		}
 		return nil
 	})
-	return total
+	return u
 }

@@ -63,6 +63,9 @@ type ResourceLimits struct {
 	// workdir while an exec runs and stops an exec that grows it past the
 	// quota; FileSizeBytes bounds the overshoot of a single file.
 	WorkdirBytes int64
+	// WorkdirEntries caps the number of files and directories in the workdir
+	// (inode exhaustion, and the cost of measuring it).
+	WorkdirEntries int64
 }
 
 // SandboxSpec is the concrete launch profile, built host-side from the Session

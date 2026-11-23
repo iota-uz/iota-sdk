@@ -4,6 +4,7 @@ package conformance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -81,6 +82,7 @@ var probes = []probe{
 	{"read_home_and_app", probeReadHome},
 	{"write_outside_workdir", probeWrite},
 	{"exec_from_workdir", probeExecWorkdir},
+	{"sibling_workdir", probeSibling},
 	{"network_tcp", probeTCP},
 	{"network_udp", probeUDP},
 	{"network_raw_netlink", probeRaw},
@@ -92,6 +94,8 @@ var probes = []probe{
 	{"memory_exhaustion", probeMemory},
 	{"fork_bomb", probeForkBomb},
 	{"workdir_quota", probeQuota},
+	{"workdir_quota_after_exec", probeQuotaAfterExec},
+	{"capability_outside_exec", probeCapabilityOutsideExec},
 	{"cancel_reaches_capability", probeCancel},
 	{"timeout_reaches_capability", probeTimeout},
 	{"output_truncation", probeTruncation},
@@ -202,9 +206,9 @@ dst = os.path.join(CFG["workdir"], "python-copy")
 try:
     shutil.copyfile(os.path.realpath(sys.executable), dst)
     os.chmod(dst, 0o755)
-    denied("execute a binary written to the workdir", lambda: subprocess.run([dst, "-c", "pass"], check=True))
+    denied("execve of a binary written to the workdir", lambda: subprocess.run([dst, "-c", "pass"], check=True))
 except OSError as e:
-    report("execute a binary written to the workdir", e.errno in (errno.EACCES, errno.EPERM), e)
+    report("execve of a binary written to the workdir", e.errno in (errno.EACCES, errno.EPERM), e)
 `)
 }
 
@@ -593,4 +597,92 @@ func eventually(d time.Duration, cond func() bool) bool {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+func probeSibling(ctx context.Context, r *runner) Result {
+	sib := filepath.Join(r.root, "sibling-"+randHex())
+	if err := os.MkdirAll(sib, 0o700); err != nil {
+		return Result{Error: err.Error()}
+	}
+	secret := filepath.Join(sib, "secret.txt")
+	if err := os.WriteFile(secret, []byte("other tenant"), 0o600); err != nil {
+		return Result{Error: err.Error()}
+	}
+	return r.pyProbe(ctx, "sibling", map[string]any{"dir": sib, "file": secret}, `
+denied("list another session's workdir", lambda: os.listdir(CFG["dir"]))
+denied("read another session's file", lambda: read(CFG["file"]))
+denied("write into another session's workdir", lambda: write(os.path.join(CFG["dir"], "planted")))
+`)
+}
+
+func probeQuotaAfterExec(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "quota-after", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes}, `
+import threading, resource
+fsize = resource.getrlimit(resource.RLIMIT_FSIZE)[0]
+per_file = min(64 << 20, fsize if fsize != resource.RLIM_INFINITY else 64 << 20)
+def fill():
+    chunk, written, n = b"\0" * (1 << 20), 0, 0
+    while written < CFG["max"]:
+        with open(os.path.join(CFG["workdir"], "bg-%d" % n), "wb") as f:
+            size = 0
+            while size + len(chunk) <= per_file and written < CFG["max"]:
+                f.write(chunk)
+                size += len(chunk)
+                written += len(chunk)
+        n += 1
+threading.Thread(target=fill, daemon=True).start()
+report("exec returned while a thread keeps writing", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		stopped := eventually(r.opts.ProbeTimeout, func() bool {
+			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1"})
+			if err == nil {
+				collect(ch) // still alive: finish this exec and look again
+				time.Sleep(200 * time.Millisecond)
+				return false
+			}
+			return errors.Is(err, pykernel.ErrKernelDisposed)
+		})
+		res.Checks = append(res.Checks, Check{Name: "a kernel writing past the quota between execs is stopped", OK: stopped})
+		return res
+	})
+}
+
+func probeCapabilityOutsideExec(ctx context.Context, r *runner) Result {
+	called := make(chan struct{}, 4)
+	probeCap := pykernel.CapabilityFunc("touch", pykernel.AccessRead, pykernel.CapabilitySignature{},
+		func(context.Context, pykernel.CallArgs) (any, error) {
+			called <- struct{}{}
+			return "ran", nil
+		})
+	return r.withKernel(ctx, "outside-exec", []pykernel.Capability{probeCap}, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, nil, `
+import threading, time
+def late():
+    time.sleep(0.5)
+    try:
+        touch()
+        outcome = "ran"
+    except Exception as e:
+        outcome = type(e).__name__
+    with open(os.path.join(CFG["workdir"], "late.txt"), "w") as f:
+        f.write(outcome)
+threading.Thread(target=late, daemon=True).start()
+report("exec started a thread that calls a capability later", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		late := filepath.Join(s.workdir, "late.txt")
+		eventually(10*time.Second, func() bool { _, err := os.Stat(late); return err == nil })
+		raw, _ := os.ReadFile(late)
+		res.Checks = append(res.Checks, Check{Name: "a capability call after the exec ended is refused",
+			OK: string(raw) == "KernelCancelled" && len(called) == 0, Detail: fmt.Sprintf("outcome %q, handler ran %d times", raw, len(called))})
+		return res
+	})
 }
