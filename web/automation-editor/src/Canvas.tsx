@@ -9,7 +9,7 @@ import { Icon } from './icons'
 import { backEdges, ensureLayout } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
-import { createRouter, directRoute, routePath, type RouteLink } from './route'
+import { createRouter, directRoute, routePath, type RouteLink, type Router } from './route'
 import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { connectionLost, errorsByItem } from './validation'
@@ -172,29 +172,39 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
     return map
   })
-  // Orthogonal routes through the gaps between the cards, for the layout as committed; each source's
-  // edges are found together, on first use. A card being dragged is not in the layout yet: its edges
-  // take a plain orthogonal path until it lands.
-  const router = createMemo(() => {
-    const base = layout()
-    const geometries = geometryMap()
-    const rects = new Map<string, Rect>()
-    for (const [id, g] of geometries) {
-      const p = base[id]
-      if (p) rects.set(id, { x: p.x, y: p.y, width: g.width, height: g.height })
+  // Orthogonal routes through the gaps between the cards, for the layout as committed. The memo only notes
+  // that its inputs changed; the router itself is built when the first route is asked for, after the frame.
+  // A card being dragged is not in the layout yet: its edges take a plain orthogonal path until it lands.
+  const routing = createMemo(() => {
+    layout()
+    geometryMap()
+    edgeTargets()
+    let built: Router | null = null
+    return {
+      router: (): Router => {
+        if (built) return built
+        const base = layout()
+        const geometries = geometryMap()
+        const rects = new Map<string, Rect>()
+        for (const [id, g] of geometries) {
+          const p = base[id]
+          if (p) rects.set(id, { x: p.x, y: p.y, width: g.width, height: g.height })
+        }
+        const links: RouteLink[] = []
+        for (const [key, to] of edgeTargets()) {
+          const node = key.slice(0, key.lastIndexOf('.'))
+          const outcome = key.slice(key.lastIndexOf('.') + 1)
+          const p = base[node]
+          const q = base[to]
+          const slot = geometries.get(node)?.outcomes.find((o) => o.outcome === outcome)
+          const handle = geometries.get(to)?.target
+          if (!p || !q || !slot || !handle) continue
+          links.push({ key, from: node, to, port: { x: p.x + slot.handle.x, y: p.y + slot.handle.y }, entry: { x: q.x + handle.x, y: q.y + handle.y } })
+        }
+        built = createRouter(rects, links)
+        return built
+      },
     }
-    const links: RouteLink[] = []
-    for (const [key, to] of edgeTargets()) {
-      const node = key.slice(0, key.lastIndexOf('.'))
-      const outcome = key.slice(key.lastIndexOf('.') + 1)
-      const p = base[node]
-      const q = base[to]
-      const slot = geometries.get(node)?.outcomes.find((o) => o.outcome === outcome)
-      const handle = geometries.get(to)?.target
-      if (!p || !q || !slot || !handle) continue
-      links.push({ key, from: node, to, port: { x: p.x + slot.handle.x, y: p.y + slot.handle.y }, entry: { x: q.x + handle.x, y: q.y + handle.y } })
-    }
-    return createRouter(rects, links)
   })
   const edgeList = createMemo<string[]>((previous) => {
     const next = [...edgeTargets().keys()]
@@ -252,19 +262,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const ROUTE_SLICE_MS = 6
   let routeTimer: ReturnType<typeof setTimeout> | undefined
   createEffect(() => {
-    const current = router()
+    const current = routing()
     // Edges that are gone leave the cache, and with them the router they were routed by.
     const targets = edgeTargets()
     for (const key of routeCache.keys()) if (!targets.has(key)) routeCache.delete(key)
-    // One link per step, in port order, so the slice deadline is checked between links.
-    const todo = current.plan(visibleEdges().filter((key) => routeCache.get(key)?.owner !== current))
+    const wanted = visibleEdges().filter((key) => routeCache.get(key)?.owner !== current)
     clearTimeout(routeTimer)
-    if (todo.length === 0) return
+    if (wanted.length === 0) return
+    let todo: string[] | null = null
     const run = () => {
+      const router = current.router()
+      // One link per step, in port order, so the slice deadline is checked between links.
+      todo ??= router.plan(wanted)
       const started = performance.now()
       while (todo.length > 0 && performance.now() - started < ROUTE_SLICE_MS) {
         const key = todo.shift()!
-        const route = current.route(key)
+        const route = router.route(key)
         if (!route || route.points.length === 0) continue
         const first = route.points[0]!
         const last = route.points[route.points.length - 1]!
