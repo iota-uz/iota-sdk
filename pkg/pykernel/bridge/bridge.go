@@ -77,6 +77,8 @@ const (
 	KindResult = "result"
 	KindError  = "error"
 	KindDone   = "done"
+	// KindReady carries the kernel.ready handshake (no exec id).
+	KindReady = "ready"
 )
 
 // EventSink receives kernel→host output notifications keyed by exec id. The
@@ -103,6 +105,9 @@ type Bridge interface {
 	// Submit, ctx does not bound the write; a stalled write is unblocked only by
 	// Close().
 	Cancel(ctx context.Context, execID string) error
+	// ResetNamespace sends an ns.reset notification; the kernel clears its
+	// namespace before running any exec submitted afterwards.
+	ResetNamespace(ctx context.Context) error
 	// Close closes the underlying connection, unblocking Serve.
 	Close() error
 }
@@ -205,6 +210,8 @@ func notificationKind(method string) (string, bool) {
 		return KindError, true
 	case MethodExecDone:
 		return KindDone, true
+	case MethodKernelReady:
+		return KindReady, true
 	default:
 		return "", false
 	}
@@ -218,6 +225,18 @@ func peekExecID(params json.RawMessage) string {
 	}
 	_ = json.Unmarshal(params, &head)
 	return head.ExecID
+}
+
+// SubmitFits reports whether an exec.submit of code with limits fits one
+// frame, so a caller can refuse an oversized request before it changes any
+// state. Exec ids are UUIDs; a 36-byte id stands in for the real one.
+func SubmitFits(code string, limits Limits) bool {
+	params, err := json.Marshal(execSubmitParams{ExecID: "00000000-0000-0000-0000-000000000000", Code: code, Limits: limits})
+	if err != nil {
+		return false
+	}
+	msg, err := json.Marshal(&message{JSONRPC: jsonrpcVersion, Method: MethodExecSubmit, Params: params})
+	return err == nil && len(msg) <= maxFrameSize
 }
 
 func (b *bridge) Submit(_ context.Context, execID, code string, limits Limits) error {
@@ -234,6 +253,10 @@ func (b *bridge) Cancel(_ context.Context, execID string) error {
 		return fmt.Errorf("pykernel/bridge: marshal exec.cancel: %w", err)
 	}
 	return b.writeMessage(&message{JSONRPC: jsonrpcVersion, Method: MethodExecCancel, Params: params})
+}
+
+func (b *bridge) ResetNamespace(_ context.Context) error {
+	return b.writeMessage(&message{JSONRPC: jsonrpcVersion, Method: MethodNsReset, Params: json.RawMessage("{}")})
 }
 
 func (b *bridge) Close() error {
