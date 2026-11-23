@@ -536,7 +536,7 @@ jobs:
                                  -c checkpoint_completion_target=0.9 -c wal_compression=on \
                                  -c random_page_cost=1.0 -c seq_page_cost=1.0 \
                                  -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
-                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=-1 \
                                  -c log_statement=none -c log_checkpoints=off \
                                  -c log_connections=off -c log_disconnections=off \
                                  -c autovacuum=off \
@@ -714,7 +714,7 @@ jobs:
                                  -c checkpoint_completion_target=0.9 -c wal_compression=on \
                                  -c random_page_cost=1.0 -c seq_page_cost=1.0 \
                                  -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
-                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=-1 \
                                  -c log_statement=none -c log_checkpoints=off \
                                  -c log_connections=off -c log_disconnections=off \
                                  -c autovacuum=off \
