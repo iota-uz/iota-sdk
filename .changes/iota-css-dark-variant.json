@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "styles/tailwind/iota.css declares the `dark` variant as the theme class on <html>, so hosts that build it over a Tailwind config without darkMode no longer compile `dark:` under prefers-color-scheme (BiChat sidebar and other dark: utilities followed the OS instead of the chosen light theme)."
+}

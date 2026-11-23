@@ -30,6 +30,10 @@
   font-weight: 600;
 }
 
+/* `dark:` follows the host's theme class on <html> (theme.js), never the OS preference directly: without this,
+   a host whose Tailwind config omits darkMode compiles every `dark:` utility under prefers-color-scheme. */
+@custom-variant dark (&:is(.dark *));
+
 @layer base {
   :root {
     /* Base */
