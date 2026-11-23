@@ -183,7 +183,7 @@ func TestRecoveredEventBeforeTheDeadlineBeatsTheTimer(t *testing.T) {
 			if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`).Scan(&open); err != nil || open == 0 || delivered.Swap(true) {
 				return err
 			}
-			e.publish(e.tenant, orderPaid, "o-1", order{Amount: 6}, 0)
+			e.publishAt(e.tenant, orderPaid, "o-1", order{Amount: 6}, e.deadline(tx).Add(-500*time.Millisecond))
 			_, err := p.disp.RunOnce(ctx)
 			return err
 		case "catchup":
@@ -219,7 +219,7 @@ func TestConsumedEventIsAppliedBeforeTheTimerAfterARollback(t *testing.T) {
 		}
 		return nil
 	})
-	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 2}, 0)
+	e.publishAt(e.tenant, orderPaid, "o-1", order{Amount: 2}, e.deadline(e.db).Add(-500*time.Millisecond))
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
 	require.True(t, failed.Load())
 	assert.Equal(t, []string{"note:order 2", "paid:paid 2"}, e.effects(run.RunID), "the consumed payment is applied before the timer")
@@ -236,9 +236,16 @@ func TestRemovedNestedFieldUnderAProtectedParentStaysHidden(t *testing.T) {
 	// The step derived from secret.pin; the event's secret is a scalar now, so that child is gone.
 	_, err := e.db.Exec(context.Background(), `UPDATE automation.steps SET sensitive = '[{"event": "acme.order.created.v1", "path": "secret.pin"}]' WHERE run_id = $1 AND node_id = 'note'`, run.RunID)
 	require.NoError(t, err)
+	notes := 0
 	for _, st := range e.run(p, owner, run.RunID).Steps {
-		assert.Equal(t, st.NodeID == "note", st.Hidden, "a child the schema no longer has is not vouched for by its parent: %s", st.NodeID)
+		if st.NodeID == "note" {
+			notes++
+			assert.True(t, st.Hidden, "a child the schema no longer has is not vouched for by its parent")
+			continue
+		}
+		assert.False(t, st.Hidden, "step %s stays visible", st.NodeID)
 	}
+	require.Equal(t, 1, notes, "the history has the note step")
 }
 
 func TestTimelyPaymentRoutedBeforeTheTimeoutAppliesWins(t *testing.T) {
@@ -249,9 +256,9 @@ func TestTimelyPaymentRoutedBeforeTheTimeoutAppliesWins(t *testing.T) {
 	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
 	run := onlyRun(t, e, p, a)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
-	// The payment is published before the deadline and delivered after the timer's receipt, before the
+	// The payment happened before the deadline and is delivered after the timer's receipt, before the
 	// timeout's transaction.
-	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 2}, 0)
+	e.publishAt(e.tenant, orderPaid, "o-1", order{Amount: 2}, e.deadline(e.db).Add(-500*time.Millisecond))
 	var routed atomic.Bool
 	p.rt.SetTestHook(func(ctx context.Context, _ pgx.Tx, label string) error {
 		if label == "timer-fired" && !routed.Swap(true) {

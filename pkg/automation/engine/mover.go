@@ -860,6 +860,10 @@ func (m *mover) timedOut(ctx context.Context, tok *tokenRow, w waitRow) error {
 
 // wakeEvent wakes a wait with a matched event, when its filter still matches in the token's context.
 func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inboxEvent) error {
+	if !ev.OccurredAt.IsZero() && w.TimeoutAt != nil && ev.OccurredAt.After(*w.TimeoutAt) {
+		// It came after the deadline: the timer decides the wait, and nothing of the graph is read for it.
+		return nil
+	}
 	payload, err := decodeMap(ev.Payload)
 	if err != nil {
 		return err
@@ -886,9 +890,6 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	if !ev.OccurredAt.IsZero() {
 		// A wait's filter reads `now` as the event's time, as the router did when it routed it.
 		gctx.Now = ev.OccurredAt
-		if w.TimeoutAt != nil && ev.OccurredAt.After(*w.TimeoutAt) {
-			return nil // it came after the deadline: the timer decides the wait
-		}
 	}
 	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
 	if st != nil {

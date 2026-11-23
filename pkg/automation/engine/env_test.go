@@ -314,3 +314,23 @@ func (e *env) status(p *proc, id uuid.UUID) engine.RunStatus {
 func spiSubject(tenant uuid.UUID, user int64) spi.Subject {
 	return spi.Subject{TenantID: tenant, UserID: user, Kind: spi.SubjectInitiator, Permissions: allPerms}
 }
+
+// publishAt publishes an event as having happened at at: deadline tests fix the event's time against
+// the wait's stored deadline instead of relying on when the test gets to publish it.
+func (e *env) publishAt(tenant uuid.UUID, ev *native.EventDef[order], key string, o order, at time.Time) string {
+	e.t.Helper()
+	id := e.publish(tenant, ev, key, o, 0)
+	_, err := e.db.Exec(context.Background(), `UPDATE extruntime.outbox_events SET occurred_at = $2 WHERE id = $1`, id, at)
+	require.NoError(e.t, err)
+	return id
+}
+
+// deadline is the stored deadline of the run's open event wait.
+func (e *env) deadline(q interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}) time.Time {
+	e.t.Helper()
+	var at time.Time
+	require.NoError(e.t, q.QueryRow(context.Background(), `SELECT timeout_at FROM automation.waits WHERE status = 'open' AND kind = 'event' ORDER BY created_at DESC LIMIT 1`).Scan(&at))
+	return at
+}

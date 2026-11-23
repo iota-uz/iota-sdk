@@ -223,20 +223,6 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 			// The version cannot run against the tenant's catalog (an event it uses left it): the run fails.
 			return nil, x.failRun(ctx, StepError{Code: CodeConnectionUnavailable, Message: err.Error()})
 		}
-		// An inbox signal consumed before a crash or a rolled-back apply is applied before anything else:
-		// its receipt is recorded, so a timer must not overtake it.
-		if o, ok, err := x.nr.Lookup(ctx, "inbox", int(x.run.InboxSeq)); err != nil {
-			return nil, infra(err)
-		} else if ok && o.Status == workflow.OccCompleted {
-			res, err := x.nr.WaitFor(ctx, "inbox", int(x.run.InboxSeq), InboxSignal, 0)
-			if err != nil {
-				return nil, infra(err)
-			}
-			if err := x.consume(ctx, res.Payload); err != nil {
-				return nil, infra(err)
-			}
-			continue
-		}
 		wait, err := x.acquireSubject(ctx)
 		if err != nil {
 			return nil, infra(err)
@@ -245,6 +231,20 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 			// A new occurrence per attempt (tx_seq moved on), so a wake that finds the subject still
 			// held waits again instead of spinning.
 			if _, err := x.nr.WaitFor(ctx, "subject", int(x.run.TxSeq), SubjectSignal, 0); err != nil {
+				return nil, infra(err)
+			}
+			continue
+		}
+		// Once the run holds its subject, an inbox signal consumed before a crash or a rolled-back apply
+		// is applied before any step or timer: its receipt is recorded, so a timer must not overtake it.
+		if o, ok, err := x.nr.Lookup(ctx, "inbox", int(x.run.InboxSeq)); err != nil {
+			return nil, infra(err)
+		} else if ok && o.Status == workflow.OccCompleted {
+			res, err := x.nr.WaitFor(ctx, "inbox", int(x.run.InboxSeq), InboxSignal, 0)
+			if err != nil {
+				return nil, infra(err)
+			}
+			if err := x.consume(ctx, res.Payload); err != nil {
 				return nil, infra(err)
 			}
 			continue
@@ -465,7 +465,7 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 				return false, err
 			}
 			if early {
-				continue
+				return false, nil // the loop claims the inbox before any other timer makes a branch runnable
 			}
 		}
 		d := time.Until(*w.TimeoutAt)
@@ -486,7 +486,7 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 				return false, err
 			}
 			if !applied {
-				continue // the inbox holds an event in time: the loop applies it first
+				return false, nil // the inbox holds an event in time: the loop applies it first
 			}
 			return true, nil
 		case errors.Is(err, workflow.ErrSuspend), errors.Is(err, workflow.ErrCancelled):
@@ -575,7 +575,6 @@ func (x *execution) consume(ctx context.Context, payload json.RawMessage) error 
 	})
 }
 
-// timeout fires a wait's timer.
 // timeout fires a wait's timer; applied is false when an event that happened by the deadline was routed
 // to the wait meanwhile (checked again under the subject's lock, which the router holds while it
 // signals): the inbox applies that event first.
@@ -768,12 +767,13 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 		done = done || after >= until
 	}
 	err = x.tx(ctx, "catchup", func(ctx context.Context, tx pgx.Tx, _ *stepState) error {
+		proj := x.r.projector(x.tenant) // one per page: the run-as was refreshed for this transaction
 		for _, f := range page {
 			payload, err := decodeMap(f.payload)
 			if err != nil {
 				continue
 			}
-			if payload, err = x.r.projector(x.tenant).project(ctx, *w.EventKind, payload, &x.subject); err != nil {
+			if payload, err = proj.project(ctx, *w.EventKind, payload, &x.subject); err != nil {
 				return &host.InfraError{Err: err}
 			}
 			raw, err := json.Marshal(payload)
