@@ -1,7 +1,6 @@
 package isolation_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
@@ -21,7 +20,7 @@ func TestParseChildReport_ListsMissingBoundaries(t *testing.T) {
 	assert.True(t, rep.Enabled(isolation.BoundarySeccomp))
 	assert.False(t, rep.Complete())
 
-	var missing []isolation.Boundary
+	missing := make([]isolation.Boundary, 0, len(rep.Missing()))
 	for _, m := range rep.Missing() {
 		missing = append(missing, m.Boundary)
 	}
@@ -31,7 +30,7 @@ func TestParseChildReport_ListsMissingBoundaries(t *testing.T) {
 
 	err = rep.Err()
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, isolation.ErrIsolationUnavailable))
+	require.ErrorIs(t, err, isolation.ErrIsolationUnavailable)
 	assert.Contains(t, err.Error(), "landlock ABI 5 < required 6")
 }
 

@@ -1,0 +1,1 @@
+{"bump":"none","summary":"Fix golangci-lint findings on Linux-only pykernel and MCP execute files (checked Close errors, no named results, testify helpers); no behavior or public API change."}

@@ -38,7 +38,7 @@ func actFor(pid int, cred *Credential) error {
 	if err != nil {
 		return fmt.Errorf("pidfd_open: %w", err)
 	}
-	defer unix.Close(pidfd)
+	defer func() { _ = unix.Close(pidfd) }()
 	fd, err := unix.PidfdGetfd(pidfd, 1, 0)
 	if err != nil {
 		return fmt.Errorf("pidfd_getfd: %w", err)
@@ -58,7 +58,7 @@ func actFor(pid int, cred *Credential) error {
 	if err != nil {
 		return fmt.Errorf("read memory: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.ReadAt(buf, int64(addr)); err != nil {
 		return fmt.Errorf("read memory: %w", err)
 	}
@@ -70,7 +70,7 @@ func readableAddr(pid int) (uintptr, error) {
 	if err != nil {
 		return 0, fmt.Errorf("maps: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
@@ -95,7 +95,7 @@ func KillMember(pid, pgid int) bool {
 	if err != nil {
 		return false
 	}
-	defer unix.Close(pidfd)
+	defer func() { _ = unix.Close(pidfd) }()
 	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
 		return false

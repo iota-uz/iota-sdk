@@ -33,7 +33,7 @@ func hostReport(p Profile) Report {
 	}
 
 	abi, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, 0, 0, landlockCreateRulesetVersion)
-	llDetail := ""
+	var llDetail string
 	switch {
 	case errno != 0:
 		llDetail = "landlock unavailable: " + errno.Error()

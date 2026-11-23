@@ -53,7 +53,8 @@ func TestConformance(t *testing.T) {
 	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
 
 	rep := m.Isolation()
-	raw, _ := json.MarshalIndent(rep, "", "  ")
+	raw, mErr := json.MarshalIndent(rep, "", "  ")
+	require.NoError(t, mErr)
 	t.Logf("isolation report:\n%s", raw)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

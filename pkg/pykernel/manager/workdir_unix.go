@@ -26,7 +26,7 @@ func prepareState(workdir string, cred *isolation.Credential) error {
 	if err != nil {
 		return fmt.Errorf("open workdir: %w", err)
 	}
-	defer unix.Close(wfd)
+	defer func() { _ = unix.Close(wfd) }()
 	if cred != nil {
 		if err := handOver(wfd, *cred); err != nil {
 			return err
@@ -36,7 +36,7 @@ func prepareState(workdir string, cred *isolation.Credential) error {
 	if err != nil {
 		return err
 	}
-	defer unix.Close(ctrl)
+	defer func() { _ = unix.Close(ctrl) }()
 	tmp, err := realDirAt(ctrl, "tmp", cred)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func handOver(wfd int, cred isolation.Credential) error {
 		return err
 	}
 	dir := os.NewFile(uintptr(dup), "workdir")
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	var names []string
 	for len(names) < maxHandOver {
 		chunk, err := dir.Readdirnames(1024)

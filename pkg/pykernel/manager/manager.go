@@ -538,7 +538,8 @@ func statePath(workdir string) string {
 // recordKernel reads the previous record of workdir and replaces it with one
 // for the kernel about to start. It returns whether an earlier kernel ran
 // there and whether the directory it used still exists.
-func recordKernel(workdir string) (ranBefore, sameDir bool, err error) {
+func recordKernel(workdir string) (bool, bool, error) {
+	var ranBefore, sameDir bool
 	dev, ino, err := dirIdentity(workdir)
 	if err != nil {
 		return false, false, err

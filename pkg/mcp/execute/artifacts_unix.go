@@ -32,7 +32,7 @@ func (r *Runner) collectArtifacts(ctx context.Context, workdir string) []Artifac
 	if err != nil {
 		return out
 	}
-	defer unix.Close(wfd)
+	defer func() { _ = unix.Close(wfd) }()
 	ofd, err := unix.Openat(wfd, outputDir, unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return out
@@ -45,7 +45,7 @@ func (r *Runner) collectArtifacts(ctx context.Context, workdir string) []Artifac
 // walkArtifacts consumes dirfd.
 func (r *Runner) walkArtifacts(ctx context.Context, dirfd int, rel string, depth int, seen *int, out *[]Artifact) {
 	dir := os.NewFile(uintptr(dirfd), "artifacts")
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	names, _ := dir.Readdirnames(maxArtifactEntries)
 	sort.Strings(names)
 	for _, name := range names {
