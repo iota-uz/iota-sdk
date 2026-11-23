@@ -304,18 +304,13 @@ func (r DecisionRules) Check(decision json.RawMessage) error {
 		return fmt.Errorf("%w: %s needs a comment", workflow.ErrInvalid, d.Outcome)
 	}
 	if len(r.Form) > 0 {
-		spec, err := graph.SchemaParams(r.Form)
-		if err != nil {
-			return fmt.Errorf("%w: the form of the task is not a schema", workflow.ErrInvalid)
+		// The fields as submitted, which the vote keeps: no defaults, nothing dropped.
+		fields := d.Fields
+		if len(fields) == 0 {
+			fields = json.RawMessage(`{}`)
 		}
-		fields := map[string]any{}
-		if len(d.Fields) > 0 && string(d.Fields) != "null" {
-			if err := expr.UnmarshalJSON(d.Fields, &fields); err != nil || fields == nil {
-				return fmt.Errorf("%w: fields are an object", workflow.ErrInvalid)
-			}
-		}
-		if _, issues := spec.Parse(fields); len(issues) > 0 {
-			return fmt.Errorf("%w: fields: %s", workflow.ErrInvalid, issues[0].Message)
+		if err := graph.ValidateJSON(r.Form, fields); err != nil {
+			return fmt.Errorf("%w: fields: %s", workflow.ErrInvalid, err.Error())
 		}
 	}
 	return nil

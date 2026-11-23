@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -192,5 +193,51 @@ func TestPureNodesDeclareTheirDryRun(t *testing.T) {
 	last := trace[len(trace)-1]
 	if last.Node != "check" || last.ContextPatch["code"] != graph.FailDryRunForbidden {
 		t.Fatalf("forbid on entry, before the branch reads its context: %v", trace)
+	}
+}
+
+// A join declared forbid stops the dry run however it is decided: a branch reaching it (walk) or its
+// timeout (decided without a walk). Nothing after it runs.
+func TestDryRunForbidReachesJoins(t *testing.T) {
+	c := flowCatalog(t)
+	j := c.Nodes["join"]
+	j.DryRun = graph.DryRunForbid
+	c.Nodes["join"] = j
+	g := flowGraph(t, `{"id": "split", "type": "parallel", "params": {"branches": ["a", "b"]}},
+		{"id": "hold", "type": "wait", "params": {"event": "manual"}},
+		{"id": "j", "type": "join", "params": {"of": "split", "mode": "all", "timeout": "1h"}},
+		{"id": "after", "type": "branch", "params": {"expression": "true"}}`,
+		strings.Join([]string{edge("labeled", "fired", "split"), edge("split", "a", "hold"), edge("split", "b", "hold"),
+			edge("hold", "matched", "j"), edge("j", "joined", "after"), edge("j", "timeout", "after"),
+			edge("after", "true", "ignore"), edge("after", "false", "ignore")}, ","))
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trace := in.DryRun(graph.Subject{}, graph.Context{}, []graph.DryRunInput{{Event: graph.Event{"kind": "issue.labeled", "label": "x"}}, {Timeout: true}},
+		graph.DryRunOptions{Modes: true})
+	last := trace[len(trace)-1]
+	if last.Node != "j" || last.ContextPatch["code"] != graph.FailDryRunForbidden {
+		t.Fatalf("a forbidden join on its timeout: %+v", trace)
+	}
+	for _, s := range trace {
+		if s.Node == "after" {
+			t.Fatalf("a node after the forbidden join ran: %+v", trace)
+		}
+	}
+}
+
+// A catalog written as data keeps an explicit dry run mode of a built-in node and refuses an invalid one.
+func TestCatalogFromJSONKeepsBuiltinDryRun(t *testing.T) {
+	c, err := graph.CatalogFromJSON([]byte(`{"name": "c", "events": {}, "subjects": {}, "nodes": {
+		"branch": {"behavior": "branch", "dry_run": "forbid"}, "join": {"behavior": "join", "dry_run": "forbid"}, "end": {"behavior": "end"}}}`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Nodes["branch"].DryRun != graph.DryRunForbid || c.Nodes["join"].DryRun != graph.DryRunForbid || c.Nodes["end"].DryRun != graph.DryRunExecute {
+		t.Fatalf("modes: %v %v %v", c.Nodes["branch"].DryRun, c.Nodes["join"].DryRun, c.Nodes["end"].DryRun)
+	}
+	if _, err := graph.CatalogFromJSON([]byte(`{"name": "c", "events": {}, "subjects": {}, "nodes": {"branch": {"behavior": "branch", "dry_run": "maybe"}}}`), nil); err == nil {
+		t.Fatal("an invalid mode is refused")
 	}
 }

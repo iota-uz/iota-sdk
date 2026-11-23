@@ -678,6 +678,12 @@ func (d *dryRun) decideJoin(g *dryGroup) {
 		d.finish(g.parent, false, nil, "the branches of "+g.node+" ended")
 		return
 	}
+	if node, ok := d.i.view.Node(g.join); ok && d.mode(node) == DryRunForbid {
+		// A join is reached here, not by walk: the guard of walk applies to it too.
+		g.closed = true
+		d.stop(g.parent, g.join, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
+		return
+	}
 	st := d.i.Join(g.join, g.parent.name, g.state)
 	switch st.Kind { //nolint:exhaustive // only waiting and failing change the join
 	case StepWait:

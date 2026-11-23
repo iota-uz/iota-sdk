@@ -37,7 +37,16 @@ type blockedCall struct {
 	child  uuid.UUID
 	callN  int
 	nodeID string
+	// pending is an operation that changed the journal and stopped before Resume: "retry" (the
+	// occurrence is gone, its new deadline written) or "resolve" (the occurrence is resolved). Repeating
+	// the operation resumes the call.
+	pending string
 }
+
+const (
+	pendingRetry   = "retry"
+	pendingResolve = "resolve"
+)
 
 func (o *operations) blocked(ctx context.Context, a Actor, runID uuid.UUID, waitID string) (blockedCall, error) {
 	if err := o.r.service.authorize(a, PermOperate); err != nil {
@@ -74,19 +83,43 @@ func (o *operations) blocked(ctx context.Context, a Actor, runID uuid.UUID, wait
 	err = o.r.cfg.DB.QueryRow(ctx, `
 		SELECT n FROM extruntime.workflow_occurrences
 		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started' ORDER BY n DESC LIMIT 1`, a.TenantID, child).Scan(&n)
+	b := blockedCall{run: run, wait: w, child: child, callN: n, nodeID: w.NodeID}
 	if errors.Is(err, pgx.ErrNoRows) {
-		return blockedCall{}, fmt.Errorf("%w: the call is blocked for another reason; resume it in the workflows", ErrInvalidInput)
+		// No started attempt: an earlier Resolve or Retry that stopped before its Resume, or another reason.
+		var resolved, renewed bool
+		if err := o.r.cfg.DB.QueryRow(ctx, `
+			SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call'
+				AND status = 'completed' AND meta->>'resolved' = 'true'),
+			       EXISTS (SELECT 1 FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2)`,
+			a.TenantID, child).Scan(&resolved, &renewed); err != nil {
+			return blockedCall{}, serrors.FromDB(opOperate, err)
+		}
+		switch {
+		case resolved:
+			b.pending = pendingResolve
+		case renewed:
+			b.pending = pendingRetry
+		default:
+			return blockedCall{}, fmt.Errorf("%w: the call is blocked for another reason; resume it in the workflows", ErrInvalidInput)
+		}
+		return b, nil
 	}
 	if err != nil {
 		return blockedCall{}, serrors.FromDB(opOperate, err)
 	}
-	return blockedCall{run: run, wait: w, child: child, callN: n, nodeID: w.NodeID}, nil
+	return b, nil
 }
 
 func (o *operations) Resolve(ctx context.Context, a Actor, runID uuid.UUID, waitID string, outcome string, output json.RawMessage) error {
 	b, err := o.blocked(ctx, a, runID, waitID)
 	if err != nil {
 		return err
+	}
+	switch b.pending {
+	case pendingResolve:
+		return o.resume(ctx, a, b) // the outcome is recorded: the call goes on with it
+	case pendingRetry:
+		return fmt.Errorf("%w: a retry of the call is pending; repeat Retry to run it", ErrInvalidInput)
 	}
 	if len(output) == 0 {
 		output = json.RawMessage(`{}`)
@@ -104,13 +137,19 @@ func (o *operations) Resolve(ctx context.Context, a Actor, runID uuid.UUID, wait
 	if err := o.r.cfg.Workflows.Resolve(ctx, a.TenantID, b.child, "call", b.callN, resolvedCall(outcome, output)); err != nil {
 		return serrors.Wrap(opOperate, err)
 	}
-	return serrors.Wrap(opOperate, o.r.cfg.Workflows.Resume(ctx, a.TenantID, b.child))
+	return o.resume(ctx, a, b)
 }
 
 func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID string) error {
 	b, err := o.blocked(ctx, a, runID, waitID)
 	if err != nil {
 		return err
+	}
+	switch b.pending {
+	case pendingRetry:
+		return o.resume(ctx, a, b)
+	case pendingResolve:
+		return fmt.Errorf("%w: the call is resolved already; repeat Resolve to continue it", ErrInvalidInput)
 	}
 	// The retried attempt gets the node's timeout again from now: its first deadline may be gone.
 	var req CallRequest
@@ -133,6 +172,12 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 	if err := o.r.cfg.Workflows.Retry(ctx, a.TenantID, b.child, "call", b.callN); err != nil {
 		return serrors.Wrap(opOperate, err)
 	}
+	return o.resume(ctx, a, b)
+}
+
+// resume makes the blocked call runnable: the last step of Resolve and Retry, and what a repeat of an
+// interrupted one does.
+func (o *operations) resume(ctx context.Context, a Actor, b blockedCall) error {
 	return serrors.Wrap(opOperate, o.r.cfg.Workflows.Resume(ctx, a.TenantID, b.child))
 }
 

@@ -529,13 +529,13 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 		on := n.Subjects // empty or left out: any subject, as NodeSpec.Subjects reads it
 		switch {
 		case n.Behavior == BehaviorBranch:
-			c.Nodes[typ] = withType(branchNode(on), typ)
+			c.Nodes[typ] = withDryRun(withType(branchNode(on), typ), n.DryRun)
 			continue
 		case n.Behavior == BehaviorSwitch:
-			c.Nodes[typ] = withType(switchNode(on), typ)
+			c.Nodes[typ] = withDryRun(withType(switchNode(on), typ), n.DryRun)
 			continue
 		case n.Behavior == BehaviorWait && n.Params == nil && n.ParamsSchema == nil:
-			c.Nodes[typ] = withType(waitNode(on, events), typ)
+			c.Nodes[typ] = withDryRun(withType(waitNode(on, events), typ), n.DryRun)
 			continue
 		case isFlowBehavior(n.Behavior):
 			// parallel, join, foreach and collect take the built-in params and outputs: the interpreter
@@ -547,7 +547,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			if n.Description != "" {
 				spec.Description = n.Description
 			}
-			c.Nodes[typ] = spec
+			c.Nodes[typ] = withDryRun(spec, n.DryRun)
 			continue
 		}
 		spec := NodeSpec{
@@ -607,6 +607,15 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 
 func withType(n NodeSpec, typ string) NodeSpec {
 	n.Type = typ
+	return n
+}
+
+// withDryRun keeps a catalog's explicit dry run mode of a built-in node (Check validates it); left out,
+// the built-in's own.
+func withDryRun(n NodeSpec, m DryRunMode) NodeSpec {
+	if m != "" {
+		n.DryRun = m
+	}
 	return n
 }
 

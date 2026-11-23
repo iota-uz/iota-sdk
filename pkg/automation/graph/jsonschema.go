@@ -3,6 +3,7 @@ package graph
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"regexp"
@@ -393,4 +394,21 @@ func jsonValue(v any) (any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// ValidateJSON checks a JSON value against a JSON Schema as it is: no defaults are applied and nothing
+// is dropped (a form's submitted fields, unlike Parse of params). The first issue is the error.
+func ValidateJSON(schema, value json.RawMessage) error {
+	s, err := compileSchema(schema)
+	if err != nil {
+		return fmt.Errorf("schema: %w", err)
+	}
+	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(value))
+	if err != nil {
+		return fmt.Errorf("not JSON: %w", err)
+	}
+	if issues := validateInstance(s, v); len(issues) > 0 {
+		return errors.New(issues[0].Message)
+	}
+	return nil
 }
