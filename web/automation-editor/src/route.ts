@@ -27,6 +27,12 @@ export type RouteLink = {
 }
 export type Router = {
   route(key: string): Route | undefined
+  /**
+   * The links to route, in the order that routes each exactly once, for the asked ones: every link of a
+   * source that comes before an asked one in port order is routed first (they share channels), so it is
+   * listed too. Links already routed are left out.
+   */
+  plan(keys: Iterable<string>): string[]
   /** Routes every link, in source order. */
   all(): Map<string, Route>
 }
@@ -38,7 +44,6 @@ const LANES = 5
 const CLEAR = 4
 const BEND_COST = 24
 const TRUNK_REWARD = 0.85
-const COLUMN_CANDIDATES = 48
 
 /** Cards as obstacles, with a coarse grid to find the ones near a segment. */
 class Obstacles {
@@ -63,10 +68,22 @@ class Obstacles {
   }
   /** Rectangles that may touch the box. */
   near(x1: number, y1: number, x2: number, y2: number): Rect[] {
+    const cx1 = this.cell(Math.min(x1, x2))
+    const cx2 = this.cell(Math.max(x1, x2))
+    const cy1 = this.cell(Math.min(y1, y2))
+    const cy2 = this.cell(Math.max(y1, y2))
+    // A box wider than the grid is cheaper to answer from the cards than from its empty cells.
+    if ((cx2 - cx1 + 1) * (cy2 - cy1 + 1) > this.rects.length * 4) {
+      const lx = Math.min(x1, x2)
+      const hx = Math.max(x1, x2)
+      const ly = Math.min(y1, y2)
+      const hy = Math.max(y1, y2)
+      return this.rects.filter((r) => hx >= r.x && lx <= r.x + r.width && hy >= r.y && ly <= r.y + r.height)
+    }
     this.mark += 1
     const out: Rect[] = []
-    for (let cx = this.cell(Math.min(x1, x2)); cx <= this.cell(Math.max(x1, x2)); cx += 1) {
-      for (let cy = this.cell(Math.min(y1, y2)); cy <= this.cell(Math.max(y1, y2)); cy += 1) {
+    for (let cx = cx1; cx <= cx2; cx += 1) {
+      for (let cy = cy1; cy <= cy2; cy += 1) {
         for (const i of this.cells.get(cx * 100003 + cy) ?? []) {
           if (this.stamp[i] === this.mark) continue
           this.stamp[i] = this.mark
@@ -110,16 +127,13 @@ export function simplify(points: Point[]): Point[] {
 
 /** A route that ignores the cards: down, across, down; around the side when the target is not below. */
 export function directRoute(port: Point, entry: Point): Route {
-  const down = entry.y - STUB * 2 > port.y
-  if (down) {
+  if (entry.y - STUB * 2 > port.y) {
     const y = Math.round((port.y + entry.y) / 2)
     return { points: simplify([port, { x: port.x, y }, { x: entry.x, y }, entry]), blocked: false }
   }
   const x = Math.max(port.x, entry.x) + 48
-  return {
-    points: simplify([port, { x: port.x, y: port.y + STUB }, { x, y: port.y + STUB }, { x, y: entry.y - STUB }, { x: entry.x, y: entry.y - STUB }, entry]),
-    blocked: false,
-  }
+  const top = entry.y - STUB
+  return { points: simplify([port, { x: port.x, y: port.y + STUB }, { x, y: port.y + STUB }, { x, y: top }, { x: entry.x, y: top }, entry]), blocked: false }
 }
 
 type Trunk = { h: { y: number; lo: number; hi: number }[]; v: { x: number; lo: number; hi: number }[] }
@@ -147,7 +161,11 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
     })
   const y1s = stubFree(below, s.x, s.y)
   const y2s = stubFree(above, t.x, t.y)
-  if (y1s.length === 0 || y2s.length === 0) return { ...directRoute(s, t), blocked: true }
+  if (y1s.length === 0 || y2s.length === 0) {
+    // Cards closer than a stub: a straight link, when nothing is between the handles.
+    if (same(s.x, t.x) && t.y > s.y && !obstacles.blocked(s.x, s.y, s.x, t.y, 0)) return { points: [s, t], blocked: false }
+    return { ...directRoute(s, t), blocked: true }
+  }
 
   // Vertical channels: under the source, above the target, and the gaps around the cards between. The
   // search starts with the cards close to the edge and widens only when it finds nothing.
@@ -169,6 +187,8 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
     const ly = Math.min(ay, by) - CLEAR
     const hy = Math.max(ay, by) + CLEAR
     for (const r of local) if (hx > r.x && lx < r.x + r.width && hy > r.y && ly < r.y + r.height) return false
+    // `local` only proposes the columns; a segment is checked against every card it passes.
+    for (const r of obstacles.near(lx, ly, hx, hy)) if (hx > r.x && lx < r.x + r.width && hy > r.y && ly < r.y + r.height) return false
     return true
   }
   type Column = { x: number; bound: number; special: boolean }
@@ -185,7 +205,7 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
       }
     }
     for (const v of trunk.v) xs.add(v.x)
-    return [...xs].map(column).sort((a, b) => a.bound - b.bound || Number(b.special) - Number(a.special) || a.x - b.x).slice(0, COLUMN_CANDIDATES)
+    return [...xs].map(column).sort((a, b) => a.bound - b.bound || Number(b.special) - Number(a.special) || a.x - b.x)
   }
 
   let rewardCap = 0
@@ -245,7 +265,10 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   // against the cards cheapest first, so most edges need one or two checks.
   const plain = (): Pick | null => {
     const picks: Pick[] = []
-    for (const col of s.x === t.x ? [column(s.x)] : [column(Math.min(s.x, t.x)), column(Math.max(s.x, t.x))]) {
+    // A long way down goes down first and across just above the target, where the strip is free of other
+    // edges; a short one across first. The cheaper of equal ways is tried first.
+    const longWay = t.y - s.y > 300
+    for (const col of s.x === t.x ? [column(s.x)] : longWay ? [column(s.x), column(t.x)] : [column(Math.min(s.x, t.x)), column(Math.max(s.x, t.x))]) {
       lanes(col, (y1, y2, i, j) => picks.push({ x: col.x, y1, y2, cost: price(col.x, y1, y2, i, j) }))
     }
     picks.sort((a, b) => a.cost - b.cost)
@@ -272,11 +295,8 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   }
 }
 
-const hash = (text: string) => {
-  let h = 0
-  for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) | 0
-  return Math.abs(h)
-}
+// A lane preference per source, so edges of different sources do not all take the same lane.
+const hash = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0) >>> 0
 
 /** A router over cards and links; routes are found per source card, on first use. */
 export function createRouter(rects: Map<string, Rect>, links: RouteLink[]): Router {
@@ -313,6 +333,20 @@ export function createRouter(rects: Map<string, Rect>, links: RouteLink[]): Rout
     }
   }
   return {
+    plan(keys) {
+      const need = new Map<string, number>()
+      for (const key of keys) {
+        const link = byKey.get(key)
+        if (!link) continue
+        need.set(link.from, Math.max(need.get(link.from) ?? -1, bySource.get(link.from)!.indexOf(link)))
+      }
+      const out: string[] = []
+      for (const [source, last] of need) {
+        const list = bySource.get(source)!
+        for (let i = progress.get(source)?.next ?? 0; i <= last; i += 1) out.push(list[i]!.key)
+      }
+      return out
+    },
     route(key) {
       const link = byKey.get(key)
       if (!link) return undefined
@@ -377,10 +411,6 @@ export function routePath(points: Point[], radius = 10): string {
     const before = Math.hypot(here.x - prev.x, here.y - prev.y)
     const after = Math.hypot(next.x - here.x, next.y - here.y)
     const r = Math.min(radius, before / 2, after / 2)
-    if (r < 1) {
-      d += `L${here.x},${here.y}`
-      continue
-    }
     const a = { x: here.x - ((here.x - prev.x) / before) * r, y: here.y - ((here.y - prev.y) / before) * r }
     const b = { x: here.x + ((next.x - here.x) / after) * r, y: here.y + ((next.y - here.y) / after) * r }
     d += `L${a.x},${a.y}Q${here.x},${here.y} ${b.x},${b.y}`

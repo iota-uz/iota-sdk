@@ -253,7 +253,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
   let routeTimer: ReturnType<typeof setTimeout> | undefined
   createEffect(() => {
     const current = router()
-    const todo = visibleEdges().filter((key) => routeCache.get(key)?.owner !== current)
+    // Edges that are gone leave the cache, and with them the router they were routed by.
+    const targets = edgeTargets()
+    for (const key of routeCache.keys()) if (!targets.has(key)) routeCache.delete(key)
+    // One link per step, in port order, so the slice deadline is checked between links.
+    const todo = current.plan(visibleEdges().filter((key) => routeCache.get(key)?.owner !== current))
     clearTimeout(routeTimer)
     if (todo.length === 0) return
     const run = () => {
@@ -375,9 +379,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
   }
 
-  const bounds = () => {
+  const bounds = (only?: string[]) => {
     const geometries = geometryMap()
-    const list = ids()
+    const list = only ?? ids()
     if (list.length === 0) return null
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const id of list) {
@@ -413,7 +417,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
       return
     }
     const zoom = INITIAL_MIN_ZOOM
-    panZoom.set({ x: 48 - b.x * zoom, y: 48 - b.y * zoom, zoom }, 0)
+    // It opens at the triggers (the top left of the first one), not at the left edge of a wide shared row.
+    const triggers = [...itemMap()].filter(([, item]) => item.kind === 'trigger').map(([id]) => id)
+    const start = bounds(triggers) ?? b
+    panZoom.set({ x: 48 - start.x * zoom, y: 48 - start.y * zoom, zoom }, 0)
   }
 
   const center = (): XY => {

@@ -111,6 +111,12 @@ test.describe('canvas', () => {
 
 test.describe('tidy', () => {
   const place = (page: import('@playwright/test').Page, id: string) => card(page, id).evaluate((el) => (el as HTMLElement).style.transform)
+  // A freshly opened graph is already tidy, so a Tidy would move nothing: move a card by hand first.
+  const moveByHand = async (page: import('@playwright/test').Page, id: string) => {
+    const start = await center(card(page, id).locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 96, y: start.y + 64 })
+    await page.waitForTimeout(100)
+  }
 
   test('the button sits next to Fit with a tooltip naming ⇧⌘L, and takes focus', async ({ page }) => {
     await open(page, 'graph=multi')
@@ -122,32 +128,39 @@ test.describe('tidy', () => {
     await expect(buttons.nth(3)).toBeFocused()
   })
 
-  test('one Tidy is one undo step; the cards glide for 200 ms', async ({ page }) => {
+  test('one Tidy is one undo step; the moved card glides back with a 200 ms transform transition', async ({ page }) => {
     await open(page, 'graph=multi')
-    const before = await place(page, 'a_check')
-    // Watch the class from the page: the glide is over in 240 ms, faster than a poll may look.
+    const tidy = await place(page, 'a_check')
+    await moveByHand(page, 'a_check')
+    const moved = await place(page, 'a_check')
+    expect(moved).not.toBe(tidy)
+    // Record the transitions the browser starts: a declared duration alone would not show a card gliding.
     await page.evaluate(() => {
-      const canvas = document.querySelector('.ae-canvas')!
-      const seen: string[] = []
-      ;(window as unknown as { __tidySeen: string[] }).__tidySeen = seen
-      new MutationObserver(() => {
-        if (canvas.classList.contains('ae-canvas--tidying')) seen.push(getComputedStyle(document.querySelector('.ae-card')!).transitionDuration)
-      }).observe(canvas, { attributes: true, attributeFilter: ['class'] })
+      const seen: { id: string | undefined; property: string; duration: string }[] = []
+      ;(window as unknown as { __glides: typeof seen }).__glides = seen
+      document.querySelector('.ae-canvas')!.addEventListener('transitionrun', (event) => {
+        const e = event as TransitionEvent
+        const el = e.target as HTMLElement
+        seen.push({ id: el.dataset.id, property: e.propertyName, duration: getComputedStyle(el).transitionDuration })
+      }, true)
     })
     await page.locator('.ae-controls .ae-tidy').click()
-    await expect.poll(() => page.evaluate(() => (window as unknown as { __tidySeen: string[] }).__tidySeen.length)).toBeGreaterThan(0)
-    expect(await page.evaluate(() => (window as unknown as { __tidySeen: string[] }).__tidySeen[0])).toBe('0.2s')
+    await expect.poll(() => place(page, 'a_check')).toBe(tidy)
+    const glides = await page.evaluate(() => (window as unknown as { __glides: { id: string; property: string; duration: string }[] }).__glides)
+    expect(glides.find((g) => g.id === 'a_check' && g.property === 'transform')?.duration).toBe('0.2s')
     await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
     await page.getByLabel('Undo').click()
-    expect(await place(page, 'a_check')).toBe(before)
-    await expect(page.getByLabel('Undo')).toBeDisabled()
+    expect(await place(page, 'a_check')).toBe(moved)
   })
 
   test('⇧⌘L tidies, and prefers-reduced-motion skips the glide', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await open(page, 'graph=multi')
-    await card(page, 'a_check').click()
+    const tidy = await place(page, 'a_check')
+    await moveByHand(page, 'a_check')
+    expect(await place(page, 'a_check')).not.toBe(tidy)
     await page.keyboard.press(`${mod}+Shift+L`)
+    await expect.poll(() => place(page, 'a_check')).toBe(tidy)
     await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
     expect(await card(page, 'a_check').evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s')
   })

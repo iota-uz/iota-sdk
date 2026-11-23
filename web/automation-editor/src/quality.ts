@@ -64,14 +64,14 @@ export function edgesThroughNodes(rects: Map<string, Rect>, routes: Map<string, 
   return count
 }
 
-type Segment = { a: Point; b: Point; source: string; target: string }
+type Segment = { a: Point; b: Point; key: string; source: string; target: string }
 
 function segmentsOf(routes: Map<string, Route>, ends: Map<string, { from: string; to: string }>): Segment[] {
   const out: Segment[] = []
   for (const [key, route] of routes) {
     const end = ends.get(key)
     if (!end) continue
-    for (let i = 1; i < route.points.length; i += 1) out.push({ a: route.points[i - 1]!, b: route.points[i]!, source: end.from, target: end.to })
+    for (let i = 1; i < route.points.length; i += 1) out.push({ a: route.points[i - 1]!, b: route.points[i]!, key, source: end.from, target: end.to })
   }
   return out
 }
@@ -90,7 +90,7 @@ export function edgeCrossings(routes: Map<string, Route>, ends: Map<string, { fr
       if (h.source === v.source || h.target === v.target) continue
       const x = v.a.x
       if (x > lo + 0.5 && x < hi - 0.5 && y > Math.min(v.a.y, v.b.y) + 0.5 && y < Math.max(v.a.y, v.b.y) - 0.5) {
-        pairs.add(`${h.source}>${h.target}|${v.source}>${v.target}`)
+        pairs.add(h.key < v.key ? `${h.key}|${v.key}` : `${v.key}|${h.key}`)
       }
     }
   }

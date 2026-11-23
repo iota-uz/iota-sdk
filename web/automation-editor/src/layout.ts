@@ -117,14 +117,13 @@ type Flow = {
   owner: Map<string, string>
 }
 
-/** Items by group, in graph order: one group per trigger, then the shared one. Cycle edges are ignored. */
+/** Items by group, in graph order: one group per trigger, then the shared one. Cycle edges count: they make an item reachable. */
 export function layoutGroups(graph: AutomationGraph): { key: string; items: string[] }[] {
   const ids = itemIds(graph)
   const idSet = new Set(ids)
-  const back = backEdges(graph)
   const out = new Map<string, string[]>()
   for (const edge of graph.edges) {
-    if (edge.to === IGNORE || !idSet.has(edge.from.node) || !idSet.has(edge.to) || back.has(`${edge.from.node}->${edge.to}`)) continue
+    if (edge.to === IGNORE || !idSet.has(edge.from.node) || !idSet.has(edge.to)) continue
     const list = out.get(edge.from.node)
     if (list) list.push(edge.to)
     else out.set(edge.from.node, [edge.to])
@@ -646,7 +645,9 @@ export function placeNew(
       }
     }
   }
-  return { x: start.x, y: snap(start.y + 100 * stepY) }
+  // Everything near was taken: below every card is free by construction.
+  const bottom = occupied.reduce((m, r) => Math.max(m, r.y + r.height), start.y)
+  return { x: start.x, y: snap(bottom + GROUP_ROW_GAP) }
 }
 
 function connectedMissing(graph: AutomationGraph, missing: Set<string>): number {
@@ -684,14 +685,34 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
   }
   const reference = tidyLayout(subgraph, catalog)
   const hand = new Set<string>()
+  // A group Tidy left alone stands where Tidy puts it, plus one offset shared by the whole layout. A group
+  // whose items moved against each other is by hand; so is one moved as a whole, which shows as an offset
+  // other than the one most of the items share.
+  const offsets = new Map<string, string>()
+  const votes = new Map<string, number>()
   for (const group of layoutGroups(graph)) {
     const placed = group.items.filter((id) => known.has(id))
     if (placed.length < 2) continue
     const first = placed[0]!
     const dx = layout[first]!.x - reference[first]!.x
     const dy = layout[first]!.y - reference[first]!.y
-    if (!placed.every((id) => layout[id]!.x - reference[id]!.x === dx && layout[id]!.y - reference[id]!.y === dy)) hand.add(group.key)
+    if (!placed.every((id) => layout[id]!.x - reference[id]!.x === dx && layout[id]!.y - reference[id]!.y === dy)) {
+      hand.add(group.key)
+      continue
+    }
+    const offset = `${dx},${dy}`
+    offsets.set(group.key, offset)
+    votes.set(offset, (votes.get(offset) ?? 0) + placed.length)
   }
+  let usual = ''
+  let most = 0
+  for (const [offset, count] of votes) {
+    if (count > most) {
+      usual = offset
+      most = count
+    }
+  }
+  for (const [key, own] of offsets) if (own !== usual) hand.add(key)
   return hand
 }
 

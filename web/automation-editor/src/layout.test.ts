@@ -5,7 +5,7 @@ import { GRID, rectsOverlap } from './geometry'
 import { createHistory, record, undo } from './history'
 import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, placeNew, tidyLayout } from './layout'
 import { edgeCrossings, layoutMetrics, mixedGroups, overlappingNodes } from './quality'
-import { linksOf, routeEdges } from './route'
+import { createRouter, linksOf, routeEdges } from './route'
 import { legacyTidyLayout } from './test/legacyTidy'
 import type { AutomationGraph, AutomationLayout } from './types'
 
@@ -257,5 +257,85 @@ describe('Tidy time', () => {
     expect(Object.keys(layout)).toHaveLength(241)
     expect(overlappingNodes(graph, catalog, layout)).toBe(0)
     expect(took).toBeLessThan(100)
+  })
+})
+
+describe('review round', () => {
+  it('counts an item reached through a cycle edge for the trigger that reaches it', () => {
+    const graph: AutomationGraph = {
+      name: 'cycle', run_as: 'owner',
+      triggers: [{ id: 'a', event: 'core.user.created.v1' }, { id: 'b', event: 'crm.client.created.v1' }],
+      nodes: [{ id: 'x', type: 'delay', params: {} }, { id: 'y', type: 'delay', params: {} }],
+      edges: [
+        { from: { node: 'a', outcome: 'fired' }, to: 'x' },
+        { from: { node: 'x', outcome: 'done' }, to: 'y' },
+        { from: { node: 'b', outcome: 'fired' }, to: 'y' },
+        { from: { node: 'y', outcome: 'done' }, to: 'x' },
+      ],
+    }
+    const keys = Object.fromEntries(layoutGroups(graph).map((g) => [g.key, g.items]))
+    expect(keys.shared).toEqual(['x', 'y'])
+  })
+
+  it('keeps a group a person moved as a whole when a new branch is laid out', () => {
+    const tidy = tidyLayout(multiTrigger, catalog)
+    const known: AutomationLayout = {}
+    for (const group of layoutGroups(multiTrigger)) {
+      if (group.key === 'manual' || group.key === 'shared') continue
+      for (const id of group.items) known[id] = { ...tidy[id]! }
+    }
+    const moved = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
+    for (const id of moved) known[id] = { x: tidy[id]!.x + 160, y: tidy[id]!.y + 96 }
+    const next = ensureLayout(multiTrigger, catalog, known)
+    for (const id of moved) expect(next[id]).toEqual(known[id])
+    expect(overlappingNodes(multiTrigger, catalog, next)).toBe(0)
+  })
+
+  it('returns a free position even when every nearby one is taken', () => {
+    const graph: AutomationGraph = { name: 'p', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 'end', params: {} }], edges: [] }
+    const layout: AutomationLayout = {}
+    const crowded: AutomationGraph = { ...graph, nodes: [...graph.nodes] }
+    for (let i = 0; i < 400; i += 1) {
+      crowded.nodes.push({ id: `c${i}`, type: 'end', params: {} })
+      layout[`c${i}`] = { x: (i % 20) * 240, y: Math.floor(i / 20) * 144 }
+    }
+    const p = placeNew(crowded, catalog, layout, 'n', { near: { x: 0, y: 0 } })
+    for (const id of Object.keys(layout)) expect(rectsOverlap({ ...p, width: 224, height: 96 }, itemRect(crowded, catalog, layout, id)!, GRID)).toBe(false)
+  })
+
+  it('links two close, aligned cards with a straight line', () => {
+    const rects = new Map([['a', { x: 0, y: 0, width: 224, height: 96 }], ['b', { x: 0, y: 104, width: 224, height: 96 }]])
+    const router = createRouter(rects, [{ key: 'a.done', from: 'a', to: 'b', port: { x: 112, y: 96 }, entry: { x: 112, y: 104 } }])
+    expect(router.route('a.done')).toEqual({ points: [{ x: 112, y: 96 }, { x: 112, y: 104 }], blocked: false })
+  })
+
+  it('never takes a channel through a card that was not near its endpoints', () => {
+    // A wide row of touching cards between the two ends: the clear channels are beyond it.
+    const rects = new Map<string, { x: number; y: number; width: number; height: number }>()
+    rects.set('s', { x: 0, y: 0, width: 224, height: 96 })
+    rects.set('t', { x: 0, y: 1200, width: 224, height: 96 })
+    for (let i = 0; i < 14; i += 1) rects.set(`w${i}`, { x: -1500 + i * 224, y: 600, width: 224, height: 96 })
+    const router = createRouter(rects, [{ key: 's.done', from: 's', to: 't', port: { x: 112, y: 96 }, entry: { x: 112, y: 1200 } }])
+    const route = router.route('s.done')!
+    expect(route.blocked).toBe(false)
+    for (let i = 1; i < route.points.length; i += 1) {
+      const a = route.points[i - 1]!
+      const b = route.points[i]!
+      for (const [id, r] of rects) {
+        if (id === 's' || id === 't') continue
+        expect(Math.max(a.x, b.x) > r.x && Math.min(a.x, b.x) < r.x + r.width && Math.max(a.y, b.y) > r.y && Math.min(a.y, b.y) < r.y + r.height).toBe(false)
+      }
+    }
+  })
+
+  it('plans each link once, earlier ports of a source first', () => {
+    const rects = new Map([['a', { x: 0, y: 0, width: 224, height: 96 }], ['b', { x: 0, y: 300, width: 224, height: 96 }], ['c', { x: 300, y: 300, width: 224, height: 96 }]])
+    const router = createRouter(rects, [
+      { key: 'a.two', from: 'a', to: 'c', port: { x: 140, y: 96 }, entry: { x: 412, y: 300 } },
+      { key: 'a.one', from: 'a', to: 'b', port: { x: 80, y: 96 }, entry: { x: 112, y: 300 } },
+    ])
+    expect(router.plan(['a.two'])).toEqual(['a.one', 'a.two'])
+    router.route('a.one')
+    expect(router.plan(['a.two'])).toEqual(['a.two'])
   })
 })
