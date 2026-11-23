@@ -1748,6 +1748,10 @@ td:has(.table-cell-link):not(.sticky) {
     border-bottom: 1px solid oklch(var(--clr-border-subtle));
   }
 
+  .iota-mx-scope:last-child {
+    border-bottom: 0;
+  }
+
   .iota-mx-scope-title {
     color: oklch(var(--clr-text-200));
     font-weight: 500;

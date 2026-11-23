@@ -14,11 +14,13 @@ templ Metrics(props Props) {
 		}
 	>
 		@scopeLine(props)
-		<div class="iota-mx-grid" style={ gridStyle(len(props.Items)) }>
-			for _, item := range props.Items {
-				@card(props, item)
-			}
-		</div>
+		if len(props.Items) > 0 {
+			<div class="iota-mx-grid" style={ gridStyle(len(props.Items)) }>
+				for _, item := range props.Items {
+					@card(props, item)
+				}
+			</div>
+		}
 		if props.State == StateEmpty {
 			<div class="iota-mx-note">
 				if props.EmptyNote != "" {
