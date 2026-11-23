@@ -39,8 +39,9 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
     dragged has a plain orthogonal edge until it lands.
   - `ensureLayout` places one missing step under its source; when more than a third of the steps, or a
     whole branch (3+ linked steps), lack positions, the graph is laid out again. Groups whose
-    positions differ from a Tidy of the known steps were arranged by hand and keep them; only the
-    button, the menu item or ⇧⌘L moves them.
+    positions differ from a Tidy of the known steps were arranged by hand and keep them (a card moved
+    against the others, or a whole group moved: Tidy leaves the layout at the origin); only the
+    button, the menu item or ⇧⌘L moves them. Only positions are read, so this holds after a reload.
   - Quality is measured by pure functions (`src/quality.ts`: overlapping cards, links through cards,
     crossings, mixed groups); the tests hold Tidy to zero overlaps, zero links through cards and zero
     mixed groups on the fixtures `multiTrigger` and `foreachJoin`, and to no more crossings than the
