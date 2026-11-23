@@ -212,6 +212,11 @@ func (p *projector) resolvable(ctx context.Context, ref sensitiveRef) (bool, err
 	if err != nil || !ok {
 		return false, err
 	}
+	// The path itself must still exist in the event's schema: a protected parent does not vouch for a
+	// child the schema no longer has (secret.pin when secret became a scalar), whose own rule is gone.
+	if !fieldsHavePath(p.system.Catalog.Events[ref.Event].Payload, strings.Split(ref.Path, ".")) {
+		return false, nil
+	}
 	sensitive, err := p.hiddenPaths(ctx, ref.Event, nil)
 	if err != nil {
 		return false, err
@@ -222,6 +227,35 @@ func (p *projector) resolvable(ctx context.Context, ref sensitiveRef) (bool, err
 		}
 	}
 	return false, nil
+}
+
+// fieldsHavePath reports whether a dotted path (lists transparent, "*" for a map's entries) names a field
+// of the schema.
+func fieldsHavePath(fs expr.Fields, path []string) bool {
+	if len(path) == 0 {
+		return true
+	}
+	f, ok := fs.Get(path[0])
+	if !ok {
+		return false
+	}
+	return fieldHasPath(f, path[1:])
+}
+
+func fieldHasPath(f expr.Field, path []string) bool {
+	if len(path) == 0 {
+		return true
+	}
+	f = f.Unwrap()
+	switch {
+	case f.Kind == expr.List && f.Elem != nil:
+		return fieldHasPath(*f.Elem, path)
+	case f.Kind == expr.Map && f.Elem != nil:
+		return path[0] == "*" && fieldHasPath(*f.Elem, path[1:])
+	case f.Kind == expr.Object:
+		return fieldsHavePath(f.Props, path)
+	}
+	return false
 }
 
 // readable reports whether the viewer may read every sensitive field of refs. It fails closed: a

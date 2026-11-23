@@ -224,3 +224,52 @@ func TestConsumedEventIsAppliedBeforeTheTimerAfterARollback(t *testing.T) {
 	require.True(t, failed.Load())
 	assert.Equal(t, []string{"note:order 2", "paid:paid 2"}, e.effects(run.RunID), "the consumed payment is applied before the timer")
 }
+
+func TestRemovedNestedFieldUnderAProtectedParentStaysHidden(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	owner := e.human() // may read the current secret
+	e.create(p, owner, noteGraph("x"))
+	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)
+	run := onlyRun(t, e, p, owner)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	// The step derived from secret.pin; the event's secret is a scalar now, so that child is gone.
+	_, err := e.db.Exec(context.Background(), `UPDATE automation.steps SET sensitive = '[{"event": "acme.order.created.v1", "path": "secret.pin"}]' WHERE run_id = $1 AND node_id = 'note'`, run.RunID)
+	require.NoError(t, err)
+	for _, st := range e.run(p, owner, run.RunID).Steps {
+		assert.Equal(t, st.NodeID == "note", st.Hidden, "a child the schema no longer has is not vouched for by its parent: %s", st.NodeID)
+	}
+}
+
+func TestTimelyPaymentRoutedBeforeTheTimeoutAppliesWins(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, followUp) // the payment wait times out after 1s
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
+	// The payment is published before the deadline and delivered after the timer's receipt, before the
+	// timeout's transaction.
+	e.publish(e.tenant, orderPaid, "o-1", order{Amount: 2}, 0)
+	var routed atomic.Bool
+	p.rt.SetTestHook(func(ctx context.Context, _ pgx.Tx, label string) error {
+		if label == "timer-fired" && !routed.Swap(true) {
+			_, err := p.disp.RunOnce(ctx)
+			return err
+		}
+		return nil
+	})
+	// Only the workflow engine runs until the run ends: no dispatcher pass delivers the payment before
+	// the timer fires.
+	time.Sleep(1500 * time.Millisecond)
+	ctx := context.Background()
+	for end := time.Now().Add(20 * time.Second); time.Now().Before(end) && e.status(p, run.RunID) != engine.RunDone; {
+		_, err := p.wf.RunOnce(ctx)
+		require.NoError(t, err)
+		time.Sleep(20 * time.Millisecond)
+	}
+	require.Equal(t, engine.RunDone, e.status(p, run.RunID))
+	require.True(t, routed.Load())
+	assert.Equal(t, []string{"note:order 2", "paid:paid 2"}, e.effects(run.RunID), "the timely payment wins over the timeout")
+}

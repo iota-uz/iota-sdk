@@ -475,8 +475,18 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 		err := x.nr.Sleep(ctx, "timer:"+w.WaitID, 0, d)
 		switch {
 		case err == nil:
-			if err := x.timeout(ctx, w); err != nil {
+			if h := x.r.testHook; h != nil {
+				// Between the timer's receipt and the timeout's transaction (no transaction is open).
+				if err := h(ctx, nil, "timer-fired"); err != nil {
+					return false, err
+				}
+			}
+			applied, err := x.timeout(ctx, w)
+			if err != nil {
 				return false, err
+			}
+			if !applied {
+				continue // the inbox holds an event in time: the loop applies it first
 			}
 			return true, nil
 		case errors.Is(err, workflow.ErrSuspend), errors.Is(err, workflow.ErrCancelled):
@@ -566,13 +576,27 @@ func (x *execution) consume(ctx context.Context, payload json.RawMessage) error 
 }
 
 // timeout fires a wait's timer.
-func (x *execution) timeout(ctx context.Context, w waitRow) error {
-	return x.tx(ctx, "timeout", func(ctx context.Context, tx pgx.Tx, s *stepState) error {
+// timeout fires a wait's timer; applied is false when an event that happened by the deadline was routed
+// to the wait meanwhile (checked again under the subject's lock, which the router holds while it
+// signals): the inbox applies that event first.
+func (x *execution) timeout(ctx context.Context, w waitRow) (bool, error) {
+	applied := true
+	err := x.tx(ctx, "timeout", func(ctx context.Context, tx pgx.Tx, s *stepState) error {
 		ws, err := queryWaits(ctx, tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3 FOR UPDATE`, x.tenant, x.run.ID, w.WaitID)
 		if err != nil || len(ws) == 0 || ws[0].Status != waitOpen {
 			return err
 		}
 		w = ws[0]
+		if w.Kind == waitEvent && w.TimeoutAt != nil {
+			early, err := earlyEventIn(ctx, tx, x.tenant, x.nr.Instance().ID, w)
+			if err != nil {
+				return err
+			}
+			if early {
+				applied = false
+				return nil
+			}
+		}
 		tok, err := loadToken(ctx, tx, x.tenant, x.run.ID, w.TokenID, true)
 		if err != nil {
 			return err
@@ -583,6 +607,7 @@ func (x *execution) timeout(ctx context.Context, w waitRow) error {
 		m := &mover{x: x, tx: tx, s: s}
 		return m.timedOut(ctx, &tok, w)
 	})
+	return applied && err == nil, err
 }
 
 // taskDone applies the outcome of a task the core opened.
@@ -669,12 +694,17 @@ func (x *execution) inboxReady(ctx context.Context) (bool, error) {
 
 // earlyEventPending reports an unconsumed inbox signal for the wait whose event happened by its deadline.
 func (x *execution) earlyEventPending(ctx context.Context, w waitRow) (bool, error) {
+	return earlyEventIn(ctx, x.r.cfg.DB, x.tenant, x.nr.Instance().ID, w)
+}
+
+// earlyEventIn is earlyEventPending in q (a transaction or the pool).
+func earlyEventIn(ctx context.Context, q querier, tenant, instance uuid.UUID, w waitRow) (bool, error) {
 	var early bool
-	err := x.r.cfg.DB.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM extruntime.workflow_signals
 			WHERE tenant_id = $1 AND instance_id = $2 AND name = $3 AND consumed_name IS NULL
 			  AND payload->>'wait_id' = $4 AND (payload->'event'->>'occurred_at')::timestamptz <= $5)`,
-		x.tenant, x.nr.Instance().ID, InboxSignal, w.WaitID, *w.TimeoutAt).Scan(&early)
+		tenant, instance, InboxSignal, w.WaitID, *w.TimeoutAt).Scan(&early)
 	return early, serrors.FromDB(opRun, err)
 }
 
