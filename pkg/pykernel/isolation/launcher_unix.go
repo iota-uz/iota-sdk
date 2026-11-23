@@ -61,7 +61,10 @@ func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, e
 	// child sets the same limits on itself before it reads any user code, so
 	// the window between Start and this call never runs untrusted code; for an
 	// unconfined child this is the only enforcement. On non-Linux it is a no-op.
-	if err := applyRlimits(cmd.Process.Pid, limits); err != nil {
+	// A confined child that runs as another uid may not be prlimit-able by a
+	// host without CAP_SYS_RESOURCE (root in a container); its own limits,
+	// verified in the ready handshake, are the enforcement then.
+	if err := applyRlimits(cmd.Process.Pid, limits); err != nil && spec.Confinement == nil {
 		_ = killGroup(cmd.Process.Pid)
 		_ = cmd.Wait()
 		return nil, fmt.Errorf("pykernel/isolation: apply rlimits: %w", err)

@@ -154,3 +154,61 @@ func TestAcquire_DoesNotReturnDeadReuseEntry(t *testing.T) {
 	m.mu.Unlock()
 	assert.Same(t, gotK, cur, "the dead entry must be replaced by the fresh kernel")
 }
+
+func newFakeManager(t *testing.T, policy lifecycle.LifecyclePolicy) *Manager {
+	t.Helper()
+	m, err := New(Config{
+		Policy:       policy,
+		Launcher:     &fakeLauncher{},
+		Sandbox:      isolation.Profile{Mode: isolation.ModeInsecureDisabled},
+		DisposeGrace: 100 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
+	return m
+}
+
+func TestAcquire_EvictsLRUIdleKernelAtCapacity(t *testing.T) {
+	t.Parallel()
+	m := newFakeManager(t, lifecycle.WarmPool(time.Hour, 2))
+
+	a, err := m.Acquire(context.Background(), testSess("a", t.TempDir()))
+	require.NoError(t, err)
+	require.NoError(t, m.Release(a))
+	time.Sleep(5 * time.Millisecond)
+	b, err := m.Acquire(context.Background(), testSess("b", t.TempDir()))
+	require.NoError(t, err)
+	require.NoError(t, m.Release(b))
+
+	// The pool is full of idle kernels younger than the TTL: the least
+	// recently used one (a) makes room.
+	c, err := m.Acquire(context.Background(), testSess("c", t.TempDir()))
+	require.NoError(t, err)
+	_, aLive := m.Get("a")
+	_, bLive := m.Get("b")
+	assert.False(t, aLive, "the LRU kernel is evicted")
+	assert.True(t, bLive)
+
+	// b is idle but c is leased: only b may go.
+	_, err = m.Acquire(context.Background(), testSess("d", t.TempDir()))
+	require.NoError(t, err)
+	_, cLive := m.Get("c")
+	assert.True(t, cLive, "a leased kernel is never evicted for room")
+
+	// Now c and d are both leased: the pool is exhausted.
+	_, err = m.Acquire(context.Background(), testSess("e", t.TempDir()))
+	require.ErrorIs(t, err, pykernel.ErrPoolExhausted)
+	require.NoError(t, m.Release(c))
+}
+
+func TestAcquire_RefusesReuseAcrossTenants(t *testing.T) {
+	t.Parallel()
+	m := newFakeManager(t, lifecycle.WarmPool(time.Hour, 4))
+	wd := t.TempDir()
+	k, err := m.Acquire(context.Background(), testSess("shared-key", wd))
+	require.NoError(t, err)
+	require.NoError(t, m.Release(k))
+
+	_, err = m.Acquire(context.Background(), testSess("shared-key", wd)) // testSess mints a new tenant
+	require.ErrorIs(t, err, pykernel.ErrSessionMismatch)
+}

@@ -99,7 +99,10 @@ does not work.
 ## Security
 
 The image is the least-privilege *floor*: non-root `kernel` user, no compilers,
-no DB clients, minimal apt set. The real isolation is enforced by the Go manager
-per spawn (rlimits, process group, env scrub so no secret/DSN reaches the kernel,
-jailed workdir). Strongest prod hardening (network namespace + seccomp
-deny-egress) is an orchestration-layer follow-up, not part of this image.
+no DB clients, minimal apt set. The real isolation is enforced per spawn: the
+kernel applies Landlock, seccomp, `no_new_privs` and rlimits to itself before it
+runs any code, and the Go manager refuses a kernel that lacks any of them
+(see [docs/pykernel-sandbox.md](../../../docs/pykernel-sandbox.md)). When the
+application stage runs as root, set `isolation.Profile.RunAs` (for example the
+`kernel` uid 10001 of this image). Run `cmd/pykernel-conformance` in the final
+image before enabling untrusted execution.

@@ -202,6 +202,12 @@ func newRunner(opts Options) (*runner, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Traversable (not listable) so a kernel running as another uid can
+		// reach its own workdir below it.
+		if err := os.Chmod(dir, 0o711); err != nil {
+			_ = os.RemoveAll(dir)
+			return nil, err
+		}
 		r.root, r.ownRoot = dir, true
 	}
 	suffix := randHex()

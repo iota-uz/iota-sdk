@@ -88,6 +88,9 @@ type Namespace struct {
 	ID         string `json:"id"`
 	Generation string `json:"generation"`
 	Reset      bool   `json:"reset"`
+	// FilesPreserved reports that files in the workdir from earlier runs are
+	// intact, also when Reset says the variables are gone.
+	FilesPreserved bool `json:"files_preserved"`
 }
 
 type RunError struct {
@@ -262,6 +265,7 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 
 	var stdout, stderr strings.Builder
 	var execErr *pykernel.ExecError
+	var done *pykernel.DonePayload
 	for ev := range events {
 		switch ev.Kind {
 		case pykernel.EventStdout:
@@ -274,7 +278,8 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 			execErr = ev.Err
 		case pykernel.EventDone:
 			if ev.Done != nil {
-				res.Truncated.Stdout = res.Truncated.Stdout || ev.Done.StdoutTruncated
+				done = ev.Done
+				res.Truncated.Stdout = res.Truncated.Stdout || ev.Done.StdoutTruncated || ev.Done.EventsDropped > 0
 				res.Truncated.Stderr = res.Truncated.Stderr || ev.Done.StderrTruncated
 			}
 		case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated:
@@ -283,7 +288,7 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	res.DurationMS = time.Since(started).Milliseconds()
 	res.Stdout, res.Stderr = stdout.String(), stderr.String()
 	res.Emitted, res.Truncated.Emitted, res.OperationIDs = state.snapshot()
-	res.Status, res.Error = classify(ctx, execErr, time.Since(started) >= timeout)
+	res.Status, res.Error = classify(ctx, execErr, done, time.Since(started) >= timeout)
 	if execErr != nil && res.Status == StatusFailed && execErr.Traceback != "" {
 		res.Truncated.Stderr = appendCapped(&stderr, []byte(execErr.Traceback), outputCap) || res.Truncated.Stderr
 		res.Stderr = stderr.String()
@@ -317,16 +322,30 @@ func (r *Runner) limits(in Input) (time.Duration, int, error) {
 func (r *Runner) namespace(key, id string, k pykernel.Kernel) Namespace {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	info := k.Info()
 	prev, seen := r.generations[key]
-	if seen && prev.kernel == k && !k.Info().NamespaceReset {
-		return Namespace{ID: id, Generation: prev.id}
+	if seen && prev.kernel == k && !info.NamespaceReset {
+		return Namespace{ID: id, Generation: prev.id, FilesPreserved: true}
 	}
 	gen := generation{kernel: k, id: uuid.NewString()}
 	r.generations[key] = gen
-	return Namespace{ID: id, Generation: gen.id, Reset: seen}
+	// After a host restart this process has not seen the session, but the
+	// kernel knows from the workdir that an earlier namespace was lost.
+	return Namespace{ID: id, Generation: gen.id, Reset: seen || info.NamespaceReset, FilesPreserved: seen || info.FilesPreserved}
 }
 
-func classify(ctx context.Context, execErr *pykernel.ExecError, pastDeadline bool) (string, *RunError) {
+func classify(ctx context.Context, execErr *pykernel.ExecError, done *pykernel.DonePayload, pastDeadline bool) (string, *RunError) {
+	if done != nil {
+		switch done.Reason {
+		case pykernel.ReasonCancelled:
+			return StatusCancelled, &RunError{Code: ErrorCancelled, Message: "the run was cancelled"}
+		case pykernel.ReasonTimeout:
+			return StatusTimedOut, &RunError{Code: ErrorTimeout, Message: "the run exceeded its time limit"}
+		case pykernel.ReasonQuotaExceeded:
+			return StatusFailed, &RunError{Code: ErrorLimitExceeded, Message: "the run exceeded the workspace size limit"}
+		case pykernel.ReasonCompleted, pykernel.ReasonError, pykernel.ReasonKernelExited:
+		}
+	}
 	switch {
 	case execErr == nil:
 		return StatusSucceeded, nil

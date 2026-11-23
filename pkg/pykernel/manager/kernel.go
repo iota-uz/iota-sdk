@@ -296,7 +296,9 @@ func (k *kernel) donePayloadLocked(a *activeExec, base *pykernel.DonePayload, ex
 		d.Reason = exited
 	case a.errType == "":
 		d.Reason = pykernel.ReasonCompleted
-	case a.errType == "KernelCancelled" && a.stop != "":
+	case a.stop != "":
+		// Any failure of a stopped exec is the stop surfacing (a cancelled
+		// capability call, the cooperative interrupt).
 		d.Reason = a.stop
 	case a.errType == "KernelCancelled":
 		d.Reason = pykernel.ReasonCancelled
@@ -448,11 +450,22 @@ func (k *kernel) Dispose(_ context.Context) error {
 		_ = k.proc.Wait()
 		close(waitDone)
 	}()
+	deadline := time.After(k.opts.grace)
 	select {
 	case <-waitDone:
-	case <-time.After(k.opts.grace):
+	case <-deadline:
 		// Wait is stuck only if the process ignores SIGKILL (D state);
 		// leave the reaping to the goroutine.
+		return nil
+	}
+	// Descendants orphaned by the kill are reparented to the host when it is
+	// PID 1 of a container; reap them so they do not linger as zombies.
+	for isolation.ReapGroup(k.pid) > 0 {
+		select {
+		case <-deadline:
+			return nil
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 	return nil
 }

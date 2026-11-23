@@ -79,6 +79,11 @@ func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Repl
 
 	out, err := pykernel.Dispatch(ctx, d.caps, d.mode, call.Name, args)
 	if err != nil {
+		if ctx.Err() != nil {
+			// The exec was cancelled, timed out or stopped: raise the same
+			// exception the cooperative interrupt raises.
+			return bridge.Reply{Err: &bridge.CallError{Type: "KernelCancelled", Message: "execution cancelled: " + err.Error()}}
+		}
 		return bridge.Reply{Err: capError(err)}
 	}
 

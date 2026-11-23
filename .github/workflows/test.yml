@@ -199,6 +199,17 @@ jobs:
         run: go test -race -count=1 ./pkg/pykernel/... ./pkg/mcp/execute ./pkg/mcp/lookup
       - name: Conformance command
         run: go run ./cmd/pykernel-conformance -db 127.0.0.1:5432
+      # A production image runs the application as root and PID 1 of the
+      # container, with the pykernel-base interpreter: kernels must run as an
+      # unprivileged uid and their orphans must still be reaped.
+      - name: Conformance as container root (Python 3.11, app as PID 1)
+        run: |
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/pykernel-conformance" ./cmd/pykernel-conformance
+          docker run --rm -v "$RUNNER_TEMP/pykernel-conformance:/app/run:ro" python:3.11-slim-bookworm /app/run -run-as-uid 65534
+          if docker run --rm -v "$RUNNER_TEMP/pykernel-conformance:/app/run:ro" python:3.11-slim-bookworm /app/run > /dev/null; then
+            echo "a root kernel without RunAs must fail closed" >&2
+            exit 1
+          fi
 
   mcp:
     name: MCP engine and gateway
