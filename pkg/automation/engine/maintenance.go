@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -213,13 +214,32 @@ func (r *Runtime) UsageIndex() connectors.UsageIndex { return usageIndex{r: r} }
 
 type usageIndex struct{ r *Runtime }
 
+var _ connectors.TxUsageIndex = usageIndex{}
+
 func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) ([]connectors.Use, error) {
-	// The catalog first: it may need a pool connection of its own, which open rows would hold.
 	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := u.r.cfg.DB.Query(ctx, `
+	return usesIn(ctx, u.r.cfg.DB, view, tenantID, connectionID)
+}
+
+// PrepareUses reads the tenant's catalog now (it may need a pool connection of its own); the check it
+// returns reads the uses with the caller's transaction only.
+func (u usageIndex) PrepareUses(ctx context.Context, tenantID uuid.UUID) (connectors.UsesCheck, error) {
+	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, tx pgx.Tx, connectionID uuid.UUID) ([]connectors.Use, error) {
+		return usesIn(ctx, tx, view, tenantID, connectionID)
+	}, nil
+}
+
+// usesIn lists the uses of a connection in q, resolving connections a node or trigger leaves out with
+// view.
+func usesIn(ctx context.Context, q querier, view catalog.View, tenantID, connectionID uuid.UUID) ([]connectors.Use, error) {
+	rows, err := q.Query(ctx, `
 		SELECT a.id, a.name, v.version, v.graph, coalesce(a.enabled_version = v.version, false)
 		FROM automation.versions v JOIN automation.automations a ON a.tenant_id = v.tenant_id AND a.id = v.automation_id
 		WHERE v.tenant_id = $1 AND (

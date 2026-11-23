@@ -678,6 +678,11 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 					return err
 				}
 			}
+			// The queue row before the run row, as promotion (dequeue) and Disable (disableTx) change them:
+			// no two of them wait for each other's row.
+			if _, err := tx.Exec(ctx, `DELETE FROM automation.subject_queue WHERE tenant_id = $1 AND run_id = $2`, tenant, id); err != nil {
+				return serrors.FromDB(opService, err)
+			}
 			// A queued run, or one recorded blocked without an instance (no owner, depth).
 			tag, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'cancelled', updated_at = now()
 				WHERE tenant_id = $1 AND id = $2 AND instance_id IS NULL AND start_state IN ('queued', 'blocked')`, tenant, id)
@@ -685,8 +690,7 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 				return serrors.FromDB(opService, err)
 			}
 			n = tag.RowsAffected()
-			_, err = tx.Exec(ctx, `DELETE FROM automation.subject_queue WHERE tenant_id = $1 AND run_id = $2`, tenant, id)
-			return serrors.FromDB(opService, err)
+			return nil
 		})
 		if err != nil || n > 0 {
 			return err
@@ -942,8 +946,13 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 		// (the field lost it, or its event left) cannot be checked: history of the original run hides it,
 		// and the replay leaves it out instead of carrying it on unrestricted. Fields still classified
 		// keep their rule: the projection below and the new run's provenance (startRun) apply it.
+		// Only the input's own provenance counts: runs.sensitive also holds the fields of events the run's
+		// waits matched later, whose paths name fields of other events, not of this input.
 		proj := s.r.projector(a.TenantID)
 		for _, ref := range old.Sensitive {
+			if ref.Event != kind {
+				continue
+			}
 			ok, err := proj.resolvable(ctx, ref)
 			if err != nil {
 				return &host.InfraError{Err: err}

@@ -78,8 +78,6 @@ type Runtime struct {
 	// testHook, set by tests (SetTestHook), runs at the end of every fenced transaction of a run and,
 	// with tx == nil, at the labels SetTestHook names; its error rolls the transaction back.
 	testHook func(ctx context.Context, tx pgx.Tx, label string) error
-	// queueScanBatch is how many free subjects one startQueued pass looks at (0: 200); tests lower it.
-	queueScanBatch int
 }
 
 type interpEntry struct {

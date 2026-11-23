@@ -329,12 +329,8 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil)
 }
 
-func (r *Runtime) queueBatch() int {
-	if r.queueScanBatch > 0 {
-		return r.queueScanBatch
-	}
-	return 200
-}
+// queueScanBatch is how many free subjects one startQueued pass looks at.
+const queueScanBatch = 200
 
 // startQueued starts the queued runs whose subject is free (the observer's attempt can lose the race
 // with a start that queued a run while the subject's run was finishing).
@@ -348,7 +344,7 @@ func (r *Runtime) startQueued(ctx context.Context) error {
 			WHERE r.tenant_id = q.tenant_id AND r.subject_entity = q.subject_entity AND r.subject_key = q.subject_key
 			  AND r.instance_id IS NOT NULL AND i.status IN ('running', 'waiting', 'blocked') AND NOT `+supersededSQL+`)
 		GROUP BY q.tenant_id, q.subject_entity, q.subject_key
-		ORDER BY min(q.seq) LIMIT $1`, r.queueBatch())
+		ORDER BY min(q.seq) LIMIT $1`, queueScanBatch)
 	if err != nil {
 		return serrors.FromDB(opStart, err)
 	}

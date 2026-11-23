@@ -19,9 +19,6 @@ func (r *Runtime) SetTestHook(fn func(ctx context.Context, tx pgx.Tx, label stri
 	r.testHook = fn
 }
 
-// SetQueueScanBatch sets how many subjects one recovery pass of the subject queue looks at.
-func (r *Runtime) SetQueueScanBatch(n int) { r.queueScanBatch = n }
-
 // SubjectLockKey is the advisory lock key steps, starts and the router take for a run's subject.
 func SubjectLockKey(tenant uuid.UUID, s SubjectRef, run uuid.UUID) string {
 	return subjectLockKey(tenant, s, run)

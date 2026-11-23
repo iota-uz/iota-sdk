@@ -471,7 +471,17 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 		return serrors.Wrap(op, err)
 	}
 	// The row stays locked from the check to the delete: whoever starts using the connection (enabling a
-	// graph version) locks it FOR SHARE, so a use cannot appear in between.
+	// graph version) locks it FOR SHARE, so a use cannot appear in between. A TxUsageIndex reads the
+	// catalog first and checks the uses in this transaction: holding the lock, the delete needs no
+	// second pool connection, which an enable waiting for the row may hold.
+	var check UsesCheck
+	if tu, ok := s.usage.(TxUsageIndex); ok {
+		c, err := tu.PrepareUses(ctx, tenantID)
+		if err != nil {
+			return serrors.Wrap(op, err)
+		}
+		check = c
+	}
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		var locked uuid.UUID
 		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
@@ -482,7 +492,13 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 			return err
 		}
 		if s.usage != nil {
-			uses, err := s.usage.Uses(ctx, tenantID, id)
+			var uses []Use
+			var err error
+			if check != nil {
+				uses, err = check(ctx, tx, id)
+			} else {
+				uses, err = s.usage.Uses(ctx, tenantID, id)
+			}
 			if err != nil {
 				return err
 			}

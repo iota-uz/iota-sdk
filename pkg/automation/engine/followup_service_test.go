@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -176,6 +177,26 @@ func TestRestartLeavesOutRetainedValuesWithoutAnAccessRule(t *testing.T) {
 	p.until(func() bool { return e.status(p, ref.RunID) == engine.RunDone }, "the replay runs")
 }
 
+func TestRestartKeepsInputThatOnlyAWaitEventsProvenanceNames(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	owner := e.human()
+	e.create(p, owner, strings.Replace(noteGraph("x"), evCreated, evPaid, 1))
+	e.publish(e.tenant, orderPaid, "o-1", order{Note: "pub", Amount: 4}, 0)
+	run := onlyRun(t, e, p, owner)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	// A wait of the run matched an event (retired since) whose protected field is called note too.
+	_, err := e.db.Exec(ctx, `UPDATE automation.runs SET sensitive = '[{"event": "acme.retired.v1", "path": "note"}]' WHERE id = $1`, run.RunID)
+	require.NoError(t, err)
+	ref, err := p.rt.Service().Restart(ctx, owner, run.RunID, 1)
+	require.NoError(t, err)
+	var note *string
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT input->>'note' FROM automation.runs WHERE id = $1`, ref.RunID).Scan(&note))
+	require.NotNil(t, note, "the paid event's public note is not judged by another event's provenance")
+	assert.Equal(t, "pub", *note)
+}
+
 func TestQueueRecoveryReachesAFreeSubjectBehindBusyOnes(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
@@ -190,23 +211,88 @@ func TestQueueRecoveryReachesAFreeSubjectBehindBusyOnes(t *testing.T) {
 		require.NoError(t, err)
 		return ref
 	}
-	// Three busy conversations keep a queued run each, ahead of the free one in the queue.
-	for _, key := range []string{"a-1", "a-2", "a-3"} {
-		head := start(key)
-		require.Equal(t, engine.RunQueued, start(key).Status)
-		p.until(func() bool { return e.status(p, head.RunID) == engine.RunWaiting }, "%s holds its conversation", key)
+	// One busy conversation, a waiting run and a queued one, is cloned 2000 times, ten scans' worth
+	// takes: each clone holds a blocked instance of its own and keeps a queued run.
+	head := start("a-000")
+	queuedBusy := start("a-000")
+	require.Equal(t, engine.RunQueued, queuedBusy.Status)
+	p.until(func() bool { return e.status(p, head.RunID) == engine.RunWaiting }, "a-000 holds its conversation")
+	tx, err := e.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`CREATE TEMP TABLE clones ON COMMIT DROP AS SELECT n, gen_random_uuid() AS inst, gen_random_uuid() AS head, gen_random_uuid() AS queued,
+			'a-' || lpad(n::text, 4, '0') AS k FROM generate_series(1, 2000) n`, nil},
+		{`INSERT INTO extruntime.workflow_instances SELECT (jsonb_populate_record(i, jsonb_build_object('id', c.inst, 'start_key', i.start_key || ':' || c.n,
+			'status', 'blocked', 'blocked_reason', 'ambiguous', 'lease_owner', NULL, 'lease_until', NULL))).*
+			FROM extruntime.workflow_instances i JOIN automation.runs r ON r.instance_id = i.id, clones c WHERE r.id = $1`, []any{head.RunID}},
+		{`INSERT INTO automation.runs SELECT (jsonb_populate_record(r, jsonb_build_object('id', c.head, 'instance_id', c.inst, 'subject_key', c.k,
+			'start_key', 'clone:' || c.n || ':head'))).* FROM automation.runs r, clones c WHERE r.id = $1`, []any{head.RunID}},
+		{`INSERT INTO automation.runs SELECT (jsonb_populate_record(r, jsonb_build_object('id', c.queued, 'subject_key', c.k,
+			'start_key', 'clone:' || c.n || ':queued'))).* FROM automation.runs r, clones c WHERE r.id = $1`, []any{queuedBusy.RunID}},
+		{`INSERT INTO automation.subject_queue (tenant_id, subject_entity, subject_key, run_id) SELECT $1, 'conversation', k, queued FROM clones ORDER BY n`, []any{e.tenant}},
+	} {
+		_, err := tx.Exec(ctx, q.sql, q.args...)
+		require.NoError(t, err, q.sql)
 	}
-	head := start("z-free")
+	require.NoError(t, tx.Commit(ctx))
+	freeHead := start("z-free")
 	queued := start("z-free")
 	require.Equal(t, engine.RunQueued, queued.Status)
 	// The head ends without its observer promoting the queued run (a lost promotion).
-	_, err := e.db.Exec(ctx, `UPDATE extruntime.workflow_instances i SET status = 'completed', finished_at = now(), lease_owner = NULL, lease_until = NULL
-		FROM automation.runs r WHERE r.instance_id = i.id AND r.id = $1`, head.RunID)
+	_, err = e.db.Exec(ctx, `UPDATE extruntime.workflow_instances i SET status = 'completed', finished_at = now(), lease_owner = NULL, lease_until = NULL
+		FROM automation.runs r WHERE r.instance_id = i.id AND r.id = $1`, freeHead.RunID)
 	require.NoError(t, err)
-	p.rt.SetQueueScanBatch(1)
+	// The fixture is what the scan before the fix missed: its first batch is busy subjects only.
+	var inFirstBatch bool
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM (SELECT DISTINCT tenant_id, subject_entity, subject_key FROM automation.subject_queue LIMIT 200) x
+		WHERE subject_key = 'z-free')`).Scan(&inFirstBatch))
+	require.False(t, inFirstBatch, "the free subject lies past an unfiltered batch")
 	require.NoError(t, p.rt.Maintain(ctx))
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.runs WHERE id = $1 AND instance_id IS NOT NULL`, queued.RunID),
 		"the free conversation's run starts although busy ones fill the batch")
+	assert.Equal(t, 2001, e.count(`SELECT count(*) FROM automation.subject_queue`), "busy conversations keep their queued runs")
+}
+
+func TestQueuedCancelAndDisableDoNotDeadlock(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	human := e.human()
+	am := e.create(p, human, `{"name": "Chat", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	 "nodes": [{"id": "nap", "type": "delay", "params": {"duration": "1h"}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "nap"}, {"from": {"node": "nap", "outcome": "done"}, "to": "fin"}]}`)
+	chat := engine.SubjectRef{Entity: graph.SubjectConversation, Key: "c-1"}
+	_, err := p.rt.Service().StartManual(ctx, human, am.ID, engine.ManualStart{TriggerID: "go", Input: json.RawMessage(`{}`), Subject: &chat})
+	require.NoError(t, err)
+	queued, err := p.rt.Service().StartManual(ctx, human, am.ID, engine.ManualStart{TriggerID: "go", Input: json.RawMessage(`{}`), Subject: &chat})
+	require.NoError(t, err)
+	require.Equal(t, engine.RunQueued, queued.Status)
+	// The queued run's row is held while Cancel and then Disable reach it: each takes what it locks
+	// first, then both wait for the row.
+	holder, err := e.db.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = holder.Rollback(ctx) })
+	_, err = holder.Exec(ctx, `SELECT 1 FROM automation.runs WHERE id = $1 FOR UPDATE`, queued.RunID)
+	require.NoError(t, err)
+	cancelled := make(chan error, 1)
+	go func() { cancelled <- p.rt.Service().Cancel(ctx, human, queued.RunID) }()
+	time.Sleep(300 * time.Millisecond)
+	disabled := make(chan error, 1)
+	go func() {
+		_, err := p.rt.Service().Disable(ctx, human, am.ID)
+		disabled <- err
+	}()
+	time.Sleep(500 * time.Millisecond)
+	require.NoError(t, holder.Commit(ctx))
+	if err := <-cancelled; err != nil {
+		require.ErrorIs(t, err, engine.ErrRunFinished, "no deadlock abort")
+	}
+	require.NoError(t, <-disabled, "no deadlock abort")
+	assert.Equal(t, engine.RunCancelled, e.status(p, queued.RunID))
 }
 
 func TestCancelOfAQueuedRunTakesTheSubjectLockFirst(t *testing.T) {
@@ -410,4 +496,97 @@ func TestScheduleActivationIsTakenAfterTheGraphLock(t *testing.T) {
 	var since time.Time
 	require.NoError(t, e.db.QueryRow(ctx, `SELECT created_at FROM automation.triggers WHERE automation_id = $1`, am.ID).Scan(&since))
 	assert.False(t, since.Before(released), "the schedule is active from when the enable held the graph: %s, lock released %s", since, released)
+}
+
+// storeAvailability is the availability of a connector store set after the runtime it serves.
+type storeAvailability struct{ s connectors.Store }
+
+func (a *storeAvailability) Connected(ctx context.Context, tenant uuid.UUID) (map[catalog.ConnectorKind][]catalog.ConnectionRef, error) {
+	return a.s.Connected(ctx, tenant)
+}
+
+// botNode is an effect that needs a telegram bot connection.
+type botNode struct{ specNode }
+
+func (botNode) Requires() []catalog.ConnectorKind {
+	return []catalog.ConnectorKind{catalog.KindTelegramBot}
+}
+func (botNode) ApplyEffect(context.Context, pgx.Tx, engine.StepContext, graph.Node, graph.Effect) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+
+type sqlKey struct{}
+
+// lockTracer calls after once, when a statement containing match has run.
+type lockTracer struct {
+	match string
+	after func()
+	once  atomic.Bool
+}
+
+func (l *lockTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	return context.WithValue(ctx, sqlKey{}, data.SQL)
+}
+
+func (l *lockTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {
+	if sql, _ := ctx.Value(sqlKey{}).(string); strings.Contains(sql, l.match) && !l.once.Swap(true) {
+		l.after()
+	}
+}
+
+func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	locked, enableWaits := make(chan struct{}), make(chan struct{})
+	tr := &lockTracer{match: "FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE", after: func() {
+		close(locked)
+		<-enableWaits
+	}}
+	cfg := e.db.Config().Copy()
+	cfg.MaxConns, cfg.MinConns = 2, 0
+	cfg.ConnConfig.Tracer = tr
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	avail := &storeAvailability{}
+	reg := catalog.NewRegistry(avail)
+	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
+	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
+		require.NoError(t, reg.RegisterNode(specNode{spec}))
+	}
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
+	rt := runtimeOn(t, e, p, pool, reg)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	store := connectors.NewStore(pool, keys, rt.UsageIndex(), nil, nil)
+	avail.s = store
+	conn, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot"}, connectors.Credentials{"token": "t0ken"})
+	require.NoError(t, err)
+	human := e.human()
+	am, v, err := rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(`{"name": "Bot", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	 "nodes": [{"id": "bot", "type": "acme.bot", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "bot"}, {"from": {"node": "bot", "outcome": "done"}, "to": "fin"}]}`)})
+	require.NoError(t, err)
+
+	// Delete locks the row with one connection; Enable waits for that row with the other.
+	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	deleted := make(chan error, 1)
+	go func() { deleted <- store.Delete(tctx, e.tenant, conn.ID) }()
+	<-locked
+	enabled := make(chan error, 1)
+	go func() {
+		_, err := rt.Service().Enable(tctx, human, am.ID, engine.EnableInput{Version: v.Version})
+		enabled <- err
+	}()
+	require.Eventually(t, func() bool {
+		return e.count(`SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%automation.connections%FOR SHARE%'`) > 0
+	}, 5*time.Second, 20*time.Millisecond, "the enable waits for the connection's row")
+	close(enableWaits)
+	var inUse *connectors.InUseError
+	require.ErrorAs(t, <-deleted, &inUse, "the delete finishes its check in its own transaction")
+	require.NoError(t, <-enabled)
 }
