@@ -254,6 +254,8 @@ func (n *acmeAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 func (n *acmeAsk) Await(catalog.CallInput, catalog.CallResult) (engine.Await, error) {
 	return engine.Await{Event: evAnswer, Timeout: time.Hour, Single: true}, nil
 }
+func (n *acmeAsk) AnswerEvent(catalog.CallInput) string { return evAnswer }
+
 func (n *acmeAsk) Answer(payload json.RawMessage) (string, json.RawMessage, error) {
 	var p struct {
 		Choice string `json:"choice"`

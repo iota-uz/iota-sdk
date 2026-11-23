@@ -22,6 +22,14 @@ type Asker interface {
 	Answer(payload json.RawMessage) (outcome string, output json.RawMessage, err error)
 }
 
+// AnswerEventer is an optional interface of an Asker: the inbound event its answer comes as, known
+// before the question is sent. With it only that event takes the token from the moment it is issued;
+// without it, until the wait opens, a repeat is recognized only for an event that wakes waits alone
+// (EventSpec.NoTrigger), so ordinary messages that carry the token are never taken for answers.
+type AnswerEventer interface {
+	AnswerEvent(in catalog.CallInput) string
+}
+
 // Correlation is issued by the engine before Execute and passed in ctx.
 // Token: base62, 12 chars, globally unique while the wait is open (fits Telegram callback_data).
 type Correlation struct{ Token string }

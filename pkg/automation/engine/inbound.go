@@ -152,7 +152,7 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 		return false, nil
 	}
 	if ev.Correlation != "" {
-		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation, ev.Event); err != nil {
+		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation, ev.Event, spec.NoTrigger); err != nil {
 			return false, err
 		}
 	}
@@ -183,10 +183,11 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 // takeCorrelation checks that the token names an open wait of the tenant; a single answer closes it, so
 // a second answer is ErrCorrelationClosed.
 // Only the answer event of the wait takes the token: an event of another key with the token passes
-// through and closes nothing. Before the wait opened its answer event is not known yet: every event key
-// that came with the token is remembered (answered_events) and a repeat of one is closed (an
-// unrelated event before the answer masks nothing); the wait checks them when it opens (awaitAnswer).
-func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token, event string) error {
+// through and closes nothing. The answer event is known from the token's issue when the node names it
+// (AnswerEventer), else once the wait opens. Until then the answer-only events (NoTrigger) that came
+// with the token are remembered (answered_events) and a repeat of one is closed; an ordinary message
+// with the token is never taken for an answer. The wait checks them when it opens (awaitAnswer).
+func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token, event string, answerOnly bool) error {
 	if !validToken(token) {
 		return ErrCorrelationClosed
 	}
@@ -210,8 +211,10 @@ func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.U
 				return serrors.FromDB(opInbound, err)
 			}
 		}
+	case !answerOnly:
+		return nil // an ordinary message: not an answer
 	case slices.Contains(answered, event):
-		return ErrCorrelationClosed // the same event again before the wait opened
+		return ErrCorrelationClosed // the same answer again before the wait opened
 	default:
 		if _, err := tx.Exec(ctx, `UPDATE automation.correlations SET answered_events = array_append(answered_events, $2) WHERE token = $1`, token, event); err != nil {
 			return serrors.FromDB(opInbound, err)

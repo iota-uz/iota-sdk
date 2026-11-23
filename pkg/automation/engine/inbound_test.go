@@ -455,8 +455,9 @@ func TestStaleSweepLeavesAnExtendedWindow(t *testing.T) {
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
 }
 
-// Before the wait opened, an event of another key with the token does not take it; a repeat of the
-// first answer is closed; once the wait opens with that answer, the token is spent.
+// A node that does not name its answer event (no AnswerEventer): before the wait opened, ordinary
+// messages with the token pass (two distinct ones too); a repeat of an answer-only event is closed;
+// once the wait opens with that answer, the token is spent.
 func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
 	ae := newAcmeEnv(t)
 	p := ae.proc()
@@ -477,7 +478,8 @@ func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
 	}
 	require.NoError(t, publish("b-1", evAnswer), "the first answer")
 	require.ErrorIs(t, publish("b-2", evAnswer), engine.ErrCorrelationClosed, "its repeat")
-	require.NoError(t, publish("b-3", evMessage), "another key passes")
+	require.NoError(t, publish("b-3", evMessage), "an ordinary message passes")
+	require.NoError(t, publish("b-3b", evMessage), "and a second, distinct ordinary message too")
 	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token))
 	// The wait opens on the answer event: from now on only it takes the token.
 	_, err = ae.db.Exec(ctx, `UPDATE automation.correlations SET event = $2, answered_events = '{}' WHERE token = $1`, token, evAnswer)
@@ -488,8 +490,9 @@ func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
 	require.ErrorIs(t, publish("b-6", evAnswer), engine.ErrCorrelationClosed)
 }
 
-// An unrelated event and two presses of the answer, all before the wait opens: the second press is
-// answered as already answered, one answer reaches the outbox, and the run moves once.
+// An ordinary message and two presses of the answer, all before the wait opens (the ask names its answer
+// event): the second press is already answered, one answer reaches the outbox, the message is
+// published, and the run moves once.
 func TestEarlyAnswersAfterAnUnrelatedEvent(t *testing.T) {
 	ae := newAcmeEnv(t)
 	p := ae.proc()
@@ -510,6 +513,7 @@ func TestEarlyAnswersAfterAnUnrelatedEvent(t *testing.T) {
 	assert.Equal(t, []int{http.StatusOK, http.StatusOK, http.StatusOK}, codes)
 	assert.Equal(t, int64(1), ae.acme.closed.Load(), "the second press is already answered")
 	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evAnswer))
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage))
 	assert.Equal(t, []string{"answer yes"}, noteTexts(t, ae.env))
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.correlations`), "the token is spent once the wait opens")
 }

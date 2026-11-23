@@ -299,7 +299,7 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 	token, afterSeq := "", int64(0)
 	if _, asks := nt.(Asker); asks && req.AnswerWaitID != "" {
 		var err error
-		if token, afterSeq, err = x.correlation(ctx); err != nil {
+		if token, afterSeq, err = x.correlation(ctx, nt); err != nil {
 			return WaitResult{}, err
 		}
 	}
@@ -447,8 +447,17 @@ func (x *callExec) release(ctx context.Context) {
 
 // correlation issues the ask's correlation token once (a journaled transaction): it points at the
 // answer wait the parent opens.
-func (x *callExec) correlation(ctx context.Context) (string, int64, error) {
+func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string, int64, error) {
 	req := x.req
+	// The answer event, when the node names it before sending: only it takes the token from the start.
+	var event any
+	if ae, ok := nt.(AnswerEventer); ok {
+		params, _ := decodeMap(req.Input)
+		if e := ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
+			NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs}); e != "" {
+			event = e
+		}
+	}
 	raw, err := x.nr.Transaction(ctx, "correlation", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		mark, err := watermark(ctx, tx)
 		if err != nil {
@@ -458,8 +467,8 @@ func (x *callExec) correlation(ctx context.Context) (string, int64, error) {
 		for i := 0; i < 5; i++ {
 			token := NewCorrelationToken()
 			tag, err := tx.Exec(ctx, `
-				INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at)
-				VALUES ($1, $2, $3, $4, $5) ON CONFLICT (token) DO NOTHING`, token, req.TenantID, req.RunID, req.AnswerWaitID, expires)
+				INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at, event)
+				VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING`, token, req.TenantID, req.RunID, req.AnswerWaitID, expires, event)
 			if err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
