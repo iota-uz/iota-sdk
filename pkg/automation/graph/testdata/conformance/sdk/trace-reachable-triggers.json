@@ -1,0 +1,130 @@
+{
+  "name": "trace-reachable-triggers",
+  "format": 2,
+  "kind": "trace",
+  "description": "A run started by the mail trigger of a graph that also has a record trigger reads event.mail and join(); the record branch is not run.",
+  "catalog_patch": {
+    "events": {
+      "mail.received": {
+        "subject": "none",
+        "title": "Mail received",
+        "payload": {
+          "mail": {
+            "object": {
+              "subject": "string",
+              "from": "string",
+              "labels": {
+                "list": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "graph": {
+    "name": "Record and mail",
+    "triggers": [
+      {
+        "id": "entered",
+        "event": "card.entered"
+      },
+      {
+        "id": "incoming",
+        "event": "mail.received"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "check",
+          "text": "Check {{ issue.title }}"
+        }
+      },
+      {
+        "id": "urgent",
+        "type": "branch",
+        "params": {
+          "expression": "event.mail.subject.startsWith(\"URGENT\") && join(event.mail.labels, \", \") == \"a, b\""
+        }
+      },
+      {
+        "id": "stop",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "entered",
+          "outcome": "fired"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "stop"
+      },
+      {
+        "from": {
+          "node": "incoming",
+          "outcome": "fired"
+        },
+        "to": "urgent"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "context": {},
+  "inputs": [
+    {
+      "kind": "mail.received",
+      "mail": {
+        "subject": "URGENT: disk",
+        "from": "ops@example.com",
+        "labels": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ],
+  "trace": [
+    {
+      "node": "incoming",
+      "outcome": "fired",
+      "context_patch": {}
+    },
+    {
+      "node": "urgent",
+      "outcome": "true",
+      "context_patch": {}
+    },
+    {
+      "node": "ignore",
+      "outcome": "ended",
+      "context_patch": {}
+    }
+  ]
+}

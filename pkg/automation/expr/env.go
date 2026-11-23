@@ -175,6 +175,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 		cel.ParserRecursionLimit(max(250, l.MaxNodes)),
 		ext.Strings(),
 		ext.Bindings(),
+		joinFunction(),
 	}
 	for _, name := range names {
 		f := s.Vars[name]

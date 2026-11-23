@@ -1,0 +1,161 @@
+package graph_test
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+)
+
+// recordMailCatalog has a record event (about a "record" with its own variables) and an incoming mail (about
+// no subject), and a node that takes only records.
+func recordMailCatalog(t *testing.T, mixed string) graph.Catalog {
+	t.Helper()
+	c := testCatalog(t)
+	c.Subjects["mail"] = graph.SubjectSpec{}
+	c.Events["mail.received"] = graph.EventSpec{Key: "mail.received", Subject: graph.SubjectNone, Payload: expr.Fields{
+		{Name: "mail", Field: expr.ObjectOf(expr.Fields{{Name: "subject", Field: expr.StringField}, {Name: "labels", Field: expr.ListOf(expr.StringField)}})},
+	}}
+	c.Events["order.created"] = graph.EventSpec{Key: "order.created", Subject: "order", Payload: expr.Fields{{Name: "total", Field: expr.DoubleField}}}
+	c.Nodes["review"] = graph.NodeSpec{
+		Type: "review", Behavior: graph.BehaviorEffect, Subjects: []string{"order"},
+		Params:      graph.MustSchemaParams(`{"type": "object", "properties": {}, "additionalProperties": false}`),
+		Outcomes:    []string{"done"},
+		DoneOutcome: "done",
+	}
+	c.MixedSubject = mixed
+	if err := c.Check(nil); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+const recordMailGraph = `{"name": "Record and mail",
+  "triggers": [{"id": "created", "event": "order.created"}, {"id": "incoming", "event": "mail.received"}],
+  "nodes": [
+    {"id": "check", "type": "branch", "params": {"expression": "order.status == \"new\" && event.total > 1.0"}},
+    {"id": "review", "type": "review", "params": {}},
+    {"id": "urgent", "type": "branch", "params": {"expression": "event.mail.subject.startsWith(\"URGENT\")"}},
+    {"id": "tell", "type": "notify", "params": {"text": "{{ join(event.mail.labels, \", \") }}"}},
+    {"id": "both", "type": "branch", "params": {"expression": "event.kind != \"\""}}
+  ],
+  "edges": [
+    {"from": {"node": "created", "outcome": "fired"}, "to": "check"},
+    {"from": {"node": "check", "outcome": "true"}, "to": "review"},
+    {"from": {"node": "check", "outcome": "false"}, "to": "both"},
+    {"from": {"node": "review", "outcome": "done"}, "to": "ignore"},
+    {"from": {"node": "incoming", "outcome": "fired"}, "to": "urgent"},
+    {"from": {"node": "urgent", "outcome": "true"}, "to": "tell"},
+    {"from": {"node": "urgent", "outcome": "false"}, "to": "both"},
+    {"from": {"node": "tell", "outcome": "done"}, "to": "both"},
+    {"from": {"node": "tell", "outcome": "failed"}, "to": "ignore"},
+    {"from": {"node": "both", "outcome": "true"}, "to": "ignore"},
+    {"from": {"node": "both", "outcome": "false"}, "to": "ignore"}
+  ]}`
+
+// A graph with a record trigger and a mail trigger is valid, with a mixed subject or without one: the record
+// branch reads the record's variables and takes the node for records, the mail branch reads event.mail.
+func TestReachableTriggersValid(t *testing.T) {
+	for _, mixed := range []string{"", "order"} {
+		c := recordMailCatalog(t, mixed)
+		g := mustDecode(t, recordMailGraph)
+		if errs := graph.Validate(c, g, graph.Options{}); len(errs) > 0 {
+			t.Errorf("mixed %q: %v", mixed, errs)
+		}
+	}
+}
+
+func TestReachableTriggersUnknownVariable(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	bad := strings.NewReplacer(
+		`event.mail.subject.startsWith(\"URGENT\")`, `order.status == \"new\"`,
+		`{{ join(event.mail.labels, \", \") }}`, `{{ order.total }}`,
+		`event.kind != \"\"`, `order.total > 1.0`,
+		`order.status == \"new\" && event.total > 1.0`, `event.mail.subject == \"x\"`,
+	).Replace(recordMailGraph)
+	errs := graph.Validate(c, mustDecode(t, bad), graph.Options{})
+	want := map[string]string{
+		"nodes[0].params.expression": "node check reads event.mail, which trigger created (on order.created) does not have",
+		"nodes[2].params.expression": "node urgent reads order, which trigger incoming (on mail.received) does not have",
+		"nodes[3].params.text":       "node tell reads order, which trigger incoming (on mail.received) does not have",
+		"nodes[4].params.expression": "node both reads order, which trigger incoming (on mail.received) does not have",
+	}
+	got := map[string]string{}
+	for _, e := range errs {
+		if e.Code != graph.CodeUnknownVariableForTrigger {
+			t.Errorf("%s: code %s: %s", e.Path, e.Code, e.Message)
+		}
+		got[e.Path] = e.Message
+	}
+	for path, msg := range want {
+		if got[path] != msg {
+			t.Errorf("%s:\n got %q\nwant %q", path, got[path], msg)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("errors: %v", errs)
+	}
+}
+
+// A node that takes only records is refused where a mail trigger leads to it.
+func TestReachableTriggersNodeSubjects(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	g := mustDecode(t, strings.Replace(recordMailGraph, `{"from": {"node": "urgent", "outcome": "false"}, "to": "both"}`, `{"from": {"node": "urgent", "outcome": "false"}, "to": "review"}`, 1))
+	errs := graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[1].type" || errs[0].Code != graph.CodeInvalid || !strings.Contains(errs[0].Message, "incoming") {
+		t.Fatalf("errors: %v", errs)
+	}
+	// With a mixed subject a node both kinds lead to is about the mixed subject.
+	c = recordMailCatalog(t, "mail")
+	errs = graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[1].type" {
+		t.Fatalf("mixed: %v", errs)
+	}
+}
+
+// A graph about one subject keeps the error of a variable no trigger has: expression_type, not a variable of
+// another trigger.
+func TestReachableTriggersTypo(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	g := mustDecode(t, strings.Replace(recordMailGraph, `event.mail.subject.startsWith(\"URGENT\")`, `event.mail.subjekt == \"\"`, 1))
+	errs := graph.Validate(c, g, graph.Options{})
+	if len(errs) != 1 || errs[0].Code != graph.CodeExpressionType {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+// The interpreter runs each branch by the scope of the triggers that lead to it.
+func TestReachableTriggersRun(t *testing.T) {
+	c := recordMailCatalog(t, "")
+	in, err := graph.NewInterpreter(c, mustDecode(t, recordMailGraph), graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := graph.Context{Vars: map[string]any{"order": map[string]any{"total": 5.0, "status": "new"}}}
+	trace := in.DryRun(graph.Subject{Entity: "order", Key: "1"}, ctx, []graph.DryRunInput{
+		{Event: graph.Event{"kind": "order.created", "total": 5.0}},
+	}, graph.DryRunOptions{})
+	if len(trace) < 3 || trace[1].Node != "check" || trace[1].Outcome != "true" || trace[2].Node != "review" {
+		t.Fatalf("record branch: %+v", trace)
+	}
+	trace = in.DryRun(graph.Subject{}, graph.Context{}, []graph.DryRunInput{
+		{Event: graph.Event{"kind": "mail.received", "mail": map[string]any{"subject": "URGENT x", "labels": []any{"a", "b"}}}},
+	}, graph.DryRunOptions{})
+	if len(trace) < 3 || trace[1].Node != "urgent" || trace[1].Outcome != "true" || trace[2].Node != "tell" {
+		t.Fatalf("mail branch: %+v", trace)
+	}
+	if got := trace[2].ContextPatch["effects"]; !strings.Contains(compactJSON(t, got), `"text":"a, b"`) {
+		t.Fatalf("the join of the labels: %+v", trace[2])
+	}
+}
+
+func compactJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

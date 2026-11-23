@@ -224,6 +224,9 @@ type StepContext struct {
 	// concurrency) that would exceed Limits.MaxTokens fails before it creates any. 0 counts as 1.
 	Tokens int
 	in     *Interpreter
+	// node is the node (or trigger) the step is for: its expressions read what the triggers that lead to it
+	// have, as the validator checked them.
+	node string
 }
 
 // Params are a node's params as its type parsed them.
@@ -275,7 +278,7 @@ func (s *StepContext) eval(event string, withNodes bool, ctx Context, src string
 		st := failed(FailInvalidGraph, "a step context without an interpreter")
 		return nil, &st
 	}
-	p, issues := s.in.exprs.program(event, withNodes, src, want)
+	p, issues := s.in.exprs.program(s.node, event, withNodes, src, want)
 	if len(issues) > 0 {
 		st := failed(FailExpression, "%s", issues[0].Message)
 		return nil, &st
@@ -299,7 +302,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		if !ok || !isStr {
 			continue
 		}
-		tp, issues := s.in.exprs.template("*", text)
+		tp, issues := s.in.exprs.template(s.node, "*", text)
 		if len(issues) > 0 {
 			st := failed(FailExpression, "%s", issues[0].Message)
 			return Effect{}, &st
@@ -547,7 +550,7 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 		}
 	}
 	if t.Filter != "" {
-		sc := &StepContext{Ctx: ctx, in: i}
+		sc := &StepContext{Ctx: ctx, in: i, node: t.ID}
 		sc.Ctx.Event = ev
 		v, st := sc.eval(t.Event, false, sc.Ctx, t.Filter, expr.TypeBool) // a trigger reads no node outputs
 		if st != nil {
@@ -593,6 +596,7 @@ func (i *Interpreter) start(nodeID string, s *StepContext, checkTokens bool) Ste
 		sc = *s
 	}
 	sc.in = i
+	sc.node = nodeID
 	st := impl.Start(&sc, node, copyNodeSpec(spec))
 	if checkTokens {
 		if limit := i.tokenLimit(sc.Tokens, st); limit != nil {
@@ -695,7 +699,7 @@ func (i *Interpreter) WaitMatches(nodeID string, ev Event, ctx Context) (bool, *
 	if w.Filter == "" {
 		return true, nil
 	}
-	sc := &StepContext{Ctx: ctx, in: i}
+	sc := &StepContext{Ctx: ctx, in: i, node: nodeID}
 	sc.Ctx.Event = ev
 	v, st := sc.EvalWith(w.Event, sc.Ctx, w.Filter, expr.TypeBool)
 	if st != nil {

@@ -721,17 +721,16 @@ func (d *dryRun) event(ev Event) {
 	}
 }
 
-// subjectMismatch is why a run cannot be about subject: the graph is about another entity, or a mixed
-// graph has no trigger about it. An empty entity is any subject.
+// subjectMismatch is why a run cannot be about subject: the graph is about another entity, or none of a mixed
+// graph's triggers is about it. An empty entity is any subject.
 func (i *Interpreter) subjectMismatch(s Subject) string {
 	if s.Entity == "" || s.Entity == i.view.subject {
 		return ""
 	}
-	if i.view.catalog.MixedSubject != "" && i.view.subject == i.view.catalog.MixedSubject {
-		for _, t := range i.view.graph.Triggers {
-			if i.view.catalog.Events[t.Event].Subject == s.Entity {
-				return ""
-			}
+	// A graph with triggers about different subjects (a mixed one) has runs about each of them.
+	for _, t := range i.view.graph.Triggers {
+		if i.view.catalog.Events[t.Event].Subject == s.Entity {
+			return ""
 		}
 	}
 	return fmt.Sprintf("the graph is about a %s, not a %s", i.view.subject, s.Entity)

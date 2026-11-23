@@ -1,0 +1,639 @@
+{
+  "name": "expressions-list-element-field",
+  "format": 2,
+  "kind": "expressions",
+  "description": "A field of a list element (items[0].url, prs[i].title) is read at run time as the type check reads it: a list of maps, of objects and of dyn maps, by a constant and by an expression.",
+  "catalog_patch": {
+    "subjects": {
+      "card": {
+        "context": {
+          "prs": {
+            "list": {
+              "map": "dyn"
+            }
+          },
+          "links": {
+            "list": {
+              "map": "string"
+            }
+          },
+          "reviews": {
+            "list": {
+              "object": {
+                "url": "string",
+                "title": {
+                  "optional": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[0].url",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "https://x/1"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[issue.number - 6].title",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "Second"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "links[0].url",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "https://l/1"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "links[size(links) - 1].url",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "https://l/2"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "reviews[0].url",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "https://r/1"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "reviews[issue.number - 6].title",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "Two"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "reviews[0].title",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": ""
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[0].n + prs[0].n",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": 2
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[0][\"title\"]",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "First"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "has(prs[1].n)",
+      "type": "bool",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": false
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs.map(p, p.url)[1]",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "value": "https://x/2"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[0].n",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "u"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "error": "missing_context",
+      "path": "prs[0].n"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "prs[5].url",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        },
+        "prs": [
+          {
+            "url": "https://x/1",
+            "title": "First",
+            "n": 1
+          },
+          {
+            "url": "https://x/2",
+            "title": "Second"
+          }
+        ],
+        "links": [
+          {
+            "url": "https://l/1"
+          },
+          {
+            "url": "https://l/2"
+          }
+        ],
+        "reviews": [
+          {
+            "url": "https://r/1"
+          },
+          {
+            "url": "https://r/2",
+            "title": "Two"
+          }
+        ]
+      },
+      "error": "failed",
+      "code": "EXPRESSION_FAILED"
+    }
+  ]
+}

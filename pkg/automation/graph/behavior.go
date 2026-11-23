@@ -160,6 +160,8 @@ type GraphView struct {
 	out           map[string][]Edge
 	in            map[string][]Edge
 	next          map[string]map[string]string // node → outcome → target (first edge)
+	// reaching are the triggers each node is reachable from, in graph order (a trigger reaches itself).
+	reaching map[string][]string
 }
 
 // Catalog is the catalog the graph is checked against.
@@ -259,6 +261,31 @@ func (v *GraphView) MayLeaveUnconnected(id, outcome string) bool {
 	return ok && contains(impl.OutcomeRule(copyNodeSpec(spec)).Unconnected, outcome)
 }
 
+// Reaching lists the triggers a node can be reached from, in the graph's order; empty for a node no trigger
+// reaches. A trigger reaches itself. Expressions of a node read what all of these triggers have.
+func (v *GraphView) Reaching(id string) []string { return append([]string(nil), v.reaching[id]...) }
+
+// SubjectsReaching are the subjects a node's expressions read: those of the events of the triggers that
+// reach it, or the catalog's mixed subject when they differ; empty for a node no trigger reaches.
+func (v *GraphView) SubjectsReaching(id string) []string {
+	var subjects []string
+	for _, t := range v.reaching[id] {
+		for _, tr := range v.graph.Triggers {
+			if tr.ID != t {
+				continue
+			}
+			if e, ok := v.catalog.Events[tr.Event]; ok && !contains(subjects, e.Subject) {
+				subjects = append(subjects, e.Subject)
+			}
+			break
+		}
+	}
+	if len(subjects) > 1 && v.catalog.MixedSubject != "" {
+		return []string{v.catalog.MixedSubject}
+	}
+	return subjects
+}
+
 // Reachable is every node reachable from a node or trigger along edges (from itself included).
 func (v *GraphView) Reachable(from string) map[string]bool {
 	seen := map[string]bool{}
@@ -282,8 +309,8 @@ func newView(c Catalog, g Graph, b *Behaviors) *GraphView {
 	v := &GraphView{
 		catalog: c, graph: g, behavior: b,
 		where: map[string]string{}, nodes: map[string]int{}, params: map[string]map[string]any{},
-		triggerParams: map[string]map[string]any{},
-		out:           map[string][]Edge{}, in: map[string][]Edge{}, next: map[string]map[string]string{},
+		triggerParams: map[string]map[string]any{}, reaching: map[string][]string{},
+		out: map[string][]Edge{}, in: map[string][]Edge{}, next: map[string]map[string]string{},
 	}
 	for i, t := range g.Triggers {
 		v.where[t.ID] = fmt.Sprintf("triggers[%d]", i)

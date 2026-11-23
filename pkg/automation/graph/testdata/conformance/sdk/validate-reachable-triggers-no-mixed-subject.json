@@ -1,0 +1,165 @@
+{
+  "name": "validate-reachable-triggers-no-mixed-subject",
+  "format": 2,
+  "kind": "validate",
+  "description": "The same without a mixed subject in the catalog: triggers about different subjects need none, each node is checked by the triggers that lead to it.",
+  "catalog_patch": {
+    "events": {
+      "mail.received": {
+        "subject": "none",
+        "title": "Mail received",
+        "payload": {
+          "mail": {
+            "object": {
+              "subject": "string",
+              "from": "string",
+              "labels": {
+                "list": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "mixed_subject": null
+  },
+  "graph": {
+    "name": "Record and mail",
+    "triggers": [
+      {
+        "id": "entered",
+        "event": "card.entered"
+      },
+      {
+        "id": "incoming",
+        "event": "mail.received"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "check",
+          "text": "Check {{ issue.title }} ({{ card.column }})"
+        }
+      },
+      {
+        "id": "cardonly",
+        "type": "branch",
+        "params": {
+          "expression": "card.column == \"qa\""
+        }
+      },
+      {
+        "id": "stop",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "urgent",
+        "type": "branch",
+        "params": {
+          "expression": "event.mail.subject.startsWith(\"URGENT\")"
+        }
+      },
+      {
+        "id": "tell",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "Mail from {{ event.mail.from }}:\n• {{ join(event.mail.labels, \"\\n• \") }}"
+        }
+      },
+      {
+        "id": "both",
+        "type": "branch",
+        "params": {
+          "expression": "event.kind != \"\" && now == now"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "entered",
+          "outcome": "fired"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "cardonly"
+      },
+      {
+        "from": {
+          "node": "cardonly",
+          "outcome": "true"
+        },
+        "to": "stop"
+      },
+      {
+        "from": {
+          "node": "cardonly",
+          "outcome": "false"
+        },
+        "to": "both"
+      },
+      {
+        "from": {
+          "node": "incoming",
+          "outcome": "fired"
+        },
+        "to": "urgent"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "true"
+        },
+        "to": "tell"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "tell",
+          "outcome": "done"
+        },
+        "to": "both"
+      },
+      {
+        "from": {
+          "node": "tell",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "both",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "both",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": []
+}

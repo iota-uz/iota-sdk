@@ -48,6 +48,13 @@ func buildView(c Catalog, g Graph, o Options) *GraphView {
 			v.next[e.From.Node][e.From.Outcome] = e.To
 		}
 	}
+	for _, t := range g.Triggers {
+		for id := range v.Reachable(t.ID) {
+			if r := v.reaching[id]; len(r) == 0 || r[len(r)-1] != t.ID {
+				v.reaching[id] = append(r, t.ID)
+			}
+		}
+	}
 	return v
 }
 
@@ -127,8 +134,7 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	errs := &errorList{}
 	b := o.behaviors()
 	v := buildView(c, g, o)
-	subject := v.subject
-	mixed := c.MixedSubject != "" && subject == c.MixedSubject
+	subject := v.subject // what a node no trigger reaches is checked against
 
 	// Ids.
 	ids := map[string]bool{}
@@ -169,8 +175,6 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		}
 		if event.NoTrigger {
 			errs.add(at+".event", CodeInvalid, "%s starts no graph: it is a signal for nodes that wait", t.Event)
-		} else if event.Subject != subject && !mixed {
-			errs.add(at+".event", CodeInvalid, "%s is about a %s, the graph's first trigger about a %s", t.Event, event.Subject, subject)
 		}
 		takes := event.TriggerParams
 		if takes == nil && len(event.Match) > 0 {
@@ -235,8 +239,27 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 			errs.add(at+".params", CodeParams, "%s parsed its params into values that are not JSON", n.Type)
 			continue
 		}
-		if len(spec.Subjects) > 0 && !contains(spec.Subjects, subject) {
-			errs.add(at+".type", CodeInvalid, "%s is not available in a graph about a %s", n.Type, subject)
+		if len(spec.Subjects) > 0 {
+			// A node is available when every subject its triggers are about is one it takes.
+			if subjects := v.SubjectsReaching(n.ID); len(subjects) > 0 {
+				for _, about := range subjects {
+					if !contains(spec.Subjects, about) {
+						var from []string
+						for _, id := range v.reaching[n.ID] {
+							if c.Events[eventOfTrigger(g, id)].Subject == about {
+								from = append(from, id)
+							}
+						}
+						if len(from) == 0 {
+							from = v.reaching[n.ID] // triggers about different subjects: the run is about the mixed one
+						}
+						errs.add(at+".type", CodeInvalid, "%s is not available after %s, which is about a %s", n.Type, strings.Join(from, ", "), about)
+						break
+					}
+				}
+			} else if !contains(spec.Subjects, subject) {
+				errs.add(at+".type", CodeInvalid, "%s is not available in a graph about a %s", n.Type, subject)
+			}
 		}
 		if spec.OutputFrom != nil {
 			params, _ := v.Params(n.ID)
@@ -387,20 +410,20 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 	// CEL.
 	x := newExprs(v, o.Limits.Expr)
 	each := foreachScopes(v)
-	check := func(path, event string, withNodes bool, src string, want expr.Type) {
-		if _, issues := x.programIn(event, withNodes, each[""], src, want); len(issues) > 0 {
-			errs.push(exprError(path, issues[0]))
+	check := func(owner, path, event string, withNodes bool, src string, want expr.Type) {
+		if _, issues := x.programIn(owner, event, withNodes, each[""], src, want); len(issues) > 0 {
+			errs.push(x.exprError(owner, path, issues[0], src))
 		}
 	}
 	checkIn := func(node, path, event string, src string, want expr.Type) {
-		if _, issues := x.programIn(event, true, each[node], src, want); len(issues) > 0 {
-			errs.push(exprError(path, issues[0]))
+		if _, issues := x.programIn(node, event, true, each[node], src, want); len(issues) > 0 {
+			errs.push(x.exprError(node, path, issues[0], src))
 		}
 	}
 	for i, t := range g.Triggers {
 		if t.Filter != "" {
 			if _, ok := c.Events[t.Event]; ok {
-				check(fmt.Sprintf("triggers[%d].filter", i), t.Event, false, t.Filter, expr.TypeBool)
+				check(t.ID, fmt.Sprintf("triggers[%d].filter", i), t.Event, false, t.Filter, expr.TypeBool)
 			}
 		}
 	}
@@ -416,8 +439,8 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		at := fmt.Sprintf("nodes[%d]", i)
 		for _, e := range nodeExpressions(c, spec, params) {
 			if e.template {
-				if _, issues := x.templateIn(e.event, each[n.ID], e.source); len(issues) > 0 {
-					errs.push(exprError(at+"."+e.path, issues[0]))
+				if _, issues := x.templateIn(n.ID, e.event, each[n.ID], e.source); len(issues) > 0 {
+					errs.push(x.exprError(n.ID, at+"."+e.path, issues[0], e.source))
 				}
 				continue
 			}
@@ -472,6 +495,110 @@ func reachesEnd(v *GraphView, from string, ends map[string]bool, seen map[string
 		}
 	}
 	return false
+}
+
+// exprError is the error of an expression (or, for a template, the template's text) of an owner: a node or
+// a trigger. A name the expression reads that some other trigger of the graph has but a trigger that leads
+// to the owner lacks is unknown_variable_for_trigger; anything else is the check's own error.
+func eventOfTrigger(g Graph, id string) string {
+	for _, t := range g.Triggers {
+		if t.ID == id {
+			return t.Event
+		}
+	}
+	return ""
+}
+
+func (x *exprs) exprError(owner, path string, i expr.Issue, src string) GraphError {
+	if i.Code == expr.IssueType {
+		if e, ok := x.unknownVariable(owner, path, src); ok {
+			e.Line, e.Column = i.Line, i.Column
+			return e
+		}
+	}
+	return exprError(path, i)
+}
+
+// unknownVariable looks for a variable of src (a `{{ }}` template or an expression) that a trigger leading to
+// owner does not have although another trigger of the graph does.
+func (x *exprs) unknownVariable(owner, path, src string) (GraphError, bool) {
+	triggers := x.triggersOf(owner)
+	if len(triggers) == 0 || len(x.view.graph.Triggers) < 2 {
+		return GraphError{}, false
+	}
+	var sources []string
+	if strings.Contains(src, "{{") {
+		for _, e := range expr.TemplateExpressions(src) {
+			sources = append(sources, e.Source)
+		}
+	}
+	if len(sources) == 0 {
+		sources = []string{src}
+	}
+	scopes := map[string]map[string]expr.Field{}
+	scopeOfTrigger := func(id string) map[string]expr.Field {
+		if vars, ok := scopes[id]; ok {
+			return vars
+		}
+		var vars map[string]expr.Field
+		if e, err := x.env(id, "*", false, allForeach); err == nil {
+			vars = e.Scope().Vars
+		}
+		scopes[id] = vars
+		return vars
+	}
+	probe, err := x.env(owner, "*", true, allForeach)
+	if err != nil {
+		return GraphError{}, false
+	}
+	for _, source := range sources {
+		for _, chain := range probe.References(source) {
+			if contains([]string{"nodes", "foreach", "tenant", "now"}, chain[0]) {
+				continue
+			}
+			for _, id := range triggers {
+				at := missingAt(scopeOfTrigger(id), chain)
+				if at < 0 {
+					continue
+				}
+				name := strings.Join(chain[:at+1], ".")
+				for _, other := range x.view.graph.Triggers {
+					if other.ID != id && missingAt(scopeOfTrigger(other.ID), chain[:at+1]) < 0 {
+						return GraphError{Path: path, Code: CodeUnknownVariableForTrigger, Message: x.variableMessage(owner, name, id)}, true
+					}
+				}
+			}
+		}
+	}
+	return GraphError{}, false
+}
+
+func (x *exprs) variableMessage(owner, name, trigger string) string {
+	t := x.view.graph.Triggers[x.triggerAt[trigger]]
+	what := "node"
+	if _, isTrigger := x.triggerAt[owner]; isTrigger {
+		what = "trigger"
+	}
+	return fmt.Sprintf("%s %s reads %s, which trigger %s (on %s) does not have", what, owner, name, trigger, t.Event)
+}
+
+// missingAt is the index in chain of the first name vars lack, or -1 when all of them are there. Names under a
+// map or a dyn value are not known and are taken as there.
+func missingAt(vars map[string]expr.Field, chain []string) int {
+	f, ok := vars[chain[0]]
+	if !ok {
+		return 0
+	}
+	for i := 1; i < len(chain); i++ {
+		f = f.Unwrap()
+		if f.Kind != expr.Object {
+			return -1
+		}
+		if f, ok = f.Prop(chain[i]); !ok {
+			return i
+		}
+	}
+	return -1
 }
 
 func exprError(path string, i expr.Issue) GraphError {

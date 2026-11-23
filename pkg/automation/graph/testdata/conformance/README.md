@@ -13,7 +13,7 @@ Data, not code: an interpreter in another language conforms when it gives the sa
   earliest pending timeout) → the expected `trace` of dry run. `context` holds `nodes`
   (`{output, outcome}` per node), `now` (RFC 3339), `tenant`, and the subject's variables.
 - `validate`: `graph` → the expected `errors`, compared as a multiset of `path` (and of `path` + `code`
-  when the expected errors give codes). Messages are not compared.
+  when the expected errors give codes); no expected errors: the graph is valid. Messages are not compared.
 - `expressions`: `cases`, each `subject`, `event` (a kind or null), `source`, `type` (`bool`, `string`,
   `map` or null) and `context` → `value`, or `error`: `type` (refused by the check; `issue` pins
   `syntax`, `type` or `limit`), `missing_context` with its `path`, or `failed` with its `code`.

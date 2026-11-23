@@ -1,0 +1,26 @@
+{
+  "name": "templates-join",
+  "format": 2,
+  "kind": "templates",
+  "description": "join in a template.",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "Labels:\n• {{ join(issue.labels, \"\\n• \") }}",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": "Labels:\n• a\n• b"
+    }
+  ]
+}
