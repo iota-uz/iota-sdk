@@ -367,6 +367,17 @@ describe('arranged by hand, from positions alone', () => {
     expect(overlappingNodes(graph, catalog, next)).toBe(0)
   })
 
+  it('keeps a lone trigger the person moved when a branch under it has no positions, also after storage', () => {
+    const graph = newBranch()
+    const known: AutomationLayout = { ...earlierTidy(graph, onlyOld), again: { x: 1600, y: 32 } }
+    const stored = JSON.parse(JSON.stringify(known)) as AutomationLayout
+    const next = ensureLayout(graph, catalog, stored)
+    expect(next.again).toEqual({ x: 1600, y: 32 })
+    expect(next.x1!.y).toBeGreaterThan(32)
+    expect(Object.keys(next)).toHaveLength(graph.triggers.length + graph.nodes.length)
+    expect(overlappingNodes(graph, catalog, next)).toBe(0)
+  })
+
   it('keeps every group that was moved, whatever the offsets: tied or not', () => {
     const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
     const groups = layoutGroups(multiTrigger)

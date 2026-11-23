@@ -691,7 +691,7 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
   // the layout, and it holds after a reload.
   for (const group of layoutGroups(graph)) {
     const placed = group.items.filter((id) => known.has(id))
-    if (placed.length < 2) continue
+    if (placed.length === 0) continue
     if (placed.some((id) => layout[id]!.x !== reference[id]!.x || layout[id]!.y !== reference[id]!.y)) hand.add(group.key)
   }
   return hand
