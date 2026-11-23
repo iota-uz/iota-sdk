@@ -1,6 +1,7 @@
 export * from './display/Alert'
 export * from './display/Badge'
 export * from './display/Card'
+export * from './display/Metrics'
 export * from './display/Progress'
 export * from './display/Skeleton'
 export * from './display/Spinner'

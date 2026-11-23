@@ -34,6 +34,7 @@ async function prepareState(page: Page, state: SpecimenState, specimenID: Specim
   if (state === 'focus' && specimenID === 'selection') await page.locator('[data-vr-target="selection-combobox"] [role="combobox"]').focus()
   else if (state === 'focus' && specimenID === 'data') await page.locator('tbody tr[tabindex]').first().focus()
   else if (state === 'focus') await page.locator('[data-vr-target]').first().focus()
+  if (state === 'open' && specimenID === 'metrics') await page.locator('[data-vr-target="metrics-fold"] .iota-mx-note button').click()
   if (state === 'open' && specimenID === 'selection') await page.locator('[data-vr-target="selection-combobox"] [role="combobox"]').focus()
   // A busy layer is captured after a refused close, so its status line is visible.
   if (state === 'busy') {
