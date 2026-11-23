@@ -40,6 +40,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
 		out := append(connections(g), r.executorRule(view, g)...)
 		out = append(out, scheduleRule(view, g)...)
+		out = append(out, collectRule(view, g)...)
 		return append(out, runAsRule(view, g)...)
 	}
 	errs = graph.Validate(view.Catalog, g, opts)
@@ -80,6 +81,18 @@ func connectionErrors(view catalog.View, g graph.Graph, errs []graph.GraphError)
 		}
 		seen[k] = true
 		out = append(out, e)
+	}
+	return out
+}
+
+// collectRule refuses collect on a trigger that is not an inbound trigger of a connector.
+func collectRule(view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, t := range g.Triggers {
+		if t.Collect != nil && triggerKind(view, t.Event) != KindInbound {
+			out = append(out, graph.GraphError{Path: fmt.Sprintf("triggers[%d].collect", i), Code: graph.CodeParams,
+				Message: "collect merges inbound messages of a connector; " + t.Event + " is not one"})
+		}
 	}
 	return out
 }

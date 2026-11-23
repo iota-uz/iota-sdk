@@ -272,8 +272,24 @@ func (r *registry) addNode(n NodeType, kind ConnectorKind) {
 func (r *registry) addTriggers(s TriggerSource, kind ConnectorKind) {
 	req := requirements(s.Requires(), kind)
 	for _, e := range s.Events() {
+		if len(req) > 0 {
+			e = withBySelf(e)
+		}
 		r.events[e.Key] = eventEntry{source: s, spec: e, requires: req}
 	}
+}
+
+// BySelfField is the payload field the engine sets on an inbound event of a connector: true for a
+// message the connector sent itself (its own bot, its own mailbox).
+const BySelfField = "by_self"
+
+// withBySelf declares by_self on an inbound event that does not declare it.
+func withBySelf(e graph.EventSpec) graph.EventSpec {
+	if _, ok := e.Payload.Get(BySelfField); ok {
+		return e
+	}
+	e.Payload = append(e.Payload.Clone(), expr.Prop{Name: BySelfField, Field: expr.OptionalOf(expr.BoolField)})
+	return e
 }
 
 // requirements are the declared kinds and the contributing connector's kind, each once.

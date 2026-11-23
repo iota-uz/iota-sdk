@@ -70,14 +70,14 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	for rows.Next() {
 		var r runRow
 		var nodes []string
-		var input, output, errj, sens []byte
+		var input, output, errj, sens, evs []byte
 		if err := rows.Scan(&r.TenantID, &r.ID, &r.AutomationID, &r.Version, &r.InstanceID, &r.StartKey, &r.StartState, &r.StartReason,
 			&r.TriggerID, &r.TriggerEventID, &r.TriggerKind, &input, &r.Subject.Entity, &r.Subject.Key, &r.RunAsUserID, &r.RunAsKind,
 			&r.InitiatorID, &r.InboxSeq, &r.TxSeq, &r.StepsCount, &r.Depth, &r.CauseRunID, &r.RestartedFrom, &output, &errj,
-			&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &nodes); err != nil {
+			&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &evs, &r.ChildBlocked, &nodes); err != nil {
 			return Page[RunSummary]{}, serrors.FromDB(opService, err)
 		}
-		r.Input, r.Output, r.Error, r.Sensitive = input, output, errj, decodeRefs(sens)
+		r.Input, r.Output, r.Error, r.Sensitive, r.Events = input, output, errj, decodeRefs(sens), evs
 		sum := summaryOf(r)
 		if sum.Error != nil && len(r.Sensitive) > 0 {
 			ok, err := proj.readable(ctx, r.Sensitive, &viewer)
@@ -161,7 +161,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		d.Waits = append(d.Waits, wv)
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at FROM (
+		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings FROM (
 			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
 		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
 	if err != nil {
@@ -173,10 +173,13 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	viewer.TenantID = a.TenantID
 	for rows.Next() {
 		var sv StepView
-		var in, out, errj, sens []byte
+		var in, out, errj, sens, warns []byte
 		var ended *time.Time
-		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended); err != nil {
+		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended, &warns); err != nil {
 			return RunDetail{}, serrors.FromDB(opService, err)
+		}
+		if len(warns) > 0 {
+			_ = json.Unmarshal(warns, &sv.Warnings)
 		}
 		sv.Input, sv.Output, sv.EndedAt = in, out, ended
 		if len(errj) > 0 {

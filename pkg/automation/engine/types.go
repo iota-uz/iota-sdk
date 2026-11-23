@@ -37,7 +37,7 @@ const (
 	RunQueued       RunStatus = "queued"        // conversation subject busy, no instance yet
 	RunRunning      RunStatus = "running"       // instance running
 	RunWaiting      RunStatus = "waiting"       // instance waiting (wait, timer, task, call)
-	RunBlocked      RunStatus = "blocked"       // instance blocked, or start_state=blocked (no owner, depth)
+	RunBlocked      RunStatus = "blocked"       // instance blocked, a call of it blocked (unknown outcome), or start_state=blocked (no owner, depth)
 	RunDone         RunStatus = "done"          // instance completed
 	RunFailed       RunStatus = "failed"        // instance failed
 	RunCancelled    RunStatus = "cancelled"     // instance terminated, or a queued run of a disabled graph
@@ -311,6 +311,8 @@ type StepView struct {
 	Error     *StepError
 	StartedAt time.Time
 	EndedAt   *time.Time
+	// Warnings are what the step noted without failing (an assignee list cut to its limit).
+	Warnings []string
 	// Hidden: the step ran after the run read a sensitive field the viewer may not read; its input and
 	// output are left out and its error message is Hidden.
 	Hidden bool
@@ -321,6 +323,8 @@ type StepError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Path    string `json:"path,omitempty"`
+	// Retryable: the provider said the request may succeed later (a call's failure).
+	Retryable bool `json:"retryable,omitempty"`
 }
 
 func (e *StepError) Error() string { return e.Code + ": " + e.Message }
@@ -458,6 +462,9 @@ type StepContext struct {
 	Subject                  SubjectRef
 	Depth                    int
 	Native                   workflow.NativeRun // primitives of #1321
+	// FailedConnected: the node's failed outcome has an edge (a call whose outcome is unknown takes it;
+	// without it the call blocks for an operator).
+	FailedConnected bool
 }
 
 // WaitSpec is a wait a node executor registers.
@@ -479,6 +486,8 @@ type WaitResult struct {
 	Outcome string          `json:"outcome"`
 	Output  json.RawMessage `json:"output,omitempty"`
 	Error   *StepError      `json:"error,omitempty"`
+	// Await, set by an ask node's call, opens the wait for its answer instead of applying the outcome.
+	Await *AwaitSpec `json:"await,omitempty"`
 }
 
 // Limits bound runs.

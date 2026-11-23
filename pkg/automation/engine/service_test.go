@@ -213,8 +213,9 @@ func TestDepthLimitBlocksTheCascade(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc(func(c *engine.Config) { c.Limits.MaxDepth = 2 })
 	human := e.human()
-	// Each run publishes the event that starts it.
-	e.create(p, human, `{"name": "Loop", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	// Each run publishes the event that starts it (include_self: a graph does not start on its own
+	// events otherwise).
+	e.create(p, human, `{"name": "Loop", "triggers": [{"id": "created", "event": "acme.order.created.v1", "include_self": true}],
 	 "nodes": [{"id": "emit", "type": "acme.emit", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
 	 "edges": [{"from": {"node": "created", "outcome": "fired"}, "to": "emit"}, {"from": {"node": "emit", "outcome": "done"}, "to": "fin"}]}`)
 	e.publish(e.tenant, orderCreated, "o-1", order{}, 0)

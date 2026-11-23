@@ -159,6 +159,16 @@ type StartOptions struct {
 	Subject *spi.Subject
 }
 
+// Ambiguous is what the fn of an Effect returns when the outcome of an earlier attempt is unknown and the
+// effect may not be repeated (it is not idempotent): the occurrence stays started and the instance blocks
+// as BlockAmbiguous. Engine.Resolve records the outcome found by hand (the Effect returns it after
+// Resume); Engine.Retry forgets the occurrence, so the effect runs again as attempt 1.
+func Ambiguous(detail string) error { return &ambiguousError{detail: detail} }
+
+type ambiguousError struct{ detail string }
+
+func (e *ambiguousError) Error() string { return "extruntime workflow: ambiguous effect: " + e.detail }
+
 // fencedError is a fencing failure as a native runner sees it.
 type fencedError struct{ we *pool.WireError }
 
@@ -472,6 +482,12 @@ func (r *nativeRun) Effect(ctx context.Context, name string, n int, fn func(ctx 
 	}
 	out, ferr := fn(ctx, EffectAttempt{Attempt: started.Attempts, Key: idempotencyKey(r.rs, name, n)})
 	if ferr != nil {
+		var amb *ambiguousError
+		if errors.As(ferr, &amb) {
+			// The effect's outcome is unknown and may not be repeated blindly: the occurrence stays
+			// started and the instance blocks until an operator resolves or retries it.
+			return nil, blockedWire(r.rs.block(BlockAmbiguous, fmt.Sprintf("effect %s#%d: %s; resolve, retry or terminate it manually", name, n, amb.detail)))
+		}
 		if ctx.Err() != nil || errors.Is(ferr, ErrFenced) || errors.Is(ferr, ErrSuspend) || host.IsInfrastructure(ferr) {
 			// The outcome is unknown: the occurrence stays started and the
 			// next attempt decides.

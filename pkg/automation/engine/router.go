@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -86,12 +87,36 @@ type fanWait struct {
 	runAsUser    int64
 	runAsKind    string
 	graph        json.RawMessage
+	correlation  *string
 }
 
-// cause is the run whose step published an event.
+// cause is where an event came from: the run whose step published it (with its graph: its Origin), or
+// the inbound connection that received it.
 type cause struct {
-	RunID uuid.UUID `json:"run_id"`
-	Depth int       `json:"depth"`
+	RunID        uuid.UUID     `json:"run_id"`
+	Depth        int           `json:"depth"`
+	AutomationID uuid.UUID     `json:"automation_id"`
+	Inbound      *inboundCause `json:"inbound,omitempty"`
+}
+
+// inboundCause is the origin of an inbound event of a connector.
+type inboundCause struct {
+	ConnectionID string `json:"connection_id"`
+	Correlation  string `json:"correlation,omitempty"`
+	BySelf       bool   `json:"by_self,omitempty"`
+}
+
+// fromRun reports whether a step of a run published the event.
+func (c *cause) fromRun() bool { return c != nil && c.RunID != uuid.Nil }
+
+// bySelf reports an inbound message the connector sent itself.
+func (c *cause) bySelf() bool { return c != nil && c.Inbound != nil && c.Inbound.BySelf }
+
+func (c *cause) correlation() any {
+	if c == nil || c.Inbound == nil || c.Inbound.Correlation == "" {
+		return nil
+	}
+	return c.Inbound.Correlation
 }
 
 func (c *consumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope) error {
@@ -112,7 +137,7 @@ func (c *consumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope) e
 	if err != nil {
 		return err
 	}
-	waits, err := r.fanWaits(ctx, tx, ev)
+	waits, err := r.fanWaits(ctx, tx, ev, by.correlation())
 	if err != nil {
 		return err
 	}
@@ -141,7 +166,7 @@ func (c *consumer) Deliver(ctx context.Context, tx pgx.Tx, ev events.Envelope) e
 		}
 	}
 	for _, w := range waits {
-		if err := r.wake(ctx, tx, ev, w, proj); err != nil {
+		if err := r.wake(ctx, tx, ev, w, proj, by); err != nil {
 			return err
 		}
 	}
@@ -176,21 +201,22 @@ func (r *Runtime) fanTriggers(ctx context.Context, tx pgx.Tx, ev events.Envelope
 	return out, nil
 }
 
-func (r *Runtime) fanWaits(ctx context.Context, tx pgx.Tx, ev events.Envelope) ([]fanWait, error) {
+func (r *Runtime) fanWaits(ctx context.Context, tx pgx.Tx, ev events.Envelope, correlation any) ([]fanWait, error) {
 	var entity, key any
 	if ev.Subject != nil {
 		entity, key = ev.Subject.Entity, ev.Subject.Key
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT w.run_id, w.wait_id, w.node_id, r.instance_id, r.automation_id, r.version, r.subject_entity, r.subject_key,
-			r.run_as_user_id, r.run_as_kind, v.graph
+			r.run_as_user_id, r.run_as_kind, v.graph, w.correlation
 		FROM automation.waits w
 		JOIN automation.runs r ON r.tenant_id = w.tenant_id AND r.id = w.run_id
 		JOIN automation.versions v ON v.tenant_id = r.tenant_id AND v.automation_id = r.automation_id AND v.version = r.version
 		WHERE w.tenant_id = $1 AND w.status = 'open' AND w.kind = 'event' AND w.event_kind = $2 AND w.after_seq < $3
 		  AND (w.subject_entity IS NULL OR (w.subject_entity = $4 AND w.subject_key = $5))
+		  AND (w.correlation IS NULL OR w.correlation = $6::text)
 		  AND r.instance_id IS NOT NULL AND r.run_as_user_id IS NOT NULL
-		ORDER BY w.created_at, w.run_id, w.wait_id`, ev.TenantID, ev.Event, ev.Seq, entity, key)
+		ORDER BY w.created_at, w.run_id, w.wait_id`, ev.TenantID, ev.Event, ev.Seq, entity, key, correlation)
 	if err != nil {
 		return nil, &host.InfraError{Err: serrors.FromDB(opRoute, err)}
 	}
@@ -200,7 +226,7 @@ func (r *Runtime) fanWaits(ctx context.Context, tx pgx.Tx, ev events.Envelope) (
 		var w fanWait
 		var raw []byte
 		if err := rows.Scan(&w.runID, &w.waitID, &w.nodeID, &w.instance, &w.automationID, &w.version, &w.subject.Entity, &w.subject.Key,
-			&w.runAsUser, &w.runAsKind, &raw); err != nil {
+			&w.runAsUser, &w.runAsKind, &raw, &w.correlation); err != nil {
 			return nil, &host.InfraError{Err: serrors.FromDB(opRoute, err)}
 		}
 		w.graph = raw
@@ -219,7 +245,7 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 		eventID: ev.ID, key: fmt.Sprintf("%s@%d:%s", t.automationID, t.version, ev.ID), subject: subject,
 		initiator: ev.InitiatorUserID, eventSeq: ev.Seq,
 	}
-	if by != nil {
+	if by.fromRun() {
 		req.depth, req.cause = by.Depth+1, &by.RunID
 	}
 	ie, err := r.interpreter(ctx, ev.TenantID, t.automationID, t.version, t.graph)
@@ -235,6 +261,13 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 		return nil
 	}
 	req.in = ie.in
+	if trig, ok := ie.in.Trigger(t.triggerID); ok && !trig.IncludeSelf {
+		// A graph does not start on its own effects: an event a step of its own run published, or a
+		// message its connector sent itself.
+		if (by.fromRun() && by.AutomationID == t.automationID) || by.bySelf() {
+			return nil
+		}
+	}
 	mode := events.RunAsOwner
 	if graph.RunAs(t.runAs) == graph.RunAsInitiator {
 		mode = events.RunAsInitiator
@@ -259,21 +292,20 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 		gev[k] = v
 	}
 	gev["kind"] = ev.Event
-	req.event = gev
-	vars := map[string]any{}
-	if as != nil && r.cfg.Subjects != nil && normSubject(subject).Entity != graph.SubjectNone {
-		raw, err := r.cfg.Subjects.Load(ctx, *as, subject)
-		switch {
-		case errors.Is(err, ErrNotFound):
-		case err != nil:
-			return &host.InfraError{Err: err}
-		default:
-			if vars, err = decodeMap(raw); err != nil {
-				vars = map[string]any{}
-			}
-		}
+	if by != nil && by.Inbound != nil {
+		gev[catalog.BySelfField] = by.Inbound.BySelf
 	}
-	gctx := graph.Context{Event: gev, Vars: vars, Now: ev.OccurredAt, Tenant: map[string]any{"id": ev.TenantID.String()}}
+	req.event = gev
+	in := RunContextInput{TenantID: ev.TenantID, AutomationID: t.automationID, Subject: subject, Event: gev, Now: ev.OccurredAt}
+	if as == nil {
+		in.Vars = map[string]any{} // no run-as: the subject is not read
+	} else {
+		in.RunAs = *as
+	}
+	gctx, err := r.BuildRunContext(ctx, in)
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
 	mismatch, st := ie.in.TriggerMismatch(t.triggerID, gev, gctx)
 	switch {
 	case st != nil:
@@ -302,7 +334,7 @@ func (r *Runtime) fanOut(ctx context.Context, tx pgx.Tx, ev events.Envelope, sub
 
 // wake signals an open wait of a running graph with the event, when the wait's filter does not reject it
 // already from the event alone (the run checks it again in the token's context).
-func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fanWait, proj *projector) error {
+func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fanWait, proj *projector, by *cause) error {
 	// The run-as with the rights it holds now: the payload and the filter see what it may read.
 	as, err := r.cfg.Users.LoadSubject(ctx, ev.TenantID, w.runAsUser, spi.SubjectKind(w.runAsKind))
 	if errors.Is(err, host.ErrSubjectBlocked) {
@@ -320,18 +352,24 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 	if payload, err = proj.project(ctx, ev.Event, payload, &as); err != nil {
 		return &host.InfraError{Err: err}
 	}
-	if ie, err := r.interpreter(ctx, ev.TenantID, w.automationID, w.version, w.graph); err == nil {
-		gev := graph.Event{}
-		for k, v := range payload {
-			gev[k] = v
+	if by != nil && by.Inbound != nil {
+		payload[catalog.BySelfField] = by.Inbound.BySelf
+	}
+	// An ask's answer wait (a correlation) matched by its token: Asker.Answer decides in the run.
+	if w.correlation == nil {
+		if ie, err := r.interpreter(ctx, ev.TenantID, w.automationID, w.version, w.graph); err == nil {
+			gev := graph.Event{}
+			for k, v := range payload {
+				gev[k] = v
+			}
+			gev["kind"] = ev.Event
+			matched, st := ie.in.WaitMatches(w.nodeID, gev, graph.Context{Event: gev, Now: ev.OccurredAt, Tenant: map[string]any{"id": ev.TenantID.String()}})
+			if st == nil && !matched {
+				return nil
+			}
+		} else if host.IsInfrastructure(err) {
+			return err
 		}
-		gev["kind"] = ev.Event
-		matched, st := ie.in.WaitMatches(w.nodeID, gev, graph.Context{Event: gev, Now: ev.OccurredAt, Tenant: map[string]any{"id": ev.TenantID.String()}})
-		if st == nil && !matched {
-			return nil
-		}
-	} else if host.IsInfrastructure(err) {
-		return err
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {

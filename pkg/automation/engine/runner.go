@@ -299,7 +299,7 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 		if seq != n {
 			return nil, fmt.Errorf("run %s: transaction %d expected, the run is at %d", x.run.ID, n, seq)
 		}
-		cause, _ := json.Marshal(map[string]any{"run_id": x.run.ID.String(), "depth": x.run.Depth})
+		cause, _ := json.Marshal(map[string]any{"run_id": x.run.ID.String(), "depth": x.run.Depth, "automation_id": x.run.AutomationID.String()})
 		if _, err := tx.Exec(ctx, `SELECT set_config('app.automation_cause', $1, true)`, string(cause)); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
@@ -744,7 +744,8 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 		SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
 		WHERE tenant_id = $1 AND event = $2 AND seq > $3 AND seq <= $4
 		  AND ($5::text IS NULL OR (subject_entity = $5 AND subject_key = $6))
-		ORDER BY seq LIMIT $7`, x.tenant, *w.EventKind, after, until, entity, key, maxCatchUp)
+		  AND ($8::text IS NULL OR cause->'inbound'->>'correlation' = $8)
+		ORDER BY seq LIMIT $7`, x.tenant, *w.EventKind, after, until, entity, key, maxCatchUp, w.Correlation)
 	if err != nil {
 		return false, serrors.FromDB(opRun, err)
 	}

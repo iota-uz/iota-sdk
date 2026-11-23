@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
@@ -49,8 +50,20 @@ type Config struct {
 	// Node(type) for execution.
 	Catalog  catalog.Registry
 	Subjects SubjectLoader
-	Calls    CallExecutor // nil → graphs with call nodes fail validation (connection_unavailable)
-	Tasks    TaskBridge   // nil → human nodes fail validation
+	// Calls runs call nodes; nil: the engine's own CallRunner (automation.call child instances).
+	Calls CallExecutor
+	Tasks TaskBridge // nil → human nodes fail validation; NewHumanBridge is the engine's
+	// Credentials opens the connection a call runs with (connectors.Store); nil: only calls without a
+	// connector run.
+	Credentials connectors.CredentialSource
+	// CallLimits bound the calls of automation.call.
+	CallLimits CallLimits
+	// Usage records what calls spent (optional).
+	Usage catalog.UsageRecorder
+	// Links resolves subject.url and run.url of a run's context (optional).
+	Links Links
+	// Decisions caches the decisions of dry runs in cached mode; nil: the engine's table.
+	Decisions DecisionCache
 	// Behaviors are the behaviors graphs run with; the registry's own (default graph.DefaultBehaviors).
 	Behaviors *graph.Behaviors
 	// MatchHooks are the product's trigger matching hooks (graph.Options.MatchHooks).
@@ -71,6 +84,10 @@ type Runtime struct {
 	service *service
 	tracer  trace.Tracer
 	metrics metrics
+
+	calls   *CallRunner
+	// poke wakes Serve: a collect window opened or a new deadline came nearer.
+	poke chan struct{}
 
 	mu      sync.Mutex
 	interps map[string]*interpEntry
@@ -104,6 +121,7 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 		cfg.Behaviors = graph.DefaultBehaviors()
 	}
 	cfg.Limits = cfg.Limits.withDefaults()
+	cfg.CallLimits = cfg.CallLimits.withDefaults()
 	cfg.Retention = cfg.Retention.withDefaults()
 	if cfg.MaintenanceInterval <= 0 {
 		cfg.MaintenanceInterval = 5 * time.Second
@@ -125,6 +143,14 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 	}
 	r.metrics = m
 	r.service = &service{r: r}
+	r.calls = &CallRunner{r: r}
+	if r.cfg.Calls == nil {
+		r.cfg.Calls = r.calls
+	}
+	if r.cfg.Decisions == nil {
+		r.cfg.Decisions = &dbDecisionCache{db: cfg.DB}
+	}
+	r.poke = make(chan struct{}, 1)
 	return r, nil
 }
 
@@ -142,8 +168,12 @@ func (r *Runtime) Natives() map[string]workflow.NativeContract {
 			Completion:     workflow.CancelPending,
 			StatusObserver: &observer{r: r},
 		},
+		CallWorkflowID: r.calls.contract(),
 	}
 }
+
+// CallRunner is the engine's runner of call nodes (automation.call).
+func (r *Runtime) CallRunner() *CallRunner { return r.calls }
 
 // Serve runs the maintenance loop until ctx ends: queued conversation runs start when their subject is
 // free, live runs of disabled or deleted graphs are cancelled, and finished runs are pruned.

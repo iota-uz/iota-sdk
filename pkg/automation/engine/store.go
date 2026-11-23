@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -26,7 +27,7 @@ type querier interface {
 
 // statusSQL is RunStatus of a run row r joined with its instance i.
 const statusSQL = `(CASE i.status
-	WHEN 'running' THEN 'running' WHEN 'waiting' THEN 'waiting' WHEN 'blocked' THEN 'blocked'
+	WHEN 'running' THEN 'running' WHEN 'waiting' THEN CASE WHEN ` + childBlockedSQL + ` IS NULL THEN 'waiting' ELSE 'blocked' END WHEN 'blocked' THEN 'blocked'
 	WHEN 'completed' THEN 'done' WHEN 'failed' THEN 'failed' WHEN 'terminated' THEN 'cancelled'
 	ELSE CASE r.start_state WHEN 'queued' THEN 'queued' WHEN 'filter_failed' THEN 'filter_failed'
 		WHEN 'blocked' THEN 'blocked' WHEN 'cancelled' THEN 'cancelled' ELSE 'running' END END)`
@@ -142,23 +143,34 @@ type runRow struct {
 	BlockedReason   *string
 	BlockedDetail   *string
 	InstanceUpdated *time.Time
+	// Events are the events a trigger's collect merged (nil: the one event of Input).
+	Events json.RawMessage
+	// ChildBlocked is the node and the reason of a call of the run that blocked (an unknown outcome).
+	ChildBlocked *string
 }
 
 const runCols = `r.tenant_id, r.id, r.automation_id, r.version, r.instance_id, r.start_key, r.start_state, r.start_reason,
 	r.trigger_id, r.trigger_event_id, r.trigger_kind, r.input, r.subject_entity, r.subject_key, r.run_as_user_id, r.run_as_kind,
 	r.initiator_user_id, r.inbox_seq, r.tx_seq, r.steps_count, r.depth, r.cause_run_id, r.restarted_from, r.output, r.error,
-	r.sensitive, r.created_at, r.updated_at, i.status, i.blocked_reason, i.blocked_detail, i.updated_at`
+	r.sensitive, r.created_at, r.updated_at, i.status, i.blocked_reason, i.blocked_detail, i.updated_at, r.events,
+	` + childBlockedSQL
+
+// childBlockedSQL is the blocked call of a waiting run r: its node and why, NULL when no call blocks.
+const childBlockedSQL = `(SELECT w.node_id || ': ' || c.blocked_detail FROM automation.waits w
+		JOIN extruntime.workflow_instances c ON c.id = (w.spec->'exec'->>'child')::uuid AND c.tenant_id = w.tenant_id
+		WHERE w.tenant_id = r.tenant_id AND w.run_id = r.id AND w.status = 'open' AND w.kind = 'call' AND c.status = 'blocked'
+		ORDER BY w.created_at LIMIT 1)`
 
 const runFrom = ` FROM automation.runs r LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id`
 
 func scanRun(row pgx.Row) (runRow, error) {
 	var r runRow
-	var input, output, errj, sens []byte
+	var input, output, errj, sens, evs []byte
 	err := row.Scan(&r.TenantID, &r.ID, &r.AutomationID, &r.Version, &r.InstanceID, &r.StartKey, &r.StartState, &r.StartReason,
 		&r.TriggerID, &r.TriggerEventID, &r.TriggerKind, &input, &r.Subject.Entity, &r.Subject.Key, &r.RunAsUserID, &r.RunAsKind,
 		&r.InitiatorID, &r.InboxSeq, &r.TxSeq, &r.StepsCount, &r.Depth, &r.CauseRunID, &r.RestartedFrom, &output, &errj,
-		&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated)
-	r.Input, r.Output, r.Error, r.Sensitive = input, output, errj, decodeRefs(sens)
+		&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &evs, &r.ChildBlocked)
+	r.Input, r.Output, r.Error, r.Sensitive, r.Events = input, output, errj, decodeRefs(sens), evs
 	return r, err
 }
 
@@ -166,6 +178,9 @@ func (r runRow) status() RunStatus {
 	inst, start := "", ""
 	if r.InstanceStatus != nil {
 		inst = *r.InstanceStatus
+	}
+	if inst == workflow.StatusWaiting && r.ChildBlocked != nil {
+		return RunBlocked // a call of the run waits for an operator (Operations)
 	}
 	if r.StartState != nil {
 		start = *r.StartState
@@ -176,6 +191,9 @@ func (r runRow) status() RunStatus {
 func (r runRow) reason() string {
 	if r.StartReason != nil && *r.StartReason != "" {
 		return *r.StartReason
+	}
+	if r.ChildBlocked != nil && (r.InstanceStatus == nil || *r.InstanceStatus == workflow.StatusWaiting) {
+		return "call_blocked: " + *r.ChildBlocked
 	}
 	if r.BlockedReason != nil && *r.BlockedReason != "" {
 		if r.BlockedDetail != nil && *r.BlockedDetail != "" {
@@ -403,6 +421,8 @@ type waitRow struct {
 	AfterSeq  int64
 	Release   bool
 	Spec      waitSpecJSON
+	// Correlation is the token an ask's answer wait listens for (only events that carry it wake it).
+	Correlation *string
 }
 
 // waitSpecJSON is what the core keeps about a wait besides its columns.
@@ -419,6 +439,14 @@ type waitSpecJSON struct {
 	// CatchUpUntil is the outbox watermark when the catch-up began: its fixed upper bound. Events after
 	// it reach the committed wait through the router.
 	CatchUpUntil int64 `json:"catch_up_until,omitempty"`
+	// Ask is the answer wait of an ask node: what its send returned and how its answer closes it.
+	Ask *askSpec `json:"ask,omitempty"`
+}
+
+// askSpec is the answer wait of an ask node.
+type askSpec struct {
+	Single bool            `json:"single"`
+	Sent   json.RawMessage `json:"sent,omitempty"` // the output of the send
 }
 
 // Wait kinds and states.
@@ -446,13 +474,13 @@ func (w waitRow) child() *uuid.UUID {
 	return nil
 }
 
-const waitCols = `run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, release_pending, spec`
+const waitCols = `run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, release_pending, spec, correlation`
 
 func scanWait(row pgx.Row) (waitRow, error) {
 	var w waitRow
 	var entity, key *string
 	var spec []byte
-	if err := row.Scan(&w.RunID, &w.TokenID, &w.WaitID, &w.Kind, &w.NodeID, &entity, &key, &w.EventKind, &w.Filter, &w.TimeoutAt, &w.Status, &w.AfterSeq, &w.Release, &spec); err != nil {
+	if err := row.Scan(&w.RunID, &w.TokenID, &w.WaitID, &w.Kind, &w.NodeID, &entity, &key, &w.EventKind, &w.Filter, &w.TimeoutAt, &w.Status, &w.AfterSeq, &w.Release, &spec, &w.Correlation); err != nil {
 		return w, err
 	}
 	if entity != nil {
@@ -496,9 +524,9 @@ func insertWait(ctx context.Context, q querier, tenant uuid.UUID, w waitRow) err
 		entity, key = w.Subject.Entity, w.Subject.Key
 	}
 	_, err = q.Exec(ctx, `
-		INSERT INTO automation.waits (tenant_id, run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, spec)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'open', $12, $13)`,
-		tenant, w.RunID, w.TokenID, w.WaitID, w.Kind, w.NodeID, entity, key, w.EventKind, w.Filter, w.TimeoutAt, w.AfterSeq, spec)
+		INSERT INTO automation.waits (tenant_id, run_id, token_id, wait_id, kind, node_id, subject_entity, subject_key, event_kind, filter_cel, timeout_at, status, after_seq, spec, correlation)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'open', $12, $13, $14)`,
+		tenant, w.RunID, w.TokenID, w.WaitID, w.Kind, w.NodeID, entity, key, w.EventKind, w.Filter, w.TimeoutAt, w.AfterSeq, spec, w.Correlation)
 	return serrors.FromDB(opStore, err)
 }
 
@@ -519,5 +547,12 @@ func closeWait(ctx context.Context, q querier, tenant uuid.UUID, w waitRow, stat
 	_, err := q.Exec(ctx, `
 		UPDATE automation.waits SET status = $4, release_pending = release_pending OR $5, updated_at = now()
 		WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3 AND status = 'open'`, tenant, w.RunID, w.WaitID, status, release)
+	if err != nil {
+		return serrors.FromDB(opStore, err)
+	}
+	if w.Correlation != nil {
+		// A late answer finds the token closed (ErrCorrelationClosed).
+		_, err = q.Exec(ctx, `DELETE FROM automation.correlations WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, tenant, w.RunID, w.WaitID)
+	}
 	return serrors.FromDB(opStore, err)
 }
