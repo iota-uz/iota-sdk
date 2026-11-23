@@ -1,0 +1,200 @@
+{
+  "name": "validate-unknown-variable-for-trigger",
+  "format": 2,
+  "kind": "validate",
+  "description": "A variable a trigger that leads to a node does not have is unknown_variable_for_trigger: <entity>.* on the mail branch, event.mail on the record branch, and anything only one of two triggers has at a node both reach. A human node reached from the mail trigger is refused: it takes a card. The error names the node, the variable and the trigger.",
+  "catalog_patch": {
+    "events": {
+      "mail.received": {
+        "subject": "none",
+        "title": "Mail received",
+        "payload": {
+          "mail": {
+            "object": {
+              "subject": "string",
+              "from": "string",
+              "labels": {
+                "list": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "graph": {
+    "name": "Record and mail",
+    "triggers": [
+      {
+        "id": "entered",
+        "event": "card.entered"
+      },
+      {
+        "id": "incoming",
+        "event": "mail.received"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "approve",
+        "type": "human",
+        "params": {
+          "reason": "check",
+          "text": "Check {{ event.mail.subject }}"
+        }
+      },
+      {
+        "id": "cardonly",
+        "type": "branch",
+        "params": {
+          "expression": "card.column == \"qa\""
+        }
+      },
+      {
+        "id": "stop",
+        "type": "end",
+        "params": {
+          "column": "done"
+        }
+      },
+      {
+        "id": "urgent",
+        "type": "branch",
+        "params": {
+          "expression": "issue.title.startsWith(\"URGENT\")"
+        }
+      },
+      {
+        "id": "tell",
+        "type": "action",
+        "params": {
+          "action": "notify",
+          "text": "Mail about {{ issue.title }}"
+        }
+      },
+      {
+        "id": "both",
+        "type": "branch",
+        "params": {
+          "expression": "issue.number > 0"
+        }
+      },
+      {
+        "id": "ask",
+        "type": "human",
+        "params": {
+          "reason": "x",
+          "text": "y"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": {
+          "node": "entered",
+          "outcome": "fired"
+        },
+        "to": "approve"
+      },
+      {
+        "from": {
+          "node": "approve",
+          "outcome": "continue"
+        },
+        "to": "cardonly"
+      },
+      {
+        "from": {
+          "node": "cardonly",
+          "outcome": "true"
+        },
+        "to": "stop"
+      },
+      {
+        "from": {
+          "node": "cardonly",
+          "outcome": "false"
+        },
+        "to": "both"
+      },
+      {
+        "from": {
+          "node": "incoming",
+          "outcome": "fired"
+        },
+        "to": "urgent"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "true"
+        },
+        "to": "tell"
+      },
+      {
+        "from": {
+          "node": "tell",
+          "outcome": "done"
+        },
+        "to": "both"
+      },
+      {
+        "from": {
+          "node": "tell",
+          "outcome": "failed"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "both",
+          "outcome": "true"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "both",
+          "outcome": "false"
+        },
+        "to": "ignore"
+      },
+      {
+        "from": {
+          "node": "urgent",
+          "outcome": "false"
+        },
+        "to": "ask"
+      },
+      {
+        "from": {
+          "node": "ask",
+          "outcome": "continue"
+        },
+        "to": "ignore"
+      }
+    ]
+  },
+  "errors": [
+    {
+      "path": "nodes[3].params.expression",
+      "code": "unknown_variable_for_trigger"
+    },
+    {
+      "path": "nodes[4].params.text",
+      "code": "unknown_variable_for_trigger"
+    },
+    {
+      "path": "nodes[0].params.text",
+      "code": "unknown_variable_for_trigger"
+    },
+    {
+      "path": "nodes[5].params.expression",
+      "code": "unknown_variable_for_trigger"
+    },
+    {
+      "path": "nodes[6].type",
+      "code": "invalid"
+    }
+  ]
+}

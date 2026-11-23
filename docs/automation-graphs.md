@@ -132,13 +132,25 @@ when the catalog is loaded and on `nodes[i].type`. A subject is `{entity, key}` 
 SDK or application entity, plus `conversation` and `none`.
 
 Expressions are CEL with strict type checking at save time. The allowed functions are the
-standard CEL functions, `ext.Strings` and `ext.Bindings`, minus the overloads
+standard CEL functions, `ext.Strings`, `ext.Bindings` and `join(list<string>, sep)` (the
+function form of `list.join(sep)`: `join(issue.labels, "\n• ")`), minus the overloads
 `timestamp_to_string`, `duration_to_string`, `uint64_to_int64`, `timestamp_to_int64` and
 `duration_to_int64`; the `uint` and `bytes` types are not part of the subset (so
 `string(timestamp(...))` is rejected at save time); regular expressions are RE2;
 there is no clock function — `now` is fixed per step. A reference to missing context
 produces `missing_context` (a path, not an error) and is handled by the engine, not
 treated as `false`.
+
+A graph may have triggers about different subjects (a record, an incoming mail, a
+message). The validator reads every node by the triggers it can be reached from: the
+subject variables (`<entity>.*`), `event.*` and the subject restriction of a node type
+(`human` takes a card) are checked against what **all** of those triggers have, with the
+same type. A variable some other trigger of the graph has but one of these lacks is
+`unknown_variable_for_trigger`; its message names the node, the variable and the trigger.
+A mixed subject of the catalog only names such a graph; it does not stand for the
+subjects of its triggers. The interpreter runs by the subject of the event that started the
+run; its expressions are compiled in the scope of the same triggers, and a node several
+event kinds lead to is given the whole event, not only the fields the check allows.
 
 ### Tokens
 

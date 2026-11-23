@@ -16,6 +16,10 @@ type exprs struct {
 	outputs expr.Fields // nodes.<id>.output by node, in graph order
 	foreach expr.Fields // foreach.<id> by foreach node, in graph order
 	event   string      // the event kind all triggers share; "" when they differ
+	// run: the programs are for running a graph, not for checking it.
+	run bool
+	// triggerAt is the index of each trigger in the graph.
+	triggerAt map[string]int
 
 	mu    sync.Mutex
 	envs  map[string]*expr.Env
@@ -34,10 +38,13 @@ type tmplResult struct {
 }
 
 func newExprs(v *GraphView, limits expr.Limits) *exprs {
-	x := &exprs{view: v, limits: limits, envs: map[string]*expr.Env{}, progs: map[string]progResult{}, tmpls: map[string]tmplResult{}}
+	x := &exprs{view: v, limits: limits, envs: map[string]*expr.Env{}, progs: map[string]progResult{}, tmpls: map[string]tmplResult{}, triggerAt: map[string]int{}}
 	kinds := map[string]bool{}
-	for _, t := range v.graph.Triggers {
+	for i, t := range v.graph.Triggers {
 		kinds[t.Event] = true
+		if _, dup := x.triggerAt[t.ID]; !dup {
+			x.triggerAt[t.ID] = i
+		}
 	}
 	if len(kinds) == 1 {
 		x.event = v.graph.Triggers[0].Event
@@ -76,44 +83,205 @@ func eventField(c Catalog, kind string) expr.Field {
 	return expr.ObjectOf(props)
 }
 
+// eventFieldOf is what `event` is for a node several kinds of event can lead to: the kind, and the payload
+// fields every kind has with the same type (a field typed differently is dyn). One kind is eventField; a
+// kind the catalog lacks makes it a map of dyn.
+func eventFieldOf(c Catalog, kinds []string) expr.Field {
+	if len(kinds) == 0 {
+		return expr.MapOf(expr.DynField)
+	}
+	if len(kinds) == 1 {
+		return eventField(c, kinds[0])
+	}
+	var common expr.Fields
+	for i, kind := range kinds {
+		e, ok := c.Events[kind]
+		if !ok {
+			return expr.MapOf(expr.DynField)
+		}
+		if i == 0 {
+			common = e.Payload.Clone()
+			continue
+		}
+		common = intersectFields(common, e.Payload)
+	}
+	return expr.ObjectOf(append(expr.Fields{{Name: "kind", Field: expr.StringField}}, common...))
+}
+
+// intersectFields keeps the fields of a that b has too, each as what both declare: a nested object is
+// intersected in turn, scalars of different types are dyn, and a field that is a list, a map or an object in
+// one and something else in the other is not kept (reading into it would be reading what one does not have).
+func intersectFields(a, b expr.Fields) expr.Fields {
+	var out expr.Fields
+	for _, p := range a {
+		other, ok := b.Get(p.Name)
+		if !ok {
+			continue
+		}
+		if f, ok := intersectField(p.Field, other); ok {
+			p.Field = f
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func composite(f expr.Field) bool {
+	switch f.Unwrap().Kind { //nolint:exhaustive // the scalars and dyn are not composite
+	case expr.Object, expr.List, expr.Map:
+		return true
+	}
+	return false
+}
+
+func intersectField(a, b expr.Field) (expr.Field, bool) {
+	if a.String() == b.String() {
+		return a, true
+	}
+	optional := a.Kind == expr.Optional || b.Kind == expr.Optional
+	ua, ub := a.Unwrap(), b.Unwrap()
+	var out expr.Field
+	switch {
+	case ua.String() == ub.String():
+		out = ua // the same type, optional in one: absent where that one has it absent
+	case ua.Kind == expr.Object && ub.Kind == expr.Object:
+		out = expr.ObjectOf(intersectFields(ua.Props, ub.Props))
+	case ua.Kind == expr.List && ub.Kind == expr.List:
+		elem, ok := intersectField(*ua.Elem, *ub.Elem)
+		if !ok {
+			return expr.Field{}, false
+		}
+		out = expr.ListOf(elem)
+	case ua.Kind == expr.Map && ub.Kind == expr.Map:
+		elem, ok := intersectField(*ua.Elem, *ub.Elem)
+		if !ok {
+			return expr.Field{}, false
+		}
+		out = expr.MapOf(elem)
+	case ua.Kind == expr.Dyn || ub.Kind == expr.Dyn:
+		return expr.DynField, true
+	case composite(ua) || composite(ub):
+		return expr.Field{}, false
+	default:
+		return expr.DynField, true
+	}
+	if optional {
+		return expr.OptionalOf(out), true
+	}
+	return out, true
+}
+
+// subjectVars are the variables a subject declares in expressions; a subject the catalog lacks (conversation,
+// none) declares none.
+func subjectVars(c Catalog, subject string) expr.Fields {
+	if s, ok := c.Subjects[subject]; ok {
+		return s.Context
+	}
+	return nil
+}
+
 // ExprScope is what an expression of a graph about subject reads: the subject's variables, event (the
 // kind's payload with its kind; any other kind, or "", a map of dyn), nodes (each node's output), tenant
 // (a map of dyn) and now (the step's time).
 func ExprScope(c Catalog, subject, event string, nodes expr.Fields) expr.Scope {
-	vars := map[string]expr.Field{}
-	if s, ok := c.Subjects[subject]; ok {
-		for _, p := range s.Context {
-			vars[p.Name] = p.Field
+	return scopeOf(subjectVars(c, subject), eventField(c, event), nodes)
+}
+
+// ExprScopeOf is the scope of an expression that runs after any of several triggers: the variables of the
+// subjects and the payload of the events that all of them have, with the same type.
+func ExprScopeOf(c Catalog, subjects, events []string, nodes expr.Fields) expr.Scope {
+	var vars expr.Fields
+	for i, subject := range subjects {
+		if i == 0 {
+			vars = subjectVars(c, subject).Clone()
+			continue
 		}
+		vars = intersectFields(vars, subjectVars(c, subject))
 	}
-	vars["event"] = eventField(c, event)
-	vars["nodes"] = expr.ObjectOf(nodes)
-	vars["tenant"] = expr.MapOf(expr.DynField)
-	vars["now"] = expr.TimestampField
-	return expr.Scope{Vars: vars}
+	return scopeOf(vars, eventFieldOf(c, events), nodes)
+}
+
+func scopeOf(vars expr.Fields, event expr.Field, nodes expr.Fields) expr.Scope {
+	out := map[string]expr.Field{}
+	for _, p := range vars {
+		out[p.Name] = p.Field
+	}
+	out["event"] = event
+	out["nodes"] = expr.ObjectOf(nodes)
+	out["tenant"] = expr.MapOf(expr.DynField)
+	out["now"] = expr.TimestampField
+	return expr.Scope{Vars: out}
 }
 
 // allForeach is the scope of every foreach of the graph (a step reads only what its token has).
 const allForeach = "*"
 
-// env is the environment of a scope: the event kind read ("*": the graph's), with or without node outputs,
-// and the foreach items in scope: allForeach, or the comma-joined ids of the foreachs around a node.
-func (x *exprs) env(event string, withNodes bool, each string) (*expr.Env, error) {
-	key := fmt.Sprintf("%s|%t|%s", event, withNodes, each)
+// triggersOf are the triggers an owner (a node, or a trigger itself) is reached from; nil: the graph as a
+// whole (no owner, or a node no trigger reaches).
+func (x *exprs) triggersOf(owner string) []string {
+	if owner == "" {
+		return nil
+	}
+	return x.view.reaching[owner]
+}
+
+// kindsAndSubjects are the distinct event kinds and subjects of triggers, in order.
+func (x *exprs) kindsAndSubjects(triggers []string) (kinds, subjects []string) {
+	for _, id := range triggers {
+		i, ok := x.triggerAt[id]
+		if !ok {
+			continue
+		}
+		kind := x.view.graph.Triggers[i].Event
+		e, known := x.view.catalog.Events[kind]
+		if !contains(kinds, kind) {
+			kinds = append(kinds, kind)
+		}
+		if known && !contains(subjects, e.Subject) {
+			subjects = append(subjects, e.Subject)
+		}
+	}
+	return kinds, subjects
+}
+
+// env is the environment of a scope: the owner whose triggers' schemas are read ("": the graph's), the
+// event kind read ("*": the owner's), with or without node outputs, and the foreach items in scope:
+// allForeach, or the comma-joined ids of the foreachs around a node.
+func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env, error) {
+	triggers := x.triggersOf(owner)
+	key := fmt.Sprintf("%s|%s|%t|%s", strings.Join(triggers, ","), event, withNodes, each)
 	x.mu.Lock()
 	defer x.mu.Unlock()
 	if e, ok := x.envs[key]; ok {
 		return e, nil
 	}
-	kind := event
-	if event == "*" {
-		kind = x.event
-	}
 	nodes := expr.Fields{}
 	if withNodes {
 		nodes = x.outputs
 	}
-	scope := ExprScope(x.view.catalog, x.view.subject, kind, nodes)
+	var scope expr.Scope
+	if len(triggers) == 0 {
+		kind := event
+		if event == "*" {
+			kind = x.event
+		}
+		scope = ExprScope(x.view.catalog, x.view.subject, kind, nodes)
+	} else {
+		kinds, subjects := x.kindsAndSubjects(triggers)
+		if event != "*" {
+			kinds = []string{event}
+		}
+		scope = ExprScopeOf(x.view.catalog, subjects, kinds, nodes)
+		if x.run && len(triggers) > 1 {
+			// A run passes the event and the subject it has, whole: the fields all of them share, typed as the
+			// check types them, are what an expression may read.
+			for name, f := range scope.Vars {
+				if name != "nodes" && name != "tenant" && name != "now" {
+					scope.Vars[name] = f.OpenObjects()
+				}
+			}
+		}
+	}
 	if withNodes {
 		// foreach.<id>.item and .index: read inside the foreach's body.
 		in := map[string]bool{}
@@ -138,20 +306,20 @@ func (x *exprs) env(event string, withNodes bool, each string) (*expr.Env, error
 	return e, nil
 }
 
-func (x *exprs) program(event string, withNodes bool, src string, want expr.Type) (*expr.Program, []expr.Issue) {
-	return x.programIn(event, withNodes, allForeach, src, want)
+func (x *exprs) program(owner, event string, withNodes bool, src string, want expr.Type) (*expr.Program, []expr.Issue) {
+	return x.programIn(owner, event, withNodes, allForeach, src, want)
 }
 
-// programIn checks a source in a scope with only the given foreach items (see env).
-func (x *exprs) programIn(event string, withNodes bool, each, src string, want expr.Type) (*expr.Program, []expr.Issue) {
-	key := fmt.Sprintf("%s|%t|%s|%s|%s", event, withNodes, each, want, src)
+// programIn checks a source in the scope of an owner with only the given foreach items (see env).
+func (x *exprs) programIn(owner, event string, withNodes bool, each, src string, want expr.Type) (*expr.Program, []expr.Issue) {
+	key := fmt.Sprintf("%s|%s|%t|%s|%s|%s", strings.Join(x.triggersOf(owner), ","), event, withNodes, each, want, src)
 	x.mu.Lock()
 	if r, ok := x.progs[key]; ok {
 		x.mu.Unlock()
 		return r.p, r.issues
 	}
 	x.mu.Unlock()
-	e, err := x.env(event, withNodes, each)
+	e, err := x.env(owner, event, withNodes, each)
 	if err != nil {
 		return nil, []expr.Issue{{Code: expr.IssueType, Message: err.Error()}}
 	}
@@ -162,19 +330,19 @@ func (x *exprs) programIn(event string, withNodes bool, each, src string, want e
 	return p, issues
 }
 
-func (x *exprs) template(event string, text string) (*expr.TemplateProgram, []expr.Issue) {
-	return x.templateIn(event, allForeach, text)
+func (x *exprs) template(owner, event string, text string) (*expr.TemplateProgram, []expr.Issue) {
+	return x.templateIn(owner, event, allForeach, text)
 }
 
-func (x *exprs) templateIn(event, each, text string) (*expr.TemplateProgram, []expr.Issue) {
-	key := event + "|" + each + "|" + text
+func (x *exprs) templateIn(owner, event, each, text string) (*expr.TemplateProgram, []expr.Issue) {
+	key := strings.Join(x.triggersOf(owner), ",") + "|" + event + "|" + each + "|" + text
 	x.mu.Lock()
 	if r, ok := x.tmpls[key]; ok {
 		x.mu.Unlock()
 		return r.t, r.issues
 	}
 	x.mu.Unlock()
-	e, err := x.env(event, true, each)
+	e, err := x.env(owner, event, true, each)
 	if err != nil {
 		return nil, []expr.Issue{{Code: expr.IssueType, Message: err.Error()}}
 	}

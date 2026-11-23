@@ -1,7 +1,8 @@
 {
   "name": "trace-mixed-subject",
   "kind": "trace",
-  "description": "A side graph with triggers about different subjects (a deployment, a schedule) is about the catalog's mixed subject; a trigger matches by its fields without CEL (production), a node reads the mixed subject's context.",
+  "changed": "The SDK reads a node by the triggers that lead to it, not by the catalog's mixed subject, so the node reads event.kind (every kind has it) instead of run.number, which only a run-about trigger's event has.",
+  "description": "A side graph with triggers about different subjects (a deployment, a schedule) is about the catalog's mixed subject; a trigger matches by its fields without CEL (production), a node reads what both events have.",
   "graph": {
     "id": "",
     "version": 0,
@@ -33,7 +34,7 @@
         "id": "which",
         "type": "branch",
         "params": {
-          "expression": "run.number > 1"
+          "expression": "event.kind == \"deployment.succeeded\""
         }
       }
     ],

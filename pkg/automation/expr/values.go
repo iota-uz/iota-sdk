@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	"reflect"
 	"slices"
 	"sort"
 	"strconv"
@@ -150,7 +151,7 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		}
 		return out, true, nil
 	case Map:
-		m, ok := v.(map[string]any)
+		m, ok := toMap(v)
 		if !ok {
 			return bad("map")
 		}
@@ -170,7 +171,7 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		}
 		return newDynMap(out, path, f.Elem.Kind == Dyn), true, nil
 	case Object:
-		m, ok := v.(map[string]any)
+		m, ok := toMap(v)
 		if !ok {
 			return bad("object")
 		}
@@ -182,6 +183,18 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 			}
 			if present {
 				out[p.Name] = nv
+			}
+		}
+		if f.Open {
+			for _, k := range sortedKeys(m) {
+				if m[k] == nil || hasProp(f.Props, k) {
+					continue
+				}
+				d, err := dynValue(m[k], appendPath(path, k))
+				if err != nil {
+					return nil, false, err
+				}
+				out[k] = d
 			}
 		}
 		return out, true, nil
@@ -287,6 +300,60 @@ func toList(v any) ([]any, bool) {
 			out[i] = s
 		}
 		return out, true
+	}
+	// Any other Go slice or array (`[]map[string]string`, `[]Item`) is a list of its elements: the type check
+	// sees a list<map>, so reading `items[0].url` must not depend on how the host typed the slice.
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() || rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil, false
+	}
+	if rv.Kind() == reflect.Slice && rv.IsNil() || rv.Type().Elem().Kind() == reflect.Uint8 {
+		return nil, false // a nil slice is no list value; bytes are a string, not a list
+	}
+	out := make([]any, rv.Len())
+	for i := range out {
+		out[i] = rv.Index(i).Interface()
+	}
+	return out, true
+}
+
+// toMap is a value as the map[string]any an object or a map field reads: a Go map with string keys
+// (`map[string]string`) or a struct (through its JSON form) is the object it is.
+func toMap(v any) (map[string]any, bool) {
+	switch x := v.(type) {
+	case map[string]any:
+		return x, true
+	case nil:
+		return nil, false
+	}
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Pointer && !rv.IsNil() {
+		rv = rv.Elem()
+	}
+	switch rv.Kind() { //nolint:exhaustive // only maps and structs are objects
+	case reflect.Map:
+		if rv.Type().Key().Kind() != reflect.String || rv.IsNil() {
+			return nil, false
+		}
+		out := make(map[string]any, rv.Len())
+		for it := rv.MapRange(); it.Next(); {
+			out[it.Key().String()] = it.Value().Interface()
+		}
+		return out, true
+	case reflect.Struct:
+		if _, isTime := rv.Interface().(time.Time); isTime {
+			return nil, false
+		}
+		b, err := json.Marshal(rv.Interface())
+		if err != nil {
+			return nil, false
+		}
+		var decoded any
+		if err := UnmarshalJSON(b, &decoded); err != nil {
+			return nil, false
+		}
+		m, ok := decoded.(map[string]any)
+		return m, ok
 	}
 	return nil, false
 }
@@ -485,4 +552,13 @@ func zeroAt(f Field, path []segment) any {
 	case String, Int, Double, Bool, Dyn, Enum, List, Timestamp:
 	}
 	return zero(f)
+}
+
+func hasProp(props []Prop, name string) bool {
+	for _, p := range props {
+		if p.Name == name {
+			return true
+		}
+	}
+	return false
 }

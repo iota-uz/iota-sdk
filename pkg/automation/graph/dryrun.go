@@ -92,7 +92,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 			}
 			for _, t := range i.view.graph.Triggers {
 				// A run about an entity starts only on a trigger about it (a mixed graph has several).
-				if subject.Entity != "" && subject.Entity != i.view.subject && i.view.catalog.Events[t.Event].Subject != subject.Entity {
+				if subject.Entity != "" && !i.view.mixedRun(subject.Entity) && i.view.catalog.Events[t.Event].Subject != subject.Entity {
 					continue
 				}
 				evCtx := run
@@ -721,17 +721,16 @@ func (d *dryRun) event(ev Event) {
 	}
 }
 
-// subjectMismatch is why a run cannot be about subject: the graph is about another entity, or a mixed
-// graph has no trigger about it. An empty entity is any subject.
+// subjectMismatch is why a run cannot be about subject: the graph is about another entity, or none of a mixed
+// graph's triggers is about it. An empty entity is any subject.
 func (i *Interpreter) subjectMismatch(s Subject) string {
 	if s.Entity == "" || s.Entity == i.view.subject {
 		return ""
 	}
-	if i.view.catalog.MixedSubject != "" && i.view.subject == i.view.catalog.MixedSubject {
-		for _, t := range i.view.graph.Triggers {
-			if i.view.catalog.Events[t.Event].Subject == s.Entity {
-				return ""
-			}
+	// A graph with triggers about different subjects (a mixed one) has runs about each of them.
+	for _, t := range i.view.graph.Triggers {
+		if i.view.catalog.Events[t.Event].Subject == s.Entity {
+			return ""
 		}
 	}
 	return fmt.Sprintf("the graph is about a %s, not a %s", i.view.subject, s.Entity)
