@@ -198,6 +198,20 @@ _ARCHES = {
         "capget": 125,
         "socket": 41,
         "sendto": 44,
+        # Calls that can act on another process of the same uid (the host,
+        # in the default profile): allowed only on the caller itself, as
+        # (syscall, [(arg, required value), ...]).
+        "self_only": [
+            (302, [(0, 0)]),          # prlimit64(pid=0)
+            (141, [(0, 0), (1, 0)]),  # setpriority(PRIO_PROCESS, 0)
+            (142, [(0, 0)]),          # sched_setparam(0)
+            (144, [(0, 0)]),          # sched_setscheduler(0)
+            (203, [(0, 0)]),          # sched_setaffinity(0)
+            (314, [(0, 0)]),          # sched_setattr(0)
+            (251, [(0, 1), (1, 0)]),  # ioprio_set(IOPRIO_WHO_PROCESS, 0)
+            (256, [(0, 0)]),          # migrate_pages(0)
+            (279, [(0, 0)]),          # move_pages(0)
+        ],
         "clone": 56,
         "clone3": 435,
         "deny": {
@@ -239,6 +253,10 @@ _ARCHES = {
         "capget": 90,
         "socket": 198,
         "sendto": 206,
+        "self_only": [
+            (261, [(0, 0)]), (140, [(0, 0), (1, 0)]), (118, [(0, 0)]), (119, [(0, 0)]),
+            (122, [(0, 0)]), (274, [(0, 0)]), (30, [(0, 1), (1, 0)]), (238, [(0, 0)]), (239, [(0, 0)]),
+        ],
         "clone": 220,
         "clone3": 435,
         "deny": {
@@ -537,6 +555,32 @@ def _landlock(cfg, report):
     report.set("landlock_scope", True, "abstract unix sockets and signals scoped to the sandbox")
 
 
+def _require_args(nr, conds, deny):
+    """A block that lets syscall nr through only when every (arg, value) in
+    conds holds (both 32-bit halves), and fails it with deny otherwise; any
+    other syscall falls through to the next block."""
+    n = len(conds)
+    body = 4 * n + 2  # per condition: load+compare for each half; then allow, deny
+    prog = [(_BPF_JEQ_K, 0, body, nr)]
+    for k, (arg, value) in enumerate(conds):
+        lo, hi = value & 0xFFFFFFFF, (value >> 32) & 0xFFFFFFFF
+        off = _OFF_ARG0 + 8 * arg
+        # Instructions left before the deny return, counted from each jump.
+        to_deny_lo = 4 * (n - k) - 2 + 1
+        to_deny_hi = 4 * (n - k) - 4 + 1
+        prog += [
+            (_BPF_LD_W_ABS, 0, 0, off),
+            (_BPF_JEQ_K, 0, to_deny_lo, lo),
+            (_BPF_LD_W_ABS, 0, 0, off + 4),
+            (_BPF_JEQ_K, 0, to_deny_hi, hi),
+        ]
+    prog += [
+        (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
+        (_BPF_RET_K, 0, 0, deny),
+    ]
+    return prog
+
+
 def _seccomp_program(arch):
     spec = _ARCHES[arch]
     eperm = _SECCOMP_RET_ERRNO | errno.EPERM
@@ -570,6 +614,8 @@ def _seccomp_program(arch):
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ERRNO | errno.ENOTTY),
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
     ]
+    for nr, conds in spec["self_only"]:
+        prog += _require_args(nr, conds, eperm)
     # sendto(2) is send(2) when its address (arg 4) is NULL; with an address
     # it would reach a pathname datagram socket, so it is refused.
     prog += [

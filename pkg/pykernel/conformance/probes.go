@@ -4,6 +4,8 @@ package conformance
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -104,10 +106,12 @@ var probes = []probe{
 	{"workdir_quota_after_exec", probeQuotaAfterExec},
 	{"forged_exec_done", probeForgedDone},
 	{"host_ipc", probeHostIPC},
+	{"host_process_controls", probeHostProcessControls},
 	{"workdir_quota_bypasses", probeQuotaBypasses},
 	{"refused_allocators", probeRefusedAllocators},
 	{"idle_cpu_via_children", probeIdleForkEvasion},
 	{"no_new_work_while_idle", probeNoSpawnWhileIdle},
+	{"no_delayed_work_while_idle", probeDelayedWork},
 	{"write_semantics", probeWriteSemantics},
 	{"stream_writes_bounded", probeStreamWrites},
 	{"capability_outside_exec", probeCapabilityOutsideExec},
@@ -839,11 +843,12 @@ report("exec started a thread that calls a capability later", True)
 			return Result{Error: err.Error()}
 		}
 		res := Result{Checks: o.checks}
-		late := filepath.Join(s.workdir, "late.txt")
-		var raw []byte
-		eventually(10*time.Second, func() bool { raw, _ = os.ReadFile(late); return len(raw) > 0 })
-		res.Checks = append(res.Checks, Check{Name: "a capability call after the exec ended is refused",
-			OK: string(raw) == "KernelCancelled" && len(called) == 0, Detail: fmt.Sprintf("outcome %q, handler ran %d times", raw, len(called))})
+		// The kernel is frozen once the exec ends: the thread cannot run, let
+		// alone reach a capability, until a later exec bounds it.
+		time.Sleep(2 * time.Second)
+		_, err = os.Stat(filepath.Join(s.workdir, "late.txt"))
+		res.Checks = append(res.Checks, Check{Name: "no capability call happens after the exec ended",
+			OK: len(called) == 0 && os.IsNotExist(err), Detail: fmt.Sprintf("handler ran %d times", len(called))})
 		return res
 	})
 }
@@ -964,6 +969,17 @@ except (OSError, ValueError):
 	{"flood the workdir with directories and long symlinks", `
 import time
 total, deadline, refused = 0, time.monotonic() + CFG["flood_seconds"], None
+# Fill bytes to just below the quota first, so the entry flood reaches the
+# boundary within its deadline at any machine speed.
+room = CFG["quota"] - (4 << 20)
+if room > 0:
+    with open("filler", "wb", buffering=0) as f:
+        left = room
+        while left > 0:
+            n = f.write(b"\0" * min(left, 1 << 20))
+            if not n:
+                break
+            left -= n
 try:
     i = 0
     while time.monotonic() < deadline:
@@ -1004,7 +1020,7 @@ func probeQuotaBypasses(ctx context.Context, r *runner) Result {
 	for _, attack := range quotaAttacks {
 		sub := r.withKernel(ctx, "quota-bypass", nil, func(k pykernel.Kernel, s *session) Result {
 			flood := r.opts.ProbeTimeout / 2
-			o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes, "flood_seconds": flood.Seconds()},
+			o, err := r.exec(ctx, k, s, map[string]any{"max": r.opts.QuotaProbeMaxBytes, "flood_seconds": flood.Seconds(), "quota": limit},
 				quotaFill+attack.code+`
 print("WRITTEN %d" % total)
 `, r.opts.ProbeTimeout)
@@ -1147,13 +1163,12 @@ report("exec returned with a timer to fork later", True)
 			return Result{Error: err.Error()}
 		}
 		res := Result{Checks: o.checks}
+		pid := k.Info().PID
+		before := groupSize(pid)
 		time.Sleep(3 * time.Second)
-		o, err = r.exec(ctx, k, s, nil, `print("SPAWN", globals().get("spawn_result"))`, r.opts.ProbeTimeout)
-		if err != nil {
-			return Result{Error: err.Error()}
-		}
+		after := groupSize(pid)
 		res.Checks = append(res.Checks, Check{Name: "no process or thread starts while no exec runs",
-			OK: strings.Contains(o.stdout, "SPAWN EAGAIN,nothread"), Detail: strings.TrimSpace(o.stdout)})
+			OK: after <= before, Detail: fmt.Sprintf("tasks %d before, %d after the idle period", before, after)})
 		return res
 	})
 }
@@ -1273,13 +1288,22 @@ report("writers blocked on a full FIFO", True)
 }
 
 func probeHostIPC(ctx context.Context, r *runner) Result {
-	key := int(time.Now().UnixNano()&0x3fffffff) | 1
-	id, err := unix.SysvShmGet(key, 4096, unix.IPC_CREAT|0o666)
-	cfg := map[string]any{"key": key}
-	if err == nil {
-		defer func() { _, _ = unix.SysvShmCtl(id, unix.IPC_RMID, nil) }()
-	} else {
-		cfg["key"] = 0
+	// A segment of our own, created exclusively: an existing segment with the
+	// same key is never adopted, and only what this call created is removed.
+	cfg := map[string]any{"key": 0}
+	for attempt := 0; attempt < 16; attempt++ {
+		b := make([]byte, 4)
+		_, _ = rand.Read(b)
+		key := int(binary.LittleEndian.Uint32(b)&0x3fffffff) | 1
+		id, err := unix.SysvShmGet(key, 4096, unix.IPC_CREAT|unix.IPC_EXCL|0o666)
+		if errors.Is(err, unix.EEXIST) {
+			continue
+		}
+		if err == nil {
+			cfg["key"] = key
+			defer func(id int) { _, _ = unix.SysvShmCtl(id, unix.IPC_RMID, nil) }(id)
+		}
+		break
 	}
 	return r.pyProbe(ctx, "ipc", cfg, `
 IPC_CREAT, IPC_PRIVATE = 0o1000, 0
@@ -1290,5 +1314,74 @@ denied("create a SysV message queue", lambda: raw_syscall(SYS["msgget"], IPC_PRI
 denied("create SysV semaphores", lambda: raw_syscall(SYS["semget"], IPC_PRIVATE, 1, IPC_CREAT | 0o600))
 name = ctypes.create_string_buffer(b"pykernel-conformance")
 denied("open a POSIX message queue", lambda: raw_syscall(SYS["mq_open"], ctypes.addressof(name), os.O_RDWR | os.O_CREAT, 0o600, 0))
+`)
+}
+
+// groupSize counts the tasks (threads of every process) of process group pgid.
+func groupSize(pgid int) int {
+	entries, _ := os.ReadDir("/proc")
+	n := 0
+	for _, e := range entries {
+		raw, err := os.ReadFile("/proc/" + e.Name() + "/stat")
+		if err != nil {
+			continue
+		}
+		s := string(raw)
+		i := strings.LastIndexByte(s, ')')
+		if i < 0 {
+			continue
+		}
+		f := strings.Fields(s[i+1:])
+		if len(f) < 3 || f[2] != strconv.Itoa(pgid) {
+			continue
+		}
+		tasks, _ := os.ReadDir("/proc/" + e.Name() + "/task")
+		n += len(tasks)
+	}
+	return n
+}
+
+func probeDelayedWork(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "delayed", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, nil, `
+import threading, time
+def later():
+    time.sleep(0.5)
+    with open(os.path.join(CFG["workdir"], "late-work"), "w") as f:
+        f.write("ran")
+threading.Thread(target=later, daemon=True).start()
+report("exec returned with work scheduled for later", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		pid := k.Info().PID
+		cpu := groupCPU(pid)
+		time.Sleep(2 * time.Second)
+		_, statErr := os.Stat(filepath.Join(s.workdir, "late-work"))
+		res.Checks = append(res.Checks, Check{Name: "work left sleeping does not resume after the exec ended",
+			OK:     os.IsNotExist(statErr) && groupCPU(pid)-cpu < 50*time.Millisecond,
+			Detail: fmt.Sprintf("file written: %t, CPU while idle %s", statErr == nil, groupCPU(pid)-cpu)})
+		return res
+	})
+}
+
+func probeHostProcessControls(ctx context.Context, r *runner) Result {
+	return r.pyProbe(ctx, "proc-controls", nil, `
+import resource
+hp = CFG["host_pid"]
+denied("lower a host process's limits with prlimit", lambda: resource.prlimit(hp, resource.RLIMIT_NOFILE, (64, 64)))
+denied("read a host process's limits with prlimit", lambda: resource.prlimit(hp, resource.RLIMIT_NOFILE))
+denied("renice a host process", lambda: os.setpriority(os.PRIO_PROCESS, hp, 10))
+denied("renice every process of the uid", lambda: os.setpriority(os.PRIO_USER, 0, 10))
+denied("move a host process to another CPU", lambda: os.sched_setaffinity(hp, {0}))
+try:
+    soft, hard = resource.prlimit(0, resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+    os.setpriority(os.PRIO_PROCESS, 0, os.getpriority(os.PRIO_PROCESS, 0))
+    report("the kernel still adjusts itself", True)
+except OSError as e:
+    report("the kernel still adjusts itself", False, e)
 `)
 }

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -16,7 +17,10 @@ import (
 // zombies forever; it reaps them by exact pid, so exit statuses of the host's
 // other children are never consumed. It returns how many members of the group
 // are still present.
-func ReapGroup(pgid int) int {
+func ReapGroup(pgid int) int { return reapGroupExcept(pgid, 0) }
+
+// reapGroupExcept is ReapGroup leaving process keep (the group leader) alone.
+func reapGroupExcept(pgid, keep int) int {
 	if pgid <= 0 {
 		return 0
 	}
@@ -47,7 +51,7 @@ func ReapGroup(pgid int) int {
 		}
 		ppid, _ := strconv.Atoi(f[1])
 		pgrp, _ := strconv.Atoi(f[2])
-		if pgrp != pgid {
+		if pgrp != pgid || pid == keep {
 			continue
 		}
 		if ppid == self && f[0] == "Z" {
@@ -59,4 +63,17 @@ func ReapGroup(pgid int) int {
 		left++
 	}
 	return left
+}
+
+// emptyGroup kills and reaps every member of process group pgid except its
+// leader. The leader must have exited but not be reaped: its zombie keeps the
+// group id reserved, so the group signal cannot reach an unrelated process.
+func emptyGroup(pgid int) {
+	for {
+		_ = unix.Kill(-pgid, unix.SIGKILL)
+		if reapGroupExcept(pgid, pgid) == 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }

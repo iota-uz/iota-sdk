@@ -7,7 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
+
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 )
 
 // atRest reports whether the kernel with group leader pid is at rest: every
@@ -29,7 +30,7 @@ func atRest(pid int) bool {
 			continue
 		}
 		if other, err := strconv.Atoi(e.Name()); err == nil {
-			_ = syscall.Kill(other, syscall.SIGKILL)
+			isolation.KillMember(other, pid)
 			rest = false
 		}
 	}
@@ -39,11 +40,34 @@ func atRest(pid int) bool {
 	}
 	for _, t := range tasks {
 		f, ok := procStat("/proc/" + pgid + "/task/" + t.Name() + "/stat")
-		if ok && len(f) > 0 && f[0] == "R" {
-			return false
+		if !ok || len(f) == 0 || f[0] == "R" {
+			return false // running, or not observable: not at rest
 		}
 	}
 	return rest
+}
+
+// groupStopped reports whether every live member of process group pgid is
+// stopped by a signal.
+func groupStopped(pgid int) bool {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return false
+	}
+	want := strconv.Itoa(pgid)
+	for _, e := range entries {
+		if _, err := strconv.Atoi(e.Name()); err != nil {
+			continue
+		}
+		f, ok := procStat("/proc/" + e.Name() + "/stat")
+		if !ok || len(f) < 3 || f[2] != want {
+			continue
+		}
+		if st := f[0]; st != "T" && st != "Z" && st != "X" {
+			return false
+		}
+	}
+	return true
 }
 
 // procStat returns the fields of a /proc stat file after the command name.

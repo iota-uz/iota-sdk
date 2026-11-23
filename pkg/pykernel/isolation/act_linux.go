@@ -85,3 +85,33 @@ func readableAddr(pid int) (uintptr, error) {
 	}
 	return 0, fmt.Errorf("no readable mapping")
 }
+
+// KillMember SIGKILLs process pid if, and only if, it is a member of process
+// group pgid. The process is pinned by a pidfd before its membership is
+// checked, and the pidfd is confirmed to still name that live pid, so a
+// recycled pid is never signalled.
+func KillMember(pid, pgid int) bool {
+	pidfd, err := unix.PidfdOpen(pid, 0)
+	if err != nil {
+		return false
+	}
+	defer unix.Close(pidfd)
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return false
+	}
+	s := string(raw)
+	i := strings.LastIndexByte(s, ')')
+	if i < 0 {
+		return false
+	}
+	f := strings.Fields(s[i+1:])
+	if len(f) < 3 || f[2] != strconv.Itoa(pgid) {
+		return false
+	}
+	info, err := os.ReadFile("/proc/self/fdinfo/" + strconv.Itoa(pidfd))
+	if err != nil || !strings.Contains(string(info), "Pid:\t"+strconv.Itoa(pid)+"\n") {
+		return false // exited (and maybe recycled) since the pidfd was opened
+	}
+	return unix.PidfdSendSignal(pidfd, unix.SIGKILL, nil, 0) == nil
+}

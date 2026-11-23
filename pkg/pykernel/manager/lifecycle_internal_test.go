@@ -358,3 +358,88 @@ func TestExec_StoppedSubmissionReportsItsOutcome(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t, pykernel.ReasonCancelled, done.Reason)
 }
+
+// lingeringProcess does not finish Wait until released, like a process group
+// still dying after its kill.
+type lingeringProcess struct {
+	*fakeProcess
+	release chan struct{}
+}
+
+func (p *lingeringProcess) Wait() error {
+	<-p.release
+	return p.fakeProcess.Wait()
+}
+
+type lingeringLauncher struct {
+	fakeLauncher
+	procs chan *lingeringProcess
+}
+
+func (l *lingeringLauncher) Launch(ctx context.Context, spec isolation.SandboxSpec) (isolation.Process, error) {
+	base, err := l.fakeLauncher.Launch(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	p := &lingeringProcess{fakeProcess: base.(*fakeProcess), release: make(chan struct{})}
+	l.procs <- p
+	return p, nil
+}
+
+func TestAcquire_ReplacementWaitsForTheEvictedGroupToEnd(t *testing.T) {
+	t.Parallel()
+	l := &lingeringLauncher{procs: make(chan *lingeringProcess, 4)}
+	m, err := New(Config{
+		Policy: lifecycle.WarmPool(time.Hour, 1), Launcher: l,
+		Sandbox: isolation.Profile{Mode: isolation.ModeInsecureDisabled}, DisposeGrace: 50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		for {
+			select {
+			case p := <-l.procs:
+				close(p.release)
+			default:
+				return
+			}
+		}
+	})
+	a, err := m.Acquire(context.Background(), testSess("a", t.TempDir()))
+	require.NoError(t, err)
+	first := <-l.procs
+	require.NoError(t, m.Release(a))
+
+	got := make(chan error, 1)
+	go func() {
+		_, err := m.Acquire(context.Background(), testSess("b", t.TempDir()))
+		got <- err
+	}()
+	select {
+	case err := <-got:
+		t.Fatalf("the replacement started while the evicted group was alive (err=%v)", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(first.release)
+	require.NoError(t, <-got)
+}
+
+func TestExec_KernelDyingDuringSubmitReportsKernelExited(t *testing.T) {
+	t.Parallel()
+	hostConn, kernConn := net.Pipe() // the kernel never reads, then dies
+	k := newKernel(testSess("dying", t.TempDir()), newFakeProcess(), bridge.New(hostConn),
+		kernelOptions{outputCap: defaultOutputCap, grace: 50 * time.Millisecond})
+	k.start()
+	t.Cleanup(func() { _ = k.Dispose(context.Background()) })
+	time.AfterFunc(100*time.Millisecond, func() { _ = kernConn.Close() })
+
+	ch, err := k.Exec(context.Background(), pykernel.ExecRequest{Code: "1"})
+	require.NoError(t, err, "a dead kernel is an outcome, not a transport error")
+	var done *pykernel.DonePayload
+	for ev := range ch {
+		if ev.Kind == pykernel.EventDone {
+			done = ev.Done
+		}
+	}
+	require.NotNil(t, done)
+	assert.Equal(t, pykernel.ReasonKernelExited, done.Reason)
+}

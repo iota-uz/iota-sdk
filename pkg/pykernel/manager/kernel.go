@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,8 +58,13 @@ type kernel struct {
 	serveCancel context.CancelFunc
 	closed      chan struct{}
 	closeOnce   sync.Once
-	serveDone   chan struct{}
-	ready       chan []byte
+	// gone is closed once the kernel's whole process group has terminated
+	// and been reaped; every disposer can wait on it.
+	gone      chan struct{}
+	waitOnce  sync.Once
+	frozen    bool // supervised kernels are stopped (SIGSTOP) while no exec runs
+	serveDone chan struct{}
+	ready     chan []byte
 
 	mu             sync.Mutex
 	disposed       bool
@@ -110,6 +116,7 @@ func newKernel(sess pykernel.Session, proc isolation.Process, br bridge.Bridge, 
 		br:             br,
 		opts:           opts,
 		closed:         make(chan struct{}),
+		gone:           make(chan struct{}),
 		serveDone:      make(chan struct{}),
 		ready:          make(chan []byte, 1),
 		lastActive:     time.Now(),
@@ -246,9 +253,38 @@ func (k *kernel) settle(a *activeExec) {
 	if k.active != a || a.claimed == nil {
 		return
 	}
+	// The kernel is stopped before the consumer learns the exec ended: work
+	// it left behind (a sleeping thread, a timer) cannot resume outside an
+	// exec, whose watchdog, quota and capability context then bound it.
+	if !k.freezeLocked() {
+		_ = k.proc.Kill() // cannot be held at rest: never leave it running
+		return
+	}
 	out := *a.claimed
 	out.Done = k.donePayloadLocked(a, out.Done, "")
 	k.finishLocked(out)
+}
+
+// freezeLocked stops the kernel's process group and confirms every member is
+// stopped. Caller holds k.mu.
+func (k *kernel) freezeLocked() bool {
+	for i := 0; i < 100; i++ {
+		_ = k.proc.Signal(syscall.SIGSTOP)
+		if groupStopped(k.pid) {
+			k.frozen = true
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return false
+}
+
+// thawLocked resumes a frozen kernel for an exec. Caller holds k.mu.
+func (k *kernel) thawLocked() {
+	if k.frozen {
+		_ = k.proc.Signal(syscall.SIGCONT)
+		k.frozen = false
+	}
 }
 
 // noteQuota records that the supervisor refused an allocation of the
@@ -338,6 +374,7 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 		files:   k.filesPreserved,
 	}
 	k.active = a
+	k.thawLocked()
 	k.nsReset = false // acknowledged by this exec; reported in its DonePayload
 	k.execs++
 	k.inFlight = true
@@ -375,8 +412,28 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 			// code was being sent): its closed stream carries the outcome.
 			return a.ch, nil
 		}
-		k.finishLocked()
-		return nil, err
+		// A broken submission means the kernel is dying: give its exit
+		// path (process watcher, read loop) the chance to finish the exec,
+		// and finish it as kernel_exited ourselves if it does not.
+		k.mu.Unlock()
+		select {
+		case <-a.done:
+		case <-time.After(exitDrain + time.Second):
+		}
+		k.mu.Lock()
+		if k.active == a {
+			now := time.Now()
+			errEv := pykernel.ExecEvent{Kind: pykernel.EventError, Timestamp: now,
+				Err: &pykernel.ExecError{Type: "KernelExited", Message: "the kernel could not take the code: " + err.Error()}}
+			a.err = errEv.Err
+			reason := pykernel.ReasonKernelExited
+			if a.stop != "" {
+				reason = a.stop
+			}
+			doneEv := pykernel.ExecEvent{Kind: pykernel.EventDone, Done: k.donePayloadLocked(a, nil, reason), Timestamp: now}
+			k.finishLocked(errEv, doneEv)
+		}
+		return a.ch, nil
 	}
 	return a.ch, nil
 }
@@ -646,31 +703,35 @@ func (k *kernel) Dispose(_ context.Context) error {
 	}
 	_ = k.br.Close()
 	_ = k.proc.Kill()
-
-	waitDone := make(chan struct{})
-	go func() {
-		_ = k.proc.Wait()
-		close(waitDone)
-	}()
-	deadline := time.After(k.opts.grace)
+	k.reap()
 	select {
-	case <-waitDone:
-	case <-deadline:
-		// Wait is stuck only if the process ignores SIGKILL (D state);
-		// leave the reaping to the goroutine.
-		return nil
-	}
-	// Descendants orphaned by the kill are reparented to the host when it is
-	// PID 1 of a container; reap them so they do not linger as zombies.
-	for isolation.ReapGroup(k.pid) > 0 {
-		select {
-		case <-deadline:
-			return nil
-		case <-time.After(20 * time.Millisecond):
-		}
+	case <-k.gone:
+	case <-time.After(k.opts.grace):
+		// Wait is stuck only if a process ignores SIGKILL (D state); the
+		// reaper keeps going and gone closes when it is done.
 	}
 	return nil
 }
+
+// reap starts, once, the wait for the kernel's whole process group (Wait
+// empties the group before reaping the leader) and the reaping of members
+// reparented to the host; gone closes after both.
+func (k *kernel) reap() {
+	k.waitOnce.Do(func() {
+		go func() {
+			_ = k.proc.Wait()
+			// Descendants orphaned by the kill are reparented to the host
+			// when it is PID 1 of a container; reap them as well.
+			for isolation.ReapGroup(k.pid) > 0 {
+				time.Sleep(20 * time.Millisecond)
+			}
+			close(k.gone)
+		}()
+	})
+}
+
+// Gone is closed when the kernel's process group has terminated.
+func (k *kernel) Gone() <-chan struct{} { return k.gone }
 
 type usage struct {
 	bytes   int64

@@ -119,8 +119,15 @@ func (p *unixProcess) Exited() <-chan struct{} { return p.exited }
 
 func (p *unixProcess) PID() int { return p.cmd.Process.Pid }
 
+// Wait returns once the process and every member of its process group are
+// gone: after the leader exits, and while its zombie still pins the group id,
+// the rest of the group is killed and reaped; only then is the leader reaped.
+// A caller that sees Wait return knows no process of the group is left.
 func (p *unixProcess) Wait() error {
 	waitExited(p.cmd.Process.Pid)
+	if canWaitWithoutReap {
+		emptyGroup(p.cmd.Process.Pid)
+	}
 	p.mu.Lock()
 	p.reaped = true
 	p.mu.Unlock()

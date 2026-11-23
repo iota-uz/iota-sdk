@@ -445,6 +445,7 @@ func (m *Manager) retireLocked(k *kernel) func() {
 	m.retiring++
 	return func() {
 		_ = k.Dispose(context.Background())
+		<-k.gone // the slot frees only when the whole process group is gone
 		m.mu.Lock()
 		m.retiring--
 		m.mu.Unlock()

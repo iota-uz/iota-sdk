@@ -310,13 +310,25 @@ func (s *supervisor) reconcile() error {
 		}
 		return nil
 	})
-	held, open, err := s.heldInodes()
+	held, open, mapped, err := s.heldInodes()
 	if err != nil {
 		return err
 	}
 	// Unnamed inodes the kernel holds (O_TMPFILE, unlinked files, memfd)
 	// cost an entry and their size until the last reference closes.
 	var unnamed, unnamedEntries int64
+	viaFD := map[uint64]bool{}
+	for ino := range open {
+		viaFD[ino.ino] = true
+	}
+	for ino := range mapped {
+		if !viaFD[ino] {
+			unnamedEntries++
+			if !s.ledgerHasIno(ino) {
+				unnamed += quotaBlock
+			}
+		}
+	}
 	for ino, size := range open {
 		unnamedEntries++
 		if _, ok := s.ledger[ino]; !ok {
@@ -344,6 +356,15 @@ func (s *supervisor) reconcile() error {
 		s.entryPrev = 0
 	}
 	return nil
+}
+
+func (s *supervisor) ledgerHasIno(ino uint64) bool {
+	for k := range s.ledger {
+		if k.ino == ino {
+			return true
+		}
+	}
+	return false
 }
 
 // groupStats lists the processes of the kernel's process group and their
@@ -388,16 +409,17 @@ func (s *supervisor) groupStats() ([]int, uint64) {
 // Inodes are matched by number only: /proc/<pid>/maps reports the device of
 // the underlying layer on overlayfs and btrfs, so a mismatch errs on keeping
 // the charge.
-func (s *supervisor) heldInodes() (map[uint64]bool, map[inode]int64, error) {
+func (s *supervisor) heldInodes() (map[uint64]bool, map[inode]int64, map[uint64]bool, error) {
 	pids, _ := s.groupStats()
 	held := map[uint64]bool{}
-	open := map[inode]int64{} // unnamed regular files held by an fd, with their charge
+	open := map[inode]int64{}   // unnamed regular files held by an fd, with their charge
+	mapped := map[uint64]bool{} // unnamed inodes held by a mapping
 	for _, pid := range pids {
 		base := "/proc/" + strconv.Itoa(pid)
 		ents, err := os.ReadDir(base + "/fd")
 		if err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			continue // exited meanwhile
 		}
@@ -413,7 +435,7 @@ func (s *supervisor) heldInodes() (map[uint64]bool, map[inode]int64, error) {
 		f, err := os.Open(base + "/maps")
 		if err != nil {
 			if errors.Is(err, os.ErrPermission) {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			continue
 		}
@@ -426,11 +448,16 @@ func (s *supervisor) heldInodes() (map[uint64]bool, map[inode]int64, error) {
 			}
 			if ino, err := strconv.ParseUint(fields[4], 10, 64); err == nil {
 				held[ino] = true
+				// A mapping of an unnamed inode keeps it alive without any
+				// fd: it still costs an entry (its bytes are in the ledger).
+				if len(fields) > 6 && fields[len(fields)-1] == "(deleted)" {
+					mapped[ino] = true
+				}
 			}
 		}
 		_ = f.Close()
 	}
-	return held, open, nil
+	return held, open, mapped, nil
 }
 
 // checkIdle charges the CPU the kernel uses during intervals in which no
