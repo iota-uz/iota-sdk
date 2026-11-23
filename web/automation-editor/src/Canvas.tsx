@@ -244,6 +244,35 @@ export function Canvas(props: CanvasProps): JSX.Element {
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
   })
 
+  // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
+  // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
+  // orthogonal one until its own is ready.
+  const routeCache = new Map<string, { sig: string; d: string; owner: object }>()
+  const [routeEpoch, setRouteEpoch] = createSignal(0)
+  const ROUTE_SLICE_MS = 6
+  let routeTimer: ReturnType<typeof setTimeout> | undefined
+  createEffect(() => {
+    const current = router()
+    const todo = visibleEdges().filter((key) => routeCache.get(key)?.owner !== current)
+    clearTimeout(routeTimer)
+    if (todo.length === 0) return
+    const run = () => {
+      const started = performance.now()
+      while (todo.length > 0 && performance.now() - started < ROUTE_SLICE_MS) {
+        const key = todo.shift()!
+        const route = current.route(key)
+        if (!route || route.points.length === 0) continue
+        const first = route.points[0]!
+        const last = route.points[route.points.length - 1]!
+        routeCache.set(key, { sig: `${first.x},${first.y},${last.x},${last.y}`, d: routePath(route.points), owner: current })
+      }
+      setRouteEpoch((n) => n + 1)
+      if (todo.length > 0) routeTimer = setTimeout(run, 0)
+    }
+    routeTimer = setTimeout(run, 0)
+  })
+  onCleanup(() => clearTimeout(routeTimer))
+
   const isSelected = (id: string) => props.selected === id || multi().has(id)
   const selection = () => {
     const out = new Set(multi())
@@ -807,12 +836,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (!p || !q || !slot || !handle) return ''
       const base = layout()
       const settled = base[node]?.x === p.x && base[node]?.y === p.y && base[target]?.x === q.x && base[target]?.y === q.y
-      if (settled) {
-        const route = router().route(source)
-        if (route) return routePath(route.points)
-      }
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
       const b = { x: q.x + handle.x, y: q.y + handle.y }
+      if (settled) {
+        routeEpoch()
+        const found = routeCache.get(source)
+        if (found && found.sig === `${a.x},${a.y},${b.x},${b.y}`) return found.d
+      }
       return routePath(directRoute(a, b).points)
     })
     const className = createMemo(() => {

@@ -38,7 +38,7 @@ const LANES = 5
 const CLEAR = 4
 const BEND_COST = 24
 const TRUNK_REWARD = 0.85
-const COLUMN_CANDIDATES = 96
+const COLUMN_CANDIDATES = 48
 
 /** Cards as obstacles, with a coarse grid to find the ones near a segment. */
 class Obstacles {
@@ -135,62 +135,141 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
     below.push(s.y + STUB + k * LANE)
     above.push(t.y - STUB - k * LANE)
   }
-  const stubFree = (ys: number[], x: number, from: number, down: boolean) =>
-    ys.filter((y) => !obstacles.blocked(x, from, x, y, 0) && (down ? y > from : y < from))
-  const y1s = stubFree(below, s.x, s.y, true)
-  const y2s = stubFree(above, t.x, t.y, false)
+  const bandTop = Math.min(s.y, t.y - LANES * LANE) - 96
+  const bandBottom = Math.max(t.y, s.y + LANES * LANE) + 96
+  const first = obstacles.near(Math.min(s.x, t.x) - 96, bandTop, Math.max(s.x, t.x) + 96, bandBottom)
+  const stubFree = (ys: number[], x: number, from: number) =>
+    ys.filter((y) => {
+      const lo = Math.min(from, y)
+      const hi = Math.max(from, y)
+      for (const r of first) if (x > r.x && x < r.x + r.width && hi > r.y && lo < r.y + r.height) return false
+      return true
+    })
+  const y1s = stubFree(below, s.x, s.y)
+  const y2s = stubFree(above, t.x, t.y)
   if (y1s.length === 0 || y2s.length === 0) return { ...directRoute(s, t), blocked: true }
 
-  // Vertical channels: under the source, above the target, and the gaps around the cards between.
-  const reach = 480
+  // Vertical channels: under the source, above the target, and the gaps around the cards between. The
+  // search starts with the cards close to the edge and widens only when it finds nothing.
+  for (const reach of [96, 480, 100000]) {
+    const found = search(reach)
+    if (found) return { points: found, blocked: false }
+  }
+  return { ...directRoute(s, t), blocked: true }
+
+  function search(reach: number): Point[] | null {
   const x0 = Math.min(s.x, t.x) - reach
   const x1 = Math.max(s.x, t.x) + reach
   const yTop = Math.min(y1s[0]!, y2s[0]!) - reach
   const yBottom = Math.max(y1s[0]!, y2s[0]!) + reach
-  const xs = new Set<number>([s.x, t.x])
-  for (const r of obstacles.near(x0, yTop, x1, yBottom)) {
-    for (let k = 0; k < 3; k += 1) {
-      xs.add(r.x - STUB - k * LANE)
-      xs.add(r.x + r.width + STUB + k * LANE)
-    }
+  const local = reach === 96 ? first : obstacles.near(x0, yTop, x1, yBottom)
+  const free = (ax: number, ay: number, bx: number, by: number) => {
+    const lx = Math.min(ax, bx) - CLEAR
+    const hx = Math.max(ax, bx) + CLEAR
+    const ly = Math.min(ay, by) - CLEAR
+    const hy = Math.max(ay, by) + CLEAR
+    for (const r of local) if (hx > r.x && lx < r.x + r.width && hy > r.y && ly < r.y + r.height) return false
+    return true
   }
-  for (const v of trunk.v) xs.add(v.x)
-  const columns = [...xs]
-    .map((x) => ({ x, bound: Math.abs(x - s.x) + Math.abs(x - t.x) }))
-    .sort((a, b) => a.bound - b.bound || a.x - b.x)
-    .slice(0, COLUMN_CANDIDATES)
+  type Column = { x: number; bound: number; special: boolean }
+  const column = (x: number): Column => ({ x, bound: Math.abs(x - s.x) + Math.abs(x - t.x), special: x === s.x || x === t.x })
+  const around = (): Column[] => {
+    const xs = new Set<number>([s.x, t.x])
+    // Channels beside the cards near the source and near the target: a vertical run starts and ends there.
+    const window = reach === 96 ? 320 : reach
+    for (const r of local) {
+      if ((r.x > s.x + window || r.x + r.width < s.x - window) && (r.x > t.x + window || r.x + r.width < t.x - window)) continue
+      for (let k = 0; k < 3; k += 1) {
+        xs.add(r.x - STUB - k * LANE)
+        xs.add(r.x + r.width + STUB + k * LANE)
+      }
+    }
+    for (const v of trunk.v) xs.add(v.x)
+    return [...xs].map(column).sort((a, b) => a.bound - b.bound || Number(b.special) - Number(a.special) || a.x - b.x).slice(0, COLUMN_CANDIDATES)
+  }
 
-  let best: { points: Point[]; cost: number } | null = null
   let rewardCap = 0
   for (const h of trunk.h) rewardCap += (h.hi - h.lo) * TRUNK_REWARD
   for (const v of trunk.v) rewardCap += (v.hi - v.lo) * TRUNK_REWARD
   const laneBias = (index: number) => Math.abs(index - preference) * 0.6
-  for (const column of columns) {
-    // The cheapest the route can be with this vertical channel; stop when nothing left can win.
-    const floor = (y1s[0]! - s.y) + column.bound + Math.abs(t.y - y2s[0]!) - rewardCap
-    if (best && floor >= best.cost) break
-    for (let i = 0; i < y1s.length; i += 1) {
-      const y1 = y1s[i]!
-      if (obstacles.blocked(s.x, y1, column.x, y1)) continue
-      for (let j = 0; j < y2s.length; j += 1) {
+  const vertical = Math.abs(t.y - s.y)
+
+  type Pick = { x: number; y1: number; y2: number; cost: number }
+  /** The price of going down to y1, across to x, along to y2, across to the target and down: length, bends, trunk. */
+  const price = (x: number, y1: number, y2: number, i: number, j: number): number => {
+    const down0 = y1 - s.y
+    const across1 = Math.abs(x - s.x)
+    const along = Math.abs(y2 - y1)
+    const across3 = Math.abs(t.x - x)
+    const down4 = t.y - y2
+    // Bends: the axis changes between the segments that are not empty (same-axis neighbours merge).
+    let bends = 0
+    let axis = -1
+    const step = (length: number, a: number) => {
+      if (length < 0.5) return
+      if (axis >= 0 && axis !== a) bends += 1
+      axis = a
+    }
+    step(down0, 0)
+    step(across1, 1)
+    step(along, 0)
+    step(across3, 1)
+    step(down4, 0)
+    let shared = 0
+    for (const h of trunk.h) {
+      if (same(h.y, y1)) shared += overlap(s.x, x, h.lo, h.hi)
+      if (same(h.y, y2)) shared += overlap(x, t.x, h.lo, h.hi)
+    }
+    for (const v of trunk.v) if (same(v.x, x)) shared += overlap(y1, y2, v.lo, v.hi)
+    return down0 + across1 + along + across3 + down4 - shared * TRUNK_REWARD + bends * BEND_COST + laneBias(i) + laneBias(j)
+  }
+  const build = (pick: Pick): Point[] => simplify([s, { x: s.x, y: pick.y1 }, { x: pick.x, y: pick.y1 }, { x: pick.x, y: pick.y2 }, { x: t.x, y: pick.y2 }, t])
+  const open = (x: number, y1: number, y2: number) => free(s.x, y1, x, y1) && free(x, y1, x, y2) && free(x, y2, t.x, y2)
+  // Down the source's own column the first channel is irrelevant, and down the target's the last: one
+  // lane is enough there, and it may not double back.
+  const lanes = (col: Column, visit: (y1: number, y2: number, i: number, j: number) => void) => {
+    const iMax = col.x === s.x ? 1 : y1s.length
+    const jMax = col.x === t.x ? 1 : y2s.length
+    for (let i = 0; i < iMax; i += 1) {
+      for (let j = 0; j < jMax; j += 1) {
+        const y1 = y1s[i]!
         const y2 = y2s[j]!
-        if (obstacles.blocked(column.x, y1, column.x, y2) || obstacles.blocked(column.x, y2, t.x, y2)) continue
-        const points = simplify([s, { x: s.x, y: y1 }, { x: column.x, y: y1 }, { x: column.x, y: y2 }, { x: t.x, y: y2 }, t])
-        let length = 0
-        for (let k = 1; k < points.length; k += 1) length += Math.abs(points[k]!.x - points[k - 1]!.x) + Math.abs(points[k]!.y - points[k - 1]!.y)
-        let shared = 0
-        for (const h of trunk.h) {
-          if (same(h.y, y1)) shared += overlap(s.x, column.x, h.lo, h.hi)
-          if (same(h.y, y2)) shared += overlap(column.x, t.x, h.lo, h.hi)
-        }
-        for (const v of trunk.v) if (same(v.x, column.x)) shared += overlap(y1, y2, v.lo, v.hi)
-        const cost = length - shared * TRUNK_REWARD + (points.length - 2) * BEND_COST + laneBias(i) + laneBias(j)
-        if (!best || cost < best.cost) best = { points, cost }
+        if (!col.special && y1 === y2) continue
+        if (col.x === t.x && col.x !== s.x && y1 > y2) continue
+        if (col.x === s.x && col.x !== t.x && y2 < y1) continue
+        visit(y1, y2, i, j)
       }
     }
   }
-  if (!best) return { ...directRoute(s, t), blocked: true }
-  return { points: best.points, blocked: false }
+  // The plain ways: down the source's column or the target's. The candidates are priced first and checked
+  // against the cards cheapest first, so most edges need one or two checks.
+  const plain = (): Pick | null => {
+    const picks: Pick[] = []
+    for (const col of s.x === t.x ? [column(s.x)] : [column(Math.min(s.x, t.x)), column(Math.max(s.x, t.x))]) {
+      lanes(col, (y1, y2, i, j) => picks.push({ x: col.x, y1, y2, cost: price(col.x, y1, y2, i, j) }))
+    }
+    picks.sort((a, b) => a.cost - b.cost)
+    for (const pick of picks) if (open(pick.x, pick.y1, pick.y2)) return pick
+    return null
+  }
+  // A channel that is neither the source's nor the target's costs two bends more than the plain ways, so
+  // it is looked for only when they are blocked.
+  const other = (): Pick | null => {
+    const held: { best: Pick | null } = { best: null }
+    for (const col of around()) {
+      const floor = vertical + col.bound + 4 * BEND_COST - rewardCap
+      if (held.best && floor >= held.best.cost) break
+      lanes(col, (y1, y2, i, j) => {
+        if (!open(col.x, y1, y2)) return
+        const cost = price(col.x, y1, y2, i, j)
+        if (!held.best || cost < held.best.cost) held.best = { x: col.x, y1, y2, cost }
+      })
+    }
+    return held.best
+  }
+  const found = plain() ?? other()
+  return found ? build(found) : null
+  }
 }
 
 const hash = (text: string) => {
@@ -211,20 +290,25 @@ export function createRouter(rects: Map<string, Rect>, links: RouteLink[]): Rout
   for (const list of bySource.values()) list.sort((a, b) => a.port.x - b.port.x || (a.key < b.key ? -1 : 1))
   const byKey = new Map(links.map((l) => [l.key, l]))
   const routes = new Map<string, Route>()
-  const done = new Set<string>()
-  const routeSource = (source: string) => {
-    if (done.has(source)) return
-    done.add(source)
-    const trunk: Trunk = { h: [], v: [] }
-    const preference = hash(source) % 3
-    for (const link of bySource.get(source) ?? []) {
-      const route = routeOne(link, obstacles, trunk, preference)
+  // Per source: the trunk so far and how many of its links (in port order) are routed. An edge is routed
+  // after the edges before it, which it may share channels with, and not before it is asked for.
+  const progress = new Map<string, { trunk: Trunk; next: number; preference: number }>()
+  const routeUpTo = (source: string, last: number) => {
+    const list = bySource.get(source) ?? []
+    let state = progress.get(source)
+    if (!state) {
+      state = { trunk: { h: [], v: [] }, next: 0, preference: hash(source) % 3 }
+      progress.set(source, state)
+    }
+    for (; state.next <= last && state.next < list.length; state.next += 1) {
+      const link = list[state.next]!
+      const route = routeOne(link, obstacles, state.trunk, state.preference)
       routes.set(link.key, route)
       for (let i = 1; i < route.points.length; i += 1) {
         const a = route.points[i - 1]!
         const b = route.points[i]!
-        if (same(a.y, b.y)) trunk.h.push({ y: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) })
-        else if (same(a.x, b.x) && i > 1) trunk.v.push({ x: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) })
+        if (same(a.y, b.y)) state.trunk.h.push({ y: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) })
+        else if (same(a.x, b.x) && i > 1) state.trunk.v.push({ x: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) })
       }
     }
   }
@@ -232,11 +316,11 @@ export function createRouter(rects: Map<string, Rect>, links: RouteLink[]): Rout
     route(key) {
       const link = byKey.get(key)
       if (!link) return undefined
-      routeSource(link.from)
+      if (!routes.has(key)) routeUpTo(link.from, bySource.get(link.from)!.indexOf(link))
       return routes.get(key)
     },
     all() {
-      for (const source of bySource.keys()) routeSource(source)
+      for (const [source, list] of bySource) routeUpTo(source, list.length - 1)
       return routes
     },
   }

@@ -26,7 +26,27 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
   from geometry; the DOM is not measured. Only cards and edges in view are mounted.
 - Layout is apart from the graph: a move is a history step and is saved by `saveLayout` 500 ms after
   the last change; it never makes the graph dirty or creates a version.
-- Tidy lays out left to right (an accepted deviation from the standard's top-to-bottom).
+- Tidy (v2, issue #1391) lays the graph out top to bottom (`src/layout.ts`):
+  - A column per trigger holds the steps reachable from that trigger alone; the steps reachable from
+    several triggers (or none) sit below the columns, centred under the ones that feed them. Between
+    groups the gap is twice the step between cards (`GROUP_GAP`, `GROUP_ROW_GAP`).
+  - Steps entered only through `failed`, `timeout` or `low_confidence` (or from such steps) form a
+    failure lane to the right of their chain (`FAILURE_OUTCOMES`).
+  - A child stands under the port of the outcome that leads to it (the target handle is the middle of a
+    card's top edge); long links reserve a slot in every row they pass, so a free channel always exists.
+  - Edges are orthogonal (`src/route.ts`): out of the port, through the gaps between rows and columns,
+    around the cards; the edges of one source share their channels (a common trunk). A card being
+    dragged has a plain orthogonal edge until it lands.
+  - `ensureLayout` places one missing step under its source; when more than a third of the steps, or a
+    whole branch (3+ linked steps), lack positions, the graph is laid out again. Groups whose
+    positions differ from a Tidy of the known steps were arranged by hand and keep them; only the
+    button, the menu item or ⇧⌘L moves them.
+  - Quality is measured by pure functions (`src/quality.ts`: overlapping cards, links through cards,
+    crossings, mixed groups); the tests hold Tidy to zero overlaps, zero links through cards and zero
+    mixed groups on the fixtures `multiTrigger` and `foreachJoin`, and to no more crossings than the
+    left-to-right Tidy it replaced (`src/test/legacyTidy.ts`). 240 steps take under 100 ms.
+  - The Tidy button (broom, ⇧⌘L) is in the canvas controls next to Fit; the context menu has it too.
+    One Tidy is one undo step; the cards glide for 200 ms (none under `prefers-reduced-motion`).
 - Validation results belong to the snapshot they checked: they are rebased onto the current draft by
   item id, an edit invalidates a check in flight, and Save checks exactly the snapshot it sends.
 - Layout saves run one at a time; when one ends, the layout on screen is compared with what was saved
@@ -53,6 +73,7 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
 | ⌘S | Save |
 | ⌘Enter | Validate |
 | ⇧1 · ⇧0 | Fit · zoom to 100 % |
+| ⇧⌘L | Tidy |
 | ? | Key map (on touch it starts with gestures) |
 
 Shortcuts do nothing while focus is in a field (⌘Z there is the field's own undo), except ⌘S.
@@ -73,7 +94,7 @@ The benchmark writes its profile to `e2e/results/bench.json`; CI uploads it.
 ## Commands
 
 ```bash
-just automation-editor dev     # fixture host with a fake API (query: graph, locale, theme, readonly, latency, fail, conflict, overlay, mode=canvas)
+just automation-editor dev     # fixture host with a fake API (query: graph (sample, connected, empty, bench, multi, foreach), locale, theme, readonly, latency, fail, conflict, overlay, mode=canvas)
 just automation-editor check   # typecheck and unit tests
 just automation-editor build   # package build: chunk budget, declarations, SSR smoke
 just automation-editor e2e     # Playwright scenarios (Chromium)

@@ -50,7 +50,7 @@ test.describe('canvas', () => {
   test('picking a step from the palette after a release connects it to that outcome', async ({ page }) => {
     await open(page)
     const from = await center(handle(page, 'delay', 'done'))
-    await drag(page, from, { x: from.x + 120, y: from.y + 200 })
+    await drag(page, from, { x: from.x + 320, y: from.y - 40 })
     await page.locator('.ae-palette input').fill('end')
     await page.keyboard.press('Enter')
     await expect(edge(page, 'delay', 'done')).toHaveAttribute('data-to', 'end_2')
@@ -106,6 +106,56 @@ test.describe('canvas', () => {
     await page.keyboard.up('Alt')
     const moves = await page.evaluate(() => window.__fixture.moves)
     expect(moves).toHaveLength(1)
+  })
+})
+
+test.describe('tidy', () => {
+  const place = (page: import('@playwright/test').Page, id: string) => card(page, id).evaluate((el) => (el as HTMLElement).style.transform)
+
+  test('the button sits next to Fit with a tooltip naming ⇧⌘L, and takes focus', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const buttons = page.locator('.ae-controls button')
+    await expect(buttons.nth(3)).toHaveAttribute('aria-label', 'Tidy up')
+    await expect(buttons.nth(2)).toHaveAttribute('aria-label', 'Fit to screen')
+    await expect(buttons.nth(3)).toHaveAttribute('title', /Tidy up \((Ctrl\+Shift\+L|⇧⌘L)\)/)
+    await buttons.nth(3).focus()
+    await expect(buttons.nth(3)).toBeFocused()
+  })
+
+  test('one Tidy is one undo step; the cards glide for 200 ms', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const before = await place(page, 'a_check')
+    // Watch the class from the page: the glide is over in 240 ms, faster than a poll may look.
+    await page.evaluate(() => {
+      const canvas = document.querySelector('.ae-canvas')!
+      const seen: string[] = []
+      ;(window as unknown as { __tidySeen: string[] }).__tidySeen = seen
+      new MutationObserver(() => {
+        if (canvas.classList.contains('ae-canvas--tidying')) seen.push(getComputedStyle(document.querySelector('.ae-card')!).transitionDuration)
+      }).observe(canvas, { attributes: true, attributeFilter: ['class'] })
+    })
+    await page.locator('.ae-controls .ae-tidy').click()
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __tidySeen: string[] }).__tidySeen.length)).toBeGreaterThan(0)
+    expect(await page.evaluate(() => (window as unknown as { __tidySeen: string[] }).__tidySeen[0])).toBe('0.2s')
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    await page.getByLabel('Undo').click()
+    expect(await place(page, 'a_check')).toBe(before)
+    await expect(page.getByLabel('Undo')).toBeDisabled()
+  })
+
+  test('⇧⌘L tidies, and prefers-reduced-motion skips the glide', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await open(page, 'graph=multi')
+    await card(page, 'a_check').click()
+    await page.keyboard.press(`${mod}+Shift+L`)
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    expect(await card(page, 'a_check').evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s')
+  })
+
+  test('the canvas menu has Tidy too', async ({ page }) => {
+    await open(page, 'graph=multi')
+    await page.locator('.ae-pane').click({ button: 'right', position: { x: 900, y: 700 } })
+    await expect(page.getByRole('menuitem', { name: /Tidy up/ })).toBeVisible()
   })
 })
 

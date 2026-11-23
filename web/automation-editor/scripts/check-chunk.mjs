@@ -9,7 +9,8 @@ import { transformWithEsbuild } from 'vite'
 
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package-dist')
 export const CHUNK_GZIP_LIMIT = 50 * 1024
-const ENTRY_GZIP_LIMIT = 24 * 1024
+// 24 KB before Tidy v2 (#1391), whose layout and its public helpers (tidyLayout, ensureLayout, placeNew) live in the entry.
+const ENTRY_GZIP_LIMIT = 26 * 1024
 const CANVAS = /XYPanZoom|zoomIdentity|d3-zoom|__zoom/
 
 const files = (await readdir(dist)).filter((name) => name.endsWith('.js') && !name.includes('.server'))
