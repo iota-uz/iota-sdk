@@ -1,0 +1,22 @@
+{
+  "changes": [
+    {
+      "bump": "none",
+      "summary": "CI test Postgres no longer logs every statement, so service teardown stops pushing the Unit \u0026 Integration job past its timeout."
+    },
+    {
+      "bump": "patch",
+      "summary": "styles/tailwind/iota.css declares the `dark` variant as the theme class on \u003chtml\u003e, so hosts that build it over a Tailwind config without darkMode no longer compile `dark:` under prefers-color-scheme (BiChat sidebar and other dark: utilities followed the OS instead of the chosen light theme)."
+    },
+    {
+      "bump": "none",
+      "summary": "Release publishing waits up to 10 minutes for npm to expose a new SDK version before failing with npm_visibility_timeout."
+    },
+    {
+      "bump": "minor",
+      "summary": "Solid UI: Metrics KPI band, MetricsSkeleton and KpiTile/KpiTiles dashboard tiles on the shared .iota-mx-* styles, with BigInt-exact formatAmount, formatCompact, order and sign helpers; dark-mode contrast for the band links."
+    }
+  ],
+  "source": "0a996d404c62aeed480e53e7f21695affbec1b55",
+  "version": "0.52.0"
+}
