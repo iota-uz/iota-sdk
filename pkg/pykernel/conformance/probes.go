@@ -971,15 +971,17 @@ import time
 total, deadline, refused = 0, time.monotonic() + CFG["flood_seconds"], None
 # Fill bytes to just below the quota first, so the entry flood reaches the
 # boundary within its deadline at any machine speed.
-room = CFG["quota"] - (4 << 20)
-if room > 0:
-    with open("filler", "wb", buffering=0) as f:
-        left = room
-        while left > 0:
-            n = f.write(b"\0" * min(left, 1 << 20))
+left, part = CFG["quota"] - (4 << 20), 0
+while left > 0:
+    with open("filler-%d" % part, "wb", buffering=0) as f:
+        size = 0
+        while left > 0 and size < per_file:  # per_file respects RLIMIT_FSIZE
+            n = f.write(b"\0" * min(left, 1 << 20, per_file - size))
             if not n:
                 break
+            size += n
             left -= n
+    part += 1
 try:
     i = 0
     while time.monotonic() < deadline:
