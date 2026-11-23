@@ -86,7 +86,7 @@ func callNode(t *testing.T, typ string) node {
 	p, err := graph.FieldsParams(expr.Fields{{Name: "text", Field: expr.StringField}})
 	require.NoError(t, err)
 	return node{spec: graph.NodeSpec{
-		Type: typ, Title: typ, Behavior: graph.BehaviorCall, Params: p, Templates: []string{"text"},
+		Type: typ, Title: typ, Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Params: p, Templates: []string{"text"},
 		Outcomes: []string{"sent", "failed"},
 	}}
 }

@@ -213,6 +213,9 @@ func (r *registry) checkNode(n NodeType, seen map[string]bool) error {
 	if declaresConnection(spec.Params) {
 		return fmt.Errorf("node type %s: %s is a reserved param", typ, ConnectionParam)
 	}
+	if err := graph.CheckDryRun(spec); err != nil {
+		return err
+	}
 	if err := spec.Output.Validate(); err != nil {
 		return fmt.Errorf("node type %s: output: %w", typ, err)
 	}

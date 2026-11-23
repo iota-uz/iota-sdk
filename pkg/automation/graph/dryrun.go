@@ -18,7 +18,29 @@ type DryRunOptions struct {
 	// CallError is the product's check of a call's rendered request, the one its engine makes before
 	// calling: a non-empty error sends the node down its failed outcome without reading the given answer.
 	CallError func(Effect) string
+	// Modes applies the node types' DryRun modes: a forbid node stops the trace (DRY_RUN_FORBIDDEN), an
+	// execute call is answered by Execute, every other node with an effect is captured (its step has
+	// Status captured) and answered from the context, else by its first outcome that is not failed. Off,
+	// the dry run is the format's: every call is answered from the context.
+	Modes bool
+	// Execute answers a call of an execute node for real (Modes on); nil: such calls are captured.
+	Execute func(node Node, effects []Effect) ExecAnswer
 }
+
+// ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
+// Message: the node's failed outcome, or the trace stops when it has none).
+type ExecAnswer struct {
+	Outcome string
+	Output  map[string]any
+	Code    string
+	Message string
+}
+
+// Statuses of a dry run's steps with Modes on.
+const (
+	StatusCaptured = "captured" // an effect a dry run did not make: its rendered params are in the trace
+	StatusExecuted = "executed" // a call a dry run made for real
+)
 
 // TraceStep is one step of a dry run's trace. Token is the token that took it ("" the main path).
 type TraceStep struct {
@@ -27,6 +49,8 @@ type TraceStep struct {
 	ContextPatch map[string]any `json:"context_patch"`
 	End          map[string]any `json:"end,omitempty"`
 	Token        string         `json:"token,omitempty"`
+	// Status is captured or executed for a node with an effect when DryRunOptions.Modes is on.
+	Status string `json:"status,omitempty"`
 }
 
 // Trace outcomes besides node outcomes.
@@ -313,13 +337,22 @@ func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (
 	if failedOutcome == "" {
 		return "", false
 	}
-	out := map[string]any{"error": message}
-	if len(code) > 0 && code[0] != "" {
-		out["code"] = code[0]
+	var out map[string]any
+	if d.i.structuredFailure(node) {
+		c := FailInvalidRequest
+		if len(code) > 0 && code[0] != "" {
+			c = code[0]
+		}
+		out = FailedOutput(c, d.i.fitError(message, FailedOutput(c, "", false)), false)
+	} else {
+		out = map[string]any{"error": message}
+		if len(code) > 0 && code[0] != "" {
+			out["code"] = code[0]
+		}
+		// The whole output keeps MaxValueBytes: the message is shortened; when even the fixed fields do not
+		// fit, the run fails.
+		out["error"] = d.i.fitError(message, out)
 	}
-	// The whole output keeps MaxValueBytes: the message is shortened; when even the fixed fields do not
-	// fit, the run fails.
-	out["error"] = d.i.fitError(message, out)
 	if big := d.i.tooLarge(out, "the failed output of "+node); big != nil {
 		d.stop(t, node, *big)
 		return "", false
@@ -345,7 +378,7 @@ func (d *dryRun) noEdge(t *dryToken) {
 		return // a valid graph connects every outcome on the main path
 	}
 	reason := "an outcome of " + t.from + " has no edge"
-	if msg, ok := t.ctx.Nodes[t.from].Output["error"].(string); ok && msg != "" {
+	if msg := FailureMessage(t.ctx.Nodes[t.from].Output); msg != "" {
 		reason = msg
 	}
 	d.finish(t, false, nil, reason)
@@ -422,12 +455,42 @@ func (d *dryRun) walk(t *dryToken, current string) {
 				current, ok = i.Next(node.ID, fo)
 				continue
 			}
-			outcome, output, st := i.callGiven(node.ID, d.given)
+			status := ""
+			var outcome string
+			var output map[string]any
+			var st *Step
+			switch mode := d.mode(node); {
+			case mode == DryRunForbid:
+				d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
+				return
+			case mode == DryRunExecute && d.o.Modes && d.o.Execute != nil:
+				status = StatusExecuted
+				a := d.o.Execute(node, step.Effects)
+				if a.Code != "" {
+					fo, took := d.takeFailed(t, node.ID, a.Message, a.Code)
+					if !took {
+						d.fail(t, node.ID, failed(a.Code, "%s", a.Message))
+						return
+					}
+					t.from = node.ID
+					current, ok = i.Next(node.ID, fo)
+					continue
+				}
+				outcome, output, st = i.answered(node.ID, a.Outcome, a.Output)
+			default:
+				if d.o.Modes {
+					status = StatusCaptured
+				}
+				outcome, output, st = i.callGiven(node.ID, d.given)
+				if st != nil && d.o.Modes && st.Kind == StepMissingContext {
+					outcome, output, st = i.defaultAnswer(node.ID)
+				}
+			}
 			if st != nil {
 				d.fail(t, node.ID, *st)
 				return
 			}
-			d.emit(t, TraceStep{Node: node.ID, Outcome: outcome, ContextPatch: dryPatch(step.Effects, output)})
+			d.emit(t, TraceStep{Node: node.ID, Outcome: outcome, ContextPatch: dryPatch(step.Effects, output), Status: status})
 			t.set(node.ID, NodeState{Output: output})
 			t.from = node.ID
 			current, ok = i.Next(node.ID, outcome)
@@ -437,7 +500,15 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			if step.Wait.Event == "" {
 				out = map[string]any{"timeout_ms": step.Wait.Timeout.Milliseconds()}
 			}
-			d.emit(t, TraceStep{Node: node.ID, Outcome: TraceWaiting, ContextPatch: dryPatch(step.Effects, out)})
+			status := ""
+			if len(step.Effects) > 0 && d.o.Modes {
+				if d.mode(node) == DryRunForbid {
+					d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
+					return
+				}
+				status = StatusCaptured
+			}
+			d.emit(t, TraceStep{Node: node.ID, Outcome: TraceWaiting, ContextPatch: dryPatch(step.Effects, out), Status: status})
 			t.waiting = true
 			if step.Wait.Timeout > 0 {
 				d.addTimer(t, nil, step.Wait.Timeout)
@@ -454,7 +525,15 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			return
 		case StepOutcome, StepMissingContext, StepFailed:
 		}
-		d.emit(t, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: dryPatch(step.Effects, step.Output)})
+		status := ""
+		if len(step.Effects) > 0 && d.o.Modes {
+			if d.mode(node) == DryRunForbid {
+				d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
+				return
+			}
+			status = StatusCaptured
+		}
+		d.emit(t, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: dryPatch(step.Effects, step.Output), Status: status})
 		if step.Output != nil {
 			t.set(node.ID, NodeState{Output: step.Output})
 		}
@@ -739,6 +818,47 @@ func (i *Interpreter) subjectMismatch(s Subject) string {
 // callGiven is the answer a dry run takes for a call from the given nodes.<id>: its output and, by the
 // node type's answer rule, its outcome; a node whose answer does not name its outcome (a Code node) reads
 // nodes.<id>.outcome, which may be left out when the node has one outcome besides its failed one.
+// mode is a node's DryRun mode with Modes on; execute (the format's own dry run) with it off.
+func (d *dryRun) mode(node Node) DryRunMode {
+	if !d.o.Modes {
+		return DryRunExecute
+	}
+	return d.i.view.catalog.Nodes[node.Type].DryRunOf()
+}
+
+// answered checks an executed call's answer as a given one is checked.
+func (i *Interpreter) answered(nodeID, outcome string, output map[string]any) (string, map[string]any, *Step) {
+	if output == nil {
+		output = map[string]any{}
+	}
+	return i.callGiven(nodeID, map[string]NodeState{nodeID: {Output: output, Outcome: outcome}})
+}
+
+// defaultAnswer is a captured call without a given answer: its done outcome, else its first outcome that
+// is not failed, with an empty output.
+func (i *Interpreter) defaultAnswer(nodeID string) (string, map[string]any, *Step) {
+	node, _ := i.view.Node(nodeID)
+	spec := i.view.catalog.Nodes[node.Type]
+	outcomes := i.view.Outcomes(nodeID)
+	pick := ""
+	if spec.DoneOutcome != "" && contains(outcomes, spec.DoneOutcome) {
+		pick = spec.DoneOutcome
+	}
+	for _, o := range outcomes {
+		if pick == "" && o != spec.FailedOutcome && o != "timeout" {
+			pick = o
+		}
+	}
+	if pick == "" && len(outcomes) > 0 {
+		pick = outcomes[0]
+	}
+	if pick == "" {
+		s := Step{Kind: StepMissingContext, Path: fmt.Sprintf("nodes.%s.output", nodeID), Message: "no answer for this call"}
+		return "", nil, &s
+	}
+	return pick, map[string]any{}, nil
+}
+
 func (i *Interpreter) callGiven(nodeID string, given map[string]NodeState) (string, map[string]any, *Step) {
 	st, ok := given[nodeID]
 	if !ok || st.Output == nil {
@@ -787,8 +907,18 @@ func (i *Interpreter) fitError(message string, with ...map[string]any) string {
 			out[k] = v
 		}
 	}
+	structured, _ := out["error"].(map[string]any)
 	fits := func(m string) bool {
-		out["error"] = m
+		if structured != nil {
+			e := map[string]any{}
+			for k, v := range structured {
+				e[k] = v
+			}
+			e["message"] = m
+			out["error"] = e
+		} else {
+			out["error"] = m
+		}
 		return i.tooLarge(out, "") == nil
 	}
 	for !fits(message) && message != "" {

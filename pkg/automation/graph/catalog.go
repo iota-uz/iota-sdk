@@ -2,6 +2,7 @@ package graph
 
 import (
 	"crypto/sha256"
+	"errors"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -110,6 +111,126 @@ type NodeSpec struct {
 	Wait          *WaitSpec
 	Output        expr.Fields // what the node puts in nodes.<id>.output
 	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// DryRun is what a dry run does with the node: execute it for real (no external effect: a read, an
+	// HTTP GET, a decision of a model), capture it (an external effect: send, ask, a write; its rendered
+	// params are traced and its outcome comes from the context) or stop on it. A node with an effect (a
+	// call, an effect, a wait that emits one, any behavior a product registers) must declare it
+	// (ValidateCatalog: dry_run_undeclared); control flow nodes are pure and execute.
+	DryRun DryRunMode
+}
+
+// StructuredFailure reports whether the node's failed outcome carries output.error as an object
+// {code, message, retryable}: a call, an effect or a behavior a product registers that does not declare
+// an error field of its own. Flow nodes keep their own outputs.
+func (n NodeSpec) StructuredFailure() bool {
+	if n.FailedOutcome == "" {
+		return false
+	}
+	if _, declared := n.Output.Get("error"); declared {
+		return false // the node declares its own error field (a catalog of another product)
+	}
+	switch n.Behavior {
+	case BehaviorCall, BehaviorEffect:
+		return true
+	}
+	return !isBuiltinBehavior(n.Behavior) && !isFlowBehavior(n.Behavior)
+}
+
+// ErrorField is nodes.<id>.output.error of a failed call or effect.
+var ErrorField = expr.ObjectOf(expr.Fields{
+	{Name: "code", Field: expr.StringField},
+	{Name: "message", Field: expr.StringField},
+	{Name: "retryable", Field: expr.BoolField},
+})
+
+// FailedOutput is the output of a call or an effect that took its failed outcome.
+func FailedOutput(code, message string, retryable bool) map[string]any {
+	return map[string]any{"error": map[string]any{"code": code, "message": message, "retryable": retryable}}
+}
+
+// FailureMessage reads the failure message of a node output: output.error, a string or {message}.
+func FailureMessage(output map[string]any) string {
+	switch e := output["error"].(type) {
+	case string:
+		return e
+	case map[string]any:
+		m, _ := e["message"].(string)
+		return m
+	}
+	return ""
+}
+
+// DryRunMode is how a dry run treats a node type.
+type DryRunMode string
+
+const (
+	DryRunExecute DryRunMode = "execute"
+	DryRunCapture DryRunMode = "capture"
+	DryRunForbid  DryRunMode = "forbid"
+)
+
+func (m DryRunMode) valid() bool {
+	return m == DryRunExecute || m == DryRunCapture || m == DryRunForbid
+}
+
+// CodeDryRunUndeclared: a node type with an effect does not say what a dry run does with it.
+const CodeDryRunUndeclared = "dry_run_undeclared"
+
+// NeedsDryRun reports whether a node type must declare DryRun: its behavior has an effect or is not one
+// of the pure built-in ones.
+func (n NodeSpec) NeedsDryRun() bool {
+	switch n.Behavior {
+	case BehaviorCall, BehaviorEffect:
+		return true
+	case BehaviorWait:
+		return n.Wait != nil && n.Wait.Effect
+	}
+	return !isBuiltinBehavior(n.Behavior) && !isFlowBehavior(n.Behavior)
+}
+
+// DryRunOf is the mode of a node type in a dry run: its declaration, execute for a pure node.
+func (n NodeSpec) DryRunOf() DryRunMode {
+	if n.DryRun != "" {
+		return n.DryRun
+	}
+	if n.NeedsDryRun() {
+		return DryRunForbid
+	}
+	return DryRunExecute
+}
+
+// CatalogError is a catalog refused with a code (dry_run_undeclared); other refusals are plain errors.
+type CatalogError struct {
+	Path    string
+	Code    string
+	Message string
+}
+
+func (e *CatalogError) Error() string { return e.Path + ": " + e.Message }
+
+// ValidateCatalog checks a catalog as Check does and returns its refusal as graph errors with codes.
+func ValidateCatalog(c Catalog, b *Behaviors) []GraphError {
+	err := c.Check(b)
+	if err == nil {
+		return nil
+	}
+	var ce *CatalogError
+	if errors.As(err, &ce) {
+		return []GraphError{{Path: ce.Path, Code: ce.Code, Message: ce.Message}}
+	}
+	return []GraphError{{Path: "catalog", Code: CodeInvalid, Message: err.Error()}}
+}
+
+// CheckDryRun reports a node type whose DryRun is missing while it has an effect, or is not a mode.
+func CheckDryRun(n NodeSpec) error {
+	switch {
+	case n.DryRun != "" && !n.DryRun.valid():
+		return &CatalogError{Path: "nodes." + n.Type + ".dry_run", Code: CodeInvalid, Message: fmt.Sprintf("node %s: dry_run is execute, capture or forbid", n.Type)}
+	case n.DryRun == "" && n.NeedsDryRun():
+		return &CatalogError{Path: "nodes." + n.Type + ".dry_run", Code: CodeDryRunUndeclared,
+			Message: fmt.Sprintf("node %s: a %s node declares what a dry run does with it (execute, capture or forbid)", n.Type, n.Behavior)}
+	}
+	return nil
 }
 
 // ParamRef names a param, and optionally a field of each item of it.
@@ -166,7 +287,7 @@ func (v ValueOrParam) Of(params map[string]any) string {
 func (v ValueOrParam) IsZero() bool { return v.Param == "" && v.Value == "" }
 
 // reservedVars are the variables every scope has (foreach: inside a foreach's body); a subject's context may not declare them.
-var reservedVars = map[string]bool{"event": true, "nodes": true, "tenant": true, "now": true, "foreach": true}
+var reservedVars = map[string]bool{"event": true, "events": true, "nodes": true, "tenant": true, "now": true, "foreach": true}
 
 // Check reports a catalog that cannot be used: an unknown behavior, a subject that does not exist, a
 // context variable that shadows event, nodes, tenant or now.
@@ -243,6 +364,9 @@ func (c Catalog) Check(b *Behaviors) error {
 		}
 		if n.Wait != nil && isBuiltinBehavior(n.Behavior) && n.Behavior != BehaviorWait {
 			return fmt.Errorf("node %s: a %s node does not wait; wait is only for a wait or a behavior that suspends", typ, n.Behavior)
+		}
+		if err := CheckDryRun(n); err != nil {
+			return err
 		}
 		if n.Behavior == BehaviorCall && len(n.Outcomes) == 0 && n.OutcomesFrom == nil {
 			return fmt.Errorf("node %s: a call has outcomes (fixed or from a param)", typ)
@@ -336,6 +460,7 @@ type nodeJSON struct {
 	Wait       *waitJSON   `json:"wait"`
 	Output     expr.Fields `json:"output"`
 	OutputFrom *ParamRef   `json:"output_from"`
+	DryRun     DryRunMode  `json:"dry_run"`
 }
 
 type waitJSON struct {
@@ -427,6 +552,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior, Subjects: on,
 			Outcomes: n.Outcomes, OutcomesFrom: n.OutcomesFrom, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome,
 			Templates: n.Templates, Values: n.Values, Answer: n.Answer, Output: n.Output, OutputFrom: n.OutputFrom,
+			DryRun: n.DryRun,
 		}
 		if spec.Title == "" {
 			spec.Title = typ
@@ -459,6 +585,11 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 				ws.TimeoutParam = w.Timeout.Param
 			}
 			spec.Wait = ws
+		}
+		if spec.DryRun == "" && spec.NeedsDryRun() {
+			// A catalog written as data describes a product's nodes without running them: an effect it
+			// does not declare is captured.
+			spec.DryRun = DryRunCapture
 		}
 		c.Nodes[typ] = spec
 	}

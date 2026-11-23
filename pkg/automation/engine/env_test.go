@@ -150,21 +150,21 @@ func newEnv(t *testing.T) *env {
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{evPaid, evCreated, engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	noteSpec := graph.NodeSpec{Type: "acme.note", Title: "Note", Behavior: graph.BehaviorEffect, FailedOutcome: "failed", Outcomes: []string{"done", "failed"},
+	noteSpec := graph.NodeSpec{Type: "acme.note", Title: "Note", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture, FailedOutcome: "failed", Outcomes: []string{"done", "failed"},
 		Params:    graph.MustSchemaParams(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
 		Templates: []string{"text"}, Output: expr.Fields{{Name: "text", Field: expr.StringField}}}
 	e.note = &noteNode{specNode: specNode{noteSpec}}
 	require.NoError(t, reg.RegisterNode(e.note))
-	permSpec := graph.NodeSpec{Type: "acme.perm", Title: "Perm", Behavior: graph.BehaviorEffect,
+	permSpec := graph.NodeSpec{Type: "acme.perm", Title: "Perm", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}
 	require.NoError(t, reg.RegisterNode(permNode{specNode{permSpec}}))
-	emitSpec := graph.NodeSpec{Type: "acme.emit", Title: "Emit", Behavior: graph.BehaviorEffect,
+	emitSpec := graph.NodeSpec{Type: "acme.emit", Title: "Emit", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}
 	require.NoError(t, reg.RegisterNode(emitNode{specNode{emitSpec}}))
-	codeSpec := graph.NodeSpec{Type: "acme.code", Title: "Code", Behavior: graph.BehaviorEffect,
+	codeSpec := graph.NodeSpec{Type: "acme.code", Title: "Code", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{"source":{"type":"string"}},"required":["source"],"additionalProperties":false}`)}
 	require.NoError(t, reg.RegisterNode(codeNode{specNode{codeSpec}}))
-	approveSpec := graph.NodeSpec{Type: "acme.approve", Title: "Approve", Behavior: graph.BehaviorCall, Outcomes: []string{"approve", "reject"},
+	approveSpec := graph.NodeSpec{Type: "acme.approve", Title: "Approve", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Outcomes: []string{"approve", "reject"},
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}
 	require.NoError(t, reg.RegisterNode(approveNode{specNode{approveSpec}}))
 	e.reg = reg

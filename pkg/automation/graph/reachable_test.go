@@ -21,7 +21,7 @@ func recordMailCatalog(t *testing.T, mixed string) graph.Catalog {
 	}}
 	c.Events["order.created"] = graph.EventSpec{Key: "order.created", Subject: "order", Payload: expr.Fields{{Name: "total", Field: expr.DoubleField}}}
 	c.Nodes["review"] = graph.NodeSpec{
-		Type: "review", Behavior: graph.BehaviorEffect, Subjects: []string{"order"},
+		Type: "review", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture, Subjects: []string{"order"},
 		Params:      graph.MustSchemaParams(`{"type": "object", "properties": {}, "additionalProperties": false}`),
 		Outcomes:    []string{"done"},
 		DoneOutcome: "done",

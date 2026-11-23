@@ -202,16 +202,32 @@ func ExprScopeOf(c Catalog, subjects, events []string, nodes expr.Fields) expr.S
 }
 
 func scopeOf(vars expr.Fields, event expr.Field, nodes expr.Fields) expr.Scope {
-	out := map[string]expr.Field{}
+	// subject and run are the run's own unless the subject's context declares a variable of that name.
+	out := map[string]expr.Field{"subject": SubjectInfoField, "run": RunInfoField}
 	for _, p := range vars {
 		out[p.Name] = p.Field
 	}
 	out["event"] = event
+	out["events"] = expr.ListOf(event)
 	out["nodes"] = expr.ObjectOf(nodes)
 	out["tenant"] = expr.MapOf(expr.DynField)
 	out["now"] = expr.TimestampField
 	return expr.Scope{Vars: out}
 }
+
+// SubjectInfoField is `subject` in every scope (unless the subject's context declares its own): what the run is about and the absolute link to its
+// record ("" when its module registers no link).
+var SubjectInfoField = expr.ObjectOf(expr.Fields{
+	{Name: "entity", Field: expr.StringField},
+	{Name: "key", Field: expr.StringField},
+	{Name: "url", Field: expr.StringField},
+})
+
+// RunInfoField is `run` in every scope: the run and the link to it in the editor.
+var RunInfoField = expr.ObjectOf(expr.Fields{
+	{Name: "id", Field: expr.StringField},
+	{Name: "url", Field: expr.StringField},
+})
 
 // allForeach is the scope of every foreach of the graph (a step reads only what its token has).
 const allForeach = "*"
@@ -276,7 +292,7 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 			// A run passes the event and the subject it has, whole: the fields all of them share, typed as the
 			// check types them, are what an expression may read.
 			for name, f := range scope.Vars {
-				if name != "nodes" && name != "tenant" && name != "now" {
+				if name != "nodes" && name != "tenant" && name != "now" && name != "subject" && name != "run" {
 					scope.Vars[name] = f.OpenObjects()
 				}
 			}
@@ -356,6 +372,33 @@ func (x *exprs) templateIn(owner, event, each, text string) (*expr.TemplateProgr
 // nodeOutput is what a node puts in nodes.<id>.output: a wait its woken event, a call or effect its
 // declared output, or the JSON Schema in its OutputFrom param. ok=false: the node has no output.
 func nodeOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field, bool, error) {
+	f, ok, err := declaredOutput(c, spec, params)
+	if !spec.StructuredFailure() {
+		return f, ok, err
+	}
+	// A failed call or effect puts output.error {code, message, retryable}: templates of the failed
+	// branch read it.
+	errField := expr.Prop{Name: "error", Field: expr.OptionalOf(ErrorField)}
+	switch {
+	case !ok:
+		return expr.ObjectOf(expr.Fields{errField}), true, err
+	case f.Kind == expr.Object:
+		if _, has := f.Prop("error"); !has {
+			f = f.Clone()
+			f.Props = append(f.Props, errField)
+		}
+	case f.Kind == expr.Optional && f.Elem != nil && f.Elem.Kind == expr.Object:
+		if _, has := f.Elem.Prop("error"); !has {
+			inner := f.Elem.Clone()
+			inner.Props = append(inner.Props, errField)
+			f = expr.OptionalOf(inner)
+		}
+	}
+	return f, ok, err
+}
+
+// declaredOutput is the output a node declares, without the failure of a call.
+func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field, bool, error) {
 	if spec.Behavior == BehaviorWait {
 		if spec.Wait == nil {
 			return expr.Field{}, false, nil
