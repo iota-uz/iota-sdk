@@ -3,8 +3,16 @@
  * KpiTile. iota.css imports this file; a host that compiles its own theme
  * stylesheet instead of iota.css imports it directly
  * (`@import ".../styles/tailwind/metrics.css";`, or `@iota-uz/sdk/metrics.css`
- * from npm). It only reads the --clr-* and --primary-* theme tokens.
+ * from npm). It reads the --clr-* and --primary-* theme tokens; the two palette
+ * tokens it also uses (--red-500, --black-800) fall back to the SDK palette.
  */
+
+/* Own keyframes, so the skeleton pulses without Tailwind's animate-pulse. */
+@keyframes iota-mx-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
 @layer components {
   .iota-mx {
     --mx-px: 1rem;
@@ -156,7 +164,7 @@
   }
 
   .iota-mx-v--neg {
-    color: oklch(var(--red-500));
+    color: oklch(var(--red-500, 59.16% 0.218 0.58));
   }
 
   .iota-mx-rows {
@@ -200,11 +208,11 @@
     display: block;
     border-radius: 0.1875rem;
     background: oklch(var(--clr-surface-500));
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: iota-mx-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   html.dark .iota-mx-sk {
-    background: oklch(var(--black-800));
+    background: oklch(var(--black-800, 26% 0 0));
   }
 
   .iota-mx-sk--label {
