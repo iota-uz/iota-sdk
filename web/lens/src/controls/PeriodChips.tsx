@@ -11,13 +11,22 @@ import { parseISODate, type CalendarDate } from './model'
  * an embedded dashboard sits on; the sheet adds only the utilities the chip
  * components use, so a host whose lists filter by chips and its dashboard
  * render the same chip.
+ *
+ * The sheet goes first in <head>, ahead of the host's own. Both are Tailwind
+ * builds, and their `@layer utilities` blocks merge into one layer where the
+ * later rule wins on equal specificity: appended, the kit's plain `.hidden`
+ * landed after the host's `lg:block` and hid the host's desktop sidebar on
+ * every page with a dashboard period chip. First in the head, the kit only
+ * fills in what the host does not define. Its layer order (properties, theme,
+ * base, components, utilities) is Tailwind's own, so declaring the layers
+ * first does not reorder the host's.
  */
-function installKitStyles(): void {
+export function installKitStyles(sheet: string = kitStyles): void {
   if (typeof document === 'undefined' || document.querySelector('style[data-lens-solid-ui]')) return
   const style = document.createElement('style')
   style.dataset.lensSolidUi = ''
-  style.textContent = kitStyles
-  document.head.appendChild(style)
+  style.textContent = sheet
+  document.head.prepend(style)
 }
 
 /** "01.07.2026 – 30.09.2026"; a half-open range keeps its open side empty. */
