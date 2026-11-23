@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -479,4 +480,75 @@ func TestInventoryController_InvalidUUID(t *testing.T) {
 	suite.GET(InventoryBasePath + "/invalid-uuid").
 		Expect(t).
 		Status(404)
+}
+
+func TestInventoryController_List_FilterChips(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User()
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD, currency.EUR)
+
+	inventorySvc := itf.GetService[services.InventoryService](env)
+	currencySvc := itf.GetService[coreservices.CurrencyService](env)
+	suite.Register(controllers.NewInventoryController(inventorySvc, currencySvc))
+
+	for _, it := range []struct {
+		name     string
+		price    *money.Money
+		quantity int
+	}{
+		{"Chip Cheap Bolt", money.NewFromFloat(5.50, "USD"), 1000},
+		{"Chip Dear Drill", money.NewFromFloat(250.00, "USD"), 3},
+		{"Chip Euro Saw", money.NewFromFloat(120.00, "EUR"), 40},
+	} {
+		_, err := inventorySvc.Create(env.Ctx, inventory.New(it.name, it.price, it.quantity))
+		require.NoError(t, err)
+	}
+
+	today := time.Now().Format("2006-01-02")
+	cases := []struct {
+		name    string
+		query   string
+		present []string
+		absent  []string
+	}{
+		{"currency", "?f=currency:is:USD", []string{"Chip Cheap Bolt", "Chip Dear Drill"}, []string{"Chip Euro Saw"}},
+		{"currency is not", "?f=currency:isnot:USD", []string{"Chip Euro Saw"}, []string{"Chip Cheap Bolt", "Chip Dear Drill"}},
+		{"price in major units", "?f=price:between:100,200", []string{"Chip Euro Saw"}, []string{"Chip Cheap Bolt", "Chip Dear Drill"}},
+		{"quantity", "?f=quantity:gt:10", []string{"Chip Cheap Bolt", "Chip Euro Saw"}, []string{"Chip Dear Drill"}},
+		{"currency and price", "?f=currency:is:USD&f=price:lt:100", []string{"Chip Cheap Bolt"}, []string{"Chip Dear Drill", "Chip Euro Saw"}},
+		{"search and chip", "?Search=Drill&f=currency:is:USD", []string{"Chip Dear Drill"}, []string{"Chip Cheap Bolt", "Chip Euro Saw"}},
+		{"search and excluding chip", "?Search=Drill&f=currency:is:EUR", nil, []string{"Chip Dear Drill", "Chip Cheap Bolt", "Chip Euro Saw"}},
+		{"created today", "?f=created_at:on:" + today, []string{"Chip Cheap Bolt", "Chip Euro Saw"}, nil},
+		{"legacy created-at link", "?CreatedAt.From=2000-01-01T00:00:00Z&CreatedAt.To=2000-01-31T23:59:59Z", nil, []string{"Chip Cheap Bolt", "Chip Euro Saw"}},
+	}
+	for _, tc := range cases {
+		response := suite.GET(InventoryBasePath + tc.query).HTMX().Expect(t).Status(200)
+		for _, name := range tc.present {
+			response.Contains(name)
+		}
+		for _, name := range tc.absent {
+			response.NotContains(name)
+		}
+		// The chip bar rides along with the rows so it shows what is applied.
+		response.Contains(`hx-swap-oob="outerHTML"`).Contains(`id="inventory-filters"`)
+	}
+
+	// A full page renders the builder with the applied chip inside the form.
+	page := suite.GET(InventoryBasePath + "?f=currency:is:EUR").Expect(t).Status(200)
+	page.Contains(`x-data="filterBuilder"`).Contains(`value="currency:is:EUR"`).NotContains("Chip Cheap Bolt")
+
+	// The legacy link shows up as a created-at chip.
+	suite.GET(InventoryBasePath + "?CreatedAt.From=2000-01-01&CreatedAt.To=2000-01-31").Expect(t).Status(200).
+		Contains(`value="created_at:between:2000-01-01,2000-01-31"`)
+
+	// Page links keep the chips and the search.
+	paged := suite.GET(InventoryBasePath + "?limit=1&Search=Chip&f=currency:is:USD").HTMX().Expect(t).Status(200)
+	paged.Contains("f=currency%3Ais%3AUSD").Contains("Search=Chip").Contains("page=2")
 }

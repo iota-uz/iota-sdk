@@ -113,7 +113,10 @@
       "RevokeSuccess": "Session revoked successfully",
       "RevokeAllSuccess": "%d sessions revoked",
       "EmptyState": "You are only signed in on this device",
-      "CannotRevokeCurrent": "Cannot revoke current session"
+      "CannotRevokeCurrent": "Cannot revoke current session",
+      "ExpiresAt": "Expires",
+      "CurrentSession": "Current session",
+      "NoMatches": "No sessions match these filters"
     }
   },
   "Actions": "Actions",
@@ -1599,7 +1602,12 @@
       "Revoke": "Revoke",
       "ConfirmRevoke": "Are you sure you want to revoke this session?",
       "EmptyState": "No active sessions found",
-      "CurrentSession": "Current"
+      "CurrentSession": "Current",
+      "Status": "Status",
+      "StatusActive": "Signed in",
+      "StatusPending2FA": "Waiting for the second factor",
+      "StatusPendingOnboarding": "Account setup not finished",
+      "ExpiresAt": "Expires"
     },
     "Revoked": "Session revoked successfully"
   },
@@ -1799,6 +1807,9 @@
     "Search": "Search",
     "NoPeople": "No people found.",
     "UserChannelsSaved": "Channels saved.",
+    "FilterRole": "Role",
+    "FilterGroup": "Group",
+    "FilterOptedOut": "Turned-off channel",
     "InvalidChannels": "Could not save these channels.",
     "DynamicRecipients": "Also notify",
     "Unavailable": "Unavailable",

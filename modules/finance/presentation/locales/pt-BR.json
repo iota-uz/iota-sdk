@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "Nenhum item de estoque encontrado",
         "_Description": "Ainda não há itens de estoque. Clique em 'Adicionar item de estoque' para criar um."
+      },
+      "Filters": {
+        "Currency": "Moeda"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "A receber em aberto",
       "OutstandingPayable": "A pagar em aberto",
       "NetAmount": "Valor líquido",
-      "DebtCount": "Total de dívidas"
+      "DebtCount": "Total de dívidas",
+      "Filters": {
+        "Currency": "Moeda",
+        "Type": "Tipo de dívida",
+        "HasOutstanding": "Com saldo em aberto"
+      }
     },
     "Drawer": {
       "Title": "Detalhes das dívidas"

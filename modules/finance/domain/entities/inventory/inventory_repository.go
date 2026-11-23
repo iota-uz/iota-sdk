@@ -18,6 +18,8 @@ const (
 	DescriptionField
 	PriceField
 	QuantityField
+	// CurrencyField is the currency code of the price.
+	CurrencyField
 )
 
 type SortBy = repo.SortBy[Field]

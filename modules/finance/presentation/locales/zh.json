@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "未找到库存项目",
         "_Description": "还没有库存项目。点击\"添加库存项目\"创建一个。"
+      },
+      "Filters": {
+        "Currency": "货币"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "未偿应收账款",
       "OutstandingPayable": "未偿应付账款",
       "NetAmount": "净金额",
-      "DebtCount": "总债务数"
+      "DebtCount": "总债务数",
+      "Filters": {
+        "Currency": "货币",
+        "Type": "债务类型",
+        "HasOutstanding": "有未结余额"
+      }
     },
     "Drawer": {
       "Title": "债务详情"

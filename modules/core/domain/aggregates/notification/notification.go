@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 var ErrNotFound = errors.New("notification not found")
@@ -129,10 +130,22 @@ func (n *notification) ReadAt() *time.Time {
 	return &v
 }
 
+// Field names a notification column a list filter can target.
+type Field int
+
+const (
+	FieldCreatedAt Field = iota
+	FieldReadAt
+	FieldLevel
+)
+
 type FindParams struct {
 	Limit, Offset int
 	Cursor        string
 	UnreadOnly    bool
+	// Filters narrow the list further (the filter chips of the notification
+	// center); they combine with UnreadOnly and the cursor.
+	Filters []repo.FieldFilter[Field]
 }
 
 func (p FindParams) Bounded() FindParams {

@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -22,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -73,13 +77,25 @@ func (c *SessionController) List(
 
 	// Parse query parameters
 	params := composables.UsePaginated(r)
-	searchQuery := r.URL.Query().Get("search")
+	query := r.URL.Query()
+	// ?search= stays a plain search box; chips come on top as ?f=.
+	searchQuery := query.Get("search")
+	registry := c.filterRegistry(r, logger, userService)
+	conditions := registry.Decode(query)
 
 	// Build session find params
 	findParams := &session.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
 		Search: searchQuery,
+		Filters: filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[session.Field]{
+			// Compared as text, so a hand-edited non-numeric id matches
+			// nothing instead of failing the query.
+			sessionFilterUser:    {Column: session.UserID, Expr: func(column string) string { return column + "::text" }},
+			sessionFilterStatus:  {Column: session.Status},
+			sessionFilterCreated: {Column: session.CreatedAt},
+			sessionFilterExpires: {Column: session.ExpiresAt},
+		}, time.Now()),
 		SortBy: session.SortBy{
 			Fields: []session.SortByField{
 				{
@@ -121,8 +137,8 @@ func (c *SessionController) List(
 		adminSessions = append(adminSessions, sessionVM)
 	}
 
-	// Get total count for pagination
-	totalCount, err := sessionService.GetFilteredCount(r.Context(), searchQuery)
+	// Get total count for pagination: the same search and chips as the rows.
+	totalCount, err := sessionService.CountFound(r.Context(), findParams)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get session count")
 		http.Error(w, "Error retrieving session count", http.StatusInternalServerError)
@@ -137,22 +153,72 @@ func (c *SessionController) List(
 		TotalCount:  int(totalCount),
 		HasMore:     int64(params.Page*params.Limit) < totalCount,
 		SearchQuery: searchQuery,
+		BasePath:    c.basePath,
+		Query:       query,
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "session-filters", ShowResetAlways: true,
+		},
 	}
 
 	// Render template
-	if htmx.IsHxRequest(r) {
-		if params.Page > 1 {
-			templ.Handler(sessiontemplates.SessionRows(props), templ.WithStreaming()).ServeHTTP(w, r)
-		} else {
-			if htmx.Target(r) == "sessions-table-body" {
-				templ.Handler(sessiontemplates.SessionRows(props), templ.WithStreaming()).ServeHTTP(w, r)
-			} else {
-				templ.Handler(sessiontemplates.SessionsContent(props), templ.WithStreaming()).ServeHTTP(w, r)
-			}
-		}
-	} else {
-		templ.Handler(sessiontemplates.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	var component templ.Component
+	switch {
+	case htmx.WantsFullPage(r):
+		// A normal load, or "Back" to a pushed chip URL after a history-cache miss.
+		component = sessiontemplates.Index(props)
+	case params.Page > 1:
+		// The next page of infinite scroll: rows only.
+		component = sessiontemplates.SessionRows(props)
+	case htmx.Target(r) == "sessions-table-body":
+		component = sessiontemplates.SessionRowsWithChips(props)
+	case htmx.Target(r) == "sessions-list":
+		component = sessiontemplates.SessionsListWithChips(props)
+	default:
+		component = sessiontemplates.SessionsContent(props)
 	}
+	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// Filter chip fields of the admin sessions list.
+const (
+	sessionFilterUser    = "user"
+	sessionFilterStatus  = "status"
+	sessionFilterCreated = "created_at"
+	sessionFilterExpires = "expires_at"
+)
+
+// filterRegistry describes the chips of the sessions list: whose session it
+// is, its sign-in state and its dates. The user chip is offered only to
+// someone who may read users, since its options name them.
+func (c *SessionController) filterRegistry(r *http.Request, logger *logrus.Entry, userService *services.UserService) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	fields := make([]filterbuilder.FieldDef, 0, 4)
+	if composables.CanUser(r.Context(), permissions.UserRead) == nil {
+		users, err := userService.GetAll(r.Context())
+		if err != nil {
+			logger.WithError(err).Warn("Failed to load users for the session filters")
+		}
+		options := make([]filterbuilder.Option, 0, len(users))
+		for _, u := range users {
+			options = append(options, filterbuilder.Opt(strconv.FormatUint(uint64(u.ID()), 10), mappers.UserToViewModel(u).Title()))
+		}
+		fields = append(fields, filterbuilder.FieldDef{
+			Key: sessionFilterUser, Type: filterq.FieldTypeReference, Label: pageCtx.T("Sessions.List.User"), Options: options,
+		})
+	}
+	fields = append(fields,
+		filterbuilder.FieldDef{
+			Key: sessionFilterStatus, Type: filterq.FieldTypeReference, Label: pageCtx.T("Sessions.List.Status"),
+			Options: []filterbuilder.Option{
+				filterbuilder.Opt(string(session.StatusActive), pageCtx.T("Sessions.List.StatusActive")),
+				filterbuilder.Opt(string(session.StatusPending2FA), pageCtx.T("Sessions.List.StatusPending2FA")),
+				filterbuilder.Opt(string(session.StatusPendingOnboarding), pageCtx.T("Sessions.List.StatusPendingOnboarding")),
+			},
+		},
+		filterbuilder.FieldDef{Key: sessionFilterCreated, Type: filterq.FieldTypeDate, Label: pageCtx.T("Sessions.List.CreatedAt")},
+		filterbuilder.FieldDef{Key: sessionFilterExpires, Type: filterq.FieldTypeDate, Label: pageCtx.T("Sessions.List.ExpiresAt")},
+	)
+	return filterbuilder.NewRegistry(fields...)
 }
 
 func (c *SessionController) Revoke(

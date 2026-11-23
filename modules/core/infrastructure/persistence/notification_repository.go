@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -15,6 +16,13 @@ import (
 type PgNotificationRepository struct{}
 
 func NewNotificationRepository() notification.Repository { return &PgNotificationRepository{} }
+
+// notificationFilterColumns maps filterable fields to their columns.
+var notificationFilterColumns = map[notification.Field]string{
+	notification.FieldCreatedAt: "created_at",
+	notification.FieldReadAt:    "read_at",
+	notification.FieldLevel:     "level",
+}
 
 const notificationColumns = `id,tenant_id,user_id,event_key,level,title,body,action_url,COALESCE(dedupe_key,''),created_at,read_at`
 
@@ -71,7 +79,17 @@ func (r *PgNotificationRepository) List(ctx context.Context, userID uint, p noti
 	if err != nil {
 		return nil, serrors.New(serrors.Invalid, "invalid notification cursor").WithOp(op)
 	}
-	rows, err := tx.Query(ctx, `SELECT `+notificationColumns+` FROM core.notifications WHERE tenant_id=$1 AND user_id=$2 AND ($3=FALSE OR read_at IS NULL) AND ($6=FALSE OR (created_at,id)<($7,$8)) ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, tenant, userID, p.UnreadOnly, p.Limit, p.Offset, p.Cursor != "", cursorAt, cursorID)
+	args := []any{tenant, userID, p.UnreadOnly, p.Limit, p.Offset, p.Cursor != "", cursorAt, cursorID}
+	where := ""
+	for _, f := range p.Filters {
+		column, ok := notificationFilterColumns[f.Column]
+		if !ok {
+			return nil, serrors.New(serrors.Invalid, fmt.Sprintf("unknown notification filter field: %v", f.Column)).WithOp(op)
+		}
+		where += " AND " + f.Filter.String(column, len(args)+1)
+		args = append(args, f.Filter.Value()...)
+	}
+	rows, err := tx.Query(ctx, `SELECT `+notificationColumns+` FROM core.notifications WHERE tenant_id=$1 AND user_id=$2 AND ($3=FALSE OR read_at IS NULL) AND ($6=FALSE OR (created_at,id)<($7,$8))`+where+` ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $5`, args...)
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}

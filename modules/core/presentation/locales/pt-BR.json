@@ -113,7 +113,10 @@
       "RevokeSuccess": "Sessão revogada com sucesso",
       "RevokeAllSuccess": "%d sessões revogadas",
       "EmptyState": "Você está conectado apenas neste dispositivo",
-      "CannotRevokeCurrent": "Não é possível revogar a sessão atual"
+      "CannotRevokeCurrent": "Não é possível revogar a sessão atual",
+      "ExpiresAt": "Expira em",
+      "CurrentSession": "Sessão atual",
+      "NoMatches": "Nenhuma sessão corresponde a estes filtros"
     }
   },
   "Actions": "Ações",
@@ -1603,7 +1606,12 @@
       "Revoke": "Revogar",
       "ConfirmRevoke": "Tem certeza de que deseja revogar esta sessão?",
       "EmptyState": "Nenhuma sessão ativa encontrada",
-      "CurrentSession": "Atual"
+      "CurrentSession": "Atual",
+      "Status": "Situação",
+      "StatusActive": "Conectada",
+      "StatusPending2FA": "Aguardando o segundo fator",
+      "StatusPendingOnboarding": "Configuração da conta não concluída",
+      "ExpiresAt": "Expira em"
     },
     "Revoked": "Sessão revogada com sucesso"
   },
@@ -1803,6 +1811,9 @@
     "Search": "Buscar",
     "NoPeople": "Ninguém encontrado.",
     "UserChannelsSaved": "Canais salvos.",
+    "FilterRole": "Função",
+    "FilterGroup": "Grupo",
+    "FilterOptedOut": "Canal desativado",
     "InvalidChannels": "Não foi possível salvar os canais.",
     "DynamicRecipients": "Notificar também",
     "Unavailable": "Indisponível",

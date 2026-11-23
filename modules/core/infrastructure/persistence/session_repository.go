@@ -58,18 +58,45 @@ func NewSessionRepository() session.Repository {
 		fieldMap: map[session.Field]string{
 			session.ExpiresAt: "sessions.expires_at",
 			session.CreatedAt: "sessions.created_at",
+			session.UserID:    "sessions.user_id",
+			session.Status:    "sessions.status",
 		},
 		aliasedFieldMap: map[session.Field]string{
 			session.ExpiresAt: "s.expires_at",
 			session.CreatedAt: "s.created_at",
+			session.UserID:    "s.user_id",
+			session.Status:    "s.status",
 		},
 	}
 }
 
 func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]session.Session, error) {
-	tenantID, err := composables.UseTenantID(ctx)
+	joinClause, where, args, err := g.findWhere(ctx, params)
 	if err != nil {
 		return nil, err
+	}
+
+	// Use table alias for select query (must match querySessions scan: 9 columns including status)
+	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience, s.status FROM sessions s"
+
+	query := repo.Join(
+		selectQuery,
+		joinClause,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.aliasedFieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	return g.querySessions(ctx, query, args...)
+}
+
+// findWhere renders the tenant scope, token, search and filters of params
+// against the "s" alias, shared by GetPaginated and CountFound so the list and
+// its total describe the same sessions.
+func (g *SessionRepository) findWhere(ctx context.Context, params *session.FindParams) (string, []string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return "", nil, nil, err
 	}
 
 	args := []interface{}{tenantID}
@@ -90,18 +117,15 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)", pos, pos, pos))
 	}
 
-	// Use table alias for select query (must match querySessions scan: 9 columns including status)
-	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience, s.status FROM sessions s"
-
-	query := repo.Join(
-		selectQuery,
-		joinClause,
-		repo.JoinWhere(where...),
-		params.SortBy.ToSQL(g.aliasedFieldMap),
-		repo.FormatLimitOffset(params.Limit, params.Offset),
-	)
-
-	return g.querySessions(ctx, query, args...)
+	for _, filter := range params.Filters {
+		column, ok := g.aliasedFieldMap[filter.Column]
+		if !ok {
+			return "", nil, nil, errors.Errorf("unknown session filter field: %v", filter.Column)
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+	return joinClause, where, args, nil
 }
 
 func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
@@ -123,31 +147,22 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *SessionRepository) CountFiltered(ctx context.Context, search string) (int64, error) {
+	return g.CountFound(ctx, &session.FindParams{Search: search})
+}
+
+func (g *SessionRepository) CountFound(ctx context.Context, params *session.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
-
-	tenantID, err := composables.UseTenantID(ctx)
+	joinClause, where, args, err := g.findWhere(ctx, params)
 	if err != nil {
 		return 0, err
 	}
-
+	query := repo.Join("SELECT COUNT(*) FROM sessions s", joinClause, repo.JoinWhere(where...))
 	var count int64
-	if search != "" {
-		query := `
-			SELECT COUNT(*) as count 
-			FROM sessions s
-			JOIN users u ON s.user_id = u.id
-			WHERE s.tenant_id = $1 
-			AND (u.first_name ILIKE $2 OR u.last_name ILIKE $2 OR u.email ILIKE $2)
-		`
-		if err := tx.QueryRow(ctx, query, tenantID, "%"+search+"%").Scan(&count); err != nil {
-			return 0, err
-		}
-	} else {
-		// Fall back to regular count if no search
-		return g.Count(ctx)
+	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
 	}
 	return count, nil
 }

@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "Tovarlar topilmadi",
         "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."
+      },
+      "Filters": {
+        "Currency": "Valyuta"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "Olinadigan qoldiq",
       "OutstandingPayable": "To'lanadigan qoldiq",
       "NetAmount": "Aniq summa",
-      "DebtCount": "Jami qarzlar"
+      "DebtCount": "Jami qarzlar",
+      "Filters": {
+        "Currency": "Valyuta",
+        "Type": "Qarz turi",
+        "HasOutstanding": "Qoldiq qarzi bor"
+      }
     },
     "Drawer": {
       "Title": "Qarz tafsilotlari"

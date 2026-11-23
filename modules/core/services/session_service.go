@@ -31,6 +31,12 @@ func (s *SessionService) GetFilteredCount(ctx context.Context, search string) (i
 	return s.repo.CountFiltered(ctx, search)
 }
 
+// CountFound counts the sessions GetPaginated returns for params, ignoring
+// limit and offset.
+func (s *SessionService) CountFound(ctx context.Context, params *session.FindParams) (int64, error) {
+	return s.repo.CountFound(ctx, params)
+}
+
 func (s *SessionService) GetAll(ctx context.Context) ([]session.Session, error) {
 	return s.repo.GetAll(ctx)
 }

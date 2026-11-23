@@ -70,6 +70,7 @@ func NewInventoryRepository() inventory.Repository {
 			inventory.DescriptionField: "i.description",
 			inventory.PriceField:       "i.price",
 			inventory.QuantityField:    "i.quantity",
+			inventory.CurrencyField:    "i.currency_id",
 		},
 	}
 }

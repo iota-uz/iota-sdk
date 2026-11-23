@@ -4,10 +4,13 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -19,6 +22,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -35,6 +40,7 @@ type InventoryController struct {
 type InventoryPaginatedResponse struct {
 	Items           []*viewmodels.Inventory
 	PaginationState *pagination.State
+	Filters         filterbuilder.Props
 }
 
 func NewInventoryController(inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
@@ -88,8 +94,49 @@ func (c *InventoryController) viewModelCurrencies(r *http.Request) ([]*coreviewm
 	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
+// Filter chip field keys of the inventory list.
+const (
+	inventoryFilterCurrency  = "currency"
+	inventoryFilterPrice     = "price"
+	inventoryFilterQuantity  = "quantity"
+	inventoryFilterCreatedAt = "created_at"
+)
+
+// filterRegistry describes the chips of the inventory list: the currency of
+// the price, the price in major units, the quantity and the creation date.
+func (c *InventoryController) filterRegistry(r *http.Request) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	var currencies []filterbuilder.Option
+	if list, err := c.viewModelCurrencies(r); err == nil {
+		for _, item := range list {
+			currencies = append(currencies, filterbuilder.Opt(item.Code, item.Code))
+		}
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{
+			Key: inventoryFilterCurrency, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("Inventory.List.Filters.Currency"), Options: currencies,
+		},
+		filterbuilder.FieldDef{
+			Key: inventoryFilterPrice, Type: filterq.FieldTypeNumber,
+			Label: pageCtx.T("Inventory.List.Price"),
+		},
+		filterbuilder.FieldDef{
+			Key: inventoryFilterQuantity, Type: filterq.FieldTypeNumber,
+			Label: pageCtx.T("Inventory.List.Quantity"),
+		},
+		filterbuilder.FieldDef{
+			Key: inventoryFilterCreatedAt, Type: filterq.FieldTypeDate,
+			Label: pageCtx.T("CreatedAt"),
+		},
+	)
+}
+
 func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPaginatedResponse, error) {
 	paginationParams := composables.UsePaginated(r)
+	registry := c.filterRegistry(r)
+	// Links made by the former created-at select still work.
+	conditions := registry.Decode(filterq.LegacyDateRange(r.URL.Query(), "CreatedAt.From", "CreatedAt.To", inventoryFilterCreatedAt))
 	params := &inventory.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
@@ -101,8 +148,14 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 				},
 			},
 		},
-		Search:  r.URL.Query().Get("Search"),
-		Filters: []inventory.Filter{},
+		Search: strings.TrimSpace(r.URL.Query().Get("Search")),
+		Filters: filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[inventory.Field]{
+			inventoryFilterCurrency: {Column: inventory.CurrencyField},
+			// Prices are stored in minor units; the chip takes major units.
+			inventoryFilterPrice:     {Column: inventory.PriceField, Expr: func(col string) string { return col + " / 100.0" }},
+			inventoryFilterQuantity:  {Column: inventory.QuantityField},
+			inventoryFilterCreatedAt: {Column: inventory.CreatedAtField},
+		}, time.Now()),
 	}
 
 	items, err := c.inventoryService.GetPaginated(r.Context(), params)
@@ -118,8 +171,12 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 	viewItems := mapping.MapViewModels(items, mappers.InventoryToViewModel)
 
 	return &InventoryPaginatedResponse{
-		Items:           viewItems,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
+		Items: viewItems,
+		// Page links keep the search and chips, or page 2 would drop them.
+		PaginationState: pagination.NewWithQuery(c.basePath, r.URL.Query(), paginationParams.Page, int(total), params.Limit),
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "inventory-filters", ShowResetAlways: true,
+		},
 	}, nil
 }
 
@@ -129,13 +186,13 @@ func (c *InventoryController) List(w http.ResponseWriter, r *http.Request) {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	props := &inventoryTemplates.IndexPageProps{
 		Inventory:       paginated.Items,
 		PaginationState: paginated.PaginationState,
+		Filters:         paginated.Filters,
 	}
-	if isHxRequest {
-		templ.Handler(inventoryTemplates.InventoryTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	if htmx.IsHxRequest(r) {
+		templ.Handler(inventoryTemplates.InventoryTableWithChips(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(inventoryTemplates.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}

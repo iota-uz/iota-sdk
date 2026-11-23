@@ -11,6 +11,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -21,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -259,20 +261,85 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// The user's sessions are few and already loaded, so the chips filter
+	// them in memory.
+	registry := accountSessionFilterRegistry(r)
+	conditions := registry.Decode(r.URL.Query())
+	now := time.Now()
+	if loc, ok := composables.UseLocation(r.Context()); ok {
+		now = now.In(loc)
+	}
+
 	// Map sessions to ViewModels
 	sessionVMs := make([]*viewmodels.Session, 0, len(sessions))
+	hasOtherSessions := false
 	for _, s := range sessions {
+		isCurrent := s.Token() == currentToken
+		if !isCurrent {
+			hasOtherSessions = true
+		}
+		if !accountSessionMatches(conditions, s, isCurrent, now) {
+			continue
+		}
 		sessionVMs = append(sessionVMs, viewmodels.SessionToViewModelContext(r.Context(), s, currentToken))
 	}
 
 	// Render sessions page
 	props := &account.SessionsPageProps{
-		Sessions:     sessionVMs,
-		CurrentToken: currentToken,
-		Errors:       make(map[string]string),
+		Sessions:         sessionVMs,
+		CurrentToken:     currentToken,
+		HasOtherSessions: hasOtherSessions,
+		Errors:           make(map[string]string),
+		Filters: filterbuilder.Props{
+			Registry: registry, Filters: conditions, ID: "account-session-filters", ShowResetAlways: true,
+		},
 	}
 
+	if htmx.IsHxRequest(r) {
+		templ.Handler(account.SessionsListWithChips(props)).ServeHTTP(w, r)
+		return
+	}
 	templ.Handler(account.SessionsPage(props)).ServeHTTP(w, r)
+}
+
+// Filter chip field keys of the account sessions list.
+const (
+	accountSessionFilterCreatedAt = "created_at"
+	accountSessionFilterExpiresAt = "expires_at"
+	accountSessionFilterCurrent   = "current"
+)
+
+// accountSessionFilterRegistry describes the chips of the user's own
+// sessions: when a session was signed in, when it expires and whether it is
+// the session of this browser.
+func accountSessionFilterRegistry(r *http.Request) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{Key: accountSessionFilterCreatedAt, Type: filterq.FieldTypeDate, Label: pageCtx.T("Account.Sessions.CreatedAt")},
+		filterbuilder.FieldDef{Key: accountSessionFilterExpiresAt, Type: filterq.FieldTypeDate, Label: pageCtx.T("Account.Sessions.ExpiresAt")},
+		filterbuilder.FieldDef{Key: accountSessionFilterCurrent, Type: filterq.FieldTypeBool, Label: pageCtx.T("Account.Sessions.CurrentSession")},
+	)
+}
+
+// accountSessionMatches reports whether a session satisfies every chip.
+func accountSessionMatches(fs filterq.FilterSet, s session.Session, isCurrent bool, now time.Time) bool {
+	for _, c := range fs {
+		var ok bool
+		switch c.Field {
+		case accountSessionFilterCreatedAt:
+			ok = c.MatchDate(s.CreatedAt(), now)
+		case accountSessionFilterExpiresAt:
+			ok = c.MatchDate(s.ExpiresAt(), now)
+		case accountSessionFilterCurrent:
+			ok = c.MatchBool(isCurrent)
+		default:
+			ok = true
+		}
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request) {

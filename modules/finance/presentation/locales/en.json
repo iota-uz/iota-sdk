@@ -451,6 +451,9 @@
       "NoInventory": {
         "Title": "No inventory items found",
         "_Description": "There are no inventory items yet. Click 'Add inventory item' to create one."
+      },
+      "Filters": {
+        "Currency": "Currency"
       }
     },
     "Single": {
@@ -733,7 +736,12 @@
       "OutstandingReceivable": "Outstanding Receivable",
       "OutstandingPayable": "Outstanding Payable",
       "NetAmount": "Net Amount",
-      "DebtCount": "Total Debts"
+      "DebtCount": "Total Debts",
+      "Filters": {
+        "Currency": "Currency",
+        "Type": "Debt type",
+        "HasOutstanding": "Has outstanding"
+      }
     },
     "Drawer": {
       "Title": "Debt Details"

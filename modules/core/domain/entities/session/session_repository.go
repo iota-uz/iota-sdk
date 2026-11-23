@@ -12,6 +12,9 @@ type Field int
 const (
 	ExpiresAt Field = iota
 	CreatedAt
+	// UserID and Status are filter columns of the admin sessions list.
+	UserID
+	Status
 )
 
 type SortByField = repo.SortByField[Field]
@@ -23,11 +26,17 @@ type FindParams struct {
 	SortBy SortBy
 	Token  string
 	Search string // Search query for filtering by user name/email
+	// Filters narrow the list by column (user, status, dates); the count of
+	// CountFound applies the same filters.
+	Filters []repo.FieldFilter[Field]
 }
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	CountFiltered(ctx context.Context, search string) (int64, error)
+	// CountFound counts the sessions GetPaginated returns for params, ignoring
+	// limit, offset and sort.
+	CountFound(ctx context.Context, params *FindParams) (int64, error)
 	GetAll(ctx context.Context) ([]Session, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Session, error)
 	GetByToken(ctx context.Context, token string) (Session, error)

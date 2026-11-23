@@ -6,18 +6,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -63,11 +69,66 @@ func (c *DebtAggregateController) Register(r *mux.Router) {
 
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(commonMiddleware...)
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
 	router.HandleFunc("/{counterparty_id:[0-9a-fA-F-]+}/drawer", c.GetCounterpartyDrawer).Methods(http.MethodGet)
 }
 
-func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
+// Filter chip field keys of the counterparty debt summary.
+const (
+	debtAggFilterCounterparty   = "counterparty"
+	debtAggFilterCurrency       = "currency"
+	debtAggFilterType           = "type"
+	debtAggFilterHasOutstanding = "has_outstanding"
+)
+
+// filterRegistry describes the chips of the counterparty summary: the
+// counterparty, the currency and the type of the summed debts, and whether a
+// counterparty still has something outstanding.
+func (c *DebtAggregateController) filterRegistry(
+	r *http.Request,
+	counterparties []counterparty.Counterparty,
+	currencyService *coreservices.CurrencyService,
+) *filterbuilder.Registry {
+	pageCtx := composables.UsePageCtx(r.Context())
+	cpOptions := make([]filterbuilder.Option, 0, len(counterparties))
+	for _, cp := range counterparties {
+		cpOptions = append(cpOptions, filterbuilder.Opt(cp.ID().String(), cp.Name()))
+	}
+	var currencies []filterbuilder.Option
+	if list, err := currencyService.GetAll(r.Context()); err == nil {
+		for _, item := range list {
+			currencies = append(currencies, filterbuilder.Opt(string(item.Code()), string(item.Code())))
+		}
+	}
+	types := []filterbuilder.Option{
+		filterbuilder.Opt(string(debt.DebtTypeReceivable), pageCtx.T("Debts.Types.RECEIVABLE")),
+		filterbuilder.Opt(string(debt.DebtTypePayable), pageCtx.T("Debts.Types.PAYABLE")),
+	}
+	return filterbuilder.NewRegistry(
+		filterbuilder.FieldDef{
+			Key: debtAggFilterCounterparty, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("DebtAggregates.List.Counterparty"), Options: cpOptions,
+		},
+		filterbuilder.FieldDef{
+			Key: debtAggFilterCurrency, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("DebtAggregates.List.Filters.Currency"), Options: currencies,
+		},
+		filterbuilder.FieldDef{
+			Key: debtAggFilterType, Type: filterq.FieldTypeReference,
+			Label: pageCtx.T("DebtAggregates.List.Filters.Type"), Options: types,
+		},
+		filterbuilder.FieldDef{
+			Key: debtAggFilterHasOutstanding, Type: filterq.FieldTypeBool,
+			Label: pageCtx.T("DebtAggregates.List.Filters.HasOutstanding"),
+		},
+	)
+}
+
+func (c *DebtAggregateController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	currencyService *coreservices.CurrencyService,
+) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
 
@@ -80,7 +141,30 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 	// Get pagination parameters
 	paginationParams := composables.UsePaginated(r)
 
-	aggregates, err := c.debtService.GetCounterpartyAggregates(ctx)
+	counterparties, err := c.counterpartyService.GetAll(ctx)
+	if err != nil {
+		http.Error(w, "Error retrieving counterparties", http.StatusInternalServerError)
+		return
+	}
+	names := make(map[uuid.UUID]string, len(counterparties))
+	for _, cp := range counterparties {
+		names[cp.ID()] = cp.Name()
+	}
+
+	registry := c.filterRegistry(r, counterparties, currencyService)
+	conditions := registry.Decode(r.URL.Query())
+	// Counterparty, currency and type narrow the summed debts; "has
+	// outstanding" keeps the counterparties whose summed outstanding amount
+	// is not zero.
+	filters := filterq.RepoFilters(conditions, registry.Schema(), map[string]filterq.RepoField[debt.AggregateField]{
+		debtAggFilterCounterparty:   {Column: debt.AggregateCounterpartyField, Type: "uuid"},
+		debtAggFilterCurrency:       {Column: debt.AggregateCurrencyField},
+		debtAggFilterType:           {Column: debt.AggregateTypeField},
+		debtAggFilterHasOutstanding: {Column: debt.AggregateOutstandingField, Expr: func(col string) string { return col + " <> 0" }},
+	}, time.Now())
+	barProps := filterbuilder.Props{Registry: registry, Filters: conditions, ID: "debt-aggregate-filters", ShowResetAlways: true}
+
+	aggregates, err := c.debtService.GetCounterpartyAggregates(ctx, filters...)
 	if err != nil {
 		http.Error(w, "Error retrieving debt aggregates", http.StatusInternalServerError)
 		return
@@ -100,19 +184,24 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 			table.Column("net_amount", pageCtx.T("DebtAggregates.List.NetAmount")),
 			table.Column("debt_count", pageCtx.T("DebtAggregates.List.DebtCount")),
 		).
+		WithFilterBar(filterbuilder.Builder(barProps), filterbuilder.BuilderOOB(barProps)).
 		WithInfiniteScroll(false).
 		Build()
 
 	rows := make([]table.TableRow, 0, len(aggregates))
 
 	for _, agg := range aggregates {
-		counterparty, err := c.counterpartyService.GetByID(ctx, agg.CounterpartyID())
-		if err != nil {
-			http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
-			return
+		name, ok := names[agg.CounterpartyID()]
+		if !ok {
+			cp, err := c.counterpartyService.GetByID(ctx, agg.CounterpartyID())
+			if err != nil {
+				http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
+				return
+			}
+			name = cp.Name()
 		}
 
-		aggVM := mappers.DebtCounterpartyAggregateToViewModel(agg, counterparty.Name())
+		aggVM := mappers.DebtCounterpartyAggregateToViewModel(agg, name)
 
 		cells := []table.TableCell{
 			table.Cell(templ.Raw(aggVM.CounterpartyName), aggVM.CounterpartyName),

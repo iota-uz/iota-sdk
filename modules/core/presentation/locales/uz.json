@@ -113,7 +113,10 @@
       "RevokeSuccess": "Sessiya muvaffaqiyatli bekor qilindi",
       "RevokeAllSuccess": "%d sessiya bekor qilindi",
       "EmptyState": "Siz faqat ushbu qurilmada kirgansiz",
-      "CannotRevokeCurrent": "Joriy sessiyani bekor qilish mumkin emas"
+      "CannotRevokeCurrent": "Joriy sessiyani bekor qilish mumkin emas",
+      "ExpiresAt": "Muddati tugaydi",
+      "CurrentSession": "Joriy seans",
+      "NoMatches": "Bu filtrlarga mos seanslar yo‘q"
     }
   },
   "Actions": "Harakatlar",
@@ -1598,7 +1601,12 @@
       "Revoke": "Bekor qilish",
       "ConfirmRevoke": "Ushbu seansni bekor qilishga ishonchingiz komilmi?",
       "EmptyState": "Faol seanslar topilmadi",
-      "CurrentSession": "Joriy"
+      "CurrentSession": "Joriy",
+      "Status": "Holati",
+      "StatusActive": "Kirilgan",
+      "StatusPending2FA": "Ikkinchi omil kutilmoqda",
+      "StatusPendingOnboarding": "Hisob sozlanmagan",
+      "ExpiresAt": "Tugash muddati"
     },
     "Revoked": "Seans muvaffaqiyatli bekor qilindi"
   },
@@ -1798,6 +1806,9 @@
     "Search": "Qidirish",
     "NoPeople": "Hech kim topilmadi.",
     "UserChannelsSaved": "Kanallar saqlandi.",
+    "FilterRole": "Rol",
+    "FilterGroup": "Guruh",
+    "FilterOptedOut": "O‘chirilgan kanal",
     "InvalidChannels": "Kanallarni saqlab bo'lmadi.",
     "DynamicRecipients": "Shuningdek xabar berish",
     "Unavailable": "Mavjud emas",
