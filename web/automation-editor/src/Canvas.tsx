@@ -9,7 +9,7 @@ import { Icon } from './icons'
 import { backEdges, ensureLayout } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
-import { createRouter, directRoute, routePath, type RouteLink, type Router } from './route'
+import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
 import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { connectionLost, errorsByItem } from './validation'
@@ -873,7 +873,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
         const found = routed[source]
         if (found && found.sig === `${a.x},${a.y},${b.x},${b.y}`) return found.d
       }
-      return routePath(directRoute(a, b).points)
+      return directPath(a, b)
     })
     const className = createMemo(() => {
       let c = 'ae-edge'

@@ -136,6 +136,16 @@ export function directRoute(port: Point, entry: Point): Route {
   return { points: simplify([port, { x: port.x, y: port.y + STUB }, { x, y: port.y + STUB }, { x, y: top }, { x: entry.x, y: top }, entry]), blocked: false }
 }
 
+/** The path of `directRoute` for the common case, a target below, built without the arrays: what an edge shows until its route is found. */
+export function directPath(a: Point, b: Point, radius = 10): string {
+  if (b.y - STUB * 2 <= a.y) return routePath(directRoute(a, b).points)
+  if (same(a.x, b.x)) return `M${a.x},${a.y}L${b.x},${b.y}`
+  const y = Math.round((a.y + b.y) / 2)
+  const r = Math.min(radius, (y - a.y) / 2, Math.abs(b.x - a.x) / 2, (b.y - y) / 2)
+  const dx = b.x > a.x ? r : -r
+  return `M${a.x},${a.y}L${a.x},${y - r}Q${a.x},${y} ${a.x + dx},${y}L${b.x - dx},${y}Q${b.x},${y} ${b.x},${y + r}L${b.x},${b.y}`
+}
+
 type Trunk = { h: { y: number; lo: number; hi: number }[]; v: { x: number; lo: number; hi: number }[] }
 
 const overlap = (a1: number, a2: number, b1: number, b2: number) => Math.max(0, Math.min(Math.max(a1, a2), Math.max(b1, b2)) - Math.max(Math.min(a1, a2), Math.min(b1, b2)))
