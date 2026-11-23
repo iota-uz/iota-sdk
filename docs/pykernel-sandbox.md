@@ -13,7 +13,7 @@ verify it on its own hosts.
 | Network | No socket of any family can be created (TCP, UDP, raw, packet, netlink, unix). Only an in-process `socketpair` is possible, and every address-bearing socket call is refused (`connect`, `bind`, `listen`, `accept`, `sendmsg`, `sendto` with an address), so no pathname or abstract unix endpoint is reachable. TCP bind/connect is also denied by Landlock; abstract unix sockets are scoped. The only channel to the host is the inherited bridge fd. | seccomp + Landlock |
 | Environment | Explicit allowlist (`Config.EnvAllowlist` + `ExtraEnv`); no DSN, S3 key, OIDC secret. Only fds 0–2 and the bridge are open. Data comes only through capabilities, which run in the host with the Session's tenant (and `CallContextBinder` identity) on every call. | host |
 | Privileges | `no_new_privs`, empty capability set, never uid 0. Refused: `ptrace`, `process_vm_*`, `mount`, `unshare`/`setns`/namespace `clone`, `clone3`, `bpf`, `keyctl`/`add_key`, `perf_event_open`, `io_uring_*`, `setsid`/`setpgid`, kexec/modules/swap/reboot/clock/hostname. Signals cannot leave the sandbox. A foreign syscall ABI (x32, 32-bit) kills the process. | seccomp + Landlock scope |
-| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap, armed before the code is sent; workdir quota in bytes and entries enforced at allocation time: every write-family call (`write`, `pwrite`, `writev`, `pwritev[2]`, `ftruncate`), whatever the fd, is performed by the host supervisor on a duplicate of the caller's open file description with data it copied out first, so the check covers exactly what is written; it fails with `EDQUOT` past the quota (and `EFBIG` past `FileSizeBytes`). Sizes the kernel produced stay charged in a per-inode ledger while any fd or mapping still holds the inode (unlinked or mapped files included). Entry creation is counted before it runs. `fallocate`, path `truncate`, AIO, `copy_file_range`, `sendfile`, `splice`, `setxattr` and all `ioctl`s but terminal queries are refused (`shutil` falls back to plain writes). A reconcile that finds the workdir over the quota anyway kills the kernel, and so does losing the supervisor. A kernel that keeps using CPU while no exec runs (work continuing after a worker-reported done, in threads or children) is killed after 1 s of net CPU. `manager.New` proves enforcement with a test kernel before it returns. `RLIMIT_CPU` counts over the life of a warm kernel. | shim + host supervisor |
+| Resources | `RLIMIT_AS`, `CPU`, `FSIZE`, `NPROC`, `NOFILE` set soft == hard by the kernel itself before it reads any code (no `Start`→`prlimit` window); wall-clock timeout per exec with a server cap, armed before the code is sent; workdir quota enforced at allocation time: every write-family call (`write`, `pwrite`, `writev`, `pwritev[2]`, `ftruncate`), whatever the fd, is performed by the host supervisor on a duplicate of the caller's open file description (`pidfd_getfd`), at an offset fixed once from state only the supervisor changes, with data copied out of the caller in chunks — so what is checked is exactly what is written. Usage is charged in 4 KiB blocks plus one block per entry (files, directories, symlinks); sizes the kernel produced stay charged per inode while any fd or mapping holds it (unlinked or mapped files included). Past the quota a write is cut short and then fails with `EDQUOT` (`EFBIG` past `FileSizeBytes`). The filter waits killably once the host has the call (`WAIT_KILLABLE_RECV`), so a signal never repeats a performed write; stream writes (pipes, sockets) are non-blocking on the host and bounded per kernel. `fallocate`, path `truncate`, AIO, `copy_file_range`, `sendfile`, `splice`, `setxattr` and every `ioctl` but terminal queries are refused (`shutil` falls back to plain writes). A reconcile over the quota, or a lost supervisor, kills the kernel. While no exec runs the kernel can start no thread or process, and CPU it keeps using then (after a worker-reported done) is charged against a 1 s budget that kills it. `manager.New` proves three enforcement paths with a test kernel. | shim + host supervisor |
 | Cancel | Cancelling an exec, its timeout or a quota stop cancel the context of running capability calls (nested SQL/tools) at once, interrupt the code, and free the slot. A capability call that does not belong to the running exec (a thread that outlived it) is refused. | host |
 
 ## Fail closed
@@ -50,7 +50,8 @@ off for development on macOS or old kernels. Never use it for real input.
 complete and verified unless `InsecureAllowUnconfinedRuntime` is set.
 
 Requirements: Linux with Landlock ABI ≥ 6 (kernel 6.12+) in the LSM list,
-seccomp, CPython with `ctypes`. Namespaces, `bwrap` and `nsjail` are not used,
+seccomp with user notification and `WAIT_KILLABLE_RECV` (5.19+), `pidfd_getfd`,
+CPython with `ctypes`. Namespaces, `bwrap` and `nsjail` are not used,
 so it works in containers that forbid them (Railway).
 
 ### Running as root
@@ -77,8 +78,9 @@ every capability and their own filter refuses `ptrace`. Without it
 - The supervisor acts for the kernel with the kernel's own credentials
   (`pidfd_getfd`, `process_vm_readv`, `/proc`), which needs Linux ≥ 5.6 and
   Yama `ptrace_scope` ≤ 1. Where it cannot, the call fails (`EPERM`) instead of
-  running unmetered. An emulated write moves at most 1 MiB to a file (64 KiB to
-  a pipe or socket) per call; callers see a short write, as POSIX allows.
+  running unmetered. An emulated stream write moves at most 16 MiB per call
+  (a short write, as POSIX allows), and at most 16 can wait per kernel; more
+  fail with `EAGAIN`.
 - CPU of background work is charged only in intervals in which no exec runs.
 - The restart record lives next to the workdir (`.<name>.pykernel`); remove it
   with the workdir.

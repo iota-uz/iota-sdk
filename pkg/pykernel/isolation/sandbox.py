@@ -106,6 +106,12 @@ _SECCOMP_RET_ERRNO = 0x00050000
 _SECCOMP_RET_ALLOW = 0x7FFF0000
 _SECCOMP_RET_USER_NOTIF = 0x7FC00000
 _SECCOMP_FILTER_FLAG_NEW_LISTENER = 1 << 3
+# Once the host has received a notification, only a fatal signal interrupts
+# the call: a call the host performs is never restarted and repeated.
+_SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV = 1 << 5
+_QUOTA_FILTER_FLAGS = _SECCOMP_FILTER_FLAG_NEW_LISTENER | _SECCOMP_FILTER_FLAG_WAIT_KILLABLE_RECV
+_CLONE_THREAD = 0x00010000
+_CLONE_FILES = 0x00000400
 _O_CREAT = 0o100
 
 # Calls the host supervisor handles for the workdir quota. "emulate": every
@@ -119,6 +125,7 @@ _O_CREAT = 0o100
 _QUOTA_CALLS = {
     "x86_64": {
         "emulate": [1, 18, 20, 296, 328, 77],      # write pwrite64 writev pwritev pwritev2 ftruncate
+        "spawn": [56, 57, 58],                      # clone fork vfork: allowed only while an exec runs
         "always": [85, 437, 83, 258, 133, 259,      # creat openat2 mkdir mkdirat mknod mknodat
                    86, 265, 88, 266],               # link linkat symlink symlinkat
         "creat_flag": [(2, 1), (257, 2)],           # open(flags=arg1) openat(flags=arg2)
@@ -131,6 +138,7 @@ _QUOTA_CALLS = {
     },
     "aarch64": {
         "emulate": [64, 68, 66, 70, 287, 46],
+        "spawn": [220],
         "always": [437, 34, 33, 37, 36],
         "creat_flag": [(56, 2)],
         "refuse": {
@@ -556,10 +564,15 @@ def _seccomp_program(arch):
         (_BPF_RET_K, 0, 0, eperm),
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
     ]
+    # clone(2): no namespaces, and no thread with its own fd table (the host
+    # acts on the caller's fd table through its thread group).
     prog += [
-        (_BPF_JEQ_K, 0, 4, spec["clone"]),
+        (_BPF_JEQ_K, 0, 7, spec["clone"]),
         (_BPF_LD_W_ABS, 0, 0, _OFF_ARG0),
-        (_BPF_JSET_K, 0, 1, _CLONE_NS_MASK),
+        (_BPF_JSET_K, 3, 0, _CLONE_NS_MASK),
+        (_BPF_JSET_K, 0, 3, _CLONE_THREAD),
+        (_BPF_JSET_K, 2, 0, _CLONE_FILES),
+        (_BPF_RET_K, 0, 0, eperm),
         (_BPF_RET_K, 0, 0, eperm),
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),
@@ -596,7 +609,7 @@ def _quota_program(arch):
         (_BPF_RET_K, 0, 0, _SECCOMP_RET_ALLOW),  # the main filter kills foreign ABIs
         (_BPF_LD_W_ABS, 0, 0, _OFF_NR),
     ]
-    for nr in calls["emulate"] + calls["always"]:
+    for nr in calls["emulate"] + calls["always"] + calls["spawn"]:
         prog += [
             (_BPF_JEQ_K, 0, 1, nr),
             (_BPF_RET_K, 0, 0, _SECCOMP_RET_USER_NOTIF),
@@ -627,7 +640,7 @@ def _quota_supervision(arch, report, bridge_fd):
         pid = os.fork()
         if pid == 0:
             try:
-                _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _SECCOMP_FILTER_FLAG_NEW_LISTENER, ctypes.addressof(fprog))
+                _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _QUOTA_FILTER_FLAGS, ctypes.addressof(fprog))
                 os._exit(0)
             except BaseException:
                 os._exit(1)
@@ -637,7 +650,7 @@ def _quota_supervision(arch, report, bridge_fd):
                    if ok else "seccomp user notification unavailable")
         return False
     try:
-        lfd = _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _SECCOMP_FILTER_FLAG_NEW_LISTENER, ctypes.addressof(fprog))
+        lfd = _syscall(_ARCHES[arch]["seccomp"], _SECCOMP_SET_MODE_FILTER, _QUOTA_FILTER_FLAGS, ctypes.addressof(fprog))
     except OSError as exc:
         report.set("workdir_quota", False, "seccomp user notification: %s" % exc)
         return False

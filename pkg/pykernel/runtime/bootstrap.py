@@ -514,14 +514,17 @@ def _main():
     # so no sun_path length limit).
     _sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, fileno=sock_fd)
     _sock.setblocking(True)
-    _notify("kernel.ready", {"sandbox": report})
     if report is not None and report.get("missing"):
         # Fail closed: a kernel missing a required boundary never runs code.
+        _notify("kernel.ready", {"sandbox": report})
         sys.stderr.write("pykernel: sandbox incomplete: %s\n" % (report.get("error") or report["missing"]))
         sys.exit(3)
 
     _install_capabilities()
+    # Before kernel.ready: once the kernel is ready, the host lets it create
+    # threads and processes only while an exec runs.
     threading.Thread(target=_worker, daemon=True).start()
+    _notify("kernel.ready", {"sandbox": report})
     _reader()
 
 

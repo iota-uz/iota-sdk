@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -103,6 +104,9 @@ var probes = []probe{
 	{"workdir_quota_bypasses", probeQuotaBypasses},
 	{"refused_allocators", probeRefusedAllocators},
 	{"idle_cpu_via_children", probeIdleForkEvasion},
+	{"no_new_work_while_idle", probeNoSpawnWhileIdle},
+	{"write_semantics", probeWriteSemantics},
+	{"stream_writes_bounded", probeStreamWrites},
 	{"capability_outside_exec", probeCapabilityOutsideExec},
 	{"cancel_reaches_capability", probeCancel},
 	{"timeout_reaches_capability", probeTimeout},
@@ -483,9 +487,11 @@ def fill(prefix, unlink=False):
                 held.append(f)
             size = 0
             while size + len(chunk) <= per_file and written < CFG["max"]:
-                f.write(chunk)
-                size += len(chunk)
-                written += len(chunk)
+                got = f.write(chunk)
+                size += got
+                written += got
+                if got < len(chunk):
+                    raise OSError(errno.EDQUOT, "short write at the quota")
             if not unlink:
                 f.close()
             n += 1
@@ -504,12 +510,22 @@ func (r *runner) quotaLimit() int64 {
 	return 0
 }
 
+// usageOf is the disk the workdir really occupies: allocated blocks of every
+// entry (files, directories, symlinks), or the apparent size where larger.
 func usageOf(dir string) int64 {
 	var total int64
 	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
-		if err == nil && info.Mode().IsRegular() {
-			total += info.Size()
+		if err != nil {
+			return nil //nolint:nilerr // a vanished entry is not an error for a measurement
 		}
+		used := int64(0)
+		if st, ok := info.Sys().(*syscall.Stat_t); ok {
+			used = st.Blocks * 512
+		}
+		if info.Mode().IsRegular() && info.Size() > used {
+			used = info.Size()
+		}
+		total += used
 		return nil
 	})
 	return total
@@ -887,6 +903,63 @@ for i in range(64):
         break
 stop = True
 `},
+	{"pwritev2 RWF_APPEND from a position far past the end", `
+total = 0
+fd = os.open("sparse", os.O_RDWR | os.O_CREAT, 0o600)
+os.lseek(fd, 20 << 30, 0)
+try:
+    os.pwritev(fd, [b"x"], -1, 0x10)
+except OSError:
+    pass
+total = os.fstat(fd).st_size
+`},
+	{"race the file position from another thread", `
+import threading
+fd = os.open("race", os.O_RDWR | os.O_CREAT, 0o600)
+stop = False
+def flip():
+    while not stop:
+        os.lseek(fd, 0, 0)
+        os.lseek(fd, 10 << 30, 0)
+threading.Thread(target=flip, daemon=True).start()
+total = 0
+for i in range(2000):
+    try:
+        os.write(fd, b"y")
+    except OSError:
+        pass
+    total = max(total, os.fstat(fd).st_size)
+stop = True
+`},
+	{"fill the holes of a sparse file through a shared mapping", `
+import mmap
+total = 0
+try:
+    fd = os.open("holes", os.O_RDWR | os.O_CREAT, 0o600)
+    os.lseek(fd, 20 << 30, 0)
+    try:
+        os.pwritev(fd, [b"x"], -1, 0x10)
+    except OSError:
+        pass
+    size = os.fstat(fd).st_size
+    if size > 0:
+        m = mmap.mmap(fd, size)
+        for off in range(0, size, 4096):
+            m[off] = 1
+        m.flush()
+    total = size
+except (OSError, ValueError):
+    pass
+`},
+	{"flood the workdir with directories and long symlinks", `
+total = 0
+try:
+    for i in range(1000000):
+        os.mkdir("d%d" % i)
+        os.symlink("x" * 4000, "s%d" % i)
+except OSError:
+    pass
+`},
 	{"mmap, close and unlink a grown file", `
 _libc.mmap.restype = ctypes.c_void_p
 _libc.mmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_long]
@@ -963,7 +1036,11 @@ func probeIdleForkEvasion(ctx context.Context, r *runner) Result {
 import threading, time
 def burn():
     while True:
-        pid = os.fork()
+        try:
+            pid = os.fork()
+        except OSError:
+            time.sleep(0.05)
+            continue
         if pid == 0:
             end = time.time() + 0.7
             while time.time() < end:
@@ -977,16 +1054,191 @@ report("exec returned while children keep burning CPU", True)
 			return Result{Error: err.Error()}
 		}
 		res := Result{Checks: o.checks}
-		killed := eventually(60*time.Second, func() bool {
-			time.Sleep(3 * time.Second) // stay idle, as a session between model turns
-			ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: "1", Timeout: time.Second})
-			if err == nil {
-				collect(ch)
-				return false
-			}
-			return errors.Is(err, pykernel.ErrKernelDisposed)
-		})
-		res.Checks = append(res.Checks, Check{Name: "CPU burnt by short-lived children while idle kills the kernel", OK: killed})
+		pid := k.Info().PID
+		start := groupCPU(pid)
+		time.Sleep(8 * time.Second)
+		_, alive := r.opts.Manager.Get(s.key)
+		burnt := groupCPU(pid) - start
+		res.Checks = append(res.Checks, Check{Name: "background children cannot keep burning CPU while idle",
+			OK: !alive || burnt < 2*time.Second, Detail: fmt.Sprintf("alive=%t, CPU used while idle %s", alive, burnt)})
 		return res
 	})
+}
+
+// groupCPU sums user+system CPU, children included, of process group pgid.
+func groupCPU(pgid int) time.Duration {
+	entries, _ := os.ReadDir("/proc")
+	var ticks uint64
+	for _, e := range entries {
+		raw, err := os.ReadFile("/proc/" + e.Name() + "/stat")
+		if err != nil {
+			continue
+		}
+		s := string(raw)
+		i := strings.LastIndexByte(s, ')')
+		if i < 0 {
+			continue
+		}
+		f := strings.Fields(s[i+1:])
+		if len(f) < 15 || f[2] != strconv.Itoa(pgid) {
+			continue
+		}
+		for _, idx := range []int{11, 12, 13, 14} {
+			v, _ := strconv.ParseUint(f[idx], 10, 64)
+			ticks += v
+		}
+	}
+	return time.Duration(ticks) * time.Second / 100
+}
+
+func probeNoSpawnWhileIdle(ctx context.Context, r *runner) Result {
+	return r.withKernel(ctx, "idle-spawn", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, nil, `
+import threading, time, signal
+_libc.signal(signal.SIGCHLD, 1)  # SIG_IGN from any thread: children would be auto-reaped
+def later():
+    global spawn_result
+    time.sleep(1.5)
+    try:
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        spawn_result = "forked"
+    except OSError as e:
+        spawn_result = errno.errorcode.get(e.errno, str(e.errno))
+    try:
+        threading.Thread(target=lambda: None).start()
+        spawn_result += ",thread"
+    except RuntimeError:
+        spawn_result += ",nothread"
+threading.Thread(target=later, daemon=True).start()
+report("exec returned with a timer to fork later", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		time.Sleep(3 * time.Second)
+		o, err = r.exec(ctx, k, s, nil, `print("SPAWN", globals().get("spawn_result"))`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res.Checks = append(res.Checks, Check{Name: "no process or thread starts while no exec runs",
+			OK: strings.Contains(o.stdout, "SPAWN EAGAIN,nothread"), Detail: strings.TrimSpace(o.stdout)})
+		return res
+	})
+}
+
+func probeWriteSemantics(ctx context.Context, r *runner) Result {
+	return r.pyProbe(ctx, "semantics", nil, `
+import signal
+r_, w_ = os.pipe()
+pid = os.fork()
+if pid == 0:
+    os.close(w_)
+    got = 0
+    while got < 200000:
+        d = os.read(r_, 65536)
+        if not d:
+            break
+        got += len(d)
+    os._exit(0)
+os.close(r_)
+report("a blocking pipe write is written in full", os.write(w_, b"p" * 200000) == 200000)
+os.close(w_)
+os.waitpid(pid, 0)
+fd = os.open(os.path.join(CFG["workdir"], "big"), os.O_WRONLY | os.O_CREAT, 0o600)
+report("a 3 MiB file write is written in full", os.write(fd, b"f" * (3 << 20)) == 3 << 20)
+afd = os.open(os.path.join(CFG["workdir"], "app"), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+os.write(afd, b"ab")
+before = os.lseek(afd, 0, 1)
+os.pwrite(afd, b"cd", 0)
+report("pwrite on an O_APPEND file appends and keeps the position",
+       os.lseek(afd, 0, 1) == before and os.fstat(afd).st_size == 4)
+r2, w2 = os.pipe()
+os.close(r2)
+pid = os.fork()
+if pid == 0:
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+    try:
+        os.write(w2, b"x")
+    except OSError:
+        os._exit(7)
+    os._exit(0)
+_, status = os.waitpid(pid, 0)
+report("a write to a closed pipe raises SIGPIPE", os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGPIPE, status)
+a, b = socket.socketpair()
+a.sendall(b"s" * 300000) if False else None
+report("send on a socketpair works", a.send(b"hi") == 2 and b.recv(2) == b"hi")
+`)
+}
+
+func probeStreamWrites(ctx context.Context, r *runner) Result {
+	before := runtime.NumGoroutine()
+	res := r.withKernel(ctx, "streams", nil, func(k pykernel.Kernel, s *session) Result {
+		o, err := r.exec(ctx, k, s, nil, `
+import signal, time, threading
+r_, w_ = os.pipe()
+os.set_blocking(w_, False)
+try:
+    while True:
+        os.write(w_, b"z" * 4096)
+except BlockingIOError:
+    pass
+os.set_blocking(w_, True)
+def writer():
+    try:
+        os.write(w_, b"q")
+    except BaseException:
+        pass
+t = threading.Thread(target=writer, daemon=True)
+t.start()
+time.sleep(0.2)
+for _ in range(300):
+    try:
+        signal.pthread_kill(t.ident, signal.SIGINT)
+    except BaseException:
+        pass
+    time.sleep(0.002)
+os.set_blocking(r_, False)
+got = 0
+for _ in range(20):
+    try:
+        while True:
+            got += os.read(r_, 1 << 20).count(b"q")
+    except BlockingIOError:
+        pass
+    time.sleep(0.05)
+report("an interrupted blocked write happens exactly once", got == 1, "delivered %d" % got)
+fifo = os.path.join(CFG["workdir"], "fifo")
+os.mkfifo(fifo)
+ffd = os.open(fifo, os.O_RDWR)
+os.set_blocking(ffd, False)
+try:
+    while True:
+        os.write(ffd, b"f" * 4096)
+except BlockingIOError:
+    pass
+os.set_blocking(ffd, True)
+for _ in range(20):  # more than the host's stream slots
+    try:
+        threading.Thread(target=lambda: os.write(ffd, b"x"), daemon=True).start()
+    except RuntimeError:
+        break
+time.sleep(0.3)
+report("writers blocked on a full FIFO", True)
+`, r.opts.ProbeTimeout)
+		if err != nil {
+			return Result{Error: err.Error()}
+		}
+		res := Result{Checks: o.checks}
+		if o.err != nil {
+			res.Error = "probe raised " + o.err.Error()
+		}
+		return res
+	})
+	settled := eventually(10*time.Second, func() bool { return runtime.NumGoroutine() <= before+4 })
+	res.Checks = append(res.Checks, Check{Name: "blocked stream writes do not hold host goroutines after dispose", OK: settled,
+		Detail: fmt.Sprintf("goroutines before %d, after %d", before, runtime.NumGoroutine())})
+	return res
 }

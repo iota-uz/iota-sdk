@@ -22,6 +22,7 @@ const (
 	reservedTerminal = 3 // the first EventError, a synthetic error, EventDone
 	quotaPoll        = 500 * time.Millisecond
 	exitDrain        = 300 * time.Millisecond
+	maxStreams       = 16 // emulated stream writes waiting per kernel
 )
 
 // kernelOptions are the per-kernel limits the Manager hands to a kernel.
@@ -66,6 +67,8 @@ type kernel struct {
 	filesPreserved bool
 	execs          int
 	resets         int
+	readySeen      bool // the kernel reported ready: spawning is gated from now on
+	streams        int  // emulated stream writes in flight
 	leases         int
 	lastActive     time.Time
 	pid            int
@@ -232,6 +235,31 @@ func (k *kernel) activity() (bool, int, time.Time) {
 	return k.active == nil, k.execs + k.resets, k.lastActive
 }
 
+// spawnAllowed reports whether the kernel may create a thread or process:
+// before it is ready (its own startup) and while an exec runs.
+func (k *kernel) spawnAllowed() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return !k.readySeen || k.active != nil
+}
+
+// addStream claims one of the kernel's emulated stream-write slots.
+func (k *kernel) addStream() bool {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.streams >= maxStreams {
+		return false
+	}
+	k.streams++
+	return true
+}
+
+func (k *kernel) doneStream() {
+	k.mu.Lock()
+	k.streams--
+	k.mu.Unlock()
+}
+
 // killIdle kills a kernel that keeps working while no exec runs.
 func (k *kernel) killIdle() { _ = k.proc.Kill() }
 
@@ -312,6 +340,9 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 // the next exec are never held hostage by a stalled consumer.
 func (k *kernel) Emit(execID string, ev bridge.RawEvent) {
 	if ev.Kind == bridge.KindReady {
+		k.mu.Lock()
+		k.readySeen = true
+		k.mu.Unlock()
 		select {
 		case k.ready <- append([]byte(nil), ev.Params...):
 		default:

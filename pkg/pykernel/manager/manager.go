@@ -683,35 +683,64 @@ func (m *Manager) verifyQuota() error {
 		return err
 	}
 	defer func() { _ = k.Dispose(context.Background()) }()
+	// Three paths that must all be refused: an O_APPEND pwrite at offset 0,
+	// a write far past the end, a workdir file dup2'ed onto stdout.
 	ch, err := k.Exec(ctx, pykernel.ExecRequest{Code: `
 import os
+def attempt(fn):
+    try:
+        fn()
+        return "ALLOWED"
+    except OSError as e:
+        return "ERRNO%d" % e.errno
 fd = os.open("probe", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-try:
-    for _ in range(4):
-        os.pwrite(fd, b"\0" * (512 << 10), 0)
-    print("ALLOWED")
-except OSError as e:
-    print("ERRNO", e.errno)
+far = os.open("far", os.O_WRONLY | os.O_CREAT, 0o600)
+os.dup2(os.open("dup", os.O_WRONLY | os.O_CREAT, 0o600), 1)
+os.lseek(far, 1 << 40, 0)
+out = [attempt(lambda: os.write(far, b"x"))]
+out.append(attempt(lambda: [os.pwrite(fd, b"\0" * (512 << 10), 0) for _ in range(4)]))
+out.append(attempt(lambda: [os.write(1, b"\0" * (512 << 10)) for _ in range(4)]))
+print(" ".join(out))
 `})
 	if err != nil {
 		return err
 	}
 	var out strings.Builder
 	for ev := range ch {
-		if ev.Kind == pykernel.EventStdout {
+		switch ev.Kind {
+		case pykernel.EventStdout:
 			out.Write(ev.Stdout)
+		case pykernel.EventError:
+			out.WriteString(" raised " + ev.Err.Error())
+		case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated, pykernel.EventDone:
 		}
 	}
-	switch got := strings.TrimSpace(out.String()); got {
-	case fmt.Sprintf("ERRNO %d", syscall.EDQUOT):
-	case fmt.Sprintf("ERRNO %d", syscall.EPERM):
-		return errors.New("the supervisor cannot act for the kernel: it needs pidfd_getfd and process_vm_readv or /proc/<pid>/mem " +
-			"on the kernel's tasks (Linux >= 5.6, Yama ptrace_scope <= 1; in Docker grant the application CAP_SYS_PTRACE)")
-	default:
-		return fmt.Errorf("a write past a test quota was not refused: %q", got)
+	refused := map[string]bool{fmt.Sprintf("ERRNO%d", syscall.EDQUOT): true, fmt.Sprintf("ERRNO%d", syscall.EFBIG): true}
+	got := strings.Fields(out.String())
+	if len(got) != 3 {
+		return fmt.Errorf("the quota self-test did not run: %q", out.String())
 	}
-	if fi, err := os.Stat(filepath.Join(workdir, "probe")); err != nil || fi.Size() > limit {
-		return errors.New("the test workdir exceeded its quota")
+	for _, g := range got {
+		switch {
+		case refused[g]:
+		case g == fmt.Sprintf("ERRNO%d", syscall.EPERM):
+			return errors.New("the supervisor cannot act for the kernel: it needs pidfd_getfd and process_vm_readv or /proc/<pid>/mem " +
+				"on the kernel's tasks (Linux >= 5.6, Yama ptrace_scope <= 1; in Docker grant the application CAP_SYS_PTRACE)")
+		default:
+			return fmt.Errorf("a write past a test quota was not refused: %q", out.String())
+		}
+	}
+	var usage int64
+	_ = filepath.Walk(workdir, func(_ string, fi os.FileInfo, err error) error {
+		if err == nil && fi.Mode().IsRegular() {
+			if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+				usage += st.Blocks * 512
+			}
+		}
+		return nil
+	})
+	if usage > limit {
+		return fmt.Errorf("the test workdir exceeded its quota: %d bytes", usage)
 	}
 	return nil
 }
