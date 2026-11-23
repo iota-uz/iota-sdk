@@ -325,6 +325,9 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	if err != nil && ctx.Err() != nil {
 		return cancelledBeforeStart(), nil
 	}
+	if errors.Is(err, pykernel.ErrRequestTooLarge) {
+		return Result{}, mcp.Fail(mcp.CodeLimitExceeded, mcp.RecoveryFixInput, "the code exceeds the size limit")
+	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
 	}

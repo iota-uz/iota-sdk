@@ -44,6 +44,7 @@ const (
 var (
 	errShuttingDown  = errors.New("pykernel/manager: manager is shutting down")
 	errForeignKernel = errors.New("pykernel/manager: kernel not owned by this manager")
+	errNotPristine   = errors.New("pykernel/manager: kernel keeps threads or processes of an earlier holder")
 )
 
 // Config configures a Manager. Policy is required; the rest have defaults.
@@ -206,6 +207,21 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 		if k, ok := m.kernels[sess.Key()]; ok {
 			if !k.isDisposed() {
 				needReset, err := m.leaseForReuseLocked(k, sess)
+				if errors.Is(err, errNotPristine) {
+					// A fresh namespace on a process that still runs threads
+					// or children of an earlier holder would hand them over:
+					// replace the kernel instead.
+					delete(m.kernels, sess.Key())
+					done := m.retireLocked(k)
+					m.mu.Unlock()
+					done()
+					m.mu.Lock()
+					if m.closing {
+						m.mu.Unlock()
+						return nil, errShuttingDown
+					}
+					goto spawn
+				}
 				m.mu.Unlock()
 				if err != nil {
 					return nil, err
@@ -219,6 +235,7 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			go m.retireLocked(k)()
 		}
 	}
+spawn:
 	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 {
 		for len(m.kernels)+m.pending+m.retiring >= maxParallel {
 			victim := m.evictIdleLocked()
@@ -628,6 +645,7 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool, o
 	if m.confined() {
 		if err := startSupervisor(k, listener, m.runAs()); err != nil {
 			_ = k.Dispose(context.Background())
+			<-k.gone // the caller's capacity reservation outlives the group
 			return nil, fmt.Errorf("pykernel/manager: %w: quota supervisor: %w", isolation.ErrIsolationUnavailable, err)
 		}
 	}
@@ -635,6 +653,7 @@ func (m *Manager) spawn(ctx context.Context, sess pykernel.Session, seen bool, o
 	if m.confined() {
 		if err := m.awaitReady(ctx, k); err != nil {
 			_ = k.Dispose(context.Background())
+			<-k.gone // the caller's capacity reservation outlives the group
 			return nil, err
 		}
 	}

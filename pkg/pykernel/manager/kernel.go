@@ -2,6 +2,8 @@ package manager
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"sync"
@@ -225,6 +227,9 @@ func (k *kernel) leaseForReuse(fresh bool) (bool, error) {
 	if fresh && (k.inFlight || k.leases > 0) {
 		return false, pykernel.ErrKernelBusy
 	}
+	if fresh && k.execs > 0 && k.opts.supervised && !pristine(k.pid) {
+		return false, errNotPristine
+	}
 	k.leases++
 	return fresh && k.execs > 0, nil
 }
@@ -396,6 +401,14 @@ func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pyk
 	if err := k.br.Submit(ctx, a.id, req.Code, limits); err != nil {
 		k.mu.Lock()
 		defer k.mu.Unlock()
+		if errors.Is(err, bridge.ErrFrameTooLarge) {
+			// Rejected before anything was written: the kernel is healthy,
+			// the request is the problem.
+			if k.active == a {
+				k.finishLocked()
+			}
+			return nil, fmt.Errorf("pykernel/manager: %w", pykernel.ErrRequestTooLarge)
+		}
 		if k.active == a && a.stop != "" {
 			// The watchdog stopped a kernel that would not take the code:
 			// the consumer gets the typed outcome, not a transport error.
@@ -659,6 +672,9 @@ func (k *kernel) watchQuota() {
 // still in flight, the consumer is unblocked with a synthetic error and a
 // terminal EventDone carrying the reason.
 func (k *kernel) onServeExit() {
+	// Without its bridge the kernel can never be used again, and code in it
+	// must not outlive the exec's watchdog: stop the whole group now.
+	_ = k.proc.Kill()
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.serveExited = true

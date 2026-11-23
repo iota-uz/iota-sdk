@@ -6,3 +6,5 @@ package manager
 func atRest(int) bool { return true }
 
 func groupStopped(int) bool { return true }
+
+func pristine(int) bool { return true }

@@ -119,6 +119,9 @@ var (
 	// ErrWorkdirQuota is returned by Acquire when the session workdir holds
 	// more entries than the Manager allows; the host must clean it up.
 	ErrWorkdirQuota = errors.New("pykernel: session workdir is over its entry quota")
+	// ErrRequestTooLarge is returned by Exec when the code (with its limits)
+	// does not fit one bridge frame. Nothing was sent; the kernel is intact.
+	ErrRequestTooLarge = errors.New("pykernel: exec request exceeds the maximum frame size")
 	// ErrSessionMismatch is returned by Acquire when a live kernel for the key
 	// was bound to a different tenant or Mode; keys must be scoped so that
 	// never happens.

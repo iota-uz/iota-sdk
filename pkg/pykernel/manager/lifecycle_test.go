@@ -3,7 +3,10 @@ package manager_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -221,4 +224,67 @@ func TestCallContextBinder_InjectsIdentityBesideTheTenant(t *testing.T) {
 	s := <-got
 	assert.Equal(t, "user-7", s.user)
 	assert.Equal(t, tenant, s.tenant)
+}
+
+func TestExec_OversizedSubmissionKeepsHealthyKernel(t *testing.T) {
+	requirePython(t)
+	m := newManagerWith(t, lifecycle.WarmPool(time.Hour, 4))
+	k, err := m.Acquire(context.Background(), &testSession{key: "oversized", tenant: uuid.New(), caps: emptyCaps(t), mode: pykernel.ModeApply, wd: t.TempDir()})
+	require.NoError(t, err)
+	defer func() { _ = m.Release(k) }()
+
+	_, err = k.Exec(context.Background(), pykernel.ExecRequest{Code: "x = '" + strings.Repeat("a", 65<<20) + "'"})
+	require.ErrorIs(t, err, pykernel.ErrRequestTooLarge, "refused as too large, not as a lost kernel")
+
+	out, execErr, done := run(t, k, pykernel.ExecRequest{Code: "print(42)"})
+	require.Nil(t, execErr)
+	assert.Equal(t, "42\n", out)
+	require.NotNil(t, done)
+	assert.Equal(t, pykernel.ReasonCompleted, done.Reason, "the kernel is still healthy")
+}
+
+func TestFreshNamespace_ReplacesAKernelThatKeepsAnEarlierHoldersThread(t *testing.T) {
+	requirePython(t)
+	if pykerneltest.Sandbox(t).Mode != isolation.ModeRequired {
+		t.Skip("leftover work is only observable for supervised kernels")
+	}
+	m := newManagerWith(t, freshPool{lifecycle.WarmPool(time.Hour, 4)})
+	sess := &testSession{key: "fresh-thread", tenant: uuid.New(), caps: emptyCaps(t), mode: pykernel.ModeApply, wd: t.TempDir()}
+	k, err := m.Acquire(context.Background(), sess)
+	require.NoError(t, err)
+	_, execErr, _ := run(t, k, pykernel.ExecRequest{Code: "import threading, time\nthreading.Thread(target=time.sleep, args=(3600,), daemon=True).start()"})
+	require.Nil(t, execErr)
+	require.NoError(t, m.Release(k))
+
+	again, err := m.Acquire(context.Background(), sess)
+	require.NoError(t, err)
+	assert.NotSame(t, k, again, "the earlier holder's thread must not be handed to the next one")
+	assert.True(t, again.Info().NamespaceReset)
+	out, execErr, _ := run(t, again, pykernel.ExecRequest{Code: "import threading\nprint(threading.active_count())"})
+	require.Nil(t, execErr)
+	assert.Equal(t, "2\n", out)
+}
+
+func TestExec_WorkerClosingItsBridgeIsKilled(t *testing.T) {
+	requirePython(t)
+	m := newManagerWith(t, lifecycle.Ephemeral())
+	k, err := m.Acquire(context.Background(), &testSession{key: "bridge-exit", tenant: uuid.New(), caps: emptyCaps(t), mode: pykernel.ModeApply, wd: t.TempDir()})
+	require.NoError(t, err)
+	defer func() { _ = m.Release(k) }()
+	pid := k.Info().PID
+	_, _, done := run(t, k, pykernel.ExecRequest{Code: "import socket\nsocket.socket(fileno=3).shutdown(socket.SHUT_RDWR)\nwhile True:\n    pass", Timeout: time.Minute})
+	require.NotNil(t, done)
+	assert.Equal(t, pykernel.ReasonKernelExited, done.Reason)
+	assert.Eventually(t, func() bool { return errors.Is(syscall.Kill(-pid, 0), syscall.ESRCH) || isZombie(pid) },
+		5*time.Second, 20*time.Millisecond, "a kernel without its bridge must not keep running")
+}
+
+func isZombie(pid int) bool {
+	raw, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return true
+	}
+	s := string(raw)
+	i := strings.LastIndexByte(s, ')')
+	return i >= 0 && len(s) > i+2 && s[i+2] == 'Z'
 }
