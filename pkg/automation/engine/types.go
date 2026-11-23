@@ -462,8 +462,8 @@ type StepContext struct {
 	Subject                  SubjectRef
 	Depth                    int
 	Native                   workflow.NativeRun // primitives of #1321
-	// FailedConnected: the node's failed outcome has an edge (a call whose outcome is unknown takes it;
-	// without it the call blocks for an operator).
+	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
+	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool
 }
 

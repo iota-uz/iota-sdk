@@ -154,6 +154,10 @@ func (r *Runtime) BuildRunContext(ctx context.Context, in RunContextInput) (grap
 		gctx.Run["id"] = in.RunID.String()
 	}
 	applyOverrides(&gctx, in.Overrides)
+	if h := r.contextHook; h != nil && in.RunID != uuid.Nil {
+		kind, _ := gctx.Event["kind"].(string)
+		h(kind, gctx)
+	}
 	return gctx, nil
 }
 

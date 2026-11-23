@@ -86,7 +86,7 @@ type Runtime struct {
 	tracer  trace.Tracer
 	metrics metrics
 
-	calls   *CallRunner
+	calls *CallRunner
 	// poke wakes Serve: a collect window opened or a new deadline came nearer.
 	poke chan struct{}
 	// passes counts the passes of Serve.
@@ -98,6 +98,8 @@ type Runtime struct {
 	// testHook, set by tests, runs at the end of every fenced transaction of a run (label: step,
 	// consume, timeout, task, release, fail); its error rolls the transaction back.
 	testHook func(ctx context.Context, tx pgx.Tx, label string) error
+	// contextHook, set by tests, sees every context a live run's step is built with.
+	contextHook func(event string, gctx graph.Context)
 }
 
 type interpEntry struct {

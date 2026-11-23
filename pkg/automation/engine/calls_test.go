@@ -1,0 +1,213 @@
+package engine_test
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+)
+
+// sendGraph runs one call node; failed: the failed outcome notes the error code (else it is left out:
+// the node's failure is the run's).
+func sendGraph(nodeType, mode, timeout string, failed bool) string {
+	params := `{"mode": "` + mode + `", "text": "hi"`
+	if timeout != "" {
+		params += `, "timeout": "` + timeout + `"`
+	}
+	params += `}`
+	nodes := `{"id": "send", "type": "` + nodeType + `", "params": ` + params + `},
+	  {"id": "ok", "type": "acme.note", "params": {"text": "sent {{ nodes.send.output.message_id }}"}},
+	  {"id": "fin", "type": "end", "params": {}}`
+	edges := `{"from": {"node": "created", "outcome": "fired"}, "to": "send"},
+	  {"from": {"node": "send", "outcome": "sent"}, "to": "ok"},
+	  {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"}`
+	if failed {
+		nodes += `, {"id": "bad", "type": "acme.note", "params": {"text": "{{ nodes.send.output.error.code }}: {{ nodes.send.output.error.message }}"}}`
+		edges += `, {"from": {"node": "send", "outcome": "failed"}, "to": "bad"},
+		  {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}`
+	} else {
+		edges += `, {"from": {"node": "send", "outcome": "failed"}, "to": "ignore"}`
+	}
+	return graphJSON("Send", `{"id": "created", "event": "acme.order.created.v1"}`, nodes, edges)
+}
+
+// crash runs a process until the call it starts is executing, then stops it as a process that dies.
+func crash(t *testing.T, ae *acmeEnv) {
+	t.Helper()
+	p := ae.proc()
+	stop := p.drive()
+	select {
+	case <-ae.acme.entered:
+	case <-time.After(20 * time.Second):
+		stop()
+		t.Fatal("the call did not start")
+	}
+	stop()
+}
+
+func runOf(t *testing.T, e *env, p *proc) engine.RunSummary {
+	t.Helper()
+	runs := e.runs(p, e.human(), engine.RunFilter{})
+	require.Len(t, runs, 1)
+	return runs[0]
+}
+
+// The process stops after a call that may not repeat was sent and before its result was written: the
+// call is not repeated; its failed outcome (connected) takes outcome_unknown.
+func TestUnknownOutcomeOfANonIdempotentCallTakesFailed(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunDone }, "the run continues by the failed outcome")
+	run := runOf(t, ae.env, p2)
+	require.Len(t, ae.acme.callsOf("acme.send"), 1, "the call is not repeated blindly")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:outcome_unknown: "), effects[0])
+}
+
+// Without a failed outcome the call blocks the run; Resolve continues it by the outcome the operator chose.
+func TestUnknownOutcomeBlocksAndResolveContinues(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash", "", false))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunBlocked }, "the run is blocked by its call")
+	run := runOf(t, ae.env, p2)
+	assert.Contains(t, run.Reason, "call_blocked: send")
+	detail := ae.run(p2, ae.human(), run.RunID)
+	var waitID string
+	for _, w := range detail.Waits {
+		if w.Kind == "call" && w.Status == "open" {
+			waitID = w.WaitID
+		}
+	}
+	require.NotEmpty(t, waitID)
+	ops := p2.rt.Operations()
+	ctx := context.Background()
+	assert.ErrorIs(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "nope", nil), engine.ErrInvalidInput, "an outcome the node does not have")
+	noOperate := ae.actor(ae.tenant, 1, engine.OriginHuman, engine.PermRead)
+	assert.ErrorIs(t, ops.Resolve(ctx, noOperate, run.RunID, waitID, "sent", nil), engine.ErrForbidden)
+	require.NoError(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "sent", json.RawMessage(`{"message_id": "found-by-hand"}`)))
+	p2.until(func() bool { return ae.status(p2, run.RunID) == engine.RunDone }, "the resolved run continues")
+	assert.Equal(t, []string{"ok:sent found-by-hand"}, ae.effects(run.RunID))
+	require.Len(t, ae.acme.callsOf("acme.send"), 1)
+}
+
+// Retry repeats a blocked call with its idempotency key.
+func TestRetryOfABlockedCallRepeatsIt(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash_once", "", false))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunBlocked }, "blocked")
+	run := runOf(t, ae.env, p2)
+	detail := ae.run(p2, ae.human(), run.RunID)
+	var waitID string
+	for _, w := range detail.Waits {
+		if w.Kind == "call" && w.Status == "open" {
+			waitID = w.WaitID
+		}
+	}
+	require.NoError(t, p2.rt.Operations().Retry(context.Background(), ae.human(), run.RunID, waitID))
+	p2.until(func() bool { return ae.status(p2, run.RunID) == engine.RunDone }, "the retried call completes")
+	calls := ae.acme.callsOf("acme.send")
+	require.Len(t, calls, 2)
+	assert.Equal(t, calls[0].Key, calls[1].Key, "the same idempotency key")
+}
+
+// An idempotent call is repeated after the same crash, with the same idempotency key.
+func TestIdempotentCallIsRepeatedWithTheSameKey(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.fetch", "crash_once", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunDone }, "the repeated call completes")
+	run := runOf(t, ae.env, p2)
+	calls := ae.acme.callsOf("acme.fetch")
+	require.Len(t, calls, 2)
+	assert.Equal(t, calls[0].Key, calls[1].Key)
+	assert.Equal(t, run.RunID.String(), strings.Split(calls[0].Key, ":")[0], "run:node:token:seq")
+	assert.Equal(t, 2, calls[1].Attempt)
+	assert.Equal(t, []string{"ok:sent m-" + calls[0].Key}, ae.effects(run.RunID))
+}
+
+// A 429 whose Retry-After is past the node's deadline fails at once, without another attempt.
+func TestRateLimitPastTheDeadlineFails(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.fetch", "429", "30s", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool {
+		runs := ae.runs(p, ae.human(), engine.RunFilter{})
+		return len(runs) == 1 && runs[0].Status == engine.RunDone
+	}, "the run takes the failed outcome")
+	run := runOf(t, ae.env, p)
+	require.Len(t, ae.acme.callsOf("acme.fetch"), 1, "no attempt the deadline cannot hold")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:rate_limited: "), effects[0])
+}
+
+// The failed branch reads output.error.message; the secret in the provider's message is masked.
+func TestErrorMessageInTheFailedBranchIsMasked(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "reject", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool {
+		runs := ae.runs(p, ae.human(), engine.RunFilter{})
+		return len(runs) == 1 && runs[0].Status == engine.RunDone
+	}, "the run takes the failed outcome")
+	run := runOf(t, ae.env, p)
+	assert.Equal(t, []string{"bad:rejected: the provider refused token ***"}, ae.effects(run.RunID))
+	// Neither the journal of the call nor the steps keep the secret.
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE result::text LIKE '%' || $1 || '%' OR error::text LIKE '%' || $1 || '%'`, acmeToken))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.steps WHERE output::text LIKE '%' || $1 || '%' OR input::text LIKE '%' || $1 || '%' OR error::text LIKE '%' || $1 || '%'`, acmeToken))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE input::text LIKE '%' || $1 || '%'`, acmeToken))
+}
+
+// Cancelling a run terminates its call and closes its correlations.
+func TestCancelTerminatesTheCall(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	stop := p.drive()
+	<-ae.acme.entered
+	stop()
+	p2 := ae.proc()
+	run := runOf(t, ae.env, p2)
+	require.NoError(t, p2.rt.Service().Cancel(context.Background(), ae.human(), run.RunID))
+	p2.until(func() bool { return ae.status(p2, run.RunID) == engine.RunCancelled }, "cancelled")
+	p2.until(func() bool {
+		return ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = $1 AND status = 'terminated'`, engine.CallWorkflowID) == 1
+	}, "the call instance is terminated")
+}
+
+func TestInvocationIDIsStablePerKey(t *testing.T) {
+	a, b := engine.InvocationIDOf("r:n:t:1"), engine.InvocationIDOf("r:n:t:1")
+	assert.Equal(t, a, b)
+	_, err := uuid.Parse(a)
+	require.NoError(t, err)
+	assert.NotEqual(t, a, engine.InvocationIDOf("r:n:t:2"))
+}

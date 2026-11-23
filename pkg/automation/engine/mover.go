@@ -237,7 +237,10 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	sc := m.stepContext(tok, seq)
 	if fo := m.in().FailedOutcome(node.ID); fo != "" {
-		_, sc.FailedConnected = m.in().Next(node.ID, fo)
+		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)
+		// would end the path silently on a call that may have been made, so such a call blocks instead.
+		to, ok := m.in().Next(node.ID, fo)
+		sc.FailedConnected = ok && to != graph.Ignore
 	}
 	ws, err := begin(ctx, sp, sc, node, raw)
 	if err != nil {

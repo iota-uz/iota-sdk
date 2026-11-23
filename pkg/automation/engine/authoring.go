@@ -537,4 +537,3 @@ func Log(ctx context.Context, format string, args ...any) {
 		l.add(fmt.Sprintf(format, args...))
 	}
 }
-

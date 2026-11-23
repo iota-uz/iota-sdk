@@ -53,6 +53,7 @@ type CallRequest struct {
 	NodeType       string          `json:"node_type"`
 	ConnectionID   *uuid.UUID      `json:"connection_id,omitempty"` // a tenant connection
 	Connection     string          `json:"connection,omitempty"`    // the connection ref: a UUID or "platform:<kind>"
+	ConnectorKind  string          `json:"connector,omitempty"`     // the connection's kind
 	Input          json.RawMessage `json:"input"`                   // rendered params, no secrets
 	IdempotencyKey string          `json:"idempotency_key"`         // "run:node:token:seq"; stable across retries
 	Deadline       time.Time       `json:"deadline"`                // node timeout from params, ≤ CallLimits.MaxTimeout
@@ -195,11 +196,11 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	}
 	// The node's own kinds and its connector's.
 	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
-		ref, _, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
+		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
 			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
 		}
-		req.Connection = ref.ID
+		req.Connection, req.ConnectorKind = ref.ID, string(kind)
 		if id, err := uuid.Parse(ref.ID); err == nil {
 			req.ConnectionID = &id
 		}
@@ -335,6 +336,9 @@ func (x *callExec) failed(nt catalog.NodeType, code, message string, retryable b
 }
 
 func (x *callExec) connector(nt catalog.NodeType) string {
+	if x.req.ConnectorKind != "" {
+		return x.req.ConnectorKind
+	}
 	if x.req.Connection != "" {
 		if kind, ok := strings.CutPrefix(x.req.Connection, catalog.PlatformPrefix); ok {
 			return kind

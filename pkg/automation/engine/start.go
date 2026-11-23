@@ -32,14 +32,14 @@ type startRequest struct {
 	key          string
 	event        graph.Event
 	// events are the events a trigger's collect merged into the run (event is the last); nil: one.
-	events []graph.Event
-	subject      SubjectRef
-	runAs        *spi.Subject // nil: no instance (blocked, filter_failed)
-	initiator    *int64
-	depth        int
-	cause        *uuid.UUID
-	restarted    *uuid.UUID
-	predecessor  *uuid.UUID
+	events      []graph.Event
+	subject     SubjectRef
+	runAs       *spi.Subject // nil: no instance (blocked, filter_failed)
+	initiator   *int64
+	depth       int
+	cause       *uuid.UUID
+	restarted   *uuid.UUID
+	predecessor *uuid.UUID
 	// startState and reason, when set, record a run that does not start.
 	startState string
 	reason     string

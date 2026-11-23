@@ -125,11 +125,21 @@ type env struct {
 	reg      catalog.Registry
 	note     *noteNode
 	logger   *slog.Logger
+	// audience and observers are the workflow engine's task audience and task observers.
+	audience  workflow.TaskAudience
+	observers []workflow.TaskObserver
 }
 
 var allPerms = []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate, permRead, permSec}
 
 func newEnv(t *testing.T) *env {
+	t.Helper()
+	return newEnvWith(t, nil)
+}
+
+// newEnvWith is newEnv whose catalog knows the tenant's connections through avail (built on the env's
+// database; nil: none).
+func newEnvWith(t *testing.T, avail func(db *pgxpool.Pool) catalog.Availability) *env {
 	t.Helper()
 	h := itf.NewHarness(t, itf.HarnessConfig{
 		Name:      "automation_engine",
@@ -144,7 +154,11 @@ func newEnv(t *testing.T) *env {
 	e.subjects.Grant(1, allPerms...)
 	e.subjects.Grant(2, allPerms...)
 
-	reg := catalog.NewRegistry(nil)
+	var av catalog.Availability
+	if avail != nil {
+		av = avail(e.db)
+	}
+	reg := catalog.NewRegistry(av)
 	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
 	require.NoError(t, reg.RegisterTriggers(catalog.FromNativeEvents(nativeEvents{orderCreated, orderPaid})))
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{evPaid, evCreated, engine.EventRunFinished}), graph.FlowNodes(nil)...) {
@@ -196,7 +210,7 @@ func (e *env) proc(tune ...func(*engine.Config)) *proc {
 		DB: e.db, Subjects: e.subjects,
 		NativeSource: func() (map[string]workflow.NativeContract, error) { return p.rt.Natives(), nil },
 		LeaseTTL:     3 * time.Second, Heartbeat: time.Second, PollInterval: 50 * time.Millisecond, RetryBackoff: 10 * time.Millisecond,
-		MaxRunFailures: 20, Logger: e.logger,
+		MaxRunFailures: 20, Logger: e.logger, TaskAudience: e.audience, TaskObservers: e.observers,
 	})
 	require.NoError(e.t, err)
 	e.t.Cleanup(wf.Shutdown)
