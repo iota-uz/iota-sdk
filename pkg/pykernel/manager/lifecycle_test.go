@@ -70,7 +70,7 @@ func TestNew_FailsClosedWhenTheSandboxCannotBeVerified(t *testing.T) {
 		PythonPath: "/nonexistent/python3",
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, isolation.ErrIsolationUnavailable), err)
+	require.ErrorIs(t, err, isolation.ErrIsolationUnavailable)
 	var inc *isolation.IncompleteError
 	require.ErrorAs(t, err, &inc)
 	assert.NotEmpty(t, inc.Missing)
@@ -211,7 +211,7 @@ func TestCallContextBinder_InjectsIdentityBesideTheTenant(t *testing.T) {
 		func(ctx context.Context, _ pykernel.CallArgs) (any, error) {
 			tid, _ := composables.UseTenantID(ctx)
 			got <- seen{user: ctx.Value(userKey{}), tenant: tid}
-			return nil, nil
+			return nil, nil //nolint:nilnil // the capability only records its context
 		})
 	caps, err := pykernel.NewCapabilitySet(whoami)
 	require.NoError(t, err)

@@ -291,7 +291,7 @@ func TestAcquire_ConcurrentSpawnsRespectMaxParallel(t *testing.T) {
 		require.NoError(t, <-errs)
 	}
 	assert.Equal(t, 2, exhausted)
-	assert.Len(t, l.started, 0, "no third launch happened")
+	assert.Empty(t, l.started, "no third launch happened")
 }
 
 func TestSpawn_RestartRecordIsHostOwned(t *testing.T) {

@@ -16,11 +16,12 @@ import (
 // groupMembers lists the processes of process group pgid. Every observation
 // must be positive: an entry that vanished (ENOENT) is gone, but one that
 // cannot be read might be a member, so ok is false then.
-func groupMembers(pgid int) (members []int, ok bool) {
+func groupMembers(pgid int) ([]int, bool) {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return nil, false
 	}
+	var members []int
 	want := strconv.Itoa(pgid)
 	for _, e := range entries {
 		pid, err := strconv.Atoi(e.Name())
@@ -43,7 +44,7 @@ func groupMembers(pgid int) (members []int, ok bool) {
 
 // taskStates returns the scheduler state of every thread of process pid
 // (none when the process is gone); ok is false when one cannot be read.
-func taskStates(pid int) (states []string, ok bool) {
+func taskStates(pid int) ([]string, bool) {
 	base := "/proc/" + strconv.Itoa(pid) + "/task"
 	tasks, err := os.ReadDir(base)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -52,6 +53,7 @@ func taskStates(pid int) (states []string, ok bool) {
 	if err != nil {
 		return nil, false
 	}
+	states := make([]string, 0, len(tasks))
 	for _, t := range tasks {
 		f, err := procStat(base + "/" + t.Name() + "/stat")
 		if errors.Is(err, fs.ErrNotExist) {

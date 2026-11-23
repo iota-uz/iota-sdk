@@ -374,7 +374,7 @@ func (s *supervisor) groupStats() ([]int, uint64) {
 	if err != nil {
 		return nil, 0
 	}
-	var pids []int
+	pids := make([]int, 0, len(entries))
 	var cpu uint64
 	for _, e := range entries {
 		pid, err := strconv.Atoi(e.Name())
@@ -583,7 +583,7 @@ func (s *supervisor) dupTarget(n notification, fd int) (int, error) {
 			return -1, err
 		}
 	}
-	defer unix.Close(pidfd)
+	defer func() { _ = unix.Close(pidfd) }()
 	if !s.idValid(n.id) {
 		return -1, unix.ESRCH
 	}
@@ -677,10 +677,10 @@ func (s *supervisor) emulate(n notification) {
 			return
 		}
 		own = fd
-		defer unix.Close(own)
+		defer func() { _ = unix.Close(own) }()
 	}
 	if n.nr == s.calls.ftruncate {
-		defer unix.Close(dup)
+		defer func() { _ = unix.Close(dup) }()
 		if !regular {
 			s.respond(n.id, 0, unix.EINVAL, false)
 			return
@@ -695,7 +695,7 @@ func (s *supervisor) emulate(n notification) {
 		return
 	}
 	if regular {
-		defer unix.Close(dup)
+		defer func() { _ = unix.Close(dup) }()
 		s.writeFile(n, dup, own, st, spans)
 		return
 	}
@@ -980,7 +980,7 @@ func (s *supervisor) writeStream(n notification, dup int, spans []span) {
 	}
 	go func() {
 		defer s.k.doneStream()
-		defer unix.Close(dup)
+		defer func() { _ = unix.Close(dup) }()
 		written, errno := s.pump(dup, data, n)
 		if errno == unix.EPIPE {
 			s.signal(n.tid, unix.SIGPIPE) // as the kernel does before EPIPE
@@ -1100,7 +1100,7 @@ func readProcMem(tid int, addr uintptr, buf []byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	n, err := f.ReadAt(buf, int64(addr))
 	if n != len(buf) {
 		if err == nil {
