@@ -126,6 +126,14 @@
 .ae-edge--valid { stroke-dasharray: none; }
 .ae-edge--taken { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; }
 .ae-dim { opacity: 0.35; }
+/* Tidy: the cards glide to their new places in 200 ms and the edges fade back in once they have landed. */
+.ae-canvas--tidying .ae-card { transition: transform 200ms ease-out; }
+.ae-canvas--tidying .ae-edges { opacity: 0; }
+.ae-edges { transition: opacity 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .ae-canvas--tidying .ae-card, .ae-edges { transition: none; }
+  .ae-canvas--tidying .ae-edges { opacity: 1; }
+}
 
 .ae-card {
   position: absolute; left: 0; top: 0; box-sizing: border-box;

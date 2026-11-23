@@ -1,5 +1,7 @@
 // Card geometry is computed, never measured: a card's width follows its outcomes, its height is fixed,
 // and every handle position is declared from these numbers. Cards do not grow with their content.
+// The flow runs top to bottom: a card is entered at the middle of its top edge and left from the
+// bottom edge, one port under each outcome chip.
 import type { XY } from './types'
 
 export const GRID = 16
@@ -62,7 +64,7 @@ export function cardGeometry(outcomes: readonly string[], hasTarget: boolean): C
   return {
     width,
     height: CARD_HEIGHT,
-    target: hasTarget ? { x: 0, y: CARD_HEIGHT / 2 } : null,
+    target: hasTarget ? { x: width / 2, y: 0 } : null,
     outcomes: slots,
   }
 }
