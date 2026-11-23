@@ -146,8 +146,9 @@ test.describe('tidy', () => {
     })
     await page.locator('.ae-controls .ae-tidy').click()
     await expect.poll(() => place(page, 'a_check')).toBe(tidy)
-    const glides = await page.evaluate(() => (window as unknown as { __glides: { id: string; property: string; duration: string }[] }).__glides)
-    expect(glides.find((g) => g.id === 'a_check' && g.property === 'transform')?.duration).toBe('0.2s')
+    // The browser starts the transition on the next style recalculation, a frame after the style changed.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __glides: { id: string; property: string; duration: string }[] }).__glides
+      .find((g) => g.id === 'a_check' && g.property === 'transform')?.duration)).toBe('0.2s')
     await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
     await page.getByLabel('Undo').click()
     expect(await place(page, 'a_check')).toBe(moved)
