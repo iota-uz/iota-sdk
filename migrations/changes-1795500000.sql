@@ -25,8 +25,9 @@ CREATE TABLE automation.correlations (
     single boolean NOT NULL DEFAULT TRUE,
     -- the answer event the wait listens for, once it opened; only it takes the token
     event text,
-    -- the first event with the token before the wait opened (its answer, if the keys match)
-    answered_event text,
+    -- the event keys that came with the token before the wait opened: a repeat of one is closed, and
+    -- the wait's own answer among them spends a single token when the wait opens
+    answered_events text[] NOT NULL DEFAULT '{}',
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     FOREIGN KEY (tenant_id, run_id) REFERENCES automation.runs (tenant_id, id) ON DELETE CASCADE

@@ -54,6 +54,7 @@ type acme struct {
 	peak     atomic.Int64 // the most that ran at once
 	pollQ    [][]engine.InboundEvent
 	pollErr  error
+	onAsk    func(token string) // runs inside the ask's Execute (answers that come before its wait opens)
 }
 
 func newAcme() *acme { return &acme{entered: make(chan string, 16)} }
@@ -245,6 +246,9 @@ func (n *acmeAsk) Idempotent() bool                  { return false }
 func (n *acmeAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
 	c, _ := engine.CorrelationFrom(ctx)
 	n.a.record(acmeCall{Node: "acme.ask", Key: in.IdempotencyKey, Attempt: in.Attempt, Token: c.Token})
+	if n.a.onAsk != nil {
+		n.a.onAsk(c.Token)
+	}
 	return catalog.CallResult{Outcome: "yes", Output: map[string]any{"message_id": "q-1"}}, nil
 }
 func (n *acmeAsk) Await(catalog.CallInput, catalog.CallResult) (engine.Await, error) {

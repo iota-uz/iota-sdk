@@ -480,10 +480,36 @@ func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
 	require.NoError(t, publish("b-3", evMessage), "another key passes")
 	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token))
 	// The wait opens on the answer event: from now on only it takes the token.
-	_, err = ae.db.Exec(ctx, `UPDATE automation.correlations SET event = $2, answered_event = NULL WHERE token = $1`, token, evAnswer)
+	_, err = ae.db.Exec(ctx, `UPDATE automation.correlations SET event = $2, answered_events = '{}' WHERE token = $1`, token, evAnswer)
 	require.NoError(t, err)
 	require.NoError(t, publish("b-4", evMessage), "another key after the wait opened")
 	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token), "it did not take the token")
 	require.NoError(t, publish("b-5", evAnswer))
 	require.ErrorIs(t, publish("b-6", evAnswer), engine.ErrCorrelationClosed)
+}
+
+// An unrelated event and two presses of the answer, all before the wait opens: the second press is
+// answered as already answered, one answer reaches the outbox, and the run moves once.
+func TestEarlyAnswersAfterAnUnrelatedEvent(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	h := ae.handler(p, nil)
+	codes := []int{}
+	ae.acme.onAsk = func(token string) {
+		for _, u := range []acmeUpdate{
+			{ID: "e-1", Event: evMessage, Text: "hi", From: "ann", Correlation: token},
+			{ID: "e-2", Event: evAnswer, Choice: "yes", From: "ann", Correlation: token},
+			{ID: "e-3", Event: evAnswer, Choice: "no", From: "ann", Correlation: token},
+		} {
+			codes = append(codes, ae.hook(h, ae.hookPath(), acmeSig, u).Code)
+		}
+	}
+	ae.create(p, ae.human(), askGraph)
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the early answer moved the run")
+	assert.Equal(t, []int{http.StatusOK, http.StatusOK, http.StatusOK}, codes)
+	assert.Equal(t, int64(1), ae.acme.closed.Load(), "the second press is already answered")
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evAnswer))
+	assert.Equal(t, []string{"answer yes"}, noteTexts(t, ae.env))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.correlations`), "the token is spent once the wait opens")
 }
