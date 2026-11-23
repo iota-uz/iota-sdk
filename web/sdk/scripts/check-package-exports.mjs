@@ -20,6 +20,7 @@ const expectedExports = [
   './solid-ui/standalone.css',
   './solid-ui/embedded-css',
   './styles.css',
+  './metrics.css',
   './chat-ui',
   './chat-ui/icons',
   './chat-ui/styles.css',
