@@ -142,6 +142,8 @@ func intersectField(a, b expr.Field) (expr.Field, bool) {
 	ua, ub := a.Unwrap(), b.Unwrap()
 	var out expr.Field
 	switch {
+	case ua.String() == ub.String():
+		out = ua // the same type, optional in one: absent where that one has it absent
 	case ua.Kind == expr.Object && ub.Kind == expr.Object:
 		out = expr.ObjectOf(intersectFields(ua.Props, ub.Props))
 	case ua.Kind == expr.List && ub.Kind == expr.List:

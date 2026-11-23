@@ -614,10 +614,12 @@ func missingAt(vars map[string]expr.Field, chain []string) int {
 	for i := 1; i < len(chain); i++ {
 		f = f.Unwrap()
 		switch {
-		case f.Kind == expr.Dyn || f.Kind == expr.Map && chain[i] != expr.IndexStep:
-			return -1 // what is under a map or a dyn value is not declared
+		case f.Kind == expr.Dyn:
+			return -1 // what is under a dyn value is not declared
+		case f.Kind == expr.Map:
+			f = *f.Elem // any key (a name or an expression) reads the map's value
 		case chain[i] == expr.IndexStep:
-			if f.Kind != expr.List && f.Kind != expr.Map {
+			if f.Kind != expr.List {
 				return i
 			}
 			f = *f.Elem

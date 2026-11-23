@@ -319,3 +319,37 @@ func TestReachableTriggersListElementField(t *testing.T) {
 		t.Fatalf("errors: %v", errs)
 	}
 }
+
+// A field optional in one event and required in the other, of one type, is shared as optional.
+func TestReachableTriggersOptionalShared(t *testing.T) {
+	c := mailEvents(t,
+		expr.Fields{{Name: "note", Field: expr.OptionalOf(expr.StringField)}, {Name: "at", Field: expr.OptionalOf(expr.TimestampField)}, {Name: "data", Field: expr.OptionalOf(expr.DoubleField)}},
+		expr.Fields{{Name: "note", Field: expr.StringField}, {Name: "at", Field: expr.TimestampField}, {Name: "data", Field: expr.DoubleField}})
+	g := twoMailGraph(t, `event.note == \"\" && event.at.getFullYear() == 2020 && event.data / 2.0 == 2.0`)
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []string{"mail.received", "mail.sent"} {
+		trace := in.DryRun(graph.Subject{}, graph.Context{}, []graph.DryRunInput{
+			{Event: graph.Event{"kind": kind, "at": "2020-06-01T00:00:00Z", "data": 4}},
+		}, graph.DryRunOptions{})
+		if len(trace) < 2 || trace[1].Node != "n" || trace[1].Outcome != "true" {
+			t.Fatalf("%s: %+v", kind, trace)
+		}
+	}
+}
+
+// A value of a map is checked by each trigger's schema of it, by a name or by a key expression.
+func TestReachableTriggersMapValueField(t *testing.T) {
+	m := func(name string) expr.Field {
+		return expr.MapOf(expr.ObjectOf(expr.Fields{{Name: name, Field: expr.StringField}}))
+	}
+	c := mailEvents(t, expr.Fields{{Name: "data", Field: m("url")}}, expr.Fields{{Name: "data", Field: m("title")}})
+	for _, src := range []string{`event.data[\"key\"].url == \"x\"`, `event.data.key.url == \"x\"`} {
+		errs := graph.Validate(c, twoMailGraph(t, src), graph.Options{})
+		if len(errs) != 1 || errs[0].Code != graph.CodeUnknownVariableForTrigger || !strings.Contains(errs[0].Message, "which trigger outbox (on mail.sent)") {
+			t.Fatalf("%s: %v", src, errs)
+		}
+	}
+}
