@@ -306,6 +306,16 @@ func writeJSON(b *bytes.Buffer, v any, f Field) error {
 					props[p.Name] = p.Field
 				}
 			}
+			if f.Open { // what was given beyond the declaration follows it, by sorted keys
+				var extra []string
+				for k := range x {
+					if _, declared := props[k]; !declared {
+						extra = append(extra, k)
+					}
+				}
+				sort.Strings(extra)
+				keys = append(keys, extra...)
+			}
 		} else {
 			for k := range x {
 				keys = append(keys, k)

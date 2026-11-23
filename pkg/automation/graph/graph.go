@@ -109,12 +109,14 @@ const (
 	CodeUnknownOutcome      = "unknown_outcome"
 	CodeDuplicateID         = "duplicate_id"
 	CodeUnconnected         = "unconnected"
-	CodeUnreachable         = "unreachable"
-	CodeCycleWithoutWait    = "cycle_without_wait"
-	CodeExpressionType      = "expression_type"
-	CodeExpressionSyntax    = "expression_syntax"
-	CodeParams              = "params"
-	CodeLimit               = "limit"
+	// CodeUnknownVariableForTrigger: a node reads a variable that a trigger leading to it does not have.
+	CodeUnknownVariableForTrigger = "unknown_variable_for_trigger"
+	CodeUnreachable               = "unreachable"
+	CodeCycleWithoutWait          = "cycle_without_wait"
+	CodeExpressionType            = "expression_type"
+	CodeExpressionSyntax          = "expression_syntax"
+	CodeParams                    = "params"
+	CodeLimit                     = "limit"
 )
 
 const graphSchema = `{

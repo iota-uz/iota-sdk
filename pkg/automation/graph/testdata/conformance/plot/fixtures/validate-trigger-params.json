@@ -1,6 +1,7 @@
 {
   "name": "validate-trigger-params",
   "kind": "validate",
+  "changed": "The SDK reads a node by the triggers that lead to it (a node about a deployment and a run has no run.number): the node reads event.kind. The expected errors are unchanged.",
   "description": "A trigger takes the params its event declares (its own, else its match fields) and no others; a signal event starts no graph.",
   "graph": {
     "id": "",
@@ -35,7 +36,7 @@
         "id": "which",
         "type": "branch",
         "params": {
-          "expression": "run.number > 1"
+          "expression": "event.kind == \"deployment.succeeded\""
         }
       }
     ],

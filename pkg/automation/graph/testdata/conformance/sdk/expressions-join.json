@@ -1,0 +1,127 @@
+{
+  "name": "expressions-join",
+  "format": 2,
+  "kind": "expressions",
+  "description": "join(list<string>, separator) is the function form of list.join(separator).",
+  "cases": [
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join([\"a\", \"b\"], \", \") == \"a, b\"",
+      "type": "bool",
+      "context": {},
+      "value": true
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join(issue.labels, \"\\n• \")",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": "a\n• b"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join(issue.labels, \"\")",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": "ab"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join([], \", \")",
+      "type": "string",
+      "context": {},
+      "value": ""
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "issue.labels.join(\", \")",
+      "type": "string",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "value": "a, b"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join(issue.labels)",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join([1, 2], \", \")",
+      "context": {},
+      "error": "type",
+      "issue": "type"
+    },
+    {
+      "subject": "card",
+      "event": null,
+      "source": "join(issue.labels, 1)",
+      "context": {
+        "issue": {
+          "repository": "acme/app",
+          "number": 7,
+          "title": "T",
+          "labels": [
+            "a",
+            "b"
+          ],
+          "state": "open"
+        }
+      },
+      "error": "type",
+      "issue": "type"
+    }
+  ]
+}

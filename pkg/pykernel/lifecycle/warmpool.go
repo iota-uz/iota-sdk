@@ -8,7 +8,8 @@ import (
 
 // WarmPool is the per-session policy for the interactive Ali REPL: a kernel is
 // reused across execs (its namespace persists), parked on release, evicted
-// after idleTTL, and the pool is capped at maxParallel live kernels.
+// after idleTTL, and the pool is capped at maxParallel live kernels: at the cap
+// the least-recently-used idle, unleased kernel makes room.
 func WarmPool(idleTTL time.Duration, maxParallel int) LifecyclePolicy {
 	return warmPool{idleTTL: idleTTL, maxParallel: maxParallel}
 }
@@ -32,3 +33,5 @@ func (w warmPool) ShouldEvict(info pykernel.KernelInfo, _ PoolView) bool {
 func (w warmPool) MaxParallel() int { return w.maxParallel }
 
 func (warmPool) ResetMode() ResetMode { return KeepNamespace }
+
+func (warmPool) EvictLRUOnPressure() bool { return true }

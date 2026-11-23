@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Automation graphs: nodes are validated by the triggers that reach them (unknown_variable_for_trigger), triggers about different subjects need no mixed subject, CEL gains join(list<string>, sep), and list elements typed in Go ([]map[string]string and the like) are readable as list<map>."}

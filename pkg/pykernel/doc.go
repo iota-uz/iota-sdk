@@ -34,11 +34,15 @@
 //
 // # Defense in depth
 //
-// Authorization is the policy boundary, not the only one. The kernel runs with
-// no database/credentials in its environment and no network egress, so the only
-// path to data is a capability call over the bridge; rlimits and a wall-clock
-// timeout bound resource use; the workdir is jailed. Those mechanisms live in
-// the isolation and bridge subpackages.
+// Authorization is the policy boundary, not the only one. Before the first
+// instruction of user code the kernel confines itself with Landlock (read-only
+// runtime, read-write workdir, no TCP, scoped unix sockets and signals),
+// seccomp (no sockets, ptrace, namespaces, mounts, bpf, ...), no_new_privs and
+// rlimits; it has no credentials in its environment, so the only path to data
+// is a capability call over the bridge. The Manager refuses to run without
+// every boundary (fail closed); isolation.Check reports what is in force and
+// the conformance subpackage verifies it on a consumer's host. See
+// docs/pykernel-sandbox.md.
 //
 // # Error convention
 //

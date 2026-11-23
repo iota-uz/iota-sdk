@@ -708,7 +708,7 @@ templ TableContent(config *TableConfig) {
 			</div>
 		}
 		if len(config.PanelsAt(PanelInTable)) > 0 {
-			@inTablePanels(config)
+			@InTablePanels(config)
 		}
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
@@ -817,9 +817,10 @@ templ DeferredPanels(config *TableConfig) {
 	</div>
 }
 
-// inTablePanels renders PanelInTable panels inside the table frame, between
-// the toolbar and the table head.
-templ inTablePanels(config *TableConfig) {
+// InTablePanels renders PanelInTable panels inside the table frame, between
+// the toolbar and the table head. Exported for hosts that lay out their own
+// table frame but keep the SDK's deferred-panel wiring.
+templ InTablePanels(config *TableConfig) {
 	<div class={ templ.Classes(templ.KV("shrink-0", config.FullHeight)) } data-table-panels>
 		for _, panel := range config.PanelsAt(PanelInTable) {
 			@deferredPanel(config, panel)

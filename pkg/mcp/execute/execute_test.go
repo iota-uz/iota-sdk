@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -19,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mcp/execute"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/lifecycle"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/manager"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/pykerneltest"
 )
 
 type echoIn struct {
@@ -102,12 +106,14 @@ func newFixture(t *testing.T, withRuntime bool) *fixture {
 	if withRuntime {
 		m, err := manager.New(manager.Config{
 			Policy:       lifecycle.WarmPool(time.Minute, 4),
+			Sandbox:      pykerneltest.Sandbox(t),
 			EnvAllowlist: []string{"PATH"},
 			DisposeGrace: time.Second,
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
 		cfg.Manager = m
+		cfg.InsecureAllowUnconfinedRuntime = m.Isolation().Err() != nil
 	}
 	runner, err := execute.NewRunner(cfg)
 	require.NoError(t, err)
@@ -329,4 +335,39 @@ func TestExecute_LimitsCanOnlyBeLowered(t *testing.T) {
 			assert.Equal(t, tc.code, res.Error.Code)
 		})
 	}
+}
+
+func TestExecute_BusyRequestKeepsTheRunningRunsArtifacts(t *testing.T) {
+	f := newFixture(t, true)
+	done := make(chan mcp.Result, 1)
+	go func() {
+		done <- f.engine.Call(f.ctx, execute.ToolName, json.RawMessage(
+			`{"code":"import time\ntime.sleep(1.0)\nopen('out/report.txt', 'w').write('kept')"}`))
+	}()
+	time.Sleep(400 * time.Millisecond)
+
+	res := f.run(t, f.ctx, execute.Input{Code: "emit('second')"})
+	require.False(t, res.OK)
+	assert.Equal(t, mcp.CodeBusy, res.Error.Code)
+
+	first := decode(t, <-done)
+	assert.Equal(t, execute.StatusSucceeded, first.Status)
+	require.Len(t, first.Artifacts, 1, "the busy request must not clear ./out under the running run")
+	assert.Equal(t, "report.txt", first.Artifacts[0].Name)
+}
+
+func TestExecute_ArtifactsDoNotFollowLinksOutOfTheWorkdir(t *testing.T) {
+	f := newFixture(t, true)
+	secret := filepath.Join(t.TempDir(), "secret.txt")
+	require.NoError(t, os.WriteFile(secret, []byte("host secret"), 0o600))
+	// A confined kernel cannot create links to host files; simulate the
+	// strongest case, links already present in ./out, from the host side.
+	res := decode(t, f.run(t, f.ctx, execute.Input{Code: fmt.Sprintf(
+		"import os\nos.makedirs('out/d', exist_ok=True)\nopen('out/d/ok.txt','w').write('ok')\n"+
+			"try:\n    os.symlink(%q, 'out/link.txt')\n    os.symlink('/etc', 'out/etc')\nexcept OSError:\n    pass", secret)}))
+	names := []string{}
+	for _, a := range res.Artifacts {
+		names = append(names, a.Name)
+	}
+	assert.Equal(t, []string{"d/ok.txt"}, names)
 }

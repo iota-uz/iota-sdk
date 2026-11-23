@@ -437,7 +437,7 @@ func runValidate(t *testing.T, c graph.Catalog, opts graph.Options, f fixture) {
 	if len(errs) == 0 {
 		errs = graph.Validate(c, g, opts)
 	}
-	if len(errs) == 0 {
+	if len(errs) == 0 && len(f.Errors) > 0 {
 		t.Fatalf("the graph is valid, want errors %v", f.Errors)
 	}
 	var got, want []string

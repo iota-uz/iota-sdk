@@ -6,26 +6,24 @@ package runtime
 
 import (
 	_ "embed"
-	"fmt"
-	"os"
-	"path/filepath"
+
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 )
 
 //go:embed bootstrap.py
 var bootstrapPy []byte
 
-// ShimFilename is the materialized shim's filename inside the control directory.
+// ShimFilename is the materialized shim's filename inside the runtime directory.
 const ShimFilename = "bootstrap.py"
 
-// Write materializes the embedded shim into dir (created 0700 if absent) and
-// returns the shim's path. It is written fresh on every spawn.
+// Write materializes the embedded shim and the sandbox module it loads into
+// dir (created 0700 if absent) and returns the shim's path. dir must be a
+// host-owned directory outside every kernel workdir: a confined kernel can
+// read it but never write it, so code from one exec cannot plant anything
+// that runs before the sandbox of the next kernel.
 func Write(dir string) (string, error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("pykernel/runtime: mkdir %q: %w", dir, err)
+	if _, err := isolation.WriteShim(dir); err != nil {
+		return "", err
 	}
-	path := filepath.Join(dir, ShimFilename)
-	if err := os.WriteFile(path, bootstrapPy, 0o600); err != nil {
-		return "", fmt.Errorf("pykernel/runtime: write shim %q: %w", path, err)
-	}
-	return path, nil
+	return isolation.WriteFileAtomic(dir, ShimFilename, bootstrapPy)
 }
