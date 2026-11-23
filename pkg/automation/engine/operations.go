@@ -147,11 +147,25 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 	}
 	switch b.pending {
 	case pendingRetry:
+		// The repeat of a retry that stopped before its resume: its renewed deadline may be gone too.
+		if err := o.renew(ctx, a, b); err != nil {
+			return err
+		}
 		return o.resume(ctx, a, b)
 	case pendingResolve:
 		return fmt.Errorf("%w: the call is resolved already; repeat Resolve to continue it", ErrInvalidInput)
 	}
-	// The retried attempt gets the node's timeout again from now: its first deadline may be gone.
+	if err := o.renew(ctx, a, b); err != nil {
+		return err
+	}
+	if err := o.r.cfg.Workflows.Retry(ctx, a.TenantID, b.child, "call", b.callN); err != nil {
+		return serrors.Wrap(opOperate, err)
+	}
+	return o.resume(ctx, a, b)
+}
+
+// renew gives the retried attempt the node's timeout again from now: its deadline may be gone.
+func (o *operations) renew(ctx context.Context, a Actor, b blockedCall) error {
 	var req CallRequest
 	var raw []byte
 	if err := o.r.cfg.DB.QueryRow(ctx, `SELECT input FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`, a.TenantID, b.child).Scan(&raw); err != nil {
@@ -169,10 +183,7 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 		ON CONFLICT (tenant_id, instance_id) DO UPDATE SET deadline = EXCLUDED.deadline`, a.TenantID, b.child, pgInterval(timeout.Seconds())); err != nil {
 		return serrors.FromDB(opOperate, err)
 	}
-	if err := o.r.cfg.Workflows.Retry(ctx, a.TenantID, b.child, "call", b.callN); err != nil {
-		return serrors.Wrap(opOperate, err)
-	}
-	return o.resume(ctx, a, b)
+	return nil
 }
 
 // resume makes the blocked call runnable: the last step of Resolve and Retry, and what a repeat of an

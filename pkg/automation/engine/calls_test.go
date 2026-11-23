@@ -316,10 +316,10 @@ func TestRetryAfterTheDeadlineCallsTheProvider(t *testing.T) {
 
 // blockedCall blocks a call (its process stopped mid-call) and returns the run, its call wait and the
 // child instance.
-func blockedCall(t *testing.T, ae *acmeEnv) (*proc, engine.RunSummary, string, uuid.UUID) {
+func blockedCall(t *testing.T, ae *acmeEnv, timeout string) (*proc, engine.RunSummary, string, uuid.UUID) {
 	t.Helper()
 	p := ae.proc()
-	ae.create(p, ae.human(), sendGraph("acme.send", "crash_once", "", false))
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash_once", timeout, false))
 	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
 	crash(t, ae)
 	p2 := ae.proc()
@@ -340,24 +340,27 @@ func blockedCall(t *testing.T, ae *acmeEnv) (*proc, engine.RunSummary, string, u
 // repeating it.
 func TestInterruptedRetryIsFinishedByARepeat(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, waitID, child := blockedCall(t, ae)
+	p, run, waitID, child := blockedCall(t, ae, "1s")
 	ctx := context.Background()
-	// What Retry wrote before the process stopped: the new deadline and the forgotten attempt.
-	_, err := ae.db.Exec(ctx, `INSERT INTO automation.call_deadlines (tenant_id, instance_id, deadline) VALUES ($1, $2, now() + interval '30 seconds')`, ae.tenant, child)
+	time.Sleep(1200 * time.Millisecond) // the call's own deadline is gone
+	// What Retry wrote before the process stopped: a new deadline (gone too by the repeat) and the
+	// forgotten attempt.
+	_, err := ae.db.Exec(ctx, `INSERT INTO automation.call_deadlines (tenant_id, instance_id, deadline) VALUES ($1, $2, now() - interval '1 second')`, ae.tenant, child)
 	require.NoError(t, err)
 	require.NoError(t, p.wf.Retry(ctx, ae.tenant, child, "call", 0))
 	ops := p.rt.Operations()
 	require.ErrorIs(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "sent", nil), engine.ErrInvalidInput, "the pending retry is not resolved")
 	require.NoError(t, ops.Retry(ctx, ae.human(), run.RunID, waitID))
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the repeated retry runs the call")
-	require.Len(t, ae.acme.callsOf("acme.send"), 2)
+	require.Len(t, ae.acme.callsOf("acme.send"), 2, "the repeat renews the deadline: the provider is called")
+	assert.True(t, strings.HasPrefix(ae.effects(run.RunID)[0], "ok:sent "), ae.effects(run.RunID))
 }
 
 // A Resolve that stopped after it recorded the outcome and before it resumed the call is finished by
 // repeating it.
 func TestInterruptedResolveIsFinishedByARepeat(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, waitID, child := blockedCall(t, ae)
+	p, run, waitID, child := blockedCall(t, ae, "")
 	ctx := context.Background()
 	require.NoError(t, p.wf.Resolve(ctx, ae.tenant, child, "call", 0, json.RawMessage(`{"kind": "result", "outcome": "sent", "output": {"message_id": "by-hand"}}`)))
 	ops := p.rt.Operations()

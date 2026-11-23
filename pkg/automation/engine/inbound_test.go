@@ -221,6 +221,10 @@ func TestTwoAnswersOfAnAskGiveOneTransition(t *testing.T) {
 	assert.Equal(t, ae.tenant, tenant)
 
 	h := ae.handler(p, nil)
+	// A message of another key that carries the token does not take it.
+	other := ae.hook(h, ae.hookPath(), acmeSig, acmeUpdate{ID: "o-1", Event: evMessage, Text: "hi", From: "ann", Correlation: token})
+	assert.Equal(t, http.StatusOK, other.Code)
+	assert.Zero(t, ae.acme.closed.Load())
 	first := ae.hook(h, ae.hookPath(), acmeSig, acmeUpdate{ID: "a-1", Event: evAnswer, Choice: "yes", Correlation: token, From: "ann"})
 	second := ae.hook(h, ae.hookPath(), acmeSig, acmeUpdate{ID: "a-2", Event: evAnswer, Choice: "no", Correlation: token, From: "ann"})
 	assert.Equal(t, http.StatusOK, first.Code)
@@ -321,6 +325,8 @@ func TestInboundRejectsWhatItCannotPublish(t *testing.T) {
 		{TenantID: ae.tenant, ConnectionID: "x", Event: evMessage, DedupKey: "2", Payload: json.RawMessage(`{"text": 1}`), Subject: graph.Subject{Entity: graph.SubjectConversation, Key: "k"}},
 		{TenantID: ae.tenant, ConnectionID: "x", Event: evMessage, DedupKey: "3", Payload: json.RawMessage(`{"text": "a", "from": "b"}`), Subject: graph.Subject{Entity: "acme.order", Key: "k"}},
 		{TenantID: ae.tenant, ConnectionID: "x", Event: evMessage, Payload: json.RawMessage(`{}`)},
+		{TenantID: ae.tenant, ConnectionID: "x", Event: evMessage, DedupKey: "5", Payload: json.RawMessage(`{"text": null, "from": "b"}`), Subject: graph.Subject{Entity: graph.SubjectConversation, Key: "k"}},
+		{TenantID: ae.tenant, ConnectionID: "x", Event: evMessage, DedupKey: "6", Payload: json.RawMessage(`{"from": "b"}`), Subject: graph.Subject{Entity: graph.SubjectConversation, Key: "k"}},
 	}
 	for i, ev := range cases {
 		err := pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := in.Publish(ctx, tx, ev); return err })
@@ -447,4 +453,37 @@ func TestStaleSweepLeavesAnExtendedWindow(t *testing.T) {
 	require.NoError(t, p.rt.SweepWindow(ctx, ae.tenant, am.ID, "m", "ann"))
 	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect`), "a window that is not due stays")
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
+}
+
+// Before the wait opened, an event of another key with the token does not take it; a repeat of the
+// first answer is closed; once the wait opens with that answer, the token is spent.
+func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), askGraph)
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool { return ae.count(`SELECT count(*) FROM automation.runs`) == 1 }, "a run")
+	ctx := context.Background()
+	var runID uuid.UUID
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT id FROM automation.runs`).Scan(&runID))
+	token := engine.NewCorrelationToken()
+	_, err := ae.db.Exec(ctx, `INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at) VALUES ($1, $2, $3, 'w/answer', now() + interval '1 hour')`,
+		token, ae.tenant, runID)
+	require.NoError(t, err)
+	publish := func(id, event string) error {
+		ev := acmeUpdate{ID: id, Event: event, Text: "t", Choice: "yes", From: "ann", Correlation: token}.event(ae.conn.ID.String())
+		ev.TenantID, ev.ConnectionID = ae.tenant, ae.conn.ID.String()
+		return pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err })
+	}
+	require.NoError(t, publish("b-1", evAnswer), "the first answer")
+	require.ErrorIs(t, publish("b-2", evAnswer), engine.ErrCorrelationClosed, "its repeat")
+	require.NoError(t, publish("b-3", evMessage), "another key passes")
+	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token))
+	// The wait opens on the answer event: from now on only it takes the token.
+	_, err = ae.db.Exec(ctx, `UPDATE automation.correlations SET event = $2, answered_event = NULL WHERE token = $1`, token, evAnswer)
+	require.NoError(t, err)
+	require.NoError(t, publish("b-4", evMessage), "another key after the wait opened")
+	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token), "it did not take the token")
+	require.NoError(t, publish("b-5", evAnswer))
+	require.ErrorIs(t, publish("b-6", evAnswer), engine.ErrCorrelationClosed)
 }

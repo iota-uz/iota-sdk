@@ -399,15 +399,32 @@ func jsonValue(v any) (any, error) {
 // ValidateJSON checks a JSON value against a JSON Schema as it is: no defaults are applied and nothing
 // is dropped (a form's submitted fields, unlike Parse of params). The first issue is the error.
 func ValidateJSON(schema, value json.RawMessage) error {
+	v, err := NewJSONValidator(schema)
+	if err != nil {
+		return err
+	}
+	return v.Validate(value)
+}
+
+// JSONValidator is a compiled JSON Schema that checks values as they are (ValidateJSON).
+type JSONValidator struct{ s *jsonschema.Schema }
+
+// NewJSONValidator compiles a JSON Schema.
+func NewJSONValidator(schema json.RawMessage) (*JSONValidator, error) {
 	s, err := compileSchema(schema)
 	if err != nil {
-		return fmt.Errorf("schema: %w", err)
+		return nil, fmt.Errorf("schema: %w", err)
 	}
-	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(value))
+	return &JSONValidator{s: s}, nil
+}
+
+// Validate checks a JSON value; the first issue is the error.
+func (v *JSONValidator) Validate(value json.RawMessage) error {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(value))
 	if err != nil {
 		return fmt.Errorf("not JSON: %w", err)
 	}
-	if issues := validateInstance(s, v); len(issues) > 0 {
+	if issues := validateInstance(v.s, doc); len(issues) > 0 {
 		return errors.New(issues[0].Message)
 	}
 	return nil

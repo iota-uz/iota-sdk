@@ -55,12 +55,12 @@ var (
 )
 
 // Inbound is the engine's Inbound.
-func (r *Runtime) Inbound() Inbound { return &inbound{r: r, specs: map[string]graph.ParamsSpec{}} }
+func (r *Runtime) Inbound() Inbound { return &inbound{r: r, specs: map[string]*graph.JSONValidator{}} }
 
 type inbound struct {
 	r     *Runtime
 	mu    sync.Mutex
-	specs map[string]graph.ParamsSpec // event key → its payload validator
+	specs map[string]*graph.JSONValidator // event key → its payload validator
 }
 
 func (in *inbound) connector(ev InboundEvent) string {
@@ -74,13 +74,13 @@ func (in *inbound) connector(ev InboundEvent) string {
 }
 
 // validator is the payload schema of an event, compiled once.
-func (in *inbound) validator(spec graph.EventSpec) (graph.ParamsSpec, error) {
+func (in *inbound) validator(spec graph.EventSpec) (*graph.JSONValidator, error) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	if p, ok := in.specs[spec.Key]; ok {
 		return p, nil
 	}
-	p, err := graph.SchemaParams(spec.Payload.JSONSchema())
+	p, err := graph.NewJSONValidator(spec.Payload.JSONSchema())
 	if err != nil {
 		return nil, err
 	}
@@ -125,10 +125,17 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 		}
 	}
 	delete(payload, catalog.BySelfField) // the engine's own field: set from BySelf
-	if p, err := in.validator(spec); err == nil {
-		if _, issues := p.Parse(payload); len(issues) > 0 {
-			return false, fmt.Errorf("%w: payload of %s: %s", ErrInboundInvalid, ev.Event, issues[0].Message)
-		}
+	// The payload is checked as it is written to the outbox: nothing is dropped or defaulted.
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return false, err
+	}
+	p, err := in.validator(spec)
+	if err != nil {
+		return false, serrors.Wrap(opInbound, err)
+	}
+	if err := p.Validate(body); err != nil {
+		return false, fmt.Errorf("%w: payload of %s: %s", ErrInboundInvalid, ev.Event, err.Error())
 	}
 	subject := normSubject(ev.Subject)
 	if spec.Subject != graph.SubjectNone && subject.Entity != spec.Subject {
@@ -144,13 +151,9 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 		return false, nil
 	}
 	if ev.Correlation != "" {
-		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation); err != nil {
+		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation, ev.Event); err != nil {
 			return false, err
 		}
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return false, err
 	}
 	cause, err := json.Marshal(cause{Inbound: &inboundCause{ConnectionID: ev.ConnectionID, Correlation: ev.Correlation, BySelf: ev.BySelf}})
 	if err != nil {
@@ -178,21 +181,37 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 
 // takeCorrelation checks that the token names an open wait of the tenant; a single answer closes it, so
 // a second answer is ErrCorrelationClosed.
-func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token string) error {
+// Only the answer event of the wait takes the token: an event of another key with the token passes
+// through and closes nothing. Before the wait opened its answer event is not known yet: the first
+// event with the token is remembered (answered_event), and a repeat of that event is closed; the wait
+// checks it when it opens (awaitAnswer).
+func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token, event string) error {
 	if !validToken(token) {
 		return ErrCorrelationClosed
 	}
 	var single bool
-	err := tx.QueryRow(ctx, `SELECT single FROM automation.correlations WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`,
-		token, tenant).Scan(&single)
+	var waits, answered *string
+	err := tx.QueryRow(ctx, `SELECT single, event, answered_event FROM automation.correlations
+		WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`, token, tenant).Scan(&single, &waits, &answered)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrCorrelationClosed
 	}
 	if err != nil {
 		return serrors.FromDB(opInbound, err)
 	}
-	if single {
-		if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE token = $1`, token); err != nil {
+	switch {
+	case waits != nil && *waits != event:
+		return nil // not the answer: it does not touch the wait's token
+	case waits != nil:
+		if single {
+			if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE token = $1`, token); err != nil {
+				return serrors.FromDB(opInbound, err)
+			}
+		}
+	case answered != nil && *answered == event:
+		return ErrCorrelationClosed // the same answer again before the wait opened
+	case answered == nil:
+		if _, err := tx.Exec(ctx, `UPDATE automation.correlations SET answered_event = $2 WHERE token = $1`, token, event); err != nil {
 			return serrors.FromDB(opInbound, err)
 		}
 	}
