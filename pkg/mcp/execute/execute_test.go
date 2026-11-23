@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mcp/execute"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/lifecycle"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/manager"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/pykerneltest"
 )
 
 type echoIn struct {
@@ -102,6 +103,7 @@ func newFixture(t *testing.T, withRuntime bool) *fixture {
 	if withRuntime {
 		m, err := manager.New(manager.Config{
 			Policy:       lifecycle.WarmPool(time.Minute, 4),
+			Sandbox:      pykerneltest.Sandbox(t),
 			EnvAllowlist: []string{"PATH"},
 			DisposeGrace: time.Second,
 		})

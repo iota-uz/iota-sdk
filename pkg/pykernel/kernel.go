@@ -28,6 +28,18 @@ type Session interface {
 	Workdir() string
 }
 
+// CallContextBinder is an optional Session extension for host-bound identity
+// beyond the tenant, such as the chat user. The Manager freezes the binder of
+// the Session a kernel is spawned for and applies it to the context of every
+// capability call of that kernel, next to the tenant, so a capability can
+// re-check the user's current permissions on each call. Bind an identity, not
+// a permission snapshot: a change of the user's rights then takes effect in a
+// warm session at its next call. A Session that binds a user must use a
+// user-scoped Key, so a kernel is never reused for another user.
+type CallContextBinder interface {
+	BindCallContext(ctx context.Context) context.Context
+}
+
 // Manager owns the lifecycle of Python kernel subprocesses and is the single
 // entry point both consumers share. Implementations are safe for concurrent
 // use. The Manager binds no tenant/permission context itself — that travels on
@@ -77,10 +89,21 @@ type KernelInfo struct {
 	PID int
 	// LastActiveAt is when the kernel last started or finished an exec.
 	LastActiveAt time.Time
-	// NamespaceReset is true after a respawn until the consumer acknowledges it.
+	// NamespaceReset is true when the Python namespace the next exec sees is
+	// not the one an earlier kernel of this session left: the kernel was
+	// respawned (crash, eviction, host restart) or reset for reuse. The next
+	// Exec acknowledges it and reports it in its DonePayload.
 	NamespaceReset bool
+	// FilesPreserved is true when the session workdir already held the state
+	// of an earlier kernel when this one started, so files written by earlier
+	// execs are intact even though the namespace is not. Results of earlier
+	// execs are never recomputed by re-running their code.
+	FilesPreserved bool
 	// InFlight is true while an Exec is running.
 	InFlight bool
+	// Leased is true between Acquire and Release; the Manager never evicts a
+	// leased kernel to make room for another one.
+	Leased bool
 }
 
 // Sentinel errors callers branch on.
@@ -92,4 +115,8 @@ var (
 	ErrPoolExhausted = errors.New("pykernel: parallel-kernel cap reached")
 	// ErrKernelDisposed is returned when operating on a disposed kernel.
 	ErrKernelDisposed = errors.New("pykernel: kernel disposed")
+	// ErrSessionMismatch is returned by Acquire when a live kernel for the key
+	// was bound to a different tenant or Mode; keys must be scoped so that
+	// never happens.
+	ErrSessionMismatch = errors.New("pykernel: session key is bound to another tenant or mode")
 )

@@ -9,7 +9,8 @@ import (
 type ExecRequest struct {
 	// Code is the Python source to execute in the kernel's persistent namespace.
 	Code string
-	// Timeout is the wall-clock cap for this exec; 0 selects the policy default.
+	// Timeout is the wall-clock cap for this exec; 0 selects the Manager's
+	// default, and a value above the Manager's cap is lowered to it.
 	Timeout time.Duration
 	// OutputCap is the maximum captured stdout+result size in bytes; 0 selects
 	// the default (~50KB). The cap is enforced on both kernel and host side.
@@ -83,11 +84,47 @@ type ExecEvent struct {
 	Timestamp time.Time
 }
 
-// DonePayload reports which output streams lost data to the output cap, so a
-// consumer can mark truncation without parsing the text.
+// TerminationReason says why an exec ended, so a consumer can show cancel,
+// timeout, quota or a lost runtime without parsing error text.
+type TerminationReason string
+
+const (
+	// ReasonCompleted: the code ran to the end without an uncaught exception.
+	ReasonCompleted TerminationReason = "completed"
+	// ReasonError: the code raised; the EventError carries the exception.
+	ReasonError TerminationReason = "error"
+	// ReasonCancelled: the Exec context was cancelled.
+	ReasonCancelled TerminationReason = "cancelled"
+	// ReasonTimeout: the wall-clock timeout expired.
+	ReasonTimeout TerminationReason = "timeout"
+	// ReasonQuotaExceeded: the exec grew the session workdir past its quota.
+	ReasonQuotaExceeded TerminationReason = "quota_exceeded"
+	// ReasonKernelExited: the kernel process died (CPU or memory limit, crash,
+	// dispose) before the exec finished.
+	ReasonKernelExited TerminationReason = "kernel_exited"
+)
+
+// DonePayload is the terminal summary of an exec. It reports which output
+// streams lost data to the output cap or to a consumer that stopped reading,
+// why the exec ended, and the namespace/file state it ran against, so a
+// consumer can render all of it without parsing text.
 type DonePayload struct {
 	StdoutTruncated bool
 	StderrTruncated bool
+	// Reason is why the exec ended.
+	Reason TerminationReason
+	// EventsDropped counts events discarded because the consumer did not read
+	// the stream fast enough; the bridge never blocks on a slow consumer.
+	EventsDropped int
+	// NamespaceReset and FilesPreserved repeat KernelInfo as it was when this
+	// exec started (see KernelInfo).
+	NamespaceReset bool
+	FilesPreserved bool
+}
+
+// Truncated reports whether any output of the exec was lost.
+func (d *DonePayload) Truncated() bool {
+	return d != nil && (d.StdoutTruncated || d.StderrTruncated || d.EventsDropped > 0)
 }
 
 // ResultPayload carries the value of the final expression, already converted at

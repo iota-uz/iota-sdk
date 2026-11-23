@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mcp/lookup"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/lifecycle"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel/manager"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/pykerneltest"
 )
 
 const (
@@ -126,7 +127,8 @@ func newFixture(t *testing.T, withRuntime bool) *fixture {
 			t.Skip("python3 not available")
 		}
 		m, err := manager.New(manager.Config{
-			Policy: lifecycle.WarmPool(time.Minute, 4), EnvAllowlist: []string{"PATH"}, DisposeGrace: time.Second,
+			Policy: lifecycle.WarmPool(time.Minute, 4), Sandbox: pykerneltest.Sandbox(t),
+			EnvAllowlist: []string{"PATH"}, DisposeGrace: time.Second,
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Shutdown(context.Background()) })

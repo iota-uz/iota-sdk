@@ -63,6 +63,7 @@ jobs:
       automation_editor: ${{ steps.filter.outputs.automation_editor }}
       client_host: ${{ steps.filter.outputs.client_host }}
       shell_worker: ${{ steps.filter.outputs.shell_worker }}
+      pykernel: ${{ steps.filter.outputs.pykernel }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -139,6 +140,13 @@ jobs:
             shell_worker:
               - 'pkg/shell/worker/**'
               - '.github/workflows/test.yml'
+            pykernel:
+              - 'pkg/pykernel/**'
+              - 'pkg/mcp/execute/**'
+              - 'cmd/pykernel-conformance/**'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/test.yml'
 
   shell-worker:
     name: Shell worker module
@@ -161,6 +169,36 @@ jobs:
           cache-dependency-path: pkg/shell/worker/go.sum
       - run: go vet ./...
       - run: go test -race ./...
+
+  # The Python worker sandbox is a security boundary: its conformance suite
+  # runs on every PR that touches it, drafts included, and a runner kernel
+  # that cannot provide a required boundary fails the job instead of skipping.
+  pykernel-sandbox:
+    name: Python worker sandbox conformance
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.pykernel == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYKERNEL_CONFORMANCE: required
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.24.13"
+      - name: Runner kernel
+        run: |
+          uname -a
+          cat /sys/kernel/security/lsm || true
+          python3 --version
+      - name: Sandbox conformance suite
+        run: go test -race -count=1 -v ./pkg/pykernel/conformance/ ./pkg/pykernel/isolation/
+      - name: Kernel runtime and execute under the sandbox
+        run: go test -race -count=1 ./pkg/pykernel/... ./pkg/mcp/execute ./pkg/mcp/lookup
+      - name: Conformance command
+        run: go run ./cmd/pykernel-conformance -db 127.0.0.1:5432
 
   mcp:
     name: MCP engine and gateway

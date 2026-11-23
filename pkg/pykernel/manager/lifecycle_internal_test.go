@@ -99,7 +99,7 @@ func (s *fakeSession) Workdir() string                      { return s.wd }
 func newPipeKernel(t *testing.T, key string) (*kernel, net.Conn) {
 	t.Helper()
 	hostConn, kernConn := net.Pipe()
-	k := newKernel(testSess(key, t.TempDir()), newFakeProcess(), bridge.New(hostConn), defaultOutputCap, 100*time.Millisecond)
+	k := newKernel(testSess(key, t.TempDir()), newFakeProcess(), bridge.New(hostConn), kernelOptions{outputCap: defaultOutputCap, grace: 100 * time.Millisecond})
 	k.start()
 	return k, kernConn
 }
@@ -124,6 +124,7 @@ func TestAcquire_DoesNotReturnDeadReuseEntry(t *testing.T) {
 	m, err := New(Config{
 		Policy:       lifecycle.WarmPool(time.Hour, 8), // reuse-idle policy
 		Launcher:     &fakeLauncher{},
+		Sandbox:      isolation.Profile{Mode: isolation.ModeInsecureDisabled},
 		DisposeGrace: 100 * time.Millisecond,
 	})
 	require.NoError(t, err)

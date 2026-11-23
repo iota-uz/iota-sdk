@@ -30,23 +30,38 @@ func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, e
 
 	// Force an explicit environment. A nil cmd.Env would inherit the host's
 	// environment (and its secrets); an empty non-nil slice yields none.
-	cmd.Env = spec.Env
-	if cmd.Env == nil {
-		cmd.Env = []string{}
-	}
+	cmd.Env = append([]string{}, spec.Env...)
 
-	// Own process group so a timeout or kill reaps the whole subtree.
+	// Own process group so a timeout or kill reaps the whole subtree. A
+	// confined child cannot leave it: seccomp refuses setsid and setpgid.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	limits := spec.Limits
+	if c := spec.Confinement; c != nil {
+		uid := uint32(os.Getuid())
+		if c.RunAs != nil {
+			uid = c.RunAs.UID
+			cmd.SysProcAttr.Credential = &syscall.Credential{Uid: c.RunAs.UID, Gid: c.RunAs.GID, NoSetGroups: true}
+		}
+		if limits.MaxProcs == 0 && limits.ProcHeadroom > 0 {
+			limits.MaxProcs = countTasks(uid) + limits.ProcHeadroom
+		}
+		kv, err := c.env(limits)
+		if err != nil {
+			return nil, fmt.Errorf("pykernel/isolation: encode confinement: %w", err)
+		}
+		cmd.Env = append(cmd.Env, kv)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("pykernel/isolation: start: %w", err)
 	}
 
-	// Apply rlimits to the started child via prlimit (Linux only). There is a
-	// small window between Start and this call during which the child runs
-	// without limits; the shim does not yet self-apply limits, so this window
-	// is currently unguarded (tracked follow-up). On non-Linux this is a no-op.
-	if err := applyRlimits(cmd.Process.Pid, spec.Limits); err != nil {
+	// Apply rlimits to the started child via prlimit (Linux only). A confined
+	// child sets the same limits on itself before it reads any user code, so
+	// the window between Start and this call never runs untrusted code; for an
+	// unconfined child this is the only enforcement. On non-Linux it is a no-op.
+	if err := applyRlimits(cmd.Process.Pid, limits); err != nil {
 		_ = killGroup(cmd.Process.Pid)
 		_ = cmd.Wait()
 		return nil, fmt.Errorf("pykernel/isolation: apply rlimits: %w", err)
