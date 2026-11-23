@@ -22,8 +22,8 @@ func TestSign(t *testing.T) {
 	assert.Equal(t, "−", Sign(KindOut, 1))
 	assert.Equal(t, "+", Sign(KindNet, 1))
 	assert.Equal(t, "−", Sign(KindNet, -1))
-	assert.Equal(t, "", Sign(KindNet, 0))
-	assert.Equal(t, "", Sign(KindPlain, 5))
+	assert.Empty(t, Sign(KindNet, 0))
+	assert.Empty(t, Sign(KindPlain, 5))
 	assert.Equal(t, "−", Sign(KindPlain, -5))
 }
 
