@@ -285,7 +285,14 @@ test.describe('editor', () => {
     await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('user.email != "" && true')
     await page.locator('.ae-save').click()
     const start = await center(card(page, 'user_created').locator('.ae-card__title'))
+    const probe = (at: { x: number; y: number }) => page.evaluate((p) => {
+      const el = document.elementFromPoint(p.x, p.y)
+      const card = document.querySelector<HTMLElement>('.iota-flow__node[data-id="user_created"]')!
+      return `${el?.tagName}.${el?.className} card=${card.style.transform} rect=${JSON.stringify(card.getBoundingClientRect())}`
+    }, at)
+    console.log('DIAG before', JSON.stringify(start), await probe(start))
     await drag(page, start, { x: start.x + 64, y: start.y + 48 })
+    console.log('DIAG after', await probe(start))
     const onScreen = await page.evaluate(() => window.__fixture.initialLayout.user_created!)
     await expect.poll(() => page.evaluate(() => window.__fixture.saves.length), { timeout: 10000 }).toBe(1)
     // When every write has settled, storage holds what the canvas shows, not the Save's older snapshot.
