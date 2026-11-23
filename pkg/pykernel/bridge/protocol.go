@@ -13,6 +13,10 @@ const (
 	// host→kernel notifications
 	MethodExecSubmit = "exec.submit"
 	MethodExecCancel = "exec.cancel"
+	// MethodNsReset clears the kernel's Python namespace. The kernel handles it
+	// in order with exec.submit, so an exec submitted after it sees a fresh
+	// namespace.
+	MethodNsReset = "ns.reset"
 
 	// kernel→host request (blocking; expects a response)
 	MethodCapCall = "cap.call"
@@ -25,6 +29,9 @@ const (
 	MethodExecResult = "exec.result"
 	MethodExecError  = "exec.error"
 	MethodExecDone   = "exec.done"
+	// MethodKernelReady is the kernel's first frame: the sandbox report after
+	// the kernel confined itself, before it accepts any code.
+	MethodKernelReady = "kernel.ready"
 )
 
 // JSON-RPC error codes. The reserved range mirrors the spec; capability errors

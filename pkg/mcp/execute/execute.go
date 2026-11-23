@@ -22,6 +22,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/pykernel"
+	"github.com/iota-uz/iota-sdk/pkg/pykernel/isolation"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -70,6 +71,15 @@ type Config struct {
 	// Workspace scopes warm sessions below the account; empty means "default".
 	Workspace func(ctx context.Context) string
 	Policy    mcp.Policy
+	// InsecureAllowUnconfinedRuntime accepts a Manager that cannot prove a
+	// complete, verified OS sandbox (development only). Without it NewRunner
+	// requires Manager to report Isolation() with a nil Err.
+	InsecureAllowUnconfinedRuntime bool
+}
+
+// isolationReporter is implemented by pykernel/manager.Manager.
+type isolationReporter interface {
+	Isolation() isolation.Report
 }
 
 type Input struct {
@@ -88,6 +98,9 @@ type Namespace struct {
 	ID         string `json:"id"`
 	Generation string `json:"generation"`
 	Reset      bool   `json:"reset"`
+	// FilesPreserved reports that files in the workdir from earlier runs are
+	// intact, also when Reset says the variables are gone.
+	FilesPreserved bool `json:"files_preserved"`
 }
 
 type RunError struct {
@@ -114,6 +127,41 @@ type Runner struct {
 
 	mu          sync.Mutex
 	generations map[string]generation
+	gates       map[string]*gate
+}
+
+// gate serializes one session's workspace: from clearing ./out through
+// artifact collection, only one request owns it.
+type gate struct {
+	mu   sync.Mutex
+	refs int
+}
+
+// enter claims the session's workspace, or reports false when another
+// request holds it.
+func (r *Runner) enter(key string) (func(), bool) {
+	r.mu.Lock()
+	g := r.gates[key]
+	if g == nil {
+		g = &gate{}
+		r.gates[key] = g
+	}
+	g.refs++
+	r.mu.Unlock()
+	if !g.mu.TryLock() {
+		r.leave(key, g)
+		return nil, false
+	}
+	return func() { g.mu.Unlock(); r.leave(key, g) }, true
+}
+
+func (r *Runner) leave(key string, g *gate) {
+	r.mu.Lock()
+	g.refs--
+	if g.refs == 0 && r.gates[key] == g {
+		delete(r.gates, key)
+	}
+	r.mu.Unlock()
 }
 
 type generation struct {
@@ -129,12 +177,21 @@ func NewRunner(cfg Config) (*Runner, error) {
 	if cfg.Manager != nil && cfg.WorkRoot == "" {
 		return nil, serrors.New(serrors.Invalid, "work root is required with a runtime").WithOp(op)
 	}
+	if cfg.Manager != nil && !cfg.InsecureAllowUnconfinedRuntime {
+		rep, ok := cfg.Manager.(isolationReporter)
+		if !ok {
+			return nil, serrors.New(serrors.Invalid, "the Python runtime does not report its sandbox").WithOp(op)
+		}
+		if err := rep.Isolation().Err(); err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+	}
 	l := cfg.Limits
 	if l.DefaultTimeout <= 0 || l.MaxTimeout < l.DefaultTimeout || l.DefaultOutputBytes <= 0 ||
 		l.MaxOutputBytes < l.DefaultOutputBytes || l.MaxCodeBytes <= 0 {
 		return nil, serrors.New(serrors.Invalid, "runtime limits need positive defaults not above their maxima").WithOp(op)
 	}
-	return &Runner{cfg: cfg, generations: make(map[string]generation)}, nil
+	return &Runner{cfg: cfg, generations: make(map[string]generation), gates: make(map[string]*gate)}, nil
 }
 
 // Tool registers execute itself as an entry point: transports publish it, and
@@ -219,6 +276,12 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	nsID := hex.EncodeToString(sum[:16])
 	workdir := filepath.Join(r.cfg.WorkRoot, nsID)
 	outDir := filepath.Join(workdir, outputDir)
+	release, ok := r.enter(key)
+	if !ok {
+		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "another run is in progress in this session").
+			WithRetryAfter(busyRetryAfter.Milliseconds())
+	}
+	defer release()
 	if err := os.RemoveAll(outDir); err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the run workspace is not available")
 	}
@@ -234,6 +297,9 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	if errors.Is(err, pykernel.ErrPoolExhausted) {
 		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "the runtime is at capacity").
 			WithRetryAfter(busyRetryAfter.Milliseconds())
+	}
+	if err != nil && ctx.Err() != nil {
+		return cancelledBeforeStart(), nil
 	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
@@ -256,12 +322,19 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 		return Result{}, mcp.Fail(mcp.CodeBusy, mcp.RecoveryRetryLater, "another run is in progress in this session").
 			WithRetryAfter(busyRetryAfter.Milliseconds())
 	}
+	if err != nil && ctx.Err() != nil {
+		return cancelledBeforeStart(), nil
+	}
+	if errors.Is(err, pykernel.ErrRequestTooLarge) {
+		return Result{}, mcp.Fail(mcp.CodeLimitExceeded, mcp.RecoveryFixInput, "the code exceeds the size limit")
+	}
 	if err != nil {
 		return Result{}, mcp.Fail(mcp.CodeDependencyUnavailable, mcp.RecoveryRetryLater, "the Python runtime is not available")
 	}
 
 	var stdout, stderr strings.Builder
 	var execErr *pykernel.ExecError
+	var done *pykernel.DonePayload
 	for ev := range events {
 		switch ev.Kind {
 		case pykernel.EventStdout:
@@ -274,7 +347,8 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 			execErr = ev.Err
 		case pykernel.EventDone:
 			if ev.Done != nil {
-				res.Truncated.Stdout = res.Truncated.Stdout || ev.Done.StdoutTruncated
+				done = ev.Done
+				res.Truncated.Stdout = res.Truncated.Stdout || ev.Done.StdoutTruncated || ev.Done.EventsDropped > 0
 				res.Truncated.Stderr = res.Truncated.Stderr || ev.Done.StderrTruncated
 			}
 		case pykernel.EventResult, pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated:
@@ -283,13 +357,22 @@ func (r *Runner) Execute(ctx context.Context, in Input) (Result, error) {
 	res.DurationMS = time.Since(started).Milliseconds()
 	res.Stdout, res.Stderr = stdout.String(), stderr.String()
 	res.Emitted, res.Truncated.Emitted, res.OperationIDs = state.snapshot()
-	res.Status, res.Error = classify(ctx, execErr, time.Since(started) >= timeout)
+	res.Status, res.Error = classify(ctx, execErr, done, time.Since(started) >= timeout)
 	if execErr != nil && res.Status == StatusFailed && execErr.Traceback != "" {
 		res.Truncated.Stderr = appendCapped(&stderr, []byte(execErr.Traceback), outputCap) || res.Truncated.Stderr
 		res.Stderr = stderr.String()
 	}
-	res.Artifacts = r.collectArtifacts(ctx, outDir)
+	res.Artifacts = r.collectArtifacts(ctx, workdir)
 	return res, nil
+}
+
+// cancelledBeforeStart is the result of a run the caller cancelled before the
+// kernel took its code: nothing ran.
+func cancelledBeforeStart() Result {
+	return Result{
+		RunID: uuid.NewString(), Status: StatusCancelled, Emitted: []json.RawMessage{}, Artifacts: []Artifact{},
+		OperationIDs: []string{}, Error: &RunError{Code: ErrorCancelled, Message: "the run was cancelled before it started"},
+	}
 }
 
 func (r *Runner) limits(in Input) (time.Duration, int, error) {
@@ -317,16 +400,44 @@ func (r *Runner) limits(in Input) (time.Duration, int, error) {
 func (r *Runner) namespace(key, id string, k pykernel.Kernel) Namespace {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	info := k.Info()
 	prev, seen := r.generations[key]
-	if seen && prev.kernel == k && !k.Info().NamespaceReset {
-		return Namespace{ID: id, Generation: prev.id}
+	if seen && prev.kernel == k && !info.NamespaceReset {
+		return Namespace{ID: id, Generation: prev.id, FilesPreserved: true}
 	}
 	gen := generation{kernel: k, id: uuid.NewString()}
 	r.generations[key] = gen
-	return Namespace{ID: id, Generation: gen.id, Reset: seen}
+	// After a host restart this process has not seen the session, but the
+	// kernel knows from its host-owned record that an earlier namespace was
+	// lost. Whether files survived is only what the kernel verified (the
+	// same workdir directory), never inferred from having seen the session.
+	return Namespace{ID: id, Generation: gen.id, Reset: seen || info.NamespaceReset, FilesPreserved: info.FilesPreserved}
 }
 
-func classify(ctx context.Context, execErr *pykernel.ExecError, pastDeadline bool) (string, *RunError) {
+func classify(ctx context.Context, execErr *pykernel.ExecError, done *pykernel.DonePayload, pastDeadline bool) (string, *RunError) {
+	// The terminal reason is authoritative: an EventError lost to
+	// backpressure is still in DonePayload.Error.
+	if done != nil {
+		if execErr == nil {
+			execErr = done.Error
+		}
+		switch done.Reason {
+		case pykernel.ReasonCompleted:
+			return StatusSucceeded, nil
+		case pykernel.ReasonCancelled:
+			return StatusCancelled, &RunError{Code: ErrorCancelled, Message: "the run was cancelled"}
+		case pykernel.ReasonTimeout:
+			return StatusTimedOut, &RunError{Code: ErrorTimeout, Message: "the run exceeded its time limit"}
+		case pykernel.ReasonQuotaExceeded:
+			return StatusFailed, &RunError{Code: ErrorLimitExceeded, Message: "the run exceeded the workspace size limit"}
+		case pykernel.ReasonKernelExited:
+			return StatusFailed, &RunError{Code: ErrorRuntimeLost, Message: "the Python runtime stopped during the run"}
+		case pykernel.ReasonError:
+			if execErr == nil {
+				return StatusFailed, &RunError{Code: ErrorPython, Message: "the run raised an error"}
+			}
+		}
+	}
 	switch {
 	case execErr == nil:
 		return StatusSucceeded, nil

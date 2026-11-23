@@ -45,22 +45,35 @@ func capSpecsJSON(set pykernel.CapabilitySet) ([]byte, error) {
 	return json.Marshal(specs)
 }
 
-// dispatcher binds a kernel's capability set, run Mode and tenant, and routes
-// every kernel cap.call through the central plan/apply authorization. The
-// kernel supplies only the capability name and arguments; tenant and Mode are
-// bound here from the Session. An exec that asked for BindContext gets its
-// calls run under its own context, so cancelling the exec cancels them.
+// dispatcher binds a kernel's capability set, run Mode, tenant and optional
+// host identity, and routes every kernel cap.call through the central
+// plan/apply authorization. The kernel supplies only the capability name and
+// arguments; everything else is bound here, in one place, from the Session.
+// A call runs only inside the active exec, under that exec's context, which is
+// cancelled when the exec is cancelled, times out or is stopped, and carries
+// the consumer's values when the exec asked for BindContext.
 type dispatcher struct {
 	caps   pykernel.CapabilitySet
 	mode   pykernel.Mode
 	tenant uuid.UUID
+	bind   func(context.Context) context.Context
 	exec   func(execID string) (context.Context, bool)
 }
 
-func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Reply {
-	if execCtx, ok := d.exec(call.ExecID); ok {
-		ctx = execCtx
+func (d *dispatcher) Dispatch(_ context.Context, call bridge.Call) bridge.Reply {
+	// A call that does not carry the id of the running exec (a parked kernel,
+	// a call after the exec ended) is refused, so every capability call is
+	// bounded by the context of a live exec. The id comes from the kernel: a
+	// thread that outlived exec N can still act within exec N+1 of the same
+	// kernel, which is why keys must be scoped to one tenant and user.
+	ctx, ok := d.exec(call.ExecID)
+	if !ok {
+		return bridge.Reply{Err: &bridge.CallError{Type: "KernelCancelled", Message: "no exec is running: capability calls are allowed only inside an exec"}}
 	}
+	if d.bind != nil {
+		ctx = d.bind(ctx)
+	}
+	// The Session tenant is applied last so no binder can replace it.
 	ctx = composables.WithTenantID(ctx, d.tenant)
 
 	var args pykernel.CallArgs
@@ -72,6 +85,11 @@ func (d *dispatcher) Dispatch(ctx context.Context, call bridge.Call) bridge.Repl
 
 	out, err := pykernel.Dispatch(ctx, d.caps, d.mode, call.Name, args)
 	if err != nil {
+		if ctx.Err() != nil {
+			// The exec was cancelled, timed out or stopped: raise the same
+			// exception the cooperative interrupt raises.
+			return bridge.Reply{Err: &bridge.CallError{Type: "KernelCancelled", Message: "execution cancelled: " + err.Error()}}
+		}
 		return bridge.Reply{Err: capError(err)}
 	}
 
