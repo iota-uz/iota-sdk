@@ -100,7 +100,7 @@ jobs:
     needs: [prepare, verify, package]
     if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.needed == 'true' && (needs.prepare.outputs.publish_only == 'true' || (needs.verify.result == 'success' && needs.package.result == 'success'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       contents: write
       id-token: write

@@ -10,7 +10,11 @@ export class PublicationVerificationError extends Error {
   }
 }
 
-export async function publishSDK({ sha, version, manifest, bytes, api, registry, publish, verifyGo, pause }) {
+// npm has taken 4-6 minutes to expose a fresh version with provenance; at the
+// 5 s pause used by publish-sdk.mjs this waits up to 10 minutes.
+export const VISIBILITY_ATTEMPTS = 120
+
+export async function publishSDK({ sha, version, manifest, bytes, api, registry, publish, verifyGo, pause, attempts = VISIBILITY_ATTEMPTS }) {
   if (!/^[a-f0-9]{40}$/.test(sha ?? '') || !/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version ?? '')) {
     throw new Error('Invalid release identity')
   }
@@ -43,21 +47,21 @@ export async function publishSDK({ sha, version, manifest, bytes, api, registry,
   checkConflict(published)
   if (!published) await publish(manifest.file)
   let registryFailure
-  for (let attempt = 0; attempt < 36; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       published = await registry(version)
       registryFailure = undefined
     } catch (error) {
       if (!(error instanceof RetryableRegistryError)) throw error
       registryFailure = error
-      if (attempt < 35) await pause()
+      if (attempt < attempts - 1) await pause()
       continue
     }
     const actualIntegrity = published?.dist?.integrity
     checkConflict(published)
     const predicate = published?.dist?.attestations?.provenance?.predicateType
     if (actualIntegrity && predicate) break
-    if (attempt < 35) await pause()
+    if (attempt < attempts - 1) await pause()
   }
   if (registryFailure) throw new PublicationVerificationError('npm_registry_timeout', version, integrity, published?.dist?.integrity, registryFailure)
   if (published?.dist?.integrity !== integrity || published?.dist?.attestations?.provenance?.predicateType !== 'https://slsa.dev/provenance/v1') {
