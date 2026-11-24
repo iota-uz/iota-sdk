@@ -254,6 +254,8 @@ func (n *acmeSend) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		return catalog.CallResult{RetryAfter: 10 * time.Minute}, nil
 	case mode == "reject":
 		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallRejected, Message: "the provider refused token " + in.Credentials["token"]}
+	case mode == "badcode":
+		return catalog.CallResult{}, &catalog.CallError{Code: "Refused: token " + in.Credentials["token"], Message: "refused"}
 	}
 	return catalog.CallResult{Outcome: "sent", Output: map[string]any{"message_id": "m-" + in.IdempotencyKey}}, nil
 }

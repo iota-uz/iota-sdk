@@ -482,6 +482,51 @@ func TestCallEndedBeforeItsResultKeepsTheAnswer(t *testing.T) {
 	require.Len(t, ae.acme.callsOf("acme.send"), 1)
 }
 
+// A connector's error code is kept only as an identifier: provider text in it (here the credentials)
+// is recorded as effect_failed, never journaled or shown as output.error.code.
+func TestCallErrorCodeIsAnIdentifier(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "badcode", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return ae.status(p, runOf(t, ae.env, p).RunID) == engine.RunDone }, "the run ends")
+	run := runOf(t, ae.env, p)
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1, effects)
+	assert.Equal(t, "bad:"+engine.CodeEffectFailed+": refused", effects[0])
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE result::text LIKE '%' || $1 || '%'`, acmeToken), "the journal keeps no credentials")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.steps WHERE output::text LIKE '%' || $1 || '%' OR error::text LIKE '%' || $1 || '%'`, acmeToken))
+}
+
+// A call instance whose request names a parent other than its stored one is refused by Run, and its
+// end signals that parent nothing.
+func TestCallOfAForeignParentSignalsNothing(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), graphJSON("Wait", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "pay", "type": "wait", "params": {"event": "acme.order.paid.v1", "timeout": "1h"}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "pay"}, {"from": {"node": "pay", "outcome": "matched"}, "to": "fin"}, {"from": {"node": "pay", "outcome": "timeout"}, "to": "fin"}`))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 1
+	}, "the run waits")
+	ctx := context.Background()
+	var runID, parent uuid.UUID
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT id, instance_id FROM automation.runs`).Scan(&runID, &parent))
+	req, err := json.Marshal(map[string]any{"tenant_id": ae.tenant, "parent_instance": parent, "run_id": runID, "wait_id": "w/forged",
+		"node_id": "x", "node_type": "acme.send", "input": map[string]any{}, "deadline": time.Now().Add(time.Minute), "failed_connected": true})
+	require.NoError(t, err)
+	require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error {
+		_, err := p.wf.Start(ctx, tx, spi.Scope{Subject: spiSubject(ae.tenant, 1)}, spi.StartIntent{Workflow: engine.CallWorkflowID, Input: req, Key: "forged"})
+		return err
+	}))
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = $1 AND status = 'failed'`, engine.CallWorkflowID) == 1
+	}, "the forged call fails")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_signals WHERE instance_id = $1 AND signal_key LIKE 'call:%'`, parent), "the parent got no signal")
+	assert.Empty(t, ae.acme.callsOf("acme.send"))
+}
+
 // requireBadNote asserts the run took the call's failed edge: the bad note ran with the error's code.
 func requireBadNote(t *testing.T, ae *acmeEnv, run uuid.UUID) {
 	t.Helper()

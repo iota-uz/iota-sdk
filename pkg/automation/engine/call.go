@@ -275,6 +275,16 @@ func (o callObserver) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst
 	if !ok || req.ParentInstance == uuid.Nil || req.TenantID != inst.TenantID {
 		return nil // not a call of a run of this tenant: nothing waits for it
 	}
+	// As in Run: only the instance's stored parent is the call's; a request naming another is signalled
+	// nothing.
+	var parent *uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT parent_instance_id FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`,
+		inst.TenantID, inst.ID).Scan(&parent); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return serrors.FromDB(opCall, err)
+	}
+	if parent == nil || *parent != req.ParentInstance {
+		return nil
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`, inst.TenantID, inst.ID); err != nil {
 		return serrors.FromDB(opCall, err)
 	}
@@ -874,6 +884,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
 			msg := masker.Mask(ce.Message)
+			ce = &catalog.CallError{Code: callCode(ce.Code, masker), Message: ce.Message, Retryable: ce.Retryable}
 			switch {
 			case ce.Code == catalog.CallOutcomeUnknown:
 				return x.unknown(msg)
@@ -953,6 +964,21 @@ func (x *callExec) repeat(made int, retryAfter time.Duration, limits CallLimits,
 		return callRecord{Kind: "failed", Code: code, Message: msg, Retryable: true}, nil
 	}
 	return callRecord{Kind: "retry", AfterMS: d.Milliseconds()}, nil
+}
+
+// callCode is the code of a connector's CallError as the call records it: an identifier (lower case,
+// digits, "_", ".", "-", at most 64) with nothing a mask hides, else effect_failed: a code is journaled
+// and shown as output.error.code, so provider text in it is never kept.
+func callCode(code string, masker Masker) string {
+	if len(code) == 0 || len(code) > 64 || masker.Mask(code) != code {
+		return CodeEffectFailed
+	}
+	for _, r := range code {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' && r != '.' && r != '-' {
+			return CodeEffectFailed
+		}
+	}
+	return code
 }
 
 // clientRefusal reports a CallError code the provider gives for the request itself (4xx except 429):

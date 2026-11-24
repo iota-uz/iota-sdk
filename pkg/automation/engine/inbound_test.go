@@ -375,6 +375,36 @@ func TestStalePollDoesNotSetNeedsReauth(t *testing.T) {
 	assert.Equal(t, connectors.StatusConnected, c.Status, "the stale poll did not stop polling")
 }
 
+// A poll that lost its claim before its batch committed publishes nothing: the new owner's events stand,
+// and an event only the stale poll returned starts no run.
+func TestStalePollPublishesNothing(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	conn := ae.conn.ID.String()
+	ae.acme.pollQ = [][]engine.InboundEvent{{acmeUpdate{ID: "b-1", Event: evMessage, Text: "fresh", From: "ann"}.event(conn)}}
+	now := time.Now()
+	a := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return now }})
+	later := now.Add(engine.MinPollInterval + 10*time.Minute)
+	b := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return later }})
+	ae.acme.onPoll = func() {
+		// A's claim runs out: B takes the connection over and publishes its batch; A's provider then
+		// answers A with an event B never saw.
+		_, err := b.PollOnce(ctx)
+		require.NoError(t, err)
+		ae.acme.mu.Lock()
+		ae.acme.pollQ = [][]engine.InboundEvent{{acmeUpdate{ID: "a-1", Event: evMessage, Text: "stale", From: "ann"}.event(conn)}}
+		ae.acme.mu.Unlock()
+	}
+	_, err := a.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), ae.acme.polls.Load())
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage), "only B's event")
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "B's event ran")
+	assert.Equal(t, []string{"fresh|fresh|1|false"}, noteTexts(t, ae.env))
+}
+
 // A poll whose credentials a reauthorization replaced while it ran, and that then got 401, leaves the
 // connection connected: no other poller took it over, but the refused credentials are no longer its.
 func TestPollAfterReauthorizationDoesNotSetNeedsReauth(t *testing.T) {
@@ -425,15 +455,23 @@ func TestPollerIntervalCountsFromTheClaim(t *testing.T) {
 	defer func() { _ = lock.Rollback(ctx) }()
 	_, err = lock.Exec(ctx, `SELECT 1 FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, ae.tenant, ae.conn.ID)
 	require.NoError(t, err)
+	pollCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	done := make(chan error, 1)
-	go func() { _, err := poller.PollOnce(ctx); done <- err }()
+	go func() { _, err := poller.PollOnce(pollCtx); done <- err }()
 	require.Eventually(t, func() bool {
 		return ae.count(`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`) > 0
 	}, 20*time.Second, 20*time.Millisecond, "the claim waits for the row lock")
 	late := start.Add(3 * engine.MinPollInterval)
 	clock.Store(late.UnixNano())
 	require.NoError(t, lock.Commit(ctx))
-	require.NoError(t, <-done)
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		cancel()
+		t.Fatal("the poll did not finish after the row lock was released")
+	}
 	require.Equal(t, int64(1), ae.acme.polls.Load())
 
 	var nextAt time.Time

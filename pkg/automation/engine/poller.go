@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -159,7 +160,10 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 			errs = append(errs, err)
 		}
 		p.mu.Lock()
-		p.due[t.id] = next
+		// A rescan that ran meanwhile may have dropped the target: its due time is not kept.
+		if slices.ContainsFunc(p.targets, func(x polled) bool { return x.id == t.id }) {
+			p.due[t.id] = next
+		}
 		p.mu.Unlock()
 	}
 	p.mu.Lock()
@@ -309,6 +313,16 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	if len(evs) > 0 {
 		in := p.r.Inbound()
 		err := publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
+			// The batch is published only while this poll still owns the connection, under its row lock
+			// to the commit: a poll that lost its claim publishes nothing the new owner did not return.
+			var raw []byte
+			if err := tx.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+				t.tenant, t.id).Scan(&raw); err != nil {
+				return err
+			}
+			if pollOwner(raw) != owner {
+				return errClaimLost
+			}
 			for _, ev := range evs {
 				ev.TenantID, ev.ConnectionID = t.tenant, t.id.String()
 				sp, err := tx.Begin(ctx)
@@ -328,6 +342,9 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 			}
 			return nil
 		})
+		if errors.Is(err, errClaimLost) {
+			return now.Add(interval), nil // the batch is discarded; the new owner's cursor stands
+		}
 		if err != nil {
 			return now.Add(interval), errors.Join(serrors.Wrap(opPoll, err), release()) // the cursor stays: the events come again
 		}
@@ -342,6 +359,9 @@ func isUnauthorized(err error) bool {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// errClaimLost: the poll's claim of the connection passed to another poller before its batch committed.
+var errClaimLost = errors.New("automation poller: the claim of the connection was lost")
 
 // pollOwner is the owner of the poll claim an inbound state holds.
 func pollOwner(raw json.RawMessage) string {
