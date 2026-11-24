@@ -637,6 +637,26 @@ export function literalOfSelection(v: string | readonly string[] | undefined): s
   return JSON.stringify(raw)
 }
 
+/** The source whose options are Telegram chats: their values are numeric ids. */
+export const CHAT_SOURCE = 'telegram.chats'
+
+/**
+ * What a Combobox selection stores for a source: undefined removes the value; a chat id for the chat source; the
+ * option's own value, as a string literal that keeps its form ("00123" stays "00123"), for any other source. null:
+ * nothing is chosen (a group header, or a value the source cannot hold).
+ */
+export function selectionOf(source: string, v: string | readonly string[] | undefined): { value: unknown } | null {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (raw === undefined || raw === '') return { value: undefined }
+  if (typeof raw === 'string' && raw.startsWith('group:')) return null
+  if (source === CHAT_SOURCE) {
+    const chat = chatOfSelection(raw)
+    return chat === null ? null : { value: chat }
+  }
+  const literal = literalOfSelection(raw)
+  return literal === undefined ? null : { value: literal }
+}
+
 /** What the "id or @username" input stores: a number for an id, a CEL string literal for a username. */
 export function manualValue(text: string): number | string | undefined {
   const t = text.trim()
@@ -725,11 +745,9 @@ function SourceField(props: {
                 labels={{ notFound: st().notFound }} options={offered()} value={current()}
                 loadOptions={(query) => load(query)}
                 onValueChange={(v) => {
-                  const chat = chatOfSelection(v)
-                  if (chat !== null) { emit(chat); return }
-                  // A source whose options are not chats keeps the value it declared.
-                  const literal = literalOfSelection(v)
-                  if (literal !== undefined) emit(literal)
+                  // The chat source stores a number; any other source keeps the value its option declared.
+                  const chosen = selectionOf(props.source, v)
+                  if (chosen) emit(chosen.value)
                 }}
               />
             )}</For>

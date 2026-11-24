@@ -228,7 +228,8 @@ func TestTelegramAskTakesThePressedButtonAsTheOutcome(t *testing.T) {
 
 	_, answered := te.bot.Answered(query)
 	assert.True(t, answered, "the press is acknowledged")
-	after, _ := te.bot.Message(700, q.ID)
+	after, afterFound := te.bot.Message(700, q.ID)
+	require.True(t, afterFound, "the original message is there")
 	assert.Empty(t, after.Markup, "the keyboard is removed")
 	assert.Equal(t, "Approve the order of #42?\n\n→ Reject", after.Text, "the text carries the chosen option")
 
@@ -242,7 +243,8 @@ func TestTelegramAskTakesThePressedButtonAsTheOutcome(t *testing.T) {
 	p.pass()
 	assert.Equal(t, []string{"rejected reject"}, noteTexts(t, te.env), "no second transition")
 	assert.Equal(t, 1, te.count(`SELECT count(*) FROM automation.runs`))
-	final, _ := te.bot.Message(700, q.ID)
+	final, finalFound := te.bot.Message(700, q.ID)
+	require.True(t, finalFound, "the original message is there")
 	assert.Equal(t, after.Text, final.Text, "the text stays as it was")
 	assert.Equal(t, 1, te.count(`SELECT count(*) FROM automation.connector_usage WHERE kind = 'telegram_bot' AND unit = 'message' AND connection_id = $1`, te.conn.ID.String()))
 }
@@ -260,7 +262,8 @@ func TestTelegramAskTimeout(t *testing.T) {
 	q := te.bot.Sent()[0]
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the ask times out")
 	assert.Equal(t, []string{"timed out"}, noteTexts(t, te.env))
-	same, _ := te.bot.Message(700, q.ID)
+	same, sameFound := te.bot.Message(700, q.ID)
+	require.True(t, sameFound, "the original message is there")
 	assert.Len(t, same.Markup, 2, "the timeout does not change the message")
 	assert.Equal(t, q.Text, same.Text)
 
@@ -268,7 +271,8 @@ func TestTelegramAskTimeout(t *testing.T) {
 	require.NoError(t, err)
 	text, _ := te.bot.Answered(query)
 	assert.Equal(t, telegram.AlreadyAnswered, text)
-	late, _ := te.bot.Message(700, q.ID)
+	late, lateFound := te.bot.Message(700, q.ID)
+	require.True(t, lateFound, "the original message is there")
 	assert.Empty(t, late.Markup, "the keyboard is removed at the late press")
 	assert.Equal(t, q.Text, late.Text)
 	assert.Equal(t, []string{"timed out"}, noteTexts(t, te.env))
@@ -624,9 +628,13 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`) == 1
 	}, "the read waits")
 	var waitID string
-	require.NoError(t, te.db.QueryRow(context.Background(), `SELECT wait_id FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`).Scan(&waitID))
+	var runID uuid.UUID
+	require.NoError(t, te.db.QueryRow(context.Background(), `SELECT wait_id, run_id FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`).Scan(&waitID, &runID))
 	stillOpen := func() int {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE wait_id = $1 AND status = 'open'`, waitID)
+	}
+	fired := func() int {
+		return te.count(`SELECT count(*) FROM automation.waits WHERE wait_id = $1 AND status = 'fired'`, waitID)
 	}
 	// The chat the run began in is not the chat it waits in; a message in 700 does not answer it (it
 	// starts another run, which waits in 701 as well).
@@ -640,8 +648,9 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 	assert.Empty(t, noteTexts(t, te.env), "neither the other chat nor a message without text answers the read")
 	assert.Equal(t, 1, stillOpen(), "the original wait is still open after the negative deliveries")
 	te.ok(te.bot.SendText(701, tgAlice, "the reply"))
-	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 && stillOpen() == 0 }, "a text in the awaited chat wakes the original read")
+	p.until(func() bool { return fired() == 1 && te.status(p, runID) == engine.RunDone }, "a text in the awaited chat fires the original wait, and its run finishes")
 	assert.Contains(t, noteTexts(t, te.env), "got the reply in 701")
+	assert.Zero(t, stillOpen(), "and it was fired, not cancelled or timed out")
 }
 
 // A run of no conversation (an order was created) waits for a message in a chat of the tenant's bot.

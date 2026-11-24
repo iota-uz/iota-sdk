@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { chatOfSelection, humanize, literalOfSelection, manualText, manualValue, optionOf, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
+import { chatOfSelection, humanize, selectionOf, literalOfSelection, manualText, manualValue, optionOf, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import { offeredParticipants } from './graph'
 import type { AutomationGraph, CatalogEvent, JsonSchema } from './types'
 
@@ -296,6 +296,14 @@ describe('a field with an options source (a chat)', () => {
     expect(optionOf('event.chatId')).toBe('')
     expect(literalOfSelection('group:private')).toBeUndefined()
     expect(literalOfSelection('')).toBeUndefined()
+    // The converter follows the source: numeric-looking ids of another source keep their form.
+    expect(selectionOf('telegram.chats', '700')).toEqual({ value: 700 })
+    expect(selectionOf('crm.accounts', '00123')).toEqual({ value: '"00123"' })
+    expect(selectionOf('crm.accounts', 'sales')).toEqual({ value: '"sales"' })
+    expect(selectionOf('telegram.chats', '')).toEqual({ value: undefined })
+    expect(selectionOf('crm.accounts', [])).toEqual({ value: undefined })
+    expect(selectionOf('crm.accounts', 'group:private')).toBeNull()
+    expect(selectionOf('telegram.chats', 'abc')).toBeNull()
   })
 
   it('asks again when the connection of the step changes', async () => {
