@@ -1,0 +1,18 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Automation engine: call nodes run in automation.call child instances with retries, masking and blocked unknown outcomes (Operations.Resolve/Retry); ask nodes with correlation tokens; connector inbound (outbox publish with dedup, webhook handler, poller, collect windows) and loop protection (include_self); human node with quorum, escalation and automation.task.assigned.v1; BuildRunContext with subject.url and run.url; dry run with node DryRun modes and a decision cache, and test node."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation editor Tidy v2: columns per trigger, failure lane, children under their ports, orthogonal links, a Tidy button with ⇧⌘L, and a layout that keeps groups arranged by hand; the card target handle moves to the top edge."
+    },
+    {
+      "bump": "minor",
+      "summary": "pykernel sandbox is opt-in: the zero isolation.Profile is ModeInsecureDisabled, so manager.New no longer fails on hosts without Landlock ABI 6 or CAP_SYS_PTRACE (Granite and ERP failed to start on 0.53.0). Hosts that want confinement set Sandbox: isolation.Profile{Mode: isolation.ModeRequired}. execute still requires a verified sandbox unless InsecureAllowUnconfinedRuntime is set. Breaking: the numeric values of isolation.Mode swapped."
+    }
+  ],
+  "source": "9b444db35a62c28e0d77b6d93b1643a0d6aedda8",
+  "version": "0.54.0"
+}
