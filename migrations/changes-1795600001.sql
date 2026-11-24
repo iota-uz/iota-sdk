@@ -13,11 +13,14 @@ CREATE TABLE mcp.operation_audit (
     request_id text NOT NULL DEFAULT '',
     tool text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- a delivery the auditor did not confirm is retried after a backoff; the others go on meanwhile
+    attempts integer NOT NULL DEFAULT 0,
+    next_attempt_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
     delivered_at timestamptz,
     PRIMARY KEY (operation_id, item)
 );
 
-CREATE INDEX operation_audit_undelivered_idx ON mcp.operation_audit (created_at)
+CREATE INDEX operation_audit_undelivered_idx ON mcp.operation_audit (next_attempt_at)
 WHERE
     delivered_at IS NULL;
 

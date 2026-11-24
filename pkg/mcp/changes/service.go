@@ -618,7 +618,10 @@ func (s *Service) deliverAudit(ctx context.Context, operationID string) {
 			ClientID: r.ClientID, OperationID: r.OperationID, Item: &item}
 		if confirming != nil {
 			if err := confirming.RecordConfirmed(ctx, entry); err != nil {
-				return // kept for a later delivery
+				// Kept for a later delivery after a backoff; the next events go on, whatever operation or
+				// tenant they belong to.
+				_ = s.cfg.Store.DeferAudit(ctx, r.OperationID, r.Item)
+				continue
 			}
 		} else {
 			a.Record(ctx, entry)

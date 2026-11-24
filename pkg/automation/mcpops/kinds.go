@@ -481,10 +481,17 @@ func (k updateKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 		if !f.LayoutRevision.set {
 			return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 		}
-		// SaveVersion compares it with the layout revision under the graph's lock.
-		in.LayoutBase = &f.LayoutRevision.n
+		// SaveVersion compares it with the layout revision under the graph's lock and, strict, saves nothing
+		// when another write moved the layout since the plan: the plan applies whole or not at all.
+		in.LayoutBase, in.StrictLayout = &f.LayoutRevision.n, true
 	}
 	v, err := k.svc.SaveVersion(joined(ctx), a, id, in)
+	var lc *engine.LayoutConflictError
+	if errors.As(err, &lc) {
+		return changes.Applied{}, mcp.Fail(mcp.CodeConflict, mcp.RecoveryReadThenPrepare,
+			"the layout changed: its revision is "+strconv.Itoa(lc.Revision)+"; read the graph again and prepare again",
+			mcp.Issue{Path: "/fields/layout_revision", Code: "VERSION_CONFLICT", Message: "current revision is " + strconv.Itoa(lc.Revision)})
+	}
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}

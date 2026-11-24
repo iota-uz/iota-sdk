@@ -50,10 +50,14 @@ type Store interface {
 	SettleEffects(ctx context.Context, operationID string) error
 	// SaveAudit records, inside the apply transaction, the audit events of the changes it applied.
 	SaveAudit(ctx context.Context, records []AuditRecord) error
-	// UndeliveredAudit lists audit events not delivered yet: of one operation, or ("") of any, oldest first.
+	// UndeliveredAudit lists audit events not delivered yet whose next attempt is due: of one operation,
+	// or ("") of any, the earliest due first.
 	UndeliveredAudit(ctx context.Context, operationID string, limit int) ([]AuditRecord, error)
 	// MarkAudited records that an audit event was delivered.
 	MarkAudited(ctx context.Context, operationID string, item int) error
+	// DeferAudit puts off an event the auditor did not confirm, with a growing backoff: the others are
+	// delivered meanwhile.
+	DeferAudit(ctx context.Context, operationID string, item int) error
 }
 
 type PostgresStore struct {
@@ -384,8 +388,8 @@ func (s *PostgresStore) UndeliveredAudit(ctx context.Context, operationID string
 	}
 	rows, err := s.db(ctx).Query(ctx, `
 		SELECT operation_id::text, item, tenant_id::text, subject, client_id, request_id, tool FROM mcp.operation_audit
-		WHERE delivered_at IS NULL AND ($1 = '' OR operation_id::text = $1)
-		ORDER BY created_at, operation_id, item LIMIT $2`, operationID, limit)
+		WHERE delivered_at IS NULL AND next_attempt_at <= now() AND ($1 = '' OR operation_id::text = $1)
+		ORDER BY next_attempt_at, created_at, operation_id, item LIMIT $2`, operationID, limit)
 	if err != nil {
 		return nil, serrors.FromDB(op, err)
 	}
@@ -404,4 +408,15 @@ func (s *PostgresStore) UndeliveredAudit(ctx context.Context, operationID string
 func (s *PostgresStore) MarkAudited(ctx context.Context, operationID string, item int) error {
 	_, err := s.db(ctx).Exec(ctx, `UPDATE mcp.operation_audit SET delivered_at = now() WHERE operation_id = $1 AND item = $2 AND delivered_at IS NULL`, operationID, item)
 	return serrors.FromDB("changes.PostgresStore.MarkAudited", err)
+}
+
+// auditBackoffMax bounds the wait before an unconfirmed audit event is delivered again.
+const auditBackoffMax = time.Hour
+
+func (s *PostgresStore) DeferAudit(ctx context.Context, operationID string, item int) error {
+	_, err := s.db(ctx).Exec(ctx, `
+		UPDATE mcp.operation_audit SET attempts = attempts + 1,
+			next_attempt_at = now() + least(interval '1 second' * power(2, least(attempts, 12)), $3::interval)
+		WHERE operation_id = $1 AND item = $2 AND delivered_at IS NULL`, operationID, item, auditBackoffMax.String())
+	return serrors.FromDB("changes.PostgresStore.DeferAudit", err)
 }

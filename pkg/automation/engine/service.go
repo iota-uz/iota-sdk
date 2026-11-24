@@ -180,6 +180,9 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			merged[k] = xy
 		}
 		stale := in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision
+		if stale && in.StrictLayout {
+			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
+		}
 		for k, xy := range in.Layout {
 			if _, placed := am.Layout[k]; stale && placed {
 				continue // another tab moved the layout since: its positions stay
@@ -537,24 +540,14 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	if err := s.authorize(a, PermRead); err != nil {
 		return nil, err
 	}
-	// One snapshot: the enabled flag and the versions describe the same configuration. A joined call reads
-	// the caller's transaction (WithTx), which it neither commits nor rolls back.
-	var tx querier
-	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
-		tx = outer
-	} else {
-		own, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-		if err != nil {
-			return nil, serrors.FromDB(opService, err)
-		}
-		defer func() { _ = own.Rollback(context.WithoutCancel(ctx)) }()
-		tx = own
-	}
-	am, err := loadAutomation(ctx, tx, a.TenantID, id, false)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := tx.Query(ctx, `SELECT version, saved_by, saved_origin, note, created_at FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 ORDER BY version DESC`, a.TenantID, id)
+	// One statement, one snapshot at any isolation level: each version with whether it is the enabled one.
+	// A joined call reads the caller's transaction (WithTx). A graph always has a version, so no row is a
+	// graph that is absent, deleted or another tenant's.
+	rows, err := s.r.reader(ctx).Query(ctx, `
+		SELECT v.version, v.saved_by, v.saved_origin, v.note, v.created_at, a.enabled_version IS NOT DISTINCT FROM v.version
+		FROM automation.versions v
+		JOIN automation.automations a ON a.tenant_id = v.tenant_id AND a.id = v.automation_id AND a.deleted_at IS NULL
+		WHERE v.tenant_id = $1 AND v.automation_id = $2 ORDER BY v.version DESC`, a.TenantID, id)
 	if err != nil {
 		return nil, serrors.FromDB(opService, err)
 	}
@@ -563,14 +556,19 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	for rows.Next() {
 		var vi VersionInfo
 		var origin string
-		if err := rows.Scan(&vi.Version, &vi.SavedBy, &origin, &vi.Note, &vi.CreatedAt); err != nil {
+		if err := rows.Scan(&vi.Version, &vi.SavedBy, &origin, &vi.Note, &vi.CreatedAt, &vi.Enabled); err != nil {
 			return nil, serrors.FromDB(opService, err)
 		}
 		vi.SavedOrigin = Origin(origin)
-		vi.Enabled = am.EnabledVersion != nil && *am.EnabledVersion == vi.Version
 		out = append(out, vi)
 	}
-	return out, serrors.FromDB(opService, rows.Err())
+	if err := rows.Err(); err != nil {
+		return nil, serrors.FromDB(opService, err)
+	}
+	if len(out) == 0 {
+		return nil, ErrNotFound
+	}
+	return out, nil
 }
 
 func (s *service) EnableReview(ctx context.Context, a Actor, id uuid.UUID, version int) (EnableReview, error) {

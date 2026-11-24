@@ -170,7 +170,10 @@ type SaveInput struct {
 	// layout since, the stored positions stay and only steps the layout does not place yet take
 	// Layout's.
 	LayoutBase *int
-	Note       string
+	// StrictLayout refuses a stale LayoutBase with *LayoutConflictError instead of keeping the stored
+	// positions: nothing is saved (a guarded change applies exactly its plan or nothing).
+	StrictLayout bool
+	Note         string
 }
 
 // ListFilter selects graphs of a list.

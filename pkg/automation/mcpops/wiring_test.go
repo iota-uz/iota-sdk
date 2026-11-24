@@ -329,3 +329,32 @@ func TestLayoutRevisionsAreStringsAndGuardUpdates(t *testing.T) {
 	assert.Equal(t, 2, res.Version)
 	assert.Equal(t, false, res.Enabled)
 }
+
+// A layout change between prepare and apply makes an update that moves nodes fail whole: no version is
+// saved, and the conflict names layout_revision.
+func TestUpdateWithLayoutAppliesWholeOrNotAtAll(t *testing.T) {
+	e := newEnv(t)
+	created := receiptResult(t, e.apply(agentID, e.prepare(agentID, map[string]any{"op": "create", "entity": "automation",
+		"fields": map[string]any{"graph": noteGraph("S", "a")}}), "s-1"))
+	var g got
+	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": created.ID}, &g)
+	update := e.prepare(agentID, map[string]any{"op": "update", "entity": "automation", "id": created.ID, "expected_revision": "1",
+		"fields": map[string]any{"graph": noteGraph("S", "b"), "layout": map[string]any{"note": map[string]any{"x": 7, "y": 7}}, "layout_revision": g.LayoutRevision}})
+	require.Equal(t, changes.StatusReady, update.Status, "%+v", update.Errors)
+
+	// Another write moves the layout after the plan.
+	moved := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation",
+		"fields": map[string]any{"id": created.ID, "base_revision": g.LayoutRevision, "positions": map[string]any{"note": map[string]any{"x": 1, "y": 1}}}})
+	require.Equal(t, changes.OperationSucceeded, e.apply(agentID, moved, "s-2").Status)
+
+	var o operation
+	e.ok(agentID, changes.ToolApply, map[string]any{"plan_id": update.PlanID, "plan_hash": update.PlanHash, "idempotency_key": "s-3"}, &o)
+	require.Equal(t, changes.OperationFailed, o.Status)
+	require.NotNil(t, o.Error)
+	assert.Equal(t, mcp.CodeConflict, o.Error.Code)
+	require.NotEmpty(t, o.Error.Issues)
+	assert.Equal(t, "/fields/layout_revision", o.Error.Issues[0].Path)
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.versions`), "no version was saved")
+	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": created.ID}, &g)
+	assert.Equal(t, graph.XY{X: 1, Y: 1}, g.Layout["note"], "the other write's position stays")
+}

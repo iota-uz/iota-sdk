@@ -87,41 +87,64 @@ func TestService_ChangeAuditSurvivesAStopBeforeDelivery(t *testing.T) {
 	assert.Len(t, log.all(), 1, "a delivered event is not sent again")
 }
 
-// flakyLog fails to store its first entry, then confirms.
-type flakyLog struct {
+// refusingLog does not store the entries of one operation while refuse is set.
+type refusingLog struct {
 	auditLog
-	fails int
+	refuse string
 }
 
-func (f *flakyLog) RecordConfirmed(ctx context.Context, e mcp.AuditEntry) error {
-	if f.fails > 0 {
-		f.fails--
+func (l *refusingLog) RecordConfirmed(ctx context.Context, e mcp.AuditEntry) error {
+	if e.OperationID == l.refuse {
 		return assert.AnError
 	}
-	f.Record(ctx, e)
+	l.Record(ctx, e)
 	return nil
 }
 
-// A delivery keeps the request of the apply, not the one delivering, and an event an auditor did not
-// confirm stays for the next delivery.
-func TestService_ChangeAuditKeepsTheApplyRequestAndWaitsForConfirmation(t *testing.T) {
-	w := newWorld(t)
-	svc, _ := w.service(t)
-	prepared, err := svc.Prepare(w.ctx, []changes.Change{{Op: "create", Entity: "note", Fields: []byte(`{"body":"a"}`)}}, "")
+func (w *world) applyNote(t *testing.T, svc *changes.Service, ctx context.Context, key string) changes.Operation {
+	t.Helper()
+	prepared, err := svc.Prepare(ctx, []changes.Change{{Op: "create", Entity: "note", Fields: []byte(`{"body":"a"}`)}}, "")
 	require.NoError(t, err)
-	op, err := svc.Apply(mcp.WithRequestID(w.ctx, "req-apply"), changes.ApplyInput{PlanID: prepared.PlanID, PlanHash: prepared.PlanHash, IdempotencyKey: "q-1"})
+	op, err := svc.Apply(ctx, changes.ApplyInput{PlanID: prepared.PlanID, PlanHash: prepared.PlanHash, IdempotencyKey: key})
 	require.NoError(t, err)
 	require.NotNil(t, op.Receipt)
+	return op
+}
 
-	log := &flakyLog{fails: 1}
+// An entry the auditor does not confirm is put off with a backoff and the queue goes on: the next
+// entries are delivered. Once due it is delivered with the request of its apply, not of the delivery.
+func TestService_UnconfirmedAuditIsRetriedWithoutBlockingTheQueue(t *testing.T) {
+	w := newWorld(t)
+	svc, _ := w.service(t)
+	stuck := w.applyNote(t, svc, mcp.WithRequestID(w.ctx, "req-apply"), "q-1")
+	other := w.applyNote(t, svc, w.ctx, "q-2")
+
+	log := &refusingLog{refuse: stuck.ID}
 	restarted, _ := w.service(t, func(c *changes.Config) { c.Auditor = log })
 	dispatch := mcp.WithRequestID(context.Background(), "req-dispatch")
-	_, err = restarted.DispatchEffects(dispatch, 10)
-	require.NoError(t, err)
-	assert.Empty(t, log.all(), "the auditor did not store it")
-	_, err = restarted.DispatchEffects(dispatch, 10)
+	_, err := restarted.DispatchEffects(dispatch, 10)
 	require.NoError(t, err)
 	entries := log.all()
-	require.Len(t, entries, 1, "delivered on the next run")
-	assert.Equal(t, "req-apply", entries[0].RequestID)
+	require.Len(t, entries, 1, "the entry after the refused one is delivered")
+	assert.Equal(t, other.ID, entries[0].OperationID)
+	var attempts int
+	require.NoError(t, w.pool.QueryRow(context.Background(),
+		`SELECT attempts FROM mcp.operation_audit WHERE operation_id = $1`, stuck.ID).Scan(&attempts))
+	assert.Equal(t, 1, attempts)
+
+	// Not due yet: nothing is sent again.
+	_, err = restarted.DispatchEffects(dispatch, 10)
+	require.NoError(t, err)
+	assert.Len(t, log.all(), 1)
+
+	// Due, and the auditor confirms now.
+	log.refuse = ""
+	_, err = w.pool.Exec(context.Background(), `UPDATE mcp.operation_audit SET next_attempt_at = now() - interval '1 second' WHERE operation_id = $1`, stuck.ID)
+	require.NoError(t, err)
+	_, err = restarted.DispatchEffects(dispatch, 10)
+	require.NoError(t, err)
+	entries = log.all()
+	require.Len(t, entries, 2)
+	assert.Equal(t, stuck.ID, entries[1].OperationID)
+	assert.Equal(t, "req-apply", entries[1].RequestID)
 }
