@@ -260,3 +260,21 @@ func TestEnvFetchLimits(t *testing.T) {
 		t.Fatalf("%d fetches ran at once, want at most 3", p)
 	}
 }
+
+// The idempotency key an HTTP node sends in a header of its own reaches the server on the wire.
+func TestCustomHeaderReachesTheWire(t *testing.T) {
+	var seen atomic.Value
+	seen.Store("")
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen.Store(r.Method + " " + r.Header.Get("Idempotency-Key"))
+	}))
+	defer srv.Close()
+	f := testFetcher(srv, WithResolver(staticResolver{"example.com": {"93.184.215.14"}}))
+	if _, err := f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/pay", Method: http.MethodPost,
+		Header: http.Header{"Idempotency-Key": {"run:node:tok:1"}}, Body: []byte("{}"), SameOrigin: true, Sensitive: []string{"Idempotency-Key"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := seen.Load().(string); got != "POST run:node:tok:1" {
+		t.Fatalf("the server saw %q", got)
+	}
+}

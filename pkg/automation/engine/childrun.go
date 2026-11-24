@@ -180,8 +180,8 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 				gev[k] = v
 			}
 		}
-		if missing := missingPayload(ie.in.View().Catalog(), trig.Event, gev); len(missing) > 0 {
-			return refuse(CodeInvalidInput, "the input is the payload of %s through trigger %s and lacks %s", trig.Event, trig.ID, strings.Join(missing, ", "))
+		if msg := payloadIssue(ie.in.View().Catalog(), trig.Event, gev); msg != "" {
+			return refuse(CodeInvalidInput, "the input is the payload of %s through trigger %s: %s", trig.Event, trig.ID, msg)
 		}
 	}
 	req := startRequest{
@@ -265,13 +265,30 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	return ref, nil
 }
 
-// missingPayload are the required fields of an event's payload an event lacks.
-func missingPayload(c graph.Catalog, event string, ev graph.Event) []string {
+// payloadIssue is why an event's payload does not match its schema (required fields and their types),
+// "" when it does.
+func payloadIssue(c graph.Catalog, event string, ev graph.Event) string {
 	spec, ok := c.Events[event]
 	if !ok {
-		return []string{"its event (not in the catalog)"}
+		return "its event is not in the catalog"
 	}
-	return requiredIn("event", spec.Payload, ev)
+	if missing := requiredIn("event", spec.Payload, ev); len(missing) > 0 {
+		return "it lacks " + strings.Join(missing, ", ")
+	}
+	ps, err := graph.SchemaParams(spec.Payload.JSONSchema())
+	if err != nil {
+		return "its schema: " + err.Error()
+	}
+	payload := make(map[string]any, len(ev))
+	for k, v := range ev {
+		if k != "kind" {
+			payload[k] = v
+		}
+	}
+	if _, issues := ps.Parse(payload); len(issues) > 0 {
+		return fmt.Sprintf("%v: %s", issues[0].Path, issues[0].Message)
+	}
+	return ""
 }
 
 // waitingHolders are the run and the ancestors that wait for it on the same conversation: each started

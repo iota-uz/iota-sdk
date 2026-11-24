@@ -347,7 +347,8 @@ an application that builds its own registry). Params are in the field language; 
   `EnableReview` lists its source, secrets, fetch and connections.
 - **History.** `automation.run` and `automation.call` are private native contracts
   (`workflow.NativeContract.Private`): the workflow history API (`List`, `Get`, `Extensions.Read`) shows
-  their shape and leaves out their input, results, errors, signal payloads and task decisions. The data of
+  their shape and leaves out their input, results, errors, blocked detail, signal payloads and task
+  decisions. The data of
   a run is read through `GetRun`, which hides the steps a viewer may not read.
 - **Secrets.** Code and HTTP read a declared name (`^[A-Z][A-Z0-9_]{0,63}$`) from the tenant's store, the
   container's `host.SecretResolver`: `CONNECTION__FIELD` is the secret field `field` of the tenant's
@@ -368,25 +369,29 @@ an application that builds its own registry). Params are in the field language; 
   refusal is `network_blocked` with the host only; a DNS or dial failure is `unavailable` (nothing was
   sent); a body over 10 MiB is `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
   rule. Only `GET`/`HEAD` and a request with `idempotency_header` (it carries the call's idempotency key)
-  are idempotent (`catalog.IdempotentCall`); such a changing request is not followed off its origin
-  (`redirect_refused`), where its key would not go. A response the success expression rejects takes
+  are idempotent (`catalog.IdempotentCall`); the header is one of the request's own (not one the
+  transport sets: `Host`, `Content-Length`, `Connection`, `Authorization`, ...), and such a changing
+  request is not followed off its origin (`redirect_refused`), where its key would not go. A response the success expression rejects takes
   `failed` with the response in the output and `output.error.code = http_status`. The node type declares
-  `NodeSpec.MaxOutputBytes` above the engine's payload limit, so the body comes back up to 10 MiB.
-  `body.value` is CEL, or a `{{ }}` template for a `text` body; `body.template` is the template of a
-  `text` or `json` body.
+  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body, the worst JSON escaping), so
+  any body up to 10 MiB comes back. `body.value` is CEL or a `{{ }}` template: the text of a `text` body,
+  the JSON text of an object or array of a `json` body, the encoded form of a `form` body;
+  `body.template` is always a template.
 - **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
   nodes start the target's enabled version in the step's transaction (`engine.RunStarter`,
   `Runtime.StartFromStep`) through `trigger_id`, else its first «Called by an automation» trigger
   (`automation.called.v1`, params `{input_schema}`, payload `{input, caller_run_id, caller_automation_id,
   initiator_user_id}`) by id, else its first manual one, else its first trigger. Through a called or
   manual trigger `input` is `event.input`, validated by the trigger's `input_schema`; through an event or
-  schedule trigger `input` is the event's payload, with every field its schema requires (`invalid_input`
-  otherwise). A graph of another tenant or a disabled one is `not_enabled`. The started run's depth is the
+  schedule trigger `input` is the event's payload, checked against the event's schema: its required
+  fields and their types (`invalid_input` otherwise). A graph of another tenant or a disabled one is `not_enabled`. The started run's depth is the
   run's plus one, so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. Its data derives from
   what the step's run read: it inherits the run's sensitive fields (a viewer who may not read them does
-  not see its steps), and its run-as must be allowed to read them (`forbidden`). It is about the run's
+  not see its steps), and its run-as must be allowed to read them (`forbidden`). The run keeps that
+  provenance (`automation.runs.inherited`): a restart carries it and checks the new run-as again. It is about the run's
   subject unless `subject` says otherwise; `run_automation`'s run on the run's conversation takes its turn
-  inside the waiting run's, `start_automation`'s queues behind it. `run_automation`'s run is a child
+  inside the waiting runs' (the run and the ancestors that wait for it on that conversation, however
+  deep), `start_automation`'s queues behind them. `run_automation`'s run is a child
   instance of the step's run (cancelling the run terminates it); its wait listens for
   `automation.run.finished.v1` about that run (`engine.EffectWaitKeyer`) and takes `done` or `failed`
   by its status (`engine.WakeResolver`). Its output comes from the run when the event withheld it (the run
@@ -405,7 +410,10 @@ an application that builds its own registry). Params are in the field language; 
   the node types of the set's action commands when the application starts. A call of an action is
   `wf.call` of its command (`catalog.CommandCall`, `NativeRun.CallAs`) under the call's invocation ID
   (from its idempotency key): the workflow journals it and the host records the invocation, so a repeat
-  returns the recorded outcome and one that may have run is never repeated blindly. The command runs the
+  returns the recorded outcome and one that may have run is never repeated blindly. A command that has not
+  started runs within the call's deadline and holds one of the tenant's call slots (`CallLimits`); a
+  recorded one is read back. The action of a command is bound to its definition in the set
+  (`actions.TemplateOf`), never to its ID. The command runs the
   action in a host transaction as the run-as (`actions.InvocationID(ctx)` is the invocation's ID). An
   author without the permission does not see the action; the run-as's permission is checked on every
   call (`forbidden`, nothing done); args are validated before the command (`invalid_args`); a declared

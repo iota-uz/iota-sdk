@@ -266,14 +266,27 @@ func TestAuthNeedsAStaticHost(t *testing.T) {
 }
 
 func TestABodyOverTheOutputLimitKeepsTheOutcome(t *testing.T) {
-	big := `{"ok": true, "x": "` + strings.Repeat("a", httpnode.MaxOutputBytes) + `"}`
-	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, big)}})
+	big := `{"ok": true, "x": "` + strings.Repeat("a", 2<<20) + `"}`
+	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, big)}, MaxOutputBytes: 1 << 20})
 	res, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/", "success": "status == 200 && body.ok"}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Outcome != httpnode.OutcomeSuccess || res.Output["body"] != nil || res.Output["body_omitted"] != true || res.Output["status"] != float64(200) {
 		t.Fatalf("%v %v %v", res.Outcome, res.Output["body_omitted"], res.Output["status"])
+	}
+}
+
+// A text body of 10 MiB of control characters grows sixfold as JSON and still comes back whole.
+func TestATextBodyOfTheWholeRangeComesBack(t *testing.T) {
+	body := strings.Repeat("\x01", httpnode.MaxResponseBytes)
+	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: &sandbox.FetchResponse{Status: 200, Header: nethttp.Header{"Content-Type": {"text/plain"}}, Body: []byte(body), URL: "https://api.example.com/"}}})
+	res, err := n.Execute(context.Background(), call(map[string]any{"url": "https://api.example.com/"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != httpnode.OutcomeSuccess || res.Output["body"] != body || res.Output["body_omitted"] != nil {
+		t.Fatalf("the body was dropped: %v %v", res.Outcome, res.Output["body_omitted"])
 	}
 }
 
@@ -294,8 +307,26 @@ func TestBodyTemplate(t *testing.T) {
 	if string(ff.got[1].Body) != `{"name":"Aziz"}` {
 		t.Fatalf("%s", ff.got[1].Body)
 	}
+	// A rendered template in value: the JSON text of an object is the body, a form's text is the form.
+	if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+		"body": map[string]any{"kind": "json", "value": `{"name": "Aziz"}`}})); err != nil {
+		t.Fatal(err)
+	}
+	if string(ff.got[2].Body) != `{"name": "Aziz"}` || ff.got[2].Header.Get("Content-Type") != "application/json" {
+		t.Fatalf("%s", ff.got[2].Body)
+	}
+	if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+		"body": map[string]any{"kind": "form", "value": "a=1&b=Aziz"}})); err != nil {
+		t.Fatal(err)
+	}
+	if string(ff.got[3].Body) != "a=1&b=Aziz" {
+		t.Fatalf("%s", ff.got[3].Body)
+	}
 	if errs := n.ValidateParams(context.Background(), map[string]any{"url": "https://x", "method": "POST", "body": map[string]any{"kind": "text", "template": "a", "value": "'a'"}}); len(errs) != 1 {
 		t.Fatalf("%+v", errs)
+	}
+	if errs := n.ValidateParams(context.Background(), map[string]any{"url": "https://x", "method": "POST", "body": map[string]any{"kind": "json", "value": `{"a": "{{ event.x }}"}`}}); len(errs) != 0 {
+		t.Fatalf("a JSON template in value: %+v", errs)
 	}
 }
 
@@ -317,5 +348,21 @@ func TestRepeatableChangeStaysOnItsOrigin(t *testing.T) {
 	}
 	if ff.got[0].SameOrigin {
 		t.Fatal("a GET was kept on its origin")
+	}
+}
+
+func TestIdempotencyHeaderTheTransportSetsIsRefused(t *testing.T) {
+	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, `{}`)}})
+	for _, h := range []string{"Host", "content-length", "Transfer-Encoding", "Connection", "Authorization"} {
+		if n.IdempotentWith(map[string]any{"method": "POST", "idempotency_header": h}) {
+			t.Errorf("%s makes a POST repeatable", h)
+		}
+		if errs := n.ValidateParams(context.Background(), map[string]any{"url": "https://x", "method": "POST", "idempotency_header": h}); len(errs) != 1 {
+			t.Errorf("%s: %+v", h, errs)
+		}
+		_, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/", "idempotency_header": h}))
+		if codeOf(t, err) != access.CodeInvalidParams {
+			t.Errorf("%s was sent", h)
+		}
 	}
 }

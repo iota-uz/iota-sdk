@@ -562,6 +562,14 @@ func TestStartingAGraphThroughItsEventTrigger(t *testing.T) {
 	var pp []engine.RunSummary
 	p.until(func() bool { pp = be.runsOf(p, partial.ID); return len(pp) == 1 && len(be.effects(pp[0].RunID)) == 1 }, "the partial input is refused")
 	assert.Equal(t, []string{"bad:invalid_input"}, be.effects(pp[0].RunID))
+
+	// A payload with a field of the wrong type is refused too.
+	typed := be.create(p, a, strings.Replace(strings.Replace(parentGraph("start_automation", target.ID), `"name": "Parent"`, `"name": "Typed"`, 1),
+		`"input": {"amount": "event.amount"}`, `"input": {"amount": "'many'", "note": "'n'", "secret": "''"}`, 1))
+	be.publish(be.tenant, orderCreated, "o-3", order{Amount: 5}, 0)
+	var tp []engine.RunSummary
+	p.until(func() bool { tp = be.runsOf(p, typed.ID); return len(tp) == 1 && len(be.effects(tp[0].RunID)) == 1 }, "the mistyped input is refused")
+	assert.Equal(t, []string{"bad:invalid_input"}, be.effects(tp[0].RunID))
 }
 
 // The step's context a Code node reads is not in the call's workflow instance input, which the workflow

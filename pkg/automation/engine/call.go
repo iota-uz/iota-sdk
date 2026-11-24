@@ -1061,7 +1061,7 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 	}
 	params, err := decodeMap(req.Input)
 	if err != nil {
-		return x.failed(cn, CodeInvalidInput, "the params are not an object", false), nil //nolint:nilerr // the call's failed outcome
+		return x.failed(cn, CodeInvalidInput, "the params are not an object", false), nil
 	}
 	in := catalog.CallInput{
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID, Attempt: 1,
@@ -1117,7 +1117,7 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 	}
 	raw, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {
-		return x.failed(cn, graph.FailInvalidAnswer, "the output of "+req.NodeID+" is not JSON", false), nil //nolint:nilerr // the call's failed outcome
+		return x.failed(cn, graph.FailInvalidAnswer, "the output of "+req.NodeID+" is not JSON", false), nil
 	}
 	x.c.r.metrics.call(ctx, x.connector(cn), req.NodeType, "ok")
 	return WaitResult{Outcome: res.Outcome, Output: conn.masker.MaskJSON(raw)}, nil

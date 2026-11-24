@@ -44,11 +44,12 @@ const CodeRedirectRefused = "redirect_refused"
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
-// MaxOutputBytes is the largest output the node returns: a body of MaxResponseBytes with its status,
-// headers and url (graph.NodeSpec.MaxOutputBytes lifts the engine's payload limit for the node). A
-// response whose output would be larger (a body whose JSON escaping grows it past the limit) keeps its
-// outcome and returns its status, headers and url with body null and body_omitted true.
-const MaxOutputBytes = MaxResponseBytes + MaxResponseBytes/10
+// MaxOutputBytes is the largest output the node returns: any body up to MaxResponseBytes with its status,
+// headers and url, whatever its JSON escaping costs (a control character of a text body is 6 bytes,
+// \u00XX); graph.NodeSpec.MaxOutputBytes lifts the engine's payload limit for the node. An output larger
+// than the node's limit (Deps.MaxOutputBytes set lower) keeps its outcome and returns its status, headers
+// and url with body null and body_omitted true.
+const MaxOutputBytes = 6*MaxResponseBytes + 1<<20
 
 // staticOrigin is a URL whose scheme and host are written out before any template: a request with a
 // secret or a connection goes only to the host the author wrote, whatever the run's data.
@@ -68,7 +69,7 @@ const paramsSchema = `{"type": "object", "properties": {
 		"additionalProperties": {"type": "string", "maxLength": 8000}, "description": "name → value; {{ }} templates"},
 	"body": {"type": "object", "properties": {
 		"kind": {"enum": ["none", "json", "form", "text"], "default": "none"},
-		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text); or, for text, a {{ }} template"},
+		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text); or a {{ }} template: the JSON text of an object or array (json), the encoded form (form), the text (text)"},
 		"template": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "{{ }} template: the text (text) or the JSON text (json); instead of value"}
 	}, "required": ["kind"], "additionalProperties": false},
 	"auth": {"type": "object", "properties": {
@@ -148,11 +149,23 @@ func (n *Node) IdempotentWith(params map[string]any) bool {
 	if method == "" {
 		method = nethttp.MethodGet
 	}
-	if h, _ := params["idempotency_header"].(string); h != "" {
+	if h, _ := params["idempotency_header"].(string); h != "" && !transportHeader(h) {
 		return true
 	}
 	return method == nethttp.MethodGet || method == nethttp.MethodHead
 }
+
+// transportHeaders are headers the HTTP transport writes itself or that do not travel as sent (Go's
+// net/http serializes Host and Content-Length apart from Request.Header, hop-by-hop headers are dropped,
+// and the guarded fetcher sets its own): a key in one of them may not reach the server.
+var transportHeaders = map[string]bool{
+	"Host": true, "Content-Length": true, "Transfer-Encoding": true, "Connection": true, "Upgrade": true,
+	"Te": true, "Trailer": true, "Keep-Alive": true, "Proxy-Connection": true, "Proxy-Authorization": true,
+	"Proxy-Authenticate": true, "Expect": true, "Accept-Encoding": true, "Cookie": true, "Authorization": true,
+	"Content-Type": true, "Content-Encoding": true,
+}
+
+func transportHeader(h string) bool { return transportHeaders[nethttp.CanonicalHeaderKey(h)] }
 
 func (n *Node) Localize(spec graph.NodeSpec, locale string) graph.NodeSpec {
 	switch locale {
@@ -222,6 +235,10 @@ func (n *Node) ValidateParams(_ context.Context, params map[string]any) []graph.
 			out = append(out, graph.GraphError{Path: "params.success", Code: graph.CodeExpressionType, Message: issues[0].Message, Line: issues[0].Line, Column: issues[0].Column})
 		}
 	}
+	if h, _ := params["idempotency_header"].(string); h != "" && transportHeader(h) {
+		out = append(out, graph.GraphError{Path: "params.idempotency_header", Code: graph.CodeParams,
+			Message: h + " is a header the transport sets itself: name a header of its own, as Idempotency-Key"})
+	}
 	a, err := authOf(params)
 	if err != nil {
 		out = append(out, graph.GraphError{Path: "params.auth", Code: graph.CodeParams, Message: err.Error()})
@@ -246,10 +263,6 @@ func (n *Node) ValidateParams(_ context.Context, params map[string]any) []graph.
 			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a body is a value (CEL) or a template, not both"})
 		case kind == "form" && hasTemplate:
 			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a form body is a CEL map (value)"})
-		}
-		if v, _ := b["value"].(string); strings.Contains(v, "{{") && kind != "text" {
-			// A template in value is the text of a text body; the JSON text of a json body is body.template.
-			out = append(out, graph.GraphError{Path: "params.body.value", Code: graph.CodeParams, Message: "a {{ }} template in value is a text body; a JSON body template goes in template"})
 		}
 		hasValue = hasValue || hasTemplate
 		switch {
@@ -329,6 +342,9 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	masker := access.Masker(masked...)
 	if h, _ := p["idempotency_header"].(string); h != "" {
+		if transportHeader(h) {
+			return catalog.CallResult{}, fail(access.CodeInvalidParams, "idempotency_header %s is a header the transport sets itself", h)
+		}
 		header.Set(h, in.IdempotencyKey)
 		freq.Sensitive = append(freq.Sensitive, h)
 		if method != nethttp.MethodGet && method != nethttp.MethodHead {
@@ -467,6 +483,11 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 	case "", "none":
 		return nil, nil
 	case "json":
+		// A value that is the text of a JSON object or array (a {{ }} template of one) is that JSON.
+		if s, ok := value.(string); ok && jsonText(s) {
+			setType("application/json")
+			return []byte(s), nil
+		}
 		out, err := json.Marshal(value)
 		if err != nil {
 			return nil, fail(access.CodeInvalidParams, "the body is not JSON")
@@ -474,6 +495,11 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 		setType("application/json")
 		return out, nil
 	case "form":
+		// A text value (a {{ }} template) is the encoded form itself: a=1&b=2.
+		if s, ok := value.(string); ok {
+			setType("application/x-www-form-urlencoded")
+			return []byte(s), nil
+		}
 		m, ok := value.(map[string]any)
 		if !ok {
 			return nil, fail(access.CodeInvalidParams, "a form body is a map of strings")
@@ -503,6 +529,12 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 		return []byte(s), nil
 	}
 	return nil, fail(access.CodeInvalidParams, "body kind %q is none, json, form or text", kind)
+}
+
+// jsonText reports the text of a JSON object or array.
+func jsonText(s string) bool {
+	t := strings.TrimSpace(s)
+	return (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[")) && json.Valid([]byte(t))
 }
 
 // succeeded evaluates the success expression over the response.
