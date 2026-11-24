@@ -174,6 +174,10 @@ export interface CanvasProps {
   onMenu?(menu: CanvasMenu): void
   onReady?(api: CanvasApi): void; onEscape?(): boolean; onOpen?(id: string): void
   selecting?: boolean; snap?: boolean; minimap?: boolean
+  /** Shows the Tidy button next to Fit; absent → no button. */
+  onTidy?(): void
+  /** Bump it just before a layout change that should animate (Tidy): the cards glide for 200 ms. */
+  layoutTransition?: number
   renderNode?(item: Accessor<CanvasItem>): JSX.Element
   label?: string
   /** Locale of the canvas' own strings (aria labels, hints); defaults to en. */

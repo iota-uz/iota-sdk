@@ -1,5 +1,5 @@
 // Fixture host for the editor: a fake EditorApi with switches in the query string, for manual checks,
-// e2e and the benchmark. Query: graph=sample|connected|empty|bench, locale, theme=dark, readonly=1,
+// e2e and the benchmark. Query: graph=sample|connected|empty|bench|multi|foreach, locale, theme=dark, readonly=1,
 // latency=<ms>, fail=save|validate|savelayout, conflict=1, pending=1, overlay=1, catalog=empty,
 // mode=canvas (the Canvas alone, with counters), errors=1 (validate reports an error on has_email).
 import { batch, createSignal, Show } from 'solid-js'
@@ -11,6 +11,7 @@ import { ensureLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, SaveResult } from '../src/types'
 import { catalog as fullCatalog, emptyCatalog } from './catalog'
 import { bench, connected, empty, sample } from './graphs'
+import { foreachJoin, layoutCatalog, multiTrigger } from './layoutGraphs'
 import './solid-ui.generated.css'
 import '../src/styles.css'
 import './fixture.css'
@@ -22,12 +23,15 @@ const fail = new Set((params.get('fail') ?? '').split(',').filter(Boolean))
 if (params.get('theme') === 'dark') document.documentElement.classList.add('dark')
 document.documentElement.lang = locale
 
-const catalog = params.get('catalog') === 'empty' ? emptyCatalog : fullCatalog
+const layoutGraph = params.get('graph') === 'multi' || params.get('graph') === 'foreach'
+const catalog = params.get('catalog') === 'empty' ? emptyCatalog : layoutGraph ? layoutCatalog : fullCatalog
 const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
   switch (params.get('graph')) {
     case 'bench': return bench()
     case 'connected': return { graph: connected, layout: {} }
     case 'empty': return { graph: empty, layout: {} }
+    case 'multi': return { graph: multiTrigger, layout: {} }
+    case 'foreach': return { graph: foreachJoin, layout: {} }
     default: return { graph: sample, layout: {} }
   }
 }

@@ -26,7 +26,7 @@ import {
 } from './graph'
 import { amend, canRedo, canUndo, createHistory, record, redo, undo, type History, type Snapshot } from './history'
 import { Icon } from './icons'
-import { ensureLayout, placeNew, tidyLayout } from './layout'
+import { ensureLayout, placeNew, tidied, tidyLayout } from './layout'
 import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
@@ -426,9 +426,11 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (from) graph = connect(graph, from, id)
     const nextLayout = { ...layout() }
     const flow = mode.kind === 'add' ? mode.flow : null
+    // A drop point is the person's own; a place the editor picks (under the source, right of the triggers,
+    // the middle of the view) carries the mark, so a later automatic layout may lay its group out again.
     nextLayout[id] = flow && choice.kind === 'node'
       ? placeNew(graph, props.catalog, nextLayout, id, { near: { x: snap(flow.x), y: snap(flow.y) } })
-      : placeNew(graph, props.catalog, nextLayout, id, { source: from?.node ?? null, near: from || choice.kind === 'trigger' ? null : centerNear() })
+      : tidied(placeNew(graph, props.catalog, nextLayout, id, { source: from?.node ?? null, near: from || choice.kind === 'trigger' ? null : centerNear() }))
     commit({ graph, layout: ensureLayout(graph, props.catalog, nextLayout) })
     setSelected(id)
     queueMicrotask(() => canvasApi?.focus(id))
@@ -461,7 +463,7 @@ function EditorBody(props: EditorProps): JSX.Element {
     const nextLayout = { ...layout() }
     for (const [from, to] of result.map) {
       const p = nextLayout[from]
-      if (p) nextLayout[to] = { x: p.x + 32, y: p.y + 32 }
+      if (p) nextLayout[to] = { x: Math.round(p.x) + 32, y: Math.round(p.y) + 32 }
     }
     commit({ graph: result.graph, layout: ensureLayout(result.graph, props.catalog, nextLayout) })
     setSelected(result.ids[0] ?? null)
@@ -482,9 +484,14 @@ function EditorBody(props: EditorProps): JSX.Element {
     setSelected(result.ids[0] ?? null)
   }
 
+  // Tidy is one history step: the whole layout is replaced at once, and the cards glide there (200 ms).
+  const [layoutTransition, setLayoutTransition] = createSignal(0)
   const tidy = () => {
-    if (readOnly()) return
-    commit({ graph: draft(), layout: tidyLayout(draft(), props.catalog) })
+    if (readOnly() || mobile()) return
+    batch(() => {
+      setLayoutTransition((n) => n + 1)
+      commit({ graph: draft(), layout: tidyLayout(draft(), props.catalog) })
+    })
     queueMicrotask(() => canvasApi?.fit())
   }
 
@@ -539,6 +546,7 @@ function EditorBody(props: EditorProps): JSX.Element {
     }
     items.push({ key: 'select-all', label: t().menu.selectAll, shortcut: '⌘A', run: () => canvasApi?.selectAll() })
     items.push({ key: 'fit', label: t().canvas.fit, shortcut: '⇧1', run: () => canvasApi?.fit() })
+    if (editable) items.push({ key: 'tidy', label: t().canvas.tidy, shortcut: '⇧⌘L', run: tidy })
     if (editable && coarse()) items.push({ key: 'snap', label: t().menu.snap, checked: snapOn(), run: () => setSnapOn((v) => !v) })
     return items
   })
@@ -579,6 +587,9 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (mod && key === 'k') {
       event.preventDefault()
       if (!readOnly()) setPalette({ kind: 'add' })
+    } else if (mod && event.shiftKey && key === 'l') {
+      event.preventDefault()
+      tidy()
     } else if (mod && key === 'z') {
       event.preventDefault()
       if (event.shiftKey) doRedo()
@@ -730,7 +741,6 @@ function EditorBody(props: EditorProps): JSX.Element {
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.undo} title={`${t().toolbar.undo} (${keyLabel('⌘Z', mac)})`} disabled={!canUndo(history())} onClick={doUndo}><Icon name="undo" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.redo} title={`${t().toolbar.redo} (${keyLabel('⇧⌘Z', mac)})`} disabled={!canRedo(history())} onClick={doRedo}><Icon name="redo" /></button>
           <Show when={!readOnly()}>
-            <button type="button" class="ae-iconbtn" aria-label={t().toolbar.tidy} title={t().toolbar.tidy} onClick={tidy}><Icon name="tidy" /></button>
             <button type="button" class="ae-btn ae-btn--ghost" onClick={() => setPalette({ kind: 'add' })} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}>
               <Icon name="plus" /><span>{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd">{keyLabel('⌘K', mac)}</kbd></Show>
             </button>
@@ -842,6 +852,8 @@ function EditorBody(props: EditorProps): JSX.Element {
                 onDrop={readOnly() ? undefined : (drop) => setPalette({ kind: 'add', from: drop.from, anchor: { x: drop.x, y: drop.y }, flow: drop.flow })}
                 onMenu={(m) => setMenu(m)}
                 onReady={(api) => { canvasApi = api }}
+                onTidy={readOnly() ? undefined : tidy}
+                layoutTransition={layoutTransition()}
                 onOpen={openPanelFocus}
                 onEscape={() => false}
                 selecting={selecting()}

@@ -30,6 +30,7 @@ const paths: Record<string, string> = {
   undo: 'M5 3 2 6l3 3M2 6h8a4 4 0 0 1 0 8H7',
   redo: 'M11 3l3 3-3 3m3-3H6a4 4 0 0 0 0 8h3',
   tidy: 'M2 3h5v4H2zM9 9h5v4H9zM7 5h2.5a1 1 0 0 1 1 1v3',
+  broom: 'M10.5 1.5 7 7m-3.2 1.2L7 7l2.5 2.5-1.3 4.5H2.5l1.3-5.8ZM5.2 11.5l-.4 2.4m2.6-3.4-.3 3.2',
   search: 'M7 2a5 5 0 1 0 0 10A5 5 0 0 0 7 2Zm3.5 8.5L14 14',
   settings: 'M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM8 1v2m0 10v2M1 8h2m10 0h2M3 3l1.5 1.5m7 7L13 13M3 13l1.5-1.5m7-7L13 3',
   check: 'M3 8.5 6.5 12 13 4.5',
