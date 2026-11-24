@@ -505,40 +505,24 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.WrapContext(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, cfg.Capabilities...)
-	if err != nil {
-		pool.Close()
-		_ = DropDBE(dbName, db)
-		return nil, serrors.WrapContext(opSetupApplication, err, "setup application")
-	}
-
-	migrateErr := func() error {
+	// The migration policy runs before the start hooks, not after them: a hook
+	// that reads its tables at start must find them (see setupApplicationWithSource).
+	migrate := func(ctx context.Context, app application.Application) error {
 		if cfg.Migration.Policy == MigrationApplyOnce {
 			// Serialize concurrent migration runs across all parallel harnesses
 			// by holding an advisory lock on the shared "postgres" admin DB for
 			// the whole run; the per-test pool below applies the migrations.
 			return withMigrationAdvisoryLock(db, func() error {
-				return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+				return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 			})
 		}
-		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
-	}()
-	if err := migrateErr; err != nil {
-		combinedErr := serrors.WrapContext(opRunMigrationPolicy, err, "migration policy")
-		closeErr := closeApplication(app, container)
+		return runMigrationPolicy(ctx, pool, app, cfg.Migration)
+	}
+	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, migrate, cfg.Capabilities...)
+	if err != nil {
 		pool.Close()
-		dropErr := DropDBE(dbName, db)
-		if closeErr != nil {
-			combinedErr = mergeCloseErrors(
-				combinedErr, serrors.WrapContext(opRunMigrationPolicy, closeErr, "failed to close controllers after migration policy failure"),
-			)
-		}
-		if dropErr != nil {
-			combinedErr = mergeCloseErrors(
-				combinedErr, serrors.WrapContext(opDropDB, dropErr, "drop database after migration policy failure"),
-			)
-		}
-		return nil, combinedErr
+		_ = DropDBE(dbName, db)
+		return nil, serrors.WrapContext(opSetupApplication, err, "setup application")
 	}
 
 	tenant, err := resolveTenant(context.Background(), pool, cfg.Context.TenantID)
