@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +24,22 @@ type PlatformCredential struct {
 
 type platformCredentials struct {
 	dir   Directory
+	mu    sync.RWMutex
 	creds map[catalog.ConnectorKind]PlatformCredential
+}
+
+// PlatformWithdrawer is an optional interface of PlatformCredentials: a credential taken out of service
+// while the application runs (NewPlatformCredentials implements it). A credential whose provider account a
+// tenant's connection holds is withdrawn at startup, so no tenant sends through an account that is not the
+// platform's.
+type PlatformWithdrawer interface {
+	Withdraw(kind catalog.ConnectorKind)
+}
+
+func (p *platformCredentials) Withdraw(kind catalog.ConnectorKind) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.creds, kind)
 }
 
 // NewPlatformCredentials are credentials from configuration by name: a connector kind, offered to
@@ -45,6 +61,8 @@ func NewPlatformCredentials(dir Directory, creds map[catalog.ConnectorKind]Platf
 }
 
 func (p *platformCredentials) Platform(kind catalog.ConnectorKind) (Credentials, Identity, bool) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	c, ok := p.creds[kind]
 	if !ok {
 		return nil, Identity{}, false
@@ -57,6 +75,8 @@ func (p *platformCredentials) Platform(kind catalog.ConnectorKind) (Credentials,
 }
 
 func (p *platformCredentials) Kinds() []catalog.ConnectorKind {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	out := make([]catalog.ConnectorKind, 0, len(p.creds))
 	for k := range p.creds {
 		if pol := p.Policy(k); pol == PlatformAuto || pol == PlatformOptIn {

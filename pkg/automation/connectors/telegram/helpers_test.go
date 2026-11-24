@@ -159,13 +159,24 @@ func newRig(t *testing.T) *rig {
 // provision sets the tenant connection's webhook and keeps the secret it generated in the inbound state.
 func (r *rig) provision() {
 	r.t.Helper()
-	state, err := r.c.Provision(context.Background(), r.conn, r.creds(), nil)
+	state, err := r.prov(context.Background(), r.conn, r.creds(), []string{telegram.WarnPollingUnknown})
 	require.NoError(r.t, err)
 	r.st.mu.Lock()
 	defer r.st.mu.Unlock()
 	merged, err := connectors.MergeInbound(r.st.inbound, state)
 	require.NoError(r.t, err)
 	r.st.inbound = merged
+}
+
+// prov provisions a connection with the inbound state it has now, as the save's transaction hands it over.
+func (r *rig) prov(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, consent []string) (map[string]json.RawMessage, error) {
+	r.st.mu.Lock()
+	var held json.RawMessage
+	if conn.ID == r.st.owner {
+		held = r.st.inbound
+	}
+	r.st.mu.Unlock()
+	return r.c.Provision(ctx, conn, creds, consent, held)
 }
 
 func (r *rig) creds() connectors.Credentials { return connectors.Credentials{"token": tenantToken} }

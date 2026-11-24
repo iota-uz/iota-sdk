@@ -119,7 +119,7 @@ func TestTenantWebhookSecretIsGeneratedAndStored(t *testing.T) {
 	r := newRig(t)
 	first := r.bot.Webhook().Secret
 	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), first)
-	state, err := r.c.Provision(context.Background(), r.conn, r.creds(), nil)
+	state, err := r.prov(context.Background(), r.conn, r.creds(), nil)
 	require.NoError(t, err)
 	var held struct {
 		Secret string `json:"secret"`
@@ -193,7 +193,7 @@ func TestAdviseWarnsAboutAForeignWebhookOrAnUnknownReader(t *testing.T) {
 	assert.Empty(t, r.bot.CallsOf("getUpdates"), "a read of the bot's updates would interrupt a poller")
 	w, err = r.c.Advise(ctx, &r.conn, r.creds())
 	require.NoError(t, err)
-	assert.Empty(t, w, "a connection that had the bot is not asked again")
+	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingUnknown}}, w, "nor is a bot a connection had: it may be polled since")
 
 	r.bot.SetWebhook("https://other.example.org/hook", "s")
 	w, err = r.c.Advise(ctx, nil, r.creds())
@@ -217,13 +217,13 @@ func TestProvisionChecksConsentAgainstTheCurrentWebhook(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
 	r.bot.SetWebhook("https://other.example.org/hook", "s")
-	_, err := r.c.Provision(ctx, r.conn, r.creds(), nil)
+	_, err := r.prov(ctx, r.conn, r.creds(), nil)
 	var need *connectors.ConfirmationRequiredError
 	require.ErrorAs(t, err, &need)
 	assert.Equal(t, "https://other.example.org/hook", r.bot.Webhook().URL, "nothing was changed")
-	_, err = r.c.Provision(ctx, r.conn, r.creds(), []string{"something_else"})
+	_, err = r.prov(ctx, r.conn, r.creds(), []string{"something_else"})
 	require.ErrorAs(t, err, &need)
-	_, err = r.c.Provision(ctx, r.conn, r.creds(), []string{telegram.WarnForeignWebhook})
+	_, err = r.prov(ctx, r.conn, r.creds(), []string{telegram.WarnForeignWebhook})
 	require.NoError(t, err)
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL)
 }
@@ -233,7 +233,7 @@ func TestProvisionChecksConsentAgainstTheCurrentWebhook(t *testing.T) {
 func TestProvisionKeepsTheStoredSecret(t *testing.T) {
 	r := newRig(t)
 	first := r.bot.Webhook().Secret
-	state, err := r.c.Provision(context.Background(), r.conn, r.creds(), nil)
+	state, err := r.prov(context.Background(), r.conn, r.creds(), nil)
 	require.NoError(t, err)
 	var held struct {
 		Secret string `json:"secret"`
@@ -245,7 +245,10 @@ func TestProvisionKeepsTheStoredSecret(t *testing.T) {
 	fresh := connectors.Connection{ID: uuid.New(), TenantID: r.tenant, Kind: telegram.Kind, Name: "fresh"}
 	r.st.exists[fresh.ID] = true
 	r.bot.SetWebhook("", "")
-	state, err = r.c.Provision(context.Background(), fresh, r.creds(), nil)
+	_, err = r.prov(context.Background(), fresh, r.creds(), nil)
+	var need *connectors.ConfirmationRequiredError
+	require.ErrorAs(t, err, &need, "a bot with no webhook is taken over only with the person's word")
+	state, err = r.prov(context.Background(), fresh, r.creds(), []string{telegram.WarnPollingUnknown})
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(state["telegram_webhook"], &held))
 	assert.NotEqual(t, first, held.Secret)
@@ -285,7 +288,7 @@ func TestABotBelongsToOneConnection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, w, 1, "another connection may not")
 
-	_, err = r.c.Provision(ctx, other, r.creds(), nil)
+	_, err = r.prov(ctx, other, r.creds(), nil)
 	require.Error(t, err, "and is refused at the provider too")
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL, "the owner's webhook stays")
 
@@ -298,7 +301,7 @@ func TestABotBelongsToOneConnection(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, w, 1)
 	assert.True(t, w[0].Blocking)
-	_, err = r.c.Provision(ctx, r.conn, r.platformCreds(), nil)
+	_, err = r.prov(ctx, r.conn, r.platformCreds(), nil)
 	require.Error(t, err)
 
 	// Once the owner is gone its webhook is stale and the bot is free to be taken over.
@@ -306,7 +309,7 @@ func TestABotBelongsToOneConnection(t *testing.T) {
 	w, err = r.c.Advise(ctx, &other, r.creds())
 	require.NoError(t, err)
 	assert.Empty(t, w)
-	_, err = r.c.Provision(ctx, other, r.creds(), nil)
+	_, err = r.prov(ctx, other, r.creds(), nil)
 	require.NoError(t, err)
 }
 
@@ -376,4 +379,27 @@ func TestReadNeedsATenantsOwnBot(t *testing.T) {
 	assert.Equal(t, "connection_unavailable", pv.Unavailable[telegram.NodeRead])
 	assert.Contains(t, pv.Catalog.Nodes, telegram.NodeSend)
 	assert.Contains(t, pv.Catalog.Nodes, telegram.NodeAsk)
+}
+
+// The secret is bound to the bot's account: the same bot keeps it, another bot (a replaced token) gets a new
+// one, so an update in flight from the former bot cannot pass for the replacement's.
+func TestTheSecretIsBoundToTheBot(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	first := r.bot.Webhook().Secret
+	other := r.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "other_bot")
+	state, err := r.prov(ctx, r.conn, connectors.Credentials{"token": "444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"}, []string{telegram.WarnPollingUnknown})
+	require.NoError(t, err)
+	var held struct {
+		Secret  string `json:"secret"`
+		Account string `json:"account"`
+	}
+	require.NoError(t, json.Unmarshal(state["telegram_webhook"], &held))
+	assert.NotEqual(t, first, held.Secret, "another bot: another secret")
+	assert.Equal(t, "444444", held.Account)
+	assert.Equal(t, held.Secret, other.Webhook().Secret)
+
+	// A state that cannot be read is an error, not a reason to rotate.
+	_, err = r.c.Provision(ctx, r.conn, r.creds(), []string{telegram.WarnPollingUnknown}, json.RawMessage(`not json`))
+	require.Error(t, err)
 }

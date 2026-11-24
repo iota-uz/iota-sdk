@@ -304,24 +304,39 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			db, dbErr := composition.Resolve[*pgxpool.Pool](container)
 			for _, conn := range dir.List() {
-				starter, ok := conn.(connectors.PlatformStarter)
+				starter, isStarter := conn.(connectors.PlatformStarter)
+				ex, exclusive := conn.(connectors.ExclusiveIdentity)
 				creds, _, has := platform.Platform(conn.Kind())
-				if !ok || !has {
-					continue
-				}
 				warn := func(format string, err error) {
 					if logger := b.Context().Logger(); logger != nil {
 						logger.Warnf(format, conn.Kind(), err)
 					}
 				}
+				if !has {
+					// No platform credential is configured (any more): the account it held is nobody's
+					// reservation. Its webhook cannot be removed without its token, which is gone with the
+					// configuration.
+					if exclusive && dbErr == nil {
+						if err := connectors.ReleasePlatformIdentities(ctx, db, conn.Kind()); err != nil {
+							warn("automations: the platform reservation of %s was not released: %v", err)
+						}
+					}
+					continue
+				}
 				// The platform credential in effect (the configuration's, else the connector's own) is the
 				// one that is registered, verified and reserved: an account a tenant's connection holds
-				// cannot be the platform's too.
-				if ex, ok := conn.(connectors.ExclusiveIdentity); ok && dbErr == nil {
+				// cannot be the platform's too, and is then not offered to tenants as a platform credential.
+				if exclusive && dbErr == nil {
 					if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
-						warn("automations: the platform credential of %s was not set up: %v", err)
+						if w, ok := platform.(connectors.PlatformWithdrawer); ok {
+							w.Withdraw(conn.Kind())
+						}
+						warn("automations: the platform credential of %s is withdrawn: %v", err)
 						continue
 					}
+				}
+				if !isStarter {
+					continue
 				}
 				if err := starter.StartPlatform(ctx, creds); err != nil {
 					// The application starts without it: the platform credential works for sending.

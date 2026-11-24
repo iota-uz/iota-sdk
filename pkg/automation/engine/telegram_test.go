@@ -151,7 +151,7 @@ func (te *tgEnv) proc(tune ...func(*engine.Config)) *proc {
 func (te *tgEnv) provision() {
 	te.t.Helper()
 	ctx := context.Background()
-	state, err := te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken}, nil)
+	state, err := te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken}, []string{telegram.WarnPollingUnknown}, nil)
 	require.NoError(te.t, err)
 	// The secret Provision generated is kept in the connection's inbound state, as the service does.
 	require.NoError(te.t, te.store.UpdateInbound(ctx, te.tenant, te.conn.ID, func(cur json.RawMessage) (json.RawMessage, error) {

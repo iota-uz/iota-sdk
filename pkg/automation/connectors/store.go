@@ -54,6 +54,13 @@ type Store interface {
 	// exist exactly when the connection change does (an idempotency key). An error of within rolls the
 	// write back.
 	SaveWith(ctx context.Context, c Connection, creds Credentials, within func(ctx context.Context, tx pgx.Tx, saved Connection) error) (Connection, error)
+	// WithLatest runs fn with the connection as it is committed now (found false: it is gone), holding the
+	// advisory lock of the exclusive identity external (when it is not empty) that a save takes while it
+	// changes the provider: a cleanup of the provider's side that a delayed disable, a failed save or a
+	// replaced credential owes is decided under the same protection as the setup, on what is committed
+	// by then, so it never removes what a later save set up. fn runs in a transaction and must not use
+	// the database.
+	WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c Connection, creds Credentials) error) error
 	// Fingerprint is an HMAC of data under the active key: it binds a record to a payload with
 	// credentials without storing anything a value could be guessed back from. ErrNotConfigured without
 	// a keyring.
@@ -565,6 +572,29 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
+}
+
+func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c Connection, creds Credentials) error) error {
+	const op = serrors.Op("automation.connectors.Store.WithLatest")
+	if err := s.configured(); err != nil {
+		return serrors.Wrap(op, err)
+	}
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		if external != "" {
+			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
+				return err
+			}
+		}
+		c, creds, err := s.load(ctx, tx, tenantID, id, false)
+		if errors.Is(err, ErrNotFound) {
+			return fn(false, Connection{}, nil)
+		}
+		if err != nil {
+			return err
+		}
+		return fn(true, c, creds)
+	})
+	return serrors.Wrap(op, err)
 }
 
 // ConnectionExists reports whether a connection of any tenant has the id.

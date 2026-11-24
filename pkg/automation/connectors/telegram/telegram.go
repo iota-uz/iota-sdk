@@ -204,7 +204,7 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, er
 // bot, so the second connection would silently take the first one's messages. A webhook another service set
 // is a warning the person confirms. With no webhook at all, whether another service reads the bot by polling
 // (getUpdates) cannot be told without disturbing it (a request for updates takes over the long poll of the
-// service that has it), so a new connection needs the person's word that nobody does.
+// service that has it), so taking such a bot over needs the person's word that nobody does.
 func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, existing *connectors.Connection) ([]connectors.Warning, error) {
 	b := c.bot(creds["token"])
 	info, err := b.webhookInfo(ctx)
@@ -224,9 +224,11 @@ func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, ex
 		return []connectors.Warning{{Code: WarnBotInUse, Blocking: true, Field: "token"}}, nil
 	case owner == hookForeign:
 		return []connectors.Warning{{Code: WarnForeignWebhook}}, nil
-	case owner == hookOwn || info.Url != "" || existing != nil:
-		return nil, nil // this connection's own, a stale one of a connection that is gone, or a bot it had
+	case owner == hookOwn || info.Url != "":
+		return nil, nil // this connection's own, or a stale one of a connection that is gone
 	}
+	// No webhook: whatever the connection had before (a disable removes it, a new token is a new bot), the
+	// bot may have been taken up by a poller since, so taking it over is asked for every time.
 	return []connectors.Warning{{Code: WarnPollingUnknown}}, nil
 }
 
@@ -251,7 +253,7 @@ func newSecret() (string, error) {
 // keep in the connection's inbound state. It looks at the webhook as it is now: a bot another live connection
 // owns is refused, and a foreign webhook (or a bot that may be polled) is replaced only when the person
 // confirmed it, whatever advice an earlier look gave.
-func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, consent []string) (map[string]json.RawMessage, error) {
+func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, consent []string, held json.RawMessage) (map[string]json.RawMessage, error) {
 	if c.cfg.PublicOrigin == "" {
 		return nil, errors.New("telegram: the application's public origin is not configured (status 400)")
 	}
@@ -269,11 +271,17 @@ func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, c
 	if open := connectors.Unconfirmed(warnings, consent); len(open) > 0 {
 		return nil, &connectors.ConfirmationRequiredError{Warnings: open}
 	}
-	// A connection keeps its secret across saves and re-enables: a save that does not commit after the
-	// provider was changed, or a competing one, then never leaves Telegram with a secret the SDK does not
-	// hold. Only a connection with none (a new one) gets a generated one.
-	secret, err := c.storedSecret(ctx, conn)
-	if err != nil || secret == "" {
+	// A connection keeps its secret for the same bot across saves and re-enables: a save that does not commit
+	// after the provider was changed, or a competing one, then never leaves Telegram with a secret the SDK
+	// does not hold. The secret is bound to the bot's account: another bot (a replaced token) gets a new one,
+	// so an update still in flight from the former bot cannot pass as the new one's. A state that cannot be
+	// read is an error, never a reason to rotate.
+	account := c.ExternalID(creds)
+	secret, kept, err := heldSecret(held)
+	if err != nil {
+		return nil, err
+	}
+	if secret == "" || kept != account {
 		if secret, err = newSecret(); err != nil {
 			return nil, err
 		}
@@ -281,11 +289,35 @@ func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, c
 	if err := c.bot(token).setWebhook(ctx, c.hookURL(conn), secret); err != nil {
 		return nil, err
 	}
-	raw, err := json.Marshal(map[string]string{"secret": secret})
+	raw, err := json.Marshal(map[string]string{"secret": secret, "account": account})
 	if err != nil {
 		return nil, err
 	}
 	return map[string]json.RawMessage{secretKey: raw}, nil
+}
+
+// heldSecret reads the webhook secret and the account it is bound to from a connection's inbound state. An
+// empty state has none; a state that is not readable is an error.
+func heldSecret(held json.RawMessage) (secret, account string, err error) {
+	if len(held) == 0 {
+		return "", "", nil
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(held, &doc); err != nil {
+		return "", "", errors.New("telegram: the connection's inbound state is not readable")
+	}
+	raw, ok := doc[secretKey]
+	if !ok {
+		return "", "", nil
+	}
+	var h struct {
+		Secret  string `json:"secret"`
+		Account string `json:"account"`
+	}
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return "", "", errors.New("telegram: the stored webhook secret is not readable")
+	}
+	return h.Secret, h.Account, nil
 }
 
 // Deprovision removes the webhook of the bot only when it is exactly this connection's: one another

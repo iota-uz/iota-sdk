@@ -402,7 +402,7 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 			Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
 		}, creds, s.within(conn, creds, req, in.Confirmed, &run))
 		if err != nil {
-			s.reconcile(ctx, conn, &run, creds, false)
+			s.reconcile(ctx, conn, &run, creds)
 		}
 		return saved, err
 	}()
@@ -471,14 +471,17 @@ func identityField(conn connectors.Connector) string {
 }
 
 // within is what a save does in its transaction beside writing the row: the provider account is reserved
-// for the connection (connectors.ExclusiveIdentity, under a lock on it, so two saves for one account run one
-// after the other), the provider's side of the connection is set up (connectors.Provisioner) with the
+// for the connection, whatever its status (connectors.ExclusiveIdentity, under a lock on it, so two saves for
+// one account run one after the other), and, for a connected one, the provider's side of the connection is set up (connectors.Provisioner) with the
 // confirmations the person gave, what it hands back is kept in the connection's inbound state, and the
 // idempotency key is completed. A provider that refuses fails the save, which rolls the row back. The
 // provider is changed only after the row's version check, which the write of the row has passed by then.
 func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request, confirmed []string, run *provisionRun) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 	return func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
-		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
+		if creds != nil {
+			// The provider account is reserved by whatever status the connection saves with: credentials of
+			// another account move the reservation with them, so a disabled connection never keeps the old
+			// account and leaves the new one free to be claimed.
 			if ex, ok := conn.(connectors.ExclusiveIdentity); ok {
 				if err := connectors.ReserveIdentity(ctx, tx, saved.Kind, ex.ExternalID(creds), saved.ID); err != nil {
 					if errors.Is(err, connectors.ErrIdentityTaken) {
@@ -487,7 +490,13 @@ func (s *IntegrationsService) within(conn connectors.Connector, creds connectors
 					return err
 				}
 			}
-			state, err := p.Provision(ctx, saved, creds, confirmed)
+		}
+		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
+			held, err := connectors.InboundTx(ctx, tx, saved.TenantID, saved.ID)
+			if err != nil {
+				return err
+			}
+			state, err := p.Provision(ctx, saved, creds, confirmed, held)
 			if err != nil {
 				var blocked *connectors.BlockedError
 				switch {
@@ -515,20 +524,50 @@ func (s *IntegrationsService) within(conn connectors.Connector, creds connectors
 	}
 }
 
-// reconcile undoes the provider's side of a save that changed the provider and did not commit: the webhook
-// of the credentials it set up is removed (a connection whose row was not saved, or is not connected, must
-// not have one). keep: the connection is connected with these very credentials already, so what the save
-// set up is what the row says and stays.
-func (s *IntegrationsService) reconcile(ctx context.Context, conn connectors.Connector, run *provisionRun, creds connectors.Credentials, keep bool) {
-	if run == nil || !run.ran || keep {
-		return
-	}
-	s.deprovision(ctx, conn, run.saved, creds)
+// stillServes reports whether the connection as committed now is connected with these very credentials: what
+// a cleanup would remove is then what the connection runs on.
+func stillServes(found bool, latest connectors.Connection, latestCreds, creds connectors.Credentials) bool {
+	return found && latest.Status == connectors.StatusConnected && sameCredentials(latestCreds, creds)
 }
 
-// deprovision tells the provider that a connection's credentials are no longer used; it never fails the
-// caller: the connection is removed or disabled whether or not the provider could be reached.
-func (s *IntegrationsService) deprovision(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
+// cleanup removes the provider's side of credentials a connection no longer uses (a disable, a replaced
+// token, a save that did not commit), unless the connection is connected with them again by the time it
+// runs. It decides under the lock of the provider account that a setup holds while it changes the provider,
+// on the connection as committed then: a delayed cleanup never removes what a later enable set up, and a
+// setup never races a cleanup. It never fails the caller.
+func (s *IntegrationsService) cleanup(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
+	p, ok := conn.(connectors.Provisioner)
+	if !ok || creds == nil {
+		return
+	}
+	external := ""
+	if ex, ok := conn.(connectors.ExclusiveIdentity); ok {
+		external = ex.ExternalID(creds)
+	}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+	defer cancel()
+	_ = s.store.WithLatest(cctx, c.Kind, c.TenantID, c.ID, external, func(found bool, latest connectors.Connection, latestCreds connectors.Credentials) error {
+		if stillServes(found, latest, latestCreds, creds) {
+			return nil
+		}
+		return p.Deprovision(cctx, c, creds)
+	})
+}
+
+// reconcile undoes the provider's side of a save that changed the provider and did not commit: the webhook
+// of the credentials it set up is removed (a connection whose row was not saved, or is not connected, must
+// not have one), unless the connection is connected with these very credentials by then (cleanup).
+func (s *IntegrationsService) reconcile(ctx context.Context, conn connectors.Connector, run *provisionRun, creds connectors.Credentials) {
+	if run == nil || !run.ran {
+		return
+	}
+	s.cleanup(ctx, conn, run.saved, creds)
+}
+
+// deprovisionNow tells the provider that a connection's credentials are no longer used; it never fails the
+// caller: the connection is removed whether or not the provider could be reached. A cleanup that can race
+// with a save of the connection goes through cleanup instead.
+func (s *IntegrationsService) deprovisionNow(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
 	p, ok := conn.(connectors.Provisioner)
 	if !ok || creds == nil {
 		return
@@ -685,7 +724,7 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 	var run provisionRun
 	saved, err := s.store.SaveWith(ctx, next, creds, s.within(conn, creds, req, in.Confirmed, &run))
 	if err != nil {
-		s.reconcile(ctx, conn, &run, creds, cur.Status == connectors.StatusConnected && sameCredentials(stored, creds))
+		s.reconcile(ctx, conn, &run, creds)
 		var failed *TestFailedError
 		if errors.As(err, &failed) {
 			return ConnectionEntry{}, err
@@ -695,7 +734,7 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 	if creds != nil {
 		s.touch(ctx, a.TenantID, saved.ID)
 		if !sameCredentials(stored, creds) {
-			s.deprovision(ctx, conn, saved, stored) // the old credentials' side of the connection
+			s.cleanup(ctx, conn, saved, stored) // the old credentials' side of the connection
 		}
 	}
 	return s.entry(ctx, a.TenantID, saved, true)
@@ -807,7 +846,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 		}
 		if conn, ok := s.dir.Get(cur.Kind); ok {
 			if _, creds, err := s.store.Get(ctx, a.TenantID, id); err == nil {
-				s.deprovision(ctx, conn, cur, creds)
+				s.cleanup(ctx, conn, cur, creds)
 			}
 		}
 	} else {
@@ -849,7 +888,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			var run provisionRun
 			_, err := s.store.SaveWith(ctx, next, nil, s.within(conn, creds, request{}, confirmed, &run))
 			if err != nil {
-				s.reconcile(ctx, conn, &run, creds, false)
+				s.reconcile(ctx, conn, &run, creds)
 				var refused *TestFailedError
 				if !errors.As(err, &refused) {
 					return ConnectionEntry{}, mapStoreError(op, err)
@@ -880,7 +919,7 @@ func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID)
 	}
 	if readErr == nil && cur.Status != connectors.StatusDisabled {
 		if conn, ok := s.dir.Get(cur.Kind); ok {
-			s.deprovision(ctx, conn, cur, creds)
+			s.deprovisionNow(ctx, conn, cur, creds)
 		}
 	}
 	return nil

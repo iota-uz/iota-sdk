@@ -76,6 +76,7 @@ type telegram struct {
 	consents      [][]string
 	needConsent   []connectors.Warning // what Provision itself asks the person to confirm
 	adviseErr     error
+	live          bool // the webhook is set at the provider
 }
 
 // ExternalID makes the fake an exclusive-identity connector when exclusive is set: its account is the token.
@@ -86,7 +87,7 @@ func (c *telegram) ExternalID(creds connectors.Credentials) string {
 	return "acct-" + creds["token"]
 }
 
-func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds connectors.Credentials, consent []string) (map[string]json.RawMessage, error) {
+func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds connectors.Credentials, consent []string, _ json.RawMessage) (map[string]json.RawMessage, error) {
 	c.lmu.Lock()
 	defer c.lmu.Unlock()
 	c.consents = append(c.consents, consent)
@@ -99,12 +100,14 @@ func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds c
 		}
 	}
 	c.provisioned = append(c.provisioned, creds["token"])
+	c.live = true
 	return map[string]json.RawMessage{"fake_secret": json.RawMessage(`{"n":` + fmt.Sprint(len(c.provisioned)) + `}`)}, nil
 }
 
 func (c *telegram) Deprovision(_ context.Context, _ connectors.Connection, creds connectors.Credentials) error {
 	c.lmu.Lock()
 	defer c.lmu.Unlock()
+	c.live = false
 	c.deprovisioned = append(c.deprovisioned, creds["token"])
 	return nil
 }
@@ -1501,4 +1504,103 @@ func TestConcurrentEnablesChangeTheProviderOnce(t *testing.T) {
 	state, err := e.store.(connectors.InboundReader).InboundState(e.ctx, e.tenant, c.Connection.ID)
 	require.NoError(t, err)
 	assert.Contains(t, string(state), "fake_secret", "the provider's state was committed with the status")
+}
+
+// A cleanup that a disable owes runs after the status committed, and an enable may commit in between: the
+// cleanup decides on what is committed when it runs, under the account's lock, so a connection that ends
+// connected never ends without its webhook.
+func TestADelayedDisableNeverRemovesTheWebhookOfAnEnable(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	for i := 0; i < 12; i++ {
+		var done sync.WaitGroup
+		done.Add(2)
+		go func() { defer done.Done(); _, _ = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil) }()
+		go func() { defer done.Done(); _, _ = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil) }()
+		done.Wait()
+		list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+		require.NoError(t, err)
+		e.tg.lmu.Lock()
+		live := e.tg.live
+		e.tg.lmu.Unlock()
+		assert.Equal(t, list[0].Status == connectors.StatusConnected, live, "round %d: status %s, webhook set %v", i, list[0].Status, live)
+		// Bring it back to connected for the next round.
+		if list[0].Status != connectors.StatusConnected {
+			_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
+			require.NoError(t, err)
+		}
+	}
+}
+
+// A pool of one connection saves, updates and enables a bot: the provider is set up on the save's own
+// transaction, with no second database connection.
+func TestProvisioningNeedsOnlyTheSavesOwnConnection(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	cfg, err := pgxpool.ParseConfig(e.db.Config().ConnString())
+	require.NoError(t, err)
+	cfg.MaxConns = 1
+	one, err := pgxpool.NewWithConfig(e.ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(one.Close)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
+	require.NoError(t, err)
+	store := connectors.NewStore(one, keys, nil, nil, nil)
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: e.svc.Directory(), Store: store, Requests: persistence.NewRequests(one)})
+	ctx, cancel := context.WithTimeout(e.ctx, 20*time.Second)
+	defer cancel()
+	made, err := svc.Create(ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err)
+	_, err = svc.SetDisabled(ctx, e.actor(), made.Connection.ID, true, nil)
+	require.NoError(t, err)
+	_, err = svc.SetDisabled(ctx, e.actor(), made.Connection.ID, false, nil)
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 2)
+}
+
+// Credentials saved on a disabled connection move its reservation with them, whatever its status.
+func TestReservationFollowsTheCredentialsOfADisabledConnection(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	e.tg.accept = "second-token"
+	c := e.create("main")
+	_, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
+	require.NoError(t, err)
+	cur, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.Connection.ID, Version: cur[0].Version, Credentials: map[string]any{"token": "second-token"}})
+	require.NoError(t, err)
+
+	var invalid *services.InvalidInputError
+	_, err = e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "taker", Credentials: map[string]any{"token": "second-token"}})
+	require.ErrorAs(t, err, &invalid, "the new account is held by the disabled connection")
+	taken, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "former", Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err, "the old account is free again")
+	assert.NotEmpty(t, taken.Connection.ID)
+}
+
+// The platform credential's reservation is released when the credential is no longer configured, and a
+// platform credential can be withdrawn at runtime.
+func TestPlatformReservationIsReleasedAndTheCredentialWithdrawn(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, connectors.ReservePlatformIdentity(e.ctx, e.db, catalog.KindTelegramBot, "acct-x"))
+	held := e.create("holder")
+	reserve := func() error {
+		return pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
+			return connectors.ReserveIdentity(e.ctx, tx, catalog.KindTelegramBot, "acct-x", held.Connection.ID)
+		})
+	}
+	require.ErrorIs(t, reserve(), connectors.ErrIdentityTaken)
+	require.NoError(t, connectors.ReleasePlatformIdentities(e.ctx, e.db, catalog.KindTelegramBot))
+	require.NoError(t, reserve())
+
+	platform := connectors.NewPlatformCredentials(e.svc.Directory(), map[catalog.ConnectorKind]connectors.PlatformCredential{
+		catalog.KindTelegramBot: {Credentials: connectors.Credentials{"token": "platform-secret"}}})
+	_, _, has := platform.Platform(catalog.KindTelegramBot)
+	require.True(t, has)
+	platform.(connectors.PlatformWithdrawer).Withdraw(catalog.KindTelegramBot)
+	_, _, has = platform.Platform(catalog.KindTelegramBot)
+	assert.False(t, has, "a withdrawn credential is not served to anyone")
+	assert.Empty(t, platform.(connectors.PlatformCatalog).Kinds())
 }

@@ -26,7 +26,11 @@ type Provisioner interface {
 	// consent are the codes of the warnings the person confirmed. Provision looks at the provider's state
 	// itself, at the moment it changes it, and refuses (a *ConfirmationRequiredError, a *BlockedError) what
 	// needs a confirmation that is not among them or cannot be given: advice given earlier may be stale.
-	Provision(ctx context.Context, c Connection, creds Credentials, consent []string) (inbound map[string]json.RawMessage, err error)
+	//
+	// held is the connection's inbound state as it is in the save's transaction (what a previous setup
+	// handed back), read there so that Provision needs no second database connection while the save holds
+	// its own.
+	Provision(ctx context.Context, c Connection, creds Credentials, consent []string, held json.RawMessage) (inbound map[string]json.RawMessage, err error)
 	// Deprovision undoes Provision for credentials a connection no longer uses: it was deleted or
 	// disabled, or its credentials were replaced (these are the old ones). The caller ignores its error:
 	// a provider that cannot be reached never keeps a connection from being removed.
@@ -278,4 +282,21 @@ func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog
 		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform) VALUES ($1, $2, TRUE)`, string(kind), external)
 		return err
 	})
+}
+
+// InboundTx reads a connection's inbound state in the caller's transaction.
+func InboundTx(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) (json.RawMessage, error) {
+	var state []byte
+	err := tx.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id).Scan(&state)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(state), nil
+}
+
+// ReleasePlatformIdentities releases the platform credential's reservations of a kind: the credential is no
+// longer configured, so the account it held is free to be connected as a tenant's own.
+func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
+	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(kind))
+	return err
 }
