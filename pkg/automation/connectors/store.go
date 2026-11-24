@@ -474,15 +474,31 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	// graph version) locks it FOR SHARE, so a use cannot appear in between. A TxUsageIndex reads the
 	// catalog first and checks the uses in this transaction: holding the lock, the delete needs no
 	// second pool connection, which an enable waiting for the row may hold.
+	// The check reports ErrUsageChanged when a status change between the catalog read and the lock
+	// (another connection reauthorized, this one reconnected) changed what a graph resolves to: the
+	// catalog is read again.
+	var err error
+	for attempt := 0; attempt < maxUsageAttempts; attempt++ {
+		if err = s.deleteOnce(ctx, tenantID, id); !errors.Is(err, ErrUsageChanged) {
+			break
+		}
+	}
+	return serrors.Wrap(op, err)
+}
+
+// maxUsageAttempts bounds the Delete retries after ErrUsageChanged.
+const maxUsageAttempts = 5
+
+func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 	var check UsesCheck
 	if tu, ok := s.usage.(TxUsageIndex); ok {
 		c, err := tu.PrepareUses(ctx, tenantID)
 		if err != nil {
-			return serrors.Wrap(op, err)
+			return err
 		}
 		check = c
 	}
-	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		var locked uuid.UUID
 		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -509,7 +525,6 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
-	return serrors.Wrap(op, err)
 }
 
 func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {

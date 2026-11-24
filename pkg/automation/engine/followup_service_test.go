@@ -6,12 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,12 +62,16 @@ type deletingCatalog struct {
 	connection uuid.UUID
 	calls      atomic.Int32
 	at         atomic.Int32
+	deleted    atomic.Bool
 }
 
 func (c *deletingCatalog) ForTenant(ctx context.Context, tenant uuid.UUID, opts ...catalog.ViewOption) (catalog.View, error) {
 	v, err := c.Registry.ForTenant(ctx, tenant, opts...)
 	if n := c.calls.Add(1); err == nil && n == c.at.Load() {
-		_, err = c.db.Exec(ctx, `DELETE FROM automation.connections WHERE id = $1`, c.connection)
+		var tag pgconn.CommandTag
+		if tag, err = c.db.Exec(ctx, `DELETE FROM automation.connections WHERE id = $1`, c.connection); err == nil && tag.RowsAffected() == 1 {
+			c.deleted.Store(true)
+		}
 	}
 	return v, err
 }
@@ -89,15 +95,25 @@ func TestEnableIsRefusedWhenItsConnectionWasDeletedAfterValidation(t *testing.T)
 	cat := &deletingCatalog{Registry: reg, db: e.db, connection: conn}
 	rt := runtimeOn(t, e, p, e.db, cat)
 	human := e.human()
-	am, v, err := rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(`{"name": "Mail", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	mail := `{"name": "Mail", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
 	 "nodes": [{"id": "mail", "type": "acme.mail", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
-	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "mail"}, {"from": {"node": "mail", "outcome": "done"}, "to": "fin"}]}`)})
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "mail"}, {"from": {"node": "mail", "outcome": "done"}, "to": "fin"}]}`
+	baseline, bv, err := rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(mail)})
+	require.NoError(t, err)
+	am, v, err := rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(mail)})
+	require.NoError(t, err)
+	// With the connection there, the graph enables.
+	_, err = rt.Service().Enable(ctx, human, baseline.ID, engine.EnableInput{Version: bv.Version})
 	require.NoError(t, err)
 	// Enable reads the catalog twice (the triggers' rights, then the validation): the delete commits
 	// after the second, before the enable's transaction.
 	cat.at.Store(cat.calls.Load() + 2)
 	_, err = rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v.Version})
-	require.Error(t, err, "a version is not enabled over a connection that no longer exists")
+	require.True(t, cat.deleted.Load(), "the connection was deleted after the validation")
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr, "the enable checks the graph again against the catalog of now")
+	require.NotEmpty(t, verr.Errors)
+	assert.Equal(t, engine.CodeConnectionUnavailable, verr.Errors[0].Code, "the refusal names the missing connection: %v", verr.Errors)
 	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
 }
 
@@ -246,11 +262,10 @@ func TestQueueRecoveryReachesAFreeSubjectBehindBusyOnes(t *testing.T) {
 	_, err = e.db.Exec(ctx, `UPDATE extruntime.workflow_instances i SET status = 'completed', finished_at = now(), lease_owner = NULL, lease_until = NULL
 		FROM automation.runs r WHERE r.instance_id = i.id AND r.id = $1`, freeHead.RunID)
 	require.NoError(t, err)
-	// The fixture is what the scan before the fix missed: its first batch is busy subjects only.
-	var inFirstBatch bool
-	require.NoError(t, e.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM (SELECT DISTINCT tenant_id, subject_entity, subject_key FROM automation.subject_queue LIMIT 200) x
-		WHERE subject_key = 'z-free')`).Scan(&inFirstBatch))
-	require.False(t, inFirstBatch, "the free subject lies past an unfiltered batch")
+	// The fixture is what a scan of 200 subjects without the busy filter misses: ten batches of busy
+	// subjects queued before the free one.
+	assert.Equal(t, 2001, e.count(`SELECT count(DISTINCT subject_key) FROM automation.subject_queue
+		WHERE seq < (SELECT min(seq) FROM automation.subject_queue WHERE subject_key = 'z-free')`), "busy subjects queued ahead of the free one")
 	require.NoError(t, p.rt.Maintain(ctx))
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.runs WHERE id = $1 AND instance_id IS NOT NULL`, queued.RunID),
 		"the free conversation's run starts although busy ones fill the batch")
@@ -539,6 +554,8 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	p := e.proc()
 	ctx := context.Background()
 	locked, enableWaits := make(chan struct{}), make(chan struct{})
+	var release sync.Once
+	letGo := func() { release.Do(func() { close(enableWaits) }) }
 	tr := &lockTracer{match: "FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE", after: func() {
 		close(locked)
 		<-enableWaits
@@ -549,6 +566,7 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
+	t.Cleanup(letGo) // before pool.Close: a failed test does not leave the delete holding a connection
 
 	avail := &storeAvailability{}
 	reg := catalog.NewRegistry(avail)
@@ -576,7 +594,13 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	defer cancel()
 	deleted := make(chan error, 1)
 	go func() { deleted <- store.Delete(tctx, e.tenant, conn.ID) }()
-	<-locked
+	select {
+	case <-locked:
+	case err := <-deleted:
+		t.Fatalf("the delete ended before it locked the row: %v", err)
+	case <-tctx.Done():
+		t.Fatal("the delete never locked the row")
+	}
 	enabled := make(chan error, 1)
 	go func() {
 		_, err := rt.Service().Enable(tctx, human, am.ID, engine.EnableInput{Version: v.Version})
@@ -585,8 +609,64 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return e.count(`SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%automation.connections%FOR SHARE%'`) > 0
 	}, 5*time.Second, 20*time.Millisecond, "the enable waits for the connection's row")
-	close(enableWaits)
+	letGo()
 	var inUse *connectors.InUseError
 	require.ErrorAs(t, <-deleted, &inUse, "the delete finishes its check in its own transaction")
 	require.NoError(t, <-enabled)
+}
+
+// changingCatalog runs change once, right after the view of the first ForTenant after it is armed.
+type changingCatalog struct {
+	catalog.Registry
+	armed  atomic.Bool
+	change func(ctx context.Context)
+}
+
+func (c *changingCatalog) ForTenant(ctx context.Context, tenant uuid.UUID, opts ...catalog.ViewOption) (catalog.View, error) {
+	v, err := c.Registry.ForTenant(ctx, tenant, opts...)
+	if err == nil && c.armed.Swap(false) {
+		c.change(ctx)
+	}
+	return v, err
+}
+
+func TestConnectionDeleteSeesAResolutionThatChangedBeforeItsLock(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	avail := &storeAvailability{}
+	reg := catalog.NewRegistry(avail)
+	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
+	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
+		require.NoError(t, reg.RegisterNode(specNode{spec}))
+	}
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
+	cat := &changingCatalog{Registry: reg}
+	rt := runtimeOn(t, e, p, e.db, cat)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	store := connectors.NewStore(e.db, keys, rt.UsageIndex(), nil, nil)
+	avail.s = store
+	a, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_a"}, connectors.Credentials{"token": "a"})
+	require.NoError(t, err)
+	b, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_b"}, connectors.Credentials{"token": "b"})
+	require.NoError(t, err)
+	require.NoError(t, store.SetStatus(ctx, e.tenant, b.ID, connectors.StatusDisabled, ""))
+	// The graph names no connection: it runs with the only working bot, A.
+	e.create(&proc{e: e, wf: p.wf, rt: rt, disp: p.disp}, e.human(), `{"name": "Bot", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	 "nodes": [{"id": "bot", "type": "acme.bot", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "bot"}, {"from": {"node": "bot", "outcome": "done"}, "to": "fin"}]}`)
+
+	// After the delete read the catalog and before it locks B, A needs reauthorization and B is back:
+	// the enabled graph resolves to B now.
+	cat.change = func(ctx context.Context) {
+		require.NoError(t, store.SetStatus(ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "expired"))
+		require.NoError(t, store.SetStatus(ctx, e.tenant, b.ID, connectors.StatusConnected, ""))
+	}
+	cat.armed.Store(true)
+	var inUse *connectors.InUseError
+	require.ErrorAs(t, store.Delete(ctx, e.tenant, b.ID), &inUse, "the usage check is judged by the connections under the lock")
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.connections WHERE id = $1`, b.ID))
+	assert.False(t, cat.armed.Load(), "the change ran between the catalog read and the lock")
 }

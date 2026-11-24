@@ -107,17 +107,21 @@ func TestWaitDeadlineCountsFromAfterTheSubjectLock(t *testing.T) {
 	t.Cleanup(func() { _ = holder.Rollback(ctx) })
 	_, err = holder.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, engine.SubjectLockKey(e.tenant, engine.SubjectRef{Entity: graph.SubjectNone}, ref.RunID))
 	require.NoError(t, err)
-	released := make(chan time.Time, 1)
+	// The step runs while the holder keeps the lock; the holder lets go once the step waits for it.
+	ran := make(chan error, 1)
 	go func() {
-		time.Sleep(1500 * time.Millisecond)
-		var at time.Time
-		_ = holder.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&at)
-		_ = holder.Commit(ctx)
-		released <- at
+		_, err := p.wf.RunOnce(ctx) // the step waits for the subject, then opens the wait
+		ran <- err
 	}()
-	_, err = p.wf.RunOnce(ctx) // the step waits for the subject, then opens the wait
-	require.NoError(t, err)
-	at := <-released
+	require.Eventually(t, func() bool {
+		return e.count(`SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+			WHERE d.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`) > 0
+	}, 10*time.Second, 20*time.Millisecond, "the step waits for the subject's lock")
+	time.Sleep(time.Second) // the lock is contended for a while: a transaction-start clock would lag behind
+	var at time.Time
+	require.NoError(t, holder.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&at))
+	require.NoError(t, holder.Commit(ctx))
+	require.NoError(t, <-ran)
 	deadline := e.deadline(e.db)
 	assert.False(t, deadline.Before(at.Add(time.Second)), "the wait gets its whole second after the lock: deadline %s, lock released %s", deadline, at)
 }

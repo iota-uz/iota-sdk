@@ -191,10 +191,16 @@ type UsageIndex interface {
 // UsesCheck lists a connection's uses with the caller's transaction (UsageIndex.Uses semantics).
 type UsesCheck func(ctx context.Context, tx pgx.Tx, connectionID uuid.UUID) ([]Use, error)
 
+// ErrUsageChanged reports that the tenant's working connections changed between PrepareUses and the check, so the
+// prepared view no longer tells which connection a graph resolves to. The caller prepares again.
+var ErrUsageChanged = errors.New("automation connectors: the connections changed since the usage check was prepared")
+
 // TxUsageIndex is a UsageIndex whose check runs inside the deleting transaction. PrepareUses reads
 // what needs a pool connection of its own (the tenant's catalog) before the caller locks the row; the
 // check it returns uses only the caller's transaction. A Delete that holds the row lock then never
-// waits for a second connection that an Enable waiting on that row may hold.
+// waits for a second connection that an Enable waiting on that row may hold. The check verifies, under
+// the row lock, that the connections the prepared view resolved by are still the working ones, else it
+// returns ErrUsageChanged.
 type TxUsageIndex interface {
 	UsageIndex
 	PrepareUses(ctx context.Context, tenantID uuid.UUID) (UsesCheck, error)

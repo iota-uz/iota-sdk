@@ -225,15 +225,39 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 }
 
 // PrepareUses reads the tenant's catalog now (it may need a pool connection of its own); the check it
-// returns reads the uses with the caller's transaction only.
+// returns reads the uses with the caller's transaction only. The tenant's connections are read before
+// the catalog and again by the check, under the caller's row lock: when any of them changed in between
+// (a status, new credentials, one added or removed), the view may resolve a graph to another connection
+// than the catalog does now, and the check returns connectors.ErrUsageChanged for the caller to
+// prepare again. Unchanged rows mean the view was read over the state the lock now protects.
 func (u usageIndex) PrepareUses(ctx context.Context, tenantID uuid.UUID) (connectors.UsesCheck, error) {
+	before, err := connectionsState(ctx, u.r.cfg.DB, tenantID)
+	if err != nil {
+		return nil, err
+	}
 	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
 	return func(ctx context.Context, tx pgx.Tx, connectionID uuid.UUID) ([]connectors.Use, error) {
+		now, err := connectionsState(ctx, tx, tenantID)
+		if err != nil {
+			return nil, err
+		}
+		if now != before {
+			return nil, connectors.ErrUsageChanged
+		}
 		return usesIn(ctx, tx, view, tenantID, connectionID)
 	}, nil
+}
+
+// connectionsState is the identity, status and version of every connection of the tenant: what the
+// catalog's working connections are derived from.
+func connectionsState(ctx context.Context, q querier, tenantID uuid.UUID) (string, error) {
+	var state string
+	err := q.QueryRow(ctx, `SELECT coalesce(string_agg(id::text || ':' || status || ':' || version, ',' ORDER BY id), '')
+		FROM automation.connections WHERE tenant_id = $1`, tenantID).Scan(&state)
+	return state, serrors.FromDB(opMaintain, err)
 }
 
 // usesIn lists the uses of a connection in q, resolving connections a node or trigger leaves out with

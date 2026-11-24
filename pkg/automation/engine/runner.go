@@ -327,8 +327,8 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE automation.runs SET tx_seq = tx_seq + 1, inbox_seq = inbox_seq + $3, steps_count = steps_count + $4,
-				output = coalesce($5, output), error = coalesce($6, error), sensitive = coalesce($7, sensitive), updated_at = now()
-			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure), sensUpdate); err != nil {
+				output = coalesce($5, output), error = coalesce($6, error), sensitive = coalesce($7, sensitive), updated_at = $8
+			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure), sensUpdate, s.now); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		return nil, nil

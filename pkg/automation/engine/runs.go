@@ -65,25 +65,27 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	}
 	// The page is read and its rows closed before anything is projected: the projector reads the
 	// catalog, which may query the database (Catalog.ForTenant), and must not wait for the connection
-	// these rows hold.
+	// these rows hold. Only the summary and the references are kept of a row, not its payloads.
 	type listed struct {
-		r     runRow
-		nodes []string
+		sum  RunSummary
+		refs []sensitiveRef
 	}
 	var got []listed
 	for rows.Next() {
-		var l listed
-		r := &l.r
+		var r runRow
+		var nodes []string
 		var input, output, errj, sens []byte
 		if err := rows.Scan(&r.TenantID, &r.ID, &r.AutomationID, &r.Version, &r.InstanceID, &r.StartKey, &r.StartState, &r.StartReason,
 			&r.TriggerID, &r.TriggerEventID, &r.TriggerKind, &input, &r.Subject.Entity, &r.Subject.Key, &r.RunAsUserID, &r.RunAsKind,
 			&r.InitiatorID, &r.InboxSeq, &r.TxSeq, &r.StepsCount, &r.Depth, &r.CauseRunID, &r.RestartedFrom, &output, &errj,
-			&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &l.nodes); err != nil {
+			&sens, &r.CreatedAt, &r.UpdatedAt, &r.InstanceStatus, &r.BlockedReason, &r.BlockedDetail, &r.InstanceUpdated, &nodes); err != nil {
 			rows.Close()
 			return Page[RunSummary]{}, serrors.FromDB(opService, err)
 		}
-		r.Input, r.Output, r.Error, r.Sensitive = input, output, errj, decodeRefs(sens)
-		got = append(got, l)
+		r.Error = errj
+		sum := summaryOf(r)
+		sum.CurrentNodes = nodes
+		got = append(got, listed{sum: sum, refs: decodeRefs(sens)})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -94,11 +96,10 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
 	for _, l := range got {
-		sum, err := redactSummary(ctx, proj, &viewer, summaryOf(l.r), l.r.Sensitive)
+		sum, err := redactSummary(ctx, proj, &viewer, l.sum, l.refs)
 		if err != nil {
 			return Page[RunSummary]{}, err
 		}
-		sum.CurrentNodes = l.nodes
 		page.Items = append(page.Items, sum)
 	}
 	if len(page.Items) > limit {
