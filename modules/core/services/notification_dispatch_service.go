@@ -253,6 +253,9 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total(), Skipped: resolved.Skipped}, nil
 }
 
+// contactCheckTimeout bounds the contact check of one record (a ContactChecker may take its own connection).
+const contactCheckTimeout = 10 * time.Second
+
 // reachable drops the record recipients whose contact has no address on the channels (CheckContacts),
 // recording why in Skipped. Only a TxSafeContactResolver is asked, with ctx, so a send reads in its own
 // transaction and a preview writes nothing; the record of any other is kept for the worker. A resolver
@@ -274,11 +277,25 @@ func (s *NotificationDispatchService) reachable(ctx context.Context, channels []
 			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoContactResolver})
 			continue
 		}
-		if _, safe := resolver.(notifications.TxSafeContactResolver); !safe {
+		var contact notifications.Contact
+		var err error
+		switch r := resolver.(type) {
+		case notifications.ContactChecker:
+			// Read-only, but it may take its own connection: bound it, so a pool that cannot spare one fails
+			// the send as unavailable instead of waiting for ever.
+			checkCtx, cancel := context.WithTimeout(ctx, contactCheckTimeout)
+			contact, err = r.CheckContact(checkCtx, tenant, *a.Record)
+			cancel()
+		case notifications.TxSafeContactResolver:
+			contact, err = r.ResolveContact(ctx, tenant, *a.Record)
+		default:
 			kept = append(kept, a) // asked at delivery: it may take its own connection or record its calls
 			continue
 		}
-		contact, err := resolver.ResolveContact(ctx, tenant, *a.Record)
+		if errors.Is(err, notifications.ErrContactUnverifiable) {
+			kept = append(kept, a)
+			continue
+		}
 		switch {
 		case errors.Is(err, notifications.ErrContactNotFound):
 			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoAddress})

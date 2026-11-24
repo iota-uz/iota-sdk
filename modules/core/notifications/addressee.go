@@ -332,6 +332,20 @@ type TxSafeContactResolver interface {
 	TxSafeContacts()
 }
 
+// ErrContactUnverifiable is returned by ContactChecker.CheckContact when the contact cannot be told now
+// without delivering (a resolver with no owner yet, say): the record is kept unchecked and the worker
+// resolves it at delivery.
+var ErrContactUnverifiable = errors.New("notification contact cannot be checked before delivery")
+
+// ContactChecker is an optional ContactResolver extension for a resolver that is not transaction-safe but can
+// answer a read-only question: CheckContact tells what ResolveContact would, writes nothing (no invocation
+// record, no side effect) and may take its own connection, which is why a caller bounds it by a deadline. It
+// is what AudienceRequest.CheckContacts asks, in a send and in a preview, in place of ResolveContact.
+type ContactChecker interface {
+	ContactResolver
+	CheckContact(ctx context.Context, tenantID uuid.UUID, ref ObjectRef) (Contact, error)
+}
+
 // TxSafeContactResolverFunc adapts a function that keeps the TxSafeContactResolver rules.
 type TxSafeContactResolverFunc func(context.Context, uuid.UUID, ObjectRef) (Contact, error)
 

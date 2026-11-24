@@ -537,6 +537,22 @@ func (c *contactResolver) find(ctx context.Context) (resolverImpl, bool, error) 
 // ResolveContact implements notifications.ContactResolver by running the
 // package's resolver as the tenant's owner of that resolver.
 func (c *contactResolver) ResolveContact(ctx context.Context, tenantID uuid.UUID, ref notifications.ObjectRef) (notifications.Contact, error) {
+	return c.resolve(ctx, tenantID, ref, false)
+}
+
+// CheckContact implements notifications.ContactChecker: the same question as ResolveContact, asked without
+// writing an invocation record, so a preview and the contact check of a send leave no trace. The resolver
+// still runs the package's code on its own connections, which is why the caller bounds it by a deadline. A
+// resolver without an active implementation or an owner cannot be asked now: ErrContactUnverifiable.
+func (c *contactResolver) CheckContact(ctx context.Context, tenantID uuid.UUID, ref notifications.ObjectRef) (notifications.Contact, error) {
+	contact, err := c.resolve(ctx, tenantID, ref, true)
+	if serrors.HasCode(err, serrors.FailedPrecondition) {
+		return notifications.Contact{}, notifications.ErrContactUnverifiable
+	}
+	return contact, err
+}
+
+func (c *contactResolver) resolve(ctx context.Context, tenantID uuid.UUID, ref notifications.ObjectRef, unrecorded bool) (notifications.Contact, error) {
 	const op = serrors.Op("extruntime.notify.contactResolver.ResolveContact")
 	impl, ok, err := c.find(ctx)
 	if err != nil {
@@ -573,7 +589,7 @@ func (c *contactResolver) ResolveContact(ctx context.Context, tenantID uuid.UUID
 			Kind: pool.KindQuery, Resource: impl.resolverID,
 			Binding: host.Binding{Contract: impl.resolverID, Package: impl.pkg, Version: impl.version, Export: impl.export, Artifact: art, Secrets: secrets},
 		},
-		Input: input, Subject: subject,
+		Input: input, Subject: subject, Unrecorded: unrecorded,
 		Trigger: host.Trigger{Kind: host.TriggerSubscription, Ref: "contact:" + impl.resolverID},
 	})
 	if err != nil {
@@ -597,3 +613,5 @@ func (c *contactResolver) ResolveContact(ctx context.Context, tenantID uuid.UUID
 	}
 	return contact, nil
 }
+
+var _ notifications.ContactChecker = (*contactResolver)(nil)
