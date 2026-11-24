@@ -15,7 +15,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -31,7 +30,7 @@ func (f *fakeUploads) GetByID(ctx context.Context, id uint) (upload.Upload, erro
 	if u, ok := f.byID[id]; ok {
 		return u, nil
 	}
-	return nil, persistence.ErrUploadNotFound
+	return nil, services.ErrUploadNotFound
 }
 
 func (f *fakeUploads) OpenReader(_ context.Context, path string) (io.ReadCloser, upload.ObjectInfo, error) {

@@ -631,3 +631,24 @@ func TestJevConnectionWhoseProviderCannotBeReadIsRefusedOnSave(t *testing.T) {
 	assert.Equal(t, jev.ErrorConnectionProvider, verr.Errors[0].Code)
 	assert.Equal(t, "nodes[0].params.connection", verr.Errors[0].Path)
 }
+
+// A node that names a connection of the tenant is not about the platform key: when that connection is lost
+// the code is connection_unavailable, whatever the tenant has not enabled.
+func TestNamedTenantConnectionLostIsNotAboutThePlatformKey(t *testing.T) {
+	ae := newAIEnv(t)
+	conn, err := ae.store.Save(context.Background(), connectors.Connection{TenantID: ae.tenant, Kind: catalog.KindOpenAI, Name: "main", DisplayName: "Main"},
+		connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
+	require.NoError(t, err)
+	ae.provider.reply = func(map[string]any) (int, string) { return completion(`{"label":"vip","score":4}`, 30, 5) }
+	p := ae.proc()
+	named := strings.Replace(llmGraph, `"type": "ai.llm", "params": {`, `"type": "ai.llm", "params": {"connection": "`+conn.ID.String()+`", `, 1)
+	ae.create(p, ae.human(), named)
+	run := ae.runUntilDone(p, "o-1", "x")
+	assert.Equal(t, []string{"ok:ok vip 4"}, ae.effects(run.RunID))
+
+	require.NoError(t, ae.store.SetStatus(context.Background(), ae.tenant, conn.ID, connectors.StatusDisabled, "off"))
+	run = ae.runUntilDone(p, "o-2", "x")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:failed connection_unavailable: "), effects[0])
+}

@@ -16,6 +16,9 @@ const (
 	UnitTokensOut = "token_out"
 )
 
+// usageWriteTimeout bounds one usage write.
+const usageWriteTimeout = 5 * time.Second
+
 // RecordUsage reports the tokens of one provider answer to the usage accounting of the call: two entries,
 // token_in and token_out, on the connection the call runs with, a tenant's own or the platform's alike.
 // Every answer is recorded, a repeated call's too (it is paid again), and so is one the node then
@@ -37,10 +40,14 @@ func RecordUsage(ctx context.Context, log *slog.Logger, in catalog.CallInput, u 
 		if e.n <= 0 {
 			continue
 		}
-		err := in.Usage.Record(context.WithoutCancel(ctx), catalog.UsageEntry{
+		// The write outlives the node's deadline (the tokens are spent) but not a stalled database: it has a
+		// bound of its own, so the node can finish.
+		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), usageWriteTimeout)
+		err := in.Usage.Record(wctx, catalog.UsageEntry{
 			TenantID: in.TenantID, Kind: in.Connection.Kind, ConnectionID: in.Connection.ID,
 			Unit: e.unit, Quantity: int64(e.n), RunID: run, At: at,
 		})
+		cancel()
 		if err != nil {
 			if log == nil {
 				log = slog.Default()

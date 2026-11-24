@@ -70,6 +70,11 @@ func (waitBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 		return OutcomeRule{Fixed: []string{w.TimeoutOutcome}}
 	}
 	r := OutcomeRule{Fixed: []string{w.Matched}}
+	if len(spec.Outcomes) > 0 {
+		// A wait that resolves the event it woke on into one of several outcomes (a started run that
+		// finished done or failed) declares them; Matched is one of them.
+		r.Fixed = append([]string(nil), spec.Outcomes...)
+	}
 	if w.TimeoutParam != "" {
 		r.Optional = &OptionalOutcome{Param: w.TimeoutParam, Outcome: w.TimeoutOutcome}
 	}
@@ -141,6 +146,21 @@ func (effectBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphEr
 	return nil
 }
 
+// waitOutcomesError checks the declared outcomes of a wait: they hold its matched and failed outcomes and
+// not its timeout outcome, which the timeout param adds.
+func waitOutcomesError(spec NodeSpec) string {
+	w := spec.Wait
+	switch {
+	case !contains(spec.Outcomes, w.Matched):
+		return "matched outcome " + w.Matched + " is not one of its outcomes"
+	case spec.FailedOutcome != "" && !contains(spec.Outcomes, spec.FailedOutcome):
+		return "failed_outcome " + spec.FailedOutcome + " is not one of its outcomes"
+	case w.TimeoutOutcome != "" && contains(spec.Outcomes, w.TimeoutOutcome):
+		return "timeout outcome " + w.TimeoutOutcome + " comes from the timeout param, not from outcomes"
+	}
+	return ""
+}
+
 func effectOutcomesError(spec NodeSpec) string {
 	if len(spec.Outcomes) == 0 {
 		if spec.FailedOutcome != "" && spec.FailedOutcome != doneOutcome(spec) {
@@ -161,7 +181,16 @@ func (effectBehavior) Start(s *StepContext, node Node, spec NodeSpec) Step {
 	if stop != nil {
 		return *stop
 	}
-	return Step{Kind: StepOutcome, Outcome: doneOutcome(spec), Output: map[string]any{}, Effects: []Effect{e}}
+	out := map[string]any{}
+	if spec.OutputKeys != nil {
+		// The output is the evaluated param itself (a set node's values): a dry run shows it too.
+		if m, ok := e.Params[spec.OutputKeys.Param].(map[string]any); ok {
+			for k, v := range m {
+				out[k] = v
+			}
+		}
+	}
+	return Step{Kind: StepOutcome, Outcome: doneOutcome(spec), Output: out, Effects: []Effect{e}}
 }
 
 func doneOutcome(spec NodeSpec) string {

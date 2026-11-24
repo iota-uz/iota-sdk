@@ -225,10 +225,11 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if mode != DecisionsScripted {
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
 			params := map[string]any{}
+			var stepCtx map[string]any
 			if len(effects) > 0 {
-				params = effects[0].Params
+				params, stepCtx = effects[0].Params, effects[0].Context
 			}
-			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
+			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
 				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode})
 			if res.err != nil {
 				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message, Retryable: res.err.Retryable}
@@ -356,10 +357,11 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 		res.Error = &e
 	case graph.StepCall:
 		params := map[string]any{}
+		var stepCtx map[string]any
 		if len(st.Effects) > 0 {
-			params = st.Effects[0].Params
+			params, stepCtx = st.Effects[0].Params, st.Effects[0].Context
 		}
-		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
+		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
 			subject: subject, key: "test:" + uuid.NewString(), decisions: DecisionsLive})
 		res.Outcome, res.Output, res.Error = dr.outcome, dr.output, dr.err
 		if dr.masker != nil {
@@ -527,6 +529,7 @@ type directCall struct {
 	view      catalog.View
 	node      graph.Node
 	params    map[string]any
+	context   map[string]any // the step's context (graph.NodeSpec.StepContext)
 	subject   SubjectRef
 	key       string
 	decisions string
@@ -559,6 +562,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		}
 		ci, cr, err := r.cfg.Credentials.Open(ctx, c.tenant, ref.ID)
 		switch {
+		case errors.Is(err, connectors.ErrNotFound) && strings.HasPrefix(ref.ID, catalog.PlatformPrefix):
+			// As in a run: the platform key was switched off since the catalog was read.
+			return directResult{err: &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}}
 		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
@@ -576,7 +582,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{
-		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Subject: c.subject,
+		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Context: c.context, Subject: c.subject,
 		RunAs: c.as, Connection: info, Credentials: creds, Deadline: deadline, Usage: r.cfg.Usage,
 	}
 	dn, decides := cn.(DecisionNode)

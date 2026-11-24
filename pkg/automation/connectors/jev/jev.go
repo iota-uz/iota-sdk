@@ -74,6 +74,9 @@ type StatusSetter interface {
 	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error
 }
 
+// statusWriteTimeout bounds the write of a refused key's status.
+const statusWriteTimeout = 5 * time.Second
+
 // Option configures the connector.
 type Option func(*options)
 
@@ -269,11 +272,12 @@ func (c *connector) Test(ctx context.Context, creds connectors.Credentials) (con
 			return connectors.Identity{}, fail(resp, raw)
 		}
 		var key struct {
-			Data struct {
+			Data *struct {
 				Label string `json:"label"`
 			} `json:"data"`
 		}
-		if json.Unmarshal(raw, &key) != nil {
+		// A key the provider authenticates comes with its data; an answer without it checked nothing.
+		if json.Unmarshal(raw, &key) != nil || key.Data == nil {
 			return connectors.Identity{}, errors.New("jev: the provider's answer about the key could not be read")
 		}
 		id = connectors.Identity{Display: strings.TrimSpace(key.Data.Label), External: strings.TrimSpace(key.Data.Label)}
@@ -317,5 +321,8 @@ func (c *connector) markNeedsReauth(ctx context.Context, in catalog.CallInput) {
 	if err != nil {
 		return
 	}
-	_ = c.o.statuses.SetStatus(context.WithoutCancel(ctx), in.TenantID, id, connectors.StatusNeedsReauth, "the provider refused the API key")
+	// The write outlives the node's deadline but not a stalled database: it has a bound of its own.
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), statusWriteTimeout)
+	defer cancel()
+	_ = c.o.statuses.SetStatus(wctx, in.TenantID, id, connectors.StatusNeedsReauth, "the provider refused the API key")
 }

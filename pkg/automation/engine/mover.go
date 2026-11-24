@@ -80,7 +80,7 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	if m.x.ie.unavailable[node.Type] {
 		// The node names the platform credential, or the platform credential is the one it would use, and
 		// the tenant's administrator has not enabled it or switched it off after the run started.
-		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) || m.x.ie.platformOff[node.Type] {
+		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) || (ref == "" && m.x.ie.platformOff[node.Type]) {
 			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnavailable, Message: platformOffMessage})
 		}
 		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: CodeConnectionUnavailable,
@@ -145,6 +145,10 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		if res.Outcome != "" {
 			outcome = res.Outcome
 		}
+	}
+	if output != nil {
+		// jsonb refuses U+0000: a value with a NUL byte (a CEL string) keeps the rest of its text.
+		output, _ = replaceNUL(output).(map[string]any)
 	}
 	if _, err := m.record(ctx, tok, node.ID, behavior, input, outcome, output, nil, true); err != nil {
 		return behavior, err
@@ -228,7 +232,7 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 		np.varsHash = m.varsHash
 	}
 	if err == nil && serr == nil && res.Output != nil {
-		serr = m.tooLarge(res.Output, "the output of "+node.ID)
+		serr = m.outputTooLarge(node.ID, res.Output, "the output of "+node.ID)
 	}
 	if err != nil || serr != nil {
 		if rerr := sp.Rollback(ctx); rerr != nil && err == nil {
@@ -302,12 +306,26 @@ func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, s
 	return res, nil
 }
 
+// outputTooLarge is tooLarge for a node's output: within the node type's MaxOutputBytes when it declares
+// more than the payload limit.
+func (m *mover) outputTooLarge(nodeID string, v any, what string) *StepError {
+	most := m.x.r.cfg.Limits.PayloadBytes
+	if _, spec, ok := m.spec(nodeID); ok && spec.MaxOutputBytes > most {
+		most = spec.MaxOutputBytes
+	}
+	return tooLargeFor(v, what, most)
+}
+
 func (m *mover) tooLarge(v any, what string) *StepError {
+	return tooLargeFor(v, what, m.x.r.cfg.Limits.PayloadBytes)
+}
+
+func tooLargeFor(v any, what string, most int) *StepError {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return &StepError{Code: graph.FailInvalidInput, Message: fmt.Sprintf("%s is not JSON: %v", what, err)}
 	}
-	if most := m.x.r.cfg.Limits.PayloadBytes; len(b) > most {
+	if len(b) > most {
 		return &StepError{Code: CodeLimitExceeded, Message: fmt.Sprintf("%s has %d bytes, at most %d", what, len(b), most)}
 	}
 	return nil
@@ -362,6 +380,7 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if err != nil {
 		return err
 	}
+	raw = withoutNUL(raw) // the call's request is a workflow input (jsonb)
 	if len(raw) > m.x.r.cfg.Limits.PayloadBytes {
 		return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, StepError{Code: CodeLimitExceeded, Message: "the request of " + node.ID + " is too large"})
 	}
@@ -371,6 +390,9 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 		return serrors.FromDB(opRun, err)
 	}
 	sc := m.stepContext(tok, seq)
+	if len(st.Effects) > 0 {
+		sc.Context = st.Effects[0].Context
+	}
 	if fo := m.in().FailedOutcome(node.ID); fo != "" {
 		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)
 		// would end the path silently on a call that may have been made, so such a call blocks instead.
@@ -442,14 +464,17 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	behavior := string(spec.Behavior)
 	var input any
 	params, _ := m.in().View().Params(node.ID)
+	var effectOut map[string]any
 	if len(st.Effects) > 0 {
 		input = effectInput(st.Effects)
 		params = st.Effects[0].Params
-		if _, serr, err := m.applyEffects(ctx, tok, node, spec, st.Effects); err != nil {
+		res, serr, err := m.applyEffects(ctx, tok, node, spec, st.Effects)
+		if err != nil {
 			return err
 		} else if serr != nil {
 			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
 		}
+		effectOut = res.Output
 	}
 	wi := st.Wait
 	kind := waitEvent
@@ -479,6 +504,13 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			w.Filter = &f
 		}
 		w.Subject = m.waitSubject(node, ev, params)
+		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && effectOut != nil {
+			if ek, ok := nt.(EffectWaitKeyer); ok {
+				if s, ok := ek.EffectWaitSubject(params, effectOut); ok {
+					w.Subject = &s
+				}
+			}
+		}
 	}
 	if timeout > 0 {
 		at, err := m.deadline(ctx, timeout)
@@ -1099,7 +1131,23 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	var changed bool
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	if err := m.withheldOutput(ctx, gev); err != nil {
+		return err
+	}
 	outcome, output := m.in().Wake(w.NodeID, gev)
+	if node, _, ok := m.spec(w.NodeID); ok {
+		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok {
+			if wr, ok := nt.(WakeResolver); ok {
+				o, out := wr.ResolveWake(gev)
+				if !slices.Contains(m.in().View().Outcomes(w.NodeID), o) {
+					_, spec, _ := m.spec(w.NodeID)
+					return m.nodeFailed(ctx, tok, w.NodeID, string(spec.Behavior), w.Spec.Seq, nil,
+						StepError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s has no outcome %q", w.NodeID, o)})
+				}
+				outcome, output = o, out
+			}
+		}
+	}
 	return m.applyResult(ctx, tok, w, outcome, output, nil)
 }
 
@@ -1117,7 +1165,7 @@ func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitRes
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
 	}
-	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+	if serr := m.outputTooLarge(w.NodeID, output, "the answer of "+w.NodeID); serr != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
 	}
 	outcome := wr.Outcome
@@ -1218,7 +1266,7 @@ func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
 	}
-	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+	if serr := m.outputTooLarge(w.NodeID, output, "the answer of "+w.NodeID); serr != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
 	}
 	known := false
@@ -1295,7 +1343,11 @@ func jsonOrNil(v any) ([]byte, error) {
 			return nil, nil
 		}
 	}
-	return json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return withoutNUL(b), nil // jsonb refuses U+0000
 }
 
 // activeTokens counts the tokens that run: not finished and not waiting for their own branches.
@@ -1392,4 +1444,52 @@ func (m *mover) subjectVars(ctx context.Context) (map[string]any, error) {
 	}
 	m.vars = vars
 	return vars, nil
+}
+
+// withheldOutput gives a wait woken by the finish of a run whose output the event withheld (the run read
+// sensitive fields) that output, read from the run, when this run's run-as may read those fields; the
+// fields then go with this run's data too.
+func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
+	if gev.Kind() != EventRunFinished {
+		return nil
+	}
+	if withheld, _ := gev["outputWithheld"].(bool); !withheld {
+		return nil
+	}
+	id, err := uuid.Parse(fmt.Sprint(gev["runId"]))
+	if err != nil {
+		return nil //nolint:nilerr // not a run's ID: the output stays withheld
+	}
+	var out, raw []byte
+	err = m.tx.QueryRow(ctx, `SELECT output, sensitive FROM automation.runs WHERE tenant_id = $1 AND id = $2`, m.x.tenant, id).Scan(&out, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	var refs []sensitiveRef
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &refs); err != nil {
+			return err
+		}
+	}
+	ok, err := m.x.r.projector(m.x.tenant).readable(ctx, refs, &m.x.subject)
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
+	if !ok {
+		return nil
+	}
+	var output any
+	if len(out) > 0 {
+		if err := json.Unmarshal(out, &output); err != nil {
+			return err
+		}
+	}
+	gev["output"], gev["outputWithheld"] = output, false
+	var changed bool
+	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
+	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	return nil
 }

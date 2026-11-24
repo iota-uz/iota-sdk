@@ -10,13 +10,18 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
-// UploadReader is what UploadImages reads of the uploads module (*services.UploadService of core).
+// ErrUploadNotFound is what an UploadReader answers for an upload that does not exist: the reader's
+// contract, so a reader over any storage says it without this package knowing the storage's own errors.
+var ErrUploadNotFound = errors.New("automations: no such upload")
+
+// UploadReader is what UploadImages reads of the uploads module: the core service behind an adapter that
+// translates its not-found error into ErrUploadNotFound.
 type UploadReader interface {
+	// GetByID returns ErrUploadNotFound when there is no upload with the id.
 	GetByID(ctx context.Context, id uint) (upload.Upload, error)
 	OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error)
 }
@@ -47,7 +52,7 @@ func (u UploadImages) Image(ctx context.Context, tenantID uuid.UUID, uploadID st
 	ctx = composables.WithTenantID(ctx, tenantID)
 	up, err := reader.GetByID(ctx, uint(n))
 	switch {
-	case errors.Is(err, persistence.ErrUploadNotFound):
+	case errors.Is(err, ErrUploadNotFound):
 		return openai.Image{}, openai.ErrImageNotFound
 	case err != nil:
 		return openai.Image{}, fmt.Errorf("read upload %d: %w", n, err)

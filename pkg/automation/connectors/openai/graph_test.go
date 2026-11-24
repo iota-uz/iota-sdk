@@ -1,6 +1,7 @@
 package openai_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ func TestGraphValidation(t *testing.T) {
 
 	// An alias is refused on save.
 	errs := aitest.Validate(t, v, llmGraph(`{"prompt":"x","model":"gpt-4o-latest"}`))
+	require.Len(t, errs, 1)
 	assert.Equal(t, []string{"nodes[0].params.model:params"}, codes(errs))
 	assert.Contains(t, errs[0].Message, "alias")
 
@@ -76,8 +78,8 @@ func TestGraphJSONOutputIsTypedBySchema(t *testing.T) {
 
 	// A schema the node cannot type is refused on save.
 	errs := aitest.Validate(t, v, llmGraph(`{"prompt":"x","format":"json","schema":{"type":"object","properties":{"a":{"type":"string","pattern":"x"}}}}`))
-	assert.NotEmpty(t, errs)
-	assert.Equal(t, "nodes[0].params", errs[0].Path[:len("nodes[0].params")])
+	require.NotEmpty(t, errs)
+	assert.True(t, strings.HasPrefix(errs[0].Path, "nodes[0].params"), errs[0].Path)
 }
 
 func TestCatalogViewCarriesTheNodeSpec(t *testing.T) {

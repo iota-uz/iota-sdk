@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -27,8 +29,12 @@ const (
 	OutcomeFailed = "failed"
 )
 
-// ErrorModelNoVision is the graph error code of a node that sends images to a model without vision.
-const ErrorModelNoVision = "model_no_vision"
+// ErrorModelNoVision is the graph error code of a node that sends images to a model without vision;
+// ErrorModelNoStructuredOutput that of a JSON answer from a model that has no strict structured output.
+const (
+	ErrorModelNoVision           = "model_no_vision"
+	ErrorModelNoStructuredOutput = "model_no_structured_output"
+)
 
 // Limits of the params.
 const (
@@ -131,6 +137,15 @@ func (n *llmNode) check(p map[string]any) []graph.Issue {
 		}
 		if _, err := aichat.Prepare(raw); err != nil {
 			issues = append(issues, aichat.Issue("schema", "", "%v", err))
+		}
+	}
+	if format == FormatJSON {
+		model, _ := p["model"].(string)
+		if model == "" {
+			model = n.o.defaultModel
+		}
+		if aichat.NoStructuredOutput(model) {
+			issues = append(issues, aichat.Issue("model", ErrorModelNoStructuredOutput, "the model %s cannot answer in strict structured output; choose a newer model or format text", model))
 		}
 	}
 	if hasImages(p) {
@@ -280,20 +295,11 @@ func (n *llmNode) read(p map[string]any) (llmCall, error) {
 			return r, errors.New("images is a list of upload ids")
 		}
 		for _, e := range list {
-			switch id := e.(type) {
-			case string:
-				r.images = append(r.images, id)
-			case json.Number:
-				r.images = append(r.images, id.String())
-			case int:
-				r.images = append(r.images, fmt.Sprint(id))
-			case int64:
-				r.images = append(r.images, fmt.Sprint(id))
-			case float64:
-				r.images = append(r.images, fmt.Sprint(int64(id)))
-			default:
+			id, ok := uploadID(e)
+			if !ok {
 				return r, errors.New("images is a list of upload ids")
 			}
+			r.images = append(r.images, id)
 		}
 		if len(r.images) > MaxImages {
 			return r, fmt.Errorf("at most %d images", MaxImages)
@@ -319,6 +325,38 @@ func connectionID(in catalog.CallInput) string {
 	return in.Connection.ID
 }
 
+// uploadID is an upload id of a list the engine rendered: a string, or a whole number (a fraction is no id,
+// and is not rounded to one).
+func uploadID(v any) (string, bool) {
+	switch id := v.(type) {
+	case string:
+		return id, true
+	case int:
+		return strconv.Itoa(id), true
+	case int64:
+		return strconv.FormatInt(id, 10), true
+	case json.Number:
+		if n, err := id.Int64(); err == nil {
+			return strconv.FormatInt(n, 10), true
+		}
+		f, err := strconv.ParseFloat(id.String(), 64)
+		if err != nil {
+			return "", false
+		}
+		return wholeNumber(f)
+	case float64:
+		return wholeNumber(id)
+	}
+	return "", false
+}
+
+func wholeNumber(f float64) (string, bool) {
+	if f != math.Trunc(f) || math.Abs(f) > 1<<53 {
+		return "", false
+	}
+	return strconv.FormatInt(int64(f), 10), true
+}
+
 func invalid(msg string) error {
 	return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: msg}
 }
@@ -337,6 +375,9 @@ func (n *llmNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 	}
 	if len(r.images) > 0 && !n.o.vision(r.model) {
 		return catalog.CallResult{}, invalid(fmt.Sprintf("the model %s does not take images", r.model))
+	}
+	if r.format == FormatJSON && aichat.NoStructuredOutput(r.model) {
+		return catalog.CallResult{}, invalid(fmt.Sprintf("the model %s cannot answer in strict structured output", r.model))
 	}
 	images, err := loadImages(ctx, n.o.images, in.TenantID, r.images)
 	if err != nil {

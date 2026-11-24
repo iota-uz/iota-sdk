@@ -104,3 +104,24 @@ func TakesTemperature(id string) bool {
 	}
 	return true
 }
+
+var structuredOutputs = regexp.MustCompile(`^(?:openai/)?(?:` +
+	`gpt-4o-mini|gpt-4\.1(?:-mini|-nano)?|gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|o1|o3(?:-mini|-pro)?|o4-mini)` +
+	`(?:-\d{4}-\d{2}-\d{2})?$`)
+
+// gpt4oSnapshot is a dated gpt-4o snapshot; Structured Outputs came with 2024-08-06.
+var gpt4oSnapshot = regexp.MustCompile(`^(?:openai/)?gpt-4o-(\d{4}-\d{2}-\d{2})$`)
+
+// NoStructuredOutput reports whether id is a model of OpenAI that cannot answer in strict structured output
+// (json_schema with strict): gpt-4-turbo, gpt-3.5-turbo, o1-mini, gpt-4o before 2024-08-06 and the like. A
+// model of another family is not judged: a compatible endpoint names and serves its models as it pleases.
+func NoStructuredOutput(id string) bool {
+	l := strings.ToLower(id)
+	if !openAIFamily.MatchString(l) {
+		return false
+	}
+	if m := gpt4oSnapshot.FindStringSubmatch(l); m != nil {
+		return m[1] < "2024-08-06"
+	}
+	return !structuredOutputs.MatchString(l)
+}

@@ -721,7 +721,12 @@ func (c *Controller) dryRun(ctx context.Context, req DryRunRequest) (DryRunRespo
 	if s := subjectRef(&req.Subject); s != nil {
 		subject = *s
 	}
-	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events})
+	switch req.Decisions {
+	case "", DecisionsScripted, DecisionsCached, DecisionsLive:
+	default:
+		return DryRunResponse{}, solid.NewRPCError("invalid_input", "decisions is scripted, cached or live", map[string]string{"code": "invalid_input"})
+	}
+	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events, Decisions: string(req.Decisions)})
 	if err != nil {
 		return DryRunResponse{}, mapErr(err)
 	}
@@ -741,7 +746,7 @@ func (c *Controller) testNode(ctx context.Context, req TestNodeRequest) (TestNod
 	if err != nil {
 		return TestNodeResponse{}, mapErr(err)
 	}
-	out := TestNodeResponse{Outcome: res.Outcome, Output: res.Output, Logs: res.Logs, DurationMS: res.DurationMS}
+	out := TestNodeResponse{Outcome: res.Outcome, Output: res.Output, Logs: res.Logs, Request: res.Request, DurationMS: res.DurationMS}
 	if res.Error != nil {
 		out.Error = &TestNodeError{Reason: res.Error.Code, Message: res.Error.Message}
 	}

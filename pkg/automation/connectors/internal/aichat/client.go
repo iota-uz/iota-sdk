@@ -232,20 +232,31 @@ func (ep Endpoint) body(r Request) ([]byte, error) {
 	return json.Marshal(req)
 }
 
-type chatResponse struct {
-	Model   string `json:"model"`
-	Choices []struct {
-		FinishReason string `json:"finish_reason"`
-		Message      struct {
-			Content any    `json:"content"`
-			Refusal string `json:"refusal"`
-		} `json:"message"`
-	} `json:"choices"`
-	Usage *struct {
-		PromptTokens     int      `json:"prompt_tokens"`
-		CompletionTokens int      `json:"completion_tokens"`
-		Cost             *float64 `json:"cost"`
-	} `json:"usage"`
+// chatEnvelope is the answer read loosely: a field of an unexpected type is a malformed answer, told from a
+// body that is not JSON at all, and the usage the answer reports is kept either way (the tokens were spent).
+type chatEnvelope struct {
+	Model   json.RawMessage `json:"model"`
+	Choices json.RawMessage `json:"choices"`
+	Usage   json.RawMessage `json:"usage"`
+}
+
+type chatChoice struct {
+	FinishReason json.RawMessage `json:"finish_reason"`
+	Message      json.RawMessage `json:"message"`
+}
+
+type chatMessageBody struct {
+	Content json.RawMessage `json:"content"`
+	Refusal json.RawMessage `json:"refusal"`
+}
+
+// stringValue reads a JSON string; anything else is "" (a null, a number, an object).
+func stringValue(raw json.RawMessage) (string, bool) {
+	var s string
+	if len(raw) == 0 || json.Unmarshal(raw, &s) != nil {
+		return "", false
+	}
+	return s, true
 }
 
 type apiError struct {
@@ -284,28 +295,72 @@ func (c *Client) Complete(ctx context.Context, ep Endpoint, r Request) (Response
 	if resp.StatusCode != http.StatusOK {
 		return Response{}, statusFailure(resp, raw, ep.APIKey)
 	}
-	var cr chatResponse
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := dec.Decode(&cr); err != nil {
+	var env chatEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		// Not a JSON object at all (a proxy's error page): the provider may answer properly next time.
 		return Response{}, fail(catalog.CallUnavailable, "the provider's answer is not JSON", true)
 	}
-	out := Response{Model: cr.Model}
-	if cr.Usage != nil {
-		out.Usage = Usage{InputTokens: cr.Usage.PromptTokens, OutputTokens: cr.Usage.CompletionTokens, CostUSD: cr.Usage.Cost}
+	out := Response{}
+	out.Model, _ = stringValue(env.Model)
+	out.Usage = readUsage(env.Usage)
+	malformed := func(msg string) (Response, *Failure) {
+		return out, fail(catalog.CallInvalidRequest, msg, false)
 	}
-	if len(cr.Choices) == 0 {
-		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no choices", false)
+	var choices []json.RawMessage
+	if json.Unmarshal(env.Choices, &choices) != nil {
+		return malformed("the provider's answer has malformed choices")
 	}
-	ch := cr.Choices[0]
-	out.FinishReason = ch.FinishReason
-	out.Text = contentText(ch.Message.Content)
+	if len(choices) == 0 {
+		return malformed("the provider's answer has no choices")
+	}
+	var ch chatChoice
+	if json.Unmarshal(choices[0], &ch) != nil {
+		return malformed("the provider's answer has a malformed choice")
+	}
+	if len(ch.FinishReason) > 0 && string(ch.FinishReason) != "null" {
+		reason, ok := stringValue(ch.FinishReason)
+		if !ok {
+			return malformed("the provider's finish reason is not a string")
+		}
+		out.FinishReason = reason
+	}
+	var msg chatMessageBody
+	if json.Unmarshal(ch.Message, &msg) != nil {
+		return malformed("the provider's answer has a malformed message")
+	}
+	var content any
+	if len(msg.Content) > 0 && json.Unmarshal(msg.Content, &content) != nil {
+		return malformed("the provider's message content is malformed")
+	}
+	out.Text = contentText(content)
+	refusal, _ := stringValue(msg.Refusal)
 	switch {
-	case ch.Message.Refusal != "":
-		return out, fail(catalog.CallRejected, "the model refused: "+scrub(ch.Message.Refusal, ep.APIKey), false)
-	case ch.FinishReason == "content_filter":
+	case refusal != "":
+		return out, fail(catalog.CallRejected, "the model refused: "+scrub(refusal, ep.APIKey), false)
+	case out.FinishReason == "content_filter":
 		return out, fail(catalog.CallRejected, "the answer was blocked by the provider's content filter", false)
 	}
 	return out, nil
+}
+
+// readUsage reads the usage an answer reports; one that is missing or malformed is none (an answer
+// whose usage cannot be read cannot be accounted).
+func readUsage(raw json.RawMessage) Usage {
+	var u struct {
+		PromptTokens     int      `json:"prompt_tokens"`
+		CompletionTokens int      `json:"completion_tokens"`
+		InputTokens      int      `json:"input_tokens"`
+		OutputTokens     int      `json:"output_tokens"`
+		Cost             *float64 `json:"cost"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &u) != nil {
+		return Usage{}
+	}
+	in, outTokens := u.PromptTokens, u.CompletionTokens
+	if in == 0 && outTokens == 0 {
+		in, outTokens = u.InputTokens, u.OutputTokens
+	}
+	return Usage{InputTokens: in, OutputTokens: outTokens, CostUSD: u.Cost}
 }
 
 // contentText is the text of a message's content: a string, or the text parts of a list.

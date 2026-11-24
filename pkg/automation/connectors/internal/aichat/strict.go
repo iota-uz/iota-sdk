@@ -37,6 +37,15 @@ func Prepare(raw json.RawMessage) (*Schema, error) {
 	if !ok {
 		return nil, fmt.Errorf("schema is an object")
 	}
+	// The provider takes a schema of at most MaxSchemaDepth levels of nesting, the wrapper of a schema that is
+	// not an object included.
+	depth := schemaDepth(obj)
+	if t, _ := obj["type"].(string); t != "object" {
+		depth++
+	}
+	if depth > MaxSchemaDepth {
+		return nil, fmt.Errorf("the schema is nested %d levels deep; at most %d", depth, MaxSchemaDepth)
+	}
 	s := &Schema{original: doc}
 	closed, err := json.Marshal(closeObjects(obj))
 	if err != nil {
@@ -205,4 +214,27 @@ func DecodeJSON(text string) (any, error) {
 		return nil, fmt.Errorf("there is text after the JSON value")
 	}
 	return v, nil
+}
+
+// MaxSchemaDepth is the levels of nesting of objects and arrays the providers' strict mode takes.
+const MaxSchemaDepth = 10
+
+// schemaDepth is the levels of nesting of objects and arrays in a schema: a scalar has none, an object one
+// more than its deepest property, an array one more than its items.
+func schemaDepth(schema map[string]any) int {
+	switch schema["type"] {
+	case "object":
+		deepest := 0
+		props, _ := schema["properties"].(map[string]any)
+		for _, p := range props {
+			if child, ok := p.(map[string]any); ok {
+				deepest = max(deepest, schemaDepth(child))
+			}
+		}
+		return 1 + deepest
+	case "array":
+		items, _ := schema["items"].(map[string]any)
+		return 1 + schemaDepth(items)
+	}
+	return 0
 }

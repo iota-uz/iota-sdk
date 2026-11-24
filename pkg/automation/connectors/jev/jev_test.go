@@ -146,6 +146,7 @@ func TestParams(t *testing.T) {
 		"long description":   `{"input":"{}","choices":[{"value":"a","description":"` + strings.Repeat("x", 2001) + `"},{"value":"b","description":"B"}]}`,
 		"confidence over 1":  `{"input":"{}","choices":` + two + `,"min_confidence":1.1}`,
 		"confidence under 0": `{"input":"{}","choices":` + two + `,"min_confidence":-0.1}`,
+		"blank description":  `{"input":"{}","choices":[{"value":"a","description":"   "},{"value":"b","description":"B"}]}`,
 		"alias":              `{"input":"{}","choices":` + two + `,"model":"gpt-4o-latest"}`,
 		"timeout":            `{"input":"{}","choices":` + two + `,"timeout_ms":300001}`,
 		"rolling":            `{"input":"{}","choices":` + two + `,"model":"gpt-4o"}`,
@@ -215,7 +216,7 @@ func TestModelIsPinnedByTheProviderOfTheConnection(t *testing.T) {
 	assert.Empty(t, issues)
 	assert.Equal(t, "typesafe/jev-1.13", got["model"])
 
-	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}} {
+	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}, {"oa", "gpt-3.5-turbo-0125"}, {"oa", "gpt-4o-2024-05-13"}} {
 		_, issues := prepare(bad[0], map[string]any{"model": bad[1]})
 		require.Len(t, issues, 1, bad)
 		assert.Equal(t, jev.ErrorModelProvider, issues[0].Code)
@@ -335,6 +336,14 @@ func TestOpenRouterDecidesWithTypeSafeJev(t *testing.T) {
 	assert.Equal(t, "refund", res.Output["choice"])
 	assert.InDelta(t, 0.7, res.Output["confidence"], 1e-9)
 
+	// A floor between the provider's confidence (0.7) and the probability of the choice (0.8) tells which one
+	// routes: the confidence is under it.
+	in = aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"min_confidence": 0.75}), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
+	res, err = n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "low_confidence", res.Outcome, "routed by the provider's confidence, not by the probability of the choice")
+
 	// The floor itself takes the choice.
 	in = aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"min_confidence": 0.7}), nil)
 	in.Params["model"] = "typesafe/jev-1.14"
@@ -422,8 +431,8 @@ func TestOpenRouterAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 		"empty choice":        typesafe("", good, f(0.9)),
 		"missing probability": typesafe("refund", map[string]float64{"refund": 0.5, "exchange": 0.5}, f(0.9)),
 		"extra probability":   typesafe("refund", map[string]float64{"refund": 0.4, "exchange": 0.2, "other": 0.2, "x": 0.2}, f(0.9)),
-		"over one":            typesafe("a", map[string]float64{"refund": 2, "exchange": 1, "other": 0}, f(0.9)),
-		"negative":            typesafe("refund", map[string]float64{"refund": 1.5, "exchange": -0.3, "other": -0.2}, f(0.9)),
+		"over one":            typesafe("refund", map[string]float64{"refund": 1.01, "exchange": 0, "other": 0}, f(0.9)),
+		"negative":            typesafe("refund", map[string]float64{"refund": 1, "exchange": -0.1, "other": 0.1}, f(0.9)),
 		"does not sum":        typesafe("refund", map[string]float64{"refund": 0.5, "exchange": 0.1, "other": 0.1}, f(0.9)),
 		"all zero":            typesafe("refund", map[string]float64{"refund": 0, "exchange": 0, "other": 0}, f(0.9)),
 		"confidence over one": typesafe("refund", good, f(1.2)),
@@ -579,9 +588,9 @@ func TestOpenAIAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 		"empty choice":        decision("", good),
 		"missing probability": decision("refund", map[string]float64{"refund": 0.5, "exchange": 0.5}),
 		"extra probability":   decision("refund", map[string]float64{"refund": 0.4, "exchange": 0.2, "other": 0.2, "x": 0.2}),
-		"a above one":         decision("refund", map[string]float64{"refund": 2, "exchange": 1, "other": 0}),
+		"above one":           decision("refund", map[string]float64{"refund": 1.01, "exchange": 0, "other": 0}),
 		"percentages":         decision("refund", map[string]float64{"refund": 80, "exchange": 10, "other": 10}),
-		"negative":            decision("refund", map[string]float64{"refund": 1.5, "exchange": -0.3, "other": -0.2}),
+		"negative":            decision("refund", map[string]float64{"refund": 1, "exchange": -0.1, "other": 0.1}),
 		"does not sum":        decision("refund", map[string]float64{"refund": 0.2, "exchange": 0.1, "other": 0.1}),
 		"all zero":            decision("refund", map[string]float64{"refund": 0, "exchange": 0, "other": 0}),
 		"not json":            aitest.Chat("refund", 10, 1),
@@ -778,7 +787,9 @@ func TestDecisionKey(t *testing.T) {
 	}
 	// A decision of one connection or provider is not another's.
 	withConn := func(provider, conn string) string {
-		k, ok := dn.DecisionKey(catalog.CallInput{Params: base(t, n, nil), Credentials: catalog.Credentials{"provider": provider}, Connection: &catalog.ConnectionInfo{ID: conn}})
+		p := base(t, n, nil)
+		p["model"] = "typesafe/jev-1.14" // the same model: only the connection and the provider differ
+		k, ok := dn.DecisionKey(catalog.CallInput{Params: p, Credentials: catalog.Credentials{"provider": provider}, Connection: &catalog.ConnectionInfo{ID: conn}})
 		require.True(t, ok)
 		return k
 	}
@@ -823,6 +834,26 @@ func TestConnectorTestOpenRouter(t *testing.T) {
 	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-v1-secret"})
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "sk-or-v1-secret")
+
+	// A refusal that keeps the provider's detail: the detail stays, the key in it does not.
+	detail := aitest.New(t, aitest.Reply{Status: 400, Body: aitest.APIError("harmless-marker for sk-or-v1-secret", "", "400")})
+	c = jev.New(jev.WithTransport(detail.Transport()))
+	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-v1-secret"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "harmless-marker")
+	assert.NotContains(t, err.Error(), "sk-or-v1-secret")
+
+	// A 200 that carries no key data authenticated nothing.
+	empty := aitest.New(t)
+	empty.Handler = func(r aitest.Request) aitest.Reply {
+		if strings.HasSuffix(r.Path, "/auth/key") {
+			return aitest.Reply{Body: `{}`}
+		}
+		return aitest.Reply{Body: `{"data":[{"id":"m"}]}`}
+	}
+	c = jev.New(jev.WithTransport(empty.Transport()))
+	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-v1-secret"})
+	assert.Error(t, err)
 }
 
 func TestConnectorTestOpenAI(t *testing.T) {

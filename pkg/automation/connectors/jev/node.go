@@ -117,7 +117,17 @@ var (
 func newNode(o options, client *aichat.Client, unauthorized func(context.Context, catalog.CallInput)) *jevNode {
 	n := &jevNode{o: o, client: client, unauthorized: unauthorized}
 	n.params = aichat.NewSpec(paramsSchema(), func(p map[string]any) []graph.Issue {
-		return append(aichat.CheckModelParam(p), aichat.CheckTimeout(p)...)
+		issues := append(aichat.CheckModelParam(p), aichat.CheckTimeout(p)...)
+		// minLength counts a space: a description of nothing but blanks would save and fail every run.
+		list, _ := p["choices"].([]any)
+		for i, e := range list {
+			if m, ok := e.(map[string]any); ok {
+				if d, _ := m["description"].(string); strings.TrimSpace(d) == "" {
+					issues = append(issues, graph.Issue{Path: []any{"choices", i, "description"}, Message: "a description is not blank"})
+				}
+			}
+		}
+		return issues
 	})
 	return n
 }
@@ -324,6 +334,9 @@ func checkProviderModel(provider, model string) error {
 	case ProviderOpenAI:
 		if strings.HasPrefix(model, "typesafe/") {
 			return fmt.Errorf("model %q is a TypeSafe Jev version: it needs a connection with provider openrouter", model)
+		}
+		if aichat.NoStructuredOutput(model) {
+			return fmt.Errorf("model %q cannot answer in strict structured output, which the decision needs", model)
 		}
 	}
 	return nil

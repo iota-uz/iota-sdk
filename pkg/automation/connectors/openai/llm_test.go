@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 )
 
-const answerSchema = `{"type":"object","properties":{"summary":{"type":"string"},"score":{"type":"integer"},"tags":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}},"required":["summary","score"]}`
+const answerSchema = `{"type":"object","properties":{"summary":{"type":"string"},"score":{"type":"integer"},"tags":{"type":"array","items":{"type":"string"}},"note":{"type":"string"},"detail":{"type":"object","properties":{"x":{"type":"integer"},"y":{"type":"string"}},"required":["x"]}},"required":["summary","score"]}`
 
 func schemaParam(t *testing.T) map[string]any {
 	t.Helper()
@@ -262,7 +264,7 @@ func TestJSONCall(t *testing.T) {
 	assert.Equal(t, true, js["strict"])
 	strict := js["schema"].(map[string]any)
 	assert.Equal(t, false, strict["additionalProperties"])
-	assert.ElementsMatch(t, []any{"note", "score", "summary", "tags"}, strict["required"], "strict mode requires every property")
+	assert.ElementsMatch(t, []any{"detail", "note", "score", "summary", "tags"}, strict["required"], "strict mode requires every property")
 	note := strict["properties"].(map[string]any)["note"].(map[string]any)
 	assert.Equal(t, []any{"string", "null"}, note["type"], "an optional property is nullable")
 }
@@ -507,12 +509,14 @@ func (m images) Image(_ context.Context, _ uuid.UUID, id string, max int64) (ope
 	return img, nil
 }
 
+var jpeg = []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00")
+
 var png = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89")
 
 func TestImagesReachTheProvider(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("a cat", 100, 3)})
 	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{
-		"11": {Data: png}, "12": {MediaType: "image/jpeg; charset=binary", Data: []byte("jpegdata")},
+		"11": {Data: png}, "12": {MediaType: "image/jpeg; charset=binary", Data: jpeg},
 	}))
 	params := parsed(t, n, map[string]any{"prompt": "what is it?", "model": "gpt-4o-2024-08-06", "images": "event.images"})
 	params["images"] = []any{"11", json.Number("12")} // the engine renders the expression to its value
@@ -538,9 +542,9 @@ func TestImagesReachTheProvider(t *testing.T) {
 func TestImageFailures(t *testing.T) {
 	big := make([]byte, openai.MaxImageBytes+1)
 	copy(big, png)
-	n, _ := newNode(t, openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}}))
+	n, _ := newNode(t, openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}, "mislabeled": {MediaType: "image/jpeg", Data: png}}))
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
-	n, _ = newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}}))
+	n, _ = newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}, "mislabeled": {MediaType: "image/jpeg", Data: png}}))
 
 	run := func(model string, ids ...any) error {
 		params := parsed(t, n, map[string]any{"prompt": "x", "model": model})
@@ -551,6 +555,7 @@ func TestImageFailures(t *testing.T) {
 	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "missing")).Message, "not found")
 	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "big")).Message, "5 MB")
 	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "text")).Message, "PNG, JPEG")
+	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "mislabeled")).Message, "labelled image/jpeg but is image/png")
 	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", 1, 2, 3, 4, 5, 6, 7, 8, 9)).Message, "at most 8")
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-3.5-turbo-0125", "1")).Code, "a model without vision, whatever was saved")
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-4o-2024-08-06", true)).Code)
@@ -803,7 +808,7 @@ func TestDecisionKeyFollowsTheEndpointAndTheConnection(t *testing.T) {
 func TestUndeclaredNullFieldIsRefused(t *testing.T) {
 	for name, answer := range map[string]string{
 		"undeclared null": `{"summary":"fine","score":4,"extra":null}`,
-		"nested null":     `{"summary":"fine","score":4,"tags":null,"other":null}`,
+		"nested null":     `{"summary":"fine","score":4,"detail":{"x":1,"extra":null}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(answer, 20, 9)})
@@ -821,4 +826,134 @@ func TestUndeclaredNullFieldIsRefused(t *testing.T) {
 	require.NoError(t, err)
 	raw, _ := json.Marshal(res.Output["json"])
 	assert.JSONEq(t, `{"summary":"fine","score":4}`, string(raw))
+}
+
+// A fraction is not an upload id and is not rounded to one; a whole number is.
+func TestFractionalImageIDsAreRefused(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"7": {Data: png}}))
+	run := func(id any) error {
+		p := parsed(t, n, map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06"})
+		p["images"] = []any{id}
+		_, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
+		return err
+	}
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(7.9)).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("7.9"))).Code)
+	assert.Empty(t, srv.Requests(), "nothing was sent for a fraction")
+	for _, whole := range []any{"7", 7, int64(7), 7.0, json.Number("7"), json.Number("7.0")} {
+		assert.NoError(t, run(whole), "%v", whole)
+	}
+}
+
+func TestSchemaDepthIsBoundedOnSave(t *testing.T) {
+	nested := func(levels int) map[string]any {
+		var s any = map[string]any{"type": "string"}
+		for i := 0; i < levels; i++ {
+			s = map[string]any{"type": "object", "properties": map[string]any{"a": s}, "required": []any{"a"}}
+		}
+		return s.(map[string]any)
+	}
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": nested(10)})
+	assert.Empty(t, issues, "ten levels")
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": nested(11)})
+	require.Len(t, issues, 1)
+	assert.Contains(t, issues[0].Message, "levels deep")
+	// A schema that is not an object is wrapped, and the wrapper is a level.
+	arrays := map[string]any{"type": "string"}
+	var s any = arrays
+	for i := 0; i < 10; i++ {
+		s = map[string]any{"type": "array", "items": s}
+	}
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": s})
+	assert.NotEmpty(t, issues, "ten arrays and the wrapper are eleven")
+}
+
+func TestStructuredOutputNeedsASupportingModel(t *testing.T) {
+	for model, no := range map[string]bool{
+		"gpt-3.5-turbo-0125": true, "gpt-4-turbo-2024-04-09": true, "gpt-4-0613": true, "gpt-4o-2024-05-13": true, "o1-mini-2024-09-12": true,
+		"gpt-4o-2024-08-06": false, "gpt-4o-mini-2024-07-18": false, "gpt-4.1-2025-04-14": false, "gpt-5-2025-08-07": false, "o3-2025-04-16": false,
+		"my-company-model": false, "meta-llama/llama-3-8b-instruct": false,
+	} {
+		assert.Equal(t, no, aichat.NoStructuredOutput(model), model)
+	}
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t), "model": "gpt-4-turbo-2024-04-09"})
+	require.Len(t, issues, 1)
+	assert.Equal(t, openai.ErrorModelNoStructuredOutput, issues[0].Code)
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-4-turbo-2024-04-09"})
+	assert.Empty(t, issues, "text needs no structured output")
+
+	// A call saved before this check is refused before any request.
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(`{}`, 1, 1)})
+	nn, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	p := parsed(t, nn, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)})
+	p["model"] = "gpt-4-turbo-2024-04-09"
+	_, err := nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+	assert.Empty(t, srv.Requests())
+}
+
+// A malformed field of an answer does not hide the usage it reports, and is not repeated.
+func TestMalformedChatAnswerKeepsItsUsage(t *testing.T) {
+	for name, body := range map[string]string{
+		"finish reason": `{"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[{"finish_reason":false,"message":{"content":"x"}}]}`,
+		"choices":       `{"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":{"a":1}}`,
+		"message":       `{"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[{"finish_reason":"stop","message":[]}]}`,
+		"content":       `{"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[{"finish_reason":"stop","message":{"content":{"a":` + `1}}}]}`,
+		"model":         `{"model":false,"usage":{"prompt_tokens":10,"completion_tokens":2},"choices":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: body})
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			usage := &aitest.Usage{}
+			in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), usage)
+			_, err := n.Execute(context.Background(), in)
+			ce := callCode(t, err)
+			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+			assert.False(t, ce.Retryable)
+			assert.Len(t, srv.Requests(), 1)
+			assert.EqualValues(t, 10, usage.Total("token_in"))
+			assert.EqualValues(t, 2, usage.Total("token_out"))
+		})
+	}
+}
+
+type slowUsage struct{ deadline chan time.Duration }
+
+func (u slowUsage) Record(ctx context.Context, _ catalog.UsageEntry) error {
+	dl, ok := ctx.Deadline()
+	if !ok {
+		u.deadline <- -1
+		return nil
+	}
+	u.deadline <- time.Until(dl)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// The write of the usage has a bound of its own: a database that stalls does not hold the node.
+func TestUsageWriteIsBounded(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 3, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	rec := slowUsage{deadline: make(chan time.Duration, 4)}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), rec)
+	ctx, cancel := context.WithCancel(context.Background())
+	started := time.Now()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = n.Execute(ctx, in)
+	}()
+	d := <-rec.deadline
+	cancel() // the node's own context ending does not end the write
+	assert.Positive(t, d, "the write has a deadline")
+	assert.LessOrEqual(t, d, 6*time.Second)
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the node did not return: the usage write is not bounded")
+	}
+	assert.Less(t, time.Since(started), 14*time.Second)
 }

@@ -51,8 +51,8 @@ type decisionBody struct {
 // decisionReply is the answer read loosely: only its envelope is typed, so a malformed answer inside it
 // is told from a malformed body, and the usage it reports is kept either way.
 type decisionReply struct {
-	Model    string          `json:"model"`
-	Provider string          `json:"provider"`
+	Model    json.RawMessage `json:"model"`
+	Provider json.RawMessage `json:"provider"`
 	Answers  json.RawMessage `json:"answers"`
 	Usage    json.RawMessage `json:"usage"`
 }
@@ -103,16 +103,11 @@ func (c *Client) Decide(ctx context.Context, ep Endpoint, r DecisionRequest) (De
 		// Not a JSON object at all (a proxy's error page): the provider may answer properly next time.
 		return DecisionResponse{}, fail(catalog.CallUnavailable, "the provider's answer is not JSON", true)
 	}
-	out := DecisionResponse{Model: dr.Model, Provider: dr.Provider}
+	out := DecisionResponse{}
+	out.Model, _ = stringValue(dr.Model)
+	out.Provider, _ = stringValue(dr.Provider)
 	// The tokens were spent whatever the decision looks like: the usage is read first and on its own.
-	var u struct {
-		InputTokens  int      `json:"input_tokens"`
-		OutputTokens int      `json:"output_tokens"`
-		Cost         *float64 `json:"cost"`
-	}
-	if len(dr.Usage) > 0 && json.Unmarshal(dr.Usage, &u) == nil {
-		out.Usage = Usage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CostUSD: u.Cost}
-	}
+	out.Usage = readUsage(dr.Usage)
 	invalid := func(msg string) (DecisionResponse, *Failure) {
 		return out, fail(catalog.CallInvalidRequest, msg, false)
 	}

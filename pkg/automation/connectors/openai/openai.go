@@ -52,6 +52,9 @@ type StatusSetter interface {
 	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error
 }
 
+// statusWriteTimeout bounds the write of a refused key's status.
+const statusWriteTimeout = 5 * time.Second
+
 // Option configures the connector.
 type Option func(*options)
 
@@ -242,5 +245,8 @@ func (c *connector) markNeedsReauth(ctx context.Context, in catalog.CallInput) {
 	if err != nil {
 		return
 	}
-	_ = c.o.statuses.SetStatus(context.WithoutCancel(ctx), in.TenantID, id, connectors.StatusNeedsReauth, "the provider refused the API key")
+	// The write outlives the node's deadline but not a stalled database: it has a bound of its own.
+	wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), statusWriteTimeout)
+	defer cancel()
+	_ = c.o.statuses.SetStatus(wctx, in.TenantID, id, connectors.StatusNeedsReauth, "the provider refused the API key")
 }

@@ -16,6 +16,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -187,6 +189,8 @@ func (r *Runtime) Natives() map[string]workflow.NativeContract {
 			Concurrency:    r.cfg.Limits.Concurrency,
 			Completion:     workflow.CancelPending,
 			StatusObserver: &observer{r: r},
+			// A run's data is shown by GetRun, which hides the fields a viewer may not read.
+			Private: true,
 		},
 		CallWorkflowID: r.calls.contract(),
 	}
@@ -277,7 +281,16 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 	if err != nil {
 		return nil, &host.InfraError{Err: err}
 	}
-	key := fmt.Sprintf("%s|%s|%d|%s", tenant, automation, version, view.Catalog.Revision)
+	// The platform keys the tenant lacks decide the code of a node that lost its connection: they are part
+	// of what the entry was built from.
+	withheld := make([]string, 0, len(view.PlatformWithheld))
+	for k, off := range view.PlatformWithheld {
+		if off {
+			withheld = append(withheld, string(k))
+		}
+	}
+	sort.Strings(withheld)
+	key := fmt.Sprintf("%s|%s|%d|%s|%s", tenant, automation, version, view.Catalog.Revision, strings.Join(withheld, ","))
 	r.mu.Lock()
 	if e, ok := r.interps[key]; ok {
 		e.used = time.Now()

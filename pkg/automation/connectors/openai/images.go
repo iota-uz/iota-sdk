@@ -72,16 +72,20 @@ func loadImages(ctx context.Context, src ImageSource, tenant uuid.UUID, ids []st
 		case len(img.Data) > MaxImageBytes:
 			return nil, fmt.Errorf("image %s is over %d MB", id, MaxImageBytes>>20)
 		}
-		mt := img.MediaType
-		if i := strings.Index(mt, ";"); i >= 0 {
-			mt = mt[:i]
-		}
-		if mt = strings.ToLower(strings.TrimSpace(mt)); mt == "" || !imageTypes[mt] {
-			mt = http.DetectContentType(img.Data)
-		}
-		if !imageTypes[mt] {
+		// The content decides, not the label: a file that is not an image of a supported format is refused, and
+		// so is one whose label names another format.
+		detected := http.DetectContentType(img.Data)
+		if !imageTypes[detected] {
 			return nil, fmt.Errorf("image %s is not a PNG, JPEG, WebP or GIF", id)
 		}
+		declared := img.MediaType
+		if i := strings.Index(declared, ";"); i >= 0 {
+			declared = declared[:i]
+		}
+		if declared = strings.ToLower(strings.TrimSpace(declared)); imageTypes[declared] && declared != detected {
+			return nil, fmt.Errorf("image %s is labelled %s but is %s", id, declared, detected)
+		}
+		mt := detected
 		out = append(out, aichat.Image{MediaType: mt, Data: img.Data})
 	}
 	return out, nil
