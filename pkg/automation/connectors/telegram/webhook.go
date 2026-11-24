@@ -374,7 +374,14 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if isPlatform(conn) && account == uuid.Nil {
 		// A rerun of an update whose link is spent: a handler that keeps its result by key knows whose it was.
 		if kt, ok := h.(StartTenantByKey); ok {
-			if t, found, err := kt.TenantOfUpdate(hctx, updateKeyOf); err == nil && found {
+			t, found, err := kt.TenantOfUpdate(hctx, updateKeyOf)
+			if err != nil {
+				// Not asked again here: the handler has not run yet, so the claim is given up and the update
+				// comes again, rather than a reply that is sent and counted for nobody.
+				scope.release(c, claim.Owner)
+				return retry(err)
+			}
+			if found {
 				account = t
 			}
 		}

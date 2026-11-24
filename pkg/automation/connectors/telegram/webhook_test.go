@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -844,10 +845,14 @@ type keyedLink struct {
 	failBefore error // returned before the link is spent
 	asked      int
 	tenants    map[string]uuid.UUID // whose update each kept result was
+	lookupErr  error                // TenantOfUpdate fails with it
 }
 
 // TenantOfUpdate is telegram.StartTenantByKey: whose update a kept result was.
 func (h *keyedLink) TenantOfUpdate(_ context.Context, key string) (uuid.UUID, bool, error) {
+	if h.lookupErr != nil {
+		return uuid.Nil, false, h.lookupErr
+	}
 	t, ok := h.tenants[key]
 	return t, ok, nil
 }
@@ -929,4 +934,30 @@ func TestAHandlerThatFailsBeforeSpendingTheLinkIsRunAgain(t *testing.T) {
 	require.Len(t, r.platform.Sent(), 1)
 	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text)
 	assert.Len(t, h.got, 1, "the link was spent once, by the run that got to it")
+}
+
+// When the handler cannot say whose a kept result was, the update is not answered and counted for nobody: the claim
+// is given up and the update comes again.
+func TestAFailedTenantLookupOfAKeptResultIsRetried(t *testing.T) {
+	r := newRig(t)
+	usage := &usageLog{}
+	r.c = telegram.New(telegram.Config{PlatformToken: platformToken, PublicOrigin: origin, Inbound: r.in, APIURL: r.api.URL(), Usage: usage, Connections: r.st})
+	h := &keyedLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	// A rerun of a spent link: the handler kept the result, and the lookup of its tenant fails.
+	u := r.platform.Update(800, alice, "/start u_abc")
+	key := "222222:" + strconv.FormatInt(u["update_id"].(int64), 10)
+	h.used, h.saved, h.tenants = true, map[string]string{key: "Linked, Alice"}, map[string]uuid.UUID{key: r.tenant}
+	h.lookupErr = assert.AnError
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.Empty(t, r.platform.Sent(), "nothing is sent that would be counted for nobody")
+	assert.Equal(t, 0, h.asked, "the handler has not run")
+	h.lookupErr = nil
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code, "the claim was given up: the redelivery goes through")
+	require.Len(t, r.platform.Sent(), 1)
+	require.Len(t, usage.entries, 1)
+	assert.Equal(t, r.tenant, usage.entries[0].TenantID)
 }
