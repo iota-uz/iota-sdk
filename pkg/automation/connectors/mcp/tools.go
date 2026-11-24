@@ -110,7 +110,7 @@ func (c *Connector) Tools(ctx context.Context, tenantID, connectionID uuid.UUID)
 	if err != nil {
 		return nil, err
 	}
-	if now.Version != conn.Version && !sameSettings(nowCreds, creds) {
+	if now.Version != conn.Version && (!sameSettings(nowCreds, creds) || nowCreds[KeyToken] != creds[KeyToken]) {
 		return nil, &catalog.CallError{Code: catalog.CallUnavailable, Message: "the connection's settings changed while its tools were listed; list again", Retryable: true}
 	}
 	c.cache.put(key, now.Version, c.now(), tools)

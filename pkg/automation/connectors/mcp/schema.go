@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -115,89 +116,6 @@ func marshalCanonical(v any) ([]byte, error) {
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
-// schemaNode is the part of a JSON Schema the argument checks read.
-type schemaNode struct {
-	Types      []string
-	Properties map[string]json.RawMessage
-	Required   []string
-	Closed     bool // additionalProperties: false
-	Enum       []any
-	HasEnum    bool
-}
-
-func readSchema(raw json.RawMessage) schemaNode {
-	var doc map[string]any
-	if v, err := decodeJSON(raw); err == nil {
-		doc, _ = v.(map[string]any)
-	}
-	var n schemaNode
-	switch t := doc["type"].(type) {
-	case string:
-		n.Types = []string{t}
-	case []any:
-		for _, x := range t {
-			if s, ok := x.(string); ok {
-				n.Types = append(n.Types, s)
-			}
-		}
-	}
-	if props, ok := doc["properties"].(map[string]any); ok {
-		n.Properties = map[string]json.RawMessage{}
-		for k, v := range props {
-			if b, err := json.Marshal(v); err == nil {
-				n.Properties[k] = b
-			}
-		}
-		if len(n.Types) == 0 {
-			n.Types = []string{"object"}
-		}
-	}
-	if req, ok := doc["required"].([]any); ok {
-		for _, r := range req {
-			if s, ok := r.(string); ok {
-				n.Required = append(n.Required, s)
-			}
-		}
-	}
-	if ap, ok := doc["additionalProperties"].(bool); ok && !ap {
-		n.Closed = true
-	}
-	if e, ok := doc["enum"].([]any); ok {
-		n.Enum, n.HasEnum = e, true
-	}
-	return n
-}
-
-func (n schemaNode) allows(t string) bool {
-	if len(n.Types) == 0 {
-		return true
-	}
-	for _, x := range n.Types {
-		if x == t || (t == "integer" && x == "number") {
-			return true
-		}
-	}
-	return false
-}
-
-// at is the schema of a dotted argument key inside the input schema: ok=false when a closed object has
-// no such property; known=false when the schema does not say (an open object, no properties).
-func at(input json.RawMessage, key string) (schemaNode, bool, bool) {
-	cur := readSchema(input)
-	for _, part := range strings.Split(key, ".") {
-		raw, has := cur.Properties[part]
-		switch {
-		case has:
-			cur = readSchema(raw)
-		case cur.Closed:
-			return schemaNode{}, false, true
-		default:
-			return schemaNode{}, true, false
-		}
-	}
-	return cur, true, true
-}
-
 // Argument is one argument of a tool call: exactly one of a template, a CEL expression or a value.
 type Argument struct {
 	Template *string         `json:"template,omitempty"`
@@ -236,6 +154,11 @@ func checkArguments(input json.RawMessage, args map[string]Argument, typeOf func
 	base := assemble(root, nil, &holders, typeOf)
 	for _, leaf := range leaves(schema, base) {
 		if underHolder(leaf.InstanceLocation, holders) {
+			continue
+		}
+		// A branch (if/then/else, oneOf, anyOf, not, dependentSchemas) may be chosen by a value known
+		// only at run time: its failures are not reported while any argument is dynamic.
+		if len(holders) > 0 && inBranch(leaf.SchemaURL) {
 			continue
 		}
 		out = append(out, issuesOf(root, leaf)...)
@@ -389,6 +312,18 @@ func leaves(s *jsonschema.Schema, v any) []*jsonschema.ValidationError {
 	}
 	walk(ve)
 	return out
+}
+
+// inBranch reports whether a schema location lies inside a conditional or alternative keyword.
+func inBranch(schemaURL string) bool {
+	_, frag, _ := strings.Cut(schemaURL, "#")
+	for _, seg := range strings.Split(frag, "/") {
+		switch seg {
+		case "if", "then", "else", "oneOf", "anyOf", "not", "dependentSchemas", "dependentRequired":
+			return true
+		}
+	}
+	return false
 }
 
 func isTypeError(e *jsonschema.ValidationError) bool {
@@ -636,6 +571,7 @@ func buildArguments(input json.RawMessage, rendered map[string]any) (map[string]
 		return keys[i] < keys[j]
 	})
 	out := map[string]any{}
+	var templates [][]string
 	for _, k := range keys {
 		entry, _ := rendered[k].(map[string]any)
 		var v any
@@ -643,9 +579,8 @@ func buildArguments(input json.RawMessage, rendered map[string]any) (map[string]
 		case entry == nil:
 			return nil, fmt.Errorf("argument %s is not an object", k)
 		case hasKey(entry, "template"):
-			text, _ := entry["template"].(string)
-			node, _, _ := at(input, k)
-			v = coerce(node, text)
+			v, _ = entry["template"].(string)
+			templates = append(templates, strings.Split(k, "."))
 		case hasKey(entry, "cel"):
 			v = entry["cel"]
 		case hasKey(entry, "value"):
@@ -657,38 +592,77 @@ func buildArguments(input json.RawMessage, rendered map[string]any) (map[string]
 			return nil, fmt.Errorf("argument %s: %w", k, err)
 		}
 	}
+	coerceTemplates(input, out, templates)
 	return out, nil
+}
+
+// coerceTemplates reads each template's text as the scalar the pinned schema takes where it lands, by
+// the compiled schema ($ref included), as the save checked it: the text stays when it fits, else the
+// first of its integer, number or boolean reading that does. Text that fits nothing stays text: the
+// server refuses it with isError and the run takes rejected.
+func coerceTemplates(input json.RawMessage, args map[string]any, locs [][]string) {
+	if len(locs) == 0 {
+		return
+	}
+	schema := compileInput(input)
+	if schema == nil {
+		return
+	}
+	fits := func(loc []string) bool {
+		for _, leaf := range leaves(schema, args) {
+			if isTypeError(leaf) && within(leaf.InstanceLocation, loc) {
+				return false
+			}
+		}
+		return true
+	}
+	for _, loc := range locs {
+		text, ok := valueAtLoc(args, loc).(string)
+		if !ok || fits(loc) {
+			continue
+		}
+		for _, cand := range readings(text) {
+			setAtLoc(args, loc, cand)
+			if fits(loc) {
+				break
+			}
+			setAtLoc(args, loc, text)
+		}
+	}
+}
+
+var jsonNumber = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$`)
+
+// readings are the scalar readings of a template's text.
+func readings(text string) []any {
+	s := strings.TrimSpace(text)
+	var out []any
+	if jsonNumber.MatchString(s) {
+		if _, err := strconv.ParseFloat(s, 64); err == nil {
+			out = append(out, json.Number(s)) // a JSON number: an integer reading fits integer and number
+		}
+	}
+	if s == "true" || s == "false" {
+		out = append(out, s == "true")
+	}
+	return out
+}
+
+func valueAtLoc(root any, loc []string) any {
+	cur := root
+	for _, k := range loc {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil
+		}
+		cur = m[k]
+	}
+	return cur
 }
 
 func hasKey(m map[string]any, k string) bool {
 	_, ok := m[k]
 	return ok
-}
-
-// coerce reads a template's text as the scalar the schema wants when it does not take text.
-func coerce(node schemaNode, text string) any {
-	if node.allows("string") || len(node.Types) == 0 {
-		return text
-	}
-	s := strings.TrimSpace(text)
-	if node.allows("integer") {
-		if _, err := strconv.ParseInt(s, 10, 64); err == nil {
-			return json.Number(s)
-		}
-	}
-	if node.allows("number") {
-		if f, err := strconv.ParseFloat(s, 64); err == nil && !isNaNOrInf(f) {
-			return json.Number(s)
-		}
-	}
-	if node.allows("boolean") && (s == "true" || s == "false") {
-		return s == "true"
-	}
-	return text // the server refuses it with isError: the run takes rejected
-}
-
-func isNaNOrInf(f float64) bool {
-	return f != f || f > 1.7976931348623157e308 || f < -1.7976931348623157e308
 }
 
 func setDotted(m map[string]any, parts []string, v any) error {

@@ -882,6 +882,11 @@ func (s *IntegrationsService) signInComplete(ctx context.Context, a Actor, az co
 	if err != nil {
 		return connectors.Connection{}, pending, mapStoreError(op, err)
 	}
+	// The status confirms the credentials just tested: a row changed since (another sign-in, new
+	// settings) is not marked connected by this check. The save below is versioned against this read.
+	if !sameCredentials(old, creds) {
+		return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
+	}
 	secret := secretsOf(conn.Descriptor())
 	cur.Identity = validIdentity(identity, secret, creds, old)
 	scrubRetained(&cur, secret, old, creds)
@@ -894,6 +899,19 @@ func (s *IntegrationsService) signInComplete(ctx context.Context, a Actor, az co
 	}
 	s.touch(ctx, a.TenantID, saved.ID)
 	return saved, pending, nil
+}
+
+// sameCredentials reports whether two credential sets are the same.
+func sameCredentials(a, b connectors.Credentials) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if bv, ok := b[k]; !ok || bv != v {
+			return false
+		}
+	}
+	return true
 }
 
 // OAuthComplete finishes an authorization the same user started in the same tenant: the state is

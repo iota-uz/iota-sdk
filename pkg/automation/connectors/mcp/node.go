@@ -221,7 +221,15 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		}
 		return catalog.CallResult{}, err
 	}
-	out.Text, out.Structured = sc.text(out.Text), sc.raw(out.Structured)
+	out.Text = sc.text(out.Text)
+	if scrubbed := sc.raw(out.Structured); string(scrubbed) != string(out.Structured) {
+		// What is published must still be what the pin declares: a result the scrub had to change is
+		// checked again, and refused when it no longer fits.
+		if err := fitsOutput(*p.ToolSchema, scrubbed); err != nil {
+			return catalog.CallResult{}, callErr(catalog.CallRejected, "the tool's structured result carries a secret of the connection and cannot be returned")
+		}
+		out.Structured = scrubbed
+	}
 	output := map[string]any{"text": out.Text}
 	if len(out.Structured) > 0 {
 		var v any
@@ -231,6 +239,22 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		output["structured"] = v
 	}
 	return catalog.CallResult{Outcome: OutcomeDone, Output: output}, nil
+}
+
+// fitsOutput validates structured content against the pinned output schema (none: anything fits).
+func fitsOutput(pin ToolPin, raw json.RawMessage) error {
+	schema, err := compiledOutput(pin)
+	if err != nil {
+		return err
+	}
+	if schema == nil {
+		return nil
+	}
+	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	return schema.Validate(v)
 }
 
 // maxErrorText bounds the tool's own text in a rejected outcome's message.

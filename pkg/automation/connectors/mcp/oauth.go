@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -145,6 +147,20 @@ type signInState struct {
 	Issuer     string    `json:"i"`
 	Expires    int64     `json:"e"`
 	Nonce      string    `json:"n"`
+	// Client is the digest of the client the sign-in began with (clientDigest): tokens of a code are
+	// stored only while the connection still has that client.
+	Client string `json:"k"`
+}
+
+// clientDigest binds a sign-in to the client it authorized: the server, issuer, token endpoint, client
+// and scopes of the credentials (the secret only as part of the hash).
+func clientDigest(c connectors.Credentials) string {
+	h := sha256.New()
+	for _, k := range []string{KeyServerURL, KeyIssuer, KeyTokenEndpoint, KeyClientID, KeyClientSecret, KeyScopes} {
+		_, _ = h.Write([]byte(c[k]))
+		_, _ = h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // SignsIn reports whether the credentials are of auth oauth2.
@@ -226,7 +242,7 @@ func (c *Connector) BeginAuthorization(ctx context.Context, in connectors.Author
 	nonce := make([]byte, 16)
 	_, _ = rand.Read(nonce)
 	plain, err := json.Marshal(signInState{Tenant: in.TenantID, Connection: in.ConnectionID, Verifier: verifier, Redirect: in.RedirectURL,
-		Issuer: as.Issuer, Expires: c.now().Add(StateTTL).Unix(), Nonce: base64.RawURLEncoding.EncodeToString(nonce)})
+		Issuer: as.Issuer, Expires: c.now().Add(StateTTL).Unix(), Nonce: base64.RawURLEncoding.EncodeToString(nonce), Client: clientDigest(creds)})
 	if err != nil {
 		return "", "", err
 	}
@@ -310,7 +326,7 @@ func (c *Connector) CompleteAuthorization(ctx context.Context, in connectors.Aut
 		return nil, err
 	}
 	cf, err := readConfig(creds)
-	if err != nil || cf.auth != AuthOAuth2 || creds[KeyIssuer] != s.Issuer || creds[KeyTokenEndpoint] == "" {
+	if err != nil || cf.auth != AuthOAuth2 || creds[KeyIssuer] != s.Issuer || creds[KeyTokenEndpoint] == "" || clientDigest(creds) != s.Client {
 		return nil, ErrState // the settings changed since the sign-in began
 	}
 	tok, err := c.tokenRequest(ctx, creds, url.Values{
@@ -322,7 +338,8 @@ func (c *Connector) CompleteAuthorization(ctx context.Context, in connectors.Aut
 	}
 	server := cf.server.String()
 	_, out, err := st.UpdateCredentials(ctx, in.TenantID, in.ConnectionID, func(_ connectors.Connection, cur connectors.Credentials) (*connectors.CredentialChange, error) {
-		if cur[KeyServerURL] != creds[KeyServerURL] || cur[KeyIssuer] != s.Issuer {
+		// The code was exchanged for this client: tokens are stored only while the connection has it.
+		if cur[KeyServerURL] != creds[KeyServerURL] || cur[KeyIssuer] != s.Issuer || clientDigest(cur) != s.Client {
 			return nil, ErrState
 		}
 		return &connectors.CredentialChange{Credentials: withTokens(cur, tok, server)}, nil
@@ -447,7 +464,7 @@ var errSettingsChanged = errors.New("mcp: the connection's settings changed")
 
 // sameSettings reports whether two credential sets name the same server and OAuth client.
 func sameSettings(a, b connectors.Credentials) bool {
-	for _, k := range []string{KeyServerURL, KeyAuth, KeyClientID, KeyIssuer, KeyTokenEndpoint} {
+	for _, k := range []string{KeyServerURL, KeyAuth, KeyClientID, KeyClientSecret, KeyScopes, KeyIssuer, KeyTokenEndpoint} {
 		if a[k] != b[k] {
 			return false
 		}

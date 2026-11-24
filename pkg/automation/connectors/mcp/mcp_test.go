@@ -781,3 +781,82 @@ func TestArgumentsAreCheckedWithRefsAndComposition(t *testing.T) {
 	}))
 	require.Empty(t, codes(map[string]Argument{"filter.field": {Template: str("{{ x }}")}, "filter.limit": {CEL: str("1")}, "mode": {Template: str("a")}}))
 }
+
+func TestTemplatesAreReadByTheSchemaTheSaveChecked(t *testing.T) {
+	input := json.RawMessage(`{"type":"object","$defs":{"n":{"type":"integer"}},"properties":{"count":{"$ref":"#/$defs/n"},"flag":{"allOf":[{"type":"boolean"}]},"name":{"type":"string"}}}`)
+	tmpl := func(s string) *string { return &s }
+	require.Empty(t, checkArguments(input, map[string]Argument{"count": {Template: tmpl("{{ x }}")}, "flag": {Template: tmpl("{{ y }}")}}, nil))
+	args, err := buildArguments(input, map[string]any{
+		"count": map[string]any{"template": "2"}, "flag": map[string]any{"template": "true"}, "name": map[string]any{"template": "7"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"count": json.Number("2"), "flag": true, "name": "7"}, args)
+}
+
+func TestABranchChosenByATemplateIsNotJudgedEarly(t *testing.T) {
+	input := json.RawMessage(`{"type":"object","properties":{"mode":{"type":"string"},"one":{"type":"string"},"other":{"type":"string"}},
+		"if":{"properties":{"mode":{"const":"chosen"}}},"then":{"required":["one"]},"else":{"required":["other"]}}`)
+	tmpl := func(s string) *string { return &s }
+	require.Empty(t, checkArguments(input, map[string]Argument{"mode": {Template: tmpl("{{ event.mode }}")}, "one": {Value: json.RawMessage(`"x"`)}}, nil))
+	// With literals only the branch is known and judged.
+	issues := checkArguments(input, map[string]Argument{"mode": {Value: json.RawMessage(`"chosen"`)}}, nil)
+	require.Len(t, issues, 1)
+	require.Equal(t, CodeArgumentMissing, issues[0].code)
+}
+
+func TestToolsListedWithARotatedTokenAreNotKept(t *testing.T) {
+	srv := mcptest.New(t)
+	srv.SetTool(weatherTool(nil))
+	srv.RequireToken("tok-old")
+	srv.RequireToken("tok-new")
+	mem := newMemStore()
+	id := mem.add(tenant, connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: "tok-old"})
+	st := &changingStore{memStore: mem}
+	st.onGet = func(n int) {
+		if n == 2 {
+			mem.setCreds(id, func(c connectors.Credentials) { c[KeyToken] = "tok-new" })
+		}
+	}
+	c := New(WithStore(st), withFake(srv, nil))
+	_, err := c.Tools(context.Background(), tenant, id)
+	require.Equal(t, catalog.CallUnavailable, callCode(err), "%v", err)
+	_, ok := c.cache.get(cacheKey{tenant, id}, 2, time.Now())
+	require.False(t, ok)
+}
+
+func TestAStructuredResultThatLosesItsShapeToTheScrubIsRefused(t *testing.T) {
+	srv := mcptest.New(t)
+	const token = "k9"
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "ok", Structured: map[string]any{"temp": 1, "note": "key " + token}}
+	})
+	srv.SetTool(tool)
+	srv.RequireToken(token)
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: token}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	_, err := c.Node().Execute(context.Background(), callInput(id, creds, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.Equal(t, catalog.CallRejected, callCode(err), "%v", err)
+	require.NotContains(t, err.Error(), token)
+}
+
+func TestACodeForAnotherClientIsNotStored(t *testing.T) {
+	srv := mcptest.New(t)
+	srv.SetTool(weatherTool(nil))
+	srv.EnableOAuth()
+	st := newMemStore()
+	id := st.add(tenant, connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthOAuth2})
+	c := testConnector(t, srv, st, nil)
+	ctx := context.Background()
+	authURL, state, err := c.BeginAuthorization(ctx, connectors.AuthorizationStart{TenantID: tenant, ConnectionID: id, RedirectURL: "https://erp.example.com/cb"})
+	require.NoError(t, err)
+	code := approve(t, srv, authURL)
+	// The administrator enters another client while the browser is away.
+	st.setCreds(id, func(c connectors.Credentials) { c[KeyClientID] = "admin-client" })
+	_, err = c.CompleteAuthorization(ctx, connectors.AuthorizationReturn{TenantID: tenant, ConnectionID: id, State: state, Code: code})
+	require.ErrorIs(t, err, ErrState)
+	_, now, _ := st.Get(ctx, tenant, id)
+	require.Empty(t, now[KeyAccessToken])
+}
