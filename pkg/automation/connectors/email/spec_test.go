@@ -314,6 +314,10 @@ func TestMentionsEventIsAboutTheIdentifier(t *testing.T) {
 		`("event@example.org")`:                        false,
 		`string(nodes.wait.output.event.from.address)`: false,
 		"nodes.wait.output.event.messageId":            false,
+		"nodes.wait.output. event.from.address":        false,
+		"nodes.wait.output .\tevent.from.address":      false,
+		"nodes.wait.output.\n  event.from.address":     false,
+		"x ==  event":                                  true,
 		`nodes.a.output["event"]`:                      false,
 		"prevent.x":                                    false,
 		"events":                                       false,
@@ -495,4 +499,13 @@ func TestInReplyToWithoutReferencesIsTheHistory(t *testing.T) {
 		MessageID: "<c@x>", InReplyTo: "<b@x>", References: m.references, Date: time.Now()})
 	require.NoError(t, err)
 	assert.Contains(t, string(out), "References: <a@x> <b@x>")
+}
+
+// Two folders that a 32-bit hash would have given one keyword (the review's pair) have two.
+func TestMoveKeywordTellsFoldersApart(t *testing.T) {
+	a, b := moveKeyword("Archive/Folder-5370"), moveKeyword("Archive/Folder-78142")
+	assert.NotEqual(t, a, b)
+	assert.Equal(t, a, moveKeyword("Archive/Folder-5370"), "the same folder, the same keyword")
+	assert.Less(t, len(a), 64, "a length that servers keep")
+	assert.NotContains(t, a, " ")
 }

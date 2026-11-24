@@ -159,10 +159,12 @@ func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
 	return nil
 }
 
-// moveKeyword is the keyword a move to dest puts on the original after its COPY was answered.
+// moveKeyword is the keyword a move to dest puts on the original after its COPY was answered. It carries 128 bits
+// of the destination's hash, so two folders are told apart for all practical purposes (32 bits would let
+// different folders share one).
 func moveKeyword(dest string) string {
 	sum := sha256.Sum256([]byte(dest))
-	return "$IotaMoved" + hex.EncodeToString(sum[:4])
+	return "$IotaMoved" + hex.EncodeToString(sum[:16])
 }
 
 // resumeMove finishes a move whose last step did not happen: the original was flagged \\Deleted by a move to

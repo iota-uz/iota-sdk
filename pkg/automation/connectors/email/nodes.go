@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/jackc/pgx/v5"
@@ -328,12 +329,22 @@ type waitParams struct{ inner graph.ParamsSpec }
 
 func (p waitParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
 
-var eventIdent = regexp.MustCompile(`(^|[^.\w])event\b`)
+var eventWord = regexp.MustCompile(`\bevent\b`)
 
 // mentionsEvent reports whether a CEL source refers to the identifier event. Neither a quoted text that has
 // the word in it (an address like event@example.org) nor a member of that name (nodes.wait.output.event, the
 // event an earlier wait took) is a reference to it.
-func mentionsEvent(src string) bool { return eventIdent.MatchString(stripStrings(src)) }
+func mentionsEvent(src string) bool {
+	s := stripStrings(src)
+	for _, at := range eventWord.FindAllStringIndex(s, -1) {
+		// A name that follows a dot is a member, whatever stands between them: CEL allows white space after the
+		// dot (nodes.wait.output. event.from).
+		if !strings.HasSuffix(strings.TrimRightFunc(s[:at[0]], unicode.IsSpace), ".") {
+			return true
+		}
+	}
+	return false
+}
 
 // stripStrings is a CEL source with the contents of its string literals taken out.
 func stripStrings(src string) string {
