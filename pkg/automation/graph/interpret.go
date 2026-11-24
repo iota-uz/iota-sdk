@@ -140,6 +140,9 @@ type Arrival struct {
 type Effect struct {
 	Node   string         `json:"node"`
 	Params map[string]any `json:"params"`
+	// Context is the step's expression context as JSON (event, nodes, subject, run, the subject's
+	// variables, tenant, now) for a node type that declares StepContext; nil otherwise.
+	Context map[string]any `json:"context,omitempty"`
 }
 
 // WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
@@ -304,46 +307,52 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	params := s.Params(node)
 	rendered := params
 	vars := varsOf(s.Ctx)
-	for _, t := range spec.Templates {
-		for _, path := range expandPaths(params, t) {
-			raw, ok := paramAt(params, path)
-			text, isStr := raw.(string)
-			if !ok || !isStr {
-				continue
-			}
-			tp, issues := s.in.exprs.template(s.node, "*", text)
-			if len(issues) > 0 {
-				st := failed(FailExpression, "%s", issues[0].Message)
-				return Effect{}, &st
-			}
-			out, err := tp.Render(vars)
-			if err != nil {
-				st := stepOfError(err)
-				return Effect{}, &st
-			}
-			setAt(rendered, path, out)
+	templates, values := templatesAndValues(params, spec)
+	for _, path := range templates {
+		raw, ok := paramAt(params, path)
+		text, isStr := raw.(string)
+		if !ok || !isStr {
+			continue
 		}
-	}
-	for _, valuePath := range spec.Values {
-		for _, path := range expandPaths(params, valuePath) {
-			raw, ok := paramAt(params, path)
-			src, isStr := raw.(string)
-			if !ok || !isStr {
-				continue
-			}
-			v, st := s.Eval(src, expr.TypeAny)
-			if st != nil {
-				return Effect{}, st
-			}
-			j, err := jsonOut(v)
-			if err != nil {
-				s := failed(FailExpression, "%s: %v", path, err)
-				return Effect{}, &s
-			}
-			setAt(rendered, path, j)
+		tp, issues := s.in.exprs.template(s.node, "*", text)
+		if len(issues) > 0 {
+			st := failed(FailExpression, "%s", issues[0].Message)
+			return Effect{}, &st
 		}
+		out, err := tp.Render(vars)
+		if err != nil {
+			st := stepOfError(err)
+			return Effect{}, &st
+		}
+		setAt(rendered, path, out)
 	}
-	return Effect{Node: node.Type, Params: rendered}, nil
+	for _, path := range values {
+		raw, ok := paramAt(params, path)
+		src, isStr := raw.(string)
+		if !ok || !isStr {
+			continue
+		}
+		v, st := s.Eval(src, expr.TypeAny)
+		if st != nil {
+			return Effect{}, st
+		}
+		j, err := jsonOut(v)
+		if err != nil {
+			s := failed(FailExpression, "%s: %v", path, err)
+			return Effect{}, &s
+		}
+		setAt(rendered, path, j)
+	}
+	e := Effect{Node: node.Type, Params: rendered}
+	if spec.StepContext {
+		c, err := jsonOut(vars)
+		if err != nil {
+			s := failed(FailExpression, "the step's context: %v", err)
+			return Effect{}, &s
+		}
+		e.Context, _ = c.(map[string]any)
+	}
+	return e, nil
 }
 
 // jsonOut is a CEL value as JSON: timestamps as RFC 3339 strings, durations as seconds.
@@ -453,6 +462,7 @@ func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
 		hooks[name] = h
 	}
 	o.MatchHooks = hooks
+	g = Resolve(c, g)
 	format := o
 	format.Rules = nil
 	if errs := Validate(c, g, format); len(errs) > 0 {

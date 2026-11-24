@@ -29,6 +29,9 @@ const (
 	defaultResponseHeaders = 30 * time.Second
 )
 
+// ErrResponseTooLarge is a response whose body exceeds the fetcher's limit after decoding.
+var ErrResponseTooLarge = errors.New("response body is too large")
+
 // Resolver resolves host names. *net.Resolver implements it.
 type Resolver interface {
 	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
@@ -289,6 +292,10 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 	hreq.Header.Del("Accept-Encoding")
 
 	start := origin(u)
+	sensitive := make(map[string]bool, len(req.Sensitive))
+	for _, h := range req.Sensitive {
+		sensitive[http.CanonicalHeaderKey(h)] = true
+	}
 	redirects := 0
 	client := &http.Client{
 		Transport: f.transport,
@@ -311,10 +318,14 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 				crossed = crossed || origin(v.URL) != start
 			}
 			if crossed {
+				if req.SameOrigin {
+					return &OriginError{From: start, To: origin(next.URL)}
+				}
 				// Authorization, Cookie and Proxy-Authorization, and with them every header the code set that
-				// could carry a credential (an API key header): only the safelisted ones go to another origin.
+				// could carry a credential (an API key header): only the safelisted ones go to another origin,
+				// and never one the request names sensitive.
 				for k := range next.Header {
-					if !crossOriginHeaders[http.CanonicalHeaderKey(k)] {
+					if !crossOriginHeaders[http.CanonicalHeaderKey(k)] || sensitive[http.CanonicalHeaderKey(k)] {
 						next.Header.Del(k)
 					}
 				}
@@ -328,6 +339,10 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		var blocked *NetworkBlockedError
 		if errors.As(err, &blocked) {
 			return nil, blocked
+		}
+		var left *OriginError
+		if errors.As(err, &left) {
+			return nil, left
 		}
 		if errors.Is(err, errRedirectMode) {
 			return nil, errRedirectMode
@@ -350,7 +365,7 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 	if int64(len(data)) > f.maxBody {
-		return nil, fmt.Errorf("response body exceeds %d bytes", f.maxBody)
+		return nil, fmt.Errorf("%w: it exceeds %d bytes", ErrResponseTooLarge, f.maxBody)
 	}
 	return &FetchResponse{
 		Status:     resp.StatusCode,

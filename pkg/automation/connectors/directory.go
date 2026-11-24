@@ -33,6 +33,11 @@ func (d *directory) Register(c Connector) error {
 	if err := checkDescriptor(c.Kind(), desc); err != nil {
 		return serrors.Wrap(op, err)
 	}
+	if ca, ok := c.(CodeAccessor); ok {
+		if err := ca.CodeAccess().Validate(); err != nil {
+			return serrors.Wrap(op, fmt.Errorf("connector %s: %w", desc.Kind, err))
+		}
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, dup := d.byID[desc.Kind]; dup {

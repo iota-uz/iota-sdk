@@ -808,6 +808,9 @@ type commandCaller interface {
 
 func (e *Engine) callOrdinary(ctx context.Context, call commandCaller, rs *runState, name string, n int, command string, input json.RawMessage, inputHash, contractHash string, prev Occurrence, hadPrev bool) (json.RawMessage, error) {
 	invID := uuid.NewString()
+	if p, ok := call.(interface{ presetInvocation() string }); ok && p.presetInvocation() != "" {
+		invID = p.presetInvocation()
+	}
 	attempts := 1
 	if hadPrev {
 		// Started earlier but never dispatched (no invocation record): reuse.
