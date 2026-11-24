@@ -3,19 +3,20 @@
 // (node, outcome): a new connection replaces the old one. The DOM is read only after mount.
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
-import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry } from './geometry'
+import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
 import { Icon } from './icons'
-import { backEdges, ensureLayout } from './layout'
+import { backEdges, ensureLayout, unmarked } from './layout'
+import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
-import { strings } from './strings'
+import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
+import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { connectionLost, errorsByItem } from './validation'
 import {
   createNodeDrag,
   createPanZoom,
   edgePath,
-  loopPath,
   NodeLookup,
   startConnection,
   toBox,
@@ -77,12 +78,66 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [hovered, setHovered] = createSignal<string | null>(null)
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
+  const [tidying, setTidying] = createSignal(false)
 
   // ——— derived graph view ———
 
+  // The routes found so far: the ends they join and the path; and which router found each. `routeTick`
+  // moves once per slice of routing.
+  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string }>>({})
+  const routeOwner = new Map<string, object>()
+  // The box of every route in `routed`, read plainly by the visibility check (`routeTick` says when it changed).
+  const routeBoxes = new Map<string, Rect>()
+  const [routeTick, setRouteTick] = createSignal(0)
+
   const layout = createMemo(() => ensureLayout(props.graph, props.catalog, props.layout))
+  // What is drawn and routed: whole numbers, without the mark Tidy leaves in a position.
+  const shown = createMemo(() => unmarked(layout()))
   const [positions, setPositions] = createStore<AutomationLayout>({})
-  createEffect(on(layout, (next) => setPositions(reconcile(structuredClone(next)))))
+  // `committed` is the layout as the host holds it, `positions` what is on screen (it follows a drag). Both are
+  // stores that reconcile, so an edge only re-reads them when a position it uses really changed.
+  const [committed, setCommitted] = createStore<AutomationLayout>({})
+  // Routes that cross a card that moved are drawn again before anything else: until then they show a plain path.
+  const stale = new Set<string>()
+  createEffect(on(shown, (next) => {
+    const keys = [...routeBoxes.keys()]
+    if (keys.length > 0) {
+      const geometries = geometryMap()
+      const moved: Rect[] = []
+      for (const [id, p] of Object.entries(next)) {
+        const before = committed[id]
+        const g = geometries.get(id)
+        if (g && (!before || before.x !== p.x || before.y !== p.y)) moved.push({ x: p.x - 8, y: p.y - 8, width: g.width + 16, height: g.height + 16 })
+      }
+      if (moved.length > 0) {
+        batch(() => {
+          for (const key of keys) {
+            const found = routeBoxes.get(key)
+            if (!found || !moved.some((r) => rectsOverlap(r, found))) continue
+            setRouted(key, undefined as never)
+            routeBoxes.delete(key)
+            routeOwner.delete(key)
+            stale.add(key)
+          }
+        })
+      }
+    }
+    setPositions(reconcile(structuredClone(next)))
+    setCommitted(reconcile(structuredClone(next)))
+  }))
+
+  // A Tidy moves the cards with a 200 ms transition (CSS; none under prefers-reduced-motion) while the
+  // edges fade back in once the cards have landed.
+  const TIDY_MS = 200
+  let tidyTimer: ReturnType<typeof setTimeout> | undefined
+  createEffect(on(() => props.layoutTransition, (token, previous) => {
+    if (token === undefined || token === previous) return
+    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    setTidying(true)
+    clearTimeout(tidyTimer)
+    tidyTimer = setTimeout(() => setTidying(false), TIDY_MS + 40)
+  }, { defer: true }))
+  onCleanup(() => clearTimeout(tidyTimer))
 
   const errorMap = createMemo(() => errorsByItem(props.graph, props.errors))
   const lost = createMemo(() => connectionLost(props.graph, props.errors))
@@ -157,6 +212,40 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
     return map
   })
+  // Orthogonal routes through the gaps between the cards, for the layout as committed. The memo only notes
+  // that its inputs changed; the router itself is built when the first route is asked for, after the frame.
+  // A card being dragged is not in the layout yet: its edges take a plain orthogonal path until it lands.
+  const routing = createMemo(() => {
+    shown()
+    geometryMap()
+    edgeTargets()
+    let built: Router | null = null
+    return {
+      router: (): Router => {
+        if (built) return built
+        const base = shown()
+        const geometries = geometryMap()
+        const rects = new Map<string, Rect>()
+        for (const [id, g] of geometries) {
+          const p = base[id]
+          if (p) rects.set(id, { x: p.x, y: p.y, width: g.width, height: g.height })
+        }
+        const links: RouteLink[] = []
+        for (const [key, to] of edgeTargets()) {
+          const node = key.slice(0, key.lastIndexOf('.'))
+          const outcome = key.slice(key.lastIndexOf('.') + 1)
+          const p = base[node]
+          const q = base[to]
+          const slot = geometries.get(node)?.outcomes.find((o) => o.outcome === outcome)
+          const handle = geometries.get(to)?.target
+          if (!p || !q || !slot || !handle) continue
+          links.push({ key, from: node, to, port: { x: p.x + slot.handle.x, y: p.y + slot.handle.y }, entry: { x: q.x + handle.x, y: q.y + handle.y } })
+        }
+        built = createRouter(rects, links)
+        return built
+      },
+    }
+  })
   const edgeList = createMemo<string[]>((previous) => {
     const next = [...edgeTargets().keys()]
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
@@ -192,6 +281,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   })
   const visibleEdges = createMemo<string[]>((previous) => {
     const rect = visibleRect()
+    routeTick()
     const targets = edgeTargets()
     const next = rect === null ? edgeList() : edgeList().filter((source) => {
       const node = source.slice(0, source.lastIndexOf('.'))
@@ -200,10 +290,62 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (!p || !q) return false
       const x = Math.min(p.x, q.x) - 64
       const y = Math.min(p.y, q.y) - 64
-      return rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })
+      if (rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })) return true
+      // A route found earlier may run where its ends do not; routeTick says when one is published.
+      const box = routeBoxes.get(source)
+      return box !== undefined && rectsOverlap(rect, box)
     })
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
   })
+
+  // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
+  // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
+  // orthogonal one until its own is ready.
+  const ROUTE_SLICE_MS = 6
+  let routeTimer: ReturnType<typeof setTimeout> | undefined
+  createEffect(() => {
+    const current = routing()
+    // Edges that are gone leave the cache, and with them the router they were routed by.
+    const targets = edgeTargets()
+    for (const key of [...routeOwner.keys()]) {
+      if (targets.has(key)) continue
+      routeOwner.delete(key)
+      routeBoxes.delete(key)
+      setRouted(key, undefined as never)
+    }
+    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
+    clearTimeout(routeTimer)
+    if (wanted.length === 0) return
+    let todo: string[] | null = null
+    const run = () => {
+      const router = current.router()
+      // One link per step, in port order, so the slice deadline is checked between links.
+      todo ??= router.plan(wanted)
+      const started = performance.now()
+      batch(() => {
+        while (todo!.length > 0 && performance.now() - started < ROUTE_SLICE_MS) {
+          const key = todo!.shift()!
+          const route = router.route(key)
+          routeOwner.set(key, current)
+          if (!route || route.points.length === 0) continue
+          const first = route.points[0]!
+          const last = route.points[route.points.length - 1]!
+          const xs = route.points.map((point) => point.x)
+          const ys = route.points.map((point) => point.y)
+          const x = Math.min(...xs)
+          const y = Math.min(...ys)
+          stale.delete(key)
+          routeBoxes.set(key, { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y })
+          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points, 10, route.clear) })
+        }
+        // One note per slice, so visibility looks at the boxes just published once.
+        setRouteTick((n) => n + 1)
+      })
+      if (todo.length > 0) routeTimer = setTimeout(run, 0)
+    }
+    routeTimer = setTimeout(run, 0)
+  })
+  onCleanup(() => clearTimeout(routeTimer))
 
   const isSelected = (id: string) => props.selected === id || multi().has(id)
   const selection = () => {
@@ -282,11 +424,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       for (const [id, p] of moved) {
         const next = snapOn() ? { x: snap(p.x), y: snap(p.y) } : { x: Math.round(p.x), y: Math.round(p.y) }
         out[id] = next
-        const before = layout()[id]
+        const before = shown()[id]
         if (!before || before.x !== next.x || before.y !== next.y) changed = true
       }
       if (changed) props.onMove?.(out)
-      setPositions(reconcile(structuredClone(layout())))
+      setPositions(reconcile(structuredClone(shown())))
     },
   })
 
@@ -307,9 +449,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
   }
 
-  const bounds = () => {
+  const bounds = (only?: string[]) => {
     const geometries = geometryMap()
-    const list = ids()
+    const list = only ?? ids()
     if (list.length === 0) return null
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const id of list) {
@@ -345,7 +487,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
       return
     }
     const zoom = INITIAL_MIN_ZOOM
-    panZoom.set({ x: 48 - b.x * zoom, y: 48 - b.y * zoom, zoom }, 0)
+    // It opens at the triggers (the top left of the first one), not at the left edge of a wide shared row.
+    const triggers = [...itemMap()].filter(([, item]) => item.kind === 'trigger').map(([id]) => id)
+    const start = bounds(triggers) ?? b
+    panZoom.set({ x: 48 - start.x * zoom, y: 48 - start.y * zoom, zoom }, 0)
   }
 
   const center = (): XY => {
@@ -584,7 +729,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
     keyMove = null
     props.onMove?.(out)
-    setPositions(reconcile(structuredClone(layout())))
+    setPositions(reconcile(structuredClone(shown())))
   }
 
   const nearest = (id: string, key: string): string | null => {
@@ -766,9 +911,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const slot = g?.outcomes.find((o) => o.outcome === outcome)
       const handle = geometryMap().get(target)?.target
       if (!p || !q || !slot || !handle) return ''
+      const settled = committed[node]?.x === p.x && committed[node]?.y === p.y && committed[target]?.x === q.x && committed[target]?.y === q.y
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
       const b = { x: q.x + handle.x, y: q.y + handle.y }
-      return loop() || b.x < a.x - GRID ? loopPath(a, b) : edgePath(a, b)
+      if (settled) {
+        const found = routed[source]
+        if (found && found.ax === a.x && found.ay === a.y && found.bx === b.x && found.by === b.y) return found.d
+      }
+      return directPath(a, b)
     })
     const className = createMemo(() => {
       let c = 'ae-edge'
@@ -862,7 +1012,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
               data-id={handleDataId(flowId, id, TARGET_HANDLE, 'target')}
               data-nodeid={id}
               data-handleid={TARGET_HANDLE}
-              data-handlepos="left"
+              data-handlepos="top"
               style={`left:${target().x}px;top:${target().y}px`}
               aria-hidden="true"
             />
@@ -995,7 +1145,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     <div
       ref={container}
       class={`${FLOW_CLASS} ae-canvas`}
-      classList={{ 'ae-canvas--readonly': !editable(), 'ae-canvas--connecting': connection() !== null, 'ae-canvas--selecting': Boolean(props.selecting) }}
+      classList={{ 'ae-canvas--readonly': !editable(), 'ae-canvas--connecting': connection() !== null, 'ae-canvas--selecting': Boolean(props.selecting), 'ae-canvas--tidying': tidying() }}
       role="application"
       aria-label={props.label ?? t().canvas.label}
       aria-roledescription="canvas"
@@ -1035,6 +1185,18 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <button type="button" class="ae-iconbtn" aria-label={t().canvas.zoomIn} title={t().canvas.zoomIn} onClick={() => api.zoomIn()}><Icon name="plus" /></button>
         <button type="button" class="ae-iconbtn" aria-label={t().canvas.zoomOut} title={t().canvas.zoomOut} onClick={() => api.zoomOut()}><Icon name="minus" /></button>
         <button type="button" class="ae-iconbtn" aria-label={t().canvas.fit} title={t().canvas.fit} onClick={() => api.fit()}><Icon name="fit" /></button>
+        <Show when={props.onTidy}>
+          <button
+            type="button"
+            class="ae-iconbtn ae-tidy"
+            aria-label={t().canvas.tidy}
+            aria-keyshortcuts={isMac() ? 'Meta+Shift+L' : 'Control+Shift+L'}
+            title={`${t().canvas.tidy} (${keyLabel('⇧⌘L', isMac())})`}
+            onClick={() => props.onTidy?.()}
+          >
+            <Icon name="broom" />
+          </button>
+        </Show>
         <button type="button" class="ae-iconbtn ae-iconbtn--text" aria-label={t().canvas.zoomReset} title={t().canvas.zoomReset} onClick={() => api.zoomReset()}>
           {Math.round(viewport().zoom * 100)}%
         </button>

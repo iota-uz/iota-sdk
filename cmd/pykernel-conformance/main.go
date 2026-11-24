@@ -45,7 +45,7 @@ func main() {
 	timeout := flag.Duration("timeout", 10*time.Minute, "overall timeout")
 	flag.Parse()
 
-	profile := isolation.Profile{}
+	profile := isolation.Profile{Mode: isolation.ModeRequired}
 	if *readPaths != "" {
 		profile.ReadPaths = strings.Split(*readPaths, ",")
 	}

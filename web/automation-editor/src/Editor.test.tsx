@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor } from '@solidjs/testing-library'
 import { describe, expect, it, vi } from 'vitest'
 import { catalog } from '../fixture/catalog'
 import { connected } from '../fixture/graphs'
+import { layoutCatalog, multiTrigger } from '../fixture/layoutGraphs'
 import { Editor } from './Editor'
+import { legacyTidyLayout } from './test/legacyTidy'
 import type { EditorApi, EditorProps } from './types'
 
 const api: EditorApi = {
@@ -43,5 +45,44 @@ describe('Editor keyboard (K6)', () => {
     expect(container.querySelector('.ae-save')).toBeNull()
     expect(container.querySelector('.iota-flow__handle.connectable')).toBeNull()
     expect(container.textContent).toContain('Old version')
+  })
+})
+
+describe('Tidy button (ED2)', () => {
+  const positions = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>('.iota-flow__node')].map((n) => `${n.dataset.id}:${n.style.transform}`).sort().join('|')
+  const start = () => setup({ graph: multiTrigger, catalog: layoutCatalog, layout: legacyTidyLayout(multiTrigger, layoutCatalog) })
+
+  it('sits next to Fit, names its shortcut and does one undoable step', async () => {
+    const { container } = start()
+    const controls = container.querySelector('.ae-controls')!
+    const buttons = [...controls.querySelectorAll('button')]
+    const fit = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Fit to screen')
+    const tidy = buttons[fit + 1]!
+    expect(tidy.getAttribute('aria-label')).toBe('Tidy up')
+    expect(tidy.getAttribute('title')).toMatch(/Tidy up \((Ctrl\+Shift\+L|⇧⌘L)\)/)
+    expect(tidy.getAttribute('aria-keyshortcuts')).toMatch(/Shift\+L$/)
+    const before = positions(container)
+    fireEvent.click(tidy)
+    const after = positions(container)
+    expect(after).not.toBe(before)
+    // The cards glide for 200 ms: the canvas carries the class until they have landed.
+    expect(container.querySelector('.ae-canvas--tidying')).not.toBeNull()
+    await waitFor(() => expect(container.querySelector('.ae-canvas--tidying')).toBeNull())
+    fireEvent.click(screen.getByLabelText('Undo'))
+    expect(positions(container)).toBe(before)
+    expect(screen.getByLabelText('Undo')).toBeDisabled()
+  })
+
+  it('runs on Shift+Ctrl+L and stays out of fields', () => {
+    const { container } = start()
+    const before = positions(container)
+    fireEvent.keyDown(document.body, { key: 'L', ctrlKey: true, shiftKey: true })
+    expect(positions(container)).not.toBe(before)
+  })
+
+  it('is absent from a read-only editor', () => {
+    const { container } = setup({ readOnly: { reason: 'Old version' } })
+    expect(container.querySelector('.ae-tidy')).toBeNull()
   })
 })

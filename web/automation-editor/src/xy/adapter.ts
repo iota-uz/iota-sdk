@@ -3,7 +3,6 @@
 import {
   ConnectionMode,
   getBezierPath,
-  getSmoothStepPath,
   getViewportForBounds,
   PanOnScrollMode,
   Position,
@@ -308,18 +307,8 @@ export function startConnection(event: MouseEvent | TouchEvent, params: ConnectP
 export function edgePath(source: XY, target: XY): string {
   const [path] = getBezierPath({
     sourceX: source.x, sourceY: source.y, sourcePosition: Position.Bottom,
-    targetX: target.x, targetY: target.y, targetPosition: Position.Left,
+    targetX: target.x, targetY: target.y, targetPosition: Position.Top,
     curvature: 0.3,
-  })
-  return path
-}
-
-/** A cycle edge runs back along the side with orthogonal segments. */
-export function loopPath(source: XY, target: XY, offset = 32): string {
-  const [path] = getSmoothStepPath({
-    sourceX: source.x, sourceY: source.y, sourcePosition: Position.Bottom,
-    targetX: target.x, targetY: target.y, targetPosition: Position.Left,
-    borderRadius: 12, offset,
   })
   return path
 }

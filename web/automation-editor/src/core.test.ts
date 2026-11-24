@@ -6,7 +6,8 @@ import { cardGeometry, CARD_HEIGHT, CARD_MIN_WIDTH, GRID, rectsOverlap, snap } f
 import { addNode, addTrigger, connect, duplicateItems, edgeOf, idBase, nodeOutcomes, pathOf, reachabilityOrder, removeItems, setIgnore, uniqueId } from './graph'
 import { canRedo, canUndo, createHistory, record, redo, undo } from './history'
 import { backEdges, ensureLayout, itemSize, placeNew, tidyLayout } from './layout'
-import type { AutomationGraph, AutomationLayout, GraphEdge } from './types'
+import { layoutMetrics } from './quality'
+import type { AutomationGraph, AutomationLayout } from './types'
 import { connectionLost, CONNECTION_UNAVAILABLE, errorsByItem, errorTarget, localErrors, rebaseErrors } from './validation'
 
 const spec = (type: string) => catalog.nodes.find((n) => n.type === type)!
@@ -137,33 +138,17 @@ describe('clipboard', () => {
   })
 })
 
-const forwardCrossings = (graph: AutomationGraph, layout: AutomationLayout) => {
-  const back = backEdges(graph)
-  const segments = graph.edges
-    .filter((e: GraphEdge) => e.to !== 'ignore' && !back.has(`${e.from.node}->${e.to}`))
-    .map((e) => [layout[e.from.node]!, layout[e.to]!] as const)
-  let count = 0
-  for (let i = 0; i < segments.length; i += 1) {
-    for (let j = i + 1; j < segments.length; j += 1) {
-      const [a1, b1] = segments[i]!
-      const [a2, b2] = segments[j]!
-      if (a1.x === a2.x && b1.x === b2.x && (a1.y - a2.y) * (b1.y - b2.y) < 0) count += 1
-    }
-  }
-  return count
-}
-
 describe('tidy layout (ED2)', () => {
-  it('lays out left to right with triggers first, on the grid, without overlaps', () => {
+  it('lays out top to bottom with triggers first, on the grid, without overlaps', () => {
     const layout = tidyLayout(sample, catalog)
     for (const p of Object.values(layout)) {
-      expect(p.x % GRID).toBe(0)
-      expect(p.y % GRID).toBe(0)
+      expect(Math.round(p.x) % GRID).toBe(0)
+      expect(Math.round(p.y) % GRID).toBe(0)
     }
-    const triggerX = Math.max(...sample.triggers.map((t) => layout[t.id]!.x))
-    const nodeX = Math.min(...sample.nodes.map((n) => layout[n.id]!.x))
-    expect(triggerX).toBeLessThan(nodeX)
-    expect(layout.send_email!.x).toBeGreaterThan(layout.has_email!.x)
+    const triggerY = Math.max(...sample.triggers.map((t) => layout[t.id]!.y))
+    const nodeY = Math.min(...sample.nodes.map((n) => layout[n.id]!.y))
+    expect(triggerY).toBeLessThan(nodeY)
+    expect(layout.send_email!.y).toBeGreaterThan(layout.has_email!.y)
     const ids = Object.keys(layout)
     for (let i = 0; i < ids.length; i += 1) {
       for (let j = i + 1; j < ids.length; j += 1) {
@@ -174,7 +159,7 @@ describe('tidy layout (ED2)', () => {
     }
   })
 
-  it('removes crossings of forward edges a naive order has', () => {
+  it('removes crossings a naive order has', () => {
     const graph: AutomationGraph = {
       name: 'x', run_as: 'owner',
       triggers: [{ id: 't', event: 'core.user.created.v1' }],
@@ -191,14 +176,15 @@ describe('tidy layout (ED2)', () => {
         { from: { node: 'q', outcome: 'done' }, to: 'r' },
       ],
     }
-    expect(forwardCrossings(graph, tidyLayout(graph, catalog))).toBe(0)
+    expect(layoutMetrics(graph, catalog, tidyLayout(graph, catalog)).crossings).toBe(0)
   })
 
-  it('finds cycle edges so they run along the side', () => {
+  it('finds cycle edges so they run around the cards', () => {
     const loop = connect(connected, { node: 'yes', outcome: 'done' }, 'check')
     expect(backEdges(loop).has('yes->check')).toBe(true)
     const layout = tidyLayout(loop, catalog)
-    expect(layout.check!.x).toBeLessThan(layout.yes!.x)
+    expect(layout.check!.y).toBeLessThan(layout.yes!.y)
+    expect(layoutMetrics(loop, catalog, layout)).toMatchObject({ overlaps: 0, throughNodes: 0 })
   })
 
   it('handles 200 steps and 500 edges quickly', () => {
@@ -209,17 +195,17 @@ describe('tidy layout (ED2)', () => {
     expect(performance.now() - started).toBeLessThan(2000)
   })
 
-  it('places a new step next to its source in free space, and a new trigger below the others', () => {
+  it('places a new step under its source in free space, and a new trigger right of the others', () => {
     const layout = ensureLayout(sample, catalog, {})
     const { graph, id } = addNode(sample, spec('end'))
     const p = placeNew(graph, catalog, layout, id, { source: 'delay' })
-    expect(p.x).toBeGreaterThan(layout.delay!.x)
+    expect(p.y).toBeGreaterThan(layout.delay!.y)
     const size = itemSize(graph, catalog, id)
     for (const other of Object.keys(layout)) expect(rectsOverlap({ ...p, ...size }, { ...layout[other]!, ...itemSize(graph, catalog, other) })).toBe(false)
     const event = catalog.events[0]!
     const added = addTrigger(sample, event, event.key)
     const t = placeNew(added.graph, catalog, layout, added.id)
-    expect(t.y).toBeGreaterThan(Math.max(layout.user_created!.y, layout.schedule!.y))
+    expect(t.x).toBeGreaterThan(Math.max(layout.user_created!.x, layout.schedule!.x))
   })
 })
 
