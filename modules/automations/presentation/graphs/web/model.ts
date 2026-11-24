@@ -403,8 +403,10 @@ export function runDataOf(d: WireRunData): RunData {
     if (!kind || w.status !== 'open' || !node) continue
     waits.push({ node, token_id: w.token_id, kind, since: d.run.updated_at, timeout_at: w.timeout_at, wait_id: w.wait_id })
   }
+  const event = d.event && typeof d.event === 'object' && !Array.isArray(d.event) ? d.event as Record<string, unknown> : null
   return {
     ...runSummaryOf(d.run),
+    event,
     tokens: d.tokens.map((t) => ({ token_id: t.id, node: t.node_id || null, state: tokenState(t.status), parent: t.parent, branch: t.branch ?? null, foreach_index: t.foreach_index })),
     steps: d.steps.map((s) => ({
       node: s.node_id, token_id: s.token_id, attempt: s.attempt, input: s.input ?? null, outcome: s.outcome || null, output: s.output ?? null,

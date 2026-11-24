@@ -612,10 +612,12 @@ type WaitView struct {
 
 // RunData is a run with its tokens, steps and waits (RunData of #1347).
 type RunData struct {
-	Run    RunSummary  `json:"run"`
-	Tokens []TokenView `json:"tokens"`
-	Steps  []StepView  `json:"steps"`
-	Waits  []WaitView  `json:"waits"`
+	Run RunSummary `json:"run"`
+	// Event is the event that started the run, projected for the viewer.
+	Event  json.RawMessage `json:"event,omitempty"`
+	Tokens []TokenView     `json:"tokens"`
+	Steps  []StepView      `json:"steps"`
+	Waits  []WaitView      `json:"waits"`
 }
 
 // RunCancelResponse is ok, or run_finished.

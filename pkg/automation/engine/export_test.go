@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -56,4 +57,17 @@ func TaskAssignedNewUsers(ctx context.Context, obs workflow.TaskObserver, tenant
 // SubjectLockKey is the advisory lock key steps, starts and the router take for a run's subject.
 func SubjectLockKey(tenant uuid.UUID, s SubjectRef, run uuid.UUID) string {
 	return subjectLockKey(tenant, s, run)
+}
+
+// RecordedAnswer is the result a call's journaled attempt gives when the child ended without its own
+// (endedResult's recovery).
+func (r *Runtime) RecordedAnswer(raw []byte, nodeType string) (WaitResult, bool) {
+	return r.calls.recordedAnswer(raw, CallRequest{NodeType: nodeType, WaitID: "w"})
+}
+
+// SetTestWait bounds how long a repeat of a node test waits for the first one (default 30 s).
+func SetTestWait(d time.Duration) func() {
+	was := testWait
+	testWait = d
+	return func() { testWait = was }
 }

@@ -74,12 +74,14 @@ export function sampleRuns(): RunData[] {
   return [
     {
       ...summary('00000000-0000-4000-8000-0000000000r1', 3, 'running', -1, { current_nodes: ['send_email'] }),
+      event: { kind: 'core.user.created.v1', user: { id: 42, email: 'dilnoza@acme.test' } },
       tokens: [{ token_id: 'a', node: 'send_email', state: 'active' }],
       steps: [step('has_email', 'a', 'true', -1, { input: { expression: 'user.email != ""' }, output: { value: true } }), step('send_email', 'a', null, -0.5)],
       waits: [],
     },
     {
       ...summary('00000000-0000-4000-8000-0000000000r2', 3, 'failed', -30, { error: 'The mail server refused the message' }),
+      event: { kind: 'core.user.created.v1', user: { id: 42, email: 'dilnoza@acme.test' } },
       tokens: [{ token_id: 'b', node: 'send_email', state: 'done' }],
       steps: [
         step('has_email', 'b', 'true', -30, { output: { value: true } }),

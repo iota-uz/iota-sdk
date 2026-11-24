@@ -144,7 +144,8 @@ export type RunWait = {
   /** What Retry and Resolve name; a blocked call's wait. */
   wait_id?: string
 }
-export type RunData = RunSummary & { tokens: RunToken[]; steps: RunStep[]; waits: RunWait[] }
+/** event: the event that started the run ({kind, ...payload}), projected by the server for the viewer. */
+export type RunData = RunSummary & { tokens: RunToken[]; steps: RunStep[]; waits: RunWait[]; event?: Record<string, unknown> | null }
 export type RunsQuery = { automation_id: string; version?: number; state?: RunState[]; subject?: string; cursor?: string; limit?: number }
 
 /** The Runs tab's view state; a host that keeps it in the URL controls it (D1). */

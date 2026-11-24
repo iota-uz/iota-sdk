@@ -228,7 +228,8 @@ func (c *CallRunner) recordedAnswer(raw []byte, req CallRequest) (WaitResult, bo
 		if nt, ok := c.r.cfg.Catalog.Node(req.NodeType); ok {
 			fo = nt.Spec().FailedOutcome
 		}
-		return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: rec.Code, Message: rec.Message, Retryable: rec.Retryable}}, true
+		// What the node logged before it failed goes with the failure, as with an answer.
+		return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: rec.Code, Message: rec.Message, Retryable: rec.Retryable}, Logs: rec.Logs}, true
 	}
 	return WaitResult{}, false
 }

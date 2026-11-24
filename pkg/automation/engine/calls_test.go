@@ -198,7 +198,7 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 	ae.create(p, ae.human(), graphJSON("HTTP", `{"id": "created", "event": "acme.order.created.v1"}`,
 		`{"id": "get", "type": "acme.http", "params": {}}, {"id": "fin", "type": "end", "params": {}}`,
 		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"}, {"from": {"node": "get", "outcome": "ok"}, "to": "fin"}, {"from": {"node": "get", "outcome": "failed"}, "to": "fin"}`))
-	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1, Secret: "s3cret"}, 0)
 	p.until(func() bool {
 		runs := ae.runs(p, ae.human(), engine.RunFilter{})
 		return len(runs) == 1 && runs[0].Status == engine.RunDone
@@ -206,6 +206,13 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 	run := runOf(t, ae.env, p)
 	d, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
 	require.NoError(t, err)
+	// The run's event comes with the run, projected for the viewer: a sensitive field only for a viewer
+	// who may read it.
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": "", "secret": "s3cret"}`, string(d.Event))
+	reader := ae.actor(ae.tenant, 1, engine.OriginHuman, engine.PermRead, permRead)
+	dr, err := p.rt.Service().GetRun(context.Background(), reader, run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": ""}`, string(dr.Event))
 	var logs []string
 	for _, s := range d.Steps {
 		if s.NodeID == "get" {

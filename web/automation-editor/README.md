@@ -82,8 +82,8 @@ chunk); a host that passes `runsBody` keeps its own.
   the end of a final run → skipped, a step closed by a cancel → cancelled, taken edges (a parallel's and
   a for each's from the tokens they made: the engine records them as `fork` / `each`), badges for attempts
   (> 1) and for each items (> 1), the message of a failed branch (`output.error.message`) as the card's
-  note. A branch's `arrived` step on a join is not the join's outcome: the join has no state until its
-  own step.
+  note. A branch's `arrived` step on a join or a collect is not that node's outcome: it has no state
+  until its own step (on any other node `arrived` is an outcome like any other).
 - **Polling**: `run(id)` every 2 s while the run is `running` or `waiting`; an equal answer redraws
   nothing (P4). The indicator says Live / Reconnecting… / Finished. Runs read in the editor are kept, so
   a finished run is not asked for again and its poll does not resume on a tab switch.
@@ -101,9 +101,13 @@ chunk); a host that passes `runsBody` keeps its own.
   cache is a step with status `cached`) and what would be sent (captured effects with rendered params). The result
   belongs to the draft it ran on: an edit takes it off the canvas.
 - **Test node** (RV8, `can.author`): the input is the subject, the event of the trigger that leads to the
-  step (by its payload schema) and the outputs of the steps before it (`nodes.<id>.output`), filled «From
-  the last run» (its subject and those outputs); every confirmed test carries an `idempotency_key` that a
-  retry repeats, so the server answers it with the first test's result and calls nothing twice (F3); a step with an external effect is confirmed first,
+  step (chosen when several do; the event carries that trigger's `kind`) by its payload schema, and the
+  outputs of the steps before it (`nodes.<id>.output`). «From the last run» reads the newest run that
+  reached the step itself and fills its subject, its event (`RunData.event`, projected by the server for
+  the author) and those outputs. Every confirmed test carries an `idempotency_key` that a retry repeats:
+  the server claims the key in `automation.node_tests`, so a repeat on any process gets the stored answer,
+  and one without an answer (still running, or its process died) is refused as `outcome_unknown` rather
+  than run again (F3); a step with an external effect is confirmed first,
   with the connection's name (`connectionName`) and «The effect is irreversible» unless the catalog says
   `idempotent: true`; a secret the step lacks (`secret_missing`) is marked «not set».
 - **Phone**: the list full width, a run its own screen with the read-only outline (items open the

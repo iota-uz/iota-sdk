@@ -13,7 +13,7 @@ import { SchemaForm } from '../SchemaForm'
 import { strings } from '../strings'
 import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, Overlay, RunData, Subject, TestNodeResult } from '../types'
 import { Value } from './Data'
-import { missingSecret, testOverlay } from './model'
+import { isFinal, missingSecret, testOverlay } from './model'
 import { Logs } from './NodeDrawer'
 import { runStrings } from './strings'
 import { SubjectPicker, subjectEntity } from './SubjectPicker'
@@ -67,10 +67,15 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   const title = createMemo(() => describeItem(props.graph, props.catalog, props.node, props.locale).title)
   // The form: the event of the trigger that leads to the step (by its payload schema), and an object per
   // earlier step with an output schema, keyed by the context path it overrides.
-  const trigger = createMemo(() => {
-    const id = ancestors(props.graph, props.node, true).find((a) => props.graph.triggers.some((t) => t.id === a))
-    return props.graph.triggers.find((t) => t.id === id)
+  // The triggers that lead to the step; the author picks the one the test starts from (its event kind is
+  // what event.kind reads).
+  const triggers = createMemo(() => {
+    const ids = new Set(ancestors(props.graph, props.node, true))
+    return props.graph.triggers.filter((tr) => ids.has(tr.id))
   })
+  const [triggerId, setTriggerId] = createSignal<string | null>(null)
+  const trigger = () => triggers().find((tr) => tr.id === triggerId()) ?? triggers()[0]
+  const triggerTitle = (id: string) => describeItem(props.graph, props.catalog, id, props.locale).title
   const schema = createMemo<JsonSchema>(() => {
     const properties: Record<string, JsonSchema> = {}
     const payload = trigger() ? catalogEvent(props.catalog, trigger()!.event)?.payload : undefined
@@ -91,7 +96,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   // One key per test the author confirmed: a retry after a failure sends it again (the server answers with
   // the first test's result and calls nothing twice); a change of the input or a finished test drops it.
   let key: string | null = null
-  createEffect(on([input, subject], () => { key = null }, { defer: true }))
+  createEffect(on([input, subject, triggerId], () => { key = null }, { defer: true }))
   const [result, setResult] = createSignal<TestNodeResult | null>(null)
   const [confirming, setConfirming] = createSignal(false)
   const [exampleNote, setExampleNote] = createSignal<string | null>(null)
@@ -115,7 +120,10 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   }
   const execute = () => {
     const graph = props.graph
-    const context = Object.fromEntries(Object.entries(input()).filter(([, v]) => v !== undefined))
+    const context: Record<string, unknown> = Object.fromEntries(Object.entries(input()).filter(([, v]) => v !== undefined))
+    // The event carries its kind: the chosen trigger's event, as a run's event does.
+    const tr = trigger()
+    if (tr) context.event = { ...((context.event as Record<string, unknown> | undefined) ?? {}), kind: tr.event }
     key ??= newKey()
     const sent = key
     const who = subject()
@@ -132,25 +140,39 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
     }, () => setConfirming(false))
   }
 
+  // The run's subject, its event (as the server projected it for the author) and the outputs of the steps
+  // before this one; what the run does not carry keeps what was typed.
   const fillFrom = (run: RunData) => {
     if (run.subject && run.subject.entity === entity()) setSubject(run.subject)
-    const next: Record<string, unknown> = {}
+    const next: Record<string, unknown> = { ...input() }
+    const ev = run.event
+    if (ev && typeof ev.kind === 'string') {
+      const tr = triggers().find((x) => x.id === run.trigger && x.event === ev.kind) ?? triggers().find((x) => x.event === ev.kind)
+      if (tr) {
+        setTriggerId(tr.id)
+        const { kind: _kind, ...payload } = ev
+        if ('event' in ((schema().properties ?? {}) as object)) next.event = payload
+      }
+    }
     for (const id of ancestors(props.graph, props.node)) {
       const step = [...run.steps].reverse().find((s) => s.node === id && !s.hidden && s.output !== undefined && s.output !== null)
       if (step && `nodes.${id}.output` in ((schema().properties ?? {}) as object)) next[`nodes.${id}.output`] = step.output
     }
     setInput(next)
   }
+  // The newest run that reached this very step: the list is read fresh, a run is read once (a finished
+  // run from the editor's cache is final).
   const loadExample = () => {
     setExampleNote(null)
     void example.run(async () => {
-      const reached = (r: RunData) => r.steps.some((s) => s.node === props.node || ancestors(props.graph, props.node).includes(s.node))
-      const cached = [...props.cache.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(reached)
-      if (cached) return cached
-      if (!props.api.runs || !props.api.run || !props.automationId) return null
+      const reached = (r: RunData) => r.steps.some((s) => s.node === props.node && !s.hidden)
+      if (!props.api.runs || !props.api.run || !props.automationId) {
+        return [...props.cache.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(reached) ?? null
+      }
       const page = await props.api.runs({ automation_id: props.automationId, limit: EXAMPLE_RUNS })
       for (const row of page.items) {
-        const run = await props.api.run(row.run_id)
+        const known = props.cache.get(row.run_id)
+        const run = known && isFinal(known.state) ? known : await props.api.run(row.run_id)
         props.cache.set(run.run_id, run)
         if (reached(run)) return run
       }
@@ -179,6 +201,22 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
             </Show>
           </div>
           <Show when={exampleNote()}>{(note) => <p class="ae-muted" role="status">{note()}</p>}</Show>
+          <Show when={triggers().length > 1}>
+            <fieldset class="ae-field">
+              <legend class="ae-field__label">{t().trigger}</legend>
+              <div class="ae-segmented" role="radiogroup" aria-label={t().trigger}>
+                <For each={triggers()}>
+                  {(tr) => (
+                    <label class="ae-segmented__item">
+                      <input type="radio" name="ae-test-trigger" value={tr.id} checked={trigger()?.id === tr.id} disabled={action.busy()}
+                        onChange={() => { setTriggerId(tr.id); setInput(({ event: _event, ...rest }) => rest) }} />
+                      <span>{triggerTitle(tr.id)}</span>
+                    </label>
+                  )}
+                </For>
+              </div>
+            </fieldset>
+          </Show>
           <SubjectPicker entity={entity()} api={props.api} locale={props.locale} value={subject()} onChange={setSubject} disabled={action.busy()} />
           <Show when={hasFields()} fallback={<p class="ae-muted">{t().noInput}</p>}>
             <SchemaForm
@@ -232,7 +270,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
                   {(e) => (
                     <p class="ae-run-node__error" data-testid="test-error">
                       <Icon name="error" size={14} />
-                      <span>{missing() !== null ? t().secretMissing(missing() || '') : t().reasons[(['timeout', 'network_blocked', 'connection_unavailable', 'exception'] as const).find((r) => r === e().reason) ?? 'other']}</span>
+                      <span>{missing() !== null ? t().secretMissing(missing() || '') : t().reasons[(['timeout', 'network_blocked', 'connection_unavailable', 'exception', 'outcome_unknown'] as const).find((r) => r === e().reason) ?? 'other']}</span>
                     </p>
                   )}
                 </Show>

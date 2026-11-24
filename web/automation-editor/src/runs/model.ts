@@ -2,7 +2,7 @@
 // node and the output size limit. No DOM, no Solid: unit tested and usable by a host.
 import { edgeKey, FIRED } from '../graph'
 import { pick } from '../locale'
-import type { AutomationGraph, EditorLocale, ItemState, Overlay, RunData, RunState, RunStep, TestNodeResult, TraceStep } from '../types'
+import type { AutomationGraph, EditorCatalog, EditorLocale, ItemState, Overlay, RunData, RunState, RunStep, TestNodeResult, TraceStep } from '../types'
 
 /** States a run is still moving in: the run view polls them. */
 export const LIVE_STATES: readonly RunState[] = ['running', 'waiting']
@@ -64,7 +64,7 @@ function lastAttempts(steps: RunStep[]): Map<string, RunStep[]> {
  * - the badge counts attempts (> 1) and the steps of a for each (> 1 token);
  * - a failed branch carries its message (output.error.message) as the card's note.
  */
-export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorLocale = 'en'): Overlay {
+export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorLocale = 'en', catalog?: EditorCatalog): Overlay {
   const states = new Map<string, ItemState>()
   const badges = new Map<string, string>()
   const taken = new Set<string>()
@@ -87,7 +87,13 @@ export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorL
   // A branch that reached a join (or a for each item that reached its collect) records a step with the
   // outcome "arrived" on that node: the token's arrival, not the node's own decision. The join is passed,
   // failed or timed out by its own step only.
-  const steps = run.steps.filter((s) => s.outcome !== ARRIVED)
+  // Only on a join or a collect: elsewhere "arrived" is an outcome like any other (a switch may name one).
+  const gathers = (node: string) => {
+    const type = graph.nodes.find((n) => n.id === node)?.type ?? ''
+    const behavior = catalog?.nodes.find((n) => n.type === type)?.behavior
+    return behavior ? behavior === 'join' || behavior === 'collect' : type === 'join' || type === 'collect'
+  }
+  const steps = run.steps.filter((s) => !(s.outcome === ARRIVED && gathers(s.node)))
   for (const [node, latest] of lastAttempts(steps)) {
     for (const step of latest) {
       // A cancelled run closes its open steps with the outcome "cancelled" (no error).

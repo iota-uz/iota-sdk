@@ -120,7 +120,7 @@ export function RunView(props: RunViewProps): JSX.Element {
   const overlay = createMemo<Overlay | null>(() => {
     const d = data()
     const v = view()
-    return d && v ? runOverlay(v.graph, d, props.locale) : null
+    return d && v ? runOverlay(v.graph, d, props.locale, props.catalog) : null
   }, null, { equals: overlaysEqual })
 
   const conn = (): Conn => {
@@ -206,24 +206,32 @@ export function RunView(props: RunViewProps): JSX.Element {
   // it back to the outline item that opened it.
   let sheet: HTMLDivElement | undefined
   let opener: HTMLElement | null = null
+  const focusTitle = () => sheet?.querySelector<HTMLElement>('.ae-panel__title')?.focus({ preventScroll: true })
+  // The sheet mounts once the run's graph is there (a link that names a node opens it after loading):
+  // its ref takes the focus then; another node in the open sheet takes it again.
+  const mountSheet = (el: HTMLDivElement) => {
+    sheet = el
+    if (props.mobile) queueMicrotask(focusTitle)
+  }
   createEffect(on(() => props.node, (node, previous) => {
     if (!props.mobile || !node) return
-    if (!previous) opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    queueMicrotask(() => sheet?.querySelector<HTMLElement>('.ae-panel__title')?.focus({ preventScroll: true }))
+    if (!previous) opener = document.activeElement instanceof HTMLElement && !sheet?.contains(document.activeElement) ? document.activeElement : null
+    else queueMicrotask(focusTitle)
   }))
   const trapFocus = (event: KeyboardEvent) => {
     if (!props.mobile || event.key !== 'Tab' || !sheet) return
     const focusable = [...sheet.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"]), summary')]
+      .filter((el) => el.offsetParent !== null || el === document.activeElement)
     if (focusable.length === 0) return
-    const first = focusable[0]!
-    const last = focusable[focusable.length - 1]!
-    const active = document.activeElement
-    if (event.shiftKey && (active === first || !sheet.contains(active))) {
+    const at = focusable.indexOf(document.activeElement as HTMLElement)
+    // From the title (focused by script, not in the Tab order) or outside: Tab goes to the first control,
+    // Shift+Tab to the last; from the ends it wraps.
+    if (event.shiftKey && at <= 0) {
       event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && (active === last || !sheet.contains(active))) {
+      focusable[focusable.length - 1]!.focus()
+    } else if (!event.shiftKey && (at === -1 || at === focusable.length - 1)) {
       event.preventDefault()
-      first.focus()
+      focusable[0]!.focus()
     }
   }
   const closeNode = () => {
@@ -364,7 +372,7 @@ export function RunView(props: RunViewProps): JSX.Element {
                 </Switch>
                 <Show when={props.node && view()}>
                   <div
-                    ref={sheet}
+                    ref={mountSheet}
                     class="ae-side"
                     classList={{ 'ae-side--sheet': props.mobile }}
                     {...(props.mobile ? { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': `ae-run-node-${props.node}` } : {})}

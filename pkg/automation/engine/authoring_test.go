@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -109,29 +110,57 @@ func TestDryRunStopsOnAForbiddenNode(t *testing.T) {
 	assert.Equal(t, graph.FailDryRunForbidden, last.Path)
 }
 
-// A repeat of a confirmed test (its answer lost) gets the first answer: the external call is made once,
-// with the idempotency key of the test; another key is another test.
+// A repeat of a confirmed test (its answer lost) gets the first answer on any process: the claim and the
+// answer are in the database, so a non-idempotent send is made once. A claim without an answer (the first
+// test still runs, or its process died mid-call) is refused as outcome_unknown, never run again; another
+// key is another test.
 func TestTestNodeRepeatWithTheSameKeyCallsOnce(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p := ae.proc()
-	g := graphJSON("HTTP", `{"id": "created", "event": "acme.order.created.v1"}`,
-		`{"id": "get", "type": "acme.http", "params": {}}, {"id": "fin", "type": "end", "params": {}}`,
-		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"}, {"from": {"node": "get", "outcome": "ok"}, "to": "fin"}, {"from": {"node": "get", "outcome": "failed"}, "to": "fin"}`)
-	in := engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "get", Key: "confirm-1"}
-	first, err := p.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	first, second := ae.proc(), ae.proc() // two processes over one database
+	g := sendGraph("acme.send", "ok", "", true)
+	in := engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "send", Key: "confirm-1"}
+	res1, err := first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
 	require.NoError(t, err)
-	again, err := p.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.Nil(t, res1.Error)
+	res2, err := second.rt.Authoring().TestNode(context.Background(), ae.human(), in)
 	require.NoError(t, err)
-	assert.Equal(t, first, again)
-	require.Len(t, ae.acme.callsOf("acme.http"), 1, "the repeat called nothing")
-	assert.Equal(t, "test:confirm-1", ae.acme.callsOf("acme.http")[0].Key)
-	in.Key = "confirm-2"
-	_, err = p.rt.Authoring().TestNode(context.Background(), ae.human(), in)
-	require.NoError(t, err)
-	assert.Len(t, ae.acme.callsOf("acme.http"), 2)
-	in.Key = strings.Repeat("k", engine.MaxTestKey+1)
-	_, err = p.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	assert.Equal(t, res1.Outcome, res2.Outcome)
+	assert.JSONEq(t, string(res1.Output), string(res2.Output), "the stored answer")
+	require.Len(t, ae.acme.callsOf("acme.send"), 1, "the repeat on the other process called nothing")
+	assert.Equal(t, "test:confirm-1", ae.acme.callsOf("acme.send")[0].Key)
+
+	// The key names its node: another node with it is refused.
+	_, err = second.rt.Authoring().TestNode(context.Background(), ae.human(), engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "ok", Key: "confirm-1"})
 	require.ErrorIs(t, err, engine.ErrInvalidInput)
+
+	// A claim without an answer: refused, not run.
+	defer engine.SetTestWait(300 * time.Millisecond)()
+	_, err = ae.db.Exec(context.Background(), `INSERT INTO automation.node_tests (tenant_id, user_id, key, node_id) VALUES ($1, $2, 'lost', 'send')`, ae.tenant, ae.human().UserID)
+	require.NoError(t, err)
+	in.Key = "lost"
+	res3, err := second.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	require.NotNil(t, res3.Error)
+	assert.Equal(t, engine.CodeOutcomeUnknown, res3.Error.Code)
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1)
+
+	in.Key = "confirm-2"
+	_, err = first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	assert.Len(t, ae.acme.callsOf("acme.send"), 2)
+	in.Key = strings.Repeat("k", engine.MaxTestKey+1)
+	_, err = first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.ErrorIs(t, err, engine.ErrInvalidInput)
+}
+
+// The failure of a call recovered from its attempt's journal keeps what the node logged.
+func TestRecoveredFailureKeepsTheLogs(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	wr, ok := p.rt.RecordedAnswer([]byte(`{"kind":"failed","code":"rejected","message":"refused","logs":["GET /me with Bearer ***"]}`), "acme.send")
+	require.True(t, ok)
+	require.NotNil(t, wr.Error)
+	assert.Equal(t, []string{"GET /me with Bearer ***"}, wr.Logs)
 }
 
 // Testing an HTTP node runs it once, as the author: no run, no steps, no outbox events; the secret in

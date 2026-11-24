@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { sample } from '../../fixture/graphs'
+import { layoutCatalog } from '../../fixture/layoutGraphs'
 import { approval, approvalWaiting, sampleRuns, sampleV2 } from '../../fixture/runs'
 import type { RunData } from '../types'
 import { byteSize, failureMessage, hasData, isFinal, isLive, missingSecret, overlaysEqual, runOverlay, sameRun, testOverlay, traceOverlay } from './model'
@@ -9,7 +10,7 @@ const byId = (suffix: string) => runs.find((r) => r.run_id.endsWith(suffix))!
 
 describe('runOverlay', () => {
   it('a parallel with one branch waiting: exactly one waiting node, both branches passed up to it, the join without a state', () => {
-    const o = runOverlay(approval, approvalWaiting)
+    const o = runOverlay(approval, approvalWaiting, 'en', layoutCatalog)
     const waiting = [...o.states].filter(([, s]) => s === 'waiting').map(([id]) => id)
     expect(waiting).toEqual(['answer'])
     expect(o.states.get('fan')).toBe('passed')
@@ -56,6 +57,17 @@ describe('runOverlay', () => {
     expect(cancelled.states.get('delay')).toBe('cancelled')
     expect(cancelled.taken.has('delay.cancelled')).toBe(false)
     expect(cancelled.states.get('end')).toBe('skipped')
+  })
+
+  it('"arrived" is a join\'s arrival only on a join: a switch\'s own outcome of that name is taken', () => {
+    const graph = { ...sample, edges: [...sample.edges.filter((e) => !(e.from.node === 'has_email' && e.from.outcome === 'true')), { from: { node: 'has_email', outcome: 'arrived' }, to: 'send_email' }] }
+    const run: RunData = {
+      ...byId('r3'), state: 'done', tokens: [], waits: [],
+      steps: [{ node: 'has_email', token_id: 'a', attempt: 1, input: {}, outcome: 'arrived', output: {}, logs: [], error: null, started_at: '2026-11-20T09:00:00Z', ended_at: '2026-11-20T09:00:01Z' }],
+    }
+    const o = runOverlay(graph, run, 'en', layoutCatalog)
+    expect(o.states.get('has_email')).toBe('passed')
+    expect(o.taken.has('has_email.arrived')).toBe(true)
   })
 
   it('a for each takes its item edge from the tokens it made', () => {

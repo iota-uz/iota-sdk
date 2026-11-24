@@ -309,6 +309,9 @@ type RunSummary struct {
 // RunDetail is a run with its tokens, steps and waits.
 type RunDetail struct {
 	RunSummary
+	// Event is the event that started the run ({kind, ...payload}), its payload projected for the viewer:
+	// a field the viewer may not read is left out. nil: the run has no event.
+	Event      json.RawMessage
 	Tokens     []TokenView
 	Steps      []StepView // input/output projected for the viewer
 	Waits      []WaitView

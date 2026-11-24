@@ -251,6 +251,23 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	proj := s.r.projector(a.TenantID)
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
+	if ev, err := decodeMap(run.Input); err == nil && ev != nil {
+		if kind, _ := ev["kind"].(string); kind != "" {
+			payload := make(map[string]any, len(ev))
+			for k, v := range ev {
+				if k != "kind" {
+					payload[k] = v
+				}
+			}
+			if payload, err = proj.project(ctx, kind, payload, &viewer); err != nil {
+				return RunDetail{}, err
+			}
+			payload["kind"] = kind
+			if d.Event, err = json.Marshal(payload); err != nil {
+				return RunDetail{}, err
+			}
+		}
+	}
 	for _, st := range steps {
 		sv := st.sv
 		// A step that ran after the run read a sensitive field the viewer may not read can carry it in

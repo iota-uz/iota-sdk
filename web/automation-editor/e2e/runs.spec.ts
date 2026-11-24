@@ -120,6 +120,17 @@ test.describe('runs', () => {
     await expect(item).toBeFocused()
   })
 
+  test('K3: a link that names a node opens the sheet with the focus in it; Shift+Tab from the title stays inside', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview .ae-outline')
+    const sheet = page.getByRole('dialog', { name: 'Send email' })
+    await expect(sheet.locator('.ae-panel__title')).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press('Shift+Tab')
+    expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+  })
+
   test('A1: the Runs tab with a run and its drawer has no serious violations', async ({ page }) => {
     await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview')
     await expect(page.getByTestId('run-node')).toBeVisible()
@@ -174,6 +185,21 @@ test.describe('dry run and test node', () => {
     await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
     await expect(page.getByTestId('test-error')).toHaveText('Secret crm.token is not set')
     await expect(card(page, 'send_email')).toHaveClass(/ae-card--failed/)
+  })
+
+  test('RV8: the test\'s event carries its kind; «From the last run» fills the event of the newest run that reached the step', async ({ page }) => {
+    await open(page)
+    await card(page, 'send_email').click()
+    await page.getByTestId('open-test-node').click()
+    await page.getByTestId('test-example').click()
+    await expect(page.getByTestId('test-node').locator('input[type="number"]').first()).toHaveValue('42')
+    await page.getByTestId('test-start').click()
+    await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+    await expect(page.getByTestId('test-result')).toContainText('sent')
+    const sent = await page.evaluate(() => window.__fixture.tests[0] as { context?: { event?: { kind?: string; user?: { id?: number } } }; idempotency_key?: string })
+    expect(sent.context?.event?.kind).toBe('core.user.created.v1')
+    expect(sent.context?.event?.user?.id).toBe(42)
+    expect(sent.idempotency_key).toBeTruthy()
   })
 
   test('RV8 / F2: a long test says it is still running and does not run twice', async ({ page }) => {

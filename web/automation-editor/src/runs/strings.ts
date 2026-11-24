@@ -130,6 +130,7 @@ export type RunStrings = {
     note: string
     input: string
     event(title: string): string
+    trigger: string
     noInput: string
     example: string
     exampleNone: string
@@ -153,7 +154,7 @@ export type RunStrings = {
     secrets: string
     logs: string
     output: string
-    reasons: Record<'timeout' | 'network_blocked' | 'connection_unavailable' | 'exception' | 'other', string>
+    reasons: Record<'timeout' | 'network_blocked' | 'connection_unavailable' | 'exception' | 'outcome_unknown' | 'other', string>
     answer: string
   }
 }
@@ -289,6 +290,7 @@ const en: RunStrings = {
     note: 'The step runs for real with this input.',
     input: 'Input',
     event: (title) => `Event: ${title}`,
+    trigger: 'Started by',
     noInput: 'No step before this one has an output to set: it runs with the subject alone.',
     example: 'From the last run',
     exampleNone: 'No run reached this step yet.',
@@ -312,7 +314,7 @@ const en: RunStrings = {
     secrets: 'Secrets',
     logs: 'Logs',
     output: 'Output',
-    reasons: { timeout: 'The step did not answer in time. Try again or raise its timeout.', network_blocked: 'The step tried to reach an address it may not call.', connection_unavailable: 'The connection is unavailable: reconnect it in Integrations.', exception: 'The step failed with an error in its code.', other: 'The step failed. Try again in a minute.' },
+    reasons: { outcome_unknown: 'The earlier test of this input has no recorded answer: it may still run or may have run. It is not run again; confirm a new test to run it once more.', timeout: 'The step did not answer in time. Try again or raise its timeout.', network_blocked: 'The step tried to reach an address it may not call.', connection_unavailable: 'The connection is unavailable: reconnect it in Integrations.', exception: 'The step failed with an error in its code.', other: 'The step failed. Try again in a minute.' },
     answer: 'The service’s answer',
   },
 }
@@ -446,6 +448,7 @@ const ru: RunStrings = {
     note: 'Шаг выполняется по-настоящему с этим входом.',
     input: 'Вход',
     event: (title) => `Событие: ${title}`,
+    trigger: 'Запуск от',
     noInput: 'Ни у одного шага до этого нет выхода, который можно задать: шаг выполнится только с объектом.',
     example: 'Из последнего запуска',
     exampleNone: 'Ни один запуск ещё не дошёл до этого шага.',
@@ -469,7 +472,7 @@ const ru: RunStrings = {
     secrets: 'Секреты',
     logs: 'Логи',
     output: 'Выход',
-    reasons: { timeout: 'Шаг не ответил вовремя. Повторите или увеличьте таймаут.', network_blocked: 'Шаг обратился к адресу, который ему нельзя вызывать.', connection_unavailable: 'Подключение недоступно: переподключите его в «Интеграциях».', exception: 'Шаг упал с ошибкой в своём коде.', other: 'Шаг не выполнился. Повторите через минуту.' },
+    reasons: { outcome_unknown: 'У прошлой проверки с этим входом нет записанного ответа: она ещё идёт или уже выполнилась. Повторно она не запускается; подтвердите новую проверку, чтобы выполнить шаг ещё раз.', timeout: 'Шаг не ответил вовремя. Повторите или увеличьте таймаут.', network_blocked: 'Шаг обратился к адресу, который ему нельзя вызывать.', connection_unavailable: 'Подключение недоступно: переподключите его в «Интеграциях».', exception: 'Шаг упал с ошибкой в своём коде.', other: 'Шаг не выполнился. Повторите через минуту.' },
     answer: 'Ответ сервиса',
   },
 }
@@ -603,6 +606,7 @@ const uz: RunStrings = {
     note: 'Qadam shu kirish bilan haqiqatan bajariladi.',
     input: 'Kirish',
     event: (title) => `Hodisa: ${title}`,
+    trigger: 'Ishga tushiruvchi',
     noInput: 'Bu qadamdan oldingi qadamlarda beriladigan chiqish yo‘q: qadam faqat obyekt bilan bajariladi.',
     example: 'Oxirgi ishga tushirishdan',
     exampleNone: 'Hali hech bir ishga tushirish bu qadamga yetmagan.',
@@ -626,7 +630,7 @@ const uz: RunStrings = {
     secrets: 'Sirlar',
     logs: 'Loglar',
     output: 'Chiqish',
-    reasons: { timeout: 'Qadam o‘z vaqtida javob bermadi. Qayta urinib ko‘ring yoki taymautni oshiring.', network_blocked: 'Qadam chaqirishi mumkin bo‘lmagan manzilga murojaat qildi.', connection_unavailable: 'Ulanish mavjud emas: uni «Integratsiyalar»da qayta ulang.', exception: 'Qadam o‘z kodidagi xato bilan to‘xtadi.', other: 'Qadam bajarilmadi. Bir daqiqadan keyin qayta urinib ko‘ring.' },
+    reasons: { outcome_unknown: 'Shu kirish bilan oldingi sinovning javobi yozilmagan: u hali bajarilmoqda yoki bajarilgan. U qayta ishga tushirilmaydi; qadamni yana bajarish uchun yangi sinovni tasdiqlang.', timeout: 'Qadam o‘z vaqtida javob bermadi. Qayta urinib ko‘ring yoki taymautni oshiring.', network_blocked: 'Qadam chaqirishi mumkin bo‘lmagan manzilga murojaat qildi.', connection_unavailable: 'Ulanish mavjud emas: uni «Integratsiyalar»da qayta ulang.', exception: 'Qadam o‘z kodidagi xato bilan to‘xtadi.', other: 'Qadam bajarilmadi. Bir daqiqadan keyin qayta urinib ko‘ring.' },
     answer: 'Xizmat javobi',
   },
 }
@@ -760,6 +764,7 @@ const uzCyrl: RunStrings = {
     note: 'Қадам шу кириш билан ҳақиқатан бажарилади.',
     input: 'Кириш',
     event: (title) => `Ҳодиса: ${title}`,
+    trigger: 'Ишга туширувчи',
     noInput: 'Бу қадамдан олдинги қадамларда бериладиган чиқиш йўқ: қадам фақат объект билан бажарилади.',
     example: 'Охирги ишга туширишдан',
     exampleNone: 'Ҳали ҳеч бир ишга тушириш бу қадамга етмаган.',
@@ -783,7 +788,7 @@ const uzCyrl: RunStrings = {
     secrets: 'Сирлар',
     logs: 'Логлар',
     output: 'Чиқиш',
-    reasons: { timeout: 'Қадам ўз вақтида жавоб бермади. Қайта уриниб кўринг ёки таймаутни оширинг.', network_blocked: 'Қадам чақириши мумкин бўлмаган манзилга мурожаат қилди.', connection_unavailable: 'Уланиш мавжуд эмас: уни «Интеграциялар»да қайта уланг.', exception: 'Қадам ўз кодидаги хато билан тўхтади.', other: 'Қадам бажарилмади. Бир дақиқадан кейин қайта уриниб кўринг.' },
+    reasons: { outcome_unknown: 'Шу кириш билан олдинги синовнинг жавоби ёзилмаган: у ҳали бажарилмоқда ёки бажарилган. У қайта ишга туширилмайди; қадамни яна бажариш учун янги синовни тасдиқланг.', timeout: 'Қадам ўз вақтида жавоб бермади. Қайта уриниб кўринг ёки таймаутни оширинг.', network_blocked: 'Қадам чақириши мумкин бўлмаган манзилга мурожаат қилди.', connection_unavailable: 'Уланиш мавжуд эмас: уни «Интеграциялар»да қайта уланг.', exception: 'Қадам ўз кодидаги хато билан тўхтади.', other: 'Қадам бажарилмади. Бир дақиқадан кейин қайта уриниб кўринг.' },
     answer: 'Хизмат жавоби',
   },
 }

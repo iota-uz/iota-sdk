@@ -906,7 +906,7 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 	if err != nil {
 		return RunData{}, mapErr(err)
 	}
-	out := RunData{Run: runSummary(d.RunSummary), Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
+	out := RunData{Run: runSummary(d.RunSummary), Event: d.Event, Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
 	if c.cfg.Links != nil && d.Subject.Entity != "" && d.Subject.Entity != graph.SubjectNone {
 		if link, err := c.cfg.Links.SubjectURL(ctx, a.TenantID, d.Subject); err == nil {
 			out.Run.SubjectURL = link

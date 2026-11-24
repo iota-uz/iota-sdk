@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/code"
@@ -104,10 +105,11 @@ const (
 type TestNodeInput struct {
 	Graph  json.RawMessage
 	NodeID string
-	// Key identifies the test the author confirmed (≤ 100 characters). A repeat with the same key —
-	// a retry after a lost answer — gets the first test's answer and calls nothing again; the call is
-	// made with the idempotency key "test:<Key>", so a provider deduplicates it across processes too.
-	// "": every request is a new test.
+	// Key identifies the test the author confirmed (≤ 100 characters). The first request with a key
+	// claims it in automation.node_tests (every process sees the claim) and runs the test; a repeat — a
+	// retry after a lost answer, on any process — gets the stored answer, or, while the first is running
+	// or its outcome is unknown (its process died), outcome_unknown: it is never run a second time. The
+	// call is made with the idempotency key "test:<Key>". "": every request is a new test.
 	Key     string
 	Subject *SubjectRef
 	Context map[string]json.RawMessage
@@ -372,12 +374,85 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	if in.Key == "" {
 		return au.testNode(ctx, a, in, "test:"+uuid.NewString())
 	}
-	// The same test of the same author: one execution, whose answer every repeat receives. It runs to its
-	// end even if the request that started it goes away, so a repeat does not find it half done.
-	scope := fmt.Sprintf("%s/%d/%s", a.TenantID, a.UserID, in.Key)
-	return au.r.tests.do(scope, func() (TestNodeResult, error) {
-		return au.testNode(context.WithoutCancel(ctx), a, in, "test:"+in.Key)
-	})
+	return au.keyedTest(ctx, a, in)
+}
+
+// testWait is how long a repeat of a node test waits for the first one to record its answer.
+var testWait = 30 * time.Second
+
+// testRetention is how long the answers of keyed node tests are kept for their repeats.
+const testRetention = 24 * time.Hour
+
+// keyedTest runs a node test once per (tenant, author, key), whatever process a request reaches.
+func (au *authoring) keyedTest(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
+	db := au.r.cfg.DB
+	if _, err := db.Exec(ctx, `DELETE FROM automation.node_tests WHERE tenant_id = $1 AND created_at < $2`, a.TenantID, time.Now().Add(-testRetention)); err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	tag, err := db.Exec(ctx, `INSERT INTO automation.node_tests (tenant_id, user_id, key, node_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+		a.TenantID, a.UserID, in.Key, in.NodeID)
+	if err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return au.repeatedTest(ctx, a, in)
+	}
+	// The claim is ours: the test runs to its end even if the request goes away, and its answer is kept.
+	run := context.WithoutCancel(ctx)
+	res, err := au.testNode(run, a, in, "test:"+in.Key)
+	if err != nil {
+		// Nothing was called (the graph, the context or the store refused first): the key is free again.
+		if _, derr := db.Exec(run, `DELETE FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3 AND result IS NULL`,
+			a.TenantID, a.UserID, in.Key); derr != nil {
+			au.r.cfg.Logger.Warn("automation: a node test's claim was not released", "error", derr)
+		}
+		return TestNodeResult{}, err
+	}
+	raw, err := json.Marshal(res)
+	if err != nil {
+		return TestNodeResult{}, err
+	}
+	if _, err := db.Exec(run, `UPDATE automation.node_tests SET result = $4 WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+		a.TenantID, a.UserID, in.Key, raw); err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	return res, nil
+}
+
+// repeatedTest is the answer of a test whose key was claimed before: the stored answer, or outcome_unknown
+// when none is recorded within testWait (it is still running, or its process died mid-call).
+func (au *authoring) repeatedTest(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
+	deadline := time.Now().Add(testWait)
+	for {
+		var raw []byte
+		var node string
+		err := au.r.cfg.DB.QueryRow(ctx, `SELECT node_id, result FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+			a.TenantID, a.UserID, in.Key).Scan(&node, &raw)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// The first request released its claim (it ran nothing): this one may run the test.
+			return au.keyedTest(ctx, a, in)
+		case err != nil:
+			return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+		case node != in.NodeID:
+			return TestNodeResult{}, fmt.Errorf("%w: the test key was used for another node", ErrInvalidInput)
+		case len(raw) > 0:
+			var res TestNodeResult
+			if err := json.Unmarshal(raw, &res); err != nil {
+				return TestNodeResult{}, err
+			}
+			return res, nil
+		}
+		if !time.Now().Before(deadline) {
+			return TestNodeResult{Error: &StepError{Code: CodeOutcomeUnknown,
+				Message: "the test with this key has no recorded answer: it is still running or its outcome is unknown, so it is not run again"}}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return TestNodeResult{}, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, key string) (TestNodeResult, error) {
@@ -690,54 +765,4 @@ func Log(ctx context.Context, format string, args ...any) {
 	if l, ok := ctx.Value(logsKey{}).(*logCollector); ok {
 		l.add(fmt.Sprintf(format, args...))
 	}
-}
-
-// testTTL is how long the answer of a keyed node test is kept for its repeats.
-const testTTL = 15 * time.Minute
-
-// testDedup runs one node test per key: a repeat waits for the first and gets its answer. A test that
-// failed to run (an error, not a failed node) is forgotten, so it may be repeated.
-type testDedup struct {
-	mu      sync.Mutex
-	entries map[string]*testEntry
-}
-
-type testEntry struct {
-	done chan struct{}
-	at   time.Time
-	res  TestNodeResult
-	err  error
-}
-
-func (d *testDedup) do(key string, run func() (TestNodeResult, error)) (TestNodeResult, error) {
-	d.mu.Lock()
-	if d.entries == nil {
-		d.entries = map[string]*testEntry{}
-	}
-	now := time.Now()
-	for k, e := range d.entries {
-		select {
-		case <-e.done:
-			if now.Sub(e.at) > testTTL {
-				delete(d.entries, k)
-			}
-		default:
-		}
-	}
-	if e, ok := d.entries[key]; ok {
-		d.mu.Unlock()
-		<-e.done
-		return e.res, e.err
-	}
-	e := &testEntry{done: make(chan struct{}), at: now}
-	d.entries[key] = e
-	d.mu.Unlock()
-	e.res, e.err = run()
-	if e.err != nil {
-		d.mu.Lock()
-		delete(d.entries, key)
-		d.mu.Unlock()
-	}
-	close(e.done)
-	return e.res, e.err
 }
