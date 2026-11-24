@@ -104,4 +104,11 @@ func TestEmailUploadsArePrivateAndServedToTheirTenantOnly(t *testing.T) {
 	priv, err := core.CreatePrivate(composables.WithPool(composables.WithTenantID(context.Background(), e.tenant), e.db), &upload.CreateDTO{File: bytesReader("secret"), Name: "s.txt", Size: 6, Slug: "otherfeaturesecret"}, elsewhere)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, serve(strconv.FormatUint(uint64(priv.ID()), 10)).Code)
+
+	// An attachment whose content is already in another feature's private namespace is not stored with a URL
+	// the route would answer 404 to: the save fails, and the event says storage_failed.
+	_, err = up.Save(context.Background(), e.tenant, email.UploadFile{Name: "s.txt", Mime: "text/plain", Data: []byte("secret")})
+	require.Error(t, err)
+	assert.False(t, services.EmailAttachmentServable(priv.Path()))
+	assert.True(t, services.EmailAttachmentServable(pub.Path()))
 }

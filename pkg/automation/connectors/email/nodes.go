@@ -118,7 +118,7 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		return catalog.CallResult{}, err
 	}
 	all := dedupe(append(append(append([]string(nil), to...), cc...), bcc...))
-	n.seedBaselines(ctx, in.TenantID, msg.From.Address)
+	n.seedBaselines(ctx, in.TenantID, msg.From.Address, replyTo)
 	res, err := n.deliver(ctx, a, token, msg.From.Address, all, raw)
 	if err != nil {
 		var ce *catalog.CallError
@@ -407,11 +407,10 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 	if _, err := s.selectMailbox(a.mailbox, false); err != nil {
 		return catalog.CallResult{}, n.callError(ctx, in, a, err)
 	}
-	found, err := s.c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: id}}, NotFlag: []imap.Flag{imap.FlagDeleted}}, nil).Wait()
+	uids, err := s.findExact(id)
 	if err != nil {
 		return catalog.CallResult{}, n.callError(ctx, in, a, err)
 	}
-	uids := found.AllUIDs()
 	if len(uids) == 0 {
 		return catalog.CallResult{Outcome: outcomeMissing, Output: map[string]any{}}, nil
 	}

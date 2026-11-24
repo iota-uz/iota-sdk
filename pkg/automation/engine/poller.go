@@ -58,6 +58,9 @@ type polled struct {
 	kind   catalog.ConnectorKind
 	// baseline: no enabled graph uses the connection; its cursor is only kept at the end of the mailbox.
 	baseline bool
+	// scanned is when (wall clock) the scan that found the connection idle began: a graph enabled after it is
+	// not in that scan's view, however long the target stays cached.
+	scanned time.Time
 }
 
 // InboundPoller polls the connected connections that an enabled graph's inbound trigger uses, each at its
@@ -185,6 +188,7 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 // message). The connection is the node's or trigger's connection param, or the one connection of its
 // kinds.
 func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool, error) {
+	scanStarted := time.Now()
 	rows, err := p.r.cfg.DB.Query(ctx, `
 		SELECT t.tenant_id, t.trigger_id, v.graph
 		FROM automation.triggers t
@@ -288,7 +292,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 			add(w.tenant, view, kinds, n.Params[catalog.ConnectionParam])
 		}
 	}
-	idle, err := p.idleConnections(ctx, seen)
+	idle, err := p.idleConnections(ctx, seen, scanStarted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -299,7 +303,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 
 // idleConnections are the connected connections of Baseliner connectors that no enabled graph uses (seen
 // are the ones that are used): their cursors are kept at the end of the mailbox (see Baseliner).
-func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool) ([]polled, error) {
+func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool, scanned time.Time) ([]polled, error) {
 	var kinds []string
 	for _, c := range p.cfg.Connectors.List() {
 		if _, ok := c.(Baseliner); ok {
@@ -326,7 +330,7 @@ func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]
 		if seen[t.id] {
 			continue
 		}
-		t.kind, t.baseline = catalog.ConnectorKind(kind), true
+		t.kind, t.baseline, t.scanned = catalog.ConnectorKind(kind), true, scanned
 		out = append(out, t)
 	}
 	return out, serrors.FromDB(opPoll, rows.Err())
@@ -420,7 +424,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 		fence *time.Time
 	)
 	if t.baseline {
-		started := time.Now().Add(-baselineFenceSkew)
+		started := t.scanned.Add(-baselineFenceSkew)
 		fence = &started
 		bl, ok := cn.(Baseliner)
 		if !ok {
@@ -498,8 +502,9 @@ func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, 
 		}
 		if fence != nil {
 			// A baseline only moves the cursor of a connection nobody uses. Checked here, under the
-			// connection's row lock, against the tenant's graphs: one enabled since the baseline began
-			// makes the connection used, and its cursor must not jump over what that graph awaits.
+			// connection's row lock, against the tenant's graphs: one enabled since the scan that called the
+			// connection idle began (however long that scan's view has been kept) makes the connection used,
+			// and its cursor must not jump over what that graph awaits.
 			var enabled bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.automations
 				WHERE tenant_id = $1 AND deleted_at IS NULL AND enabled_version IS NOT NULL AND updated_at >= $2)`, t.tenant, *fence).Scan(&enabled); err != nil {

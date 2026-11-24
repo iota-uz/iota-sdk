@@ -348,12 +348,13 @@ func (h *hub) baseline(ctx context.Context, conn connectors.Connection, creds co
 	return initialCursorOf(s, a.mailbox, sel)
 }
 
-// seedBaselines gives the mailboxes a reply to a message of this sender will come to a cursor before the
+// seedBaselines gives the mailboxes a reply to a message will come to (the addresses are the sender's and the
+// Reply-To's) a cursor before the
 // message is sent: the connections to receive of the sender's address that have none yet. The first poll
 // of a mailbox starts at its end, so one made after the reply arrived would jump over it. A failure is
 // logged and does not stop the send: the poller baselines the mailbox itself.
-func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, sender string) {
-	if h.cfg.Connections == nil || sender == "" {
+func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...string) {
+	if h.cfg.Connections == nil {
 		return
 	}
 	list, err := h.cfg.Connections.List(ctx, tenant, KindIMAP)
@@ -362,7 +363,7 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, sender string
 		return
 	}
 	for _, c := range list {
-		if c.Status != connectors.StatusConnected || !strings.EqualFold(c.Identity.External, sender) {
+		if c.Status != connectors.StatusConnected || !anyFold(c.Identity.External, addresses) {
 			continue
 		}
 		has, err := engine.HasCursor(ctx, h.cfg.Connections, tenant, c.ID)
@@ -385,3 +386,12 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, sender string
 }
 
 var _ engine.Baseliner = (*imapConnector)(nil)
+
+func anyFold(s string, list []string) bool {
+	for _, x := range list {
+		if x != "" && strings.EqualFold(s, x) {
+			return true
+		}
+	}
+	return false
+}

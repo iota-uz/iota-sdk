@@ -280,6 +280,20 @@ type literal struct {
 
 func (l *literal) Size() int64 { return l.n }
 
+// Flag adds flags to a message of a mailbox.
+func (s *Server) Flag(user, mailbox string, uid uint32, flags ...string) {
+	s.t.Helper()
+	s.withClient(user, mailbox, func(c *imapclient.Client) {
+		fl := make([]imap.Flag, len(flags))
+		for i, f := range flags {
+			fl[i] = imap.Flag(f)
+		}
+		if err := c.Store(imap.UIDSetNum(imap.UID(uid)), &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: fl}, nil).Close(); err != nil {
+			s.t.Fatal(err)
+		}
+	}, false)
+}
+
 // Messages are the messages of a mailbox as raw bytes with their flags, in UID order.
 type Message struct {
 	UID   uint32
@@ -290,6 +304,32 @@ type Message struct {
 // Fetch reads a mailbox through a real IMAP connection to the server's own memory (so flags and moves are
 // seen as a client would see them).
 func (s *Server) Fetch(user, mailbox string) []Message {
+	s.t.Helper()
+	var out []Message
+	s.withClient(user, mailbox, func(c *imapclient.Client) {
+		section := &imap.FetchItemBodySection{Peek: true}
+		var all imap.UIDSet
+		all.AddRange(1, 0)
+		bufs, err := c.Fetch(all, &imap.FetchOptions{UID: true, Flags: true, BodySection: []*imap.FetchItemBodySection{section}}).Collect()
+		if err != nil {
+			s.t.Fatal(err)
+		}
+		for _, b := range bufs {
+			m := Message{UID: uint32(b.UID)}
+			for _, f := range b.Flags {
+				m.Flags = append(m.Flags, string(f))
+			}
+			if len(b.BodySection) > 0 {
+				m.Raw = b.BodySection[0].Bytes
+			}
+			out = append(out, m)
+		}
+	}, true)
+	return out
+}
+
+// withClient runs fn on a logged-in IMAP client of the account with a mailbox selected.
+func (s *Server) withClient(user, mailbox string, fn func(*imapclient.Client), readOnly bool) {
 	s.t.Helper()
 	s.mu.Lock()
 	pass := s.accounts[user].Password
@@ -309,28 +349,10 @@ func (s *Server) Fetch(user, mailbox string) []Message {
 	if err := c.Login(user, pass).Wait(); err != nil {
 		s.t.Fatal(err)
 	}
-	if _, err := c.Select(mailbox, &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+	if _, err := c.Select(mailbox, &imap.SelectOptions{ReadOnly: readOnly}).Wait(); err != nil {
 		s.t.Fatal(err)
 	}
-	section := &imap.FetchItemBodySection{Peek: true}
-	var all imap.UIDSet
-	all.AddRange(1, 0)
-	bufs, err := c.Fetch(all, &imap.FetchOptions{UID: true, Flags: true, BodySection: []*imap.FetchItemBodySection{section}}).Collect()
-	if err != nil {
-		s.t.Fatal(err)
-	}
-	var out []Message
-	for _, b := range bufs {
-		m := Message{UID: uint32(b.UID)}
-		for _, f := range b.Flags {
-			m.Flags = append(m.Flags, string(f))
-		}
-		if len(b.BodySection) > 0 {
-			m.Raw = b.BodySection[0].Bytes
-		}
-		out = append(out, m)
-	}
-	return out
+	fn(c)
 }
 
 // ---------------------------------------------------------------------------------------------

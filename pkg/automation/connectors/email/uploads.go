@@ -17,6 +17,7 @@ const (
 	AttachmentTooLarge      = "too_large"       // more than 25 MB
 	AttachmentMessageTooBig = "message_too_big" // the message's attachments are past 50 MB
 	AttachmentStorage       = "storage_failed"
+	AttachmentUnreadable    = "unreadable" // the part cannot be decoded
 	AttachmentNoStorage     = "no_storage"
 )
 

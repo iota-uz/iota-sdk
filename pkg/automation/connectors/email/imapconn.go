@@ -167,15 +167,48 @@ func (s *imapSession) selectValidity(name string) (uint32, error) {
 	return sel.UIDValidity, nil
 }
 
-// hasMessage reports whether a mailbox holds a message with the Message-ID (read-only; it fails for a
-// mailbox the server does not have).
+// hasMessage reports whether a mailbox holds a live copy of the message: a message that is not flagged
+// \\Deleted and whose Message-ID is exactly the one asked for (read-only; it fails for a mailbox the server
+// does not have).
 func (s *imapSession) hasMessage(mailbox, messageID string) (bool, error) {
 	if _, err := s.selectMailbox(mailbox, true); err != nil {
 		return false, err
 	}
-	found, err := s.c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}}}, nil).Wait()
+	uids, err := s.findExact(messageID)
+	return len(uids) > 0, err
+}
+
+// findExact is the live messages of the selected mailbox whose Message-ID is exactly messageID. SEARCH
+// HEADER matches a substring of the field, and a message flagged \\Deleted is on its way out: the search
+// narrows, the envelope decides, and a deleted message is never counted.
+func (s *imapSession) findExact(messageID string) ([]imap.UID, error) {
+	found, err := s.c.UIDSearch(&imap.SearchCriteria{
+		Header:  []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}},
+		NotFlag: []imap.Flag{imap.FlagDeleted},
+	}, nil).Wait()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return len(found.AllUIDs()) > 0, nil
+	candidates := found.AllUIDs()
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	bufs, err := s.c.Fetch(imap.UIDSetNum(candidates...), &imap.FetchOptions{UID: true, Flags: true, Envelope: true}).Collect()
+	if err != nil {
+		return nil, err
+	}
+	var out []imap.UID
+	for _, b := range bufs {
+		if b.Envelope == nil || bracket(b.Envelope.MessageID) != bracket(messageID) {
+			continue
+		}
+		deleted := false
+		for _, f := range b.Flags {
+			deleted = deleted || f == imap.FlagDeleted
+		}
+		if !deleted {
+			out = append(out, b.UID)
+		}
+	}
+	return out, nil
 }

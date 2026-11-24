@@ -446,59 +446,92 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 			}
 			return true
 		}
-		size := int64(sp.Size)
-		if strings.EqualFold(sp.Encoding, "base64") {
-			size = size / 4 * 3
-		}
-		m.attachment = append(m.attachment, part{filename: name, contentType: kind, size: size})
+		// The size BODYSTRUCTURE gives is of the transfer-encoded octets (line breaks of base64 included),
+		// not of what the part decodes to: only the limits on the real bytes decide, below.
+		m.attachment = append(m.attachment, part{filename: name, contentType: kind, size: int64(sp.Size)})
 		where = append(where, located{path: append([]int(nil), path...), sp: sp})
 		return true
 	})
 	var total int64
 	for i := range m.attachment {
 		a := &m.attachment[i]
+		enc := a.size
 		switch {
-		case a.size > MaxAttachment:
+		case enc > maxEncoded(where[i].sp.Encoding, MaxAttachment):
+			// Even the most compact decoding of this many octets is past the limit: not downloaded.
 			a.reason = AttachmentTooLarge
-		case total+a.size > MaxAttachmentsPerMsg:
+		case total+minDecoded(where[i].sp.Encoding, enc) > MaxAttachmentsPerMsg:
 			a.reason = AttachmentMessageTooBig
 		default:
-			data, err := s.fetchDecoded(uid, where[i].path, where[i].sp, 0)
+			data, decodeErr, err := s.fetchDecoded(uid, where[i].path, where[i].sp, 0)
 			if err != nil {
-				return received{}, false, err
+				return received{}, false, err // the server failed: the poll is repeated
 			}
-			if int64(len(data)) > MaxAttachment {
+			switch {
+			case decodeErr != nil:
+				// The part cannot be decoded: the message is still published, the part says why it is not stored.
+				a.reason, a.size = AttachmentUnreadable, int64(len(data))
+			case int64(len(data)) > MaxAttachment:
 				a.reason, a.size = AttachmentTooLarge, int64(len(data))
-				continue
+			case total+int64(len(data)) > MaxAttachmentsPerMsg:
+				a.reason, a.size = AttachmentMessageTooBig, int64(len(data))
+			default:
+				a.data, a.size = data, int64(len(data))
+				total += a.size
 			}
-			a.data, a.size = data, int64(len(data))
-			total += a.size
 		}
 	}
 	if textPart != nil {
-		if body, err := s.fetchDecoded(uid, textPath, textPart, 1<<20); err == nil {
-			text := string(body)
-			if textPart.MediaType() == "text/html" {
-				text = htmlToText(text)
-			}
-			m.text = clip(normalizeText(text), MaxText)
-		} else if !errors.Is(err, errNotMail) {
+		// A text part cut at the byte limit, or damaged, decodes as far as it goes: that is its text.
+		body, _, err := s.fetchDecoded(uid, textPath, textPart, 1<<20)
+		if err != nil {
 			return received{}, false, err
 		}
+		text := string(body)
+		if textPart.MediaType() == "text/html" {
+			text = htmlToText(text)
+		}
+		m.text = clip(normalizeText(text), MaxText)
 	}
 	return m, false, nil
 }
 
+// maxEncoded is the most transfer-encoded octets a part of at most limit decoded bytes can have: base64
+// is 4 for 3 with a line break (2 octets) every 76, quoted-printable at worst 3 for 1.
+func maxEncoded(encoding string, limit int64) int64 {
+	switch strings.ToLower(encoding) {
+	case "base64":
+		enc := (limit + 2) / 3 * 4
+		return enc + (enc/76+1)*2 + 8
+	case "quoted-printable":
+		return limit * 3
+	}
+	return limit
+}
+
+// minDecoded is the fewest bytes a part of that many transfer-encoded octets decodes to (0 when there is no
+// bound): base64 with the shortest line any encoder makes (64 characters and a break).
+func minDecoded(encoding string, enc int64) int64 {
+	if strings.EqualFold(encoding, "base64") {
+		return max(enc*64/66*3/4-4, 0)
+	}
+	if strings.EqualFold(encoding, "quoted-printable") {
+		return 0
+	}
+	return enc
+}
+
 // fetchDecoded reads a part of a message by itself (the first limit bytes when limit > 0) and decodes its
-// transfer encoding and charset.
-func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStructureSinglePart, limit int64) ([]byte, error) {
+// transfer encoding and charset. The error is the server's (the poll is repeated); decodeErr is the content's
+// (a damaged part, or one cut at the limit), with what decoded before it in data.
+func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStructureSinglePart, limit int64) (data []byte, decodeErr, err error) {
 	section := &imap.FetchItemBodySection{Peek: true, Part: path}
 	if limit > 0 {
 		section.Partial = &imap.SectionPartial{Offset: 0, Size: limit}
 	}
 	bufs, err := s.c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}}).Collect()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var raw []byte
 	for _, b := range bufs {
@@ -511,9 +544,10 @@ func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStruct
 	if sp.Encoding != "" {
 		h.Set("Content-Transfer-Encoding", sp.Encoding)
 	}
-	e, err := message.New(h, bytes.NewReader(raw))
-	if err != nil && e == nil {
-		return nil, errNotMail
+	e, derr := message.New(h, bytes.NewReader(raw))
+	if e == nil {
+		return nil, derr, nil
 	}
-	return io.ReadAll(io.LimitReader(e.Body, MaxAttachment+1))
+	data, rerr := io.ReadAll(io.LimitReader(e.Body, MaxAttachment+1))
+	return data, rerr, nil
 }

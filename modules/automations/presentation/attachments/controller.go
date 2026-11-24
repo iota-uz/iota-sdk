@@ -8,8 +8,6 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -21,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -141,11 +138,5 @@ func (c *Controller) Download(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, body)
 }
 
-// inNamespace reports whether a stored path may be served: in the private namespace of email attachments,
-// or not in a private namespace at all (an attachment the tenant had already uploaded in public: it is
-// readable at its own address, and no more is shown here). Another feature's private files are never served.
-func inNamespace(stored string) bool {
-	p := path.Clean("/"+filepath.ToSlash(upload.LayoutPath(stored))) + "/"
-	private := "/" + uploadsconfig.PrivateDirectory + "/"
-	return strings.Contains(p, private+services.EmailAttachmentsNamespace+"/") || !strings.Contains(p, private)
-}
+// inNamespace reports whether a stored path may be served (see services.EmailAttachmentServable).
+func inNamespace(stored string) bool { return services.EmailAttachmentServable(stored) }

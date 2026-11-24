@@ -3,6 +3,7 @@ package email
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -174,4 +175,89 @@ func TestMoveFallbackReplayDoesNotDuplicate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "not_found", res.Outcome)
 	assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1)
+}
+
+// An entry in the destination that only looks like the message — a header that contains its Message-ID
+// among others, or an exact copy flagged \\Deleted — is no proof of a copy: the message is copied, and only
+// then is the original expunged.
+func TestMoveFallbackDoesNotTrustASubstringOrADeletedCopy(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	f.srv.DisableMove() // UIDPLUS stays: the original is expunged by UID
+	f.srv.Mailbox(mailbox, "Archive")
+	f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
+	// A decoy whose Message-ID field contains the id as a substring, and a dead exact copy.
+	f.srv.Deliver(mailbox, "Archive", mailText("<other@x> <m1@x>", "a@example.org", "decoy", "x"))
+	dead := f.srv.Deliver(mailbox, "Archive", mailText("<m1@x>", "a@example.org", "dead copy", "x"))
+	f.srv.Flag(mailbox, "Archive", dead, `\Deleted`)
+
+	res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+	require.NoError(t, err)
+	assert.Equal(t, "done", res.Outcome)
+	live := 0
+	for _, m := range f.srv.Fetch(mailbox, "Archive") {
+		if bytes.Contains(m.Raw, []byte("Subject: one")) && !contains(lower(m.Flags), `\deleted`) {
+			live++
+		}
+	}
+	assert.Equal(t, 1, live, "a live copy of the message was made in the destination before the original went")
+	assert.Empty(t, f.srv.Fetch(mailbox, "INBOX"))
+}
+
+func contains(l []string, s string) bool {
+	for _, x := range l {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// A part that cannot be decoded, or a text cut at the limit of the partial read, is a result about the
+// content: the message is still published, and the mailbox does not stall on it.
+func TestOversizedMessageWithAnUndecodablePartIsPublished(t *testing.T) {
+	old := maxRaw
+	maxRaw = 1 << 20
+	t.Cleanup(func() { maxRaw = old })
+	f := newFx(t, emailtest.ModeTLS)
+	conn, creds := f.connection(KindIMAP), f.imapCreds()
+	_, cur := f.pollOnce(t, conn, creds, nil)
+
+	longText := bytes.Repeat([]byte("word "), 400_000) // 2 MB: past the 1 MB read of a text part, so cut
+	var b bytes.Buffer
+	b.WriteString("From: Ann <ann@example.org>\r\nTo: " + mailbox + "\r\nSubject: Broken\r\nMessage-ID: <broken@x>\r\nMIME-Version: 1.0\r\n")
+	b.WriteString("Content-Type: multipart/mixed; boundary=\"MIX\"\r\n\r\n--MIX\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n")
+	enc := base64.StdEncoding.EncodeToString(longText)
+	for len(enc) > 76 {
+		b.WriteString(enc[:76] + "\r\n")
+		enc = enc[76:]
+	}
+	b.WriteString(enc + "\r\n--MIX\r\nContent-Type: application/pdf; name=\"bad.pdf\"\r\nContent-Disposition: attachment; filename=\"bad.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n!!! this is not base64 !!!\r\n--MIX--\r\n")
+	f.srv.Deliver(mailbox, "INBOX", b.Bytes())
+	f.srv.Deliver(mailbox, "INBOX", mailText("<after@x>", "a@example.org", "after", "x"))
+	evs, _ := f.pollOnce(t, conn, creds, cur)
+	require.Len(t, evs, 2, "the broken message does not hold back the one behind it")
+	p := payloadOf(t, evs[0])
+	assert.NotEmpty(t, p["text"], "the part of the text that was read")
+	atts := p["attachments"].([]any)
+	require.Len(t, atts, 1)
+	assert.Equal(t, AttachmentUnreadable, atts[0].(map[string]any)["error"])
+}
+
+// BODYSTRUCTURE gives the size of the encoded octets, line breaks included: an attachment of 24.5 MiB, wrapped
+// as base64 is, is within the limit of 25 MiB and is stored.
+func TestWrappedBase64IsMeasuredByItsDecodedBytes(t *testing.T) {
+	old := maxRaw
+	maxRaw = 1 << 20
+	t.Cleanup(func() { maxRaw = old })
+	f := newFx(t, emailtest.ModeTLS)
+	conn, creds := f.connection(KindIMAP), f.imapCreds()
+	_, cur := f.pollOnce(t, conn, creds, nil)
+	data := bytes.Repeat([]byte("w"), MaxAttachment-(512<<10))
+	f.srv.Deliver(mailbox, "INBOX", multipart("<wrapped@x>", "Wrapped", "x", "", att{"application/pdf", "big.pdf", data}))
+	evs, _ := f.pollOnce(t, conn, creds, cur)
+	require.Len(t, evs, 1)
+	a := payloadOf(t, evs[0])["attachments"].([]any)[0].(map[string]any)
+	assert.Nil(t, a["error"], "the encoded size is past 25 MiB, the decoded one is not")
+	assert.EqualValues(t, len(data), a["size"])
+	assert.NotEmpty(t, a["url"])
 }

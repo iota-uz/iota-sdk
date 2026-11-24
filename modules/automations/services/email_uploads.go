@@ -8,8 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -18,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 )
 
 // EmailAttachmentsNamespace is the directory of the private upload namespace the attachments of incoming
@@ -27,6 +30,16 @@ const EmailAttachmentsNamespace = "automations-email"
 // EmailAttachmentPath is where a tenant user opens an attachment: a route that checks the session's
 // tenant and permission and serves the file as a download (presentation/attachments).
 func EmailAttachmentPath(id string) string { return "/automations/attachments/" + id }
+
+// EmailAttachmentServable reports whether the download route serves a stored path: the private namespace of
+// email attachments, or a file that is not in a private namespace at all (a file the tenant uploaded itself
+// in public: it is readable at its own address, and no more is shown here). Another feature's private files
+// are never served.
+func EmailAttachmentServable(stored string) bool {
+	p := path.Clean("/"+filepath.ToSlash(upload.LayoutPath(stored))) + "/"
+	private := "/" + uploadsconfig.PrivateDirectory + "/"
+	return strings.Contains(p, private+EmailAttachmentsNamespace+"/") || !strings.Contains(p, private)
+}
 
 // EmailUploadService is the part of the SDK's upload service (modules/core) the email connector uses.
 type EmailUploadService interface {
@@ -72,11 +85,13 @@ func (u emailUploads) Save(ctx context.Context, tenantID uuid.UUID, f email.Uplo
 	if err != nil {
 		// A tenant has one upload per content: the same file the tenant uploaded itself (in public) is
 		// already theirs, readable at its own address, and the attachment is that upload. The download route
-		// serves it to the tenant's users like any attachment.
+		// serves it to the tenant's users like any attachment. The same content in another feature's private
+		// namespace is not the route's to serve: the attachment is then not stored (a URL that always gives
+		// 404 is not given), and the event says so.
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" /* unique_violation */ {
 			md := md5.Sum(f.Data)
-			if existing, gerr := u.svc.GetByHash(ctx, hex.EncodeToString(md[:])); gerr == nil && existing.TenantID() == tenantID {
+			if existing, gerr := u.svc.GetByHash(ctx, hex.EncodeToString(md[:])); gerr == nil && existing.TenantID() == tenantID && EmailAttachmentServable(existing.Path()) {
 				id := strconv.FormatUint(uint64(existing.ID()), 10)
 				return email.Stored{ID: id, URL: EmailAttachmentPath(id)}, nil
 			}
