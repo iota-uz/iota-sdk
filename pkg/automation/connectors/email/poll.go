@@ -57,7 +57,7 @@ func (c *imapConnector) Poll(ctx context.Context, conn connectors.Connection, cr
 	}
 	s, err := c.openIMAP(ctx, a, token)
 	if err != nil {
-		c.noteRefusal(ctx, conn, creds, a, err)
+		c.noteRefusal(ctx, conn, creds, a, token, err)
 		return nil, nil, err
 	}
 	defer s.close()
@@ -127,10 +127,10 @@ func (c *imapConnector) Poll(ctx context.Context, conn connectors.Connection, cr
 }
 
 // noteRefusal marks the other connection of an OAuth sign-in when the server refused the token.
-func (h *hub) noteRefusal(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, a account, err error) {
+func (h *hub) noteRefusal(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, a account, token string, err error) {
 	var ce *catalog.CallError
 	if a.oauth() && errors.As(err, &ce) && ce.Code == catalog.CallUnauthorized {
-		h.markLogin(ctx, conn.TenantID, conn.ID, creds)
+		h.markLogin(ctx, conn.TenantID, conn.ID, creds, token)
 	}
 }
 
@@ -337,7 +337,7 @@ func (h *hub) baseline(ctx context.Context, conn connectors.Connection, creds co
 	}
 	s, err := h.openIMAP(ctx, a, token)
 	if err != nil {
-		h.noteRefusal(ctx, conn, creds, a, err)
+		h.noteRefusal(ctx, conn, creds, a, token, err)
 		return nil, err
 	}
 	defer s.close()

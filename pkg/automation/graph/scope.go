@@ -678,8 +678,28 @@ func ExpandParam(params map[string]any, path string) []ParamPath {
 			walk(m[k], append(at, k), rest[1:])
 		}
 	}
-	walk(params, nil, strings.Split(strings.TrimPrefix(strings.ReplaceAll(path, ListItems, "."+ListItems), "."), "."))
+	walk(params, nil, splitParamPath(path))
 	return out
+}
+
+// splitParamPath is the segments of a param path: dotted, with a list's [] after a name ("options[].label")
+// or as a segment of its own ("options.[].label", "[]"); an empty segment is never made.
+func splitParamPath(path string) []string {
+	var segs []string
+	for _, part := range strings.Split(path, ".") {
+		for part != "" {
+			head, rest, found := strings.Cut(part, ListItems)
+			if head != "" {
+				segs = append(segs, head)
+			}
+			if !found {
+				break
+			}
+			segs = append(segs, ListItems)
+			part = rest
+		}
+	}
+	return segs
 }
 
 // nodeExpression is a CEL source inside a node's params with the scope it reads.

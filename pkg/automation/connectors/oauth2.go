@@ -238,6 +238,13 @@ func carryOver(next, previous Credentials) Credentials {
 	return next
 }
 
+// KeepSettings is a grant's credentials with the settings of the connection it replaces that a grant does not
+// own (the folder a mailbox is read from, say): a re-authorization replaces the token set and what the grant
+// brings, and leaves the rest as the person set it. next is not changed.
+func KeepSettings(next, previous Credentials) Credentials {
+	return carryOver(cloneCredentials(next), previous)
+}
+
 func isTokenField(k string) bool {
 	switch k {
 	case OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt, OAuth2IDToken:
@@ -297,7 +304,7 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 		creds[OAuth2Preset] = st.Preset
 	}
 	finisher, finishes := conn.(OAuth2Finisher)
-	if id, _ := tok.Extra(OAuth2IDToken).(string); id != "" && finishes && validIDToken(id, cfg.ClientID, now()) {
+	if id, _ := tok.Extra(OAuth2IDToken).(string); id != "" && finishes && validIDToken(id, cfg.ClientID, o.issuersFor(conn, st.Preset), now()) {
 		creds[OAuth2IDToken] = id // for Test and the finisher only
 	}
 	identity, err := conn.Test(ctx, creds)
@@ -311,6 +318,18 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 			return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
 		}
 	}
+	// The pair is saved whole or not at all, and only when both work: an account that signs in over one
+	// protocol and has the other closed (a mailbox without IMAP) is refused here, where the person sees it,
+	// not at the first run of a graph bound to the connection that does not work.
+	for _, x := range g.Companions {
+		cc, ok := o.dir.Get(x.Kind)
+		if !ok {
+			return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
+		}
+		if _, err := cc.Test(ctx, x.Credentials); err != nil {
+			return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
+		}
+	}
 	for _, x := range append([]*OAuth2Grant{&g}, companionPtrs(&g)...) {
 		delete(x.Credentials, OAuth2IDToken)
 		x.Identity = SafeIdentity(x.Identity, secret, x.Credentials)
@@ -318,10 +337,42 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 	return g, nil
 }
 
+// issuersFor are the issuers of the identity tokens of the provider of a sign-in.
+func (o *oauth) issuersFor(c Connector, preset string) []string {
+	d := c.Descriptor()
+	if preset != "" {
+		return d.OAuth2Presets[preset].IDTokenIssuers
+	}
+	if d.OAuth2 != nil {
+		return d.OAuth2.IDTokenIssuers
+	}
+	return nil
+}
+
+// issuerMatches reports whether iss is one of the accepted issuers: equal, or equal with a "*" of the accepted
+// one standing for one path segment.
+func issuerMatches(iss string, accepted []string) bool {
+	for _, a := range accepted {
+		if a == iss {
+			return true
+		}
+		before, after, star := strings.Cut(a, "*")
+		if !star || !strings.HasPrefix(iss, before) || !strings.HasSuffix(iss, after) || len(iss) < len(before)+len(after)+1 {
+			continue
+		}
+		if seg := iss[len(before) : len(iss)-len(after)]; seg != "" && !strings.Contains(seg, "/") {
+			return true
+		}
+	}
+	return false
+}
+
 // validIDToken reports whether an OpenID Connect identity token, received from the token endpoint over TLS
-// (its signature is not checked: OpenID Connect Core 3.1.3.7), is for this client and has not expired: its
-// audience names the client id of the request and its exp is in the future. A token that is not is not read.
-func validIDToken(raw, clientID string, at time.Time) bool {
+// (its signature is not checked: OpenID Connect Core 3.1.3.7), may be read for who signed in: its issuer is one
+// of the provider's (a token without an issuer is not), its audience is this client's alone (no other
+// audience, and an authorized party, when there is one, is this client), and its exp is in the future. A
+// token that is not is not read.
+func validIDToken(raw, clientID string, issuers []string, at time.Time) bool {
 	parts := strings.Split(raw, ".")
 	if len(parts) != 3 {
 		return false
@@ -331,10 +382,18 @@ func validIDToken(raw, clientID string, at time.Time) bool {
 		return false
 	}
 	var claims struct {
+		Iss string          `json:"iss"`
+		Azp string          `json:"azp"`
 		Aud json.RawMessage `json:"aud"`
 		Exp float64         `json:"exp"`
 	}
 	if json.Unmarshal(payload, &claims) != nil || claims.Exp <= float64(at.Unix()) {
+		return false
+	}
+	if claims.Iss == "" || !issuerMatches(claims.Iss, issuers) {
+		return false
+	}
+	if claims.Azp != "" && claims.Azp != clientID {
 		return false
 	}
 	var one string
@@ -342,15 +401,15 @@ func validIDToken(raw, clientID string, at time.Time) bool {
 		return one == clientID
 	}
 	var many []string
-	if json.Unmarshal(claims.Aud, &many) != nil {
+	if json.Unmarshal(claims.Aud, &many) != nil || len(many) == 0 {
 		return false
 	}
 	for _, a := range many {
-		if a == clientID {
-			return true
+		if a != clientID {
+			return false // an audience that is not this client's: the token was not issued for it alone
 		}
 	}
-	return false
+	return true
 }
 
 func companionPtrs(g *OAuth2Grant) []*OAuth2Grant {
@@ -390,25 +449,34 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 	if err != nil {
 		return Connection{}, serrors.Wrap(op, err)
 	}
-	items := make([]GroupItem, 0, 1+len(g.Companions))
-	primary, err := PlanGrant(ctx, o.s, o.secretOfKind(g.Kind), tenantID, g, 0)
-	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
-	}
-	items = append(items, primary)
-	for _, x := range g.Companions {
-		it, err := PlanCompanion(ctx, o.s, o.secretOfKind(x.Kind), tenantID, x, 0, primary)
+	// The names are made here (after the kind, the first free): another sign-in that takes the same name
+	// between the plan and the write is met by planning again with the grant already exchanged, a few times.
+	// One transaction: the pair of connections of a sign-in is saved whole or not at all.
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		items := make([]GroupItem, 0, 1+len(g.Companions))
+		primary, err := PlanGrant(ctx, o.s, o.secretOfKind(g.Kind), tenantID, g, 0)
 		if err != nil {
 			return Connection{}, serrors.Wrap(op, err)
 		}
-		items = append(items, it)
+		items = append(items, primary)
+		for _, x := range g.Companions {
+			it, err := PlanCompanion(ctx, o.s, o.secretOfKind(x.Kind), tenantID, x, 0, primary)
+			if err != nil {
+				return Connection{}, serrors.Wrap(op, err)
+			}
+			items = append(items, it)
+		}
+		saved, err := o.s.SaveGroup(ctx, items)
+		if err == nil {
+			return saved[0], nil
+		}
+		if !errors.Is(err, ErrNameTaken) {
+			return Connection{}, serrors.Wrap(op, err)
+		}
+		lastErr = err
 	}
-	// One transaction: the pair of connections of a sign-in is saved whole or not at all.
-	saved, err := o.s.SaveGroup(ctx, items)
-	if err != nil {
-		return Connection{}, serrors.Wrap(op, err)
-	}
-	return saved[0], nil
+	return Connection{}, serrors.Wrap(op, lastErr)
 }
 
 // PlanCompanion is PlanGrant for a grant that comes with another (the connection to receive of the
@@ -447,7 +515,7 @@ func PlanCompanion(ctx context.Context, s ConnectionStore, secret func(string) b
 		if cur.Status != StatusDisabled {
 			cur.Status, cur.StatusReason = StatusConnected, ""
 		}
-		return GroupItem{Connection: cur, Credentials: g.Credentials}, nil
+		return GroupItem{Connection: cur, Credentials: carryOver(cloneCredentials(g.Credentials), old)}, nil
 	}
 	return planNew(existing, tenantID, g, createdBy)
 }
@@ -469,6 +537,9 @@ func PlanGrant(ctx context.Context, s ConnectionStore, secret func(string) bool,
 			if err != nil {
 				return GroupItem{}, err
 			}
+			if cur.Identity.External != identity.External {
+				continue // changed to another account between the list and the read: not this sign-in's
+			}
 			// A sign-in with a preset updates only a connection made by a sign-in with that preset: a
 			// connection of the same mailbox made by a login and a password is another connection, and
 			// graphs bound to it keep their server, folder and credentials.
@@ -480,7 +551,8 @@ func PlanGrant(ctx context.Context, s ConnectionStore, secret func(string) bool,
 			if cur.Status != StatusDisabled { // a connection an administrator switched off stays off
 				cur.Status, cur.StatusReason = StatusConnected, ""
 			}
-			return GroupItem{Connection: cur, Credentials: creds}, nil
+			// The settings a grant does not own (the folder of a mailbox, say) stay as the person set them.
+			return GroupItem{Connection: cur, Credentials: carryOver(cloneCredentials(creds), old)}, nil
 		}
 	}
 	return planNew(existing, tenantID, g, createdBy)
@@ -596,11 +668,16 @@ func (o *oauth) tokenOnce(ctx context.Context, tenantID, connectionID uuid.UUID,
 	if !serves(c.Status, check) {
 		return "", false, serrors.Wrap(op, ErrNotConnected)
 	}
-	if fresh(creds) {
+	owner, linkErr := uuid.Parse(creds[OAuth2TokenFrom])
+	isDependent := linkErr == nil
+	// A fresh token is returned as it is for a connection that owns its tokens. A dependent's is the owner's
+	// copy: the owner is consulted first, because one that already needs a new sign-in leaves the grant dead
+	// whatever the copy still says, and the caller must learn that now (ErrNeedsReauth), not when the copy ends.
+	if fresh(creds) && (!isDependent || !o.ownerNeedsReauth(ctx, tenantID, owner)) {
 		return creds[OAuth2AccessToken], false, nil
 	}
-	if owner, err := uuid.Parse(creds[OAuth2TokenFrom]); err == nil {
-		return o.tokenOfOwner(ctx, tenantID, connectionID, owner, check)
+	if isDependent {
+		return o.tokenOfOwner(ctx, tenantID, connectionID, owner, creds[OAuth2RefreshToken], check)
 	}
 	var (
 		token     string
@@ -688,13 +765,26 @@ func (o *oauth) tokenOnce(ctx context.Context, tenantID, connectionID uuid.UUID,
 	return token, false, nil
 }
 
+// ownerNeedsReauth reports whether the owner of a token set is marked as needing a new sign-in, or is gone.
+func (o *oauth) ownerNeedsReauth(ctx context.Context, tenantID, owner uuid.UUID) bool {
+	var status string
+	if err := o.s.db.QueryRow(ctx, `SELECT status FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, owner).Scan(&status); err != nil {
+		return true // gone (a deletion is promoting its dependents) or unreadable: the owner path decides
+	}
+	return ConnectionStatus(status) == StatusNeedsReauth
+}
+
 // tokenSet are the credentials of a token set (what a refresh replaces).
 var tokenSet = []string{OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt}
 
 // tokenOfOwner is the token of a connection that shares the token set of another: the owner refreshes it
 // (once, under its own lock), and this connection takes the refreshed set as its own. The owner's
 // re-authorization is this one's too. again: the link changed meanwhile; the call starts over.
-func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID, check bool) (string, bool, error) {
+//
+// grant is the refresh token this connection held when the call began: it names the grant the call acts for. A
+// refusal is recorded only against that grant; a connection that was authorized again meanwhile (the same
+// owner, a new grant) is not marked, and the call starts over with what it is now.
+func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID, grant string, check bool) (string, bool, error) {
 	const op = serrors.Op("automation.connectors.OAuth2.Token")
 	_, err := o.tokenAs(ctx, tenantID, owner, false, true)
 	if errors.Is(err, ErrNeedsReauth) || errors.Is(err, ErrNotFound) {
@@ -707,7 +797,7 @@ func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID,
 				if err != nil {
 					return err
 				}
-				if creds[OAuth2TokenFrom] != owner.String() {
+				if creds[OAuth2TokenFrom] != owner.String() || creds[OAuth2RefreshToken] != grant {
 					again = true
 					return nil
 				}
@@ -753,6 +843,12 @@ func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID,
 				return nil
 			}
 			return o.markReauth(ctx, tx, c, "the provider refused the refresh token", &reauth)
+		}
+		if !usable(theirs) {
+			// The owner's token ended while this call waited for the row: it is not handed on. The call starts
+			// over, and the owner refreshes it.
+			retry = true
+			return nil
 		}
 		stored = theirs[OAuth2AccessToken]
 		same := true

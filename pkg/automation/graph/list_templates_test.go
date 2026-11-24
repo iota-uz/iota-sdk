@@ -59,3 +59,21 @@ func TestTemplatesAndValuesInsideAList(t *testing.T) {
 		t.Fatalf("errors: %v", errs)
 	}
 }
+
+// A list's [] may be written after a name or as a segment of its own; both name the same paths.
+func TestExpandParamListItemsSpellings(t *testing.T) {
+	t.Parallel()
+	params := map[string]any{"options": []any{map[string]any{"label": "a"}, map[string]any{"label": "b"}}, "to": []any{"x", "y"}}
+	for _, path := range []string{"options[].label", "options.[].label"} {
+		got := graph.ExpandParam(params, path)
+		if len(got) != 2 || got[0].String() != "options[0].label" || got[1].String() != "options[1].label" {
+			t.Fatalf("%s: %v", path, got)
+		}
+	}
+	if got := graph.ExpandParam(params, "to[]"); len(got) != 2 || got[1].String() != "to[1]" {
+		t.Fatalf("to[]: %v", got)
+	}
+	if got := graph.ExpandParam(params, "options[].missing"); len(got) != 0 {
+		t.Fatalf("a missing key names nothing: %v", got)
+	}
+}

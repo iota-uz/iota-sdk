@@ -431,6 +431,26 @@ func TestEmailCursorIsKeptWhileNoGraphUsesTheMailbox(t *testing.T) {
 	assert.Equal(t, 1, ee.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'email.received.v1'`), "only the reply was published: not the mail from before the graph")
 }
 
+// A run keeps its open wait after its version is no longer the enabled one (nothing closes it): the mailbox
+// the wait listens on is not idle, and its cursor is not moved to the end past the reply that is waited for.
+func TestEmailOpenWaitOfADisabledVersionKeepsTheMailboxInUse(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	poller := ee.poller(p)
+	ee.create(p, ee.human(), sendWaitGraph)
+	ee.publish(ee.tenant, orderCreated, "o-1", order{Note: "#1"}, 0)
+	p.until(func() bool {
+		return len(ee.srv.Sent()) == 1 && ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 1
+	}, "the run sent and waits")
+	id := messageIDHeader.FindStringSubmatch(string(ee.srv.Sent()[0].Data))[1]
+	// The version is switched off while the run still waits; the reply is already in the mailbox.
+	_, err := ee.db.Exec(context.Background(), `UPDATE automation.automations SET enabled_version = NULL WHERE tenant_id = $1`, ee.tenant)
+	require.NoError(t, err)
+	ee.srv.Deliver(mailUser, "INBOX", reply("<late@x>", "boss@example.org", "Re: Order #1", "Done.", "In-Reply-To: "+id, "References: "+id))
+	ee.poll(t, p, poller)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply reached the wait: the mailbox was polled, not baselined")
+}
+
 // A failed read in the middle of a batch publishes nothing and keeps the cursor: the engine reads the batch
 // again at its next poll.
 func TestEmailFetchFailureInABatchIsRetriedFromTheSameCursor(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -48,12 +49,17 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 
 	mail := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: signInMailbox, Password: "pw"})
 	mail.AcceptToken(signInMailbox, "access-1")
-	claims, err := json.Marshal(map[string]any{"email": signInMailbox, "aud": "cid", "exp": time.Now().Add(time.Hour).Unix()})
-	require.NoError(t, err)
-	idToken := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
+	var issuer atomic.Value // the issuer of the ID token the provider gives
+	issuer.Store("https://accounts.google.com")
+	var err error
+	idToken := func() string {
+		claims, err := json.Marshal(map[string]any{"iss": issuer.Load(), "email": signInMailbox, "aud": "cid", "exp": time.Now().Add(time.Hour).Unix()})
+		require.NoError(t, err)
+		return base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
+	}
 	token := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"access-1","refresh_token":"refresh-1","token_type":"Bearer","expires_in":3600,"id_token":"` + idToken + `"}`))
+		_, _ = w.Write([]byte(`{"access_token":"access-1","refresh_token":"refresh-1","token_type":"Bearer","expires_in":3600,"id_token":"` + idToken() + `"}`))
 	}))
 	t.Cleanup(token.Close)
 	_, smtpPort := emailtest.HostPort(mail.SMTPAddr)
@@ -62,16 +68,25 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	late := &lateOAuth{}
 	cfg := email.Config{
 		OAuth: late, TLSConfig: mail.TLS,
-		Providers: map[string]email.Provider{email.PresetGmail: {
-			AuthURL: token.URL + "/auth", TokenURL: token.URL + "/token",
-			SMTPHost: "127.0.0.1", SMTPPort: atoi(smtpPort), IMAPHost: "127.0.0.1", IMAPPort: atoi(imapPort), Security: "tls",
-		}},
+		Providers: map[string]email.Provider{
+			email.PresetGmail: {
+				AuthURL: token.URL + "/auth", TokenURL: token.URL + "/token",
+				SMTPHost: "127.0.0.1", SMTPPort: atoi(smtpPort), IMAPHost: "127.0.0.1", IMAPPort: atoi(imapPort), Security: "tls",
+			},
+			email.PresetM365: {
+				AuthURL: token.URL + "/auth", TokenURL: token.URL + "/token",
+				SMTPHost: "127.0.0.1", SMTPPort: atoi(smtpPort), IMAPHost: "127.0.0.1", IMAPPort: atoi(imapPort), Security: "tls",
+			},
+		},
 	}
 
-	build := func(withClient bool) *services.IntegrationsService {
+	build := func(withClient bool, extra ...catalog.ConnectorKind) *services.IntegrationsService {
 		clients := map[catalog.ConnectorKind]connectors.PlatformCredential{}
 		if withClient {
 			clients[email.GoogleClient] = connectors.PlatformCredential{Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}}
+		}
+		for _, k := range extra {
+			clients[k] = connectors.PlatformCredential{Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}}
 		}
 		keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
 		require.NoError(t, err)
@@ -162,4 +177,33 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	require.ErrorIs(t, err, services.ErrStateInvalid)
 	imaps, _ = store.List(ctx, actor.TenantID, email.KindIMAP)
 	assert.Len(t, imaps, 1)
+
+	// Signing in again from the sending connection keeps the folder the receiving one reads.
+	imapConn, ic2, err := store.Get(ctx, actor.TenantID, imaps[0].ID)
+	require.NoError(t, err)
+	ic2["mailbox"] = "Support"
+	_, err = store.Save(ctx, imapConn, ic2)
+	require.NoError(t, err)
+	reauth := func(svc *services.IntegrationsService, preset string) error {
+		authURL, err := svc.OAuthStartPreset(ctx, actor, email.KindSMTP, preset, "mail", "", smtps[0].ID, "https://app.test/cb")
+		require.NoError(t, err)
+		u, err := url.Parse(authURL)
+		require.NoError(t, err)
+		_, _, err = svc.OAuthComplete(ctx, actor, u.Query().Get("state"), "code")
+		return err
+	}
+	require.NoError(t, reauth(svc, email.PresetGmail))
+	_, got, err := store.Get(ctx, actor.TenantID, imaps[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Support", got["mailbox"], "the folder stays when the pair is signed in again")
+	assert.Equal(t, "refresh-1", got["refresh_token"])
+
+	// A sign-in with another provider for the same address does not replace the pair's grant: the receiving
+	// connection would stay on Gmail's servers with a Microsoft token.
+	both := build(true, email.MicrosoftClient)
+	issuer.Store("https://login.microsoftonline.com/tid/v2.0")
+	require.ErrorIs(t, reauth(both, email.PresetM365), services.ErrOAuthRefused)
+	_, still, err := store.Get(ctx, actor.TenantID, smtps[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, email.PresetGmail, still[connectors.OAuth2Preset], "the pair is still Gmail's")
 }

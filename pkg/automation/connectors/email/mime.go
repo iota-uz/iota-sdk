@@ -38,7 +38,10 @@ type outgoing struct {
 	HTML      string
 	MessageID string // with angle brackets
 	InReplyTo string // with angle brackets, or empty
-	Date      time.Time
+	// References are the Message-IDs of the conversation before InReplyTo (with angle brackets): the new
+	// message's References is these, then InReplyTo, so its reply carries the conversation's root.
+	References []string
+	Date       time.Time
 }
 
 // messageIDFor is the Message-ID of the message a call sends: <{hash of the idempotency key}@{domain of the
@@ -90,11 +93,13 @@ func buildMessage(m outgoing) ([]byte, error) {
 	h.SetMessageID(unbracket(m.MessageID))
 	if m.InReplyTo != "" {
 		h.SetMsgIDList("In-Reply-To", []string{unbracket(m.InReplyTo)})
-		h.SetMsgIDList("References", []string{unbracket(m.InReplyTo)})
+		h.SetMsgIDList("References", referencesOf(m.References, m.InReplyTo))
 	}
 	h.Set("MIME-Version", "1.0")
 	var buf bytes.Buffer
 	if m.HTML == "" {
+		// The charset is declared: a transfer encoding alone leaves a reader to guess US-ASCII.
+		h.Set("Content-Type", "text/plain; charset=utf-8")
 		w, err := gomail.CreateSingleInlineWriter(&buf, h)
 		if err != nil {
 			return nil, err
@@ -129,6 +134,27 @@ func buildMessage(m outgoing) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// maxReferences bounds the References of a message (RFC 5322 §3.6.4 advises against growing it for ever): the
+// root of the conversation and the latest messages are kept.
+const maxReferences = 20
+
+// referencesOf is the References of an answer: the history, then the message it answers, each once, without
+// angle brackets as the header writer takes them.
+func referencesOf(history []string, parent string) []string {
+	seen := map[string]bool{}
+	var ids []string
+	for _, id := range append(append([]string(nil), history...), parent) {
+		if k := unbracket(id); k != "" && !seen[k] {
+			seen[k] = true
+			ids = append(ids, k)
+		}
+	}
+	if len(ids) > maxReferences {
+		ids = append([]string{ids[0]}, ids[len(ids)-(maxReferences-1):]...)
+	}
+	return ids
 }
 
 func addresses(list []string) []*gomail.Address {
@@ -226,12 +252,17 @@ func parseMessage(raw []byte) (received, error) {
 				typ = "application/octet-stream"
 			}
 			a := part{filename: name, contentType: typ}
-			data, _ := io.ReadAll(io.LimitReader(p.Body, MaxAttachment+1))
+			data, rerr := io.ReadAll(io.LimitReader(p.Body, MaxAttachment+1))
 			a.size = int64(len(data))
-			if a.size > MaxAttachment {
+			switch {
+			case a.size > MaxAttachment:
 				n, _ := io.Copy(io.Discard, p.Body)
 				a.size += n
-			} else {
+			case rerr != nil:
+				// A part that decodes to some bytes and then fails is damaged: the bytes are not stored (they
+				// would be published as if they were the whole file), and the part says why.
+				a.reason = AttachmentUnreadable
+			default:
 				a.data = data
 			}
 			m.attachment = append(m.attachment, a)

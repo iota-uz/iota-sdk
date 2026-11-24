@@ -367,11 +367,20 @@ func (p *InboundPoller) waitingGraphs(ctx context.Context, types []string) ([]wa
 	if len(types) == 0 {
 		return nil, nil
 	}
+	// The enabled versions that have a wait node, and the versions of the runs that have an open wait of an
+	// event: a run keeps waiting after its version is no longer the enabled one (enabling another does not
+	// close waits), and the reply it waits for is still to be read from its mailbox.
 	rows, err := p.r.cfg.DB.Query(ctx, `
 		SELECT a.tenant_id, v.graph
 		FROM automation.automations a
 		JOIN automation.versions v ON v.tenant_id = a.tenant_id AND v.automation_id = a.id AND v.version = a.enabled_version
 		WHERE a.enabled_version IS NOT NULL AND a.deleted_at IS NULL
+		  AND EXISTS (SELECT 1 FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'type' = ANY($1))
+		UNION
+		SELECT r.tenant_id, v.graph
+		FROM automation.runs r
+		JOIN automation.versions v ON v.tenant_id = r.tenant_id AND v.automation_id = r.automation_id AND v.version = r.version
+		WHERE EXISTS (SELECT 1 FROM automation.waits w WHERE w.tenant_id = r.tenant_id AND w.run_id = r.id AND w.status = 'open' AND w.kind = 'event')
 		  AND EXISTS (SELECT 1 FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'type' = ANY($1))`, types)
 	if err != nil {
 		return nil, serrors.FromDB(opPoll, err)

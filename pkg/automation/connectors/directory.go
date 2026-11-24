@@ -34,6 +34,12 @@ func (d *directory) Register(c Connector) error {
 	if err := checkDescriptor(c.Kind(), desc); err != nil {
 		return serrors.Wrap(op, err)
 	}
+	if _, ok := c.(ConnectionAuthorizer); ok && len(desc.OAuth2Presets) > 0 {
+		// Two sign-ins of different kinds: the connection's own authorization server (it is saved first, then
+		// signed in) and the platform's providers (the sign-in makes the connections). A state of one would be
+		// finished as the other, so a connector has one.
+		return serrors.Wrap(op, fmt.Errorf("%w: connector %s declares OAuth2 presets and is a ConnectionAuthorizer", ErrInvalid, desc.Kind))
+	}
 	if ca, ok := c.(CodeAccessor); ok {
 		if err := ca.CodeAccess().Validate(); err != nil {
 			return serrors.Wrap(op, fmt.Errorf("connector %s: %w", desc.Kind, err))

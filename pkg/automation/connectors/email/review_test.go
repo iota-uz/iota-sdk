@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/mail"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -321,4 +325,95 @@ func TestWrappedBase64IsMeasuredByItsDecodedBytes(t *testing.T) {
 	assert.Nil(t, a["error"], "the encoded size is past 25 MiB, the decoded one is not")
 	assert.EqualValues(t, len(data), a["size"])
 	assert.NotEmpty(t, a["url"])
+}
+
+// A part that decodes to some bytes and then fails is not stored as if those bytes were the file: the part is
+// unreadable, and the message and its other attachments are as usual.
+func TestAttachmentThatFailsToDecodeAfterSomeBytesIsUnreadable(t *testing.T) {
+	var b bytes.Buffer
+	b.WriteString("From: Ann <ann@example.org>\r\nTo: " + mailbox + "\r\nSubject: Half\r\nMessage-ID: <half@x>\r\nMIME-Version: 1.0\r\n")
+	b.WriteString("Content-Type: multipart/mixed; boundary=\"MIX\"\r\n\r\n--MIX\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nbody\r\n")
+	b.WriteString("--MIX\r\nContent-Type: application/pdf; name=\"half.pdf\"\r\nContent-Disposition: attachment; filename=\"half.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n")
+	b.WriteString("QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=\r\n!!! not base64 !!!\r\n")
+	b.WriteString("--MIX\r\nContent-Type: text/csv; name=\"ok.csv\"\r\nContent-Disposition: attachment; filename=\"ok.csv\"\r\n\r\na,b\r\n--MIX--\r\n")
+	m, err := parseMessage(b.Bytes())
+	require.NoError(t, err)
+	require.Len(t, m.attachment, 2)
+	assert.Equal(t, AttachmentUnreadable, m.attachment[0].reason)
+	assert.Nil(t, m.attachment[0].data, "the bytes that decoded are not kept")
+	assert.Empty(t, m.attachment[1].reason)
+	assert.NotNil(t, m.attachment[1].data)
+}
+
+// A text-only message declares UTF-8: a transfer encoding alone leaves a reader to guess US-ASCII.
+func TestTextOnlyMessageDeclaresUTF8(t *testing.T) {
+	raw, err := buildMessage(outgoing{From: mail.Address{Address: "a@example.org"}, To: []string{"b@example.org"}, Subject: "Привет", Text: "Привет, мир", MessageID: "<u@x>", Date: time.Now()})
+	require.NoError(t, err)
+	assert.Contains(t, strings.ToLower(string(raw)), "charset=utf-8")
+	m, err := parseMessage(raw)
+	require.NoError(t, err)
+	assert.Equal(t, "Привет, мир", strings.TrimSpace(m.text))
+}
+
+// IMAP's [UNAVAILABLE] answer to a login is the server being briefly down, not a refusal of the credentials.
+func TestImapUnavailableLoginIsRetryable(t *testing.T) {
+	err := networkOrRefused(&imap.Error{Type: imap.StatusResponseTypeNo, Code: imap.ResponseCodeUnavailable, Text: "backend down"}, context.Background())
+	ce := callError(t, err)
+	assert.Equal(t, catalog.CallUnavailable, ce.Code)
+	assert.True(t, ce.Retryable)
+	err = networkOrRefused(&imap.Error{Type: imap.StatusResponseTypeNo, Code: imap.ResponseCodeAuthenticationFailed, Text: "bad"}, context.Background())
+	assert.Equal(t, catalog.CallUnauthorized, callError(t, err).Code, "a refused login stays unauthorized")
+}
+
+// A move that ended before its UID EXPUNGE is finished on the repeat only when the original carries the record
+// of this workflow's COPY; a message that someone flagged \Deleted, with a same-id message already in the
+// destination, is not this workflow's to expunge.
+func TestResumeMoveNeedsTheRecordOfItsOwnCopy(t *testing.T) {
+	setup := func(t *testing.T) (*fx, uint32) {
+		t.Helper()
+		f := newFx(t, emailtest.ModeTLS)
+		f.srv.DisableMove()
+		f.srv.Mailbox(mailbox, "Archive")
+		raw := mailText("<m1@x>", "a@example.org", "one", "x")
+		uid := f.srv.Deliver(mailbox, "INBOX", raw)
+		f.srv.Deliver(mailbox, "Archive", raw)
+		return f, uid
+	}
+	t.Run("flagged by this workflow's move: finished", func(t *testing.T) {
+		f, uid := setup(t)
+		f.srv.Flag(mailbox, "INBOX", uid, `\Deleted`, moveKeyword("Archive"))
+		res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "done", res.Outcome)
+		assert.Empty(t, f.srv.Fetch(mailbox, "INBOX"), "expunged by UID")
+		assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1, "no second copy")
+	})
+	t.Run("flagged by someone else: left alone", func(t *testing.T) {
+		f, uid := setup(t)
+		f.srv.Flag(mailbox, "INBOX", uid, `\Deleted`)
+		res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "not_found", res.Outcome)
+		assert.Len(t, f.srv.Fetch(mailbox, "INBOX"), 1, "the message the user flagged is still there")
+	})
+	t.Run("flagged by a move to another folder: left alone", func(t *testing.T) {
+		f, uid := setup(t)
+		f.srv.Flag(mailbox, "INBOX", uid, `\Deleted`, moveKeyword("Elsewhere"))
+		res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "not_found", res.Outcome)
+		assert.Len(t, f.srv.Fetch(mailbox, "INBOX"), 1)
+	})
+	t.Run("a move that completes leaves the record on the original when it stays flagged", func(t *testing.T) {
+		f := newFx(t, emailtest.ModeTLS)
+		f.srv.DisableMove()
+		f.srv.DisableUIDPlus()
+		f.srv.Mailbox(mailbox, "Archive")
+		f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
+		_, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		inbox := f.srv.Fetch(mailbox, "INBOX")
+		require.Len(t, inbox, 1)
+		assert.Contains(t, lower(inbox[0].Flags), lower([]string{moveKeyword("Archive")})[0])
+	})
 }

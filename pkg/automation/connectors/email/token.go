@@ -26,7 +26,7 @@ func (h *hub) accessToken(ctx context.Context, tenant uuid.UUID, connectionID st
 	case err == nil:
 		return tok, nil
 	case errors.Is(err, connectors.ErrNeedsReauth):
-		h.markLogin(ctx, tenant, id, creds)
+		h.markLogin(ctx, tenant, id, creds, "") // the grant itself was refused: no token to compare
 		return "", connectors.ErrNeedsReauth
 	}
 	return "", fmt.Errorf("email: the access token could not be refreshed: %w", errors.New("token request failed"))
@@ -37,7 +37,13 @@ func (h *hub) accessToken(ctx context.Context, tenant uuid.UUID, connectionID st
 // work. Only a connected one is marked (a connection an administrator switched off stays off), and the write
 // is conditional on the version that was read together with the credentials that were compared: a
 // connection that was authorized again meanwhile is not marked.
-func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds connectors.Credentials) {
+//
+// used is the access token the refused protocol exchange was made with (the one OAuth2.Token gave, which may
+// be newer than the snapshot in creds): a connection is marked only while it holds that token, so one that was
+// authorized again, or that has taken a newer token from its owner, is not. With no token (the refresh itself
+// was refused: the grant is dead) the connection that was refused is compared with its snapshot, the others
+// are the grant's too.
+func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds connectors.Credentials, used string) {
 	login := creds["login_id"]
 	if login == "" || h.cfg.Connections == nil {
 		return
@@ -59,7 +65,10 @@ func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds conne
 			if got.Status != connectors.StatusConnected {
 				continue // switched off (or already marked) since the list was read: the read just now is the truth
 			}
-			if c.ID == self && cc[connectors.OAuth2AccessToken] != creds[connectors.OAuth2AccessToken] {
+			switch {
+			case used != "" && cc[connectors.OAuth2AccessToken] != used:
+				continue // it holds another token than the one that was refused
+			case used == "" && c.ID == self && cc[connectors.OAuth2AccessToken] != creds[connectors.OAuth2AccessToken]:
 				continue // the refused credentials are not the ones it has now
 			}
 			version := got.Version

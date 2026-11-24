@@ -1027,12 +1027,19 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		if len(grant.Companions) > 0 && cur.Identity.External != "" && cur.Identity.External != grant.Identity.External {
 			return connectors.Connection{}, pending, ErrOAuthRefused
 		}
+		// Nor does a sign-in with another provider (a Gmail pair signed in again with Microsoft for the same
+		// address): the companion of the other provider is not replaced with it, and would end up on a token of
+		// a provider it does not connect to.
+		if p := old[connectors.OAuth2Preset]; p != "" && grant.Credentials[connectors.OAuth2Preset] != p {
+			return connectors.Connection{}, pending, ErrOAuthRefused
+		}
 		cur.Identity = validIdentity(grant.Identity, secret, grant.Credentials, old)
 		scrubRetained(&cur, secret, old, grant.Credentials)
 		if cur.Status != connectors.StatusDisabled {
 			cur.Status, cur.StatusReason = connectors.StatusConnected, ""
 		}
-		primary = connectors.GroupItem{Connection: cur, Credentials: grant.Credentials}
+		// The settings the grant does not own (the folder of a mailbox) stay as they were.
+		primary = connectors.GroupItem{Connection: cur, Credentials: connectors.KeepSettings(grant.Credentials, old)}
 	} else {
 		name := pending.Name
 		if name == "" {

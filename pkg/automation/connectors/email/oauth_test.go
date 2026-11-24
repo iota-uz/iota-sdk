@@ -33,9 +33,18 @@ func TestMain(m *testing.M) {
 }
 
 func idTokenFor(email, aud string) string {
+	return idTokenWith(email, "https://accounts.google.com", strconv.Quote(aud))
+}
+
+// idTokenWith is an identity token with the issuer ("" leaves it out) and the audience (a JSON value) given.
+func idTokenWith(email, iss, audJSON string) string {
+	issClaim := ""
+	if iss != "" {
+		issClaim = `"iss":` + strconv.Quote(iss) + `,`
+	}
 	// The client the token was issued to (the tests' "cid") and a future expiry: a token without them is not
 	// trusted for the mailbox it names.
-	claims := []byte(`{"email":` + strconv.Quote(email) + `,"aud":` + strconv.Quote(aud) + `,"exp":` + strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10) + `}`)
+	claims := []byte(`{` + issClaim + `"email":` + strconv.Quote(email) + `,"aud":` + audJSON + `,"exp":` + strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10) + `}`)
 	enc := base64.RawURLEncoding.EncodeToString
 	return enc([]byte(`{"alg":"none"}`)) + "." + enc(claims) + "."
 }
@@ -43,8 +52,9 @@ func idTokenFor(email, aud string) string {
 type tokenServer struct {
 	*httptest.Server
 	refuse    atomic.Bool
-	noRefresh atomic.Bool // the authorization code gives no refresh token
-	otherAud  atomic.Bool // and an ID token issued to another client
+	idToken   atomic.Value // when set, the ID token the code gives (instead of the right one)
+	noRefresh atomic.Bool  // the authorization code gives no refresh token
+	otherAud  atomic.Bool  // and an ID token issued to another client
 	n         atomic.Int32
 	refreshes atomic.Int32
 	current   atomic.Value // the one refresh token the provider honours: it rotates them
@@ -67,7 +77,11 @@ func newTokenServer(t *testing.T, email string) *tokenServer {
 			if ts.otherAud.Load() {
 				aud = "another-client"
 			}
-			_, _ = w.Write([]byte(`{"access_token":"access-1",` + refresh + `"token_type":"Bearer","expires_in":60,"id_token":"` + idTokenFor(email, aud) + `"}`))
+			id := idTokenFor(email, aud)
+			if v, _ := ts.idToken.Load().(string); v != "" {
+				id = v
+			}
+			_, _ = w.Write([]byte(`{"access_token":"access-1",` + refresh + `"token_type":"Bearer","expires_in":60,"id_token":"` + id + `"}`))
 		case "refresh_token":
 			// A provider that rotates refresh tokens: the old one dies with the refresh.
 			if cur, _ := ts.current.Load().(string); ts.refuse.Load() || r.Form.Get("refresh_token") != cur {
@@ -268,6 +282,7 @@ type signIn struct {
 	o          connectors.OAuth2
 	tenant     uuid.UUID
 	smtp, imap connectors.Connection
+	mail       *emailtest.Server
 }
 
 // signInEnv is a tenant that has signed in with Google once: a sending and a receiving connection.
@@ -283,6 +298,7 @@ func signInEnv(t *testing.T) *signIn {
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
 	require.NoError(t, err)
 	mailSrv := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: mailbox, Password: password})
+	e.mail = mailSrv
 	for _, tok := range []string{"access-1", "access-2", "access-3"} {
 		mailSrv.AcceptToken(mailbox, tok)
 	}
@@ -437,4 +453,82 @@ func TestSignInIsRefusedWithoutARefreshTokenOrForAnotherClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An ID token is read for who signed in only when it has the provider's issuer and is for this client alone.
+func TestSignInIsRefusedForAnIDTokenOfAnotherIssuerOrAudience(t *testing.T) {
+	for name, token := range map[string]string{
+		"no issuer":                  idTokenWith(mailbox, "", `"cid"`),
+		"another issuer":             idTokenWith(mailbox, "https://evil.example", `"cid"`),
+		"an extra audience":          idTokenWith(mailbox, "https://accounts.google.com", `["cid","untrusted-client"]`),
+		"an audience that is not it": idTokenWith(mailbox, "https://accounts.google.com", `["other"]`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := signInEnv(t)
+			for _, id := range []uuid.UUID{e.smtp.ID, e.imap.ID} {
+				require.NoError(t, e.store.Delete(e.ctx, e.tenant, id))
+			}
+			e.ts.idToken.Store(token)
+			_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+			require.NoError(t, err)
+			_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+			require.Error(t, err)
+			list, err := e.store.List(e.ctx, e.tenant, KindSMTP)
+			require.NoError(t, err)
+			assert.Empty(t, list, "nothing was saved")
+		})
+	}
+}
+
+// A sign-in is saved only when both connections of the pair work: an account whose IMAP is closed is refused
+// where the person sees it, and neither connection is saved.
+func TestSignInIsRefusedWhenTheOtherProtocolDoesNotWork(t *testing.T) {
+	e := signInEnv(t)
+	for _, id := range []uuid.UUID{e.smtp.ID, e.imap.ID} {
+		require.NoError(t, e.store.Delete(e.ctx, e.tenant, id))
+	}
+	e.mail.RefuseIMAPLogins(true)
+	_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+	require.NoError(t, err)
+	_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+	require.ErrorIs(t, err, connectors.ErrOAuth2Refused)
+	for _, kind := range []catalog.ConnectorKind{KindSMTP, KindIMAP} {
+		list, err := e.store.List(e.ctx, e.tenant, kind)
+		require.NoError(t, err)
+		assert.Empty(t, list, "neither connection of the pair was saved")
+	}
+}
+
+// Signing in again as the same account replaces the grant and keeps the settings a grant does not own: the
+// folder a receiving connection reads stays.
+func TestSignInAgainKeepsTheFolderOfTheReceivingConnection(t *testing.T) {
+	e := signInEnv(t)
+	c, cr, err := e.store.Get(e.ctx, e.tenant, e.imap.ID)
+	require.NoError(t, err)
+	cr["mailbox"] = "Support"
+	_, err = e.store.Save(e.ctx, c, cr)
+	require.NoError(t, err)
+
+	for _, kind := range []catalog.ConnectorKind{KindIMAP, KindSMTP} { // from either side
+		_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, kind, PresetGmail, "https://app.test/cb")
+		require.NoError(t, err)
+		_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+		require.NoError(t, err)
+		_, got, err := e.store.Get(e.ctx, e.tenant, e.imap.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Support", got["mailbox"], "signing in from %s", kind)
+		assert.Equal(t, "refresh-1", got["refresh_token"], "and the grant is the new one")
+	}
+	imaps, err := e.store.List(e.ctx, e.tenant, KindIMAP)
+	require.NoError(t, err)
+	assert.Len(t, imaps, 1, "the same connection, not another")
+}
+
+// A dependent whose cached token is still fresh learns that its owner needs a new sign-in: the owner is
+// consulted before the copy is handed on.
+func TestDependentWithAFreshTokenLearnsThatItsOwnerNeedsReauth(t *testing.T) {
+	e := signInEnv(t)
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, e.smtp.ID, connectors.StatusNeedsReauth, "refused"))
+	_, err := e.o.Token(e.ctx, e.tenant, e.imap.ID) // not aged: its copy has 59 minutes left
+	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
 }

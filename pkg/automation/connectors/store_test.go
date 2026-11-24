@@ -1003,3 +1003,55 @@ func TestDeleteLocksTheGroupInIDOrder(t *testing.T) {
 	require.NoError(t, hold.Rollback(e.ctx))
 	require.NoError(t, <-done)
 }
+
+// A save of an existing group locks the rows it updates in id order before it writes the primary: while a
+// lower-id dependent is held by someone else it waits without holding the owner, as a deletion of the group does.
+func TestSaveGroupLocksTheExistingRowsInIDOrder(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(store).(connectors.GroupSaver)
+	require.True(t, ok)
+	var saved []connectors.Connection
+	for n := 0; saved == nil && n < 200; n++ {
+		got, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		})
+		require.NoError(t, err)
+		if got[1].ID.String() < got[0].ID.String() {
+			saved = got
+		}
+	}
+	require.NotNil(t, saved)
+
+	hold, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = hold.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, saved[1].ID)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		_, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: saved[0], Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: saved[1], Credentials: connectors.Credentials{"token": botToken}},
+		})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		_ = hold.Rollback(e.ctx)
+		t.Fatalf("SaveGroup returned %v while a row it updates was locked", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	probe, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	var got uuid.UUID
+	err = probe.QueryRow(e.ctx, `SELECT id FROM automation.connections WHERE id = $1 FOR UPDATE NOWAIT`, saved[0].ID).Scan(&got)
+	_ = probe.Rollback(e.ctx)
+	if err != nil {
+		_ = hold.Rollback(e.ctx)
+		<-done
+	}
+	require.NoError(t, err, "the waiting save does not hold the owner")
+	require.NoError(t, hold.Rollback(e.ctx))
+	require.NoError(t, <-done)
+}

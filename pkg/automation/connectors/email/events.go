@@ -26,9 +26,25 @@ func MatchHooks() map[string]func(params map[string]any, event graph.Event) bool
 				return true
 			}
 			subject, _ := ev.Payload()["subject"].(string)
-			return strings.Contains(strings.ToLower(subject), strings.ToLower(strings.TrimSpace(want)))
+			return containsFold(subject, strings.TrimSpace(want))
 		},
 	}
+}
+
+// containsFold reports whether s contains sub, ignoring case by Unicode simple case folding (so a final and
+// a medial sigma are one letter, which lowercasing both does not make them): the windows are runes, not bytes.
+func containsFold(s, sub string) bool {
+	subRunes := []rune(sub)
+	runes := []rune(s)
+	if len(subRunes) == 0 {
+		return true
+	}
+	for i := 0; i+len(subRunes) <= len(runes); i++ {
+		if strings.EqualFold(string(runes[i:i+len(subRunes)]), sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // ConversationKey is the key of the conversation of a message: "<imap connection id>:<thread root

@@ -47,7 +47,8 @@ const sendSchema = `{"type":"object","additionalProperties":false,"required":["t
  "text":{"type":"string","maxLength":1000000},
  "html":{"type":"string","maxLength":1000000},
  "reply_to":{"type":"string","minLength":1,"maxLength":500},
- "in_reply_to":{"type":"string","minLength":1,"maxLength":2000,"description":"CEL that gives the Message-ID of the message to answer (event.messageId): the new message is threaded under it."}}}`
+ "in_reply_to":{"type":"string","minLength":1,"maxLength":2000,"description":"CEL that gives the Message-ID of the message to answer (event.messageId): the new message is threaded under it."},
+ "references":{"type":"string","minLength":1,"maxLength":2000,"description":"CEL that gives the Message-IDs of the conversation so far (event.references of the message that is answered). They are carried into References of the new message, in front of in_reply_to, so that a reply to it stays in the conversation that the thread_id of email.wait_reply names."}}}`
 
 // ---------------------------------------------------------------------------------------------
 // email.send
@@ -62,7 +63,7 @@ func (n *sendNode) Spec() graph.NodeSpec {
 		Description: "Sends a message over SMTP. Its Message-ID is made before sending and is in the output of a message that was sent, so a reply can be waited for. A send whose outcome is unknown (a connection that ended after the message was written) has no output: the message may have gone, and the graph cannot name it.",
 		Params:      graph.MustSchemaParams(sendSchema),
 		Templates:   []string{"to[]", "cc[]", "bcc[]", "subject", "text", "html", "reply_to"},
-		Values:      []string{"in_reply_to"},
+		Values:      []string{"in_reply_to", "references"},
 		Outcomes:    []string{outcomeSent, outcomeFailed}, DoneOutcome: outcomeSent, FailedOutcome: outcomeFailed,
 		Output: expr.Fields{
 			{Name: "message_id", Field: expr.StringField},
@@ -103,9 +104,14 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 	if err != nil {
 		return catalog.CallResult{}, err
 	}
+	history, err := messageIDList(in.Params["references"], "references")
+	if err != nil {
+		return catalog.CallResult{}, err
+	}
 	sender := mailboxAddress(a.fromAddress)
 	msg := outgoing{
-		From: mail.Address{Name: a.fromName, Address: sender}, To: to, Cc: cc, ReplyTo: replyTo,
+		References: history,
+		From:       mail.Address{Name: a.fromName, Address: sender}, To: to, Cc: cc, ReplyTo: replyTo,
 		Subject: str(in.Params["subject"]), Text: str(in.Params["text"]), HTML: str(in.Params["html"]),
 		MessageID: messageIDFor(in.IdempotencyKey, sender), InReplyTo: inReplyTo, Date: n.now(),
 	}
@@ -123,7 +129,7 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 	if err != nil {
 		var ce *catalog.CallError
 		if a.oauth() && errors.As(err, &ce) && ce.Code == catalog.CallUnauthorized && in.Connection != nil {
-			n.refused(ctx, in)
+			n.refused(ctx, in, token)
 		}
 		return catalog.CallResult{}, err
 	}
@@ -134,9 +140,9 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 }
 
 // refused marks the other connection of the sign-in the server refused the token of.
-func (n *sendNode) refused(ctx context.Context, in catalog.CallInput) {
+func (n *sendNode) refused(ctx context.Context, in catalog.CallInput, token string) {
 	if id, err := uuidOf(in.Connection.ID); err == nil {
-		n.markLogin(ctx, in.TenantID, id, in.Credentials)
+		n.markLogin(ctx, in.TenantID, id, in.Credentials, token)
 	}
 }
 
@@ -191,6 +197,35 @@ func messageIDArg(v any, name string) (string, error) {
 		return "", &catalog.CallError{Code: catalog.CallInvalidRequest, Message: name + " is not a Message-ID"}
 	}
 	return id, nil
+}
+
+// messageIDList is a list of Message-IDs (the references of the message that is answered) with their angle
+// brackets; a missing one is none.
+func messageIDList(v any, name string) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	items, ok := v.([]any)
+	if !ok {
+		if list, isStrings := v.([]string); isStrings {
+			for _, s := range list {
+				items = append(items, s)
+			}
+		} else {
+			return nil, &catalog.CallError{Code: catalog.CallInvalidRequest, Message: name + " is not a list of Message-IDs"}
+		}
+	}
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		id, err := messageIDArg(it, name)
+		if err != nil {
+			return nil, err
+		}
+		if id != "" {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 func dedupe(list []string) []string {
@@ -353,7 +388,7 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	msg := normalizedID(str(out["message_id"]))
 	terms := []string{
 		"event.threadId == " + normalizedID(thread),
-		`(event.inReplyTo != "" ? event.inReplyTo == ` + msg + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + msg + `))`,
+		`((has(event.inReplyTo) && event.inReplyTo != "") ? event.inReplyTo == ` + msg + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + msg + `))`,
 	}
 	if from := str(out["from"]); from != "" {
 		cel, err := templateToCEL(from)
@@ -446,22 +481,22 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 	}
 	s, err := n.openIMAP(ctx, a, token)
 	if err != nil {
-		return catalog.CallResult{}, n.callError(ctx, in, a, err)
+		return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 	}
 	defer s.close()
 	if _, err := s.selectMailbox(a.mailbox, false); err != nil {
-		return catalog.CallResult{}, n.callError(ctx, in, a, err)
+		return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 	}
 	uids, err := s.findExact(id)
 	if err != nil {
-		return catalog.CallResult{}, n.callError(ctx, in, a, err)
+		return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 	}
 	if len(uids) == 0 {
 		if dest != "" && !sameMailboxName(dest, a.mailbox) {
 			// An earlier attempt may have ended before the last step of a move: finish it.
 			done, err := s.resumeMove(a.mailbox, dest, id)
 			if err != nil {
-				return catalog.CallResult{}, n.callError(ctx, in, a, err)
+				return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 			}
 			if done {
 				return catalog.CallResult{Outcome: outcomeDone, Output: map[string]any{}}, nil
@@ -472,12 +507,12 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 	set := imap.UIDSetNum(uids...)
 	if len(flags) > 0 {
 		if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: flags}, nil).Close(); err != nil {
-			return catalog.CallResult{}, n.callError(ctx, in, a, err)
+			return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 		}
 	}
 	if dest != "" && !sameMailboxName(dest, a.mailbox) {
 		if err := s.moveTo(set, dest); err != nil {
-			return catalog.CallResult{}, n.callError(ctx, in, a, err)
+			return catalog.CallResult{}, n.callError(ctx, in, a, token, err)
 		}
 	}
 	return catalog.CallResult{Outcome: outcomeDone, Output: map[string]any{}}, nil
@@ -485,12 +520,12 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 
 // callError is the CallError of a failure of an IMAP call: a refusal of the login is unauthorized, a
 // mailbox the server does not have is invalid_request, anything else is the server being unavailable.
-func (n *labelNode) callError(ctx context.Context, in catalog.CallInput, a account, err error) error {
+func (n *labelNode) callError(ctx context.Context, in catalog.CallInput, a account, token string, err error) error {
 	var ce *catalog.CallError
 	if errors.As(err, &ce) {
 		if a.oauth() && ce.Code == catalog.CallUnauthorized && in.Connection != nil {
 			if id, perr := uuidOf(in.Connection.ID); perr == nil {
-				n.markLogin(ctx, in.TenantID, id, in.Credentials)
+				n.markLogin(ctx, in.TenantID, id, in.Credentials, token)
 			}
 		}
 		return ce

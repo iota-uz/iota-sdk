@@ -272,6 +272,11 @@ type OAuth2Config struct {
 	// AuthParams are extra query parameters of the authorization URL (Google's prompt=consent, which makes
 	// every sign-in come back with a refresh token).
 	AuthParams map[string]string
+	// IDTokenIssuers are the values of "iss" an OpenID Connect identity token of this provider may carry; a "*"
+	// stands for one path segment (Microsoft's issuer has the directory's id in it). A connector that reads
+	// who signed in from the identity token (OAuth2Finisher) needs it: a token with another issuer, or none, is
+	// not read.
+	IDTokenIssuers []string
 }
 
 // OAuth2Grant is an exchanged authorization: the connector kind of the state, who the token belongs
@@ -301,7 +306,9 @@ type GroupItem struct {
 
 // GroupSaver is an optional interface of a Store: it saves the connections of one sign-in in one
 // transaction (all or none). The first item holds the token set; each later one gets OAuth2TokenFrom set
-// to the first's id, so one refresh serves them all. The built-in store implements it.
+// to the first's id, so one refresh serves them all. A successful call returns one connection per item, in
+// the order of items (so the first is the primary); a custom store must keep that order. The built-in store
+// implements it.
 type GroupSaver interface {
 	SaveGroup(ctx context.Context, items []GroupItem) ([]Connection, error)
 }

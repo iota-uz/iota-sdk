@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email/emailtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
 )
@@ -186,7 +188,7 @@ func TestWaitReplyParamsDeriveTheFilterAndTheKey(t *testing.T) {
 		return `(string(` + expr + `).startsWith("<") ? string(` + expr + `) : "<" + string(` + expr + `) + ">")`
 	}
 	filter := func(thread, msg string) string {
-		return `event.threadId == ` + id(thread) + ` && (event.inReplyTo != "" ? event.inReplyTo == ` + id(msg) + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + id(msg) + `))`
+		return `event.threadId == ` + id(thread) + ` && ((has(event.inReplyTo) && event.inReplyTo != "") ? event.inReplyTo == ` + id(msg) + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + id(msg) + `))`
 	}
 	n := newWaitReplyNode(&hub{})
 	out, issues := n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id"})
@@ -236,7 +238,7 @@ func TestSendParams(t *testing.T) {
 	_, issues = spec.Params.Parse(map[string]any{"to": []any{"a@x.com"}, "subject": "s"})
 	assert.NotEmpty(t, issues, "a text")
 	assert.Equal(t, []string{"to[]", "cc[]", "bcc[]", "subject", "text", "html", "reply_to"}, spec.Templates)
-	assert.Equal(t, []string{"in_reply_to"}, spec.Values)
+	assert.Equal(t, []string{"in_reply_to", "references"}, spec.Values)
 }
 
 func TestLabelParams(t *testing.T) {
@@ -322,6 +324,49 @@ func TestMentionsEventIsAboutTheIdentifier(t *testing.T) {
 	assert.Empty(t, issues, "the address an earlier wait's reply came from")
 }
 
+// The wait's filter evaluated against the payload of an incoming message, as the poller makes it: a reply
+// that has no In-Reply-To key is matched by the last of its References, a reply that lists the sent id only
+// earlier in the thread answers another message, and a different thread is not this wait's.
+func TestWaitReplyFilterAgainstEventPayloads(t *testing.T) {
+	n := newWaitReplyNode(&hub{})
+	out, issues := n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id", "thread_id": "nodes.first.output.thread"})
+	require.Empty(t, issues)
+	scope := expr.Scope{Vars: map[string]expr.Field{
+		"event": expr.ObjectOf(receivedPayload()),
+		"nodes": expr.ObjectOf(expr.Fields{
+			{Name: "send", Field: expr.ObjectOf(expr.Fields{{Name: "output", Field: expr.ObjectOf(expr.Fields{{Name: "message_id", Field: expr.StringField}})}})},
+			{Name: "first", Field: expr.ObjectOf(expr.Fields{{Name: "output", Field: expr.ObjectOf(expr.Fields{{Name: "thread", Field: expr.StringField}})}})},
+		}),
+	}}
+	env, err := expr.NewEnv(scope, expr.Limits{})
+	require.NoError(t, err)
+	prog, errs := env.Check(out["filter"].(string), expr.TypeBool)
+	require.Empty(t, errs)
+	nodes := map[string]any{
+		"send":  map[string]any{"output": map[string]any{"message_id": "<sent@x>"}},
+		"first": map[string]any{"output": map[string]any{"thread": "<root@x>"}},
+	}
+	eval := func(ev map[string]any) bool {
+		got, err := prog.Eval(map[string]any{"event": ev, "nodes": nodes})
+		require.NoError(t, err)
+		return got == true
+	}
+	reply := func(extra map[string]any) map[string]any {
+		ev := map[string]any{"threadId": "<root@x>", "references": []any{}, "messageId": "<r@x>"}
+		for k, v := range extra {
+			ev[k] = v
+		}
+		return ev
+	}
+	assert.True(t, eval(reply(map[string]any{"inReplyTo": "<sent@x>", "references": []any{"<root@x>", "<sent@x>"}})), "In-Reply-To names the sent message")
+	assert.True(t, eval(reply(map[string]any{"references": []any{"<root@x>", "<sent@x>"}})), "no In-Reply-To key: the last of References")
+	assert.True(t, eval(reply(map[string]any{"inReplyTo": "", "references": []any{"<root@x>", "<sent@x>"}})), "an empty In-Reply-To: the last of References")
+	assert.False(t, eval(reply(map[string]any{"inReplyTo": "<other@x>", "references": []any{"<root@x>", "<sent@x>", "<other@x>"}})), "answers another message of the conversation")
+	assert.False(t, eval(reply(map[string]any{"references": []any{"<root@x>", "<sent@x>", "<later@x>"}})), "the sent id is only history in References")
+	assert.False(t, eval(reply(map[string]any{"threadId": "<elsewhere@x>", "inReplyTo": "<sent@x>"})), "another conversation")
+	assert.False(t, eval(reply(map[string]any{"inReplyTo": "sent@x", "references": []any{"<root@x>"}})), "an id without brackets in a header is not this message's")
+}
+
 func TestTemplateToCEL(t *testing.T) {
 	for in, want := range map[string]string{
 		"a@x.com":                   `("a@x.com")`,
@@ -364,6 +409,28 @@ func TestDialogueLogHasNoSecrets(t *testing.T) {
 	assert.NotContains(t, out, "Bearer ya29")
 }
 
+// An SMTP send and an IMAP poll that log into one destination at once do not race on it (run with -race).
+func TestDialogueLogIsSafeForConcurrentSessions(t *testing.T) {
+	var log bytes.Buffer
+	f := newFx(t, emailtest.ModeTLS)
+	f.smtp.cfg.Debug = &log
+	var wg sync.WaitGroup
+	for i := 0; i < 6; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = f.smtp.Test(context.Background(), f.smtpCreds())
+		}()
+		go func() {
+			defer wg.Done()
+			_, _ = f.imap.Test(context.Background(), f.imapCreds())
+		}()
+	}
+	wg.Wait()
+	assert.NotContains(t, log.String(), password)
+	assert.Contains(t, log.String(), "AUTH")
+}
+
 func TestNothingIsLoggedByDefault(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	assert.Nil(t, f.smtp.cfg.Debug)
@@ -378,4 +445,22 @@ func lower(l []string) []string {
 		out[i] = strings.ToLower(s)
 	}
 	return out
+}
+
+// A subject matches by Unicode case folding: the final and the medial sigma are one letter.
+func TestSubjectContainsFoldsUnicodeCase(t *testing.T) {
+	hook := MatchHooks()[HookSubjectContains]
+	for _, c := range []struct {
+		subject, want string
+		match         bool
+	}{
+		{"ΟΣ", "ος", true},
+		{"Your INVOICE #4", "invoice", true},
+		{"Re: Счёт №4", "СЧЁТ", true},
+		{"Straße", "STRASSE", false}, // simple folding only: ß stays itself
+		{"invoice", "receipt", false},
+	} {
+		got := hook(map[string]any{"subject_contains": c.want}, graph.Event{"kind": EventReceived, "subject": c.subject})
+		assert.Equal(t, c.match, got, "%q in %q", c.want, c.subject)
+	}
 }

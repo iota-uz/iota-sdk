@@ -39,6 +39,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -125,7 +126,32 @@ func New(cfg Config) []connectors.Connector {
 }
 
 // hub is what the two connectors share.
-type hub struct{ cfg Config }
+type hub struct {
+	cfg Config
+	// debugMu serializes the writes of every session to Config.Debug: the sessions of an SMTP send and of an IMAP
+	// poll run at once, each with a writer of its own (its masking state is its own), and a destination such as
+	// a bytes.Buffer is not safe for concurrent writes.
+	debugMu sync.Mutex
+}
+
+// debugOut is the destination of a session's dialogue: Config.Debug behind the hub's lock, or none.
+func (h *hub) debugOut() io.Writer {
+	if h.cfg.Debug == nil {
+		return nil
+	}
+	return &lockedWriter{mu: &h.debugMu, w: h.cfg.Debug}
+}
+
+type lockedWriter struct {
+	mu *sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
 
 func (h *hub) now() time.Time {
 	if h.cfg.Clock != nil {
@@ -252,12 +278,14 @@ func defaultPresets() map[string]connectors.OAuth2Config {
 			ClientCredential: GoogleClient,
 			// A refresh token is issued on the first consent only; without the prompt a second sign-in
 			// of an account would come back without one.
-			AuthParams: map[string]string{"prompt": "consent"},
+			AuthParams:     map[string]string{"prompt": "consent"},
+			IDTokenIssuers: []string{"https://accounts.google.com", "accounts.google.com"},
 		},
 		PresetM365: {
 			AuthURL: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
 			Scopes:           []string{"https://outlook.office.com/SMTP.Send", "https://outlook.office.com/IMAP.AccessAsUser.All", "offline_access", "openid", "email", "profile"},
 			ClientCredential: MicrosoftClient,
+			IDTokenIssuers:   []string{"https://login.microsoftonline.com/*/v2.0"},
 		},
 	}
 }

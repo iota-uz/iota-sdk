@@ -2,6 +2,8 @@ package email
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -39,7 +41,7 @@ func (h *hub) openIMAP(ctx context.Context, a account, token string) (*imapSessi
 	}
 	stop := watch(ctx, conn)
 	opts := &imapclient.Options{TLSConfig: h.tlsConfig(a.host)}
-	if w := newMaskedWriter(h.cfg.Debug, a.password, token); w != nil {
+	if w := newMaskedWriter(h.debugOut(), a.password, token); w != nil {
 		opts.DebugWriter = w
 	}
 	var c *imapclient.Client
@@ -74,6 +76,11 @@ func (h *hub) openIMAP(ctx context.Context, a account, token string) (*imapSessi
 func networkOrRefused(err error, ctx context.Context) error {
 	var ie *imap.Error
 	if errors.As(err, &ie) {
+		// [UNAVAILABLE] (RFC 5530) is the server's backend being down for a moment, not a refusal of the
+		// credentials: it is retried, and nothing is marked as needing a new sign-in.
+		if ie.Code == imap.ResponseCodeUnavailable {
+			return &catalog.CallError{Code: catalog.CallUnavailable, Message: "the IMAP server is temporarily unavailable", Retryable: true}
+		}
 		if ie.Type == imap.StatusResponseTypeNo || ie.Type == imap.StatusResponseTypeBad {
 			return refused("imap", 401)
 		}
@@ -137,8 +144,14 @@ func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
 	if _, err := s.c.Copy(set, dest).Wait(); err != nil {
 		return err
 	}
-	if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}, nil).Close(); err != nil {
-		return err
+	// The original is flagged \\Deleted together with a keyword that names this move: it is the record that the
+	// COPY of this very message was answered, which a repeat after an interrupted move needs (resumeMove). A
+	// server that does not keep the keyword gets the flag alone, and the move then stays at the flag.
+	flags := []imap.Flag{imap.FlagDeleted, imap.Flag(moveKeyword(dest))}
+	if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: flags}, nil).Close(); err != nil {
+		if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: flags[:1]}, nil).Close(); err != nil {
+			return err
+		}
 	}
 	if caps.Has(imap.CapUIDPlus) {
 		return s.c.UIDExpunge(set).Close()
@@ -146,20 +159,31 @@ func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
 	return nil
 }
 
-// resumeMove finishes a move whose last step did not happen: the original is flagged \\Deleted in the
-// source (a call that ended after COPY and STORE and before UID EXPUNGE), and a live copy is in the
-// destination. Only on a server with UIDPLUS (the flag-only behavior without it stays), and only the
-// messages that are exactly this one. It reports whether there was something to finish.
+// moveKeyword is the keyword a move to dest puts on the original after its COPY was answered.
+func moveKeyword(dest string) string {
+	sum := sha256.Sum256([]byte(dest))
+	return "$IotaMoved" + hex.EncodeToString(sum[:4])
+}
+
+// resumeMove finishes a move whose last step did not happen: the original was flagged \\Deleted by a move to
+// this destination, and its UID EXPUNGE did not happen. The evidence that this workflow copied the message is
+// on the original itself: the keyword moveTo puts on it together with \\Deleted once the COPY was answered
+// (a message the user deleted, or that another tool flagged, does not have it, and is left alone). Only on a
+// server with UIDPLUS (the flag-only behavior without it stays), only the messages that are exactly this one,
+// only while the destination still holds a live copy, and only in the mailbox instance the messages were found
+// in (UIDVALIDITY). It reports whether there was something to finish.
 func (s *imapSession) resumeMove(source, dest, messageID string) (bool, error) {
 	if !s.c.Caps().Has(imap.CapUIDPlus) || s.c.Caps().Has(imap.CapMove) {
 		return false, nil
 	}
-	if _, err := s.selectMailbox(source, false); err != nil {
+	sel, err := s.selectMailbox(source, false)
+	if err != nil {
 		return false, err
 	}
+	validity := sel.UIDValidity
 	found, err := s.c.UIDSearch(&imap.SearchCriteria{
 		Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}},
-		Flag:   []imap.Flag{imap.FlagDeleted},
+		Flag:   []imap.Flag{imap.FlagDeleted, imap.Flag(moveKeyword(dest))},
 	}, nil).Wait()
 	if err != nil {
 		return false, err
@@ -185,8 +209,12 @@ func (s *imapSession) resumeMove(source, dest, messageID string) (bool, error) {
 	if err != nil || !copied {
 		return false, err
 	}
-	if _, err := s.selectMailbox(source, false); err != nil {
+	sel, err = s.selectMailbox(source, false)
+	if err != nil {
 		return false, err
+	}
+	if sel.UIDValidity != validity {
+		return false, nil // the mailbox was made again meanwhile: a UID names another message now
 	}
 	return true, s.c.UIDExpunge(imap.UIDSetNum(exact...)).Close()
 }

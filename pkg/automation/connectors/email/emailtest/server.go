@@ -81,6 +81,7 @@ type Server struct {
 	imapSrv   *imapserver.Server
 	imapCaps  imap.CapSet
 	failFetch int
+	noIMAP    bool // the IMAP server refuses every login (a mailbox with IMAP switched off)
 }
 
 // New starts the servers; they stop with the test.
@@ -204,6 +205,20 @@ func (s *Server) AcceptToken(user, token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.accounts[user].Tokens[token] = true
+}
+
+// RefuseIMAPLogins makes the IMAP server refuse every login, whatever the credentials: an account whose
+// provider has IMAP closed, while SMTP still works.
+func (s *Server) RefuseIMAPLogins(refuse bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.noIMAP = refuse
+}
+
+func (s *Server) imapClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.noIMAP
 }
 
 func (s *Server) RevokeTokens(user string) {
@@ -545,6 +560,9 @@ func (x *imapSession) Move(w *imapserver.MoveWriter, numSet imap.NumSet, dest st
 }
 
 func (x *imapSession) Login(user, pass string) error {
+	if x.s.imapClosed() {
+		return &imap.Error{Type: imap.StatusResponseTypeNo, Code: imap.ResponseCodeAuthenticationFailed, Text: "IMAP access is disabled"}
+	}
 	x.s.seen("imap", "LOGIN")
 	return x.Session.Login(user, pass)
 }
@@ -569,7 +587,7 @@ func (x *imapSession) Authenticate(mech string) (sasl.Server, error) {
 	x.s.seen("imap", mech)
 	switch strings.ToUpper(mech) {
 	case "PLAIN":
-		return sasl.NewPlainServer(func(_, user, pass string) error { return x.Session.Login(user, pass) }), nil
+		return sasl.NewPlainServer(func(_, user, pass string) error { return x.Login(user, pass) }), nil
 	case "XOAUTH2":
 		return &imapXOAuth{xoauthServer: xoauthServer{s: x.s, proto: "imap"}, sess: x}, nil
 	}
@@ -594,6 +612,9 @@ func (x *imapXOAuth) Next(resp []byte) ([]byte, bool, error) {
 	x.s.mu.Lock()
 	pass := x.s.accounts[user].Password
 	x.s.mu.Unlock()
+	if x.s.imapClosed() {
+		return nil, true, &imap.Error{Type: imap.StatusResponseTypeNo, Code: imap.ResponseCodeAuthenticationFailed, Text: "IMAP access is disabled"}
+	}
 	return nil, true, x.sess.Session.Login(user, pass)
 }
 

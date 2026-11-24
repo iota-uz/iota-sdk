@@ -360,8 +360,28 @@ func (s *store) SaveGroup(ctx context.Context, items []GroupItem) ([]Connection,
 		}
 	}
 	out := make([]Connection, 0, len(items))
+	var existing []uuid.UUID
+	for _, it := range items {
+		if it.Connection.Version > 0 {
+			existing = append(existing, it.Connection.ID)
+		}
+	}
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		out = out[:0]
+		// The rows the save updates are locked first, in ascending id order: the order a deletion of the
+		// group (lockGroup) and a rewrap lock in, whatever order the group is written in (the primary
+		// first), so the transactions cannot wait for each other's rows crosswise.
+		if len(existing) > 0 {
+			rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = ANY($2) ORDER BY id FOR UPDATE`,
+				items[0].Connection.TenantID, existing)
+			if err != nil {
+				return err
+			}
+			rows.Close()
+			if err := rows.Err(); err != nil {
+				return err
+			}
+		}
 		for i, it := range items {
 			c, err := checkConnection(it.Connection)
 			if err != nil {

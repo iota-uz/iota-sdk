@@ -75,7 +75,7 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 
 | Нода | Поведение | Параметры | Исходы |
 | --- | --- | --- | --- |
-| `email.send` | call, не идемпотентна, требует `smtp` | `to` (1–50), `cc`, `bcc`, `subject`, `text`, `html`, `reply_to` — шаблоны; `in_reply_to` — CEL с Message-ID | `sent`, `failed` |
+| `email.send` | call, не идемпотентна, требует `smtp` | `to` (1–50), `cc`, `bcc`, `subject`, `text`, `html`, `reply_to` — шаблоны; `in_reply_to` — CEL с Message-ID, `references` — CEL со списком Message-ID цепочки (`event.references` письма, на которое отвечают) | `sent`, `failed` |
 | `email.wait_reply` | wait, требует `imap` | `message_id` (CEL, обычно `nodes.<send>.output.message_id`), `thread_id` (CEL, см. ниже), `from` (шаблон), `timeout` (по умолчанию 3d, ≤ 30d) | `replied`, `timeout` |
 | `email.label` | call, идемпотентна, требует `imap` | `message_id` (CEL), `mark_seen`, `keywords`, `move_to` | `done`, `not_found`, `failed` |
 
@@ -107,7 +107,9 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 
 Ответ ссылается на **первое** письмо цепочки. Если письмо было отправлено как ответ (`in_reply_to`), его
 ответ принадлежит цепочке исходного: передайте в `thread_id` `Message-ID` первого письма цепочки
-(`event.threadId` входящего, взятый нодой раньше). Без `connection` нода выбирает единственное подключение
+(`event.threadId` входящего, взятый нодой раньше). Чтобы ответ на ваше письмо сохранил корень цепочки, передайте в
+`references` `event.references` письма, на которое вы отвечаете: они попадают в `References` нового письма перед
+`in_reply_to` (корень и последние 19 писем), а `In-Reply-To` остаётся прямым родителем. Без `connection` нода выбирает единственное подключение
 `imap`; ожидание всё равно сужает фильтр `event.threadId == …`.
 
 В `event` вывода — payload найденного письма.
@@ -180,3 +182,13 @@ CONTRACT_TARGET=live EMAIL_CONTRACT_SMTP_HOST=smtp.example.com EMAIL_CONTRACT_IM
 EMAIL_CONTRACT_USER=me@example.com EMAIL_CONTRACT_PASSWORD="$APP_PASSWORD" \
   go test ./pkg/automation/connectors/email -run TestMailServerContract -v
 ```
+
+## Вход через Google и Microsoft: что проверяется
+
+* ID-токен читается, только если его `iss` — издатель провайдера (Google: `https://accounts.google.com`;
+  Microsoft: `https://login.microsoftonline.com/<tenant>/v2.0`), `aud` — только клиент приложения (лишние
+  аудитории и чужой `azp` отвергаются) и `exp` в будущем;
+* пара подключений сохраняется, только если работают оба протокола: после входа проверяются и SMTP, и IMAP, и
+  аккаунт с закрытым IMAP отклоняется до сохранения;
+* повторный вход в тот же аккаунт заменяет токены и поля гранта и оставляет настройки, которых грант не касается
+  (папка IMAP `mailbox`); вход другим провайдером (Gmail → Microsoft) в связанное подключение отклоняется.

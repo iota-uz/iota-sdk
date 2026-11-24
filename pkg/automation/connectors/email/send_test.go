@@ -2,6 +2,8 @@ package email
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +93,33 @@ func TestSendHTMLAndThreading(t *testing.T) {
 	assert.Contains(t, raw, "text/html")
 	assert.Contains(t, raw, "In-Reply-To: <abc@mail.example>")
 	assert.Contains(t, raw, "References: <abc@mail.example>")
+}
+
+// An answer to a message in a conversation carries the conversation's References: its reply then names the
+// root that a wait's thread_id names. The parent stays In-Reply-To, and the history is bounded.
+func TestSendCarriesTheConversationReferences(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	n := &sendNode{f.smtp.hub}
+	_, err := n.Execute(context.Background(), f.sendInput(params(map[string]any{
+		"in_reply_to": "<b@x>", "references": []any{"<a@x>", "<b@x>"},
+	}), f.smtpCreds()))
+	require.NoError(t, err)
+	raw := string(f.srv.Sent()[0].Data)
+	assert.Contains(t, raw, "In-Reply-To: <b@x>")
+	assert.Contains(t, raw, "References: <a@x> <b@x>")
+	assert.NotContains(t, raw, "<b@x> <b@x>", "the parent is listed once")
+
+	var many []string
+	for i := 0; i < 40; i++ {
+		many = append(many, fmt.Sprintf("m%d@x", i))
+	}
+	refs := referencesOf(many, "<parent@x>")
+	require.Len(t, refs, maxReferences)
+	assert.Equal(t, "m0@x", refs[0], "the root is kept")
+	assert.Equal(t, "parent@x", refs[len(refs)-1])
+
+	_, err = n.Execute(context.Background(), f.sendInput(params(map[string]any{"in_reply_to": "<b@x>", "references": "not a list"}), f.smtpCreds()))
+	assert.Equal(t, catalog.CallInvalidRequest, callError(t, err).Code)
 }
 
 func TestSendRefusals(t *testing.T) {
@@ -215,6 +244,23 @@ func TestTLSIsRequired(t *testing.T) {
 	assert.Empty(t, f.srv.Mechanisms(), "no AUTH was attempted")
 }
 
+// A relay without a login is not accepted before its TLS handshake has succeeded: a certificate the connector
+// does not trust fails the test, not every send after it.
+func TestCredentiallessSTARTTLSRelayIsCheckedForItsCertificate(t *testing.T) {
+	f := newFx(t, emailtest.ModeSTARTTLS)
+	creds := f.smtpCreds()
+	creds["username"], creds["password"] = "", ""
+	creds["security"] = "starttls"
+	_, err := f.smtp.Test(context.Background(), creds)
+	require.NoError(t, err, "a relay with a trusted certificate needs no AUTH")
+	assert.Empty(t, f.srv.Mechanisms())
+
+	f.smtp.cfg.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12} // trusts the system's roots only
+	_, err = f.smtp.Test(context.Background(), creds)
+	require.Error(t, err, "an untrusted certificate")
+	assert.Contains(t, err.Error(), "STARTTLS")
+}
+
 func TestXOAUTH2SendAndRevocation(t *testing.T) {
 	ctx := context.Background()
 	f := newFx(t, emailtest.ModeTLS)
@@ -242,7 +288,10 @@ func TestXOAUTH2SendAndRevocation(t *testing.T) {
 		assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(imapConn.ID), "the imap connection shares the login")
 	})
 	t.Run("a refresh the provider refuses is unauthorized and marks the other connection", func(t *testing.T) {
-		f.conns.status[imapConn.ID] = connectors.StatusConnected
+		// Both connections are enabled again: the earlier subtest left them marked, and the assertions
+		// below must show this path's own transitions.
+		f.conns.setStatus(imapConn.ID, connectors.StatusConnected)
+		f.conns.setStatus(smtpConn.ID, connectors.StatusConnected)
 		f.oauth.revoke = true
 		_, err := (&sendNode{f.smtp.hub}).Execute(ctx, in)
 		assert.Equal(t, catalog.CallUnauthorized, callError(t, err).Code)
@@ -260,9 +309,30 @@ func TestMarkLoginLeavesAConnectionSwitchedOffMeanwhile(t *testing.T) {
 	f.conns.add(smtpConn, creds)
 	f.conns.add(imapConn, f.oauthCreds("", "stale"))
 	f.conns.afterList = func() { f.conns.setStatus(imapConn.ID, connectors.StatusDisabled) }
-	f.smtp.markLogin(context.Background(), tenant, smtpConn.ID, creds)
+	f.smtp.markLogin(context.Background(), tenant, smtpConn.ID, creds, "")
 	assert.Equal(t, connectors.StatusDisabled, f.conns.statusOf(imapConn.ID), "switched off meanwhile: not marked")
 	assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(smtpConn.ID))
+}
+
+// A refusal marks the connections that hold the token that was refused (the one the call was made with, which a
+// refresh may have made newer than the call's snapshot), and not one that holds another: a companion that has
+// taken a newer token from its owner works.
+func TestMarkLoginComparesTheTokenThatWasRefused(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	smtpConn, imapConn := f.connection(KindSMTP), f.connection(KindIMAP)
+	snapshot := f.oauthCreds("", "A")
+	f.conns.add(smtpConn, f.oauthCreds("", "B")) // refreshed from A to B, which the server then refused
+	f.conns.add(imapConn, f.oauthCreds("", "C")) // has taken a newer token
+	f.smtp.markLogin(context.Background(), tenant, smtpConn.ID, snapshot, "B")
+	assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(smtpConn.ID), "it holds the refused token B, which the snapshot (A) does not show")
+	assert.Equal(t, connectors.StatusConnected, f.conns.statusOf(imapConn.ID), "a different token: not the grant that was refused")
+
+	f2 := newFx(t, emailtest.ModeTLS)
+	s2, i2 := f2.connection(KindSMTP), f2.connection(KindIMAP)
+	f2.conns.add(s2, f2.oauthCreds("", "B"))
+	f2.conns.add(i2, f2.oauthCreds("", "B"))
+	f2.smtp.markLogin(context.Background(), tenant, s2.ID, snapshot, "B")
+	assert.Equal(t, connectors.StatusNeedsReauth, f2.conns.statusOf(i2.ID), "a companion with the same token is marked with it")
 }
 
 func TestSMTPTestWithToken(t *testing.T) {

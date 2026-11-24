@@ -86,7 +86,17 @@ func (h *hub) dialSMTP(ctx context.Context, a account, token string) (*smtpClien
 		_ = conn.Close()
 		return nil, fmt.Errorf("email: the server %s does not secure the connection with STARTTLS: %w", a.host, noText(err))
 	}
-	if w := newMaskedWriter(h.cfg.Debug, a.password, token); w != nil {
+	if !implicit {
+		// go-smtp installs the TLS connection and runs the handshake with the next exchange, which a relay
+		// that takes mail without a login would not make before its first message: the handshake (and the
+		// certificate) is checked now, so an untrusted relay fails the test, not every send.
+		if err := cl.Noop(); err != nil {
+			stop()
+			_ = conn.Close()
+			return nil, fmt.Errorf("email: the connection to %s could not be secured with STARTTLS: %w", a.host, noText(err))
+		}
+	}
+	if w := newMaskedWriter(h.debugOut(), a.password, token); w != nil {
 		cl.DebugWriter = w
 	}
 	s := &smtpClient{Client: cl, conn: conn, stop: stop}
