@@ -38,7 +38,7 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
     around the cards; the edges of one source share their channels (a common trunk). A card being
     dragged has a plain orthogonal edge until it lands.
   - `ensureLayout` places one missing step under its source; when more than a third of the steps, or a
-    whole branch (3+ linked steps), lack positions, the graph is laid out again. Groups whose
+    whole branch (two or more linked steps), lack positions, the graph is laid out again. Groups whose
     positions differ from a Tidy of the known steps were arranged by hand and keep them (a card moved
     against the others, or a whole group moved: Tidy leaves the layout at the origin); only the
     button, the menu item or ⇧⌘L moves them. Only positions are read, so this holds after a reload.

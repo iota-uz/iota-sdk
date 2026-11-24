@@ -441,3 +441,45 @@ describe('a trigger called "shared"', () => {
     expect(layoutMetrics(graph, catalog, tidyLayout(graph, catalog))).toMatchObject({ overlaps: 0, throughNodes: 0 })
   })
 })
+
+describe('code review: relayout and routes', () => {
+  const without = (layout: AutomationLayout, ids: string[]) => Object.fromEntries(Object.entries(layout).filter(([id]) => !ids.includes(id))) as AutomationLayout
+  const sub = (ids: string[]): AutomationGraph => ({
+    ...multiTrigger,
+    triggers: multiTrigger.triggers.filter((t) => !ids.includes(t.id)),
+    nodes: multiTrigger.nodes.filter((n) => !ids.includes(n.id)),
+    edges: multiTrigger.edges.filter((e) => !ids.includes(e.from.node) && !ids.includes(e.to)),
+  })
+
+  it('lays the graph out again when places of items that were in the last Tidy are lost', () => {
+    const full = tidyLayout(multiTrigger, catalog)
+    expect(ensureLayout(multiTrigger, catalog, without(full, ['a_mail', 'a_wait', 'a_tag']))).toEqual(full)
+  })
+
+  it('treats two linked steps without positions as a branch: the failure lane comes back', () => {
+    const lost = ['a_alert', 'a_alert_end']
+    const stored = tidyLayout(sub(lost), catalog)
+    expect(ensureLayout(multiTrigger, catalog, stored)).toEqual(tidyLayout(multiTrigger, catalog))
+  })
+
+  it('still places one new step by itself', () => {
+    const stored = tidyLayout(sub(['a_alert_end']), catalog)
+    const next = ensureLayout(multiTrigger, catalog, stored)
+    for (const [id, p] of Object.entries(stored)) expect(next[id]).toEqual(p)
+  })
+
+  it('finds a way round a card that leaves no room for a full stub', () => {
+    const rects = new Map([
+      ['a', { x: 0, y: 0, width: 224, height: 96 }],
+      ['b', { x: 0, y: 104, width: 224, height: 96 }],
+      ['c', { x: 0, y: 304, width: 224, height: 96 }],
+    ])
+    const route = createRouter(rects, [{ key: 'a.done', from: 'a', to: 'c', port: { x: 112, y: 96 }, entry: { x: 112, y: 304 } }]).route('a.done')!
+    expect(route.blocked).toBe(false)
+    for (let i = 1; i < route.points.length; i += 1) {
+      const p = route.points[i - 1]!
+      const q = route.points[i]!
+      expect(Math.max(p.x, q.x) > 0 && Math.min(p.x, q.x) < 224 && Math.max(p.y, q.y) > 104 && Math.min(p.y, q.y) < 200).toBe(false)
+    }
+  })
+})

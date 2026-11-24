@@ -651,7 +651,7 @@ export function placeNew(
 }
 
 function connectedMissing(graph: AutomationGraph, missing: Set<string>): number {
-  // The size of the biggest group of missing items linked to each other: a branch without coordinates.
+  // The size of the biggest group of missing items linked to each other: a branch without coordinates (two linked steps are one).
   const parent = new Map<string, string>()
   const find = (id: string): string => {
     let root = id
@@ -676,7 +676,7 @@ function connectedMissing(graph: AutomationGraph, missing: Set<string>): number 
 }
 
 /** Groups whose items stand elsewhere than a Tidy of the known items would put them: arranged by hand. */
-function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: AutomationLayout, known: Set<string>): Set<string> {
+function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: AutomationLayout, known: Set<string>, whole: AutomationLayout): Set<string> {
   const subgraph: AutomationGraph = {
     ...graph,
     triggers: graph.triggers.filter((t) => known.has(t.id)),
@@ -684,6 +684,7 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
     edges: graph.edges.filter((e) => known.has(e.from.node) && (e.to === IGNORE || known.has(e.to))),
   }
   const reference = tidyLayout(subgraph, catalog)
+  // The positions may also be the Tidy of the whole graph (`whole`), with the places of some items lost since.
   const hand = new Set<string>()
   // Tidy leaves the layout at the origin, so a group it laid out stands exactly where a Tidy of the known
   // items puts it. A group whose items moved against each other is by hand; so is one moved as a whole,
@@ -692,7 +693,8 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
   for (const group of layoutGroups(graph)) {
     const placed = group.items.filter((id) => known.has(id))
     if (placed.length === 0) continue
-    if (placed.some((id) => layout[id]!.x !== reference[id]!.x || layout[id]!.y !== reference[id]!.y)) hand.add(group.key)
+    const at = (base: AutomationLayout) => placed.every((id) => layout[id]!.x === base[id]!.x && layout[id]!.y === base[id]!.y)
+    if (!at(reference) && !at(whole)) hand.add(group.key)
   }
   return hand
 }
@@ -714,14 +716,14 @@ export function ensureLayout(graph: AutomationGraph, catalog: EditorCatalog, lay
     return clean
   }
   const missingSet = new Set(missing)
-  const again = missing.length * 3 > ids.length || connectedMissing(graph, missingSet) >= 3
+  const again = missing.length * 3 > ids.length || connectedMissing(graph, missingSet) >= 2
   const next: AutomationLayout = {}
   for (const id of known) next[id] = layout[id]!
   if (!again) return completeByPlacing(graph, catalog, next, missing)
 
   const knownSet = new Set(known)
-  const hand = arrangedByHand(graph, catalog, layout, knownSet)
   const fresh = tidyLayout(graph, catalog)
+  const hand = arrangedByHand(graph, catalog, layout, knownSet, fresh)
   if (hand.size === 0) return fresh
   const groups = layoutGroups(graph)
   const kept = new Set(groups.filter((g) => hand.has(g.key)).flatMap((g) => g.items.filter((id) => knownSet.has(id))))

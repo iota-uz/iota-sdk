@@ -42,6 +42,8 @@ export const STUB = 12
 export const LANE = 12
 const LANES = 5
 const CLEAR = 4
+/** The nearest channel to a card when the usual ones are taken by another card. */
+const TIGHT = 4
 const BEND_COST = 24
 const TRUNK_REWARD = 0.85
 
@@ -169,12 +171,15 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
       for (const r of first) if (x > r.x && x < r.x + r.width && hi > r.y && lo < r.y + r.height) return false
       return true
     })
-  const y1s = stubFree(below, s.x, s.y)
-  const y2s = stubFree(above, t.x, t.y)
+  let y1s = stubFree(below, s.x, s.y)
+  let y2s = stubFree(above, t.x, t.y)
   if (y1s.length === 0 || y2s.length === 0) {
     // Cards closer than a stub: a straight link, when nothing is between the handles.
     if (same(s.x, t.x) && t.y > s.y && !obstacles.blocked(s.x, s.y, s.x, t.y, 0)) return { points: [s, t], blocked: false }
-    return { ...directRoute(s, t), blocked: true }
+    // Or a channel right under the source and right above the target, in the gap a card leaves.
+    if (y1s.length === 0) y1s = stubFree([s.y + TIGHT], s.x, s.y)
+    if (y2s.length === 0) y2s = stubFree([t.y - TIGHT], t.x, t.y)
+    if (y1s.length === 0 || y2s.length === 0) return { ...directRoute(s, t), blocked: true }
   }
 
   // Vertical channels: under the source, above the target, and the gaps around the cards between. The
