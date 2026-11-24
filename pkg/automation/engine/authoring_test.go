@@ -227,7 +227,9 @@ func TestRunContextContractOverTheCatalog(t *testing.T) {
 	h := ae.handler(p, nil)
 	started := 0
 	for key, spec := range view.Catalog.Events {
-		if spec.NoTrigger || key == engine.EventSchedule || key == engine.EventManual {
+		// Manual and called runs start from a request or a step, not from a published event (their
+		// context is checked by their own tests: StartManual, start_automation/run_automation).
+		if spec.NoTrigger || key == engine.EventSchedule || key == engine.EventManual || key == engine.EventCalled {
 			continue
 		}
 		name := strings.ReplaceAll(key, ".", "_")

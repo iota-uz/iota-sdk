@@ -74,6 +74,10 @@ type runState struct {
 	fetchSem chan struct{}
 	blocked  atomic.Bool
 
+	conns       map[string]map[string]bool // declared connections → methods
+	caller      ConnectionCaller
+	connRefused atomic.Value // FailureReason of the last refused connection call
+
 	mu          sync.Mutex
 	logs        []string
 	logsDropped bool
@@ -87,7 +91,17 @@ type runState struct {
 }
 
 func newRunState(in RunInput, limits Limits, masker Masker, done func()) *runState {
+	conns := make(map[string]map[string]bool, len(in.Connections))
+	for name, methods := range in.Connections {
+		set := make(map[string]bool, len(methods))
+		for _, m := range methods {
+			set[m] = true
+		}
+		conns[name] = set
+	}
 	return &runState{
+		conns:    conns,
+		caller:   in.ConnectionCaller,
 		limits:   limits,
 		outcomes: in.Outcomes,
 		masker:   masker,
@@ -109,7 +123,8 @@ func (s *runState) router() *kafig.RPCRouter {
 		WithSync("body", s.body).
 		WithSync("__result", s.report).
 		WithSync("fetchStage", s.stage).
-		WithAsync("fetch", s.fetch)
+		WithAsync("fetch", s.fetch).
+		WithAsync("connection", s.connection)
 }
 
 func (s *runState) reported() *reported {
@@ -241,6 +256,9 @@ type fetchReply struct {
 	Redirected bool              `json:"redirected"`
 	Blocked    string            `json:"blocked,omitempty"`
 	Error      string            `json:"error,omitempty"`
+	// Refused and Code: a connection call refused before the network (ConnectionRefusedError).
+	Refused string `json:"refused,omitempty"`
+	Code    string `json:"code,omitempty"`
 }
 
 func replyError(msg string) (json.RawMessage, error) { return json.Marshal(fetchReply{Error: msg}) }
@@ -338,6 +356,85 @@ func (s *runState) fetch(ctx context.Context, params json.RawMessage) (json.RawM
 		BodyID:     bodyID,
 		URL:        resp.URL,
 		Redirected: resp.Redirected,
+	})
+}
+
+// connection performs one env.connections call from its staged request: the connection and its method must
+// be declared; the caller adds the authorization and checks the origin.
+func (s *runState) connection(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	staged, done, ok := s.takeStaged(params)
+	if !ok {
+		return replyError("unknown connection ticket")
+	}
+	defer done()
+	var wire string
+	if err := json.Unmarshal(staged, &wire); err != nil {
+		return replyError("invalid connection call arguments")
+	}
+	var p struct {
+		Connection string  `json:"connection"`
+		Method     string  `json:"method"`
+		Path       string  `json:"path"`
+		Body       *string `json:"body"`
+	}
+	if err := json.Unmarshal([]byte(wire), &p); err != nil {
+		return replyError("invalid connection call arguments")
+	}
+	refuse := func(code FailureReason, msg string) (json.RawMessage, error) {
+		s.connRefused.Store(code)
+		return json.Marshal(fetchReply{Refused: msg, Code: string(code)})
+	}
+	methods, declared := s.conns[p.Connection]
+	switch {
+	case !declared:
+		return refuse(ReasonConnectionMissing, "connection "+p.Connection+" is not declared by the node")
+	case !methods[p.Method]:
+		return replyError("connection " + p.Connection + " has no method " + p.Method)
+	case len(p.Path) > maxFetchURLBytes:
+		return replyError("the path is too long")
+	case p.Body != nil && len(*p.Body) > maxFetchBodyBytes:
+		return replyError("the body is too large")
+	case s.caller == nil:
+		return refuse(ReasonConnectionMissing, "connections are not available to this node")
+	}
+	if n := s.fetches.Add(1); n > int64(s.limits.MaxFetches) {
+		return replyError(fmt.Sprintf("at most %d fetches per run", s.limits.MaxFetches))
+	}
+	select {
+	case s.fetchSem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-s.fetchSem }()
+	req := ConnectionRequest{Connection: p.Connection, Method: p.Method, Path: p.Path}
+	if p.Body != nil {
+		req.Body = []byte(*p.Body)
+	}
+	resp, err := s.caller.CallConnection(ctx, req)
+	if err != nil {
+		var refused *ConnectionRefusedError
+		var blocked *NetworkBlockedError
+		switch {
+		case errors.As(err, &refused):
+			return refuse(refused.Code, refused.Message)
+		case errors.As(err, &blocked):
+			s.blocked.Store(true)
+			return json.Marshal(fetchReply{Blocked: blocked.Error()})
+		case ctx.Err() != nil:
+			return nil, ctx.Err()
+		}
+		return replyError(err.Error())
+	}
+	headers := make(map[string]string, len(resp.Header))
+	for k, vs := range resp.Header {
+		headers[strings.ToLower(k)] = strings.Join(vs, ", ")
+	}
+	bodyID, ok := s.holdBody(resp.Body)
+	if !ok {
+		return replyError(fmt.Sprintf("unread response bodies exceed %d MiB: read the earlier responses first", maxHeldBodyBytes>>20))
+	}
+	return json.Marshal(fetchReply{
+		Status: resp.Status, StatusText: resp.StatusText, Headers: headers, BodyID: bodyID, URL: resp.URL, Redirected: resp.Redirected,
 	})
 }
 
