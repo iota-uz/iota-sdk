@@ -568,3 +568,21 @@ func TestTelegramPlatformAskIsAnsweredByItsTenant(t *testing.T) {
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the press reached the tenant's run")
 	assert.Equal(t, []string{"approved by alice as Approve #9 (approve)"}, noteTexts(t, te.env))
 }
+
+type failingStart struct{ tgStart }
+
+func (failingStart) Handle(context.Context, telegram.StartUpdate) (string, error) {
+	return "", errors.New("the link store is down")
+}
+
+// A /start whose handler fails is a 5xx for Telegram, which redelivers the update.
+func TestTelegramStartHandlerFailureIs5xx(t *testing.T) {
+	te := newTgEnv(t)
+	te.proc()
+	te.provision()
+	te.chat(800)
+	require.NoError(t, te.tg.RegisterStart(&failingStart{}))
+	d, err := te.platform.SendText(800, tgAlice, "/start u_abc")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, d.Status)
+}
