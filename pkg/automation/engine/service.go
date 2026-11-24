@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -41,8 +42,46 @@ func (s *service) authorize(a Actor, perms ...string) error {
 	return nil
 }
 
+// authorizeAny admits an actor that holds any one of perms.
+func (s *service) authorizeAny(a Actor, perms ...string) error {
+	if err := s.authorize(a); err != nil {
+		return err
+	}
+	for _, p := range perms {
+		if a.Subject.Has(p) {
+			return nil
+		}
+	}
+	return ErrForbidden
+}
+
+// reader is the transaction the caller joined with WithTx, else the pool: reads of a joined call never
+// wait for a second connection while the caller holds one.
+func (r *Runtime) reader(ctx context.Context) querier {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return outer
+	}
+	return r.cfg.DB
+}
+
+// inTx runs fn in a transaction of its own, or in a savepoint of the transaction the caller joined with
+// WithTx.
 func (s *service) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return pgx.BeginFunc(ctx, outer, fn)
+	}
 	return pgx.BeginFunc(ctx, s.r.cfg.DB, fn)
+}
+
+type joinedTxKey struct{}
+
+// WithTx makes the Service called with the returned context work in tx: its writes join it as a
+// savepoint and commit or roll back with the caller's transaction, and its reads use it, so the call
+// never waits for a second connection. A guarded change (pkg/mcp/changes) applies a graph in the
+// transaction that records its operation, so a retry after a lost commit never saves the graph twice.
+func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
+	// The tx is also the ambient one of pkg/composables: the catalog's connection store reads through it.
+	return context.WithValue(composables.WithTx(ctx, tx), joinedTxKey{}, tx)
 }
 
 func layoutJSON(l graph.Layout) ([]byte, error) {
@@ -112,7 +151,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			return Version{}, &ValidationError{Errors: errs}
 		}
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	if _, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false); err != nil {
 		return Version{}, err
 	}
 	v, err := s.r.validate(ctx, a, in.Graph)
@@ -142,6 +181,9 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			merged[k] = xy
 		}
 		stale := in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision
+		if stale && in.StrictLayout {
+			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
+		}
 		for k, xy := range in.Layout {
 			if _, placed := am.Layout[k]; stale && placed {
 				continue // another tab moved the layout since: its positions stay
@@ -381,22 +423,23 @@ func (s *service) saveLayout(ctx context.Context, a Actor, id uuid.UUID, base in
 	return revision, nil
 }
 
+// Get and GetVersion admit an author as well: who edits a graph reads it.
 func (s *service) Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
-	if err := s.authorize(a, PermRead); err != nil {
+	if err := s.authorizeAny(a, PermRead, PermAuthor); err != nil {
 		return Automation{}, err
 	}
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	am, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false)
 	return am.Automation, err
 }
 
 func (s *service) GetVersion(ctx context.Context, a Actor, id uuid.UUID, version int) (Version, error) {
-	if err := s.authorize(a, PermRead); err != nil {
+	if err := s.authorizeAny(a, PermRead, PermAuthor); err != nil {
 		return Version{}, err
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	if _, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false); err != nil {
 		return Version{}, err
 	}
-	v, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, version)
+	v, err := loadVersion(ctx, s.r.reader(ctx), a.TenantID, id, version)
 	return v.Version, err
 }
 
@@ -470,7 +513,7 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 		where = append(where, fmt.Sprintf("(updated_at, id) < ($%d, $%d)", len(args)-1, len(args)))
 	}
 	args = append(args, limit+1)
-	rows, err := s.r.cfg.DB.Query(ctx, `SELECT `+automationCols+` FROM automation.automations WHERE `+strings.Join(where, " AND ")+
+	rows, err := s.r.reader(ctx).Query(ctx, `SELECT `+automationCols+` FROM automation.automations WHERE `+strings.Join(where, " AND ")+
 		fmt.Sprintf(` ORDER BY updated_at DESC, id DESC LIMIT $%d`, len(args)), args...)
 	if err != nil {
 		return Page[Automation]{}, serrors.FromDB(opService, err)
@@ -499,17 +542,14 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	if err := s.authorize(a, PermRead); err != nil {
 		return nil, err
 	}
-	// One snapshot: the enabled flag and the versions describe the same committed configuration.
-	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return nil, serrors.FromDB(opService, err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	am, err := loadAutomation(ctx, tx, a.TenantID, id, false)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := tx.Query(ctx, `SELECT version, saved_by, saved_origin, note, created_at FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 ORDER BY version DESC`, a.TenantID, id)
+	// One statement, one snapshot at any isolation level: each version with whether it is the enabled one.
+	// A joined call reads the caller's transaction (WithTx). A graph always has a version, so no row is a
+	// graph that is absent, deleted or another tenant's.
+	rows, err := s.r.reader(ctx).Query(ctx, `
+		SELECT v.version, v.saved_by, v.saved_origin, v.note, v.created_at, a.enabled_version IS NOT DISTINCT FROM v.version
+		FROM automation.versions v
+		JOIN automation.automations a ON a.tenant_id = v.tenant_id AND a.id = v.automation_id AND a.deleted_at IS NULL
+		WHERE v.tenant_id = $1 AND v.automation_id = $2 ORDER BY v.version DESC`, a.TenantID, id)
 	if err != nil {
 		return nil, serrors.FromDB(opService, err)
 	}
@@ -518,14 +558,19 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	for rows.Next() {
 		var vi VersionInfo
 		var origin string
-		if err := rows.Scan(&vi.Version, &vi.SavedBy, &origin, &vi.Note, &vi.CreatedAt); err != nil {
+		if err := rows.Scan(&vi.Version, &vi.SavedBy, &origin, &vi.Note, &vi.CreatedAt, &vi.Enabled); err != nil {
 			return nil, serrors.FromDB(opService, err)
 		}
 		vi.SavedOrigin = Origin(origin)
-		vi.Enabled = am.EnabledVersion != nil && *am.EnabledVersion == vi.Version
 		out = append(out, vi)
 	}
-	return out, serrors.FromDB(opService, rows.Err())
+	if err := rows.Err(); err != nil {
+		return nil, serrors.FromDB(opService, err)
+	}
+	if len(out) == 0 {
+		return nil, ErrNotFound
+	}
+	return out, nil
 }
 
 func (s *service) EnableReview(ctx context.Context, a Actor, id uuid.UUID, version int) (EnableReview, error) {
@@ -652,7 +697,7 @@ func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automatio
 	if err != nil {
 		return Automation{}, err
 	}
-	if err := s.r.cancelRunsOf(ctx, a.TenantID, id); err != nil {
+	if err := s.r.cancelAfterCommit(ctx, a.TenantID, id); err != nil {
 		return Automation{}, err
 	}
 	return am.Automation, nil
@@ -707,7 +752,17 @@ func (s *service) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	return s.r.cancelRunsOf(ctx, a.TenantID, id)
+	return s.r.cancelAfterCommit(ctx, a.TenantID, id)
+}
+
+// cancelAfterCommit cancels the runs a Disable or Delete marked cancel_requested. In a transaction the
+// caller joined (WithTx) the marks are not committed yet and the pool must not be used: Maintain
+// (cancelOrphans) cancels them once the caller commits.
+func (r *Runtime) cancelAfterCommit(ctx context.Context, tenant, id uuid.UUID) error {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return nil
+	}
+	return r.cancelRunsOf(ctx, tenant, id)
 }
 
 // cancelRunsOf cancels the live runs of a graph: queued ones never start, the instances of the others
