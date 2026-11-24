@@ -300,15 +300,21 @@ export default function EditorPage(): JSX.Element {
   }
   const api: EditorApi = {
     validate: (graph) => app.call('automations.validate', { graph }),
-    dryRun: (input) => app.call('automations.dry_run', { graph: input.graph, subject: input.subject, events: input.events as never, ...(input.context ? { context: input.context as never } : {}) }) as never,
+    dryRun: (input) => app.call('automations.dry_run', {
+      graph: input.graph, subject: input.subject, events: input.events as never,
+      ...(input.context ? { context: input.context as never } : {}), ...(input.decisions ? { decisions: input.decisions } : {}),
+    }) as never,
     testNode: async (input) => {
-      const res = await app.call('automations.test_node', { graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}), ...(input.context ? { context: input.context as never } : {}) })
+      const res = await app.call('automations.test_node', {
+        graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
+        ...(input.context ? { context: input.context as never } : {}), ...(input.idempotency_key ? { idempotency_key: input.idempotency_key } : {}),
+      })
       return { outcome: res.outcome, ...(res.output !== undefined ? { output: res.output } : {}), ...(res.logs ? { logs: res.logs } : {}), ...(res.duration_ms ? { duration_ms: res.duration_ms } : {}), ...(res.error ? { error: res.error } : {}) }
     },
     searchSubjects: (entity, query) => app.call('automations.search_subjects', { entity, query }),
     runs: async (input) => {
       const page = await app.call('automations.runs', {
-        automation_id: input.automation_id, ...(input.state && input.state.length > 0 ? { state: input.state } : {}),
+        automation_id: input.automation_id, ...(input.version ? { version: input.version } : {}), ...(input.state && input.state.length > 0 ? { state: input.state } : {}),
         ...(input.subject ? { subject: input.subject } : {}), ...(input.cursor ? { cursor: input.cursor } : {}), ...(input.limit ? { limit: input.limit } : {}),
       })
       return { items: page.items.map(runSummaryOf), next_cursor: page.next_cursor }
@@ -318,7 +324,7 @@ export default function EditorPage(): JSX.Element {
         const data = await app.call('automations.run', { run_id: runId })
         // A run of another graph is not this page's (RV6: one id opens its own graph's tab).
         if (info() && data.run.automation_id !== info()!.id) {
-          window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run: runId }))
+          window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run: runId, ...(runsView().node ? { node: runsView().node! } : {}) }))
           return await new Promise<never>(() => undefined)
         }
         return runDataOf(data)

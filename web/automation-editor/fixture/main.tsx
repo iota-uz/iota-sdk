@@ -109,12 +109,13 @@ const api: EditorApi = {
     return {
       trace: [
         { node: 'user_created', kind: 'triggered' },
-        { node: 'schedule', kind: 'not_triggered', path: 'triggers[1].filter', message: 'event.hour == 20 is false' },
+        { node: 'schedule', kind: 'not_triggered', path: 'filter', message: 'event.hour == 20' },
         { node: 'has_email', kind: 'step', outcome: 'true' },
         { node: 'send_email', kind: 'step', outcome: 'sent', status: 'captured', effects: [{ to: 'dilnoza@acme.test', subject: 'Welcome, Dilnoza', body: 'Hello!' }] },
         ...(input.decisions === 'live' ? [{ node: 'send_email', kind: 'step', outcome: 'sent', status: 'executed' }] : []),
         { node: 'delay', kind: 'wait' },
       ],
+      live_calls: input.decisions === 'live' ? 1 : 0,
     }
   },
   async testNode(input) {
@@ -142,12 +143,12 @@ const progress = (run: RunData): RunData => {
 }
 const noOps = runsMode === 'noop' || params.get('can') === 'read'
 Object.assign(api, {
-  async runs(input: { state?: RunState[]; subject?: string }) {
+  async runs(input: { state?: RunState[]; subject?: string; version?: number }) {
     log.runsCalls.push({ ...(input.state ? { state: input.state } : {}), ...(input.subject ? { subject: input.subject } : {}) })
     await wait(latency)
     if (runsMode === 'error') throw new Error('network')
     const q = (input.subject ?? '').toLowerCase()
-    const items = runs.filter((r) => (!input.state || input.state.length === 0 || input.state.includes(r.state)) &&
+    const items = runs.filter((r) => (!input.version || r.version === input.version) && (!input.state || input.state.length === 0 || input.state.includes(r.state)) &&
       (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q))).map(toSummary)
     return { items, next_cursor: null }
   },

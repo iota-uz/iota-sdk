@@ -730,7 +730,7 @@ func (c *Controller) dryRun(ctx context.Context, req DryRunRequest) (DryRunRespo
 	if err != nil {
 		return DryRunResponse{}, mapErr(err)
 	}
-	out := DryRunResponse{Trace: make([]TraceStep, 0, len(res.Trace))}
+	out := DryRunResponse{Trace: make([]TraceStep, 0, len(res.Trace)), LiveCalls: res.LiveCalls}
 	for _, s := range res.Trace {
 		out.Trace = append(out.Trace, TraceStep{Node: s.Node, Token: s.Token, Kind: s.Kind, Outcome: s.Outcome, Path: s.Path, Message: s.Message, Status: s.Status, Effects: s.Effects, Output: s.Output})
 	}
@@ -742,7 +742,7 @@ func (c *Controller) testNode(ctx context.Context, req TestNodeRequest) (TestNod
 	if err != nil {
 		return TestNodeResponse{}, err
 	}
-	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context})
+	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context, Key: req.IdempotencyKey})
 	if err != nil {
 		return TestNodeResponse{}, mapErr(err)
 	}
@@ -925,7 +925,7 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 	for _, s := range d.Steps {
 		out.Steps = append(out.Steps, StepView{
 			TokenID: s.TokenID.String(), Seq: s.Seq, NodeID: s.NodeID, Attempt: s.Attempt, Input: s.Input, Output: s.Output, Outcome: s.Outcome,
-			Error: stepError(s.Error), StartedAt: stamp(s.StartedAt), EndedAt: optStamp(s.EndedAt), Warnings: s.Warnings, Hidden: s.Hidden,
+			Error: stepError(s.Error), StartedAt: stamp(s.StartedAt), EndedAt: optStamp(s.EndedAt), Warnings: s.Warnings, Logs: s.Logs, Hidden: s.Hidden,
 		})
 	}
 	for _, w := range d.Waits {

@@ -57,7 +57,7 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
       <header class="ae-panel__head">
         <span class="ae-panel__icon"><Icon name={icon()} /></span>
         <div class="ae-panel__titles">
-          <h2 class="ae-panel__title" id={titleId} title={name().title}>{name().title}</h2>
+          <h2 class="ae-panel__title" id={titleId} title={name().title} tabindex="-1">{name().title}</h2>
           <Show when={name().subtitle}><p class="ae-panel__sub">{name().subtitle}</p></Show>
         </div>
         <Show when={props.state}>

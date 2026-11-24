@@ -15,7 +15,8 @@ describe('runOverlay', () => {
     expect(o.states.get('fan')).toBe('passed')
     expect(o.states.get('notify')).toBe('passed')
     expect(o.states.get('ask')).toBe('passed')
-    expect(o.states.has('joined')).toBe(false)
+    expect(o.states.has('joined')).toBe(false) // a branch's arrival is not the join's outcome
+    expect(o.badges.has('joined')).toBe(false)
     expect(o.states.has('done')).toBe(false)
     expect(o.states.get('start')).toBe('passed')
     expect([...o.taken].sort()).toEqual(['ask.ok', 'fan.approve', 'fan.mail', 'notify.sent', 'start.fired'])

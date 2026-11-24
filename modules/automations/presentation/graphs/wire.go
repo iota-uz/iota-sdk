@@ -474,9 +474,11 @@ type TraceStep struct {
 	Output  json.RawMessage   `json:"output,omitempty"`
 }
 
-// DryRunResponse is the trace of a dry run.
+// DryRunResponse is the trace of a dry run and the number of calls it made to providers (a decision
+// taken from the cache is a step with status cached, not a call).
 type DryRunResponse struct {
-	Trace []TraceStep `json:"trace"`
+	Trace     []TraceStep `json:"trace"`
+	LiveCalls int         `json:"live_calls"`
 }
 
 // TestNodeRequest is automations.test_node.
@@ -485,6 +487,9 @@ type TestNodeRequest struct {
 	NodeID  string                     `json:"node_id"`
 	Subject *Subject                   `json:"subject,omitempty"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
+	// IdempotencyKey names the test the author confirmed: a retry with it gets the first answer and makes
+	// no second call (F3).
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // TestNodeError is why a tested node failed.
@@ -588,7 +593,9 @@ type StepView struct {
 	StartedAt string          `json:"started_at"`
 	EndedAt   *string         `json:"ended_at"`
 	Warnings  []string        `json:"warnings,omitempty"`
-	Hidden    bool            `json:"hidden,omitempty"`
+	// Logs are what the node logged, masked by the engine.
+	Logs   []string `json:"logs,omitempty"`
+	Hidden bool     `json:"hidden,omitempty"`
 }
 
 // WaitView is a wait of a run.

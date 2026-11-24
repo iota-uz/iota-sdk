@@ -1,9 +1,8 @@
 // The Dry run panel (RV7): runs the draft over a subject and events without effects. The path goes on
 // the canvas as a run's overlay; the panel lists it, says which condition stopped a trigger, how many
 // decisions were made live, and what would have been sent (captured effects with rendered params).
-import { Combobox, type ComboboxOption } from '@iota-uz/sdk/solid-ui'
 import { createMemo, createSignal, For, Show, type JSX } from 'solid-js'
-import { catalogEvent, findItem } from '../graph'
+import { findItem } from '../graph'
 import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { strings } from '../strings'
@@ -11,6 +10,7 @@ import type { AutomationGraph, DecisionMode, EditorApi, EditorCatalog, EditorLoc
 import { traceOverlay } from './model'
 import { Value } from './Data'
 import { runStrings } from './strings'
+import { SubjectPicker, subjectEntity } from './SubjectPicker'
 import { createAction } from './util'
 
 export interface DryRunPanelProps {
@@ -26,15 +26,6 @@ export interface DryRunPanelProps {
 
 const MODES: DecisionMode[] = ['cached', 'live', 'scripted']
 
-/** The subject entity the graph's triggers are about ("none" when none is). */
-function subjectEntity(graph: AutomationGraph, catalog: EditorCatalog): string {
-  for (const trigger of graph.triggers) {
-    const entity = catalogEvent(catalog, trigger.event)?.subject
-    if (entity && entity !== 'none') return entity
-  }
-  return 'none'
-}
-
 export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
   const t = () => runStrings(props.locale).dry
   const entity = createMemo(() => subjectEntity(props.graph, props.catalog))
@@ -43,22 +34,10 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
   const [context, setContext] = createSignal('{}')
   const [mode, setMode] = createSignal<DecisionMode>('cached')
   const [subject, setSubject] = createSignal<Subject | null>(null)
-  const [options, setOptions] = createSignal<ComboboxOption[]>([])
   const [trace, setTrace] = createSignal<TraceStep[] | null>(null)
+  const [liveCalls, setLiveCalls] = createSignal(0)
   const [invalid, setInvalid] = createSignal<'events' | 'context' | null>(null)
   const action = createAction()
-  const labels = new Map<string, Subject>()
-
-  const loadSubjects = async (query: string): Promise<ComboboxOption[]> => {
-    if (!props.api.searchSubjects) return []
-    const found = await props.api.searchSubjects(entity(), query)
-    const list = found.map((f) => {
-      labels.set(`${f.subject.entity}:${f.subject.key}`, { ...f.subject, label: f.label })
-      return { value: `${f.subject.entity}:${f.subject.key}`, label: f.note ? `${f.label} · ${f.note}` : f.label }
-    })
-    setOptions(list)
-    return list
-  }
 
   const parse = (): { events: Record<string, unknown>[]; context: Record<string, unknown> } | null => {
     let ev: unknown
@@ -100,13 +79,15 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
     })).then((res) => {
       if (!res) return
       setTrace(res.trace)
+      // The calls made to providers; a decision from the cache is not one (status cached).
+      setLiveCalls(res.live_calls ?? res.trace.filter((s) => s.status === 'executed').length)
       props.onOverlay(traceOverlay(graph, res.trace))
     }, () => undefined)
   }
 
   const name = (id: string) => (id && findItem(props.graph, id) ? describeItem(props.graph, props.catalog, id, props.locale).title : id)
   const captured = createMemo(() => (trace() ?? []).filter((s) => s.status === 'captured' && (s.effects?.length ?? 0) > 0))
-  const live = createMemo(() => (trace() ?? []).filter((s) => s.status === 'executed').length)
+  const live = liveCalls
   const stepText = (s: TraceStep) => {
     switch (s.kind) {
       case 'not_triggered': return t().notTriggered
@@ -128,17 +109,7 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
       </header>
       <div class="ae-dock__body">
         <form class="ae-dock__form" onSubmit={(e) => { e.preventDefault(); run() }}>
-          <Show when={entity() !== 'none' && props.api.searchSubjects} fallback={<p class="ae-muted">{t().subject}: {t().subjectNone}</p>}>
-            <Combobox
-              label={t().subject}
-              placeholder={t().subjectSearch}
-              searchable
-              options={options()}
-              loadOptions={(q) => loadSubjects(q)}
-              value={subject() ? `${subject()!.entity}:${subject()!.key}` : ''}
-              onValueChange={(v) => setSubject(labels.get(typeof v === 'string' ? v : v[0] ?? '') ?? null)}
-            />
-          </Show>
+          <SubjectPicker entity={entity()} api={props.api} locale={props.locale} value={subject()} onChange={setSubject} disabled={action.busy()} />
           <label class="ae-field">
             <span class="ae-field__label">{t().events}</span>
             <textarea class="form-control form-control-input ae-input ae-code" rows={5} spellcheck={false} value={events()} onInput={(e) => setEvents(e.currentTarget.value)}
@@ -187,9 +158,9 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
                         <Icon name={icon(s)} size={14} />
                         <button type="button" class="ae-link" onClick={() => s.node && props.onPick(s.node)} disabled={!s.node || !findItem(props.graph, s.node)}>{name(s.node)}</button>
                         <span>{stepText(s)}</span>
-                        <Show when={s.status}><span class="ae-tag">{s.status === 'executed' ? t().executed : t().captured}</span></Show>
+                        <Show when={s.status}><span class="ae-tag">{s.status === 'executed' ? t().executed : s.status === 'cached' ? t().cached : t().captured}</span></Show>
                         <Show when={s.kind === 'not_triggered' && (s.path || s.message)}>
-                          <span class="ae-trace__cond" data-testid="dry-condition">{t().condition}: <code>{s.path || ''}</code>{s.path && s.message ? ' · ' : ''}{s.message ?? ''}</span>
+                          <span class="ae-trace__cond" data-testid="dry-condition">{t().condition}: <code>{s.message || s.path}</code></span>
                         </Show>
                       </li>
                     )}

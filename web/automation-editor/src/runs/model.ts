@@ -12,6 +12,9 @@ export const POLL_MS = 2000
 /** Output above this size is folded with «Load in full». */
 export const OUTPUT_FOLD_BYTES = 256 * 1024
 
+/** The outcome of the step a token records when it arrives at a join or a collect. */
+export const ARRIVED = 'arrived'
+
 export const isLive = (state: RunState) => LIVE_STATES.includes(state)
 export const isFinal = (state: RunState) => FINAL_STATES.includes(state)
 
@@ -81,7 +84,11 @@ export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorL
     if (list) list.push(token)
     else children.set(token.parent, [token])
   }
-  for (const [node, latest] of lastAttempts(run.steps)) {
+  // A branch that reached a join (or a for each item that reached its collect) records a step with the
+  // outcome "arrived" on that node: the token's arrival, not the node's own decision. The join is passed,
+  // failed or timed out by its own step only.
+  const steps = run.steps.filter((s) => s.outcome !== ARRIVED)
+  for (const [node, latest] of lastAttempts(steps)) {
     for (const step of latest) {
       // A cancelled run closes its open steps with the outcome "cancelled" (no error).
       const cancelled = step.outcome === 'cancelled' && !edges.has(edgeKey(node, 'cancelled'))
@@ -98,7 +105,7 @@ export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorL
       const note = step.outcome === 'failed' || step.error ? failureMessage(step) : null
       if (note) notes.set(node, note)
     }
-    const all = run.steps.filter((s) => s.node === node)
+    const all = steps.filter((s) => s.node === node)
     const maxAttempt = Math.max(...all.map((s) => s.attempt))
     const parts: string[] = []
     if (latest.length > 1) parts.push(`${latest.length}×`)

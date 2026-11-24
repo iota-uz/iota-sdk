@@ -92,7 +92,7 @@ export type Subject = { entity: string; key: string; label?: string; url?: strin
 export type TraceStep = {
   node: string; token?: string; kind: string; outcome?: string | null
   path?: string; message?: string; effects?: unknown[]
-  status?: 'captured' | 'executed' | string; output?: unknown
+  status?: 'captured' | 'executed' | 'cached' | string; output?: unknown
 }
 /** How a dry run's execute nodes answer (#1336): from the cache, a live call, or the given context. */
 export type DecisionMode = 'cached' | 'live' | 'scripted'
@@ -157,8 +157,13 @@ export type SaveResult =
 
 export interface EditorApi {
   validate(graph: AutomationGraph): Promise<{ ok: boolean; errors: GraphError[]; warnings?: GraphError[] }>
-  dryRun(input: { graph: AutomationGraph; subject: Subject; context?: Record<string, unknown>; events: Record<string, unknown>[]; decisions?: DecisionMode }): Promise<{ trace: TraceStep[] }>
-  testNode(input: { graph: AutomationGraph; node_id: string; subject?: Subject; context?: Record<string, unknown> }): Promise<TestNodeResult>
+  /** live_calls: the calls made to providers (a decision from the cache is a step with status cached). */
+  dryRun(input: { graph: AutomationGraph; subject: Subject; context?: Record<string, unknown>; events: Record<string, unknown>[]; decisions?: DecisionMode }): Promise<{ trace: TraceStep[]; live_calls?: number }>
+  /**
+   * idempotency_key: one per test the author confirmed; a retry after a lost answer sends the same key and
+   * gets the first answer without a second call (F3).
+   */
+  testNode(input: { graph: AutomationGraph; node_id: string; subject?: Subject; context?: Record<string, unknown>; idempotency_key?: string }): Promise<TestNodeResult>
   searchSubjects?(entity: string, query: string): Promise<{ subject: Subject; label: string; note?: string }[]>
   /** The runs of a graph, newest first (limit ≤ 50). Both runs and run → the Runs tab. */
   runs?(input: RunsQuery): Promise<{ items: RunSummary[]; next_cursor: string | null }>

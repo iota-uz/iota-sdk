@@ -121,6 +121,7 @@ export type RunStrings = {
     empty: string
     captured: string
     executed: string
+    cached: string
     kinds: Record<'triggered' | 'woke' | 'timeout' | 'joined' | 'cancelled', string>
   }
   test: {
@@ -128,6 +129,7 @@ export type RunStrings = {
     title(node: string): string
     note: string
     input: string
+    event(title: string): string
     noInput: string
     example: string
     exampleNone: string
@@ -278,6 +280,7 @@ const en: RunStrings = {
     empty: 'Pick a subject and an event, then run.',
     captured: 'captured',
     executed: 'live',
+    cached: 'from cache',
     kinds: { triggered: 'started the run', woke: 'woke up', timeout: 'timed out', joined: 'branches joined', cancelled: 'cancelled' },
   },
   test: {
@@ -285,6 +288,7 @@ const en: RunStrings = {
     title: (node) => `Test “${node}”`,
     note: 'The step runs for real with this input.',
     input: 'Input',
+    event: (title) => `Event: ${title}`,
     noInput: 'No step before this one has an output to set: it runs with the subject alone.',
     example: 'From the last run',
     exampleNone: 'No run reached this step yet.',
@@ -433,6 +437,7 @@ const ru: RunStrings = {
     empty: 'Выберите объект и событие, затем прогоните.',
     captured: 'перехвачено',
     executed: 'вживую',
+    cached: 'из кеша',
     kinds: { triggered: 'начал запуск', woke: 'проснулся', timeout: 'истекло время', joined: 'ветки сошлись', cancelled: 'отменён' },
   },
   test: {
@@ -440,6 +445,7 @@ const ru: RunStrings = {
     title: (node) => `Проверка «${node}»`,
     note: 'Шаг выполняется по-настоящему с этим входом.',
     input: 'Вход',
+    event: (title) => `Событие: ${title}`,
     noInput: 'Ни у одного шага до этого нет выхода, который можно задать: шаг выполнится только с объектом.',
     example: 'Из последнего запуска',
     exampleNone: 'Ни один запуск ещё не дошёл до этого шага.',
@@ -588,6 +594,7 @@ const uz: RunStrings = {
     empty: 'Obyekt va hodisani tanlang, keyin prog‘on qiling.',
     captured: 'ushlangan',
     executed: 'jonli',
+    cached: 'keshdan',
     kinds: { triggered: 'ishga tushirdi', woke: 'uyg‘ondi', timeout: 'vaqt tugadi', joined: 'tarmoqlar qo‘shildi', cancelled: 'bekor qilindi' },
   },
   test: {
@@ -595,6 +602,7 @@ const uz: RunStrings = {
     title: (node) => `«${node}» ni sinash`,
     note: 'Qadam shu kirish bilan haqiqatan bajariladi.',
     input: 'Kirish',
+    event: (title) => `Hodisa: ${title}`,
     noInput: 'Bu qadamdan oldingi qadamlarda beriladigan chiqish yo‘q: qadam faqat obyekt bilan bajariladi.',
     example: 'Oxirgi ishga tushirishdan',
     exampleNone: 'Hali hech bir ishga tushirish bu qadamga yetmagan.',
@@ -743,6 +751,7 @@ const uzCyrl: RunStrings = {
     empty: 'Объект ва ҳодисани танланг, кейин прогон қилинг.',
     captured: 'ушланган',
     executed: 'жонли',
+    cached: 'кешдан',
     kinds: { triggered: 'ишга туширди', woke: 'уйғонди', timeout: 'вақт тугади', joined: 'тармоқлар қўшилди', cancelled: 'бекор қилинди' },
   },
   test: {
@@ -750,6 +759,7 @@ const uzCyrl: RunStrings = {
     title: (node) => `«${node}» ни синаш`,
     note: 'Қадам шу кириш билан ҳақиқатан бажарилади.',
     input: 'Кириш',
+    event: (title) => `Ҳодиса: ${title}`,
     noInput: 'Бу қадамдан олдинги қадамларда бериладиган чиқиш йўқ: қадам фақат объект билан бажарилади.',
     example: 'Охирги ишга туширишдан',
     exampleNone: 'Ҳали ҳеч бир ишга тушириш бу қадамга етмаган.',

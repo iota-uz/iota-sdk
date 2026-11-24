@@ -58,7 +58,7 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
     setError(false)
     try {
       const page = await props.api.runs({
-        automation_id: props.automationId, limit: RUNS_PAGE,
+        automation_id: props.automationId, limit: RUNS_PAGE, ...(props.version > 0 ? { version: props.version } : {}),
         ...(states().length > 0 ? { state: states() } : {}),
         ...(subject().trim() ? { subject: subject().trim() } : {}),
       })
@@ -81,7 +81,7 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
     setLoadingMore(true)
     try {
       const page = await props.api.runs({
-        automation_id: props.automationId, limit: RUNS_PAGE, cursor,
+        automation_id: props.automationId, limit: RUNS_PAGE, ...(props.version > 0 ? { version: props.version } : {}), cursor,
         ...(states().length > 0 ? { state: states() } : {}),
         ...(subject().trim() ? { subject: subject().trim() } : {}),
       })
@@ -97,7 +97,8 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
     }
   }
   // The filters are the key of the list: a change reloads it, a node or run change does not.
-  const filterKey = createMemo(() => `${states().join(',')}\u0000${subject().trim()}`)
+  // The history of the open version (a run of another version still opens by its link).
+  const filterKey = createMemo(() => `${props.version}\u0000${states().join(',')}\u0000${subject().trim()}`)
   // A new filter drops the old list at once: nothing of it may open a run or answer for the new filter.
   createEffect(on(filterKey, (_key, previous) => {
     if (previous !== undefined) {

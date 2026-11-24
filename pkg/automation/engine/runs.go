@@ -203,7 +203,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		d.Waits = append(d.Waits, wv)
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings FROM (
+		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings, logs FROM (
 			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
 		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
 	if err != nil {
@@ -217,14 +217,17 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	for rows.Next() {
 		var st stepRow
 		sv := &st.sv
-		var in, out, errj, sens, warns []byte
+		var in, out, errj, sens, warns, logs []byte
 		var ended *time.Time
-		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended, &warns); err != nil {
+		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended, &warns, &logs); err != nil {
 			rows.Close()
 			return RunDetail{}, serrors.FromDB(opService, err)
 		}
 		if len(warns) > 0 {
 			_ = json.Unmarshal(warns, &sv.Warnings)
+		}
+		if len(logs) > 0 {
+			_ = json.Unmarshal(logs, &sv.Logs)
 		}
 		sv.Input, sv.Output, sv.EndedAt = in, out, ended
 		if len(errj) > 0 {
@@ -257,7 +260,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 			return RunDetail{}, err
 		}
 		if !ok {
-			sv.Hidden, sv.Input, sv.Output = true, nil, nil
+			sv.Hidden, sv.Input, sv.Output, sv.Logs = true, nil, nil, nil
 			if sv.Error != nil {
 				sv.Error = &StepError{Code: sv.Error.Code, Message: Hidden, Path: sv.Error.Path}
 			}

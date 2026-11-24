@@ -69,7 +69,8 @@ const shots: Shot[] = [
   { name: 'run-phone', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 390, height: 844, ready: '.ae-runview .ae-outline', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
   { name: 'dry-run', query: '', width: 1440, height: 900, prepare: async (page) => {
     await page.getByTestId('open-dry-run').click()
-    await page.getByTestId('dry-run-start').click()
+    // A dispatched click leaves no pressed or hovered state on the button the shot would catch.
+    await page.getByTestId('dry-run-start').dispatchEvent('click')
     await expect(page.getByTestId('dry-effects')).toBeVisible()
   } },
   { name: 'test-node', query: 'test=secret', width: 1440, height: 900, prepare: async (page) => {
@@ -78,6 +79,10 @@ const shots: Shot[] = [
     await page.getByTestId('test-start').click()
     await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
     await expect(page.getByTestId('test-error')).toBeVisible()
+    // The dialog gives the focus back to «Test» once it closes: the shot blurs it after that.
+    await expect(page.getByTestId('test-start')).toBeFocused()
+    await expect(page.locator('dialog[open]')).toHaveCount(0)
+    await page.waitForTimeout(500)
   } },
 ]
 

@@ -81,7 +81,9 @@ type Config struct {
 
 // Runtime is the engine: its service, the runner of automation.run, the event consumer and schedules.
 type Runtime struct {
-	cfg     Config
+	cfg Config
+	// tests deduplicates node tests by their key: a retry after a lost answer gets the first answer.
+	tests   testDedup
 	service *service
 	tracer  trace.Tracer
 	metrics metrics

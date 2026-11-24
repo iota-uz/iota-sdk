@@ -125,6 +125,8 @@ type callRecord struct {
 	Message   string          `json:"message,omitempty"`
 	Retryable bool            `json:"retryable,omitempty"`
 	Await     *AwaitSpec      `json:"await,omitempty"`
+	// Logs are the lines the node wrote with Log during the attempt, masked with the connection's secrets.
+	Logs []string `json:"logs,omitempty"`
 }
 
 // ResolvedCall is the result an operator records for a blocked call (Operations.Resolve): the journal
@@ -216,7 +218,7 @@ func (c *CallRunner) recordedAnswer(raw []byte, req CallRequest) (WaitResult, bo
 	}
 	switch rec.Kind {
 	case "result":
-		return WaitResult{WaitID: req.WaitID, Outcome: rec.Outcome, Output: rec.Output, Await: rec.Await}, true
+		return WaitResult{WaitID: req.WaitID, Outcome: rec.Outcome, Output: rec.Output, Await: rec.Await, Logs: rec.Logs}, true
 	case "failed":
 		out, err := json.Marshal(graph.FailedOutput(rec.Code, rec.Message, rec.Retryable))
 		if err != nil {
@@ -517,7 +519,7 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 		switch rec.Kind {
 		case "result":
 			x.c.r.metrics.call(ctx, x.connector(nt), req.NodeType, "ok")
-			wr := WaitResult{Outcome: rec.Outcome, Output: rec.Output}
+			wr := WaitResult{Outcome: rec.Outcome, Output: rec.Output, Logs: rec.Logs}
 			if rec.Await != nil {
 				wr.Await = rec.Await
 			}
@@ -529,7 +531,9 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 			}
 			continue
 		default:
-			return x.failed(nt, rec.Code, rec.Message, rec.Retryable), nil
+			wr := x.failed(nt, rec.Code, rec.Message, rec.Retryable)
+			wr.Logs = rec.Logs
+			return wr, nil
 		}
 	}
 }
@@ -877,9 +881,30 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 	if token != "" {
 		callCtx = WithCorrelation(callCtx, Correlation{Token: token})
 	}
+	logs := &logCollector{}
+	callCtx = withLogs(callCtx, logs)
 	started := time.Now()
 	res, err := cn.Execute(callCtx, in)
 	x.c.r.metrics.callDuration(ctx, x.connector(cn), time.Since(started))
+	rec, err := x.recordOf(ctx, callCtx, cn, in, res, err, prior, a, limits, idempotent, masker, token, afterSeq)
+	if err != nil {
+		return rec, err
+	}
+	// What the node logged goes with its record (masked): the step shows it.
+	if lines := logs.lines(); len(lines) > 0 {
+		rec.Logs = make([]string, len(lines))
+		for i, l := range lines {
+			rec.Logs[i] = masker.Mask(l)
+		}
+	}
+	return rec, nil
+}
+
+// recordOf is the record of one executed attempt: its result, a repeat or a failure. ctx is the
+// process's, callCtx the call's (its deadline).
+func (x *callExec) recordOf(ctx, callCtx context.Context, cn catalog.CallNode, in catalog.CallInput, res catalog.CallResult, err error, prior int, a workflow.EffectAttempt,
+	limits CallLimits, idempotent bool, masker Masker, token string, afterSeq int64) (callRecord, error) {
+	req := x.req
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {

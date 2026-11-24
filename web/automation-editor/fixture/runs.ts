@@ -60,6 +60,8 @@ export const approvalWaiting: RunData = {
   steps: [
     step('fan', 't0', 'fork', -10),
     step('notify', 't-mail', 'sent', -10, { input: { to: 'sales@acme.test' }, output: { message_id: 'm-1' } }),
+    // The mail branch reached the join: the engine records its arrival on the join, not the join's outcome.
+    step('joined', 't-mail', 'arrived', -10, { output: { value: { message_id: 'm-1' } } }),
     step('ask', 't-approve', 'ok', -9, { output: { message_id: 17 } }),
   ],
   waits: [{ node: 'answer', token_id: 't-approve', kind: 'event', since: at(-9), timeout_at: at(1430), wait_id: 'w-1' }],

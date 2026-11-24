@@ -86,7 +86,9 @@ function RunLink(): JSX.Element {
     const run = app.props.run ?? ''
     try {
       const data = await app.call('automations.run', { run_id: run })
-      window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run }))
+      // The node the link names stays chosen in the run (D1).
+      const node = new URLSearchParams(window.location.search).get('node')
+      window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run, ...(node ? { node } : {}) }))
     } catch (e) {
       if (errorCode(e) === 'not_found') setMissing(true)
       else setFailed(errorText(t, e, t('Actions.LoadRuns')))

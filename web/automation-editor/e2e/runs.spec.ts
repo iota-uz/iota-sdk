@@ -84,7 +84,7 @@ test.describe('runs', () => {
     await open(page, 'tab=runs&state=blocked&subject=zz', '.ae-runlist')
     await expect(page.getByTestId('runs-empty-filter')).toContainText('No runs match the filter')
     await page.getByRole('button', { name: 'Reset filters' }).click()
-    await expect(page.getByTestId('run-row')).toHaveCount(5)
+    await expect(page.getByTestId('run-row')).toHaveCount(4) // the open version's (3) runs
   })
 
   test('RV6 / D3: a run that is not found has its own screen', async ({ page }) => {
@@ -103,6 +103,23 @@ test.describe('runs', () => {
     await expect(page.getByTestId('open-test-node')).toHaveCount(0)
   })
 
+  test('K3: on a phone the node sheet takes the focus and gives it back to the outline item', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await open(page, `tab=runs&run=${FAILED}`, '.ae-runview .ae-outline')
+    const item = page.locator('[data-pick="send_email"]')
+    await item.focus()
+    await page.keyboard.press('Enter')
+    const sheet = page.getByRole('dialog', { name: 'Send email' })
+    await expect(sheet).toBeVisible()
+    await expect(sheet.locator('.ae-panel__title')).toBeFocused()
+    // Tab stays inside the sheet.
+    for (let i = 0; i < 12; i++) await page.keyboard.press('Tab')
+    expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(sheet).toHaveCount(0)
+    await expect(item).toBeFocused()
+  })
+
   test('A1: the Runs tab with a run and its drawer has no serious violations', async ({ page }) => {
     await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview')
     await expect(page.getByTestId('run-node')).toBeVisible()
@@ -119,8 +136,7 @@ test.describe('dry run and test node', () => {
     await panel.getByRole('radio', { name: 'Live call' }).check()
     await panel.getByTestId('dry-run-start').click()
     await expect(panel.getByTestId('dry-trace')).toContainText('The trigger did not fire')
-    await expect(panel.getByTestId('dry-condition')).toContainText('triggers[1].filter')
-    await expect(panel.getByTestId('dry-condition')).toContainText('event.hour == 20 is false')
+    await expect(panel.getByTestId('dry-condition')).toHaveText('Condition: event.hour == 20')
     await expect(panel.getByTestId('dry-effects')).toContainText('dilnoza@acme.test')
     await expect(panel).toContainText('1 live decision')
     const sent = await page.evaluate(() => window.__fixture.dryRuns[0] as { decisions: string })

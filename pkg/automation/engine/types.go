@@ -339,6 +339,8 @@ type StepView struct {
 	EndedAt   *time.Time
 	// Warnings are what the step noted without failing (an assignee list cut to its limit).
 	Warnings []string
+	// Logs are what the node logged (a call: Log), masked by the engine with the connection's secrets.
+	Logs []string
 	// Hidden: the step ran after the run read a sensitive field the viewer may not read; its input and
 	// output are left out and its error message is Hidden.
 	Hidden bool
@@ -559,6 +561,8 @@ type WaitResult struct {
 	Error   *StepError      `json:"error,omitempty"`
 	// Await, set by an ask node's call, opens the wait for its answer instead of applying the outcome.
 	Await *AwaitSpec `json:"await,omitempty"`
+	// Logs are what a call node logged (Log), already masked: they are kept with the call's step.
+	Logs []string `json:"logs,omitempty"`
 }
 
 // Limits bound runs.

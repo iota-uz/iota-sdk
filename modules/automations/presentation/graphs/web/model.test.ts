@@ -100,6 +100,7 @@ describe('small helpers', () => {
     expect(editorLocale('pt-BR')).toBe('en')
     expect(graphPath('/automations/', 'a b', { tab: 'runs' })).toBe('/automations/a%20b?tab=runs')
     expect(graphPath('/automations', 'id', { run: 'r' })).toBe('/automations/id/runs/r')
+    expect(graphPath('/automations', 'id', { run: 'r', node: 'email', tab: 'runs' })).toBe('/automations/id/runs/r?node=email')
     expect(runStatusKey('filter_failed')).toBe('Run.FilterFailed')
     const now = new Date('2026-11-24T10:00:00Z')
     expect(relativeTime('2026-11-24T09:55:00Z', now, 'en')).toBe('5 minutes ago')

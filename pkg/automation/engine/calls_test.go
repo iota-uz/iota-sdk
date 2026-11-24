@@ -190,6 +190,33 @@ func TestErrorMessageInTheFailedBranchIsMasked(t *testing.T) {
 	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE input::text LIKE '%' || $1 || '%'`, acmeToken))
 }
 
+// What a call node logs during a run is kept with its step, masked with the connection's secrets: the
+// run view shows the step's logs, and no table holds the secret.
+func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), graphJSON("HTTP", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "get", "type": "acme.http", "params": {}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"}, {"from": {"node": "get", "outcome": "ok"}, "to": "fin"}, {"from": {"node": "get", "outcome": "failed"}, "to": "fin"}`))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool {
+		runs := ae.runs(p, ae.human(), engine.RunFilter{})
+		return len(runs) == 1 && runs[0].Status == engine.RunDone
+	}, "the run ends")
+	run := runOf(t, ae.env, p)
+	d, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
+	require.NoError(t, err)
+	var logs []string
+	for _, s := range d.Steps {
+		if s.NodeID == "get" {
+			logs = s.Logs
+		}
+	}
+	assert.Equal(t, []string{"GET /me with Bearer ***"}, logs)
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.steps WHERE logs::text LIKE '%' || $1 || '%'`, acmeToken))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE result::text LIKE '%' || $1 || '%'`, acmeToken))
+}
+
 // Cancelling a run terminates its call and closes its correlations.
 func TestCancelTerminatesTheCall(t *testing.T) {
 	ae := newAcmeEnv(t)

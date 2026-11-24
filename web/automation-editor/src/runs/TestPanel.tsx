@@ -1,20 +1,22 @@
-// The Test node panel (RV8): one real execution of the selected step. Its input is a form by the
-// outputs of the steps before it (nodes.<id>.output), filled «From the last run»; the result is the
+// The Test node panel (RV8): one real execution of the selected step. Its input is the subject, the
+// event of the trigger that leads to it (by the event's payload schema) and the outputs of the steps before
+// it (nodes.<id>.output), filled «From the last run» (its subject and those outputs); the result is the
 // outcome, output and logs, or the phrase of the error; a secret the step needs and the tenant lacks is
 // marked «not set». A step with an external effect is confirmed first, focus on «Cancel», with the
 // connection's name and «The effect is irreversible» when the call is not idempotent.
 import { ConfirmationDialog } from '@iota-uz/sdk/solid-ui'
-import { createMemo, createSignal, For, Show, type JSX } from 'solid-js'
-import { catalogNode, findItem } from '../graph'
+import { createEffect, createMemo, createSignal, For, on, Show, type JSX } from 'solid-js'
+import { catalogEvent, catalogNode, findItem } from '../graph'
 import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { SchemaForm } from '../SchemaForm'
 import { strings } from '../strings'
-import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, Overlay, RunData, TestNodeResult } from '../types'
+import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, Overlay, RunData, Subject, TestNodeResult } from '../types'
 import { Value } from './Data'
 import { missingSecret, testOverlay } from './model'
 import { Logs } from './NodeDrawer'
 import { runStrings } from './strings'
+import { SubjectPicker, subjectEntity } from './SubjectPicker'
 import { createAction } from './util'
 
 export interface TestPanelProps {
@@ -32,22 +34,26 @@ export interface TestPanelProps {
   onClose(): void
 }
 
-/** The steps a node can be reached from, nearest first. */
-export function ancestors(graph: AutomationGraph, node: string): string[] {
+/** The steps a node can be reached from, nearest first; with triggers: the triggers too. */
+export function ancestors(graph: AutomationGraph, node: string, triggers = false): string[] {
   const out: string[] = []
   const seen = new Set([node])
   const queue = [node]
+  const isTrigger = (id: string) => graph.triggers.some((t) => t.id === id)
   while (queue.length > 0) {
     const current = queue.shift()!
     for (const e of graph.edges) {
       if (e.to !== current || seen.has(e.from.node)) continue
       seen.add(e.from.node)
-      if (graph.nodes.some((n) => n.id === e.from.node)) out.push(e.from.node)
+      if (graph.nodes.some((n) => n.id === e.from.node) || (triggers && isTrigger(e.from.node))) out.push(e.from.node)
       queue.push(e.from.node)
     }
   }
   return out
 }
+
+/** A generated key of a confirmed test. */
+const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
 const EXAMPLE_RUNS = 5
 
@@ -59,9 +65,18 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   const spec = createMemo(() => catalogNode(props.catalog, type()))
   const params = () => ((ref()?.item as { params?: Record<string, unknown> } | undefined)?.params ?? {})
   const title = createMemo(() => describeItem(props.graph, props.catalog, props.node, props.locale).title)
-  // The form: an object per earlier step with an output schema, keyed by the context path it overrides.
+  // The form: the event of the trigger that leads to the step (by its payload schema), and an object per
+  // earlier step with an output schema, keyed by the context path it overrides.
+  const trigger = createMemo(() => {
+    const id = ancestors(props.graph, props.node, true).find((a) => props.graph.triggers.some((t) => t.id === a))
+    return props.graph.triggers.find((t) => t.id === id)
+  })
   const schema = createMemo<JsonSchema>(() => {
     const properties: Record<string, JsonSchema> = {}
+    const payload = trigger() ? catalogEvent(props.catalog, trigger()!.event)?.payload : undefined
+    if (payload && Object.keys((payload.properties ?? {}) as object).length > 0) {
+      properties.event = { ...payload, title: t().event(catalogEvent(props.catalog, trigger()!.event)?.title ?? trigger()!.event) }
+    }
     for (const id of ancestors(props.graph, props.node)) {
       const node = props.graph.nodes.find((n) => n.id === id)
       const output = node ? catalogNode(props.catalog, node.type)?.output : null
@@ -71,6 +86,12 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   })
   const hasFields = () => Object.keys((schema().properties ?? {}) as object).length > 0
   const [input, setInput] = createSignal<Record<string, unknown>>({})
+  const entity = createMemo(() => subjectEntity(props.graph, props.catalog))
+  const [subject, setSubject] = createSignal<Subject | null>(null)
+  // One key per test the author confirmed: a retry after a failure sends it again (the server answers with
+  // the first test's result and calls nothing twice); a change of the input or a finished test drops it.
+  let key: string | null = null
+  createEffect(on([input, subject], () => { key = null }, { defer: true }))
   const [result, setResult] = createSignal<TestNodeResult | null>(null)
   const [confirming, setConfirming] = createSignal(false)
   const [exampleNote, setExampleNote] = createSignal<string | null>(null)
@@ -95,15 +116,24 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   const execute = () => {
     const graph = props.graph
     const context = Object.fromEntries(Object.entries(input()).filter(([, v]) => v !== undefined))
-    void action.run(() => props.api.testNode({ graph, node_id: props.node, ...(Object.keys(context).length > 0 ? { context } : {}) })).then((res) => {
+    key ??= newKey()
+    const sent = key
+    const who = subject()
+    void action.run(() => props.api.testNode({
+      graph, node_id: props.node, idempotency_key: sent,
+      ...(who ? { subject: { entity: who.entity, key: who.key } } : {}),
+      ...(Object.keys(context).length > 0 ? { context } : {}),
+    })).then((res) => {
       setConfirming(false)
       if (!res) return
+      if (key === sent) key = null
       setResult(res)
       props.onOverlay(testOverlay(props.node, res))
     }, () => setConfirming(false))
   }
 
   const fillFrom = (run: RunData) => {
+    if (run.subject && run.subject.entity === entity()) setSubject(run.subject)
     const next: Record<string, unknown> = {}
     for (const id of ancestors(props.graph, props.node)) {
       const step = [...run.steps].reverse().find((s) => s.node === id && !s.hidden && s.output !== undefined && s.output !== null)
@@ -149,6 +179,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
             </Show>
           </div>
           <Show when={exampleNote()}>{(note) => <p class="ae-muted" role="status">{note()}</p>}</Show>
+          <SubjectPicker entity={entity()} api={props.api} locale={props.locale} value={subject()} onChange={setSubject} disabled={action.busy()} />
           <Show when={hasFields()} fallback={<p class="ae-muted">{t().noInput}</p>}>
             <SchemaForm
               schema={schema()}

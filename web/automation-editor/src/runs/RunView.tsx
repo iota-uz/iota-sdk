@@ -202,9 +202,39 @@ export function RunView(props: RunViewProps): JSX.Element {
 
   let canvasApi: CanvasApi | null = null
   const nodeName = (id: string) => (view() && findItem(view()!.graph, id) ? describeItem(view()!.graph, props.catalog, id, props.locale).title : id)
+  // On a phone the drawer is a sheet over the outline (K3): it takes the focus, keeps it inside, and gives
+  // it back to the outline item that opened it.
+  let sheet: HTMLDivElement | undefined
+  let opener: HTMLElement | null = null
+  createEffect(on(() => props.node, (node, previous) => {
+    if (!props.mobile || !node) return
+    if (!previous) opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    queueMicrotask(() => sheet?.querySelector<HTMLElement>('.ae-panel__title')?.focus({ preventScroll: true }))
+  }))
+  const trapFocus = (event: KeyboardEvent) => {
+    if (!props.mobile || event.key !== 'Tab' || !sheet) return
+    const focusable = [...sheet.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"]), summary')]
+    if (focusable.length === 0) return
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+    const active = document.activeElement
+    if (event.shiftKey && (active === first || !sheet.contains(active))) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && (active === last || !sheet.contains(active))) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
   const closeNode = () => {
     const current = props.node
     props.onNode(null)
+    if (props.mobile) {
+      const back = opener ?? (current ? document.querySelector<HTMLElement>(`[data-pick="${CSS.escape(current)}"]`) : null)
+      opener = null
+      queueMicrotask(() => back?.focus())
+      return
+    }
     if (current) queueMicrotask(() => canvasApi?.focus(current))
   }
 
@@ -334,9 +364,12 @@ export function RunView(props: RunViewProps): JSX.Element {
                 </Switch>
                 <Show when={props.node && view()}>
                   <div
+                    ref={sheet}
                     class="ae-side"
                     classList={{ 'ae-side--sheet': props.mobile }}
+                    {...(props.mobile ? { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': `ae-run-node-${props.node}` } : {})}
                     onKeyDown={(event) => {
+                      trapFocus(event)
                       if (event.key === 'Escape' && !event.defaultPrevented) {
                         event.preventDefault()
                         closeNode()

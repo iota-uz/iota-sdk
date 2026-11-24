@@ -350,12 +350,12 @@ export function emptyGraph(): AutomationGraph {
 /** The path of a graph (and of its runs tab or a run). */
 export function graphPath(base: string, id: string, opts?: { tab?: 'runs'; run?: string; node?: string }): string {
   const root = `${base.replace(/\/$/, '')}/${encodeURIComponent(id)}`
-  if (opts?.run) return `${root}/runs/${encodeURIComponent(opts.run)}`
+  const path = opts?.run ? `${root}/runs/${encodeURIComponent(opts.run)}` : root
   const q = new URLSearchParams()
-  if (opts?.tab) q.set('tab', opts.tab)
+  if (opts?.tab && !opts.run) q.set('tab', opts.tab)
   if (opts?.node) q.set('node', opts.node)
   const s = q.toString()
-  return s ? `${root}?${s}` : root
+  return s ? `${path}?${s}` : path
 }
 
 /** Why a version does not enable, in words (AL7): an unavailable connection or a missing right is named. */
@@ -408,7 +408,7 @@ export function runDataOf(d: WireRunData): RunData {
     tokens: d.tokens.map((t) => ({ token_id: t.id, node: t.node_id || null, state: tokenState(t.status), parent: t.parent, branch: t.branch ?? null, foreach_index: t.foreach_index })),
     steps: d.steps.map((s) => ({
       node: s.node_id, token_id: s.token_id, attempt: s.attempt, input: s.input ?? null, outcome: s.outcome || null, output: s.output ?? null,
-      logs: (s as { logs?: string[] }).logs ?? [], error: s.error ? { code: s.error.code, message: s.error.message } : null,
+      logs: s.logs ?? [], error: s.error ? { code: s.error.code, message: s.error.message } : null,
       started_at: s.started_at, ended_at: s.ended_at, ...(s.hidden ? { hidden: true } : {}),
     })),
     waits,

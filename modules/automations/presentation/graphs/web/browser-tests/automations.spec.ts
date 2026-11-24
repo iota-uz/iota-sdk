@@ -14,6 +14,7 @@ const WELCOME = '00000000-0000-4000-8000-0000000000a2'
 const STALE = '00000000-0000-4000-8000-0000000000a3'
 const FAILED_RUN = '00000000-0000-4000-8000-0000000000f1'
 const BLOCKED_RUN = '00000000-0000-4000-8000-0000000000f3'
+const OLD_RUN = '00000000-0000-4000-8000-0000000000f5'
 const runOpen = async (p: Page) => { await expect(p.getByTestId('run-strip')).toBeVisible(); await expect(p.locator('.ae-runview .iota-flow__node, .ae-runview .ae-outline__item').first()).toBeVisible() }
 
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: { method: string; params: unknown }[] }).__calls)
@@ -377,7 +378,7 @@ test('D1: edits made while another version loads are not dropped without consent
   await expect(page).toHaveURL(/version=2/)
 })
 
-test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the newest run opens on its version\'s graph', async ({ page }) => {
+test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the list is the open version\'s, the newest opens', async ({ page }) => {
   await page.goto(`/?view=editor&id=${DIGEST}`)
   await expect(page.locator('.ae-canvas')).toBeVisible()
   await page.locator('.ae-toolbar__name').click()
@@ -392,11 +393,12 @@ test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the newest
   await expect(page).toHaveURL(new RegExp(`/runs/${FAILED_RUN}`))
   await expect(page.getByTestId('run-state')).toHaveText('Failed')
   await expect(page.getByTestId('run-error')).toHaveText('The mail server refused the message')
-  await expect(page.getByTestId('run-version-banner')).toContainText('Run on version 2')
+  await expect(page.getByTestId('run-version-banner')).toHaveCount(0)
   await expect(page.getByTestId('run-conn')).toHaveText('Finished')
   await expect(page.locator('.ae-runview .iota-flow__node[data-id="email"]')).toHaveClass(/ae-card--failed/)
-  const versions = (await calls(page)).filter((c) => c.method === 'automations.get' && (c.params as { version?: number }).version === 2)
-  expect(versions).toHaveLength(1)
+  // The list asks for the open version's runs only.
+  const listed = (await calls(page)).filter((c) => c.method === 'automations.runs').map((c) => (c.params as { version?: number }).version)
+  expect(listed.every((v) => v === 3)).toBe(true)
   await page.getByRole('tab', { name: 'Edit' }).click()
   await expect(page.locator('.ae-toolbar__name')).toHaveText('Digest (draft)')
   await expect(page.getByRole('button', { name: 'Validate' })).toBeVisible()
@@ -486,4 +488,43 @@ test('RV10 / S5: without Operate there is no Cancel, Retry or Resolve in the DOM
   await expect(page.getByTestId('run-retry')).toHaveCount(0)
   await expect(page.getByTestId('run-resolve')).toHaveCount(0)
   await expect(page.getByTestId('run-cancel')).toHaveCount(0)
+})
+
+test('RV3: a run of another version opens by its link on that version\'s graph, with its banner', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${OLD_RUN}`)
+  await expect(page.getByTestId('run-version-banner')).toContainText('Run on version 2')
+  await expect(page.getByTestId('run-row')).toHaveCount(2) // the open version's list, without this run
+  const versions = (await calls(page)).filter((c) => c.method === 'automations.get' && (c.params as { version?: number }).version === 2)
+  expect(versions).toHaveLength(1)
+})
+
+test('RV6: a run-only link keeps the node it names', async ({ page }) => {
+  await page.goto(`/?view=run&run=${BLOCKED_RUN}&node=email`)
+  await expect(page).toHaveURL(new RegExp(`/automations/${DIGEST}/runs/${BLOCKED_RUN}\\?node=email$`))
+})
+
+test('RV7: the decision mode reaches the server', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}`)
+  await page.getByTestId('open-dry-run').click()
+  await page.getByTestId('dry-run').getByRole('radio', { name: 'Live call' }).check()
+  await page.getByTestId('dry-run-start').click()
+  await expect(page.getByTestId('dry-trace')).toBeVisible()
+  const sent = (await calls(page)).find((c) => c.method === 'automations.dry_run')!.params as { decisions?: string }
+  expect(sent.decisions).toBe('live')
+})
+
+test('RV8 / F3: a retry after a lost answer sends the same key and the step runs once', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&testLostOnce`)
+  await page.locator('.iota-flow__node[data-id="email"]').click()
+  await page.getByTestId('open-test-node').click()
+  await page.getByTestId('test-start').click()
+  await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+  await expect(page.getByTestId('test-node').getByRole('alert')).toBeVisible()
+  await page.getByTestId('test-start').click()
+  await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+  await expect(page.getByTestId('test-result')).toContainText('m-1')
+  const keys = (await calls(page)).filter((c) => c.method === 'automations.test_node').map((c) => (c.params as { idempotency_key?: string }).idempotency_key)
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).toBeTruthy()
+  expect(keys[1]).toBe(keys[0])
 })
