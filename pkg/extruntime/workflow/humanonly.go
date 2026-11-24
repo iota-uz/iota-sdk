@@ -53,7 +53,8 @@ func (e *Engine) HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (s
 // can let it through. mayDecide tells whether the actor may decide the task now (assignee, holder of
 // its permission, delegate); url, the page where a person decides it, is named only then. An actor
 // whose rights cannot be read may not decide.
-func (e *Engine) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (url string, guarded, mayDecide bool, err error) {
+// It returns the page, guarded and mayDecide.
+func (e *Engine) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, bool, error) {
 	const op serrors.Op = "workflow.Engine.HumanOnlyTask"
 	t, err := e.loadTask(ctx, e.cfg.DB, actor.TenantID, taskID, false)
 	if errors.Is(err, ErrNotFound) {

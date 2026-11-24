@@ -584,7 +584,7 @@ func TestEnablingIsHumanRequiredInPlan(t *testing.T) {
 	assert.Contains(t, byPath["/changes/0/fields/decision"], urls{}.Automations())
 
 	// Other unknown fields are invalid input of the tool.
-	e.failure(agentID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "create", "entity": "automation",
+	_ = e.failure(agentID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "create", "entity": "automation",
 		"fields": map[string]any{"graph": noteGraph("Welcome", "hello"), "colour": "red"}}}}, mcp.CodeInvalidInput)
 }
 
@@ -623,8 +623,10 @@ func TestDryRunThroughLookup(t *testing.T) {
 	require.True(t, res.OK, "%+v", res.Error)
 	var out struct {
 		Trace []struct {
-			Node, Kind, Status string
-			Effects            []json.RawMessage
+			Node    string            `json:"node"`
+			Kind    string            `json:"kind"`
+			Status  string            `json:"status"`
+			Effects []json.RawMessage `json:"effects"`
 		} `json:"trace"`
 	}
 	require.NoError(t, json.Unmarshal(res.Data, &out))
@@ -640,7 +642,7 @@ func TestDryRunThroughLookup(t *testing.T) {
 
 	// live decisions need allow_live.
 	input["decisions"] = "live"
-	e.failure(agentID, mcpops.ToolDryRun, input, mcp.CodeInvalidInput)
+	_ = e.failure(agentID, mcpops.ToolDryRun, input, mcp.CodeInvalidInput)
 	input["allow_live"] = true
 	e.ok(agentID, mcpops.ToolDryRun, input, nil)
 
@@ -650,13 +652,13 @@ func TestDryRunThroughLookup(t *testing.T) {
 		many[i] = map[string]any{"kind": evClient}
 	}
 	input["events"] = many
-	e.failure(agentID, mcpops.ToolDryRun, input, mcp.CodeLimitExceeded)
+	_ = e.failure(agentID, mcpops.ToolDryRun, input, mcp.CodeLimitExceeded)
 }
 
 func TestRightsAreScopesAndRBACOnEveryCall(t *testing.T) {
 	e := newEnv(t)
-	e.failure(readerID, mcpops.ToolValidate, map[string]any{"graph": noteGraph("x", "x")}, mcp.CodeForbidden)
-	e.failure(readerID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "create", "entity": "automation",
+	_ = e.failure(readerID, mcpops.ToolValidate, map[string]any{"graph": noteGraph("x", "x")}, mcp.CodeForbidden)
+	_ = e.failure(readerID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "create", "entity": "automation",
 		"fields": map[string]any{"graph": noteGraph("x", "x")}}}}, mcp.CodeForbidden)
 	readOnly := e.ctx(agentID, mcp.GrantedScopes(mcpops.ScopeRead))
 	res := e.callAs(readOnly, mcpops.ToolValidate, map[string]any{"graph": noteGraph("x", "x")})
@@ -666,7 +668,7 @@ func TestRightsAreScopesAndRBACOnEveryCall(t *testing.T) {
 	assert.True(t, res.OK, "%+v", res.Error)
 
 	// Another tenant's or an unknown graph is not found.
-	e.failure(agentID, mcpops.ToolGet, map[string]any{"id": uuid.NewString()}, mcp.CodeNotFound)
+	_ = e.failure(agentID, mcpops.ToolGet, map[string]any{"id": uuid.NewString()}, mcp.CodeNotFound)
 	p := e.prepare(agentID, map[string]any{"op": "update", "entity": "automation", "id": uuid.NewString(), "expected_revision": "1",
 		"fields": map[string]any{"graph": noteGraph("x", "x")}})
 	require.Equal(t, changes.StatusInvalid, p.Status)

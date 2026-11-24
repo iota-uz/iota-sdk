@@ -85,12 +85,15 @@ func TestStandardWorkflowToolsRefuseAutomationInstances(t *testing.T) {
 	}
 	res := call("ext_workflow_get", map[string]any{"id": id})
 	require.True(t, res.OK, "reads stay: %+v", res.Error)
+	// workflow.History has no JSON tags: its fields keep their Go names.
 	var h struct {
 		Instance struct {
-			Workflow string
-			Input    json.RawMessage
-		}
-		Signals []struct{ Payload json.RawMessage }
+			Workflow string          `json:"Workflow"`
+			Input    json.RawMessage `json:"Input"`
+		} `json:"Instance"`
+		Signals []struct {
+			Payload json.RawMessage `json:"Payload"`
+		} `json:"Signals"`
 	}
 	require.NoError(t, json.Unmarshal(res.Data, &h))
 	assert.Equal(t, engine.WorkflowID, h.Instance.Workflow)
@@ -161,7 +164,7 @@ func TestDryRunCallsOnlyDecisionNodesAndOnlyWithAllowLive(t *testing.T) {
 	}
 	assert.Zero(t, e.decided.Load())
 	assert.Zero(t, e.fetched.Load())
-	e.failure(agentID, mcpops.ToolDryRun, input(2, "live", false), mcp.CodeInvalidInput)
+	_ = e.failure(agentID, mcpops.ToolDryRun, input(2, "live", false), mcp.CodeInvalidInput)
 
 	// allow_live: decision nodes call for real, other execute nodes never do.
 	e.ok(agentID, mcpops.ToolDryRun, input(2, "live", true), nil)
@@ -170,7 +173,7 @@ func TestDryRunCallsOnlyDecisionNodesAndOnlyWithAllowLive(t *testing.T) {
 
 	// A run that would make more than 20 real calls is limit_exceeded, and the 21st call is not made.
 	e.decided.Store(0)
-	e.failure(agentID, mcpops.ToolDryRun, input(25, "live", true), mcp.CodeLimitExceeded)
+	_ = e.failure(agentID, mcpops.ToolDryRun, input(25, "live", true), mcp.CodeLimitExceeded)
 	assert.EqualValues(t, mcpops.MaxLiveCalls, e.decided.Load())
 
 	// Events are counted inside batches: two batches of 30 are 60 events.
@@ -180,7 +183,7 @@ func TestDryRunCallsOnlyDecisionNodesAndOnlyWithAllowLive(t *testing.T) {
 	}
 	in := input(1, "scripted", false)
 	in["events"] = []any{map[string]any{"events": batch}, map[string]any{"events": batch}}
-	e.failure(agentID, mcpops.ToolDryRun, in, mcp.CodeLimitExceeded)
+	_ = e.failure(agentID, mcpops.ToolDryRun, in, mcp.CodeLimitExceeded)
 }
 
 // An author who may not read the automation list still dry-runs and edits a saved graph.
@@ -199,7 +202,7 @@ func TestAuthorWithoutReadEditsSavedGraphs(t *testing.T) {
 	lp := e.prepare(authorOnly, map[string]any{"op": "layout", "entity": "automation",
 		"fields": map[string]any{"id": res.ID, "base_revision": 2, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
 	require.Equal(t, changes.OperationSucceeded, e.apply(authorOnly, lp, "a-3").Status)
-	e.failure(authorOnly, mcpops.ToolList, map[string]any{}, mcp.CodeForbidden)
+	_ = e.failure(authorOnly, mcpops.ToolList, map[string]any{}, mcp.CodeForbidden)
 }
 
 func permNames(e *env, id uint) []string {

@@ -118,9 +118,15 @@ func withHumanFields(s *jsonschema.Schema) *jsonschema.Schema {
 	return s
 }
 
+// parseUUID is an id of fields; ok is false when it is not a UUID (a plan issue, not an error).
+func parseUUID(s string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(s)
+	return id, err == nil
+}
+
 // check is what every kind checks before the graph: the human-only fields and the sizes and layouts.
 func (b base) check(ctx context.Context, op string, f fields, id uuid.UUID) []mcp.Issue {
-	var issues []mcp.Issue
+	issues := make([]mcp.Issue, 0, len(f.human)+3)
 	for _, h := range f.human {
 		issues = append(issues, mcp.Issue{Path: "/fields/" + h.name, Code: IssueHumanRequired, Message: humanMessage(h.action, h.page(b.urls, id))})
 	}
@@ -450,8 +456,8 @@ func (k layoutKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 	if len(issues) > 0 {
 		return changes.Planned{Errors: issues}, nil
 	}
-	id, err := uuid.Parse(f.ID)
-	if err != nil {
+	id, ok := parseUUID(f.ID)
+	if !ok {
 		return changes.Planned{Errors: []mcp.Issue{{Path: "/fields/id", Code: "uuid", Message: "id must be a UUID"}}}, nil
 	}
 	am, err := k.svc.Get(ctx, a, id)

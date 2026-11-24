@@ -207,7 +207,8 @@ func (s *Service) ResumeWorkflow(ctx context.Context, actor spi.Subject, id uuid
 type HumanOnlyWorkflows interface {
 	HumanOnlyWorkflow(workflow string) (bool, error)
 	HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (string, bool, error)
-	HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (url string, guarded, mayDecide bool, err error)
+	// HumanOnlyTask returns the page, guarded and mayDecide.
+	HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, bool, error)
 }
 
 // HumanOnlyWorkflow reports whether a contract is human-only. Without an engine that knows
@@ -229,7 +230,7 @@ func (s *Service) HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (
 
 // HumanOnlyTask reports whether a human task belongs to a human-only instance, whether the actor may
 // decide it now, and (then) the page where a person does (workflow.Engine.HumanOnlyTask).
-func (s *Service) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (url string, guarded, mayDecide bool, err error) {
+func (s *Service) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, bool, error) {
 	if h, ok := s.workflows.(HumanOnlyWorkflows); ok {
 		return h.HumanOnlyTask(ctx, actor, taskID)
 	}
