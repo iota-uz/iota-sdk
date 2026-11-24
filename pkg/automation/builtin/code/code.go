@@ -67,9 +67,8 @@ type Deps struct {
 // Node is the code node type.
 type Node struct {
 	d      Deps
-	once   sync.Once
+	mu     sync.Mutex
 	engine sandbox.Engine
-	err    error
 }
 
 var (
@@ -191,14 +190,20 @@ func (n *Node) engineFor(ctx context.Context) (sandbox.Engine, error) {
 	if n.d.Engine != nil {
 		return n.d.Engine, nil
 	}
-	n.once.Do(func() {
-		if n.d.Engines == nil {
-			n.err = errors.New("this process runs no code")
-			return
-		}
-		n.engine, n.err = n.d.Engines(context.WithoutCancel(ctx))
-	})
-	return n.engine, n.err
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.engine != nil {
+		return n.engine, nil
+	}
+	if n.d.Engines == nil {
+		return nil, errors.New("this process runs no code")
+	}
+	e, err := n.d.Engines(context.WithoutCancel(ctx))
+	if err != nil {
+		return nil, err // not kept: the next run builds it again
+	}
+	n.engine = e
+	return e, nil
 }
 
 // Execute compiles and runs the code once.
@@ -213,7 +218,8 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		if errors.As(err, &ce) {
 			return n.failed(CodeCompileFailed, ce.Error(), nil), nil
 		}
-		return catalog.CallResult{}, err
+		// Nothing ran: a failure of the compiler is not an unknown outcome.
+		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "the code could not be compiled now", Retryable: true}
 	}
 	secrets, err := access.ReadSecrets(ctx, n.d.Secrets, in, p.Secrets)
 	if err != nil {

@@ -468,3 +468,24 @@ func TestAutomationCycleStopsAtTheCascadeLimit(t *testing.T) {
 	}
 	assert.Equal(t, []string{"bad:depth_exceeded"}, codes)
 }
+
+func TestStartingAGraphNeedsOperate(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	child := be.create(p, a, childGraph)
+	parent := be.create(p, a, parentGraph("start_automation", child.ID))
+	// The owner may still run graphs but not start other ones.
+	var without []string
+	for _, perm := range allPerms {
+		if perm != engine.PermOperate {
+			without = append(without, perm)
+		}
+	}
+	be.subjects.Grant(1, without...)
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 3}, 0)
+	var pr []engine.RunSummary
+	p.until(func() bool { pr = be.runsOf(p, parent.ID); return len(pr) == 1 && len(be.effects(pr[0].RunID)) == 1 }, "the parent takes failed")
+	assert.Equal(t, []string{"bad:forbidden"}, be.effects(pr[0].RunID))
+	assert.Empty(t, be.runsOf(p, child.ID))
+}

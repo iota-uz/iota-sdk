@@ -24,8 +24,8 @@ const (
 	CodeDepthExceeded = "depth_exceeded"
 	// CodeNoOwner: the graph runs as its owner and has none.
 	CodeNoOwner = "no_owner"
-	// CodeSubjectBusy: the run is about a conversation another run holds, so it would only queue, and the
-	// step waits for it.
+	// CodeSubjectBusy: the run waited for is about a conversation another run holds: it would only start
+	// after that run, so the step that waits for it fails instead.
 	CodeSubjectBusy = "subject_busy"
 )
 
@@ -49,13 +49,28 @@ type RunStarter interface {
 
 var _ RunStarter = (*Runtime)(nil)
 
-// StartFromStep starts a run of the graph in the step's transaction. The run's depth is the step's run's
+// StartFromStep starts a run of the graph in the step's transaction. The run-as of the step's run needs
+// Automations.Operate, as a manual start does (forbidden otherwise). The run's depth is the step's run's
 // plus one (the cascade limit, Limits.MaxDepth) and its cause is that run; it runs as the graph's run_as
 // says, the initiator being the step's run-as. A refusal of the graph's state or of the input is a
 // *StepError with a code (not_enabled, depth_exceeded, invalid_input, no_owner, subject_busy).
 func (r *Runtime) StartFromStep(ctx context.Context, tx pgx.Tx, run StepContext, in StepStart) (RunRef, error) {
+	ref, err := r.startFromStep(ctx, tx, run, in)
+	var se *StepError
+	if err != nil && !errors.As(err, &se) && !host.IsInfrastructure(err) {
+		// A database failure (a lock that deadlocked, a lost connection) is retried with the step, never
+		// the node's failure.
+		err = &host.InfraError{Err: err}
+	}
+	return ref, err
+}
+
+func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext, in StepStart) (RunRef, error) {
 	refuse := func(code, format string, args ...any) (RunRef, error) {
 		return RunRef{}, &StepError{Code: code, Message: fmt.Sprintf(format, args...)}
+	}
+	if !run.RunAs.Has(PermOperate) {
+		return refuse(CodeForbidden, "the run-as may not start automations (%s)", PermOperate)
 	}
 	if in.AutomationID == uuid.Nil {
 		return refuse(CodeNotEnabled, "no graph to start")
@@ -113,6 +128,10 @@ func (r *Runtime) StartFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		input = parsed
 	}
 	subject := normSubject(run.Subject)
+	if subject.Entity == graph.SubjectConversation {
+		// The step's run holds its conversation: a run about it would only queue behind this one.
+		subject = SubjectRef{Entity: graph.SubjectNone}
+	}
 	if in.Subject != nil {
 		subject = normSubject(*in.Subject)
 	}
@@ -152,10 +171,10 @@ func (r *Runtime) StartFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	}
 	runAs, err := events.ResolveSubject(ctx, tx, r.cfg.Users, ev, ownerTrigger(in.AutomationID), mode)
 	switch {
-	case errors.Is(err, events.ErrNoSubject):
-		return refuse(CodeNoOwner, "graph %s has no owner to run as", in.AutomationID)
 	case errors.Is(err, host.ErrSubjectBlocked):
 		return refuse(CodeForbidden, "the run-as of %s is blocked", in.AutomationID)
+	case errors.Is(err, events.ErrNoSubject):
+		return refuse(CodeNoOwner, "graph %s has no owner to run as", in.AutomationID)
 	case err != nil:
 		return RunRef{}, err
 	}

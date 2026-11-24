@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	nethttp "net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,6 +41,14 @@ const (
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
+// MaxOutputBytes is the largest output the node returns (a node's output is at most 1 MiB): a larger
+// response takes failed with response_too_large and its status and headers, without the body.
+const MaxOutputBytes = 1<<20 - 16<<10
+
+// staticOrigin is a URL whose scheme and host are written out before any template: a request with a
+// secret or a connection goes only to the host the author wrote, whatever the run's data.
+var staticOrigin = regexp.MustCompile(`^https://[^/?#{}\s]+([/?#]|$)`)
+
 // DefaultSuccess is the success expression when the node gives none.
 const DefaultSuccess = "status < 400"
 
@@ -56,7 +66,7 @@ const paramsSchema = `{"type": "object", "properties": {
 		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text)"}
 	}, "required": ["kind"], "additionalProperties": false},
 	"auth": {"type": "object", "properties": {
-		"secret": {"type": "string", "minLength": 1, "maxLength": 200, "description": "a secret name: API_TOKEN, or <connection>.<field>"},
+		"secret": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$", "description": "a secret of the tenant: API_TOKEN"},
 		"scheme": {"enum": ["bearer", "basic", "header"]},
 		"header": {"type": "string", "pattern": "` + headerName + `"},
 		"connection": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "description": "a connection whose connector authorizes requests to its API"}
@@ -194,8 +204,20 @@ func (n *Node) ValidateParams(_ context.Context, params map[string]any) []graph.
 			out = append(out, graph.GraphError{Path: "params.success", Code: graph.CodeExpressionType, Message: issues[0].Message, Line: issues[0].Line, Column: issues[0].Column})
 		}
 	}
-	if _, err := authOf(params); err != nil {
+	a, err := authOf(params)
+	if err != nil {
 		out = append(out, graph.GraphError{Path: "params.auth", Code: graph.CodeParams, Message: err.Error()})
+	}
+	if raw, _ := params["url"].(string); a != nil && raw != "" {
+		prefix, templated := raw, false
+		if i := strings.Index(raw, "{{"); i >= 0 {
+			prefix, templated = raw[:i], true
+		}
+		m := staticOrigin.FindStringSubmatch(prefix)
+		if m == nil || (templated && m[1] == "") {
+			out = append(out, graph.GraphError{Path: "params.url", Code: graph.CodeParams,
+				Message: "a request with auth names its https host before any template: https://api.example.com/{{ ... }}"})
+		}
 	}
 	if b, ok := params["body"].(map[string]any); ok {
 		kind, _ := b["kind"].(string)
@@ -291,6 +313,10 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 			}
 			return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallOutcomeUnknown, Message: "no response within " + timeout.String()}
 		}
+		if notSent(err) {
+			// The connection was never made: nothing reached the provider.
+			return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: masker.Mask(err.Error()), Retryable: true}
+		}
 		// The engine repeats an idempotent request and records the outcome of another as unknown.
 		return catalog.CallResult{}, errors.New(masker.Mask(err.Error()))
 	}
@@ -306,6 +332,12 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	if err := json.Unmarshal(masker.MaskJSON(raw), &out); err != nil {
 		return catalog.CallResult{}, fail(graph.FailInvalidAnswer, "the response is not JSON")
+	}
+	if masked := masker.MaskJSON(raw); len(masked) > MaxOutputBytes {
+		delete(out, "body")
+		out["body"] = nil
+		out["error"] = graph.FailedOutput(access.CodeResponseTooLarge, fmt.Sprintf("the response is larger than the %d KiB a node returns", MaxOutputBytes>>10), false)["error"]
+		return catalog.CallResult{Outcome: OutcomeFailed, Output: out}, nil
 	}
 	ok, err := succeeded(p, out)
 	if err != nil {
@@ -452,6 +484,16 @@ func headersOf(h nethttp.Header) map[string]any {
 		out[strings.ToLower(k)] = strings.Join(vs, ", ")
 	}
 	return out
+}
+
+// notSent reports a failure to connect (DNS, a refused dial): the request never left.
+func notSent(err error) bool {
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return true
+	}
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op == "dial"
 }
 
 // retryAfter reads a Retry-After header: seconds or an HTTP date.

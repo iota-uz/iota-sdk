@@ -27,6 +27,9 @@ const (
 	TypeRun   = "run_automation"
 )
 
+// CodeUnavailable reports that the process has no engine to start runs with (engine.RunStarter is not composed).
+const CodeUnavailable = "runs_unavailable"
+
 // Outcomes.
 const (
 	OutcomeStarted = "started"
@@ -60,27 +63,34 @@ func Static(s engine.RunStarter) Starter { return func() (engine.RunStarter, err
 
 type starter struct {
 	resolve Starter
-	once    sync.Once
+	mu      sync.Mutex
 	s       engine.RunStarter
-	err     error
 }
 
+// get resolves the starter; a failure is not kept, so a later step resolves it again.
 func (st *starter) get() (engine.RunStarter, error) {
-	st.once.Do(func() {
-		if st.resolve == nil {
-			st.err = errors.New("this process starts no runs from steps")
-			return
-		}
-		st.s, st.err = st.resolve()
-	})
-	return st.s, st.err
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.s != nil {
+		return st.s, nil
+	}
+	if st.resolve == nil {
+		return nil, errors.New("this process starts no runs from steps")
+	}
+	s, err := st.resolve()
+	if err != nil {
+		return nil, err
+	}
+	st.s = s
+	return s, nil
 }
 
 // start starts the run of the effect's params.
 func (st *starter) start(ctx context.Context, tx pgx.Tx, run engine.StepContext, e graph.Effect, attached bool) (map[string]any, error) {
 	s, err := st.get()
 	if err != nil {
-		return nil, &engine.StepError{Code: engine.CodeNotEnabled, Message: err.Error()}
+		// The process was composed without the engine's RunStarter: an error of the deployment.
+		return nil, &engine.StepError{Code: CodeUnavailable, Message: err.Error()}
 	}
 	raw, _ := e.Params["automation_id"].(string)
 	id, err := uuid.Parse(raw)
@@ -189,6 +199,7 @@ func (n *RunNode) Spec() graph.NodeSpec {
 			{Name: "run_id", Field: expr.StringField},
 			{Name: "status", Field: expr.StringField},
 			{Name: "output", Field: expr.DynField},
+			{Name: "output_withheld", Field: expr.BoolField},
 		},
 		DryRun: graph.DryRunCapture,
 	}
@@ -221,10 +232,13 @@ func (n *RunNode) EffectWaitSubject(_, output map[string]any) (engine.SubjectRef
 	return engine.SubjectRef{Entity: engine.SubjectRun, Key: id}, true
 }
 
-// ResolveWake takes done when the run finished done, failed otherwise (failed, cancelled), with its output.
+// ResolveWake takes done when the run finished done, failed otherwise (failed, cancelled), with its
+// output. A run that read sensitive event fields has its output withheld: output is null and
+// output_withheld true (read it from the run with its access rules).
 func (n *RunNode) ResolveWake(ev graph.Event) (string, map[string]any) {
 	status, _ := ev["status"].(string)
-	out := map[string]any{"run_id": ev["runId"], "status": status, "output": ev["output"]}
+	withheld, _ := ev["outputWithheld"].(bool)
+	out := map[string]any{"run_id": ev["runId"], "status": status, "output": ev["output"], "output_withheld": withheld}
 	if status == string(engine.RunDone) {
 		return OutcomeDone, out
 	}

@@ -73,49 +73,64 @@ func actionsHook(container *composition.Container) composition.Hook {
 // and what the application adds behind them).
 type lazySecrets struct {
 	container *composition.Container
-	once      sync.Once
+	mu        sync.Mutex
 	s         access.Secrets
 }
 
 func (l *lazySecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
-	l.once.Do(func() {
+	l.mu.Lock()
+	if l.s == nil {
 		var r host.SecretResolver
 		if composition.Has[host.SecretResolver](l.container) {
-			r, _ = composition.Resolve[host.SecretResolver](l.container)
+			var err error
+			if r, err = composition.Resolve[host.SecretResolver](l.container); err != nil {
+				l.mu.Unlock()
+				return "", &host.InfraError{Err: err}
+			}
 		}
 		l.s = access.FromResolver(r)
-	})
-	return l.s.Secret(ctx, tenantID, runAs, name)
+	}
+	s := l.s
+	l.mu.Unlock()
+	return s.Secret(ctx, tenantID, runAs, name)
 }
 
 // lazyConnections opens connections from the container's connection store and directory.
 type lazyConnections struct {
 	container *composition.Container
-	once      sync.Once
+	mu        sync.Mutex
 	c         access.Connections
-	err       error
 }
 
 func (l *lazyConnections) Open(ctx context.Context, tenantID uuid.UUID, name string) (access.Connection, error) {
-	l.once.Do(func() {
-		st, err := composition.Resolve[connectors.Store](l.container)
-		if err != nil {
-			l.err = err
-			return
-		}
-		dir, err := composition.Resolve[connectors.Directory](l.container)
-		if err != nil {
-			l.err = err
-			return
-		}
-		var oauth connectors.OAuth2
-		if composition.Has[connectors.OAuth2](l.container) {
-			oauth, _ = composition.Resolve[connectors.OAuth2](l.container)
-		}
-		l.c = access.StoreConnections(st, dir, oauth)
-	})
-	if l.err != nil {
-		return access.Connection{}, &host.InfraError{Err: l.err}
+	c, err := l.resolve()
+	if err != nil {
+		return access.Connection{}, &host.InfraError{Err: err}
 	}
-	return l.c.Open(ctx, tenantID, name)
+	return c.Open(ctx, tenantID, name)
+}
+
+// resolve builds the connections once they resolve; a failure is not kept.
+func (l *lazyConnections) resolve() (access.Connections, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.c != nil {
+		return l.c, nil
+	}
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return nil, err
+	}
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return nil, err
+	}
+	var oauth connectors.OAuth2
+	if composition.Has[connectors.OAuth2](l.container) {
+		if oauth, err = composition.Resolve[connectors.OAuth2](l.container); err != nil {
+			return nil, err
+		}
+	}
+	l.c = access.StoreConnections(st, dir, oauth)
+	return l.c, nil
 }

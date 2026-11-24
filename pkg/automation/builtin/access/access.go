@@ -29,7 +29,15 @@ const (
 	CodeResponseTooLarge         = "response_too_large"
 	CodeTimeout                  = "timeout"
 	CodeInvalidParams            = "invalid_params"
+	// CodeUnavailable: a store the node reads before its call (secrets, connections) failed; nothing was
+	// sent, and the failure is retryable.
+	CodeUnavailable = catalog.CallUnavailable
 )
+
+// unavailable is a failure before the call: nothing was sent, so it is never an unknown outcome.
+func unavailable(what string) error {
+	return &catalog.CallError{Code: CodeUnavailable, Message: what + " is not available now", Retryable: true}
+}
 
 // ErrSecretMissing reports that the tenant has no secret of the name.
 var ErrSecretMissing = errors.New("automation builtin: secret is missing")
@@ -82,7 +90,7 @@ func ReadSecrets(ctx context.Context, s Secrets, in catalog.CallInput, names []s
 		case errors.Is(err, ErrSecretMissing):
 			return nil, &catalog.CallError{Code: CodeSecretMissing, Message: "secret " + name + " is not set"}
 		case err != nil:
-			return nil, err
+			return nil, unavailable("the secret store")
 		}
 		out[name] = v
 	}
@@ -188,9 +196,15 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 		next[connectors.OAuth2AccessToken] = token
 		creds = next
 	}
-	values := make([]string, 0, len(creds))
-	for _, v := range creds {
-		values = append(values, v)
+	// Only what is secret is masked: the x-secret fields and the access token, not an account id or a
+	// region that would turn every equal value of the output into ***.
+	secret := connectors.SecretFields(conn.Descriptor())
+	secret[connectors.OAuth2AccessToken] = true
+	values := make([]string, 0, len(secret))
+	for k, v := range creds {
+		if secret[k] {
+			values = append(values, v)
+		}
 	}
 	return Connection{
 		Name: name, Kind: cur.Kind, Access: ca.CodeAccess(), Values: values,
@@ -210,7 +224,7 @@ func OpenAll(ctx context.Context, cs Connections, tenantID uuid.UUID, names []st
 		case errors.Is(err, ErrConnectionMissing):
 			return nil, &catalog.CallError{Code: CodeConnectionMissing, Message: "connection " + name + " is not connected or offers no code access"}
 		case err != nil:
-			return nil, err
+			return nil, unavailable("the connection store")
 		}
 		out[name] = c
 	}

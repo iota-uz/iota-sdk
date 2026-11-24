@@ -242,3 +242,38 @@ func TestValidateParams(t *testing.T) {
 		t.Fatalf("GET body: %+v", errs)
 	}
 }
+
+func TestAuthNeedsAStaticHost(t *testing.T) {
+	n := httpnode.New(httpnode.Deps{})
+	auth := map[string]any{"secret": "API_TOKEN", "scheme": "bearer"}
+	for url, ok := range map[string]bool{
+		"https://api.example.com/v1/{{ event.path }}": true,
+		"https://api.example.com?q={{ event.q }}":     true,
+		"https://api.example.com":                     true,
+		"https://api.example.com{{ event.path }}":     false,
+		"https://{{ event.host }}/x":                  false,
+		"{{ event.url }}":                             false,
+	} {
+		errs := n.ValidateParams(context.Background(), map[string]any{"url": url, "auth": auth})
+		if (len(errs) == 0) != ok {
+			t.Errorf("%s: %+v", url, errs)
+		}
+	}
+	// Without auth a templated host is the author's choice.
+	if errs := n.ValidateParams(context.Background(), map[string]any{"url": "{{ event.url }}"}); len(errs) != 0 {
+		t.Fatalf("%+v", errs)
+	}
+}
+
+func TestOutputOverTheNodeLimitIsResponseTooLarge(t *testing.T) {
+	big := `{"x": "` + strings.Repeat("a", httpnode.MaxOutputBytes) + `"}`
+	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, big)}})
+	res, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, _ := res.Output["error"].(map[string]any)
+	if res.Outcome != httpnode.OutcomeFailed || e["code"] != access.CodeResponseTooLarge || res.Output["body"] != nil || res.Output["status"] != float64(200) {
+		t.Fatalf("%v %v %v", res.Outcome, e, res.Output["status"])
+	}
+}
