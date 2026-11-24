@@ -60,17 +60,33 @@ func workflowTools(r *registrar, d Deps) {
 
 	add(r, mcp.Spec{
 		Name:        "ext_workflow_list",
-		Description: describe("List workflow instances of your tenant, newest first.", manage.PermRead),
+		Description: describe("List workflow instances of your tenant, newest first. Instances of human-only contracts (automations) come without their input, result and errors.", manage.PermRead),
 		Annotations: mcp.Annotations{Title: "List workflow instances", ReadOnly: true, Idempotent: true},
 		Policy:      readPolicy(manage.PermRead), Meta: meta(manage.PermRead),
 	}, func(ctx context.Context, actor spi.Subject, in workflowListIn) (workflowList, error) {
 		out, err := svc.ListWorkflows(ctx, actor, workflow.ListFilter{Status: in.Status, Workflow: in.Workflow, Limit: in.Limit, Offset: in.Offset})
-		return workflowList{Instances: nonNilSlice(out)}, err
+		if err != nil {
+			return workflowList{}, err
+		}
+		humanOnly := map[string]bool{}
+		for i, inst := range out {
+			guarded, seen := humanOnly[inst.Workflow]
+			if !seen {
+				if guarded, err = d.HumanOnly.Contract(ctx, inst.Workflow); err != nil {
+					return workflowList{}, err
+				}
+				humanOnly[inst.Workflow] = guarded
+			}
+			if guarded {
+				out[i] = redactInstance(inst)
+			}
+		}
+		return workflowList{Instances: nonNilSlice(out)}, nil
 	})
 
 	add(r, mcp.Spec{
 		Name:        "ext_workflow_get",
-		Description: describe("Read an instance with its history: occurrences, human tasks, signals and the invocations that ran it.", manage.PermRead),
+		Description: describe("Read an instance with its history: occurrences, human tasks, signals and the invocations that ran it. An instance of a human-only contract (automations) comes without its payloads: results, signal payloads and decisions.", manage.PermRead),
 		Annotations: mcp.Annotations{Title: "Get workflow instance", ReadOnly: true, Idempotent: true},
 		Policy:      readPolicy(manage.PermRead), Meta: meta(manage.PermRead),
 	}, func(ctx context.Context, actor spi.Subject, in instanceIn) (workflow.History, error) {
@@ -78,7 +94,18 @@ func workflowTools(r *registrar, d Deps) {
 		if err != nil {
 			return workflow.History{}, err
 		}
-		return svc.GetWorkflow(ctx, actor, id)
+		h, err := svc.GetWorkflow(ctx, actor, id)
+		if err != nil {
+			return workflow.History{}, err
+		}
+		guarded, err := d.HumanOnly.Contract(ctx, h.Instance.Workflow)
+		if err != nil {
+			return workflow.History{}, err
+		}
+		if guarded {
+			return redactHistory(h), nil
+		}
+		return h, nil
 	})
 
 	add(r, mcp.Spec{

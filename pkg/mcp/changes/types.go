@@ -242,3 +242,14 @@ type PendingEffect struct {
 	Attempts    int
 	Effect      Effect
 }
+
+// AuditRecord is the audit event of one applied change, stored with the receipt and delivered to the
+// MCP auditor after the commit; OperationID and Item identify it for idempotent delivery.
+type AuditRecord struct {
+	OperationID string
+	Item        int
+	TenantID    string
+	Subject     string
+	ClientID    string
+	Tool        string
+}

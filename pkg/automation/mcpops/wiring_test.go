@@ -42,18 +42,23 @@ func TestStandardWorkflowToolsRefuseAutomationInstances(t *testing.T) {
 	require.NoError(t, err)
 
 	g := map[string]any{"name": "Approve", "triggers": []any{map[string]any{"id": "created", "event": evClient}},
-		"nodes": []any{map[string]any{"id": "appr", "type": "acme.approve", "params": map[string]any{}}, map[string]any{"id": "fin", "type": "end", "params": map[string]any{}}},
-		"edges": []any{map[string]any{"from": map[string]any{"node": "created", "outcome": "fired"}, "to": "appr"},
+		"nodes": []any{map[string]any{"id": "again", "type": "wait", "params": map[string]any{"event": evClient}},
+			map[string]any{"id": "appr", "type": "acme.approve", "params": map[string]any{}}, map[string]any{"id": "fin", "type": "end", "params": map[string]any{}}},
+		"edges": []any{map[string]any{"from": map[string]any{"node": "created", "outcome": "fired"}, "to": "again"},
+			map[string]any{"from": map[string]any{"node": "again", "outcome": "matched"}, "to": "appr"},
 			map[string]any{"from": map[string]any{"node": "appr", "outcome": "approve"}, "to": "fin"},
 			map[string]any{"from": map[string]any{"node": "appr", "outcome": "reject"}, "to": "fin"}}}
 	am, v, err := e.rt.Service().Create(context.Background(), e.human(), engine.CreateInput{Graph: mustJSON(g)})
 	require.NoError(t, err)
 	e.enable(am.ID, v.Version)
 	e.publish("c-1", client{Name: "Ann"})
+	e.until(func() bool { return e.count(`SELECT count(*) FROM automation.waits WHERE status = 'open'`) == 1 }, "the run waits")
+	e.publish("c-1", client{Name: "Bob", Phone: "+998900000000"})
 	e.until(func() bool { return e.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`) == 1 }, "the task opens")
 	var instance, task, runID uuid.UUID
-	require.NoError(t, e.db.QueryRow(context.Background(), `SELECT instance_id, id FROM automation.runs`).Scan(&instance, &runID))
-	require.NoError(t, e.db.QueryRow(context.Background(), `SELECT id FROM extruntime.human_tasks`).Scan(&task))
+	// The run that waited for the second event (its inbox signal) opened the task.
+	require.NoError(t, e.db.QueryRow(context.Background(), `SELECT r.instance_id, r.id, t.id FROM extruntime.human_tasks t
+		JOIN automation.runs r ON r.instance_id = t.instance_id`).Scan(&instance, &runID, &task))
 	runPage := urls{}.Run(am.ID, runID)
 
 	call := func(tool string, input map[string]any) mcp.Result {
@@ -79,9 +84,37 @@ func TestStandardWorkflowToolsRefuseAutomationInstances(t *testing.T) {
 		assert.Contains(t, res.Error.Message, runPage, tool)
 	}
 	res := call("ext_workflow_get", map[string]any{"id": id})
-	assert.True(t, res.OK, "reads stay: %+v", res.Error)
+	require.True(t, res.OK, "reads stay: %+v", res.Error)
+	var h struct {
+		Instance struct {
+			Workflow string
+			Input    json.RawMessage
+		}
+		Signals []struct{ Payload json.RawMessage }
+	}
+	require.NoError(t, json.Unmarshal(res.Data, &h))
+	assert.Equal(t, engine.WorkflowID, h.Instance.Workflow)
+	assert.True(t, isNull(h.Instance.Input), "no input of an automation instance: %s", h.Instance.Input)
+	require.NotEmpty(t, h.Signals)
+	for _, s := range h.Signals {
+		assert.True(t, isNull(s.Payload), "no signal payload: %s", s.Payload)
+	}
+	assert.NotContains(t, string(res.Data), "+998900000000", "the event payload is not shown")
+	res = call("ext_workflow_list", map[string]any{})
+	require.True(t, res.OK, "%+v", res.Error)
+	assert.NotContains(t, string(res.Data), "+998900000000")
+
+	// Who may not decide the task is refused as for any task, and is not told the page.
+	raw, err := json.Marshal(map[string]any{"task_id": task.String(), "decision": map[string]any{"outcome": "approve"}})
+	require.NoError(t, err)
+	res = tools.Call(e.ctx(agentID, mcp.AllScopes()), "ext_workflow_decide_task", raw)
+	require.False(t, res.OK)
+	assert.Equal(t, mcp.CodeForbidden, res.Error.Code, "%+v", res.Error)
+	assert.NotContains(t, res.Error.Message, runPage)
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`), "nothing was decided")
 }
+
+func isNull(raw json.RawMessage) bool { return len(raw) == 0 || string(raw) == "null" }
 
 func decisionGraph(items int) map[string]any {
 	var g map[string]any

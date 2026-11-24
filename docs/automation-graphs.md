@@ -410,14 +410,23 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
   (`engine.WithTx`, reads included), so a retried `apply_changes` never saves a graph twice and an
   apply needs one connection; the receipt item's `result` is
   `{id, version, enabled: false | <enabled_version>, editor_url}`.
-- Audit: a plan's `HUMAN_REQUIRED` refusals and every applied change are entries of the MCP
-  engine's audit (`mcp.Audit`, tool `changes:automation.<op>`) with the principal and the client.
+- Audit: a plan's `HUMAN_REQUIRED` refusals are entries of the MCP engine's audit (`mcp.Audit`).
+  Every applied change is an audit event (tool `changes:automation.<op>`, `OperationID`, `Item`)
+  stored in `mcp.operation_audit` in the transaction that commits the receipt and delivered after
+  it; one left undelivered (lost commit response, stopped process) is delivered by the next call
+  about the operation or by `DispatchEffects` (`changes.Config.Auditor`).
+- A receipt item's `result` is shown on a retried `apply_changes` and on `operation_get` only
+  while the caller still passes the kind's policy; otherwise only status, ids and revisions.
 - `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
   code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
   `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the
   extension runtime's workflow actions (signal, decide task, terminate, start v2, resolve, retry,
   resume) on their instances and tasks answer it with the run's page (`Config.Links.RunURL`)
-  wherever the workflow tools are registered, the standard wiring included; reads stay.
+  wherever the workflow tools are registered, the standard wiring included. The refusal comes only
+  after the action's own check (`Extensions.Operate`, or the right to decide the task), so a caller
+  without it learns nothing. Reads stay (`ext_workflow_list`, `ext_workflow_get`) without the
+  payloads of these instances (input, result, errors, journal results, signal payloads, decisions):
+  `automation_run_get` shows them projected for the viewer.
 
 ## 9. Code node
 

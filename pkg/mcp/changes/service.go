@@ -43,7 +43,13 @@ type Config struct {
 	// ToolPolicy guards the tools themselves; every change is additionally
 	// checked against its Kind policy.
 	ToolPolicy mcp.Policy
-	Now        func() time.Time
+	// Auditor receives one entry per applied change (Tool "changes:<entity>.<op>", OperationID, Item),
+	// stored with the receipt in the apply transaction and delivered after the commit. Default: the
+	// auditor of the MCP engine running the call (mcp.AuditorFrom). An entry left undelivered (a lost
+	// commit response, a stopped process) is delivered by the next call about the operation and, with
+	// Auditor set, by DispatchEffects; it may arrive twice, identified by OperationID and Item.
+	Auditor mcp.Auditor
+	Now     func() time.Time
 }
 
 type Service struct {
@@ -256,7 +262,8 @@ func (s *Service) Apply(ctx context.Context, in ApplyInput) (Operation, error) {
 			return Operation{}, keyReused(existing.ID)
 		}
 		if existing.Status != OperationPending || existing.Receipt != nil {
-			return s.withRetry(existing), nil
+			s.deliverAudit(ctx, existing.ID)
+			return s.visible(ctx, p, s.withRetry(existing)), nil
 		}
 	case serrors.CodeOf(err) != serrors.NotFound:
 		return Operation{}, serrors.Wrap(op, err)
@@ -350,6 +357,14 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 		if err := s.cfg.Store.CompleteOperation(txCtx, operation.ID, receipt, effects); err != nil {
 			return errors.Join(errTransient, err)
 		}
+		audit := make([]AuditRecord, 0, len(plan.Changes))
+		for i, c := range plan.Changes {
+			audit = append(audit, AuditRecord{OperationID: operation.ID, Item: i, TenantID: plan.TenantID, Subject: plan.Subject,
+				ClientID: plan.ClientID, Tool: "changes:" + kindKey(c.Entity, c.Op)})
+		}
+		if err := s.cfg.Store.SaveAudit(txCtx, audit); err != nil {
+			return errors.Join(errTransient, err)
+		}
 		done := operation
 		done.Receipt = &receipt
 		done.Status, done.ExternalEffects = OperationSucceeded, EffectsNone
@@ -361,13 +376,12 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 		return nil
 	})
 	if err == nil {
+		// The audit of the changes committed with the receipt; it is delivered now, or again later.
+		s.deliverAudit(ctx, operation.ID)
 		if committed {
-			// Each committed change is an entry of the MCP audit, with the principal and the client.
-			for _, c := range plan.Changes {
-				mcp.Audit(ctx, "changes:"+kindKey(c.Entity, c.Op), "", operation.ID)
-			}
+			return s.withRetry(*settled), nil
 		}
-		return s.withRetry(*settled), nil
+		return s.visible(ctx, p, s.withRetry(*settled)), nil
 	}
 	var f *mcp.Failure
 	if errors.As(err, &f) && !errors.Is(err, errTransient) && !errors.Is(err, ErrOperationLocked) && isDefinite(f.Code) {
@@ -458,7 +472,8 @@ func (s *Service) OperationGet(ctx context.Context, operationID, idempotencyKey 
 	if err != nil {
 		return Operation{}, serrors.Wrap(op, err)
 	}
-	return s.withRetry(o), nil
+	s.deliverAudit(ctx, o.ID)
+	return s.visible(ctx, p, s.withRetry(o)), nil
 }
 
 // ReviewPlan returns a stored plan for the trusted approval page.
@@ -521,10 +536,15 @@ func (s *Service) Approve(ctx context.Context, planID, planHash string) (Grant, 
 	return Grant{Ref: ref, ExpiresAt: expires}, nil
 }
 
-// DispatchEffects delivers committed external effects from the outbox. Run
-// it periodically; it is safe to run on several instances at once.
+// DispatchEffects delivers committed external effects from the outbox, and the
+// audit events left undelivered when Config.Auditor is set. Run it
+// periodically; it is safe to run on several instances at once.
 func (s *Service) DispatchEffects(ctx context.Context, limit int) (int, error) {
 	const op serrors.Op = "changes.Service.DispatchEffects"
+	// Audit events a lost commit response or a stopped process left undelivered.
+	if s.cfg.Auditor != nil {
+		s.deliverAudit(ctx, "")
+	}
 	delivered := 0
 	err := s.cfg.Store.InTx(ctx, func(txCtx context.Context) error {
 		pending, err := s.cfg.Store.PendingEffects(txCtx, limit)
@@ -564,4 +584,72 @@ func (s *Service) DispatchEffects(ctx context.Context, limit int) (int, error) {
 		return 0, serrors.Wrap(op, err)
 	}
 	return delivered, nil
+}
+
+// maxAuditBatch bounds the audit events one delivery sends.
+const maxAuditBatch = 200
+
+// deliverAudit sends the undelivered audit events of an operation ("" any) to the auditor and marks
+// them. It is best effort: an event that fails stays stored and is sent by a later delivery.
+func (s *Service) deliverAudit(ctx context.Context, operationID string) {
+	a := s.cfg.Auditor
+	if a == nil {
+		var ok bool
+		if a, ok = mcp.AuditorFrom(ctx); !ok {
+			return
+		}
+	}
+	records, err := s.cfg.Store.UndeliveredAudit(ctx, operationID, maxAuditBatch)
+	if err != nil {
+		return
+	}
+	for _, r := range records {
+		item := r.Item
+		a.Record(ctx, mcp.AuditEntry{RequestID: mcp.RequestIDFrom(ctx), Tool: r.Tool, Subject: r.Subject, TenantID: r.TenantID,
+			ClientID: r.ClientID, OperationID: r.OperationID, Item: &item})
+		if err := s.cfg.Store.MarkAudited(ctx, r.OperationID, r.Item); err != nil {
+			return
+		}
+	}
+}
+
+// visible is an operation as the caller may see it now: the results the kinds reported about the
+// changes are shown only while the caller still passes every change's Kind policy (scopes and
+// permissions are re-read); otherwise the receipt keeps only the status, ids and revisions.
+func (s *Service) visible(ctx context.Context, p mcp.Principal, o Operation) Operation {
+	if o.Receipt == nil {
+		return o
+	}
+	hasResult := false
+	for _, it := range o.Receipt.Items {
+		hasResult = hasResult || len(it.Result) > 0
+	}
+	if !hasResult || s.mayReadResults(ctx, p, o) {
+		return o
+	}
+	r := *o.Receipt
+	r.Items = make([]ReceiptItem, len(o.Receipt.Items))
+	for i, it := range o.Receipt.Items {
+		it.Result = nil
+		r.Items[i] = it
+	}
+	o.Receipt = &r
+	return o
+}
+
+func (s *Service) mayReadResults(ctx context.Context, p mcp.Principal, o Operation) bool {
+	plan, err := s.cfg.Store.Plan(ctx, p.TenantID.String(), o.PlanID)
+	if err != nil || plan.Subject != p.Subject() {
+		return false
+	}
+	for _, c := range plan.Changes {
+		k, ok := s.kind(c)
+		if !ok {
+			return false
+		}
+		if _, err := s.cfg.Authorizer.Authorize(ctx, p, k.Policy()); err != nil {
+			return false
+		}
+	}
+	return true
 }

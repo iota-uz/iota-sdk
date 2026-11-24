@@ -213,7 +213,9 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			inputs = append(inputs, graph.DryRunInput{Timeout: true})
 			continue
 		}
-		if batch, ok := m["events"].([]any); ok && len(m) == 1 {
+		if _, isBatch := dryRunBatch(raw); isBatch {
+			// The rule DryRunEventCount counts by: the only field, an array.
+			batch, _ := m["events"].([]any)
 			if len(batch) == 0 || len(batch) > graph.CollectMaxEvents {
 				return DryRunResult{}, fmt.Errorf("%w: events[%d] is a batch of 1..%d events", ErrInvalidInput, i, graph.CollectMaxEvents)
 			}
@@ -266,21 +268,32 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	return DryRunResult{Trace: traceOf(interp, steps)}, nil
 }
 
-// DryRunEventCount is how many events a dry run's input feeds: a batch {"events": [...]} counts its
-// entries, anything else one.
+// DryRunEventCount is how many events a dry run's input feeds: a batch counts its entries, anything
+// else one. A batch is what DryRun takes for one: an object whose only field is the array events (an
+// event with its own payload field events is one event).
 func DryRunEventCount(events []json.RawMessage) int {
 	n := 0
 	for _, raw := range events {
-		var batch struct {
-			Events []json.RawMessage `json:"events"`
-		}
-		if json.Unmarshal(raw, &batch) == nil && len(batch.Events) > 0 {
-			n += len(batch.Events)
+		if batch, ok := dryRunBatch(raw); ok {
+			n += len(batch)
 			continue
 		}
 		n++
 	}
 	return n
+}
+
+// dryRunBatch is the entries of a batch input {"events": [...]}: the only field, an array.
+func dryRunBatch(raw json.RawMessage) ([]json.RawMessage, bool) {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil || len(m) != 1 {
+		return nil, false
+	}
+	var batch []json.RawMessage
+	if json.Unmarshal(m["events"], &batch) != nil || batch == nil {
+		return nil, false
+	}
+	return batch, true
 }
 
 // traceOf maps the interpreter's trace to the engine's.

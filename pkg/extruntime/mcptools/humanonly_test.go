@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/mcptools"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/mcp/rbacauth"
 )
@@ -23,7 +24,9 @@ func (g guarded) Instance(_ context.Context, _, id uuid.UUID) (string, bool, err
 	return "https://app.test/runs/" + id.String(), id == g.instance, nil
 }
 
-func (g guarded) Task(_ context.Context, _, id uuid.UUID) (string, bool, error) {
+func (guarded) Contract(context.Context, string) (bool, error) { return false, nil }
+
+func (g guarded) Task(_ context.Context, _ spi.Subject, id uuid.UUID) (string, bool, error) {
 	return "https://app.test/runs/of-task", id == g.task, nil
 }
 
@@ -73,4 +76,12 @@ func TestHumanOnlyInstancesRefuseActionsButNotReads(t *testing.T) {
 	res = call("ext_workflow_signal", map[string]any{"id": uuid.NewString(), "name": "inbox"})
 	require.False(t, res.OK)
 	assert.NotEqual(t, mcp.CodeApprovalRequired, res.Error.Code)
+
+	// Who may not operate instances is refused for that, and learns nothing about the instance.
+	raw, err := json.Marshal(map[string]any{"id": id, "name": "inbox"})
+	require.NoError(t, err)
+	res = engine.Call(e.principal(readerID, mcp.AllScopes()), "ext_workflow_signal", raw)
+	require.False(t, res.OK)
+	assert.Equal(t, mcp.CodeForbidden, res.Error.Code)
+	assert.NotContains(t, res.Error.Message, "https://app.test")
 }

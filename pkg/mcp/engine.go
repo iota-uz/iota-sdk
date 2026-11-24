@@ -34,7 +34,10 @@ type AuditEntry struct {
 	Nested      bool
 	Outcome     Code
 	OperationID string
-	Duration    time.Duration
+	// Item is the index of the change of OperationID an entry is about (the audit of guarded changes):
+	// with OperationID it identifies the entry, which may be delivered more than once.
+	Item     *int
+	Duration time.Duration
 }
 
 type Auditor interface {
@@ -212,6 +215,15 @@ type auditKey struct{}
 type auditScope struct {
 	audit Auditor
 	base  AuditEntry
+}
+
+// AuditorFrom is the auditor of the engine running the call of ctx, if it has one.
+func AuditorFrom(ctx context.Context) (Auditor, bool) {
+	s, ok := ctx.Value(auditKey{}).(*auditScope)
+	if !ok {
+		return nil, false
+	}
+	return s.audit, true
 }
 
 // Audit records an event of the running call in the engine's audit with the call's principal, client and
