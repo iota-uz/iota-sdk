@@ -50,9 +50,6 @@ const UnitSMS = "sms"
 // DefaultMaxMessageSize is the longest text, in characters, the Eskiz node sends.
 const DefaultMaxMessageSize = 500
 
-// maxTextLength bounds the text param of both nodes (Twilio's own limit is 1600 characters).
-const maxTextLength = 1600
-
 // SendParams are the params of both nodes (the reserved "connection" param is added by the catalog):
 // the connection ID of the node's kind or "platform:<kind>" (left out: the only available one), the
 // recipient (a template, normalized to E.164) and the text (a template, not empty once rendered).

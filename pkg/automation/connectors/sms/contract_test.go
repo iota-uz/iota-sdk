@@ -97,11 +97,11 @@ func TestContract(t *testing.T) {
 				}
 			}
 
-			id, err := tg.conn.Test(ctx, connectors.Credentials(tg.creds))
+			id, err := tg.conn.Test(ctx, tg.creds)
 			require.NoError(t, err, "valid credentials pass the check")
 			assert.NotEmpty(t, id.External)
 
-			_, err = tg.conn.Test(ctx, connectors.Credentials(tg.bad))
+			_, err = tg.conn.Test(ctx, tg.bad)
 			require.Error(t, err, "refused credentials fail the check")
 			for _, v := range tg.bad {
 				if v == tg.bad["password"] || v == tg.bad["auth_token"] {

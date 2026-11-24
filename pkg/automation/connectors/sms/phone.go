@@ -46,7 +46,7 @@ func normalizePhone(raw, defaultCC string) (string, bool) {
 			return "", false
 		}
 		d = strings.TrimLeft(d, "0") // a national trunk prefix
-		if !(strings.HasPrefix(d, defaultCC) && len(d)-len(defaultCC) >= minNationalDigits) {
+		if !strings.HasPrefix(d, defaultCC) || len(d)-len(defaultCC) < minNationalDigits {
 			d = defaultCC + d
 		}
 	}

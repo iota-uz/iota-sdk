@@ -1,0 +1,4 @@
+test-results/
+playwright-report/
+bundle/bundle.generated.css
+fixtures/automations/fixture.generated.css

@@ -24,6 +24,9 @@ dist/
 **/dist/
 **/package-dist/
 !pkg/lens/render/solid/dist/
+# The automations module embeds the bundles of its screens (go:embed): committed, checked by CI.
+!modules/automations/presentation/graphs/dist/
+!modules/automations/presentation/integrations/dist/
 pkg/lens/render/solid/dist/*
 !pkg/lens/render/solid/dist/.keep
 # The integrations screen's bundle is committed: the automations module embeds and serves it, so a Go

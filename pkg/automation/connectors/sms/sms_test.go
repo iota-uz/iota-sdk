@@ -2,7 +2,6 @@ package sms_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -73,14 +72,13 @@ func newFixture(t *testing.T, kind catalog.ConnectorKind, opts ...sms.Option) (*
 		esk *smstest.Eskiz
 		twi *smstest.Twilio
 	)
-	switch kind {
-	case sms.KindEskiz:
+	if kind == sms.KindEskiz {
 		esk = smstest.NewEskiz(eskizEmail, eskizPassword)
 		t.Cleanup(esk.Close)
 		f.creds = catalog.Credentials{"url": esk.URL(), "email": eskizEmail, "password": eskizPassword}
 		f.secs = []string{eskizPassword}
 		f.conn = sms.NewEskiz(append([]sms.Option{sms.WithTrustedEskizURLs(esk.URL())}, opts...)...)
-	case sms.KindTwilio:
+	} else {
 		twi = smstest.NewTwilio(twilioSID, twilioToken)
 		t.Cleanup(twi.Close)
 		f.creds = catalog.Credentials{"account_sid": twilioSID, "auth_token": twilioToken, "from": twilioFrom}
@@ -107,14 +105,14 @@ func (f *fixture) exec() (catalog.CallResult, error) {
 
 // runLikeEngine repeats the call after RetryAfter the way the engine does, and returns how many times
 // it ran and when each began.
-func (f *fixture) runLikeEngine() (catalog.CallResult, error, []time.Time) {
+func (f *fixture) runLikeEngine() (catalog.CallResult, []time.Time, error) {
 	f.t.Helper()
 	var starts []time.Time
 	for {
 		starts = append(starts, time.Now())
 		res, err := f.exec()
 		if err != nil || res.RetryAfter == 0 {
-			return res, err, starts
+			return res, starts, err
 		}
 		time.Sleep(res.RetryAfter)
 		f.in.Attempt++
@@ -124,7 +122,7 @@ func (f *fixture) runLikeEngine() (catalog.CallResult, error, []time.Time) {
 func callErr(t *testing.T, err error) *catalog.CallError {
 	t.Helper()
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "want a CallError, got %v", err)
+	require.ErrorAs(t, err, &ce)
 	return ce
 }
 
@@ -317,7 +315,7 @@ func TestEskizRateLimitedIsRepeatedAfterRetryAfter(t *testing.T) {
 		}
 		return smstest.Reply{}
 	})
-	res, err, starts := f.runLikeEngine()
+	res, starts, err := f.runLikeEngine()
 	require.NoError(t, err)
 	assert.Equal(t, "sent", res.Outcome)
 	require.Len(t, starts, 2)
@@ -454,7 +452,7 @@ func TestDefaultCountryCode(t *testing.T) {
 
 func TestEskizTest(t *testing.T) {
 	f, fake, _ := newFixture(t, sms.KindEskiz)
-	id, err := f.conn.Test(context.Background(), connectors.Credentials(f.creds))
+	id, err := f.conn.Test(context.Background(), f.creds)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.Identity{Display: eskizEmail, External: eskizEmail, Kind: connectors.IdentityEmail}, id)
 	assert.Empty(t, fake.Sends(), "the check sends nothing")
@@ -519,7 +517,7 @@ func TestTwilioRateLimitedIsRepeated(t *testing.T) {
 		}
 		return smstest.Reply{}
 	})
-	res, err, starts := f.runLikeEngine()
+	res, starts, err := f.runLikeEngine()
 	require.NoError(t, err)
 	assert.Equal(t, "sent", res.Outcome)
 	require.Len(t, starts, 2)
@@ -567,7 +565,7 @@ func TestTwilioBadCredentials(t *testing.T) {
 
 func TestTwilioTest(t *testing.T) {
 	f, _, fake := newFixture(t, sms.KindTwilio)
-	id, err := f.conn.Test(context.Background(), connectors.Credentials(f.creds))
+	id, err := f.conn.Test(context.Background(), f.creds)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.Identity{Display: twilioFrom, External: twilioSID + "/" + twilioFrom, Kind: connectors.IdentityPhone}, id)
 	assert.Empty(t, fake.Sends())

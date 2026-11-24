@@ -9,7 +9,11 @@ type Chunk = typeof import('./chunk')
 let chunk: Promise<Chunk> | null = null
 
 function chunkPromise(): Promise<Chunk> {
-  chunk ??= import('./chunk')
+  // A failed load (a deploy replaced the chunk, the network dropped) is not kept: the next call retries.
+  chunk ??= import('./chunk').catch((error: unknown) => {
+    chunk = null
+    throw error
+  })
   return chunk
 }
 

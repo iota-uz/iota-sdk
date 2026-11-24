@@ -29,7 +29,7 @@ func (t *Twilio) handle(w http.ResponseWriter, r *http.Request) {
 	if user != t.AccountSID || pass != t.AuthToken {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"code":20003,"message":"Authenticate","more_info":"https://www.twilio.com/docs/errors/20003","status":401}`)
+		_, _ = fmt.Fprint(w, `{"code":20003,"message":"Authenticate","more_info":"https://www.twilio.com/docs/errors/20003","status":401}`)
 		return
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/2010-04-01/Accounts/")
@@ -43,7 +43,7 @@ func (t *Twilio) handle(w http.ResponseWriter, r *http.Request) {
 		t.write(w, r, reply, http.StatusCreated, fmt.Sprintf(`{"sid":"SM%030d","status":"queued","num_segments":"2","to":%q}`, s.At, s.To))
 	case r.Method == http.MethodGet && path == t.AccountSID+".json":
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"sid":%q,"friendly_name":"fake","status":"active"}`, t.AccountSID)
+		_, _ = fmt.Fprintf(w, `{"sid":%q,"friendly_name":"fake","status":"active"}`, t.AccountSID)
 	default:
 		http.NotFound(w, r)
 	}

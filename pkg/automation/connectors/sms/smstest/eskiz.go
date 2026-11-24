@@ -63,7 +63,7 @@ func (e *Eskiz) login(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("email") != e.Email || r.FormValue("password") != e.Password {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"message":"Unauthorized"}`)
+		_, _ = fmt.Fprint(w, `{"message":"Unauthorized"}`)
 		return
 	}
 	e.lmu.Lock()
@@ -72,7 +72,7 @@ func (e *Eskiz) login(w http.ResponseWriter, r *http.Request) {
 	e.tokens[tok] = true
 	e.lmu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"message":"token_generated","data":{"token":%q},"token_type":"bearer"}`, tok)
+	_, _ = fmt.Fprintf(w, `{"message":"token_generated","data":{"token":%q},"token_type":"bearer"}`, tok)
 }
 
 func (e *Eskiz) authorized(w http.ResponseWriter, r *http.Request) bool {
@@ -82,7 +82,7 @@ func (e *Eskiz) authorized(w http.ResponseWriter, r *http.Request) bool {
 	if !ok {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"message":"Expired"}`)
+		_, _ = fmt.Fprint(w, `{"message":"Expired"}`)
 	}
 	return ok
 }
@@ -92,7 +92,7 @@ func (e *Eskiz) limit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprint(w, `{"data":{"balance":100},"status":"success"}`)
+	_, _ = fmt.Fprint(w, `{"data":{"balance":100},"status":"success"}`)
 }
 
 // SendRequests is every request the send endpoint got, refused ones included.
