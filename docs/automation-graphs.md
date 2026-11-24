@@ -30,7 +30,7 @@ Non-goals:
 
 ### Decision D1: variant H — a Go-implemented workflow contract on the existing engine
 
-A graph run is an instance of the Go-implemented workflow contract `automation.run` on
+A graph run that starts executes as an instance of the Go-implemented workflow contract `automation.run` on
 the extension-runtime engine (`docs/extension-runtime.md`, "Native workflow
 implementations"). There is one engine, one set of `extruntime` tables and one
 scheduler; the graph interpreter is an implementation of a contract, not a second engine.
@@ -235,7 +235,11 @@ through `wiring.ContributeConsumers`, `Runtime.Schedules()` through
 manual and `automation.run.finished.v1` events). `Runtime.Serve` runs the maintenance loop:
 queued conversation runs, runs of disabled graphs, retention.
 
-- **State.** A run is an `automation.runs` row and an instance whose input is `{run_id}`. Its
+- **State.** Every run has an `automation.runs` row; it executes as an `automation.run`
+  instance (input `{run_id}`, `runs.instance_id`) only once it starts. A run that never
+  starts has no instance: `filter_failed`, one blocked at the start (`no_owner`,
+  `depth_exceeded`), or one cancelled while queued. Run history therefore reads
+  `automation.runs` with a left join to the instance, never an inner join. Its
   tokens, steps and waits are written in fenced `NativeRun.Transaction`s named `tx#<tx_seq>`;
   each transaction takes the subject's advisory lock first and sets
   `app.automation_cause`, so events it publishes carry `{run_id, depth}` in

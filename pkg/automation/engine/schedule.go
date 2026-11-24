@@ -81,10 +81,24 @@ type scheduleGen struct {
 // slots would shift between passes; it is refused on save (scheduleRule).
 var calendarParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 
+// parseCalendar parses a five-field calendar cron. The input is checked before the parser sees it: a
+// time zone prefix (CRON_TZ=, TZ=) makes robfig/cron v3.0.1 panic when no space follows it, and a graph's
+// time zone is its own param anyway.
+func parseCalendar(expr string) (cron.Schedule, error) {
+	fields := strings.Fields(expr)
+	if len(fields) != 5 {
+		return nil, fmt.Errorf("expected exactly 5 fields, found %d", len(fields))
+	}
+	if strings.HasPrefix(fields[0], "CRON_TZ=") || strings.HasPrefix(fields[0], "TZ=") {
+		return nil, errors.New("a time zone prefix is not allowed: set the timezone param")
+	}
+	return calendarParser.Parse(strings.Join(fields, " "))
+}
+
 // checkSchedule reports why schedule params cannot run: a cron that is not five calendar fields, or an
 // unknown time zone.
 func checkSchedule(p scheduleParams) error {
-	if _, err := calendarParser.Parse(p.Cron); err != nil {
+	if _, err := parseCalendar(p.Cron); err != nil {
 		return fmt.Errorf("a schedule is five cron fields (minute hour day month weekday): %w", err)
 	}
 	if p.Timezone != "" {
@@ -98,7 +112,7 @@ func checkSchedule(p scheduleParams) error {
 // isTick reports whether at is a planned time of the calendar cron in the time zone. Anything else (an
 // interval of a version saved before the rule) has no tick a slot could be checked against.
 func isTick(p scheduleParams, at time.Time) bool {
-	spec, err := calendarParser.Parse(p.Cron)
+	spec, err := parseCalendar(p.Cron)
 	if err != nil {
 		return false
 	}

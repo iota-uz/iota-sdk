@@ -186,7 +186,14 @@ func TestWaitRoutingSeesWhatTheRunAsMayRead(t *testing.T) {
 	e.publish(e.tenant, orderPaid, "o-1", order{}, 0)
 	run := onlyRun(t, e, p, human)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunWaiting }, "the run waits")
+	// The event the filter refuses is delivered and processed alone: the wait stays open.
 	e.publish(e.tenant, orderCreated, "o-1", order{Secret: "closed"}, 0)
+	for i := 0; i < 5; i++ {
+		p.pass()
+	}
+	assert.Equal(t, engine.RunWaiting, e.status(p, run.RunID), "the closed event does not wake the wait")
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.waits WHERE run_id = $1 AND node_id = 'w' AND status = 'open'`, run.RunID))
+	assert.Empty(t, e.effects(run.RunID))
 	e.publish(e.tenant, orderCreated, "o-1", order{Secret: "open"}, 0)
 	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the matching event wakes the wait")
 	assert.Equal(t, []string{"note:woke"}, e.effects(run.RunID))

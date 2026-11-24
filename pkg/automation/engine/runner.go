@@ -304,7 +304,9 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 			return nil, serrors.FromDB(opRun, err)
 		}
 		s := &stepState{sensitive: decodeRefs(sens)}
-		if err := tx.QueryRow(ctx, `SELECT now()`).Scan(&s.now); err != nil {
+		// The step's time is read after the subject's lock: now() is the transaction's start, which can
+		// lie long before it when the lock was held by another step.
+		if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&s.now); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		if err := fn(ctx, tx, s); err != nil {
@@ -325,8 +327,8 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE automation.runs SET tx_seq = tx_seq + 1, inbox_seq = inbox_seq + $3, steps_count = steps_count + $4,
-				output = coalesce($5, output), error = coalesce($6, error), sensitive = coalesce($7, sensitive), updated_at = now()
-			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure), sensUpdate); err != nil {
+				output = coalesce($5, output), error = coalesce($6, error), sensitive = coalesce($7, sensitive), updated_at = $8
+			WHERE tenant_id = $1 AND id = $2`, x.tenant, x.run.ID, s.inbox, s.steps, nullJSON(s.output), nullJSON(s.failure), sensUpdate, s.now); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
 		return nil, nil

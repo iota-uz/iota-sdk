@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -42,15 +44,21 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 	if r.cfg.Retention.Runs < stepsAfter {
 		stepsAfter = r.cfg.Retention.Runs
 	}
+	// One clock for both loops: each statement's now() is its own, so a run that ended between the
+	// two would be too new for the steps and old enough for the runs.
+	var now time.Time
+	if err := r.cfg.DB.QueryRow(ctx, `SELECT now()`).Scan(&now); err != nil {
+		return 0, serrors.FromDB(opMaintain, err)
+	}
 	for {
 		tag, err := r.cfg.DB.Exec(ctx, `
 			DELETE FROM automation.steps WHERE (tenant_id, run_id, token_id, seq) IN (
 				SELECT s.tenant_id, s.run_id, s.token_id, s.seq FROM automation.steps s
 				JOIN automation.runs r ON r.tenant_id = s.tenant_id AND r.id = s.run_id
 				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < $3::timestamptz - $1::interval
 				ORDER BY s.tenant_id, s.run_id, s.token_id, s.seq LIMIT $2)`,
-			pgInterval(stepsAfter.Seconds()), pruneStepsBatch)
+			pgInterval(stepsAfter.Seconds()), pruneStepsBatch, now)
 		if err != nil {
 			return total, serrors.FromDB(opMaintain, err)
 		}
@@ -59,14 +67,22 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 			break
 		}
 	}
+	if h := r.testHook; h != nil {
+		if err := h(ctx, nil, "prune-runs"); err != nil {
+			return total, err
+		}
+	}
 	for {
 		tag, err := r.cfg.DB.Exec(ctx, `
 			DELETE FROM automation.runs WHERE (tenant_id, id) IN (
 				SELECT r.tenant_id, r.id FROM automation.runs r
 				LEFT JOIN extruntime.workflow_instances i ON i.id = r.instance_id
-				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < now() - $1::interval
+				WHERE `+finishedSQL+` AND `+finishedAtSQL+` < $3::timestamptz - $1::interval
+				  -- A run whose steps are still kept (they were not old enough, or the step loop
+				  -- stopped early) is not deleted: its delete would cascade to them unbounded.
+				  AND NOT EXISTS (SELECT 1 FROM automation.steps s WHERE s.tenant_id = r.tenant_id AND s.run_id = r.id)
 				ORDER BY r.tenant_id, r.id LIMIT $2)`,
-			pgInterval(r.cfg.Retention.Runs.Seconds()), pruneRunsBatch)
+			pgInterval(r.cfg.Retention.Runs.Seconds()), pruneRunsBatch, now)
 		if err != nil {
 			return total, serrors.FromDB(opMaintain, err)
 		}
@@ -198,13 +214,60 @@ func (r *Runtime) UsageIndex() connectors.UsageIndex { return usageIndex{r: r} }
 
 type usageIndex struct{ r *Runtime }
 
+var _ connectors.TxUsageIndex = usageIndex{}
+
 func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) ([]connectors.Use, error) {
-	// The catalog first: it may need a pool connection of its own, which open rows would hold.
 	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := u.r.cfg.DB.Query(ctx, `
+	return usesIn(ctx, u.r.cfg.DB, view, tenantID, connectionID)
+}
+
+// PrepareUses reads the tenant's catalog now (it may need a pool connection of its own); the check it
+// returns reads the uses with the caller's transaction only. The tenant's connections are read before
+// the catalog and again by the check, under the caller's row lock: when any of them changed in between
+// (a status, new credentials, one added or removed), the view may resolve a graph to another connection
+// than the catalog does now, and the check returns connectors.ErrUsageChanged for the caller to
+// prepare again. Unchanged rows mean the view was read over the state the lock now protects.
+func (u usageIndex) PrepareUses(ctx context.Context, tenantID uuid.UUID) (connectors.UsesCheck, error) {
+	before, err := connectionsState(ctx, u.r.cfg.DB, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	view, err := u.r.cfg.Catalog.ForTenant(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, tx pgx.Tx, connectionID uuid.UUID) ([]connectors.Use, error) {
+		now, err := connectionsState(ctx, tx, tenantID)
+		if err != nil {
+			return nil, err
+		}
+		if now != before {
+			return nil, connectors.ErrUsageChanged
+		}
+		return usesIn(ctx, tx, view, tenantID, connectionID)
+	}, nil
+}
+
+// connectionsState is what the catalog's working connections of a tenant are derived from: the
+// identity, status and version of every connection, and every grant of an opt_in platform credential
+// (its kind, whether it is enabled and when it was last set).
+func connectionsState(ctx context.Context, q querier, tenantID uuid.UUID) (string, error) {
+	var state string
+	err := q.QueryRow(ctx, `SELECT
+		coalesce((SELECT string_agg(id::text || ':' || status || ':' || version, ',' ORDER BY id) FROM automation.connections WHERE tenant_id = $1), '')
+		|| '|' ||
+		coalesce((SELECT string_agg(kind || ':' || enabled || ':' || enabled_at, ',' ORDER BY kind) FROM automation.platform_grants WHERE tenant_id = $1), '')`,
+		tenantID).Scan(&state)
+	return state, serrors.FromDB(opMaintain, err)
+}
+
+// usesIn lists the uses of a connection in q, resolving connections a node or trigger leaves out with
+// view.
+func usesIn(ctx context.Context, q querier, view catalog.View, tenantID, connectionID uuid.UUID) ([]connectors.Use, error) {
+	rows, err := q.Query(ctx, `
 		SELECT a.id, a.name, v.version, v.graph, coalesce(a.enabled_version = v.version, false)
 		FROM automation.versions v JOIN automation.automations a ON a.tenant_id = v.tenant_id AND a.id = v.automation_id
 		WHERE v.tenant_id = $1 AND (
@@ -227,27 +290,7 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 		if err := json.Unmarshal(raw, &g); err != nil {
 			continue
 		}
-		seen := map[string]bool{}
-		// A node or trigger that names no connection uses the one the catalog resolves for its kinds,
-		// as validation and execution do: deleting that connection breaks it too.
-		uses := func(id string, kinds []catalog.ConnectorKind, param any) {
-			if c, _ := param.(string); c == want {
-				seen[id] = true
-				return
-			}
-			if param != nil || len(kinds) == 0 {
-				return
-			}
-			if ref, _, err := catalog.ResolveConnection(view.Connections, kinds, nil); err == nil && ref.ID == want {
-				seen[id] = true
-			}
-		}
-		for _, n := range g.Nodes {
-			uses(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
-		}
-		for _, t := range g.Triggers {
-			uses(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
-		}
+		seen := mayUse(view, g, want)
 		if len(seen) == 0 {
 			continue
 		}
@@ -258,4 +301,63 @@ func (u usageIndex) Uses(ctx context.Context, tenantID, connectionID uuid.UUID) 
 		out = append(out, use)
 	}
 	return out, serrors.FromDB(opMaintain, rows.Err())
+}
+
+// mayUse are the nodes and triggers of g that use connection or may come to: one that names it, and
+// one that names no connection while connection is among the working connections of its kinds. The
+// latter resolves to it as soon as the others of its kinds leave (a reauthorization, a disconnect),
+// which a delete holding only this connection's lock cannot prevent, so it blocks the delete even while
+// the resolution is ambiguous or picks another connection now.
+func mayUse(view catalog.View, g graph.Graph, connection string) map[string]bool {
+	out := map[string]bool{}
+	use := func(id string, kinds []catalog.ConnectorKind, param any) {
+		if c, _ := param.(string); c != "" {
+			if c == connection {
+				out[id] = true
+			}
+			return
+		}
+		if param != nil {
+			return
+		}
+		for _, k := range kinds {
+			for _, ref := range view.Connections[k] {
+				if ref.ID == connection {
+					out[id] = true
+				}
+			}
+		}
+	}
+	for _, n := range g.Nodes {
+		use(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
+	}
+	for _, t := range g.Triggers {
+		use(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
+	}
+	return out
+}
+
+// connectionUses maps each node and trigger of g that uses a connection to its ID. One that names no
+// connection uses the one the catalog resolves for its kinds, as validation and execution do.
+func connectionUses(view catalog.View, g graph.Graph) map[string]string {
+	out := map[string]string{}
+	use := func(id string, kinds []catalog.ConnectorKind, param any) {
+		if c, _ := param.(string); c != "" {
+			out[id] = c
+			return
+		}
+		if param != nil || len(kinds) == 0 {
+			return
+		}
+		if ref, _, err := catalog.ResolveConnection(view.Connections, kinds, nil); err == nil {
+			out[id] = ref.ID
+		}
+	}
+	for _, n := range g.Nodes {
+		use(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
+	}
+	for _, t := range g.Triggers {
+		use(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
+	}
+	return out
 }
