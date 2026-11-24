@@ -117,6 +117,19 @@ func TestEnableIsRefusedWhenItsConnectionWasDeletedAfterValidation(t *testing.T)
 	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
 }
 
+// lockWaits counts the backends of the test's database that wait for a lock in a statement matching
+// like, blocked by the backend by (0: by any).
+func (e *env) lockWaits(like string, by uint32) int {
+	return e.count(`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'
+		AND query LIKE $1 AND ($2::int = 0 OR $2::int = ANY(pg_blocking_pids(pid)))`, like, int(by))
+}
+
+// waitLockWait waits, bounded, until a backend waits as lockWaits counts it.
+func (e *env) waitLockWait(t *testing.T, like string, by uint32, msg string) {
+	t.Helper()
+	require.Eventually(t, func() bool { return e.lockWaits(like, by) > 0 }, 10*time.Second, 10*time.Millisecond, msg)
+}
+
 // hookedUsers runs hook once, on the first LoadSubject after it is armed.
 type hookedUsers struct {
 	host.SubjectLoader
@@ -142,16 +155,27 @@ func TestManualStartRunsAsTheOwnerOfTheEnableThatAdmitsIt(t *testing.T) {
 	second := e.actor(e.tenant, 2, engine.OriginHuman)
 	var reEnabled atomic.Bool
 	users.hook = func() {
-		// While the start resolves its run-as, user 2 enables the same version again.
+		// While the start resolves its run-as, user 2 enables the same version again: the enable either
+		// commits before the start is admitted, or it waits for the start's lock on the graph row.
 		done := make(chan error, 1)
 		go func() {
 			_, err := p.rt.Service().Enable(ctx, second, am.ID, engine.EnableInput{Version: 1})
 			done <- err
 		}()
-		select {
-		case err := <-done:
-			reEnabled.Store(err == nil)
-		case <-time.After(1500 * time.Millisecond): // it waits for the start's lock on the graph
+		deadline := time.After(10 * time.Second)
+		for {
+			select {
+			case err := <-done:
+				require.NoError(t, err)
+				reEnabled.Store(true)
+				return
+			case <-deadline:
+				t.Fatal("the re-enable neither committed nor waited for the start")
+			case <-time.After(10 * time.Millisecond):
+				if e.lockWaits("%automation.automations%FOR UPDATE%", 0) > 0 {
+					return // it waits for the start: admitted under the enable of before
+				}
+			}
 		}
 	}
 	users.armed.Store(true)
@@ -293,15 +317,17 @@ func TestQueuedCancelAndDisableDoNotDeadlock(t *testing.T) {
 	t.Cleanup(func() { _ = holder.Rollback(ctx) })
 	_, err = holder.Exec(ctx, `SELECT 1 FROM automation.runs WHERE id = $1 FOR UPDATE`, queued.RunID)
 	require.NoError(t, err)
+	holderPID := holder.Conn().PgConn().PID()
 	cancelled := make(chan error, 1)
 	go func() { cancelled <- p.rt.Service().Cancel(ctx, human, queued.RunID) }()
-	time.Sleep(300 * time.Millisecond)
+	e.waitLockWait(t, "%UPDATE automation.runs%", holderPID, "Cancel waits for the held run row")
 	disabled := make(chan error, 1)
 	go func() {
 		_, err := p.rt.Service().Disable(ctx, human, am.ID)
 		disabled <- err
 	}()
-	time.Sleep(500 * time.Millisecond)
+	require.Eventually(t, func() bool { return e.lockWaits("%", 0) >= 2 }, 10*time.Second, 10*time.Millisecond,
+		"Disable waits behind Cancel or the holder")
 	require.NoError(t, holder.Commit(ctx))
 	if err := <-cancelled; err != nil {
 		require.ErrorIs(t, err, engine.ErrRunFinished, "no deadlock abort")
@@ -333,10 +359,11 @@ func TestCancelOfAQueuedRunTakesTheSubjectLockFirst(t *testing.T) {
 	require.NoError(t, err)
 	done := make(chan error, 1)
 	go func() { done <- p.rt.Service().Cancel(ctx, human, queued.RunID) }()
+	e.waitLockWait(t, "%pg_advisory_xact_lock%", holder.Conn().PgConn().PID(), "the cancellation waits for the conversation's lock")
 	select {
 	case err := <-done:
 		t.Fatalf("the cancellation did not wait for the conversation's lock: %v", err)
-	case <-time.After(500 * time.Millisecond):
+	default:
 	}
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.subject_queue WHERE run_id = $1`, queued.RunID), "nothing changed while the lock is held")
 	require.NoError(t, holder.Commit(ctx))
@@ -503,7 +530,8 @@ func TestScheduleActivationIsTakenAfterTheGraphLock(t *testing.T) {
 		_, err := p.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: 1})
 		done <- err
 	}()
-	time.Sleep(time.Second)
+	e.waitLockWait(t, "%automation.automations%FOR UPDATE%", holder.Conn().PgConn().PID(), "the enable waits for the held graph row")
+	time.Sleep(500 * time.Millisecond) // the transaction-start clock lags behind the lock by this much
 	var released time.Time
 	require.NoError(t, holder.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&released))
 	require.NoError(t, holder.Commit(ctx))
@@ -537,14 +565,16 @@ type lockTracer struct {
 	match string
 	after func()
 	once  atomic.Bool
+	pid   atomic.Uint32 // the backend that ran the statement
 }
 
 func (l *lockTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	return context.WithValue(ctx, sqlKey{}, data.SQL)
 }
 
-func (l *lockTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {
+func (l *lockTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, _ pgx.TraceQueryEndData) {
 	if sql, _ := ctx.Value(sqlKey{}).(string); strings.Contains(sql, l.match) && !l.once.Swap(true) {
+		l.pid.Store(conn.PgConn().PID())
 		l.after()
 	}
 }
@@ -606,9 +636,7 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 		_, err := rt.Service().Enable(tctx, human, am.ID, engine.EnableInput{Version: v.Version})
 		enabled <- err
 	}()
-	require.Eventually(t, func() bool {
-		return e.count(`SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%automation.connections%FOR SHARE%'`) > 0
-	}, 5*time.Second, 20*time.Millisecond, "the enable waits for the connection's row")
+	e.waitLockWait(t, "%automation.connections%FOR SHARE%", tr.pid.Load(), "the enable waits for the row the delete holds")
 	letGo()
 	var inUse *connectors.InUseError
 	require.ErrorAs(t, <-deleted, &inUse, "the delete finishes its check in its own transaction")
@@ -794,4 +822,26 @@ func TestAutoEnableKeepsTheEnabledVersionWhenItsConnectionChangedAfterValidation
 	assert.Equal(t, 2, v2.Version)
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version = 1`, am.ID),
 		"the running version stays: the new one is not enabled over a view that changed")
+}
+
+func TestEnableIsRefusedWhenAnotherCandidateConnectionAppearedAfterValidation(t *testing.T) {
+	e := newEnv(t)
+	bp, cat, store, _ := botSetup(t, e, e.proc())
+	ctx := context.Background()
+	human := e.human()
+	am, v1, err := bp.rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(botGraph("Bot"))})
+	require.NoError(t, err)
+	// A stays connected (its lock succeeds); B, a second working bot, makes the omitted connection
+	// ambiguous after the validation.
+	cat.change = func(ctx context.Context) {
+		_, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_b"}, connectors.Credentials{"token": "b"})
+		require.NoError(t, err)
+	}
+	cat.at.Store(cat.calls.Load() + 2)
+	_, err = bp.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v1.Version})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr, "validated again: the omitted connection is ambiguous now")
+	require.NotEmpty(t, verr.Errors)
+	assert.Equal(t, "nodes[0].params.connection", verr.Errors[0].Path, "%v", verr.Errors)
+	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
 }
