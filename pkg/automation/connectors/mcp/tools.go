@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 )
 
@@ -89,22 +90,29 @@ func (c *Connector) Tools(ctx context.Context, tenantID, connectionID uuid.UUID)
 		return nil, err
 	}
 	_, tools, err := c.list(ctx, cf, token)
-	if isUnauthorized(err) && cf.auth == AuthOAuth2 && !refreshed {
+	if refused401(err) && cf.auth == AuthOAuth2 && !refreshed {
 		if token, _, err = c.tokenFor(ctx, tenantID, connectionID, cf, true); err != nil {
 			return nil, err
 		}
 		_, tools, err = c.list(ctx, cf, token)
 	}
-	if isUnauthorized(err) && cf.auth == AuthOAuth2 {
-		c.markReauth(ctx, tenantID, connectionID, "the server refused the access token after a refresh")
+	if refused401(err) && cf.auth == AuthOAuth2 {
+		c.markReauth(ctx, tenantID, connectionID, creds, token, "the server refused the access token after a refresh")
 	}
 	if err != nil {
 		return nil, err
 	}
 	tools = newScrubber(creds, token).tools(tools)
-	// A refresh made now changed the version: the list is kept under the version it was listed with.
-	if now, _, gerr := st.Get(ctx, tenantID, connectionID); gerr == nil {
-		c.cache.put(key, now.Version, c.now(), tools)
+	// The list is the server's the request read: a connection whose server or client changed meanwhile
+	// is listed again, never answered (or cached) with another server's tools. A refresh alone (the same
+	// settings, a new token) keeps it, under the new version.
+	now, nowCreds, err := st.Get(ctx, tenantID, connectionID)
+	if err != nil {
+		return nil, err
 	}
+	if now.Version != conn.Version && !sameSettings(nowCreds, creds) {
+		return nil, &catalog.CallError{Code: catalog.CallUnavailable, Message: "the connection's settings changed while its tools were listed; list again", Retryable: true}
+	}
+	c.cache.put(key, now.Version, c.now(), tools)
 	return append([]Tool(nil), tools...), nil
 }

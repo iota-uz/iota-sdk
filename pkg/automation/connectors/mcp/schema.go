@@ -5,14 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math/big"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 // ToolPin is the schema of a tool as a graph version pinned it when it was saved.
@@ -219,17 +222,254 @@ const (
 )
 
 // checkArguments checks the arguments of a node against the pinned input schema, as the object a run
-// assembles from them: every required property is given at every level, no key names a property a
-// closed object lacks, a literal value is validated by the schema of the property it lands in (nested
-// constraints, enums and $ref included) and a template or CEL expression must give a type the property
-// takes. typeOf is the CEL type of an expression (nil: CEL is not checked).
+// assembles from them, with the compiled schema ($ref, allOf, additionalProperties schemas and every
+// other keyword): literal values are validated where they land, every required property must be given
+// at every level, and a template or a CEL expression (known by its type only) must give a type the
+// property takes. typeOf is the CEL type of an expression (nil: CEL is not checked).
 func checkArguments(input json.RawMessage, args map[string]Argument, typeOf func(string) (string, error)) []argIssue {
-	root, conflicts := argTree(args)
-	out := append([]argIssue(nil), conflicts...)
-	v := &argValidator{input: input, typeOf: typeOf}
-	out = append(out, v.check(root, "", input, "")...)
-	sort.SliceStable(out, func(i, j int) bool { return out[i].path < out[j].path })
+	root, out := argTree(args)
+	schema := compileInput(input)
+	if schema == nil {
+		return out // a schema that does not compile: the server checks the call itself
+	}
+	var holders []holder
+	base := assemble(root, nil, &holders, typeOf)
+	for _, leaf := range leaves(schema, base) {
+		if underHolder(leaf.InstanceLocation, holders) {
+			continue
+		}
+		out = append(out, issuesOf(root, leaf)...)
+	}
+	// Each template or expression is tried with a value of every type it may give: it fits when one
+	// passes the type checks where it lands.
+	for _, h := range holders {
+		if len(h.probes) == 0 {
+			continue
+		}
+		fits := false
+		for _, probe := range h.probes {
+			setAtLoc(base, h.loc, probe)
+			bad := false
+			for _, leaf := range leaves(schema, base) {
+				if isTypeError(leaf) && within(leaf.InstanceLocation, h.loc) {
+					bad = true
+					break
+				}
+			}
+			if !bad {
+				fits = true
+				break
+			}
+		}
+		setAtLoc(base, h.loc, nil)
+		if !fits {
+			out = append(out, argIssue{path: "arguments." + h.node.key + "." + h.field, code: CodeArgumentType,
+				message: fmt.Sprintf("%s gives %s; %s takes another type", h.what, h.gives, orArguments(strings.Join(h.loc, ".")))})
+		}
+	}
+	seen := map[string]bool{}
+	uniq := out[:0]
+	for _, i := range out {
+		if k := i.path + "\x00" + i.message; !seen[k] {
+			seen[k] = true
+			uniq = append(uniq, i)
+		}
+	}
+	sort.SliceStable(uniq, func(i, j int) bool { return uniq[i].path < uniq[j].path })
+	return uniq
+}
+
+// holder is a template or an expression inside the assembled arguments.
+type holder struct {
+	loc    []string
+	node   *argNode
+	field  string // template | cel
+	what   string
+	gives  string
+	probes []any
+}
+
+// assemble is the arguments object with literal values in place and null where a template or an
+// expression goes (each recorded with the values of the types it may give).
+func assemble(n *argNode, loc []string, holders *[]holder, typeOf func(string) (string, error)) any {
+	switch {
+	case n.isLit:
+		return n.literal
+	case n.tmpl != nil:
+		// A template's text is read as the number or boolean the schema wants (buildArguments).
+		*holders = append(*holders, holder{loc: append([]string(nil), loc...), node: n, field: "template", what: "a template", gives: "text",
+			probes: []any{"", json.Number("0"), true}})
+		return nil
+	case n.cel != nil:
+		h := holder{loc: append([]string(nil), loc...), node: n, field: "cel", what: "the expression"}
+		if typeOf != nil {
+			if t, err := typeOf(*n.cel); err == nil {
+				h.gives, h.probes = t, probesOf(jsonTypeOfCEL(t))
+			}
+		}
+		*holders = append(*holders, h)
+		return nil
+	}
+	obj := make(map[string]any, len(n.children))
+	for k, c := range n.children {
+		obj[k] = assemble(c, append(loc, k), holders, typeOf)
+	}
+	return obj
+}
+
+// probesOf are values of a JSON type (none: dyn, any value may come).
+func probesOf(t string) []any {
+	switch t {
+	case "string":
+		return []any{""}
+	case "integer":
+		return []any{json.Number("0")}
+	case "number":
+		return []any{json.Number("0.5")}
+	case "boolean":
+		return []any{false}
+	case "array":
+		return []any{[]any{}}
+	case "object":
+		return []any{map[string]any{}}
+	case "null":
+		return []any{nil}
+	}
+	return nil
+}
+
+func setAtLoc(root any, loc []string, v any) {
+	cur, _ := root.(map[string]any)
+	for i, k := range loc {
+		if cur == nil {
+			return
+		}
+		if i == len(loc)-1 {
+			cur[k] = v
+			return
+		}
+		cur, _ = cur[k].(map[string]any)
+	}
+}
+
+func compileInput(input json.RawMessage) *jsonschema.Schema {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
+	if err != nil {
+		return nil
+	}
+	c := jsonschema.NewCompiler()
+	c.UseLoader(noLoader{})
+	if err := c.AddResource("mcp-input.json", doc); err != nil {
+		return nil
+	}
+	s, err := c.Compile("mcp-input.json")
+	if err != nil {
+		return nil
+	}
+	return s
+}
+
+// leaves are the innermost failures of validating v.
+func leaves(s *jsonschema.Schema, v any) []*jsonschema.ValidationError {
+	err := s.Validate(v)
+	var ve *jsonschema.ValidationError
+	if !errors.As(err, &ve) {
+		return nil
+	}
+	var out []*jsonschema.ValidationError
+	var walk func(e *jsonschema.ValidationError)
+	walk = func(e *jsonschema.ValidationError) {
+		if len(e.Causes) == 0 {
+			out = append(out, e)
+			return
+		}
+		for _, c := range e.Causes {
+			walk(c)
+		}
+	}
+	walk(ve)
 	return out
+}
+
+func isTypeError(e *jsonschema.ValidationError) bool {
+	switch e.ErrorKind.(type) {
+	case *kind.Type, *kind.FalseSchema:
+		return true
+	}
+	return false
+}
+
+// within reports whether loc is at or under at.
+func within(loc, at []string) bool {
+	if len(loc) < len(at) {
+		return false
+	}
+	for i := range at {
+		if loc[i] != at[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func underHolder(loc []string, holders []holder) bool {
+	for _, h := range holders {
+		if within(loc, h.loc) {
+			return true
+		}
+	}
+	return false
+}
+
+var english = message.NewPrinter(language.English)
+
+// issuesOf is a failure as issues on the arguments that built the value it is about.
+func issuesOf(root *argNode, e *jsonschema.ValidationError) []argIssue {
+	loc := e.InstanceLocation
+	switch k := e.ErrorKind.(type) {
+	case *kind.Required:
+		// A literal object that lacks a property is that value's issue; an object built of several
+		// arguments lacks an argument.
+		path := "arguments"
+		if n := nodeAt(root, loc); n.isLit && len(loc) > 0 {
+			path = "arguments." + n.key + ".value"
+		}
+		out := make([]argIssue, 0, len(k.Missing))
+		for _, m := range k.Missing {
+			out = append(out, argIssue{path: path, code: CodeArgumentMissing, message: fmt.Sprintf("the tool needs argument %s", join(strings.Join(loc, "."), m))})
+		}
+		return out
+	case *kind.AdditionalProperties:
+		out := make([]argIssue, 0, len(k.Properties))
+		for _, p := range k.Properties {
+			n := nodeAt(root, append(append([]string(nil), loc...), p))
+			out = append(out, argIssue{path: "arguments." + n.key, code: CodeArgumentUnknown, message: fmt.Sprintf("the tool has no argument %s", join(strings.Join(loc, "."), p))})
+		}
+		return out
+	}
+	n := nodeAt(root, loc)
+	path := "arguments." + n.key
+	if n.isLit {
+		path += ".value"
+	}
+	return []argIssue{{path: path, code: CodeArgumentType,
+		message: fmt.Sprintf("%s does not fit the tool's schema: %s", orArguments(strings.Join(loc, ".")), clip(e.ErrorKind.LocalizedString(english), 300))}}
+}
+
+// nodeAt is the deepest node of the assembled arguments on the way to loc.
+func nodeAt(root *argNode, loc []string) *argNode {
+	cur := root
+	for _, k := range loc {
+		next, ok := cur.children[k]
+		if !ok {
+			break
+		}
+		cur = next
+	}
+	if cur.key == "" {
+		cur = &argNode{key: firstKey(root)}
+	}
+	return cur
 }
 
 // argNode is the assembled arguments: an object of children, a literal (from a value) or a placeholder
@@ -329,113 +569,6 @@ func explode(n *argNode) bool {
 	return true
 }
 
-type argValidator struct {
-	input  json.RawMessage
-	typeOf func(string) (string, error)
-	failed bool
-}
-
-// at compiles the input schema once and returns the schema at a JSON pointer inside it.
-func (v *argValidator) at(ptr string) *jsonschema.Schema {
-	if v.failed {
-		return nil
-	}
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(v.input))
-	if err != nil {
-		v.failed = true
-		return nil
-	}
-	c := jsonschema.NewCompiler()
-	c.UseLoader(noLoader{})
-	if err := c.AddResource("mcp-input.json", doc); err != nil {
-		v.failed = true
-		return nil
-	}
-	s, err := c.Compile("mcp-input.json#" + ptr)
-	if err != nil {
-		return nil
-	}
-	return s
-}
-
-func pointerEscape(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
-}
-
-// check validates node, which lands at dotted (its path in the arguments) with the schema raw at ptr.
-func (v *argValidator) check(n *argNode, dotted string, raw json.RawMessage, ptr string) []argIssue {
-	sn := readSchema(raw)
-	switch {
-	case n.isLit:
-		s := v.at(ptr)
-		if s == nil {
-			if msg := valueFits(sn, mustJSON(n.literal)); msg != "" {
-				return []argIssue{{path: "arguments." + n.key + ".value", code: CodeArgumentType, message: msg}}
-			}
-			return nil
-		}
-		val, err := jsonschema.UnmarshalJSON(bytes.NewReader(mustJSON(n.literal)))
-		if err != nil {
-			return nil
-		}
-		if err := s.Validate(val); err != nil {
-			where := dotted
-			if where == "" {
-				where = "the arguments"
-			}
-			return []argIssue{{path: "arguments." + n.key + ".value", code: CodeArgumentType,
-				message: fmt.Sprintf("%s does not fit the tool's schema: %s", where, firstLine(err.Error()))}}
-		}
-		return nil
-	case n.tmpl != nil:
-		if !sn.allows("string") && !sn.allows("number") && !sn.allows("boolean") {
-			return []argIssue{{path: "arguments." + n.key + ".template", code: CodeArgumentType,
-				message: fmt.Sprintf("a template gives text; %s is %s", dotted, strings.Join(sn.Types, " or "))}}
-		}
-		return nil
-	case n.cel != nil:
-		if v.typeOf == nil {
-			return nil
-		}
-		t, err := v.typeOf(*n.cel)
-		if err != nil {
-			return nil // the graph's own check of the expression reports it
-		}
-		if js := jsonTypeOfCEL(t); js != "" && !sn.allows(js) {
-			return []argIssue{{path: "arguments." + n.key + ".cel", code: CodeArgumentType,
-				message: fmt.Sprintf("the expression is %s; %s is %s", t, dotted, strings.Join(sn.Types, " or "))}}
-		}
-		return nil
-	}
-	// An object assembled from several arguments.
-	var out []argIssue
-	if len(sn.Types) > 0 && !sn.allows("object") {
-		return []argIssue{{path: "arguments." + firstKey(n), code: CodeArgumentType, message: fmt.Sprintf("%s is %s, not an object", orArguments(dotted), strings.Join(sn.Types, " or "))}}
-	}
-	for _, r := range sn.Required {
-		if _, ok := n.children[r]; !ok {
-			out = append(out, argIssue{path: "arguments", code: CodeArgumentMissing, message: fmt.Sprintf("the tool needs argument %s", join(dotted, r))})
-		}
-	}
-	names := make([]string, 0, len(n.children))
-	for k := range n.children {
-		names = append(names, k)
-	}
-	sort.Strings(names)
-	for _, k := range names {
-		child := n.children[k]
-		sub, declared := sn.Properties[k]
-		if !declared {
-			if sn.Closed {
-				out = append(out, argIssue{path: "arguments." + child.key, code: CodeArgumentUnknown, message: fmt.Sprintf("the tool has no argument %s", join(dotted, k))})
-			}
-			continue // an open object: the server's own check decides
-		}
-		out = append(out, v.check(child, join(dotted, k), sub, ptr+"/properties/"+pointerEscape(k))...)
-	}
-	return out
-}
-
 func join(prefix, k string) string {
 	if prefix == "" {
 		return k
@@ -463,22 +596,6 @@ func firstKey(n *argNode) string {
 	return keys[0]
 }
 
-func mustJSON(v any) json.RawMessage {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return json.RawMessage(`null`)
-	}
-	return b
-}
-
-func firstLine(s string) string {
-	s = strings.TrimSpace(s)
-	if i := strings.LastIndex(s, "\n"); i >= 0 {
-		s = strings.TrimSpace(s[i+1:])
-	}
-	return clip(s, 300)
-}
-
 // jsonTypeOfCEL is the JSON type a CEL type renders to ("" when any may come: dyn, a type parameter).
 func jsonTypeOfCEL(t string) string {
 	switch {
@@ -500,54 +617,6 @@ func jsonTypeOfCEL(t string) string {
 		return "object" // a declared object of the expression language
 	}
 	return ""
-}
-
-// valueFits checks a literal value against a property schema's type and enum.
-func valueFits(node schemaNode, raw json.RawMessage) string {
-	v, err := decodeJSON(raw)
-	if err != nil {
-		return "the value is not JSON"
-	}
-	t := jsonTypeOf(v)
-	if !node.allows(t) {
-		return fmt.Sprintf("the value is %s, the tool takes %s", t, strings.Join(node.Types, " or "))
-	}
-	if node.HasEnum {
-		got, _ := marshalCanonical(v)
-		for _, e := range node.Enum {
-			if want, err := marshalCanonical(e); err == nil && bytes.Equal(got, want) {
-				return ""
-			}
-		}
-		return "the value is not one the tool allows"
-	}
-	return ""
-}
-
-func jsonTypeOf(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return "null"
-	case bool:
-		return "boolean"
-	case string:
-		return "string"
-	case json.Number:
-		if r, ok := new(big.Rat).SetString(string(x)); ok && r.IsInt() {
-			return "integer"
-		}
-		return "number"
-	case float64:
-		if x == float64(int64(x)) {
-			return "integer"
-		}
-		return "number"
-	case []any:
-		return "array"
-	case map[string]any:
-		return "object"
-	}
-	return "object"
 }
 
 // buildArguments assembles the arguments object of a tools/call from the rendered params: a template is

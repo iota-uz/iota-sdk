@@ -183,32 +183,34 @@ type cappedBody struct {
 
 func (b *cappedBody) Read(p []byte) (int, error) {
 	if b.left <= 0 {
-		b.o.mu.Lock()
-		b.o.tooLarge = true
-		b.o.mu.Unlock()
-		return 0, errTooLarge
+		// The cap is reached: one more byte is an overflow, the end of the body is an exact fit.
+		var one [1]byte
+		m, err := b.r.Read(one[:])
+		if m > 0 {
+			b.o.mu.Lock()
+			b.o.tooLarge = true
+			b.o.mu.Unlock()
+			return 0, errTooLarge
+		}
+		b.done(err)
+		return 0, err
 	}
 	if int64(len(p)) > b.left {
 		p = p[:b.left]
 	}
 	n, err := b.r.Read(p)
 	b.left -= int64(n)
+	b.done(err)
+	return n, err
+}
+
+// done records a body of the method read to its end.
+func (b *cappedBody) done(err error) {
 	if errors.Is(err, io.EOF) && b.method != "" {
 		b.o.mu.Lock()
 		b.o.complete[b.method] = true
 		b.o.mu.Unlock()
 	}
-	if b.left <= 0 && err == nil {
-		// One more byte would cross the cap: look ahead to tell an exact fit from an overflow.
-		var one [1]byte
-		if m, _ := b.r.Read(one[:]); m > 0 {
-			b.o.mu.Lock()
-			b.o.tooLarge = true
-			b.o.mu.Unlock()
-			return n, errTooLarge
-		}
-	}
-	return n, err
 }
 
 func (b *cappedBody) Close() error { return b.r.Close() }
@@ -372,8 +374,14 @@ func classify(obs *observer, method string, err error, effect bool) error {
 	switch {
 	case obs.wasBlocked() || errors.Is(err, ErrBlocked):
 		return &catalog.CallError{Code: catalog.CallUnavailable, Message: "the server's address is not allowed (private, loopback, link-local or metadata address, or not https on an allowed port)"}
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the server refused the credentials (HTTP " + strconv.Itoa(status) + ")"}
+	case status == http.StatusUnauthorized:
+		// 401: the request was refused before it was served; a refreshed token may be sent again.
+		return &tokenRefusedError{ce: &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the server refused the credentials (HTTP 401)"}}
+	case status == http.StatusForbidden && effect && obs.wasWritten(method):
+		// 403 does not say the operation did not start: never sent again.
+		return &catalog.CallError{Code: catalog.CallRejected, Message: "the server refused " + method + " with HTTP 403 after it was sent; the call is not repeated"}
+	case status == http.StatusForbidden:
+		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the server refused the credentials (HTTP 403)"}
 	case status == http.StatusTooManyRequests && effect && obs.wasWritten(method):
 		// The call reached the server: a repeat may run the tool twice, so it is not asked for.
 		return &catalog.CallError{Code: catalog.CallRejected, Message: "the server refused " + method + " with HTTP 429 after it was sent; the call is not repeated"}
@@ -409,6 +417,19 @@ func (o *observer) completed(method string) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.complete[method]
+}
+
+// tokenRefusedError is HTTP 401: the only answer after which the call is sent again, once, with a refreshed
+// token. It unwraps to the unauthorized CallError the engine sees.
+type tokenRefusedError struct{ ce *catalog.CallError }
+
+func (e *tokenRefusedError) Error() string { return e.ce.Error() }
+func (e *tokenRefusedError) Unwrap() error { return e.ce }
+
+// refused401 reports an HTTP 401 of the server.
+func refused401(err error) bool {
+	var t *tokenRefusedError
+	return errors.As(err, &t)
 }
 
 // rateLimitedError is HTTP 429 before the request was served: after is the server's Retry-After (0: none).

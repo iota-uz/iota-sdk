@@ -134,5 +134,11 @@ func TestMCPToolSchemaIsPinnedInTheVersion(t *testing.T) {
 		return false
 	}, "the run ends")
 	require.Equal(t, catalog.CallUnauthorized, code)
+
+	// Test node of the same node answers unauthorized, not a validation failure.
+	tested, err := p.rt.Authoring().TestNode(ctx, e.human(), engine.TestNodeInput{Graph: v.Graph, NodeID: "call"})
+	require.NoError(t, err)
+	require.NotNil(t, tested.Error)
+	require.Equal(t, catalog.CallUnauthorized, tested.Error.Code)
 	require.Len(t, srv.Calls(), 2, "nothing reached the server")
 }

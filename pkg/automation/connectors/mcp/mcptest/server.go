@@ -44,6 +44,8 @@ const (
 	FaultOversized Fault = "oversized"
 	// FaultRedirect answers 307 to the URL of SetRedirect.
 	FaultRedirect Fault = "redirect"
+	// FaultForbidden answers 403.
+	FaultForbidden Fault = "forbidden"
 )
 
 // Result is what a scripted tool answers.
@@ -321,6 +323,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 		}
 		switch {
+		case fault == FaultForbidden:
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
 		case fault == FaultRedirect:
 			http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
 			return

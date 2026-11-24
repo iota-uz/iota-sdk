@@ -547,8 +547,10 @@ func (c *Connector) tokenFor(ctx context.Context, tenantID, connectionID uuid.UU
 	return creds[KeyAccessToken], true, nil
 }
 
-// markReauth sets needs_reauth on a connected connection the server refuses after a refresh.
-func (c *Connector) markReauth(ctx context.Context, tenantID, connectionID uuid.UUID, reason string) {
+// markReauth sets needs_reauth on a connected connection the server refused after a refresh: only while
+// the row still holds the settings and the access token that were refused, so a late refusal never
+// undoes a sign-in or a refresh committed meanwhile.
+func (c *Connector) markReauth(ctx context.Context, tenantID, connectionID uuid.UUID, used connectors.Credentials, token, reason string) {
 	c.cache.drop(tenantID, connectionID)
 	st, err := c.boundStore()
 	if err != nil {
@@ -556,8 +558,8 @@ func (c *Connector) markReauth(ctx context.Context, tenantID, connectionID uuid.
 	}
 	mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, _, err = st.UpdateCredentials(mctx, tenantID, connectionID, func(conn connectors.Connection, _ connectors.Credentials) (*connectors.CredentialChange, error) {
-		if conn.Status != connectors.StatusConnected {
+	_, _, err = st.UpdateCredentials(mctx, tenantID, connectionID, func(conn connectors.Connection, cur connectors.Credentials) (*connectors.CredentialChange, error) {
+		if conn.Status != connectors.StatusConnected || !sameSettings(cur, used) || cur[KeyAccessToken] != token {
 			return nil, nil //nolint:nilnil // already not connected: nothing to mark
 		}
 		return &connectors.CredentialChange{Status: connectors.StatusNeedsReauth, StatusReason: reason}, nil

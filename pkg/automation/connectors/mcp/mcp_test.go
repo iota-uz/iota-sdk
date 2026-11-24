@@ -1,15 +1,19 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"testing"
+	"testing/iotest"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -617,4 +621,163 @@ func TestAHangingSessionEndDoesNotHoldTheAnswer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, OutcomeDone, res.Outcome)
 	require.Less(t, time.Since(started), 3*time.Second)
+}
+
+func TestA403AfterToolsCallIsNotSentAgain(t *testing.T) {
+	srv := mcptest.New(t)
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "ok", Structured: map[string]any{"temp": 1}}
+	})
+	srv.SetTool(tool)
+	srv.RequireToken("acc-1")
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthOAuth2, KeyAccessToken: "acc-1", KeyRefreshToken: "r", KeyResource: srv.URL,
+		KeyIssuer: srv.Origin(), KeyTokenEndpoint: srv.Origin() + "/token", KeyClientID: "c1"}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	srv.Fail("tools/call", mcptest.FaultForbidden)
+	_, err := c.Node().Execute(context.Background(), callInput(id, creds, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.Equal(t, catalog.CallRejected, callCode(err), "%v", err)
+	require.Equal(t, 1, srv.Requests("tools/call"), "no refresh and no second tools/call on 403")
+	require.Zero(t, srv.RefreshCalls())
+	require.Equal(t, connectors.StatusConnected, st.status(id))
+}
+
+func TestShortSecretsAreNotEchoed(t *testing.T) {
+	srv := mcptest.New(t)
+	const token = "k9"
+	srv.SetTool(mcptest.Tool{Name: "echo", Title: "Echo " + token, InputSchema: map[string]any{"type": "object"}})
+	srv.SetTool(mcptest.Tool{Name: "plain", Title: "Plain", InputSchema: map[string]any{"type": "object", "description": "uses " + token}})
+	srv.SetTool(mcptest.Tool{Name: "fine", Title: "Fine", InputSchema: map[string]any{"type": "object"},
+		Handle: func(map[string]any) mcptest.Result { return mcptest.Result{Text: "your key is " + token} }})
+	srv.RequireToken(token)
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: token}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	tools, err := c.Tools(context.Background(), tenant, id)
+	require.NoError(t, err)
+	require.Len(t, tools, 1, "tools whose metadata carry the short token are left out")
+	require.Equal(t, "fine", tools[0].Name)
+	pin, err := PinOf(tools[0])
+	require.NoError(t, err)
+	pv, err := pinValue(pin)
+	require.NoError(t, err)
+	res, err := c.Node().Execute(context.Background(), callInput(id, creds, map[string]any{"tool": "fine", "tool_schema": pv}))
+	require.NoError(t, err)
+	require.NotContains(t, res.Output["text"], token)
+}
+
+func TestTheResponseCapAcceptsAnExactFit(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		r    func([]byte) io.Reader
+	}{
+		{"whole", func(b []byte) io.Reader { return bytes.NewReader(b) }},
+		{"chunked", func(b []byte) io.Reader { return iotest.HalfReader(bytes.NewReader(b)) }},
+		{"eof with data", func(b []byte) io.Reader { return iotest.DataErrReader(bytes.NewReader(b)) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o := newObserver("https://x", "")
+			exact := &cappedBody{r: io.NopCloser(tc.r(bytes.Repeat([]byte("a"), MaxResponseBytes))), left: MaxResponseBytes, o: o, method: "tools/call"}
+			n, err := io.Copy(io.Discard, exact)
+			require.NoError(t, err)
+			require.EqualValues(t, MaxResponseBytes, n)
+			require.False(t, o.overflowed())
+			require.True(t, o.completed("tools/call"))
+
+			o = newObserver("https://x", "")
+			over := &cappedBody{r: io.NopCloser(tc.r(bytes.Repeat([]byte("a"), MaxResponseBytes+1))), left: MaxResponseBytes, o: o}
+			_, err = io.Copy(io.Discard, over)
+			require.ErrorIs(t, err, errTooLarge)
+			require.True(t, o.overflowed())
+		})
+	}
+}
+
+// changingStore changes the connection's server while a request is on its way.
+type changingStore struct {
+	*memStore
+	onGet func(n int)
+	gets  int
+}
+
+func (s *changingStore) Get(ctx context.Context, tenant, id uuid.UUID) (connectors.Connection, connectors.Credentials, error) {
+	s.gets++
+	if s.onGet != nil {
+		s.onGet(s.gets)
+	}
+	return s.memStore.Get(ctx, tenant, id)
+}
+
+func TestToolsOfAServerReplacedMidRequestAreNotKept(t *testing.T) {
+	srv := mcptest.New(t)
+	srv.SetTool(weatherTool(nil))
+	mem := newMemStore()
+	id := mem.add(tenant, connectors.Credentials{KeyServerURL: srv.URL})
+	st := &changingStore{memStore: mem}
+	st.onGet = func(n int) {
+		if n == 2 { // after the list, before it is kept
+			mem.setCreds(id, func(c connectors.Credentials) { c[KeyServerURL] = "https://other.example.com/mcp" })
+		}
+	}
+	c := New(WithStore(st), withFake(srv, nil))
+	_, err := c.Tools(context.Background(), tenant, id)
+	require.Equal(t, catalog.CallUnavailable, callCode(err), "%v", err)
+	st.onGet = nil
+	_, ok := c.cache.get(cacheKey{tenant, id}, 2, time.Now())
+	require.False(t, ok, "nothing is cached for the new settings")
+}
+
+func TestALateRefusalDoesNotUndoANewSignIn(t *testing.T) {
+	st := newMemStore()
+	used := connectors.Credentials{KeyServerURL: "https://a.example.com/mcp", KeyAuth: AuthOAuth2, KeyAccessToken: "old", KeyClientID: "c1"}
+	id := st.add(tenant, used)
+	c := New(WithStore(st))
+	// The administrator signs in again before the refusal of the old token is recorded.
+	st.setCreds(id, func(c connectors.Credentials) { c[KeyAccessToken] = "new" })
+	c.markReauth(context.Background(), tenant, id, used, "old", "refused")
+	require.Equal(t, connectors.StatusConnected, st.status(id))
+	c.markReauth(context.Background(), tenant, id, used, "new", "refused")
+	require.Equal(t, connectors.StatusNeedsReauth, st.status(id), "the token of the row now is refused")
+}
+
+func TestArgumentsAreCheckedWithRefsAndComposition(t *testing.T) {
+	input, err := json.Marshal(map[string]any{
+		"type": "object",
+		"$defs": map[string]any{
+			"filter": map[string]any{"type": "object", "required": []any{"field"}, "properties": map[string]any{
+				"field": map[string]any{"type": "string"}, "limit": map[string]any{"type": "integer"}}},
+		},
+		"properties": map[string]any{
+			"filter": map[string]any{"$ref": "#/$defs/filter"},
+			"tags":   map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "integer"}},
+			"mode":   map[string]any{"allOf": []any{map[string]any{"type": "string"}, map[string]any{"enum": []any{"a", "b"}}}},
+		},
+	})
+	require.NoError(t, err)
+	str := func(s string) *string { return &s }
+	typeOf := func(src string) (string, error) {
+		if strings.HasPrefix(src, "'") {
+			return "string", nil
+		}
+		return "int", nil
+	}
+	codes := func(args map[string]Argument) map[string]string {
+		out := map[string]string{}
+		for _, i := range checkArguments(input, args, typeOf) {
+			out[i.path] = i.code
+		}
+		return out
+	}
+	// A dotted key into a $ref'd object still needs its required sibling.
+	require.Equal(t, map[string]string{"arguments": CodeArgumentMissing}, codes(map[string]Argument{"filter.limit": {CEL: str("1")}}))
+	// additionalProperties as a schema, allOf with an enum, and an expression typed against a $ref.
+	require.Equal(t, map[string]string{
+		"arguments.tags.value": CodeArgumentType, "arguments.mode.value": CodeArgumentType, "arguments.filter.field.cel": CodeArgumentType,
+	}, codes(map[string]Argument{
+		"tags": {Value: json.RawMessage(`{"x": "one"}`)}, "mode": {Value: json.RawMessage(`"c"`)}, "filter.field": {CEL: str("2")},
+	}))
+	require.Empty(t, codes(map[string]Argument{"filter.field": {Template: str("{{ x }}")}, "filter.limit": {CEL: str("1")}, "mode": {Template: str("a")}}))
 }

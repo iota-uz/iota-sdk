@@ -300,12 +300,34 @@ func traceOf(in *graph.Interpreter, steps []graph.TraceStep) []TraceStep {
 	return out
 }
 
+// testedNodeNeedsReauth reports whether the node a test names needs a connection that waits for a new
+// sign-in (needsReauth).
+func (au *authoring) testedNodeNeedsReauth(ctx context.Context, a Actor, in TestNodeInput) bool {
+	g, errs := graph.Decode(in.Graph)
+	if len(errs) > 0 {
+		return false
+	}
+	for _, n := range g.Nodes {
+		if n.ID != in.NodeID {
+			continue
+		}
+		nt, ok := au.r.cfg.Catalog.Node(n.Type)
+		return ok && len(nt.Requires()) > 0 && needsReauth(ctx, au.r.cfg.DB, a.TenantID, n.Params[catalog.ConnectionParam], nt.Requires())
+	}
+	return false
+}
+
 func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return TestNodeResult{}, err
 	}
 	v, interp, err := au.authorGraph(ctx, a, in.Graph)
 	if err != nil {
+		// A node whose connection waits for a new sign-in left the catalog, so the graph does not
+		// validate: the test answers as the call would, unauthorized.
+		if errors.Is(err, ErrConnectionUnavailable) && au.testedNodeNeedsReauth(ctx, a, in) {
+			return TestNodeResult{Error: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}, nil
+		}
 		return TestNodeResult{}, err
 	}
 	node, ok := interp.View().Node(in.NodeID)

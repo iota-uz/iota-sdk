@@ -189,15 +189,15 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		return catalog.CallResult{}, err
 	}
 	res, err := n.c.call(ctx, cf, token, p.Tool, args)
-	if isUnauthorized(err) && cf.auth == AuthOAuth2 && !refreshed && connID != uuid.Nil {
+	if refused401(err) && cf.auth == AuthOAuth2 && !refreshed && connID != uuid.Nil {
 		// A 401 is a refusal before the tool ran: refresh once and send again.
 		if token, _, err = n.c.tokenFor(ctx, in.TenantID, connID, cf, true); err != nil {
 			return catalog.CallResult{}, err
 		}
 		res, err = n.c.call(ctx, cf, token, p.Tool, args)
 	}
-	if isUnauthorized(err) && cf.auth == AuthOAuth2 && connID != uuid.Nil {
-		n.c.markReauth(ctx, in.TenantID, connID, "the server refused the access token after a refresh")
+	if refused401(err) && cf.auth == AuthOAuth2 && connID != uuid.Nil {
+		n.c.markReauth(ctx, in.TenantID, connID, cf.creds, token, "the server refused the access token after a refresh")
 	}
 	var rl *rateLimitedError
 	if errors.As(err, &rl) {
@@ -231,11 +231,6 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		output["structured"] = v
 	}
 	return catalog.CallResult{Outcome: OutcomeDone, Output: output}, nil
-}
-
-func isUnauthorized(err error) bool {
-	var ce *catalog.CallError
-	return errors.As(err, &ce) && ce.Code == catalog.CallUnauthorized
 }
 
 // maxErrorText bounds the tool's own text in a rejected outcome's message.
