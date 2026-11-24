@@ -88,6 +88,7 @@ type state struct {
 	exists     map[uuid.UUID]bool // connections of the application that are alive
 	owner      uuid.UUID          // the connection the inbound state is of
 	done       map[string]bool    // updates recorded as handled (connectors.InboundOnce)
+	failDone   int                // InboundDone calls that fail
 	failWrites int                // inbound writes that fail
 	token      string             // the token the connection holds now ("" : the tenant bot's)
 	version    int
@@ -128,6 +129,10 @@ func (s *state) InboundSeen(_ context.Context, connection, event, key string) (b
 func (s *state) InboundDone(_ context.Context, _ uuid.UUID, connection, event, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.failDone > 0 {
+		s.failDone--
+		return errors.New("storage is down")
+	}
 	if s.done == nil {
 		s.done = map[string]bool{}
 	}

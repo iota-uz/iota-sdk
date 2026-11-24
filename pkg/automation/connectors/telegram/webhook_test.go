@@ -500,3 +500,24 @@ func TestAnAddressedCommandIsRedeliveredWhenTheBotCannotBeNamed(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	assert.Len(t, h.got, 1, "the redelivery was handled")
 }
+
+// The record of a completed /start that could not be written is written by the redelivery, which does not run
+// the handler again: no "unknown or used" after the reply that worked.
+func TestAFailedStartRecordIsWrittenByTheRedelivery(t *testing.T) {
+	r := newRig(t)
+	h := &oneUseLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.st.failDone = 1
+	u := r.platform.Update(800, alice, "/start u_abc")
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code, "Telegram is asked to deliver it again")
+	require.Len(t, r.platform.Sent(), 1)
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, h.got, 1, "the handler was not asked again")
+	assert.Len(t, r.platform.Sent(), 1, "and nothing contradicts the first reply")
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, h.got, 1, "the record is written: later deliveries are recognised")
+}

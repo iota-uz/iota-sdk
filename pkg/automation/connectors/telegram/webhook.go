@@ -295,6 +295,15 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 		if seen {
 			return nil
 		}
+		// A /start whose handler completed and whose record could not be written: only the record is
+		// retried, never the handler.
+		if p, pending := c.startPending.Load(connKey(conn) + "/" + updateKey); pending {
+			if err := once.InboundDone(ctx, p.(uuid.UUID), connKey(conn), startEvent, updateKey); err != nil {
+				return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+			}
+			c.startPending.Delete(connKey(conn) + "/" + updateKey)
+			return nil
+		}
 	}
 	tenant, ok, err := h.TenantOf(ctx, payload)
 	if err != nil {
@@ -335,7 +344,12 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	}
 	if hasOnce {
 		if err := once.InboundDone(ctx, account, connKey(conn), startEvent, updateKey); err != nil {
+			// The handler consumed what it was given: the update is answered 503 so that Telegram redelivers
+			// it, and the redelivery writes the record without running the handler again (the account is kept
+			// here for it). A restart in between loses the note; the handler is then asked again.
 			c.log().Warn("telegram: a handled /start was not recorded", "error", err.Error())
+			c.startPending.Store(connKey(conn)+"/"+updateKey, account)
+			return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
 		}
 	}
 	return nil

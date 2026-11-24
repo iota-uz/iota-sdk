@@ -88,6 +88,8 @@ type Connector struct {
 	presses presses
 	// usernames caches the username of a bot by its token (the addressee of a command).
 	usernames sync.Map
+	// startPending holds the /start updates a handler completed whose record is still to be written.
+	startPending sync.Map
 	// platformToken is the platform credential StartPlatform was given (the effective one).
 	platformToken atomic.Pointer[string]
 }
