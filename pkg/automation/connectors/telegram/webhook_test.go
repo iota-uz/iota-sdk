@@ -667,6 +667,14 @@ func TestAStartHandlerThatLostItsClaimDoesNotOverwriteItsSuccessor(t *testing.T)
 	assert.Equal(t, http.StatusOK, code)
 	require.Len(t, r.platform.Sent(), 1)
 	assert.Equal(t, "run 2", r.platform.Sent()[0].Text, "and the replay does not bring the stale result back")
+	// The record itself: the successor's result, finished, and nothing of the stale run in it.
+	r.st.mu.Lock()
+	defer r.st.mu.Unlock()
+	require.Len(t, r.st.actions, 1)
+	for _, a := range r.st.actions {
+		assert.Equal(t, connectors.InboundDone, a.State, "the update is finished")
+		assert.Equal(t, "run 2", a.Reply, "with the successor's reply, not the stale handler's")
+	}
 }
 
 // numbered answers "run N" to its Nth call, and runs during once, inside its first call.

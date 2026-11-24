@@ -306,8 +306,12 @@ describe('a field with an options source (a chat)', () => {
     expect(selectionOf('telegram.chats', 'abc')).toBeNull()
   })
 
-  it('asks again when the connection of the step changes', async () => {
-    const searchOptions = vi.fn(async () => [{ value: '1', label: 'A', group: 'private' }])
+  it('asks again when the connection of the step changes, and keeps the first connection\'s chats out of the second', async () => {
+    const chats: Record<string, Record<string, { value: string; label: string; group: string }[]>> = {
+      one: { '': [{ value: '1', label: 'Alice', group: 'private' }], al: [{ value: '3', label: 'Alfred', group: 'private' }] },
+      two: { '': [{ value: '2', label: 'Bob', group: 'private' }] },
+    }
+    const searchOptions = vi.fn(async (_source: string, query: string, ctx: { params: Record<string, unknown> }) => chats[String(ctx.params.connection)]?.[query] ?? [])
     const [value, setValue] = createSignal<Record<string, unknown>>({ connection: 'one' })
     render(() => (
       <SchemaForm
@@ -316,14 +320,21 @@ describe('a field with an options source (a chat)', () => {
       />
     ))
     await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
-    const picker = document.querySelector('[role="combobox"]')
-    expect(picker).not.toBeNull()
+    // A search of the first connection's picker, finished: its result is in that picker.
+    const picker = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
+    fireEvent.click(picker)
+    fireEvent.input(picker, { target: { value: 'al' } })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledWith('telegram.chats', 'al', { nodeType: 't', params: { connection: 'one' } }))
+    expect(await screen.findByRole('option', { name: 'Alfred' })).toBeInTheDocument()
+
     setValue({ connection: 'two' })
-    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(2))
-    expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } })
-    // The picker is a new one: what the first connection's searches left in the old one cannot be offered.
-    const next = document.querySelector('[role="combobox"]')
-    expect(next).not.toBeNull()
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } }))
+    // The picker is a new one: none of the first connection's results, cached or typed, is offered for the second.
+    const next = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
     expect(next).not.toBe(picker)
+    fireEvent.click(next)
+    expect(await screen.findByRole('option', { name: 'Bob' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Alfred' })).toBeNull()
+    expect(screen.queryByRole('option', { name: 'Alice' })).toBeNull()
   })
 })
