@@ -36,6 +36,7 @@ m, err := manager.New(manager.Config{
     Policy:       lifecycle.WarmPool(15*time.Minute, 8),
     EnvAllowlist: []string{"PATH", "LANG"},
     Sandbox: isolation.Profile{
+        Mode:      isolation.ModeRequired,
         RunAs:     &isolation.Credential{UID: 10001, GID: 10001}, // required when the app runs as root
         ReadPaths: []string{"/usr/share/fonts"},
     },

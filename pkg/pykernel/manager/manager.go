@@ -131,6 +131,11 @@ func New(cfg Config) (*Manager, error) {
 		return nil, fmt.Errorf("pykernel/manager: unknown sandbox mode %v", cfg.Sandbox.Mode)
 	}
 	confined := cfg.Sandbox.Mode == isolation.ModeRequired
+	if !confined && cfg.Sandbox.RunAs != nil {
+		// The unconfined path does not switch credentials; a host that asks
+		// for RunAs (an app running as root) must not get a root kernel.
+		return nil, fmt.Errorf("pykernel/manager: Sandbox.RunAs requires isolation.ModeRequired")
+	}
 	if confined {
 		cfg.Limits = cfg.Limits.WithDefaults()
 	}

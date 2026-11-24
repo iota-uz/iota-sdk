@@ -86,6 +86,16 @@ func TestNew_ZeroSandboxIsUnconfined(t *testing.T) {
 	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
 }
 
+// RunAs is applied only by the sandbox: without ModeRequired New refuses it
+// instead of starting a kernel with the host's (possibly root) credentials.
+func TestNew_RunAsRequiresTheSandbox(t *testing.T) {
+	_, err := manager.New(manager.Config{
+		Policy:  lifecycle.Ephemeral(),
+		Sandbox: isolation.Profile{RunAs: &isolation.Credential{UID: 10001, GID: 10001}},
+	})
+	require.Error(t, err)
+}
+
 func TestExec_ReportsTerminationReasons(t *testing.T) {
 	requirePython(t)
 	m := newManagerWith(t, lifecycle.Ephemeral())
