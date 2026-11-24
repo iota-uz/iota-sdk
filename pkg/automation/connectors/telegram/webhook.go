@@ -370,8 +370,17 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if isPlatform(conn) {
 		account = tenant
 	}
+	updateKeyOf := strconv.FormatInt(botID(b.api.Token), 10) + ":" + updateKey
+	if isPlatform(conn) && account == uuid.Nil {
+		// A rerun of an update whose link is spent: a handler that keeps its result by key knows whose it was.
+		if kt, ok := h.(StartTenantByKey); ok {
+			if t, found, err := kt.TenantOfUpdate(hctx, updateKeyOf); err == nil && found {
+				account = t
+			}
+		}
+	}
 	up := StartUpdate{TenantID: tenant, ConnectionID: key, ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload,
-		UpdateKey: strconv.FormatInt(botID(b.api.Token), 10) + ":" + updateKey}
+		UpdateKey: updateKeyOf}
 	if m.From != nil {
 		up.UserID, up.Username, up.FirstName = m.From.Id, m.From.Username, m.From.FirstName
 	}

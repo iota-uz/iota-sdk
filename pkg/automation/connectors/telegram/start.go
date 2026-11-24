@@ -22,6 +22,13 @@ type StartHandler interface {
 	Handle(ctx context.Context, u StartUpdate) (reply string, err error)
 }
 
+// StartTenantByKey is an optional interface of a StartHandler that keeps its result by StartUpdate.UpdateKey: it
+// also says whose update that was. A rerun of an update whose link is spent finds no tenant for the payload;
+// without this the reply of the platform bot is not counted as that tenant's usage.
+type StartTenantByKey interface {
+	TenantOfUpdate(ctx context.Context, updateKey string) (tenantID uuid.UUID, ok bool, err error)
+}
+
 // StartUpdate is a `/start <payload>` a StartHandler handles.
 type StartUpdate struct {
 	TenantID       uuid.UUID // from TenantOf; uuid.Nil for an unknown or used payload

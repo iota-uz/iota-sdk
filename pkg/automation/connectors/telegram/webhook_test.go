@@ -843,6 +843,13 @@ type keyedLink struct {
 	saved      map[string]string
 	failBefore error // returned before the link is spent
 	asked      int
+	tenants    map[string]uuid.UUID // whose update each kept result was
+}
+
+// TenantOfUpdate is telegram.StartTenantByKey: whose update a kept result was.
+func (h *keyedLink) TenantOfUpdate(_ context.Context, key string) (uuid.UUID, bool, error) {
+	t, ok := h.tenants[key]
+	return t, ok, nil
 }
 
 func (h *keyedLink) TenantOf(ctx context.Context, payload string) (uuid.UUID, bool, error) {
@@ -865,9 +872,9 @@ func (h *keyedLink) Handle(ctx context.Context, u telegram.StartUpdate) (string,
 	reply, err := h.linkHandler.Handle(ctx, u)
 	h.used = true
 	if h.saved == nil {
-		h.saved = map[string]string{}
+		h.saved, h.tenants = map[string]string{}, map[string]uuid.UUID{}
 	}
-	h.saved[u.UpdateKey] = reply
+	h.saved[u.UpdateKey], h.tenants[u.UpdateKey] = reply, u.TenantID
 	return reply, err
 }
 
@@ -876,6 +883,8 @@ func (h *keyedLink) Handle(ctx context.Context, u telegram.StartUpdate) (string,
 // no tenant for the spent link, and the handler answers with what it kept.
 func TestAHandlerThatKeepsItsResultByKeyRecoversAfterTheResultWasLost(t *testing.T) {
 	r := newRig(t)
+	usage := &usageLog{}
+	r.c = telegram.New(telegram.Config{PlatformToken: platformToken, PublicOrigin: origin, Inbound: r.in, APIURL: r.api.URL(), Usage: usage, Connections: r.st})
 	h := &keyedLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
 	require.NoError(t, r.c.RegisterStart(h))
 	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
@@ -891,6 +900,18 @@ func TestAHandlerThatKeepsItsResultByKeyRecoversAfterTheResultWasLost(t *testing
 	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text, "the reply of the run that spent the link")
 	assert.Equal(t, 2, h.asked, "asked again, and answered from what it kept")
 	assert.Len(t, h.got, 1, "the link was spent once")
+	// The platform bot's reply is counted for the tenant of the first run, though the rerun had no tenant for the link.
+	require.Len(t, usage.entries, 1)
+	assert.Equal(t, r.tenant, usage.entries[0].TenantID)
+	assert.Equal(t, "platform:telegram_bot", usage.entries[0].ConnectionID)
+}
+
+// usageLog records what the connector counts.
+type usageLog struct{ entries []catalog.UsageEntry }
+
+func (u *usageLog) Record(_ context.Context, e catalog.UsageEntry) error {
+	u.entries = append(u.entries, e)
+	return nil
 }
 
 // A handler that fails before it spends the link is simply run again by the redelivery.
