@@ -670,3 +670,38 @@ func TestConnectionDeleteSeesAResolutionThatChangedBeforeItsLock(t *testing.T) {
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.connections WHERE id = $1`, b.ID))
 	assert.False(t, cat.armed.Load(), "the change ran between the catalog read and the lock")
 }
+
+func TestConnectionDeleteIsRefusedWhileAnOmittedConnectionMayResolveToIt(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	avail := &storeAvailability{}
+	reg := catalog.NewRegistry(avail)
+	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
+	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
+		require.NoError(t, reg.RegisterNode(specNode{spec}))
+	}
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
+	rt := runtimeOn(t, e, p, e.db, reg)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	store := connectors.NewStore(e.db, keys, rt.UsageIndex(), nil, nil)
+	avail.s = store
+	a, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_a"}, connectors.Credentials{"token": "a"})
+	require.NoError(t, err)
+	// The graph names no connection: A is the only bot when it is enabled.
+	e.create(&proc{e: e, wf: p.wf, rt: rt, disp: p.disp}, e.human(), `{"name": "Bot", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	 "nodes": [{"id": "bot", "type": "acme.bot", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "bot"}, {"from": {"node": "bot", "outcome": "done"}, "to": "fin"}]}`)
+	b, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_b"}, connectors.Credentials{"token": "b"})
+	require.NoError(t, err)
+	// With A and B the graph's resolution is ambiguous; once A needs reauthorization it is B. A's status
+	// is not under B's lock, so B counts as used while it is a candidate.
+	var inUse *connectors.InUseError
+	require.ErrorAs(t, store.Delete(ctx, e.tenant, b.ID), &inUse)
+	require.Len(t, inUse.Uses, 1)
+	assert.Equal(t, []string{"bot"}, inUse.Uses[0].NodeIDs)
+	require.NoError(t, store.SetStatus(ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "expired"))
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.connections WHERE id = $1`, b.ID), "the graph now runs with B, which is still there")
+}

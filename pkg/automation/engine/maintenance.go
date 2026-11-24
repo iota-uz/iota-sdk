@@ -286,12 +286,7 @@ func usesIn(ctx context.Context, q querier, view catalog.View, tenantID, connect
 		if err := json.Unmarshal(raw, &g); err != nil {
 			continue
 		}
-		seen := map[string]bool{}
-		for id, conn := range connectionUses(view, g) {
-			if conn == want {
-				seen[id] = true
-			}
-		}
+		seen := mayUse(view, g, want)
 		if len(seen) == 0 {
 			continue
 		}
@@ -302,6 +297,40 @@ func usesIn(ctx context.Context, q querier, view catalog.View, tenantID, connect
 		out = append(out, use)
 	}
 	return out, serrors.FromDB(opMaintain, rows.Err())
+}
+
+// mayUse are the nodes and triggers of g that use connection or may come to: one that names it, and
+// one that names no connection while connection is among the working connections of its kinds. The
+// latter resolves to it as soon as the others of its kinds leave (a reauthorization, a disconnect),
+// which a delete holding only this connection's lock cannot prevent, so it blocks the delete even while
+// the resolution is ambiguous or picks another connection now.
+func mayUse(view catalog.View, g graph.Graph, connection string) map[string]bool {
+	out := map[string]bool{}
+	use := func(id string, kinds []catalog.ConnectorKind, param any) {
+		if c, _ := param.(string); c != "" {
+			if c == connection {
+				out[id] = true
+			}
+			return
+		}
+		if param != nil {
+			return
+		}
+		for _, k := range kinds {
+			for _, ref := range view.Connections[k] {
+				if ref.ID == connection {
+					out[id] = true
+				}
+			}
+		}
+	}
+	for _, n := range g.Nodes {
+		use(n.ID, view.NodeRequires[n.Type], n.Params[catalog.ConnectionParam])
+	}
+	for _, t := range g.Triggers {
+		use(t.ID, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
+	}
+	return out
 }
 
 // connectionUses maps each node and trigger of g that uses a connection to its ID. One that names no
