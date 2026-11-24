@@ -221,6 +221,8 @@ type CodeNodeReview struct {
 	Source  string   `json:"source"`
 	Secrets []string `json:"secrets"`
 	Fetch   bool     `json:"fetch"`
+	// Connections are the connections the code reaches through env.connections (the SDK authorizes them).
+	Connections []string `json:"connections,omitempty"`
 }
 
 // TriggerReview is a trigger of a version as the reviewer sees it.

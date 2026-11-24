@@ -217,6 +217,10 @@ func (r *Runtime) codeNodes(g graph.Graph) []CodeNodeReview {
 		rv.NodeID = n.ID
 		rv.Secrets = append([]string{}, rv.Secrets...)
 		sort.Strings(rv.Secrets)
+		if len(rv.Connections) > 0 {
+			rv.Connections = append([]string{}, rv.Connections...)
+			sort.Strings(rv.Connections)
+		}
 		out = append(out, rv)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].NodeID < out[j].NodeID })

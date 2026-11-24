@@ -86,6 +86,21 @@ type CallNode interface {
 	Idempotent() bool
 }
 
+// IdempotentCall is an optional interface of a CallNode whose repeat safety depends on its params (an
+// HTTP GET may be repeated, a POST without an idempotency header may not): the engine asks it instead of
+// Idempotent. Params are the rendered params of the call.
+type IdempotentCall interface {
+	IdempotentWith(params map[string]any) bool
+}
+
+// IsIdempotent reports whether the engine may repeat a call of the node with these params.
+func IsIdempotent(n CallNode, params map[string]any) bool {
+	if ic, ok := n.(IdempotentCall); ok {
+		return ic.IdempotentWith(params)
+	}
+	return n.Idempotent()
+}
+
 // CallInput is what a call node is executed with.
 type CallInput struct {
 	TenantID       uuid.UUID

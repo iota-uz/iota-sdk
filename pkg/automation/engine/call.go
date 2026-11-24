@@ -758,9 +758,11 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 			prior += pj.Attempts
 		}
 	}
+	params, _ := decodeMap(x.req.Input)
+	idempotent := catalog.IsIdempotent(cn, params)
 	var conn *openConnection
 	switch {
-	case done && o.Status == workflow.OccStarted && !cn.Idempotent():
+	case done && o.Status == workflow.OccStarted && !idempotent:
 		// An attempt that may have reached the provider and may not repeat: its outcome is unknown, and
 		// nothing (not even an outage of the credential store) keeps that from being recorded.
 		conn = &openConnection{masker: code.NewMasker(nil)}
@@ -777,7 +779,7 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 	// An attempt that will call the provider holds a slot. A started attempt of a call that may not
 	// repeat calls nothing (its outcome is unknown); one whose deadline passed while it waited goes on
 	// without a slot to record its timeout (or its unknown outcome) without calling the provider.
-	if (!done || o.Status == workflow.OccStarted) && (!done || cn.Idempotent()) {
+	if (!done || o.Status == workflow.OccStarted) && (!done || idempotent) {
 		switch err := x.slot(ctx); {
 		case errors.Is(err, errSlotDeadline):
 		case err != nil:
@@ -849,7 +851,11 @@ func (x *callExec) open(ctx context.Context, cn catalog.CallNode) (*openConnecti
 func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, a workflow.EffectAttempt, conn *openConnection, token string, afterSeq int64) (callRecord, error) {
 	req := x.req
 	limits := x.c.r.cfg.CallLimits
-	idempotent := cn.Idempotent()
+	params, err := decodeMap(req.Input)
+	if err != nil {
+		return callRecord{Kind: "failed", Code: CodeInvalidInput, Message: "the params are not an object"}, nil
+	}
+	idempotent := catalog.IsIdempotent(cn, params)
 	if a.Attempt > 1 && !idempotent {
 		// An earlier attempt may have reached the provider: the call is not repeated blindly.
 		return x.unknown("an earlier attempt of the call may have run; its outcome is unknown")
@@ -870,10 +876,6 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 			return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer,
 				Message: fmt.Sprintf("%s names %s as its answer now; its token was issued for %s", req.NodeID, event, x.answer)}, nil
 		}
-	}
-	params, err := decodeMap(req.Input)
-	if err != nil {
-		return callRecord{Kind: "failed", Code: CodeInvalidInput, Message: "the params are not an object"}, nil
 	}
 	masker := conn.masker
 	var callContext map[string]any

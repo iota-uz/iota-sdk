@@ -181,7 +181,16 @@ func (effectBehavior) Start(s *StepContext, node Node, spec NodeSpec) Step {
 	if stop != nil {
 		return *stop
 	}
-	return Step{Kind: StepOutcome, Outcome: doneOutcome(spec), Output: map[string]any{}, Effects: []Effect{e}}
+	out := map[string]any{}
+	if spec.OutputKeys != nil {
+		// The output is the evaluated param itself (a set node's values): a dry run shows it too.
+		if m, ok := e.Params[spec.OutputKeys.Param].(map[string]any); ok {
+			for k, v := range m {
+				out[k] = v
+			}
+		}
+	}
+	return Step{Kind: StepOutcome, Outcome: doneOutcome(spec), Output: out, Effects: []Effect{e}}
 }
 
 func doneOutcome(spec NodeSpec) string {

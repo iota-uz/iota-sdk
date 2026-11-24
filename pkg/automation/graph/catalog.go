@@ -96,6 +96,7 @@ type NodeSpec struct {
 	Type        string
 	Title       string
 	Description string
+	Group       string // the palette group (optional)
 	Behavior    Behavior
 	Params      ParamsSpec
 	Subjects    []string // subjects a graph with this node may have; empty: any
@@ -109,10 +110,10 @@ type NodeSpec struct {
 	Expressions []ExprParam // CEL inside params (dotted path) and the type it must have
 	Templates   []string    // {{ }} templates inside params (dotted path)
 	Values      []string    // CEL inside params whose value, as JSON, replaces the source in the effect
-	Answer        *AnswerSpec // call: which output field gives the outcome, and a confidence floor
-	Wait          *WaitSpec
-	Output        expr.Fields // what the node puts in nodes.<id>.output
-	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	Answer      *AnswerSpec // call: which output field gives the outcome, and a confidence floor
+	Wait        *WaitSpec
+	Output      expr.Fields // what the node puts in nodes.<id>.output
+	OutputFrom  *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
 	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
 	// values).
 	OutputKeys *ParamRef
@@ -464,6 +465,7 @@ type nodeJSON struct {
 	Behavior      Behavior        `json:"behavior"`
 	Title         string          `json:"title"`
 	Description   string          `json:"description"`
+	Group         string          `json:"group"`
 	Params        *expr.Fields    `json:"params"`
 	ParamsSchema  json.RawMessage `json:"params_schema"`
 	Subjects      []string        `json:"subjects"`
@@ -475,10 +477,10 @@ type nodeJSON struct {
 		Param string  `json:"param"`
 		Type  *string `json:"type"`
 	} `json:"expressions"`
-	Templates  []string    `json:"templates"`
-	Values     []string    `json:"values"`
-	Answer     *AnswerSpec `json:"answer"`
-	Wait       *waitJSON   `json:"wait"`
+	Templates   []string    `json:"templates"`
+	Values      []string    `json:"values"`
+	Answer      *AnswerSpec `json:"answer"`
+	Wait        *waitJSON   `json:"wait"`
 	Output      expr.Fields `json:"output"`
 	OutputFrom  *ParamRef   `json:"output_from"`
 	OutputKeys  *ParamRef   `json:"output_keys"`
@@ -572,7 +574,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			continue
 		}
 		spec := NodeSpec{
-			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior, Subjects: on,
+			Type: typ, Title: n.Title, Description: n.Description, Group: n.Group, Behavior: n.Behavior, Subjects: on,
 			Outcomes: n.Outcomes, OutcomesFrom: n.OutcomesFrom, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome,
 			Templates: n.Templates, Values: n.Values, Answer: n.Answer, Output: n.Output, OutputFrom: n.OutputFrom,
 			OutputKeys: n.OutputKeys, StepContext: n.StepContext, DryRun: n.DryRun,

@@ -31,6 +31,7 @@ type NodeView struct {
 	Type        string          `json:"type"`
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
+	Group       string          `json:"group,omitempty"`
 	Behavior    Behavior        `json:"behavior"`
 	Params      json.RawMessage `json:"params"`
 	Subjects    []string        `json:"subjects,omitempty"`
@@ -78,7 +79,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 	for _, typ := range sortedKeys(c.Nodes) {
 		n := c.Nodes[typ]
 		nv := NodeView{
-			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior,
+			Type: typ, Title: n.Title, Description: n.Description, Group: n.Group, Behavior: n.Behavior,
 			Subjects: n.Subjects, Expressions: n.Expressions, Templates: n.Templates, OutputFrom: n.OutputFrom,
 			OutputKeys: n.OutputKeys, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
 		}

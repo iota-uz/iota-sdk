@@ -29,6 +29,9 @@ const (
 	defaultResponseHeaders = 30 * time.Second
 )
 
+// ErrResponseTooLarge is a response whose body exceeds the fetcher's limit after decoding.
+var ErrResponseTooLarge = errors.New("response body is too large")
+
 // Resolver resolves host names. *net.Resolver implements it.
 type Resolver interface {
 	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
@@ -350,7 +353,7 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 	if int64(len(data)) > f.maxBody {
-		return nil, fmt.Errorf("response body exceeds %d bytes", f.maxBody)
+		return nil, fmt.Errorf("%w: more than %d bytes", ErrResponseTooLarge, f.maxBody)
 	}
 	return &FetchResponse{
 		Status:     resp.StatusCode,
