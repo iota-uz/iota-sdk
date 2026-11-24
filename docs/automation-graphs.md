@@ -99,6 +99,7 @@ pkg/automation/
   connectors/  connector interfaces, encrypted connection store, OAuth2, usage
   code/        Code node sandbox
   builtin/     built-in node types
+  mcpops/      MCP operations of agents: read tools, validate, dry run, changes kinds, guard
 modules/automations/        module: tables, controllers, pages, permissions
 web/automation-editor/      Solid editor, published as @iota-uz/sdk/automation-editor
 ```
@@ -381,8 +382,32 @@ Three actions are human-only and fail for an agent with `HUMAN_REQUIRED`:
 - answering a human node (a task);
 - managing connections.
 
-MCP operations for automations are declared in the SDK operation registry (#1084), which
-is where this rule is enforced.
+MCP operations for automations (#1340, `pkg/automation/mcpops`) live in the shared registry
+of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every call acts as
+`Actor{Origin: agent}` for the MCP principal's user; access is the grant's scopes
+(`automations:read`, `automations:author`) intersected with `Automations.Read` /
+`Automations.Author`, checked on every call.
+
+- Read-only tools: `automation_catalog` (projected for the principal), `automation_list`,
+  `automation_get` (with `revision` and `layout_revision`), `automation_runs`,
+  `automation_run_get` (steps derived from fields the principal may not read are hidden),
+  `automation_validate`, `automation_dry_run` (≤ 50 events; `decisions` scripted by default,
+  `cached`, or `live` with `allow_live: true`; at most 20 real calls). Test node is not offered:
+  it makes a real external effect.
+- Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
+  `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, note?}`,
+  `expected_revision` is the latest version) and `automation.layout` (`{positions}`,
+  `expected_revision` is the layout revision). A stale revision is the shared conflict. Plan
+  validates the graph as the principal (issues under `/fields/graph/...`); any `fields.enabled`
+  is an issue `HUMAN_REQUIRED` and the plan is invalid. No change needs approval: a saved
+  version never runs until a person enables it. Apply joins the transaction of the operation
+  (`engine.WithTx`), so a retried `apply_changes` never saves a graph twice; the receipt item's
+  `result` is `{id, version, enabled: false | <enabled_version>, editor_url}`.
+- `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
+  code `HUMAN_REQUIRED` and the URL of the page where the person acts. `mcpops.NativeGuard`
+  plugs into `mcptools.Deps.HumanOnly`: the extension runtime's workflow actions (signal, decide
+  task, terminate, start v2, resolve, retry, resume) on instances of `automation.run` /
+  `automation.call` and their tasks answer it with the run's page; reads stay.
 
 ## 9. Code node
 

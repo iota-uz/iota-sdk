@@ -33,6 +33,9 @@ type Authoring interface {
 	TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error)
 	// SearchSubjects: subjects for dry run and test, visible to the actor.
 	SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error)
+	// Validate checks a graph as Create and SaveVersion would, against the catalog the actor sees as an
+	// author: nil, or a *ValidationError. Nothing is written.
+	Validate(ctx context.Context, a Actor, graph json.RawMessage) error
 }
 
 // Decision modes of a dry run: how its execute nodes answer.
@@ -56,6 +59,9 @@ type DryRunInput struct {
 	Events []json.RawMessage
 	// Decisions is live, cached or scripted (default).
 	Decisions string
+	// MaxCalls bounds the real calls the dry run makes (live decisions, cache misses, execute nodes); a
+	// call past it fails with limit_exceeded. 0: no bound.
+	MaxCalls int
 }
 
 // DryRunResult is the trace of a dry run.
@@ -150,6 +156,14 @@ func decodeContext(c map[string]json.RawMessage) (map[string]any, error) {
 	return out, nil
 }
 
+func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) error {
+	if err := au.r.service.authorize(a, PermAuthor); err != nil {
+		return err
+	}
+	_, err := au.r.validate(ctx, a, raw)
+	return err
+}
+
 func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRunResult, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return DryRunResult{}, err
@@ -207,6 +221,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		return DryRunResult{}, &host.InfraError{Err: err}
 	}
 	opts := graph.DryRunOptions{Modes: true}
+	var budget *callBudget
+	if in.MaxCalls > 0 {
+		budget = &callBudget{left: in.MaxCalls}
+	}
 	if mode != DecisionsScripted {
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
 			params := map[string]any{}
@@ -214,7 +232,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 				params = effects[0].Params
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode})
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget})
 			if res.err != nil {
 				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message, Retryable: res.err.Retryable}
 			}
@@ -459,6 +477,27 @@ type directCall struct {
 	subject   SubjectRef
 	key       string
 	decisions string
+	// budget, when set, bounds the real calls of a dry run.
+	budget *callBudget
+}
+
+// callBudget is how many real calls a dry run may still make.
+type callBudget struct {
+	mu   sync.Mutex
+	left int
+}
+
+func (b *callBudget) take() bool {
+	if b == nil {
+		return true
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.left <= 0 {
+		return false
+	}
+	b.left--
+	return true
 }
 
 type directResult struct {
@@ -520,6 +559,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 				}
 			}
 		}
+	}
+	if !c.budget.take() {
+		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeLimitExceeded, Message: "the dry run reached its limit of real calls"}}
 	}
 	callCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()

@@ -91,6 +91,9 @@ func workflowTools(r *registrar, d Deps) {
 		if err != nil {
 			return ack{}, err
 		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "signal this instance"); err != nil {
+			return ack{}, err
+		}
 		return done, svc.SignalWorkflow(ctx, actor, id, in.Name, in.Payload, in.Key)
 	})
 
@@ -103,6 +106,9 @@ func workflowTools(r *registrar, d Deps) {
 	}, func(ctx context.Context, actor spi.Subject, in decideIn) (ack, error) {
 		id, err := parseUUID("task_id", in.TaskID)
 		if err != nil {
+			return ack{}, err
+		}
+		if err := guardTask(ctx, d.HumanOnly, actor, id); err != nil {
 			return ack{}, err
 		}
 		return done, svc.DecideTask(ctx, actor, id, in.Decision)
@@ -118,6 +124,9 @@ func workflowTools(r *registrar, d Deps) {
 		if err != nil {
 			return ack{}, err
 		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "terminate this instance"); err != nil {
+			return ack{}, err
+		}
 		return done, svc.TerminateWorkflow(ctx, actor, id)
 	})
 
@@ -129,6 +138,9 @@ func workflowTools(r *registrar, d Deps) {
 	}, func(ctx context.Context, actor spi.Subject, in startV2In) (startV2Out, error) {
 		id, err := parseUUID("id", in.ID)
 		if err != nil {
+			return startV2Out{}, err
+		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "restart this instance"); err != nil {
 			return startV2Out{}, err
 		}
 		out, err := svc.StartWorkflowV2(ctx, actor, id, in.Version)
@@ -145,6 +157,9 @@ func workflowTools(r *registrar, d Deps) {
 		if err != nil {
 			return ack{}, err
 		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "resolve an occurrence of this instance"); err != nil {
+			return ack{}, err
+		}
 		return done, svc.ResolveWorkflowOccurrence(ctx, actor, id, in.Name, in.N, in.Result)
 	})
 
@@ -158,6 +173,9 @@ func workflowTools(r *registrar, d Deps) {
 		if err != nil {
 			return ack{}, err
 		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "retry an occurrence of this instance"); err != nil {
+			return ack{}, err
+		}
 		return done, svc.RetryWorkflowOccurrence(ctx, actor, id, in.Name, in.N)
 	})
 
@@ -169,6 +187,9 @@ func workflowTools(r *registrar, d Deps) {
 	}, func(ctx context.Context, actor spi.Subject, in instanceIn) (ack, error) {
 		id, err := parseUUID("id", in.ID)
 		if err != nil {
+			return ack{}, err
+		}
+		if err := guardInstance(ctx, d.HumanOnly, actor, id, "resume this instance"); err != nil {
 			return ack{}, err
 		}
 		return done, svc.ResumeWorkflow(ctx, actor, id)

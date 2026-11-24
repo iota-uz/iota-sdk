@@ -60,6 +60,9 @@ type Planned struct {
 type Applied struct {
 	ID       string
 	Revision string
+	// Result is what the kind reports about the applied change (a JSON object), returned in the
+	// receipt item; it must hold nothing the caller may not read.
+	Result json.RawMessage
 	// Effects are delivered after commit through the transactional outbox.
 	Effects []Effect
 }
@@ -135,11 +138,12 @@ func (p Prepared) MarshalJSON() ([]byte, error) {
 }
 
 type ReceiptItem struct {
-	Index    int    `json:"index"`
-	Entity   string `json:"entity"`
-	ID       string `json:"id"`
-	Revision string `json:"revision"`
-	Ref      string `json:"ref,omitempty"`
+	Index    int             `json:"index"`
+	Entity   string          `json:"entity"`
+	ID       string          `json:"id"`
+	Revision string          `json:"revision"`
+	Ref      string          `json:"ref,omitempty"`
+	Result   json.RawMessage `json:"result,omitempty"`
 }
 
 type Receipt struct {

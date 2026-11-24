@@ -124,7 +124,9 @@ type Service interface {
 	// SaveVersion creates version BaseVersion+1. A stale base → ErrVersionConflict.
 	// Validation failure → *ValidationError; nothing is written.
 	SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in SaveInput) (Version, error)
-	SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error // merge, last write wins; no version
+	// SaveLayout merges positions into the layout; no version is created. A BaseRevision other than the
+	// current LayoutRevision → *LayoutConflictError (ErrVersionConflict). Returns the new revision.
+	SaveLayout(ctx context.Context, a Actor, id uuid.UUID, in LayoutInput) (int, error)
 	Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error)
 	GetVersion(ctx context.Context, a Actor, id uuid.UUID, version int) (Version, error)
 	List(ctx context.Context, a Actor, f ListFilter) (Page[Automation], error)
@@ -160,12 +162,21 @@ type SaveInput struct {
 	Note        string
 }
 
+// LayoutInput is a save of positions based on the layout revision the caller read.
+type LayoutInput struct {
+	BaseRevision int
+	Positions    graph.Layout
+}
+
 // ListFilter selects graphs of a list.
 type ListFilter struct {
 	Query   string // a substring of the name, case-insensitive
 	Enabled *bool
-	Cursor  string
-	Limit   int // ≤ 100, default 50
+	// Attention keeps graphs with a run that failed, is blocked or whose filter failed (finished runs are
+	// kept for Retention.Runs).
+	Attention bool
+	Cursor    string
+	Limit     int // ≤ 100, default 50
 }
 
 // Automation is a graph: its versions, the one that runs and its layout.
@@ -176,6 +187,8 @@ type Automation struct {
 	EnabledVersion *int
 	OwnerUserID    *int64
 	Layout         graph.Layout
+	// LayoutRevision increments on every write of Layout (SaveLayout, SaveVersion).
+	LayoutRevision int
 	CreatedBy      int64
 	CreatedOrigin  Origin
 	CreatedAt      time.Time
@@ -392,6 +405,18 @@ func (e *ConflictError) Error() string {
 }
 
 func (e *ConflictError) Is(target error) bool { return target == ErrVersionConflict }
+
+// LayoutConflictError is ErrVersionConflict of a layout: the current revision and positions.
+type LayoutConflictError struct {
+	Revision int
+	Layout   graph.Layout
+}
+
+func (e *LayoutConflictError) Error() string {
+	return fmt.Sprintf("%s: the layout revision is %d", ErrVersionConflict.Error(), e.Revision)
+}
+
+func (e *LayoutConflictError) Is(target error) bool { return target == ErrVersionConflict }
 
 // Error codes of steps and runs.
 const (

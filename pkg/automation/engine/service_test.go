@@ -169,10 +169,22 @@ func TestValidationAndPermissions(t *testing.T) {
 	require.ErrorIs(t, err, engine.ErrForbidden)
 
 	// Layout: merged, and only for the latest version's ids.
-	require.NoError(t, p.rt.Service().SaveLayout(ctx, human, am.ID, graph.Layout{"note": {X: 1, Y: 2}, "gone": {X: 3, Y: 4}}))
+	before, err := p.rt.Service().Get(ctx, human, am.ID)
+	require.NoError(t, err)
+	rev, err := p.rt.Service().SaveLayout(ctx, human, am.ID, engine.LayoutInput{BaseRevision: before.LayoutRevision, Positions: graph.Layout{"note": {X: 1, Y: 2}, "gone": {X: 3, Y: 4}}})
+	require.NoError(t, err)
+	assert.Equal(t, before.LayoutRevision+1, rev)
 	got, err := p.rt.Service().Get(ctx, human, am.ID)
 	require.NoError(t, err)
 	assert.Equal(t, graph.Layout{"note": {X: 1, Y: 2}}, got.Layout)
+	assert.Equal(t, rev, got.LayoutRevision)
+	// A save based on a revision another save replaced is a conflict with the current positions.
+	_, err = p.rt.Service().SaveLayout(ctx, human, am.ID, engine.LayoutInput{BaseRevision: before.LayoutRevision, Positions: graph.Layout{"note": {X: 9, Y: 9}}})
+	require.ErrorIs(t, err, engine.ErrVersionConflict)
+	var lc *engine.LayoutConflictError
+	require.ErrorAs(t, err, &lc)
+	assert.Equal(t, rev, lc.Revision)
+	assert.Equal(t, graph.Layout{"note": {X: 1, Y: 2}}, lc.Layout)
 
 	require.NoError(t, p.rt.Service().Delete(ctx, human, am.ID))
 	_, err = p.rt.Service().Get(ctx, human, am.ID)

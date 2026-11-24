@@ -342,7 +342,7 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 				return err
 			}
 			receipt.Items = append(receipt.Items, ReceiptItem{Index: i, Entity: c.Entity, ID: applied.ID,
-				Revision: applied.Revision, Ref: c.Ref})
+				Revision: applied.Revision, Ref: c.Ref, Result: applied.Result})
 			effects = append(effects, applied.Effects...)
 		}
 		receipt.CommittedAt = s.cfg.Now().UTC().Format(time.RFC3339)

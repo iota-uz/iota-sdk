@@ -41,8 +41,23 @@ func (s *service) authorize(a Actor, perms ...string) error {
 	return nil
 }
 
+// inTx runs fn in a transaction of its own, or in a savepoint of the transaction the caller joined with
+// WithTx.
 func (s *service) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return pgx.BeginFunc(ctx, outer, fn)
+	}
 	return pgx.BeginFunc(ctx, s.r.cfg.DB, fn)
+}
+
+type joinedTxKey struct{}
+
+// WithTx makes the writes of the Service called with the returned context join tx (as a savepoint):
+// they commit or roll back with the caller's transaction. A guarded change (pkg/mcp/changes) applies a
+// graph in the transaction that records its operation, so a retry after a lost commit never saves the
+// graph twice.
+func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
+	return context.WithValue(ctx, joinedTxKey{}, tx)
 }
 
 func layoutJSON(l graph.Layout) ([]byte, error) {
@@ -147,7 +162,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5, layout_revision = layout_revision + 1, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
 			a.TenantID, id, v.g.Name, next, layout); err != nil {
 			return serrors.FromDB(opService, err)
 		}
@@ -316,17 +331,21 @@ func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID
 	return nil
 }
 
-func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error {
+func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, in LayoutInput) (int, error) {
 	if err := s.authorize(a, PermAuthor); err != nil {
-		return err
+		return 0, err
 	}
-	if errs := graph.ValidateLayout(l); len(errs) > 0 {
-		return &ValidationError{Errors: errs}
+	if errs := graph.ValidateLayout(in.Positions); len(errs) > 0 {
+		return 0, &ValidationError{Errors: errs}
 	}
-	return s.inTx(ctx, func(tx pgx.Tx) error {
+	revision := 0
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		am, err := loadAutomation(ctx, tx, a.TenantID, id, true)
 		if err != nil {
 			return err
+		}
+		if in.BaseRevision != am.LayoutRevision {
+			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
 		}
 		v, err := loadVersion(ctx, tx, a.TenantID, id, am.LatestVersion)
 		if err != nil {
@@ -340,16 +359,21 @@ func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph
 		for k, xy := range am.Layout {
 			merged[k] = xy
 		}
-		for k, xy := range l {
+		for k, xy := range in.Positions {
 			merged[k] = xy
 		}
 		layout, err := layoutJSON(graph.LayoutOf(g, merged))
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE automation.automations SET layout = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`, a.TenantID, id, layout)
+		err = tx.QueryRow(ctx, `UPDATE automation.automations SET layout = $3, layout_revision = layout_revision + 1, updated_at = now()
+			WHERE tenant_id = $1 AND id = $2 RETURNING layout_revision`, a.TenantID, id, layout).Scan(&revision)
 		return serrors.FromDB(opService, err)
 	})
+	if err != nil {
+		return 0, err
+	}
+	return revision, nil
 }
 
 func (s *service) Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
@@ -432,6 +456,10 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 		} else {
 			where = append(where, "enabled_version IS NULL")
 		}
+	}
+	if f.Attention {
+		where = append(where, `EXISTS (SELECT 1`+runFrom+` WHERE r.tenant_id = automation.automations.tenant_id AND r.automation_id = automation.automations.id
+			AND `+statusSQL+` IN ('failed', 'blocked', 'filter_failed'))`)
 	}
 	if after {
 		args = append(args, c.At, c.ID)

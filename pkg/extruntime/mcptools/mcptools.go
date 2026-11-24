@@ -47,6 +47,9 @@ type Deps struct {
 	// Docs enables ext_docs, the documentation packages ship for their
 	// users; nil leaves the tool out.
 	Docs *pkgdocs.Library
+	// HumanOnly guards the instances only a person may act on (automations: pkg/automation/mcpops);
+	// nil guards none.
+	HumanOnly HumanOnly
 }
 
 // Tools builds the tool set.
@@ -94,6 +97,8 @@ func Register(reg *mcp.Registry, d Deps) error {
 // Extension attaches the tools to a runtime; add it to runtime.Config.Extensions.
 type Extension struct {
 	Registry *mcp.Registry
+	// HumanOnly is Deps.HumanOnly.
+	HumanOnly HumanOnly
 }
 
 var _ runtime.Extension = Extension{}
@@ -102,7 +107,7 @@ func (Extension) Name() string { return "extruntime-mcp" }
 
 // Attach implements runtime.Extension.
 func (e Extension) Attach(_ context.Context, rt *runtime.Runtime) (func(context.Context) error, error) {
-	d := Deps{Manage: rt.Manage, Catalog: rt.Catalog, Reference: rt.Reference, Docs: rt.Docs}
+	d := Deps{Manage: rt.Manage, Catalog: rt.Catalog, Reference: rt.Reference, Docs: rt.Docs, HumanOnly: e.HumanOnly}
 	if rt.Host != nil {
 		d.Invoker = rt.Host
 	}
