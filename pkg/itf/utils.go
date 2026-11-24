@@ -193,6 +193,9 @@ func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
 // A *dbconfig.Config is also pulled from the source and passed to ApplicationOptions
 // so that app.Migrations() returns a real manager (not the no-op fallback).
 //
+// prepare, when non-nil, runs after the composition is compiled and before its
+// start hooks run (the harness applies its migration policy there).
+//
 // capabilities controls which capability set is passed to engine.Compile. When
 // empty (the default for backward compatibility), it expands to
 // [CapabilityAPI, CapabilityWorker]. Pass an explicit, narrower set (for example,
@@ -203,6 +206,7 @@ func setupApplicationWithSource(
 	logger *logrus.Logger,
 	components []composition.Component,
 	src config.Source,
+	prepare func(context.Context, application.Application) error,
 	capabilities ...composition.Capability,
 ) (application.Application, *composition.Container, error) {
 	if logger == nil {
@@ -257,6 +261,22 @@ func setupApplicationWithSource(
 			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "compile components")
 		}
 	}
+	// The schema is prepared after the composition is compiled (components may
+	// contribute to what the migrator applies) and before any start hook runs: a
+	// hook that reads its tables at start (the extension runtime's workflow
+	// engine, the automation engine's passes) must find them, as it does in a
+	// deployment, where the schema is migrated before the process starts.
+	if prepare != nil {
+		if err := prepare(context.Background(), app); err != nil {
+			prepareErr := serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "prepare schema")
+			// The compiled composition already built its controllers: close them, as a
+			// failed migration did before the schema step moved here.
+			if closeErr := closeApplication(app, container); closeErr != nil {
+				prepareErr = mergeCloseErrors(prepareErr, serrors.WrapContext(serrors.Op("itf.SetupApplication"), closeErr, "failed to close controllers after prepare schema failure"))
+			}
+			return nil, nil, prepareErr
+		}
+	}
 	if container != nil {
 		startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelStart()
@@ -282,7 +302,7 @@ func SetupApplication(
 	components []composition.Component,
 	capabilities ...composition.Capability,
 ) (application.Application, *composition.Container, error) {
-	return setupApplicationWithSource(pool, nil, components, nil, capabilities...)
+	return setupApplicationWithSource(pool, nil, components, nil, nil, capabilities...)
 }
 
 // LoadDBConfigFromEnv builds a dbconfig.Config from env files (.env, .env.local).
