@@ -87,6 +87,14 @@ func t(ctx context.Context, key string, data map[string]any, count ...int) strin
 
 func tr(ctx context.Context, key string) string { return t(ctx, "Automations.Tasks."+key, nil) }
 
+// trOr is tr with a fallback for a context without a localizer.
+func trOr(ctx context.Context, key, fallback string) string {
+	if s := tr(ctx, key); s != "Automations.Tasks."+key {
+		return s
+	}
+	return fallback
+}
+
 func trf(ctx context.Context, key string, data map[string]any) string {
 	return t(ctx, "Automations.Tasks."+key, data)
 }
@@ -277,4 +285,48 @@ func outcomeClass(style string) string {
 		return "btn btn-danger btn-normal"
 	}
 	return "btn btn-secondary btn-normal"
+}
+
+// primaryOutcome is the button ⌘/Ctrl+Enter in the comment presses: the one primary outcome, nil
+// when there is none or several.
+func (p *TaskProps) primaryOutcome() *tasks.OutcomeOption {
+	var found *tasks.OutcomeOption
+	for i, o := range p.Task.Outcomes {
+		if o.Style != tasks.StylePrimary {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = &p.Task.Outcomes[i]
+	}
+	return found
+}
+
+// submitShortcut presses the outcome's button on ⌘/Ctrl+Enter (K7: a long field sends with the
+// modifier, Enter alone breaks the line, never during IME composition; touch keyboards send no
+// modifier).
+func submitShortcut(outcome string) string {
+	return fmt.Sprintf(`if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); `+
+		`const b = $el.form.querySelector('button[name=outcome][value=' + JSON.stringify(%s) + ']'); if (b) b.click() }`, jsString(outcome))
+}
+
+// connection is the screen's connection state (S7): a failed send or the browser going offline shows
+// the banner; back online, the list reads itself again (a task keeps what was typed and waits for
+// Retry).
+func connection(rereadOnline bool) templ.Attributes {
+	reread := "false"
+	if rereadOnline {
+		reread = "true"
+	}
+	return templ.Attributes{
+		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, rereadOnline: ` + reread + `,
+			retry() { this.offline = false; const b = this.lastSubmit; this.lastSubmit = null;
+				if (b && document.body.contains(b)) { b.click() } else { location.reload() } } }`,
+		"@htmx:before-request": `const e = $event.detail.requestConfig && $event.detail.requestConfig.triggeringEvent; lastSubmit = (e && e.submitter) || null`,
+		"@htmx:after-request":  `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
+		"@htmx:send-error":     "offline = true",
+		"@offline.window":      "offline = true",
+		"@online.window":       "if (offline) { offline = false; if (rereadOnline && !lastSubmit) location.reload() }",
+	}
 }

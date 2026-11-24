@@ -53,7 +53,8 @@ templ ListPage(p *ListProps) {
 }
 
 templ ListScreen(p *ListProps) {
-	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8" data-testid="automations-tasks-list-screen">
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8" data-testid="automations-tasks-list-screen" { connection(true)... }>
+		@connectionBanner()
 		<header class="mb-4">
 			<h1 class="text-2xl font-semibold text-100">{ tr(ctx, "Title") }</h1>
 			<p class="mt-1 text-sm text-200">{ tr(ctx, "Intro") }</p>
@@ -286,7 +287,8 @@ templ TaskPage(p *TaskProps) {
 }
 
 templ TaskScreen(p *TaskProps) {
-	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() }>
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() } { connection(false)... }>
+		@connectionBanner()
 		<a href={ templ.SafeURL(p.backURL()) } class="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-200 hover:text-100">
 			@icons.ArrowLeft(icons.Props{Size: "16"})
 			{ tr(ctx, "Back") }
@@ -458,9 +460,17 @@ templ decisionForm(p *TaskProps) {
 				:aria-invalid="missing ? 'true' : 'false'"
 				aria-describedby="automations-task-comment-hint"
 				data-testid="automations-task-comment"
+				if o := p.primaryOutcome(); o != nil {
+					@keydown.enter={ submitShortcut(o.Value) }
+				}
 			>{ p.Comment }</textarea>
 			<p id="automations-task-comment-hint" class="mt-1 text-xs text-200">
-				<span x-show="!missing">{ tr(ctx, "Comment.Hint") }</span>
+				<span x-show="!missing">
+					{ tr(ctx, "Comment.Hint") }
+					if o := p.primaryOutcome(); o != nil {
+						<span class="hidden [@media(hover:hover)]:inline" data-testid="automations-task-shortcut-hint">{ " " + trf(ctx, "Comment.Shortcut", map[string]any{"Outcome": o.Label}) }</span>
+					}
+				</span>
 				<span x-show="missing" x-cloak role="alert" class="text-red-600">{ tr(ctx, "Comment.Missing") }</span>
 			</p>
 		</div>
@@ -544,7 +554,7 @@ templ field(f Field) {
 							<option value=""></option>
 						}
 						for _, v := range f.Enum {
-							<option value={ v } selected?={ f.Value == v }>{ v }</option>
+							<option value={ v.Value } selected?={ f.Value == v.Value }>{ v.Label }</option>
 						}
 					</select>
 				case "textarea", "json":
@@ -605,7 +615,8 @@ templ delegatePanel(p *TaskProps) {
 			@input.TextArea(&input.TextAreaProps{
 				Label: tr(ctx, "Delegate.Comment"),
 				Value: p.DelegateComment,
-				Attrs: templ.Attributes{"name": "delegate_comment", "rows": "2", "maxlength": "2000"},
+				Attrs: templ.Attributes{"name": "delegate_comment", "rows": "2", "maxlength": "2000",
+					"@keydown.enter": "if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); $el.form.requestSubmit() }"},
 			})
 			if p.DelegateError != "" {
 				<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
@@ -649,4 +660,14 @@ templ MissingPage(p *MissingProps) {
 			</div>
 		</div>
 	}
+}
+
+// connectionBanner is «No connection · Retry» while the network or the server is unreachable (S7):
+// Retry repeats the action that failed (a decision is idempotent), or reads the screen again.
+templ connectionBanner() {
+	<div x-show="offline" x-cloak role="alert" class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning px-4 py-3 text-sm text-100" data-testid="automations-tasks-offline">
+		@icons.WifiSlash(icons.Props{Size: "18"})
+		<span>{ tr(ctx, "Offline.Text") }</span>
+		<button type="button" class="ml-auto inline-flex min-h-11 items-center font-medium text-primary hover:underline" @click="retry()">{ tr(ctx, "Retry") }</button>
+	</div>
 }

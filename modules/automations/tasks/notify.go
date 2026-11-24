@@ -188,8 +188,9 @@ func (s *Service) CanRead(ctx context.Context, tenantID uuid.UUID, u user.User, 
 }
 
 // SubjectAccess is notifications.SubjectAccess for the subject automation.task (Reader.CanRead); other
-// subjects are left to next (nil: allowed). An application that sets the core's
-// NotificationSubjectAccess wraps its own with it.
+// subjects are left to next (nil: allowed). The module contributes it as the core's rule for
+// automation.task (notifications.ContributeSubjectAccess), so an application's own
+// NotificationSubjectAccess is not asked about tasks.
 func SubjectAccess(r Reader, next notifications.SubjectAccess) notifications.SubjectAccess {
 	return notifications.SubjectAccessFunc(func(ctx context.Context, tenantID uuid.UUID, u user.User, subject notifications.ObjectRef) (bool, error) {
 		if subject.Entity == engine.SubjectTask {

@@ -6,8 +6,8 @@ package inbox
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -296,6 +296,12 @@ func (c *Controller) failed(w http.ResponseWriter, r *http.Request) {
 // ---- decide ----
 
 func (c *Controller) decide(w http.ResponseWriter, r *http.Request) {
+	// Only a person's interactive session acts on a task: anything else is refused before the task
+	// is read.
+	if c.cfg.Origin(r) != engine.OriginHuman {
+		c.humanRequired(w, r)
+		return
+	}
 	id, ok := idOf(r)
 	if !ok {
 		c.notFound(w, r)
@@ -388,8 +394,7 @@ func (c *Controller) decideFailed(w http.ResponseWriter, r *http.Request, id uui
 		c.notFound(w, r)
 		return
 	case errors.Is(err, tasks.ErrHumanRequired):
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(intl.TWithDefault(ctx, "Automations.Tasks.Errors.HumanRequired", "Only a person decides a task, in their own session.")))
+		c.humanRequired(w, r)
 		return
 	}
 	v, gerr := c.cfg.Inbox.Get(ctx, id)
@@ -434,6 +439,12 @@ func (c *Controller) decideFailed(w http.ResponseWriter, r *http.Request, id uui
 // ---- delegate ----
 
 func (c *Controller) delegate(w http.ResponseWriter, r *http.Request) {
+	// Only a person's interactive session acts on a task: anything else is refused before the task
+	// is read.
+	if c.cfg.Origin(r) != engine.OriginHuman {
+		c.humanRequired(w, r)
+		return
+	}
 	id, ok := idOf(r)
 	if !ok {
 		c.notFound(w, r)
@@ -461,8 +472,7 @@ func (c *Controller) delegate(w http.ResponseWriter, r *http.Request) {
 		c.notFound(w, r)
 		return
 	case errors.Is(err, tasks.ErrHumanRequired):
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(intl.TWithDefault(r.Context(), "Automations.Tasks.Errors.HumanRequired", "Only a person decides a task, in their own session.")))
+		c.humanRequired(w, r)
 		return
 	}
 	v, gerr := c.cfg.Inbox.Get(r.Context(), id)
@@ -578,4 +588,24 @@ func asciiJSON(s string) string {
 // linked for them).
 func canReadAutomations(ctx context.Context) bool {
 	return composables.CanUserStrict(ctx, permissions.AutomationsRead) == nil
+}
+
+// CodeHumanRequired is the machine code of a decision or a delegation that did not come from a
+// person's interactive session (an agent, an API token), as the automations API answers it.
+const CodeHumanRequired = "HUMAN_REQUIRED"
+
+// humanRequired refuses an action of an agent: 403 with {"error":{"code":"HUMAN_REQUIRED","message"}}
+// and the code in the X-Error-Code header.
+func (c *Controller) humanRequired(w http.ResponseWriter, r *http.Request) {
+	body, err := json.Marshal(map[string]any{"error": map[string]string{
+		"code":    CodeHumanRequired,
+		"message": trOr(r.Context(), "Errors.HumanRequired", "Only a person decides a task, in their own session."),
+	}})
+	if err != nil {
+		body = []byte(`{"error":{"code":"` + CodeHumanRequired + `"}}`)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Error-Code", CodeHumanRequired)
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write(body)
 }

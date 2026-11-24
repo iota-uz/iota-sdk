@@ -210,21 +210,22 @@ func parseDecidedCursor(s string) (time.Time, uuid.UUID, error) {
 
 // listDecided reads the tasks the user decided, newest decision first.
 func (s *Service) listDecided(ctx context.Context, a actor, f TaskFilter, search string) (TaskPage, error) {
-	var (
-		hasCursor bool
-		afterAt   time.Time
-		afterID   uuid.UUID
-	)
+	var after *decidedPos
 	if f.Cursor != "" {
 		at, id, err := parseDecidedCursor(f.Cursor)
 		if err != nil {
 			return TaskPage{}, serrors.Wrap(op, fmt.Errorf("%w: cursor", ErrInvalidDecision))
 		}
-		hasCursor, afterAt, afterID = true, at, id
+		after = &decidedPos{id: id, at: at}
 	}
-	const batch = 100
-	page := TaskPage{Items: []TaskView{}}
-	for {
+	read := func(after *decidedPos, limit int) ([]decidedPos, error) {
+		var (
+			afterAt time.Time
+			afterID uuid.UUID
+		)
+		if after != nil {
+			afterAt, afterID = after.at, after.id
+		}
 		rows, err := s.cfg.DB.Query(ctx, `
 			SELECT d.task_id, d.decided_at FROM extruntime.human_task_decisions d
 			JOIN extruntime.human_tasks t ON t.id = d.task_id AND t.tenant_id = d.tenant_id
@@ -232,56 +233,83 @@ func (s *Service) listDecided(ctx context.Context, a actor, f TaskFilter, search
 			WHERE d.tenant_id = $1 AND d.user_id = $2 AND i.workflow = $3
 			  AND (NOT $4 OR (d.decided_at, d.task_id) < ($5::timestamptz, $6::uuid))
 			ORDER BY d.decided_at DESC, d.task_id DESC
-			LIMIT $7`, a.subject.TenantID, a.subject.UserID, engine.WorkflowID, hasCursor, afterAt, afterID, batch)
+			LIMIT $7`, a.subject.TenantID, a.subject.UserID, engine.WorkflowID, after != nil, afterAt, afterID, limit)
 		if err != nil {
-			return TaskPage{}, serrors.FromDB(op, err)
+			return nil, serrors.FromDB(op, err)
 		}
-		type pos struct {
-			id uuid.UUID
-			at time.Time
-		}
-		list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (pos, error) {
-			var p pos
+		list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (decidedPos, error) {
+			var p decidedPos
 			err := r.Scan(&p.id, &p.at)
 			return p, err
 		})
-		if err != nil {
-			return TaskPage{}, serrors.FromDB(op, err)
-		}
+		return list, serrors.FromDB(op, err)
+	}
+	shown := func(list []decidedPos) (map[uuid.UUID]TaskView, error) {
 		ids := make([]uuid.UUID, len(list))
 		for i, p := range list {
 			ids[i] = p.id
 		}
 		tasks, err := s.cfg.Tasks.TasksByID(ctx, a.subject.TenantID, ids)
 		if err != nil {
-			return TaskPage{}, serrors.Wrap(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
 		views, err := s.views(ctx, a, tasks)
 		if err != nil {
-			return TaskPage{}, err
+			return nil, err
 		}
 		byID := make(map[uuid.UUID]TaskView, len(views))
 		for _, v := range views {
-			byID[v.ID] = v
+			if matches(v, search) {
+				byID[v.ID] = v
+			}
 		}
-		var lastAt time.Time
+		return byID, nil
+	}
+	return fillDecided(f.Limit, decidedBatch, after, read, shown)
+}
+
+// decidedPos is a decision of the user: the task and when it was decided.
+type decidedPos struct {
+	id uuid.UUID
+	at time.Time
+}
+
+// decidedBatch is how many decisions a pass of «Decided by me» reads.
+const decidedBatch = 100
+
+// fillDecided reads the user's decisions batch by batch (read, newest first after a position) and
+// keeps the ones shown (visible and matching) until the page holds limit; when one more is shown,
+// the page's cursor is the position of its last task, whatever batch it came from.
+func fillDecided(limit, batch int, after *decidedPos, read func(after *decidedPos, limit int) ([]decidedPos, error),
+	shown func([]decidedPos) (map[uuid.UUID]TaskView, error)) (TaskPage, error) {
+	page := TaskPage{Items: []TaskView{}}
+	var last decidedPos
+	for {
+		list, err := read(after, batch)
+		if err != nil {
+			return TaskPage{}, err
+		}
+		byID, err := shown(list)
+		if err != nil {
+			return TaskPage{}, err
+		}
 		for _, p := range list {
 			v, ok := byID[p.id]
-			if !ok || !matches(v, search) {
+			if !ok {
 				continue
 			}
-			if len(page.Items) == f.Limit {
-				page.NextCursor = decidedCursor(lastAt, page.Items[len(page.Items)-1].ID)
+			if len(page.Items) == limit {
+				page.NextCursor = decidedCursor(last.at, last.id)
 				return page, nil
 			}
 			page.Items = append(page.Items, v)
-			lastAt = p.at
+			last = p
 		}
 		if len(list) < batch {
 			return page, nil
 		}
-		last := list[len(list)-1]
-		hasCursor, afterAt, afterID = true, last.at, last.id
+		end := list[len(list)-1]
+		after = &end
 	}
 }
 
@@ -372,7 +400,11 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		return serrors.Wrap(op, ErrAlreadyDecided)
 	}
 	if v.State != StateOpen {
+		// Decided, expired, cancelled, or past its final deadline: the form's effect never runs then.
 		return serrors.Wrap(op, ErrTaskClosed)
+	}
+	if v.FormUnavailable {
+		return serrors.Wrap(op, ErrFormUnavailable)
 	}
 	if !v.CanDecide {
 		return serrors.Wrap(op, fmt.Errorf("%w: %s", ErrTaskNotFound, id))
@@ -397,10 +429,14 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		return serrors.Wrap(op, err)
 	}
 	err = s.cfg.Tasks.DecideTask(ctx, a.subject, id, decision)
-	if errors.Is(err, workflow.ErrAlreadyDecided) {
-		// A concurrent submit of the same user won: the same outcome is this decision.
-		if again, gerr := s.get(ctx, a, id); gerr == nil && again.MyDecision != nil && *again.MyDecision == outcome {
-			return nil
+	if errors.Is(err, workflow.ErrAlreadyDecided) || errors.Is(err, workflow.ErrTaskClosed) {
+		// A concurrent submit of the same user may have won, also with the vote that closed the task:
+		// the same outcome is this decision, another one is the user's other decision.
+		if again, gerr := s.get(ctx, a, id); gerr == nil && again.MyDecision != nil {
+			if *again.MyDecision == outcome {
+				return nil
+			}
+			return serrors.Wrap(op, errors.Join(ErrAlreadyDecided, err))
 		}
 	}
 	return mapErr(err)
@@ -760,16 +796,21 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta
 		}
 		v.AssignedVia = via
 	}
-	covered := v.AssignedVia != "" && !delegatedAway
-	if !covered && v.MyDecision == nil {
+	// Only the current audience sees a task, its decisions included: a user who left the role after
+	// voting sees it no more.
+	if v.AssignedVia == "" || delegatedAway {
 		return TaskView{}, false, nil
 	}
-	if v.AssignedVia == "" {
-		v.AssignedVia = ViaUser
+	// An open task past its final deadline takes no decision any more (the substrate's predicate): it
+	// is shown as expired until the run closes it.
+	status := t.Status
+	if t.PastFinalDeadline(now) {
+		status = StateExpired
+		v.State = StateExpired
 	}
-	v.CanDecide = t.Status == "open" && covered && v.MyDecision == nil
-	v.Overdue = t.Status == "open" && t.DueAt != nil && t.DueAt.Before(now)
-	switch t.Status {
+	v.CanDecide = status == "open" && v.MyDecision == nil
+	v.Overdue = status == "open" && t.DueAt != nil && t.DueAt.Before(now)
+	switch status {
 	case "decided":
 		v.Outcome = t.Choice
 		if t.DecidedBy != nil {
@@ -808,9 +849,6 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta
 		v.FormUnavailable = err != nil || !found
 	} else if !ok {
 		v.FormKind, v.FormUnavailable = "invalid", true
-	}
-	if v.FormUnavailable {
-		v.CanDecide = false
 	}
 	if t.SubjectEntity != "" && t.SubjectEntity != graph.SubjectNone {
 		ref := &SubjectRef{Entity: t.SubjectEntity, Key: t.SubjectKey}

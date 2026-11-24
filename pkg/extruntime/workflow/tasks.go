@@ -640,6 +640,13 @@ func (e *Engine) loadTask(ctx context.Context, q taskQueryer, tenant, id uuid.UU
 	return tasks[0], nil
 }
 
+// PastFinalDeadline reports an open task whose due time passed at now with no escalation step left:
+// the run closes it as a timeout and DecideTask and DelegateTask refuse it (ErrTaskClosed), the
+// predicate they judge by. Tasks leaves such a task out of the inbox.
+func (t Task) PastFinalDeadline(now time.Time) bool {
+	return t.Status == "open" && t.DueAt != nil && !t.DueAt.After(now) && t.EscalationLevel >= len(t.Escalation)
+}
+
 // TasksByID reads tasks of the tenant by ID with their assignees,
 // delegations and decisions, in the order of ids; an ID of no task of the
 // tenant is left out. It judges no rights: a caller that shows a task to a

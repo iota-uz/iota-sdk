@@ -510,7 +510,8 @@
         "Required": "majburiy",
         "RequiredFor": "({{.Outcomes}} uchun majburiy)",
         "Hint": "Izohni avtomatlashtirish va boshqa ijrochilar ko‘radi.",
-        "Missing": "Izoh yozing: bu qaror uchun u majburiy."
+        "Missing": "Izoh yozing: bu qaror uchun u majburiy.",
+        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
       },
       "Confirm": {
         "Label": "Tasdiqlash: {{.Outcome}}",
@@ -579,6 +580,9 @@
           "other": "{{.Count}} kun"
         },
         "Months": "yan,fev,mar,apr,may,iyn,iyl,avg,sen,okt,noy,dek"
+      },
+      "Offline": {
+        "Text": "Server bilan aloqa yo‘q. Kiritilgan ma’lumot saqlanib qoladi."
       }
     }
   }

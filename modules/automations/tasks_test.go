@@ -10,12 +10,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,10 +30,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -70,7 +76,17 @@ func (f formComponent) Build(b *composition.Builder) error {
 // tasksApp is the SDK composition with the extension core and the given extra components.
 func tasksApp(t *testing.T, extra ...composition.Component) (*itf.Suite, *composition.Container) {
 	t.Helper()
-	src, err := config.Build(static.New(map[string]any{"automation.connections.keys": "k1:" + strings.Repeat("ab", 32)}))
+	return tasksAppWith(t, nil, extra...)
+}
+
+// tasksAppWith is tasksApp with more configuration.
+func tasksAppWith(t *testing.T, cfg map[string]any, extra ...composition.Component) (*itf.Suite, *composition.Container) {
+	t.Helper()
+	values := map[string]any{"automation.connections.keys": "k1:" + strings.Repeat("ab", 32)}
+	for k, v := range cfg {
+		values[k] = v
+	}
+	src, err := config.Build(static.New(values))
 	require.NoError(t, err)
 	components := []composition.Component{}
 	for _, c := range modules.Components() {
@@ -149,6 +165,14 @@ func humanTaskGraph(title string, params map[string]any) map[string]any {
 	for k, v := range params {
 		p[k] = v
 	}
+	edges := []any{
+		map[string]any{"from": map[string]any{"node": "start", "outcome": "fired"}, "to": "ask"},
+		map[string]any{"from": map[string]any{"node": "ask", "outcome": "approve"}, "to": "fin"},
+		map[string]any{"from": map[string]any{"node": "ask", "outcome": "reject"}, "to": "fin"},
+	}
+	if _, ok := p["timeout"]; ok {
+		edges = append(edges, map[string]any{"from": map[string]any{"node": "ask", "outcome": "timeout"}, "to": "fin"})
+	}
 	return map[string]any{
 		"name": title, "run_as": "owner",
 		"triggers": []any{map[string]any{"id": "start", "event": engine.EventManual}},
@@ -156,17 +180,19 @@ func humanTaskGraph(title string, params map[string]any) map[string]any {
 			map[string]any{"id": "ask", "type": engine.HumanNodeType, "params": p},
 			map[string]any{"id": "fin", "type": "end", "params": map[string]any{}},
 		},
-		"edges": []any{
-			map[string]any{"from": map[string]any{"node": "start", "outcome": "fired"}, "to": "ask"},
-			map[string]any{"from": map[string]any{"node": "ask", "outcome": "approve"}, "to": "fin"},
-			map[string]any{"from": map[string]any{"node": "ask", "outcome": "reject"}, "to": "fin"},
-		},
+		"edges": edges,
 	}
 }
 
 // openTask saves, enables and starts the graph, and runs the engine until the human node's task is
 // open; it returns the task and the run.
 func openTask(t *testing.T, s *itf.Suite, container *composition.Container, g map[string]any) (uuid.UUID, uuid.UUID) {
+	t.Helper()
+	return openTaskAbout(t, s, container, g, nil)
+}
+
+// openTaskAbout is openTask with the run's subject.
+func openTaskAbout(t *testing.T, s *itf.Suite, container *composition.Container, g map[string]any, subject map[string]any) (uuid.UUID, uuid.UUID) {
 	t.Helper()
 	author := s.Env().User
 	var created graphs.SaveResult
@@ -178,7 +204,11 @@ func openTask(t *testing.T, s *itf.Suite, container *composition.Container, g ma
 	require.Nil(t, rpc(t, s, graphs.MethodEnable, map[string]any{"id": created.ID, "version": created.Version, "code_digest": review.CodeDigest}, &enabled).Error)
 	require.True(t, enabled.OK, "%+v", enabled)
 	var started graphs.RunManualResponse
-	require.Nil(t, rpc(t, s, graphs.MethodRunManual, map[string]any{"id": created.ID, "trigger_id": "start", "input": map[string]any{}}, &started).Error)
+	start := map[string]any{"id": created.ID, "trigger_id": "start", "input": map[string]any{}}
+	if subject != nil {
+		start["subject"] = subject
+	}
+	require.Nil(t, rpc(t, s, graphs.MethodRunManual, start, &started).Error)
 	require.True(t, started.OK, "%+v", started)
 	s.AsUser(author)
 	runID, err := uuid.Parse(started.RunID)
@@ -264,9 +294,15 @@ func TestInboxQuorumOfARole(t *testing.T) {
 	decide(s, task, url.Values{"outcome": {"reject"}}).Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-error"`)
 	assert.Equal(t, 0, decisions(t, container, task))
 
-	// A token is not a person.
-	s.POST("/automations/tasks/"+task.String()+"/decide").Header("Authorization", "Bearer agent").Form(url.Values{"outcome": {"approve"}}).
-		Expect(t).Status(http.StatusForbidden)
+	// A token is not a person: refused with the code, before the task is read.
+	for _, target := range []uuid.UUID{task, uuid.New()} {
+		refused := s.POST("/automations/tasks/"+target.String()+"/decide").Header("Authorization", "Bearer agent").Form(url.Values{"outcome": {"approve"}}).
+			Expect(t).Status(http.StatusForbidden)
+		assert.Equal(t, inbox.CodeHumanRequired, refused.Header("X-Error-Code"))
+		assert.Contains(t, refused.Body(), `"code":"HUMAN_REQUIRED"`)
+	}
+	s.POST("/automations/tasks/"+task.String()+"/delegate").Header("Authorization", "Bearer agent").Form(url.Values{"to": {"1"}}).
+		Expect(t).Status(http.StatusForbidden).Contains("HUMAN_REQUIRED")
 	assert.Equal(t, 0, decisions(t, container, task))
 
 	// A double click records one decision.
@@ -282,8 +318,27 @@ func TestInboxQuorumOfARole(t *testing.T) {
 		s.AsUser(u)
 		s.GET("/automations/tasks").Expect(t).Contains("Approve the invoice").Contains("1 of 2")
 	}
-	s.AsUser(boris)
-	decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK)
+	// The vote that closes the quorum, submitted twice at once: both answers are that decision, also
+	// the one that finds the task closed by its twin.
+	svc, ok, err := automations.TaskInboxOf(container)
+	require.NoError(t, err)
+	require.True(t, ok)
+	bctx := tasks.WithOrigin(composables.WithTenantID(composables.WithUser(context.Background(), boris), env.Tenant.ID), engine.OriginHuman)
+	var wg sync.WaitGroup
+	errs := make([]error, 4)
+	for i := range errs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = svc.Decide(bctx, task, tasks.DecideInput{Outcome: "approve"})
+		}(i)
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	require.ErrorIs(t, svc.Decide(bctx, task, tasks.DecideInput{Outcome: "reject", Comment: "x"}), tasks.ErrAlreadyDecided)
+	assert.Equal(t, 2, decisions(t, container, task))
 	waitFor(t, container, func(*pgxpool.Pool) bool { return runStatus(t, container, run) == "completed" }, "the quorum wakes the run")
 
 	s.AsUser(vera)
@@ -292,6 +347,13 @@ func TestInboxQuorumOfARole(t *testing.T) {
 	assert.Contains(t, closed, `data-testid="automations-task-closed"`)
 	assert.Contains(t, closed, "Already decided by Boris Tester", "who closed the task")
 	assert.Equal(t, 2, decisions(t, container, task))
+
+	// Anna leaves the role: the task, its decisions and her own vote are hidden from her now.
+	pp.exec(`DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`, anna.ID(), approvers)
+	s.AsUser(anna)
+	s.GET("/automations/tasks?tab=decided").Expect(t).NotContains("Approve the invoice")
+	s.GET("/automations/tasks/" + task.String()).Expect(t).Status(http.StatusNotFound).NotContains("Boris Tester")
+	decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusNotFound)
 }
 
 // A member removed from the group after the task was created no longer sees it and a direct decision
@@ -393,7 +455,7 @@ func TestInboxNotification(t *testing.T) {
 	assert.Equal(t, []string{tasks.RecipientAssignees}, def.DefaultRecipientKeys)
 
 	db := env.Pool
-	events := func() []notifications.Event {
+	assigned := func() []notifications.Event {
 		rows, err := db.Query(context.Background(), `SELECT id::text, payload FROM extruntime.outbox_events WHERE event = $1 AND tenant_id = $2 ORDER BY seq`, engine.EventTaskAssigned, env.Tenant.ID)
 		require.NoError(t, err)
 		defer rows.Close()
@@ -419,7 +481,42 @@ func TestInboxNotification(t *testing.T) {
 		t.Fatal("no assignees recipient")
 		return nil
 	}
-	list := events()
+	// deliver hands the events to the core's outbox bridge and runs the delivery: the notices are
+	// written as the core writes them, with the recipients checked at delivery.
+	router, err := composition.Resolve[*services.NotificationRoutingService](container)
+	require.NoError(t, err)
+	dispatch, err := composition.Resolve[*services.NotificationDispatchService](container)
+	require.NoError(t, err)
+	bridge := services.NewNotificationOutboxBridge(router.Catalog(), dispatch)
+	dctx := composables.WithTenantID(composables.WithPool(context.Background(), db), env.Tenant.ID)
+	deliver := func(list []notifications.Event) {
+		for _, e := range list {
+			require.NoError(t, composables.InTx(dctx, func(txCtx context.Context) error {
+				tx, err := composables.UseTx(txCtx)
+				require.NoError(t, err)
+				return bridge.Deliver(txCtx, tx.(pgx.Tx), events.Envelope{
+					ID: e.ID, TenantID: e.TenantID, Event: e.Key, Payload: e.Payload, OccurredAt: time.Now(),
+					Subject: &spi.ObjectRef{Entity: engine.SubjectTask, Key: task.String()},
+				})
+			}))
+		}
+		for {
+			more, err := dispatch.Process(dctx)
+			require.NoError(t, err)
+			if !more {
+				break
+			}
+		}
+	}
+	inApp := func(u user.User) []string {
+		rows, err := db.Query(context.Background(), `SELECT title || ' ' || coalesce(action_url, '') FROM core.notifications WHERE tenant_id = $1 AND user_id = $2 AND event_key = $3`,
+			env.Tenant.ID, u.ID(), engine.EventTaskAssigned)
+		require.NoError(t, err)
+		out, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+		return out
+	}
+	list := assigned()
 	require.Len(t, list, 1)
 	assert.ElementsMatch(t, []uint{ira.ID(), ivan.ID()}, recipients(list[0]))
 	content, err := def.Render(list[0], "ru")
@@ -434,9 +531,15 @@ func TestInboxNotification(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, allowed, "a stranger does not")
 
+	// The notices are written in-app, to each member of the role, none of whom holds Automations.Read.
+	link := "/automations/tasks/" + task.String()
+	deliver(list)
+	assert.Equal(t, []string{"You have a new task: Pay the supplier " + link}, inApp(ira))
+	assert.Equal(t, []string{"You have a new task: Pay the supplier " + link}, inApp(ivan))
+
 	s.AsUser(ira)
 	s.POST("/automations/tasks/" + task.String() + "/delegate").HTMX().Form(url.Values{"to": {fmt.Sprint(lev.ID())}}).Expect(t).Status(http.StatusOK)
-	list = events()
+	list = assigned()
 	require.Len(t, list, 2)
 	assert.Equal(t, []uint{lev.ID()}, recipients(list[1]), "only the delegate")
 	content, err = def.Render(list[1], "en")
@@ -445,4 +548,69 @@ func TestInboxNotification(t *testing.T) {
 	allowed, err = def.RecipientGuard(ctx, list[1], lev)
 	require.NoError(t, err)
 	assert.True(t, allowed, "the delegate reads the task now")
+
+	// After the delegation only the delegate is notified.
+	deliver(list[1:])
+	assert.Equal(t, []string{"Ira Tester passed a task to you: Pay the supplier " + link}, inApp(lev))
+	assert.Len(t, inApp(ira), 1)
+	assert.Len(t, inApp(ivan), 1)
+}
+
+// A task past its final deadline, still open until the run closes it, takes no decision: the form's
+// effect never runs and the page shows it expired. A task whose escalation is still pending past its
+// due time is overdue: it stays in «Mine» and is listed under «Overdue».
+func TestInboxDeadlines(t *testing.T) {
+	form := &flakyForm{}
+	// Only the test runs the workflow engine: the tasks stay open past their due time.
+	s, container := tasksAppWith(t, map[string]any{"extruntime.disablebackground": true}, formComponent{form: form})
+	env := s.Env()
+	pp := people{t: t, db: env.Pool, tenant: env.Tenant.ID}
+	nina, pavel := pp.user("Nina"), pp.user("Pavel")
+
+	final, _ := openTask(t, s, container, humanTaskGraph("Sign before noon", map[string]any{
+		"assignees": []any{map[string]any{"kind": "user", "user_id": nina.ID()}}, "timeout": "1s",
+		"form": map[string]any{"type": "object", "x-iota-form": "acme.sign"},
+	}))
+	late, _ := openTask(t, s, container, humanTaskGraph("Approve the late invoice", map[string]any{
+		"assignees": []any{map[string]any{"kind": "user", "user_id": nina.ID()}}, "timeout": "1s",
+		"escalation": []any{map[string]any{"add": []any{map[string]any{"kind": "user", "user_id": pavel.ID()}}, "extend": "1d"}},
+	}))
+	time.Sleep(1500 * time.Millisecond) // the engine does not run: both stay open past their due time
+
+	s.AsUser(nina)
+	decide(s, final, url.Values{"form": {`{"signature":"s"}`}}).Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-closed"`)
+	assert.Equal(t, int32(0), form.calls.Load(), "no signature is sent after the final deadline")
+	assert.Equal(t, 0, decisions(t, container, final))
+	s.GET("/automations/tasks/" + final.String()).Expect(t).Status(http.StatusOK).Contains("The due time passed")
+
+	s.GET("/automations/tasks?tab=overdue").Expect(t).Contains("Approve the late invoice").NotContains("Sign before noon")
+	s.GET("/automations/tasks").Expect(t).Contains("Approve the late invoice").Contains(`data-testid="automations-task-due"`)
+	decide(s, late, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK)
+	assert.Equal(t, 1, decisions(t, container, late), "an overdue task with a pending escalation still takes the decision")
+}
+
+// The record a task is about is named by the record itself: its name, searchable, and the link to its
+// card only for a reader allowed to open it.
+func TestInboxSubjectNames(t *testing.T) {
+	s, container := tasksApp(t)
+	env := s.Env()
+	pp := people{t: t, db: env.Pool, tenant: env.Tenant.ID}
+	olga, rita, client := pp.user("Olga"), pp.user("Rita"), pp.user("Zarina")
+	reviewers := pp.role("Reviewers", olga, rita)
+	var perm uuid.UUID
+	require.NoError(t, env.Pool.QueryRow(context.Background(), `
+		INSERT INTO permissions (id, name, resource, action, modifier) VALUES ($1, 'User.Read', 'user', 'read', 'all')
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, uuid.New()).Scan(&perm))
+	readers := pp.role("User readers", rita)
+	pp.exec(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, readers, perm)
+	_, _ = openTaskAbout(t, s, container, humanTaskGraph("Check the profile", map[string]any{
+		"assignees": []any{map[string]any{"kind": "role", "ref": strconv.FormatInt(reviewers, 10)}},
+	}), map[string]any{"entity": "core.user", "key": strconv.FormatUint(uint64(client.ID()), 10)})
+
+	s.AsUser(olga)
+	body := s.GET("/automations/tasks?q=zarina").Expect(t).Status(http.StatusOK).Contains("Check the profile").Body()
+	assert.Contains(t, body, "Zarina Tester", "the record's own name")
+	assert.NotContains(t, body, fmt.Sprintf(`href="/users/%d"`, client.ID()), "no link without User.Read")
+	s.AsUser(rita)
+	s.GET("/automations/tasks").Expect(t).Contains(fmt.Sprintf(`href="/users/%d"`, client.ID()))
 }

@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
 
 func TestFieldsOfKeepsOrderAndKinds(t *testing.T) {
@@ -37,4 +39,18 @@ func TestFieldsFromFormCoercesByKind(t *testing.T) {
 	assert.JSONEq(t, `{"amount":12.5,"count":3,"urgent":true,"priority":"low","extra":{"a":1},"bad":"x"}`, string(raw))
 	require.Len(t, kept, 7)
 	assert.Equal(t, "12,5", kept[0].Value, "the value entered is kept for a form shown again")
+}
+
+// A choice of an enum goes back with its type: an integer enum is chosen and passes its schema.
+func TestEnumChoicesRoundTrip(t *testing.T) {
+	t.Parallel()
+	schema := json.RawMessage(`{"type":"object","required":["level","mode"],"properties":{
+		"level":{"type":"integer","enum":[1,2]},"mode":{"type":"string","enum":["a","b"]}}}`)
+	fields := fieldsOf(schema)
+	require.Len(t, fields, 2)
+	assert.Equal(t, []EnumOption{{Value: "1", Label: "1"}, {Value: "2", Label: "2"}}, fields[0].Enum)
+	assert.Equal(t, []EnumOption{{Value: `"a"`, Label: "a"}, {Value: `"b"`, Label: "b"}}, fields[1].Enum)
+	raw, _ := fieldsFromForm(fields, url.Values{"field.level": {fields[0].Enum[1].Value}, "field.mode": {fields[1].Enum[0].Value}})
+	assert.JSONEq(t, `{"level":2,"mode":"a"}`, string(raw))
+	require.NoError(t, graph.ValidateJSON(schema, raw))
 }

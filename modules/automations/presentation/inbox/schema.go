@@ -14,11 +14,16 @@ type Field struct {
 	Name, Title, Description string
 	// Kind is the control: text, textarea, number, integer, boolean, enum or json (a schema without a
 	// type the form can render).
-	Kind     string
-	Enum     []string
+	Kind string
+	// Enum are the choices of an enum: each value as JSON text (a string, a number, a boolean), so a
+	// choice goes back with its type.
+	Enum     []EnumOption
 	Required bool
 	Value    string // what the user entered
 }
+
+// EnumOption is one choice of an enum field: Value is the choice as JSON text, Label how it reads.
+type EnumOption struct{ Value, Label string }
 
 // fieldsOf reads the top-level properties of a form schema in their written order.
 func fieldsOf(schema json.RawMessage) []Field {
@@ -55,9 +60,15 @@ func fieldsOf(schema json.RawMessage) []Field {
 		case len(p.Enum) > 0:
 			f.Kind = "enum"
 			for _, v := range p.Enum {
-				if s, ok := v.(string); ok {
-					f.Enum = append(f.Enum, s)
+				raw, err := json.Marshal(v)
+				if err != nil || v == nil {
+					continue
 				}
+				label := string(raw)
+				if s, ok := v.(string); ok {
+					label = s
+				}
+				f.Enum = append(f.Enum, EnumOption{Value: string(raw), Label: label})
 			}
 		case typ == "string" && (p.Format == "textarea" || p.MaxLength == 0 || p.MaxLength > 200):
 			f.Kind = "textarea"
@@ -143,6 +154,15 @@ func fieldsFromForm(fields []Field, form url.Values) (json.RawMessage, []Field) 
 			}
 			if n, err := strconv.ParseFloat(strings.ReplaceAll(v, ",", "."), 64); err == nil {
 				out[f.Name] = n
+				continue
+			}
+		case "enum":
+			if v == "" {
+				continue
+			}
+			var x any
+			if err := json.Unmarshal([]byte(v), &x); err == nil {
+				out[f.Name] = x
 				continue
 			}
 		case "json":

@@ -17,19 +17,39 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	records "github.com/iota-uz/iota-sdk/pkg/automation/subjects"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/data"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 )
 
-// Natives is the module's native registration: automation.task.assigned.v1, the event of a human
-// node's task assigned to people (its notification is the module's). Applications compose it into
-// their native.Set (modules.Natives).
+// Natives is the module's native registration: the entity automation.task (a human task, read with
+// Automations.Read) and automation.task.assigned.v1, the event of a human node's task assigned to
+// people (its notification is the module's). Applications compose it into their native.Set
+// (modules.Natives).
 func Natives(s *native.Set) error {
-	return s.Add(engine.TaskAssigned)
+	return s.Add(native.Entity(TaskEntity()), engine.TaskAssigned)
+}
+
+// TaskEntity is the native entity of the subject of automation.task.assigned.v1: a human task of the
+// workflow engine, keyed by its ID.
+func TaskEntity() data.NativeEntity {
+	return data.NativeEntity{
+		ID: engine.SubjectTask, Schema: "extruntime", Table: "human_tasks", KeyColumn: "id", KeyType: data.KeyUUID, TenantColumn: "tenant_id",
+		ReadPermission: engine.PermRead,
+		Label:          manifest.Label{"en": "Automation task", "ru": "Задача автоматизации", "uz": "Avtomatlashtirish vazifasi", "uz-Cyrl": "Автоматлаштириш вазифаси"},
+		Fields: []data.NativeField{
+			{ID: "status", Column: "status", Type: manifest.Type{Kind: manifest.KindEnum, Values: []string{"open", "decided", "expired", "cancelled"}}},
+			{ID: "dueAt", Column: "due_at", Type: manifest.Type{Kind: manifest.KindDateTime, Optional: true, Nullable: true}},
+			{ID: "createdAt", Column: "created_at", Type: manifest.Type{Kind: manifest.KindDateTime}},
+			{ID: "decidedAt", Column: "decided_at", Type: manifest.Type{Kind: manifest.KindDateTime, Optional: true, Nullable: true}},
+		},
+	}
 }
 
 // WithSubjectNames is how the inbox names the record a task is about (its label, and its link for a
@@ -41,6 +61,20 @@ func WithSubjectNames(r tasks.SubjectResolver) Option {
 
 // inboxHolder is the composition's task inbox; nil without an engine.
 type inboxHolder struct{ svc *tasks.Service }
+
+// TaskInboxOf is the task inbox of a composed application: the service the pages call, for another
+// module that acts on a person's tasks (with the person's context). ok is false when the composition
+// runs no automation engine.
+func TaskInboxOf(container *composition.Container) (*tasks.Service, bool, error) {
+	if !composition.Has[*inboxHolder](container) {
+		return nil, false, nil
+	}
+	h, err := composition.Resolve[*inboxHolder](container)
+	if err != nil {
+		return nil, false, err
+	}
+	return h.svc, h.svc != nil, nil
+}
 
 // inbox is the task inbox of the composition, nil when it runs no engine.
 func (c *component) inbox(container *composition.Container) (*tasks.Service, error) {
@@ -98,7 +132,7 @@ func (c *component) buildTasks(b *composition.Builder) {
 					return nil, err
 				}
 			}
-			names = entitySubjects{natives: natives, links: h.links}
+			names = entitySubjects{names: records.Of(container), natives: natives, links: h.links}
 		}
 		svc, err := tasks.NewService(tasks.Config{
 			Tasks: wf, DB: db, Audience: audience, Subjects: subjects, Users: userDirectory{names: persistence.NewUserNames(db)},
@@ -121,6 +155,11 @@ func (c *component) buildTasks(b *composition.Builder) {
 			}
 		}
 		return []workflow.TaskObserver{engine.NewTaskAssignedObserver(audience, slog.Default())}, nil
+	})
+	// Who may see a notice about a task, whatever the application's own subject access says: the task's
+	// current audience (a delegate included) and the holders of Automations.Read.
+	notifications.ContributeSubjectAccess(b, engine.SubjectTask, func(container *composition.Container) (notifications.SubjectAccess, error) {
+		return tasks.SubjectAccess(&lazyReader{load: func() (*tasks.Service, error) { return c.inbox(container) }}, nil), nil
 	})
 	// The definition is registered once the container is built, as notifications.ContributeDefinitions
 	// does; its guard reads the inbox lazily.
@@ -232,10 +271,13 @@ func (u userDirectory) Search(ctx context.Context, tenantID uuid.UUID, query str
 	return out, nil
 }
 
-// entitySubjects names a task's record by its native entity: the entity's label (with a short numeric
-// key: "Client 42"), and the engine's link to the record for a reader with the entity's read
-// permission.
+// entitySubjects names a task's record: by the namer the entity's module contributed
+// (subjects.Contribute), which gives the record's name and its link only to a reader allowed to open
+// it; an entity without a namer is named by its native entity's label, with the engine's link
+// (engine.Config.Links) only for a reader holding the entity's read permission. An entity of no
+// known read permission never gets a link.
 type entitySubjects struct {
+	names   *records.Names
 	natives *native.Set
 	links   engine.Links
 }
@@ -253,10 +295,21 @@ func (e entitySubjects) Subject(ctx context.Context, viewer spi.Subject, entity,
 			}
 		}
 	}
-	if key != "" && len(key) <= 12 && strings.Trim(key, "0123456789") == "" {
-		label += " " + key
+	namer, ok, err := e.names.Namer(entity)
+	if err != nil {
+		return "", "", err
 	}
-	if e.links == nil || key == "" || (readPerm != "" && !viewer.Has(readPerm)) {
+	if ok {
+		name, link, err := namer.Name(ctx, viewer, key)
+		if err != nil {
+			return "", "", err
+		}
+		if name != "" {
+			return name, link, nil
+		}
+		return label, "", nil
+	}
+	if e.links == nil || key == "" || readPerm == "" || !viewer.Has(readPerm) {
 		return label, "", nil
 	}
 	link, err := e.links.SubjectURL(ctx, viewer.TenantID, engine.SubjectRef{Entity: entity, Key: key})

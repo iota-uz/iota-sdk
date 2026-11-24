@@ -510,7 +510,8 @@
         "Required": "required",
         "RequiredFor": "(required for {{.Outcomes}})",
         "Hint": "Visible to the automation and the other assignees.",
-        "Missing": "Write a comment: this decision needs one."
+        "Missing": "Write a comment: this decision needs one.",
+        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
       },
       "Confirm": {
         "Label": "Confirm {{.Outcome}}",
@@ -579,6 +580,9 @@
           "other": "{{.Count}} days"
         },
         "Months": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec"
+      },
+      "Offline": {
+        "Text": "No connection to the server. What you typed stays here."
       }
     }
   }
