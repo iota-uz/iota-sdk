@@ -62,6 +62,11 @@ func Prepare(raw json.RawMessage) (*Schema, error) {
 			"additionalProperties": false,
 		}
 	}
+	// The provider takes at most MaxEnumValues enum values in all: counted in the schema it gets, where each
+	// optional enum gained a null.
+	if n := countEnumValues(strict); n > MaxEnumValues {
+		return nil, fmt.Errorf("the schema has %d enum values once optional properties are made nullable; at most %d", n, MaxEnumValues)
+	}
 	b, err := json.Marshal(strict)
 	if err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
@@ -214,6 +219,31 @@ func DecodeJSON(text string) (any, error) {
 		return nil, fmt.Errorf("there is text after the JSON value")
 	}
 	return v, nil
+}
+
+// MaxEnumValues is the enum values in all the providers' strict mode takes in one schema.
+const MaxEnumValues = 1000
+
+// countEnumValues counts the values of every enum of a schema document.
+func countEnumValues(v any) int {
+	n := 0
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			if k == "enum" {
+				if list, ok := e.([]any); ok {
+					n += len(list)
+				}
+				continue
+			}
+			n += countEnumValues(e)
+		}
+	case []any:
+		for _, e := range x {
+			n += countEnumValues(e)
+		}
+	}
+	return n
 }
 
 // MaxSchemaDepth is the levels of nesting of objects and arrays the providers' strict mode takes.

@@ -222,7 +222,7 @@ func TestModelIsPinnedByTheProviderOfTheConnection(t *testing.T) {
 	assert.Empty(t, issues)
 	assert.Equal(t, "typesafe/jev-1.13", got["model"])
 
-	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}, {"oa", "gpt-3.5-turbo-0125"}, {"oa", "gpt-4o-2024-05-13"}} {
+	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}, {"oa", "gpt-3.5-turbo-0125"}, {"oa", "gpt-4o-2024-05-13"}, {"oa", "anthropic/claude-3.5-sonnet"}, {"oa", "openai/gpt-4o-mini-2024-07-18"}} {
 		_, issues := prepare(bad[0], map[string]any{"model": bad[1]})
 		require.Len(t, issues, 1, bad)
 		assert.Equal(t, jev.ErrorModelProvider, issues[0].Code)
@@ -894,4 +894,37 @@ func TestCredentialsSchemaValidates(t *testing.T) {
 	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "gemini", "api_key": "k"}))
 	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "k"}))
 	assert.Equal(t, map[string]string{"provider": "openai"}, connectors.RedactedCredentials(d, connectors.Credentials{"provider": "openai", "api_key": "k"}))
+}
+
+// A model namespaced for another provider is refused before the call: nothing translates it for OpenAI.
+func TestOpenAIRefusesNamespacedModelsBeforeTheCall(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0.1, "exchange": 0.1, "other": 0.8})})
+	n := openaiNode(t, srv)
+	for _, model := range []string{"anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash-001", "openai/gpt-4o-mini-2024-07-18"} {
+		in := aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": model}), nil)
+		_, err := n.Execute(context.Background(), in)
+		require.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code, model)
+	}
+	require.Empty(t, srv.Requests())
+}
+
+// The fake's handler may ask the server for its requests.
+func TestFakeHandlerMayReadTheRequests(t *testing.T) {
+	srv := aitest.New(t)
+	srv.Handler = func(aitest.Request) aitest.Reply {
+		return aitest.Reply{Body: aitest.Chat(fmt.Sprint(len(srv.Requests())), 1, 1)}
+	}
+	n := openaiNode(t, srv)
+	in := aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), nil)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = n.Execute(context.Background(), in)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the handler deadlocked on the server's lock")
+	}
+	require.Len(t, srv.Requests(), 1)
 }

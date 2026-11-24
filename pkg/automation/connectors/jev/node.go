@@ -338,6 +338,11 @@ func checkProviderModel(provider, model string) error {
 		if strings.HasPrefix(model, "typesafe/") {
 			return fmt.Errorf("model %q is a TypeSafe Jev version: it needs a connection with provider openrouter", model)
 		}
+		// An id of OpenAI has no namespace; anthropic/…, google/… are OpenRouter's, and nothing here translates
+		// them.
+		if strings.Contains(model, "/") {
+			return fmt.Errorf("model %q is namespaced for another provider: an OpenAI connection takes OpenAI's own model ids", model)
+		}
 		if aichat.NoStructuredOutput(model) {
 			return fmt.Errorf("model %q cannot answer in strict structured output, which the decision needs", model)
 		}

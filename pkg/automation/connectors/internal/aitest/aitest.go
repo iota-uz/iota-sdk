@@ -73,18 +73,22 @@ func New(tb testing.TB, script ...Reply) *Server {
 		s.mu.Lock()
 		s.requests = append(s.requests, req)
 		n := len(s.requests)
-		var reply Reply
+		handler := s.Handler
+		var scripted Reply
 		switch {
-		case s.Handler != nil:
-			reply = s.Handler(req)
 		case len(s.script) == 0:
-			reply = Reply{Status: http.StatusInternalServerError, Body: `{"error":{"message":"no reply scripted"}}`}
+			scripted = Reply{Status: http.StatusInternalServerError, Body: `{"error":{"message":"no reply scripted"}}`}
 		case n <= len(s.script):
-			reply = s.script[n-1]
+			scripted = s.script[n-1]
 		default:
-			reply = s.script[len(s.script)-1]
+			scripted = s.script[len(s.script)-1]
 		}
 		s.mu.Unlock()
+		// The handler runs without the lock: it may ask the server for its requests.
+		reply := scripted
+		if handler != nil {
+			reply = handler(req)
+		}
 		for k, v := range reply.Header {
 			w.Header().Set(k, v)
 		}

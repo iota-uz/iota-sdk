@@ -632,7 +632,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if cacheKey != "" {
 		// The output is stored as JSON: bytes would be written as a base64 string, and a cached decision
 		// would answer without its output.
-		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": json.RawMessage(out)}); err == nil {
+		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": withoutNUL(out)}); err == nil { // jsonb refuses U+0000
 			if err := r.cfg.Decisions.Put(ctx, c.tenant, cacheKey, b); err != nil {
 				r.cfg.Logger.Warn("automation: a decision was not cached", "error", err)
 			}

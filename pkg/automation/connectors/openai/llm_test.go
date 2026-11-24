@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -964,4 +965,32 @@ func TestUsageWriteIsBounded(t *testing.T) {
 		t.Fatal("the node did not return: the usage write is not bounded")
 	}
 	assert.Less(t, time.Since(started), 14*time.Second)
+}
+
+func TestEnumValuesAreCountedWithTheirNulls(t *testing.T) {
+	values := func(n int) []any {
+		out := make([]any, n)
+		for i := range out {
+			out[i] = fmt.Sprintf("v%d", i)
+		}
+		return out
+	}
+	schema := func(optional bool) map[string]any {
+		props := map[string]any{}
+		required := []any{}
+		for i := 0; i < 10; i++ {
+			name := fmt.Sprintf("p%d", i)
+			props[name] = map[string]any{"type": "string", "enum": values(100)}
+			if !optional {
+				required = append(required, name)
+			}
+		}
+		return map[string]any{"type": "object", "properties": props, "required": required}
+	}
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": schema(false)})
+	require.Empty(t, issues, "ten required enums of 100 values are exactly 1000")
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": schema(true)})
+	require.Len(t, issues, 1, "ten optional ones gain ten nulls: 1010")
+	assert.Contains(t, issues[0].Message, "1010")
 }

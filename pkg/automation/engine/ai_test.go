@@ -650,3 +650,24 @@ func TestNamedTenantConnectionLostIsNotAboutThePlatformKey(t *testing.T) {
 	require.Len(t, effects, 1)
 	assert.True(t, strings.HasPrefix(effects[0], "bad:failed connection_unavailable: "), effects[0])
 }
+
+// A decision whose output has a NUL is still cached (jsonb refuses U+0000): the second cached dry run does
+// not call the provider.
+func TestDecisionWithANULIsCached(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.connect(catalog.KindOpenAI, connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
+	ae.provider.reply = func(map[string]any) (int, string) { return completion("a\x00b", 10, 2) }
+	text := strings.Replace(llmGraph, `"format": "json",`, `"format": "text",`, 1)
+	text = text[:strings.Index(text, `"schema"`)] + `"max_tokens": 50}},` + text[strings.Index(text, `{"id": "ok"`):]
+	text = strings.NewReplacer("{{ nodes.llm.output.json.label }} {{ nodes.llm.output.json.score }}", "{{ nodes.llm.output.text }}").Replace(text)
+	p := ae.proc()
+	in := engine.DryRunInput{Graph: json.RawMessage(text), Decisions: engine.DecisionsCached,
+		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Events:  []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 1, "note": "x", "secret": ""}`)}}
+	for i := 0; i < 2; i++ {
+		_, err := p.rt.Authoring().DryRun(context.Background(), ae.human(), in)
+		require.NoError(t, err)
+	}
+	assert.Len(t, ae.provider.requests(), 1, "the second dry run took the decision from the cache")
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.decision_cache`))
+}
