@@ -38,10 +38,14 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
     around the cards; the edges of one source share their channels (a common trunk). A card being
     dragged has a plain orthogonal edge until it lands.
   - `ensureLayout` places one missing step under its source; when more than a third of the steps, or a
-    whole branch (two or more linked steps), lack positions, the graph is laid out again. Groups whose
-    positions differ from a Tidy of the known steps were arranged by hand and keep them (a card moved
-    against the others, or a whole group moved: Tidy leaves the layout at the origin); only the
-    button, the menu item or ⇧⌘L moves them. Only positions are read, so this holds after a reload.
+    whole branch (two or more linked steps), lack positions, the graph is laid out again. Tidy marks
+    every position it leaves with a quarter of a pixel on both coordinates (`TIDY_MARK`, `isTidied`): the
+    layout is saved as a bare id → position map, so that is where "the system put it here" lives, and
+    the server keeps it (coordinates are floats). A card that is dragged or moved with Alt+arrows is
+    snapped or rounded to whole numbers and loses the mark; the canvas draws positions rounded
+    (`unmarked`), so nothing shows. Groups with an unmarked position (placed by hand, or saved before the
+    mark) keep their positions when the graph is laid out again; only the button, the menu item or ⇧⌘L
+    moves them. This holds after a reload.
   - Quality is measured by pure functions (`src/quality.ts`: overlapping cards, links through cards,
     crossings, mixed groups); the tests hold Tidy to zero overlaps, zero links through cards and zero
     mixed groups on the fixtures `multiTrigger` and `foreachJoin`, and to no more crossings than the

@@ -3,7 +3,7 @@ import { foreachJoin, layoutCatalog, multiTrigger, wide } from '../fixture/layou
 import { sample } from '../fixture/graphs'
 import { GRID, rectsOverlap } from './geometry'
 import { createHistory, record, undo } from './history'
-import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, placeNew, SHARED_GROUP, tidyLayout } from './layout'
+import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, isTidied, placeNew, SHARED_GROUP, tidyLayout, unmarked } from './layout'
 import { edgeCrossings, layoutMetrics, mixedGroups, overlappingNodes } from './quality'
 import { createRouter, linksOf, routeEdges } from './route'
 import { legacyTidyLayout } from './test/legacyTidy'
@@ -39,6 +39,9 @@ function earlierTidy(graph: AutomationGraph, drop: (key: string) => boolean): Au
   }, catalog)
 }
 
+/** A card as a person leaves it after a drag: moved, snapped to whole numbers, no longer Tidy's. */
+const byHand = (p: { x: number; y: number }, dx = 0, dy = 0) => ({ x: Math.round(p.x) + dx, y: Math.round(p.y) + dy })
+
 /** Crossings of the straight lines from a port to the target handle: independent of any router. */
 function straightCrossings(graph: AutomationGraph, layout: AutomationLayout, target: 'top' | 'left'): number {
   const { links } = linksOf(graph, catalog, layout)
@@ -68,8 +71,9 @@ describe.each([
   it('puts every item on the grid, without overlaps, link through a card or mixed groups', () => {
     expect(Object.keys(layout)).toHaveLength(graph.triggers.length + graph.nodes.length)
     for (const p of Object.values(layout)) {
-      expect(p.x % GRID).toBe(0)
-      expect(p.y % GRID).toBe(0)
+      expect(Math.round(p.x) % GRID).toBe(0)
+      expect(Math.round(p.y) % GRID).toBe(0)
+      expect(isTidied(p)).toBe(true)
     }
     const metrics = layoutMetrics(graph, catalog, layout)
     expect({ overlaps: metrics.overlaps, throughNodes: metrics.throughNodes, mixedGroups: metrics.mixedGroups }).toEqual(ZERO)
@@ -190,8 +194,8 @@ describe('arranged by hand', () => {
     const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === SHARED_GROUP)
     const hand = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
     // The person moved two steps of the client column by hand.
-    known.b_vip = { x: known.b_vip!.x + 48, y: known.b_vip!.y + 32 }
-    known.b_mail = { x: known.b_mail!.x - 16, y: known.b_mail!.y + 64 }
+    known.b_vip = byHand(known.b_vip!, 48, 32)
+    known.b_mail = byHand(known.b_mail!, -16, 64)
     const before = Object.fromEntries(hand.map((id) => [id, { ...known[id]! }]))
     // The whole manual column and the shared steps have no coordinates: a branch and more than a third.
     const next = ensureLayout(multiTrigger, catalog, known)
@@ -204,7 +208,7 @@ describe('arranged by hand', () => {
 
   it('does not touch positions when nothing is missing', () => {
     const layout = tidyLayout(multiTrigger, catalog)
-    const moved = { ...layout, b_vip: { x: layout.b_vip!.x + 16, y: layout.b_vip!.y } }
+    const moved = { ...layout, b_vip: byHand(layout.b_vip!, 16, 0) }
     expect(ensureLayout(multiTrigger, catalog, moved)).toEqual(moved)
   })
 
@@ -287,7 +291,7 @@ describe('review round', () => {
     const tidy = earlierTidy(multiTrigger, (key) => key === 'manual' || key === SHARED_GROUP)
     const known: AutomationLayout = { ...tidy }
     const moved = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
-    for (const id of moved) known[id] = { x: tidy[id]!.x + 160, y: tidy[id]!.y + 96 }
+    for (const id of moved) known[id] = byHand(tidy[id]!, 160, 96)
     const next = ensureLayout(multiTrigger, catalog, known)
     for (const id of moved) expect(next[id]).toEqual(known[id])
     expect(overlappingNodes(multiTrigger, catalog, next)).toBe(0)
@@ -360,7 +364,7 @@ describe('arranged by hand, from positions alone', () => {
     const graph = newBranch()
     const tidy = earlierTidy(graph, onlyOld)
     const moved: AutomationLayout = {}
-    for (const [id, p] of Object.entries(tidy)) moved[id] = { x: p.x + 32, y: p.y + 16 }
+    for (const [id, p] of Object.entries(tidy)) moved[id] = byHand(p, 32, 16)
     const next = ensureLayout(graph, catalog, moved)
     for (const [id, p] of Object.entries(moved)) expect(next[id]).toEqual(p)
     expect(Object.keys(next)).toHaveLength(graph.triggers.length + graph.nodes.length)
@@ -385,7 +389,7 @@ describe('arranged by hand, from positions alone', () => {
     const shifts: Record<string, [number, number]> = { user_created: [48, 0], client_created: [0, 64], schedule: [48, 0] }
     for (const group of groups) {
       const [dx, dy] = shifts[group.key] ?? [0, 0]
-      for (const id of group.items) if (moved[id]) moved[id] = { x: known[id]!.x + dx, y: known[id]!.y + dy }
+      for (const id of group.items) if (moved[id]) moved[id] = byHand(known[id]!, dx, dy)
     }
     const next = ensureLayout(multiTrigger, catalog, moved)
     for (const [id, p] of Object.entries(moved)) expect(next[id]).toEqual(p)
@@ -400,7 +404,7 @@ describe('arranged by hand, from positions alone', () => {
   it('moves everything on an explicit Tidy, positions by hand or not', () => {
     const graph = newBranch()
     const moved: AutomationLayout = {}
-    for (const [id, p] of Object.entries(earlierTidy(graph, onlyOld))) moved[id] = { x: p.x + 48, y: p.y + 48 }
+    for (const [id, p] of Object.entries(earlierTidy(graph, onlyOld))) moved[id] = byHand(p, 48, 48)
     // The automatic layout keeps what the person moved; the explicit Tidy puts it back.
     expect(ensureLayout(graph, catalog, moved).start).toEqual(moved.start)
     expect(tidyLayout(graph, catalog).start).toEqual(earlierTidy(graph, onlyOld).start)
@@ -480,6 +484,56 @@ describe('code review: relayout and routes', () => {
       const p = route.points[i - 1]!
       const q = route.points[i]!
       expect(Math.max(p.x, q.x) > 0 && Math.min(p.x, q.x) < 224 && Math.max(p.y, q.y) > 104 && Math.min(p.y, q.y) < 200).toBe(false)
+    }
+  })
+})
+
+describe('code review round 2', () => {
+  const sub = (ids: string[]): AutomationGraph => ({
+    ...multiTrigger,
+    triggers: multiTrigger.triggers.filter((t) => !ids.includes(t.id)),
+    nodes: multiTrigger.nodes.filter((n) => !ids.includes(n.id)),
+    edges: multiTrigger.edges.filter((e) => !ids.includes(e.from.node) && !ids.includes(e.to)),
+  })
+  const lost = ['a_mail', 'a_wait', 'a_tag']
+
+  it('keeps cards a person set at the positions a Tidy of the shorter graph gives, also after storage', () => {
+    const shorter = unmarked(tidyLayout(sub(lost), catalog))
+    const column = layoutGroups(multiTrigger).find((g) => g.key === 'user_created')!.items.filter((id) => !lost.includes(id))
+    const stored = JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(tidyLayout(sub(lost), catalog)).map(([id, p]) => [id, column.includes(id) ? shorter[id]! : p])))) as AutomationLayout
+    const next = ensureLayout(multiTrigger, catalog, stored)
+    for (const id of column) expect(next[id]).toEqual(shorter[id])
+  })
+
+  it('marks what Tidy leaves, and a card moved by hand loses the mark', () => {
+    const layout = tidyLayout(multiTrigger, catalog)
+    expect(Object.values(layout).every(isTidied)).toBe(true)
+    expect(Object.values(JSON.parse(JSON.stringify(layout)) as AutomationLayout).every(isTidied)).toBe(true)
+    expect(isTidied(byHand(layout.a_check!, 16, 0))).toBe(false)
+    expect(Object.values(unmarked(layout)).some(isTidied)).toBe(false)
+  })
+
+  it('keeps a layout from before the mark: nothing in it is known to be Tidy\'s', () => {
+    const graph = { ...multiTrigger, nodes: multiTrigger.nodes.filter((n) => !['a_alert', 'a_alert_end'].includes(n.id)) }
+    const old = unmarked(tidyLayout({ ...graph, edges: graph.edges.filter((e) => !['a_alert', 'a_alert_end'].includes(e.to)) }, catalog))
+    const next = ensureLayout(multiTrigger, catalog, old)
+    for (const [id, p] of Object.entries(old)) expect(next[id]).toEqual(p)
+  })
+
+  it('finds a way round a card with a 7 px gap under the source', () => {
+    for (const gap of [7, 8, 3]) {
+      const rects = new Map([
+        ['a', { x: 0, y: 0, width: 224, height: 96 }],
+        ['b', { x: 0, y: 96 + gap, width: 224, height: 96 }],
+        ['c', { x: 0, y: 304, width: 224, height: 96 }],
+      ])
+      const route = createRouter(rects, [{ key: 'a.done', from: 'a', to: 'c', port: { x: 112, y: 96 }, entry: { x: 112, y: 304 } }]).route('a.done')!
+      expect(route.blocked).toBe(false)
+      for (let i = 1; i < route.points.length; i += 1) {
+        const p = route.points[i - 1]!
+        const q = route.points[i]!
+        expect(Math.max(p.x, q.x) > 0 && Math.min(p.x, q.x) < 224 && Math.max(p.y, q.y) > 96 + gap && Math.min(p.y, q.y) < 192 + gap).toBe(false)
+      }
     }
   })
 })

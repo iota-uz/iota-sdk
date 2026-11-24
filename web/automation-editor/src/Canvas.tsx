@@ -6,7 +6,7 @@ import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
 import { Icon } from './icons'
-import { backEdges, ensureLayout } from './layout'
+import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
 import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
@@ -83,11 +83,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // ——— derived graph view ———
 
   const layout = createMemo(() => ensureLayout(props.graph, props.catalog, props.layout))
+  // What is drawn and routed: whole numbers, without the mark Tidy leaves in a position.
+  const shown = createMemo(() => unmarked(layout()))
   const [positions, setPositions] = createStore<AutomationLayout>({})
   // `committed` is the layout as the host holds it, `positions` what is on screen (it follows a drag). Both are
   // stores that reconcile, so an edge only re-reads them when a position it uses really changed.
   const [committed, setCommitted] = createStore<AutomationLayout>({})
-  createEffect(on(layout, (next) => {
+  createEffect(on(shown, (next) => {
     setPositions(reconcile(structuredClone(next)))
     setCommitted(reconcile(structuredClone(next)))
   }))
@@ -182,14 +184,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // that its inputs changed; the router itself is built when the first route is asked for, after the frame.
   // A card being dragged is not in the layout yet: its edges take a plain orthogonal path until it lands.
   const routing = createMemo(() => {
-    layout()
+    shown()
     geometryMap()
     edgeTargets()
     let built: Router | null = null
     return {
       router: (): Router => {
         if (built) return built
-        const base = layout()
+        const base = shown()
         const geometries = geometryMap()
         const rects = new Map<string, Rect>()
         for (const [id, g] of geometries) {
@@ -389,11 +391,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       for (const [id, p] of moved) {
         const next = snapOn() ? { x: snap(p.x), y: snap(p.y) } : { x: Math.round(p.x), y: Math.round(p.y) }
         out[id] = next
-        const before = layout()[id]
+        const before = shown()[id]
         if (!before || before.x !== next.x || before.y !== next.y) changed = true
       }
       if (changed) props.onMove?.(out)
-      setPositions(reconcile(structuredClone(layout())))
+      setPositions(reconcile(structuredClone(shown())))
     },
   })
 
@@ -694,7 +696,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
     keyMove = null
     props.onMove?.(out)
-    setPositions(reconcile(structuredClone(layout())))
+    setPositions(reconcile(structuredClone(shown())))
   }
 
   const nearest = (id: string, key: string): string | null => {

@@ -450,7 +450,7 @@ function EditorBody(props: EditorProps): JSX.Element {
     const nextLayout = { ...layout() }
     for (const [from, to] of result.map) {
       const p = nextLayout[from]
-      if (p) nextLayout[to] = { x: p.x + 32, y: p.y + 32 }
+      if (p) nextLayout[to] = { x: Math.round(p.x) + 32, y: Math.round(p.y) + 32 }
     }
     commit({ graph: result.graph, layout: ensureLayout(result.graph, props.catalog, nextLayout) })
     setSelected(result.ids[0] ?? null)

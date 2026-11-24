@@ -142,8 +142,8 @@ describe('tidy layout (ED2)', () => {
   it('lays out top to bottom with triggers first, on the grid, without overlaps', () => {
     const layout = tidyLayout(sample, catalog)
     for (const p of Object.values(layout)) {
-      expect(p.x % GRID).toBe(0)
-      expect(p.y % GRID).toBe(0)
+      expect(Math.round(p.x) % GRID).toBe(0)
+      expect(Math.round(p.y) % GRID).toBe(0)
     }
     const triggerY = Math.max(...sample.triggers.map((t) => layout[t.id]!.y))
     const nodeY = Math.min(...sample.nodes.map((n) => layout[n.id]!.y))

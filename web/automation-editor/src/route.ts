@@ -42,8 +42,6 @@ export const STUB = 12
 export const LANE = 12
 const LANES = 5
 const CLEAR = 4
-/** The nearest channel to a card when the usual ones are taken by another card. */
-const TIGHT = 4
 const BEND_COST = 24
 const TRUNK_REWARD = 0.85
 
@@ -171,14 +169,32 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
       for (const r of first) if (x > r.x && x < r.x + r.width && hi > r.y && lo < r.y + r.height) return false
       return true
     })
+  let clear = CLEAR
   let y1s = stubFree(below, s.x, s.y)
   let y2s = stubFree(above, t.x, t.y)
   if (y1s.length === 0 || y2s.length === 0) {
     // Cards closer than a stub: a straight link, when nothing is between the handles.
     if (same(s.x, t.x) && t.y > s.y && !obstacles.blocked(s.x, s.y, s.x, t.y, 0)) return { points: [s, t], blocked: false }
-    // Or a channel right under the source and right above the target, in the gap a card leaves.
-    if (y1s.length === 0) y1s = stubFree([s.y + TIGHT], s.x, s.y)
-    if (y2s.length === 0) y2s = stubFree([t.y - TIGHT], t.x, t.y)
+    // Or a channel in the middle of the gap the cards leave under the source and over the target, with a
+    // margin that fits the gap.
+    if (y1s.length === 0) {
+      let top = Infinity
+      for (const r of first) if (s.x > r.x && s.x < r.x + r.width && r.y >= s.y - 0.5) top = Math.min(top, r.y)
+      const gap = top - s.y
+      if (gap >= 2 && gap < Infinity) {
+        y1s = [s.y + gap / 2]
+        clear = Math.min(clear, gap / 2 - 0.5)
+      }
+    }
+    if (y2s.length === 0) {
+      let bottom = -Infinity
+      for (const r of first) if (t.x > r.x && t.x < r.x + r.width && r.y + r.height <= t.y + 0.5) bottom = Math.max(bottom, r.y + r.height)
+      const gap = t.y - bottom
+      if (gap >= 2 && gap < Infinity) {
+        y2s = [t.y - gap / 2]
+        clear = Math.min(clear, gap / 2 - 0.5)
+      }
+    }
     if (y1s.length === 0 || y2s.length === 0) return { ...directRoute(s, t), blocked: true }
   }
 
@@ -197,10 +213,10 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   const yBottom = Math.max(y1s[0]!, y2s[0]!) + reach
   const local = reach === 96 ? first : obstacles.near(x0, yTop, x1, yBottom)
   const free = (ax: number, ay: number, bx: number, by: number) => {
-    const lx = Math.min(ax, bx) - CLEAR
-    const hx = Math.max(ax, bx) + CLEAR
-    const ly = Math.min(ay, by) - CLEAR
-    const hy = Math.max(ay, by) + CLEAR
+    const lx = Math.min(ax, bx) - clear
+    const hx = Math.max(ax, bx) + clear
+    const ly = Math.min(ay, by) - clear
+    const hy = Math.max(ay, by) + clear
     for (const r of local) if (hx > r.x && lx < r.x + r.width && hy > r.y && ly < r.y + r.height) return false
     // `local` only proposes the columns; a segment is checked against every card it passes.
     for (const r of obstacles.near(lx, ly, hx, hy)) if (hx > r.x && lx < r.x + r.width && hy > r.y && ly < r.y + r.height) return false

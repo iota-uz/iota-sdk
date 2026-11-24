@@ -28,6 +28,23 @@ export const FAILURE_OUTCOMES: ReadonlySet<string> = new Set(['failed', 'timeout
 /** The group of the items reachable from several triggers or from none; its key is not a valid trigger id. */
 export const SHARED_GROUP = '#shared'
 
+/**
+ * What a Tidy leaves in a position: a quarter of a pixel on both coordinates. The layout is saved as a bare
+ * id → position map, so this is the only place for "the system put it here": a card that a person moves
+ * (drag, Alt+arrows) is snapped or rounded to whole numbers and loses it. The canvas draws positions
+ * rounded (`unmarked`), so nothing shows.
+ */
+export const TIDY_MARK = 0.25
+/** Was this position left by Tidy (or by the automatic placing) and not touched since? */
+export const isTidied = (p: XY): boolean => p.x - Math.floor(p.x) === TIDY_MARK && p.y - Math.floor(p.y) === TIDY_MARK
+const tidied = (p: XY): XY => ({ x: Math.round(p.x) + TIDY_MARK, y: Math.round(p.y) + TIDY_MARK })
+/** The layout as it is drawn: whole numbers, without the mark. */
+export function unmarked(layout: AutomationLayout): AutomationLayout {
+  const out: AutomationLayout = {}
+  for (const [id, p] of Object.entries(layout)) out[id] = { x: Math.round(p.x), y: Math.round(p.y) }
+  return out
+}
+
 const DUMMY_WIDTH = 16
 const DUMMY_GAP = 24
 const MAX_ROW_GAP = 160
@@ -592,10 +609,10 @@ export function tidyLayout(graph: AutomationGraph, catalog: EditorCatalog): Auto
     if (!r || c === undefined) continue
     layout[id] = { x: snap(c - flow.geometry.get(id)!.width / 2), y: r.below ? sharedRows[r.layer]! : columnRows[r.layer]! }
   }
-  // Normalise to the origin.
+  // Normalise to the origin, and mark every place as Tidy's own.
   const minX = Math.min(...Object.values(layout).map((p) => p.x))
   const minY = Math.min(...Object.values(layout).map((p) => p.y))
-  for (const id of Object.keys(layout)) layout[id] = { x: snap(layout[id]!.x - minX), y: snap(layout[id]!.y - minY) }
+  for (const id of Object.keys(layout)) layout[id] = tidied({ x: snap(layout[id]!.x - minX), y: snap(layout[id]!.y - minY) })
   return layout
 }
 
@@ -675,26 +692,11 @@ function connectedMissing(graph: AutomationGraph, missing: Set<string>): number 
   return biggest
 }
 
-/** Groups whose items stand elsewhere than a Tidy of the known items would put them: arranged by hand. */
-function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: AutomationLayout, known: Set<string>, whole: AutomationLayout): Set<string> {
-  const subgraph: AutomationGraph = {
-    ...graph,
-    triggers: graph.triggers.filter((t) => known.has(t.id)),
-    nodes: graph.nodes.filter((n) => known.has(n.id)),
-    edges: graph.edges.filter((e) => known.has(e.from.node) && (e.to === IGNORE || known.has(e.to))),
-  }
-  const reference = tidyLayout(subgraph, catalog)
-  // The positions may also be the Tidy of the whole graph (`whole`), with the places of some items lost since.
+/** Groups with a place a person set: one that no Tidy (or automatic placing) left, so it carries no mark. */
+function arrangedByHand(graph: AutomationGraph, layout: AutomationLayout, known: Set<string>): Set<string> {
   const hand = new Set<string>()
-  // Tidy leaves the layout at the origin, so a group it laid out stands exactly where a Tidy of the known
-  // items puts it. A group whose items moved against each other is by hand; so is one moved as a whole,
-  // which shows as a shared offset other than zero. Positions alone carry this: nothing is stored beside
-  // the layout, and it holds after a reload.
   for (const group of layoutGroups(graph)) {
-    const placed = group.items.filter((id) => known.has(id))
-    if (placed.length === 0) continue
-    const at = (base: AutomationLayout) => placed.every((id) => layout[id]!.x === base[id]!.x && layout[id]!.y === base[id]!.y)
-    if (!at(reference) && !at(whole)) hand.add(group.key)
+    if (group.items.some((id) => known.has(id) && !isTidied(layout[id]!))) hand.add(group.key)
   }
   return hand
 }
@@ -702,8 +704,8 @@ function arrangedByHand(graph: AutomationGraph, catalog: EditorCatalog, layout: 
 /**
  * Every item gets a position. A layout without positions is tidied. Missing items are placed under
  * their source, unless more than a third of the items or a whole branch lack positions: then the graph
- * is laid out again, and the groups the person arranged by hand (whose positions differ from a Tidy)
- * keep theirs.
+ * is laid out again, and the groups the person arranged by hand (a position without Tidy's mark) keep
+ * theirs.
  */
 export function ensureLayout(graph: AutomationGraph, catalog: EditorCatalog, layout: AutomationLayout): AutomationLayout {
   const ids = itemIds(graph)
@@ -723,7 +725,7 @@ export function ensureLayout(graph: AutomationGraph, catalog: EditorCatalog, lay
 
   const knownSet = new Set(known)
   const fresh = tidyLayout(graph, catalog)
-  const hand = arrangedByHand(graph, catalog, layout, knownSet, fresh)
+  const hand = arrangedByHand(graph, layout, knownSet)
   if (hand.size === 0) return fresh
   const groups = layoutGroups(graph)
   const kept = new Set(groups.filter((g) => hand.has(g.key)).flatMap((g) => g.items.filter((id) => knownSet.has(id))))
@@ -737,7 +739,7 @@ export function ensureLayout(graph: AutomationGraph, catalog: EditorCatalog, lay
     const top = keptRects.length > 0 ? Math.min(...keptRects.map((r) => r.y)) : 0
     const minX = Math.min(...relaid.map((id) => fresh[id]!.x))
     const minY = Math.min(...relaid.map((id) => fresh[id]!.y))
-    for (const id of relaid) result[id] = { x: snap(fresh[id]!.x - minX + right), y: snap(fresh[id]!.y - minY + top) }
+    for (const id of relaid) result[id] = tidied({ x: snap(fresh[id]!.x - minX + right), y: snap(fresh[id]!.y - minY + top) })
   }
   return completeByPlacing(graph, catalog, result, ids.filter((id) => !result[id]))
 }
@@ -750,7 +752,7 @@ function completeByPlacing(graph: AutomationGraph, catalog: EditorCatalog, posit
     if (index < 0) index = 0
     const id = pending.splice(index, 1)[0]!
     const edge = graph.edges.find((e) => e.to === id && positions[e.from.node])
-    positions[id] = placeNew(graph, catalog, positions, id, { source: edge?.from.node ?? null, outcome: edge?.from.outcome ?? null })
+    positions[id] = tidied(placeNew(graph, catalog, positions, id, { source: edge?.from.node ?? null, outcome: edge?.from.outcome ?? null }))
   }
   const ordered: AutomationLayout = {}
   for (const id of itemIds(graph)) if (positions[id]) ordered[id] = positions[id]!
