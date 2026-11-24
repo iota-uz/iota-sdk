@@ -1,0 +1,26 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Automation built-in nodes: set (CEL values), code (sandboxed TS/JS with declared secrets, env.fetch and env.connections through a connector's CodeAccessor, compiled on save, its step context kept out of the call's instance input), http (guarded HTTPS with secret or connection auth bound to a static host, same-origin redirects for connections, success expression, body template), start_automation and run_automation (another graph's enabled version through its «Called by an automation» or manual trigger, Automations.Operate, cascade depth, cancelled with the parent), and the action node with the SDK action registry (actions.Contribute, native command contracts called through wf.call with the call's InvocationID): core.user.block/unblock, core.group.add_user/remove_user and crm.chat.send_message; tenant secrets CONNECTION__FIELD from connections; graph map params (\"*\" paths), Dispatch, OutputKeys, StepContext and wait outcomes; engine NodeValidator, EffectWaitKeyer, WakeResolver, StartFromStep and Config.Commands."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation graphs: built-in nodes notify (users, groups, roles and trigger-event participants, channels, level) and send_to_contact (phone or email of a record) in pkg/automation/builtin/notify, both effects that queue the notice with notifications.AudienceSender.SendTx in the step transaction under the automations.notify.v1 definition, registered by the automations module together with the nodes; the engine gains effect nodes that pick an outcome (OutcomeEffectNode), dry-run previews (EffectPreviewer, DryRunOptions.Preview), preparation outside the step transaction (EffectPreparer, StepContext.Prepared), node graph rules (GraphChecker), StepContext.NodeID/Trigger/StepKey; notifications.AudienceReceipt.Skipped; AudienceRequest.CheckContacts with TxSafeContactResolver/ContactChecker (package resolvers answer without an invocation record: host.RunRequest.Unrecorded); the catalog view lists the participants of each event and the editor shows the participants field only where the trigger events offer them."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the SMS connectors of automation graphs, pkg/automation/connectors/sms: eskiz and twilio with the nodes eskiz.send_sms and twilio.send_sms (not idempotent: a send of unknown outcome ends as failed with outcome_unknown and is never repeated; only 429/408 are repeated after Retry-After), usage accounting in unit sms, platform credentials (opt_in) from the environment, and HTTP fakes in sms/smstest. New stdconfig/eskizconfig (ESKIZ_URL, ESKIZ_EMAIL, ESKIZ_PASSWORD, ESKIZ_FROM) registered in the stdconfig bundle; the automations module registers both connectors. pkg/eskiz.NewService accepts ServiceOption WithRoundTripper, and its token refresher no longer repeats a login the provider refused with a 4xx."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automations section: the module runs the automation engine when the extension core is composed (natives, consumer, schedules, maintenance and inbound poller, usage index for Integrations) and serves /automations (list with status, triggers, last run and attention) and the graph editor of @iota-uz/sdk/automation-editor over an RPC layer on engine.Service/Authoring/Operations; enabling goes through a human review of Code nodes with the code digest; layouts carry a revision (SaveLayoutAt, VERSION_CONFLICT); connector webhooks at /automations/hooks without a session; engine.Service gains Overviews, CountLive, SaveLayoutAt and Authoring.Validate; the editor gains EditorProps.remoteLayout."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix the pkg/extruntime/e2e suite after the automation engine was wired in: the ITF harness applies its migration policy before the composition start hooks run, and automation action commands declare their domain errors in the native set so the extension kit resolves them."
+    }
+  ],
+  "source": "ee09a69b3a8cc066003840ad5838f1ce43c489e5",
+  "version": "0.55.0"
+}
