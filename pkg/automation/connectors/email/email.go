@@ -121,31 +121,31 @@ func New(cfg Config) []connectors.Connector {
 // hub is what the two connectors share.
 type hub struct{ cfg Config }
 
-func (m *hub) now() time.Time {
-	if m.cfg.Clock != nil {
-		return m.cfg.Clock()
+func (h *hub) now() time.Time {
+	if h.cfg.Clock != nil {
+		return h.cfg.Clock()
 	}
 	return time.Now()
 }
 
-func (m *hub) log() *slog.Logger {
-	if m.cfg.Logger != nil {
-		return m.cfg.Logger
+func (h *hub) log() *slog.Logger {
+	if h.cfg.Logger != nil {
+		return h.cfg.Logger
 	}
 	return slog.Default()
 }
 
-func (m *hub) dialer() *net.Dialer {
-	if m.cfg.Dialer != nil {
-		return m.cfg.Dialer
+func (h *hub) dialer() *net.Dialer {
+	if h.cfg.Dialer != nil {
+		return h.cfg.Dialer
 	}
 	return &net.Dialer{Timeout: 20 * time.Second}
 }
 
-func (m *hub) tlsConfig(host string) *tls.Config {
+func (h *hub) tlsConfig(host string) *tls.Config {
 	var c *tls.Config
-	if m.cfg.TLSConfig != nil {
-		c = m.cfg.TLSConfig.Clone()
+	if h.cfg.TLSConfig != nil {
+		c = h.cfg.TLSConfig.Clone()
 	} else {
 		c = &tls.Config{}
 	}

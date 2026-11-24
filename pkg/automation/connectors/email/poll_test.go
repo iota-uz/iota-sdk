@@ -141,7 +141,7 @@ func TestDedupKeyFallsBackToPosition(t *testing.T) {
 	require.Len(t, evs, 1)
 	assert.Regexp(t, `^[0-9]+:1$`, evs[0].DedupKey, "uidvalidity:uid when the message has no Message-ID")
 	assert.Regexp(t, `^`+conn.ID.String()+`:[0-9]+:1$`, evs[0].Subject.Key)
-	assert.Equal(t, "", payloadOf(t, evs[0])["messageId"])
+	assert.Empty(t, payloadOf(t, evs[0])["messageId"])
 }
 
 func TestTheSameMessageTwiceHasOneDedupKey(t *testing.T) {
@@ -176,7 +176,7 @@ func TestPollFailures(t *testing.T) {
 		_, next, err := f.imap.Poll(context.Background(), conn, down, cur)
 		require.Error(t, err)
 		var ce *catalog.CallError
-		assert.NotErrorIs(t, err, connectors.ErrNeedsReauth)
+		require.NotErrorIs(t, err, connectors.ErrNeedsReauth)
 		assert.False(t, asCallUnauthorized(err, &ce), "not a login problem")
 		assert.Nil(t, next, "no new cursor: the engine keeps the old one")
 	})

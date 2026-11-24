@@ -12,7 +12,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"errors"
 	"io"
 	"math/big"
@@ -302,7 +301,7 @@ func (s *Server) Flag(user, mailbox string, uid uint32, flags ...string) {
 	}, false)
 }
 
-// Messages are the messages of a mailbox as raw bytes with their flags, in UID order.
+// Message is a message of a mailbox as raw bytes with its flags.
 type Message struct {
 	UID   uint32
 	Flags []string
@@ -509,8 +508,7 @@ func (x *xoauthServer) Next(resp []byte) ([]byte, bool, error) {
 	x.s.mu.Unlock()
 	if !ok {
 		x.failed = true
-		b, _ := json.Marshal(map[string]string{"status": "401", "schemes": "Bearer", "scope": "https://mail.google.com/"})
-		return b, false, nil
+		return []byte(`{"status":"401","schemes":"Bearer","scope":"https://mail.google.com/"}`), false, nil
 	}
 	if x.on != nil {
 		x.on(user)
@@ -582,7 +580,7 @@ func (x *imapXOAuth) Next(resp []byte) ([]byte, bool, error) {
 		return nil, true, &imap.Error{Type: imap.StatusResponseTypeNo, Code: imap.ResponseCodeAuthenticationFailed, Text: "Invalid credentials"}
 	}
 	var user string
-	x.xoauthServer.on = func(u string) { user = u }
+	x.on = func(u string) { user = u }
 	ch, done, err := x.xoauthServer.Next(resp)
 	if err != nil || !done {
 		return ch, done, err

@@ -99,10 +99,6 @@ func (o *oauth) ctx(ctx context.Context) context.Context {
 	return ctx
 }
 
-func (o *oauth) config(kind catalog.ConnectorKind, redirect string) (Connector, *oauth2.Config, error) {
-	return o.configFor(kind, "", redirect)
-}
-
 // configFor is the OAuth2 config of a connector: its own, or the provider of a preset.
 func (o *oauth) configFor(kind catalog.ConnectorKind, preset, redirect string) (Connector, *oauth2.Config, error) {
 	c, ok := o.dir.Get(kind)

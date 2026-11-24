@@ -110,14 +110,14 @@ func TestCredentialsSchema(t *testing.T) {
 
 	assert.NoError(t, valid(smtp, connectors.Credentials{"preset": "custom", "host": "smtp.example.com", "port": "465", "username": "u", "password": "p", "from_address": "a@example.com", "from_name": "A"}))
 	assert.NoError(t, valid(smtp, connectors.Credentials{"host": "smtp.example.com", "port": "587", "from_address": "a@example.com"}), "no preset is custom; a relay needs no login")
-	assert.Error(t, valid(smtp, connectors.Credentials{"preset": "custom", "port": "587", "from_address": "a@example.com"}), "a custom server has a host")
-	assert.Error(t, valid(smtp, connectors.Credentials{"preset": "custom", "host": "h", "port": "99999", "from_address": "a@example.com"}))
-	assert.Error(t, valid(smtp, connectors.Credentials{"preset": "yahoo", "host": "h", "port": "587", "from_address": "a@example.com"}))
+	require.Error(t, valid(smtp, connectors.Credentials{"preset": "custom", "port": "587", "from_address": "a@example.com"}), "a custom server has a host")
+	require.Error(t, valid(smtp, connectors.Credentials{"preset": "custom", "host": "h", "port": "99999", "from_address": "a@example.com"}))
+	require.Error(t, valid(smtp, connectors.Credentials{"preset": "yahoo", "host": "h", "port": "587", "from_address": "a@example.com"}))
 	assert.NoError(t, valid(smtp, connectors.Credentials{"preset": "gmail", "username": "a@gmail.com", "access_token": "t", "refresh_token": "r", "login_id": "l"}), "a sign-in has no host to type")
 	assert.NoError(t, valid(smtp, connectors.Credentials{"preset": "m365", "username": "a@corp.com", "access_token": "t"}))
 
 	assert.NoError(t, valid(imap, connectors.Credentials{"preset": "custom", "host": "imap.example.com", "port": "993", "username": "u", "password": "p", "mailbox": "INBOX"}))
-	assert.Error(t, valid(imap, connectors.Credentials{"preset": "custom", "host": "imap.example.com", "port": "993", "username": "u"}), "a custom server has a password")
+	require.Error(t, valid(imap, connectors.Credentials{"preset": "custom", "host": "imap.example.com", "port": "993", "username": "u"}), "a custom server has a password")
 	assert.NoError(t, valid(imap, connectors.Credentials{"preset": "gmail", "username": "a@gmail.com", "access_token": "t"}))
 }
 
@@ -132,14 +132,14 @@ func TestPlatformCredentialFromTheApplicationsSMTP(t *testing.T) {
 	assert.Equal(t, "noreply@corp.example", pc.Identity.Display)
 
 	cs := New(Config{Platform: &smtpconfig.Config{Host: "smtp.corp", From: "noreply@corp.example"}})
-	got, ok := cs[0].(connectors.Connector).(interface {
+	got, ok := cs[0].(interface {
 		PlatformCredential() (connectors.PlatformCredential, bool)
 	})
 	require.True(t, ok)
 	pc, ok = got.PlatformCredential()
 	require.True(t, ok)
 	assert.Equal(t, "587", pc.Credentials["port"], "the default port of SMTP_PORT")
-	assert.NoError(t, connectors.ValidateCredentials(cs[0].Descriptor(), pc.Credentials))
+	require.NoError(t, connectors.ValidateCredentials(cs[0].Descriptor(), pc.Credentials))
 
 	// The platform credential works as a connection: a platform relay sends.
 	f := newFx(t, emailtest.ModeSTARTTLS)
@@ -331,7 +331,7 @@ func TestDialogueLogHasNoSecrets(t *testing.T) {
 		}
 	}
 	assert.NotContains(t, out, "AUTHENTICATE PLAIN "+base64Std("\x00"+mailbox+"\x00"+password))
-	assert.False(t, strings.Contains(out, "Bearer ya29"))
+	assert.NotContains(t, out, "Bearer ya29")
 }
 
 func TestNothingIsLoggedByDefault(t *testing.T) {

@@ -88,7 +88,7 @@ func (c *imapConnector) Poll(ctx context.Context, conn connectors.Connection, cr
 		return nil, nil, err
 	}
 	var (
-		evs  []engine.InboundEvent
+		evs  = make([]engine.InboundEvent, 0, len(uids))
 		last = cur.LastUID
 	)
 	for _, uid := range uids {

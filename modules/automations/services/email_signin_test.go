@@ -47,7 +47,8 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 
 	mail := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: signInMailbox, Password: "pw"})
 	mail.AcceptToken(signInMailbox, "access-1")
-	claims, _ := json.Marshal(map[string]string{"email": signInMailbox})
+	claims, err := json.Marshal(map[string]string{"email": signInMailbox})
+	require.NoError(t, err)
 	idToken := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
 	token := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -100,7 +101,7 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	// Without the provider's OAuth2 client the preset is not offered and cannot be started.
 	svc := build(false)
 	assert.Empty(t, presets(svc)[email.KindSMTP])
-	_, err := svc.OAuthStartPreset(ctx, actor, email.KindSMTP, email.PresetGmail, "mail", "", uuid.Nil, "https://app.test/cb")
+	_, err = svc.OAuthStartPreset(ctx, actor, email.KindSMTP, email.PresetGmail, "mail", "", uuid.Nil, "https://app.test/cb")
 	require.ErrorIs(t, err, services.ErrOAuthUnavailable)
 
 	svc = build(true)

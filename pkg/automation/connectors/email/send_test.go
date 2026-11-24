@@ -2,7 +2,6 @@ package email
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ func params(m map[string]any) map[string]any {
 func callError(t *testing.T, err error) *catalog.CallError {
 	t.Helper()
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "not a CallError: %v", err)
+	require.ErrorAs(t, err, &ce)
 	return ce
 }
 

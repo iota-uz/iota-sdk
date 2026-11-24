@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -204,10 +203,4 @@ func mailText(id, from, subject, body string, extra ...string) []byte {
 	h = append(h, extra...)
 	h = append(h, "MIME-Version: 1.0", "Content-Type: text/plain; charset=utf-8", "", body)
 	return []byte(strings.Join(h, "\r\n") + "\r\n")
-}
-
-func must[T any](t *testing.T, v T, err error) T {
-	t.Helper()
-	require.NoError(t, err)
-	return v
 }

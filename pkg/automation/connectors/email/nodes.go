@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/mail"
 	"regexp"
 	"strconv"
@@ -328,9 +327,10 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 // templateToCEL is a template as the CEL expression of its text: the literal parts quoted, each {{ }}
 // part as string(…).
 func templateToCEL(text string) (string, error) {
-	var parts []string
+	exprs := expr.TemplateExpressions(text)
+	parts := make([]string, 0, 2*len(exprs)+1)
 	at := 0
-	for _, e := range expr.TemplateExpressions(text) {
+	for _, e := range exprs {
 		if e.Start > at {
 			parts = append(parts, strconv.Quote(text[at:e.Start]))
 		}
@@ -384,7 +384,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 	if err != nil || id == "" {
 		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "message_id is not a Message-ID"}
 	}
-	var flags []imap.Flag
+	flags := make([]imap.Flag, 0, 1+len(strsOf(in.Params["keywords"])))
 	if seen, _ := in.Params["mark_seen"].(bool); seen {
 		flags = append(flags, imap.FlagSeen)
 	}
@@ -444,7 +444,7 @@ func (n *labelNode) callError(ctx context.Context, in catalog.CallInput, a accou
 	if errors.As(err, &ie) && ie.Type == imap.StatusResponseTypeNo {
 		return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "the server refused the command"}
 	}
-	return &catalog.CallError{Code: catalog.CallUnavailable, Message: fmt.Sprint("the IMAP server could not be reached"), Retryable: true}
+	return &catalog.CallError{Code: catalog.CallUnavailable, Message: "the IMAP server could not be reached", Retryable: true}
 }
 
 func strsOf(v any) []string {

@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -514,17 +515,29 @@ func expandPaths(params map[string]any, paths []string) []string {
 }
 
 // expandPath lists the dotted paths a declared path names inside params: a "*" segment stands for every
-// key of the object at that point, in sorted order (a key with a dot cannot be named and is skipped). A
-// path without "*" is itself.
+// key of the object at that point, in sorted order (a key with a dot cannot be named and is skipped); a
+// "[]" after a name stands for every item of the list there ("to[]", "options[].label"), the items being
+// named by their number ("to.0"). A path with neither is itself.
 func expandPath(params map[string]any, path string) []string {
-	if !strings.Contains(path, "*") {
+	if !strings.Contains(path, "*") && !strings.Contains(path, "[]") {
 		return []string{path}
 	}
+	path = strings.ReplaceAll(path, "[]", ".[]")
 	var out []string
 	var walk func(cur any, prefix string, rest []string)
 	walk = func(cur any, prefix string, rest []string) {
 		if len(rest) == 0 {
 			out = append(out, prefix)
+			return
+		}
+		if rest[0] == "[]" {
+			items, ok := cur.([]any)
+			if !ok {
+				return
+			}
+			for i := range items {
+				walk(items[i], prefix+"."+strconv.Itoa(i), rest[1:])
+			}
 			return
 		}
 		m, ok := cur.(map[string]any)
@@ -558,21 +571,65 @@ func expandPath(params map[string]any, path string) []string {
 func paramAt(params map[string]any, path string) (any, bool) {
 	var cur any = params
 	for _, k := range strings.Split(path, ".") {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		if cur, ok = m[k]; !ok {
+		switch m := cur.(type) {
+		case map[string]any:
+			v, ok := m[k]
+			if !ok {
+				return nil, false
+			}
+			cur = v
+		case []any: // a number reads that item of a list
+			i, err := strconv.Atoi(k)
+			if err != nil || i < 0 || i >= len(m) {
+				return nil, false
+			}
+			cur = m[i]
+		default:
 			return nil, false
 		}
 	}
 	return cur, true
 }
 
-// setAt returns a copy of params with a dotted path set.
+// displayPath writes a concrete path the way an editor names a field of a list item: items[1].label.
+func displayPath(path string) string {
+	var b strings.Builder
+	for i, seg := range strings.Split(path, ".") {
+		if _, err := strconv.Atoi(seg); err == nil && i > 0 {
+			b.WriteString("[" + seg + "]")
+			continue
+		}
+		if i > 0 {
+			b.WriteByte('.')
+		}
+		b.WriteString(seg)
+	}
+	return b.String()
+}
+
+// setAt returns a copy of params with a dotted path set; a number sets that item of a list.
 func setAt(params map[string]any, path string, v any) map[string]any {
+	out, _ := setIn(params, path, v).(map[string]any)
+	return out
+}
+
+func setIn(cur any, path string, v any) any {
 	head, rest, nested := strings.Cut(path, ".")
-	out := make(map[string]any, len(params))
+	if list, ok := cur.([]any); ok {
+		i, err := strconv.Atoi(head)
+		if err != nil || i < 0 || i >= len(list) {
+			return cur
+		}
+		out := append([]any(nil), list...)
+		if nested {
+			out[i] = setIn(list[i], rest, v)
+		} else {
+			out[i] = v
+		}
+		return out
+	}
+	params, _ := cur.(map[string]any)
+	out := make(map[string]any, len(params)+1)
 	for k, x := range params {
 		out[k] = x
 	}
@@ -580,8 +637,7 @@ func setAt(params map[string]any, path string, v any) map[string]any {
 		out[head] = v
 		return out
 	}
-	child, _ := params[head].(map[string]any)
-	out[head] = setAt(child, rest, v)
+	out[head] = setIn(params[head], rest, v)
 	return out
 }
 
@@ -615,7 +671,7 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 			if spec.Wait != nil && spec.Wait.Filter.Param == e.Param && waited != "" {
 				event, want = waited, expr.TypeBool // a wait's filter is a bool, whatever Expressions says
 			}
-			out = append(out, nodeExpression{path: "params." + at, source: s, want: want, event: event})
+			out = append(out, nodeExpression{path: "params." + displayPath(at), source: s, want: want, event: event})
 		}
 	}
 	// A wait's filter param is a bool over the waited event even when Expressions does not list it.
@@ -634,14 +690,14 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 	for _, v := range values {
 		if src, ok := paramAt(params, v); ok {
 			if s, ok := src.(string); ok {
-				out = append(out, nodeExpression{path: "params." + v, source: s, want: expr.TypeAny, event: "*"})
+				out = append(out, nodeExpression{path: "params." + displayPath(v), source: s, want: expr.TypeAny, event: "*"})
 			}
 		}
 	}
 	for _, t := range templates {
 		if text, ok := paramAt(params, t); ok {
 			if s, ok := text.(string); ok {
-				out = append(out, nodeExpression{path: "params." + t, source: s, event: "*", template: true})
+				out = append(out, nodeExpression{path: "params." + displayPath(t), source: s, event: "*", template: true})
 			}
 		}
 	}

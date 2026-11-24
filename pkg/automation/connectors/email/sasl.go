@@ -50,7 +50,7 @@ func newMaskedWriter(w io.Writer, values ...string) io.Writer {
 	if w == nil {
 		return nil
 	}
-	var secrets []string
+	secrets := make([]string, 0, 3*len(values))
 	for _, v := range values {
 		if v == "" {
 			continue

@@ -3,12 +3,12 @@ package email
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 }
 
 func idToken(email string) string {
-	claims, _ := json.Marshal(map[string]string{"email": email})
+	claims := []byte(`{"email":` + strconv.Quote(email) + `}`)
 	enc := base64.RawURLEncoding.EncodeToString
 	return enc([]byte(`{"alg":"none"}`)) + "." + enc(claims) + "."
 }
@@ -66,7 +66,7 @@ func newTokenServer(t *testing.T, email string) *tokenServer {
 			n := ts.refreshes.Add(1) + 1
 			next := fmt.Sprintf("refresh-%d", n)
 			ts.current.Store(next)
-			_, _ = w.Write([]byte(fmt.Sprintf(`{"access_token":"access-%d","refresh_token":%q,"token_type":"Bearer","expires_in":3600}`, n, next)))
+			_, _ = fmt.Fprintf(w, `{"access_token":"access-%d","refresh_token":%q,"token_type":"Bearer","expires_in":3600}`, n, next)
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 		}
