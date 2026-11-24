@@ -268,7 +268,13 @@ func setupApplicationWithSource(
 	// deployment, where the schema is migrated before the process starts.
 	if prepare != nil {
 		if err := prepare(context.Background(), app); err != nil {
-			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "prepare schema")
+			prepareErr := serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "prepare schema")
+			// The compiled composition already built its controllers: close them, as a
+			// failed migration did before the schema step moved here.
+			if closeErr := closeApplication(app, container); closeErr != nil {
+				prepareErr = mergeCloseErrors(prepareErr, serrors.WrapContext(serrors.Op("itf.SetupApplication"), closeErr, "failed to close controllers after prepare schema failure"))
+			}
+			return nil, nil, prepareErr
 		}
 	}
 	if container != nil {
