@@ -1,7 +1,7 @@
 // The canvas: a controlled Solid wrapper over @xyflow/system (through ./xy/adapter). It never mutates
 // `graph` or `layout`; it emits intents (onChange, onMove, onDrop, onMenu, onSelect). One edge per
 // (node, outcome): a new connection replaces the old one. The DOM is read only after mount.
-import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
@@ -82,6 +82,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   // ——— derived graph view ———
 
+  // The routes found so far: the ends they join and the path; and which router found each. `routeTick`
+  // moves once per slice of routing.
+  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string }>>({})
+  const routeOwner = new Map<string, object>()
+  // The box of every route in `routed`, read plainly by the visibility check (`routeTick` says when it changed).
+  const routeBoxes = new Map<string, Rect>()
+  const [routeTick, setRouteTick] = createSignal(0)
+
   const layout = createMemo(() => ensureLayout(props.graph, props.catalog, props.layout))
   // What is drawn and routed: whole numbers, without the mark Tidy leaves in a position.
   const shown = createMemo(() => unmarked(layout()))
@@ -89,7 +97,31 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // `committed` is the layout as the host holds it, `positions` what is on screen (it follows a drag). Both are
   // stores that reconcile, so an edge only re-reads them when a position it uses really changed.
   const [committed, setCommitted] = createStore<AutomationLayout>({})
+  // Routes that cross a card that moved are drawn again before anything else: until then they show a plain path.
+  const stale = new Set<string>()
   createEffect(on(shown, (next) => {
+    const keys = [...routeBoxes.keys()]
+    if (keys.length > 0) {
+      const geometries = geometryMap()
+      const moved: Rect[] = []
+      for (const [id, p] of Object.entries(next)) {
+        const before = committed[id]
+        const g = geometries.get(id)
+        if (g && (!before || before.x !== p.x || before.y !== p.y)) moved.push({ x: p.x - 8, y: p.y - 8, width: g.width + 16, height: g.height + 16 })
+      }
+      if (moved.length > 0) {
+        batch(() => {
+          for (const key of keys) {
+            const found = routeBoxes.get(key)
+            if (!found || !moved.some((r) => rectsOverlap(r, found))) continue
+            setRouted(key, undefined as never)
+            routeBoxes.delete(key)
+            routeOwner.delete(key)
+            stale.add(key)
+          }
+        })
+      }
+    }
     setPositions(reconcile(structuredClone(next)))
     setCommitted(reconcile(structuredClone(next)))
   }))
@@ -247,11 +279,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
     })
     return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
   })
-  // The routes found so far: the ends they join, the path, and the box it covers (a detour may leave the
-  // box of the two ends).
-  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string; x: number; y: number; w: number; h: number }>>({})
   const visibleEdges = createMemo<string[]>((previous) => {
     const rect = visibleRect()
+    routeTick()
     const targets = edgeTargets()
     const next = rect === null ? edgeList() : edgeList().filter((source) => {
       const node = source.slice(0, source.lastIndexOf('.'))
@@ -261,10 +291,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const x = Math.min(p.x, q.x) - 64
       const y = Math.min(p.y, q.y) - 64
       if (rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })) return true
-      // A route found earlier may run where its ends do not.
-      // Read without subscribing: the box matters when the viewport moves, which re-runs this anyway.
-      const found = untrack(() => routed[source])
-      return found !== undefined && rectsOverlap(rect, { x: found.x, y: found.y, width: found.w, height: found.h })
+      // A route found earlier may run where its ends do not; routeTick says when one is published.
+      const box = routeBoxes.get(source)
+      return box !== undefined && rectsOverlap(rect, box)
     })
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
   })
@@ -272,7 +301,6 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
   // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
   // orthogonal one until its own is ready.
-  const routeOwner = new Map<string, object>()
   const ROUTE_SLICE_MS = 6
   let routeTimer: ReturnType<typeof setTimeout> | undefined
   createEffect(() => {
@@ -282,9 +310,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     for (const key of [...routeOwner.keys()]) {
       if (targets.has(key)) continue
       routeOwner.delete(key)
+      routeBoxes.delete(key)
       setRouted(key, undefined as never)
     }
-    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current)
+    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
     clearTimeout(routeTimer)
     if (wanted.length === 0) return
     let todo: string[] | null = null
@@ -305,8 +334,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
           const ys = route.points.map((point) => point.y)
           const x = Math.min(...xs)
           const y = Math.min(...ys)
-          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points), x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y })
+          stale.delete(key)
+          routeBoxes.set(key, { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y })
+          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points, 10, route.clear) })
         }
+        // One note per slice, so visibility looks at the boxes just published once.
+        setRouteTick((n) => n + 1)
       })
       if (todo.length > 0) routeTimer = setTimeout(run, 0)
     }

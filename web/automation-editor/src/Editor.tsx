@@ -26,7 +26,7 @@ import {
 } from './graph'
 import { amend, canRedo, canUndo, createHistory, record, redo, undo, type History, type Snapshot } from './history'
 import { Icon } from './icons'
-import { ensureLayout, placeNew, tidyLayout } from './layout'
+import { ensureLayout, placeNew, tidied, tidyLayout } from './layout'
 import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
@@ -415,9 +415,11 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (from) graph = connect(graph, from, id)
     const nextLayout = { ...layout() }
     const flow = mode.kind === 'add' ? mode.flow : null
+    // A drop point is the person's own; a place the editor picks (under the source, right of the triggers,
+    // the middle of the view) carries the mark, so a later automatic layout may lay its group out again.
     nextLayout[id] = flow && choice.kind === 'node'
       ? placeNew(graph, props.catalog, nextLayout, id, { near: { x: snap(flow.x), y: snap(flow.y) } })
-      : placeNew(graph, props.catalog, nextLayout, id, { source: from?.node ?? null, near: from || choice.kind === 'trigger' ? null : centerNear() })
+      : tidied(placeNew(graph, props.catalog, nextLayout, id, { source: from?.node ?? null, near: from || choice.kind === 'trigger' ? null : centerNear() }))
     commit({ graph, layout: ensureLayout(graph, props.catalog, nextLayout) })
     setSelected(id)
     queueMicrotask(() => canvasApi?.focus(id))

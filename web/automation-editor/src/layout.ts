@@ -37,7 +37,8 @@ export const SHARED_GROUP = '#shared'
 export const TIDY_MARK = 0.25
 /** Was this position left by Tidy (or by the automatic placing) and not touched since? */
 export const isTidied = (p: XY): boolean => p.x - Math.floor(p.x) === TIDY_MARK && p.y - Math.floor(p.y) === TIDY_MARK
-const tidied = (p: XY): XY => ({ x: Math.round(p.x) + TIDY_MARK, y: Math.round(p.y) + TIDY_MARK })
+/** A position as the editor chose it itself, marked as such. */
+export const tidied = (p: XY): XY => ({ x: Math.round(p.x) + TIDY_MARK, y: Math.round(p.y) + TIDY_MARK })
 /** The layout as it is drawn: whole numbers, without the mark. */
 export function unmarked(layout: AutomationLayout): AutomationLayout {
   // Nothing marked, nothing to copy.
@@ -193,20 +194,36 @@ function analyse(graph: AutomationGraph, catalog: EditorCatalog): Flow {
   }
   for (const links of out.values()) links.sort((a, b) => a.port - b.port)
 
-  // Failure items, in topological order: every link into the item is a failure outcome or leaves a failure item.
+  // Failure items: reached only through a failure outcome. This looks at every edge, cycle edges too: a
+  // step that a cycle edge reaches without a failure is not one, whatever layering dropped.
   const triggers = new Set(graph.triggers.map((t) => t.id))
-  const failure = new Set<string>()
-  const pending = new Map(ids.map((id) => [id, inn.get(id)!.length]))
-  const queue = ids.filter((id) => pending.get(id) === 0)
-  for (let head = 0; head < queue.length; head += 1) {
-    const id = queue[head]!
-    const links = inn.get(id)!
-    if (!triggers.has(id) && links.length > 0 && links.every((l) => FAILURE_OUTCOMES.has(l.outcome) || failure.has(l.id))) failure.add(id)
-    for (const next of out.get(id)!) {
-      pending.set(next.id, pending.get(next.id)! - 1)
-      if (pending.get(next.id) === 0) queue.push(next.id)
-    }
+  const fromEdges = new Map<string, { to: string; failure: boolean }[]>()
+  const entered = new Set<string>()
+  for (const edge of graph.edges) {
+    if (edge.to === IGNORE || !idSet.has(edge.from.node) || !idSet.has(edge.to)) continue
+    entered.add(edge.to)
+    const list = fromEdges.get(edge.from.node)
+    const item = { to: edge.to, failure: FAILURE_OUTCOMES.has(edge.from.outcome) }
+    if (list) list.push(item)
+    else fromEdges.set(edge.from.node, [item])
   }
+  const walk = (starts: string[], any: boolean) => {
+    const seen = new Set(starts)
+    const stack = [...starts]
+    while (stack.length > 0) {
+      for (const next of fromEdges.get(stack.pop()!) ?? []) {
+        if ((!any && next.failure) || seen.has(next.to)) continue
+        seen.add(next.to)
+        stack.push(next.to)
+      }
+    }
+    return seen
+  }
+  // Starts: the triggers, and steps nothing enters.
+  const starts = ids.filter((id) => triggers.has(id) || !entered.has(id))
+  const reachable = walk(starts, true)
+  const safe = walk(starts, false)
+  const failure = new Set(ids.filter((id) => !triggers.has(id) && reachable.has(id) && !safe.has(id)))
 
   const owner = new Map<string, string>()
   for (const group of layoutGroups(graph)) for (const id of group.items) owner.set(id, group.key)
@@ -593,7 +610,9 @@ export function tidyLayout(graph: AutomationGraph, catalog: EditorCatalog): Auto
         if (flow.owner.get(link.id) === SHARED_GROUP || !centre.has(link.id)) continue
         const g = flow.geometry.get(link.id)!
         const x = centre.get(link.id)! + g.outcomes[link.port]!.handle.x - g.width / 2
-        external.set(id, [...(external.get(id) ?? []), x])
+        const xs = external.get(id)
+        if (xs) xs.push(x)
+        else external.set(id, [x])
         feeders.push(x)
       }
     }

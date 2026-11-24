@@ -5,7 +5,7 @@ import { GRID, rectsOverlap } from './geometry'
 import { createHistory, record, undo } from './history'
 import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, isTidied, placeNew, SHARED_GROUP, tidyLayout, unmarked } from './layout'
 import { edgeCrossings, layoutMetrics, mixedGroups, overlappingNodes } from './quality'
-import { createRouter, linksOf, routeEdges } from './route'
+import { createRouter, linksOf, routeEdges, routePath, type Point, type Route } from './route'
 import { legacyTidyLayout } from './test/legacyTidy'
 import type { AutomationGraph, AutomationLayout } from './types'
 
@@ -175,17 +175,55 @@ describe('routes', () => {
     }
   })
 
-  it('share a trunk: the edges of one source run along the same channel', () => {
+  /** Length that two routes run along the same line. */
+  const sharedLength = (a: Route, b: Route) => {
+    let sum = 0
+    for (let i = 1; i < a.points.length; i += 1) {
+      for (let j = 1; j < b.points.length; j += 1) {
+        const [p1, p2, q1, q2] = [a.points[i - 1]!, a.points[i]!, b.points[j - 1]!, b.points[j]!]
+        if (p1.y === p2.y && q1.y === q2.y && p1.y === q1.y) sum += Math.max(0, Math.min(Math.max(p1.x, p2.x), Math.max(q1.x, q2.x)) - Math.max(Math.min(p1.x, p2.x), Math.min(q1.x, q2.x)))
+        if (p1.x === p2.x && q1.x === q2.x && p1.x === q1.x) sum += Math.max(0, Math.min(Math.max(p1.y, p2.y), Math.max(q1.y, q2.y)) - Math.max(Math.min(p1.y, p2.y), Math.min(q1.y, q2.y)))
+      }
+    }
+    return sum
+  }
+
+  it('share a trunk: two edges of one source run along the same line for a stretch', () => {
     const { links } = linksOf(graph, catalog, layout)
-    const out = links.filter((l) => l.from === 'b_route')
-    const channels = out.map((l) => routes.get(l.key)!.points[1]!.y)
-    expect(new Set(channels).size).toBeLessThan(out.length)
+    const out = links.filter((l) => l.from === 's_crm')
+    expect(out).toHaveLength(2)
+    expect(sharedLength(routes.get(out[0]!.key)!, routes.get(out[1]!.key)!)).toBeGreaterThan(0)
   })
 
-  it('count crossings only between unrelated edges', () => {
-    const { links } = linksOf(graph, catalog, layout)
-    const ends = new Map(links.map((l) => [l.key, { from: l.from, to: l.to }]))
-    expect(edgeCrossings(routes, ends)).toBeGreaterThanOrEqual(0)
+  it('share a trunk between a source and two targets far below', () => {
+    const rects = new Map([
+      ['s', { x: 0, y: 0, width: 288, height: 96 }],
+      ['a', { x: 300, y: 800, width: 224, height: 96 }],
+      ['b', { x: 700, y: 800, width: 224, height: 96 }],
+    ])
+    const router = createRouter(rects, [
+      { key: 's.one', from: 's', to: 'a', port: { x: 100, y: 96 }, entry: { x: 412, y: 800 } },
+      { key: 's.two', from: 's', to: 'b', port: { x: 188, y: 96 }, entry: { x: 812, y: 800 } },
+    ])
+    expect(sharedLength(router.route('s.one')!, router.route('s.two')!)).toBeGreaterThan(0)
+  })
+
+  it('count crossings of unrelated edges only: those that share a source or a target meet by design', () => {
+    const line = (...points: [number, number][]): Route => ({ points: points.map(([x, y]) => ({ x, y })), blocked: false })
+    const routes = new Map<string, Route>([
+      ['a.x', line([0, 50], [100, 50])],
+      ['c.x', line([50, 0], [50, 100])], // crosses a.x, unrelated
+      ['a.y', line([70, 0], [70, 100])], // crosses a.x, same source
+      ['d.x', line([30, 0], [30, 100])], // crosses a.x, same target
+    ])
+    const ends = new Map([
+      ['a.x', { from: 'a', to: 'b' }],
+      ['c.x', { from: 'c', to: 'e' }],
+      ['a.y', { from: 'a', to: 'f' }],
+      ['d.x', { from: 'd', to: 'b' }],
+    ])
+    expect(edgeCrossings(routes, ends)).toBe(1)
+    expect(edgeCrossings(new Map([['a.x', routes.get('a.x')!], ['a.y', routes.get('a.y')!], ['d.x', routes.get('d.x')!]]), ends)).toBe(0)
   })
 })
 
@@ -533,6 +571,96 @@ describe('code review round 2', () => {
         const p = route.points[i - 1]!
         const q = route.points[i]!
         expect(Math.max(p.x, q.x) > 0 && Math.min(p.x, q.x) < 224 && Math.max(p.y, q.y) > 96 + gap && Math.min(p.y, q.y) < 192 + gap).toBe(false)
+      }
+    }
+  })
+})
+
+describe('code review round 3', () => {
+  const node = (id: string, type = 'delay') => ({ id, type, params: type === 'branch' ? { expression: 'true' } : {} })
+  const cycle = (viaFailure: boolean): AutomationGraph => ({
+    name: 'c', run_as: 'owner',
+    triggers: [{ id: 't', event: 'core.user.created.v1' }],
+    nodes: [node('p', 'core.send_email'), node('x'), node('y')],
+    edges: [
+      { from: { node: 't', outcome: 'fired' }, to: 'p' },
+      { from: { node: 'p', outcome: 'failed' }, to: 'y' },
+      ...(viaFailure ? [] : [{ from: { node: 'p', outcome: 'sent' }, to: 'x' }]),
+      { from: { node: 'y', outcome: 'done' }, to: 'x' },
+      { from: { node: 'x', outcome: 'done' }, to: 'y' },
+    ],
+  })
+  const lane = (graph: AutomationGraph) => {
+    const layout = tidyLayout(graph, catalog)
+    const mainRight = Math.max(...['t', 'p'].map((id) => layout[id]!.x + 224))
+    return (id: string) => layout[id]!.x >= mainRight
+  }
+
+  it('does not put a step in the failure lane when a cycle edge reaches it without a failure', () => {
+    const graph = cycle(false)
+    const inLane = lane(graph)
+    expect(inLane('y')).toBe(false)
+    expect(inLane('x')).toBe(false)
+  })
+
+  it('still puts steps reached only after a failure in the lane, cycle or not', () => {
+    const graph = cycle(true)
+    const inLane = lane(graph)
+    expect(inLane('y')).toBe(true)
+    expect(inLane('x')).toBe(true)
+  })
+
+  it('uses the middle of a one pixel gap', () => {
+    const rects = new Map([
+      ['a', { x: 0, y: 0, width: 224, height: 96 }],
+      ['b', { x: 0, y: 97, width: 224, height: 96 }],
+      ['c', { x: 320, y: 304, width: 224, height: 96 }],
+    ])
+    const route = createRouter(rects, [{ key: 'a.done', from: 'a', to: 'c', port: { x: 112, y: 96 }, entry: { x: 432, y: 304 } }]).route('a.done')!
+    expect(route.blocked).toBe(false)
+    for (let i = 1; i < route.points.length; i += 1) {
+      const p = route.points[i - 1]!
+      const q = route.points[i]!
+      expect(Math.max(p.x, q.x) > 0 && Math.min(p.x, q.x) < 224 && Math.max(p.y, q.y) > 97 && Math.min(p.y, q.y) < 193).toBe(false)
+    }
+  })
+
+  it('keeps the rounded corners of a route that runs close to cards outside them', () => {
+    const rects = new Map([
+      ['a', { x: 0, y: 0, width: 224, height: 96 }],
+      ['t', { x: 400, y: 304, width: 224, height: 96 }],
+      ['b1', { x: 0, y: 99, width: 224, height: 96 }],
+      ['b2', { x: 286, y: 99, width: 224, height: 96 }],
+    ])
+    const route = createRouter(rects, [{ key: 'a.done', from: 'a', to: 't', port: { x: 112, y: 96 }, entry: { x: 512, y: 304 } }]).route('a.done')!
+    expect(route.blocked).toBe(false)
+    // Sample the drawn path: lines and quadratic curves.
+    const d = routePath(route.points, 10, route.clear)
+    const tokens = d.match(/[MLQ]|-?[\d.]+/g)!
+    const points: Point[] = []
+    let at: Point = { x: 0, y: 0 }
+    for (let i = 0; i < tokens.length;) {
+      const cmd = tokens[i++]!
+      const n = cmd === 'Q' ? 4 : 2
+      const nums = tokens.slice(i, i + n).map(Number)
+      i += n
+      if (cmd === 'Q') {
+        const [cx, cy, ex, ey] = nums as [number, number, number, number]
+        for (let k = 1; k <= 20; k += 1) {
+          const u = k / 20
+          points.push({ x: (1 - u) * (1 - u) * at.x + 2 * (1 - u) * u * cx + u * u * ex, y: (1 - u) * (1 - u) * at.y + 2 * (1 - u) * u * cy + u * u * ey })
+        }
+        at = { x: ex, y: ey }
+      } else {
+        const [x, y] = nums as [number, number]
+        points.push({ x, y })
+        at = { x, y }
+      }
+    }
+    for (const p of points) {
+      for (const id of ['b1', 'b2']) {
+        const r = rects.get(id)!
+        expect(p.x > r.x && p.x < r.x + r.width && p.y > r.y && p.y < r.y + r.height).toBe(false)
       }
     }
   })

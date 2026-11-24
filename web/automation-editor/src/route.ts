@@ -14,6 +14,8 @@ export type Route = {
   points: Point[]
   /** No free channel was found: the route goes through a card. */
   blocked: boolean
+  /** Set when the route keeps less than the usual distance from the cards (a narrow gap); corners must stay inside it. */
+  clear?: number
 }
 export type RouteLink = {
   /** `node.outcome` */
@@ -181,18 +183,18 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
       let top = Infinity
       for (const r of first) if (s.x > r.x && s.x < r.x + r.width && r.y >= s.y - 0.5) top = Math.min(top, r.y)
       const gap = top - s.y
-      if (gap >= 2 && gap < Infinity) {
+      if (gap > 0 && gap < Infinity) {
         y1s = [s.y + gap / 2]
-        clear = Math.min(clear, gap / 2 - 0.5)
+        clear = Math.min(clear, gap * 0.375)
       }
     }
     if (y2s.length === 0) {
       let bottom = -Infinity
       for (const r of first) if (t.x > r.x && t.x < r.x + r.width && r.y + r.height <= t.y + 0.5) bottom = Math.max(bottom, r.y + r.height)
       const gap = t.y - bottom
-      if (gap >= 2 && gap < Infinity) {
+      if (gap > 0 && gap < Infinity) {
         y2s = [t.y - gap / 2]
-        clear = Math.min(clear, gap / 2 - 0.5)
+        clear = Math.min(clear, gap * 0.375)
       }
     }
     if (y1s.length === 0 || y2s.length === 0) return { ...directRoute(s, t), blocked: true }
@@ -202,7 +204,7 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   // search starts with the cards close to the edge and widens only when it finds nothing.
   for (const reach of [96, 480, 100000]) {
     const found = search(reach)
-    if (found) return { points: found, blocked: false }
+    if (found) return clear < CLEAR ? { points: found, blocked: false, clear } : { points: found, blocked: false }
   }
   return { ...directRoute(s, t), blocked: true }
 
@@ -428,8 +430,10 @@ export function routeEdges(graph: AutomationGraph, catalog: EditorCatalog, layou
 }
 
 /** SVG path of a route, with rounded corners. */
-export function routePath(points: Point[], radius = 10): string {
+export function routePath(points: Point[], radius = 10, clear = CLEAR): string {
   if (points.length === 0) return ''
+  // A rounded corner cuts in by a quarter of its radius on each axis: keep that inside the distance the route keeps from cards.
+  radius = Math.min(radius, clear * 3.5)
   let d = `M${points[0]!.x},${points[0]!.y}`
   for (let i = 1; i < points.length; i += 1) {
     const prev = points[i - 1]!
