@@ -127,6 +127,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                         nodeType={node().type}
                         nodeId={props.id}
                         graph={props.graph}
+                        events={props.catalog.events}
                         fieldSlot={props.fieldSlot}
                         expressions={s().expressions}
                         templates={s().templates}

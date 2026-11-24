@@ -1,6 +1,6 @@
 // Fixture host for the editor: a fake EditorApi with switches in the query string, for manual checks,
-// e2e and the benchmark. Query: graph=sample|connected|empty|bench|multi|foreach, locale, theme=dark, readonly=1,
-// latency=<ms>, fail=save|validate|savelayout, conflict=1, pending=1, overlay=1, catalog=empty,
+// e2e and the benchmark. Query: graph=sample|connected|empty|bench|multi|foreach|notify|notify_plain, locale, theme=dark, readonly=1,
+// latency=<ms>, fail=save|validate|savelayout, conflict=1, pending=1, overlay=1, catalog=empty|notify,
 // mode=canvas (the Canvas alone, with counters), errors=1 (validate reports an error on has_email).
 import { batch, createSignal, Show } from 'solid-js'
 import { render } from 'solid-js/web'
@@ -9,8 +9,8 @@ import { Editor } from '../src/Editor'
 import { EditorSkeleton } from '../src/lazy'
 import { ensureLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, SaveResult } from '../src/types'
-import { catalog as fullCatalog, emptyCatalog } from './catalog'
-import { bench, connected, empty, sample } from './graphs'
+import { catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
+import { bench, connected, empty, notifyGraph, sample } from './graphs'
 import { foreachJoin, layoutCatalog, multiTrigger } from './layoutGraphs'
 import './solid-ui.generated.css'
 import '../src/styles.css'
@@ -24,12 +24,14 @@ if (params.get('theme') === 'dark') document.documentElement.classList.add('dark
 document.documentElement.lang = locale
 
 const layoutGraph = params.get('graph') === 'multi' || params.get('graph') === 'foreach'
-const catalog = params.get('catalog') === 'empty' ? emptyCatalog : layoutGraph ? layoutCatalog : fullCatalog
+const catalog = params.get('catalog') === 'empty' ? emptyCatalog : params.get('catalog') === 'notify' ? notifyCatalog : layoutGraph ? layoutCatalog : fullCatalog
 const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
   switch (params.get('graph')) {
     case 'bench': return bench()
     case 'connected': return { graph: connected, layout: {} }
     case 'empty': return { graph: empty, layout: {} }
+    case 'notify': return { graph: notifyGraph('acme.policy.created.v1'), layout: {} }
+    case 'notify_plain': return { graph: notifyGraph('acme.policy.deleted.v1'), layout: {} }
     case 'multi': return { graph: multiTrigger, layout: {} }
     case 'foreach': return { graph: foreachJoin, layout: {} }
     default: return { graph: sample, layout: {} }

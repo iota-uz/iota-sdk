@@ -403,8 +403,12 @@ type RunRequest struct {
 	// Tx is a caller-owned transaction the handler works in (a subscription
 	// delivery with its receipt). The host never commits or rolls it back.
 	// Required for subscription and guard-with-tx kinds.
-	Tx           pgx.Tx
-	Producer     spi.Producer
+	Tx       pgx.Tx
+	Producer spi.Producer
+	// Unrecorded runs the export without writing invocation records, for it and everything it nests: a
+	// read-only check (a preview, a contact lookup) that must leave no trace. Only a query export may be
+	// unrecorded; the host refuses any other kind.
+	Unrecorded   bool
 	StartKeyBase string
 	// Occurrence is passed to the handler as ctx.occurrence. For workflow
 	// invocations it carries the replay journal ({"journal":[...]}) the worker
@@ -423,6 +427,12 @@ func (h *Host) Run(ctx context.Context, req RunRequest) (Result, error) {
 		producer: req.Producer,
 		starts:   &startSource{base: req.StartKeyBase},
 		token:    req.Token,
+	}
+	if req.Unrecorded {
+		if req.Export.Kind != pool.KindQuery {
+			return Result{}, serrors.New(serrors.Invalid, "only a query export may run unrecorded").WithOp(opRun)
+		}
+		root.unrecorded = true
 	}
 	defer root.txs.rollbackAll()
 	ctx, cancel := h.withDeadline(ctx)
@@ -459,6 +469,8 @@ type rootState struct {
 	token  string
 	// infra is the first infrastructure failure of a host call under this root.
 	infra infraState
+	// unrecorded: the root and what it nests write no invocation records (RunRequest.Unrecorded).
+	unrecorded bool
 }
 
 // startSource derives deterministic tx.start keys: base#1, base#2, ... in the
