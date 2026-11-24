@@ -288,6 +288,9 @@ func (c *Controller) list(ctx context.Context, req ListRequest) (ListResponse, e
 			UpdatedAt: stamp(am.UpdatedAt), UpdatedBy: nameOf(names, ov.LatestSavedBy),
 			SavedByAgent: ov.LatestSavedOrigin == engine.OriginAgent,
 		}
+		if d := strings.TrimSpace(ov.LatestDescription); d != "" {
+			item.Description = &d
+		}
 		item.PendingVersion = am.EnabledVersion != nil && *am.EnabledVersion != am.LatestVersion ||
 			am.EnabledVersion == nil && ov.LatestSavedOrigin == engine.OriginAgent
 		for _, t := range ov.Triggers {

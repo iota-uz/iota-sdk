@@ -6,14 +6,15 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 // HooksControllerID is the descriptor ID of the connectors' webhook endpoint.
 const HooksControllerID = "automations.hooks"
 
 // HooksPath is where connectors' providers deliver webhooks: <HooksPath>/<connection_id> and
-// <HooksPath>/platform/<kind>. The module exempts it from the application's CSRF middleware
-// (middleware.ExemptFromCSRF).
+// <HooksPath>/platform/<kind>. The route is exempt from the CSRF middleware of the router it is
+// registered on (middleware.CSRFExemptRoute), and only there.
 const HooksPath = "/automations/hooks"
 
 // HooksController mounts engine.InboundHandler without a session, CSRF or tenant middleware: the
@@ -37,5 +38,6 @@ func (h *HooksController) Descriptor() application.ControllerDescriptor {
 
 // Register implements application.Controller.
 func (h *HooksController) Register(r *mux.Router) {
-	r.PathPrefix(HooksPath+"/").Methods(http.MethodGet, http.MethodPost).Handler(h.handler)
+	// The webhooks authenticate by the connector's Verify, never by a session or a cookie.
+	middleware.CSRFExemptRoute(r.PathPrefix(HooksPath+"/").Methods(http.MethodGet, http.MethodPost).Handler(h.handler))
 }

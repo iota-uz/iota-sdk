@@ -81,6 +81,11 @@ describe('manual start input (AL9)', () => {
     expect(inputValue(fields, { amount: '1.5', meta: '{' }).errors).toEqual({ amount: 'number', meta: 'json' })
     expect(inputValue(fields, {}).errors).toEqual({ amount: 'required' })
   })
+  it('sends an enum value with its type', () => {
+    const fields = inputFields({ type: 'object', properties: { level: { type: 'integer', enum: [1, 2] }, tag: { enum: ['1', 'b'] } } })
+    expect(fields[0]!.options).toEqual(['1', '2'])
+    expect(inputValue(fields, { level: '1', tag: '0' }).input).toEqual({ level: 2, tag: '1' })
+  })
   it('finds the manual triggers of a graph', () => {
     const catalog = { events: [{ key: 'automation.manual.v1', title: 'Manual start', manual: true }, { key: 'x.v1', title: 'X' }] } as unknown as EditorCatalog
     const graph = { name: 'g', run_as: 'owner' as const, nodes: [], edges: [], triggers: [{ id: 'm', event: 'automation.manual.v1', params: { input_schema: schema } }, { id: 'e', event: 'x.v1' }] }

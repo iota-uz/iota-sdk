@@ -41,13 +41,17 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
   const [busy, setBusy] = createSignal(false)
   const [notice, setNotice] = createSignal<string>()
   const [errors, setErrors] = createSignal<GraphError[]>([])
+  // After a refusal the latest version is reviewed (the one saved meanwhile), retries included.
+  let latest = false
   const load = async (changed = false) => {
+    if (changed) latest = true
     setLoadError(undefined)
+    // What is on screen no longer is what would be enabled: nothing is confirmed until the review loads.
+    setReview(undefined)
     try {
-      // After a refusal the latest version is reviewed: the one saved meanwhile.
-      const r = await app.call('automations.enable_review', { id: props.id, version: changed ? 0 : props.version })
+      const r = await app.call('automations.enable_review', { id: props.id, version: latest ? 0 : props.version })
       setReview(r)
-      if (changed) setNotice(t('Review.Changed'))
+      if (latest) setNotice(t('Review.Changed'))
     } catch (error) {
       setLoadError(errorText(t, error, t('Actions.LoadReview')))
     }
@@ -169,7 +173,7 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
         </Show>
         <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={props.onClose} aria-disabled={busy() || undefined}>{t('Common.Cancel')}</Button>
-          <Button variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={!review() || review()!.problems.length > 0}
+          <Button variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={!review() || Boolean(loadError()) || review()!.problems.length > 0}
             aria-describedby={(review()?.problems.length ?? 0) > 0 ? 'review-blocked' : undefined} onClick={() => void enable()} data-testid="review-enable">
             {busy() ? t('Review.Enabling') : t('Review.Enable', { version: review()?.version ?? props.version })}
           </Button>

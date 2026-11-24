@@ -567,8 +567,14 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 	if err := s.authorize(a, PermEnable); err != nil {
 		return Automation{}, err
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	current, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	if err != nil {
 		return Automation{}, err
+	}
+	// A version superseded since the review is reviewed again before anything about it is judged (its
+	// digest, its validation): the newer version may already fix what the older one lacks.
+	if in.Latest && current.LatestVersion != in.Version {
+		return Automation{}, ErrReviewRequired
 	}
 	v, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, in.Version)
 	if err != nil {

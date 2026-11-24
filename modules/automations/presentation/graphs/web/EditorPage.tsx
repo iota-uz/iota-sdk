@@ -52,7 +52,10 @@ export default function EditorPage(): JSX.Element {
   const [remoteLayout, setRemoteLayout] = createSignal<{ positions: AutomationLayout } | null>(null)
   const [dialog, setDialog] = createSignal<'review' | 'disable' | 'delete' | 'run' | null>(null)
   const [phone, setPhone] = createSignal(false)
+  // layoutRevision is the stored layout's revision as last heard; positionsBase is the revision the
+  // positions on screen were made over. They differ after another tab moved steps, until «Refresh».
   let layoutRevision = 0
+  let positionsBase = 0
   let layoutStale = false
   let loadSeq = 0
 
@@ -74,6 +77,7 @@ export default function EditorPage(): JSX.Element {
 
   const applyGet = (g: GetResult, key: number) => {
     layoutRevision = g.automation.layout_revision
+    positionsBase = layoutRevision
     layoutStale = false
     setCan(g.can)
     setInfo({
@@ -138,15 +142,18 @@ export default function EditorPage(): JSX.Element {
       if (res.ok && res.id) {
         const id = res.id
         layoutRevision = res.layout_revision ?? 0
+        positionsBase = layoutRevision
         setInfo({ id, name: graph.name, enabled: false, enabledVersion: null, latestVersion: res.version ?? 1, version: res.version ?? 1, savedByAgent: false, versions: [], manual: [] })
         window.history.replaceState({}, '', graphPath(app.props.basePath, id))
         void refreshInfo()
       }
       return toSave(res)
     }
-    const res = await app.call('automations.save', { id: i.id, base, graph, layout, ...(layoutStale ? {} : { layout_revision: layoutRevision }) })
+    // The revision the positions were made over, also after a conflict: the server keeps the newer ones.
+    const res = await app.call('automations.save', { id: i.id, base, graph, layout, layout_revision: positionsBase })
     if (res.ok) {
       layoutRevision = res.layout_revision ?? layoutRevision
+      if (!res.layout_changed && !layoutStale) positionsBase = layoutRevision
       if (res.layout_changed) {
         // Another tab moved steps meanwhile: its positions were kept; «Refresh» shows them.
         layoutStale = true
@@ -169,6 +176,7 @@ export default function EditorPage(): JSX.Element {
     const res = await app.call('automations.save_layout', { id: i.id, base_revision: layoutRevision, positions })
     if (res.ok) {
       layoutRevision = res.revision
+      positionsBase = res.revision
       return
     }
     // Another tab saved positions meanwhile: they are not overwritten; «Refresh» shows them.
@@ -182,7 +190,7 @@ export default function EditorPage(): JSX.Element {
   const notifyLayoutConflict = () => {
     app.toast.notify({
       id: 'layout-conflict', variant: 'warning', title: t('Editor.LayoutChanged'),
-      action: { label: t('Editor.LayoutRefresh'), onAction: () => { layoutStale = false; setRemoteLayout({ positions: latestPositions }) } },
+      action: { label: t('Editor.LayoutRefresh'), onAction: () => { layoutStale = false; positionsBase = layoutRevision; setRemoteLayout({ positions: latestPositions }) } },
     })
   }
   const reload = async () => {
@@ -190,6 +198,7 @@ export default function EditorPage(): JSX.Element {
     if (!i) throw new Error('nothing to reload')
     const g = await app.call('automations.get', { id: i.id })
     layoutRevision = g.automation.layout_revision
+    positionsBase = layoutRevision
     layoutStale = false
     setInfo({ ...i, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, version: g.version, versions: g.versions, savedByAgent: g.saved_by.origin === 'agent', manual: manualOf(g) })
     return { graph: g.graph as AutomationGraph, version: g.version, layout: g.automation.layout }

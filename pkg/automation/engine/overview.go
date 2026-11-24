@@ -130,6 +130,7 @@ func (s *service) Overviews(ctx context.Context, a Actor, ids []uuid.UUID) (map[
 	}
 	for id, l := range got {
 		if g, errs := graph.Decode(l.graph); len(errs) == 0 {
+			l.ov.LatestDescription = g.Description
 			l.ov.Triggers = append(l.ov.Triggers, triggerReviews(view, g)...)
 		}
 		out[id] = l.ov

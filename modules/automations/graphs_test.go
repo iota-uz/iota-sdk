@@ -166,7 +166,7 @@ func rpc(t *testing.T, s *itf.Suite, method string, params any, out any) *rpcRep
 
 func codeGraph(name, src string) map[string]any {
 	return map[string]any{
-		"name": name, "run_as": "owner",
+		"name": name, "description": "Built in a test", "run_as": "owner",
 		"triggers": []any{map[string]any{"id": "start", "event": engine.EventManual}},
 		"nodes":    []any{map[string]any{"id": "code", "type": "acme.code", "params": map[string]any{"source": src}}, map[string]any{"id": "fin", "type": "end", "params": map[string]any{}}},
 		"edges": []any{
@@ -231,6 +231,8 @@ func TestCodeReviewBeforeEnabling(t *testing.T) {
 	require.NotNil(t, list.Items[0].LastRun)
 	assert.Equal(t, started.RunID, list.Items[0].LastRun.RunID)
 	assert.Equal(t, []graphs.TriggerView{{Kind: graphs.TriggerManual, Title: "Manual start"}}, list.Items[0].Triggers)
+	require.NotNil(t, list.Items[0].Description)
+	assert.Equal(t, "Built in a test", *list.Items[0].Description)
 
 	// v2 changes the code: saved, pending review; v1 keeps running.
 	var saved graphs.SaveResult

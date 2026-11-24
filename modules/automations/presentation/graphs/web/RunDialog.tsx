@@ -75,7 +75,7 @@ export function RunDialog(props: { id: string; triggers: ManualTrigger[]; subjec
         </Match>
         <Match when={f.kind === 'enum'}>
           <Select label={label} description={f.description} error={err()} placeholder={t('Run.Choose')} value={String(values()[f.name] ?? '')}
-            options={(f.options ?? []).map((o) => ({ value: o, label: o }))} onChange={(e) => set(f.name, e.currentTarget.value)} data-field={f.name} />
+            options={(f.options ?? []).map((o, i) => ({ value: String(i), label: o }))} onChange={(e) => set(f.name, e.currentTarget.value)} data-field={f.name} />
         </Match>
         <Match when={f.kind === 'textarea' || f.kind === 'json'}>
           <Textarea label={label} description={f.kind === 'json' ? t('Run.JsonHint') : f.description} error={err()} value={String(values()[f.name] ?? '')}

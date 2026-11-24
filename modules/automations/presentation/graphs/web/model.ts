@@ -260,7 +260,9 @@ export interface InputField {
   description?: string
   kind: 'text' | 'textarea' | 'number' | 'integer' | 'boolean' | 'enum' | 'json'
   required: boolean
+  /** Labels of an enum's values; the form keeps the index, inputValue sends the typed value. */
   options?: string[]
+  enumValues?: unknown[]
 }
 
 interface SchemaProperty {
@@ -287,7 +289,10 @@ export function inputFields(schema: unknown): InputField[] {
     else if ((p.maxLength ?? 0) > 200) kind = 'textarea'
     const field: InputField = { name, title: p.title ?? name, kind, required: required.has(name) }
     if (p.description) field.description = p.description
-    if (kind === 'enum') field.options = (p.enum ?? []).map(String)
+    if (kind === 'enum') {
+      field.enumValues = [...(p.enum ?? [])]
+      field.options = field.enumValues.map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+    }
     return field
   })
 }
@@ -307,7 +312,12 @@ export function inputValue(fields: InputField[], values: Record<string, string |
       if (f.required) errors[f.name] = 'required'
       continue
     }
-    if (f.kind === 'number' || f.kind === 'integer') {
+    if (f.kind === 'enum') {
+      // The form holds the index of the value: 1 stays a number, "1" a string.
+      const i = Number(s)
+      if (Number.isInteger(i) && f.enumValues && i >= 0 && i < f.enumValues.length) input[f.name] = f.enumValues[i]
+      else errors[f.name] = 'required'
+    } else if (f.kind === 'number' || f.kind === 'integer') {
       const num = Number(s)
       if (!Number.isFinite(num) || (f.kind === 'integer' && !Number.isInteger(num))) errors[f.name] = 'number'
       else input[f.name] = num

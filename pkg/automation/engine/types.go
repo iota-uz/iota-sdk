@@ -424,6 +424,8 @@ type Overview struct {
 	LatestSavedBy     int64
 	LatestSavedOrigin Origin
 	LatestSavedAt     time.Time
+	// LatestDescription is the description of the latest version's graph.
+	LatestDescription string
 	// LatestCodeDigest and EnabledCodeDigest tell whether the latest version changed the code of the
 	// enabled one.
 	LatestCodeDigest  string

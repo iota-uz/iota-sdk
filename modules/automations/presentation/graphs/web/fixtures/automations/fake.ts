@@ -18,6 +18,8 @@ export interface FakeOptions {
   conflictOnce: boolean
   /** The first count of live runs fails (the confirmation offers a retry). */
   liveFailsOnce: boolean
+  /** The review after a digest refusal fails once (a network error). */
+  reviewFailsAfterChange: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
 }
@@ -132,6 +134,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let conflictOnce = opts.conflictOnce
   let runSeq = 0
   let liveFails = opts.liveFailsOnce
+  let reviewFails = false
   const find = (id: string) => store.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
   const digestOf = (s: Stored) => (s.code.length > 0 ? `digest-${s.item.latest_version}-${s.code.map((c) => c.source.length).join('.')}` : '')
   const handlers: { [K in keyof RPC]?: (p: RPC[K]['params']) => RPC[K]['result'] } = {
@@ -201,6 +204,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     'automations.validate': () => ({ ok: true, errors: [], warnings: [] }),
     'automations.enable_review': (p) => {
       const s = find(p.id)
+      if (reviewFails) { reviewFails = false; rpcError('internal', 'internal error') }
       return {
         version: p.version || s.item.latest_version,
         code_nodes: s.code.map((c) => ({ ...c, title: 'Format the digest', lang: 'ts' as const })),
@@ -218,6 +222,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         s.item.latest_version++
         s.versions.push({ ...s.versions[s.versions.length - 1]!, version: s.item.latest_version, origin: 'agent' })
         s.code = s.code.map((c) => ({ ...c, source: c.source + '// changed by the agent\n' }))
+        reviewFails = opts.reviewFailsAfterChange
         return { ok: false, error: 'review_required' }
       }
       if (p.version !== s.item.latest_version || p.code_digest !== digestOf(s)) return { ok: false, error: 'review_required' }

@@ -234,3 +234,38 @@ test('AL7: why enabling is off is said next to the button; without the right the
   await page.goto(`/?cannot=enable&view=editor&id=${WELCOME}`)
   await expect(page.getByTestId('enable-note')).toBeVisible()
 })
+
+test('AL6: a failed reload after a refusal keeps nothing to confirm; Retry reviews the latest version', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&changeOnce&reviewFailsAfterChange`)
+  await page.getByTestId('review-and-enable').click()
+  const dialog = page.getByTestId('review-dialog')
+  await expect(dialog.getByTestId('review-enable')).toHaveText('Enable v3')
+  await dialog.getByTestId('review-enable').click()
+  await expect(dialog.getByTestId('review-load-error')).toBeVisible()
+  await expect(dialog.getByTestId('code-source')).toHaveCount(0)
+  await expect(dialog.getByTestId('review-enable')).toBeDisabled()
+  await dialog.getByRole('button', { name: 'Retry' }).click()
+  await expect(dialog.getByTestId('review-enable')).toHaveText('Enable v4')
+  const reviews = (await calls(page)).filter((c) => c.method === 'automations.enable_review').map((c) => (c.params as { version: number }).version)
+  expect(reviews).toEqual([3, 0, 0])
+})
+
+test('layout: a Save after a layout conflict sends the revision the positions were made over', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&layoutConflict`)
+  const card = page.locator('.iota-flow__node[data-id="email"]')
+  await expect(card).toBeVisible()
+  const box = (await card.boundingBox())!
+  await page.mouse.move(box.x + 40, box.y + 20)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 120, box.y + 60, { steps: 6 })
+  await page.mouse.up()
+  await expect(page.getByText('The layout was changed in another tab')).toBeVisible({ timeout: 5000 })
+  // An edit of the graph, saved without «Refresh».
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill('Daily sales digest (edited)')
+  await page.keyboard.press('Escape')
+  await page.locator('.ae-save').click()
+  await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.save').length).toBe(1)
+  const save = (await calls(page)).find((c) => c.method === 'automations.save')!.params as { layout_revision?: number }
+  expect(save.layout_revision).toBe(4)
+})

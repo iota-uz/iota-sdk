@@ -106,7 +106,7 @@ func CSRF(authKey []byte, opts ...CSRFOption) mux.MiddlewareFunc {
 					return
 				}
 			}
-			if csrfExempted(r.URL.Path) {
+			if csrfExempted(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -115,41 +115,28 @@ func CSRF(authKey []byte, opts ...CSRFOption) mux.MiddlewareFunc {
 	}
 }
 
-var exemptions struct {
-	mu       sync.RWMutex
-	prefixes []string
+// exemptRoutes are the routes CSRFExemptRoute marked, by identity: a route belongs to one router, so
+// the exemption never reaches a path of another router or application.
+var exemptRoutes sync.Map // *mux.Route → struct{}
+
+// CSRFExemptRoute exempts one route from the CSRF middleware of the router it is registered on (a CSRF
+// installed with Router.Use sees the matched route). It is for an endpoint that authenticates every
+// request itself and never acts on a browser's cookies: a provider's webhook verified by its signature.
+// The same path on another router, or a request that matched no route, stays protected.
+func CSRFExemptRoute(route *mux.Route) *mux.Route {
+	if route != nil {
+		exemptRoutes.Store(route, struct{}{})
+	}
+	return route
 }
 
-// ExemptFromCSRF exempts path prefixes from every CSRF middleware of the process (CSRF and
-// CSRFFromConfig), whatever options the application built it with. It is for endpoints a module
-// mounts that authenticate each request themselves and never act on a browser's cookies: a provider's
-// webhook verified by its signature. A module calls it when it is composed.
-func ExemptFromCSRF(prefixes ...string) {
-	exemptions.mu.Lock()
-	defer exemptions.mu.Unlock()
-	for _, p := range prefixes {
-		if p = strings.TrimSpace(p); p == "" || p == "/" {
-			continue
-		}
-		known := false
-		for _, have := range exemptions.prefixes {
-			known = known || have == p
-		}
-		if !known {
-			exemptions.prefixes = append(exemptions.prefixes, p)
-		}
+func csrfExempted(r *http.Request) bool {
+	route := mux.CurrentRoute(r)
+	if route == nil {
+		return false
 	}
-}
-
-func csrfExempted(path string) bool {
-	exemptions.mu.RLock()
-	defer exemptions.mu.RUnlock()
-	for _, p := range exemptions.prefixes {
-		if strings.HasPrefix(path, p) {
-			return true
-		}
-	}
-	return false
+	_, ok := exemptRoutes.Load(route)
+	return ok
 }
 
 func normalizeTrustedOrigin(origin, defaultScheme string) (string, bool) {
