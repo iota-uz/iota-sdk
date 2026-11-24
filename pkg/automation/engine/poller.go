@@ -178,8 +178,10 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 	return next, errors.Join(errs...)
 }
 
-// scan lists the connected connections of a Poller connector that an inbound trigger of an enabled
-// version uses (its connection param, or the one connection of its kinds).
+// scan lists the connected connections of a Poller connector that an enabled version uses to receive:
+// by an inbound trigger, or by a node that waits for an event of the connector (a wait for the reply to a
+// message). The connection is the node's or trigger's connection param, or the one connection of its
+// kinds.
 func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool, error) {
 	rows, err := p.r.cfg.DB.Query(ctx, `
 		SELECT t.tenant_id, t.trigger_id, v.graph
@@ -208,49 +210,133 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 	if err := rows.Err(); err != nil {
 		return nil, nil, serrors.FromDB(opPoll, err)
 	}
+	waiters, err := p.waitingGraphs(ctx, p.waitTypes())
+	if err != nil {
+		return nil, nil, err
+	}
 	views := map[uuid.UUID]catalog.View{}
 	failed := map[uuid.UUID]bool{}
 	seen := map[uuid.UUID]bool{}
 	var out []polled
+	viewOf := func(tenant uuid.UUID) (catalog.View, bool) {
+		if view, ok := views[tenant]; ok {
+			return view, true
+		}
+		if failed[tenant] {
+			return catalog.View{}, false
+		}
+		view, err := p.r.cfg.Catalog.ForTenant(ctx, tenant)
+		if err != nil {
+			failed[tenant] = true
+			p.r.cfg.Logger.Warn("automation poller: the catalog of a tenant could not be read", "tenant_id", tenant.String(), "error", err)
+			return catalog.View{}, false
+		}
+		views[tenant] = view
+		return view, true
+	}
+	add := func(tenant uuid.UUID, view catalog.View, kinds []catalog.ConnectorKind, param any) {
+		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, param)
+		if err != nil {
+			return
+		}
+		id, err := uuid.Parse(ref.ID) // a platform credential is not polled per tenant
+		if err != nil || seen[id] {
+			return
+		}
+		cn, ok := p.cfg.Connectors.Get(kind)
+		if _, isPoller := cn.(Poller); !ok || !isPoller {
+			return
+		}
+		seen[id] = true
+		out = append(out, polled{tenant: tenant, id: id, kind: kind})
+	}
 	for _, u := range uses {
 		g, errs := graph.Decode(u.raw)
 		if len(errs) > 0 {
 			continue
 		}
-		view, ok := views[u.tenant]
+		view, ok := viewOf(u.tenant)
 		if !ok {
-			if failed[u.tenant] {
-				continue
-			}
-			if view, err = p.r.cfg.Catalog.ForTenant(ctx, u.tenant); err != nil {
-				failed[u.tenant] = true
-				p.r.cfg.Logger.Warn("automation poller: the catalog of a tenant could not be read", "tenant_id", u.tenant.String(), "error", err)
-				continue
-			}
-			views[u.tenant] = view
+			continue
 		}
 		for _, t := range g.Triggers {
-			if t.ID != u.trigger {
+			if t.ID == u.trigger {
+				add(u.tenant, view, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
+			}
+		}
+	}
+	for _, w := range waiters {
+		g, errs := graph.Decode(w.raw)
+		if len(errs) > 0 {
+			continue
+		}
+		view, ok := viewOf(w.tenant)
+		if !ok {
+			continue
+		}
+		for _, n := range g.Nodes {
+			spec, known := view.Catalog.Nodes[n.Type]
+			if !known || spec.Wait == nil || spec.Wait.Event.IsZero() {
 				continue
 			}
-			ref, kind, err := catalog.ResolveConnection(view.Connections, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
-			if err != nil {
-				continue
+			kinds := view.NodeRequires[n.Type]
+			if len(kinds) == 0 {
+				kinds = view.EventRequires[spec.Wait.Event.Of(n.Params)]
 			}
-			id, err := uuid.Parse(ref.ID) // a platform credential is not polled per tenant
-			if err != nil || seen[id] {
-				continue
-			}
-			cn, ok := p.cfg.Connectors.Get(kind)
-			if _, isPoller := cn.(Poller); !ok || !isPoller {
-				continue
-			}
-			seen[id] = true
-			out = append(out, polled{tenant: u.tenant, id: id, kind: kind})
+			add(w.tenant, view, kinds, n.Params[catalog.ConnectionParam])
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].id.String() < out[j].id.String() })
 	return out, failed, nil
+}
+
+// waitingGraph is the graph of an enabled version, whose waits may need a connection to be polled.
+type waitingGraph struct {
+	tenant uuid.UUID
+	raw    []byte
+}
+
+// waitTypes are the node types of the polling connectors that wait for an event: a graph that has none
+// of them has nothing to poll for by waiting.
+func (p *InboundPoller) waitTypes() []string {
+	var out []string
+	for _, c := range p.cfg.Connectors.List() {
+		if _, ok := c.(Poller); !ok {
+			continue
+		}
+		for _, n := range c.Nodes() {
+			if spec := n.Spec(); spec.Wait != nil && !spec.Wait.Event.IsZero() {
+				out = append(out, spec.Type)
+			}
+		}
+	}
+	return out
+}
+
+// waitingGraphs are the graphs of the enabled versions that have a node of one of the types.
+func (p *InboundPoller) waitingGraphs(ctx context.Context, types []string) ([]waitingGraph, error) {
+	if len(types) == 0 {
+		return nil, nil
+	}
+	rows, err := p.r.cfg.DB.Query(ctx, `
+		SELECT a.tenant_id, v.graph
+		FROM automation.automations a
+		JOIN automation.versions v ON v.tenant_id = a.tenant_id AND v.automation_id = a.id AND v.version = a.enabled_version
+		WHERE a.enabled_version IS NOT NULL AND a.deleted_at IS NULL
+		  AND EXISTS (SELECT 1 FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'type' = ANY($1))`, types)
+	if err != nil {
+		return nil, serrors.FromDB(opPoll, err)
+	}
+	defer rows.Close()
+	var out []waitingGraph
+	for rows.Next() {
+		var w waitingGraph
+		if err := rows.Scan(&w.tenant, &w.raw); err != nil {
+			return nil, serrors.FromDB(opPoll, err)
+		}
+		out = append(out, w)
+	}
+	return out, serrors.FromDB(opPoll, rows.Err())
 }
 
 // pollOne polls one connection when its state says it is due; it returns when it is due next.

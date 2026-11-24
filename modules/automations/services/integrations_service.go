@@ -618,7 +618,10 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 	if !ok {
 		return connectors.Connection{}, nil, nil, false, connectors.ErrNotFound
 	}
-	if conn.Descriptor().Auth != connectors.AuthOAuth2 || s.oauth == nil {
+	// A connector with a form and a sign-in (an email box) signs in with a preset its credentials name.
+	d := conn.Descriptor()
+	_, preset := d.OAuth2Presets[creds[connectors.OAuth2Preset]]
+	if (d.Auth != connectors.AuthOAuth2 && !preset) || s.oauth == nil {
 		return cur, conn, creds, false, nil
 	}
 	// A connected connection gets its token as a node would; a disabled one (being enabled, or checked)

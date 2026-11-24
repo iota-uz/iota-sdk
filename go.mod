@@ -26,6 +26,10 @@ require (
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/blevesearch/bleve/v2 v2.5.7
 	github.com/caarlos0/env/v11 v11.2.2
+	github.com/emersion/go-imap/v2 v2.0.0-beta.9
+	github.com/emersion/go-message v0.18.2
+	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
+	github.com/emersion/go-smtp v0.26.0
 	github.com/evanw/esbuild v0.28.2
 	github.com/extrame/xls v0.0.1
 	github.com/fsnotify/fsnotify v1.9.0

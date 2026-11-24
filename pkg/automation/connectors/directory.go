@@ -88,6 +88,14 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 	default:
 		return fmt.Errorf("%w: connector %s: auth %q is not api_key, basic, oauth2 or custom", ErrInvalid, kind, d.Auth)
 	}
+	for name, cfg := range d.OAuth2Presets {
+		if d.Auth == AuthOAuth2 || name == "" || cfg.AuthURL == "" || cfg.TokenURL == "" {
+			return fmt.Errorf("%w: connector %s: OAuth2 preset %q needs a name, AuthURL and TokenURL, and a connector that is not auth oauth2", ErrInvalid, kind, name)
+		}
+		if cc := cfg.ClientCredential; cc == "" || cc == string(kind) {
+			return fmt.Errorf("%w: connector %s: OAuth2 preset %q needs a client credential named apart from the kind", ErrInvalid, kind, name)
+		}
+	}
 	switch d.Platform {
 	case "", PlatformNone, PlatformAuto, PlatformOptIn:
 	default:

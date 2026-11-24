@@ -24,6 +24,12 @@ const (
 	OAuth2RefreshToken = "refresh_token"
 	OAuth2TokenType    = "token_type"
 	OAuth2ExpiresAt    = "expires_at" // RFC 3339; empty: the token does not expire
+	// OAuth2IDToken is the OpenID Connect identity token of a sign-in with the openid scope. It is in the
+	// credentials the connector's Test and OAuth2Finisher see, to read who the token is for (the mailbox
+	// address), and is never saved: it carries the account's claims, which are not the connection's secrets.
+	OAuth2IDToken = "id_token"
+	// OAuth2Preset is the credential that names the provider of a connector with OAuth2Presets.
+	OAuth2Preset = "preset"
 )
 
 // Client credential fields of the platform credential named by OAuth2Config.ClientCredential.
@@ -78,6 +84,7 @@ type oauthState struct {
 	Verifier string                `json:"v"`
 	Redirect string                `json:"r"`
 	Expires  int64                 `json:"e"`
+	Preset   string                `json:"p,omitempty"`
 }
 
 func (o *oauth) ctx(ctx context.Context) context.Context {
@@ -88,15 +95,30 @@ func (o *oauth) ctx(ctx context.Context) context.Context {
 }
 
 func (o *oauth) config(kind catalog.ConnectorKind, redirect string) (Connector, *oauth2.Config, error) {
+	return o.configFor(kind, "", redirect)
+}
+
+// configFor is the OAuth2 config of a connector: its own, or the provider of a preset.
+func (o *oauth) configFor(kind catalog.ConnectorKind, preset, redirect string) (Connector, *oauth2.Config, error) {
 	c, ok := o.dir.Get(kind)
 	if !ok {
 		return nil, nil, fmt.Errorf("%w: connector %s", ErrNotFound, kind)
 	}
 	d := c.Descriptor()
-	if d.Auth != AuthOAuth2 || d.OAuth2 == nil {
+	provider := d.OAuth2
+	if preset != "" {
+		p, ok := d.OAuth2Presets[preset]
+		if !ok {
+			return nil, nil, fmt.Errorf("%w: connector %s has no OAuth2 preset %q", ErrInvalid, kind, preset)
+		}
+		provider = &p
+	} else if d.Auth != AuthOAuth2 {
+		provider = nil
+	}
+	if provider == nil {
 		return nil, nil, fmt.Errorf("%w: connector %s does not authorize with OAuth2", ErrInvalid, kind)
 	}
-	name := catalog.ConnectorKind(d.OAuth2.ClientCredential)
+	name := catalog.ConnectorKind(provider.ClientCredential)
 	if name == "" {
 		name = kind
 	}
@@ -106,26 +128,48 @@ func (o *oauth) config(kind catalog.ConnectorKind, redirect string) (Connector, 
 	}
 	return c, &oauth2.Config{
 		ClientID: client[OAuth2ClientID], ClientSecret: client[OAuth2ClientSecret],
-		Endpoint:    oauth2.Endpoint{AuthURL: d.OAuth2.AuthURL, TokenURL: d.OAuth2.TokenURL},
-		RedirectURL: redirect, Scopes: append([]string(nil), d.OAuth2.Scopes...),
+		Endpoint:    oauth2.Endpoint{AuthURL: provider.AuthURL, TokenURL: provider.TokenURL},
+		RedirectURL: redirect, Scopes: append([]string(nil), provider.Scopes...),
 	}, nil
 }
 
 func (o *oauth) Begin(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind, redirectURL string) (string, string, error) {
-	const op = serrors.Op("automation.connectors.OAuth2.Begin")
+	return o.begin(tenantID, kind, "", redirectURL, serrors.Op("automation.connectors.OAuth2.Begin"))
+}
+
+var _ PresetOAuth2 = (*oauth)(nil)
+
+// BeginPreset is Begin for a provider of the connector's OAuth2Presets.
+func (o *oauth) BeginPreset(_ context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind, preset, redirectURL string) (string, string, error) {
+	if preset == "" {
+		return "", "", serrors.Wrap("automation.connectors.OAuth2.BeginPreset", fmt.Errorf("%w: a preset is named", ErrInvalid))
+	}
+	return o.begin(tenantID, kind, preset, redirectURL, serrors.Op("automation.connectors.OAuth2.BeginPreset"))
+}
+
+func (o *oauth) begin(tenantID uuid.UUID, kind catalog.ConnectorKind, preset, redirectURL string, op serrors.Op) (string, string, error) {
 	if err := o.s.configured(); err != nil {
 		return "", "", serrors.Wrap(op, err)
 	}
-	_, cfg, err := o.config(kind, redirectURL)
+	c, cfg, err := o.configFor(kind, preset, redirectURL)
 	if err != nil {
 		return "", "", serrors.Wrap(op, err)
 	}
 	verifier := oauth2.GenerateVerifier()
-	state, err := o.sealState(oauthState{Tenant: tenantID, Kind: kind, Verifier: verifier, Redirect: redirectURL, Expires: now().Add(o.stateTTL).Unix()})
+	state, err := o.sealState(oauthState{Tenant: tenantID, Kind: kind, Verifier: verifier, Redirect: redirectURL, Expires: now().Add(o.stateTTL).Unix(), Preset: preset})
 	if err != nil {
 		return "", "", serrors.Wrap(op, err)
 	}
-	return cfg.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier)), state, nil
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier)}
+	d := c.Descriptor()
+	extra := d.OAuth2Presets[preset].AuthParams
+	if preset == "" && d.OAuth2 != nil {
+		extra = d.OAuth2.AuthParams
+	}
+	for k, v := range extra {
+		opts = append(opts, oauth2.SetAuthURLParam(k, v))
+	}
+	return cfg.AuthCodeURL(state, opts...), state, nil
 }
 
 func (o *oauth) sealState(st oauthState) (string, error) {
@@ -180,6 +224,27 @@ func tokenCredentials(t *oauth2.Token, previous Credentials) Credentials {
 	return c
 }
 
+// carryOver is next with the credentials of previous that are not a token set's own (a preset, the
+// mailbox a token is for): a refresh replaces the tokens and keeps the rest of the connection's
+// credentials.
+func carryOver(next, previous Credentials) Credentials {
+	for k, v := range previous {
+		if _, own := next[k]; own || isTokenField(k) {
+			continue
+		}
+		next[k] = v
+	}
+	return next
+}
+
+func isTokenField(k string) bool {
+	switch k {
+	case OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt, OAuth2IDToken:
+		return true
+	}
+	return false
+}
+
 // tokenError hides the provider's response: its error code, description and status text are the
 // provider's and may echo what was sent, so only the numeric HTTP status is kept.
 func tokenError(err error) error {
@@ -218,7 +283,7 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 	if st.Tenant != tenantID {
 		return OAuth2Grant{}, serrors.Wrap(op, errBadState)
 	}
-	conn, cfg, err := o.config(st.Kind, st.Redirect)
+	conn, cfg, err := o.configFor(st.Kind, st.Preset, st.Redirect)
 	if err != nil {
 		return OAuth2Grant{}, serrors.Wrap(op, err)
 	}
@@ -227,11 +292,60 @@ func (o *oauth) Exchange(ctx context.Context, tenantID uuid.UUID, state, code st
 		return OAuth2Grant{}, serrors.Wrap(op, tokenError(err))
 	}
 	creds := tokenCredentials(tok, nil)
+	if st.Preset != "" {
+		creds[OAuth2Preset] = st.Preset
+	}
+	finisher, finishes := conn.(OAuth2Finisher)
+	if id, _ := tok.Extra(OAuth2IDToken).(string); id != "" && finishes {
+		creds[OAuth2IDToken] = id // for Test and the finisher only
+	}
 	identity, err := conn.Test(ctx, creds)
 	if err != nil {
 		return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
 	}
-	return OAuth2Grant{Kind: st.Kind, Identity: SafeIdentity(identity, allSecret, creds), Credentials: creds}, nil
+	secret := o.secretFor(conn)
+	g := OAuth2Grant{Kind: st.Kind, Identity: identity, Credentials: creds}
+	if finishes {
+		if g, err = finisher.FinishGrant(g); err != nil {
+			return OAuth2Grant{}, serrors.Wrap(op, ErrOAuth2Refused)
+		}
+	}
+	for _, x := range append([]*OAuth2Grant{&g}, companionPtrs(&g)...) {
+		delete(x.Credentials, OAuth2IDToken)
+		x.Identity = SafeIdentity(x.Identity, secret, x.Credentials)
+	}
+	return g, nil
+}
+
+func companionPtrs(g *OAuth2Grant) []*OAuth2Grant {
+	out := make([]*OAuth2Grant, len(g.Companions))
+	for i := range g.Companions {
+		out[i] = &g.Companions[i]
+	}
+	return out
+}
+
+// secretFor tells which credential fields of a connector are secret: every field of an OAuth2 connector
+// (a token set has no public fields), else the x-secret fields of its schema (a connector with a form
+// besides its sign-in keeps its login and its mailbox in the clear); every field when it declares none.
+func (o *oauth) secretFor(c Connector) func(string) bool {
+	d := c.Descriptor()
+	if d.Auth == AuthOAuth2 {
+		return allSecret
+	}
+	fields := SecretFields(d)
+	if len(fields) == 0 {
+		return allSecret
+	}
+	return func(f string) bool { return fields[f] }
+}
+
+// secretOfKind is secretFor for a kind of the directory; every field when the kind is unknown.
+func (o *oauth) secretOfKind(kind catalog.ConnectorKind) func(string) bool {
+	if c, ok := o.dir.Get(kind); ok {
+		return o.secretFor(c)
+	}
+	return allSecret
 }
 
 func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code string) (Connection, error) {
@@ -240,28 +354,41 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 	if err != nil {
 		return Connection{}, serrors.Wrap(op, err)
 	}
-	st := oauthState{Kind: g.Kind}
+	saved, err := o.saveGrant(ctx, tenantID, g)
+	if err != nil {
+		return Connection{}, serrors.Wrap(op, err)
+	}
+	for _, c := range g.Companions {
+		if _, err := o.saveGrant(ctx, tenantID, c); err != nil {
+			return saved, serrors.Wrap(op, err)
+		}
+	}
+	return saved, nil
+}
+
+// saveGrant saves a grant as a new connection, or into the connection of the same identity.
+func (o *oauth) saveGrant(ctx context.Context, tenantID uuid.UUID, g OAuth2Grant) (Connection, error) {
 	creds, identity := g.Credentials, g.Identity
 	// The same identity re-authorized: refresh that connection.
 	if identity.External != "" {
-		existing, err := o.s.List(ctx, tenantID, st.Kind)
+		existing, err := o.s.List(ctx, tenantID, g.Kind)
 		if err != nil {
-			return Connection{}, serrors.Wrap(op, err)
+			return Connection{}, err
 		}
 		for _, c := range existing {
 			if c.Identity.External == identity.External {
 				_, old, err := o.s.load(ctx, o.s.db, tenantID, c.ID, false)
 				if err != nil {
-					return Connection{}, serrors.Wrap(op, err)
+					return Connection{}, err
 				}
-				c = scrubAcrossChange(c, old, creds)
-				c.Identity, c.Status, c.StatusReason = SafeIdentity(identity, allSecret, creds, old), StatusConnected, ""
-				saved, err := o.s.Save(ctx, c, creds)
-				return saved, serrors.Wrap(op, err)
+				secret := o.secretOfKind(g.Kind)
+				c = scrubAcrossChange(c, secret, old, creds)
+				c.Identity, c.Status, c.StatusReason = SafeIdentity(identity, secret, creds, old), StatusConnected, ""
+				return o.s.Save(ctx, c, creds)
 			}
 		}
 	}
-	base := nameFrom(string(st.Kind))
+	base := nameFrom(string(g.Kind))
 	display := identity.Display
 	if display == "" {
 		display = base
@@ -272,13 +399,13 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 			suffix := fmt.Sprintf("_%d", i)
 			name = base[:min(len(base), 40-len(suffix))] + suffix
 		}
-		saved, err := o.s.Save(ctx, Connection{TenantID: tenantID, Kind: st.Kind, Name: name, DisplayName: display, Identity: identity, Status: StatusConnected}, creds)
+		saved, err := o.s.Save(ctx, Connection{TenantID: tenantID, Kind: g.Kind, Name: name, DisplayName: display, Identity: identity, Status: StatusConnected}, creds)
 		if errors.Is(err, ErrNameTaken) {
 			continue
 		}
-		return saved, serrors.Wrap(op, err)
+		return saved, err
 	}
-	return Connection{}, serrors.Wrap(op, ErrNameTaken)
+	return Connection{}, ErrNameTaken
 }
 
 // nameFrom is a connection name from a kind.
@@ -383,7 +510,7 @@ func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, che
 			token = creds[OAuth2AccessToken]
 			return nil
 		}
-		_, cfg, err := o.config(c.Kind, "")
+		_, cfg, err := o.configFor(c.Kind, creds[OAuth2Preset], "")
 		if err != nil {
 			return err
 		}
@@ -401,11 +528,11 @@ func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, che
 			}
 			return tokenError(err)
 		}
-		next := tokenCredentials(tok, creds)
+		next := carryOver(tokenCredentials(tok, creds), creds)
 		// The tokens change and the metadata stays: once the old token is gone it could no longer be
 		// recognised in the display name or the identity, so they are checked against both now (a row
 		// written before this check included).
-		c = scrubAcrossChange(c, creds, next)
+		c = scrubAcrossChange(c, o.secretOfKind(c.Kind), creds, next)
 		identity, _ := json.Marshal(c.Identity)
 		if _, err := o.s.update(ctx, tx, c, identity, next); err != nil {
 			return err
@@ -438,10 +565,10 @@ func allSecret(string) bool { return true }
 // a value of the old or the new credentials: the display name (the name stays: it is chosen by an
 // administrator or derived from the kind, never from a provider, and references resolve by it) and the
 // identity (SafeIdentity).
-func scrubAcrossChange(c Connection, old, next Credentials) Connection {
-	if CarriesSecret(c.DisplayName, allSecret, old, next) {
+func scrubAcrossChange(c Connection, secret func(string) bool, old, next Credentials) Connection {
+	if CarriesSecret(c.DisplayName, secret, old, next) {
 		c.DisplayName = c.Name
 	}
-	c.Identity = SafeIdentity(c.Identity, allSecret, old, next)
+	c.Identity = SafeIdentity(c.Identity, secret, old, next)
 	return c
 }
