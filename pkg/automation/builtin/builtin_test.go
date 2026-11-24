@@ -88,7 +88,10 @@ func TestHTTPBodyValueIsCELOrATemplate(t *testing.T) {
 		`Hello, {{ event.input.name }}`: "Hello, Aziz",
 		`'Hello, ' + event.input.name`:  "Hello, Aziz",
 	} {
-		raw, _ := json.Marshal(value)
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
 		g, errs := graph.Decode([]byte(`{"name": "Hello", "triggers": [{"id": "m", "event": "automation.manual.v1"}],
 		 "nodes": [{"id": "say", "type": "http", "params": {"method": "POST", "url": "https://api.example.com/hello",
 		   "body": {"kind": "text", "value": ` + string(raw) + `}}}],

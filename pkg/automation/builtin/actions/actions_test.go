@@ -138,12 +138,12 @@ func TestCommandValidatesAndRunMapsErrors(t *testing.T) {
 	if we := wire(err); we.Kind != pool.ErrKindDenied {
 		t.Fatalf("no permission: %+v", we)
 	}
-	zero, _ := json.Marshal(map[string]any{"client_id": cid, "user_id": 0})
+	zero := json.RawMessage(`{"client_id": "` + cid + `", "user_id": 0}`)
 	_, err = actions.Run(context.Background(), act, sub, zero)
 	if we := wire(err); we.Kind != pool.ErrKindDomain || we.Code != "automation.forbidden" {
 		t.Fatalf("ErrForbidden: %+v", we)
 	}
-	one, _ := json.Marshal(map[string]any{"client_id": cid, "user_id": 1})
+	one := json.RawMessage(`{"client_id": "` + cid + `", "user_id": 1}`)
 	_, err = actions.Run(context.Background(), act, sub, one)
 	if we := wire(err); we.Code != "automation.client.archived" {
 		t.Fatalf("ActionError: %+v", we)

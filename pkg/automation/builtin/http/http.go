@@ -38,7 +38,7 @@ const (
 	OutcomeFailed  = "failed"
 )
 
-// CodeRedirectRefused: a repeatable change (idempotency_header) was redirected to another origin.
+// CodeRedirectRefused reports that a repeatable change (idempotency_header) was redirected to another origin.
 const CodeRedirectRefused = "redirect_refused"
 
 // MaxResponseBytes is the largest response body the node reads.

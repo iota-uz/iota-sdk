@@ -1327,7 +1327,7 @@ func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
 	}
 	id, err := uuid.Parse(fmt.Sprint(gev["runId"]))
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // not a run's ID: the output stays withheld
 	}
 	var out, raw []byte
 	err = m.tx.QueryRow(ctx, `SELECT output, sensitive FROM automation.runs WHERE tenant_id = $1 AND id = $2`, m.x.tenant, id).Scan(&out, &raw)

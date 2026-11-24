@@ -576,7 +576,7 @@ func TestCodeContextIsNotInTheInstanceInput(t *testing.T) {
 		for _, inst := range list {
 			h, err := p.wf.Get(context.Background(), be.tenant, inst.ID)
 			require.NoError(t, err)
-			raw, err := json.Marshal(h)
+			raw, err := json.Marshal(map[string]any{"instance": h.Instance, "occurrences": h.Occurrences, "signals": h.Signals, "tasks": h.Tasks})
 			require.NoError(t, err)
 			assert.NotContains(t, string(raw), "classified-77", "the history of %s", wf)
 			assert.NotEmpty(t, h.Occurrences, "the history keeps its shape")

@@ -490,9 +490,9 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 
 // templatesAndValues are the template and the CEL paths of a node's params: Templates and Values, and each
 // Mixed param by its text (with {{ a template, else CEL).
-func templatesAndValues(params map[string]any, spec NodeSpec) (templates, values []string) {
-	templates = expandPaths(params, spec.Templates)
-	values = expandPaths(params, spec.Values)
+func templatesAndValues(params map[string]any, spec NodeSpec) ([]string, []string) {
+	templates := expandPaths(params, spec.Templates)
+	values := expandPaths(params, spec.Values)
 	for _, p := range expandPaths(params, spec.Mixed) {
 		raw, _ := paramAt(params, p)
 		if s, ok := raw.(string); ok && strings.Contains(s, "{{") {
