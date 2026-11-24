@@ -136,6 +136,9 @@ func (c *Contacts) Calls() int { c.mu.Lock(); defer c.mu.Unlock(); return c.call
 // CalledInTransaction reports whether a resolution ran inside a database transaction.
 func (c *Contacts) CalledInTransaction() bool { c.mu.Lock(); defer c.mu.Unlock(); return c.inTx }
 
+// TxSafeContacts marks the in-memory book as transaction-safe: it takes no connection and writes nothing.
+func (c *Contacts) TxSafeContacts() {}
+
 // ResolveContact implements notifications.ContactResolver.
 func (c *Contacts) ResolveContact(ctx context.Context, _ uuid.UUID, ref notifications.ObjectRef) (notifications.Contact, error) {
 	c.mu.Lock()

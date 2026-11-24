@@ -81,6 +81,30 @@ type execution struct {
 	subject spi.Subject
 	// holdsSubject: this claim checked that the run may step on its conversation (acquireSubject).
 	holdsSubject bool
+	// prepared is the preparation of the step about to be taken again (EffectPreparer); kept in memory only,
+	// so a process that takes over prepares again.
+	prepared *preparedStep
+}
+
+// preparedStep is a PreparedEffect and the step it belongs to.
+type preparedStep struct {
+	token uuid.UUID
+	seq   int
+	node  string
+	// varsHash fingerprints the subject's variables the step read when it asked for the preparation.
+	varsHash string
+	// attempts counts the preparations made for this step: one that no longer fits what the step reads is made
+	// again, a few times at most.
+	attempts int
+	PreparedEffect
+}
+
+// preparedStepFor is the preparation of this step, if the runner made one.
+func (x *execution) preparedStepFor(token uuid.UUID, seq int, node string) *preparedStep {
+	if p := x.prepared; p != nil && p.token == token && p.seq == seq && p.node == node {
+		return p
+	}
+	return nil
 }
 
 // acquireSubject makes a resumed run that a Restart superseded take its conversation back before it
@@ -442,6 +466,20 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 		behavior, err = m.enter(ctx, &tok)
 		return err
 	})
+	var np *needsPrepareError
+	if errors.As(err, &np) {
+		// The step was rolled back: nothing of it stands. Prepare outside any transaction, then take it again.
+		v, perr := np.preparer.PrepareEffect(ctx, np.sc, np.node, np.effect)
+		attempts := 1
+		if prev := x.preparedStepFor(np.sc.TokenID, np.sc.Seq, np.node.ID); prev != nil {
+			attempts = prev.attempts + 1
+		}
+		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, varsHash: np.varsHash, attempts: attempts, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
+		if host.IsInfrastructure(perr) || ctx.Err() != nil {
+			return true, perr
+		}
+		return true, nil
+	}
 	if err == nil {
 		x.r.metrics.stepDone(ctx, behavior, time.Since(started))
 		x.log.Debug("automation step", "node_id", toks[0].NodeID, "behavior", behavior)

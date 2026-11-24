@@ -53,8 +53,11 @@ type EventSpec struct {
 	Payload       expr.Fields
 	TriggerParams ParamsSpec // nil: params by Match, or none
 	Match         map[string]MatchField
-	NoTrigger     bool   // the event only wakes waits and starts no graph
-	MatchHook     string // a product's matching rule from Options.MatchHooks
+	NoTrigger     bool // the event only wakes waits and starts no graph
+	// Participants are the recipient keys of the event's notification definition: what a notify node may
+	// name as the event's participants. Not part of the catalog format; a registry fills it.
+	Participants []string
+	MatchHook    string // a product's matching rule from Options.MatchHooks
 }
 
 // MatchField is a field a trigger matches by without CEL: its value in the trigger's params (by the field's

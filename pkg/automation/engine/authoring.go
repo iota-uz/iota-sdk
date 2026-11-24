@@ -236,6 +236,14 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			return graph.ExecAnswer{Outcome: res.outcome, Output: out}
 		}
 	}
+	opts.Preview = func(node graph.Node, effects []graph.Effect, started graph.Event) (graph.ExecAnswer, bool) {
+		// The event that started the dry run, as the interpreter chose it, and the author as its initiator.
+		trigger := triggerOfEvent(started, "dry-run")
+		if trigger != nil {
+			trigger.ActorUserID = a.UserID
+		}
+		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects)
+	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
 	return DryRunResult{Trace: traceOf(interp, steps)}, nil
 }
@@ -397,15 +405,20 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 			}
 		}
 		if len(st.Effects) > 0 {
-			out, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, node, st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
 			if serr != nil {
 				res.Error = serr
-			} else if out != nil {
-				if res.Output, err = json.Marshal(out); err != nil {
-					return TestNodeResult{}, err
+			} else {
+				if applied.Outcome != "" {
+					res.Outcome = applied.Outcome
+				}
+				if applied.Output != nil {
+					if res.Output, err = json.Marshal(applied.Output); err != nil {
+						return TestNodeResult{}, err
+					}
 				}
 			}
 		}
@@ -430,36 +443,76 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	return res, nil
 }
 
+// authorTrigger is the event a node test runs on, with the author as its initiator.
+func authorTrigger(event map[string]any, a Actor) *TriggerEvent {
+	t := triggerOfEvent(event, "test-node")
+	if t != nil {
+		t.ActorUserID = a.UserID
+	}
+	return t
+}
+
+// triggerOfEvent is the trigger event of an event as the context shows it (payload, and its kind); nil for
+// an event that names no kind.
+func triggerOfEvent(ev map[string]any, id string) *TriggerEvent {
+	kind, _ := ev["kind"].(string)
+	if kind == "" {
+		return nil
+	}
+	payload := make(map[string]any, len(ev))
+	for k, v := range ev {
+		if k != "kind" && k != catalog.BySelfField {
+			payload[k] = v
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return &TriggerEvent{Key: kind, ID: id, Payload: raw}
+}
+
+// previewEffects is the answer of a node that previews its effect (EffectPreviewer) in a dry run; ok is false
+// for a node that does not.
+func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, effects []graph.Effect) (graph.ExecAnswer, bool) {
+	nt, _ := r.cfg.Catalog.Node(node.Type)
+	pv, ok := nt.(EffectPreviewer)
+	if !ok || len(effects) == 0 {
+		return graph.ExecAnswer{}, false
+	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	res, err := pv.PreviewEffect(ctx, sc, node, effects[0])
+	if err != nil {
+		var se *StepError
+		if errors.As(err, &se) {
+			return graph.ExecAnswer{Code: se.Code, Message: se.Message, Retryable: se.Retryable}, true
+		}
+		return graph.ExecAnswer{Code: CodeEffectFailed, Message: err.Error()}, true
+	}
+	return graph.ExecAnswer{Outcome: res.Outcome, Output: res.Output}, true
+}
+
 // effectRolledBack applies an effect node's effects in a transaction it rolls back: the node's output
 // is shown, and nothing it wrote (rows, outbox events) stays.
-func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, node graph.Node, effects []graph.Effect) (map[string]any, *StepError, error) {
+func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
 		// As in a run: an effect node without an executor applies nothing, so its test says so.
-		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	if prep, ok := en.(EffectPreparer); ok && len(effects) > 0 {
+		// Prepared before the transaction opens, as a run does.
+		v, err := prep.PrepareEffect(ctx, sc, node, effects[0])
+		sc.Prepared = &PreparedEffect{Value: v, Err: err}
 	}
 	tx, err := r.cfg.DB.Begin(ctx)
 	if err != nil {
-		return nil, nil, serrors.FromDB(opAuthoring, err)
+		return EffectResult{}, nil, serrors.FromDB(opAuthoring, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject}
-	var out map[string]any
-	for _, e := range effects {
-		o, err := en.ApplyEffect(ctx, tx, sc, node, e)
-		if err != nil {
-			var se *StepError
-			if errors.As(err, &se) {
-				return nil, se, nil
-			}
-			return nil, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
-		}
-		if o != nil {
-			out = o
-		}
-	}
-	return out, nil, nil
+	return applyEach(ctx, tx, sc, node, spec, en, effects, false)
 }
 
 func (au *authoring) SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error) {

@@ -52,6 +52,8 @@ export type CatalogEvent = {
   schedule?: boolean
   /** false → the palette marks the event "no connection" and does not offer it. */
   connected?: boolean
+  /** Recipient keys of the event's notification definition: what a notify node may name as participants. */
+  participants?: string[]
 }
 export type NodeBehavior =
   | 'branch' | 'switch' | 'wait' | 'call' | 'effect' | 'end' | 'parallel' | 'join' | 'foreach' | 'collect'
