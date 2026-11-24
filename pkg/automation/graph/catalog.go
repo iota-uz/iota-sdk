@@ -99,6 +99,7 @@ type NodeSpec struct {
 	Type        string
 	Title       string
 	Description string
+	Group       string // the palette group (optional)
 	Behavior    Behavior
 	Params      ParamsSpec
 	Subjects    []string // subjects a graph with this node may have; empty: any
@@ -107,13 +108,29 @@ type NodeSpec struct {
 	OutcomesFrom  *ParamRef
 	DoneOutcome   string
 	FailedOutcome string
-	Expressions   []ExprParam // CEL inside params (dotted path) and the type it must have
-	Templates     []string    // {{ }} templates inside params (dotted path)
-	Values        []string    // CEL inside params whose value, as JSON, replaces the source in the effect
-	Answer        *AnswerSpec // call: which output field gives the outcome, and a confidence floor
-	Wait          *WaitSpec
-	Output        expr.Fields // what the node puts in nodes.<id>.output
-	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// Expressions, Templates and Values name params by a dotted path; a "*" segment stands for every key
+	// of the object at that point (a map param: values.*, headers.*).
+	Expressions []ExprParam // CEL inside params (dotted path) and the type it must have
+	Templates   []string    // {{ }} templates inside params (dotted path)
+	Values      []string    // CEL inside params whose value, as JSON, replaces the source in the effect
+	// MaxOutputBytes, when above the engine's payload limit, is the largest output a node of the type
+	// returns (an HTTP response's body, up to 10 MiB); 0: the engine's limit.
+	MaxOutputBytes int
+	// Mixed are params that are CEL or a template: a string with {{ is a template rendered as Templates
+	// are, any other a CEL expression evaluated as Values are (an HTTP body: cel|tpl).
+	Mixed      []string
+	Answer     *AnswerSpec // call: which output field gives the outcome, and a confidence floor
+	Wait       *WaitSpec
+	Output     expr.Fields // what the node puts in nodes.<id>.output
+	OutputFrom *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
+	// values).
+	OutputKeys *ParamRef
+	// Dispatch makes the type the front of a family of types chosen by a param (Resolve).
+	Dispatch *Dispatch
+	// StepContext: the effect carries the step's expression context (Effect.Context): a node that runs
+	// code reads event, nodes, the subject's variables, tenant and now outside of the step.
+	StepContext bool
 	// OutputSchemas types fields of Output by JSON Schemas inside params: an output field → the dotted
 	// param path of its schema (an MCP tool's pinned output schema). A field whose schema is absent keeps
 	// its declared type; one that has it is optional of the schema's type (dyn when the field language
@@ -144,6 +161,9 @@ func (n NodeSpec) StructuredFailure() bool {
 	switch n.Behavior { //nolint:exhaustive // the pure built-in behaviors fall through
 	case BehaviorCall, BehaviorEffect:
 		return true
+	case BehaviorWait:
+		// A wait that emits its effect fails like an effect when the effect is refused.
+		return n.Wait != nil && n.Wait.Effect
 	}
 	return !isBuiltinBehavior(n.Behavior) && !isFlowBehavior(n.Behavior)
 }
@@ -389,6 +409,14 @@ func (c Catalog) Check(b *Behaviors) error {
 				return fmt.Errorf("node %s: %s", typ, err)
 			}
 		}
+		if n.Behavior == BehaviorWait && n.Wait != nil && len(n.Outcomes) > 0 {
+			if err := waitOutcomesError(n); err != "" {
+				return fmt.Errorf("node %s: %s", typ, err)
+			}
+		}
+		if n.OutputKeys != nil && (len(n.Output) > 0 || n.OutputFrom != nil) {
+			return fmt.Errorf("node %s: output_keys declares the whole output; output and output_from are left out", typ)
+		}
 		if a := n.Answer; a != nil {
 			if a.Choice == "" {
 				return fmt.Errorf("node %s: answer names its choice field", typ)
@@ -456,6 +484,7 @@ type nodeJSON struct {
 	Behavior      Behavior        `json:"behavior"`
 	Title         string          `json:"title"`
 	Description   string          `json:"description"`
+	Group         string          `json:"group"`
 	Params        *expr.Fields    `json:"params"`
 	ParamsSchema  json.RawMessage `json:"params_schema"`
 	Subjects      []string        `json:"subjects"`
@@ -467,13 +496,15 @@ type nodeJSON struct {
 		Param string  `json:"param"`
 		Type  *string `json:"type"`
 	} `json:"expressions"`
-	Templates  []string    `json:"templates"`
-	Values     []string    `json:"values"`
-	Answer     *AnswerSpec `json:"answer"`
-	Wait       *waitJSON   `json:"wait"`
-	Output     expr.Fields `json:"output"`
-	OutputFrom *ParamRef   `json:"output_from"`
-	DryRun     DryRunMode  `json:"dry_run"`
+	Templates   []string    `json:"templates"`
+	Values      []string    `json:"values"`
+	Answer      *AnswerSpec `json:"answer"`
+	Wait        *waitJSON   `json:"wait"`
+	Output      expr.Fields `json:"output"`
+	OutputFrom  *ParamRef   `json:"output_from"`
+	OutputKeys  *ParamRef   `json:"output_keys"`
+	StepContext bool        `json:"step_context"`
+	DryRun      DryRunMode  `json:"dry_run"`
 }
 
 type waitJSON struct {
@@ -562,10 +593,10 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			continue
 		}
 		spec := NodeSpec{
-			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior, Subjects: on,
+			Type: typ, Title: n.Title, Description: n.Description, Group: n.Group, Behavior: n.Behavior, Subjects: on,
 			Outcomes: n.Outcomes, OutcomesFrom: n.OutcomesFrom, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome,
 			Templates: n.Templates, Values: n.Values, Answer: n.Answer, Output: n.Output, OutputFrom: n.OutputFrom,
-			DryRun: n.DryRun,
+			OutputKeys: n.OutputKeys, StepContext: n.StepContext, DryRun: n.DryRun,
 		}
 		if spec.Title == "" {
 			spec.Title = typ
@@ -646,6 +677,10 @@ type specDetail struct {
 	Wait          *waitDetail       `json:"wait,omitempty"`
 	MatchHook     string            `json:"match_hook,omitempty"`
 	Optional      *OptionalOutcome  `json:"optional,omitempty"`
+	StepContext   bool              `json:"step_context,omitempty"`
+	Dispatch      *Dispatch         `json:"dispatch,omitempty"`
+	Mixed         []string          `json:"mixed,omitempty"`
+	MaxOutput     int               `json:"max_output,omitempty"`
 	ReadOnlyParam string            `json:"read_only_param,omitempty"`
 	OutputSchemas map[string]string `json:"output_schemas,omitempty"`
 }
@@ -663,7 +698,7 @@ type waitDetail struct {
 func contentHash(c Catalog, v CatalogView) string {
 	details := map[string]specDetail{}
 	for typ, n := range c.Nodes {
-		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, ReadOnlyParam: n.ReadOnlyParam, OutputSchemas: n.OutputSchemas}
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Mixed: n.Mixed, MaxOutput: n.MaxOutputBytes, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext, Dispatch: n.Dispatch, ReadOnlyParam: n.ReadOnlyParam, OutputSchemas: n.OutputSchemas}
 		if w := n.Wait; w != nil {
 			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
 		}

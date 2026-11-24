@@ -12,7 +12,9 @@
 //
 // or registers connectors on the resolved connectors.Directory before serving requests.
 //
-// The component provides the connector Directory, the catalog Registry, the encrypted ConnectionStore
+// The component provides the connector Directory, the catalog Registry with the built-in node types
+// (set, code, http, start_automation, run_automation and the actions modules contribute through
+// pkg/automation/builtin/actions), the encrypted ConnectionStore
 // (keys from AUTOMATION_CONNECTIONS_KEYS, platform credentials from AUTOMATION_PLATFORM_CREDENTIALS),
 // the OAuth2 helper and the host.SecretResolver the extension runtime serves secrets.get with.
 package automations
@@ -221,6 +223,8 @@ func (c *component) Build(b *composition.Builder) error {
 
 	// The registry's availability is the store, which is built after the directory that registers into
 	// the registry: it is resolved on the first catalog read.
+	// The built-in node types are in every tenant's catalog; an application that provides its own
+	// registry registers them with builtin.Register.
 	composition.ProvideDefault[catalog.Registry](b, func(container *composition.Container) (catalog.Registry, error) {
 		reg := catalog.NewRegistry(lazyAvailability{container: container}, catalog.WithParticipants(func(event string) []string {
 			return participantsOf(container, event)
@@ -237,7 +241,14 @@ func (c *component) Build(b *composition.Builder) error {
 		if err := registerEngineCatalog(reg, natives, slog.Default()); err != nil {
 			return nil, err
 		}
+		if err := registerBuiltins(reg, container); err != nil {
+			return nil, err
+		}
 		return reg, nil
+	})
+	// The actions of the application's native set (actions.Native) join the catalog when it starts.
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		return []composition.Hook{actionsHook(container)}, nil
 	})
 	c.buildEngine(b)
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {

@@ -63,6 +63,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage, mo
 		out := append(connections(g), r.executorRule(view, g)...)
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
+		out = append(out, r.nodeRule(ctx, view, g)...)
 		out = append(out, r.nodeRules(view, g)...)
 		return append(out, runAsRule(view, g)...)
 	}
@@ -263,6 +264,37 @@ func runAsRule(view catalog.View, g graph.Graph) []graph.GraphError {
 	return nil
 }
 
+// nodeRule runs the checks node types make of their params (NodeValidator) on the graph's nodes of the
+// catalog.
+func (r *Runtime) nodeRule(ctx context.Context, view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, n := range g.Nodes {
+		if _, ok := view.Catalog.Nodes[n.Type]; !ok {
+			continue
+		}
+		nt, ok := r.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		nv, ok := nt.(NodeValidator)
+		if !ok {
+			continue
+		}
+		params := n.Params
+		if params == nil {
+			params = map[string]any{}
+		}
+		for _, e := range nv.ValidateParams(ctx, params) {
+			e.Path = fmt.Sprintf("nodes[%d].%s", i, strings.TrimPrefix(e.Path, "."))
+			if e.Code == "" {
+				e.Code = graph.CodeParams
+			}
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // executorRule refuses call and human nodes this process cannot execute.
 func (r *Runtime) executorRule(view catalog.View, g graph.Graph) []graph.GraphError {
 	var out []graph.GraphError
@@ -322,6 +354,10 @@ func (r *Runtime) codeNodes(g graph.Graph) []CodeNodeReview {
 		rv.NodeID = n.ID
 		rv.Secrets = append([]string{}, rv.Secrets...)
 		sort.Strings(rv.Secrets)
+		if len(rv.Connections) > 0 {
+			rv.Connections = append([]string{}, rv.Connections...)
+			sort.Strings(rv.Connections)
+		}
 		out = append(out, rv)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].NodeID < out[j].NodeID })

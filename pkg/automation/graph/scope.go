@@ -440,12 +440,26 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 		if spec.Wait == nil {
 			return expr.Field{}, false, nil
 		}
+		if len(spec.Output) > 0 {
+			// A wait that resolves the event it woke on declares what it puts in the output instead.
+			return expr.ObjectOf(spec.Output.Clone()), true, nil
+		}
 		kind := spec.Wait.Event.Of(params)
 		e, ok := c.Events[kind]
 		if !ok {
 			return expr.Field{}, false, nil
 		}
 		return expr.ObjectOf(expr.Fields{{Name: "event", Field: expr.ObjectOf(e.Payload)}}), true, nil
+	}
+	if spec.OutputKeys != nil {
+		m, _ := params[spec.OutputKeys.Param].(map[string]any)
+		props := make(expr.Fields, 0, len(m))
+		for _, k := range sortedKeys(m) {
+			if expr.IsName(k) {
+				props = append(props, expr.Prop{Name: k, Field: expr.DynField})
+			}
+		}
+		return expr.ObjectOf(props), true, nil
 	}
 	if spec.OutputFrom != nil {
 		raw, ok := params[spec.OutputFrom.Param]
@@ -492,6 +506,32 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 	return expr.ObjectOf(props), true, nil
 }
 
+// templatesAndValues are the template and the CEL paths of a node's params: Templates and Values, and each
+// Mixed param by its text (with {{ a template, else CEL). A "*" segment stands for every key of the object
+// at that point (AnyKey); a key may hold any text, dots included.
+func templatesAndValues(params map[string]any, spec NodeSpec) ([]ParamPath, []ParamPath) {
+	templates := expandPaths(params, spec.Templates)
+	values := expandPaths(params, spec.Values)
+	for _, p := range expandPaths(params, spec.Mixed) {
+		raw, _ := valueAt(params, p)
+		if s, ok := raw.(string); ok && strings.Contains(s, "{{") {
+			templates = append(templates, p)
+		} else {
+			values = append(values, p)
+		}
+	}
+	return templates, values
+}
+
+// expandPaths is ExpandParam of each declared path, in order.
+func expandPaths(params map[string]any, paths []string) []ParamPath {
+	out := make([]ParamPath, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, ExpandParam(params, p)...)
+	}
+	return out
+}
+
 // paramAt reads a dotted path inside params.
 func paramAt(params map[string]any, path string) (any, bool) {
 	return valueAt(params, strings.Split(path, "."))
@@ -535,12 +575,12 @@ const AnyKey = "*"
 // ParamPath is a concrete path inside params: the keys from the root.
 type ParamPath []string
 
-// String is the path as error paths write it: dotted, with a key that is not a name in brackets as a
-// quoted string (arguments["a.b"].cel).
+// String is the path as error paths write it: dotted, with a key that a dotted path cannot hold (a dot,
+// a bracket, a quote, empty) in brackets as a quoted string (arguments["a.b"].cel).
 func (p ParamPath) String() string {
 	var b strings.Builder
 	for i, k := range p {
-		if expr.IsName(k) {
+		if k != "" && !strings.ContainsAny(k, ".[]\"\\") {
 			if i > 0 {
 				b.WriteByte('.')
 			}
@@ -599,9 +639,9 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 	}
 	for _, e := range spec.Expressions {
 		for _, at := range ExpandParam(params, e.Param) {
-			src, _ := valueAt(params, at)
+			src, ok := valueAt(params, at)
 			s, isStr := src.(string)
-			if !isStr {
+			if !ok || !isStr {
 				continue
 			}
 			event := "*"
@@ -627,19 +667,18 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 			}
 		}
 	}
-	for _, v := range spec.Values {
-		for _, at := range ExpandParam(params, v) {
-			src, _ := valueAt(params, at)
+	templates, values := templatesAndValues(params, spec)
+	for _, v := range values {
+		if src, ok := valueAt(params, v); ok {
 			if s, ok := src.(string); ok {
-				out = append(out, nodeExpression{path: "params." + at.String(), source: s, want: expr.TypeAny, event: "*"})
+				out = append(out, nodeExpression{path: "params." + v.String(), source: s, want: expr.TypeAny, event: "*"})
 			}
 		}
 	}
-	for _, t := range spec.Templates {
-		for _, at := range ExpandParam(params, t) {
-			text, _ := valueAt(params, at)
+	for _, t := range templates {
+		if text, ok := valueAt(params, t); ok {
 			if s, ok := text.(string); ok {
-				out = append(out, nodeExpression{path: "params." + at.String(), source: s, event: "*", template: true})
+				out = append(out, nodeExpression{path: "params." + t.String(), source: s, event: "*", template: true})
 			}
 		}
 	}
