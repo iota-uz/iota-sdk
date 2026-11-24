@@ -3,7 +3,8 @@
     "Automations": "自动化"
   },
   "NavigationLinks": {
-    "Integrations": "集成"
+    "Integrations": "集成",
+    "Automations": "自动化"
   },
   "Permissions": {
     "Automations.Read": "查看自动化",
@@ -231,6 +232,235 @@
           "Fix": "请检查填写的值；如果再次出现，请查看下方的服务响应。"
         }
       }
+    },
+    "Graphs": {
+      "Title": "自动化",
+      "Actions": {
+        "Delete": "删除自动化",
+        "Disable": "停用自动化",
+        "Enable": "启用自动化",
+        "LoadGraph": "打开自动化",
+        "LoadList": "加载自动化",
+        "LoadReview": "加载审核",
+        "LoadRuns": "加载运行记录",
+        "Run": "启动运行",
+        "LoadLive": "统计待处理的运行"
+      },
+      "Columns": {
+        "Attention": "需要关注",
+        "LastRun": "最近运行",
+        "Name": "名称",
+        "Status": "状态",
+        "Triggers": "触发器",
+        "Updated": "修改"
+      },
+      "Common": {
+        "Cancel": "取消",
+        "Close": "关闭",
+        "Loading": "正在加载…",
+        "Retry": "重试"
+      },
+      "Delete": {
+        "Cancels": "删除将取消 {runs} 和 {waits}。",
+        "Confirm": "删除",
+        "Done": "已删除“{name}”",
+        "Nothing": "将删除该自动化及其版本；没有待处理的运行。",
+        "Runs": {
+          "Singular": "{count} 次运行",
+          "Paucal": "{count} 次运行",
+          "Multiple": "{count} 次运行",
+          "Plural": "{count} 次运行"
+        },
+        "Waits": {
+          "Singular": "{count} 个等待",
+          "Paucal": "{count} 个等待",
+          "Multiple": "{count} 个等待",
+          "Plural": "{count} 个等待"
+        },
+        "Title": "删除“{name}”？"
+      },
+      "Disable": {
+        "Pending": {
+          "Singular": "待处理的运行将被取消（{count}）。",
+          "Paucal": "待处理的运行将被取消（{count}）。",
+          "Multiple": "待处理的运行将被取消（{count}）。",
+          "Plural": "待处理的运行将被取消（{count}）。"
+        },
+        "Cancelled": {
+          "Singular": "已取消 {count} 次待处理的运行",
+          "Paucal": "已取消 {count} 次待处理的运行",
+          "Multiple": "已取消 {count} 次待处理的运行",
+          "Plural": "已取消 {count} 次待处理的运行"
+        },
+        "Confirm": "停用",
+        "Done": "自动化已停用",
+        "NoPending": "新事件将不再启动它。没有待处理的运行。",
+        "Title": "停用“{name}”？"
+      },
+      "Editor": {
+        "BackToList": "返回自动化列表",
+        "ByAgent": "{name}（代理）",
+        "Connection": "连接",
+        "CopyLink": "复制链接",
+        "Delete": "删除自动化",
+        "DesktopOnly": "请在电脑上编辑",
+        "LayoutChanged": "布局已在另一个标签页中更改",
+        "LayoutRefresh": "刷新",
+        "LinkCopied": "链接已复制",
+        "LoadFailed": "无法加载编辑器。",
+        "NoConnection": "此服务没有可用的连接。",
+        "OldVersion": "已打开旧版本 v{version}（只读）",
+        "OnlyConnection": "唯一的：{name}",
+        "OpenIntegrations": "打开集成",
+        "OpenLatest": "打开当前版本 v{version}",
+        "PendingVersion": "版本 v{version} 已保存，等待审核。",
+        "PickConnection": "选择连接",
+        "ReviewAndEnable": "审核并启用 v{version}",
+        "Run": "运行",
+        "SavedByAgent": "版本 v{version} 由代理保存，尚未启用",
+        "DiscardTitle": "放弃未保存的更改？",
+        "DiscardText": "编辑器将打开另一个版本；未保存的更改将丢失。",
+        "DiscardKeep": "继续编辑",
+        "DiscardConfirm": "放弃并打开"
+      },
+      "Errors": {
+        "Conflict": "状态已变化，请重新查看。",
+        "ConnectionUnavailable": "自动化使用的连接不可用。请在集成页面检查。",
+        "Forbidden": "您没有执行此操作的权限。",
+        "Generic": "无法{action}。请一分钟后重试。",
+        "HumanRequired": "只有人员可以在自己的会话中启用自动化。",
+        "InvalidInput": "数据无效，请检查字段。",
+        "LimitExceeded": "超出限制，请缩小请求。",
+        "NotEnabled": "自动化未启用。",
+        "NotFound": "未找到自动化：已删除或属于其他组织。",
+        "Offline": "无网络连接。请检查网络后重试。",
+        "RunFinished": "运行已结束。",
+        "SignIn": "会话已结束，请重新登录。"
+      },
+      "Filter": {
+        "All": "全部",
+        "Attention": "需要关注",
+        "Disabled": "已停用",
+        "Enabled": "已启用",
+        "Label": "状态"
+      },
+      "List": {
+        "AttentionCount": "{count}",
+        "Create": "创建",
+        "CreateFirst": "创建自动化",
+        "DisableNamed": "停用“{name}”",
+        "EmptyText": "自动化会在事件发生时、按计划或按请求执行步骤。",
+        "EmptyTextReader": "您组织的自动化将显示在这里。",
+        "EmptyTitle": "还没有自动化",
+        "EnableNamed": "启用“{name}”",
+        "LoadMore": "显示更多",
+        "NeverRan": "尚未运行",
+        "NoAttention": "无需关注",
+        "NoTriggers": "没有触发器",
+        "NothingFiltered": "没有符合筛选条件的结果",
+        "NothingFor": "未找到“{query}”的结果",
+        "ResetFilters": "重置筛选",
+        "SavedByAgent": "由代理保存",
+        "Search": "按名称搜索",
+        "Stale": "无法刷新 · 数据截至 {time}",
+        "Untitled": "未命名"
+      },
+      "Review": {
+        "Changed": "代码已更改，请重新审核。",
+        "Code": "代码步骤",
+        "Enable": "启用 v{version}",
+        "Enabled": "已启用 v{version}",
+        "Enabling": "正在启用…",
+        "FetchAllowed": "可以访问互联网",
+        "FetchDenied": "无互联网访问",
+        "Invalid": "该版本当前未通过检查，请在编辑器中修复。",
+        "NoCode": "此版本没有代码步骤。",
+        "NoSecrets": "无",
+        "NoTriggers": "没有触发器：只能由其他自动化启动。",
+        "RunAs": "运行使用以下权限",
+        "RunAsInitiator": "触发事件的人（若无则为您）",
+        "RunAsOwner": "您：您将成为该自动化的所有者",
+        "Secrets": "密钥：",
+        "SourceOf": "{node} 的代码",
+        "Title": "启用前审核：{name} v{version}",
+        "Triggers": "启动方式",
+        "Blocked": "此版本目前无法启用：",
+        "Problem": {
+          "Connection": "它使用的连接不可用：请在集成页面检查",
+          "Triggers": "其触发器需要您没有的权限",
+          "NodeType": "它使用了您无权使用或已不可用的步骤",
+          "Invalid": "图未通过检查：请在编辑器中打开并修复"
+        }
+      },
+      "Run": {
+        "Blocked": "已阻塞",
+        "Cancelled": "已取消",
+        "Choose": "请选择…",
+        "Done": "已完成",
+        "Failed": "失败",
+        "Field": {
+          "Json": "请输入 JSON",
+          "Number": "请输入数字",
+          "Required": "请填写此字段"
+        },
+        "FilterFailed": "筛选失败",
+        "InvalidInput": "输入不符合要求：{reason}",
+        "JsonHint": "JSON 值",
+        "NoInput": "此运行不需要输入。",
+        "NoSubject": "无对象",
+        "Open": "打开运行",
+        "Queued": "排队中",
+        "Running": "运行中",
+        "Start": "运行",
+        "Started": "运行已启动",
+        "Starting": "正在启动…",
+        "Subject": "运行对象",
+        "SubjectEntity": "对象类型",
+        "SubjectPick": "选择对象",
+        "SubjectSearch": "查找对象",
+        "Title": "运行自动化",
+        "Trigger": "启动方式",
+        "Waiting": "等待中"
+      },
+      "Runs": {
+        "Empty": "尚未运行。",
+        "NoSteps": "尚无步骤。",
+        "Steps": "运行步骤"
+      },
+      "Status": {
+        "Disabled": "已停用",
+        "Enabled": "已启用 v{version}",
+        "Pending": "新版本 v{version}",
+        "PendingEnabled": "已启用 v{enabled} · 新版本 v{version}"
+      },
+      "Enable": {
+        "NoRight": "启用和停用自动化需要“启用自动化”权限。",
+        "AgentNote": "代理不能启用自动化：须由人员在自己的会话中启用。"
+      }
+    },
+    "Title": "自动化",
+    "Editor": {
+      "ReadOnly": {
+        "NoAuthor": "无修改权限",
+        "OldVersion": "已打开旧版本（只读）"
+      }
+    },
+    "Triggers": {
+      "Manual": "手动启动",
+      "Schedule": "按计划"
+    },
+    "Groups": {
+      "logic": "逻辑",
+      "human": "人员",
+      "automation": "自动化",
+      "core": "用户与组织",
+      "crm": "CRM",
+      "hrm": "员工",
+      "finance": "财务",
+      "warehouse": "仓库",
+      "billing": "计费",
+      "projects": "项目",
+      "Misc": "其他"
     }
   }
 }

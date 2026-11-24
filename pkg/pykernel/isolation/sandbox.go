@@ -1,7 +1,7 @@
 // Package isolation launches the Python kernel subprocess under OS-level
 // confinement and reports which boundaries are really in force.
 //
-// A confined kernel (Mode ModeRequired, the default) applies, before the first
+// A confined kernel (Mode ModeRequired; the sandbox is opt-in) applies, before the first
 // instruction of user code and irreversibly for itself and its children:
 //
 //   - Landlock (ABI >= 6): read-only runtime paths, a read-write session

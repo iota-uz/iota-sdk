@@ -3,7 +3,8 @@
     "Automations": "Avtomatlashtirish"
   },
   "NavigationLinks": {
-    "Integrations": "Integratsiyalar"
+    "Integrations": "Integratsiyalar",
+    "Automations": "Avtomatlashtirishlar"
   },
   "Permissions": {
     "Automations.Read": "Avtomatlashtirishlarni koʻrish",
@@ -231,6 +232,235 @@
           "Fix": "Qiymatlarni tekshiring; takrorlansa, quyida xizmat javobini oching."
         }
       }
+    },
+    "Graphs": {
+      "Title": "Avtomatlashtirishlar",
+      "Actions": {
+        "Delete": "avtomatlashtirishni oʻchirish",
+        "Disable": "avtomatlashtirishni oʻchirib qoʻyish",
+        "Enable": "avtomatlashtirishni yoqish",
+        "LoadGraph": "avtomatlashtirishni ochish",
+        "LoadList": "avtomatlashtirishlarni yuklash",
+        "LoadReview": "tekshiruvni yuklash",
+        "LoadRuns": "ishga tushirishlarni yuklash",
+        "Run": "ishga tushirish",
+        "LoadLive": "kutilayotgan ishga tushirishlarni sanash"
+      },
+      "Columns": {
+        "Attention": "Eʼtibor talab qiladi",
+        "LastRun": "Oxirgi ishga tushirish",
+        "Name": "Nomi",
+        "Status": "Holat",
+        "Triggers": "Triggerlar",
+        "Updated": "Oʻzgartirilgan"
+      },
+      "Common": {
+        "Cancel": "Bekor qilish",
+        "Close": "Yopish",
+        "Loading": "Yuklanmoqda…",
+        "Retry": "Qayta urinish"
+      },
+      "Delete": {
+        "Cancels": "Oʻchirish {runs} va {waits}ni bekor qiladi.",
+        "Confirm": "Oʻchirish",
+        "Done": "«{name}» oʻchirildi",
+        "Nothing": "Avtomatlashtirish va uning versiyalari oʻchiriladi; kutilayotgan ishga tushirishlar yoʻq.",
+        "Runs": {
+          "Singular": "{count} ta ishga tushirish",
+          "Paucal": "{count} ta ishga tushirish",
+          "Multiple": "{count} ta ishga tushirish",
+          "Plural": "{count} ta ishga tushirish"
+        },
+        "Waits": {
+          "Singular": "{count} ta kutish",
+          "Paucal": "{count} ta kutish",
+          "Multiple": "{count} ta kutish",
+          "Plural": "{count} ta kutish"
+        },
+        "Title": "«{name}» oʻchirilsinmi?"
+      },
+      "Disable": {
+        "Pending": {
+          "Singular": "Kutilayotgan ishga tushirishlar bekor qilinadi ({count}).",
+          "Paucal": "Kutilayotgan ishga tushirishlar bekor qilinadi ({count}).",
+          "Multiple": "Kutilayotgan ishga tushirishlar bekor qilinadi ({count}).",
+          "Plural": "Kutilayotgan ishga tushirishlar bekor qilinadi ({count})."
+        },
+        "Cancelled": {
+          "Singular": "{count} ta kutilayotgan ishga tushirish bekor qilindi",
+          "Paucal": "{count} ta kutilayotgan ishga tushirish bekor qilindi",
+          "Multiple": "{count} ta kutilayotgan ishga tushirish bekor qilindi",
+          "Plural": "{count} ta kutilayotgan ishga tushirish bekor qilindi"
+        },
+        "Confirm": "Oʻchirib qoʻyish",
+        "Done": "Avtomatlashtirish oʻchirib qoʻyildi",
+        "NoPending": "Yangi hodisalar uni ishga tushirmaydi. Kutilayotgan ishga tushirishlar yoʻq.",
+        "Title": "«{name}» oʻchirib qoʻyilsinmi?"
+      },
+      "Editor": {
+        "BackToList": "Avtomatlashtirishlar roʻyxatiga",
+        "ByAgent": "{name} (agent)",
+        "Connection": "Ulanish",
+        "CopyLink": "Havolani nusxalash",
+        "Delete": "Avtomatlashtirishni oʻchirish",
+        "DesktopOnly": "Tahrirlash kompyuterda mavjud",
+        "LayoutChanged": "Joylashuv boshqa varaqda oʻzgartirildi",
+        "LayoutRefresh": "Yangilash",
+        "LinkCopied": "Havola nusxalandi",
+        "LoadFailed": "Muharrirni yuklab boʻlmadi.",
+        "NoConnection": "Bu xizmatning ishlaydigan ulanishi yoʻq.",
+        "OldVersion": "Eski v{version} versiya ochiq (faqat oʻqish)",
+        "OnlyConnection": "Yagonasi: {name}",
+        "OpenIntegrations": "Integratsiyalarni ochish",
+        "OpenLatest": "Joriy v{version} versiyani ochish",
+        "PendingVersion": "v{version} versiya saqlandi va tekshiruvni kutmoqda.",
+        "PickConnection": "Ulanishni tanlang",
+        "ReviewAndEnable": "Tekshirish va v{version} ni yoqish",
+        "Run": "Ishga tushirish",
+        "SavedByAgent": "v{version} versiya agent tomonidan saqlangan va yoqilmagan",
+        "DiscardTitle": "Saqlanmagan oʻzgarishlar bekor qilinsinmi?",
+        "DiscardText": "Muharrirda boshqa versiya ochiladi; saqlanmagan oʻzgarishlar yoʻqoladi.",
+        "DiscardKeep": "Tahrirlashni davom ettirish",
+        "DiscardConfirm": "Bekor qilish va ochish"
+      },
+      "Errors": {
+        "Conflict": "Holat oʻzgardi. Qayta koʻrib chiqing.",
+        "ConnectionUnavailable": "Avtomatlashtirish foydalanadigan ulanish mavjud emas. Uni «Integratsiyalar» sahifasida tekshiring.",
+        "Forbidden": "Bu amal uchun huquqingiz yoʻq.",
+        "Generic": "{action} imkoni boʻlmadi. Bir daqiqadan soʻng qayta urining.",
+        "HumanRequired": "Avtomatlashtirishni faqat inson oʻz seansidan yoqadi.",
+        "InvalidInput": "Maʼlumotlar tekshiruvdan oʻtmadi. Maydonlarni tekshiring.",
+        "LimitExceeded": "Cheklov oshib ketdi. Soʻrovni kichraytiring.",
+        "NotEnabled": "Avtomatlashtirish yoqilmagan.",
+        "NotFound": "Avtomatlashtirish topilmadi: u oʻchirilgan yoki boshqa tashkilotga tegishli.",
+        "Offline": "Aloqa yoʻq. Tarmoqni tekshiring va qayta urining.",
+        "RunFinished": "Ishga tushirish allaqachon yakunlangan.",
+        "SignIn": "Seans tugadi. Qayta kiring."
+      },
+      "Filter": {
+        "All": "Barchasi",
+        "Attention": "Eʼtibor talab qiladi",
+        "Disabled": "Oʻchirilgan",
+        "Enabled": "Yoqilgan",
+        "Label": "Holat"
+      },
+      "List": {
+        "AttentionCount": "{count}",
+        "Create": "Yaratish",
+        "CreateFirst": "Avtomatlashtirish yaratish",
+        "DisableNamed": "«{name}» ni oʻchirib qoʻyish",
+        "EmptyText": "Avtomatlashtirish hodisa yuz berganda, jadval boʻyicha yoki soʻrov boʻyicha qadamlarni bajaradi.",
+        "EmptyTextReader": "Bu yerda tashkilotingiz avtomatlashtirishlari paydo boʻladi.",
+        "EmptyTitle": "Hozircha avtomatlashtirishlar yoʻq",
+        "EnableNamed": "«{name}» ni yoqish",
+        "LoadMore": "Yana koʻrsatish",
+        "NeverRan": "Hali ishga tushirilmagan",
+        "NoAttention": "Eʼtibor talab qiladigan narsa yoʻq",
+        "NoTriggers": "Triggerlar yoʻq",
+        "NothingFiltered": "Filtr boʻyicha hech narsa topilmadi",
+        "NothingFor": "«{query}» boʻyicha hech narsa topilmadi",
+        "ResetFilters": "Filtrlarni tozalash",
+        "SavedByAgent": "Agent tomonidan saqlangan",
+        "Search": "Nomi boʻyicha qidirish",
+        "Stale": "Yangilab boʻlmadi · {time} holatidagi maʼlumotlar",
+        "Untitled": "Nomsiz"
+      },
+      "Review": {
+        "Changed": "Kod oʻzgardi, qayta tekshiring.",
+        "Code": "Kodli qadamlar",
+        "Enable": "v{version} ni yoqish",
+        "Enabled": "v{version} yoqildi",
+        "Enabling": "Yoqilmoqda…",
+        "FetchAllowed": "Internetga murojaat qilishi mumkin",
+        "FetchDenied": "Internetga kirishsiz",
+        "Invalid": "Versiya hozir tekshiruvdan oʻtmaydi. Uni muharrirda tuzating.",
+        "NoCode": "Bu versiyada kodli qadamlar yoʻq.",
+        "NoSecrets": "yoʻq",
+        "NoTriggers": "Triggerlar yoʻq: avtomatlashtirishni faqat boshqa avtomatlashtirish ishga tushiradi.",
+        "RunAs": "Ishga tushirishlar huquqlari bilan bajariladi",
+        "RunAsInitiator": "hodisani yuzaga keltirgan shaxs (u boʻlmasa — sizniki)",
+        "RunAsOwner": "siz: siz avtomatlashtirish egasi boʻlasiz",
+        "Secrets": "Sirlar:",
+        "SourceOf": "{node} qadamining kodi",
+        "Title": "Yoqishdan oldin tekshirish: {name} v{version}",
+        "Triggers": "Ishga tushadi",
+        "Blocked": "Bu versiyani hozir yoqib boʻlmaydi:",
+        "Problem": {
+          "Connection": "u foydalanadigan ulanish mavjud emas: uni «Integratsiyalar» sahifasida tekshiring",
+          "Triggers": "uning triggerlari uchun sizda yoʻq huquq kerak",
+          "NodeType": "unda sizga ruxsat etilmagan yoki endi mavjud boʻlmagan qadam bor",
+          "Invalid": "graf tekshiruvdan oʻtmaydi: uni muharrirda ochib tuzating"
+        }
+      },
+      "Run": {
+        "Blocked": "Bloklangan",
+        "Cancelled": "Bekor qilingan",
+        "Choose": "Tanlang…",
+        "Done": "Bajarildi",
+        "Failed": "Xato",
+        "Field": {
+          "Json": "JSON kiriting",
+          "Number": "Son kiriting",
+          "Required": "Maydonni toʻldiring"
+        },
+        "FilterFailed": "Filtr xatosi",
+        "InvalidInput": "Maʼlumotlar mos emas: {reason}",
+        "JsonHint": "JSON koʻrinishidagi qiymat",
+        "NoInput": "Bu ishga tushirish uchun maʼlumot kerak emas.",
+        "NoSubject": "Obyektsiz",
+        "Open": "Ishga tushirishni ochish",
+        "Queued": "Navbatda",
+        "Running": "Bajarilmoqda",
+        "Start": "Ishga tushirish",
+        "Started": "Ishga tushirish boshlandi",
+        "Starting": "Ishga tushirilmoqda…",
+        "Subject": "Ishga tushirish obyekti",
+        "SubjectEntity": "Obyekt turi",
+        "SubjectPick": "Obyektni tanlang",
+        "SubjectSearch": "Obyektni toping",
+        "Title": "Avtomatlashtirishni ishga tushirish",
+        "Trigger": "Ishga tushirish usuli",
+        "Waiting": "Kutmoqda"
+      },
+      "Runs": {
+        "Empty": "Hali ishga tushirilmagan.",
+        "NoSteps": "Hali qadamlar yoʻq.",
+        "Steps": "Ishga tushirish qadamlari"
+      },
+      "Status": {
+        "Disabled": "Oʻchirilgan",
+        "Enabled": "Yoqilgan v{version}",
+        "Pending": "Yangi v{version} versiya bor",
+        "PendingEnabled": "Yoqilgan v{enabled} · yangi v{version} versiya bor"
+      },
+      "Enable": {
+        "NoRight": "Avtomatlashtirishlarni «Avtomatlashtirishlarni yoqish» huquqiga ega inson yoqadi va oʻchiradi.",
+        "AgentNote": "Agent avtomatlashtirishlarni yoqmaydi: buni inson oʻz seansidan qiladi."
+      }
+    },
+    "Title": "Avtomatlashtirishlar",
+    "Editor": {
+      "ReadOnly": {
+        "NoAuthor": "Oʻzgartirish huquqi yoʻq",
+        "OldVersion": "Eski versiya ochiq (faqat oʻqish)"
+      }
+    },
+    "Triggers": {
+      "Manual": "Qoʻlda ishga tushirish",
+      "Schedule": "Jadval boʻyicha"
+    },
+    "Groups": {
+      "logic": "Mantiq",
+      "human": "Odamlar",
+      "automation": "Avtomatlashtirishlar",
+      "core": "Foydalanuvchilar va tashkilot",
+      "crm": "CRM",
+      "hrm": "Xodimlar",
+      "finance": "Moliya",
+      "warehouse": "Ombor",
+      "billing": "Toʻlovlar",
+      "projects": "Loyihalar",
+      "Misc": "Boshqa"
     }
   }
 }

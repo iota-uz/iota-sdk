@@ -10,3 +10,4 @@ packages:
   - web/chat-ui
   - pkg/extruntime/configurator/web
   - modules/automations/presentation/integrations/web
+  - modules/automations/presentation/graphs/web

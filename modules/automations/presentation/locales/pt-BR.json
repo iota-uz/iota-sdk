@@ -3,7 +3,8 @@
     "Automations": "Automações"
   },
   "NavigationLinks": {
-    "Integrations": "Integrações"
+    "Integrations": "Integrações",
+    "Automations": "Automações"
   },
   "Permissions": {
     "Automations.Read": "Ver automações",
@@ -231,6 +232,235 @@
           "Fix": "Verifique os valores; se repetir, abra a resposta do serviço abaixo."
         }
       }
+    },
+    "Graphs": {
+      "Title": "Automações",
+      "Actions": {
+        "Delete": "excluir a automação",
+        "Disable": "desativar a automação",
+        "Enable": "ativar a automação",
+        "LoadGraph": "abrir a automação",
+        "LoadList": "carregar as automações",
+        "LoadReview": "carregar a revisão",
+        "LoadRuns": "carregar as execuções",
+        "Run": "iniciar a execução",
+        "LoadLive": "contar as execuções pendentes"
+      },
+      "Columns": {
+        "Attention": "Requer atenção",
+        "LastRun": "Última execução",
+        "Name": "Nome",
+        "Status": "Status",
+        "Triggers": "Gatilhos",
+        "Updated": "Alterado"
+      },
+      "Common": {
+        "Cancel": "Cancelar",
+        "Close": "Fechar",
+        "Loading": "Carregando…",
+        "Retry": "Tentar novamente"
+      },
+      "Delete": {
+        "Cancels": "A exclusão cancela {runs} e {waits}.",
+        "Confirm": "Excluir",
+        "Done": "«{name}» foi excluída",
+        "Nothing": "A automação e suas versões serão excluídas; nenhuma execução está pendente.",
+        "Runs": {
+          "Singular": "{count} execução",
+          "Paucal": "{count} execuções",
+          "Multiple": "{count} execuções",
+          "Plural": "{count} execuções"
+        },
+        "Waits": {
+          "Singular": "{count} espera",
+          "Paucal": "{count} esperas",
+          "Multiple": "{count} esperas",
+          "Plural": "{count} esperas"
+        },
+        "Title": "Excluir «{name}»?"
+      },
+      "Disable": {
+        "Pending": {
+          "Singular": "A execução pendente será cancelada ({count}).",
+          "Paucal": "As execuções pendentes serão canceladas ({count}).",
+          "Multiple": "As execuções pendentes serão canceladas ({count}).",
+          "Plural": "As execuções pendentes serão canceladas ({count})."
+        },
+        "Cancelled": {
+          "Singular": "{count} execução pendente foi cancelada",
+          "Paucal": "{count} execuções pendentes foram canceladas",
+          "Multiple": "{count} execuções pendentes foram canceladas",
+          "Plural": "{count} execuções pendentes foram canceladas"
+        },
+        "Confirm": "Desativar",
+        "Done": "A automação foi desativada",
+        "NoPending": "Novos eventos não a iniciarão. Nenhuma execução está pendente.",
+        "Title": "Desativar «{name}»?"
+      },
+      "Editor": {
+        "BackToList": "Voltar às automações",
+        "ByAgent": "{name} (agente)",
+        "Connection": "Conexão",
+        "CopyLink": "Copiar link",
+        "Delete": "Excluir a automação",
+        "DesktopOnly": "A edição está disponível no computador",
+        "LayoutChanged": "O layout foi alterado em outra aba",
+        "LayoutRefresh": "Atualizar",
+        "LinkCopied": "Link copiado",
+        "LoadFailed": "Não foi possível carregar o editor.",
+        "NoConnection": "Nenhuma conexão ativa deste serviço.",
+        "OldVersion": "A versão v{version} está aberta (somente leitura)",
+        "OnlyConnection": "A única: {name}",
+        "OpenIntegrations": "Abrir integrações",
+        "OpenLatest": "Abrir a versão atual v{version}",
+        "PendingVersion": "A versão v{version} foi salva e aguarda revisão.",
+        "PickConnection": "Escolha uma conexão",
+        "ReviewAndEnable": "Revisar e ativar v{version}",
+        "Run": "Executar",
+        "SavedByAgent": "A versão v{version} foi salva por um agente e não está ativa",
+        "DiscardTitle": "Descartar alterações não salvas?",
+        "DiscardText": "Outra versão será aberta no editor; as alterações não salvas serão perdidas.",
+        "DiscardKeep": "Continuar editando",
+        "DiscardConfirm": "Descartar e abrir"
+      },
+      "Errors": {
+        "Conflict": "O estado mudou. Verifique novamente.",
+        "ConnectionUnavailable": "Uma conexão usada pela automação está indisponível. Verifique-a na página de integrações.",
+        "Forbidden": "Você não tem permissão para isso.",
+        "Generic": "Não foi possível {action}. Tente novamente em um minuto.",
+        "HumanRequired": "Somente uma pessoa ativa uma automação, na própria sessão.",
+        "InvalidInput": "Os dados não são válidos. Verifique os campos.",
+        "LimitExceeded": "Um limite foi excedido. Reduza a solicitação.",
+        "NotEnabled": "A automação não está ativa.",
+        "NotFound": "A automação não foi encontrada: foi excluída ou pertence a outra organização.",
+        "Offline": "Sem conexão. Verifique a rede e tente novamente.",
+        "RunFinished": "A execução já terminou.",
+        "SignIn": "Sua sessão terminou. Entre novamente."
+      },
+      "Filter": {
+        "All": "Todas",
+        "Attention": "Requerem atenção",
+        "Disabled": "Desativadas",
+        "Enabled": "Ativas",
+        "Label": "Status"
+      },
+      "List": {
+        "AttentionCount": "{count}",
+        "Create": "Criar",
+        "CreateFirst": "Criar uma automação",
+        "DisableNamed": "Desativar «{name}»",
+        "EmptyText": "Uma automação executa etapas quando um evento ocorre, por agenda ou sob demanda.",
+        "EmptyTextReader": "As automações da sua organização aparecerão aqui.",
+        "EmptyTitle": "Ainda não há automações",
+        "EnableNamed": "Ativar «{name}»",
+        "LoadMore": "Mostrar mais",
+        "NeverRan": "Nenhuma execução ainda",
+        "NoAttention": "Nada requer atenção",
+        "NoTriggers": "Sem gatilhos",
+        "NothingFiltered": "Nada corresponde ao filtro",
+        "NothingFor": "Nada encontrado para «{query}»",
+        "ResetFilters": "Limpar filtros",
+        "SavedByAgent": "Salvo por um agente",
+        "Search": "Buscar por nome",
+        "Stale": "Não foi possível atualizar · dados de {time}",
+        "Untitled": "Sem título"
+      },
+      "Review": {
+        "Changed": "O código mudou: revise novamente.",
+        "Code": "Etapas de código",
+        "Enable": "Ativar v{version}",
+        "Enabled": "v{version} ativada",
+        "Enabling": "Ativando…",
+        "FetchAllowed": "Pode acessar a internet",
+        "FetchDenied": "Sem acesso à internet",
+        "Invalid": "A versão não passa na verificação agora. Corrija-a no editor.",
+        "NoCode": "Esta versão não tem etapas de código.",
+        "NoSecrets": "nenhum",
+        "NoTriggers": "Sem gatilhos: a automação só é iniciada por outra automação.",
+        "RunAs": "Executa com as permissões de",
+        "RunAsInitiator": "quem causou o evento (ou as suas, se não houver)",
+        "RunAsOwner": "você: você se torna o proprietário da automação",
+        "Secrets": "Segredos:",
+        "SourceOf": "Código de {node}",
+        "Title": "Revisão antes de ativar: {name} v{version}",
+        "Triggers": "Inicia",
+        "Blocked": "Esta versão não pode ser ativada agora:",
+        "Problem": {
+          "Connection": "uma conexão usada está indisponível: verifique na página de integrações",
+          "Triggers": "seus gatilhos exigem uma permissão que você não tem",
+          "NodeType": "ela usa uma etapa que você não pode usar ou que não existe mais",
+          "Invalid": "o grafo não passa na verificação: abra-o no editor e corrija"
+        }
+      },
+      "Run": {
+        "Blocked": "Bloqueada",
+        "Cancelled": "Cancelada",
+        "Choose": "Escolha…",
+        "Done": "Concluída",
+        "Failed": "Falhou",
+        "Field": {
+          "Json": "Informe um JSON",
+          "Number": "Informe um número",
+          "Required": "Preencha este campo"
+        },
+        "FilterFailed": "Filtro falhou",
+        "InvalidInput": "Os dados não servem: {reason}",
+        "JsonHint": "Valor em JSON",
+        "NoInput": "Esta execução não precisa de dados.",
+        "NoSubject": "Sem objeto",
+        "Open": "Abrir a execução",
+        "Queued": "Na fila",
+        "Running": "Executando",
+        "Start": "Executar",
+        "Started": "A execução foi iniciada",
+        "Starting": "Iniciando…",
+        "Subject": "Objeto da execução",
+        "SubjectEntity": "Tipo de objeto",
+        "SubjectPick": "Escolha o objeto",
+        "SubjectSearch": "Encontre um objeto",
+        "Title": "Executar a automação",
+        "Trigger": "Início",
+        "Waiting": "Aguardando"
+      },
+      "Runs": {
+        "Empty": "Nenhuma execução ainda.",
+        "NoSteps": "Nenhuma etapa ainda.",
+        "Steps": "Etapas da execução"
+      },
+      "Status": {
+        "Disabled": "Desativada",
+        "Enabled": "Ativa v{version}",
+        "Pending": "Nova versão v{version}",
+        "PendingEnabled": "Ativa v{enabled} · nova versão v{version}"
+      },
+      "Enable": {
+        "NoRight": "Ativar e desativar automações exige a permissão «Ativar automações».",
+        "AgentNote": "Um agente não ativa automações: uma pessoa faz isso na própria sessão."
+      }
+    },
+    "Title": "Automações",
+    "Editor": {
+      "ReadOnly": {
+        "NoAuthor": "Sem permissão para alterar",
+        "OldVersion": "Uma versão antiga está aberta (somente leitura)"
+      }
+    },
+    "Triggers": {
+      "Manual": "Início manual",
+      "Schedule": "Por agenda"
+    },
+    "Groups": {
+      "logic": "Lógica",
+      "human": "Pessoas",
+      "automation": "Automações",
+      "core": "Usuários e organização",
+      "crm": "CRM",
+      "hrm": "Funcionários",
+      "finance": "Finanças",
+      "warehouse": "Armazém",
+      "billing": "Cobrança",
+      "projects": "Projetos",
+      "Misc": "Outros"
     }
   }
 }

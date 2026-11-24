@@ -129,8 +129,15 @@ export interface EditorProps {
   api: EditorApi
   layout: AutomationLayout
   save(graph: AutomationGraph, layout: AutomationLayout, base: number): Promise<SaveResult>
-  /** Absent for an unsaved graph and read-only. */
+  /** Absent for an unsaved graph and read-only. A rejection leaves the positions on screen unsaved. */
   saveLayout?(positions: AutomationLayout): Promise<void>
+  /**
+   * Positions the host read from storage (another tab saved them): each new object replaces the
+   * positions on screen and becomes the saved layout, without a history step or a layout save.
+   */
+  remoteLayout?: { positions: AutomationLayout } | null
+  /** Called when the draft starts or stops differing from the saved graph (the host guards navigation). */
+  onDirtyChange?(dirty: boolean): void
   reload(): Promise<{ graph: AutomationGraph; version: number; layout: AutomationLayout }>
   versions?: VersionEntry[]; onOpenVersion?(version: number): void
   enabled: boolean
