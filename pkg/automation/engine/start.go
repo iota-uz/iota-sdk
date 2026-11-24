@@ -43,9 +43,10 @@ type startRequest struct {
 	// parent is the instance the run's instance is a child of (a run a step started to wait for it):
 	// terminating the parent's tree terminates it.
 	parent *uuid.UUID
-	// shares is the run that holds the conversation and waits for this one (run_automation): the run
-	// takes its turn on the conversation inside that run's, instead of queuing behind it.
-	shares *uuid.UUID
+	// shares are the runs that hold the conversation and wait for this one: the step's run and, when it
+	// was itself started to be waited for on the conversation, its waiting ancestors (run_automation). The
+	// run takes its turn inside theirs instead of queuing behind them.
+	shares []uuid.UUID
 	// inherited are sensitive fields the run's data derives from besides its events' (the run whose step
 	// started it read them): its steps are hidden from a viewer who may not read them.
 	inherited []sensitiveRef
@@ -251,10 +252,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		if err := lockSubjects(ctx, tx, subjectLockKey(req.tenant, subject, id)); err != nil {
 			return RunRef{}, err
 		}
-		except := []uuid.UUID{id}
-		if req.shares != nil {
-			except = append(except, *req.shares)
-		}
+		except := append([]uuid.UUID{id}, req.shares...)
 		busy, err := subjectBusy(ctx, tx, req.tenant, subject, except...)
 		if err != nil {
 			return RunRef{}, err

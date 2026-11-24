@@ -151,15 +151,18 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		input = parsed
 	}
 	subject := normSubject(run.Subject)
-	var shares *uuid.UUID
+	var shares []uuid.UUID
 	if in.Subject != nil {
 		subject = normSubject(*in.Subject)
 	}
 	if in.Attached && subject.Entity == graph.SubjectConversation && subject == normSubject(run.Subject) && run.RunID != uuid.Nil {
 		// The step's run holds the conversation and waits for this run: the run takes its turn inside
 		// that one's instead of queuing behind it (a detached run queues, and starts when it ends).
-		holder := run.RunID
-		shares = &holder
+		holders, err := waitingHolders(ctx, tx, run.TenantID, run.RunID, subject)
+		if err != nil {
+			return RunRef{}, err
+		}
+		shares = holders
 	}
 	user := run.RunAs.UserID
 	now := time.Now()
@@ -269,4 +272,34 @@ func missingPayload(c graph.Catalog, event string, ev graph.Event) []string {
 		return []string{"its event (not in the catalog)"}
 	}
 	return requiredIn("event", spec.Payload, ev)
+}
+
+// waitingHolders are the run and the ancestors that wait for it on the same conversation: each started
+// as a child instance of the run before it (run_automation) about that conversation. An independent run
+// of the conversation is never one of them.
+func waitingHolders(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, s SubjectRef) ([]uuid.UUID, error) {
+	rows, err := tx.Query(ctx, `
+		WITH RECURSIVE chain(id, instance_id, depth) AS (
+			SELECT r.id, r.instance_id, 0 FROM automation.runs r WHERE r.tenant_id = $1 AND r.id = $2
+			UNION ALL
+			SELECT p.id, p.instance_id, c.depth + 1 FROM chain c
+			JOIN extruntime.workflow_instances i ON i.tenant_id = $1 AND i.id = c.instance_id
+			JOIN automation.runs p ON p.tenant_id = $1 AND p.instance_id = i.parent_instance_id
+				AND p.subject_entity = $3 AND p.subject_key = $4
+			WHERE c.depth < 64
+		)
+		SELECT id FROM chain`, tenant, run, s.Entity, s.Key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }

@@ -667,9 +667,19 @@ func TestRunAutomationKeepsTheConversation(t *testing.T) {
 	p := ae.proc()
 	rt.Store(p.rt)
 	a := ae.human()
-	child := ae.create(p, a, `{"name": "Reply", "triggers": [{"id": "m", "event": "automation.called.v1"}],
-	 "nodes": [{"id": "note", "type": "acme.note", "params": {"text": "child {{ subject.entity }}"}}, {"id": "fin", "type": "end", "params": {"reason": "replied"}}],
+	leaf := ae.create(p, a, `{"name": "Reply", "triggers": [{"id": "m", "event": "automation.called.v1"}],
+	 "nodes": [{"id": "note", "type": "acme.note", "params": {"text": "leaf {{ subject.entity }}"}}, {"id": "fin", "type": "end", "params": {"reason": "replied"}}],
 	 "edges": [{"from": {"node": "m", "outcome": "fired"}, "to": "note"}, {"from": {"node": "note", "outcome": "done"}, "to": "fin"}, {"from": {"node": "note", "outcome": "failed"}, "to": "fin"}]}`)
+	// The middle graph waits for the leaf on the same conversation: two levels below the inbound run.
+	child := ae.create(p, a, `{"name": "Middle", "triggers": [{"id": "m", "event": "automation.called.v1"}],
+	 "nodes": [{"id": "call", "type": "run_automation", "params": {"automation_id": "`+leaf.ID.String()+`"}},
+	  {"id": "note", "type": "acme.note", "params": {"text": "child {{ subject.entity }}"}},
+	  {"id": "bad", "type": "acme.note", "params": {"text": "bad {{ nodes.call.output.error.code }}"}},
+	  {"id": "fin", "type": "end", "params": {"reason": "replied"}}],
+	 "edges": [{"from": {"node": "m", "outcome": "fired"}, "to": "call"},
+	  {"from": {"node": "call", "outcome": "done"}, "to": "note"}, {"from": {"node": "call", "outcome": "failed"}, "to": "bad"}, {"from": {"node": "call", "outcome": "timeout"}, "to": "bad"},
+	  {"from": {"node": "note", "outcome": "done"}, "to": "fin"}, {"from": {"node": "note", "outcome": "failed"}, "to": "fin"},
+	  {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}]}`)
 	parent := ae.create(p, a, graphJSON("Inbox", `{"id": "msg", "event": "`+evMessage+`"}`,
 		`{"id": "call", "type": "run_automation", "params": {"automation_id": "`+child.ID.String()+`"}},
 		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.call.output.output.reason }}"}},
@@ -693,6 +703,10 @@ func TestRunAutomationKeepsTheConversation(t *testing.T) {
 	assert.Equal(t, pr[0].Subject, kids[0].Subject, "the child is about the parent's conversation")
 	assert.Equal(t, graph.SubjectConversation, kids[0].Subject.Entity)
 	assert.Equal(t, []string{"note:child conversation"}, ae.effects(kids[0].RunID))
+	leaves := ae.runs(p, a, engine.RunFilter{AutomationID: &leaf.ID})
+	require.Len(t, leaves, 1)
+	assert.Equal(t, pr[0].Subject, leaves[0].Subject, "the second level shares the conversation too")
+	assert.Equal(t, []string{"note:leaf conversation"}, ae.effects(leaves[0].RunID))
 }
 
 // largeOutputNode answers with a body over the payload limit; its type declares a larger output.
