@@ -141,11 +141,12 @@ func matches(v TaskView, search string) bool {
 // listOpen reads the substrate's inbox page by page until the filtered page is full.
 func (s *Service) listOpen(ctx context.Context, a actor, f TaskFilter, search string) (TaskPage, error) {
 	wf := workflow.TaskFilter{Workflow: engine.WorkflowID, Limit: workflow.MaxTaskInbox}
+	// The open tasks as they are: one past its final deadline the run has not closed yet is still open
+	// and overdue (shown, not decidable), in «Mine» and «Overdue» alike, as the counts count it.
+	wf.PastDeadline = true
 	if f.Scope == ScopeOverdue {
-		// Overdue: open past the due time, also past the final deadline while the run has not closed
-		// the task yet (shown, not decidable).
 		overdue := true
-		wf.Overdue, wf.PastDeadline = &overdue, true
+		wf.Overdue = &overdue
 	}
 	if f.Cursor != "" {
 		c, err := workflow.ParseTaskCursor(f.Cursor)
@@ -348,8 +349,10 @@ func (s *Service) Counts(ctx context.Context) (TaskCounts, error) {
 	if err != nil {
 		return TaskCounts{}, err
 	}
+	// The open tasks as they are: also one past its final deadline the run has not closed yet (open,
+	// overdue, no longer decidable), as the lists show it.
 	count := func(overdue *bool) (int, error) {
-		f := workflow.TaskFilter{Workflow: engine.WorkflowID, Limit: workflow.MaxTaskInbox, Overdue: overdue}
+		f := workflow.TaskFilter{Workflow: engine.WorkflowID, Limit: workflow.MaxTaskInbox, Overdue: overdue, PastDeadline: true}
 		n := 0
 		for n < countCap {
 			list, err := s.cfg.Tasks.Tasks(ctx, a.subject, f)
@@ -369,14 +372,12 @@ func (s *Service) Counts(ctx context.Context) (TaskCounts, error) {
 	if err != nil {
 		return TaskCounts{}, err
 	}
-	out := TaskCounts{Open: open}
-	if open > 0 {
-		overdue := true
-		if out.Overdue, err = count(&overdue); err != nil {
-			return TaskCounts{}, err
-		}
+	overdue := true
+	late, err := count(&overdue)
+	if err != nil {
+		return TaskCounts{}, err
 	}
-	return out, nil
+	return TaskCounts{Open: open, Overdue: late}, nil
 }
 
 // ---- writes ----
@@ -904,7 +905,9 @@ func (s *Service) DisplayName(ctx context.Context, id uint) string {
 // intentOf is the outcome a submit asks for without performing anything: the button of the default
 // form, or what a task form's data asks for (FormIntent). "" when it cannot be told.
 func (s *Service) intentOf(ctx context.Context, v TaskView, in DecideInput) (string, error) {
-	if in.Outcome != "" || v.FormKind == "" {
+	// A task form chooses the outcome from its data, as its Decide does: an outcome field sent with it
+	// is not the intent.
+	if v.FormKind == "" {
 		return in.Outcome, nil
 	}
 	form, ok, err := s.form(v.FormKind)

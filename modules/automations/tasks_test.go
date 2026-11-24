@@ -456,6 +456,8 @@ func TestInboxTaskForm(t *testing.T) {
 	sctx := tasks.WithOrigin(composables.WithTenantID(composables.WithUser(context.Background(), signer), env.Tenant.ID), engine.OriginHuman)
 	require.NoError(t, svc.Decide(sctx, task, tasks.DecideInput{Form: json.RawMessage(`{"signature":"s"}`)}))
 	require.ErrorIs(t, svc.Decide(sctx, task, tasks.DecideInput{Form: json.RawMessage(`{"reject":true}`)}), tasks.ErrAlreadyDecided)
+	require.ErrorIs(t, svc.Decide(sctx, task, tasks.DecideInput{Outcome: "approve", Form: json.RawMessage(`{"reject":true}`)}), tasks.ErrAlreadyDecided,
+		"the form's data chooses the outcome, not an outcome field sent with it")
 	assert.Equal(t, calls, form.calls.Load(), "the signature is not sent again")
 	assert.Equal(t, 1, decisions(t, container, task))
 }
@@ -608,8 +610,15 @@ func TestInboxDeadlines(t *testing.T) {
 	assert.Equal(t, 0, decisions(t, container, final))
 	s.GET("/automations/tasks/" + final.String()).Expect(t).Status(http.StatusOK).Contains("The due time passed")
 
-	// Both are open past their due time, so both are overdue; only the one with a pending escalation
-	// takes a decision.
+	// Both are open past their due time, so both are counted open and overdue, and both are listed;
+	// only the one with a pending escalation takes a decision.
+	svc, ok, err := automations.TaskInboxOf(container)
+	require.NoError(t, err)
+	require.True(t, ok)
+	counts, err := svc.Counts(composables.WithTenantID(composables.WithUser(context.Background(), nina), env.Tenant.ID))
+	require.NoError(t, err)
+	assert.Equal(t, tasks.TaskCounts{Open: 2, Overdue: 2}, counts)
+	s.GET("/automations/tasks").Expect(t).Contains("Sign before noon")
 	s.GET("/automations/tasks?tab=overdue").Expect(t).Contains("Approve the late invoice").Contains("Sign before noon")
 	s.GET("/automations/tasks").Expect(t).Contains("Approve the late invoice").Contains(`data-testid="automations-task-due"`)
 	decide(s, late, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK)

@@ -70,3 +70,16 @@ func TestNullEnumChoice(t *testing.T) {
 	assert.JSONEq(t, `{"level":1}`, string(raw), "an empty choice leaves the field out")
 	require.NoError(t, graph.ValidateJSON(schema, raw))
 }
+
+// A choice goes back exactly as the schema wrote it: a large integer is not rounded, a nested value
+// keeps its shape.
+func TestEnumChoiceIsExact(t *testing.T) {
+	t.Parallel()
+	schema := json.RawMessage(`{"type":"object","properties":{"big":{"enum":[9007199254740993, 1]},"nested":{"enum":[{"a":[1,2]},"x"]}}}`)
+	fields := fieldsOf(schema)
+	require.Len(t, fields, 2)
+	raw, _ := fieldsFromForm(fields, url.Values{"field.big": {fields[0].Enum[0].Value}, "field.nested": {fields[1].Enum[0].Value}})
+	assert.JSONEq(t, `{"big":9007199254740993,"nested":{"a":[1,2]}}`, string(raw))
+	assert.Contains(t, string(raw), "9007199254740993")
+	require.NoError(t, graph.ValidateJSON(schema, raw))
+}

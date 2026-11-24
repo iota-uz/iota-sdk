@@ -167,18 +167,18 @@ func fieldsFromForm(fields []Field, form url.Values) (json.RawMessage, []Field) 
 			if v == "" {
 				continue
 			}
-			var x any
-			if err := json.Unmarshal([]byte(v), &x); err == nil {
-				out[f.Name] = x
+			// A choice goes back as the schema wrote it (no float rounding of a large integer, any
+			// nested value as is); anything else is sent as typed and the schema refuses it.
+			if i := slices.IndexFunc(f.Enum, func(o EnumOption) bool { return o.Value == v }); i >= 0 {
+				out[f.Name] = json.RawMessage(f.Enum[i].Value)
 				continue
 			}
 		case "json":
 			if v == "" {
 				continue
 			}
-			var x any
-			if err := json.Unmarshal([]byte(v), &x); err == nil {
-				out[f.Name] = x
+			if json.Valid([]byte(v)) {
+				out[f.Name] = json.RawMessage(v)
 				continue
 			}
 		default:

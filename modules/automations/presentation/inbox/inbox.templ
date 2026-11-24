@@ -20,6 +20,7 @@ templ Badge(url string, c tasks.TaskCounts) {
 		class="ml-auto inline-flex"
 		aria-live="polite"
 		data-testid="automations-tasks-badge"
+		data-htmx-error-toast="off"
 		hx-get={ url }
 		hx-trigger={ "automations:tasks-changed from:body, notificationsChanged from:body, every 120s" }
 		hx-include="find input[name='n']"
@@ -284,7 +285,6 @@ templ TaskPage(p *TaskProps) {
 
 templ TaskScreen(p *TaskProps) {
 	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() } { connection(false)... }>
-		@connectionBanner()
 		<a href={ templ.SafeURL(p.backURL()) } class="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-200 hover:text-100">
 			@icons.ArrowLeft(icons.Props{Size: "16"})
 			{ tr(ctx, "Back") }
@@ -329,6 +329,10 @@ templ TaskScreen(p *TaskProps) {
 			} else if p.Task.CanDecide {
 				@decisionForm(p)
 			}
+			// The failure of an action shows next to it (F3): under the buttons, where the person is.
+			<div class="mt-4">
+				@connectionBanner()
+			</div>
 			if p.Task.CanDecide && p.Task.AllowDelegation && p.Notice != "closed" && !p.Task.PastDeadline {
 				@delegatePanel(p)
 			}
@@ -744,7 +748,7 @@ templ MissingPage(p *MissingProps) {
 // connectionBanner is «No connection · Retry» while the network or the server is unreachable (S7):
 // Retry repeats the action that failed (a decision is idempotent), or reads the screen again.
 templ connectionBanner() {
-	<div x-show="offline" x-cloak role="alert" class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning px-4 py-3 text-sm text-100" data-testid="automations-tasks-offline">
+	<div x-show="offline" x-cloak role="alert" x-effect="if (offline) { for (const ms of [0, 100, 300]) setTimeout(() => offline && $el.scrollIntoView({ block: 'nearest' }), ms) }" class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning px-4 py-3 text-sm text-100" data-testid="automations-tasks-offline">
 		@icons.WifiSlash(icons.Props{Size: "18"})
 		<span>{ tr(ctx, "Offline.Text") }</span>
 		<button type="button" class="btn btn-secondary btn-normal ml-auto min-h-11" @click="retry()">{ tr(ctx, "Retry") }</button>

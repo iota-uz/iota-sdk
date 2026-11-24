@@ -328,7 +328,11 @@ func connection(rereadOnline bool) templ.Attributes {
 		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
 			lastSubmit = (e && e.submitter) || d.elt || null`,
 		"@htmx:after-request": `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
-		"@htmx:send-error":    "offline = true",
+		// The screen's banner is the signal: the global error toast (which would cover the decision
+		// buttons on a phone) is not shown for this screen's requests.
+		"data-htmx-error-toast": "banner",
+		"@htmx:send-error":      "offline = true",
+		"@htmx:timeout":         "offline = true",
 		// The server unavailable (502, 503, 504, any 5xx) is the same banner: what was typed stays.
 		"@htmx:response-error": "if ($event.detail.xhr && $event.detail.xhr.status >= 500) offline = true",
 		"@offline.window":      "offline = true",

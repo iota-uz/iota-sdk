@@ -102,6 +102,10 @@ test.describe('automations: my tasks screen states', () => {
 				await p.context().setOffline(true);
 				await p.getByTestId('automations-task-outcome-approve').click();
 				await expect(p.getByTestId('automations-tasks-offline')).toBeVisible();
+				await expect(p.getByTestId('automations-tasks-offline')).toBeInViewport({ ratio: 1 });
+				// The banner is the signal: no global toast over the decision buttons (F6).
+				await p.waitForTimeout(500);
+				await expect(p.getByText('Check your connection and try again.')).toBeHidden();
 				await p.context().setOffline(false);
 			} },
 		];

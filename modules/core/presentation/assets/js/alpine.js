@@ -3103,12 +3103,15 @@ const htmxErrorToast = (() => {
     return !verb || verb.toLowerCase() === "get";
   };
 
-  // The opt-out covers background reads only: a container can hold both a
-  // polling GET and write forms, and a failed write must always be reported.
+  // "off" covers background reads only: a container can hold both a polling
+  // GET and write forms, and a failed write must always be reported.
+  // "banner" is a screen that reports every failure itself, reads and
+  // writes (its own banner with Retry), so a toast would only repeat it.
   const optedOut = (event) => {
-    if (!isRead(event)) return false;
     const elt = event.detail && (event.detail.elt || event.target);
-    return !!(elt && elt.closest && elt.closest('[data-htmx-error-toast="off"]'));
+    if (!elt || !elt.closest) return false;
+    if (elt.closest('[data-htmx-error-toast="banner"]')) return true;
+    return isRead(event) && !!elt.closest('[data-htmx-error-toast="off"]');
   };
 
   const notify = (title, message) => {
