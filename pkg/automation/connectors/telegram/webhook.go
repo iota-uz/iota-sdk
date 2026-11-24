@@ -149,7 +149,8 @@ func command(m *gotgbot.Message) (string, string, string, bool) {
 	return "", "", "", false
 }
 
-// usernameTTL is how long the username of a bot is kept before it is read again.
+// usernameTTL is how long the username of a bot is kept: after it the entry is read again, and a timer drops it
+// from the map whether or not anything is cached later.
 const usernameTTL = time.Hour
 
 type cachedName struct {
@@ -166,7 +167,15 @@ func (c *Connector) rememberName(fp [sha256.Size]byte, name string, now time.Tim
 		}
 		return true
 	})
-	c.usernames.Store(fp, cachedName{name: name, at: now})
+	entry := cachedName{name: name, at: now}
+	c.usernames.Store(fp, entry)
+	// The entry also leaves on its own when its time is up, so a replaced token is not kept for want of a later
+	// insertion. A newer entry of the same bot is not touched (CompareAndDelete matches this one only).
+	if left := usernameTTL - time.Since(now); left > 0 {
+		time.AfterFunc(left, func() { c.usernames.CompareAndDelete(fp, entry) })
+	} else {
+		c.usernames.CompareAndDelete(fp, entry)
+	}
 }
 
 // addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
