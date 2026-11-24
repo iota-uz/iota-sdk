@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,7 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 
 	mail := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: signInMailbox, Password: "pw"})
 	mail.AcceptToken(signInMailbox, "access-1")
-	claims, err := json.Marshal(map[string]string{"email": signInMailbox})
+	claims, err := json.Marshal(map[string]any{"email": signInMailbox, "aud": "cid", "exp": time.Now().Add(time.Hour).Unix()})
 	require.NoError(t, err)
 	idToken := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
 	token := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +143,14 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	require.NoError(t, err)
 	_, ic, err := store.Get(ctx, actor.TenantID, imaps[0].ID)
 	require.NoError(t, err)
+	// What the callback persisted, before any refresh: the token set the provider returned (the refresh token
+	// among it) on the primary and the same set on the second, and the ID token on neither.
+	assert.Equal(t, "access-1", sc[connectors.OAuth2AccessToken])
+	assert.Equal(t, "refresh-1", sc[connectors.OAuth2RefreshToken])
+	assert.Equal(t, "access-1", ic[connectors.OAuth2AccessToken])
+	assert.Equal(t, "refresh-1", ic[connectors.OAuth2RefreshToken])
+	assert.NotContains(t, sc, connectors.OAuth2IDToken)
+	assert.NotContains(t, ic, connectors.OAuth2IDToken)
 	assert.Equal(t, sc["login_id"], ic["login_id"])
 	assert.NotEmpty(t, sc["login_id"])
 	assert.Empty(t, sc[connectors.OAuth2TokenFrom], "the first holds the token set")

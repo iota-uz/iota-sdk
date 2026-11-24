@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -292,7 +293,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 			add(w.tenant, view, kinds, n.Params[catalog.ConnectionParam])
 		}
 	}
-	idle, err := p.idleConnections(ctx, seen, scanStarted)
+	idle, err := p.idleConnections(ctx, seen, failed, scanStarted)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -303,7 +304,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 
 // idleConnections are the connected connections of Baseliner connectors that no enabled graph uses (seen
 // are the ones that are used): their cursors are kept at the end of the mailbox (see Baseliner).
-func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool, scanned time.Time) ([]polled, error) {
+func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool, failed map[uuid.UUID]bool, scanned time.Time) ([]polled, error) {
 	var kinds []string
 	for _, c := range p.cfg.Connectors.List() {
 		if _, ok := c.(Baseliner); ok {
@@ -327,7 +328,9 @@ func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]
 		if err := rows.Scan(&t.tenant, &t.id, &kind); err != nil {
 			return nil, serrors.FromDB(opPoll, err)
 		}
-		if seen[t.id] {
+		// A tenant whose catalog could not be read has connections that may well be in use: they are not
+		// idle, and their cursors are not moved (the scan keeps their last targets and tries again).
+		if seen[t.id] || failed[t.tenant] {
 			continue
 		}
 		t.kind, t.baseline, t.scanned = catalog.ConnectorKind(kind), true, scanned
@@ -414,9 +417,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	// waited), whenever the pass began.
 	now = p.cfg.Clock()
 	// release ends the claim keeping the cursor (a poll that moved nothing).
-	release := func() error {
-		return p.saveState(ctx, t, owner, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
-	}
+	release := func() error { return p.endClaim(ctx, t, owner, now.Add(interval)) }
 	var (
 		evs  []InboundEvent
 		next json.RawMessage
@@ -462,7 +463,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	// The batch and the cursor commit together, under the connection's row lock: only while this poll
 	// still owns the claim and its credentials (the version it read, still connected) are the
 	// connection's. Events and a cursor of credentials a reauthorization replaced meanwhile are dropped.
-	err = p.commitPoll(ctx, t, owner, c.Version, evs, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))}, fence)
+	err = p.commitPoll(ctx, t, owner, c.Version, evs, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))}, state.Cursor, fence)
 	switch {
 	case errors.Is(err, errBaselineFenced):
 		// A graph was enabled while the baseline was taken: the connection is used now, and its cursor stays
@@ -470,6 +471,10 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 		return now.Add(interval), release()
 	case errors.Is(err, errClaimLost):
 		return now.Add(interval), nil // the batch is discarded; the new owner's cursor stands
+	case errors.Is(err, errCursorMoved):
+		// The cursor was set while this poll read (a message about to be sent seeds the mailbox): its batch is
+		// dropped with its cursor, and the next poll reads from the one that was set.
+		return now.Add(interval), release()
 	case errors.Is(err, errCredentialsChanged):
 		// The next poll asks again from the same cursor with the connection's credentials now. A token
 		// refresh during the poll changes the version too: its batch comes again then, nothing is lost.
@@ -482,7 +487,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 
 // commitPoll publishes a poll's events and saves its state in one transaction under the connection's
 // row lock, fenced by the claim's owner and the credentials version the poll read.
-func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, version int, evs []InboundEvent, st pollState, fence *time.Time) error {
+func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, version int, evs []InboundEvent, st pollState, readFrom json.RawMessage, fence *time.Time) error {
 	in := p.r.Inbound()
 	return publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
 		var (
@@ -499,6 +504,11 @@ func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, 
 		}
 		if ver != version || status != string(connectors.StatusConnected) {
 			return errCredentialsChanged
+		}
+		if !sameCursor(pollCursor(raw), readFrom) {
+			// The cursor is not the one this poll read from: it was seeded after the poll claimed the
+			// connection. The batch (read from the older state) and its cursor are not saved over it.
+			return errCursorMoved
 		}
 		if fence != nil {
 			// A baseline only moves the cursor of a connection nobody uses. Checked here, under the
@@ -577,6 +587,9 @@ const baselineFenceSkew = 5 * time.Second
 // errBaselineFenced: a graph was enabled while a baseline was taken.
 var errBaselineFenced = errors.New("automation poller: a graph was enabled while the baseline was taken")
 
+// errCursorMoved: the cursor changed while the poll that claimed the connection read.
+var errCursorMoved = errors.New("automation poller: the connection's cursor was set during the poll")
+
 // errCredentialsChanged: the connection's credentials (or status) changed while the poll ran.
 var errCredentialsChanged = errors.New("automation poller: the connection's credentials changed during the poll")
 
@@ -646,9 +659,9 @@ func (p *InboundPoller) claim(ctx context.Context, t polled, interval time.Durat
 	return st, owner, wait, nil
 }
 
-// saveState ends the owner's claim with the state it polled to. A claim lost to another (its lease ran
-// out) saves nothing: the newer owner's cursor stands.
-func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, st pollState) error {
+// endClaim ends the owner's claim and sets the next poll, keeping the cursor as it is now: a cursor changes
+// only by a commit (or a seed), never by a poll that moved nothing. A claim lost to another saves nothing.
+func (p *InboundPoller) endClaim(ctx context.Context, t polled, owner string, next time.Time) error {
 	err := p.cfg.Connections.UpdateInbound(ctx, t.tenant, t.id, func(raw json.RawMessage) (json.RawMessage, error) {
 		all := inboundState{}
 		if len(raw) > 0 {
@@ -664,7 +677,8 @@ func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, s
 		if cur.Owner != owner {
 			return raw, nil
 		}
-		b, err := json.Marshal(st)
+		cur.Owner, cur.LeaseUntil, cur.NextAt = "", nil, ptrTime(next)
+		b, err := json.Marshal(cur)
 		if err != nil {
 			return nil, err
 		}
@@ -720,6 +734,19 @@ func SeedCursor(ctx context.Context, store InboundStateStore, tenantID, id uuid.
 		return json.Marshal(all)
 	})
 	return set, serrors.Wrap(opPoll, err)
+}
+
+// sameCursor compares two cursors as JSON documents (their whitespace does not matter; none and null are
+// the same).
+func sameCursor(a, b json.RawMessage) bool {
+	norm := func(r json.RawMessage) []byte {
+		var out bytes.Buffer
+		if len(r) == 0 || json.Compact(&out, r) != nil || out.String() == "null" {
+			return nil
+		}
+		return out.Bytes()
+	}
+	return bytes.Equal(norm(a), norm(b))
 }
 
 // pollCursor is the cursor an inbound state holds.

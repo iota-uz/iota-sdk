@@ -14,14 +14,19 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 )
 
-// connTimeout bounds one exchange with a server when the context has no deadline of its own.
-const connTimeout = 60 * time.Second
+// sessionTimeout is how long a session may last when its caller sets no deadline of its own.
+const sessionTimeout = 5 * time.Minute
 
-// watch closes conn when ctx ends, so a blocked read returns; the returned func stops watching.
+// watch closes conn when ctx ends, so a blocked read or write returns; the returned func stops watching.
+// A caller's deadline is kept; without one the session gets sessionTimeout. The deadline of the socket is
+// not enough on its own: the SMTP and IMAP clients set and clear socket deadlines around their commands, so
+// the context is what ends a stalled one.
 func watch(ctx context.Context, conn net.Conn) func() {
+	cancel := func() {}
 	deadline, ok := ctx.Deadline()
 	if !ok {
-		deadline = time.Now().Add(connTimeout)
+		ctx, cancel = context.WithTimeout(ctx, sessionTimeout)
+		deadline, _ = ctx.Deadline()
 	}
 	_ = conn.SetDeadline(deadline)
 	done := make(chan struct{})
@@ -32,7 +37,7 @@ func watch(ctx context.Context, conn net.Conn) func() {
 		case <-done:
 		}
 	}()
-	return func() { close(done) }
+	return func() { close(done); cancel() }
 }
 
 // dialConn opens a TCP connection, TLS from the first byte when implicit.
@@ -69,6 +74,13 @@ func (h *hub) dialSMTP(ctx context.Context, a account, token string) (*smtpClien
 	var cl *smtp.Client
 	if implicit {
 		cl = smtp.NewClient(conn)
+		// The greeting and the hello are read now, not at the first command that needs them: a server that
+		// completed TLS and then refused the session (421) is not a server without AUTH, and not a success.
+		if err := cl.Noop(); err != nil {
+			stop()
+			_ = conn.Close()
+			return nil, &catalog.CallError{Code: catalog.CallUnavailable, Message: "the SMTP server did not accept the session: " + noText(err).Error(), Retryable: true}
+		}
 	} else if cl, err = smtp.NewClientStartTLS(conn, h.tlsConfig(a.host)); err != nil {
 		stop()
 		_ = conn.Close()

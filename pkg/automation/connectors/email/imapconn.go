@@ -137,6 +137,11 @@ func (s *imapSession) moveTo(set imap.UIDSet, source, dest, messageID string) er
 	if err != nil {
 		return err
 	}
+	if nums, _ := set.Nums(); len(nums) > 1 {
+		// Several messages of the source have this id: one live copy in the destination proves nothing about
+		// the others, so none is taken as copied (a replay may then copy again; nothing is ever lost).
+		copied = false
+	}
 	sel, err := s.selectMailbox(source, false)
 	if err != nil {
 		return err
@@ -156,6 +161,51 @@ func (s *imapSession) moveTo(set imap.UIDSet, source, dest, messageID string) er
 		return s.c.UIDExpunge(set).Close()
 	}
 	return nil
+}
+
+// resumeMove finishes a move whose last step did not happen: the original is flagged \\Deleted in the
+// source (a call that ended after COPY and STORE and before UID EXPUNGE), and a live copy is in the
+// destination. Only on a server with UIDPLUS (the flag-only behavior without it stays), and only the
+// messages that are exactly this one. It reports whether there was something to finish.
+func (s *imapSession) resumeMove(source, dest, messageID string) (bool, error) {
+	if !s.c.Caps().Has(imap.CapUIDPlus) || s.c.Caps().Has(imap.CapMove) {
+		return false, nil
+	}
+	if _, err := s.selectMailbox(source, false); err != nil {
+		return false, err
+	}
+	found, err := s.c.UIDSearch(&imap.SearchCriteria{
+		Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}},
+		Flag:   []imap.Flag{imap.FlagDeleted},
+	}, nil).Wait()
+	if err != nil {
+		return false, err
+	}
+	candidates := found.AllUIDs()
+	if len(candidates) == 0 {
+		return false, nil
+	}
+	bufs, err := s.c.Fetch(imap.UIDSetNum(candidates...), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	if err != nil {
+		return false, err
+	}
+	var exact []imap.UID
+	for _, b := range bufs {
+		if b.Envelope != nil && bracket(b.Envelope.MessageID) == bracket(messageID) {
+			exact = append(exact, b.UID)
+		}
+	}
+	if len(exact) == 0 {
+		return false, nil
+	}
+	copied, err := s.hasMessage(dest, messageID)
+	if err != nil || !copied {
+		return false, err
+	}
+	if _, err := s.selectMailbox(source, false); err != nil {
+		return false, err
+	}
+	return true, s.c.UIDExpunge(imap.UIDSetNum(exact...)).Close()
 }
 
 // selectValidity is the UIDVALIDITY of the mailbox (opened read-write, as the caller has it).

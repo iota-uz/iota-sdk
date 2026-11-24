@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -31,8 +32,11 @@ func (h *hub) accessToken(ctx context.Context, tenant uuid.UUID, connectionID st
 	return "", fmt.Errorf("email: the access token could not be refreshed: %w", errors.New("token request failed"))
 }
 
-// markLogin marks the other connections of the same sign-in (same login id) needs_reauth: the token they
-// share was revoked, so none of them can work.
+// markLogin marks the connections of the sign-in a refused token belongs to (the same login id, the
+// connection that was refused included) needs_reauth: the token they share was revoked, so none of them can
+// work. Only a connected one is marked (a connection an administrator switched off stays off), and the write
+// is conditional on the version that was read together with the credentials that were compared: a
+// connection that was authorized again meanwhile is not marked.
 func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds connectors.Credentials) {
 	login := creds["login_id"]
 	if login == "" || h.cfg.Connections == nil {
@@ -45,14 +49,19 @@ func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds conne
 			continue
 		}
 		for _, c := range list {
-			if c.ID == self || c.Status == connectors.StatusNeedsReauth {
+			if c.Status != connectors.StatusConnected {
 				continue
 			}
-			_, cc, err := h.cfg.Connections.Get(ctx, tenant, c.ID)
+			got, cc, err := h.cfg.Connections.Get(ctx, tenant, c.ID)
 			if err != nil || cc["login_id"] != login {
 				continue
 			}
-			if err := h.cfg.Connections.SetStatus(ctx, tenant, c.ID, connectors.StatusNeedsReauth, "the provider refused the refresh token"); err != nil {
+			if c.ID == self && cc[connectors.OAuth2AccessToken] != creds[connectors.OAuth2AccessToken] {
+				continue // the refused credentials are not the ones it has now
+			}
+			version := got.Version
+			if _, err := h.cfg.Connections.SetStatusIf(ctx, tenant, c.ID, connectors.StatusNeedsReauth, "the provider refused the token",
+				func(_ json.RawMessage, v int) bool { return v == version }); err != nil {
 				h.log().Warn("email: a connection of a sign-in could not be marked", "error", err.Error())
 			}
 		}

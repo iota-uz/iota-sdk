@@ -352,6 +352,11 @@ func (s *store) SaveGroup(ctx context.Context, items []GroupItem) ([]Connection,
 	if len(items) == 0 {
 		return nil, nil
 	}
+	for _, it := range items {
+		if it.Connection.TenantID != items[0].Connection.TenantID {
+			return nil, serrors.Wrap(op, fmt.Errorf("%w: the connections of a sign-in are of one tenant", ErrInvalid))
+		}
+	}
 	out := make([]Connection, 0, len(items))
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		out = out[:0]
@@ -433,10 +438,10 @@ func (s *store) create(ctx context.Context, q querier, c Connection, identity []
 		return Connection{}, err
 	}
 	row := q.QueryRow(ctx, `INSERT INTO automation.connections
-		(tenant_id, id, kind, name, display_name, identity, status, status_reason, key_id, nonce, secret, version, created_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, now(), now())
+		(tenant_id, id, kind, name, display_name, identity, status, status_reason, key_id, nonce, secret, version, created_by, token_owner, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $13, now(), now())
 		RETURNING `+connectionColumns,
-		c.TenantID, c.ID, string(c.Kind), c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, nullableUser(c.CreatedBy))
+		c.TenantID, c.ID, string(c.Kind), c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, nullableUser(c.CreatedBy), tokenOwnerOf(creds))
 	saved, err := scanConnection(row)
 	return saved, mapWriteError(err)
 }
@@ -454,10 +459,10 @@ func (s *store) update(ctx context.Context, q execQuerier, c Connection, identit
 			return Connection{}, err
 		}
 		row = q.QueryRow(ctx, `UPDATE automation.connections SET name = $5, display_name = $6, identity = $7, status = $8,
-			status_reason = $9, key_id = $10, nonce = $11, secret = $12, version = version + 1, updated_at = now()
+			status_reason = $9, key_id = $10, nonce = $11, secret = $12, token_owner = $13, version = version + 1, updated_at = now()
 			WHERE tenant_id = $1 AND id = $2 AND kind = $3 AND version = $4
 			RETURNING `+connectionColumns,
-			c.TenantID, c.ID, string(c.Kind), c.Version, c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret)
+			c.TenantID, c.ID, string(c.Kind), c.Version, c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, tokenOwnerOf(creds))
 	} else {
 		row = q.QueryRow(ctx, `UPDATE automation.connections SET name = $5, display_name = $6, identity = $7, status = $8,
 			status_reason = $9, version = version + 1, updated_at = now()
@@ -478,6 +483,15 @@ func (s *store) update(ctx context.Context, q execQuerier, c Connection, identit
 		return Connection{}, ErrNotFound
 	}
 	return saved, mapWriteError(err)
+}
+
+// tokenOwnerOf is the id a credentials set takes its tokens from (OAuth2TokenFrom), or nil: kept in a
+// column of its own, beside the encrypted credentials, in step with them.
+func tokenOwnerOf(creds Credentials) any {
+	if id, err := uuid.Parse(creds[OAuth2TokenFrom]); err == nil {
+		return id
+	}
+	return nil
 }
 
 func mapWriteError(err error) error {
@@ -619,12 +633,14 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 	})
 }
 
-// promoteCompanions makes the connections that take their tokens from the deleted one (OAuth2TokenFrom)
-// owners of the token set it holds now, which is the current one: they are the connections of the same
-// sign-in, and they go on working. The deleted connection is the authority on the set (it is the one that
-// refreshed it), so what it holds is copied whole.
+// promoteCompanions hands the token set of a deleted connection to the connections that take their tokens
+// from it (token_owner), which are the connections of the same sign-in: they go on working. The deleted
+// connection is the authority on the set (it is the one that refreshed it), so what it holds is copied
+// whole. One survivor becomes the owner and the others follow it, so a rotating refresh token has one
+// holder that refreshes. Only the actual dependents are read (by the column kept in the clear), in id
+// order: a connection that has none is deleted without reading, or locking, any other.
 func (s *store) promoteCompanions(ctx context.Context, tx pgx.Tx, tenantID, owner uuid.UUID) error {
-	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id <> $2`, tenantID, owner)
+	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND token_owner = $2 ORDER BY id FOR UPDATE`, tenantID, owner)
 	if err != nil {
 		return err
 	}
@@ -648,16 +664,13 @@ func (s *store) promoteCompanions(ctx context.Context, tx pgx.Tx, tenantID, owne
 	if err != nil {
 		return err
 	}
-	for _, id := range ids {
-		c, creds, err := s.load(ctx, tx, tenantID, id, true)
+	for i, id := range ids {
+		c, creds, err := s.load(ctx, tx, tenantID, id, false)
 		if err != nil {
 			return err
 		}
-		if creds[OAuth2TokenFrom] != owner.String() {
-			continue
-		}
 		next := Credentials{}
-		for _, k := range []string{OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt} {
+		for _, k := range tokenSet {
 			if v := theirs[k]; v != "" {
 				next[k] = v
 			}
@@ -666,6 +679,9 @@ func (s *store) promoteCompanions(ctx context.Context, tx pgx.Tx, tenantID, owne
 			if _, own := next[k]; !own && !isTokenField(k) && k != OAuth2TokenFrom {
 				next[k] = v
 			}
+		}
+		if i > 0 {
+			next[OAuth2TokenFrom] = ids[0].String() // the first survivor owns the set; the rest follow it
 		}
 		identity, err := json.Marshal(c.Identity)
 		if err != nil {

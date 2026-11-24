@@ -122,13 +122,13 @@ func TestMoveWithoutMoveNeverLosesMail(t *testing.T) {
 		f := newFx(t, emailtest.ModeTLS)
 		f.srv.DisableMove()
 		f.srv.Mailbox(mailbox, "Archive")
-		f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
+		stale := f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
 		f.srv.Deliver(mailbox, "INBOX", mailText("<m2@x>", "a@example.org", "two", "x"))
 		_, err := f.labelOnce(t, map[string]any{"message_id": "<m2@x>", "keywords": []any{"keep"}})
 		require.NoError(t, err)
-		// m1 is flagged deleted by someone else, awaiting its own expunge.
-		_, err = f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "keywords": []any{"stale"}})
-		require.NoError(t, err)
+		// m1 is flagged deleted by someone else, awaiting its own expunge: an EXPUNGE that is not scoped to
+		// the moved message's UID would remove it.
+		f.srv.Flag(mailbox, "INBOX", stale, `\Deleted`)
 		res, err := f.labelOnce(t, map[string]any{"message_id": "<m2@x>", "move_to": "Archive"})
 		require.NoError(t, err)
 		assert.Equal(t, "done", res.Outcome)

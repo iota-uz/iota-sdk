@@ -281,7 +281,7 @@ func (s *IntegrationsService) List(ctx context.Context, a Actor, opts ListOption
 // availablePresets are the sign-in presets of a connector whose OAuth2 client credential the application has.
 func (s *IntegrationsService) availablePresets(conn connectors.Connector) []string {
 	d := conn.Descriptor()
-	if len(d.OAuth2Presets) == 0 || s.oauth == nil || s.platform == nil {
+	if len(d.OAuth2Presets) == 0 || s.oauth == nil || s.platform == nil || s.states == nil {
 		return nil
 	}
 	if _, ok := s.oauth.(connectors.PresetOAuth2); !ok {
@@ -866,6 +866,11 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		if cur.Kind != grant.Kind {
 			return connectors.Connection{}, pending, connectors.ErrNotFound
 		}
+		// A sign-in of another account does not take over a connection that is part of a pair: the other
+		// connection of the pair would keep the old mailbox's settings and take the new account's tokens.
+		if len(grant.Companions) > 0 && cur.Identity.External != "" && cur.Identity.External != grant.Identity.External {
+			return connectors.Connection{}, pending, ErrOAuthRefused
+		}
 		cur.Identity = validIdentity(grant.Identity, secret, grant.Credentials, old)
 		scrubRetained(&cur, secret, old, grant.Credentials)
 		if cur.Status != connectors.StatusDisabled {
@@ -906,7 +911,7 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 			}
 			csecret := secretsOf(cc.Descriptor())
 			comp.Identity = validIdentity(comp.Identity, csecret, comp.Credentials)
-			it, err := connectors.PlanGrant(ctx, s.store, csecret, a.TenantID, comp, a.UserID)
+			it, err := connectors.PlanCompanion(ctx, s.store, csecret, a.TenantID, comp, a.UserID, primary)
 			if err != nil {
 				return connectors.Connection{}, pending, mapStoreError(op, err)
 			}

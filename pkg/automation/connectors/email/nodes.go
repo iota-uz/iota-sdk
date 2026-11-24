@@ -59,7 +59,7 @@ func (n *sendNode) Requires() []catalog.ConnectorKind { return nil }
 func (n *sendNode) Spec() graph.NodeSpec {
 	return graph.NodeSpec{
 		Type: NodeSend, Title: "Email: send a message", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture,
-		Description: "Sends a message over SMTP. Its Message-ID is made before sending, so a reply can be waited for even when the answer of the server was lost.",
+		Description: "Sends a message over SMTP. Its Message-ID is made before sending and is in the output of a message that was sent, so a reply can be waited for. A send whose outcome is unknown (a connection that ended after the message was written) has no output: the message may have gone, and the graph cannot name it.",
 		Params:      graph.MustSchemaParams(sendSchema),
 		Templates:   []string{"to[]", "cc[]", "bcc[]", "subject", "text", "html", "reply_to"},
 		Values:      []string{"in_reply_to"},
@@ -103,10 +103,11 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 	if err != nil {
 		return catalog.CallResult{}, err
 	}
+	sender := mailboxAddress(a.fromAddress)
 	msg := outgoing{
-		From: mail.Address{Name: a.fromName, Address: mailboxAddress(a.fromAddress)}, To: to, Cc: cc, ReplyTo: replyTo,
+		From: mail.Address{Name: a.fromName, Address: sender}, To: to, Cc: cc, ReplyTo: replyTo,
 		Subject: str(in.Params["subject"]), Text: str(in.Params["text"]), HTML: str(in.Params["html"]),
-		MessageID: messageIDFor(in.IdempotencyKey, a.fromAddress), InReplyTo: inReplyTo, Date: n.now(),
+		MessageID: messageIDFor(in.IdempotencyKey, sender), InReplyTo: inReplyTo, Date: n.now(),
 	}
 	raw, err := buildMessage(msg)
 	if err != nil {
@@ -196,12 +197,21 @@ func dedupe(list []string) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(list))
 	for _, a := range list {
-		if k := strings.ToLower(a); !seen[k] {
+		if k := addressKey(a); !seen[k] {
 			seen[k] = true
 			out = append(out, a)
 		}
 	}
 	return out
+}
+
+// addressKey identifies a mailbox: the domain is not case sensitive, the local part may be (RFC 5321), so
+// two addresses that differ in the case of the local part are two recipients.
+func addressKey(a string) string {
+	if i := strings.LastIndexByte(a, '@'); i >= 0 {
+		return a[:i] + "@" + strings.ToLower(a[i+1:])
+	}
+	return a
 }
 
 func strs(l []string) []any {
@@ -283,7 +293,41 @@ type waitParams struct{ inner graph.ParamsSpec }
 
 func (p waitParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
 
-var mentionsEvent = regexp.MustCompile(`\bevent\b`)
+var eventWord = regexp.MustCompile(`\bevent\b`)
+
+// mentionsEvent reports whether a CEL source refers to event: a quoted text that has the word in it
+// (an address like event@example.org) does not.
+func mentionsEvent(src string) bool { return eventWord.MatchString(stripStrings(src)) }
+
+// stripStrings is a CEL source with the contents of its string literals taken out.
+func stripStrings(src string) string {
+	var b strings.Builder
+	var quote rune
+	escaped := false
+	for _, r := range src {
+		switch {
+		case quote == 0 && (r == '"' || r == '\''):
+			quote = r
+			b.WriteRune(r)
+		case quote != 0 && escaped:
+			escaped = false
+		case quote != 0 && r == '\\':
+			escaped = true
+		case quote != 0 && r == quote:
+			quote = 0
+			b.WriteRune(r)
+		case quote == 0:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// normalizedID is a CEL expression that gives a Message-ID of an expression with its angle brackets, as the
+// headers of a received message carry it: a configured id may be written with or without them.
+func normalizedID(src string) string {
+	return `(string(` + src + `).startsWith("<") ? string(` + src + `) : "<" + string(` + src + `) + ">")`
+}
 
 func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	out, issues := p.inner.Parse(raw)
@@ -297,7 +341,7 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	// In the wait's filter, event is the incoming message, not the run's trigger: an id has to come from a
 	// node's output.
 	for _, name := range []string{"message_id", "thread_id"} {
-		if mentionsEvent.MatchString(str(out[name])) {
+		if mentionsEvent(str(out[name])) {
 			return nil, []graph.Issue{{Path: []any{name}, Message: "in the wait's filter, event is the incoming message: read the id from nodes.<id>.output (the output of email.send), or from the trigger's event.threadId through an earlier node"}}
 		}
 	}
@@ -305,9 +349,9 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	// names in In-Reply-To, and, when it names none, the last of References (the message it answers). An
 	// older message in References is only history: a reply to B in a conversation of A and B (References
 	// root, A, B) is B's reply, not A's. Two runs that send in one conversation are woken each by its own.
-	msg := "string(" + str(out["message_id"]) + ")"
+	msg := normalizedID(str(out["message_id"]))
 	terms := []string{
-		"event.threadId == string(" + thread + ")",
+		"event.threadId == " + normalizedID(thread),
 		`(event.inReplyTo != "" ? event.inReplyTo == ` + msg + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + msg + `))`,
 	}
 	if from := str(out["from"]); from != "" {
@@ -315,7 +359,7 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 		if err != nil {
 			return nil, []graph.Issue{{Path: []any{"from"}, Message: err.Error()}}
 		}
-		if mentionsEvent.MatchString(cel) {
+		if mentionsEvent(cel) {
 			return nil, []graph.Issue{{Path: []any{"from"}, Message: "in the wait's filter, event is the incoming message: read the address from nodes.<id>.output"}}
 		}
 		terms = append(terms, "event.from.address.lowerAscii() == string("+cel+").lowerAscii()")
@@ -412,6 +456,16 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 		return catalog.CallResult{}, n.callError(ctx, in, a, err)
 	}
 	if len(uids) == 0 {
+		if dest != "" && !sameMailboxName(dest, a.mailbox) {
+			// An earlier attempt may have ended before the last step of a move: finish it.
+			done, err := s.resumeMove(a.mailbox, dest, id)
+			if err != nil {
+				return catalog.CallResult{}, n.callError(ctx, in, a, err)
+			}
+			if done {
+				return catalog.CallResult{Outcome: outcomeDone, Output: map[string]any{}}, nil
+			}
+		}
 		return catalog.CallResult{Outcome: outcomeMissing, Output: map[string]any{}}, nil
 	}
 	set := imap.UIDSetNum(uids...)
@@ -420,7 +474,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 			return catalog.CallResult{}, n.callError(ctx, in, a, err)
 		}
 	}
-	if dest != "" && dest != a.mailbox {
+	if dest != "" && !sameMailboxName(dest, a.mailbox) {
 		if err := s.moveTo(set, a.mailbox, dest, id); err != nil {
 			return catalog.CallResult{}, n.callError(ctx, in, a, err)
 		}
@@ -456,4 +510,10 @@ func strsOf(v any) []string {
 		}
 	}
 	return out
+}
+
+// sameMailboxName: mailbox names are case sensitive, except INBOX, which is one mailbox in every spelling
+// (RFC 9051, 5.1).
+func sameMailboxName(a, b string) bool {
+	return a == b || (strings.EqualFold(a, "INBOX") && strings.EqualFold(b, "INBOX"))
 }

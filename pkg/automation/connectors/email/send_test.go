@@ -15,9 +15,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email/emailtest"
 )
 
+// sendInput is one call of a new run: its idempotency key (and so the Message-ID the message is sent with)
+// is derived from the run, so two runs against one mailbox never send the same message. A test that repeats
+// a call reuses the CallInput.
 func (f *fx) sendInput(params map[string]any, creds connectors.Credentials) catalog.CallInput {
+	run := uuid.New()
 	return catalog.CallInput{
-		TenantID: tenant, RunID: uuid.New(), NodeID: "send", Attempt: 1, IdempotencyKey: "run:send:tok:1",
+		TenantID: tenant, RunID: run, NodeID: "send", Attempt: 1, IdempotencyKey: "run:send:" + run.String() + ":1",
 		Params: params, Credentials: creds, Usage: f.usage,
 		Connection: &catalog.ConnectionInfo{ID: uuid.NewString(), Kind: KindSMTP, Name: "smtp"},
 	}
@@ -196,15 +200,19 @@ func TestSMTPTestDoesNotSend(t *testing.T) {
 }
 
 func TestTLSIsRequired(t *testing.T) {
-	// A server that does not offer STARTTLS never gets a login: the connector refuses to talk in the clear.
-	f := newFx(t, emailtest.ModeTLS)
+	// A server that greets in the clear and does not offer STARTTLS never gets a login: the connector
+	// refuses to talk in the clear. The fake answers EHLO without STARTTLS (not silence the client would
+	// time out on), so it is the refusal that is tested, and no AUTH command reaches the server.
+	f := newFx(t, emailtest.ModePlain)
 	creds := f.smtpCreds()
-	creds["security"] = "starttls" // the fake speaks TLS from the first byte: no plain greeting
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	creds["security"] = "starttls"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := f.smtp.Test(ctx, creds)
 	require.Error(t, err)
-	assert.Empty(t, f.srv.Mechanisms())
+	require.NoError(t, ctx.Err(), "refused, not timed out")
+	assert.Contains(t, strings.ToLower(err.Error()), "starttls")
+	assert.Empty(t, f.srv.Mechanisms(), "no AUTH was attempted")
 }
 
 func TestXOAUTH2SendAndRevocation(t *testing.T) {

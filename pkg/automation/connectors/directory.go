@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -93,7 +94,25 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 	default:
 		return fmt.Errorf("%w: connector %s: auth %q is not api_key, basic, oauth2 or custom", ErrInvalid, kind, d.Auth)
 	}
+	// AuthParams add to the authorization URL: they never replace what the flow itself sets.
+	reserved := func(params map[string]string) error {
+		for k := range params {
+			switch strings.ToLower(k) {
+			case "state", "client_id", "redirect_uri", "response_type", "scope", "code_challenge", "code_challenge_method":
+				return fmt.Errorf("%w: connector %s: AuthParams may not set %q", ErrInvalid, kind, k)
+			}
+		}
+		return nil
+	}
+	if d.OAuth2 != nil {
+		if err := reserved(d.OAuth2.AuthParams); err != nil {
+			return err
+		}
+	}
 	for name, cfg := range d.OAuth2Presets {
+		if err := reserved(cfg.AuthParams); err != nil {
+			return err
+		}
 		if d.Auth == AuthOAuth2 || name == "" || cfg.AuthURL == "" || cfg.TokenURL == "" {
 			return fmt.Errorf("%w: connector %s: OAuth2 preset %q needs a name, AuthURL and TokenURL, and a connector that is not auth oauth2", ErrInvalid, kind, name)
 		}

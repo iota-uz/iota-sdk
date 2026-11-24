@@ -415,10 +415,22 @@ test('an email box signs in with a provider the application has, and offers no o
   await preset.selectOption('gmail')
   await expect(page.getByLabel('IMAP server')).toHaveCount(0)
   await expect(page.getByText('You will be sent to Google')).toBeVisible()
+  // A name of its own: the page already holds a seeded connection, which must not stand for the new one.
+  await page.getByLabel('Name', { exact: true }).fill('support_inbox')
   await page.getByTestId('form-save').click()
   // The sign-in, not a save of credentials: the fake provider sends the browser back with the connection.
   await expect(page).toHaveURL(/connected=/)
-  await expect(page.getByTestId('connection-robot_inbox')).toBeVisible()
+  await expect(row(page, 'support_inbox')).toBeVisible()
+  await expect(row(page, 'support_inbox').locator('[data-status="connected"]')).toBeVisible()
+})
+
+test('a saved login-and-password connection is not offered a provider sign-in on edit', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await menu(page, 'office_inbox')
+  await row(page, 'office_inbox').getByTestId('menu-edit').click()
+  // The edit saves credentials: a provider that would need a sign-in is not on offer, the form stays.
+  await expect(page.getByLabel('IMAP server')).toHaveValue('imap.acme.uz')
+  await expect(page.getByTestId('preset')).toHaveCount(0)
 })
 
 test('a sign-in connection of a form-and-sign-in connector is signed in again with its preset', async ({ page }) => {

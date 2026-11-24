@@ -37,6 +37,8 @@ const (
 	ModeTLS Mode = iota
 	// ModeSTARTTLS: plain, then STARTTLS (587, 143).
 	ModeSTARTTLS
+	// ModePlain: no TLS at all, and no STARTTLS to offer — a server a connector must refuse to log in to.
+	ModePlain
 )
 
 // Account is a mailbox of the server.
@@ -90,7 +92,10 @@ func New(t *testing.T, mode Mode, accounts ...Account) *Server {
 		imapMem: imapmemserver.New(), users: map[string]*imapmemserver.User{},
 		TLS: &tls.Config{RootCAs: pool, ServerName: "localhost", MinVersion: tls.VersionTLS12},
 	}
-	serverTLS := &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+	var serverTLS *tls.Config
+	if mode != ModePlain {
+		serverTLS = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+	}
 	for _, a := range accounts {
 		s.AddAccount(a)
 	}
@@ -111,9 +116,10 @@ func New(t *testing.T, mode Mode, accounts ...Account) *Server {
 		Caps:      s.imapCaps,
 		TLSConfig: serverTLS,
 	})
+	// Registered before either listener starts: a bind that fails after the first one is up stops it too.
+	t.Cleanup(s.Close)
 	s.SMTPAddr = s.listen(mode, serverTLS, func(l net.Listener) { _ = s.smtpSrv.Serve(l) })
 	s.IMAPAddr = s.listen(mode, serverTLS, func(l net.Listener) { _ = s.imapSrv.Serve(l) })
-	t.Cleanup(s.Close)
 	return s
 }
 

@@ -89,7 +89,8 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
     ...(scenario === 'email' ? [{
       kind: 'imap', title: 'Email (IMAP)', icon: '', description: 'Receive email and wait for replies.', category: 'email' as const, auth: 'custom' as const,
       credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: ['gmail'],
-      connections: [conn('imap', 'robot_inbox', 'Robot inbox', { identity: 'robot@acme.uz', status: 'needs_reauth', status_reason: 'reauth', fields: { preset: 'gmail', username: 'robot@acme.uz' } })],
+      connections: [conn('imap', 'robot_inbox', 'Robot inbox', { identity: 'robot@acme.uz', status: 'needs_reauth', status_reason: 'reauth', fields: { preset: 'gmail', username: 'robot@acme.uz' } }),
+        conn('imap', 'office_inbox', 'Office inbox', { identity: 'office@acme.uz', fields: { preset: 'custom', host: 'imap.acme.uz', port: '993', username: 'office@acme.uz' } })],
     }] : []),
     {
       kind: 'openai', title: 'OpenAI', icon: '', description: 'Classify, summarize and extract with language models.', category: 'ai', auth: 'api_key',

@@ -670,7 +670,9 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           </Show>
         }>
           <For each={fields()}>{(f) => <Show when={f.name !== 'preset' || knownPresets(connector()).length === 0} fallback={
-            <PresetField t={t} connector={connector()} field={f} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} />}>
+            // A saved connection with a login and a password stays one: it is not turned into a provider's sign-in
+            // from here (an edit saves credentials, it does not start a sign-in), so the choice is for a new one.
+            <Show when={!editing()}><PresetField t={t} connector={connector()} field={f} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} /></Show>}>
             <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
             error={fieldErrors()[f.name] ? fieldErrorText(t, fieldErrors()[f.name]!) : undefined} disabled={busy()}
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}

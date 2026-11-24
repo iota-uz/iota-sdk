@@ -19,10 +19,11 @@ import (
 // The contract test: what the connector relies on a mail server for, run against the in-memory fake
 // (CONTRACT_TARGET=fake, the default) and, by hand, against a real mailbox:
 //
+//	read -rs APP_PASSWORD; export APP_PASSWORD   # the app password, kept out of the command line
 //	CONTRACT_TARGET=live \
 //	EMAIL_CONTRACT_SMTP_HOST=smtp.example.com EMAIL_CONTRACT_SMTP_PORT=587 \
 //	EMAIL_CONTRACT_IMAP_HOST=imap.example.com EMAIL_CONTRACT_IMAP_PORT=993 \
-//	EMAIL_CONTRACT_USER=me@example.com EMAIL_CONTRACT_PASSWORD=<app password> \
+//	EMAIL_CONTRACT_USER=me@example.com EMAIL_CONTRACT_PASSWORD="$APP_PASSWORD" \
 //	  go test ./pkg/automation/connectors/email -run TestMailServerContract -v
 //
 // The live run sends a few messages from the mailbox to itself, reads them from INBOX and marks them read;

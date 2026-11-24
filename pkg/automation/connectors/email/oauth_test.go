@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -31,8 +32,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func idToken(email string) string {
-	claims := []byte(`{"email":` + strconv.Quote(email) + `}`)
+func idTokenFor(email, aud string) string {
+	// The client the token was issued to (the tests' "cid") and a future expiry: a token without them is not
+	// trusted for the mailbox it names.
+	claims := []byte(`{"email":` + strconv.Quote(email) + `,"aud":` + strconv.Quote(aud) + `,"exp":` + strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10) + `}`)
 	enc := base64.RawURLEncoding.EncodeToString
 	return enc([]byte(`{"alg":"none"}`)) + "." + enc(claims) + "."
 }
@@ -40,6 +43,8 @@ func idToken(email string) string {
 type tokenServer struct {
 	*httptest.Server
 	refuse    atomic.Bool
+	noRefresh atomic.Bool // the authorization code gives no refresh token
+	otherAud  atomic.Bool // and an ID token issued to another client
 	n         atomic.Int32
 	refreshes atomic.Int32
 	current   atomic.Value // the one refresh token the provider honours: it rotates them
@@ -55,7 +60,14 @@ func newTokenServer(t *testing.T, email string) *tokenServer {
 		case "authorization_code":
 			ts.n.Add(1)
 			ts.current.Store("refresh-1")
-			_, _ = w.Write([]byte(`{"access_token":"access-1","refresh_token":"refresh-1","token_type":"Bearer","expires_in":60,"id_token":"` + idToken(email) + `"}`))
+			refresh, aud := `"refresh_token":"refresh-1",`, "cid"
+			if ts.noRefresh.Load() {
+				refresh = ""
+			}
+			if ts.otherAud.Load() {
+				aud = "another-client"
+			}
+			_, _ = w.Write([]byte(`{"access_token":"access-1",` + refresh + `"token_type":"Bearer","expires_in":60,"id_token":"` + idTokenFor(email, aud) + `"}`))
 		case "refresh_token":
 			// A provider that rotates refresh tokens: the old one dies with the refresh.
 			if cur, _ := ts.current.Load().(string); ts.refuse.Load() || r.Form.Get("refresh_token") != cur {
@@ -386,4 +398,30 @@ func TestSignInDoesNotOverwriteAPasswordConnection(t *testing.T) {
 	assert.Equal(t, connectors.StatusDisabled, again.Status)
 	imaps, _ = e.store.List(e.ctx, e.tenant, KindIMAP)
 	assert.Len(t, imaps, 2)
+}
+
+// A sign-in that the provider did not give a refresh token, or whose ID token was issued to another client,
+// is refused, and saves nothing: the mailbox it names is not taken on trust.
+func TestSignInIsRefusedWithoutARefreshTokenOrForAnotherClient(t *testing.T) {
+	for name, set := range map[string]func(*tokenServer){
+		"no refresh token":       func(ts *tokenServer) { ts.noRefresh.Store(true) },
+		"an ID token of another": func(ts *tokenServer) { ts.otherAud.Store(true) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := signInEnv(t)
+			for _, id := range []uuid.UUID{e.smtp.ID, e.imap.ID} {
+				require.NoError(t, e.store.Delete(e.ctx, e.tenant, id))
+			}
+			set(e.ts)
+			_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+			require.NoError(t, err)
+			_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+			require.Error(t, err)
+			for _, kind := range []catalog.ConnectorKind{KindSMTP, KindIMAP} {
+				list, err := e.store.List(e.ctx, e.tenant, kind)
+				require.NoError(t, err)
+				assert.Empty(t, list, "nothing was saved")
+			}
+		})
+	}
 }

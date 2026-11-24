@@ -41,6 +41,9 @@ type maskedWriter struct {
 	inAuth  bool
 }
 
+// smtpContinuation is the server's request for the next part of an AUTH exchange.
+var smtpContinuation = regexp.MustCompile(`^334( |$)`)
+
 var authLine = regexp.MustCompile(`(?i)^(?:[A-Za-z0-9.*]+ )?(AUTH(?:ENTICATE)?|LOGIN)\b`)
 
 const maskText = "***"
@@ -92,7 +95,9 @@ func (m *maskedWriter) mask(line string) string {
 		}
 		m.inAuth = true
 		return strings.Join(fields[:min(keep, len(fields))], " ") + " " + maskText + "\r\n"
-	case m.inAuth && isBase64Line(trimmed):
+	case m.inAuth && (isBase64Line(trimmed) || smtpContinuation.MatchString(trimmed)):
+		// The continuation of an exchange: the client's response on a line of its own, and the server's
+		// 334 challenge between the lines. The exchange ends at the server's final reply.
 		return maskText + "\r\n"
 	}
 	m.inAuth = false

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -48,9 +49,7 @@ func (a account) implicitTLS(imap bool) bool {
 	return a.port == 465
 }
 
-func (a account) addr() string { return hostPort(a.host, a.port) }
-
-func hostPort(host string, port int) string { return host + ":" + strconv.Itoa(port) }
+func (a account) addr() string { return net.JoinHostPort(a.host, strconv.Itoa(a.port)) }
 
 func itoa(n int) string { return strconv.Itoa(n) }
 
@@ -116,12 +115,16 @@ func (h *hub) parseAccount(c connectors.Credentials, imap bool) (account, error)
 func (h *hub) server(preset string, imap bool, ih string, ip int, sh string, sp int) (string, int, string) {
 	host, port := pick(imap, ih, ip, sh, sp)
 	p := h.cfg.Providers[preset]
+	// A host and a port are overridden each on its own: a host given alone keeps the provider's port.
+	pickHost, pickPort := p.SMTPHost, p.SMTPPort
 	if imap {
-		if p.IMAPHost != "" {
-			host, port = p.IMAPHost, p.IMAPPort
-		}
-	} else if p.SMTPHost != "" {
-		host, port = p.SMTPHost, p.SMTPPort
+		pickHost, pickPort = p.IMAPHost, p.IMAPPort
+	}
+	if pickHost != "" {
+		host = pickHost
+	}
+	if pickPort != 0 {
+		port = pickPort
 	}
 	return host, port, p.Security
 }

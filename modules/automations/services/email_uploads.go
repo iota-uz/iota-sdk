@@ -38,7 +38,14 @@ func EmailAttachmentPath(id string) string { return "/automations/attachments/" 
 func EmailAttachmentServable(stored string) bool {
 	p := path.Clean("/"+filepath.ToSlash(upload.LayoutPath(stored))) + "/"
 	private := "/" + uploadsconfig.PrivateDirectory + "/"
-	return strings.Contains(p, private+EmailAttachmentsNamespace+"/") || !strings.Contains(p, private)
+	// The private directory is the first one on the path (the uploads' own root is above it): what follows
+	// it must be this feature's namespace, so a private directory nested in another feature's namespace
+	// (or a namespace of the same name below it) is not taken for it.
+	_, rest, inPrivate := strings.Cut(p, private)
+	if !inPrivate {
+		return true
+	}
+	return strings.HasPrefix(rest, EmailAttachmentsNamespace+"/")
 }
 
 // EmailUploadService is the part of the SDK's upload service (modules/core) the email connector uses.

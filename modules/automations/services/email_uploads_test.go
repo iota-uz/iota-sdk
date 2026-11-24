@@ -112,3 +112,21 @@ func TestEmailUploadsArePrivateAndServedToTheirTenantOnly(t *testing.T) {
 	assert.False(t, services.EmailAttachmentServable(priv.Path()))
 	assert.True(t, services.EmailAttachmentServable(pub.Path()))
 }
+
+// The route serves the feature's own namespace under the first private directory of a path, and files outside
+// every private directory; nothing else, whatever a path nests below another feature's private files.
+func TestEmailAttachmentServableIsAnchoredToThePrivateRoot(t *testing.T) {
+	t.Parallel()
+	cases := map[string]bool{
+		"/srv/uploads/.private/automations-email/t/a.pdf":              true,
+		"/srv/uploads/a.pdf":                                           true,
+		"/srv/uploads/.private/other/a.pdf":                            false,
+		"/srv/uploads/.private/other/.private/automations-email/a.pdf": false,
+		"/srv/uploads/.private/automations-email-x/a.pdf":              false,
+		"/srv/uploads/.private/../.private/other/a.pdf":                false,
+		"/srv/uploads/.private/other/../automations-email/a.pdf":       true,
+	}
+	for stored, want := range cases {
+		assert.Equal(t, want, services.EmailAttachmentServable(stored), stored)
+	}
+}

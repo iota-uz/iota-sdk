@@ -19,6 +19,12 @@
 // In-Reply-To; email.wait_reply waits on the key of the message it sent. No marker is put in a subject or
 // an address.
 //
+// A reply wakes a wait when two things hold: it is in the conversation the wait listens on (thread_id, the
+// thread root) and it answers the message that was sent (message_id): its In-Reply-To names that message, or,
+// when there is no In-Reply-To, the last entry of its References does. A message sent into an existing thread
+// is therefore waited on with the thread's root as thread_id and the sent message's own ID as message_id; with
+// no thread_id the root of the sent message is its own ID.
+//
 // The connector never logs a login, a password or a token: the dialogue with a server is not written
 // anywhere unless Config.Debug is set, and then every AUTH exchange and every credential value is masked.
 // The HTML of an incoming message is not passed on, only its text; links and attachments are not opened.
@@ -108,7 +114,7 @@ type Provider struct {
 type ConnectionState interface {
 	List(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind) ([]connectors.Connection, error)
 	Get(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, connectors.Credentials, error)
-	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error
+	SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error)
 	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error
 }
 
@@ -425,6 +431,11 @@ func finishGrant(g connectors.OAuth2Grant, own, other catalog.ConnectorKind) (co
 	if err != nil {
 		return g, err
 	}
+	// The sign-in asked for offline access: a grant that came without a refresh token cannot be kept alive, and
+	// would read as connected until its first token ran out. It is refused here, where the person sees it.
+	if g.Credentials[connectors.OAuth2RefreshToken] == "" {
+		return g, errNoRefreshToken
+	}
 	login := uuid.NewString()
 	g.Credentials = shared(g.Credentials, addr, login)
 	if own == KindSMTP {
@@ -449,5 +460,7 @@ func shared(src connectors.Credentials, addr, login string) connectors.Credentia
 	out["username"], out["login_id"] = addr, login
 	return out
 }
+
+var errNoRefreshToken = errors.New("email: the provider gave no refresh token")
 
 var errNoMailbox = errors.New("email: the sign-in does not tell which mailbox it is for")

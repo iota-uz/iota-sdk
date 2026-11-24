@@ -167,8 +167,11 @@ go test ./pkg/automation/engine -run TestEmail        # приёмка: send →
 
 Контрактный тест — то же против реального ящика:
 
+Пароль приложения сначала кладут в переменную оболочки (`read -rs APP_PASSWORD; export APP_PASSWORD`) — в строке
+команды он не набирается и не попадает в историю:
+
 ```sh
 CONTRACT_TARGET=live EMAIL_CONTRACT_SMTP_HOST=smtp.example.com EMAIL_CONTRACT_IMAP_HOST=imap.example.com \
-EMAIL_CONTRACT_USER=me@example.com EMAIL_CONTRACT_PASSWORD=<пароль приложения> \
+EMAIL_CONTRACT_USER=me@example.com EMAIL_CONTRACT_PASSWORD="$APP_PASSWORD" \
   go test ./pkg/automation/connectors/email -run TestMailServerContract -v
 ```

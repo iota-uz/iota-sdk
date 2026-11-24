@@ -91,7 +91,7 @@ const triggerSchema = `{"type":"object","additionalProperties":false,"properties
  "from":{"type":"array","maxItems":50,"x-unique-ci":true,"items":{"type":"string","minLength":3,"maxLength":254,"pattern":"^\\S(.*\\S)?$"},
    "description":"Start only on mail from these addresses (case does not matter)."},
  "subject_contains":{"type":"string","minLength":1,"maxLength":200,"description":"Start only when the subject contains this text (case does not matter)."},
- "skip_replies":{"type":"boolean","default":true,"description":"Skip messages in a thread: with an In-Reply-To header, or a subject that starts with Re: or Ответ:."},
+ "skip_replies":{"type":"boolean","default":true,"description":"Skip messages in a thread: with an In-Reply-To or References header, or a subject that starts with Re: or Ответ:."},
  "skip_auto":{"type":"boolean","default":true,"description":"Skip automatic mail: Auto-Submitted, List-Id (a mailing list), Precedence: bulk."}}}`
 
 // triggerParams are the options an author sets; skip_replies and skip_auto become the match fields

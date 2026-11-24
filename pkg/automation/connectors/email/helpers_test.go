@@ -188,6 +188,16 @@ func (s *fakeConns) UpdateInbound(_ context.Context, _, id uuid.UUID, fn func(js
 	return nil
 }
 
+func (s *fakeConns) SetStatusIf(_ context.Context, _, id uuid.UUID, st connectors.ConnectionStatus, _ string, cond func(json.RawMessage, int) bool) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !cond(s.inbound[id], s.conns[id].Version) {
+		return false, nil
+	}
+	s.status[id] = st
+	return true, nil
+}
+
 func (s *fakeConns) statusOf(id uuid.UUID) connectors.ConnectionStatus {
 	s.mu.Lock()
 	defer s.mu.Unlock()
