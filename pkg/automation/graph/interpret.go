@@ -305,39 +305,43 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	rendered := params
 	vars := varsOf(s.Ctx)
 	for _, t := range spec.Templates {
-		raw, ok := paramAt(params, t)
-		text, isStr := raw.(string)
-		if !ok || !isStr {
-			continue
+		for _, at := range ExpandParam(params, t) {
+			raw, _ := valueAt(params, at)
+			text, isStr := raw.(string)
+			if !isStr {
+				continue
+			}
+			tp, issues := s.in.exprs.template(s.node, "*", text)
+			if len(issues) > 0 {
+				st := failed(FailExpression, "%s", issues[0].Message)
+				return Effect{}, &st
+			}
+			out, err := tp.Render(vars)
+			if err != nil {
+				st := stepOfError(err)
+				return Effect{}, &st
+			}
+			rendered = setKeys(rendered, at, out)
 		}
-		tp, issues := s.in.exprs.template(s.node, "*", text)
-		if len(issues) > 0 {
-			st := failed(FailExpression, "%s", issues[0].Message)
-			return Effect{}, &st
-		}
-		out, err := tp.Render(vars)
-		if err != nil {
-			st := stepOfError(err)
-			return Effect{}, &st
-		}
-		rendered = setAt(rendered, t, out)
 	}
 	for _, path := range spec.Values {
-		raw, ok := paramAt(params, path)
-		src, isStr := raw.(string)
-		if !ok || !isStr {
-			continue
+		for _, at := range ExpandParam(params, path) {
+			raw, _ := valueAt(params, at)
+			src, isStr := raw.(string)
+			if !isStr {
+				continue
+			}
+			v, st := s.Eval(src, expr.TypeAny)
+			if st != nil {
+				return Effect{}, st
+			}
+			j, err := jsonOut(v)
+			if err != nil {
+				s := failed(FailExpression, "%s: %v", at.String(), err)
+				return Effect{}, &s
+			}
+			rendered = setKeys(rendered, at, j)
 		}
-		v, st := s.Eval(src, expr.TypeAny)
-		if st != nil {
-			return Effect{}, st
-		}
-		j, err := jsonOut(v)
-		if err != nil {
-			s := failed(FailExpression, "%s: %v", path, err)
-			return Effect{}, &s
-		}
-		rendered = setAt(rendered, path, j)
 	}
 	return Effect{Node: node.Type, Params: rendered}, nil
 }

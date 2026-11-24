@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -471,13 +472,35 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 			}
 		}
 	}
+	for i, p := range props {
+		path, ok := spec.OutputSchemas[p.Name]
+		if !ok {
+			continue
+		}
+		raw, ok := paramAt(params, path)
+		if !ok || raw == nil {
+			continue
+		}
+		// A schema the field language cannot express (a $ref, a oneOf) leaves the field dyn: it is a
+		// server's schema, not the author's, and must not make the graph invalid.
+		f, err := expr.FieldFromSchemaValue(raw)
+		if err != nil {
+			f = expr.DynField
+		}
+		props[i].Field = expr.OptionalOf(f) // the node may leave it out
+	}
 	return expr.ObjectOf(props), true, nil
 }
 
 // paramAt reads a dotted path inside params.
 func paramAt(params map[string]any, path string) (any, bool) {
+	return valueAt(params, strings.Split(path, "."))
+}
+
+// valueAt reads the value at a path of keys inside params.
+func valueAt(params map[string]any, keys []string) (any, bool) {
 	var cur any = params
-	for _, k := range strings.Split(path, ".") {
+	for _, k := range keys {
 		m, ok := cur.(map[string]any)
 		if !ok {
 			return nil, false
@@ -491,17 +514,77 @@ func paramAt(params map[string]any, path string) (any, bool) {
 
 // setAt returns a copy of params with a dotted path set.
 func setAt(params map[string]any, path string, v any) map[string]any {
-	head, rest, nested := strings.Cut(path, ".")
+	return setKeys(params, strings.Split(path, "."), v)
+}
+
+// setKeys returns a copy of params with the value at a path of keys set.
+func setKeys(params map[string]any, keys []string, v any) map[string]any {
 	out := make(map[string]any, len(params))
 	for k, x := range params {
 		out[k] = x
 	}
-	if !nested {
-		out[head] = v
+	if len(keys) == 1 {
+		out[keys[0]] = v
 		return out
 	}
-	child, _ := params[head].(map[string]any)
-	out[head] = setAt(child, rest, v)
+	child, _ := params[keys[0]].(map[string]any)
+	out[keys[0]] = setKeys(child, keys[1:], v)
+	return out
+}
+
+// AnyKey is the segment of a param path (NodeSpec.Templates, Values, Expressions) that stands for every
+// key of an object: "arguments.*.template" is the template of each argument, whatever its name. A key a
+// wildcard matches may hold any text, dots included.
+const AnyKey = "*"
+
+// ParamPath is a concrete path inside params: the keys from the root.
+type ParamPath []string
+
+// String is the path as error paths write it: dotted, with a key that is not a name in brackets as a
+// JSON string (arguments["a.b"].cel).
+func (p ParamPath) String() string {
+	var b strings.Builder
+	for i, k := range p {
+		if expr.IsName(k) {
+			if i > 0 {
+				b.WriteByte('.')
+			}
+			b.WriteString(k)
+			continue
+		}
+		q, _ := json.Marshal(k)
+		b.WriteByte('[')
+		b.Write(q)
+		b.WriteByte(']')
+	}
+	return b.String()
+}
+
+// ExpandParam is every concrete path a param path names in params, with AnyKey segments matched against
+// the keys present, in key order. A path without a wildcard names itself when it is present.
+func ExpandParam(params map[string]any, path string) []ParamPath {
+	var out []ParamPath
+	var walk func(cur any, at ParamPath, rest []string)
+	walk = func(cur any, at ParamPath, rest []string) {
+		if len(rest) == 0 {
+			out = append(out, append(ParamPath(nil), at...))
+			return
+		}
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return
+		}
+		if rest[0] != AnyKey {
+			if next, ok := m[rest[0]]; ok {
+				walk(next, append(at, rest[0]), rest[1:])
+			}
+			return
+		}
+		for _, k := range sortedKeys(m) {
+			walk(m[k], append(at, k), rest[1:])
+		}
+	}
+	walk(params, nil, strings.Split(path, "."))
 	return out
 }
 
@@ -521,20 +604,22 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		waited = spec.Wait.Event.Of(params)
 	}
 	for _, e := range spec.Expressions {
-		src, ok := paramAt(params, e.Param)
-		s, isStr := src.(string)
-		if !ok || !isStr {
-			continue
+		for _, at := range ExpandParam(params, e.Param) {
+			src, _ := valueAt(params, at)
+			s, isStr := src.(string)
+			if !isStr {
+				continue
+			}
+			event := "*"
+			want := e.Type
+			if want == "" {
+				want = expr.TypeAny
+			}
+			if spec.Wait != nil && spec.Wait.Filter.Param == e.Param && waited != "" {
+				event, want = waited, expr.TypeBool // a wait's filter is a bool, whatever Expressions says
+			}
+			out = append(out, nodeExpression{path: "params." + at.String(), source: s, want: want, event: event})
 		}
-		event := "*"
-		want := e.Type
-		if want == "" {
-			want = expr.TypeAny
-		}
-		if spec.Wait != nil && spec.Wait.Filter.Param == e.Param && waited != "" {
-			event, want = waited, expr.TypeBool // a wait's filter is a bool, whatever Expressions says
-		}
-		out = append(out, nodeExpression{path: "params." + e.Param, source: s, want: want, event: event})
 	}
 	// A wait's filter param is a bool over the waited event even when Expressions does not list it.
 	if w := spec.Wait; w != nil && w.Filter.Param != "" && waited != "" {
@@ -549,16 +634,18 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		}
 	}
 	for _, v := range spec.Values {
-		if src, ok := paramAt(params, v); ok {
+		for _, at := range ExpandParam(params, v) {
+			src, _ := valueAt(params, at)
 			if s, ok := src.(string); ok {
-				out = append(out, nodeExpression{path: "params." + v, source: s, want: expr.TypeAny, event: "*"})
+				out = append(out, nodeExpression{path: "params." + at.String(), source: s, want: expr.TypeAny, event: "*"})
 			}
 		}
 	}
 	for _, t := range spec.Templates {
-		if text, ok := paramAt(params, t); ok {
+		for _, at := range ExpandParam(params, t) {
+			text, _ := valueAt(params, at)
 			if s, ok := text.(string); ok {
-				out = append(out, nodeExpression{path: "params." + t, source: s, event: "*", template: true})
+				out = append(out, nodeExpression{path: "params." + at.String(), source: s, event: "*", template: true})
 			}
 		}
 	}

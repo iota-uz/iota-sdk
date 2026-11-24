@@ -111,11 +111,19 @@ type NodeSpec struct {
 	Wait          *WaitSpec
 	Output        expr.Fields // what the node puts in nodes.<id>.output
 	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// OutputSchemas types fields of Output by JSON Schemas inside params: an output field → the dotted
+	// param path of its schema (an MCP tool's pinned output schema). A field whose schema is absent keeps
+	// its declared type; one that has it is optional of the schema's type (dyn when the field language
+	// cannot express the schema).
+	OutputSchemas map[string]string
 	// DryRun is what a dry run does with the node: execute it for real (no external effect: a read, an
 	// HTTP GET, a decision of a model), capture it (an external effect: send, ask, a write; its rendered
 	// params are traced and its outcome comes from the context) or stop on it. Every node type declares
 	// it (ValidateCatalog: dry_run_undeclared); the built-in nodes execute.
 	DryRun DryRunMode
+	// ReadOnlyParam is a dotted bool param that, true, says a node of a capture type makes no external
+	// effect (a tool its server declares read-only): a dry run executes it instead of capturing it.
+	ReadOnlyParam string
 	// Optional is an outcome a call has only when a param is set (a human task's timeout).
 	Optional *OptionalOutcome
 }
@@ -627,14 +635,16 @@ func Revision(c Catalog, b *Behaviors) string {
 
 // specDetail is what changes how a node or an event runs and the view does not show.
 type specDetail struct {
-	Outcomes      []string         `json:"outcomes,omitempty"`
-	DoneOutcome   string           `json:"done_outcome,omitempty"`
-	FailedOutcome string           `json:"failed_outcome,omitempty"`
-	Values        []string         `json:"values,omitempty"`
-	Answer        *AnswerSpec      `json:"answer,omitempty"`
-	Wait          *waitDetail      `json:"wait,omitempty"`
-	MatchHook     string           `json:"match_hook,omitempty"`
-	Optional      *OptionalOutcome `json:"optional,omitempty"`
+	Outcomes      []string          `json:"outcomes,omitempty"`
+	DoneOutcome   string            `json:"done_outcome,omitempty"`
+	FailedOutcome string            `json:"failed_outcome,omitempty"`
+	Values        []string          `json:"values,omitempty"`
+	Answer        *AnswerSpec       `json:"answer,omitempty"`
+	Wait          *waitDetail       `json:"wait,omitempty"`
+	MatchHook     string            `json:"match_hook,omitempty"`
+	Optional      *OptionalOutcome  `json:"optional,omitempty"`
+	ReadOnlyParam string            `json:"read_only_param,omitempty"`
+	OutputSchemas map[string]string `json:"output_schemas,omitempty"`
 }
 
 type waitDetail struct {
@@ -650,7 +660,7 @@ type waitDetail struct {
 func contentHash(c Catalog, v CatalogView) string {
 	details := map[string]specDetail{}
 	for typ, n := range c.Nodes {
-		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional}
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, ReadOnlyParam: n.ReadOnlyParam, OutputSchemas: n.OutputSchemas}
 		if w := n.Wait; w != nil {
 			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
 		}

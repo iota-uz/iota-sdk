@@ -444,7 +444,7 @@ func (c *Controller) create(ctx context.Context, req CreateRequest) (SaveResult,
 	if err != nil {
 		return c.saveResult(ctx, a, err)
 	}
-	return SaveResult{OK: true, ID: am.ID.String(), Graph: v.Graph, Version: v.Version, LayoutRevision: am.LayoutRevision}, nil
+	return SaveResult{OK: true, ID: am.ID.String(), Graph: v.Graph, Version: v.Version, LayoutRevision: am.LayoutRevision, Warnings: graphErrors(v.Warnings)}, nil
 }
 
 func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, error) {
@@ -464,7 +464,7 @@ func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, err
 	if err != nil {
 		return c.saveResult(ctx, a, err)
 	}
-	out := SaveResult{OK: true, Graph: v.Graph, Version: v.Version}
+	out := SaveResult{OK: true, Graph: v.Graph, Version: v.Version, Warnings: graphErrors(v.Warnings)}
 	am, err := c.cfg.Engine.Service.Get(ctx, a, id)
 	if err != nil {
 		return SaveResult{}, mapErr(err)
@@ -505,11 +505,11 @@ func (c *Controller) validate(ctx context.Context, req ValidateRequest) (Validat
 	if err != nil {
 		return ValidateResponse{}, err
 	}
-	err = c.cfg.Engine.Authoring.Validate(ctx, a, req.Graph)
+	warnings, err := c.cfg.Engine.Authoring.Validate(ctx, a, req.Graph)
 	var verr *engine.ValidationError
 	switch {
 	case err == nil:
-		return ValidateResponse{OK: true, Errors: []GraphError{}, Warnings: []GraphError{}}, nil
+		return ValidateResponse{OK: true, Errors: []GraphError{}, Warnings: graphErrors(warnings)}, nil
 	case errors.As(err, &verr):
 		return ValidateResponse{Errors: graphErrors(verr.Errors), Warnings: graphErrors(verr.Warnings)}, nil
 	}

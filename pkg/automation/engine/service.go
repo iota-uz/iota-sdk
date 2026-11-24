@@ -91,6 +91,7 @@ func (s *service) Create(ctx context.Context, a Actor, in CreateInput) (Automati
 	if err != nil {
 		return Automation{}, Version{}, err
 	}
+	ver.Version.Warnings = v.warnings
 	return am.Automation, ver.Version, nil
 }
 
@@ -184,6 +185,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 	if err != nil {
 		return Version{}, err
 	}
+	saved.Version.Warnings = v.warnings
 	return saved.Version, nil
 }
 
@@ -549,7 +551,7 @@ func (s *service) EnableReview(ctx context.Context, a Actor, id uuid.UUID, versi
 	rv.Problems = []graph.GraphError{}
 	// The check Enable makes, told before the person presses Enable.
 	var verr *ValidationError
-	if _, err := s.r.validate(ctx, a, v.Graph); errors.As(err, &verr) {
+	if _, err := s.r.validate(ctx, a, v.Graph, storedParams); errors.As(err, &verr) {
 		rv.Problems = verr.Errors
 	} else if err != nil {
 		return EnableReview{}, err
@@ -598,7 +600,7 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 	// with the graph as their transaction committed it.
 	var am automationRow
 	for attempt := 0; ; attempt++ {
-		checked, err := s.r.validate(ctx, a, v.Graph)
+		checked, err := s.r.validate(ctx, a, v.Graph, storedParams)
 		if err != nil {
 			return Automation{}, err
 		}

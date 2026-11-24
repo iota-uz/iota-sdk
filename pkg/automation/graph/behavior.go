@@ -434,6 +434,13 @@ func copyNodeSpec(n NodeSpec) NodeSpec {
 		r := *n.OutcomesFrom
 		n.OutcomesFrom = &r
 	}
+	if n.OutputSchemas != nil {
+		m := make(map[string]string, len(n.OutputSchemas))
+		for k, v := range n.OutputSchemas {
+			m[k] = v
+		}
+		n.OutputSchemas = m
+	}
 	if n.OutputFrom != nil {
 		r := *n.OutputFrom
 		n.OutputFrom = &r
