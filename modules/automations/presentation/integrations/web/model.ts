@@ -90,6 +90,30 @@ export function schemaFields(schema: unknown): FormField[] {
   })
 }
 
+/** The sign-in presets of a connector that has a form and a sign-in (gmail, m365): the keys of the preset field's x-oauth-client. */
+export function knownPresets(connector: ConnectorView): string[] {
+  const props = (connector.credential_schema as { properties?: Record<string, { 'x-oauth-client'?: Record<string, string> }> } | undefined)?.properties
+  return Object.keys(props?.preset?.['x-oauth-client'] ?? {})
+}
+
+/** The presets the application can sign in with now (their OAuth2 client is configured). */
+export function availablePresets(connector: ConnectorView): string[] {
+  return (connector.oauth_presets ?? []).filter((p) => knownPresets(connector).includes(p))
+}
+
+/** The sign-in preset a connection was made with, when it was made by a sign-in. */
+export function connectionPreset(connector: ConnectorView, connection: { fields?: Record<string, string> } | undefined): string | undefined {
+  const p = connection?.fields?.preset
+  return p && knownPresets(connector).includes(p) ? p : undefined
+}
+
+/** The choices of a preset field: the form («custom») and the providers that can be signed in with; none else is shown. */
+export function presetOptions(connector: ConnectorView, options: readonly string[] | undefined): string[] {
+  const known = knownPresets(connector)
+  const available = availablePresets(connector)
+  return (options ?? []).filter((o) => !known.includes(o) || available.includes(o))
+}
+
 function humanize(name: string): string {
   const s = name.replace(/[_-]+/g, ' ').trim()
   return s.charAt(0).toUpperCase() + s.slice(1)
