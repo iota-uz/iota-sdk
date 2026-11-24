@@ -329,7 +329,7 @@ each key's expression is checked at save time at its own path (`nodes[i].params.
 |---|---|---|---|---|
 | `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
 | `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
-| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel}`, `auth {secret, scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url}` |
+| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url}` |
 | `start_automation` | effect (in the step) | `automation_id`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
 | `run_automation` | wait with effect | as `start_automation`, `timeout` (1h, ≤ 30d) | `done`, `failed`, `timeout` | `{run_id, status, output}` |
 | `action.<key>` | call | `args: {<name>: tpl for a string type \| cel}` | the action's, `failed` | the action's |
@@ -356,15 +356,25 @@ each key's expression is checked at save time at its own path (`nodes[i].params.
   with `Retry-After` is repeated by the engine's rule. Only `GET`/`HEAD` and a request with
   `idempotency_header` (it carries the call's idempotency key) are idempotent
   (`catalog.IdempotentCall`). A response the success expression rejects takes `failed` with the response
-  in the output and `output.error.code = http_status`.
-- **Another graph.** Both nodes start the target's enabled version through its manual trigger (the
+  in the output and `output.error.code = http_status`. With `auth` the URL names its https host before
+  any template (`https://api.example.com/{{ ... }}`), so run data never moves a secret to another host;
+  a DNS or dial failure is `unavailable` (nothing was sent); an output over the 1 MiB a node returns is
+  `failed` with `response_too_large`, the status and the headers.
+- **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
+  nodes start the target's enabled version through its manual trigger (the
   first by id; `input` is `event.input`, validated by its `input_schema`) in the step's transaction
   (`engine.RunStarter`, `Runtime.StartFromStep`). A graph of another tenant, a disabled one or one
   without a manual trigger is `failed` with `not_enabled`; the started run's depth is the run's plus one,
   so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. `run_automation`'s run is a child
   instance of the step's run (cancelling the run terminates it); its wait listens for
   `automation.run.finished.v1` about that run (`engine.EffectWaitKeyer`) and takes `done` or `failed`
-  by its status (`engine.WakeResolver`). A run started by `start_automation` lives on its own.
+  by its status (`engine.WakeResolver`); a run that read sensitive event fields gives `output: null` and
+  `output_withheld: true`. A run started by `start_automation` lives on its own. The default subject of the
+  started run is the run's, except a conversation (it would queue behind the run): then none. The
+  composition provides `engine.RunStarter` (the `*engine.Runtime`); without it the nodes fail with
+  `runs_unavailable`.
+- **Before the call.** A failure to read a secret or open a connection, or of the compiler, is
+  `unavailable` (retryable), never `outcome_unknown`: nothing ran.
 - **Actions.** A module contributes `actions.Action`s at composition (`actions.Contribute`,
   `actions.ContributeFunc`); the module registers them at start and a key contributed twice fails it.
   Each is the node type `action.<key>`, with its `ActionSpec` (label, group, args and output as
