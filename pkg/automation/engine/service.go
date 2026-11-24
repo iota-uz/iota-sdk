@@ -31,11 +31,11 @@ var _ Service = (*service)(nil)
 
 func (s *service) authorize(a Actor, perms ...string) error {
 	if a.TenantID == uuid.Nil || a.UserID <= 0 || !a.Origin.valid() {
-		return ErrForbidden
+		return fmt.Errorf("%w: the actor has no tenant, user or origin", ErrForbidden)
 	}
 	for _, p := range perms {
 		if !a.Subject.Has(p) {
-			return ErrForbidden
+			return fmt.Errorf("%w: %s is required", ErrForbidden, p)
 		}
 	}
 	return nil

@@ -44,7 +44,8 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
   const load = async (changed = false) => {
     setLoadError(undefined)
     try {
-      const r = await app.call('automations.enable_review', { id: props.id, version: props.version })
+      // After a refusal the latest version is reviewed: the one saved meanwhile.
+      const r = await app.call('automations.enable_review', { id: props.id, version: changed ? 0 : props.version })
       setReview(r)
       if (changed) setNotice(t('Review.Changed'))
     } catch (error) {
@@ -89,7 +90,7 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
   return (
     <Dialog open busy={busy()} onOpenChange={(open) => { if (!open) props.onClose() }} class="md:w-full md:max-w-3xl" aria-labelledby="review-title" data-testid="review-dialog">
       <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
-        <h3 id="review-title" class="font-medium truncate" data-dialog-title tabindex="-1">{t('Review.Title', { name: props.name || t('List.Untitled'), version: props.version })}</h3>
+        <h3 id="review-title" class="font-medium truncate" data-dialog-title tabindex="-1">{t('Review.Title', { name: props.name || t('List.Untitled'), version: review()?.version ?? props.version })}</h3>
         {closeButton(props.onClose, t('Common.Close'))}
       </header>
       <div class="flex max-h-[70vh] flex-col gap-4 overflow-y-auto px-4 py-3" data-dialog-body>

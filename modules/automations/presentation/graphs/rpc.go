@@ -136,7 +136,7 @@ func mapErr(err error) error {
 	case errors.Is(err, engine.ErrNotFound):
 		return notFound()
 	case errors.Is(err, engine.ErrForbidden):
-		return forbidden("forbidden")
+		return forbidden(strings.TrimPrefix(err.Error(), engine.ErrForbidden.Error()+": "))
 	case errors.Is(err, engine.ErrHumanRequired):
 		return rpcError(ErrHumanRequired, "only a person enables an automation", nil)
 	case errors.Is(err, engine.ErrNotEnabled):
@@ -506,7 +506,16 @@ func (c *Controller) enableReview(ctx context.Context, req ReviewRequest) (Revie
 	if err != nil {
 		return ReviewResponse{}, err
 	}
-	rv, err := c.cfg.Engine.Service.EnableReview(ctx, a, id, req.Version)
+	version := req.Version
+	if version <= 0 {
+		// The latest version: what a person enables from the list or the toggle.
+		am, err := c.cfg.Engine.Service.Get(ctx, readAs(a), id)
+		if err != nil {
+			return ReviewResponse{}, mapErr(err)
+		}
+		version = am.LatestVersion
+	}
+	rv, err := c.cfg.Engine.Service.EnableReview(ctx, a, id, version)
 	if err != nil {
 		return ReviewResponse{}, mapErr(err)
 	}
@@ -561,6 +570,15 @@ func (c *Controller) enable(ctx context.Context, req EnableRequest) (EnableRespo
 	if err != nil {
 		return EnableResponse{}, err
 	}
+	// A person enables the latest version they reviewed: a version saved after the review (other code)
+	// is reviewed again, never skipped by enabling an older one.
+	latest, err := c.cfg.Engine.Service.Get(ctx, readAs(a), id)
+	if err != nil {
+		return EnableResponse{}, mapErr(err)
+	}
+	if req.Version != latest.LatestVersion {
+		return EnableResponse{Error: ErrReviewRequired}, nil
+	}
 	am, err := c.cfg.Engine.Service.Enable(ctx, a, id, engine.EnableInput{Version: req.Version, CodeDigest: req.CodeDigest})
 	var verr *engine.ValidationError
 	switch {
@@ -582,6 +600,18 @@ func (c *Controller) enable(ctx context.Context, req EnableRequest) (EnableRespo
 		return EnableResponse{Error: ErrForbidden}, nil
 	}
 	return EnableResponse{}, mapErr(err)
+}
+
+// readAs is the actor reading the graph a review or an enable is about: a person who may enable
+// automations reads the graph they enable, with or without Automations.Read.
+func readAs(a engine.Actor) engine.Actor {
+	if a.Subject.Has(permRead) {
+		return a
+	}
+	s := a.Subject
+	s.Permissions = append(append([]string(nil), s.Permissions...), permRead)
+	a.Subject = s
+	return a
 }
 
 func (c *Controller) disable(ctx context.Context, req IDRequest) (DisableResponse, error) {
