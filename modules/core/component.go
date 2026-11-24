@@ -281,6 +281,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewRoleService)
 	composition.ProvideFunc(builder, services.NewPermissionService)
 	composition.ProvideFunc(builder, services.NewGroupService)
+	contributeAutomationActions(builder)
 	composition.ProvideFunc(builder, services.NewDepartmentService)
 	composition.ProvideFunc(builder, services.NewUserPositionService)
 	composition.ProvideFunc(builder, services.NewOrgQueryService)
