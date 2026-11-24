@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -125,10 +126,19 @@ type Service interface {
 	// Validation failure → *ValidationError; nothing is written.
 	SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in SaveInput) (Version, error)
 	SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error // merge, last write wins; no version
+	// SaveLayoutAt merges l into the layout when its revision is still baseRevision and returns the new
+	// revision; a stale base → *LayoutConflictError (ErrVersionConflict) with the current layout.
+	SaveLayoutAt(ctx context.Context, a Actor, id uuid.UUID, baseRevision int, l graph.Layout) (int, error)
 	Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error)
 	GetVersion(ctx context.Context, a Actor, id uuid.UUID, version int) (Version, error)
 	List(ctx context.Context, a Actor, f ListFilter) (Page[Automation], error)
 	ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]VersionInfo, error)
+	// Overviews are what a list of graphs shows of each of ids (graphs of other tenants and deleted ones
+	// are left out): the latest version's author and triggers, the last run and the runs that need
+	// attention.
+	Overviews(ctx context.Context, a Actor, ids []uuid.UUID) (map[uuid.UUID]Overview, error)
+	// CountLive counts what Disable and Delete would cancel (Automations.Read, Enable or Author).
+	CountLive(ctx context.Context, a Actor, id uuid.UUID) (LiveCount, error)
 
 	// EnableReview returns what a human must see before enabling: code nodes, their secrets and the digest.
 	EnableReview(ctx context.Context, a Actor, id uuid.UUID, version int) (EnableReview, error)
@@ -157,15 +167,21 @@ type SaveInput struct {
 	BaseVersion int
 	Graph       json.RawMessage
 	Layout      graph.Layout // optional; saved together with the version
-	Note        string
+	// LayoutBase, when set, is the layout revision Layout was made over: when another write moved the
+	// layout since, the stored positions stay and only steps the layout does not place yet take
+	// Layout's.
+	LayoutBase *int
+	Note       string
 }
 
 // ListFilter selects graphs of a list.
 type ListFilter struct {
 	Query   string // a substring of the name, case-insensitive
 	Enabled *bool
-	Cursor  string
-	Limit   int // ≤ 100, default 50
+	// Attention keeps graphs with runs that need attention (failed, blocked or filter_failed).
+	Attention bool
+	Cursor    string
+	Limit     int // ≤ 100, default 50
 }
 
 // Automation is a graph: its versions, the one that runs and its layout.
@@ -176,6 +192,8 @@ type Automation struct {
 	EnabledVersion *int
 	OwnerUserID    *int64
 	Layout         graph.Layout
+	// LayoutRevision counts the changes of Layout (SaveLayout, SaveLayoutAt, a version saved with one).
+	LayoutRevision int
 	CreatedBy      int64
 	CreatedOrigin  Origin
 	CreatedAt      time.Time
@@ -212,6 +230,9 @@ type EnableReview struct {
 	CodeDigest string           // sha256 over code nodes (id, lang, source, declared secrets, fetch allow) of the version
 	Triggers   []TriggerReview  // event keys / schedules the version subscribes to
 	RunAs      string           // run_as of the version; shown to the human with the code
+	// Problems are why the version does not enable now (validation against the reviewer's catalog: an
+	// unavailable connection, a type the reviewer may not use); empty when it does.
+	Problems []graph.GraphError
 }
 
 // CodeNodeReview is a Code node of a version as the reviewer sees it.
@@ -232,6 +253,9 @@ type TriggerReview struct{ TriggerID, Kind, Event, Schedule string }
 type EnableInput struct {
 	Version    int
 	CodeDigest string
+	// Latest: the version must still be the graph's latest when the enable takes the graph's lock (a
+	// person enables what they reviewed; a version saved meanwhile → ErrReviewRequired).
+	Latest bool
 }
 
 // ManualStart starts a run from a manual trigger.
@@ -253,6 +277,7 @@ type RunRef struct {
 // RunFilter selects runs.
 type RunFilter struct {
 	AutomationID *uuid.UUID
+	Version      int // 0: every version
 	Status       []RunStatus
 	Subject      *SubjectRef
 	Since, Until *time.Time
@@ -383,6 +408,37 @@ func (e *ValidationError) Is(target error) bool {
 	return false
 }
 
+// LayoutConflictError is ErrVersionConflict of SaveLayoutAt: the layout's revision and positions now.
+type LayoutConflictError struct {
+	Revision int
+	Layout   graph.Layout
+}
+
+func (e *LayoutConflictError) Error() string {
+	return fmt.Sprintf("%s: the layout is at revision %d", ErrVersionConflict.Error(), e.Revision)
+}
+
+func (e *LayoutConflictError) Is(target error) bool { return target == ErrVersionConflict }
+
+// Overview is a graph as a list shows it.
+type Overview struct {
+	AutomationID uuid.UUID
+	// LatestSavedBy and LatestSavedOrigin saved the latest version, at LatestSavedAt.
+	LatestSavedBy     int64
+	LatestSavedOrigin Origin
+	LatestSavedAt     time.Time
+	// LatestDescription is the description of the latest version's graph.
+	LatestDescription string
+	// LatestCodeDigest and EnabledCodeDigest tell whether the latest version changed the code of the
+	// enabled one.
+	LatestCodeDigest  string
+	EnabledCodeDigest string
+	Triggers          []TriggerReview // of the latest version
+	LastRun           *RunSummary     // CurrentNodes and Error are left empty
+	// Attention counts the kept runs that failed, are blocked or whose filter failed.
+	Attention int
+}
+
 // ConflictError is ErrVersionConflict with the latest version and who saved it.
 type ConflictError struct {
 	Latest int
@@ -404,6 +460,8 @@ const (
 	CodeEffectFailed          = "effect_failed"
 	CodeTimeout               = "timeout"
 	CodeCancelled             = "cancelled"
+	// CodeTriggersUnreadable: the reviewer may not read an event the version's triggers are on.
+	CodeTriggersUnreadable = "triggers_unreadable"
 )
 
 // SubjectLoader loads the subject entity for CEL scope `subject`, with the run-as rights.
@@ -448,6 +506,84 @@ type EffectNode interface {
 	ApplyEffect(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (map[string]any, error)
 }
 
+// EffectResult is what an effect node that picks its outcome returns: the outcome (one of the node's
+// declared outcomes) and the node's output.
+type EffectResult struct {
+	Outcome string
+	Output  map[string]any
+}
+
+// OutcomeEffectNode is an optional interface of an EffectNode: it chooses among the outcomes the node type
+// declares, where a plain EffectNode always takes its done outcome (a failure still takes the failed
+// outcome through the returned error). ApplyEffectResult is used in place of ApplyEffect; an outcome the
+// node type does not declare is the node's failure (effect_failed).
+type OutcomeEffectNode interface {
+	EffectNode
+	ApplyEffectResult(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// EffectPreviewer is an optional interface of an EffectNode: what a dry run shows for the node instead of
+// the bare captured effect, computed without writing anything and without leaving the SDK (a resolved
+// audience, not a sent message). An error is the node's failure in the trace, as it would be in a run.
+type EffectPreviewer interface {
+	PreviewEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// EffectPreparer is an optional interface of an EffectNode that has to read the database or call another
+// service before it can decide, and so must not do it while the step's transaction holds a connection (a pool
+// that cannot spare a second one would wait for ever). PrepareEffect runs outside any transaction, with the
+// effect's rendered params; its result reaches ApplyEffect/ApplyEffectResult as StepContext.Prepared, and the
+// effect is then applied in the step's transaction as usual, atomically with the step. The engine asks once
+// per step: a step that is applied again (a crash before the commit) prepares again. A node applied without
+// the engine's preparation (a test of the node) sees Prepared nil and decides for itself.
+type EffectPreparer interface {
+	PrepareEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (any, error)
+}
+
+// PreparedEffect is what an EffectPreparer returned for the step being applied: its value, or its error.
+type PreparedEffect struct {
+	Value any
+	Err   error
+	// Effects are the effects the preparation was made for. The step taken again applies exactly these, not
+	// the ones its fresh evaluation renders (an expression on `now` renders differently the second time), so
+	// what was prepared is what is applied.
+	Effects []graph.Effect
+	// Exhausted: what the step reads kept changing while it was prepared, so no preparation fits. The step is not
+	// applied (the engine retries it later) rather than applied without the check the node asked for.
+	Exhausted bool
+}
+
+// needsPrepareError is what a step's transaction returns when an effect node wants its preparation first: the step is
+// rolled back, the runner prepares outside the transaction and takes the step again.
+type needsPrepareError struct {
+	preparer EffectPreparer
+	sc       StepContext
+	node     graph.Node
+	effect   graph.Effect
+	effects  []graph.Effect // every effect of the node's step
+	varsHash string         // the subject's variables the step read (mover.varsHash)
+}
+
+func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }
+
+// GraphChecker is an optional interface of a catalog.NodeType: rules over a whole graph that uses the node
+// (what its trigger events offer, for example), checked when the graph is saved, dry run and enabled.
+// The paths of the returned errors are those of the graph (nodes[i].params...).
+type GraphChecker interface {
+	CheckNode(g graph.Graph, index int, view catalog.View) []graph.GraphError
+}
+
+// TriggerEvent is the event that started a run, as the run keeps it: the key and the id of the event and
+// its payload as the run's run-as could read it (the engine's own fields, kind and by_self, left out).
+type TriggerEvent struct {
+	Key     string
+	ID      string
+	Payload json.RawMessage
+	// ActorUserID is the user who initiated the event (the run's initiator); 0 for a system event. It is
+	// what the event's actor recipient resolves to.
+	ActorUserID int64
+}
+
 // CodeNode is an optional interface of a catalog.NodeType: its nodes run code a human reviews before a
 // version is enabled. Review is what the reviewer sees for a node's params.
 type CodeNode interface {
@@ -485,12 +621,27 @@ type StepContext struct {
 	Subject                  SubjectRef
 	Depth                    int
 	Native                   workflow.NativeRun // primitives of #1321
+	// NodeID, TokenID and Seq name the step: they are stable when the same step is applied again, so an
+	// effect derives its idempotency key from them (StepKey).
+	NodeID string
+	// Trigger is the event that started the run; nil for a run without an event (a manual or schedule
+	// run) and for a node test.
+	Trigger *TriggerEvent
+	// Prepared is the result of the node's PrepareEffect for this step (EffectPreparer); nil when the node
+	// has none or was applied without the engine's preparation.
+	Prepared *PreparedEffect
 	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
 	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool
 	// Context is the step's expression context for a node type that declares graph.NodeSpec.StepContext
 	// (graph.Effect.Context); a call carries it to its child instance.
 	Context map[string]any
+}
+
+// StepKey is the idempotency key of the step: run, node, token and the step's sequence number. It is the
+// same whenever the step is applied again, and differs between two visits of one node.
+func (c StepContext) StepKey() string {
+	return fmt.Sprintf("%s:%s:%s:%d", c.RunID, c.NodeID, c.TokenID, c.Seq)
 }
 
 // WaitSpec is a wait a node executor registers.

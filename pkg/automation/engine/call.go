@@ -522,6 +522,8 @@ type callExec struct {
 	answer   string
 	single   bool
 	answerer AnswerEventer
+	// terminalUnknown: the node declared its unknown outcome terminal (catalog.TerminalUnknown).
+	terminalUnknown bool
 }
 
 func (x *callExec) run(ctx context.Context) (WaitResult, error) {
@@ -530,6 +532,9 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 	cn, isCall := nt.(catalog.CallNode)
 	if !ok || !isCall {
 		return x.failed(nil, CodeUnsupported, req.NodeType+" has no call executor in this process", false), nil
+	}
+	if tu, ok := nt.(catalog.TerminalUnknown); ok {
+		x.terminalUnknown = tu.UnknownIsTerminal()
 	}
 	if cc, ok := cn.(catalog.CommandCall); ok {
 		return x.command(ctx, cn, cc)
@@ -992,7 +997,7 @@ func InvocationIDOf(idempotencyKey string) string { return catalog.InvocationIDO
 // unknown is a call whose outcome is unknown: the failed outcome when the graph connects it, else the
 // child blocks (ambiguous) until an operator resolves or retries it.
 func (x *callExec) unknown(msg string) (callRecord, error) {
-	if !x.req.FailedConnected {
+	if !x.req.FailedConnected && !x.terminalUnknown {
 		return callRecord{}, workflow.Ambiguous(fmt.Sprintf("the outcome of %s (%s) is unknown: %s", x.req.NodeID, x.req.IdempotencyKey, msg))
 	}
 	return callRecord{Kind: "failed", Code: CodeOutcomeUnknown, Message: msg}, nil

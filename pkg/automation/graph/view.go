@@ -24,6 +24,8 @@ type EventView struct {
 	TriggerParams json.RawMessage       `json:"trigger_params,omitempty"`
 	Match         map[string]MatchField `json:"match,omitempty"`
 	NoTrigger     bool                  `json:"no_trigger,omitempty"`
+	// Participants are the recipient keys of the event's notification definition (empty: none).
+	Participants []string `json:"participants,omitempty"`
 }
 
 // NodeView is a node type of the catalog for a client.
@@ -64,7 +66,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		e := c.Events[key]
 		ev := EventView{
 			Key: key, Title: e.Title, Description: e.Description, Group: e.Group, Subject: e.Subject,
-			Payload: e.Payload.JSONSchema(), Match: e.Match, NoTrigger: e.NoTrigger,
+			Payload: e.Payload.JSONSchema(), Match: e.Match, NoTrigger: e.NoTrigger, Participants: e.Participants,
 		}
 		if ev.Title == "" {
 			ev.Title = key

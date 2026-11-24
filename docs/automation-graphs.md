@@ -421,6 +421,122 @@ an application that builds its own registry). Params are in the field language; 
   (the run-as as the user). The SDK's actions: `core.user.block`, `core.user.unblock`,
   `core.group.add_user`, `core.group.remove_user`, `crm.chat.send_message`.
 
+### Effect nodes beyond a single outcome, and the notification nodes (#1338)
+
+An effect node normally takes its done outcome (or its failed outcome when `ApplyEffect` fails). Three
+optional interfaces of the node type widen that:
+
+- `engine.OutcomeEffectNode` (`ApplyEffectResult`) picks one of the outcomes the node type declares, with its
+  output; an outcome it does not declare is the node's failure (`effect_failed`). `TestNode` shows it.
+- `engine.EffectPreviewer` (`PreviewEffect`) is what a dry run shows for the node instead of the bare
+  captured effect: its outcome and output computed without writing or sending. The step stays `captured`.
+- `engine.EffectPreparer` (`PrepareEffect`) reads before the step's transaction opens, when the node must not
+  wait for a connection while the transaction holds one; the result reaches the effect as `StepContext.Prepared`.
+- `engine.GraphChecker` (`CheckNode`) adds rules over the whole graph that uses the node (what its trigger
+  events offer), checked when the graph is saved, dry run and enabled.
+
+`StepContext` carries the step's `NodeID` and `StepKey()` (run, node, token and sequence: the same when the step
+is applied again) and `Trigger`, the event that started the run (key, id, the payload the run-as could read and
+`ActorUserID`, the run's initiator, which is what the event's `actor` recipient resolves to). A dry run and a node
+test give the preview the event that started the dry run (the first one a trigger took, as the interpreter chose
+it) or the test's event, with the author as initiator.
+
+`pkg/automation/builtin/notify` holds two effect nodes and the notification definition `automations.notify.v1`.
+The `automations` module registers both with the composition (`notify.Register` over its catalog registry with
+core's `AudienceSender`, notification catalog and contact resolvers; `notify.Contribute` for the definition), so
+they are offered wherever the module and core are composed. Both queue the notice with
+`notifications.AudienceSender.SendTx` in the step's transaction, so it commits with the step; the delivery layer
+(channel preferences, retries, the subject access check per user) does the rest after the commit. The nodes
+resolve no audience and check no access themselves.
+
+| Node | Params | Outcomes | Output |
+|---|---|---|---|
+| `notify` | `recipients {users (CEL list of user IDs), groups, roles, participants}`, `title`, `body`, `action_url` (templates), `channels` (empty: in-app), `level` info\|warning\|critical | `sent`, `no_recipients`, `failed` | `notice_id`, `recipients`, `skipped [{kind, ref, reason}]` |
+| `send_to_contact` | `record` (CEL `{entity, key}`; default the run's subject), `channel` (an external channel), `subject`, `body` | `sent`, `no_contact`, `failed` | `notice_id`, `channel`, `skipped` |
+
+- The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
+  returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
+  run's trigger event, used only to resolve `participants`.
+- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` checks the record's
+  contact **before the step's transaction opens**: the node implements `engine.EffectPreparer`, so the runner
+  rolls the step back at the effect, calls `PrepareEffect` with no transaction and no connection held, and
+  takes the step again with the result in `StepContext.Prepared`. The preparation resolves the audience with
+  `AudienceRequest.CheckContacts` (the channel first, then the entity's contact resolver for an address on it;
+  a record without one is left out with the reason `no_address`); the node then takes `no_contact`, and a dry
+  run agrees. The send itself stays atomic with the step (`SendTx` with no second check), and a resolver that
+  takes its own connection, such as a package's (`notifications.ContactChecker`, which runs the package's query
+  without an invocation record, `host.RunRequest.Unrecorded`), never waits for one the transaction holds, even
+  on a pool without a spare connection. The step taken again applies the effects it was prepared for, so an
+  expression that renders differently the second time (on `now`) cannot send what was not checked; it does so
+  only while the subject's variables the run-as may read are unchanged, so a right lost in between is honored
+  by the fresh evaluation, and a step whose fresh evaluation fails takes that failure. A preparation that no
+  longer fits (the variables changed) is not handed to the node: the step is prepared again, at most three times;
+  if what it reads keeps changing, the step is not applied but retried later (a platform error), so a node that
+  asked for a check never acts without it. A node applied without the runner's preparation (a test of the node)
+  has the delivery layer check the contact in the transaction instead. A resolver that is neither a
+  `ContactChecker` nor a `TxSafeContactResolver`, or one that cannot be asked yet (`ErrContactUnverifiable`),
+  leaves its record unchecked: the worker records a missing address at delivery. A channel that is not
+  available is `failed` / `unavailable` whether or not the record has an address.
+- `participants` need every trigger event that can reach the node to have a notification definition with those
+  recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
+  an event (manual, schedule) fails with `no_trigger_event`.
+- `action_url` is a path of the application, or a URL on the application's host (`Config.BaseURL`), which is
+  stored as its path; anything else is refused when the graph is saved (a link that starts with a template is
+  checked when it is rendered, `invalid_input`). `critical` is the SDK's `error` level. A title is at most 300
+  bytes and a text 10000 bytes, as the inbox counts them (a Cyrillic character is two).
+- A `FailedPrecondition` of the delivery layer (platform not configured, channel not available) is the failed
+  outcome with code `unavailable`; any other error carries its code (`invalid`, `conflict`, ...).
+- `skipped` comes with the receipt of the send (`AudienceReceipt.Skipped`): the resolution that queued the notice
+  names who it left out, so the step reads nothing more while it holds its transaction.
+- A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace
+  (for `send_to_contact` also the records and the skip reasons when the record has no address, never an address);
+  nothing is queued.
+- The catalog view gives each event `participants` (the recipient keys of its notification definition, filled
+  through `catalog.WithParticipants`), and the notify params schema marks the field `x-event-participants`: the
+  editor shows `recipients.participants` only where every trigger event that reaches the node offers some (a
+  field that already holds a value stays visible so it can be cleared).
+
+### The module wires the engine and serves its pages (#1339)
+
+- **Wiring.** `modules/automations` builds `engine.Runtime` whenever the composition has the extension
+  core (`wiring.NewComponent`: the workflow engine and the subject loader) and contributes
+  `Runtime.Natives()`, `Runtime.Consumer()` and `Runtime.Schedules()`; the API and worker processes run
+  `Runtime.Serve` and the inbound poller as a hook (`automations.WithoutBackground()` keeps them out of
+  a process). The module's catalog registry carries `engine.Triggers()`, the application's native
+  events (an event whose payload the catalog cannot express is left out with a warning) and the
+  built-in and flow nodes. `automations.WithEngineConfig` sets limits, a subject loader or a task
+  bridge; `automations.WithoutEngine()` turns the engine and the pages off. The connection store's
+  usage index is `Runtime.UsageIndex()` unless the application gives one, so «Integrations» refuses
+  to delete a connection a graph uses (`CONNECTION_IN_USE` with the graph).
+- **Pages.** `/automations` (list, `Automations.Read`), `/automations/new` (`Automations.Author`),
+  `/automations/{id}` and `/automations/{id}/runs/{run}` are one Solid screen
+  (`modules/automations/presentation/graphs/web`) with its own embedded bundle
+  (`/assets/automation-graphs/<release>/…`); the editor of `@iota-uz/sdk/automation-editor` is a lazy
+  chunk of the graph page. Its RPC (`POST /automations/rpc`, contract in the issue) is a thin layer
+  over `engine.Service`, `engine.Authoring` and `engine.Operations`: the tenant, the user and the
+  origin come from the session. An interactive session is `human`; an agent session
+  (`agentsession.Audience`), a request with an `Authorization` header or one without a session is
+  `agent`, which the engine refuses to enable (`HUMAN_REQUIRED`).
+- **Review before enabling.** `automations.enable_review` returns the Code nodes (language, source,
+  secret names, fetch), the triggers, `run_as` and the code digest; `automations.enable` takes the
+  digest the person saw and enables only the latest version: a version saved after the review is
+  `review_required` and the dialog reloads with the new code.
+- **Layout revision.** `automation.automations.layout_revision` counts layout changes.
+  `Service.SaveLayoutAt(base)` (`automations.save_layout {id, base_revision, positions}`) refuses a stale
+  base with `*LayoutConflictError` (`VERSION_CONFLICT` with the revision and positions of now): the
+  editor keeps its positions unsaved and offers «Refresh» (`EditorProps.remoteLayout`).
+- **Webhooks.** `engine.InboundHandler` is mounted at `/automations/hooks/{connection_id}` and
+  `/automations/hooks/platform/{kind}` with no session or tenant middleware; each request is
+  authenticated by the connector's `Verify`. The controller marks its route with
+  `middleware.CSRFExemptRoute`: a CSRF middleware of the SDK (`middleware.CSRF`, `CSRFFromConfig`)
+  installed with `Router.Use` on the router the route is registered on lets it through, and only it —
+  the same path on another router, other routes and requests that match no route stay protected. An
+  application adds no exemption of its own; one that wraps the whole server in a CSRF handler outside
+  the router (where no route is matched yet) has to leave `/automations/hooks/` out of that wrapper.
+- **Lists.** `Service.Overviews` gives the list its latest version's author and triggers, the last run
+  and the count of runs that need attention (failed, blocked, `filter_failed`); `ListFilter.Attention`
+  keeps graphs that have some; `Service.CountLive` names what disabling or deleting cancels.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).

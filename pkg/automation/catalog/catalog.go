@@ -102,6 +102,13 @@ func IsIdempotent(n CallNode, params map[string]any) bool {
 	return n.Idempotent()
 }
 
+// TerminalUnknown is an optional interface of a CallNode whose call must never be repeated by anyone, an
+// operator included (an SMS): its unknown outcome always ends as the failed outcome with code
+// outcome_unknown, never blocks the call for an operator to retry it.
+type TerminalUnknown interface {
+	UnknownIsTerminal() bool
+}
+
 // CallInput is what a call node is executed with.
 type CallInput struct {
 	TenantID       uuid.UUID

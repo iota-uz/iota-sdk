@@ -12,6 +12,9 @@ import (
 type authRoundTripper struct {
 	Base      http.RoundTripper
 	Refresher *tokenRefresher
+	// NoReplay: after a 401 the token is renewed for the next request, but the refused request is not
+	// sent again and its 401 is the answer (a caller that may not send twice).
+	NoReplay bool
 }
 
 func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -46,6 +49,15 @@ func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	}
 
 	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+
+	if rt.NoReplay {
+		// Renewing the token is a request of its own; the refused one stays the answer.
+		if _, err := rt.Refresher.RefreshToken(req.Context()); err != nil {
+			_ = resp.Body.Close()
+			return nil, fmt.Errorf("failed to refresh token after 401: %w", err)
+		}
 		return resp, nil
 	}
 

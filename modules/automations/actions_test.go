@@ -23,8 +23,10 @@ import (
 // nativesComponent provides the application's native set, as the extension runtime's wiring does.
 type nativesComponent struct{ set *native.Set }
 
-func (nativesComponent) Descriptor() composition.Descriptor { return composition.Descriptor{Name: "test_natives"} }
-func (nativesComponent) LocaleFS() []*embed.FS               { return nil }
+func (nativesComponent) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "test_natives"}
+}
+func (nativesComponent) LocaleFS() []*embed.FS { return nil }
 func (c nativesComponent) Build(b *composition.Builder) error {
 	composition.Provide[*native.Set](b, c.set)
 	return nil

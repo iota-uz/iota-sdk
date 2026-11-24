@@ -49,6 +49,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
 		out = append(out, r.nodeRule(ctx, view, g)...)
+		out = append(out, r.nodeRules(view, g)...)
 		return append(out, runAsRule(view, g)...)
 	}
 	errs = graph.Validate(view.Catalog, g, opts)
@@ -201,6 +202,21 @@ func (r *Runtime) executorRule(view catalog.View, g graph.Graph) []graph.GraphEr
 	return out
 }
 
+// nodeRules are the rules the node types of a graph bring along (GraphChecker).
+func (r *Runtime) nodeRules(view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, n := range g.Nodes {
+		if _, ok := view.Catalog.Nodes[n.Type]; !ok {
+			continue
+		}
+		nt, _ := r.cfg.Catalog.Node(n.Type)
+		if gc, ok := nt.(GraphChecker); ok {
+			out = append(out, gc.CheckNode(g, i, view)...)
+		}
+	}
+	return out
+}
+
 // codeNodes are the Code nodes of a graph as the reviewer sees them, ordered by node id.
 func (r *Runtime) codeNodes(g graph.Graph) []CodeNodeReview {
 	out := make([]CodeNodeReview, 0, len(g.Nodes))
@@ -271,6 +287,13 @@ func reviewOf(r *Runtime, view catalog.View, v versionRow, g graph.Graph) Enable
 	if rv.CodeNodes == nil {
 		rv.CodeNodes = []CodeNodeReview{}
 	}
+	rv.Triggers = triggerReviews(view, g)
+	return rv
+}
+
+// triggerReviews are the triggers of a graph as a person reads them: a schedule with its time zone.
+func triggerReviews(view catalog.View, g graph.Graph) []TriggerReview {
+	out := make([]TriggerReview, 0, len(g.Triggers))
 	for _, t := range triggersOf(view, g) {
 		tr := TriggerReview{TriggerID: t.ID, Kind: t.Kind, Event: t.Event}
 		if t.Schedule != nil {
@@ -279,7 +302,7 @@ func reviewOf(r *Runtime, view catalog.View, v versionRow, g graph.Graph) Enable
 				tr.Schedule += " (" + t.Schedule.Timezone + ")"
 			}
 		}
-		rv.Triggers = append(rv.Triggers, tr)
+		out = append(out, tr)
 	}
-	return rv
+	return out
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/automations"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -94,8 +95,18 @@ func TestComponentWiresConnectionsAndTheSettingsPage(t *testing.T) {
 	require.NoError(t, err)
 	_, ok := dir.Get("noop")
 	require.True(t, ok)
-	_, err = composition.Resolve[catalog.Registry](f.Container)
+	reg, err := composition.Resolve[catalog.Registry](f.Container)
 	require.NoError(t, err)
+	// The notification nodes of graphs and their definition come with the module.
+	for _, node := range []string{"notify", "send_to_contact"} {
+		_, ok := reg.Node(node)
+		assert.True(t, ok, "node %s is registered", node)
+	}
+	definitions, err := composition.Resolve[*notifications.Catalog](f.Container)
+	require.NoError(t, err)
+	def, ok := definitions.Get("automations.notify.v1")
+	require.True(t, ok)
+	assert.Equal(t, "automations", def.Module)
 	store, err := composition.Resolve[connectors.ConnectionStore](f.Container)
 	require.NoError(t, err)
 	_, err = composition.Resolve[host.SecretResolver](f.Container)
