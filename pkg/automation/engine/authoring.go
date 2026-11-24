@@ -365,7 +365,7 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 			}
 		}
 		if len(st.Effects) > 0 {
-			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, node, interp.View().Catalog().Nodes[node.Type], st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, triggerOfEvent(event, "test-node"), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
@@ -410,23 +410,31 @@ func dryRunTrigger(inputs []graph.DryRunInput) *TriggerEvent {
 		if len(in.Events) > 0 {
 			ev = in.Events[len(in.Events)-1]
 		}
-		kind, _ := ev["kind"].(string)
-		if kind == "" {
-			continue
+		if t := triggerOfEvent(ev, "dry-run"); t != nil {
+			return t
 		}
-		payload := make(map[string]any, len(ev))
-		for k, v := range ev {
-			if k != "kind" && k != catalog.BySelfField {
-				payload[k] = v
-			}
-		}
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			return nil
-		}
-		return &TriggerEvent{Key: kind, ID: "dry-run", Payload: raw}
 	}
 	return nil
+}
+
+// triggerOfEvent is the trigger event of an event as the context shows it (payload, and its kind); nil for
+// an event that names no kind.
+func triggerOfEvent(ev map[string]any, id string) *TriggerEvent {
+	kind, _ := ev["kind"].(string)
+	if kind == "" {
+		return nil
+	}
+	payload := make(map[string]any, len(ev))
+	for k, v := range ev {
+		if k != "kind" && k != catalog.BySelfField {
+			payload[k] = v
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return &TriggerEvent{Key: kind, ID: id, Payload: raw}
 }
 
 // previewEffects is the answer of a node that previews its effect (EffectPreviewer) in a dry run; ok is false
@@ -451,7 +459,7 @@ func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.S
 
 // effectRolledBack applies an effect node's effects in a transaction it rolls back: the node's output
 // is shown, and nothing it wrote (rows, outbox events) stays.
-func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
+func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
@@ -463,8 +471,8 @@ func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi
 		return EffectResult{}, nil, serrors.FromDB(opAuthoring, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID}
-	return applyEach(ctx, tx, sc, node, spec, en, effects)
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	return applyEach(ctx, tx, sc, node, spec, en, effects, false)
 }
 
 func (au *authoring) SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error) {

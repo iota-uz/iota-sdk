@@ -157,10 +157,10 @@ func (n *contactNode) request(run engine.StepContext, node graph.Node, params ma
 	switch {
 	case body == "":
 		return notifications.AudienceRequest{}, "", invalid("the text is empty")
-	case len([]rune(body)) > maxBody:
-		return notifications.AudienceRequest{}, "", invalid("the text is longer than %d characters", maxBody)
-	case len([]rune(subject)) > maxTitle:
-		return notifications.AudienceRequest{}, "", invalid("the subject is longer than %d characters", maxTitle)
+	case len(body) > maxBody:
+		return notifications.AudienceRequest{}, "", invalid("the text is longer than %d bytes", maxBody)
+	case len(subject) > maxTitle:
+		return notifications.AudienceRequest{}, "", invalid("the subject is longer than %d bytes", maxTitle)
 	}
 	return notifications.AudienceRequest{
 		Event:    notice(run, subject, body, ""),

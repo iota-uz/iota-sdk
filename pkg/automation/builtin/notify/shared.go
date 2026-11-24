@@ -11,7 +11,6 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
@@ -56,7 +55,8 @@ const (
 	CodeContactLookup = "contact_lookup_failed"
 )
 
-// Limits of what a notice carries, those of an in-app notification.
+// Limits of what a notice carries, those of an in-app notification: the notification counts bytes, not
+// characters, so a Cyrillic title has half the length it seems to.
 const (
 	maxTitle     = 300
 	maxBody      = 10000
@@ -80,16 +80,37 @@ type Config struct {
 	// Contacts looks up the resolvers send_to_contact asks whether a record can be reached. Nil: every
 	// record is taken as reachable and the delivery layer records a missing address when it delivers.
 	Contacts ContactLookup
-	// Pool is the database that reads outside the step's transaction use: a dry run's resolution and a
-	// contact lookup. Nil: those reads use the context they are given.
+	// Pool is the database that reads outside the step's transaction use: a dry run's resolution, the
+	// explanation of who was left out, and a contact lookup. The engine's step context carries no pool, so
+	// Register requires it.
 	Pool *pgxpool.Pool
 	// BaseURL is the address of the application (https://erp.example.com): a link of a notice may be an
 	// absolute path or a URL on this host. Empty: absolute paths only.
 	BaseURL string
 }
 
+// validate refuses a configuration the nodes could not work with, so it fails when the nodes are registered
+// and not in a run.
+func (c Config) validate() error {
+	switch {
+	case c.Sender == nil:
+		return errors.New("automation notify: Config.Sender is required")
+	case c.Pool == nil:
+		return errors.New("automation notify: Config.Pool is required: dry runs and contact lookups read outside the step's transaction")
+	}
+	if strings.TrimSpace(c.BaseURL) != "" {
+		if u, err := url.Parse(strings.TrimSpace(c.BaseURL)); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return fmt.Errorf("automation notify: Config.BaseURL %q is not an http(s) address", c.BaseURL)
+		}
+	}
+	return nil
+}
+
 // Register adds both node types to the catalog registry.
 func Register(reg catalog.Registry, cfg Config) error {
+	if err := cfg.validate(); err != nil {
+		return err
+	}
 	for _, nt := range []catalog.NodeType{NewNotify(cfg), NewSendToContact(cfg)} {
 		if err := reg.RegisterNode(nt); err != nil {
 			return err
@@ -117,19 +138,14 @@ func tenantCtx(ctx context.Context, run engine.StepContext) context.Context {
 	return composables.WithTenantID(ctx, run.TenantID)
 }
 
-// readCtx is the context for reads that must not run in the step's transaction: the tenant, the pool,
-// and no transaction.
+// readCtx is the context for reads that must not run in the step's transaction (a failed statement there
+// would abort the step): the tenant, the pool, and no transaction.
 func (b base) readCtx(ctx context.Context, run engine.StepContext) context.Context {
 	ctx = context.WithValue(ctx, constants.TxKey, nil)
 	if b.cfg.Pool != nil {
 		ctx = composables.WithPool(ctx, b.cfg.Pool)
 	}
 	return tenantCtx(ctx, run)
-}
-
-// txCtx is the context of a read that belongs to the step: the tenant and the step's transaction.
-func txCtx(ctx context.Context, run engine.StepContext, tx pgx.Tx) context.Context {
-	return composables.WithTx(tenantCtx(ctx, run), tx)
 }
 
 // producer names the step: the run, and the node, token and sequence of the step, so the same step applied
@@ -179,8 +195,12 @@ func failure(err error) error {
 		return err
 	}
 	code := serrors.CodeOf(err)
-	if code == serrors.FailedPrecondition {
+	switch code { //nolint:exhaustive // every other code carries its own name and message
+	case serrors.FailedPrecondition:
 		return &engine.StepError{Code: CodeUnavailable, Message: short(err.Error())}
+	case serrors.Internal:
+		// An unclassified error (a failed statement, say) may carry text that has no place in a run's output.
+		return &engine.StepError{Code: code.String(), Message: "the notification platform failed to queue the notice"}
 	}
 	return &engine.StepError{Code: code.String(), Message: short(err.Error()), Retryable: code == serrors.Unavailable || code == serrors.RateLimited || code == serrors.Timeout}
 }
@@ -290,7 +310,7 @@ func classifyLink(link, appHost string, open bool) (string, string) {
 		return "", "must lead to the application, not to another host"
 	}
 	if strings.HasPrefix(link, "/") {
-		return link, ""
+		return internalPath(link)
 	}
 	scheme, rest, ok := strings.Cut(link, "://")
 	if !ok || (!strings.EqualFold(scheme, "http") && !strings.EqualFold(scheme, "https")) {
@@ -314,7 +334,18 @@ func classifyLink(link, appHost string, open bool) (string, string) {
 	if tail == "" || tail[0] != '/' {
 		tail = "/" + tail
 	}
-	return tail, ""
+	return internalPath(tail)
+}
+
+// internalPath is a path of the application as the notification stores it: what the notification itself
+// would refuse (a path that decodes to a protocol-relative one, //evil.example.com) is refused here, when
+// the graph is saved, and not only when a run sends.
+func internalPath(path string) (string, string) {
+	decoded, err := url.PathUnescape(path)
+	if err != nil || strings.HasPrefix(decoded, "//") || strings.ContainsFunc(decoded, unicode.IsControl) || strings.Contains(decoded, "\\") {
+		return "", "must be a path of the application, not a link to another host"
+	}
+	return path, ""
 }
 
 // ---------------------------------------------------------------------------------------------------

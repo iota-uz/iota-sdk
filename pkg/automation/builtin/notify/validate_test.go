@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +44,7 @@ func newValidation(t *testing.T) *validation {
 		RecipientKeys: []notifications.RecipientDefinition{{Key: "owner", Name: map[string]string{"en": "Owner"},
 			Resolve: func(context.Context, notifications.Event) ([]uint, error) { return nil, nil }}}}))
 	require.NoError(t, cat.Register(notifications.Definition{Module: "acme", Key: "acme.order.deleted.v1", Name: map[string]string{"en": "Deleted"}}))
-	v := &validation{reg: catalog.NewRegistry(nil), cfg: notify.Config{Sender: &sender{}, Catalog: cat, BaseURL: "https://erp.example.com"}}
+	v := &validation{reg: catalog.NewRegistry(nil), cfg: notify.Config{Sender: &sender{}, Catalog: cat, Pool: new(pgxpool.Pool), BaseURL: "https://erp.example.com"}}
 	require.NoError(t, v.reg.RegisterTriggers(engine.Triggers()))
 	require.NoError(t, v.reg.RegisterTriggers(orderEvents{}))
 	for _, spec := range graph.BuiltinNodes(nil, nil) {
@@ -243,4 +244,16 @@ func TestTheNodeOutcomesAndOutputAreDeclared(t *testing.T) {
 	g := strings.Replace(notifyGraph("acme.order.created.v1", `{"recipients": {"roles": ["1"]}, "title": "Hi", "body": "Paid"}`),
 		`{"id": "fin", "type": "end", "params": {}}`, `{"id": "fin", "type": "end", "params": {"reason": "sent to {{ nodes.ping.output.recipients }} as {{ nodes.ping.output.notice_id }}"}}`, 1)
 	assert.Empty(t, v.errors(t, g))
+}
+
+func TestRegisterRefusesAConfigTheNodesCannotWorkWith(t *testing.T) {
+	reg := func() catalog.Registry { return catalog.NewRegistry(nil) }
+	pool := new(pgxpool.Pool)
+	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Pool: pool}), "Sender")
+	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}}), "Pool")
+	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "erp.example.com"}), "BaseURL")
+	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "ftp://erp.example.com"}), "BaseURL")
+	r := reg()
+	require.NoError(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}))
+	assert.Error(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}), "the nodes are registered once")
 }

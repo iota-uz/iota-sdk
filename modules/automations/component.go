@@ -24,6 +24,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -38,7 +39,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -289,6 +292,8 @@ func (c *component) Build(b *composition.Builder) error {
 		}), nil
 	})
 
+	c.contributeNotifyNodes(b, cfg.origin)
+
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
 	}
@@ -312,6 +317,39 @@ func (c *component) Build(b *composition.Builder) error {
 		logger.Info("automations: the integrations page is not mounted: no client host manifest (EXTRUNTIME_UI_HOSTMANIFEST or automations.WithHostManifest)")
 	}
 	return nil
+}
+
+// contributeNotifyNodes registers the notification nodes of graphs (notify, send_to_contact) in the catalog
+// registry and their notification definition automations.notify.v1 in the core catalog. The nodes send
+// through core's AudienceSender, so the core notification stack must be part of the composition.
+func (c *component) contributeNotifyNodes(b *composition.Builder, origin string) {
+	if u, err := url.Parse(origin); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		origin = "" // only paths of the application are links of a notice then
+	}
+	notify.Contribute(b)
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		reg, err := composition.Resolve[catalog.Registry](container)
+		if err != nil {
+			return nil, err
+		}
+		sender, err := composition.Resolve[notifications.AudienceSender](container)
+		if err != nil {
+			return nil, err
+		}
+		definitions, err := composition.Resolve[*notifications.Catalog](container)
+		if err != nil {
+			return nil, err
+		}
+		contacts, err := composition.Resolve[*notifications.ContactResolvers](container)
+		if err != nil {
+			return nil, err
+		}
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Contacts: contacts, Pool: db, BaseURL: origin})
+	})
 }
 
 // IntegrationsSettingsPage is the settings hub entry of the integrations page.

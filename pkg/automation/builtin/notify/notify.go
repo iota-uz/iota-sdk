@@ -101,9 +101,10 @@ func (n *notifyNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engin
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
-	// Who was left out is told by the same resolution; it is read only to explain the outcome, so a
-	// resolution that fails now leaves the list empty rather than failing a notice that is queued.
-	if resolved, err := n.cfg.Sender.Resolve(txCtx(ctx, run, tx), req); err == nil {
+	// Who was left out is told by the same resolution. It only explains the outcome, so it reads outside
+	// the step's transaction (a failed statement there would abort the step) and a resolution that fails
+	// now leaves the list empty rather than failing a notice that is queued.
+	if resolved, err := n.cfg.Sender.Resolve(n.readCtx(ctx, run), req); err == nil {
 		out["skipped"] = skippedOf(resolved.Skipped)
 	}
 	if receipt.Recipients == 0 {
@@ -175,12 +176,12 @@ func (n *notifyNode) request(run engine.StepContext, node graph.Node, params map
 	switch {
 	case title == "":
 		return notifications.AudienceRequest{}, invalid("the title is empty")
-	case len([]rune(title)) > maxTitle:
-		return notifications.AudienceRequest{}, invalid("the title is longer than %d characters", maxTitle)
+	case len(title) > maxTitle:
+		return notifications.AudienceRequest{}, invalid("the title is longer than %d bytes", maxTitle)
 	case body == "":
 		return notifications.AudienceRequest{}, invalid("the text is empty")
-	case len([]rune(body)) > maxBody:
-		return notifications.AudienceRequest{}, invalid("the text is longer than %d characters", maxBody)
+	case len(body) > maxBody:
+		return notifications.AudienceRequest{}, invalid("the text is longer than %d bytes", maxBody)
 	}
 	action, err := resolveActionURL(text(params, "action_url"), n.host)
 	if err != nil {

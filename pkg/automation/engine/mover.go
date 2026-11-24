@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -165,7 +164,7 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 	if err != nil {
 		return EffectResult{}, nil, serrors.FromDB(opRun, err)
 	}
-	res, serr, err := applyEach(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, spec, en, effects)
+	res, serr, err := applyEach(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, spec, en, effects, true)
 	if err == nil && serr == nil && res.Output != nil {
 		serr = m.tooLarge(res.Output, "the output of "+node.ID)
 	}
@@ -183,12 +182,16 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 
 // applyEach applies the effects in order in the node's savepoint; the result is the last effect's. The
 // outcome is empty unless the node picks its own (OutcomeEffectNode).
-func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, effects []graph.Effect) (EffectResult, *StepError, error) {
+//
+// A failure of the platform (an error host.IsInfrastructure names, or a cancelled context) is returned as an
+// error when platformErrors is set, so the step is retried; a node test sets it off and shows every error
+// as the node's.
+func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, effects []graph.Effect, platformErrors bool) (EffectResult, *StepError, error) {
 	var out EffectResult
 	for _, e := range effects {
 		o, err := applyOne(ctx, sp, sc, node, spec, en, e)
 		if err != nil {
-			if host.IsInfrastructure(err) || ctx.Err() != nil {
+			if platformErrors && (host.IsInfrastructure(err) || ctx.Err() != nil) {
 				return EffectResult{}, nil, err
 			}
 			var se *StepError
@@ -217,6 +220,10 @@ func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, s
 	}
 	if res.Outcome != "" && !slices.Contains(spec.Outcomes, res.Outcome) {
 		return EffectResult{}, &StepError{Code: CodeEffectFailed, Message: fmt.Sprintf("%s took the outcome %q it does not declare", node.Type, res.Outcome)}
+	}
+	if res.Outcome != "" && res.Outcome == spec.FailedOutcome {
+		// A failure is an error: it rolls the effect back and carries output.error.
+		return EffectResult{}, &StepError{Code: CodeEffectFailed, Message: fmt.Sprintf("%s took its failed outcome %q without an error", node.Type, res.Outcome)}
 	}
 	return res, nil
 }
@@ -247,25 +254,11 @@ func triggerEventOf(run runRow) *TriggerEvent {
 	if err != nil {
 		return nil
 	}
-	kind, _ := input["kind"].(string)
-	if kind == "" {
-		return nil
-	}
-	payload := make(map[string]any, len(input))
-	for k, v := range input {
-		if k != "kind" && k != catalog.BySelfField {
-			payload[k] = v
-		}
-	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
-	te := &TriggerEvent{Key: kind, Payload: raw}
+	id := ""
 	if run.TriggerEventID != nil {
-		te.ID = *run.TriggerEventID
+		id = *run.TriggerEventID
 	}
-	return te
+	return triggerOfEvent(input, id)
 }
 
 // call registers a call or a human task as a wait: the executor starts it, its result comes later.

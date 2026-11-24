@@ -332,11 +332,13 @@ optional interfaces of the node type widen that:
 `StepContext` carries the step's `NodeID` and `StepKey()` (run, node, token and sequence: the same when the step
 is applied again) and `Trigger`, the event that started the run (key, id and the payload the run-as could read).
 
-`pkg/automation/builtin/notify` registers two effect nodes with `notify.Register(registry, notify.Config{...})`
-and the notification definition `automations.notify.v1` with `notify.Contribute(builder)` (next to
-`ownernotice.Contribute`). Both queue the notice with `notifications.AudienceSender.SendTx` in the step's
-transaction, so it commits with the step; the delivery layer (channel preferences, retries, the subject access
-check per user) does the rest after the commit. The nodes resolve no audience and check no access themselves.
+`pkg/automation/builtin/notify` holds two effect nodes and the notification definition `automations.notify.v1`.
+The `automations` module registers both with the composition (`notify.Register` over its catalog registry with
+core's `AudienceSender`, notification catalog and contact resolvers; `notify.Contribute` for the definition), so
+they are offered wherever the module and core are composed. Both queue the notice with
+`notifications.AudienceSender.SendTx` in the step's transaction, so it commits with the step; the delivery layer
+(channel preferences, retries, the subject access check per user) does the rest after the commit. The nodes
+resolve no audience and check no access themselves.
 
 | Node | Params | Outcomes | Output |
 |---|---|---|---|
@@ -354,7 +356,8 @@ check per user) does the rest after the commit. The nodes resolve no audience an
   an event (manual, schedule) fails with `no_trigger_event`.
 - `action_url` is a path of the application, or a URL on the application's host (`Config.BaseURL`), which is
   stored as its path; anything else is refused when the graph is saved (a link that starts with a template is
-  checked when it is rendered, `invalid_input`). `critical` is the SDK's `error` level.
+  checked when it is rendered, `invalid_input`). `critical` is the SDK's `error` level. A title is at most 300
+  bytes and a text 10000 bytes, as the inbox counts them (a Cyrillic character is two).
 - A `FailedPrecondition` of the delivery layer (platform not configured, channel not available) is the failed
   outcome with code `unavailable`; any other error carries its code (`invalid`, `conflict`, ...).
 - A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace;

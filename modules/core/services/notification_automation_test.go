@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -29,7 +30,9 @@ type automationFixture struct {
 func setupAutomation(t *testing.T) *automationFixture {
 	t.Helper()
 	c := &automationFixture{audienceFixture: setupAudience(t, 3)}
-	require.NoError(t, c.catalog.Register(notify.Definition()))
+	// The automations module of the composition has registered automations.notify.v1.
+	_, ok := c.catalog.Get(notify.EventKey)
+	require.True(t, ok)
 	c.run = engine.StepContext{
 		TenantID: c.f.TenantID(), RunID: uuid.New(), TokenID: uuid.New(), Seq: 1, NodeID: "ping",
 		Subject: engine.SubjectRef{Entity: "acme.policy", Key: "p-1"},
@@ -210,4 +213,23 @@ func TestAutomationNotify_UnavailableChannelFailsWithTheCodeUnavailable(t *testi
 	var se *engine.StepError
 	require.ErrorAs(t, err, &se)
 	require.Equal(t, notify.CodeUnavailable, se.Code)
+}
+
+// The inbox counts bytes, not characters: what the node accepts, the delivery worker delivers.
+func TestAutomationNotify_CyrillicTextWithinTheLimitsIsDelivered(t *testing.T) {
+	c := setupAutomation(t)
+	title, body := strings.Repeat("я", 150), strings.Repeat("ю", 5000) // 300 and 10000 bytes
+	res, err := c.step(t, c.node(t, notify.NodeNotify), c.run, map[string]any{"recipients": map[string]any{"users": c.people[:1]}, "title": title, "body": body})
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeSent, res.Outcome)
+	c.drain(t)
+	require.Equal(t, 1, c.count(t, "SELECT COUNT(*) FROM core.notifications WHERE tenant_id=$1 AND title=$2 AND user_id=$3", c.f.TenantID(), title, c.people[0]))
+	require.Zero(t, c.count(t, "SELECT COUNT(*) FROM core.notification_dispatches WHERE tenant_id=$1 AND (completed_at IS NULL OR attempts>0)", c.f.TenantID()), "the job was not poisoned")
+
+	run := c.run
+	run.Seq++
+	_, err = c.step(t, c.node(t, notify.NodeNotify), run, map[string]any{"recipients": map[string]any{"users": c.people[:1]}, "title": title + "я", "body": "x"})
+	var se *engine.StepError
+	require.ErrorAs(t, err, &se)
+	require.Equal(t, engine.CodeInvalidInput, se.Code)
 }

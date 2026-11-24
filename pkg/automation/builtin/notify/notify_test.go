@@ -188,6 +188,10 @@ func TestNotifyRefusesWhatItCannotSend(t *testing.T) {
 		"empty title":      func(p map[string]any) { p["title"] = "  " },
 		"empty body":       func(p map[string]any) { p["body"] = "" },
 		"long title":       func(p map[string]any) { p["title"] = strings.Repeat("x", 301) },
+		"long cyrillic":    func(p map[string]any) { p["title"] = strings.Repeat("я", 151) }, // 302 bytes: the inbox counts bytes
+		"long body":        func(p map[string]any) { p["body"] = strings.Repeat("я", 5001) },
+		"link to //host":   func(p map[string]any) { p["action_url"] = "https://erp.example.com//evil.com" },
+		"encoded //host":   func(p map[string]any) { p["action_url"] = "/%2F%2Fevil.com" },
 		"external link":    func(p map[string]any) { p["action_url"] = "https://evil.example.com/x" },
 		"unknown channel":  func(p map[string]any) { p["channels"] = []any{"fax"} },
 		"unknown level":    func(p map[string]any) { p["level"] = "fatal" },
@@ -302,9 +306,20 @@ func TestNotifyPreviewResolvesWithoutSending(t *testing.T) {
 }
 
 func TestAnUnclassifiedErrorIsTheNodesFailure(t *testing.T) {
-	s := &sender{resolved: resolvedUsers(7), sendErr: errors.New("boom")}
+	s := &sender{resolved: resolvedUsers(7), sendErr: errors.New("ERROR: relation \"secret_table\" does not exist (SQLSTATE 42P01)")}
 	_, err := apply(t, notify.NewNotify(notify.Config{Sender: s}), step(), notifyParams(map[string]any{"users": []any{7}}))
 	var se *engine.StepError
 	require.ErrorAs(t, err, &se, "an unclassified error is the node's failure with a code")
 	assert.Equal(t, "internal", se.Code)
+	assert.NotContains(t, se.Message, "secret_table", "the text of a failed statement stays out of the run")
+}
+
+func TestNotifyTitleAndBodyAreCountedInBytesLikeTheInbox(t *testing.T) {
+	s := &sender{resolved: resolvedUsers(7), receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
+	nt := notify.NewNotify(notify.Config{Sender: s})
+	p := notifyParams(map[string]any{"users": []any{7}})
+	p["title"] = strings.Repeat("я", 150) // 300 bytes
+	p["body"] = strings.Repeat("я", 5000) // 10000 bytes
+	_, err := apply(t, nt, step(), p)
+	require.NoError(t, err)
 }

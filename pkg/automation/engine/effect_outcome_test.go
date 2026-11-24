@@ -143,6 +143,33 @@ func TestEffectNodeCannotTakeAnOutcomeItDoesNotDeclare(t *testing.T) {
 	assert.Equal(t, engine.CodeEffectFailed, res.Error.Code)
 }
 
+// A failure is an error, so it rolls the effect back and carries output.error: a node that names its failed
+// outcome without one is refused.
+func TestEffectNodeCannotPickItsFailedOutcome(t *testing.T) {
+	e, _ := newPickEnv(t)
+	p := e.proc()
+	res, err := p.rt.Authoring().TestNode(context.Background(), e.human(), engine.TestNodeInput{Graph: json.RawMessage(pickGraph("failed")), NodeID: "pick"})
+	require.NoError(t, err)
+	require.NotNil(t, res.Error)
+	assert.Equal(t, engine.CodeEffectFailed, res.Error.Code)
+}
+
+// A node test knows the event the author gave it, as a dry run does.
+func TestTestNodeKnowsTheTriggerEvent(t *testing.T) {
+	e, n := newPickEnv(t)
+	p := e.proc()
+	res, err := p.rt.Authoring().TestNode(context.Background(), e.human(), engine.TestNodeInput{Graph: json.RawMessage(pickGraph("sent")), NodeID: "pick",
+		Subject: &engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Context: map[string]json.RawMessage{"event": json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 9, "note": "", "secret": ""}`)}})
+	require.NoError(t, err)
+	require.Nil(t, res.Error)
+	steps := n.steps()
+	require.Len(t, steps, 1)
+	require.NotNil(t, steps[0].trigger)
+	assert.Equal(t, evCreated, steps[0].trigger.Key)
+	assert.JSONEq(t, `{"amount": 9, "note": "", "secret": ""}`, string(steps[0].trigger.Payload))
+}
+
 func TestTestNodeShowsThePickedOutcome(t *testing.T) {
 	e, _ := newPickEnv(t)
 	p := e.proc()
