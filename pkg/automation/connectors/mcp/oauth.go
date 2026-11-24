@@ -26,7 +26,7 @@ import (
 var (
 	ErrDiscovery    = errors.New("mcp: the authorization server of the MCP server was not found")
 	ErrRegistration = errors.New("mcp: the authorization server refused to register the client")
-	ErrNoClient     = errors.New("mcp: the authorization server does not register clients: set oauth_client_id")
+	ErrNoClient     = fmt.Errorf("%w: the authorization server does not register clients: set oauth_client_id", connectors.ErrClientRequired)
 	ErrExchange     = errors.New("mcp: the authorization server did not issue a token")
 	ErrState        = fmt.Errorf("%w: the sign-in state is invalid or expired", connectors.ErrInvalid)
 )
@@ -113,7 +113,7 @@ func (c *Connector) probe(ctx context.Context, httpc *http.Client, server string
 	if err != nil {
 		return nil
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
 	if res.StatusCode != http.StatusUnauthorized {
 		return nil
@@ -145,6 +145,12 @@ type signInState struct {
 	Issuer     string    `json:"i"`
 	Expires    int64     `json:"e"`
 	Nonce      string    `json:"n"`
+}
+
+// SignsIn reports whether the credentials are of auth oauth2.
+func (c *Connector) SignsIn(creds connectors.Credentials) bool {
+	cf, err := readConfig(creds)
+	return err == nil && cf.auth == AuthOAuth2
 }
 
 // NeedsAuthorization reports whether credentials of auth oauth2 have no token for their server yet.
@@ -209,7 +215,7 @@ func (c *Connector) BeginAuthorization(ctx context.Context, in connectors.Author
 		set(KeyIssuer, as.Issuer)
 		set(KeyTokenEndpoint, as.Token)
 		if !changed {
-			return nil, nil
+			return nil, nil //nolint:nilnil // no change: the connection keeps its credentials
 		}
 		return &connectors.CredentialChange{Credentials: next}, nil
 	})
@@ -361,7 +367,7 @@ func (c *Connector) tokenRequest(ctx context.Context, creds connectors.Credentia
 	if err != nil {
 		return tokenResponse{}, fmt.Errorf("mcp: the token request failed")
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if err != nil {
 		return tokenResponse{}, fmt.Errorf("mcp: the token response was not read")
@@ -420,7 +426,7 @@ func (c *Connector) FreshCredentials(ctx context.Context, tenantID, connectionID
 	}
 	cf, err := readConfig(creds)
 	if err != nil || cf.auth != AuthOAuth2 {
-		return creds, nil
+		return creds, nil //nolint:nilerr // credentials without OAuth have nothing to refresh
 	}
 	if !cf.authorized() {
 		return nil, connectors.ErrNeedsReauth
@@ -446,20 +452,20 @@ func (c *Connector) refresh(ctx context.Context, tenantID, connectionID uuid.UUI
 		case check && conn.Status == connectors.StatusDisabled:
 		case conn.Status == connectors.StatusNeedsReauth:
 			reauth = true
-			return nil, nil
+			return nil, nil //nolint:nilnil // no change: the caller reports ErrNeedsReauth
 		default:
 			return nil, connectors.ErrNotConnected
 		}
 		if cur[KeyAccessToken] != seen && cur[KeyAccessToken] != "" && !expiresWithin(cur, 0, c.now()) {
-			return nil, nil // another call refreshed while this one waited for the lock
+			return nil, nil //nolint:nilnil // another call refreshed while this one waited for the lock
 		}
 		if !force && !expiresWithin(cur, connectors.RefreshBefore, c.now()) {
-			return nil, nil
+			return nil, nil //nolint:nilnil // still fresh: no change
 		}
 		refused := func(reason string) (*connectors.CredentialChange, error) {
 			reauth = true
 			if check {
-				return nil, nil
+				return nil, nil //nolint:nilnil // a check records nothing
 			}
 			return &connectors.CredentialChange{Status: connectors.StatusNeedsReauth, StatusReason: reason}, nil
 		}
@@ -527,10 +533,11 @@ func (c *Connector) markReauth(ctx context.Context, tenantID, connectionID uuid.
 	}
 	mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_, _, _ = st.UpdateCredentials(mctx, tenantID, connectionID, func(conn connectors.Connection, _ connectors.Credentials) (*connectors.CredentialChange, error) {
+	_, _, err = st.UpdateCredentials(mctx, tenantID, connectionID, func(conn connectors.Connection, _ connectors.Credentials) (*connectors.CredentialChange, error) {
 		if conn.Status != connectors.StatusConnected {
-			return nil, nil
+			return nil, nil //nolint:nilnil // already not connected: nothing to mark
 		}
 		return &connectors.CredentialChange{Status: connectors.StatusNeedsReauth, StatusReason: reason}, nil
 	})
+	_ = err // best effort: the call already reports unauthorized
 }

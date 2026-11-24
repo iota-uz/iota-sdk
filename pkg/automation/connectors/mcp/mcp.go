@@ -17,6 +17,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -132,6 +133,16 @@ func WithAllowedPorts(ports ...uint16) Option {
 	}
 }
 
+// WithTLSConfig is the TLS configuration of the client (a private CA; tests trust their own server).
+func WithTLSConfig(cfg *tls.Config) Option { return func(c *Connector) { c.net.tls = cfg } }
+
+// WithAddressPolicy replaces the SSRF guard: allow returns nil for an address ("ip:port") the client may
+// dial. For tests and for a deployment that deliberately calls an MCP server on a private network; the
+// default refuses private, loopback, link-local and metadata addresses.
+func WithAddressPolicy(allow func(network, address string) error) Option {
+	return func(c *Connector) { c.net.guard = allow }
+}
+
 // WithStore binds the connection store at construction (BindStore does it later).
 func WithStore(s Store) Option { return func(c *Connector) { c.store = s } }
 
@@ -178,12 +189,12 @@ const credentialsSchema = `{
 	"type": "object",
 	"required": ["server_url", "auth"],
 	"properties": {
-		"server_url": {"type": "string", "title": "Server URL", "description": "The Streamable HTTP endpoint of the MCP server (https)", "pattern": "^https://", "maxLength": 2000, "examples": ["https://mcp.example.com/mcp"]},
-		"auth": {"type": "string", "title": "Authentication", "enum": ["none", "bearer", "oauth2"], "default": "none"},
-		"token": {"type": "string", "title": "Bearer token", "description": "For authentication bearer", "x-secret": true, "maxLength": 8000},
-		"oauth_client_id": {"type": "string", "title": "OAuth client ID", "description": "For OAuth; left empty, the client registers itself with the server (DCR)", "maxLength": 500},
-		"oauth_client_secret": {"type": "string", "title": "OAuth client secret", "description": "For OAuth, when the client has one", "x-secret": true, "maxLength": 2000},
-		"oauth_scopes": {"type": "string", "title": "OAuth scopes", "description": "Separated by spaces", "maxLength": 2000},
+		"server_url": {"type": "string", "title": "Server URL", "x-label": {"en":"Server URL","ru":"URL сервера","uz":"Server URL manzili","oz":"Сервер URL манзили"}, "description": "The Streamable HTTP endpoint of the MCP server (https)", "pattern": "^https://", "maxLength": 2000, "examples": ["https://mcp.example.com/mcp"]},
+		"auth": {"type": "string", "title": "Authentication", "x-label": {"en":"Authentication","ru":"Аутентификация","uz":"Autentifikatsiya","oz":"Аутентификация"}, "enum": ["none", "bearer", "oauth2"], "default": "none"},
+		"token": {"type": "string", "title": "Bearer token", "x-label": {"en":"Bearer token","ru":"Bearer-токен","uz":"Bearer token","oz":"Bearer токен"}, "description": "For authentication bearer", "x-secret": true, "maxLength": 8000},
+		"oauth_client_id": {"type": "string", "title": "OAuth client ID", "x-label": {"en":"OAuth client ID","ru":"OAuth client ID","uz":"OAuth client ID","oz":"OAuth client ID"}, "description": "For OAuth; left empty, the client registers itself with the server (DCR)", "maxLength": 500},
+		"oauth_client_secret": {"type": "string", "title": "OAuth client secret", "x-label": {"en":"OAuth client secret","ru":"OAuth client secret","uz":"OAuth client secret","oz":"OAuth client secret"}, "description": "For OAuth, when the client has one", "x-secret": true, "maxLength": 2000},
+		"oauth_scopes": {"type": "string", "title": "OAuth scopes", "x-label": {"en":"OAuth scopes","ru":"OAuth scopes (через пробел)","uz":"OAuth scopes (bo‘sh joy bilan)","oz":"OAuth scopes (бўш жой билан)"}, "description": "Separated by spaces", "maxLength": 2000},
 		"oauth_access_token": {"type": "string", "x-secret": true, "x-internal": true},
 		"oauth_refresh_token": {"type": "string", "x-secret": true, "x-internal": true},
 		"oauth_expires_at": {"type": "string", "x-internal": true},
@@ -268,7 +279,7 @@ func (c *Connector) Test(ctx context.Context, creds connectors.Credentials) (con
 // testError is a Test failure by category: the integrations page classifies it by its words
 // (unauthorized, rate limited, unavailable), and nothing of the server's text is kept.
 func testError(err error) error {
-	var rl *rateLimited
+	var rl *rateLimitedError
 	if errors.As(err, &rl) {
 		return errors.New("mcp: rate limited by the server (HTTP 429)")
 	}

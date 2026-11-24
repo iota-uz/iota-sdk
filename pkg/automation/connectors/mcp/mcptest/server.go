@@ -108,8 +108,9 @@ type codeGrant struct {
 }
 
 // New starts the fake; it stops with the test.
-func New(t testing.TB) *Server {
-	s := &Server{t: t, methods: map[string]int{}, faults: map[string][]Fault{}, tokens: map[string]bool{},
+func New(tb testing.TB) *Server {
+	tb.Helper()
+	s := &Server{t: tb, methods: map[string]int{}, faults: map[string][]Fault{}, tokens: map[string]bool{},
 		clients: map[string]string{}, codes: map[string]codeGrant{}, refresh: map[string]bool{}, expiresIn: 3600}
 	s.mcp = mcpsdk.NewServer(&mcpsdk.Implementation{Name: "fake-mcp", Version: "1.2.3"}, nil)
 	handler := mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server { return s.mcp },
@@ -122,7 +123,7 @@ func New(t testing.TB) *Server {
 	mux.HandleFunc("/authorize", s.authorize)
 	mux.HandleFunc("/token", s.token)
 	s.srv = httptest.NewTLSServer(mux)
-	t.Cleanup(s.srv.Close)
+	tb.Cleanup(s.srv.Close)
 	s.URL = s.srv.URL + Path
 	u, _ := url.Parse(s.srv.URL)
 	s.Addr = u.Host
@@ -342,7 +343,9 @@ func (d discard) Flush()                      {}
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		http.Error(w, "encode", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) oauthOn(w http.ResponseWriter) bool {

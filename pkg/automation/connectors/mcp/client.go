@@ -341,7 +341,7 @@ func classify(obs *observer, method string, err error, effect bool) error {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the server refused the credentials (HTTP " + strconv.Itoa(status) + ")"}
 	case status == http.StatusTooManyRequests:
-		return &rateLimited{after: obs.retryAfter}
+		return &rateLimitedError{after: obs.retryAfter}
 	case obs.overflowed():
 		return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "the server's response is larger than 1 MiB"}
 	}
@@ -374,10 +374,10 @@ func (o *observer) completed(method string) bool {
 	return o.complete[method]
 }
 
-// rateLimited is HTTP 429 before the request was served: after is the server's Retry-After (0: none).
-type rateLimited struct{ after time.Duration }
+// rateLimitedError is HTTP 429 before the request was served: after is the server's Retry-After (0: none).
+type rateLimitedError struct{ after time.Duration }
 
-func (e *rateLimited) Error() string {
+func (e *rateLimitedError) Error() string {
 	return catalog.CallRateLimited + ": the server asked to slow down (HTTP 429)"
 }
 

@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -512,11 +512,6 @@ func valueAt(params map[string]any, keys []string) (any, bool) {
 	return cur, true
 }
 
-// setAt returns a copy of params with a dotted path set.
-func setAt(params map[string]any, path string, v any) map[string]any {
-	return setKeys(params, strings.Split(path, "."), v)
-}
-
 // setKeys returns a copy of params with the value at a path of keys set.
 func setKeys(params map[string]any, keys []string, v any) map[string]any {
 	out := make(map[string]any, len(params))
@@ -541,7 +536,7 @@ const AnyKey = "*"
 type ParamPath []string
 
 // String is the path as error paths write it: dotted, with a key that is not a name in brackets as a
-// JSON string (arguments["a.b"].cel).
+// quoted string (arguments["a.b"].cel).
 func (p ParamPath) String() string {
 	var b strings.Builder
 	for i, k := range p {
@@ -552,9 +547,8 @@ func (p ParamPath) String() string {
 			b.WriteString(k)
 			continue
 		}
-		q, _ := json.Marshal(k)
 		b.WriteByte('[')
-		b.Write(q)
+		b.WriteString(strconv.Quote(k))
 		b.WriteByte(']')
 	}
 	return b.String()

@@ -277,6 +277,7 @@
 .ae-issue--warning .ae-issue__icon { color: oklch(var(--clr-text-yellow)); }
 .ae-issue__where { font-weight: 500; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ae-issue__text { color: oklch(var(--clr-text-200)); min-width: 0; }
+.ae-issue__fix { margin: 0 0 6px 32px; }
 
 /* ——— palette & menu ——— */
 .ae-palette {

@@ -91,7 +91,7 @@ func (s *service) Create(ctx context.Context, a Actor, in CreateInput) (Automati
 	if err != nil {
 		return Automation{}, Version{}, err
 	}
-	ver.Version.Warnings = v.warnings
+	ver.Warnings = v.warnings
 	return am.Automation, ver.Version, nil
 }
 
@@ -185,7 +185,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 	if err != nil {
 		return Version{}, err
 	}
-	saved.Version.Warnings = v.warnings
+	saved.Warnings = v.warnings
 	return saved.Version, nil
 }
 

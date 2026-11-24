@@ -13,6 +13,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
@@ -62,6 +63,7 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodRunResolve, c.runResolve),
 		bind(MethodRunRetry, c.runRetry),
 		bind(MethodRunRestart, c.runRestart),
+		bind(MethodMCPTools, c.mcpTools),
 	}
 }
 
@@ -160,7 +162,11 @@ func mapErr(err error) error {
 func graphErrors(list []graph.GraphError) []GraphError {
 	out := make([]GraphError, 0, len(list))
 	for _, e := range list {
-		out = append(out, GraphError{Path: e.Path, Message: e.Message, Code: e.Code})
+		ge := GraphError{Path: e.Path, Message: e.Message, Code: e.Code}
+		if e.Fix != nil {
+			ge.Fix = &GraphFix{Remove: e.Fix.Remove, Label: e.Fix.Label}
+		}
+		out = append(out, ge)
 	}
 	return out
 }
@@ -1005,4 +1011,37 @@ func manualTriggersOf(raw json.RawMessage, title string) []ManualTrigger {
 		out = append(out, mt)
 	}
 	return out
+}
+
+// mcpTools lists the tools of an MCP connection for the editor: with Automations.Author or
+// Connections.Manage only.
+func (c *Controller) mcpTools(ctx context.Context, req MCPToolsRequest) (MCPToolsResponse, error) {
+	sub, err := listext.SubjectFromContext(ctx)
+	if err != nil {
+		return MCPToolsResponse{}, solid.NewRPCError(solid.CodeUnauthenticated, "sign in required", nil)
+	}
+	if !sub.Has(permAuthor) && !sub.Has(permissions.ConnectionsManage.Name()) {
+		return MCPToolsResponse{}, forbidden("permission " + permAuthor + " or " + permissions.ConnectionsManage.Name() + " is required")
+	}
+	if c.cfg.MCPTools == nil {
+		return MCPToolsResponse{}, rpcError(ErrUnavailable, "MCP connections are not available in this application", nil)
+	}
+	id, err := uuid.Parse(strings.TrimSpace(req.Connection))
+	if err != nil {
+		return MCPToolsResponse{}, notFound()
+	}
+	tools, err := c.cfg.MCPTools.Tools(ctx, sub.TenantID, id)
+	switch {
+	case errors.Is(err, connectors.ErrNotFound):
+		return MCPToolsResponse{}, notFound()
+	case err != nil:
+		// The server's own text is never shown: a category only.
+		return MCPToolsResponse{Error: "unavailable"}, nil //nolint:nilerr // an unreachable server is the answer, not an RPC failure
+	}
+	out := MCPToolsResponse{Tools: make([]MCPTool, 0, len(tools))}
+	for _, t := range tools {
+		out.Tools = append(out.Tools, MCPTool{Name: t.Name, Title: t.Title, Description: t.Description,
+			InputSchema: t.InputSchema, OutputSchema: t.OutputSchema, ReadOnly: t.ReadOnly})
+	}
+	return out, nil
 }

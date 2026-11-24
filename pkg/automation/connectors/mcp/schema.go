@@ -460,7 +460,7 @@ var outputSchemas sync.Map // hash → *jsonschema.Schema or error
 
 func compiledOutput(p ToolPin) (*jsonschema.Schema, error) {
 	if len(p.OutputSchema) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no output schema pinned: nothing to check
 	}
 	if v, ok := outputSchemas.Load(p.Hash); ok {
 		if s, ok := v.(*jsonschema.Schema); ok {

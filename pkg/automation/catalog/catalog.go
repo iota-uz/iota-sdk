@@ -117,6 +117,10 @@ type PrepareIssue struct {
 	Path    string
 	Code    string
 	Message string // no secrets
+	// FixRemove is a dotted param path whose removal resolves the issue (the editor offers it, labelled
+	// FixLabel); empty: no such action.
+	FixRemove string
+	FixLabel  string
 }
 
 // CallNode is a node with an external effect (behavior call). The engine calls Execute outside of a

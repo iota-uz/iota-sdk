@@ -57,7 +57,7 @@ func getJSON(ctx context.Context, httpc *http.Client, u string, v any) (bool, er
 	if err != nil {
 		return false, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode >= 400 && res.StatusCode < 500 {
 		return false, nil
 	}
@@ -145,7 +145,7 @@ func registerClient(ctx context.Context, httpc *http.Client, endpoint string, me
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusCreated && res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("mcp: the registration endpoint answered HTTP %d", res.StatusCode)
 	}

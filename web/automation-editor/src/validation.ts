@@ -23,6 +23,23 @@ export function errorTarget(graph: AutomationGraph, path: string): ErrorTarget {
   return { id: edge?.from.node ?? null, field: null }
 }
 
+/** A fix path the editor can apply: a top-level param of a node ("nodes[2].params.tool_schema"). */
+export function removablePath(path: string): { index: number; param: string } | null {
+  const m = /^nodes\[(\d+)\]\.params\.([^.[\]]+)$/.exec(path)
+  return m ? { index: Number(m[1]), param: m[2]! } : null
+}
+
+/** The graph with an issue's fix applied (the param removed), or null when the path is not one it can remove. */
+export function applyFix(graph: AutomationGraph, path: string): AutomationGraph | null {
+  const at = removablePath(path)
+  const node = at ? graph.nodes[at.index] : undefined
+  if (!at || !node || !node.params || !(at.param in node.params)) return null
+  const { [at.param]: _removed, ...params } = node.params as Record<string, unknown>
+  const nodes = graph.nodes.slice()
+  nodes[at.index] = { ...node, params }
+  return { ...graph, nodes }
+}
+
 /** First error message per item, for the canvas badge. */
 export function errorsByItem(graph: AutomationGraph, errors: readonly GraphError[] | undefined): Map<string, string> {
   const out = new Map<string, string>()

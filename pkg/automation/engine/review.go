@@ -140,7 +140,11 @@ func (r *Runtime) prepare(ctx context.Context, a Actor, view catalog.View, g gra
 			if p.Path != "" {
 				path += "." + p.Path
 			}
-			return graph.GraphError{Path: path, Code: p.Code, Message: p.Message}
+			e := graph.GraphError{Path: path, Code: p.Code, Message: p.Message}
+			if p.FixRemove != "" {
+				e.Fix = &graph.Fix{Remove: at + "." + p.FixRemove, Label: p.FixLabel}
+			}
+			return e
 		}
 		for _, e := range res.Errors {
 			errs = append(errs, issue(e))

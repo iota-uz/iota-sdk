@@ -75,7 +75,11 @@ export type CatalogNode = {
   connected?: boolean
 }
 
-export type GraphError = { path: string; message: string; line?: number; column?: number; code?: string }
+export type GraphError = {
+  path: string; message: string; line?: number; column?: number; code?: string
+  /** An action that resolves the issue: remove the value at `remove` (a later save fills it anew). */
+  fix?: { remove: string; label: string }
+}
 export type Subject = { entity: string; key: string; label?: string }
 
 // Types of runs, dry run and test node; the editor ships only the types and the overlay prop.

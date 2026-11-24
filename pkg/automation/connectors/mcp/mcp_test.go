@@ -40,10 +40,12 @@ func weatherTool(handle func(map[string]any) mcptest.Result) mcptest.Tool {
 
 func pinOf(t *testing.T, tool mcptest.Tool) map[string]any {
 	t.Helper()
-	in, _ := json.Marshal(tool.InputSchema)
+	in, err := json.Marshal(tool.InputSchema)
+	require.NoError(t, err)
 	var out json.RawMessage
 	if tool.OutputSchema != nil {
-		out, _ = json.Marshal(tool.OutputSchema)
+		out, err = json.Marshal(tool.OutputSchema)
+		require.NoError(t, err)
 	}
 	p, err := PinOf(Tool{Name: tool.Name, InputSchema: in, OutputSchema: out, ReadOnly: tool.ReadOnly})
 	require.NoError(t, err)
@@ -85,7 +87,7 @@ func TestExecuteRendersArgumentsByThePin(t *testing.T) {
 		"arguments": map[string]any{
 			"city":       map[string]any{"template": "Tashkent"},
 			"days":       map[string]any{"template": "3"},
-			"opts.units": map[string]any{"cel": "metric"},
+			"opts.units": map[string]any{"cel": "metric"}, // rendered: the expression's value
 		},
 	}))
 	require.NoError(t, err)
@@ -267,7 +269,7 @@ func TestOAuthSignInRegistersOnceAndRefreshesUnderTheLock(t *testing.T) {
 	require.Contains(t, ident.Display, "fake-mcp")
 
 	// A second sign-in reuses the registered client.
-	got = signIn()
+	_ = signIn()
 	require.Equal(t, 1, srv.Registrations())
 
 	// A state is bound to its connection and does not open for another purpose.
@@ -275,7 +277,9 @@ func TestOAuthSignInRegistersOnceAndRefreshesUnderTheLock(t *testing.T) {
 	require.ErrorIs(t, err, ErrState)
 
 	// An access token expiring within 15 minutes is refreshed once, even by concurrent calls.
-	st.setCreds(id, func(c connectors.Credentials) { c[KeyExpiresAt] = time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339) })
+	st.setCreds(id, func(c connectors.Credentials) {
+		c[KeyExpiresAt] = time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
+	})
 	_, cur, _ := st.Get(ctx, tenant, id)
 	params := map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool), "arguments": map[string]any{"city": map[string]any{"value": "x"}}}
 	var wg sync.WaitGroup
@@ -308,9 +312,11 @@ func TestOAuthSignInRegistersOnceAndRefreshesUnderTheLock(t *testing.T) {
 func approve(t *testing.T, srv *mcptest.Server, authURL string) string {
 	t.Helper()
 	client := &http.Client{Transport: &http.Transport{TLSClientConfig: srv.TLS()}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	res, err := client.Get(authURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, authURL, nil)
 	require.NoError(t, err)
-	defer res.Body.Close()
+	res, err := client.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = res.Body.Close() }()
 	require.Equal(t, http.StatusFound, res.StatusCode)
 	loc, err := url.Parse(res.Header.Get("Location"))
 	require.NoError(t, err)

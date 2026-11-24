@@ -3,6 +3,7 @@ package connectors
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/google/uuid"
 )
@@ -13,6 +14,9 @@ import (
 // platform's (OAuth2Config). The integrations page saves such a connection first, then sends the
 // administrator's browser to BeginAuthorization's URL and finishes on the callback.
 type ConnectionAuthorizer interface {
+	// SignsIn reports whether credentials sign in through the browser (an OAuth auth kind), so a
+	// connection that needs re-authorization is offered a new sign-in.
+	SignsIn(c Credentials) bool
 	// NeedsAuthorization reports whether credentials (as validated) need a sign-in in the browser before
 	// the connection works: no token yet, or one issued for other settings.
 	NeedsAuthorization(c Credentials) bool
@@ -29,6 +33,10 @@ type ConnectionAuthorizer interface {
 	// ErrNeedsReauth.
 	FreshCredentials(ctx context.Context, tenantID, connectionID uuid.UUID, check bool) (Credentials, error)
 }
+
+// ErrClientRequired is a sign-in the authorization server cannot register a client for (no Dynamic
+// Client Registration): the administrator enters a client id.
+var ErrClientRequired = errors.New("automation connections: the authorization server needs a client id")
 
 // AuthorizationStart is a sign-in of a saved connection.
 type AuthorizationStart struct {

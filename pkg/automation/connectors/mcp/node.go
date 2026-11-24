@@ -137,18 +137,27 @@ func (n *ToolNode) Requires() []catalog.ConnectorKind { return []catalog.Connect
 // is unknown is never repeated automatically.
 func (n *ToolNode) Idempotent() bool { return false }
 
-// decodeParams reads params (rendered or not) into ToolParams; arguments stay as the generic maps.
-func decodeParams(p map[string]any) (ToolParams, map[string]any, error) {
-	raw, err := json.Marshal(p)
+// decodeParams reads params into ToolParams. Arguments are typed only while unrendered (a save): once
+// rendered, a cel entry holds its value, so they stay the generic maps the second result returns.
+func decodeParams(p map[string]any, rendered bool) (ToolParams, map[string]any, error) {
+	args, _ := p[ParamArguments].(map[string]any)
+	typed := p
+	if rendered {
+		typed = make(map[string]any, len(p))
+		for k, v := range p {
+			if k != ParamArguments {
+				typed[k] = v
+			}
+		}
+	}
+	raw, err := json.Marshal(typed)
 	if err != nil {
 		return ToolParams{}, nil, err
 	}
 	var out ToolParams
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	if err := dec.Decode(&out); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(raw)).Decode(&out); err != nil {
 		return ToolParams{}, nil, err
 	}
-	args, _ := p[ParamArguments].(map[string]any)
 	return out, args, nil
 }
 
@@ -156,7 +165,7 @@ func callErr(code, msg string) error { return &catalog.CallError{Code: code, Mes
 
 // Execute calls the tool once with the arguments rendered by the pinned schema.
 func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
-	p, rendered, err := decodeParams(in.Params)
+	p, rendered, err := decodeParams(in.Params, true)
 	if err != nil {
 		return catalog.CallResult{}, callErr(catalog.CallInvalidRequest, "the params of the node are not readable")
 	}
@@ -190,7 +199,7 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 	if isUnauthorized(err) && cf.auth == AuthOAuth2 && connID != uuid.Nil {
 		n.c.markReauth(ctx, in.TenantID, connID, "the server refused the access token after a refresh")
 	}
-	var rl *rateLimited
+	var rl *rateLimitedError
 	if errors.As(err, &rl) {
 		if rl.after > 0 {
 			return catalog.CallResult{RetryAfter: rl.after}, nil
@@ -277,17 +286,17 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 	}
 	connID, err := uuid.Parse(in.Connection.ID)
 	if err != nil {
-		return res, nil
+		return res, nil //nolint:nilerr // a platform credential: no connection of a tenant to ask
 	}
-	p, _, err := decodeParams(in.Params)
+	p, _, err := decodeParams(in.Params, false)
 	if err != nil {
-		return res, nil // the params check of the graph reports it
+		return res, nil //nolint:nilerr // the params check of the graph reports it
 	}
 	if p.ToolSchema != nil {
 		if err := p.ToolSchema.check(); err != nil {
 			res.Errors = append(res.Errors, catalog.PrepareIssue{Path: ParamToolSchema, Code: CodeSchemaInvalid,
 				Message: "the pinned tool schema was changed by hand: " + err.Error() + "; remove tool_schema to pin the server's"})
-			return res, nil
+			return res, nil //nolint:nilerr // the refusal is the result
 		}
 	}
 	tools, listErr := n.c.Tools(ctx, in.TenantID, connID)
@@ -317,7 +326,7 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 		if err != nil {
 			res.Errors = append(res.Errors, catalog.PrepareIssue{Path: ParamTool, Code: CodeSchemaInvalid,
 				Message: "the server's schema of the tool is not JSON"})
-			return res, nil
+			return res, nil //nolint:nilerr // the refusal is the result
 		}
 		if pin == nil {
 			pin = &current
@@ -332,7 +341,8 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 			res.Params[ParamToolSchema] = pinned
 		} else if pin.Hash != current.Hash {
 			res.Warnings = append(res.Warnings, catalog.PrepareIssue{Path: ParamToolSchema, Code: CodeSchemaChanged,
-				Message: "the server changed the schema of " + p.Tool + " since it was pinned: runs keep the pinned one; update the pin to use the new schema"})
+				Message:   "the server changed the schema of " + p.Tool + " since it was pinned: runs keep the pinned one; update the pin to use the new schema",
+				FixRemove: ParamToolSchema, FixLabel: "Update the pinned schema"})
 		}
 	}
 	for _, i := range checkArguments(pin.InputSchema, p.Arguments, in.TypeOf) {
@@ -354,7 +364,7 @@ func pinValue(p ToolPin) (any, error) {
 
 // category is the class of a failure for a message: never the server's text.
 func category(err error) string {
-	var rl *rateLimited
+	var rl *rateLimitedError
 	if errors.As(err, &rl) {
 		return catalog.CallRateLimited
 	}
