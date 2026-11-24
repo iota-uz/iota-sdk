@@ -213,8 +213,15 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 	var (
 		invalid *services.InvalidInputError
 		failed  *services.TestFailedError
+		confirm *connectors.ConfirmationRequiredError
 	)
 	switch {
+	case errors.As(err, &confirm):
+		codes := make([]string, 0, len(confirm.Warnings))
+		for _, w := range confirm.Warnings {
+			codes = append(codes, w.Code)
+		}
+		return SaveResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
 	case errors.As(err, &invalid):
 		return SaveResponse{Error: ErrInvalidInput, Fields: invalid.Fields}, nil
 	case errors.As(err, &failed):
@@ -236,7 +243,7 @@ func (c *Controller) create(ctx context.Context, req CreateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Create(ctx, actor(sub), services.CreateInput{
 		Kind: kindOf(req.Kind), Name: req.Name, DisplayName: req.DisplayName, Credentials: req.Credentials,
-		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey: req.IdempotencyKey, Confirmed: req.Confirm,
 	}))
 }
 
@@ -251,7 +258,7 @@ func (c *Controller) update(ctx context.Context, req UpdateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Update(ctx, actor(sub), services.UpdateInput{
 		ID: id, Version: req.Version, DisplayName: req.DisplayName, Credentials: req.Credentials,
-		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey: req.IdempotencyKey, Confirmed: req.Confirm,
 	}))
 }
 

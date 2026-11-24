@@ -567,6 +567,23 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 	})
 }
 
+// InboundState is the inbound state of a connection of the tenant.
+func (s *store) InboundState(ctx context.Context, tenantID, id uuid.UUID) (json.RawMessage, error) {
+	const op = serrors.Op("automation.connectors.Store.InboundState")
+	if err := s.configured(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	var state []byte
+	err := s.db.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, serrors.Wrap(op, ErrNotFound)
+	}
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return json.RawMessage(state), nil
+}
+
 func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {
 	const op = serrors.Op("automation.connectors.Store.UpdateInbound")
 	if err := s.configured(); err != nil {

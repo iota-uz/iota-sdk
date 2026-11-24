@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -474,25 +475,76 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 	return expr.ObjectOf(props), true, nil
 }
 
-// paramAt reads a dotted path inside params.
+// paramAt reads a dotted path inside params. A segment that is a number reads that item of a list.
 func paramAt(params map[string]any, path string) (any, bool) {
 	var cur any = params
 	for _, k := range strings.Split(path, ".") {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false
-		}
-		if cur, ok = m[k]; !ok {
+		switch m := cur.(type) {
+		case map[string]any:
+			v, ok := m[k]
+			if !ok {
+				return nil, false
+			}
+			cur = v
+		case []any:
+			i, err := strconv.Atoi(k)
+			if err != nil || i < 0 || i >= len(m) {
+				return nil, false
+			}
+			cur = m[i]
+		default:
 			return nil, false
 		}
 	}
 	return cur, true
 }
 
-// setAt returns a copy of params with a dotted path set.
+// expandPaths turns a path with "[]" (each item of a list: "options[].label") into the concrete paths
+// of the params ("options.0.label", "options.1.label"); a path without it is itself. A list that is
+// not there has no items.
+func expandPaths(params map[string]any, path string) []string {
+	head, rest, wild := strings.Cut(path, "[]")
+	if !wild {
+		return []string{path}
+	}
+	list, ok := paramAt(params, head)
+	if !ok {
+		return nil
+	}
+	items, ok := list.([]any)
+	if !ok {
+		return nil
+	}
+	var out []string
+	for i := range items {
+		out = append(out, expandPaths(params, head+"."+strconv.Itoa(i)+rest)...)
+	}
+	return out
+}
+
+// setAt returns a copy of params with a dotted path set; a numeric segment sets that item of a list.
 func setAt(params map[string]any, path string, v any) map[string]any {
+	out, _ := setIn(params, path, v).(map[string]any)
+	return out
+}
+
+func setIn(cur any, path string, v any) any {
 	head, rest, nested := strings.Cut(path, ".")
-	out := make(map[string]any, len(params))
+	if list, ok := cur.([]any); ok {
+		i, err := strconv.Atoi(head)
+		if err != nil || i < 0 || i >= len(list) {
+			return cur
+		}
+		out := append([]any(nil), list...)
+		if nested {
+			out[i] = setIn(list[i], rest, v)
+		} else {
+			out[i] = v
+		}
+		return out
+	}
+	params, _ := cur.(map[string]any)
+	out := make(map[string]any, len(params)+1)
 	for k, x := range params {
 		out[k] = x
 	}
@@ -500,8 +552,7 @@ func setAt(params map[string]any, path string, v any) map[string]any {
 		out[head] = v
 		return out
 	}
-	child, _ := params[head].(map[string]any)
-	out[head] = setAt(child, rest, v)
+	out[head] = setIn(params[head], rest, v)
 	return out
 }
 
@@ -549,16 +600,20 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		}
 	}
 	for _, v := range spec.Values {
-		if src, ok := paramAt(params, v); ok {
-			if s, ok := src.(string); ok {
-				out = append(out, nodeExpression{path: "params." + v, source: s, want: expr.TypeAny, event: "*"})
+		for _, path := range expandPaths(params, v) {
+			if src, ok := paramAt(params, path); ok {
+				if s, ok := src.(string); ok {
+					out = append(out, nodeExpression{path: "params." + path, source: s, want: expr.TypeAny, event: "*"})
+				}
 			}
 		}
 	}
 	for _, t := range spec.Templates {
-		if text, ok := paramAt(params, t); ok {
-			if s, ok := text.(string); ok {
-				out = append(out, nodeExpression{path: "params." + t, source: s, event: "*", template: true})
+		for _, path := range expandPaths(params, t) {
+			if text, ok := paramAt(params, path); ok {
+				if s, ok := text.(string); ok {
+					out = append(out, nodeExpression{path: "params." + path, source: s, event: "*", template: true})
+				}
 			}
 		}
 	}

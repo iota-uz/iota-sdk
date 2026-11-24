@@ -168,6 +168,8 @@ type CreateInput struct {
 	// IdempotencyKey identifies the intent: a retry with the same key returns the connection the first
 	// request created.
 	IdempotencyKey string
+	// Confirmed are the codes of the connector's warnings the person confirmed (connectors.Advisor).
+	Confirmed []string
 }
 
 // UpdateInput changes a connection; Credentials nil keeps them, an empty secret field keeps its value.
@@ -178,6 +180,8 @@ type UpdateInput struct {
 	Credentials map[string]any
 	// IdempotencyKey: a retry with the same key returns the connection as the first request left it.
 	IdempotencyKey string
+	// Confirmed are the codes of the connector's warnings the person confirmed (connectors.Advisor).
+	Confirmed []string
 }
 
 // IntegrationsService administers the connections of tenants: it checks credentials with the connector
@@ -389,21 +393,74 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		if err != nil {
 			return connectors.Connection{}, err
 		}
+		if err := s.advise(ctx, conn, creds, in.Confirmed); err != nil {
+			return connectors.Connection{}, err
+		}
 		return s.store.SaveWith(ctx, connectors.Connection{
 			TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
 			Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
-		}, creds, req.complete)
+		}, creds, s.within(conn, creds, req))
 	}()
 	if err != nil {
 		req.release(ctx)
 		var failed *TestFailedError
-		if errors.As(err, &failed) {
+		if errors.As(err, &failed) || errors.Is(err, connectors.ErrConfirmationRequired) {
 			return ConnectionEntry{}, err
 		}
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
 	s.touch(ctx, a.TenantID, saved.ID)
 	return s.entry(ctx, a.TenantID, saved, true)
+}
+
+// advise asks a connector that reports what connecting credentials would change elsewhere
+// (connectors.Advisor) and refuses the save with the warnings the person did not confirm. A connector
+// that fails to look gives no warnings: a check that cannot run never blocks a connection.
+func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connector, creds connectors.Credentials, confirmed []string) error {
+	adv, ok := conn.(connectors.Advisor)
+	if !ok {
+		return nil
+	}
+	warnings, err := adv.Advise(ctx, creds)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return nil //nolint:nilerr // see above: an advice that cannot be had is no warning
+	}
+	if open := connectors.Unconfirmed(warnings, confirmed); len(open) > 0 {
+		return &connectors.ConfirmationRequiredError{Warnings: open}
+	}
+	return nil
+}
+
+// within is what a save does in its transaction beside writing the row: the provider's side of the
+// connection is set up (connectors.Provisioner) and the idempotency key is completed. A provider that
+// refuses fails the save, which rolls the row back.
+func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+	return func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
+			if err := p.Provision(ctx, saved, creds); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return &TestFailedError{Reason: classify(err.Error())}
+			}
+		}
+		return req.complete(ctx, tx, saved)
+	}
+}
+
+// deprovision tells the provider that a connection's credentials are no longer used; it never fails the
+// caller: the connection is removed or disabled whether or not the provider could be reached.
+func (s *IntegrationsService) deprovision(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
+	p, ok := conn.(connectors.Provisioner)
+	if !ok || creds == nil {
+		return
+	}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+	defer cancel()
+	_ = p.Deprovision(cctx, c, creds)
 }
 
 // request is a reserved idempotency key; the zero value (no key) completes and releases nothing.
@@ -537,6 +594,9 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		if err != nil {
 			return ConnectionEntry{}, err
 		}
+		if err := s.advise(ctx, conn, creds, in.Confirmed); err != nil {
+			return ConnectionEntry{}, err
+		}
 		next.Identity = identity
 		if next.Status != connectors.StatusDisabled {
 			next.Status, next.StatusReason = connectors.StatusConnected, ""
@@ -547,12 +607,19 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		// longer be recognised, so it is checked against both.
 		scrubRetained(&next, secretsOf(d), stored, creds)
 	}
-	saved, err := s.store.SaveWith(ctx, next, creds, req.complete)
+	saved, err := s.store.SaveWith(ctx, next, creds, s.within(conn, creds, req))
 	if err != nil {
+		var failed *TestFailedError
+		if errors.As(err, &failed) {
+			return ConnectionEntry{}, err
+		}
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
 	if creds != nil {
 		s.touch(ctx, a.TenantID, saved.ID)
+		if !sameCredentials(stored, creds) {
+			s.deprovision(ctx, conn, saved, stored) // the old credentials' side of the connection
+		}
 	}
 	return s.entry(ctx, a.TenantID, saved, true)
 }
@@ -654,11 +721,17 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.UUID, disabled bool) (ConnectionEntry, error) {
 	const op = serrors.Op("automations.IntegrationsService.SetDisabled")
 	if disabled {
-		if _, err := s.find(ctx, a.TenantID, id); err != nil {
+		cur, err := s.find(ctx, a.TenantID, id)
+		if err != nil {
 			return ConnectionEntry{}, mapStoreError(op, err)
 		}
 		if err := s.store.SetStatus(ctx, a.TenantID, id, connectors.StatusDisabled, ""); err != nil {
 			return ConnectionEntry{}, mapStoreError(op, err)
+		}
+		if conn, ok := s.dir.Get(cur.Kind); ok {
+			if _, creds, err := s.store.Get(ctx, a.TenantID, id); err == nil {
+				s.deprovision(ctx, conn, cur, creds)
+			}
 		}
 	} else {
 		cur, conn, creds, reauth, err := s.load(ctx, a.TenantID, id)
@@ -686,6 +759,17 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
+			if next.Status == connectors.StatusConnected {
+				// Enabled again: the provider's side is set up again, as for a new connection.
+				if p, ok := conn.(connectors.Provisioner); ok {
+					if err := p.Provision(ctx, next, creds); err != nil {
+						if ctx.Err() != nil {
+							return ConnectionEntry{}, ctx.Err()
+						}
+						next.Status, next.StatusReason = failedStatus(conn, classify(err.Error()))
+					}
+				}
+			}
 			if _, err := s.store.Save(ctx, next, nil); err != nil {
 				return ConnectionEntry{}, mapStoreError(op, err)
 			}
@@ -701,10 +785,31 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 
 // Delete removes a connection nothing uses; a connection in use is a *connectors.InUseError.
 func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
+	// What the provider needs to be told is read before the row is gone; a connection that cannot be
+	// read (no key, undecryptable) is still deleted, only the provider is not told.
+	cur, creds, readErr := s.store.Get(ctx, a.TenantID, id)
 	if err := s.store.Delete(ctx, a.TenantID, id); err != nil {
 		return mapStoreError("automations.IntegrationsService.Delete", err)
 	}
+	if readErr == nil && cur.Status != connectors.StatusDisabled {
+		if conn, ok := s.dir.Get(cur.Kind); ok {
+			s.deprovision(ctx, conn, cur, creds)
+		}
+	}
 	return nil
+}
+
+// sameCredentials reports whether two credential sets hold the same values.
+func sameCredentials(a, b connectors.Credentials) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || w != v {
+			return false
+		}
+	}
+	return true
 }
 
 // SetPlatformEnabled grants or revokes an opt_in platform credential for the tenant.

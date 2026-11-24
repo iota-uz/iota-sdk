@@ -68,6 +68,9 @@ const (
 	ErrUnavailable     ErrorCode = "unavailable"
 	// ErrInProgress: a request with the same idempotency key is still running; retry with the key.
 	ErrInProgress ErrorCode = "in_progress"
+	// ErrConfirmationRequired: the connector warns that connecting these credentials changes something
+	// elsewhere (a bot another service uses); the screen shows Warnings and resends with them in Confirm.
+	ErrConfirmationRequired ErrorCode = "confirmation_required"
 )
 
 // Props are the initial props of the screen.
@@ -159,6 +162,8 @@ type CreateRequest struct {
 	Credentials map[string]any `json:"credentials"`
 	// IdempotencyKey identifies the intent: «Retry» resends the same key.
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	// Confirm are the codes of the warnings the person confirmed (SaveResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // UpdateRequest changes a connection; credentials absent keep them.
@@ -168,6 +173,8 @@ type UpdateRequest struct {
 	DisplayName    *string        `json:"display_name,omitempty"`
 	Credentials    map[string]any `json:"credentials,omitempty"`
 	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	// Confirm are the codes of the warnings the person confirmed (SaveResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // SaveResponse is the result of create and update: ok with the connection, or the refusal.
@@ -177,6 +184,8 @@ type SaveResponse struct {
 	Error      ErrorCode         `json:"error,omitempty"`
 	Reason     Reason            `json:"reason,omitempty"`
 	Fields     map[string]string `json:"fields,omitempty"`
+	// Warnings are the codes the person has to confirm (Error is confirmation_required).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // OAuthStartRequest begins an OAuth2 authorization; ConnectionID re-authorizes that connection.

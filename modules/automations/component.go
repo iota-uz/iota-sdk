@@ -206,7 +206,9 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return connectors.NewPlatformCredentials(dir, platformCreds), nil
+		// A connector may bring the platform credential of its own kind (a bot token from the
+		// application's environment) when the configuration names none.
+		return connectors.NewPlatformCredentials(dir, connectors.WithPlatformProviders(platformCreds, dir.List()...)), nil
 	})
 	composition.ProvideDefault[connectors.PlatformGrants](b, func(container *composition.Container) (connectors.PlatformGrants, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
@@ -287,6 +289,33 @@ func (c *component) Build(b *composition.Builder) error {
 			Directory: dir, Store: st, Usage: usage, Platform: platform, Grants: grants, OAuth: oauth,
 			States: persistence.NewOAuthStates(db), Checks: persistence.NewConnectionChecks(db), Requests: persistence.NewRequests(db),
 		}), nil
+	})
+
+	// A connector with a platform credential that needs setting up (a webhook) does it at start.
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		return []composition.Hook{{Name: "automations.platform-connectors", Start: func(ctx context.Context) (composition.StopFn, error) {
+			dir, err := composition.Resolve[connectors.Directory](container)
+			if err != nil {
+				return nil, err
+			}
+			platform, err := composition.Resolve[connectors.PlatformCredentials](container)
+			if err != nil {
+				return nil, err
+			}
+			for _, conn := range dir.List() {
+				starter, ok := conn.(connectors.PlatformStarter)
+				if _, _, has := platform.Platform(conn.Kind()); !ok || !has {
+					continue
+				}
+				if err := starter.StartPlatform(ctx); err != nil {
+					// The application starts without it: the platform credential works for sending.
+					if logger := b.Context().Logger(); logger != nil {
+						logger.Warnf("automations: the platform credential of %s was not set up: %v", conn.Kind(), err)
+					}
+				}
+			}
+			return nil, nil
+		}}}, nil
 	})
 
 	if !b.Context().HasCapability(composition.CapabilityAPI) {

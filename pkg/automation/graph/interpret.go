@@ -305,39 +305,43 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	rendered := params
 	vars := varsOf(s.Ctx)
 	for _, t := range spec.Templates {
-		raw, ok := paramAt(params, t)
-		text, isStr := raw.(string)
-		if !ok || !isStr {
-			continue
+		for _, path := range expandPaths(params, t) {
+			raw, ok := paramAt(params, path)
+			text, isStr := raw.(string)
+			if !ok || !isStr {
+				continue
+			}
+			tp, issues := s.in.exprs.template(s.node, "*", text)
+			if len(issues) > 0 {
+				st := failed(FailExpression, "%s", issues[0].Message)
+				return Effect{}, &st
+			}
+			out, err := tp.Render(vars)
+			if err != nil {
+				st := stepOfError(err)
+				return Effect{}, &st
+			}
+			rendered = setAt(rendered, path, out)
 		}
-		tp, issues := s.in.exprs.template(s.node, "*", text)
-		if len(issues) > 0 {
-			st := failed(FailExpression, "%s", issues[0].Message)
-			return Effect{}, &st
-		}
-		out, err := tp.Render(vars)
-		if err != nil {
-			st := stepOfError(err)
-			return Effect{}, &st
-		}
-		rendered = setAt(rendered, t, out)
 	}
-	for _, path := range spec.Values {
-		raw, ok := paramAt(params, path)
-		src, isStr := raw.(string)
-		if !ok || !isStr {
-			continue
+	for _, valuePath := range spec.Values {
+		for _, path := range expandPaths(params, valuePath) {
+			raw, ok := paramAt(params, path)
+			src, isStr := raw.(string)
+			if !ok || !isStr {
+				continue
+			}
+			v, st := s.Eval(src, expr.TypeAny)
+			if st != nil {
+				return Effect{}, st
+			}
+			j, err := jsonOut(v)
+			if err != nil {
+				s := failed(FailExpression, "%s: %v", path, err)
+				return Effect{}, &s
+			}
+			rendered = setAt(rendered, path, j)
 		}
-		v, st := s.Eval(src, expr.TypeAny)
-		if st != nil {
-			return Effect{}, st
-		}
-		j, err := jsonOut(v)
-		if err != nil {
-			s := failed(FailExpression, "%s: %v", path, err)
-			return Effect{}, &s
-		}
-		rendered = setAt(rendered, path, j)
 	}
 	return Effect{Node: node.Type, Params: rendered}, nil
 }

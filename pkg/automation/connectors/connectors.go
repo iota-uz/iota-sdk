@@ -164,6 +164,12 @@ type ConnectionStore interface {
 	Rewrap(ctx context.Context, batch int) (int, error)
 }
 
+// InboundReader is an optional interface of a ConnectionStore: it reads the inbound state of a
+// connection without taking its row lock for a write (the built-in store implements it).
+type InboundReader interface {
+	InboundState(ctx context.Context, tenantID, id uuid.UUID) (json.RawMessage, error)
+}
+
 // CredentialSource is how the engine opens the connection a call runs with: a connection ID or
 // "platform:<kind>", as catalog.ResolveConnection picked it. The store implements it.
 type CredentialSource interface {

@@ -1087,7 +1087,16 @@ func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.
 	if err != nil {
 		return err
 	}
-	outcome, out, err := asker.Answer(raw)
+	var (
+		outcome string
+		out     json.RawMessage
+	)
+	if pa, ok := asker.(ParamAnswerer); ok {
+		params, _ := m.in().View().Params(w.NodeID)
+		outcome, out, err = pa.AnswerFor(params, raw)
+	} else {
+		outcome, out, err = asker.Answer(raw)
+	}
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: err.Error()})
 	}
