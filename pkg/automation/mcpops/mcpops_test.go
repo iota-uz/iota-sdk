@@ -333,11 +333,11 @@ func noteGraph(name, text string) map[string]any {
 }
 
 type prepared struct {
-	Status   string                `json:"status"`
-	PlanID   string                `json:"plan_id"`
-	PlanHash string                `json:"plan_hash"`
+	Status   string                 `json:"status"`
+	PlanID   string                 `json:"plan_id"`
+	PlanHash string                 `json:"plan_hash"`
 	Errors   []changes.IndexedIssue `json:"errors"`
-	Approval changes.ApprovalState `json:"approval"`
+	Approval changes.ApprovalState  `json:"approval"`
 }
 
 type operation struct {
