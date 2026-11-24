@@ -487,16 +487,16 @@ type PreparedEffect struct {
 	Err   error
 }
 
-// needsPrepare is what a step's transaction returns when an effect node wants its preparation first: the step is
+// needsPrepareError is what a step's transaction returns when an effect node wants its preparation first: the step is
 // rolled back, the runner prepares outside the transaction and takes the step again.
-type needsPrepare struct {
+type needsPrepareError struct {
 	preparer EffectPreparer
 	sc       StepContext
 	node     graph.Node
 	effect   graph.Effect
 }
 
-func (*needsPrepare) Error() string { return "the effect needs its preparation before the step" }
+func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }
 
 // GraphChecker is an optional interface of a catalog.NodeType: rules over a whole graph that uses the node
 // (what its trigger events offer, for example), checked when the graph is saved, dry run and enabled.

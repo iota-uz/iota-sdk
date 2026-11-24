@@ -434,7 +434,7 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 		behavior, err = m.enter(ctx, &tok)
 		return err
 	})
-	var np *needsPrepare
+	var np *needsPrepareError
 	if errors.As(err, &np) {
 		// The step was rolled back: nothing of it stands. Prepare outside any transaction, then take it again.
 		v, perr := np.preparer.PrepareEffect(ctx, np.sc, np.node, np.effect)

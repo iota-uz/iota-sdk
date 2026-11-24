@@ -481,7 +481,7 @@ func TestSendToContactWithAPackageResolverNeedsNoSpareConnectionInTheStep(t *tes
 			}
 			held = append(held, c)
 		}
-		require.EqualValues(t, e.f.Pool.Config().MaxConns, e.f.Pool.Stat().AcquiredConns(), "no connection is left to spare")
+		require.Equal(t, e.f.Pool.Config().MaxConns, e.f.Pool.Stat().AcquiredConns(), "no connection is left to spare")
 
 		res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, run, node, effect)
 		require.NoError(t, err)

@@ -191,7 +191,7 @@ func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, 
 	for _, e := range effects {
 		o, err := applyOne(ctx, sp, sc, node, spec, en, e)
 		if err != nil {
-			var np *needsPrepare
+			var np *needsPrepareError
 			if errors.As(err, &np) {
 				return EffectResult{}, nil, err
 			}
@@ -215,7 +215,7 @@ func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, 
 func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, e graph.Effect) (EffectResult, error) {
 	if prep, ok := en.(EffectPreparer); ok && sc.Prepared == nil && sc.RunID != uuid.Nil {
 		// The step is rolled back and prepared outside the transaction first (a node test prepares itself).
-		return EffectResult{}, &needsPrepare{preparer: prep, sc: sc, node: node, effect: e}
+		return EffectResult{}, &needsPrepareError{preparer: prep, sc: sc, node: node, effect: e}
 	}
 	pick, picks := en.(OutcomeEffectNode)
 	if !picks {
