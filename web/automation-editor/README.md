@@ -88,12 +88,14 @@ chunk); a host that passes `runsBody` keeps its own.
   nothing (P4). The indicator says Live / Reconnecting… / Finished. Runs read in the editor are kept, so
   a finished run is not asked for again and its poll does not resume on a tab switch.
 - **Node drawer** (RV5): waits, steps (attempts, items), outcome, error, input and output as text or a
-  JSON tree (no HTML is interpreted; above 256 KB folded with «Load in full»), logs (what a call node
+  JSON tree (no HTML is interpreted; a list or object of more than 200 entries shows «Show all N»; above
+  256 KB folded with «Load in full», which shows every entry), logs (what a call node
   wrote with `engine.Log`, masked with the connection's secrets and kept with the step)
   with a filter and its own empty state; «Copy» is announced through `aria-live`.
 - **Operate** (RV10): Cancel (confirmed, focus on «Keep running», the refusal shown in the dialog), Retry
   and Resolve (a combobox of the blocked step's outcomes, each with its target) for a blocked call. A
-  button exists only with `can.operate` and its method. Every action follows F1–F3: spinner, «Still
+  button exists only with `can.operate` and its method; after an action succeeds the buttons wait for
+  the run's new state (no second Retry meanwhile). Every action follows F1–F3: spinner, «Still
   waiting…» after 4 s, an error with «Retry» in place, a second click ignored.
 - **Dry run** (RV7, `can.author`): subject, events, the decision mode (from cache, live call, set the
   answer), the path on the canvas and in the panel, the condition that kept each trigger from firing (its
@@ -104,8 +106,9 @@ chunk); a host that passes `runsBody` keeps its own.
   step (chosen when several do; the event carries that trigger's `kind`) by its payload schema, and the
   outputs of the steps before it (`nodes.<id>.output`). «From the last run» asks the server for the newest run that
   reached the step itself (`runs({ node })`, following the cursor past runs whose step the author may not read; each run is read
-  with `run(id, { nodes })`, so the step of the node and of the nodes before it come even past the
-  detail's bound of latest steps) and fills its subject, its event (`RunData.event`, projected by the server for
+  with `run(id, { nodes })` — in batches of 50 for a long graph — so the latest readable visit of the node
+  and of the nodes before it come even past the detail's bound of latest steps, and a later visit the
+  author may not read does not hide it) and fills its subject, its event (`RunData.event`, projected by the server for
   the author, failing closed: an event or a field no current rule can check is left out) and those outputs. Every confirmed test carries an `idempotency_key` that a retry repeats:
   the server claims the key in `automation.node_tests`, so a repeat on any process gets the stored answer,
   and one without an answer (still running, its process died, or its answer expired after a day — the

@@ -453,8 +453,12 @@ test('RV10: Retry and Resolve a blocked call; Cancel is confirmed with the focus
   await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}&delay=300`)
   await expect(page.getByTestId('run-state')).toHaveText('Blocked')
   const retry = page.getByTestId('run-retry')
-  await retry.click()
-  await retry.click() // F1: a second click while the request runs is ignored
+  // F1: a second click while the request runs is ignored. Both clicks land at once in the page: a click
+  // after the answer would wait for a Retry that is hidden until the run's new state.
+  await retry.evaluate((button) => {
+    ;(button as HTMLButtonElement).click()
+    ;(button as HTMLButtonElement).click()
+  })
   await expect(page.getByText('The call is repeated')).toBeVisible()
   const retries = (await calls(page)).filter((c) => c.method === 'automations.run_retry')
   expect(retries).toHaveLength(1)
