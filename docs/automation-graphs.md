@@ -441,8 +441,11 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
 - Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
   `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, layout_revision?,
   note?}`, `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`;
-  `layout_revision` is required with `layout` and a stale one is `VERSION_CONFLICT` in plan, while
-  at apply `SaveInput.LayoutBase` keeps positions another write moved since) and `automation.layout`
+  `layout_revision` is required with `layout`; a stale one is `VERSION_CONFLICT` on
+  `/fields/layout_revision` in plan and at apply too: a layout another write moved after the plan
+  makes the apply fail with `conflict` (`SaveInput.StrictLayout`, checked under the graph's lock) and
+  nothing of the plan is saved — no version, no positions. The editor saves without `StrictLayout`:
+  there a stale base keeps the positions another tab moved, #1339) and `automation.layout`
   (`fields: {id, base_revision, positions}`, the base is `layout_revision` — `0` for a new graph; a
   stale one is `VERSION_CONFLICT` with the current revision, in plan and at apply through
   `SaveLayoutAt`). Revisions are accepted as JSON integers or the strings `automation_get` returns. Plan validates
