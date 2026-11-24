@@ -61,6 +61,8 @@ func (n *pickNode) PreviewEffect(_ context.Context, run engine.StepContext, _ gr
 		return engine.EffectResult{}, errors.New("cannot preview")
 	case "none":
 		return engine.EffectResult{Outcome: "none", Output: map[string]any{"previewed": true}}, nil
+	case "huge":
+		return engine.EffectResult{Outcome: "sent", Output: map[string]any{"picked": strings.Repeat("x", 2<<20)}}, nil
 	}
 	return engine.EffectResult{Outcome: "sent", Output: map[string]any{"previewed": true}}, nil
 }
@@ -251,4 +253,21 @@ func TestDryRunPreviewReadsTheEventThatStartedTheRun(t *testing.T) {
 	require.NotNil(t, steps[0].trigger)
 	assert.JSONEq(t, `{"amount": 9, "note": "second", "secret": ""}`, string(steps[0].trigger.Payload), "the first event failed the filter and started nothing")
 	assert.EqualValues(t, 1, steps[0].trigger.ActorUserID, "the author is the initiator of a dry run")
+}
+
+// A live run refuses an output over the bound; so does the preview, which takes the failed outcome.
+func TestDryRunPreviewOutputOverTheBoundTakesTheFailedOutcome(t *testing.T) {
+	e, _ := newPickEnv(t)
+	p := e.proc()
+	res, err := p.rt.Authoring().DryRun(context.Background(), e.human(), engine.DryRunInput{
+		Graph:   json.RawMessage(pickGraph("huge")),
+		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Events:  []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 3, "note": "", "secret": ""}`)},
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(res.Trace), 3)
+	assert.Equal(t, "pick", res.Trace[1].Node)
+	assert.Equal(t, "failed", res.Trace[1].Outcome)
+	assert.Equal(t, "failed", res.Trace[2].Node, "the trace follows the failed edge")
+	assert.Less(t, len(res.Trace[1].Output), 4096, "the oversized output is not kept")
 }

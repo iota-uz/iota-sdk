@@ -259,11 +259,31 @@ func checkActionURL(text, appHost string) string {
 		return ""
 	}
 	prefix, rest, templated := strings.Cut(text, "{{")
+	open := templated // a template follows the text before it: it may still extend an authority
+	// Every literal part after a template is checked for what no link may hold, whatever the template renders:
+	// a backslash (raw or encoded) or a control character.
+	for templated {
+		_, after, closed := strings.Cut(rest, "}}")
+		if !closed {
+			break
+		}
+		literal, next, more := strings.Cut(after, "{{")
+		if literalRefused(literal) {
+			return "must not contain control characters or backslashes"
+		}
+		rest, templated = next, more
+	}
 	if prefix == "" {
 		return "" // the rendered link is checked when the node runs
 	}
-	_, reason := classifyLink(prefix, appHost, templated && rest != "")
+	_, reason := classifyLink(prefix, appHost, open)
 	return reason
+}
+
+// literalRefused reports whether a literal part of a link template holds what no link may: a control
+// character, a backslash or its percent-encoding.
+func literalRefused(literal string) bool {
+	return strings.ContainsFunc(literal, unicode.IsControl) || strings.Contains(literal, "\\") || strings.Contains(strings.ToLower(literal), "%5c")
 }
 
 // resolveActionURL is a rendered link as the path the notification stores: a path of the application

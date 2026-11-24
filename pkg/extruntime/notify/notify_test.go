@@ -414,6 +414,32 @@ func TestCheckContactsAsksAPackageResolverWithoutRecordingIt(t *testing.T) {
 	require.Positive(t, invocations())
 }
 
+// A deactivated package leaves its resolver registered: a check cannot tell, so the record stays queued for the
+// worker instead of being dropped as having no address.
+func TestCheckContactsKeepsTheRecordOfADeactivatedPackage(t *testing.T) {
+	e := newNenv(t)
+	ctx := context.Background()
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(ctx, e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	require.NoError(t, e.svc.Deactivate(ctx, e.admin, ns))
+	require.NoError(t, e.adapter.Sync(ctx))
+	resolver, ok := e.contacts.Lookup(customerID)
+	require.True(t, ok, "the resolver stays registered")
+	_, err = resolver.(notifications.ContactChecker).CheckContact(e.committed, e.f.TenantID(), notifications.ObjectRef{Entity: customerID, Key: "c-77"})
+	require.ErrorIs(t, err, notifications.ErrContactUnverifiable)
+
+	resolved, err := e.dispatch.Resolve(e.committed, notifications.AudienceRequest{
+		Event:    notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: e.f.TenantID()},
+		Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: customerID, Key: "c-77"}}}, Channels: []notifications.Channel{notifications.ChannelSMS},
+		CheckContacts: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resolved.Addressees, 1)
+	require.Empty(t, resolved.Skipped)
+}
+
 // The acceptance of the send_to_contact node with the package's resolver: a client without a phone takes
 // no_contact, and its graph can handle it.
 func TestSendToContactNodeTakesNoContactForAPackageClientWithoutAPhone(t *testing.T) {

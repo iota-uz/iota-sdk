@@ -294,6 +294,7 @@ func TestAutomationNotify_NeedsNoSecondConnectionInTheStepTransaction(t *testing
 	defer cancel()
 	tx, err := single.Begin(ctx) // the step's transaction holds the pool's only connection
 	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.Background()) }() // an assertion that fails first must not keep the connection
 	res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, c.run, graph.Node{ID: c.run.NodeID, Type: notify.NodeNotify}, graph.Effect{Params: map[string]any{
 		"recipients": map[string]any{"users": []any{json.Number(strconv.FormatUint(uint64(c.people[0]), 10))}}, "title": "One", "body": "Connection"}})
 	require.NoError(t, err)
@@ -329,6 +330,7 @@ func TestAutomationSendToContact_SQLResolverUsesTheStepTransaction(t *testing.T)
 	defer cancel()
 	tx, err := single.Begin(ctx)
 	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	run := c.run
 	run.Subject = engine.SubjectRef{Entity: entity, Key: "7"}
 	res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, run, graph.Node{ID: run.NodeID, Type: notify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Hi"}})

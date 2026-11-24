@@ -588,6 +588,17 @@ func (d *dryRun) walk(t *dryToken, current string) {
 						d.fail(t, node.ID, failed(FailInvalidGraph, "%s previewed the outcome %q it does not declare", node.ID, a.Outcome))
 						return
 					}
+					if big := i.tooLarge(a.Output, "the output of "+node.ID); big != nil {
+						// A live run refuses an output over the bound and takes the failed outcome: so does the preview.
+						fo, took := d.takeFailedWith(t, node.ID, big.Message, failedHow{status: StatusCaptured}, big.Code)
+						if !took {
+							d.fail(t, node.ID, *big)
+							return
+						}
+						t.from = node.ID
+						current, ok = i.Next(node.ID, fo)
+						continue
+					}
 					if a.Outcome != "" {
 						outcome = a.Outcome
 					}

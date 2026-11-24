@@ -543,7 +543,8 @@ func (c *contactResolver) ResolveContact(ctx context.Context, tenantID uuid.UUID
 // CheckContact implements notifications.ContactChecker: the same question as ResolveContact, asked without
 // writing an invocation record, so a preview and the contact check of a send leave no trace. The resolver
 // still runs the package's code on its own connections, which is why the caller bounds it by a deadline. A
-// resolver without an active implementation or an owner cannot be asked now: ErrContactUnverifiable.
+// resolver without an active implementation (its package was deactivated) or an owner cannot be asked now:
+// ErrContactUnverifiable.
 func (c *contactResolver) CheckContact(ctx context.Context, tenantID uuid.UUID, ref notifications.ObjectRef) (notifications.Contact, error) {
 	contact, err := c.resolve(ctx, tenantID, ref, true)
 	if serrors.HasCode(err, serrors.FailedPrecondition) {
@@ -559,6 +560,11 @@ func (c *contactResolver) resolve(ctx context.Context, tenantID uuid.UUID, ref n
 		return notifications.Contact{}, serrors.Wrap(op, err)
 	}
 	if !ok {
+		if unrecorded {
+			// The package was deactivated but its resolver is still registered: a check cannot tell, and the
+			// worker answers at delivery, as it does for a record that was queued before.
+			return notifications.Contact{}, notifications.ErrContactUnverifiable
+		}
 		return notifications.Contact{}, notifications.ErrContactNotFound
 	}
 	if c.a.cfg.Owners == nil || c.a.cfg.Subjects == nil {
