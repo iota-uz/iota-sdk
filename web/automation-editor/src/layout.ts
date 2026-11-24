@@ -25,8 +25,8 @@ export const GROUP_ROW_GAP = ROW_GAP * 2
 export const LANE_GAP = COLUMN_GAP + 32
 /** Outcomes that lead into the failure lane. */
 export const FAILURE_OUTCOMES: ReadonlySet<string> = new Set(['failed', 'timeout', 'low_confidence'])
-/** The group of the items reachable from several triggers or from none. */
-export const SHARED_GROUP = 'shared'
+/** The group of the items reachable from several triggers or from none; its key is not a valid trigger id. */
+export const SHARED_GROUP = '#shared'
 
 const DUMMY_WIDTH = 16
 const DUMMY_GAP = 24

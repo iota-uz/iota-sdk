@@ -1,7 +1,7 @@
 // The canvas: a controlled Solid wrapper over @xyflow/system (through ./xy/adapter). It never mutates
 // `graph` or `layout`; it emits intents (onChange, onMove, onDrop, onMenu, onSelect). One edge per
 // (node, outcome): a new connection replaces the old one. The DOM is read only after mount.
-import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
@@ -245,6 +245,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
     })
     return previous && previous.length === next.length && previous.every((id, i) => id === next[i]) ? previous : next
   })
+  // The routes found so far: the ends they join, the path, and the box it covers (a detour may leave the
+  // box of the two ends).
+  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string; x: number; y: number; w: number; h: number }>>({})
   const visibleEdges = createMemo<string[]>((previous) => {
     const rect = visibleRect()
     const targets = edgeTargets()
@@ -255,7 +258,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (!p || !q) return false
       const x = Math.min(p.x, q.x) - 64
       const y = Math.min(p.y, q.y) - 64
-      return rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })
+      if (rectsOverlap(rect, { x, y, width: Math.abs(p.x - q.x) + 640, height: Math.abs(p.y - q.y) + 224 })) return true
+      // A route found earlier may run where its ends do not.
+      // Read without subscribing: the box matters when the viewport moves, which re-runs this anyway.
+      const found = untrack(() => routed[source])
+      return found !== undefined && rectsOverlap(rect, { x: found.x, y: found.y, width: found.w, height: found.h })
     })
     return previous && previous.length === next.length && previous.every((k, i) => k === next[i]) ? previous : next
   })
@@ -263,7 +270,6 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // Routes are found a few at a time after the frame that needs them, so mounting or replacing a big graph
   // does not wait for them: an edge shows its previous route (when its ends did not move) or a plain
   // orthogonal one until its own is ready.
-  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string }>>({})
   const routeOwner = new Map<string, object>()
   const ROUTE_SLICE_MS = 6
   let routeTimer: ReturnType<typeof setTimeout> | undefined
@@ -293,7 +299,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
           if (!route || route.points.length === 0) continue
           const first = route.points[0]!
           const last = route.points[route.points.length - 1]!
-          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points) })
+          const xs = route.points.map((point) => point.x)
+          const ys = route.points.map((point) => point.y)
+          const x = Math.min(...xs)
+          const y = Math.min(...ys)
+          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points), x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y })
         }
       })
       if (todo.length > 0) routeTimer = setTimeout(run, 0)

@@ -3,7 +3,7 @@ import { foreachJoin, layoutCatalog, multiTrigger, wide } from '../fixture/layou
 import { sample } from '../fixture/graphs'
 import { GRID, rectsOverlap } from './geometry'
 import { createHistory, record, undo } from './history'
-import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, placeNew, tidyLayout } from './layout'
+import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, placeNew, SHARED_GROUP, tidyLayout } from './layout'
 import { edgeCrossings, layoutMetrics, mixedGroups, overlappingNodes } from './quality'
 import { createRouter, linksOf, routeEdges } from './route'
 import { legacyTidyLayout } from './test/legacyTidy'
@@ -101,17 +101,17 @@ describe('trigger columns', () => {
 
   it('gives every trigger a column of its own, side by side, with the shared steps below, centred', () => {
     const keys = groups.map((g) => g.key)
-    expect(keys).toEqual(['user_created', 'client_created', 'schedule', 'manual', 'shared'])
+    expect(keys).toEqual(['user_created', 'client_created', 'schedule', 'manual', SHARED_GROUP])
     const area = (items: string[]) => {
       const rects = items.map((id) => itemRect(multiTrigger, catalog, layout, id)!)
       return { left: Math.min(...rects.map((r) => r.x)), right: Math.max(...rects.map((r) => r.x + r.width)), top: Math.min(...rects.map((r) => r.y)), bottom: Math.max(...rects.map((r) => r.y + r.height)) }
     }
-    const columns = groups.filter((g) => g.key !== 'shared').map((g) => area(g.items))
+    const columns = groups.filter((g) => g.key !== SHARED_GROUP).map((g) => area(g.items))
     for (let i = 1; i < columns.length; i += 1) {
       // The gap between two columns is twice the step between two cards of a row.
       expect(columns[i]!.left - columns[i - 1]!.right).toBeGreaterThanOrEqual(128 - GRID)
     }
-    const shared = area(groups.find((g) => g.key === 'shared')!.items)
+    const shared = area(groups.find((g) => g.key === SHARED_GROUP)!.items)
     expect(shared.top).toBeGreaterThan(Math.max(...columns.map((c) => c.bottom)))
     // Centred under the columns that feed it.
     const centre = (shared.left + shared.right) / 2
@@ -187,7 +187,7 @@ describe('routes', () => {
 
 describe('arranged by hand', () => {
   it('keeps the positions of a group the person arranged when a new branch is laid out', () => {
-    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
+    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === SHARED_GROUP)
     const hand = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
     // The person moved two steps of the client column by hand.
     known.b_vip = { x: known.b_vip!.x + 48, y: known.b_vip!.y + 32 }
@@ -280,11 +280,11 @@ describe('review round', () => {
       ],
     }
     const keys = Object.fromEntries(layoutGroups(graph).map((g) => [g.key, g.items]))
-    expect(keys.shared).toEqual(['x', 'y'])
+    expect(keys[SHARED_GROUP]).toEqual(['x', 'y'])
   })
 
   it('keeps a group a person moved as a whole when a new branch is laid out', () => {
-    const tidy = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
+    const tidy = earlierTidy(multiTrigger, (key) => key === 'manual' || key === SHARED_GROUP)
     const known: AutomationLayout = { ...tidy }
     const moved = layoutGroups(multiTrigger).find((g) => g.key === 'client_created')!.items
     for (const id of moved) known[id] = { x: tidy[id]!.x + 160, y: tidy[id]!.y + 96 }
@@ -379,7 +379,7 @@ describe('arranged by hand, from positions alone', () => {
   })
 
   it('keeps every group that was moved, whatever the offsets: tied or not', () => {
-    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === 'shared')
+    const known = earlierTidy(multiTrigger, (key) => key === 'manual' || key === SHARED_GROUP)
     const groups = layoutGroups(multiTrigger)
     const moved: AutomationLayout = { ...known }
     const shifts: Record<string, [number, number]> = { user_created: [48, 0], client_created: [0, 64], schedule: [48, 0] }
@@ -425,5 +425,19 @@ describe('arranged by hand, from positions alone', () => {
     const bottom = Math.max(...Object.keys(layout).map((id) => layout[id]!.y + 96))
     expect(p.y).toBeGreaterThanOrEqual(bottom)
     for (const id of Object.keys(layout)) expect(rectsOverlap({ ...p, width: 224, height: 96 }, itemRect(crowded, catalog, layout, id)!, GRID)).toBe(false)
+  })
+})
+
+describe('a trigger called "shared"', () => {
+  it('keeps its own column apart from the shared group', () => {
+    const graph: AutomationGraph = {
+      name: 's', run_as: 'owner',
+      triggers: [{ id: 'shared', event: 'core.user.created.v1' }],
+      nodes: [{ id: 'a', type: 'delay', params: {} }],
+      edges: [{ from: { node: 'shared', outcome: 'fired' }, to: 'a' }],
+    }
+    const groups = layoutGroups(graph)
+    expect(groups).toEqual([{ key: 'shared', items: ['shared', 'a'] }])
+    expect(layoutMetrics(graph, catalog, tidyLayout(graph, catalog))).toMatchObject({ overlaps: 0, throughNodes: 0 })
   })
 })
