@@ -150,6 +150,8 @@ export interface EditorProps {
   tab?: 'edit' | 'runs'; onTab?(tab: 'edit' | 'runs'): void; runsCount?: number; runsBody?: JSX.Element
   /** Extra docked panels from the host (Dry run, Test node). */
   panels?: JSX.Element
+  /** Host content at the end of the graph settings dialog (the graph's memory between runs). */
+  settingsSlot?: JSX.Element
   crumb?: JSX.Element; actions?: JSX.Element; banner?: JSX.Element
   locale: EditorLocale
   /** The selected step, for a host that keeps it in the URL (D1); omitted → the editor's own state. */

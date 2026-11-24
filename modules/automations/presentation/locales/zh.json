@@ -237,7 +237,10 @@
         "LoadReview": "加载审核",
         "LoadRuns": "加载运行记录",
         "Run": "启动运行",
-        "LoadLive": "统计待处理的运行"
+        "LoadLive": "统计待处理的运行",
+        "LoadState": "加载记忆",
+        "SaveState": "保存键",
+        "DeleteState": "删除键"
       },
       "Columns": {
         "Attention": "需要关注",
@@ -429,6 +432,33 @@
       "Enable": {
         "NoRight": "启用和停用自动化需要“启用自动化”权限。",
         "AgentNote": "代理不能启用自动化：须由人员在自己的会话中启用。"
+      },
+      "State": {
+        "Title": "运行之间的记忆",
+        "Hint": "自动化为后续运行记住的内容。由“设置状态”节点写入，表达式用 state.get(键) 和 state.has(键) 读取。",
+        "Add": "添加键",
+        "Key": "键",
+        "KeyRequired": "请填写键。",
+        "Value": "值",
+        "ValueHint": "JSON，最大 16 KiB：\"文本\"、42、true、{\"a\": 1}。",
+        "InvalidJSON": "该值不是有效的 JSON。",
+        "Ttl": "有效期",
+        "TtlHint": "20m、2h 或 7d，范围 1 分钟到 365 天。留空：键不会过期。",
+        "Save": "保存",
+        "Saved": "键已保存",
+        "Deleted": "键已删除",
+        "Edit": "编辑",
+        "Delete": "删除",
+        "ConfirmDelete": "删除该键",
+        "Search": "按键搜索",
+        "Loading": "加载中…",
+        "Empty": "尚未记住任何内容。",
+        "NoMatch": "没有匹配的键。",
+        "ExpiresAt": "{when} 过期",
+        "NoExpiry": "不会过期",
+        "UpdatedAt": "{when} 更改",
+        "Total": "{count} / {max} 个键",
+        "More": "显示更多"
       }
     },
     "Title": "自动化",

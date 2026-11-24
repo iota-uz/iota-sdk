@@ -616,7 +616,7 @@ func (c *component) buildPages(b *composition.Builder) {
 			tools, _ = conn.(mcp.ToolLister)
 		}
 		ctrl, err := graphs.NewController(graphs.Config{
-			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
+			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations(), Memory: rt.Memory()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
 			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools,
 		})

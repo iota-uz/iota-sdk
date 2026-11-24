@@ -330,6 +330,7 @@ an application that builds its own registry). Params are in the field language; 
 | Type | Behavior | Params | Outcomes | Output |
 |---|---|---|---|---|
 | `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
+| `set_state` | effect (in the step) | `key` (tpl, ≤ 200 chars), `value` (cel, ≤ 16 KiB as JSON; absent with `delete`), `ttl` (`20m`, `2h`, `7d`: 1 minute to 365 days; default none), `delete` | `set`, `failed` | `{key, deleted, expires_at?}` |
 | `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
 | `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel\|tpl, template: tpl}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url, body_omitted?}` |
 | `start_automation` | effect (in the step) | `automation_id`, `trigger_id?`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
@@ -421,6 +422,35 @@ an application that builds its own registry). Params are in the field language; 
   `*ActionError` is `failed` with its code, dots and all. `servicectx.Context` builds the services' context
   (the run-as as the user). The SDK's actions: `core.user.block`, `core.user.unblock`,
   `core.group.add_user`, `core.group.remove_user`, `crm.chat.send_message`.
+
+### Memory between runs: `set_state` and `state` (#1390)
+
+A graph remembers facts between its runs (a chat already has a task, a release is already announced, how many
+times a rule fired). `automation.state(tenant_id, automation_id, key, value jsonb, expires_at, updated_at,
+updated_by_run)` holds them per tenant and automation; `pkg/automation/state` is its one writer and reader.
+
+- **Write.** The `set_state` node (`behavior=effect`, outcomes `set` and `failed`) writes or deletes one key in
+  the transaction of the step, so the write commits with the step or not at all, and a node that fails
+  writes nothing. It declares `DryRun: capture`: a dry run and a backtest trace the rendered key and value
+  and write nothing. A refusal is the node's `failed` outcome with `output.error.code`:
+  `state_value_too_large` (over 16 KiB as JSON), `state_key_invalid` (empty or over 200 characters),
+  `state_ttl_invalid` and `state_limit_exceeded` (more than 10 000 live keys; expired ones do not count, and
+  rewriting a key that is there is always allowed).
+- **Read.** In the expressions and templates of a step (not of a trigger's filter), `state` is a lookup-only
+  map: `state.get(key)` is the value or `null`, `state.has(key)` tells whether the key is there, and
+  `state[key]` / `key in state` work too. `get` and `has` are member functions of every `map<string, dyn>`.
+  Keys are read one at a time from the step's own transaction, so a run sees the values as of its step
+  (its own earlier writes included), and a key read twice in one step has one value. A key past its
+  `expires_at` is not seen, whether or not the sweep has removed its row (`Runtime.Prune` removes them in
+  batches). A subject variable named `state` wins over the memory.
+- **Dry run.** `DryRunInput.AutomationID` (the saved graph; `id` of `automation_dry_run` and of the editor's
+  `automations.dry_run`) lets the dry run read that graph's memory; it never writes it.
+- **People and agents.** `Runtime.Memory()` lists keys (with a search), reads, sets and deletes them with
+  `Automations.Read` / `Automations.Author`; deleting a graph drops its keys. The editor's graph settings
+  show the list (search, edit the value as JSON with a lifetime, delete), through
+  `automations.state_list|state_set|state_delete`. `mcpops.WithMemory(rt.Memory())` adds the MCP tools
+  `automation_state_list` and `automation_state_get` (read) and the guarded changes `automation.state.set` and
+  `automation.state.delete` (author).
 
 ### Effect nodes beyond a single outcome, and the notification nodes (#1338)
 

@@ -29,6 +29,8 @@ type Props struct {
 	Can Can    `json:"can"`
 	// Agent: the session is an agent's; enabling is a human's.
 	Agent bool `json:"agent"`
+	// State: the memory of a graph between runs can be listed and edited (the engine's Memory is wired).
+	State bool `json:"state"`
 }
 
 // Can is what the caller may do.
@@ -450,6 +452,8 @@ type RunManualResponse struct {
 
 // DryRunRequest is automations.dry_run.
 type DryRunRequest struct {
+	// ID is the saved graph whose memory (state) the dry run reads; empty: a graph that is not saved.
+	ID      string                     `json:"id,omitempty"`
 	Graph   json.RawMessage            `json:"graph"`
 	Subject Subject                    `json:"subject"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
@@ -476,6 +480,8 @@ type DryRunResponse struct {
 
 // TestNodeRequest is automations.test_node.
 type TestNodeRequest struct {
+	// ID is the saved graph whose memory (state) the node reads; empty: a graph that is not saved.
+	ID      string                     `json:"id,omitempty"`
 	Graph   json.RawMessage            `json:"graph"`
 	NodeID  string                     `json:"node_id"`
 	Subject *Subject                   `json:"subject,omitempty"`
@@ -650,4 +656,48 @@ type MCPTool struct {
 type MCPToolsResponse struct {
 	Tools []MCPTool `json:"tools"`
 	Error string    `json:"error,omitempty"`
+}
+
+// StateListRequest is automations.state_list: the keys of a graph's memory between runs.
+type StateListRequest struct {
+	ID string `json:"id"`
+	// Search is a substring of the key.
+	Search string `json:"search,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+// StateEntry is one key of the memory.
+type StateEntry struct {
+	Key          string          `json:"key"`
+	Value        json.RawMessage `json:"value"`
+	ExpiresAt    *string         `json:"expires_at"`
+	UpdatedAt    string          `json:"updated_at"`
+	UpdatedByRun *string         `json:"updated_by_run"`
+}
+
+// StateListResponse is a page of keys in key order; Total counts every key the graph holds.
+type StateListResponse struct {
+	Items      []StateEntry `json:"items"`
+	NextCursor *string      `json:"next_cursor"`
+	Total      int          `json:"total"`
+}
+
+// StateSetRequest is automations.state_set: write a key. TTL is a duration (20m, 2h, 7d) or empty.
+type StateSetRequest struct {
+	ID    string          `json:"id"`
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
+	TTL   string          `json:"ttl,omitempty"`
+}
+
+// StateSetResponse is the key as written.
+type StateSetResponse struct {
+	Entry StateEntry `json:"entry"`
+}
+
+// StateKeyRequest is automations.state_delete.
+type StateKeyRequest struct {
+	ID  string `json:"id"`
+	Key string `json:"key"`
 }

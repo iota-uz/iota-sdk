@@ -59,7 +59,7 @@ const context = {
   initial: {
     basePath: '/automations', integrationsPath: '/settings/integrations', view,
     ...(params.get('id') ? { id: params.get('id')! } : {}), ...(params.get('run') ? { run: params.get('run')! } : {}),
-    can, agent,
+    can, agent, state: params.get('state') !== 'off',
   },
 }
 document.getElementById('iota-client-context')!.textContent = JSON.stringify(context)

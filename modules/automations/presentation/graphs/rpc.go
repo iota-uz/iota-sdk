@@ -64,6 +64,9 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodRunRetry, c.runRetry),
 		bind(MethodRunRestart, c.runRestart),
 		bind(MethodMCPTools, c.mcpTools),
+		bind(MethodStateList, c.stateList),
+		bind(MethodStateSet, c.stateSet),
+		bind(MethodStateDelete, c.stateDelete),
 	}
 }
 
@@ -727,7 +730,11 @@ func (c *Controller) dryRun(ctx context.Context, req DryRunRequest) (DryRunRespo
 	if s := subjectRef(&req.Subject); s != nil {
 		subject = *s
 	}
-	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events})
+	in := engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events}
+	if id, err := uuid.Parse(strings.TrimSpace(req.ID)); err == nil {
+		in.AutomationID = id // its memory is read; a dry run writes none
+	}
+	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, in)
 	if err != nil {
 		return DryRunResponse{}, mapErr(err)
 	}
@@ -743,7 +750,11 @@ func (c *Controller) testNode(ctx context.Context, req TestNodeRequest) (TestNod
 	if err != nil {
 		return TestNodeResponse{}, err
 	}
-	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context})
+	in := engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context}
+	if id, err := uuid.Parse(strings.TrimSpace(req.ID)); err == nil {
+		in.AutomationID = id
+	}
+	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, in)
 	if err != nil {
 		return TestNodeResponse{}, mapErr(err)
 	}
