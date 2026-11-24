@@ -35,7 +35,9 @@ func (r *Runtime) SetOperationsHook(fn func()) { r.opsHook = fn }
 
 // SetCallResultHook runs fn in a call child after its result (and the parent's signal) committed, before
 // the child's completion.
-func (r *Runtime) SetCallResultHook(fn func(ctx context.Context, child uuid.UUID)) { r.callResultHook = fn }
+func (r *Runtime) SetCallResultHook(fn func(ctx context.Context, child uuid.UUID)) {
+	r.callResultHook = fn
+}
 
 // QuietCallObserver keeps the observer of automation.call from signalling the parent.
 func (r *Runtime) QuietCallObserver() { r.quietCallObserver = true }
