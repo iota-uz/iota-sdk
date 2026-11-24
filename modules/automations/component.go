@@ -36,6 +36,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/attachments"
+	"github.com/iota-uz/iota-sdk/modules/automations/presentation/graphs"
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -43,14 +44,19 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
+	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/settings"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -65,9 +71,9 @@ const SettingsPageIntegrations = "automations.integrations"
 // Option configures the component.
 type Option func(*component)
 
-// WithUsageIndex is where connections are used (the automation engine's index over graph versions,
-// wired by #1339). Default: a usage index the container provides, else none — nothing is in use and
-// deleting is never blocked.
+// WithUsageIndex is where connections are used. Default: a usage index the container provides, else
+// the automation engine's index over graph versions (engine.Runtime.UsageIndex), else none — nothing is
+// in use and deleting is never blocked.
 func WithUsageIndex(u connectors.UsageIndex) Option {
 	return func(c *component) { c.usage = u }
 }
@@ -107,6 +113,9 @@ type component struct {
 	connectors      []connectors.Connector
 	host            *clienthost.Manifest
 	automationsPath string
+	engineTune      []func(*engine.Config)
+	noEngine        bool
+	noBackground    bool
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -119,8 +128,10 @@ func (c *component) LocaleFS() []*embed.FS { return []*embed.FS{&localeFiles} }
 // host bundle and the OAuth2 redirect, the extension runtime's UI and the HTTP origin.
 type settingsCfg struct {
 	automation automationconfig.Config
-	hostPath   string
-	origin     string
+	// sms are the platform credentials of the SMS connectors the environment configures.
+	sms      map[catalog.ConnectorKind]connectors.PlatformCredential
+	hostPath string
+	origin   string
 }
 
 func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
@@ -135,6 +146,15 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
+	eskizCfg, err := config.Register[eskizconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	twilioCfg, err := config.Register[twilioconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.sms = sms.PlatformCredentials(eskizCfg, twilioCfg)
 	ext, err := config.Register[extruntimeconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -167,6 +187,11 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
+	for kind, cred := range cfg.sms {
+		if _, set := platformCreds[kind]; !set { // an explicit platform.credentials entry wins
+			platformCreds[kind] = cred
+		}
+	}
 	hostManifest := c.host
 	var assets http.Handler
 	if hostManifest == nil {
@@ -188,15 +213,41 @@ func (c *component) Build(b *composition.Builder) error {
 	// The registry's availability is the store, which is built after the directory that registers into
 	// the registry: it is resolved on the first catalog read.
 	composition.ProvideDefault[catalog.Registry](b, func(container *composition.Container) (catalog.Registry, error) {
-		return catalog.NewRegistry(lazyAvailability{container: container}), nil
+		reg := catalog.NewRegistry(lazyAvailability{container: container})
+		if c.noEngine {
+			return reg, nil
+		}
+		var natives *native.Set
+		if composition.Has[*native.Set](container) {
+			if natives, err = composition.Resolve[*native.Set](container); err != nil {
+				return nil, err
+			}
+		}
+		if err := registerEngineCatalog(reg, natives, slog.Default()); err != nil {
+			return nil, err
+		}
+		return reg, nil
 	})
+	c.buildEngine(b)
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
 		reg, err := composition.Resolve[catalog.Registry](container)
 		if err != nil {
 			return nil, err
 		}
 		dir := connectors.NewDirectory(reg)
+		registered := map[catalog.ConnectorKind]bool{}
 		for _, conn := range c.connectors {
+			if err := dir.Register(conn); err != nil {
+				return nil, err
+			}
+			registered[conn.Kind()] = true
+		}
+		// The SDK's own connectors, unless the application registered its own of the kind.
+		status := lazyStatus{container: container}
+		for _, conn := range []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))} {
+			if registered[conn.Kind()] {
+				continue
+			}
 			if err := dir.Register(conn); err != nil {
 				return nil, err
 			}
@@ -316,6 +367,7 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return []application.Controller{attachments.NewController(uploads)}, nil
 	})
+	c.buildPages(b)
 	if hostManifest != nil {
 		composition.AddSettings(b, settings.OrganizationSection(IntegrationsSettingsPage()))
 	} else if logger := b.Context().Logger(); logger != nil {
@@ -356,12 +408,32 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 	return st.Connected(ctx, tenantID)
 }
 
-// messagePrefix is the namespace of the screen's strings in the module's locale files.
+// lazyStatus marks connections needs_reauth through the store, which is built after the directory.
+type lazyStatus struct{ container *composition.Container }
+
+func (l lazyStatus) SetStatus(ctx context.Context, tenantID, id uuid.UUID, st connectors.ConnectionStatus, reason string) error {
+	store, err := composition.Resolve[connectors.ConnectionStore](l.container)
+	if err != nil {
+		return err
+	}
+	return store.SetStatus(ctx, tenantID, id, st, reason)
+}
+
+// messagePrefix is the namespace of the integrations screen's strings in the module's locale files.
 const messagePrefix = "Automations.Integrations."
+
+// graphsPrefix is the namespace of the automations screens' strings.
+const graphsPrefix = "Automations.Graphs."
 
 // MessageKeys are the locale keys the integrations screen reads: every key below
 // Automations.Integrations of the English locale file.
-func MessageKeys() ([]string, error) {
+func MessageKeys() ([]string, error) { return messageKeysUnder(messagePrefix) }
+
+// GraphsMessageKeys are the locale keys the automations screens read: every key below
+// Automations.Graphs of the English locale file.
+func GraphsMessageKeys() ([]string, error) { return messageKeysUnder(graphsPrefix) }
+
+func messageKeysUnder(messagePrefix string) ([]string, error) {
 	raw, err := localeFiles.ReadFile("presentation/locales/en.json")
 	if err != nil {
 		return nil, err
@@ -400,10 +472,84 @@ func (c *component) usageIndex(container *composition.Container) (connectors.Usa
 	if c.usage != nil {
 		return c.usage, nil
 	}
-	if !composition.Has[connectors.UsageIndex](container) {
-		return nil, nil //nolint:nilnil // no index is an outcome: usage is then empty
+	if composition.Has[connectors.UsageIndex](container) {
+		return composition.Resolve[connectors.UsageIndex](container)
 	}
-	return composition.Resolve[connectors.UsageIndex](container)
+	// The engine's index over graph versions: a connection an enabled graph uses is not deleted.
+	rt, err := c.runtime(container)
+	if err != nil {
+		return nil, err
+	}
+	if rt != nil {
+		return rt.UsageIndex(), nil
+	}
+	return nil, nil //nolint:nilnil // no index is an outcome: usage is then empty
+}
+
+// buildPages mounts the automations section (/automations: the list and the editor) and the
+// connectors' webhook endpoint when the composition runs the engine.
+func (c *component) buildPages(b *composition.Builder) {
+	composition.ContributeControllers(b, func(container *composition.Container) ([]application.Controller, error) {
+		rt, err := c.runtime(container)
+		if err != nil {
+			return nil, err
+		}
+		if rt == nil {
+			if logger := b.Context().Logger(); logger != nil {
+				logger.Info("automations: the automations pages are not mounted: the composition runs no automation engine (wiring.NewComponent)")
+			}
+			return nil, nil
+		}
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		reg, err := composition.Resolve[catalog.Registry](container)
+		if err != nil {
+			return nil, err
+		}
+		store, err := composition.Resolve[connectors.ConnectionStore](container)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := composition.Resolve[connectors.Directory](container)
+		if err != nil {
+			return nil, err
+		}
+		platform, err := composition.Resolve[connectors.PlatformCredentials](container)
+		if err != nil {
+			return nil, err
+		}
+		keys, err := GraphsMessageKeys()
+		if err != nil {
+			return nil, err
+		}
+		host, assets := c.host, http.Handler(nil)
+		if host == nil {
+			bundle, err := graphs.DefaultBundle()
+			if err == nil {
+				host, assets = &bundle.Manifest, bundle.Handler
+			} else if logger := b.Context().Logger(); logger != nil {
+				logger.Warnf("automations: the embedded automations bundle is unavailable: %v", err)
+			}
+		}
+		path := c.automationsPath
+		if path == "" {
+			path = graphs.DefaultPath
+		}
+		ctrl, err := graphs.NewController(graphs.Config{
+			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
+			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
+			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		hooks := graphs.NewHooksController(engine.InboundHandler(engine.InboundConfig{
+			Connections: store, Registry: reg, Inbound: rt.Inbound(), DB: db, Connectors: dir, Platform: platform,
+		}))
+		return []application.Controller{ctrl, hooks}, nil
+	})
 }
 
 // platformProvider is a connector that brings a platform credential of its own kind from the application's

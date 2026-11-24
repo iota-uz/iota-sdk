@@ -49,13 +49,13 @@ type automationRow struct {
 	DeletedAt *time.Time
 }
 
-const automationCols = `id, name, latest_version, enabled_version, owner_user_id, layout, created_by, created_origin, created_at, updated_at, deleted_at`
+const automationCols = `id, name, latest_version, enabled_version, owner_user_id, layout, layout_revision, created_by, created_origin, created_at, updated_at, deleted_at`
 
 func scanAutomation(row pgx.Row) (automationRow, error) {
 	var a automationRow
 	var layout []byte
 	var origin string
-	err := row.Scan(&a.ID, &a.Name, &a.LatestVersion, &a.EnabledVersion, &a.OwnerUserID, &layout, &a.CreatedBy, &origin, &a.CreatedAt, &a.UpdatedAt, &a.DeletedAt)
+	err := row.Scan(&a.ID, &a.Name, &a.LatestVersion, &a.EnabledVersion, &a.OwnerUserID, &layout, &a.LayoutRevision, &a.CreatedBy, &origin, &a.CreatedAt, &a.UpdatedAt, &a.DeletedAt)
 	if err != nil {
 		return a, err
 	}

@@ -103,6 +103,10 @@ func New(t *testing.T, mode Mode, accounts ...Account) *Server {
 	s.imapCaps = imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapMove: {}, imap.CapUIDPlus: {}}
 	s.imapSrv = imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
+			// The connection reads imapCaps after its session is made; taking mu here orders that read
+			// after a DisableMove or DisableUIDPlus made before the client dialed.
+			s.mu.Lock()
+			defer s.mu.Unlock()
 			return &imapSession{Session: s.imapMem.NewSession(), s: s}, nil, nil
 		},
 		Caps:      s.imapCaps,
@@ -147,10 +151,14 @@ func (s *Server) FailBodyFetch(n int) {
 // DisableMove and DisableUIDPlus make the IMAP server stop advertising the extension, as an older server
 // does: a client that uses it anyway is wrong.
 func (s *Server) DisableMove() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.imapCaps, imap.CapMove)
 	delete(s.imapCaps, imap.CapIMAP4rev2) // which has MOVE and UIDPLUS in it
 }
 func (s *Server) DisableUIDPlus() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.imapCaps, imap.CapUIDPlus)
 	delete(s.imapCaps, imap.CapIMAP4rev2)
 }
