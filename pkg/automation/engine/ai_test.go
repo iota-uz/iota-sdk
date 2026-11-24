@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,6 +87,21 @@ func completion(content string, in, out int) (int, string) {
 	return http.StatusOK, string(b)
 }
 
+// storeProviders tells the provider of a tenant's Jev connection from the store.
+type storeProviders struct{ store connectors.Store }
+
+func (s storeProviders) Provider(ctx context.Context, tenant uuid.UUID, id string) (string, error) {
+	cid, err := uuid.Parse(id)
+	if err != nil {
+		return "", connectors.ErrNotFound
+	}
+	_, creds, err := s.store.Get(ctx, tenant, cid)
+	if err != nil {
+		return "", err
+	}
+	return creds["provider"], nil
+}
+
 // platformOnly is a platform credential of the openai kind, offered by opt-in.
 type platformOnly struct{ creds connectors.Credentials }
 
@@ -130,7 +146,7 @@ func newAIEnv(t *testing.T) *aiEnv {
 	ae.dir = connectors.NewDirectory(ae.reg)
 	tr := ae.provider.transport()
 	require.NoError(t, ae.dir.Register(openai.New(openai.WithTransport(tr), openai.WithDefaultModel(defaultLLMModel))))
-	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithDefaultModel("typesafe/jev-1.14"))))
+	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithProviders(storeProviders{ae.store}))))
 	return ae
 }
 
@@ -545,4 +561,24 @@ func TestTestNodeShowsTheRenderedRequest(t *testing.T) {
 	require.NotNil(t, res.Error)
 	assert.Contains(t, string(res.Request), "Summarize: wrong size", "the rendered prompt, also of a call that failed")
 	assert.Less(t, time.Since(started), 2500*time.Millisecond, "timeout_ms is the deadline")
+}
+
+// The model an ai.jev node is saved with is the default of the provider of its connection, and a model of the
+// other provider is refused on save.
+func TestJevModelFollowsTheConnectionsProvider(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.connect(catalog.KindJEV, connectors.Credentials{"provider": "openai", "api_key": "sk-openai-key-1234"})
+	p := ae.proc()
+	am := ae.create(p, ae.human(), jevGraph)
+	var model string
+	require.NoError(t, ae.db.QueryRow(context.Background(),
+		`SELECT graph->'nodes'->0->'params'->>'model' FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 AND version = 1`, ae.tenant, am.ID).Scan(&model))
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", model, "an OpenAI connection is not saved with a TypeSafe Jev version")
+
+	named := strings.Replace(jevGraph, `"params": {"input"`, `"params": {"model": "typesafe/jev-1.14", "input"`, 1)
+	_, _, err := p.rt.Service().Create(context.Background(), ae.human(), engine.CreateInput{Graph: json.RawMessage(named)})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, jev.ErrorModelProvider, verr.Errors[0].Code)
+	assert.Equal(t, "nodes[0].params.model", verr.Errors[0].Path)
 }

@@ -70,11 +70,12 @@ func Rolling(id string) bool {
 // vision lists the models known to take images, by their exact base id; a snapshot adds -YYYY-MM-DD. The
 // providers' own model lists do not carry the modality for every endpoint, and the check runs when a graph
 // is saved, with no request: an application with metadata of its own replaces it (WithVision).
-var vision = regexp.MustCompile(`^(openai/)?(` +
-	`gpt-4o|gpt-4o-mini|chatgpt-4o|gpt-4\.1|gpt-4\.1-mini|gpt-4\.1-nano|gpt-4\.5-preview|gpt-4-turbo|gpt-4-vision-preview|` +
-	`gpt-5|gpt-5-mini|gpt-5-nano|gpt-5\.[0-9]+|o1|o3|o4-mini)` +
-	`(-\d{4}-\d{2}-\d{2})?$|^(anthropic/)claude-(3|3\.5|3\.7|opus-4|sonnet-4|haiku-4|opus-4\.[0-9]|sonnet-4\.[0-9]|haiku-4\.[0-9])(-(opus|sonnet|haiku))?(-\d{8}|-\d{4}-\d{2}-\d{2})?$|` +
-	`^google/gemini-[0-9][0-9a-z.\-]*$`)
+var vision = regexp.MustCompile(`^(?:openai/)?(?:` +
+	`gpt-4o(?:-mini)?|chatgpt-4o|gpt-4\.1(?:-mini|-nano)?|gpt-4\.5-preview|gpt-4-turbo|gpt-4-vision-preview|` +
+	`gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|o1|o3(?:-pro)?|o4-mini)` +
+	`(?:-\d{4}-\d{2}-\d{2})?$` +
+	`|^anthropic/claude-(?:3|3\.5|3\.7|opus-4|sonnet-4|haiku-4|opus-4\.[0-9]|sonnet-4\.[0-9]|haiku-4\.[0-9])(?:-(?:opus|sonnet|haiku))?(?:-\d{8}|-\d{4}-\d{2}-\d{2})?$` +
+	`|^google/gemini-[0-9][0-9a-z.\-]*$`)
 
 // VisionModel reports whether the model takes images: a model of the verified list above. A model that only
 // shares a prefix with one (gpt-4o-mini-transcribe, gpt-4o-audio-preview, gpt-4o-realtime-preview, whose

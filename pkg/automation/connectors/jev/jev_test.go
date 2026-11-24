@@ -160,35 +160,79 @@ func TestParams(t *testing.T) {
 }
 
 func TestDefaultsAreAppliedAndPinned(t *testing.T) {
-	n, _ := newNode(t, jev.WithDefaultModel("typesafe/jev-1.14"))
+	n, _ := newNode(t)
 	p := parsed(t, n, map[string]any{"input": "{}", "choices": choices(t)})
 	assert.Equal(t, json.Number("0.6"), p["min_confidence"], "min_confidence defaults to 0.6")
 	assert.Equal(t, jev.DefaultPrompt, p["prompt"])
 	assert.Contains(t, jev.DefaultPrompt, "When in doubt, choose the safest option")
 	assert.Equal(t, json.Number("60000"), p["timeout_ms"])
 
+	// The instruction is pinned by CompleteParams; the model by CompleteParamsFor, which knows the connection.
 	cn := n.(catalog.CompletedNode)
 	raw := map[string]any{"input": "{}", "choices": choices(t)}
 	done := cn.CompleteParams(raw)
-	assert.Equal(t, "typesafe/jev-1.14", done["model"])
 	assert.Equal(t, jev.DefaultPrompt, done["prompt"])
-	assert.NotContains(t, raw, "model")
-	assert.NotContains(t, raw, "prompt")
+	assert.NotContains(t, done, "model")
+	assert.NotContains(t, raw, "prompt", "the argument is not changed")
 	assert.Equal(t, done, cn.CompleteParams(done))
-	kept := cn.CompleteParams(map[string]any{"model": "gpt-4o-2024-08-06", "prompt": "my rules"})
-	assert.Equal(t, "gpt-4o-2024-08-06", kept["model"])
-	assert.Equal(t, "my rules", kept["prompt"])
+	assert.Equal(t, "my rules", cn.CompleteParams(map[string]any{"prompt": "my rules"})["prompt"])
 	assert.Equal(t, "", cn.CompleteParams(map[string]any{"prompt": ""})["prompt"], "an empty prompt is refused, not replaced")
 }
 
-func TestDefaultModelOfAConfiguration(t *testing.T) {
-	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModel(nil))
-	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModel(&jevconfig.Config{}))
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", jev.DefaultModel(&jevconfig.Config{Provider: "openai"}))
-	assert.Equal(t, "typesafe/jev-1.13", jev.DefaultModel(&jevconfig.Config{DefaultModel: " typesafe/jev-1.13 "}))
-	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI} {
-		assert.NoError(t, aichat.CheckModel(m), "the shipped default %s is pinned", m)
+type providers map[string]string
+
+func (p providers) Provider(_ context.Context, _ uuid.UUID, id string) (string, error) {
+	if v, ok := p[id]; ok {
+		return v, nil
 	}
+	return "", connectors.ErrNotFound
+}
+
+// A node saved without a model gets the default of the provider of its connection, so an OpenAI connection
+// is not saved with a TypeSafe Jev version, nor an OpenRouter one with a chat model; a model that does not
+// fit the connection is refused on save.
+func TestModelIsPinnedByTheProviderOfTheConnection(t *testing.T) {
+	src := providers{"or": "openrouter", "oa": "openai", "platform:jev": "openai"}
+	n, _ := newNode(t, jev.WithProviders(src))
+	cn := n.(catalog.ConnectionNode)
+	ctx := context.Background()
+	tenant := uuid.New()
+	raw := map[string]any{"input": "{}"}
+	assert.Equal(t, "typesafe/jev-1.14", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)["model"])
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "oa"}, raw)["model"])
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "platform:jev"}, raw)["model"])
+	assert.NotContains(t, raw, "model", "the argument is not changed")
+	assert.Equal(t, "typesafe/jev-1.13", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, map[string]any{"model": "typesafe/jev-1.13"})["model"])
+	assert.Equal(t, "typesafe/jev-1.14", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "unknown"}, raw)["model"], "a connection of an unknown provider gets the OpenRouter default")
+
+	check := func(conn, model string) []graph.Issue {
+		return cn.CheckParamsFor(ctx, tenant, catalog.ConnectionRef{ID: conn}, map[string]any{"model": model})
+	}
+	assert.Empty(t, check("or", "typesafe/jev-1.14"))
+	assert.Empty(t, check("oa", "gpt-4o-mini-2024-07-18"))
+	assert.Empty(t, check("unknown", "gpt-4o-mini-2024-07-18"), "nothing to check against")
+	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}} {
+		issues := check(bad[0], bad[1])
+		require.Len(t, issues, 1, bad)
+		assert.Equal(t, jev.ErrorModelProvider, issues[0].Code)
+		assert.Equal(t, []any{"model"}, issues[0].Path)
+	}
+
+	// The defaults follow the platform configuration, for its provider only.
+	n2, _ := newNode(t, jev.WithProviders(src), jev.WithPlatformConfig(&jevconfig.Config{Provider: "openai", APIKey: "k", DefaultModel: "gpt-4.1-2025-04-14"}))
+	cn2 := n2.(catalog.ConnectionNode)
+	assert.Equal(t, "gpt-4.1-2025-04-14", cn2.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "oa"}, raw)["model"])
+	assert.Equal(t, "typesafe/jev-1.14", cn2.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)["model"])
+	n3, _ := newNode(t, jev.WithDefaultModel("typesafe/jev-1.13"), jev.WithDefaultModel("gpt-4o-2024-08-06"))
+	cn3 := n3.(catalog.ConnectionNode)
+	assert.Equal(t, "typesafe/jev-1.13", cn3.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "unknown"}, raw)["model"])
+}
+
+func TestShippedDefaultsArePinned(t *testing.T) {
+	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI} {
+		assert.NoError(t, aichat.CheckModel(m), m)
+	}
+	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModelOpenRouter)
 }
 
 func openrouterNode(t *testing.T, srv *aitest.Server, opts ...jev.Option) catalog.CallNode {
@@ -264,15 +308,50 @@ func TestOpenRouterDecidesWithTypeSafeJev(t *testing.T) {
 	assert.Equal(t, "refund", res.Outcome)
 }
 
-func TestOpenRouterWithoutAConfidenceUsesTheChoicesProbability(t *testing.T) {
+// The provider's confidence is required: it is a measure of the distribution, not a copy of the probability
+// of the choice, so a reply without it is not routed on.
+func TestOpenRouterWithoutAConfidenceIsInvalid(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: typesafe("exchange", map[string]float64{"refund": 0.1, "exchange": 0.85, "other": 0.05}, nil)})
 	n := openrouterNode(t, srv)
-	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+	usage := &aitest.Usage{}
+	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage)
 	in.Params["model"] = "typesafe/jev-1.14"
-	res, err := n.Execute(context.Background(), in)
+	_, err := n.Execute(context.Background(), in)
+	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+	assert.Len(t, srv.Requests(), 1)
+	assert.Positive(t, usage.Total("token_in"), "the tokens were spent")
+}
+
+// A null, a string or a missing value is not a probability (decoded into numbers it would be 0).
+func TestOpenRouterNonNumericWireValuesAreInvalid(t *testing.T) {
+	usage := `"usage":{"input_tokens":9,"output_tokens":1}`
+	for name, body := range map[string]string{
+		"null probability":    `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":null,"other":0},"confidence":0.9}},` + usage + `}`,
+		"string probability":  `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":"0","other":0},"confidence":0.9}},` + usage + `}`,
+		"missing probability": `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","confidence":0.9}},` + usage + `}`,
+		"null confidence":     `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":0,"other":0},"confidence":null}},` + usage + `}`,
+		"string confidence":   `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":0,"other":0},"confidence":"high"}},` + usage + `}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: body})
+			n := openrouterNode(t, srv)
+			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+			in.Params["model"] = "typesafe/jev-1.14"
+			_, err := n.Execute(context.Background(), in)
+			assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+			assert.Len(t, srv.Requests(), 1)
+		})
+	}
+}
+
+// A call whose params name no model (a test of a node before it is saved) uses the default of the provider
+// of its connection.
+func TestMissingModelFallsBackToTheProvidersDefault(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0.1, "exchange": 0.1, "other": 0.8})})
+	n := openaiNode(t, srv)
+	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), nil))
 	require.NoError(t, err)
-	assert.Equal(t, "exchange", res.Outcome)
-	assert.InDelta(t, 0.85, res.Output["confidence"], 1e-9)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", srv.Requests()[0].JSON(t)["model"])
 }
 
 // OpenRouter takes a pinned TypeSafe Jev version; a chat model there, or a Jev version on OpenAI, is a

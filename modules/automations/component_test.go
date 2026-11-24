@@ -184,3 +184,39 @@ func TestComponentRegistersTheAIConnectors(t *testing.T) {
 	assert.Equal(t, connectors.Credentials{"provider": "openrouter", "api_key": "sk-explicit"}, creds, "an explicit platform credential wins")
 	assert.Equal(t, []catalog.ConnectorKind{catalog.KindJEV, catalog.KindOpenAI}, platform.(connectors.PlatformCatalog).Kinds())
 }
+
+// The registry the module provides learns from the store which platform keys a tenant cannot use: a node that
+// leaves its connection out ends with unavailable, not connection_unavailable, when the key is switched off.
+func TestModuleRegistryKnowsWithheldPlatformKeys(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{"automation.openai.apikey": "sk-openai"}))
+	require.NoError(t, err)
+	components := []composition.Component{}
+	for _, c := range modules.Components() {
+		if c.Descriptor().Name != "automations" {
+			components = append(components, c)
+		}
+	}
+	components = append(components, automations.NewComponent())
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
+	reg, err := composition.Resolve[catalog.Registry](f.Container)
+	require.NoError(t, err)
+	grants, err := composition.Resolve[connectors.PlatformGrants](f.Container)
+	require.NoError(t, err)
+	tenant := f.Tenant.ID
+
+	view, err := reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.True(t, view.PlatformWithheld[catalog.KindOpenAI], "offered by the platform, not enabled by the tenant")
+	assert.NotContains(t, view.Catalog.Nodes, "ai.llm")
+
+	require.NoError(t, grants.SetEnabled(f.Ctx, tenant, catalog.KindOpenAI, true, 0))
+	view, err = reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.False(t, view.PlatformWithheld[catalog.KindOpenAI])
+	assert.Contains(t, view.Catalog.Nodes, "ai.llm")
+
+	require.NoError(t, grants.SetEnabled(f.Ctx, tenant, catalog.KindOpenAI, false, 0))
+	view, err = reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.True(t, view.PlatformWithheld[catalog.KindOpenAI], "switched off again")
+}

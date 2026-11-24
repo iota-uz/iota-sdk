@@ -52,10 +52,12 @@ type decisionReply struct {
 	Model    string `json:"model"`
 	Provider string `json:"provider"`
 	Answers  map[string]struct {
-		Type          string             `json:"type"`
-		Choice        string             `json:"choice"`
-		Probabilities map[string]float64 `json:"probabilities"`
-		Confidence    *float64           `json:"confidence"`
+		Type   string `json:"type"`
+		Choice string `json:"choice"`
+		// Kept as raw values: a null or a string is not a probability, and decoding into numbers would
+		// read it as 0.
+		Probabilities map[string]json.RawMessage `json:"probabilities"`
+		Confidence    json.RawMessage            `json:"confidence"`
 	} `json:"answers"`
 	Usage *struct {
 		InputTokens  int      `json:"input_tokens"`
@@ -115,8 +117,39 @@ func (c *Client) Decide(ctx context.Context, ep Endpoint, r DecisionRequest) (De
 	case a.Type != "" && a.Type != "choice":
 		return out, fail(catalog.CallInvalidRequest, "the provider's answer is not a choice", false)
 	}
-	out.Choice, out.Probabilities, out.Confidence = a.Choice, a.Probabilities, a.Confidence
+	out.Choice = a.Choice
+	// A choice answer carries its distribution and the provider's confidence in it: both are required, and
+	// each value is a number.
+	if len(a.Probabilities) == 0 {
+		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no probabilities", false)
+	}
+	out.Probabilities = make(map[string]float64, len(a.Probabilities))
+	for name, raw := range a.Probabilities {
+		v, ok := wireNumber(raw)
+		if !ok {
+			return out, fail(catalog.CallInvalidRequest, "the provider's probability of a choice is not a number", false)
+		}
+		out.Probabilities[name] = v
+	}
+	conf, ok := wireNumber(a.Confidence)
+	if !ok {
+		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no confidence", false)
+	}
+	out.Confidence = &conf
 	return out, nil
+}
+
+// wireNumber reads a JSON number; a null, a string or a missing value is not one.
+func wireNumber(raw json.RawMessage) (float64, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] == '"' || bytes.Equal(raw, []byte("null")) {
+		return 0, false
+	}
+	var v float64
+	if json.Unmarshal(raw, &v) != nil {
+		return 0, false
+	}
+	return v, true
 }
 
 // decisionStatusFailure sorts a non-200 answer of the Decisions API: its error body carries a numeric code

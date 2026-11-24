@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/internal/aichat"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -106,9 +108,10 @@ type jevNode struct {
 }
 
 var (
-	_ catalog.CallNode      = (*jevNode)(nil)
-	_ catalog.CompletedNode = (*jevNode)(nil)
-	_ engine.DecisionNode   = (*jevNode)(nil)
+	_ catalog.CallNode       = (*jevNode)(nil)
+	_ catalog.CompletedNode  = (*jevNode)(nil)
+	_ catalog.ConnectionNode = (*jevNode)(nil)
+	_ engine.DecisionNode    = (*jevNode)(nil)
 )
 
 func newNode(o options, client *aichat.Client, unauthorized func(context.Context, catalog.CallInput)) *jevNode {
@@ -161,20 +164,62 @@ func (n *jevNode) Requires() []catalog.ConnectorKind { return []catalog.Connecto
 // unknown. A repeat is paid again and recorded.
 func (n *jevNode) Idempotent() bool { return true }
 
-// CompleteParams writes the default model and, when there is none, the default prompt into a node saved
-// without them: a saved version names its model and its instruction, and a later change of the default
-// does not change it.
+// CompleteParams writes the default instruction into a node saved without one: a saved version names its
+// instruction, and a later change of the default does not change it. The model is pinned by
+// CompleteParamsFor, which knows the connection.
 func (n *jevNode) CompleteParams(p map[string]any) map[string]any {
-	out := aichat.CompleteModel(p, n.o.defaultModel)
-	if v, set := out["prompt"]; !set || v == nil {
-		cp := make(map[string]any, len(out)+1)
-		for k, e := range out {
-			cp[k] = e
-		}
-		cp["prompt"] = DefaultPrompt
-		out = cp
+	if v, set := p["prompt"]; set && v != nil {
+		return p
 	}
-	return out
+	cp := make(map[string]any, len(p)+1)
+	for k, e := range p {
+		cp[k] = e
+	}
+	cp["prompt"] = DefaultPrompt
+	return cp
+}
+
+// providerOf is the provider of the connection a node is saved with; "" when it is not known.
+func (n *jevNode) providerOf(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef) string {
+	if n.o.providers == nil {
+		return ""
+	}
+	p, err := n.o.providers.Provider(ctx, tenant, conn.ID)
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
+// defaultFor is the default model of a provider; an unknown provider gets OpenRouter's.
+func (n *jevNode) defaultFor(provider string) string {
+	if m, ok := n.o.defaults[provider]; ok {
+		return m
+	}
+	return n.o.defaults[ProviderOpenRouter]
+}
+
+// CompleteParamsFor writes the default model of the provider of the node's connection into a node saved
+// without a model: a node on an OpenAI connection does not get a TypeSafe Jev version, nor the other way
+// round. The saved version names its model, and a later change of the default does not change it.
+func (n *jevNode) CompleteParamsFor(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef, p map[string]any) map[string]any {
+	return aichat.CompleteModel(p, n.defaultFor(n.providerOf(ctx, tenant, conn)))
+}
+
+// ErrorModelProvider is the graph error code of a model that does not fit the provider of the connection.
+const ErrorModelProvider = "model_provider_mismatch"
+
+// CheckParamsFor refuses a model that the provider of the node's connection does not take.
+func (n *jevNode) CheckParamsFor(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef, p map[string]any) []graph.Issue {
+	model, _ := p["model"].(string)
+	provider := n.providerOf(ctx, tenant, conn)
+	if model == "" || provider == "" {
+		return nil
+	}
+	if err := checkProviderModel(provider, model); err != nil {
+		return []graph.Issue{aichat.Issue("model", ErrorModelProvider, "%v", err)}
+	}
+	return nil
 }
 
 // call is the params of a call, read.
@@ -186,11 +231,11 @@ type call struct {
 }
 
 // read takes the rendered params of a call. An error is an invalid request.
-func (n *jevNode) read(p map[string]any) (call, error) {
+func (n *jevNode) read(p map[string]any, provider string) (call, error) {
 	var r call
 	r.model, _ = p["model"].(string)
 	if r.model == "" {
-		r.model = n.o.defaultModel
+		r.model = n.defaultFor(provider)
 	}
 	if err := aichat.CheckModel(r.model); err != nil {
 		return r, err
@@ -240,7 +285,7 @@ func (n *jevNode) read(p map[string]any) (call, error) {
 // the model and the params that shape the decision (the choices, the confidence floor that turns it into
 // an outcome, the provider).
 func (n *jevNode) DecisionKey(in catalog.CallInput) (string, bool) {
-	r, err := n.read(in.Params)
+	r, err := n.read(in.Params, in.Credentials["provider"])
 	if err != nil {
 		return "", false
 	}
@@ -287,7 +332,7 @@ func checkProviderModel(provider, model string) error {
 }
 
 func (n *jevNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
-	r, err := n.read(in.Params)
+	r, err := n.read(in.Params, in.Credentials["provider"])
 	if err != nil {
 		return catalog.CallResult{}, invalid(err.Error())
 	}
@@ -373,13 +418,10 @@ func (n *jevNode) decideOnOpenRouter(ctx context.Context, ep aichat.Endpoint, r 
 	d := decided{choice: resp.Choice}
 	d.probs, d.err = checkDistribution(resp.Probabilities, r.choices, resp.Choice)
 	if d.err == nil {
-		d.confidence = d.probs[resp.Choice]
-		if resp.Confidence != nil {
-			c := *resp.Confidence
-			if math.IsNaN(c) || math.IsInf(c, 0) || c < 0 || c > 1 {
-				d.err = errors.New("the confidence of the answer is not a number from 0 to 1")
-			}
-			d.confidence = c
+		// The provider's confidence measures the distribution; it is what the node routes by.
+		d.confidence = *resp.Confidence
+		if math.IsNaN(d.confidence) || math.IsInf(d.confidence, 0) || d.confidence < 0 || d.confidence > 1 {
+			d.err = errors.New("the confidence of the answer is not a number from 0 to 1")
 		}
 	}
 	return d, resp.Usage, resp.Model, nil

@@ -692,6 +692,8 @@ func TestRollingIdsAreNotPinned(t *testing.T) {
 func TestVisionIsAVerifiedList(t *testing.T) {
 	for model, want := range map[string]bool{
 		"gpt-4o-2024-08-06": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1-2025-04-14": true, "gpt-5-2025-08-07": true, "o3-2025-04-16": true,
+		"gpt-5.4-mini-2026-03-17": true, "gpt-5-mini-2025-08-07": true, "gpt-5-nano-2025-08-07": true, "gpt-5.1-2025-11-13": true, "gpt-4.1-mini-2025-04-14": true, "o3-pro-2025-06-10": true,
+		"gpt-5-chat-latest": false, "gpt-5-codex": false,
 		"gpt-4o-mini-transcribe-2025-03-20": false, "gpt-4o-audio-preview-2025-06-03": false, "gpt-4o-realtime-preview-2025-06-03": false,
 		"gpt-4o-mini-tts-2025-03-20": false, "gpt-4o-search-preview-2025-03-11": false, "gpt-4o-mini-search-preview": false,
 		"gpt-3.5-turbo-0125": false, "o3-mini-2025-01-31": false, "o1-mini-2024-09-12": false, "text-embedding-3-small": false,
@@ -794,4 +796,29 @@ func TestDecisionKeyFollowsTheEndpointAndTheConnection(t *testing.T) {
 	assert.NotEqual(t, a, key("https://llm-a.example.com/v1", "c2"), "another connection")
 	assert.NotEqual(t, key("", "c1"), a, "OpenAI's own endpoint")
 	assert.NotContains(t, a, "sk-")
+}
+
+// A field the schema does not declare is refused even when it is null: only a declared optional property may
+// be the placeholder null of strict mode.
+func TestUndeclaredNullFieldIsRefused(t *testing.T) {
+	for name, answer := range map[string]string{
+		"undeclared null": `{"summary":"fine","score":4,"extra":null}`,
+		"nested null":     `{"summary":"fine","score":4,"tags":null,"other":null}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(answer, 20, 9)})
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), nil)
+			_, err := n.Execute(context.Background(), in)
+			assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+			assert.Len(t, srv.Requests(), 1)
+		})
+	}
+	// A declared optional property that is null is dropped, as before.
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(`{"summary":"fine","score":4,"tags":null,"note":null}`, 20, 9)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	res, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), nil))
+	require.NoError(t, err)
+	raw, _ := json.Marshal(res.Output["json"])
+	assert.JSONEq(t, `{"summary":"fine","score":4}`, string(raw))
 }

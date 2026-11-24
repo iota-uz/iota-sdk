@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
@@ -34,7 +36,6 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
 	}
-	g = r.completeParams(g)
 	connState, err := connectionsState(ctx, r.cfg.DB, a.TenantID)
 	if err != nil {
 		return validated{}, err
@@ -43,10 +44,12 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if err != nil {
 		return validated{}, err
 	}
+	g = r.completeParams(ctx, a.TenantID, view, g)
 	opts := r.graphOptions()
 	connections := catalog.ConnectionRule(view)
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
 		out := append(connections(g), r.executorRule(view, g)...)
+		out = append(out, r.connectionNodeRule(ctx, a.TenantID, view, g)...)
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
 		return append(out, runAsRule(view, g)...)
@@ -64,28 +67,73 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 }
 
 // completeParams lets each node type that implements catalog.CompletedNode pin the values it fixes at
-// save time (an AI node's default model); the graph it returns is a copy.
-func (r *Runtime) completeParams(g graph.Graph) graph.Graph {
-	var out graph.Graph
+// save time (an AI node's default instruction), and each that implements catalog.ConnectionNode pin what
+// depends on its connection (the default model of its provider); the graph it returns is a copy.
+func (r *Runtime) completeParams(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) graph.Graph {
+	out := g
 	copied := false
 	for i, n := range g.Nodes {
 		nt, ok := r.cfg.Catalog.Node(n.Type)
 		if !ok {
 			continue
 		}
-		cn, ok := nt.(catalog.CompletedNode)
-		if !ok {
-			continue
+		params := n.Params
+		if cn, ok := nt.(catalog.CompletedNode); ok {
+			params = cn.CompleteParams(params)
+		}
+		if cn, ok := nt.(catalog.ConnectionNode); ok {
+			if ref, _, ok := nodeConnection(view, nt, params); ok {
+				params = cn.CompleteParamsFor(ctx, tenant, ref, params)
+			}
 		}
 		if !copied {
-			out = g
 			out.Nodes = append([]graph.Node(nil), g.Nodes...)
 			copied = true
 		}
-		out.Nodes[i].Params = cn.CompleteParams(n.Params)
+		out.Nodes[i].Params = params
 	}
-	if !copied {
-		return g
+	return out
+}
+
+// nodeConnection is the connection a node of the graph resolves to for the tenant now, as it does at run
+// time; ok is false for a node that needs none or finds none.
+func nodeConnection(view catalog.View, nt catalog.NodeType, params map[string]any) (catalog.ConnectionRef, catalog.ConnectorKind, bool) {
+	kinds := nt.Requires()
+	if len(kinds) == 0 {
+		return catalog.ConnectionRef{}, "", false
+	}
+	ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
+	return ref, kind, err == nil
+}
+
+// connectionNodeRule asks each catalog.ConnectionNode whether its params fit the connection it will run
+// with.
+func (r *Runtime) connectionNodeRule(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, n := range g.Nodes {
+		nt, ok := r.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		cn, ok := nt.(catalog.ConnectionNode)
+		if !ok {
+			continue
+		}
+		ref, _, ok := nodeConnection(view, nt, n.Params)
+		if !ok {
+			continue
+		}
+		for _, issue := range cn.CheckParamsFor(ctx, tenant, ref, n.Params) {
+			code := issue.Code
+			if code == "" {
+				code = graph.CodeParams
+			}
+			path := fmt.Sprintf("nodes[%d].params", i)
+			for _, p := range issue.Path {
+				path += fmt.Sprintf(".%v", p)
+			}
+			out = append(out, graph.GraphError{Path: path, Code: code, Message: issue.Message})
+		}
 	}
 	return out
 }

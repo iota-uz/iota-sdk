@@ -88,6 +88,18 @@ type CompletedNode interface {
 	CompleteParams(params map[string]any) map[string]any
 }
 
+// ConnectionNode is an optional interface of a NodeType whose params depend on the connection the node will
+// run with: when a graph is saved the engine resolves the connection (as it does at run time) and gives it
+// to the node, which completes the params (a default model of the connection's provider) and refuses params
+// that do not fit it. A node that finds no connection is left to the connection rule.
+type ConnectionNode interface {
+	// CompleteParamsFor is CompletedNode.CompleteParams for the connection conn of the tenant; it runs after
+	// CompleteParams.
+	CompleteParamsFor(ctx context.Context, tenantID uuid.UUID, conn ConnectionRef, params map[string]any) map[string]any
+	// CheckParamsFor returns the params that do not fit conn; an issue's path is a param of the node.
+	CheckParamsFor(ctx context.Context, tenantID uuid.UUID, conn ConnectionRef, params map[string]any) []graph.Issue
+}
+
 // CallNode is a node with an external effect (behavior call). The engine calls Execute outside of a
 // locked step.
 type CallNode interface {

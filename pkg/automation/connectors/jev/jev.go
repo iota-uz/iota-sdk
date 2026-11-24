@@ -78,15 +78,20 @@ type StatusSetter interface {
 type Option func(*options)
 
 type options struct {
-	defaultModel string
-	transport    http.RoundTripper
-	statuses     StatusSetter
-	log          *slog.Logger
-	now          func() time.Time
+	// defaults are the models an ai.jev node saved without one gets, by the provider of its connection.
+	defaults  map[string]string
+	providers ProviderSource
+	transport http.RoundTripper
+	statuses  StatusSetter
+	log       *slog.Logger
+	now       func() time.Time
 }
 
 func newOptions(opts []Option) options {
-	o := options{defaultModel: DefaultModelOpenRouter, log: slog.Default(), now: time.Now}
+	o := options{
+		defaults: map[string]string{ProviderOpenRouter: DefaultModelOpenRouter, ProviderOpenAI: DefaultModelOpenAI},
+		log:      slog.Default(), now: time.Now,
+	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&o)
@@ -95,17 +100,51 @@ func newOptions(opts []Option) options {
 	return o
 }
 
-// WithDefaultModel is the exact model id an ai.jev node saved without a model gets (the platform's
-// automation.jev.defaultmodel; default typesafe/jev-1.14, the pinned TypeSafe Jev version). It is written into the
-// version when the graph is saved, so changing it later does not change a saved graph. It must be an id of
-// the provider of the connections that use it.
+// WithDefaultModel is the exact model id an ai.jev node saved without a model gets when its connection is
+// of the provider the id belongs to (a typesafe/ id is OpenRouter's, any other OpenAI's). It is written into
+// the version when the graph is saved, so changing it later does not change a saved graph.
 func WithDefaultModel(model string) Option {
 	return func(o *options) {
-		if strings.TrimSpace(model) != "" {
-			o.defaultModel = strings.TrimSpace(model)
+		if model = strings.TrimSpace(model); model != "" {
+			o.defaults[providerOfModel(model)] = model
 		}
 	}
 }
+
+// WithPlatformConfig takes the default model of the platform configuration (automation.jev.defaultmodel):
+// it is the default of the configuration's provider.
+func WithPlatformConfig(cfg *jevconfig.Config) Option {
+	return func(o *options) {
+		if cfg == nil {
+			return
+		}
+		if m := strings.TrimSpace(cfg.DefaultModel); m != "" {
+			provider := cfg.Provider
+			if provider == "" {
+				provider = jevconfig.DefaultProvider
+			}
+			o.defaults[provider] = m
+		}
+	}
+}
+
+func providerOfModel(model string) string {
+	if strings.HasPrefix(model, "typesafe/") {
+		return ProviderOpenRouter
+	}
+	return ProviderOpenAI
+}
+
+// ProviderSource tells which provider a connection of a tenant is of (its provider credential field); the
+// platform credential is "platform:jev". Without it a node saved without a model gets the OpenRouter
+// default, whatever its connection is.
+type ProviderSource interface {
+	Provider(ctx context.Context, tenantID uuid.UUID, connectionID string) (string, error)
+}
+
+// WithProviders is where the provider of the connection a node is saved with is read from, so the node is
+// saved with a model that provider takes and a model that does not fit it is refused on save.
+func WithProviders(src ProviderSource) Option { return func(o *options) { o.providers = src } }
 
 // WithTransport makes the connector send every provider request through rt (default: the default
 // transport). Tests point it at a fake.
@@ -121,21 +160,6 @@ func WithLogger(l *slog.Logger) Option {
 			o.log = l
 		}
 	}
-}
-
-// DefaultModel is the default model of a platform configuration: its defaultmodel, else the provider's
-// default.
-func DefaultModel(cfg *jevconfig.Config) string {
-	if cfg == nil {
-		return DefaultModelOpenRouter
-	}
-	if m := strings.TrimSpace(cfg.DefaultModel); m != "" {
-		return m
-	}
-	if cfg.Provider == ProviderOpenAI {
-		return DefaultModelOpenAI
-	}
-	return DefaultModelOpenRouter
 }
 
 // PlatformCredentials is the platform credential the environment configures: the key of automation.jev

@@ -238,7 +238,7 @@ func (c *component) Build(b *composition.Builder) error {
 				openai.WithDefaultModel(cfg.openai.DefaultModel), openai.WithConnectionStatus(status),
 				openai.WithImages(services.UploadImages{Uploads: func() (services.UploadReader, error) { return resolveUploads(container) }}),
 			),
-			jev.New(jev.WithDefaultModel(jev.DefaultModel(&cfg.jev)), jev.WithConnectionStatus(status)),
+			jev.New(jev.WithPlatformConfig(&cfg.jev), jev.WithConnectionStatus(status), jev.WithProviders(lazyProviders{container: container})),
 		} {
 			if registered[conn.Kind()] {
 				continue
@@ -392,6 +392,52 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 		return nil, err
 	}
 	return st.Connected(ctx, tenantID)
+}
+
+// PlatformWithheld forwards catalog.PlatformOffers of the store: without it the registry never learns that a
+// tenant's platform key was switched off, and a node that left its connection out would end with
+// connection_unavailable instead of unavailable.
+func (l lazyAvailability) PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[catalog.ConnectorKind]bool, error) {
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return nil, err
+	}
+	if po, ok := st.(catalog.PlatformOffers); ok {
+		return po.PlatformWithheld(ctx, tenantID)
+	}
+	return nil, nil
+}
+
+// lazyProviders tells the provider of a Jev connection (its provider credential field), resolving the
+// stores when it is first needed: the platform credential's from the configuration, a tenant connection's
+// from its credentials.
+type lazyProviders struct{ container *composition.Container }
+
+func (l lazyProviders) Provider(ctx context.Context, tenantID uuid.UUID, connectionID string) (string, error) {
+	if kind, ok := strings.CutPrefix(connectionID, catalog.PlatformPrefix); ok {
+		platform, err := composition.Resolve[connectors.PlatformCredentials](l.container)
+		if err != nil {
+			return "", err
+		}
+		creds, _, ok := platform.Platform(catalog.ConnectorKind(kind))
+		if !ok {
+			return "", connectors.ErrNotFound
+		}
+		return creds["provider"], nil
+	}
+	id, err := uuid.Parse(connectionID)
+	if err != nil {
+		return "", connectors.ErrNotFound
+	}
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return "", err
+	}
+	_, creds, err := st.Get(ctx, tenantID, id)
+	if err != nil {
+		return "", err
+	}
+	return creds["provider"], nil
 }
 
 // lazyConnectionStatus marks a connection whose credentials a provider refused as needs_reauth; the

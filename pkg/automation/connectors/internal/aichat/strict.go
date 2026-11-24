@@ -174,7 +174,9 @@ func dropNulls(schema any, v any) any {
 			}
 		}
 		for name, child := range x {
-			if child == nil && !required[name] {
+			// Only a property the author declared and left optional may be a placeholder null; a null of
+			// any other field stays, and the closed schema refuses it.
+			if _, declared := props[name]; declared && child == nil && !required[name] {
 				delete(x, name)
 				continue
 			}
