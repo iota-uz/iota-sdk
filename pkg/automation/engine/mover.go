@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -355,7 +356,7 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			f := wi.Filter
 			w.Filter = &f
 		}
-		w.Subject = m.waitSubject(node, ev, params)
+		w.Subject = m.waitSubject(node, ev, m.withConnection(ctx, node, params))
 	}
 	if timeout > 0 {
 		at, err := m.deadline(ctx, timeout)
@@ -369,6 +370,37 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	tok.Status = tokWaiting
 	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// withConnection is the params of a wait with the connection the node resolves to when its params leave it
+// out (the tenant's only one of the kinds it needs), as a call resolves it: a node type that names the
+// conversation of its wait (WaitKeyer) builds the conversation's key from it. A connection that cannot be
+// resolved leaves the params as they are.
+func (m *mover) withConnection(ctx context.Context, node graph.Node, params map[string]any) map[string]any {
+	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
+	if !ok {
+		return params
+	}
+	if _, keyed := nt.(WaitKeyer); !keyed {
+		return params
+	}
+	if ref, set := params[catalog.ConnectionParam]; set && ref != nil {
+		return params
+	}
+	view, err := m.x.r.cfg.Catalog.ForTenant(ctx, m.x.tenant)
+	if err != nil || len(view.NodeRequires[node.Type]) == 0 {
+		return params
+	}
+	ref, _, err := catalog.ResolveConnection(view.Connections, view.NodeRequires[node.Type], nil)
+	if err != nil {
+		return params
+	}
+	out := make(map[string]any, len(params)+1)
+	for k, v := range params {
+		out[k] = v
+	}
+	out[catalog.ConnectionParam] = ref.ID
+	return out
 }
 
 // waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the

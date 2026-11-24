@@ -393,7 +393,7 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		if err != nil {
 			return connectors.Connection{}, err
 		}
-		if err := s.advise(ctx, conn, creds, in.Confirmed); err != nil {
+		if err := s.advise(ctx, conn, nil, creds, in.Confirmed); err != nil {
 			return connectors.Connection{}, err
 		}
 		return s.store.SaveWith(ctx, connectors.Connection{
@@ -414,19 +414,29 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 }
 
 // advise asks a connector that reports what connecting credentials would change elsewhere
-// (connectors.Advisor) and refuses the save with the warnings the person did not confirm. A connector
-// that fails to look gives no warnings: a check that cannot run never blocks a connection.
-func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connector, creds connectors.Credentials, confirmed []string) error {
+// (connectors.Advisor). A warning that cannot be lifted (the bot belongs to another connection) refuses the
+// credentials; the others refuse the save until the person confirmed them. A connector that fails to look
+// gives no warnings: a check that cannot run never blocks a connection.
+func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connector, existing *connectors.Connection, creds connectors.Credentials, confirmed []string) error {
 	adv, ok := conn.(connectors.Advisor)
 	if !ok {
 		return nil
 	}
-	warnings, err := adv.Advise(ctx, creds)
+	warnings, err := adv.Advise(ctx, existing, creds)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		return nil //nolint:nilerr // see above: an advice that cannot be had is no warning
+	}
+	for _, w := range warnings {
+		if w.Blocking {
+			field := w.Field
+			if field == "" {
+				field = "credentials"
+			}
+			return &InvalidInputError{Fields: map[string]string{field: "in_use"}}
+		}
 	}
 	if open := connectors.Unconfirmed(warnings, confirmed); len(open) > 0 {
 		return &connectors.ConfirmationRequiredError{Warnings: open}
@@ -440,11 +450,15 @@ func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connec
 func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 	return func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
-			if err := p.Provision(ctx, saved, creds); err != nil {
+			state, err := p.Provision(ctx, saved, creds)
+			if err != nil {
 				if ctx.Err() != nil {
 					return ctx.Err()
 				}
 				return &TestFailedError{Reason: classify(err.Error())}
+			}
+			if err := connectors.MergeInboundTx(ctx, tx, saved.TenantID, saved.ID, state); err != nil {
+				return err
 			}
 		}
 		return req.complete(ctx, tx, saved)
@@ -594,7 +608,7 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		if err != nil {
 			return ConnectionEntry{}, err
 		}
-		if err := s.advise(ctx, conn, creds, in.Confirmed); err != nil {
+		if err := s.advise(ctx, conn, &cur, creds, in.Confirmed); err != nil {
 			return ConnectionEntry{}, err
 		}
 		next.Identity = identity
@@ -718,7 +732,7 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 
 // SetDisabled disables a connection (it leaves the catalog of nodes of the tenant) or enables it again:
 // enabling checks it with the provider, so it comes back connected or with the error.
-func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.UUID, disabled bool) (ConnectionEntry, error) {
+func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.UUID, disabled bool, confirmed []string) (ConnectionEntry, error) {
 	const op = serrors.Op("automations.IntegrationsService.SetDisabled")
 	if disabled {
 		cur, err := s.find(ctx, a.TenantID, id)
@@ -759,19 +773,33 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
+			var state map[string]json.RawMessage
 			if next.Status == connectors.StatusConnected {
-				// Enabled again: the provider's side is set up again, as for a new connection.
+				// Enabled again: the bot may have been given to another service meanwhile, so what a new
+				// connection is asked, this one is asked too, before the provider is changed.
+				if err := s.advise(ctx, conn, &cur, creds, confirmed); err != nil {
+					return ConnectionEntry{}, err
+				}
 				if p, ok := conn.(connectors.Provisioner); ok {
-					if err := p.Provision(ctx, next, creds); err != nil {
+					var perr error
+					if state, perr = p.Provision(ctx, next, creds); perr != nil {
 						if ctx.Err() != nil {
 							return ConnectionEntry{}, ctx.Err()
 						}
-						next.Status, next.StatusReason = failedStatus(conn, classify(err.Error()))
+						next.Status, next.StatusReason = failedStatus(conn, classify(perr.Error()))
 					}
 				}
 			}
-			if _, err := s.store.Save(ctx, next, nil); err != nil {
+			saved, err := s.store.Save(ctx, next, nil)
+			if err != nil {
 				return ConnectionEntry{}, mapStoreError(op, err)
+			}
+			if len(state) > 0 {
+				if err := s.store.UpdateInbound(ctx, a.TenantID, saved.ID, func(cur json.RawMessage) (json.RawMessage, error) {
+					return connectors.MergeInbound(cur, state)
+				}); err != nil {
+					return ConnectionEntry{}, mapStoreError(op, err)
+				}
 			}
 			s.touch(ctx, a.TenantID, id)
 		}

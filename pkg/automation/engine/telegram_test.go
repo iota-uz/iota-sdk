@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -150,7 +151,12 @@ func (te *tgEnv) proc(tune ...func(*engine.Config)) *proc {
 func (te *tgEnv) provision() {
 	te.t.Helper()
 	ctx := context.Background()
-	require.NoError(te.t, te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken}))
+	state, err := te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken})
+	require.NoError(te.t, err)
+	// The secret Provision generated is kept in the connection's inbound state, as the service does.
+	require.NoError(te.t, te.store.UpdateInbound(ctx, te.tenant, te.conn.ID, func(cur json.RawMessage) (json.RawMessage, error) {
+		return connectors.MergeInbound(cur, state)
+	}))
 	require.NoError(te.t, te.tg.StartPlatform(ctx))
 }
 
@@ -585,4 +591,66 @@ func TestTelegramStartHandlerFailureIs5xx(t *testing.T) {
 	d, err := te.platform.SendText(800, tgAlice, "/start u_abc")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, d.Status)
+}
+
+// telegram.read resolves the tenant's only bot when its params leave the connection out, and listens on
+// the conversation it names: a run begun in one chat waits in another, and a run of no conversation at all
+// has a bot scope too. A message without text is not the reply.
+func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(700)
+	te.chat(701)
+	g := graphJSON("Relay", `{"id": "m", "event": "telegram.message_received.v1"}`,
+		`{"id": "read", "type": "telegram.read", "params": {"chat_id": 701, "timeout": "1h"}},
+		 {"id": "got", "type": "acme.note", "params": {"text": "got {{ nodes.read.output.event.text }} in {{ nodes.read.output.event.chatId }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "m", "outcome": "fired"}, "to": "read"},
+		 {"from": {"node": "read", "outcome": "received"}, "to": "got"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "ignore"},
+		 {"from": {"node": "got", "outcome": "done"}, "to": "fin"}, {"from": {"node": "got", "outcome": "failed"}, "to": "fin"}`)
+	te.create(p, te.human(), g)
+	_, err := te.bot.SendText(700, tgAlice, "start in 700")
+	require.NoError(t, err)
+	p.until(func() bool {
+		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`) == 1
+	}, "the read waits")
+	// The chat the run began in is not the chat it waits in; a message in 700 does not answer it (it
+	// starts another run, which waits in 701 as well).
+	_, err = te.bot.SendText(700, tgAlice, "wrong chat")
+	require.NoError(t, err)
+	// A photo without a caption in the awaited chat is not a reply either.
+	_, err = te.bot.SendPhoto(701, tgAlice, "", []byte("JPEG"))
+	require.NoError(t, err)
+	p.pass()
+	p.pass()
+	assert.Empty(t, noteTexts(t, te.env), "neither the other chat nor a message without text answers the read")
+	_, err = te.bot.SendText(701, tgAlice, "the reply")
+	require.NoError(t, err)
+	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 }, "a text in the awaited chat wakes the read")
+	assert.Contains(t, noteTexts(t, te.env), "got the reply in 701")
+}
+
+// A run of no conversation (an order was created) waits for a message in a chat of the tenant's bot.
+func TestTelegramReadOfARunWithoutAConversation(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(701)
+	g := graphJSON("Order dialog", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "read", "type": "telegram.read", "params": {"chat_id": 701, "timeout": "1h"}},
+		 {"id": "got", "type": "acme.note", "params": {"text": "got {{ nodes.read.output.event.text }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "read"},
+		 {"from": {"node": "read", "outcome": "received"}, "to": "got"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "ignore"},
+		 {"from": {"node": "got", "outcome": "done"}, "to": "fin"}, {"from": {"node": "got", "outcome": "failed"}, "to": "fin"}`)
+	te.create(p, te.human(), g)
+	te.publish(te.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool {
+		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND subject_key = $1`, te.conn.ID.String()+":701") == 1
+	}, "the wait is on the bot's conversation")
+	_, err := te.bot.SendText(701, tgAlice, "hello order")
+	require.NoError(t, err)
+	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the message wakes the run")
+	assert.Equal(t, []string{"got hello order"}, noteTexts(t, te.env))
 }

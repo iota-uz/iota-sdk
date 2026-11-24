@@ -135,7 +135,8 @@
           "polling_in_use": "This bot is already used by another service. After you connect it, that service will stop receiving messages."
         },
         "ConfirmWarning": "Connect anyway",
-        "ConfirmRequired": "Confirm to connect this bot: the other service will stop receiving its messages."
+        "ConfirmRequired": "Confirm to connect this bot: the other service will stop receiving its messages.",
+        "BotInUse": "This bot is already connected here as another connection. Disconnect that one first."
       },
       "Test": {
         "Running": "Checking…",

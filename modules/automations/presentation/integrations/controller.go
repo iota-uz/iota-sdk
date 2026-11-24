@@ -83,7 +83,7 @@ type Service interface {
 	Create(ctx context.Context, a services.Actor, in services.CreateInput) (services.ConnectionEntry, error)
 	Update(ctx context.Context, a services.Actor, in services.UpdateInput) (services.ConnectionEntry, error)
 	Test(ctx context.Context, a services.Actor, id uuid.UUID) (services.TestResult, error)
-	SetDisabled(ctx context.Context, a services.Actor, id uuid.UUID, disabled bool) (services.ConnectionEntry, error)
+	SetDisabled(ctx context.Context, a services.Actor, id uuid.UUID, disabled bool, confirmed []string) (services.ConnectionEntry, error)
 	Delete(ctx context.Context, a services.Actor, id uuid.UUID) error
 	Options(ctx context.Context, a services.Actor, connectionID uuid.UUID, source, query string) ([]connectors.Option, error)
 	SetPlatformEnabled(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, enabled bool) error

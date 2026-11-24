@@ -153,9 +153,23 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     onCleanup(() => window.removeEventListener('popstate', pop))
   })
 
-  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false) => {
+  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false, confirm?: string[]) => {
     try {
-      const r = await call('automations.connections.set_disabled', { id: c.id, disabled })
+      const r = await call('automations.connections.set_disabled', { id: c.id, disabled, ...(confirm ? { confirm } : {}) })
+      if (r.error === 'confirmation_required') {
+        // The bot has been given to another service while the connection was off: enabling it again would
+        // take its messages away, so the person says so first.
+        const codes = r.warnings ?? []
+        toast.notify({
+          variant: 'error', title: t(`Form.Warnings.${codes[0] ?? 'foreign_webhook'}`),
+          action: { label: t('Form.ConfirmWarning'), onAction: () => setDisabled(c, disabled, undo, codes) },
+        })
+        return
+      }
+      if (r.error || !r.connection) {
+        toast.notify({ variant: 'error', title: t(r.error === 'invalid_input' ? 'Form.BotInUse' : 'Toast.Failed') })
+        return
+      }
       highlight(r.connection.id)
       refetch()
       toast.notify({

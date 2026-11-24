@@ -47,14 +47,51 @@ func connKey(c connectors.Connection) string {
 func isPlatform(c connectors.Connection) bool { return c.ID == uuid.Nil }
 
 // Verify compares the secret Telegram sends with the one this connection's webhook was set with, in constant
-// time.
+// time. A tenant connection's secret is the one Provision generated, kept in its inbound state; the platform
+// bot has no connection row, so its secret is derived from its token.
 func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection, creds connectors.Credentials) error {
 	token := creds["token"]
 	got := r.Header.Get(SecretHeader)
-	if token == "" || got == "" || !secretEqual(got, WebhookSecret(token, connKey(conn))) {
+	if token == "" || got == "" {
+		return errors.New("telegram: no webhook secret")
+	}
+	want := ""
+	if isPlatform(conn) {
+		want = WebhookSecret(token, connKey(conn))
+	} else {
+		stored, err := c.storedSecret(r.Context(), conn)
+		if err != nil {
+			return err
+		}
+		want = stored
+	}
+	if want == "" || !secretEqual(got, want) {
 		return errors.New("telegram: the webhook secret does not match")
 	}
 	return nil
+}
+
+// storedSecret reads the connection's webhook secret from its inbound state.
+func (c *Connector) storedSecret(ctx context.Context, conn connectors.Connection) (string, error) {
+	reader, ok := c.cfg.Connections.(connectors.InboundReader)
+	if !ok {
+		return "", errors.New("telegram: the connector cannot read the webhook secret")
+	}
+	state, err := reader.InboundState(ctx, conn.TenantID, conn.ID)
+	if err != nil {
+		return "", err
+	}
+	var doc map[string]json.RawMessage
+	if json.Unmarshal(state, &doc) != nil {
+		return "", errors.New("telegram: no webhook secret")
+	}
+	var held struct {
+		Secret string `json:"secret"`
+	}
+	if json.Unmarshal(doc[secretKey], &held) != nil {
+		return "", errors.New("telegram: no webhook secret")
+	}
+	return held.Secret, nil
 }
 
 // Handle turns one update into events. Only a message and a button press are read, others are answered
@@ -230,8 +267,22 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if reply == "" {
 		return nil
 	}
-	if _, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply}); err != nil {
+	_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
+	if err != nil {
 		c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
+		return nil
+	}
+	// The reply is a message of the tenant the link belongs to (the platform bot: the payload's), counted for
+	// the bot that sent it.
+	account := conn.TenantID
+	if isPlatform(conn) {
+		account = tenant
+	}
+	if c.cfg.Usage != nil && account != uuid.Nil {
+		err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
+		if err != nil {
+			c.log().Warn("telegram: a message was not counted", "error", err.Error())
+		}
 	}
 	return nil
 }

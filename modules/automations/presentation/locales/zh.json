@@ -135,7 +135,8 @@
           "polling_in_use": "此机器人已被其他服务使用。连接后，该服务将不再收到消息。"
         },
         "ConfirmWarning": "仍然连接",
-        "ConfirmRequired": "请确认连接此机器人：另一服务将不再收到它的消息。"
+        "ConfirmRequired": "请确认连接此机器人：另一服务将不再收到它的消息。",
+        "BotInUse": "此机器人已作为另一个连接接入。请先断开那个连接。"
       },
       "Test": {
         "Running": "正在检查…",

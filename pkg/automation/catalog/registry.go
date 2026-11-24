@@ -79,6 +79,21 @@ type View struct {
 	EventRequires map[string][]ConnectorKind
 	// Connections are the tenant's working connections by kind, preferred first.
 	Connections map[ConnectorKind][]ConnectionRef
+	// TenantOnly are the events (TenantConnectionTriggers) that only the tenant's own connections serve.
+	TenantOnly map[string]bool
+}
+
+// ownRefs are the refs of connected that are the tenant's own connections: no platform credential.
+func ownRefs(connected map[ConnectorKind][]ConnectionRef) map[ConnectorKind][]ConnectionRef {
+	out := make(map[ConnectorKind][]ConnectionRef, len(connected))
+	for k, refs := range connected {
+		for _, r := range refs {
+			if !strings.HasPrefix(r.ID, PlatformPrefix) {
+				out[k] = append(out[k], r)
+			}
+		}
+	}
+	return out
 }
 
 // JSON is the view for the editor and the API: graph.View with NodeView.Requires filled.
@@ -348,8 +363,10 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		NodeRequires:  map[string][]ConnectorKind{},
 		EventRequires: map[string][]ConnectorKind{},
 		Connections:   connected,
+		TenantOnly:    map[string]bool{},
 	}
-	reason := func(requires []ConnectorKind, permission string) string {
+	own := ownRefs(connected)
+	reason := func(requires []ConnectorKind, permission string, from map[ConnectorKind][]ConnectionRef) string {
 		if o.author != nil && !o.author.Has(permission) {
 			return ReasonPermission
 		}
@@ -357,7 +374,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			return ""
 		}
 		for _, k := range requires {
-			if len(connected[k]) > 0 {
+			if len(from[k]) > 0 {
 				return ""
 			}
 		}
@@ -369,8 +386,14 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if pt, ok := e.source.(PermissionedTriggers); ok {
 			access, _ = pt.Access(key)
 		}
-		if why := reason(e.requires, access.ReadPermission); why != "" {
+		from := connected
+		if tc, ok := e.source.(TenantConnectionTriggers); ok && tc.TenantConnectionOnly(key) {
+			from = own
+			v.TenantOnly[key] = true
+		}
+		if why := reason(e.requires, access.ReadPermission, from); why != "" {
 			v.Unavailable[key] = why
+			delete(v.TenantOnly, key)
 			continue
 		}
 		spec := copyEvent(e.spec)
@@ -409,7 +432,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if o.author == nil {
 			perm = ""
 		}
-		if why := reason(e.requires, perm); why != "" {
+		if why := reason(e.requires, perm, connected); why != "" {
 			v.Unavailable[typ] = why
 			continue
 		}

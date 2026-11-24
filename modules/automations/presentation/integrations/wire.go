@@ -213,11 +213,17 @@ type TestResponse struct {
 type SetDisabledRequest struct {
 	ID       string `json:"id"`
 	Disabled bool   `json:"disabled"`
+	// Confirm are the codes of the warnings the person confirmed when enabling (ConnectionResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // ConnectionResponse is a connection after an action.
 type ConnectionResponse struct {
-	Connection ConnectionView `json:"connection"`
+	Connection *ConnectionView `json:"connection,omitempty"`
+	// Error is confirmation_required (Warnings are the codes to confirm) or invalid_input (the bot belongs
+	// to another connection); the connection is then as it was.
+	Error    ErrorCode `json:"error,omitempty"`
+	Warnings []string  `json:"warnings,omitempty"`
 }
 
 // DeleteResponse is ok, or CONNECTION_IN_USE with the uses.

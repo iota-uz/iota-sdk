@@ -107,7 +107,7 @@ func (n *sendNode) Spec() graph.NodeSpec {
 	return graph.NodeSpec{
 		Type: NodeSend, Title: "Telegram: send a message", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture,
 		Description: "Sends a text, with attachments and link buttons, to a chat of the bot.",
-		Params:      graph.MustSchemaParams(sendSchema),
+		Params:      sendParams{graph.MustSchemaParams(sendSchema)},
 		Templates:   []string{"text", "url_buttons[].text", "url_buttons[].url"},
 		Values:      []string{"chat_id", "thread_id"},
 		Outcomes:    []string{outcomeSent, outcomeFailed}, DoneOutcome: outcomeSent, FailedOutcome: outcomeFailed,
@@ -134,14 +134,33 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		b, _ := r.(map[string]any)
 		m.Buttons = append(m.Buttons, []Button{{Text: str(b["text"]), URL: str(b["url"])}})
 	}
-	ref, err := n.c.send(ctx, in.Credentials["token"], chat, m)
+	ref, sent, err := n.c.send(ctx, in.Credentials["token"], chat, m)
 	if res, err := n.c.settle(ctx, in, err); err != nil || res != nil {
 		return deref(res), err
 	}
-	n.c.recordUsage(ctx, in)
+	n.c.recordUsage(ctx, in, sent)
 	return catalog.CallResult{Outcome: outcomeSent, Output: map[string]any{
 		"chat_id": strconv.FormatInt(ref.ChatID, 10), "message_id": strconv.FormatInt(ref.MessageID, 10),
 	}}, nil
+}
+
+// sendParams is the params of telegram.send: the schema, and the one rule across fields: an album of
+// files (two or more) has no keyboard.
+type sendParams struct{ inner graph.ParamsSpec }
+
+func (p sendParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
+
+func (p sendParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
+	out, issues := p.inner.Parse(raw)
+	if len(issues) > 0 {
+		return nil, issues
+	}
+	files, _ := out["files"].([]any)
+	buttons, _ := out["url_buttons"].([]any)
+	if len(files) > 1 && len(buttons) > 0 {
+		return nil, []graph.Issue{{Path: []any{"url_buttons"}, Message: "an album of several files takes no buttons: send one file with them, or the buttons with a text"}}
+	}
+	return out, nil
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -194,13 +213,13 @@ func (n *askNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 		}
 		rows[len(rows)-1] = append(rows[len(rows)-1], b)
 	}
-	ref, err := n.c.send(ctx, in.Credentials["token"], chat, outgoing{
+	ref, sent, err := n.c.send(ctx, in.Credentials["token"], chat, outgoing{
 		Text: str(in.Params["text"]), ParseMode: str(in.Params["parse_mode"]), Thread: thread, Buttons: rows,
 	})
 	if res, err := n.c.settle(ctx, in, err); err != nil || res != nil {
 		return deref(res), err
 	}
-	n.c.recordUsage(ctx, in)
+	n.c.recordUsage(ctx, in, sent)
 	// The outcome is the answer's: Await is what the engine waits on.
 	return catalog.CallResult{Output: map[string]any{
 		"chat_id": strconv.FormatInt(ref.ChatID, 10), "message_id": strconv.FormatInt(ref.MessageID, 10),
@@ -342,7 +361,8 @@ func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	if len(issues) > 0 {
 		return nil, issues
 	}
-	var terms []string
+	// A message without text (a photo without a caption) is an event for triggers, not an answer to a read.
+	terms := []string{`event.text != ""`}
 	if t, ok := filterTerm("event.chatId", out["chat_id"], true); ok {
 		terms = append(terms, t)
 	}
@@ -355,9 +375,7 @@ func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 			terms = append(terms, t)
 		}
 	}
-	if len(terms) > 0 {
-		out["filter"] = strings.Join(terms, " && ")
-	}
+	out["filter"] = strings.Join(terms, " && ")
 	return out, nil
 }
 
@@ -488,14 +506,15 @@ func (c *Connector) needsReauth(ctx context.Context, in catalog.CallInput) {
 	}
 }
 
-// recordUsage counts a sent message: for the platform bot and for the tenant's own, apart.
-func (c *Connector) recordUsage(ctx context.Context, in catalog.CallInput) {
-	if in.Usage == nil || in.Connection == nil {
+// recordUsage counts the messages a send delivered (an album is several): for the platform bot and for the
+// tenant's own, apart.
+func (c *Connector) recordUsage(ctx context.Context, in catalog.CallInput, delivered int) {
+	if in.Usage == nil || in.Connection == nil || delivered <= 0 {
 		return
 	}
 	run := in.RunID
 	err := in.Usage.Record(ctx, catalog.UsageEntry{
-		TenantID: in.TenantID, Kind: Kind, ConnectionID: in.Connection.ID, Unit: "message", Quantity: 1, RunID: &run, At: time.Now(),
+		TenantID: in.TenantID, Kind: Kind, ConnectionID: in.Connection.ID, Unit: "message", Quantity: int64(delivered), RunID: &run, At: time.Now(),
 	})
 	if err != nil {
 		c.log().Warn("telegram: a message was not counted", "error", err.Error())

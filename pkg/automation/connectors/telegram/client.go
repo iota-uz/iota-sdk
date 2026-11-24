@@ -69,7 +69,7 @@ func (c *Connector) Send(ctx context.Context, _ catalog.ConnectionInfo, creds ca
 	if msg.ChatID == 0 {
 		return MessageRef{}, fmt.Errorf("%w: no chat", ErrInvalidMessage)
 	}
-	ref, err := c.send(ctx, token, strconv.FormatInt(msg.ChatID, 10), outgoing{
+	ref, _, err := c.send(ctx, token, strconv.FormatInt(msg.ChatID, 10), outgoing{
 		Text: msg.Text, ParseMode: msg.ParseMode, Thread: msg.ThreadID, Buttons: msg.Buttons, Silent: msg.Silent,
 	})
 	return ref, callFailure(err)
@@ -94,10 +94,11 @@ type file struct {
 	Data []byte
 }
 
-// send checks and sends one outgoing message (one request) to chat, a numeric id or @username.
-func (c *Connector) send(ctx context.Context, token, chat string, m outgoing) (MessageRef, error) {
+// send checks and sends one outgoing message (one request) to chat, a numeric id or @username. It returns
+// the first message and how many messages Telegram delivered (an album of files is several).
+func (c *Connector) send(ctx context.Context, token, chat string, m outgoing) (MessageRef, int, error) {
 	if err := m.check(); err != nil {
-		return MessageRef{}, err
+		return MessageRef{}, 0, err
 	}
 	p := map[string]string{"chat_id": chat}
 	if m.Thread != 0 {
@@ -110,13 +111,14 @@ func (c *Connector) send(ctx context.Context, token, chat string, m outgoing) (M
 		p["parse_mode"] = m.ParseMode
 	}
 	if markup, err := keyboard(m.Buttons); err != nil {
-		return MessageRef{}, err
+		return MessageRef{}, 0, err
 	} else if markup != "" {
 		p["reply_markup"] = markup
 	}
 	b := c.bot(token)
 	var sent gotgbot.Message
 	var err error
+	delivered := 1
 	switch len(m.Files) {
 	case 0:
 		p["text"] = m.Text
@@ -148,22 +150,22 @@ func (c *Connector) send(ctx context.Context, token, chat string, m outgoing) (M
 		}
 		raw, merr := json.Marshal(media)
 		if merr != nil {
-			return MessageRef{}, merr
+			return MessageRef{}, 0, merr
 		}
 		delete(p, "parse_mode")
 		delete(p, "reply_markup") // a media group takes no keyboard
 		p["media"] = string(raw)
 		if err = b.call(ctx, "sendMediaGroup", p, data, &group); err == nil {
 			if len(group) == 0 {
-				return MessageRef{}, &transportError{Method: "sendMediaGroup", kind: "the answer has no message"}
+				return MessageRef{}, 0, &transportError{Method: "sendMediaGroup", kind: "the answer has no message"}
 			}
-			sent = group[0]
+			sent, delivered = group[0], len(group)
 		}
 	}
 	if err != nil {
-		return MessageRef{}, err
+		return MessageRef{}, 0, err
 	}
-	return MessageRef{ChatID: sent.Chat.Id, MessageID: sent.MessageId}, nil
+	return MessageRef{ChatID: sent.Chat.Id, MessageID: sent.MessageId}, delivered, nil
 }
 
 func fileReader(f file) gotgbot.FileReader {
@@ -200,6 +202,8 @@ func (m outgoing) check() error {
 		return fmt.Errorf("%w: a topic id is positive", ErrInvalidMessage)
 	case len(m.Files) > 10:
 		return fmt.Errorf("%w: at most 10 files", ErrInvalidMessage)
+	case len(m.Files) > 1 && len(m.Buttons) > 0:
+		return fmt.Errorf("%w: an album of files takes no buttons: send one file with them, or the buttons with a text", ErrInvalidMessage)
 	}
 	return nil
 }

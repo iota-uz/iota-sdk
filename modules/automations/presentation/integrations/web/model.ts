@@ -121,6 +121,7 @@ export function fieldErrorText(t: Translator, code: string): string {
     case 'required': return t('Form.Required')
     case 'name': return t('Form.NameFormat')
     case 'taken': return t('Form.NameTaken')
+    case 'in_use': return t('Form.BotInUse')
     default: return t('Form.Invalid')
   }
 }

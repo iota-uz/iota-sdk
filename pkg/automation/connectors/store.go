@@ -567,6 +567,13 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 	})
 }
 
+// ConnectionExists reports whether a connection of any tenant has the id.
+func (s *store) ConnectionExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	var found bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.connections WHERE id = $1)`, id).Scan(&found)
+	return found, serrors.Wrap("automation.connectors.Store.ConnectionExists", err)
+}
+
 // InboundState is the inbound state of a connection of the tenant.
 func (s *store) InboundState(ctx context.Context, tenantID, id uuid.UUID) (json.RawMessage, error) {
 	const op = serrors.Op("automation.connectors.Store.InboundState")

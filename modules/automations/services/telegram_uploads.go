@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
@@ -25,15 +26,28 @@ type CoreUploads interface {
 // maxTelegramFile is what a bot sends: 50 MB.
 const maxTelegramFile = 50 << 20
 
-type telegramUploads struct{ svc CoreUploads }
+type telegramUploads struct {
+	svc  CoreUploads
+	pool *pgxpool.Pool
+}
 
 // NewTelegramUploads is the uploads storage of the Telegram connector (telegram.Config.Uploads) over the
 // SDK's upload service: files of incoming messages are saved as the tenant's uploads, and the files of a
 // send are read from them, never from another tenant's.
-func NewTelegramUploads(svc CoreUploads) telegram.Uploads { return telegramUploads{svc: svc} }
+//
+// The upload repository reads its database scope from the context, which a webhook request or a call
+// worker does not carry: the adapter binds the pool and the tenant itself on every call.
+func NewTelegramUploads(svc CoreUploads, pool *pgxpool.Pool) telegram.Uploads {
+	return telegramUploads{svc: svc, pool: pool}
+}
+
+// scope is a context the SDK's upload service can run in: the tenant and the database pool.
+func (u telegramUploads) scope(ctx context.Context, tenantID uuid.UUID) context.Context {
+	return composables.WithPool(composables.WithTenantID(ctx, tenantID), u.pool)
+}
 
 func (u telegramUploads) Save(ctx context.Context, tenantID uuid.UUID, f telegram.UploadFile) (telegram.Stored, error) {
-	ctx = composables.WithTenantID(ctx, tenantID)
+	ctx = u.scope(ctx, tenantID)
 	created, err := u.svc.Create(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name, Size: len(f.Data)})
 	if err != nil {
 		return telegram.Stored{}, err
@@ -46,7 +60,7 @@ func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string
 	if err != nil {
 		return telegram.UploadFile{}, errors.New("not an upload id")
 	}
-	ctx = composables.WithTenantID(ctx, tenantID)
+	ctx = u.scope(ctx, tenantID)
 	found, err := u.svc.GetByID(ctx, uint(n))
 	if err != nil {
 		return telegram.UploadFile{}, err

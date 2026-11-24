@@ -85,6 +85,13 @@ type state struct {
 	status  connectors.ConnectionStatus
 	reason  string
 	inbound json.RawMessage
+	exists  map[uuid.UUID]bool // connections of the application that are alive
+}
+
+func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.exists[id], nil
 }
 
 func (s *state) SetStatus(_ context.Context, _, _ uuid.UUID, st connectors.ConnectionStatus, reason string) error {
@@ -137,7 +144,23 @@ func newRig(t *testing.T) *rig {
 	r.conn = connectors.Connection{ID: uuid.New(), TenantID: r.tenant, Kind: telegram.Kind, Name: "bot", Status: connectors.StatusConnected}
 	r.bot = api.Bot(tenantToken, "tenant_bot")
 	r.platform = api.Bot(platformToken, "platform_bot")
+	r.st.exists = map[uuid.UUID]bool{r.conn.ID: true}
+	// The connection's webhook is set up as the integrations service does: the secret Provision generates
+	// is kept in its inbound state.
+	r.provision()
 	return r
+}
+
+// provision sets the tenant connection's webhook and keeps the secret it generated in the inbound state.
+func (r *rig) provision() {
+	r.t.Helper()
+	state, err := r.c.Provision(context.Background(), r.conn, r.creds())
+	require.NoError(r.t, err)
+	r.st.mu.Lock()
+	defer r.st.mu.Unlock()
+	merged, err := connectors.MergeInbound(r.st.inbound, state)
+	require.NoError(r.t, err)
+	r.st.inbound = merged
 }
 
 func (r *rig) creds() connectors.Credentials { return connectors.Credentials{"token": tenantToken} }
@@ -173,12 +196,12 @@ func (r *rig) post(conn connectors.Connection, creds connectors.Credentials, sec
 	return w.Code, evs
 }
 
+// secret is what Telegram sends back for a connection: the secret set with its webhook.
 func (r *rig) secret(conn connectors.Connection, token string) string {
-	key := catalog.PlatformConnectionID(telegram.Kind)
 	if conn.ID != uuid.Nil {
-		key = conn.ID.String()
+		return r.bot.Webhook().Secret
 	}
-	return telegram.WebhookSecret(token, key)
+	return telegram.WebhookSecret(token, catalog.PlatformConnectionID(telegram.Kind))
 }
 
 var alice = telegramtest.User{ID: 501, Username: "alice", FirstName: "Alice"}

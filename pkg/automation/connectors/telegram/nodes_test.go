@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram/telegramtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
 
 type usage struct {
@@ -469,4 +470,83 @@ func TestPlatformPressIsOfTheQuestionsTenant(t *testing.T) {
 	u = r.platform.PressUpdate(m, alice, "other:data")
 	_, evs = r.platformUpdate(u)
 	assert.Empty(t, evs)
+}
+
+func TestAnAlbumTakesNoButtons(t *testing.T) {
+	r := newRig(t)
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.up.files = map[string]telegram.UploadFile{"a": {Name: "a.txt", Data: []byte("a")}, "b": {Name: "b.txt", Data: []byte("b")}}
+	params := map[string]any{"chat_id": num(700), "text": "x", "files": []any{"a", "b"},
+		"url_buttons": []any{map[string]any{"text": "Open", "url": "https://x.example.com"}}}
+	// Refused when the graph is saved…
+	_, issues := r.node(telegram.NodeSend).Spec().Params.Parse(params)
+	require.Len(t, issues, 1)
+	assert.Equal(t, []any{"url_buttons"}, issues[0].Path)
+	// …and before anything is sent.
+	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(params, nil))
+	var ce *catalog.CallError
+	require.True(t, errors.As(err, &ce))
+	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+	assert.Empty(t, r.bot.Sent())
+	// One file keeps its buttons.
+	params["files"] = []any{"a"}
+	_, err = r.node(telegram.NodeSend).Execute(context.Background(), r.input(params, nil))
+	require.NoError(t, err)
+	assert.Len(t, r.bot.Sent()[0].Markup, 1)
+}
+
+// Every message Telegram delivered is counted: an album is several.
+func TestUsageCountsEachDeliveredMessage(t *testing.T) {
+	r := newRig(t)
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.up.files = map[string]telegram.UploadFile{"a": {Name: "a.txt", Data: []byte("a")}, "b": {Name: "b.txt", Data: []byte("b")}, "c": {Name: "c.txt", Data: []byte("c")}}
+	u := &usage{}
+	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "x", "files": []any{"a", "b", "c"}}, u))
+	require.NoError(t, err)
+	require.Len(t, u.entries, 1)
+	assert.Equal(t, int64(3), u.entries[0].Quantity)
+	assert.Len(t, r.bot.Sent(), 3)
+}
+
+// The reply to /start is a message too: counted for the tenant the link belongs to and the bot that sent it.
+func TestStartReplyIsCounted(t *testing.T) {
+	r := newRig(t)
+	u := &usage{}
+	r.c = telegram.New(telegram.Config{PlatformToken: platformToken, PublicOrigin: origin, Inbound: r.in, APIURL: r.api.URL(), Usage: u, Connections: r.st})
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.platformUpdate(r.platform.Update(800, alice, "/start u_abc"))
+	require.Len(t, u.entries, 1)
+	assert.Equal(t, r.tenant, u.entries[0].TenantID)
+	assert.Equal(t, "platform:telegram_bot", u.entries[0].ConnectionID)
+	assert.Equal(t, int64(1), u.entries[0].Quantity)
+	// An unknown link has no tenant to count for.
+	r.platformUpdate(r.platform.Update(800, alice, "/start u_unknown"))
+	assert.Len(t, u.entries, 1)
+	// A tenant's own bot counts for its connection.
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.tenantUpdate(r.bot.Update(700, alice, "/start u_abc"))
+	require.Len(t, u.entries, 2)
+	assert.Equal(t, r.conn.ID.String(), u.entries[1].ConnectionID)
+}
+
+// A read answers with text only: a photo without a caption is an event for triggers, not the reply.
+func TestReadFilterNeedsText(t *testing.T) {
+	r := newRig(t)
+	parsed, issues := r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": num(501)})
+	require.Empty(t, issues)
+	assert.Equal(t, `event.text != "" && event.chatId == "700" && event.from.userId == "501"`, parsed["filter"])
+	parsed, _ = r.read().Spec().Params.Parse(map[string]any{"chat_id": "event.chatId"})
+	assert.Equal(t, `event.text != ""`, parsed["filter"], "the chat of an expression is the conversation's")
+}
+
+func (r *rig) read() interface{ Spec() graph.NodeSpec } {
+	for _, n := range r.c.Nodes() {
+		if n.Spec().Type == telegram.NodeRead {
+			return n
+		}
+	}
+	r.t.Fatal("no read node")
+	return nil
 }

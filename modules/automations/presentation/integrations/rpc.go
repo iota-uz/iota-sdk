@@ -291,11 +291,24 @@ func (c *Controller) setDisabled(ctx context.Context, req SetDisabledRequest) (C
 	if err != nil {
 		return ConnectionResponse{}, err
 	}
-	e, err := c.cfg.Service.SetDisabled(ctx, actor(sub), id, req.Disabled)
+	e, err := c.cfg.Service.SetDisabled(ctx, actor(sub), id, req.Disabled, req.Confirm)
+	var confirm *connectors.ConfirmationRequiredError
+	if errors.As(err, &confirm) {
+		codes := make([]string, 0, len(confirm.Warnings))
+		for _, w := range confirm.Warnings {
+			codes = append(codes, w.Code)
+		}
+		return ConnectionResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
+	}
+	var invalid *services.InvalidInputError
+	if errors.As(err, &invalid) {
+		return ConnectionResponse{Error: ErrInvalidInput}, nil
+	}
 	if err != nil {
 		return ConnectionResponse{}, mapErr(err)
 	}
-	return ConnectionResponse{Connection: connectionView(e)}, nil
+	v := connectionView(e)
+	return ConnectionResponse{Connection: &v}, nil
 }
 
 func (c *Controller) delete(ctx context.Context, req IDRequest) (DeleteResponse, error) {

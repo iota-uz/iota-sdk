@@ -119,6 +119,10 @@ type triggers struct{}
 
 func (triggers) Requires() []catalog.ConnectorKind { return nil }
 
+// TenantConnectionOnly: a message to the platform bot belongs to no tenant, so only a tenant's own bot
+// delivers the message trigger.
+func (triggers) TenantConnectionOnly(key string) bool { return key == EventMessage }
+
 func (triggers) Events() []graph.EventSpec {
 	return []graph.EventSpec{
 		{

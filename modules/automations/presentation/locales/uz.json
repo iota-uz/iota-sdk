@@ -135,7 +135,8 @@
           "polling_in_use": "Bu bot allaqachon boshqa xizmatda ishlatilmoqda. Ulangandan keyin u xizmat xabarlarni olmay qoʻyadi."
         },
         "ConfirmWarning": "Baribir ulash",
-        "ConfirmRequired": "Ulashni tasdiqlang: boshqa xizmat bot xabarlarini olmay qoʻyadi."
+        "ConfirmRequired": "Ulashni tasdiqlang: boshqa xizmat bot xabarlarini olmay qoʻyadi.",
+        "BotInUse": "Bu bot bu yerda allaqachon boshqa ulanish sifatida ulangan. Avval uni uzing."
       },
       "Test": {
         "Running": "Tekshiryapmiz…",

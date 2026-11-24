@@ -2,6 +2,7 @@ package telegram_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -106,11 +107,27 @@ func TestTriggerParamsMatching(t *testing.T) {
 	}
 }
 
-func TestWebhookSecretShape(t *testing.T) {
-	s := telegram.WebhookSecret(tenantToken, uuid.NewString())
+func TestPlatformWebhookSecretShape(t *testing.T) {
+	s := telegram.WebhookSecret(platformToken, "platform:telegram_bot")
 	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), s)
-	assert.NotEqual(t, s, telegram.WebhookSecret(tenantToken, uuid.NewString()), "per connection")
-	assert.NotEqual(t, s, telegram.WebhookSecret(platformToken, uuid.NewString()), "per token")
+	assert.NotEqual(t, s, telegram.WebhookSecret(tenantToken, "platform:telegram_bot"), "per token")
+}
+
+// A connection's secret is generated when it is provisioned and kept in its inbound state: new each time,
+// 32 characters of the Bot API's alphabet, and never derived from the token.
+func TestTenantWebhookSecretIsGeneratedAndStored(t *testing.T) {
+	r := newRig(t)
+	first := r.bot.Webhook().Secret
+	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), first)
+	state, err := r.c.Provision(context.Background(), r.conn, r.creds())
+	require.NoError(t, err)
+	var held struct {
+		Secret string `json:"secret"`
+	}
+	require.NoError(t, json.Unmarshal(state["telegram_webhook"], &held))
+	assert.Equal(t, r.bot.Webhook().Secret, held.Secret, "what was set at Telegram is what is handed back to be kept")
+	assert.NotEqual(t, first, held.Secret)
+	assert.NotEqual(t, first, telegram.WebhookSecret(tenantToken, r.conn.ID.String()), "not derived from the token")
 }
 
 func TestTestReturnsTheBotsIdentity(t *testing.T) {
@@ -130,10 +147,8 @@ func TestTestReturnsTheBotsIdentity(t *testing.T) {
 func TestProvisionSetsTheWebhookAndDeprovisionRemovesIt(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	require.NoError(t, r.c.Provision(ctx, r.conn, r.creds()))
 	hook := r.bot.Webhook()
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), hook.URL)
-	assert.Equal(t, r.secret(r.conn, tenantToken), hook.Secret)
 	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), hook.Secret)
 
 	require.NoError(t, r.c.Deprovision(ctx, r.conn, r.creds()))
@@ -168,26 +183,73 @@ func TestPlatformBotIsRegisteredAtStart(t *testing.T) {
 func TestAdviseWarnsAboutAForeignWebhookOrAPoller(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	w, err := r.c.Advise(ctx, r.creds())
+	r.bot.SetWebhook("", "") // a bot nobody uses
+	w, err := r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
 	assert.Empty(t, w, "a bot nobody uses")
 
 	r.bot.SetWebhook("https://other.example.org/hook", "s")
-	w, err = r.c.Advise(ctx, r.creds())
+	w, err = r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
 	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnForeignWebhook}}, w)
 
+	// A webhook of this application for a connection that is gone is nobody's: no warning.
 	r.bot.SetWebhook(origin+"/automations/hooks/"+uuid.NewString(), "s")
-	w, err = r.c.Advise(ctx, r.creds())
+	w, err = r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
-	assert.Empty(t, w, "this application's own webhook is not foreign")
+	assert.Empty(t, w)
 
 	r.bot.SetWebhook("", "")
 	r.bot.SetPolling(true)
-	w, err = r.c.Advise(ctx, r.creds())
+	w, err = r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
 	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingInUse}}, w)
 	assert.Empty(t, r.bot.Webhook().URL, "advice changes nothing at Telegram")
+}
+
+// One bot has one webhook: a bot another live connection owns (or the platform's) cannot be connected
+// twice, and removing the older connection never removes the newer one's webhook.
+func TestABotBelongsToOneConnection(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	other := connectors.Connection{ID: uuid.New(), TenantID: uuid.New(), Kind: telegram.Kind, Name: "second"}
+	r.st.exists[other.ID] = true
+
+	w, err := r.c.Advise(ctx, nil, r.creds())
+	require.NoError(t, err)
+	require.Len(t, w, 1)
+	assert.Equal(t, telegram.WarnBotInUse, w[0].Code)
+	assert.True(t, w[0].Blocking, "no confirmation lifts it")
+	w, err = r.c.Advise(ctx, &r.conn, r.creds())
+	require.NoError(t, err)
+	assert.Empty(t, w, "the connection that owns the bot may be saved again")
+	w, err = r.c.Advise(ctx, &other, r.creds())
+	require.NoError(t, err)
+	assert.Len(t, w, 1, "another connection may not")
+
+	_, err = r.c.Provision(ctx, other, r.creds())
+	require.Error(t, err, "and is refused at the provider too")
+	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL, "the owner's webhook stays")
+
+	require.NoError(t, r.c.Deprovision(ctx, other, r.creds()))
+	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL, "an exact URL only is removed")
+
+	// The platform bot's token cannot be taken by a tenant connection either.
+	require.NoError(t, r.c.StartPlatform(ctx))
+	w, err = r.c.Advise(ctx, nil, r.platformCreds())
+	require.NoError(t, err)
+	require.Len(t, w, 1)
+	assert.True(t, w[0].Blocking)
+	_, err = r.c.Provision(ctx, r.conn, r.platformCreds())
+	require.Error(t, err)
+
+	// Once the owner is gone its webhook is stale and the bot is free to be taken over.
+	delete(r.st.exists, r.conn.ID)
+	w, err = r.c.Advise(ctx, &other, r.creds())
+	require.NoError(t, err)
+	assert.Empty(t, w)
+	_, err = r.c.Provision(ctx, other, r.creds())
+	require.NoError(t, err)
 }
 
 func TestVerifyComparesTheSecret(t *testing.T) {
@@ -198,9 +260,43 @@ func TestVerifyComparesTheSecret(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, code, "no secret")
 	code, _ = r.post(r.conn, r.creds(), good[:31]+"x", upd)
 	assert.Equal(t, http.StatusNotFound, code, "a wrong secret")
-	code, _ = r.post(r.conn, r.creds(), r.secret(r.platformConn(), tenantToken), upd)
-	assert.Equal(t, http.StatusNotFound, code, "the secret of another connection")
+	code, _ = r.post(r.conn, r.creds(), telegram.WebhookSecret(tenantToken, r.conn.ID.String()), upd)
+	assert.Equal(t, http.StatusNotFound, code, "a secret derived from the token is not the stored one")
 	code, evs := r.post(r.conn, r.creds(), good, upd)
 	assert.Equal(t, http.StatusOK, code)
 	assert.Len(t, evs, 1)
+}
+
+// A message to the platform bot belongs to no tenant: a tenant that has only the platform credential may
+// not author the message trigger, and one with its own bot may, only with that bot.
+func TestMessageTriggerNeedsATenantsOwnBot(t *testing.T) {
+	r := newRig(t)
+	platformOnly := catalog.NewRegistry(avail{telegram.Kind: {{ID: "platform:telegram_bot", Name: "platform"}}})
+	require.NoError(t, connectors.NewDirectory(platformOnly).Register(r.c))
+	v, err := platformOnly.ForTenant(context.Background(), r.tenant)
+	require.NoError(t, err)
+	assert.Equal(t, "connection_unavailable", v.Unavailable[telegram.EventMessage], "no trigger on the platform bot")
+	assert.NotContains(t, v.Catalog.Events, telegram.EventMessage)
+	assert.Contains(t, v.Catalog.Events, telegram.EventCallback, "the press of a button is still known")
+	assert.Contains(t, v.Catalog.Nodes, telegram.NodeSend, "sending through the platform bot stays")
+
+	both := catalog.NewRegistry(avail{telegram.Kind: {{ID: r.conn.ID.String(), Name: "bot"}, {ID: "platform:telegram_bot", Name: "platform"}}})
+	require.NoError(t, connectors.NewDirectory(both).Register(telegram.New(telegram.Config{})))
+	v, err = both.ForTenant(context.Background(), r.tenant)
+	require.NoError(t, err)
+	const g = `{"name":"t","triggers":[{"id":"m","event":"telegram.message_received.v1","params":{"connection":"platform:telegram_bot"}}],"nodes":[],"edges":[{"from":{"node":"m","outcome":"fired"},"to":"ignore"}]}`
+	parsed, derrs := graph.Decode([]byte(g))
+	require.Empty(t, derrs)
+	errs := graph.Validate(v.Catalog, parsed, graph.Options{Rules: catalog.ConnectionRule(v)})
+	var found bool
+	for _, e := range errs {
+		found = found || e.Code == catalog.CodeConnectionUnavailable
+	}
+	assert.True(t, found, "the platform credential is not a connection of the trigger: %v", errs)
+	ok := strings.Replace(g, "platform:telegram_bot", r.conn.ID.String(), 1)
+	parsed, derrs = graph.Decode([]byte(ok))
+	require.Empty(t, derrs)
+	for _, e := range graph.Validate(v.Catalog, parsed, graph.Options{Rules: catalog.ConnectionRule(v)}) {
+		assert.NotEqual(t, catalog.CodeConnectionUnavailable, e.Code)
+	}
 }

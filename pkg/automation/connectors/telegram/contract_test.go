@@ -102,7 +102,7 @@ func TestBotAPIContract(t *testing.T) {
 		assert.Equal(t, catalog.CallRejected, ce.Code)
 	})
 	t.Run("the webhook is readable", func(t *testing.T) {
-		_, err := c.Advise(ctx, creds)
+		_, err := c.Advise(ctx, nil, creds)
 		require.NoError(t, err)
 	})
 }
