@@ -191,6 +191,10 @@ func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, 
 	for _, e := range effects {
 		o, err := applyOne(ctx, sp, sc, node, spec, en, e)
 		if err != nil {
+			var np *needsPrepare
+			if errors.As(err, &np) {
+				return EffectResult{}, nil, err
+			}
 			if platformErrors && (host.IsInfrastructure(err) || ctx.Err() != nil) {
 				return EffectResult{}, nil, err
 			}
@@ -209,6 +213,10 @@ func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, 
 
 // applyOne applies one effect; a node that picks its outcome must pick one it declares.
 func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, e graph.Effect) (EffectResult, error) {
+	if prep, ok := en.(EffectPreparer); ok && sc.Prepared == nil && sc.RunID != uuid.Nil {
+		// The step is rolled back and prepared outside the transaction first (a node test prepares itself).
+		return EffectResult{}, &needsPrepare{preparer: prep, sc: sc, node: node, effect: e}
+	}
 	pick, picks := en.(OutcomeEffectNode)
 	if !picks {
 		o, err := en.ApplyEffect(ctx, tx, sc, node, e)
@@ -244,7 +252,7 @@ func (m *mover) stepContext(tok *tokenRow, seq int) StepContext {
 		TenantID: m.x.tenant, RunID: m.x.run.ID, TokenID: tok.ID, Seq: seq,
 		AutomationID: m.x.run.AutomationID, Version: m.x.run.Version,
 		RunAs: m.x.subject, Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
-		NodeID: tok.NodeID, Trigger: triggerEventOf(m.x.run),
+		NodeID: tok.NodeID, Trigger: triggerEventOf(m.x.run), Prepared: m.x.preparedFor(tok.ID, seq, tok.NodeID),
 	}
 }
 

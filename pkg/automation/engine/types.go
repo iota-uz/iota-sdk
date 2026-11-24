@@ -470,6 +470,34 @@ type EffectPreviewer interface {
 	PreviewEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
 }
 
+// EffectPreparer is an optional interface of an EffectNode that has to read the database or call another
+// service before it can decide, and so must not do it while the step's transaction holds a connection (a pool
+// that cannot spare a second one would wait for ever). PrepareEffect runs outside any transaction, with the
+// effect's rendered params; its result reaches ApplyEffect/ApplyEffectResult as StepContext.Prepared, and the
+// effect is then applied in the step's transaction as usual, atomically with the step. The engine asks once
+// per step: a step that is applied again (a crash before the commit) prepares again. A node applied without
+// the engine's preparation (a test of the node) sees Prepared nil and decides for itself.
+type EffectPreparer interface {
+	PrepareEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (any, error)
+}
+
+// PreparedEffect is what an EffectPreparer returned for the step being applied: its value, or its error.
+type PreparedEffect struct {
+	Value any
+	Err   error
+}
+
+// needsPrepare is what a step's transaction returns when an effect node wants its preparation first: the step is
+// rolled back, the runner prepares outside the transaction and takes the step again.
+type needsPrepare struct {
+	preparer EffectPreparer
+	sc       StepContext
+	node     graph.Node
+	effect   graph.Effect
+}
+
+func (*needsPrepare) Error() string { return "the effect needs its preparation before the step" }
+
 // GraphChecker is an optional interface of a catalog.NodeType: rules over a whole graph that uses the node
 // (what its trigger events offer, for example), checked when the graph is saved, dry run and enabled.
 // The paths of the returned errors are those of the graph (nodes[i].params...).
@@ -510,6 +538,9 @@ type StepContext struct {
 	// Trigger is the event that started the run; nil for a run without an event (a manual or schedule
 	// run) and for a node test.
 	Trigger *TriggerEvent
+	// Prepared is the result of the node's PrepareEffect for this step (EffectPreparer); nil when the node
+	// has none or was applied without the engine's preparation.
+	Prepared *PreparedEffect
 	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
 	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool

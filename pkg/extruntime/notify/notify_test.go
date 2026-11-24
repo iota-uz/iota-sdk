@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -438,6 +439,65 @@ func TestCheckContactsKeepsTheRecordOfADeactivatedPackage(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resolved.Addressees, 1)
 	require.Empty(t, resolved.Skipped)
+}
+
+// The engine prepares the send_to_contact effect before the step's transaction opens, so a package's resolver,
+// which takes its own connections, is asked while the pool is free. In the transaction the shared pool has no
+// connection to spare (one is the step's, the rest are taken): the send still completes and the outcome is the
+// one the contact check chose.
+func TestSendToContactWithAPackageResolverNeedsNoSpareConnectionInTheStep(t *testing.T) {
+	e := newNenv(t)
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(context.Background(), e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	nt := automationnotify.NewSendToContact(automationnotify.Config{Sender: e.dispatch, Catalog: e.notices, Pool: e.f.Pool})
+	node, effect := graph.Node{ID: "sms", Type: automationnotify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Your policy expires soon"}}
+
+	step := func(key string) engine.EffectResult {
+		run := engine.StepContext{TenantID: e.f.TenantID(), RunID: uuid.New(), TokenID: uuid.New(), Seq: 1, NodeID: "sms", Subject: engine.SubjectRef{Entity: customerID, Key: key}}
+		// As the runner does: prepare with the pool free ...
+		v, perr := nt.(engine.EffectPreparer).PrepareEffect(context.Background(), run, node, effect)
+		run.Prepared = &engine.PreparedEffect{Value: v, Err: perr}
+
+		// ... then take the step's transaction and leave the shared pool without a free connection.
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		tx, err := e.f.Pool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(context.Background()) }()
+		var held []*pgxpool.Conn
+		defer func() {
+			for _, c := range held {
+				c.Release()
+			}
+		}()
+		for {
+			acquire, stop := context.WithTimeout(ctx, 300*time.Millisecond)
+			c, err := e.f.Pool.Acquire(acquire)
+			stop()
+			if err != nil {
+				break
+			}
+			held = append(held, c)
+		}
+		require.EqualValues(t, e.f.Pool.Config().MaxConns, e.f.Pool.Stat().AcquiredConns(), "no connection is left to spare")
+
+		res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, run, node, effect)
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit(ctx))
+		return res
+	}
+
+	res := step("c-nophone")
+	require.Equal(t, automationnotify.OutcomeNoContact, res.Outcome)
+	require.Zero(t, e.count("SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1", e.f.TenantID()))
+	require.Zero(t, e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID), "the check recorded nothing")
+
+	res = step("c-77")
+	require.Equal(t, automationnotify.OutcomeSent, res.Outcome)
+	e.drain()
+	require.Len(t, e.sms.SentTo("+99890c-77"), 1)
 }
 
 // The acceptance of the send_to_contact node with the package's resolver: a client without a phone takes

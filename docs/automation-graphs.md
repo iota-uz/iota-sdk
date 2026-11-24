@@ -326,6 +326,8 @@ optional interfaces of the node type widen that:
   output; an outcome it does not declare is the node's failure (`effect_failed`). `TestNode` shows it.
 - `engine.EffectPreviewer` (`PreviewEffect`) is what a dry run shows for the node instead of the bare
   captured effect: its outcome and output computed without writing or sending. The step stays `captured`.
+- `engine.EffectPreparer` (`PrepareEffect`) reads before the step's transaction opens, when the node must not
+  wait for a connection while the transaction holds one; the result reaches the effect as `StepContext.Prepared`.
 - `engine.GraphChecker` (`CheckNode`) adds rules over the whole graph that uses the node (what its trigger
   events offer), checked when the graph is saved, dry run and enabled.
 
@@ -351,17 +353,20 @@ resolve no audience and check no access themselves.
 - The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
   returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
   run's trigger event, used only to resolve `participants`.
-- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` sets
-  `AudienceRequest.CheckContacts`: the delivery layer checks the channel first, then asks the entity's contact
-  resolver for an address on it and leaves a record without one out with the reason `no_address`; the node then
-  takes `no_contact` and a dry run agrees. A `notifications.TxSafeContactResolver` is asked in the step's
-  transaction (it reads through `composables.UseTx(ctx)`); a `notifications.ContactChecker` (the extension
-  runtime's package resolver) is asked through `CheckContact`, which runs the package's query without an
-  invocation record (`host.RunRequest.Unrecorded`), so a dry run writes nothing; it takes its own connection, so
-  the call is bounded by a deadline and a pool that cannot spare one fails the node as `unavailable`. A
-  resolver of neither kind, or one that cannot be asked yet (a package resolver without an owner,
-  `ErrContactUnverifiable`), leaves its record unchecked: the worker records a missing address at delivery. A
-  channel that is not available is `failed` / `unavailable` whether or not the record has an address.
+- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` checks the record's
+  contact **before the step's transaction opens**: the node implements `engine.EffectPreparer`, so the runner
+  rolls the step back at the effect, calls `PrepareEffect` with no transaction and no connection held, and
+  takes the step again with the result in `StepContext.Prepared`. The preparation resolves the audience with
+  `AudienceRequest.CheckContacts` (the channel first, then the entity's contact resolver for an address on it;
+  a record without one is left out with the reason `no_address`); the node then takes `no_contact`, and a dry
+  run agrees. The send itself stays atomic with the step (`SendTx` with no second check), and a resolver that
+  takes its own connection, such as a package's (`notifications.ContactChecker`, which runs the package's query
+  without an invocation record, `host.RunRequest.Unrecorded`), never waits for one the transaction holds, even
+  on a pool without a spare connection. A node applied without the runner's preparation (a test of the node)
+  has the delivery layer check the contact in the transaction instead. A resolver that is neither a
+  `ContactChecker` nor a `TxSafeContactResolver`, or one that cannot be asked yet (`ErrContactUnverifiable`),
+  leaves its record unchecked: the worker records a missing address at delivery. A channel that is not
+  available is `failed` / `unavailable` whether or not the record has an address.
 - `participants` need every trigger event that can reach the node to have a notification definition with those
   recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
   an event (manual, schedule) fails with `no_trigger_event`.

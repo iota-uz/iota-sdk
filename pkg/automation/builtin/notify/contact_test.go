@@ -158,3 +158,68 @@ func TestSendToContactPreviewResolvesLikeASend(t *testing.T) {
 	require.ErrorAs(t, err, &se)
 	assert.Equal(t, "invalid", se.Code)
 }
+
+// The engine prepares the effect before the step's transaction opens: the contact is checked then, and the send
+// in the transaction asks nothing more of the contact resolver.
+func TestSendToContactPreparesTheContactCheckBeforeTheTransaction(t *testing.T) {
+	noAddress := []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/42", Reason: notifications.SkipNoAddress}}
+	prepareAs := func(s *sender, run engine.StepContext) *engine.PreparedEffect {
+		nt := notify.NewSendToContact(notify.Config{Sender: s})
+		v, err := nt.(engine.EffectPreparer).PrepareEffect(context.Background(), run, graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("sms")})
+		return &engine.PreparedEffect{Value: v, Err: err}
+	}
+	applyWith := func(s *sender, prepared *engine.PreparedEffect) (engine.EffectResult, error) {
+		run := step()
+		run.Prepared = prepared
+		return apply(t, notify.NewSendToContact(notify.Config{Sender: s}), run, contactParams("sms"))
+	}
+
+	// A client without an address: prepared as unreachable, the node takes no_contact and queues nothing.
+	s := &sender{resolved: notifications.ResolvedAudience{Skipped: noAddress}}
+	prepared := prepareAs(s, step())
+	require.NoError(t, prepared.Err)
+	require.Len(t, s.resolves, 1)
+	assert.True(t, s.resolves[0].CheckContacts, "the contact is checked while preparing")
+	res, err := applyWith(s, prepared)
+	require.NoError(t, err)
+	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
+	assert.Empty(t, s.sends, "nothing is queued, and the transaction asked nothing")
+	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/42", "reason": "no_address"}}, res.Output["skipped"])
+
+	// A reachable client: the send in the transaction does not check the contact again.
+	s = &sender{resolved: clientAudience(), receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
+	res, err = applyWith(s, prepareAs(s, step()))
+	require.NoError(t, err)
+	assert.Equal(t, notify.OutcomeSent, res.Outcome)
+	require.Len(t, s.sends, 1)
+	assert.False(t, s.sends[0].CheckContacts, "the contact was checked before the transaction")
+
+	// A preparation made for another record is not trusted: the delivery layer checks in the transaction.
+	elsewhere := step()
+	elsewhere.Subject = engine.SubjectRef{Entity: "crm.client", Key: "7"}
+	s = &sender{resolved: clientAudience(), receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
+	res, err = applyWith(s, prepareAs(s, elsewhere))
+	require.NoError(t, err)
+	assert.Equal(t, notify.OutcomeSent, res.Outcome)
+	assert.True(t, s.sends[0].CheckContacts)
+
+	// A preparation that failed fails the node with its error, and queues nothing.
+	s = &sender{resolveErr: serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")}
+	prepared = prepareAs(s, step())
+	require.Error(t, prepared.Err)
+	_, err = applyWith(s, prepared)
+	var se *engine.StepError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, "unavailable", se.Code)
+	assert.Empty(t, s.sends)
+
+	// An entity without a resolver leaves nobody, but it is not no_contact: the send refuses it as invalid input.
+	s = &sender{
+		resolved: notifications.ResolvedAudience{Skipped: []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/42", Reason: notifications.SkipNoContactResolver}}},
+		sendErr:  serrors.New(serrors.Invalid, "no contact resolver is registered for the recipient entity"),
+	}
+	_, err = applyWith(s, prepareAs(s, step()))
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, "invalid", se.Code)
+	assert.Len(t, s.sends, 1)
+}

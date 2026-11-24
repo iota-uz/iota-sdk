@@ -465,12 +465,17 @@ func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi
 		// As in a run: an effect node without an executor applies nothing, so its test says so.
 		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	if prep, ok := en.(EffectPreparer); ok && len(effects) > 0 {
+		// Prepared before the transaction opens, as a run does.
+		v, err := prep.PrepareEffect(ctx, sc, node, effects[0])
+		sc.Prepared = &PreparedEffect{Value: v, Err: err}
+	}
 	tx, err := r.cfg.DB.Begin(ctx)
 	if err != nil {
 		return EffectResult{}, nil, serrors.FromDB(opAuthoring, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
 	return applyEach(ctx, tx, sc, node, spec, en, effects, false)
 }
 

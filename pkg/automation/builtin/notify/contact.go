@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/jackc/pgx/v5"
 
@@ -35,6 +36,7 @@ func NewSendToContact(cfg Config) catalog.NodeType { return &contactNode{newBase
 var (
 	_ engine.OutcomeEffectNode = (*contactNode)(nil)
 	_ engine.EffectPreviewer   = (*contactNode)(nil)
+	_ engine.EffectPreparer    = (*contactNode)(nil)
 	_ engine.GraphChecker      = (*contactNode)(nil)
 )
 
@@ -70,21 +72,61 @@ func (n *contactNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.Ste
 	return res.Output, err
 }
 
-// ApplyEffectResult queues the message in the step's transaction when the record can be reached. The
-// delivery layer judges the request in one order (the channel, then the audience, then the record's contact in
-// this transaction, CheckContacts), so a channel that is not available fails the node whether or not the record
-// has an address, and the dry run agrees.
+// contactPrep is what PrepareEffect found out about the record, outside the step's transaction.
+type contactPrep struct {
+	record   notifications.ObjectRef
+	channel  notifications.Channel
+	resolved notifications.ResolvedAudience
+}
+
+// PrepareEffect checks the record's contact before the step's transaction opens, so a resolver that takes its
+// own connection (a package's) never waits for one the transaction holds: the delivery layer judges the
+// request in one order (the channel, then the audience, then the record's contact) with CheckContacts, exactly
+// as a dry run does, and nothing is queued yet.
+func (n *contactNode) PrepareEffect(ctx context.Context, run engine.StepContext, node graph.Node, e graph.Effect) (any, error) {
+	req, channel, err := n.request(run, node, e.Params)
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := n.cfg.Sender.Resolve(n.readCtx(ctx, run), req)
+	if err != nil {
+		return nil, failure(err)
+	}
+	return &contactPrep{record: req.Audience.Records[0], channel: channel, resolved: resolved}, nil
+}
+
+// ApplyEffectResult queues the message in the step's transaction when the record can be reached. The contact
+// was checked before the transaction (PrepareEffect), so the send takes no second connection; a node applied
+// without the engine's preparation (a test of the node) lets the delivery layer check it in the transaction
+// (CheckContacts). A channel that is not available fails the node whether or not the record has an address:
+// the delivery layer checks it first, in both.
 func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engine.StepContext, node graph.Node, e graph.Effect) (engine.EffectResult, error) {
 	req, channel, err := n.request(run, node, e.Params)
 	if err != nil {
 		return engine.EffectResult{}, err
 	}
 	out := map[string]any{"notice_id": "", "channel": string(channel), "skipped": []any{}}
+	if p := run.Prepared; p != nil {
+		if p.Err != nil {
+			return engine.EffectResult{}, p.Err
+		}
+		if prep, ok := p.Value.(*contactPrep); ok && prep.record == req.Audience.Records[0] && prep.channel == channel {
+			out["skipped"] = skippedOf(prep.resolved.Skipped)
+			if prep.resolved.Total() == 0 && !slices.ContainsFunc(prep.resolved.Skipped, func(s notifications.SkippedRecipient) bool {
+				return s.Reason == notifications.SkipNoContactResolver
+			}) {
+				return result(OutcomeNoContact, out)
+			}
+			req.CheckContacts = false // checked above, outside the transaction
+		}
+	}
 	receipt, err := n.cfg.Sender.SendTx(tenantCtx(ctx, run), tx, req)
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
-	out["skipped"] = skippedOf(receipt.Skipped)
+	if len(receipt.Skipped) > 0 {
+		out["skipped"] = skippedOf(receipt.Skipped)
+	}
 	if receipt.Recipients == 0 {
 		return result(OutcomeNoContact, out)
 	}

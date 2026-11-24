@@ -271,3 +271,109 @@ func TestDryRunPreviewOutputOverTheBoundTakesTheFailedOutcome(t *testing.T) {
 	assert.Equal(t, "failed", res.Trace[2].Node, "the trace follows the failed edge")
 	assert.Less(t, len(res.Trace[1].Output), 4096, "the oversized output is not kept")
 }
+
+// preparingNode asks for its preparation: it is prepared outside the step's transaction and applied in it with the
+// result.
+type preparingNode struct {
+	specNode
+	mu       sync.Mutex
+	prepares int
+	idleInTx []int // sessions idle in a transaction while PrepareEffect ran
+	applied  []*engine.PreparedEffect
+	db       interface {
+		QueryRow(context.Context, string, ...any) pgx.Row
+	}
+	prepareTo error
+}
+
+func (n *preparingNode) PrepareEffect(ctx context.Context, _ engine.StepContext, _ graph.Node, e graph.Effect) (any, error) {
+	var idle int
+	if err := n.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'idle in transaction' AND pid <> pg_backend_pid()`).Scan(&idle); err != nil {
+		return nil, err
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.prepares++
+	n.idleInTx = append(n.idleInTx, idle)
+	if n.prepareTo != nil {
+		return nil, n.prepareTo
+	}
+	pick, _ := e.Params["pick"].(string)
+	return "prepared:" + pick, nil
+}
+
+func (n *preparingNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepContext, node graph.Node, e graph.Effect) (map[string]any, error) {
+	res, err := n.ApplyEffectResult(ctx, tx, run, node, e)
+	return res.Output, err
+}
+
+func (n *preparingNode) ApplyEffectResult(_ context.Context, _ pgx.Tx, run engine.StepContext, _ graph.Node, e graph.Effect) (engine.EffectResult, error) {
+	n.mu.Lock()
+	n.applied = append(n.applied, run.Prepared)
+	n.mu.Unlock()
+	if run.Prepared != nil && run.Prepared.Err != nil {
+		return engine.EffectResult{}, run.Prepared.Err
+	}
+	pick, _ := e.Params["pick"].(string)
+	got, _ := run.Prepared.Value.(string)
+	return engine.EffectResult{Outcome: pick, Output: map[string]any{"picked": got}}, nil
+}
+
+func newPreparingEnv(t *testing.T) (*env, *preparingNode) {
+	t.Helper()
+	e := newEnv(t)
+	n := &preparingNode{db: e.db, specNode: specNode{graph.NodeSpec{Type: "acme.pick_outcome", Title: "Pick", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
+		Outcomes: []string{"sent", "none", "failed"}, DoneOutcome: "sent", FailedOutcome: "failed",
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{"pick":{"type":"string"}},"required":["pick"],"additionalProperties":false}`),
+		Output: expr.Fields{{Name: "picked", Field: expr.OptionalOf(expr.StringField)}, {Name: "previewed", Field: expr.OptionalOf(expr.BoolField)}}}}}
+	require.NoError(t, e.reg.RegisterNode(n))
+	return e, n
+}
+
+// An effect that asks for its preparation is prepared before the step's transaction opens — no transaction is
+// held then — and applied atomically with the step once, with the result.
+func TestEffectIsPreparedOutsideTheStepTransaction(t *testing.T) {
+	e, n := newPreparingEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, pickGraph("sent"))
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 7}, 2)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	assert.Equal(t, []string{"sent:sent"}, e.effects(run.RunID))
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	assert.Equal(t, 1, n.prepares, "prepared once for the step")
+	assert.Equal(t, []int{0}, n.idleInTx, "no transaction was open while it prepared")
+	require.Len(t, n.applied, 1, "and applied once, in the transaction")
+	require.NotNil(t, n.applied[0])
+	assert.Equal(t, "prepared:sent", n.applied[0].Value)
+}
+
+// A preparation that failed reaches the effect, which takes its failed outcome like any failure.
+func TestFailedPreparationReachesTheEffect(t *testing.T) {
+	e, n := newPreparingEnv(t)
+	n.prepareTo = &engine.StepError{Code: "unavailable", Message: "the contact lookup is down"}
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, pickGraph("sent"))
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 7}, 2)
+	run := onlyRun(t, e, p, a)
+	p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	assert.Equal(t, []string{"failed:failed unavailable"}, e.effects(run.RunID))
+}
+
+// A test of the node prepares itself before its transaction, as a run does.
+func TestTestNodePreparesTheEffect(t *testing.T) {
+	e, n := newPreparingEnv(t)
+	p := e.proc()
+	res, err := p.rt.Authoring().TestNode(context.Background(), e.human(), engine.TestNodeInput{Graph: json.RawMessage(pickGraph("none")), NodeID: "pick"})
+	require.NoError(t, err)
+	require.Nil(t, res.Error)
+	assert.Equal(t, "none", res.Outcome)
+	assert.JSONEq(t, `{"picked": "prepared:none"}`, string(res.Output))
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	assert.Equal(t, 1, n.prepares)
+}
