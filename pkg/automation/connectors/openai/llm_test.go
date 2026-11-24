@@ -840,8 +840,13 @@ func TestFractionalImageIDsAreRefused(t *testing.T) {
 	}
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(7.9)).Code)
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("7.9"))).Code)
+	// A float64 would round these to 7 or 8: the decimal text decides.
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("7.9999999999999999"))).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("7.0000000000000001"))).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e400"))).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e99999999999"))).Code)
 	assert.Empty(t, srv.Requests(), "nothing was sent for a fraction")
-	for _, whole := range []any{"7", 7, int64(7), 7.0, json.Number("7"), json.Number("7.0")} {
+	for _, whole := range []any{"7", 7, int64(7), 7.0, json.Number("7"), json.Number("7.0"), json.Number("0.7e1")} {
 		assert.NoError(t, run(whole), "%v", whole)
 	}
 }

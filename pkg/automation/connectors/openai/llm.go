@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 
@@ -336,14 +337,15 @@ func uploadID(v any) (string, bool) {
 	case int64:
 		return strconv.FormatInt(id, 10), true
 	case json.Number:
-		if n, err := id.Int64(); err == nil {
-			return strconv.FormatInt(n, 10), true
+		// Integrality is decided on the decimal text, not on a float: 7.9999999999999999 rounds to 8 as a float64.
+		if len(id) > 64 {
+			return "", false // no upload id is this long, and a huge exponent is not parsed
 		}
-		f, err := strconv.ParseFloat(id.String(), 64)
-		if err != nil {
+		r, ok := new(big.Rat).SetString(id.String())
+		if !ok || !r.IsInt() || !r.Num().IsInt64() {
 			return "", false
 		}
-		return wholeNumber(f)
+		return strconv.FormatInt(r.Num().Int64(), 10), true
 	case float64:
 		return wholeNumber(id)
 	}
