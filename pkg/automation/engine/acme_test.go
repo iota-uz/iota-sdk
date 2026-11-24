@@ -57,6 +57,8 @@ type acme struct {
 	pollErr  error
 	onAsk    func(token string) // runs inside the ask's Execute (answers that come before its wait opens)
 	onPoll   func()             // runs once inside the next Poll (another poller meanwhile)
+	// pollCursor, when set, is the cursor the next Poll returns (once) with its batch.
+	pollCursor json.RawMessage
 	// answerKey is the answer event the ask names (default acme.answer.v1).
 	answerKey atomic.Value
 }
@@ -196,6 +198,10 @@ func (a *acme) Poll(_ context.Context, c connectors.Connection, _ connectors.Cre
 	}
 	if n >= len(a.pollQ) {
 		return nil, cursor, nil
+	}
+	if c := a.pollCursor; c != nil {
+		a.pollCursor = nil
+		return a.pollQ[n], c, nil
 	}
 	return a.pollQ[n], json.RawMessage(fmt.Sprint(n + 1)), nil
 }

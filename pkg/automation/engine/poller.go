@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sort"
 	"sync"
@@ -380,6 +381,13 @@ func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, 
 		next, err := json.Marshal(all)
 		if err != nil {
 			return err
+		}
+		// The state keeps the store's invariant (UpdateInbound's limit): a cursor the store would refuse
+		// on the next claim is not saved, and its batch is rolled back with it. The cursor stays and
+		// the next poll asks again from it.
+		if len(next) > connectors.MaxInboundBytes {
+			return fmt.Errorf("%w: the cursor of %s makes the inbound state %d bytes, at most %d",
+				connectors.ErrInvalid, t.kind, len(next), connectors.MaxInboundBytes)
 		}
 		_, err = tx.Exec(ctx, `UPDATE automation.connections SET inbound = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`, t.tenant, t.id, next)
 		return err

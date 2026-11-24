@@ -27,8 +27,12 @@ var nameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 const (
 	maxDisplayName  = 200
 	maxStatusReason = 2000
-	maxInboundBytes = 1 << 20
+	maxInboundBytes = MaxInboundBytes
 )
+
+// MaxInboundBytes is the most a connection's inbound state (a polling cursor, a subscription id) holds,
+// as JSON: UpdateInbound refuses more, and so does whoever writes the state in its own transaction.
+const MaxInboundBytes = 1 << 20
 
 // IsName reports whether s is a valid connection name.
 func IsName(s string) bool { return nameRe.MatchString(s) }
