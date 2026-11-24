@@ -1,0 +1,10 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Automations section: the module runs the automation engine when the extension core is composed (natives, consumer, schedules, maintenance and inbound poller, usage index for Integrations) and serves /automations (list with status, triggers, last run and attention) and the graph editor of @iota-uz/sdk/automation-editor over an RPC layer on engine.Service/Authoring/Operations; enabling goes through a human review of Code nodes with the code digest; layouts carry a revision (SaveLayoutAt, VERSION_CONFLICT); connector webhooks at /automations/hooks without a session; engine.Service gains Overviews, CountLive, SaveLayoutAt and Authoring.Validate; the editor gains EditorProps.remoteLayout."
+    }
+  ],
+  "source": "f389b4235fc48fcf0b1408ae5d517d60c8e49a3f",
+  "version": "0.55.0"
+}
