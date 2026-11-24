@@ -1565,7 +1565,10 @@ func TestADelayedDisableNeverRemovesTheWebhookOfAnEnable(t *testing.T) {
 }
 
 // A disable's cleanup that is still running (the provider is slow) when an enable arrives: the enable waits for the
-// account, sets the webhook after the cleanup, and the connection ends connected with its webhook.
+// account, sets the webhook after the cleanup, and the connection ends connected with its webhook. This is the
+// cleanup-first order; the enable-first order (the cleanup finds the connection connected under the lock) cannot
+// be forced from outside, because an enable needs the same lock to commit, and is what the repeated test above
+// checks.
 func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
 	e := newEnv(t)
 	e.tg.exclusive = true
@@ -1578,7 +1581,7 @@ func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
 	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil); errs <- err }()
 	<-entered // the status is committed, and the cleanup is at the provider
 	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil); errs <- err }()
-	time.Sleep(200 * time.Millisecond) // the enable has reached the account's lock
+	e.waitForLockWaiter(t) // the enable is queued on the account's lock behind the held cleanup
 	e.tg.lmu.Lock()
 	e.tg.gate = nil // later calls are not held
 	e.tg.lmu.Unlock()
@@ -1590,6 +1593,18 @@ func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusConnected, list[0].Status)
 	assert.True(t, e.tg.webhookOf(goodToken), "the enable's webhook is not removed by the cleanup that was held")
+}
+
+// waitForLockWaiter blocks until a backend of the test database waits for an advisory lock: the account's lock a
+// request queues on. Polling the server's own view replaces a fixed pause.
+func (e *env) waitForLockWaiter(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := e.db.QueryRow(e.ctx, `SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+			WHERE l.locktype = 'advisory' AND NOT l.granted AND d.datname = current_database()`).Scan(&waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "no request is waiting for the account's lock")
 }
 
 // A delete that overlaps a disable (the status committed, the credentials not read yet) still tells the provider: the

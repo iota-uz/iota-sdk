@@ -157,6 +157,18 @@ type cachedName struct {
 	at   time.Time
 }
 
+// rememberName caches the username of a bot and drops the entries that have outlived usernameTTL, so a token
+// that was replaced (its fingerprint is never asked for again) does not stay for the life of the process.
+func (c *Connector) rememberName(fp [sha256.Size]byte, name string, now time.Time) {
+	c.usernames.Range(func(k, v any) bool {
+		if now.Sub(v.(cachedName).at) >= usernameTTL {
+			c.usernames.Delete(k)
+		}
+		return true
+	})
+	c.usernames.Store(fp, cachedName{name: name, at: now})
+}
+
 // addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
 // of a group is that bot's, never this connector's.
 func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) (bool, error) {
@@ -174,7 +186,7 @@ func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) (bool,
 		return false, err // who the bot is cannot be told now: the update is redelivered, not dropped
 	}
 	name := strings.ToLower(me.Username)
-	c.usernames.Store(fp, cachedName{name: name, at: time.Now()})
+	c.rememberName(fp, name, time.Now())
 	return name == to, nil
 }
 

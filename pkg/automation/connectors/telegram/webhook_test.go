@@ -3,8 +3,11 @@ package telegram_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -741,4 +744,42 @@ func TestAnAnswerWithoutAMessageIsNotASend(t *testing.T) {
 			assert.NotErrorAs(t, err, &refused, "not a refusal: the message may have been sent")
 		})
 	}
+}
+
+// A file belongs to the bot that got it: another bot cannot resolve its id or download its path, the owner can.
+func TestAFileCanBeReachedOnlyByTheBotThatGotIt(t *testing.T) {
+	r := newRig(t)
+	u := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("%PDF"))
+	fileID := u["message"].(map[string]any)["document"].(map[string]any)["file_id"].(string)
+	get := func(token, method, path string, query url.Values) (int, string) {
+		var resp *http.Response
+		var err error
+		if method == "" {
+			resp, err = http.Get(r.api.URL() + "/file/bot" + token + "/" + path) //nolint:noctx // a local fake
+		} else {
+			resp, err = http.Post(r.api.URL()+"/bot"+token+"/"+method, "application/json", strings.NewReader(`{"file_id":"`+query.Get("file_id")+`"}`)) //nolint:noctx // a local fake
+		}
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(body)
+	}
+	code, body := get(tenantToken, "getFile", "", url.Values{"file_id": {fileID}})
+	require.Equal(t, http.StatusOK, code)
+	var meta struct {
+		Result struct {
+			FilePath string `json:"file_path"`
+		} `json:"result"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &meta))
+	require.NotEmpty(t, meta.Result.FilePath)
+
+	code, _ = get(platformToken, "getFile", "", url.Values{"file_id": {fileID}})
+	assert.Equal(t, http.StatusBadRequest, code, "another bot cannot resolve the file id")
+	code, _ = get(platformToken, "", meta.Result.FilePath, nil)
+	assert.Equal(t, http.StatusNotFound, code, "nor download its path")
+	code, content := get(tenantToken, "", meta.Result.FilePath, nil)
+	assert.Equal(t, http.StatusOK, code, "the owner downloads it")
+	assert.Equal(t, "%PDF", content)
 }
