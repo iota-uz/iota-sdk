@@ -420,6 +420,9 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	return c.deliverStartReply(ctx, b, m, conn, scope)
 }
 
+// releaseTimeout bounds the release of a claim after a failure.
+const releaseTimeout = 5 * time.Second
+
 // actionScope names the durable record of an update.
 type actionScope struct {
 	acts        connectors.InboundActions
@@ -431,7 +434,11 @@ func (a actionScope) release(c *Connector, owner uuid.UUID) {
 	if a.acts == nil {
 		return
 	}
-	if err := a.acts.ReleaseInbound(context.WithoutCancel(context.Background()), a.conn, a.event, a.key, owner); err != nil {
+	// Detached from the request, which may have ended, and bounded: a database that does not answer must not keep the
+	// webhook from returning. A claim that is not released lapses by itself (claimTimeout).
+	ctx, cancel := context.WithTimeout(context.Background(), releaseTimeout)
+	defer cancel()
+	if err := a.acts.ReleaseInbound(ctx, a.conn, a.event, a.key, owner); err != nil {
 		c.log().Warn("telegram: a claim of a /start was not released", "error", err.Error())
 	}
 }

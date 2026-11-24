@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,6 +24,17 @@ type CoreUploads interface {
 	GetByID(ctx context.Context, id uint) (upload.Upload, error)
 	OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error)
 }
+
+// storedSuffix is added to the name an inbound file is stored under. The public file handler picks a file's type by
+// its extension, and for one it does not know sniffs the content, so a document from a chat (HTML, SVG) would be
+// served on the application's origin as the page it contains. Under this suffix the stored file is plain text there,
+// whatever its name was; the name the person and Telegram know is kept in the connector's event, and restored on
+// Open.
+const storedSuffix = ".tg.txt"
+
+// downloadPath is the signed-in, tenant-checked download route of the core upload controller, which serves a file
+// with a sandboxing policy and as an attachment of its detected type. A file is opened by people through it.
+const downloadPath = "/uploads/"
 
 // maxTelegramFile is what a bot sends: 50 MB.
 const maxTelegramFile = 50 << 20
@@ -49,11 +61,12 @@ func (u telegramUploads) scope(ctx context.Context, tenantID uuid.UUID) context.
 
 func (u telegramUploads) Save(ctx context.Context, tenantID uuid.UUID, f telegram.UploadFile) (telegram.Stored, error) {
 	ctx = u.scope(ctx, tenantID)
-	created, err := u.svc.Create(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name, Size: len(f.Data)})
+	created, err := u.svc.Create(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name + storedSuffix, Size: len(f.Data)})
 	if err != nil {
 		return telegram.Stored{}, err
 	}
-	return telegram.Stored{ID: strconv.FormatUint(uint64(created.ID()), 10), URL: created.URL().String()}, nil
+	id := strconv.FormatUint(uint64(created.ID()), 10)
+	return telegram.Stored{ID: id, URL: downloadPath + id}, nil
 }
 
 func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string) (telegram.UploadFile, error) {
@@ -85,5 +98,5 @@ func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string
 	if m := found.Mimetype(); m != nil {
 		mime = m.String()
 	}
-	return telegram.UploadFile{Name: found.Name(), Mime: mime, Data: data}, nil
+	return telegram.UploadFile{Name: strings.TrimSuffix(found.Name(), storedSuffix), Mime: mime, Data: data}, nil
 }
