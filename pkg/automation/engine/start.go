@@ -40,6 +40,16 @@ type startRequest struct {
 	cause       *uuid.UUID
 	restarted   *uuid.UUID
 	predecessor *uuid.UUID
+	// parent is the instance the run's instance is a child of (a run a step started to wait for it):
+	// terminating the parent's tree terminates it.
+	parent *uuid.UUID
+	// shares are the runs that hold the conversation and wait for this one: the step's run and, when it
+	// was itself started to be waited for on the conversation, its waiting ancestors (run_automation). The
+	// run takes its turn inside theirs instead of queuing behind them.
+	shares []uuid.UUID
+	// inherited are sensitive fields the run's data derives from besides its events' (the run whose step
+	// started it read them): its steps are hidden from a viewer who may not read them.
+	inherited []sensitiveRef
 	// startState and reason, when set, record a run that does not start.
 	startState string
 	reason     string
@@ -163,6 +173,13 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		}
 		all, _ = mergeRefs(all, refs)
 	}
+	all, _ = mergeRefs(all, req.inherited)
+	inherited := []byte(`[]`)
+	if len(req.inherited) > 0 {
+		if inherited, err = json.Marshal(req.inherited); err != nil {
+			return RunRef{}, err
+		}
+	}
 	if len(all) > 0 {
 		if sensitive, err = json.Marshal(all); err != nil {
 			return RunRef{}, err
@@ -195,12 +212,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.runs (tenant_id, id, automation_id, version, start_key, start_state, start_reason, trigger_id,
 			trigger_event_id, trigger_kind, input, subject_entity, subject_key, run_as_user_id, run_as_kind, initiator_user_id,
-			depth, cause_run_id, restarted_from, sensitive, events)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+			depth, cause_run_id, restarted_from, sensitive, events, inherited)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		ON CONFLICT (tenant_id, start_key) DO NOTHING
 		RETURNING id`,
 		req.tenant, id, req.automationID, req.version, key, state, reason, req.triggerID, eventID, req.kind, input,
-		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive, evs).Scan(&got)
+		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive, evs, inherited).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, err := r.runByKey(ctx, tx, req.tenant, req.key)
 		if err != nil {
@@ -235,7 +252,8 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		if err := lockSubjects(ctx, tx, subjectLockKey(req.tenant, subject, id)); err != nil {
 			return RunRef{}, err
 		}
-		busy, err := subjectBusy(ctx, tx, req.tenant, subject, id)
+		except := append([]uuid.UUID{id}, req.shares...)
+		busy, err := subjectBusy(ctx, tx, req.tenant, subject, except...)
 		if err != nil {
 			return RunRef{}, err
 		}
@@ -250,7 +268,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 			return RunRef{RunID: id, Status: RunQueued}, nil
 		}
 	}
-	if err := r.startInstance(ctx, tx, req.tenant, id, *req.runAs, req.predecessor); err != nil {
+	if err := r.startInstance(ctx, tx, req.tenant, id, *req.runAs, req.predecessor, req.parent); err != nil {
 		return RunRef{}, err
 	}
 	r.metrics.runStarted(ctx, req.kind)
@@ -258,7 +276,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 }
 
 // startInstance starts the automation.run instance of a recorded run.
-func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, runAs spi.Subject, predecessor *uuid.UUID) error {
+func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, runAs spi.Subject, predecessor, parent *uuid.UUID) error {
 	runAs.TenantID = tenant
 	in := spi.StartIntent{
 		Workflow: WorkflowID,
@@ -267,6 +285,9 @@ func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid
 	}
 	if predecessor != nil {
 		in.Predecessor = predecessor.String()
+	}
+	if parent != nil {
+		in.Producer = spi.Producer{InstanceID: parent.String()}
 	}
 	inst, err := r.cfg.Workflows.Start(ctx, tx, spi.Scope{Subject: runAs}, in)
 	if err != nil {
@@ -280,11 +301,11 @@ func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid
 }
 
 // subjectBusy reports whether another run of the subject is active.
-func subjectBusy(ctx context.Context, q querier, tenant uuid.UUID, s SubjectRef, except uuid.UUID) (bool, error) {
+func subjectBusy(ctx context.Context, q querier, tenant uuid.UUID, s SubjectRef, except ...uuid.UUID) (bool, error) {
 	var busy bool
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1`+runFrom+`
-			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4 AND `+liveSQL+` AND NOT `+supersededSQL+`)`,
+			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> ALL($4::uuid[]) AND `+liveSQL+` AND NOT `+supersededSQL+`)`,
 		tenant, s.Entity, s.Key, except).Scan(&busy)
 	return busy, serrors.FromDB(opStart, err)
 }
@@ -343,7 +364,7 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 		_, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'blocked', start_reason = 'no_owner' WHERE tenant_id = $1 AND id = $2`, tenant, run)
 		return serrors.FromDB(opStart, err)
 	}
-	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil)
+	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil, nil)
 }
 
 // queueScanBatch is how many free subjects one startQueued pass looks at.

@@ -12,7 +12,9 @@
 //
 // or registers connectors on the resolved connectors.Directory before serving requests.
 //
-// The component provides the connector Directory, the catalog Registry, the encrypted ConnectionStore
+// The component provides the connector Directory, the catalog Registry with the built-in node types
+// (set, code, http, start_automation, run_automation and the actions modules contribute through
+// pkg/automation/builtin/actions), the encrypted ConnectionStore
 // (keys from AUTOMATION_CONNECTIONS_KEYS, platform credentials from AUTOMATION_PLATFORM_CREDENTIALS),
 // the OAuth2 helper and the host.SecretResolver the extension runtime serves secrets.get with.
 package automations
@@ -24,6 +26,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -39,7 +42,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
@@ -210,8 +215,12 @@ func (c *component) Build(b *composition.Builder) error {
 
 	// The registry's availability is the store, which is built after the directory that registers into
 	// the registry: it is resolved on the first catalog read.
+	// The built-in node types are in every tenant's catalog; an application that provides its own
+	// registry registers them with builtin.Register.
 	composition.ProvideDefault[catalog.Registry](b, func(container *composition.Container) (catalog.Registry, error) {
-		reg := catalog.NewRegistry(lazyAvailability{container: container})
+		reg := catalog.NewRegistry(lazyAvailability{container: container}, catalog.WithParticipants(func(event string) []string {
+			return participantsOf(container, event)
+		}))
 		if c.noEngine {
 			return reg, nil
 		}
@@ -224,7 +233,14 @@ func (c *component) Build(b *composition.Builder) error {
 		if err := registerEngineCatalog(reg, natives, slog.Default()); err != nil {
 			return nil, err
 		}
+		if err := registerBuiltins(reg, container); err != nil {
+			return nil, err
+		}
 		return reg, nil
+	})
+	// The actions of the application's native set (actions.Native) join the catalog when it starts.
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		return []composition.Hook{actionsHook(container)}, nil
 	})
 	c.buildEngine(b)
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
@@ -340,6 +356,8 @@ func (c *component) Build(b *composition.Builder) error {
 		}), nil
 	})
 
+	c.contributeNotifyNodes(b, cfg.origin)
+
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
 	}
@@ -366,6 +384,35 @@ func (c *component) Build(b *composition.Builder) error {
 	return nil
 }
 
+// contributeNotifyNodes registers the notification nodes of graphs (notify, send_to_contact) in the catalog
+// registry and their notification definition automations.notify.v1 in the core catalog. The nodes send
+// through core's AudienceSender, so the core notification stack must be part of the composition.
+func (c *component) contributeNotifyNodes(b *composition.Builder, origin string) {
+	if u, err := url.Parse(origin); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		origin = "" // only paths of the application are links of a notice then
+	}
+	notify.Contribute(b)
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		reg, err := composition.Resolve[catalog.Registry](container)
+		if err != nil {
+			return nil, err
+		}
+		sender, err := composition.Resolve[notifications.AudienceSender](container)
+		if err != nil {
+			return nil, err
+		}
+		definitions, err := composition.Resolve[*notifications.Catalog](container)
+		if err != nil {
+			return nil, err
+		}
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
+	})
+}
+
 // IntegrationsSettingsPage is the settings hub entry of the integrations page.
 func IntegrationsSettingsPage() types.SettingsPage {
 	return types.SettingsPage{
@@ -385,6 +432,24 @@ func loadManifest(path string) (clienthost.Manifest, error) {
 		return clienthost.Manifest{}, serrors.Wrap("automations.loadManifest", err)
 	}
 	return clienthost.ParseManifest(raw)
+}
+
+// participantsOf are the recipient keys of the notification definition of an event: the participants a notify
+// node may name when a graph is triggered by it.
+func participantsOf(container *composition.Container, event string) []string {
+	definitions, err := composition.Resolve[*notifications.Catalog](container)
+	if err != nil {
+		return nil
+	}
+	def, ok := definitions.Get(event)
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(def.RecipientKeys))
+	for _, r := range def.RecipientKeys {
+		keys = append(keys, r.Key)
+	}
+	return keys
 }
 
 // lazyAvailability resolves the connection store when the catalog is first read.

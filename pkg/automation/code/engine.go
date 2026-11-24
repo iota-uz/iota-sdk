@@ -49,6 +49,13 @@ const (
 // SecretName is the pattern of a secret's name.
 var SecretName = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,63}$`)
 
+// ConnectionName is the pattern of a connection's name in env.connections; ConnectionMethod of its
+// methods.
+var (
+	ConnectionName   = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+	ConnectionMethod = regexp.MustCompile(`^[a-z][A-Za-z0-9_]{0,39}$`)
+)
+
 // EngineOption configures NewEngine.
 type EngineOption func(*engineOptions)
 
@@ -292,7 +299,24 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	masker := NewMasker(in.Secrets)
+	for name, methods := range in.Connections {
+		if !ConnectionName.MatchString(name) {
+			return nil, serrors.Wrap(op, fmt.Errorf("invalid connection name %q", name))
+		}
+		for _, m := range methods {
+			if !ConnectionMethod.MatchString(m) || m == "then" {
+				return nil, serrors.Wrap(op, fmt.Errorf("connection %s: invalid method name %q", name, m))
+			}
+		}
+	}
+	masked := make(map[string]string, len(in.Secrets)+len(in.Masked))
+	for k, v := range in.Secrets {
+		masked[k] = v
+	}
+	for i, v := range in.Masked {
+		masked[fmt.Sprintf("\x00masked%d", i)] = v
+	}
+	masker := NewMasker(masked)
 	for _, name := range names {
 		if in.Secrets[name] == "" {
 			return failed(&RunError{Reason: ReasonSecretMissing, Message: "secret " + name + " is not set"}, nil, 0), nil
@@ -362,15 +386,21 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	} else {
 		_, evalErr = inst.Eval(evalCtx, program, kafig.WithAsync())
 	}
+	connsJSON, err := json.Marshal(connectionMethods(in.Connections))
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
 	if evalErr == nil {
 		var call strings.Builder
-		call.Grow(len(ctxJSON) + len(secretsJSON) + 64)
+		call.Grow(len(ctxJSON) + len(secretsJSON) + len(connsJSON) + 64)
 		call.WriteString("__codeRun(typeof __mod === \"undefined\" ? undefined : __mod,")
 		call.Write(quoteJSON(string(ctxJSON)))
 		call.WriteString(",")
 		call.Write(quoteJSON(string(secretsJSON)))
 		call.WriteString(",")
-		call.Write(quoteJSON(string(driverLimits(limits, in.Secrets))))
+		call.Write(quoteJSON(string(driverLimits(limits, masked))))
+		call.WriteString(",")
+		call.Write(quoteJSON(string(connsJSON)))
 		call.WriteString(")")
 		_, evalErr = inst.Eval(evalCtx, call.String(), kafig.WithAsync())
 	}
@@ -443,6 +473,24 @@ func driverLimits(l Limits, secrets map[string]string) []byte {
 	}
 	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d}`,
 		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes)
+}
+
+// connectionMethods is the connections of a run with their methods, each once, in order: never null.
+func connectionMethods(in map[string][]string) map[string][]string {
+	out := make(map[string][]string, len(in))
+	for name, methods := range in {
+		seen := map[string]bool{}
+		list := make([]string, 0, len(methods))
+		for _, m := range methods {
+			if !seen[m] {
+				seen[m] = true
+				list = append(list, m)
+			}
+		}
+		sort.Strings(list)
+		out[name] = list
+	}
+	return out
 }
 
 func normalizeCtx(raw json.RawMessage) ([]byte, error) {
@@ -575,6 +623,9 @@ func (e *engine) jsFailure(st *runState, script *Compiled, name, message, stack 
 	reason := ReasonException
 	if name == "NetworkBlocked" && st.blocked.Load() {
 		reason = ReasonNetworkBlocked
+	}
+	if code, ok := st.connRefused.Load().(FailureReason); ok && name == "ConnectionError" && code != "" {
+		reason = code
 	}
 	full := message
 	if name != "" {

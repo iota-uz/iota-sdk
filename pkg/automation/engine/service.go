@@ -1112,6 +1112,22 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 			gev["kind"] = kind
 		}
 		req.event = gev
+		// The provenance the input inherited from the run that started the original (StartFromStep) goes
+		// with the new run, and its run-as must still be allowed to read it.
+		var raw []byte
+		if err := tx.QueryRow(ctx, `SELECT inherited FROM automation.runs WHERE tenant_id = $1 AND id = $2`, a.TenantID, old.ID).Scan(&raw); err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		req.inherited = decodeRefs(raw)
+		if len(req.inherited) > 0 && as != nil {
+			ok, err := proj.readable(ctx, req.inherited, as)
+			if err != nil {
+				return &host.InfraError{Err: err}
+			}
+			if !ok {
+				return fmt.Errorf("%w: the run-as may not read the event fields the run's input derives from", ErrForbidden)
+			}
+		}
 		if req.runAs != nil && req.depth > s.r.cfg.Limits.MaxDepth {
 			req.runAs, req.startState, req.reason = nil, startBlocked, "depth_exceeded"
 		}

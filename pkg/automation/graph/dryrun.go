@@ -28,6 +28,11 @@ type DryRunOptions struct {
 	Modes bool
 	// Execute answers a call of an execute node for real (Modes on); nil: such calls are captured.
 	Execute func(node Node, effects []Effect) ExecAnswer
+	// Preview answers a captured effect node (Modes on) with what the node would do, computed without
+	// doing it: its outcome and output, or its failure. started is the event that started the run (the
+	// first one a trigger took), kept for every later step. ok false: the node has no preview and takes
+	// its done outcome. The step stays captured.
+	Preview func(node Node, effects []Effect, started Event) (answer ExecAnswer, ok bool)
 }
 
 // ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
@@ -154,6 +159,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 				d.tokens = append(d.tokens, main)
 				d.emit(nil, TraceStep{Node: t.ID, Outcome: TriggerOutcome})
 				started = true
+				d.started = input.Event
 				d.advance(main, t.ID, TriggerOutcome)
 				break
 			}
@@ -255,6 +261,9 @@ type dryRun struct {
 	timers []*dryTimer
 	clock  int64 // ms since the run started, moved by timeouts
 	seq    int
+	// started is the event that started the run: what a preview of a node reads, whatever event a later
+	// wait takes.
+	started Event
 }
 
 func copyContext(c Context) Context {
@@ -566,19 +575,55 @@ func (d *dryRun) walk(t *dryToken, current string) {
 		case StepOutcome, StepMissingContext, StepFailed:
 		}
 		status := ""
+		outcome, output := step.Outcome, step.Output
 		if len(step.Effects) > 0 && d.o.Modes {
 			if d.mode(node) == DryRunForbid {
 				d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
 				return
 			}
 			status = StatusCaptured
+			if d.o.Preview != nil {
+				if a, previewed := d.o.Preview(node, step.Effects, d.started); previewed {
+					if a.Code != "" {
+						fo, took := d.takeFailedWith(t, node.ID, a.Message, failedHow{retryable: a.Retryable, status: StatusCaptured}, a.Code)
+						if !took {
+							d.fail(t, node.ID, failed(a.Code, "%s", a.Message))
+							return
+						}
+						t.from = node.ID
+						current, ok = i.Next(node.ID, fo)
+						continue
+					}
+					if a.Outcome != "" && !contains(i.view.Outcomes(node.ID), a.Outcome) {
+						d.fail(t, node.ID, failed(FailInvalidGraph, "%s previewed the outcome %q it does not declare", node.ID, a.Outcome))
+						return
+					}
+					if big := i.tooLarge(a.Output, "the output of "+node.ID); big != nil {
+						// A live run refuses an output over the bound and takes the failed outcome: so does the preview.
+						fo, took := d.takeFailedWith(t, node.ID, big.Message, failedHow{status: StatusCaptured}, big.Code)
+						if !took {
+							d.fail(t, node.ID, *big)
+							return
+						}
+						t.from = node.ID
+						current, ok = i.Next(node.ID, fo)
+						continue
+					}
+					if a.Outcome != "" {
+						outcome = a.Outcome
+					}
+					if a.Output != nil {
+						output = a.Output
+					}
+				}
+			}
 		}
-		d.emit(t, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: dryPatch(step.Effects, step.Output), Status: status})
-		if step.Output != nil {
-			t.set(node.ID, NodeState{Output: step.Output})
+		d.emit(t, TraceStep{Node: node.ID, Outcome: outcome, ContextPatch: dryPatch(step.Effects, output), Status: status})
+		if output != nil {
+			t.set(node.ID, NodeState{Output: output})
 		}
 		t.from = node.ID
-		current, ok = i.Next(node.ID, step.Outcome)
+		current, ok = i.Next(node.ID, outcome)
 	}
 	if !ok && !d.ended {
 		d.noEdge(t)

@@ -128,6 +128,9 @@ type env struct {
 	// audience and observers are the workflow engine's task audience and task observers.
 	audience  workflow.TaskAudience
 	observers []workflow.TaskObserver
+	// commands and commandCatalog are the command host of wf.call (NativeRun.Call) and its catalog.
+	commands       workflow.CommandInvoker
+	commandCatalog spi.Catalog
 }
 
 var allPerms = []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate, permRead, permSec}
@@ -210,9 +213,12 @@ func (e *env) proc(tune ...func(*engine.Config)) *proc {
 		DB: e.db, Subjects: e.subjects,
 		NativeSource: func() (map[string]workflow.NativeContract, error) { return p.rt.Natives(), nil },
 		LeaseTTL:     3 * time.Second, Heartbeat: time.Second, PollInterval: 50 * time.Millisecond, RetryBackoff: 10 * time.Millisecond,
-		MaxRunFailures: 20, Logger: e.logger, TaskAudience: e.audience, TaskObservers: e.observers,
+		MaxRunFailures: 20, Logger: e.logger, TaskAudience: e.audience, TaskObservers: e.observers, Catalog: e.commandCatalog,
 	})
 	require.NoError(e.t, err)
+	if e.commands != nil {
+		wf.SetCommands(e.commands)
+	}
 	e.t.Cleanup(wf.Shutdown)
 	cfg := engine.Config{DB: e.db, Workflows: wf, Users: e.subjects, Catalog: e.reg, Tasks: tasks{}, Logger: e.logger}
 	for _, f := range tune {
