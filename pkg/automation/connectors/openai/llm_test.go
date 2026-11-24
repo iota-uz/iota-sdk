@@ -845,6 +845,10 @@ func TestFractionalImageIDsAreRefused(t *testing.T) {
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("7.0000000000000001"))).Code)
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e400"))).Code)
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e99999999999"))).Code)
+	started := time.Now()
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e1000000"))).Code, "an exponent of a million digits is not expanded")
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run(json.Number("1e-1000000"))).Code)
+	assert.Less(t, time.Since(started), time.Second)
 	assert.Empty(t, srv.Requests(), "nothing was sent for a fraction")
 	for _, whole := range []any{"7", 7, int64(7), 7.0, json.Number("7"), json.Number("7.0"), json.Number("0.7e1")} {
 		assert.NoError(t, run(whole), "%v", whole)

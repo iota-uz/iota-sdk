@@ -338,8 +338,8 @@ func uploadID(v any) (string, bool) {
 		return strconv.FormatInt(id, 10), true
 	case json.Number:
 		// Integrality is decided on the decimal text, not on a float: 7.9999999999999999 rounds to 8 as a float64.
-		if len(id) > 64 {
-			return "", false // no upload id is this long, and a huge exponent is not parsed
+		if len(id) > 64 || hugeExponent(id.String()) {
+			return "", false // no upload id is this long, and a huge exponent is not expanded
 		}
 		r, ok := new(big.Rat).SetString(id.String())
 		if !ok || !r.IsInt() || !r.Num().IsInt64() {
@@ -350,6 +350,17 @@ func uploadID(v any) (string, bool) {
 		return wholeNumber(id)
 	}
 	return "", false
+}
+
+// hugeExponent reports whether a decimal text has an exponent too large for an id (the value would be
+// expanded by big.Rat before it is judged): an id has at most 10 digits, so any exponent past 30 is refused.
+func hugeExponent(text string) bool {
+	i := strings.IndexAny(text, "eE")
+	if i < 0 {
+		return false
+	}
+	exp, err := strconv.Atoi(strings.TrimPrefix(text[i+1:], "+"))
+	return err != nil || exp > 30 || exp < -30
 }
 
 func wholeNumber(f float64) (string, bool) {
