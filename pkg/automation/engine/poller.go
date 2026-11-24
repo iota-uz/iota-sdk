@@ -115,11 +115,18 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 	rescan := p.scanned.IsZero() || !now.Before(p.scanned.Add(p.cfg.Rescan))
 	p.mu.Unlock()
 	if rescan {
-		targets, err := p.scan(ctx)
+		targets, failed, err := p.scan(ctx)
 		if err != nil {
 			return now.Add(p.cfg.Rescan), err
 		}
 		p.mu.Lock()
+		// A tenant whose catalog could not be read keeps its last targets: its failure stops nobody's
+		// polling, and the next rescan tries it again.
+		for _, t := range p.targets {
+			if failed[t.tenant] {
+				targets = append(targets, t)
+			}
+		}
 		p.targets, p.scanned = targets, now
 		keep := map[uuid.UUID]bool{}
 		for _, t := range targets {
@@ -164,7 +171,7 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 
 // scan lists the connected connections of a Poller connector that an inbound trigger of an enabled
 // version uses (its connection param, or the one connection of its kinds).
-func (p *InboundPoller) scan(ctx context.Context) ([]polled, error) {
+func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool, error) {
 	rows, err := p.r.cfg.DB.Query(ctx, `
 		SELECT t.tenant_id, t.trigger_id, v.graph
 		FROM automation.triggers t
@@ -172,7 +179,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, error) {
 		JOIN automation.versions v ON v.tenant_id = t.tenant_id AND v.automation_id = t.automation_id AND v.version = t.version
 		WHERE t.kind = 'inbound'`)
 	if err != nil {
-		return nil, serrors.FromDB(opPoll, err)
+		return nil, nil, serrors.FromDB(opPoll, err)
 	}
 	type use struct {
 		tenant  uuid.UUID
@@ -184,15 +191,16 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, error) {
 		var u use
 		if err := rows.Scan(&u.tenant, &u.trigger, &u.raw); err != nil {
 			rows.Close()
-			return nil, serrors.FromDB(opPoll, err)
+			return nil, nil, serrors.FromDB(opPoll, err)
 		}
 		uses = append(uses, u)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return nil, serrors.FromDB(opPoll, err)
+		return nil, nil, serrors.FromDB(opPoll, err)
 	}
 	views := map[uuid.UUID]catalog.View{}
+	failed := map[uuid.UUID]bool{}
 	seen := map[uuid.UUID]bool{}
 	var out []polled
 	for _, u := range uses {
@@ -202,8 +210,13 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, error) {
 		}
 		view, ok := views[u.tenant]
 		if !ok {
+			if failed[u.tenant] {
+				continue
+			}
 			if view, err = p.r.cfg.Catalog.ForTenant(ctx, u.tenant); err != nil {
-				return nil, serrors.Wrap(opPoll, err)
+				failed[u.tenant] = true
+				p.r.cfg.Logger.Warn("automation poller: the catalog of a tenant could not be read", "tenant_id", u.tenant.String(), "error", err)
+				continue
 			}
 			views[u.tenant] = view
 		}
@@ -228,7 +241,7 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, error) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].id.String() < out[j].id.String() })
-	return out, nil
+	return out, failed, nil
 }
 
 // pollOne polls one connection when its state says it is due; it returns when it is due next.
@@ -256,6 +269,8 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	if state.NextAt != nil && now.Before(*state.NextAt) {
 		return *state.NextAt, nil // another process (or before a restart) polled it
 	}
+	// The next poll is due an interval after this one starts, whenever the pass began.
+	now = p.cfg.Clock()
 	evs, next, err := poller.Poll(ctx, c, creds, state.Cursor)
 	if err != nil {
 		p.r.metrics.pollError(ctx, string(t.kind))
@@ -274,7 +289,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	}
 	if len(evs) > 0 {
 		in := p.r.Inbound()
-		err := pgx.BeginFunc(ctx, p.r.cfg.DB, func(tx pgx.Tx) error {
+		err := publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
 			for _, ev := range evs {
 				ev.TenantID, ev.ConnectionID = t.tenant, t.id.String()
 				sp, err := tx.Begin(ctx)

@@ -365,7 +365,14 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 				gev[k] = v
 			}
 			gev["kind"] = ev.Event
-			matched, st := ie.in.WaitMatches(w.nodeID, gev, graph.Context{Event: gev, Now: ev.OccurredAt, Tenant: map[string]any{"id": ev.TenantID.String()}})
+			// The run's own subject and run fields are known here; the subject's variables are not (a
+			// filter that reads them cannot be decided here and goes to the run).
+			gctx, cerr := r.BuildRunContext(ctx, RunContextInput{TenantID: ev.TenantID, AutomationID: w.automationID, RunID: w.runID,
+				Subject: w.subject, Event: gev, Now: ev.OccurredAt, Vars: map[string]any{}, live: true})
+			if cerr != nil {
+				return &host.InfraError{Err: cerr}
+			}
+			matched, st := ie.in.WaitMatches(w.nodeID, gev, gctx)
 			if st == nil && !matched {
 				return nil
 			}

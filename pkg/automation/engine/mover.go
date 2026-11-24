@@ -1009,15 +1009,22 @@ func (m *mover) awaitAnswer(ctx context.Context, tok *tokenRow, call waitRow, aw
 	}
 	at := m.s.now.Add(timeout)
 	w.TimeoutAt, w.Spec.Timer = &at, true
-	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
-		return err
-	}
 	// The token was issued with the answer event and policy the node named before sending; the wait
 	// keeps them, and the token lives as long as the wait (an answer that came early spent a single
-	// token already: the wait's catch-up delivers it).
-	if _, err := m.tx.Exec(ctx, `UPDATE automation.correlations SET expires_at = $4 WHERE tenant_id = $1 AND run_id = $2 AND token = $3`,
-		m.x.tenant, m.x.run.ID, token, at); err != nil {
+	// token already: it stays, spent, and the wait's catch-up delivers that answer).
+	tag, err := m.tx.Exec(ctx, `UPDATE automation.correlations SET expires_at = $4 WHERE tenant_id = $1 AND run_id = $2 AND token = $3 AND expires_at > now()`,
+		m.x.tenant, m.x.run.ID, token, at)
+	if err != nil {
 		return serrors.FromDB(opRun, err)
+	}
+	if tag.RowsAffected() == 0 {
+		// The token is gone (it expired before the answer wait could open): no answer can find the wait.
+		_, spec, _ := m.spec(call.NodeID)
+		return m.nodeFailed(ctx, tok, call.NodeID, string(spec.Behavior), call.Spec.Seq, nil,
+			StepError{Code: CodeTimeout, Message: call.NodeID + "'s correlation expired before its answer wait opened"})
+	}
+	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
+		return err
 	}
 	if _, err := m.tx.Exec(ctx, `UPDATE automation.steps SET output = $5 WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`,
 		m.x.tenant, m.x.run.ID, tok.ID, call.Spec.Seq, []byte(nonNull(sent))); err != nil {

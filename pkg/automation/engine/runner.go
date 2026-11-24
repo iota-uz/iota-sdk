@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -739,9 +740,11 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 		seq      int64
 		payload  []byte
 		occurred time.Time
+		inbound  *bool // by_self of an inbound event (its cause), as the router sets it
 	}
 	rows, err := x.r.cfg.DB.Query(ctx, `
-		SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
+		SELECT id, seq, payload, occurred_at, CASE WHEN cause ? 'inbound' THEN coalesce((cause->'inbound'->>'by_self')::boolean, false) END
+		FROM extruntime.outbox_events
 		WHERE tenant_id = $1 AND event = $2 AND seq > $3 AND seq <= $4
 		  AND ($5::text IS NULL OR (subject_entity = $5 AND subject_key = $6))
 		  AND ($8::text IS NULL OR cause->'inbound'->>'correlation' = $8)
@@ -752,7 +755,7 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 	page := make([]found, 0, maxCatchUp)
 	for rows.Next() {
 		var f found
-		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
+		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred, &f.inbound); err != nil {
 			rows.Close()
 			return false, serrors.FromDB(opRun, err)
 		}
@@ -776,6 +779,9 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 			}
 			if payload, err = proj.project(ctx, *w.EventKind, payload, &x.subject); err != nil {
 				return &host.InfraError{Err: err}
+			}
+			if f.inbound != nil {
+				payload[catalog.BySelfField] = *f.inbound // as the live path sets it
 			}
 			raw, err := json.Marshal(payload)
 			if err != nil {

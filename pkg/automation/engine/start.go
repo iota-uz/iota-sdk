@@ -149,16 +149,23 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		}
 		evs = b
 	}
+	// The sensitive fields of every event the run reads: its event and the ones a collect merged.
 	sensitive := []byte(`[]`)
-	if kind := req.event.Kind(); kind != "" {
-		refs, err := r.projector(req.tenant).sensitiveIn(ctx, kind, map[string]any(req.event))
+	var all []sensitiveRef
+	for _, e := range append([]graph.Event{req.event}, req.events...) {
+		kind := e.Kind()
+		if kind == "" {
+			continue
+		}
+		refs, err := r.projector(req.tenant).sensitiveIn(ctx, kind, map[string]any(e))
 		if err != nil {
 			return RunRef{}, &host.InfraError{Err: err}
 		}
-		if len(refs) > 0 {
-			if sensitive, err = json.Marshal(refs); err != nil {
-				return RunRef{}, err
-			}
+		all, _ = mergeRefs(all, refs)
+	}
+	if len(all) > 0 {
+		if sensitive, err = json.Marshal(all); err != nil {
+			return RunRef{}, err
 		}
 	}
 	id := uuid.New()

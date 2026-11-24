@@ -151,12 +151,77 @@ type AwaitSpec struct {
 // contract is the native contract of automation.call.
 func (c *CallRunner) contract() workflow.NativeContract {
 	return workflow.NativeContract{
-		Runner:      c,
-		Input:       &manifest.Type{Kind: manifest.KindJSON},
-		Concurrency: c.r.cfg.CallLimits.Concurrency,
-		RunTimeout:  c.r.cfg.CallLimits.MaxTimeout + time.Minute,
-		Completion:  workflow.CancelPending,
+		Runner:         c,
+		Input:          &manifest.Type{Kind: manifest.KindJSON},
+		Concurrency:    c.r.cfg.CallLimits.Concurrency,
+		RunTimeout:     c.r.cfg.CallLimits.MaxTimeout + time.Minute,
+		Completion:     workflow.CancelPending,
+		StatusObserver: callObserver{c: c},
 	}
+}
+
+// readCallRequest reads the input of a call instance.
+func readCallRequest(raw json.RawMessage) (CallRequest, bool) {
+	var req CallRequest
+	return req, json.Unmarshal(raw, &req) == nil
+}
+
+// callObserver gives the parent's call wait its result when a call child ends without one: it failed
+// (the runner panicked, the engine gave up) or an operator terminated it. A call that may have reached
+// the provider (an attempt started without a result) ends as outcome_unknown, never a plain failure.
+type callObserver struct{ c *CallRunner }
+
+func (o callObserver) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst workflow.Instance, _, to string) error {
+	if to != workflow.StatusFailed && to != workflow.StatusTerminated {
+		return nil
+	}
+	req, ok := readCallRequest(inst.Input)
+	if !ok || req.ParentInstance == uuid.Nil || req.TenantID != inst.TenantID {
+		return nil // not a call of a run of this tenant: nothing waits for it
+	}
+	var started bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences
+		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started')`, inst.TenantID, inst.ID).Scan(&started); err != nil {
+		return serrors.FromDB(opCall, err)
+	}
+	code, msg := CodeEffectFailed, "the call ended without a result"
+	if to == workflow.StatusTerminated {
+		msg = "the call was terminated"
+	}
+	if started {
+		code, msg = CodeOutcomeUnknown, msg+"; an attempt may have reached the provider"
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`, inst.TenantID, inst.ID); err != nil {
+		return serrors.FromDB(opCall, err)
+	}
+	out, err := json.Marshal(graph.FailedOutput(code, msg, false))
+	if err != nil {
+		return err
+	}
+	fo := ""
+	if nt, ok := o.c.r.cfg.Catalog.Node(req.NodeType); ok {
+		fo = nt.Spec().FailedOutcome
+	}
+	payload, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: code, Message: msg}}})
+	if err != nil {
+		return err
+	}
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return serrors.FromDB(opCall, err)
+	}
+	err = o.c.r.cfg.Workflows.SignalInTx(ctx, sp, spi.Scope{Subject: spi.Subject{TenantID: inst.TenantID, UserID: inst.SubjectUserID, Kind: inst.SubjectKind}}, host.SignalIntent{
+		Workflow: WorkflowID, Instance: req.ParentInstance.String(), Name: InboxSignal, Payload: payload,
+		Key: "call:" + req.RunID.String() + ":" + req.WaitID,
+	})
+	if err != nil {
+		_ = sp.Rollback(ctx)
+		if we, ok := pool.AsWireError(err); ok && (we.Code == workflow.CodeInstanceNotAccepting || we.Code == workflow.CodeInstanceNotFound || we.Code == workflow.CodeSignalDenied) {
+			return nil // the run itself ended: nothing waits for the call
+		}
+		return err
+	}
+	return serrors.FromDB(opCall, sp.Commit(ctx))
 }
 
 // Begin starts the call's child instance in the step's transaction and registers it as the wait.
@@ -239,6 +304,19 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 	var req CallRequest
 	if err := json.Unmarshal(nr.Instance().Input, &req); err != nil || req.RunID == uuid.Nil {
 		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.invalidInput", Message: "automation.call needs a call request"}
+	}
+	// The request is trusted only for the instance's own tenant (Begin writes both): a start from
+	// elsewhere naming another tenant's connection opens nothing.
+	if req.TenantID != nr.Instance().TenantID {
+		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.invalidInput", Message: "the call request is not of the instance's tenant"}
+	}
+	if req.ParentInstance != uuid.Nil {
+		var parent uuid.UUID
+		err := c.r.cfg.DB.QueryRow(ctx, `SELECT parent_instance_id FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`,
+			req.TenantID, nr.Instance().ID).Scan(&parent)
+		if err != nil || parent != req.ParentInstance {
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.invalidInput", Message: "the call request names another parent than the instance's"}
+		}
 	}
 	req.RunAs = nr.Subject()
 	// An operator's Retry of a blocked call gives it a new deadline (automation.call_deadlines).
@@ -448,7 +526,10 @@ func (x *callExec) acquire(ctx context.Context) (bool, error) {
 
 // release gives the call's slot back.
 func (x *callExec) release(ctx context.Context) {
-	if _, err := x.c.r.cfg.DB.Exec(context.WithoutCancel(ctx), `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`,
+	// Bounded: a stalled database must not hold the worker; a slot left behind is dropped as stale.
+	rctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if _, err := x.c.r.cfg.DB.Exec(rctx, `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`,
 		x.req.TenantID, x.nr.Instance().ID); err != nil {
 		x.c.r.cfg.Logger.Warn("automation: a call slot was not released; it expires with the call", "error", err)
 	}
@@ -468,7 +549,19 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 	raw, err := x.nr.Transaction(ctx, "correlation", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		event, single := x.answerOf(ae)
 		if event == "" {
-			return json.Marshal(map[string]any{"refused": req.NodeType + " names no answer event"})
+			return json.Marshal(map[string]any{"refused": req.NodeType + " names no answer event", "code": CodeUnsupported})
+		}
+		// No token outlives its run: under the run row's lock (the run's terminal cleanup takes it before
+		// it deletes the run's tokens) the run must still be live.
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR SHARE`, req.TenantID, req.RunID); err != nil {
+			return nil, serrors.FromDB(opCall, err)
+		}
+		var status string
+		if err := tx.QueryRow(ctx, `SELECT status FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`, req.TenantID, req.ParentInstance).Scan(&status); err != nil {
+			return nil, serrors.FromDB(opCall, err)
+		}
+		if status != workflow.StatusRunning && status != workflow.StatusWaiting && status != workflow.StatusBlocked {
+			return json.Marshal(map[string]any{"refused": "the run ended before the question was sent", "code": CodeCancelled})
 		}
 		mark, err := watermark(ctx, tx)
 		if err != nil {
@@ -498,12 +591,17 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 		Event    string `json:"event"`
 		Single   bool   `json:"single"`
 		Refused  string `json:"refused"`
+		Code     string `json:"code"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		return "", 0, err
 	}
 	if got.Refused != "" || got.Event == "" {
-		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " names no answer event"}
+		code := got.Code
+		if code == "" {
+			code = CodeUnsupported
+		}
+		return "", 0, &StepError{Code: code, Message: got.Refused}
 	}
 	x.answer, x.single, x.answerer = got.Event, got.Single, ae
 	return got.Token, got.AfterSeq, nil
@@ -525,19 +623,19 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 		return callRecord{}, err
 	}
 	var conn *openConnection
-	if !done || o.Status == workflow.OccStarted {
+	switch {
+	case done && o.Status == workflow.OccStarted && !cn.Idempotent():
+		// An attempt that may have reached the provider and may not repeat: its outcome is unknown, and
+		// nothing (not even an outage of the credential store) keeps that from being recorded.
+		conn = &openConnection{masker: code.NewMasker(nil)}
+	case !done || o.Status == workflow.OccStarted:
 		var refused *callRecord
 		conn, refused, err = x.open(ctx, cn)
 		if err != nil {
 			return callRecord{}, err
 		}
 		if refused != nil {
-			if !done || cn.Idempotent() {
-				return *refused, nil
-			}
-			// A started attempt of a call that may not repeat: its outcome is unknown, whatever the
-			// connection is now.
-			conn = &openConnection{masker: code.NewMasker(nil)}
+			return *refused, nil
 		}
 	}
 	// An attempt that will call the provider holds a slot. A started attempt of a call that may not
@@ -618,6 +716,10 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 	if a.Attempt > 1 && !idempotent {
 		// An earlier attempt may have reached the provider: the call is not repeated blindly.
 		return x.unknown("an earlier attempt of the call may have run; its outcome is unknown")
+	}
+	if k+a.Attempt > limits.MaxAttempts {
+		// Interrupted attempts count too: past the cap the last one's outcome is recorded as unknown.
+		return x.unknown(fmt.Sprintf("the call reached its %d attempts without a recorded result", limits.MaxAttempts))
 	}
 	if conn == nil || (req.Connection != "" && conn.info == nil) {
 		return callRecord{Kind: "failed", Code: CodeConnectionUnavailable, Message: "the connection is not connected"}, nil

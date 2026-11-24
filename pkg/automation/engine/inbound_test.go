@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
 
@@ -438,21 +440,31 @@ func (s *syncBuffer) String() string {
 	return s.b.String()
 }
 
-// A sweep that read a window as due before an event extended it leaves the window open.
+// A sweep that read a window as due before an event extended it leaves the window open: the window is
+// due (its first event is old), a second event before the old deadline extends it into the future, and
+// the sweep of the key it read closes nothing.
 func TestStaleSweepLeavesAnExtendedWindow(t *testing.T) {
 	ae := newAcmeEnv(t)
 	p := ae.proc()
 	am := ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1", "collect": {"key": "event.from", "window": "60s"}}`))
 	ctx := context.Background()
-	ev := acmeUpdate{ID: "s-1", Event: evMessage, Text: "m1", From: "ann"}.event(ae.conn.ID.String())
-	ev.TenantID, ev.ConnectionID = ae.tenant, ae.conn.ID.String()
-	require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err }))
-	_, err := p.disp.RunOnce(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect WHERE deadline > now()`), "the window is open")
-	require.NoError(t, p.rt.SweepWindow(ctx, ae.tenant, am.ID, "m", "ann"))
-	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.inbound_collect`), "a window that is not due stays")
-	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
+	publishAt := func(id string, at time.Time) {
+		ev := acmeUpdate{ID: id, Event: evMessage, Text: id, From: "ann"}.event(ae.conn.ID.String())
+		ev.TenantID, ev.ConnectionID, ev.OccurredAt = ae.tenant, ae.conn.ID.String(), at
+		require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err }))
+		_, err := p.disp.RunOnce(ctx)
+		require.NoError(t, err)
+	}
+	now := time.Now()
+	publishAt("s-1", now.Add(-90*time.Second)) // deadline now-30s: due
+	var key string
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT collect_key FROM automation.inbound_collect WHERE automation_id = $1 AND deadline <= now()`, am.ID).Scan(&key))
+	publishAt("s-2", now.Add(-40*time.Second)) // before the old deadline: joins, deadline now+20s
+	require.NoError(t, p.rt.SweepWindow(ctx, ae.tenant, am.ID, "m", key))
+	var count int
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT count FROM automation.inbound_collect WHERE automation_id = $1 AND collect_key = $2 AND deadline > now()`, am.ID, key).Scan(&count))
+	assert.Equal(t, 2, count, "the same window stays, extended")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`), "no run started")
 }
 
 // The token takes only the answer the ask named before sending, before or after the wait opens:
@@ -571,4 +583,55 @@ func TestAnswerOfAResumedAskIsTheIssuedOne(t *testing.T) {
 	var issued string
 	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT result->>'event' FROM extruntime.workflow_occurrences WHERE name = 'correlation'`).Scan(&issued))
 	assert.Equal(t, evAnswer, issued, "the receipt keeps the issued answer")
+}
+
+// An older event that arrives late joins its window without shortening it.
+func TestLateEventDoesNotShortenTheWindow(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	am := ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1", "collect": {"key": "event.from", "window": "60s"}}`))
+	ctx := context.Background()
+	base := time.Now().Truncate(time.Second)
+	for i, off := range []int{0, 40, 10} {
+		ev := acmeUpdate{ID: fmt.Sprintf("l-%d", i), Event: evMessage, Text: "t", From: "ann"}.event(ae.conn.ID.String())
+		ev.TenantID, ev.ConnectionID, ev.OccurredAt = ae.tenant, ae.conn.ID.String(), base.Add(time.Duration(off)*time.Second)
+		require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err }))
+		_, err := p.disp.RunOnce(ctx)
+		require.NoError(t, err)
+	}
+	var deadline time.Time
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT deadline FROM automation.inbound_collect WHERE automation_id = $1`, am.ID).Scan(&deadline))
+	assert.WithinDuration(t, base.Add(100*time.Second), deadline, time.Second, "the deadline of t=40 stays")
+}
+
+// A wait filter that reads run.id is decided with the run's own id at the router.
+func TestWaitFilterReadsTheRunAtTheRouter(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), graphJSON("Run filter", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "pay", "type": "wait", "params": {"event": "acme.order.paid.v1", "filter": "run.id != \"\"", "timeout": "1h"}},
+		 {"id": "paid", "type": "acme.note", "params": {"text": "paid"}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "pay"}, {"from": {"node": "pay", "outcome": "matched"}, "to": "paid"},
+		 {"from": {"node": "pay", "outcome": "timeout"}, "to": "fin"}, {"from": {"node": "paid", "outcome": "done"}, "to": "fin"}, {"from": {"node": "paid", "outcome": "failed"}, "to": "fin"}`))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 1
+	}, "the wait opens")
+	ae.publish(ae.tenant, orderPaid, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the payment wakes the wait")
+}
+
+// A source may declare by_self only as the engine's optional bool.
+func TestBySelfDeclarationIsTheEngines(t *testing.T) {
+	reg := catalog.NewRegistry(nil)
+	err := reg.RegisterTriggers(bySelfSource{field: expr.StringField})
+	require.Error(t, err)
+	require.NoError(t, catalog.NewRegistry(nil).RegisterTriggers(bySelfSource{field: expr.OptionalOf(expr.BoolField)}))
+}
+
+type bySelfSource struct{ field expr.Field }
+
+func (s bySelfSource) Requires() []catalog.ConnectorKind { return nil }
+func (s bySelfSource) Events() []graph.EventSpec {
+	return []graph.EventSpec{{Key: "x.msg.v1", Title: "M", Subject: graph.SubjectNone, Payload: expr.Fields{{Name: "by_self", Field: s.field}}}}
 }

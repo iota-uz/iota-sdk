@@ -103,6 +103,8 @@ type RunContextInput struct {
 	// Overrides replace parts of the context: "nodes.<id>.output" (a dry run's given answers) or a
 	// top-level variable of the subject. Applied last.
 	Overrides map[string]any
+	// live: the router's context of a run's wait (not a step's: the test hook does not see it).
+	live bool
 }
 
 // BuildRunContext is the one builder of a run's context: a live trigger and step, a dry run, a test
@@ -154,7 +156,7 @@ func (r *Runtime) BuildRunContext(ctx context.Context, in RunContextInput) (grap
 		gctx.Run["id"] = in.RunID.String()
 	}
 	applyOverrides(&gctx, in.Overrides)
-	if h := r.contextHook; h != nil && in.RunID != uuid.Nil {
+	if h := r.contextHook; h != nil && in.RunID != uuid.Nil && !in.live {
 		kind, _ := gctx.Event["kind"].(string)
 		h(kind, gctx)
 	}

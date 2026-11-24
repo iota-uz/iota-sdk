@@ -189,8 +189,10 @@ func (r *Runtime) Serve(ctx context.Context) {
 	planned := time.Now()
 	for {
 		r.passes.Add(1)
+		failed := false
 		if err := r.Maintain(ctx); err != nil && ctx.Err() == nil {
 			r.cfg.Logger.Warn("automation engine: maintenance failed", "error", err)
+			failed = true
 		}
 		now := time.Now()
 		for !planned.After(now) {
@@ -198,7 +200,9 @@ func (r *Runtime) Serve(ctx context.Context) {
 		}
 		for {
 			wake := planned
-			if at, ok, err := r.nextCollect(ctx); err == nil && ok && at.Before(wake) {
+			// After a failed pass, an overdue window (its flush failing) waits for the planned pass: it
+			// never makes the loop spin.
+			if at, ok, err := r.nextCollect(ctx); err == nil && ok && at.Before(wake) && (!failed || at.After(time.Now())) {
 				wake = at
 			}
 			d := time.Until(wake)

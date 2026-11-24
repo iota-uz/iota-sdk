@@ -274,7 +274,9 @@ queued conversation runs, runs of disabled graphs, retention.
   node that is not idempotent is `outcome_unknown`: the failed outcome when it leads to a node,
   otherwise the child blocks (`workflow.Ambiguous`) and the run shows `blocked` (`call_blocked`).
   `Runtime.Operations()` resolves or retries such a call (`Automations.Operate`). A failed call or
-  effect puts `output.error {code, message, retryable}` (`nodes.<id>.output.error.message`).
+  effect puts `output.error {code, message, retryable}` (`nodes.<id>.output.error.message`). A node type
+  whose static `Output` declares its own `error` keeps that field as it declares it (a string error has
+  no `.message`); an `OutputFrom` schema's `error` is replaced by the object.
 - **Ask.** A call node that implements `engine.Asker` gets a correlation token
   (`CorrelationFrom(ctx)`, base62, 12 characters, `automation.correlations`) before `Execute`;
   after it the parent opens an event wait that only inbound events carrying the token wake;
@@ -304,7 +306,8 @@ queued conversation runs, runs of disabled graphs, retention.
   key, url}`, `run {id, url}` (`Config.Links`, `engine.NewLinks`), `tenant`, `now`.
   `engine.CheckRunContext` lists the required fields a context leaves out.
 - **Authoring.** `Runtime.Authoring()`: `DryRun` runs the interpreter with the node types'
-  `DryRun` modes (`execute` runs for real unless `Decisions` is `scripted`, `capture` traces the
+  `DryRun` modes (an `execute` call node runs for real unless `Decisions` is `scripted`; an effect node
+  never runs in a dry run, `execute` or not: its effects are traced, as `capture`; `capture` traces the
   rendered params, `forbid` stops on entry; every node type declares its mode, `dry_run_undeclared`);
   `cached` decisions of `engine.DecisionNode`s come from `automation.decision_cache` (30 days).
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is

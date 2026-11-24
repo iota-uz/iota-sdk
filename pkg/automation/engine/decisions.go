@@ -38,7 +38,9 @@ type DecisionNode interface {
 }
 
 // DecisionKey is the cache key of a decision: sha256 of the prompt, the input, the model and its params.
-func DecisionKey(prompt string, input any, model string, params map[string]any) string {
+// ok is false when they do not encode: such a call is not cached (a key of the prompt alone would mix
+// calls that differ in their input).
+func DecisionKey(prompt string, input any, model string, params map[string]any) (string, bool) {
 	body, err := json.Marshal(struct {
 		Prompt string         `json:"prompt"`
 		Input  any            `json:"input"`
@@ -46,10 +48,10 @@ func DecisionKey(prompt string, input any, model string, params map[string]any) 
 		Params map[string]any `json:"params"`
 	}{prompt, input, model, params})
 	if err != nil {
-		body = []byte(prompt + "\x00" + model)
+		return "", false
 	}
 	sum := sha256.Sum256(body)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), true
 }
 
 // dbDecisionCache is DecisionCache over automation.decision_cache.

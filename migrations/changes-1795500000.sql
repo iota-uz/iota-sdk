@@ -26,6 +26,8 @@ CREATE TABLE automation.correlations (
     -- delivery spends the token
     event text NOT NULL,
     single boolean NOT NULL DEFAULT TRUE,
+    -- a single answer came: later ones are closed (the row stays until the wait closes)
+    spent boolean NOT NULL DEFAULT FALSE,
     expires_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     FOREIGN KEY (tenant_id, run_id) REFERENCES automation.runs (tenant_id, id) ON DELETE CASCADE
@@ -36,12 +38,9 @@ CREATE INDEX correlations_wait_idx ON automation.correlations (tenant_id, run_id
 CREATE INDEX correlations_expires_idx ON automation.correlations (expires_at);
 
 -- An ask wait listens for the inbound events of its token only.
+-- Its index is built concurrently by changes-1795500001.sql, outside this transaction.
 ALTER TABLE automation.waits
     ADD COLUMN correlation text;
-
-CREATE INDEX waits_open_correlation_idx ON automation.waits (correlation)
-WHERE
-    status = 'open' AND correlation IS NOT NULL;
 
 -- Warnings of a step (an assignee list cut to its limit), shown with the step.
 ALTER TABLE automation.steps
@@ -111,8 +110,6 @@ ALTER TABLE automation.runs
 
 ALTER TABLE automation.steps
     DROP COLUMN IF EXISTS warnings;
-
-DROP INDEX IF EXISTS automation.waits_open_correlation_idx;
 
 ALTER TABLE automation.waits
     DROP COLUMN IF EXISTS correlation;

@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
 // sendGraph runs one call node; failed: the failed outcome notes the error code (else it is left out:
@@ -193,7 +195,12 @@ func TestCancelTerminatesTheCall(t *testing.T) {
 	ae.create(p, ae.human(), sendGraph("acme.send", "crash", "", true))
 	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
 	stop := p.drive()
-	<-ae.acme.entered
+	select {
+	case <-ae.acme.entered:
+	case <-time.After(20 * time.Second):
+		stop()
+		t.Fatal("the call did not start")
+	}
 	stop()
 	p2 := ae.proc()
 	run := runOf(t, ae.env, p2)
@@ -369,4 +376,36 @@ func TestInterruptedResolveIsFinishedByARepeat(t *testing.T) {
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the repeated resolve continues the run")
 	assert.Equal(t, []string{"ok:sent by-hand"}, ae.effects(run.RunID))
 	require.Len(t, ae.acme.callsOf("acme.send"), 1)
+}
+
+// A call child terminated without a result gives the parent's wait one: outcome_unknown when an attempt
+// had started, and the run goes on instead of waiting for ever.
+func TestTerminatedCallChildEndsTheWait(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p, run, _, child := blockedCall(t, ae, "")
+	require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child))
+	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the run takes the call's failed edge")
+	require.Len(t, ae.acme.callsOf("acme.send"), 1)
+	var code string
+	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT error->>'code' FROM automation.steps WHERE run_id = $1 AND node_id = 'send'`, run.RunID).Scan(&code))
+	assert.Equal(t, engine.CodeOutcomeUnknown, code)
+}
+
+// An automation.call started from elsewhere with another tenant's request opens nothing.
+func TestCallOfAnotherTenantIsRefused(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	other := ae.newTenant()
+	ctx := context.Background()
+	req, err := json.Marshal(map[string]any{"tenant_id": ae.tenant, "run_id": uuid.New(), "node_id": "x", "node_type": "acme.http",
+		"connection": ae.conn.ID.String(), "input": map[string]any{}, "deadline": time.Now().Add(time.Minute)})
+	require.NoError(t, err)
+	require.NoError(t, pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error {
+		_, err := p.wf.Start(ctx, tx, spi.Scope{Subject: spiSubject(other, 1)}, spi.StartIntent{Workflow: engine.CallWorkflowID, Input: req, Key: "foreign"})
+		return err
+	}))
+	p.until(func() bool {
+		return ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = $1 AND status = 'failed'`, engine.CallWorkflowID) == 1
+	}, "the foreign call fails")
+	assert.Empty(t, ae.acme.callsOf("acme.http"), "no provider call with the other tenant's connection")
 }

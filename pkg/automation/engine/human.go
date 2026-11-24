@@ -189,6 +189,10 @@ func ParseHumanParams(raw json.RawMessage) (HumanParams, error) {
 			step.Add = append(step.Add, a.assignee())
 		}
 		if ms, ok := graph.DurationMs(e.Extend); ok {
+			// Compared before it becomes a Duration: a huge one would overflow to a negative.
+			if ms > workflow.MaxTaskDuration.Milliseconds() {
+				return HumanParams{}, fmt.Errorf("escalation extend %q is longer than a task may last", e.Extend)
+			}
 			step.Extend = time.Duration(ms) * time.Millisecond
 		}
 		out.Escalation = append(out.Escalation, step)
@@ -231,9 +235,11 @@ func (p HumanParams) TaskSpec(waitMax time.Duration, subject SubjectRef) (workfl
 		if !ok {
 			return workflow.TaskSpec{}, fmt.Errorf("timeout %q is not a duration", p.Timeout)
 		}
-		spec.Timeout = time.Duration(ms) * time.Millisecond
-		if spec.Timeout > waitMax {
+		// Compared in milliseconds before it becomes a Duration: a huge one would overflow to a negative.
+		if ms > waitMax.Milliseconds() {
 			spec.Timeout = waitMax
+		} else {
+			spec.Timeout = time.Duration(ms) * time.Millisecond
 		}
 	}
 	if len(spec.Escalation) > 0 && spec.Timeout == 0 {
@@ -267,7 +273,14 @@ func (b humanBridge) Begin(_ context.Context, _ pgx.Tx, run StepContext, _ graph
 	rules := p.Rules()
 	if len(rules.CommentRequired) > 0 || len(rules.Form) > 0 {
 		if len(rules.Form) > 0 {
-			if _, err := graph.SchemaParams(rules.Form); err != nil {
+			// The form is an object of fields: the node's output declares decisions[].fields as one.
+			var root struct {
+				Type any `json:"type"`
+			}
+			if err := json.Unmarshal(rules.Form, &root); err != nil || root.Type != "object" {
+				return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: `form: the form is a JSON Schema of "type": "object"`}
+			}
+			if _, err := graph.NewJSONValidator(rules.Form); err != nil {
 				return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "form: " + err.Error()}
 			}
 		}
@@ -546,7 +559,8 @@ func (o *taskAssignedObserver) newUsers(ctx context.Context, tenant uuid.UUID, t
 	var out []int64
 	cut := false
 	for _, a := range change.Assignees {
-		ids, err := o.expand(ctx, tenant, a, MaxAssignedUsers+1)
+		// Enough to find MaxAssignedUsers+1 users not covered yet, whatever the covered ones are.
+		ids, err := o.expand(ctx, tenant, a, MaxAssignedUsers+1+len(earlier)+len(seen))
 		if err != nil {
 			return nil, false, err
 		}

@@ -28,6 +28,10 @@ type collected struct {
 	OccurredAt time.Time       `json:"occurred_at"`
 	Initiator  *int64          `json:"initiator_user_id,omitempty"`
 	Subject    SubjectRef      `json:"subject"`
+	// Depth and Cause are of the run that published the event (include_self): the window's run starts
+	// below the deepest of them.
+	Depth int        `json:"depth,omitempty"`
+	Cause *uuid.UUID `json:"cause,omitempty"`
 }
 
 // collect adds an event to its trigger's window instead of starting a run: events with one key inside
@@ -53,7 +57,7 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 		return err
 	}
 	item, err := json.Marshal(collected{ID: ev.ID, Seq: ev.Seq, Event: gev, Payload: nonNull(ev.Payload), OccurredAt: ev.OccurredAt,
-		Initiator: ev.InitiatorUserID, Subject: req.subject})
+		Initiator: ev.InitiatorUserID, Subject: req.subject, Depth: req.depth, Cause: req.cause})
 	if err != nil {
 		return err
 	}
@@ -61,16 +65,22 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 	if at.IsZero() {
 		at = time.Now()
 	}
-	// A window whose deadline passed before this event (its flush was late: a restart, a backlog) is
-	// closed into its run first; the event opens a new one.
+	// Writers of one key are serialized (two subjects can share a key): the deadline read below is the
+	// committed window's.
+	if err := lockSubjects(ctx, tx, "automation-collect|"+ev.TenantID.String()+"|"+t.automationID.String()+"|"+t.triggerID+"|"+key); err != nil {
+		return &host.InfraError{Err: err}
+	}
+	// A window whose deadline passed before this event (its flush was late: a restart, a backlog), or one
+	// of another version of the graph, is closed into its own run first; the event opens a new one.
 	var deadline time.Time
-	err = tx.QueryRow(ctx, `SELECT deadline FROM automation.inbound_collect WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND collect_key = $4 FOR UPDATE`,
-		ev.TenantID, t.automationID, t.triggerID, key).Scan(&deadline)
+	var version int
+	err = tx.QueryRow(ctx, `SELECT deadline, version FROM automation.inbound_collect WHERE tenant_id = $1 AND automation_id = $2 AND trigger_id = $3 AND collect_key = $4 FOR UPDATE`,
+		ev.TenantID, t.automationID, t.triggerID, key).Scan(&deadline, &version)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 	case err != nil:
 		return &host.InfraError{Err: serrors.FromDB(opCollect, err)}
-	case !deadline.After(at):
+	case !deadline.After(at) || version != t.version:
 		if err := r.closeWindow(ctx, tx, ev.TenantID, t.automationID, t.triggerID, key, false); err != nil {
 			return err
 		}
@@ -80,10 +90,11 @@ func (r *Runtime) collect(ctx context.Context, tx pgx.Tx, ev events.Envelope, t 
 		INSERT INTO automation.inbound_collect (tenant_id, automation_id, version, trigger_id, collect_key, events, count, first_at, deadline)
 		VALUES ($1, $2, $3, $4, $5, jsonb_build_array($6::jsonb), 1, $7::timestamptz, $7::timestamptz + make_interval(secs => $8::float8))
 		ON CONFLICT (tenant_id, automation_id, trigger_id, collect_key) DO UPDATE SET
-			version = EXCLUDED.version,
 			events = automation.inbound_collect.events || EXCLUDED.events,
 			count = automation.inbound_collect.count + 1,
-			deadline = LEAST(EXCLUDED.first_at + make_interval(secs => $8::float8), automation.inbound_collect.first_at + make_interval(secs => $8::float8 * 2))
+			-- extended, never shortened (an older event arriving late), and at most 2×window from the first
+			deadline = GREATEST(automation.inbound_collect.deadline, LEAST(EXCLUDED.first_at + make_interval(secs => $8::float8),
+				automation.inbound_collect.first_at + make_interval(secs => $8::float8 * 2)))
 		RETURNING count`,
 		ev.TenantID, t.automationID, t.version, t.triggerID, key, item, at, window.Seconds()).Scan(&count)
 	if err != nil {
@@ -213,6 +224,12 @@ func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation
 		eventID: last.ID, key: fmt.Sprintf("%s@%d:collect:%s", automation, version, first.ID), subject: last.Subject,
 		initiator: last.Initiator, eventSeq: first.Seq, event: lastEvent, events: evs,
 	}
+	// The run is as deep as its deepest event's cause, as a run started by one event would be.
+	for _, it := range items {
+		if it.Depth > req.depth {
+			req.depth, req.cause = it.Depth, it.Cause
+		}
+	}
 	mode := events.RunAsOwner
 	if graph.RunAs(v.RunAs) == graph.RunAsInitiator {
 		mode = events.RunAsInitiator
@@ -224,6 +241,9 @@ func (r *Runtime) closeWindow(ctx context.Context, tx pgx.Tx, tenant, automation
 	}
 	runAs, err := events.ResolveSubject(ctx, tx, r.cfg.Users, env, ownerTrigger(automation), mode)
 	switch {
+	case req.depth > r.cfg.Limits.MaxDepth:
+		req.startState, req.reason = startBlocked, "depth_exceeded"
+		req.key = diagnosticKey(req.key, trigger)
 	case errors.Is(err, events.ErrNoSubject):
 		req.startState, req.reason = startBlocked, "no_owner"
 		req.key = diagnosticKey(req.key, trigger)

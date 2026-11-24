@@ -88,17 +88,43 @@ func (in *inbound) validator(spec graph.EventSpec) (*graph.JSONValidator, error)
 	return p, nil
 }
 
+// Publish counts a published event when the transaction commits, when it runs under the engine's own
+// webhook handler or poller; a caller's own transaction counts it at once (the insert is staged).
 func (in *inbound) Publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (bool, error) {
 	published, err := in.publish(ctx, tx, ev)
 	switch {
 	case err != nil:
 		in.r.metrics.inboundEvent(ctx, in.connector(ev), "rejected")
 	case published:
-		in.r.metrics.inboundEvent(ctx, in.connector(ev), "published")
+		connector := in.connector(ev)
+		count := func(ctx context.Context) { in.r.metrics.inboundEvent(ctx, connector, "published") }
+		if hooks, ok := ctx.Value(commitHooksKey{}).(*commitHooks); ok {
+			hooks.fns = append(hooks.fns, count)
+		} else {
+			count(ctx)
+		}
 	default:
 		in.r.metrics.inboundEvent(ctx, in.connector(ev), "duplicate")
 	}
 	return published, err
+}
+
+// commitHooks run after the engine's own publishing transaction commits.
+type commitHooks struct{ fns []func(context.Context) }
+
+type commitHooksKey struct{}
+
+// publishInTx runs fn in a transaction whose published events are counted after it commits.
+func publishInTx(ctx context.Context, db *pgxpool.Pool, fn func(ctx context.Context, tx pgx.Tx) error) error {
+	hooks := &commitHooks{}
+	hctx := context.WithValue(ctx, commitHooksKey{}, hooks)
+	if err := pgx.BeginFunc(hctx, db, func(tx pgx.Tx) error { return fn(hctx, tx) }); err != nil {
+		return err
+	}
+	for _, f := range hooks.fns {
+		f(ctx)
+	}
+	return nil
 }
 
 func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (bool, error) {
@@ -187,21 +213,24 @@ func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.U
 	if !validToken(token) {
 		return ErrCorrelationClosed
 	}
-	var single bool
+	var single, spent bool
 	var answer string
-	err := tx.QueryRow(ctx, `SELECT single, event FROM automation.correlations
-		WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`, token, tenant).Scan(&single, &answer)
+	err := tx.QueryRow(ctx, `SELECT single, event, spent FROM automation.correlations
+		WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`, token, tenant).Scan(&single, &answer, &spent)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrCorrelationClosed
 	}
 	if err != nil {
 		return serrors.FromDB(opInbound, err)
 	}
-	if answer != event {
+	switch {
+	case answer != event:
 		return nil // not the answer: it does not touch the wait's token
-	}
-	if single {
-		if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE token = $1`, token); err != nil {
+	case spent:
+		return ErrCorrelationClosed // a single answer came already
+	case single:
+		// Spent, not deleted: the wait (open or about to open) keeps its token until it closes.
+		if _, err := tx.Exec(ctx, `UPDATE automation.correlations SET spent = true WHERE token = $1`, token); err != nil {
 			return serrors.FromDB(opInbound, err)
 		}
 	}
@@ -213,7 +242,7 @@ func (in *inbound) Correlation(ctx context.Context, token string) (uuid.UUID, bo
 		return uuid.Nil, false, nil
 	}
 	var tenant uuid.UUID
-	err := in.r.cfg.DB.QueryRow(ctx, `SELECT tenant_id FROM automation.correlations WHERE token = $1 AND expires_at > now()`, token).Scan(&tenant)
+	err := in.r.cfg.DB.QueryRow(ctx, `SELECT tenant_id FROM automation.correlations WHERE token = $1 AND expires_at > now() AND NOT spent`, token).Scan(&tenant)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, nil
 	}
@@ -398,7 +427,7 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 		return nil, errors.New("automation inbound: no database")
 	}
 	var closed []InboundEvent
-	err := pgx.BeginFunc(ctx, h.cfg.DB, func(tx pgx.Tx) error {
+	err := publishInTx(ctx, h.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
 		closed = closed[:0]
 		for _, ev := range evs {
 			ev.ConnectionID = connID
@@ -406,14 +435,18 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 			case platform && ev.TenantID == uuid.Nil:
 				continue // the connector found no tenant (an unknown correlation)
 			case platform:
-				if src, ok := h.cfg.Connections.(connectors.CredentialSource); ok {
-					_, _, err := src.Open(ctx, ev.TenantID, connID)
-					switch {
-					case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth):
-						continue // the platform credential is not the tenant's
-					case err != nil:
-						return err // a failure of the lookup: the provider repeats the update
-					}
+				// The tenant's grant of the platform credential is checked, always: a store that cannot
+				// check it publishes nothing for a platform route.
+				src, ok := h.cfg.Connections.(connectors.CredentialSource)
+				if !ok {
+					return errors.New("automation inbound: the connection store cannot check platform grants")
+				}
+				_, _, err := src.Open(ctx, ev.TenantID, connID)
+				switch {
+				case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth):
+					continue // the platform credential is not the tenant's
+				case err != nil:
+					return err // a failure of the lookup: the provider repeats the update
 				}
 			case ev.TenantID == uuid.Nil:
 				ev.TenantID = tenant
@@ -449,13 +482,24 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 // bufferedResponse holds what a connector answers the provider until the events are committed.
 type bufferedResponse struct {
 	header http.Header
-	status int
+	status int // the final status: the first WriteHeader, or 200 on the first Write before one
 	body   bytes.Buffer
 }
 
-func (b *bufferedResponse) Header() http.Header         { return b.header }
-func (b *bufferedResponse) Write(p []byte) (int, error) { return b.body.Write(p) }
-func (b *bufferedResponse) WriteHeader(status int)      { b.status = status }
+func (b *bufferedResponse) Header() http.Header { return b.header }
+func (b *bufferedResponse) Write(p []byte) (int, error) {
+	if b.status == 0 {
+		b.status = http.StatusOK // as an http.ResponseWriter commits 200 on the first write
+	}
+	return b.body.Write(p)
+}
+
+// WriteHeader keeps the first final status, as an http.ResponseWriter does; informational ones pass.
+func (b *bufferedResponse) WriteHeader(status int) {
+	if b.status == 0 && status >= 200 {
+		b.status = status
+	}
+}
 
 func (b *bufferedResponse) flush(w http.ResponseWriter) {
 	for k, v := range b.header {

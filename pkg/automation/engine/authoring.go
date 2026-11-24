@@ -25,8 +25,9 @@ const opAuthoring = serrors.Op("automation.engine.authoring")
 
 // Authoring is what an author checks a graph with before enabling it.
 type Authoring interface {
-	// DryRun: the interpreter of #1322/#1328 over the given events and context; no DB writes. Nodes
-	// with an effect are captured; execute nodes run for real unless Decisions is scripted.
+	// DryRun: the interpreter of #1322/#1328 over the given events and context. It persists no run, step
+	// or event; in cached mode a decision it had to make live is written to the decision cache. Nodes with
+	// an effect are captured; execute calls run for real unless Decisions is scripted.
 	DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRunResult, error)
 	// TestNode: one real execution of one node; no run, no steps, no outbox events.
 	TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error)
@@ -49,7 +50,10 @@ type DryRunInput struct {
 	Graph   json.RawMessage
 	Subject SubjectRef
 	Context map[string]json.RawMessage // overrides of nodes.<id>.output / subject fields
-	Events  []json.RawMessage          // sequence fed to triggers and waits; ≤ 50; {"timeout": true} fires the earliest timer
+	// Events is the sequence fed to triggers and waits (≤ 50): an event {kind, ...payload}, {"timeout":
+	// true} for the earliest timer, or {"events": [...]} for the batch a trigger's collect merges into
+	// the run that starts (events; event is its last entry).
+	Events []json.RawMessage
 	// Decisions is live, cached or scripted (default).
 	Decisions string
 }
@@ -179,6 +183,21 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			inputs = append(inputs, graph.DryRunInput{Timeout: true})
 			continue
 		}
+		if batch, ok := m["events"].([]any); ok && len(m) == 1 {
+			if len(batch) == 0 || len(batch) > graph.CollectMaxEvents {
+				return DryRunResult{}, fmt.Errorf("%w: events[%d] is a batch of 1..%d events", ErrInvalidInput, i, graph.CollectMaxEvents)
+			}
+			evs := make([]graph.Event, 0, len(batch))
+			for _, e := range batch {
+				em, ok := e.(map[string]any)
+				if !ok {
+					return DryRunResult{}, fmt.Errorf("%w: events[%d] holds a batch entry that is not an object", ErrInvalidInput, i)
+				}
+				evs = append(evs, graph.Event(em))
+			}
+			inputs = append(inputs, graph.DryRunInput{Events: evs})
+			continue
+		}
 		inputs = append(inputs, graph.DryRunInput{Event: graph.Event(m)})
 	}
 	sub := a.Subject
@@ -197,7 +216,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
 				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode})
 			if res.err != nil {
-				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message}
+				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message, Retryable: res.err.Retryable}
 			}
 			out, _ := decodeMap(res.output)
 			return graph.ExecAnswer{Outcome: res.outcome, Output: out}
@@ -245,6 +264,9 @@ func traceOf(in *graph.Interpreter, steps []graph.TraceStep) []TraceStep {
 		case s.Outcome == graph.TraceMissingContext:
 			t.Kind, t.Path, t.Message = TraceError, CodeMissingContext, fmt.Sprint(s.ContextPatch["path"])
 			t.Outcome = ""
+		case s.Outcome == graph.TraceFailed && s.ContextPatch["output"] != nil:
+			// A node's own failed outcome, taken with output.error: a step, not a stop.
+			t.Kind = TraceStepKind
 		case s.Outcome == graph.TraceFailed:
 			t.Kind = TraceError
 			code, _ := s.ContextPatch["code"].(string)
@@ -367,7 +389,8 @@ func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
-		return nil, nil, nil
+		// As in a run: an effect node without an executor applies nothing, so its test says so.
+		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
 	tx, err := r.cfg.DB.Begin(ctx)
 	if err != nil {
@@ -503,6 +526,11 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}}
 		}
 		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: "exception", Message: masker.Mask(err.Error())}}
+	}
+	if res.RetryAfter > 0 {
+		// The provider asked to repeat later: a refusal, as in a run (and never a cached decision).
+		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeRateLimited,
+			Message: fmt.Sprintf("the provider asked to repeat the call in %s", res.RetryAfter), Retryable: true}}
 	}
 	out, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {

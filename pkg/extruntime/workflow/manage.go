@@ -637,6 +637,17 @@ func (e *Engine) lockBlocked(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUI
 // chosen by an operator (for example the outcome of an ambiguous command found
 // by inspecting the data). Call Resume afterwards.
 func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string, n int, result json.RawMessage) error {
+	return e.resolve(ctx, tenant, id, name, n, result, nil)
+}
+
+// ResolveIf is Resolve of the occurrence an operator observed: its updated_at must still be observedAt
+// under the instance's lock, else nothing changes and the error is ErrConflict (a newer attempt took its
+// place).
+func (e *Engine) ResolveIf(ctx context.Context, tenant, id uuid.UUID, name string, n int, observedAt time.Time, result json.RawMessage) error {
+	return e.resolve(ctx, tenant, id, name, n, result, &observedAt)
+}
+
+func (e *Engine) resolve(ctx context.Context, tenant, id uuid.UUID, name string, n int, result json.RawMessage, observedAt *time.Time) error {
 	if !json.Valid(result) {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: result is not valid JSON", ErrInvalid))
 	}
@@ -646,6 +657,9 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
+		return err
+	}
+	if err := sameOccurrence(ctx, tx, tenant, id, name, n, observedAt); err != nil {
 		return err
 	}
 	tag, err := tx.Exec(ctx, `
@@ -666,12 +680,25 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 // new. For an ambiguous command this accepts the risk of a duplicate effect.
 // Call Resume afterwards.
 func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n int) error {
+	return e.retry(ctx, tenant, id, name, n, nil)
+}
+
+// RetryIf is Retry of the occurrence an operator observed: its updated_at must still be observedAt under
+// the instance's lock, else nothing changes and the error is ErrConflict.
+func (e *Engine) RetryIf(ctx context.Context, tenant, id uuid.UUID, name string, n int, observedAt time.Time) error {
+	return e.retry(ctx, tenant, id, name, n, &observedAt)
+}
+
+func (e *Engine) retry(ctx context.Context, tenant, id uuid.UUID, name string, n int, observedAt *time.Time) error {
 	tx, err := e.cfg.DB.Begin(ctx)
 	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
+		return err
+	}
+	if err := sameOccurrence(ctx, tx, tenant, id, name, n, observedAt); err != nil {
 		return err
 	}
 	tag, err := tx.Exec(ctx, `
@@ -685,6 +712,26 @@ func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n
 		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is not retryable", ErrNotFound, name, n))
 	}
 	return serrors.FromDB(opManage, tx.Commit(ctx))
+}
+
+// sameOccurrence checks, under the instance's lock, that the occurrence is still the one observed.
+func sameOccurrence(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID, name string, n int, observedAt *time.Time) error {
+	if observedAt == nil {
+		return nil
+	}
+	var at time.Time
+	err := tx.QueryRow(ctx, `SELECT updated_at FROM extruntime.workflow_occurrences WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4`,
+		id, tenant, name, n).Scan(&at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is gone", ErrConflict, name, n))
+	}
+	if err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	if !at.Equal(*observedAt) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d changed since it was observed", ErrConflict, name, n))
+	}
+	return nil
 }
 
 // Resume makes a blocked instance runnable again: after the cause was removed

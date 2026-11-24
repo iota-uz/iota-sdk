@@ -245,6 +245,11 @@ func (r *registry) checkTriggers(s TriggerSource, seen map[string]bool) error {
 		if _, ok := e.Payload.Get("kind"); ok {
 			return fmt.Errorf("event %s: payload: kind is the event's own field", e.Key)
 		}
+		// by_self is the engine's own field of inbound events (an optional bool it sets): a source may
+		// declare it only as that.
+		if f, ok := e.Payload.Get(BySelfField); ok && f.String() != expr.OptionalOf(expr.BoolField).String() {
+			return fmt.Errorf("event %s: payload: %s is the engine's optional bool of inbound events", e.Key, BySelfField)
+		}
 		if declaresConnection(e.TriggerParams) {
 			return fmt.Errorf("event %s: %s is a reserved param", e.Key, ConnectionParam)
 		}

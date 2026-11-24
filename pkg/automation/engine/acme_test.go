@@ -320,7 +320,7 @@ func (n *acmeClassify) Execute(_ context.Context, in catalog.CallInput) (catalog
 }
 func (n *acmeClassify) DecisionKey(in catalog.CallInput) (string, bool) {
 	text, _ := in.Params["text"].(string)
-	return engine.DecisionKey("classify", text, "acme-1", nil), true
+	return engine.DecisionKey("classify", text, "acme-1", nil)
 }
 
 // acmeEnv is an env whose catalog has the acme connector with one connection of the tenant.
