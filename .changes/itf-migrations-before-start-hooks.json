@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"itf harness applies migrations between compile and start so start hooks read the migrated schema (pkg/extruntime/e2e unblocked after #1405)."}
