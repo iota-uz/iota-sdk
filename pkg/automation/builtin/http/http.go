@@ -44,11 +44,11 @@ const CodeRedirectRefused = "redirect_refused"
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
-// MaxOutputBytes is the largest output the node returns by default: a node's output is at most the
-// engine's payload limit (1 MiB). A response is read and judged by the success expression whole (up to
-// MaxResponseBytes); one whose output would be larger keeps its outcome and returns its status, headers
-// and url with body null and body_omitted true (Deps.MaxOutputBytes follows a larger engine limit).
-const MaxOutputBytes = 1<<20 - 16<<10
+// MaxOutputBytes is the largest output the node returns: a body of MaxResponseBytes with its status,
+// headers and url (graph.NodeSpec.MaxOutputBytes lifts the engine's payload limit for the node). A
+// response whose output would be larger (a body whose JSON escaping grows it past the limit) keeps its
+// outcome and returns its status, headers and url with body null and body_omitted true.
+const MaxOutputBytes = MaxResponseBytes + MaxResponseBytes/10
 
 // staticOrigin is a URL whose scheme and host are written out before any template: a request with a
 // secret or a connection goes only to the host the author wrote, whatever the run's data.
@@ -68,7 +68,7 @@ const paramsSchema = `{"type": "object", "properties": {
 		"additionalProperties": {"type": "string", "maxLength": 8000}, "description": "name → value; {{ }} templates"},
 	"body": {"type": "object", "properties": {
 		"kind": {"enum": ["none", "json", "form", "text"], "default": "none"},
-		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text)"},
+		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text); or, for text, a {{ }} template"},
 		"template": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "{{ }} template: the text (text) or the JSON text (json); instead of value"}
 	}, "required": ["kind"], "additionalProperties": false},
 	"auth": {"type": "object", "properties": {
@@ -116,8 +116,8 @@ func (n *Node) Spec() graph.NodeSpec {
 		Params:      graph.MustSchemaParams(paramsSchema),
 		Outcomes:    []string{OutcomeSuccess, OutcomeFailed}, FailedOutcome: OutcomeFailed,
 		Templates: []string{"url", "headers.*", "query.*", "body.template"},
-		Values:    []string{"body.value"},
-		// body.template is listed with the templates above.
+		// body.value is CEL or, with {{ }}, a template (the contract's cel|tpl); body.template is always one.
+		Mixed: []string{"body.value"},
 		Output: expr.Fields{
 			{Name: "status", Field: expr.IntField},
 			{Name: "headers", Field: expr.MapOf(expr.StringField)},
@@ -125,7 +125,8 @@ func (n *Node) Spec() graph.NodeSpec {
 			{Name: "url", Field: expr.StringField},
 			{Name: "body_omitted", Field: expr.OptionalOf(expr.BoolField)},
 		},
-		DryRun: graph.DryRunCapture,
+		MaxOutputBytes: MaxOutputBytes,
+		DryRun:         graph.DryRunCapture,
 	}
 }
 
@@ -245,6 +246,10 @@ func (n *Node) ValidateParams(_ context.Context, params map[string]any) []graph.
 			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a body is a value (CEL) or a template, not both"})
 		case kind == "form" && hasTemplate:
 			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a form body is a CEL map (value)"})
+		}
+		if v, _ := b["value"].(string); strings.Contains(v, "{{") && kind != "text" {
+			// A template in value is the text of a text body; the JSON text of a json body is body.template.
+			out = append(out, graph.GraphError{Path: "params.body.value", Code: graph.CodeParams, Message: "a {{ }} template in value is a text body; a JSON body template goes in template"})
 		}
 		hasValue = hasValue || hasTemplate
 		switch {

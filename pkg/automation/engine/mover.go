@@ -162,7 +162,7 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 	}
 	out, serr, err := m.applyEach(ctx, sp, tok, node, en, effects)
 	if err == nil && serr == nil && out != nil {
-		serr = m.tooLarge(out, "the output of "+node.ID)
+		serr = m.outputTooLarge(node.ID, out, "the output of "+node.ID)
 	}
 	if err != nil || serr != nil {
 		if rerr := sp.Rollback(ctx); rerr != nil && err == nil {
@@ -198,12 +198,26 @@ func (m *mover) applyEach(ctx context.Context, sp pgx.Tx, tok *tokenRow, node gr
 	return out, nil, nil
 }
 
+// outputTooLarge is tooLarge for a node's output: within the node type's MaxOutputBytes when it declares
+// more than the payload limit.
+func (m *mover) outputTooLarge(nodeID string, v any, what string) *StepError {
+	most := m.x.r.cfg.Limits.PayloadBytes
+	if _, spec, ok := m.spec(nodeID); ok && spec.MaxOutputBytes > most {
+		most = spec.MaxOutputBytes
+	}
+	return tooLargeFor(v, what, most)
+}
+
 func (m *mover) tooLarge(v any, what string) *StepError {
+	return tooLargeFor(v, what, m.x.r.cfg.Limits.PayloadBytes)
+}
+
+func tooLargeFor(v any, what string, most int) *StepError {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return &StepError{Code: graph.FailInvalidInput, Message: fmt.Sprintf("%s is not JSON: %v", what, err)}
 	}
-	if most := m.x.r.cfg.Limits.PayloadBytes; len(b) > most {
+	if len(b) > most {
 		return &StepError{Code: CodeLimitExceeded, Message: fmt.Sprintf("%s has %d bytes, at most %d", what, len(b), most)}
 	}
 	return nil
@@ -1021,7 +1035,7 @@ func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitRes
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
 	}
-	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+	if serr := m.outputTooLarge(w.NodeID, output, "the answer of "+w.NodeID); serr != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
 	}
 	outcome := wr.Outcome
@@ -1122,7 +1136,7 @@ func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
 	}
-	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+	if serr := m.outputTooLarge(w.NodeID, output, "the answer of "+w.NodeID); serr != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
 	}
 	known := false

@@ -307,7 +307,8 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	params := s.Params(node)
 	rendered := params
 	vars := varsOf(s.Ctx)
-	for _, t := range expandPaths(params, spec.Templates) {
+	templates, values := templatesAndValues(params, spec)
+	for _, t := range templates {
 		raw, ok := paramAt(params, t)
 		text, isStr := raw.(string)
 		if !ok || !isStr {
@@ -325,7 +326,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		}
 		rendered = setAt(rendered, t, out)
 	}
-	for _, path := range expandPaths(params, spec.Values) {
+	for _, path := range values {
 		raw, ok := paramAt(params, path)
 		src, isStr := raw.(string)
 		if !ok || !isStr {

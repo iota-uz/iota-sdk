@@ -429,6 +429,7 @@ func copyNodeSpec(n NodeSpec) NodeSpec {
 	n.Expressions = append([]ExprParam(nil), n.Expressions...)
 	n.Templates = append([]string(nil), n.Templates...)
 	n.Values = append([]string(nil), n.Values...)
+	n.Mixed = append([]string(nil), n.Mixed...)
 	n.Output = n.Output.Clone()
 	if n.OutcomesFrom != nil {
 		r := *n.OutcomesFrom

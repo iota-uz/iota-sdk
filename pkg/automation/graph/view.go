@@ -42,7 +42,9 @@ type NodeView struct {
 	OutputFrom  *ParamRef       `json:"output_from,omitempty"`
 	OutputKeys  *ParamRef       `json:"output_keys,omitempty"`
 	Dispatch    *Dispatch       `json:"dispatch,omitempty"`
-	Requires    []string        `json:"requires,omitempty"`
+	// Mixed are params that are CEL or, with {{ }}, a template.
+	Mixed    []string `json:"mixed,omitempty"`
+	Requires []string `json:"requires,omitempty"`
 	// DryRun is what a dry run does with the node: execute, capture or forbid.
 	DryRun DryRunMode `json:"dry_run"`
 }
@@ -82,7 +84,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		nv := NodeView{
 			Type: typ, Title: n.Title, Description: n.Description, Group: n.Group, Behavior: n.Behavior,
 			Subjects: n.Subjects, Expressions: n.Expressions, Templates: n.Templates, OutputFrom: n.OutputFrom,
-			OutputKeys: n.OutputKeys, Dispatch: n.Dispatch, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
+			OutputKeys: n.OutputKeys, Dispatch: n.Dispatch, Mixed: n.Mixed, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
 		}
 		if nv.Title == "" {
 			nv.Title = typ

@@ -18,13 +18,15 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/access"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/actionstest"
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 )
 
 var (
@@ -587,7 +589,10 @@ func TestStartedRunInheritsTheSensitiveFieldsOfItsCaller(t *testing.T) {
 	be.create(p, a, strings.Replace(parentGraph("start_automation", other.ID), `"input": {"amount": "event.amount"}`, `"input": {"amount": "event.amount", "code": "event.secret"}`, 1))
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 5, Secret: "s-41"}, 0)
 	var kids []engine.RunSummary
-	p.until(func() bool { kids = be.runsOf(p, child.ID); return len(kids) == 1 && kids[0].Status == engine.RunWaiting }, "the child runs")
+	p.until(func() bool {
+		kids = be.runsOf(p, child.ID)
+		return len(kids) == 1 && kids[0].Status == engine.RunWaiting
+	}, "the child runs")
 	assert.Positive(t, be.count(`SELECT jsonb_array_length(sensitive) FROM automation.runs WHERE id = $1`, kids[0].RunID), "the child carries the field")
 	viewer := be.actor(be.tenant, 3, engine.OriginHuman, withoutSecret...)
 	d, err := p.rt.Service().GetRun(context.Background(), viewer, kids[0].RunID)
@@ -645,4 +650,37 @@ func TestRunAutomationKeepsTheConversation(t *testing.T) {
 	assert.Equal(t, pr[0].Subject, kids[0].Subject, "the child is about the parent's conversation")
 	assert.Equal(t, graph.SubjectConversation, kids[0].Subject.Entity)
 	assert.Equal(t, []string{"note:child conversation"}, ae.effects(kids[0].RunID))
+}
+
+// largeOutputNode answers with a body over the payload limit; its type declares a larger output.
+type largeOutputNode struct{ specNode }
+
+func (largeOutputNode) Idempotent() bool { return true }
+func (largeOutputNode) Execute(context.Context, catalog.CallInput) (catalog.CallResult, error) {
+	return catalog.CallResult{Outcome: "done", Output: map[string]any{"body": strings.Repeat("a", 3<<20)}}, nil
+}
+
+// A node type that declares MaxOutputBytes returns an output over the payload limit (an HTTP body of
+// several MiB), and the next nodes read it.
+func TestANodeMayDeclareALargerOutput(t *testing.T) {
+	be := newBuiltinEnv(t)
+	spec := graph.NodeSpec{Type: "acme.big", Title: "Big", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Outcomes: []string{"done", "failed"}, FailedOutcome: "failed",
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`), Output: expr.Fields{{Name: "body", Field: expr.StringField}},
+		MaxOutputBytes: 11 << 20}
+	require.NoError(t, be.reg.RegisterNode(largeOutputNode{specNode{spec}}))
+	p := be.proc()
+	a := be.human()
+	be.create(p, a, graphJSON("Big", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "big", "type": "acme.big", "params": {}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ size(nodes.big.output.body) }}"}},
+		 {"id": "bad", "type": "acme.note", "params": {"text": "{{ nodes.big.output.error.code }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "big"},
+		 {"from": {"node": "big", "outcome": "done"}, "to": "ok"}, {"from": {"node": "big", "outcome": "failed"}, "to": "bad"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"},
+		 {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}`))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	assert.Equal(t, []string{"ok:3145728"}, be.effects(run.RunID))
 }

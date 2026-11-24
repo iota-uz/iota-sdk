@@ -488,6 +488,22 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 	return expr.ObjectOf(props), true, nil
 }
 
+// templatesAndValues are the template and the CEL paths of a node's params: Templates and Values, and each
+// Mixed param by its text (with {{ a template, else CEL).
+func templatesAndValues(params map[string]any, spec NodeSpec) (templates, values []string) {
+	templates = expandPaths(params, spec.Templates)
+	values = expandPaths(params, spec.Values)
+	for _, p := range expandPaths(params, spec.Mixed) {
+		raw, _ := paramAt(params, p)
+		if s, ok := raw.(string); ok && strings.Contains(s, "{{") {
+			templates = append(templates, p)
+		} else {
+			values = append(values, p)
+		}
+	}
+	return templates, values
+}
+
 // expandPaths is expandPath of each declared path, in order.
 func expandPaths(params map[string]any, paths []string) []string {
 	out := make([]string, 0, len(paths))
@@ -614,14 +630,15 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 			}
 		}
 	}
-	for _, v := range expandPaths(params, spec.Values) {
+	templates, values := templatesAndValues(params, spec)
+	for _, v := range values {
 		if src, ok := paramAt(params, v); ok {
 			if s, ok := src.(string); ok {
 				out = append(out, nodeExpression{path: "params." + v, source: s, want: expr.TypeAny, event: "*"})
 			}
 		}
 	}
-	for _, t := range expandPaths(params, spec.Templates) {
+	for _, t := range templates {
 		if text, ok := paramAt(params, t); ok {
 			if s, ok := text.(string); ok {
 				out = append(out, nodeExpression{path: "params." + t, source: s, event: "*", template: true})

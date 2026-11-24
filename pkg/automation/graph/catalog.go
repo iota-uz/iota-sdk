@@ -110,10 +110,16 @@ type NodeSpec struct {
 	Expressions []ExprParam // CEL inside params (dotted path) and the type it must have
 	Templates   []string    // {{ }} templates inside params (dotted path)
 	Values      []string    // CEL inside params whose value, as JSON, replaces the source in the effect
-	Answer      *AnswerSpec // call: which output field gives the outcome, and a confidence floor
-	Wait        *WaitSpec
-	Output      expr.Fields // what the node puts in nodes.<id>.output
-	OutputFrom  *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// MaxOutputBytes, when above the engine's payload limit, is the largest output a node of the type
+	// returns (an HTTP response's body, up to 10 MiB); 0: the engine's limit.
+	MaxOutputBytes int
+	// Mixed are params that are CEL or a template: a string with {{ is a template rendered as Templates
+	// are, any other a CEL expression evaluated as Values are (an HTTP body: cel|tpl).
+	Mixed      []string
+	Answer     *AnswerSpec // call: which output field gives the outcome, and a confidence floor
+	Wait       *WaitSpec
+	Output     expr.Fields // what the node puts in nodes.<id>.output
+	OutputFrom *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
 	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
 	// values).
 	OutputKeys *ParamRef
@@ -662,6 +668,8 @@ type specDetail struct {
 	Optional      *OptionalOutcome `json:"optional,omitempty"`
 	StepContext   bool             `json:"step_context,omitempty"`
 	Dispatch      *Dispatch        `json:"dispatch,omitempty"`
+	Mixed         []string         `json:"mixed,omitempty"`
+	MaxOutput     int              `json:"max_output,omitempty"`
 }
 
 type waitDetail struct {
@@ -677,7 +685,7 @@ type waitDetail struct {
 func contentHash(c Catalog, v CatalogView) string {
 	details := map[string]specDetail{}
 	for typ, n := range c.Nodes {
-		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext, Dispatch: n.Dispatch}
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Mixed: n.Mixed, MaxOutput: n.MaxOutputBytes, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext, Dispatch: n.Dispatch}
 		if w := n.Wait; w != nil {
 			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
 		}
