@@ -21,6 +21,7 @@ import (
 // CoreUploads is the part of the SDK's upload service (modules/core) the Telegram connector uses.
 type CoreUploads interface {
 	CreateKeeping(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error)
+	DownloadableByRoute(storedPath string) bool
 	GetByID(ctx context.Context, id uint) (upload.Upload, error)
 	OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error)
 }
@@ -66,6 +67,12 @@ func (u telegramUploads) Save(ctx context.Context, tenantID uuid.UUID, f telegra
 		return telegram.Stored{}, err
 	}
 	id := strconv.FormatUint(uint64(created.ID()), 10)
+	if !u.svc.DownloadableByRoute(created.Path()) {
+		// The same content is a private upload of the tenant's: it stays as it is, with its access, and the
+		// signed-in download route does not serve it. The attachment has its id (a graph sends it on, Open reads it)
+		// and no link, rather than a link that answers 404.
+		return telegram.Stored{ID: id}, nil
+	}
 	return telegram.Stored{ID: id, URL: downloadPath + id}, nil
 }
 

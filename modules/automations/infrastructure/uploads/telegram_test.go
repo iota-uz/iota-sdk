@@ -20,7 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/automations/infrastructure/uploads"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -126,6 +128,16 @@ func TestInboundDocumentsKeepWhatTheContentMatches(t *testing.T) {
 		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path.Join("/", cfg.Path, strings.TrimPrefix(storedPath, root)), nil))
 		return rec
 	}
+	email, err := internet.NewEmail("viewer@example.com")
+	require.NoError(t, err)
+	viewer := user.New("View", "Er", email, user.UILanguageEN)
+	// signedIn requests a link of an attachment as a signed-in user of the tenant, through the real route.
+	signedIn := func(link string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, link, nil)
+		router.ServeHTTP(rec, req.WithContext(composables.WithPool(composables.WithTenantID(composables.WithUser(req.Context(), viewer), scope.Tenant.ID), scope.Pool)))
+		return rec
+	}
 	html := func(name string) []byte { return []byte("<script>alert(1)</script> " + name) }
 
 	// A private upload (outside the public root) with the content of a chat's document.
@@ -139,6 +151,11 @@ func TestInboundDocumentsKeepWhatTheContentMatches(t *testing.T) {
 	saved, err := up.Save(context.Background(), scope.Tenant.ID, tgconn.UploadFile{Name: "evil.html", Mime: "text/html", Data: html("private")})
 	require.NoError(t, err)
 	assert.Equal(t, strconv.FormatUint(uint64(private.ID()), 10), saved.ID, "the same content is the same upload")
+	assert.Empty(t, saved.URL, "a private upload has no link that answers 404; its id still opens it")
+	assert.Equal(t, http.StatusNotFound, signedIn("/uploads/"+saved.ID).Code, "the route does not serve a private upload, and no link points to it")
+	opened, err := up.Open(context.Background(), scope.Tenant.ID, saved.ID)
+	require.NoError(t, err)
+	assert.Equal(t, html("private"), opened.Data)
 	after, err := core.GetByID(scoped, private.ID())
 	require.NoError(t, err)
 	assert.Equal(t, private.Path(), after.Path(), "its path is as it was: not moved into the public root")
@@ -151,6 +168,8 @@ func TestInboundDocumentsKeepWhatTheContentMatches(t *testing.T) {
 	saved, err = up.Save(context.Background(), scope.Tenant.ID, tgconn.UploadFile{Name: "other.svg", Mime: "image/svg+xml", Data: html("public")})
 	require.NoError(t, err)
 	assert.Equal(t, strconv.FormatUint(uint64(public.ID()), 10), saved.ID)
+	assert.Equal(t, "/uploads/"+saved.ID, saved.URL, "a public upload is opened through the signed-in route")
+	assert.Equal(t, http.StatusOK, signedIn(saved.URL).Code, "and the link works")
 	after, err = core.GetByID(scoped, public.ID())
 	require.NoError(t, err)
 	assert.Equal(t, public.Path(), after.Path())
@@ -163,6 +182,11 @@ func TestInboundDocumentsKeepWhatTheContentMatches(t *testing.T) {
 	require.NoError(t, err)
 	stored, err := core.GetByID(scoped, uint(id))
 	require.NoError(t, err)
+	assert.Equal(t, "/uploads/"+fresh.ID, fresh.URL)
+	download := signedIn(fresh.URL)
+	assert.Equal(t, http.StatusOK, download.Code, "the link of a fresh document works")
+	assert.Equal(t, "sandbox", download.Header().Get("Content-Security-Policy"))
+	assert.Equal(t, "nosniff", download.Header().Get("X-Content-Type-Options"))
 	rec := anonymous(stored.Path())
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain"), "served as %q", rec.Header().Get("Content-Type"))

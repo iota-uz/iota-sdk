@@ -142,6 +142,21 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 	return s.create(ctx, &configured, true, true, false)
 }
 
+// DownloadableByRoute reports whether the signed-in download route of the upload controller serves an upload stored
+// at the path: it is inside the public uploads root and outside its private namespace. A private upload (or one
+// outside the root) is read by the code that owns it, not through that route.
+func (s *UploadService) DownloadableByRoute(storedPath string) bool {
+	root := s.uploadsPath
+	if root == "" {
+		return false
+	}
+	if !pathWithin(root, storedPath) {
+		return false
+	}
+	private := filepath.Join(root, uploadsconfig.PrivateDirectory)
+	return !(storedPath == private || pathWithin(private, storedPath))
+}
+
 // CreateKeeping stores an upload in the public root, or returns the tenant's existing upload of the same content
 // exactly as it is: its record, its name and its path are not changed, and it is not moved out of a private namespace
 // into the public root. For content that comes from outside (a file a chat sends), where a match with a file that
