@@ -269,3 +269,32 @@ test('layout: a Save after a layout conflict sends the revision the positions we
   const save = (await calls(page)).find((c) => c.method === 'automations.save')!.params as { layout_revision?: number }
   expect(save.layout_revision).toBe(4)
 })
+
+test('D1: Back restores the tab the URL names', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${WELCOME}`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await page.getByRole('tab', { name: 'Runs' }).click()
+  await expect(page).toHaveURL(/tab=runs/)
+  await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+  await page.goBack()
+  await expect(page).not.toHaveURL(/tab=runs/)
+  await expect(page.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'true')
+  await page.goForward()
+  await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('layout: a fresher snapshot withdraws the notice of an older conflict', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&layoutConflict`)
+  const card = page.locator('.iota-flow__node[data-id="email"]')
+  await expect(card).toBeVisible()
+  const box = (await card.boundingBox())!
+  await page.mouse.move(box.x + 40, box.y + 20)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 120, box.y + 60, { steps: 6 })
+  await page.mouse.up()
+  await expect(page.getByText('The layout was changed in another tab')).toBeVisible({ timeout: 5000 })
+  await page.getByRole('button', { name: 'Versions' }).click()
+  await page.getByRole('menuitemcheckbox', { name: /^Version 2/ }).click()
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await expect(page.getByText('The layout was changed in another tab')).toHaveCount(0)
+})

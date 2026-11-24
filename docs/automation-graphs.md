@@ -347,8 +347,13 @@ queued conversation runs, runs of disabled graphs, retention.
   base with `*LayoutConflictError` (`VERSION_CONFLICT` with the revision and positions of now): the
   editor keeps its positions unsaved and offers «Refresh» (`EditorProps.remoteLayout`).
 - **Webhooks.** `engine.InboundHandler` is mounted at `/automations/hooks/{connection_id}` and
-  `/automations/hooks/platform/{kind}` with no session, CSRF or tenant middleware; an application whose
-  router has a CSRF middleware exempts `graphs.HooksPath + "/"`.
+  `/automations/hooks/platform/{kind}` with no session or tenant middleware; each request is
+  authenticated by the connector's `Verify`. The controller marks its route with
+  `middleware.CSRFExemptRoute`: a CSRF middleware of the SDK (`middleware.CSRF`, `CSRFFromConfig`)
+  installed with `Router.Use` on the router the route is registered on lets it through, and only it —
+  the same path on another router, other routes and requests that match no route stay protected. An
+  application adds no exemption of its own; one that wraps the whole server in a CSRF handler outside
+  the router (where no route is matched yet) has to leave `/automations/hooks/` out of that wrapper.
 - **Lists.** `Service.Overviews` gives the list its latest version's author and triggers, the last run
   and the count of runs that need attention (failed, blocked, `filter_failed`); `ListFilter.Attention`
   keeps graphs that have some; `Service.CountLive` names what disabling or deleting cancels.

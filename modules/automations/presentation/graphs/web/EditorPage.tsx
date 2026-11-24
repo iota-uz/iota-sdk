@@ -79,6 +79,7 @@ export default function EditorPage(): JSX.Element {
     layoutRevision = g.automation.layout_revision
     positionsBase = layoutRevision
     layoutStale = false
+    clearConflict()
     setCan(g.can)
     setInfo({
       id: g.automation.id, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version,
@@ -110,6 +111,20 @@ export default function EditorPage(): JSX.Element {
     }
   }
   onMount(() => void load())
+  // D1: Back and Forward restore what the URL says: the tab, the selected step and the open version.
+  onMount(() => {
+    const onPop = () => {
+      const q = new URLSearchParams(window.location.search)
+      setTab(q.get('tab') === 'runs' ? 'runs' : 'edit')
+      setSelected(q.get('node'))
+      const wanted = Number(q.get('version') ?? '0') || 0
+      const i = info()
+      const open = i && i.version !== i.latestVersion ? i.version : 0
+      if (i && wanted !== open) void load(wanted)
+    }
+    window.addEventListener('popstate', onPop)
+    onCleanup(() => window.removeEventListener('popstate', onPop))
+  })
 
   /** Re-reads the graph's state (enabled, versions) without touching the editor's draft. */
   const refreshInfo = async () => {
@@ -157,7 +172,7 @@ export default function EditorPage(): JSX.Element {
       if (res.layout_changed) {
         // Another tab moved steps meanwhile: its positions were kept; «Refresh» shows them.
         layoutStale = true
-        latestPositions = res.positions ?? {}
+        conflict = { positions: res.positions ?? {}, revision: layoutRevision }
         notifyLayoutConflict()
       }
       const v = res.version ?? base + 1
@@ -182,15 +197,32 @@ export default function EditorPage(): JSX.Element {
     // Another tab saved positions meanwhile: they are not overwritten; «Refresh» shows them.
     layoutRevision = res.revision
     layoutStale = true
-    latestPositions = res.positions ?? {}
+    conflict = { positions: res.positions ?? {}, revision: res.revision }
     notifyLayoutConflict()
     throw new Error('the layout changed in another tab')
   }
-  let latestPositions: AutomationLayout = {}
+  // The positions another tab saved, with the revision they are: «Refresh» applies them only while they
+  // are still the stored layout's (a fresher snapshot replaces them and withdraws the notice).
+  let conflict: { positions: AutomationLayout; revision: number } | null = null
+  const LAYOUT_TOAST = 'layout-conflict'
+  const clearConflict = () => {
+    conflict = null
+    app.toast.remove(LAYOUT_TOAST)
+  }
   const notifyLayoutConflict = () => {
     app.toast.notify({
-      id: 'layout-conflict', variant: 'warning', title: t('Editor.LayoutChanged'),
-      action: { label: t('Editor.LayoutRefresh'), onAction: () => { layoutStale = false; positionsBase = layoutRevision; setRemoteLayout({ positions: latestPositions }) } },
+      id: LAYOUT_TOAST, variant: 'warning', title: t('Editor.LayoutChanged'),
+      action: {
+        label: t('Editor.LayoutRefresh'),
+        onAction: () => {
+          const p = conflict
+          if (!p || p.revision !== layoutRevision) return
+          conflict = null
+          layoutStale = false
+          positionsBase = p.revision
+          setRemoteLayout({ positions: p.positions })
+        },
+      },
     })
   }
   const reload = async () => {
@@ -200,6 +232,7 @@ export default function EditorPage(): JSX.Element {
     layoutRevision = g.automation.layout_revision
     positionsBase = layoutRevision
     layoutStale = false
+    clearConflict()
     setInfo({ ...i, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, version: g.version, versions: g.versions, savedByAgent: g.saved_by.origin === 'agent', manual: manualOf(g) })
     return { graph: g.graph as AutomationGraph, version: g.version, layout: g.automation.layout }
   }
