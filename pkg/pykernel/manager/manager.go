@@ -528,6 +528,16 @@ type kernelState struct {
 	StartedAt time.Time `json:"started_at"`
 	Dev       uint64    `json:"dev"`
 	Ino       uint64    `json:"ino"`
+	// Born is the directory's birth time in Unix nanoseconds, 0 where the
+	// platform or file system does not report one. Device and inode alone
+	// do not identify a directory: a file system reuses the inode of a
+	// removed directory for the next one it creates.
+	Born int64 `json:"born,omitempty"`
+}
+
+// sameBirth compares two birth times; an unknown one (0) does not decide.
+func sameBirth(a, b int64) bool {
+	return a == 0 || b == 0 || a == b
 }
 
 func statePath(workdir string) string {
@@ -544,15 +554,16 @@ func recordKernel(workdir string) (bool, bool, error) {
 	if err != nil {
 		return false, false, err
 	}
+	born := dirBirth(workdir)
 	path := statePath(workdir)
 	if raw, rerr := os.ReadFile(path); rerr == nil {
 		var prev kernelState
 		if json.Unmarshal(raw, &prev) == nil {
 			ranBefore = true
-			sameDir = prev.Dev == dev && prev.Ino == ino
+			sameDir = prev.Dev == dev && prev.Ino == ino && sameBirth(prev.Born, born)
 		}
 	}
-	raw, err := json.Marshal(kernelState{StartedAt: time.Now().UTC(), Dev: dev, Ino: ino})
+	raw, err := json.Marshal(kernelState{StartedAt: time.Now().UTC(), Dev: dev, Ino: ino, Born: born})
 	if err != nil {
 		return false, false, err
 	}
