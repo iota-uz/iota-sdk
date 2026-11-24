@@ -52,6 +52,14 @@ test.describe('automations: my tasks screen states', () => {
 		const invoice = await taskIDOf('Approve the supplier invoice');
 		const act = await taskIDOf('Sign the warehouse act');
 		const vacation = await taskIDOf('Confirm the vacation');
+		// Otto's own tasks: one Vera may not open, one that cannot be read (its stored escalation is damaged).
+		await startTask(page, 'Otto private approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
+		await startTask(page, 'Otto damaged approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
+		const foreign = await taskIDOf('Otto private approval');
+		const damaged = await taskIDOf('Otto damaged approval');
+		await withDatabase(async (db) => {
+			await db.query(`UPDATE extruntime.human_tasks SET escalation = '"damaged"'::jsonb WHERE id = $1`, [damaged]);
+		});
 
 		// H7: the form is gone: the task says so, takes no decision, and links the run for a reader.
 		await page.goto(`/automations/tasks/${act}`);
@@ -84,6 +92,16 @@ test.describe('automations: my tasks screen states', () => {
 		await v.context.close();
 
 		const shots: Shot[] = [
+			// S1/D3: a task of someone else, and a task that cannot be read; S4: a list that cannot be read.
+			{ name: 'task-missing', open: async (p) => { await p.goto(`/automations/tasks/${foreign}`); } },
+			{ name: 'task-failed', open: async (p) => {
+				await p.goto(`/automations/tasks/${damaged}`);
+				await expect(p.getByTestId('automations-task-missing').getByRole('alert')).toBeVisible();
+			} },
+			{ name: 'list-failed', open: async (p) => {
+				await p.goto('/automations/tasks?cursor=unreadable');
+				await expect(p.getByTestId('automations-tasks-failed')).toBeVisible();
+			} },
 			// Two tasks without a due time are ordered by their random IDs: the list is taken with a search
 			// that leaves one, so every run shows the same rows.
 			{ name: 'list', open: async (p) => { await p.goto('/automations/tasks?q=supplier'); } },

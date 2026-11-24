@@ -318,8 +318,18 @@ func (c *Controller) taskProps(r *http.Request, v tasks.TaskView) *TaskProps {
 }
 
 func (c *Controller) notFound(w http.ResponseWriter, r *http.Request) {
+	props := &MissingProps{base: c, Tab: tabOf(r)}
+	// An HTMX action (a decision of a task the user just lost) shows the screen in place: htmx swaps
+	// no 4xx answer, which would leave the click without a word.
+	if htmx.IsHxRequest(r) {
+		htmx.Retarget(w, "#"+screenID)
+		htmx.Reswap(w, "outerHTML")
+		htmx.SetTrigger(w, EventTasksChanged, "")
+		c.render(w, r, MissingScreen(props))
+		return
+	}
 	w.WriteHeader(http.StatusNotFound)
-	c.render(w, r, MissingPage(&MissingProps{base: c, Tab: tabOf(r)}))
+	c.render(w, r, MissingPage(props))
 }
 
 func (c *Controller) failed(w http.ResponseWriter, r *http.Request) {

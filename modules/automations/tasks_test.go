@@ -366,7 +366,9 @@ func TestInboxQuorumOfARole(t *testing.T) {
 	s.AsUser(anna)
 	s.GET("/automations/tasks?tab=decided").Expect(t).NotContains("Approve the invoice")
 	s.GET("/automations/tasks/" + task.String()).Expect(t).Status(http.StatusNotFound).NotContains("Boris Tester")
-	decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusNotFound)
+	// The click is answered in place: «not available», not a silent 404 htmx would not swap.
+	lost := decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-missing"`)
+	assert.Equal(t, "#automations-tasks", lost.Header("Hx-Retarget"))
 }
 
 // A member removed from the group after the task was created no longer sees it and a direct decision
@@ -386,7 +388,7 @@ func TestInboxMembershipAndDelegation(t *testing.T) {
 	s.GET("/automations/tasks").Expect(t).Contains("Review the contract").Contains("Your group")
 	pp.exec(`DELETE FROM group_users WHERE group_id = $1 AND user_id = $2`, team, gleb.ID())
 	s.GET("/automations/tasks").Expect(t).NotContains("Review the contract")
-	decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusNotFound).Contains(`data-testid="automations-task-missing"`)
+	decide(s, task, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-missing"`)
 	assert.Equal(t, 0, decisions(t, container, task))
 	s.GET("/automations/tasks/" + uuid.NewString()).Expect(t).Status(http.StatusNotFound).Contains(`data-testid="automations-task-missing"`)
 

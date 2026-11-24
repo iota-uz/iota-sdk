@@ -729,20 +729,25 @@ templ DelegateOptions(query string, list []tasks.UserOption) {
 // ---- a task the user cannot open ----
 templ MissingPage(p *MissingProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: tr(ctx, "Title")}}) {
-		<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-10 md:px-8" data-testid="automations-task-missing">
-			<div class="rounded-lg border border-subtle px-5 py-10 text-center">
-				if p.Failed {
-					<p role="alert" class="font-medium text-100">{ tr(ctx, "Errors.TaskFailed") }</p>
-					<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Errors.ListFailedHint") }</p>
-					<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.Retry) }>{ tr(ctx, "Retry") }</a>
-				} else {
-					<p class="font-medium text-100">{ tr(ctx, "Missing.Title") }</p>
-					<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Missing.Hint") }</p>
-				}
-				<a class="btn btn-primary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.backURL()) }>{ tr(ctx, "Missing.Back") }</a>
-			</div>
-		</div>
+		@MissingScreen(p)
 	}
+}
+
+// MissingScreen is a task the user cannot open (D3), or one that could not be read.
+templ MissingScreen(p *MissingProps) {
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-10 md:px-8" data-testid="automations-task-missing">
+		<div class="rounded-lg border border-subtle px-5 py-10 text-center">
+			if p.Failed {
+				<p role="alert" class="font-medium text-100">{ tr(ctx, "Errors.TaskFailed") }</p>
+				<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Errors.ListFailedHint") }</p>
+				<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.Retry) }>{ tr(ctx, "Retry") }</a>
+			} else {
+				<p class="font-medium text-100">{ tr(ctx, "Missing.Title") }</p>
+				<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Missing.Hint") }</p>
+			}
+			<a class="btn btn-primary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.backURL()) }>{ tr(ctx, "Missing.Back") }</a>
+		</div>
+	</div>
 }
 
 // connectionBanner is «No connection · Retry» while the network or the server is unreachable (S7):

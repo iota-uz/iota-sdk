@@ -321,13 +321,15 @@ func connection(rereadOnline bool) templ.Attributes {
 	}
 	return templ.Attributes{
 		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, rereadOnline: ` + reread + `,
+			action(d) { const verb = d.requestConfig && d.requestConfig.verb; return (!!verb && verb.toLowerCase() !== 'get') || (!!d.elt && d.elt.tagName === 'BUTTON') },
 			retry() { this.offline = false; const b = this.lastSubmit; this.lastSubmit = null;
 				if (!b || !document.body.contains(b)) { location.reload() } else if (b.tagName === 'FORM') { b.requestSubmit() } else { b.click() } } }`,
 		// The action to repeat: the button that submitted, the form submitted from the keyboard (no
-		// button), or the element that asked (Show more).
+		// button), or the button that asked (Show more). A read in the background (the colleague search)
+		// neither replaces the failed action nor clears its banner when it succeeds.
 		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
-			lastSubmit = (e && e.submitter) || d.elt || null`,
-		"@htmx:after-request": `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
+			if (action(d)) lastSubmit = (e && e.submitter) || d.elt || null`,
+		"@htmx:after-request": `if ($event.detail.successful && action($event.detail)) { offline = false; lastSubmit = null }`,
 		// The screen's banner is the signal: the global error toast (which would cover the decision
 		// buttons on a phone) is not shown for this screen's requests.
 		"data-htmx-error-toast": "banner",

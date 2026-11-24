@@ -40,7 +40,7 @@ test.describe('automations: my tasks under failures', () => {
 		await login(page, ADMIN, PASSWORD);
 		const decideTitle = `Unavailable decide ${randomUUID().slice(0, 6)}`;
 		const delegateTitle = `Unavailable delegate ${randomUUID().slice(0, 6)}`;
-		await startTask(page, decideTitle, { assignees: [{ kind: 'user', user_id: anna.id }] });
+		await startTask(page, decideTitle, { assignees: [{ kind: 'user', user_id: anna.id }], allow_delegate: true });
 		await startTask(page, delegateTitle, { assignees: [{ kind: 'user', user_id: boris.id }], allow_delegate: true });
 
 		// A decision answered 503: the banner, the comment stays; Retry records it once.
@@ -60,6 +60,11 @@ test.describe('automations: my tasks under failures', () => {
 		await a.page.getByTestId('automations-task-outcome-approve').click();
 		await expect(a.page.getByTestId('automations-tasks-offline')).toBeVisible();
 		await expect(a.page.getByTestId('automations-task-comment')).toHaveValue('Checked twice');
+		// A successful read meanwhile (the colleague search) does not take the failed decision's banner away.
+		await a.page.getByTestId('automations-task-delegate').locator('summary').click();
+		await a.page.getByRole('combobox', { name: 'Colleague' }).fill(outsider.email);
+		await expect(a.page.getByRole('option')).toHaveCount(1);
+		await expect(a.page.getByTestId('automations-tasks-offline')).toBeVisible();
 		expect(await decisions(taskID)).toBe(0);
 		await a.page.getByTestId('automations-tasks-offline').getByRole('button', { name: 'Retry' }).click();
 		await expect(a.page.getByText('Decision recorded').first()).toBeVisible();
