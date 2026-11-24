@@ -508,6 +508,34 @@ func TestOversizedCursorIsNotSaved(t *testing.T) {
 	assert.Equal(t, "1", cursor)
 }
 
+// A cursor whose saved state fits the limit but leaves no room for the next claim's owner and lease is
+// not saved either: the next claim would be refused before it reaches the provider.
+func TestCursorWithoutRoomForTheNextClaimIsNotSaved(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	conn := ae.conn.ID.String()
+	ae.acme.pollQ = [][]engine.InboundEvent{{acmeUpdate{ID: "c-1", Event: evMessage, Text: "polled", From: "ann"}.event(conn)}}
+	now := time.Now()
+	// The saved, unclaimed state: {"poll":{"cursor":"x…","next_at":…}}, 20 bytes under the limit.
+	empty, err := json.Marshal(map[string]any{"poll": map[string]any{"cursor": "", "next_at": now.Add(engine.MinPollInterval)}})
+	require.NoError(t, err)
+	n := connectors.MaxInboundBytes - len(empty) - 20
+	ae.acme.pollCursor = json.RawMessage(`"` + strings.Repeat("x", n) + `"`)
+	poller := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return now }})
+	_, err = poller.PollOnce(ctx)
+	require.ErrorIs(t, err, connectors.ErrInvalid, "a cursor the next claim could not hold is refused")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage), "its batch rolled back")
+
+	// The connection stays pollable: the next poll claims it and publishes.
+	now = now.Add(engine.MinPollInterval)
+	_, err = poller.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), ae.acme.polls.Load(), "the next claim reached the provider")
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage))
+}
+
 // A poll whose claim waited for the connection's row lock past the interval is due an interval after
 // it got the lock, not after it began: the next poll does not follow it at once.
 func TestPollerIntervalCountsFromTheClaim(t *testing.T) {

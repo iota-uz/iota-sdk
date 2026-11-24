@@ -382,16 +382,49 @@ func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, 
 		if err != nil {
 			return err
 		}
-		// The state keeps the store's invariant (UpdateInbound's limit): a cursor the store would refuse
-		// on the next claim is not saved, and its batch is rolled back with it. The cursor stays and
-		// the next poll asks again from it.
-		if len(next) > connectors.MaxInboundBytes {
-			return fmt.Errorf("%w: the cursor of %s makes the inbound state %d bytes, at most %d",
-				connectors.ErrInvalid, t.kind, len(next), connectors.MaxInboundBytes)
+		// The state keeps the store's invariant (UpdateInbound's limit) also once the next claim adds its
+		// owner and lease, measured as the database renders it (what a claim reads back): a cursor the
+		// store would refuse on the next claim is not saved, and its batch is rolled back with it. The
+		// cursor stays and the next poll asks again from it.
+		size, err := claimedSize(ctx, tx, all, st)
+		if err != nil {
+			return err
+		}
+		if size > connectors.MaxInboundBytes {
+			return fmt.Errorf("%w: the cursor of %s makes the claimed inbound state %d bytes, at most %d",
+				connectors.ErrInvalid, t.kind, size, connectors.MaxInboundBytes)
 		}
 		_, err = tx.Exec(ctx, `UPDATE automation.connections SET inbound = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`, t.tenant, t.id, next)
 		return err
 	})
+}
+
+// latestTime is the longest time a claim writes (RFC 3339 with nanoseconds and an offset).
+var latestTime = time.Date(9999, 12, 31, 23, 59, 59, 999999999, time.FixedZone("", -(23*3600+59*60)))
+
+// claimedSize is the size of the inbound state with st once a claim holds it (an owner, the longest
+// lease and next poll times), as jsonb renders it: the largest form a claim reads back and writes.
+func claimedSize(ctx context.Context, tx pgx.Tx, all inboundState, st pollState) (int, error) {
+	worst := st
+	worst.Owner, worst.LeaseUntil, worst.NextAt = uuid.NewString(), ptrTime(latestTime), ptrTime(latestTime)
+	b, err := json.Marshal(worst)
+	if err != nil {
+		return 0, err
+	}
+	claimed := make(inboundState, len(all))
+	for k, v := range all {
+		claimed[k] = v
+	}
+	claimed[pollKey] = b
+	raw, err := json.Marshal(claimed)
+	if err != nil {
+		return 0, err
+	}
+	var size int
+	if err := tx.QueryRow(ctx, `SELECT greatest(octet_length($1::jsonb::text), octet_length($1::text))`, string(raw)).Scan(&size); err != nil {
+		return 0, err
+	}
+	return size, nil
 }
 
 func isUnauthorized(err error) bool {
