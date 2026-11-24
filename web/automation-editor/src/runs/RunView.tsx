@@ -76,6 +76,7 @@ export function RunView(props: RunViewProps): JSX.Element {
       setData(next)
       props.cache.set(props.runId, next)
       setFailed(false)
+      setSettling(false)
       props.onLoaded?.(next)
     } catch (error) {
       if (disposed || mine !== seq) return
@@ -143,10 +144,14 @@ export function RunView(props: RunViewProps): JSX.Element {
     if (!d || d.state !== 'blocked') return null
     return d.waits.find((w) => w.kind === 'call') ?? d.waits[0] ?? null
   })
-  const canCancel = () => props.operate && Boolean(props.api.cancelRun) && Boolean(data()) && ['running', 'waiting', 'blocked'].includes(data()!.state)
-  const canRetry = () => props.operate && Boolean(props.api.retryRun) && blocked() !== null
-  const canResolve = () => props.operate && Boolean(props.api.resolveRun) && blocked() !== null
+  // After an action succeeded the run is read again; until its new state arrives the actions are not
+  // offered (a second Retry would repeat the call the first one started).
+  const [settling, setSettling] = createSignal(false)
+  const canCancel = () => props.operate && !settling() && Boolean(props.api.cancelRun) && Boolean(data()) && ['running', 'waiting', 'blocked'].includes(data()!.state)
+  const canRetry = () => props.operate && !settling() && Boolean(props.api.retryRun) && blocked() !== null
+  const canResolve = () => props.operate && !settling() && Boolean(props.api.resolveRun) && blocked() !== null
   const after = (title: string) => {
+    setSettling(true)
     toast.notify({ variant: 'success', title })
     seq += 1
     void fetchRun()

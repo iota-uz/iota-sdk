@@ -22,7 +22,9 @@ function Leaf(props: { value: unknown }): JSX.Element {
   )
 }
 
-function Node(props: { name?: string; value: unknown; depth: number }): JSX.Element {
+function Node(props: { name?: string; value: unknown; depth: number; all: boolean; locale: EditorLocale }): JSX.Element {
+  const [more, setMore] = createSignal(false)
+  const shown = () => (props.all || more() ? entries() : entries().slice(0, MAX_CHILDREN))
   const isObject = () => props.value !== null && typeof props.value === 'object'
   const entries = createMemo<[string, unknown][]>(() => {
     if (!isObject()) return []
@@ -38,8 +40,10 @@ function Node(props: { name?: string; value: unknown; depth: number }): JSX.Elem
             <span class="ae-json__punct">{Array.isArray(props.value) ? `[${entries().length}]` : `{${entries().length}}`}</span>
           </summary>
           <div class="ae-json__children">
-            <For each={entries().slice(0, MAX_CHILDREN)}>{([k, v]) => <Node name={k} value={v} depth={props.depth + 1} />}</For>
-            <Show when={entries().length > MAX_CHILDREN}><div class="ae-json__row ae-json__punct">… {entries().length - MAX_CHILDREN}</div></Show>
+            <For each={shown()}>{([k, v]) => <Node name={k} value={v} depth={props.depth + 1} all={props.all} locale={props.locale} />}</For>
+            <Show when={shown().length < entries().length}>
+              <button type="button" class="ae-link ae-json__more" onClick={() => setMore(true)}>{runStrings(props.locale).node.showAll(entries().length)}</button>
+            </Show>
           </div>
         </details>
       </Show>
@@ -62,7 +66,7 @@ export function Value(props: { value: unknown; locale: EditorLocale; label: stri
           <button type="button" class="ae-btn ae-btn--secondary" onClick={() => setFull(true)}>{t().loadFull}</button>
         </div>
       }>
-        <Show when={typeof props.value === 'string'} fallback={<div class="ae-json"><Node value={props.value} depth={0} /></div>}>
+        <Show when={typeof props.value === 'string'} fallback={<div class="ae-json"><Node value={props.value} depth={0} all={full()} locale={props.locale} /></div>}>
           <pre class="ae-value__text">{props.value as string}</pre>
         </Show>
       </Show>

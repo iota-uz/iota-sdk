@@ -248,6 +248,30 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 		nodes = append(nodes, s.NodeID)
 	}
 	assert.Equal(t, []string{"get", "fin"}, nodes)
+	// A later visit of the node the viewer may not read (it carries a field no rule can check now) does
+	// not hide the earlier one: StepsOf gives the viewer its latest readable visit, and the hidden one
+	// stays hidden.
+	_, err = ae.db.Exec(context.Background(), `INSERT INTO automation.steps (tenant_id, run_id, token_id, seq, node_id, outcome, output, sensitive, started_at, ended_at)
+		SELECT tenant_id, run_id, token_id, 99, node_id, 'ok', '{"headers": {"x": "later"}}', '[{"event": "acme.gone.v1", "path": "x"}]',
+			now() + interval '1 hour', now() + interval '1 hour'
+		FROM automation.steps WHERE run_id = $1 AND node_id = 'get'`, run.RunID)
+	require.NoError(t, err)
+	read, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID, engine.StepsOf("get"))
+	require.NoError(t, err)
+	var gets []engine.StepView
+	for _, s := range read.Steps {
+		if s.NodeID == "get" {
+			gets = append(gets, s)
+		}
+	}
+	require.Len(t, gets, 2, "the latest step (bound 1) is the hidden visit; StepsOf adds the readable one")
+	assert.False(t, gets[0].Hidden, "the earlier visit, readable, with its data")
+	assert.NotEmpty(t, gets[0].Output)
+	assert.Equal(t, 99, gets[1].Seq)
+	assert.True(t, gets[1].Hidden, "the later visit stays hidden")
+	assert.Empty(t, gets[1].Output)
+	_, err = ae.db.Exec(context.Background(), `DELETE FROM automation.steps WHERE run_id = $1 AND seq = 99`, run.RunID)
+	require.NoError(t, err)
 	restore()
 	var logs []string
 	for _, s := range d.Steps {

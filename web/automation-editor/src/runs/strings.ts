@@ -77,6 +77,7 @@ export type RunStrings = {
     copy: string
     copied: string
     loadFull: string
+    showAll(n: number): string
     folded(size: string): string
     attempt(n: number): string
     item(n: number): string
@@ -233,6 +234,7 @@ const en: RunStrings = {
     copy: 'Copy',
     copied: 'Copied',
     loadFull: 'Load in full',
+    showAll: (c) => `Show all ${c}`,
     folded: (size) => `The output is ${size}; it is shown folded.`,
     attempt: (a) => `Attempt ${a}`,
     item: (i) => `Item ${i}`,
@@ -391,6 +393,7 @@ const ru: RunStrings = {
     copy: 'Скопировать',
     copied: 'Скопировано',
     loadFull: 'Загрузить полностью',
+    showAll: (c) => `Показать все ${c}`,
     folded: (size) => `Выход занимает ${size}; он показан свёрнутым.`,
     attempt: (a) => `Попытка ${a}`,
     item: (i) => `Элемент ${i}`,
@@ -549,6 +552,7 @@ const uz: RunStrings = {
     copy: 'Nusxalash',
     copied: 'Nusxalandi',
     loadFull: 'To‘liq yuklash',
+    showAll: (c) => `Hammasini ko‘rsatish (${c})`,
     folded: (size) => `Chiqish hajmi ${size}; u yig‘ilgan holda ko‘rsatilgan.`,
     attempt: (a) => `${a}-urinish`,
     item: (i) => `${i}-element`,
@@ -707,6 +711,7 @@ const uzCyrl: RunStrings = {
     copy: 'Нусхалаш',
     copied: 'Нусхаланди',
     loadFull: 'Тўлиқ юклаш',
+    showAll: (c) => `Ҳаммасини кўрсатиш (${c})`,
     folded: (size) => `Чиқиш ҳажми ${size}; у йиғилган ҳолда кўрсатилган.`,
     attempt: (a) => `${a}-уриниш`,
     item: (i) => `${i}-элемент`,

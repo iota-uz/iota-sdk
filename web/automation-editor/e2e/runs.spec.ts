@@ -131,6 +131,18 @@ test.describe('runs', () => {
     expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true)
   })
 
+  test('RV10: after Retry the actions wait for the run\'s new state: no second Retry meanwhile', async ({ page }) => {
+    await open(page, 'tab=runs&run=00000000-0000-4000-8000-0000000000r4&slowread=1', '.ae-runview')
+    await page.getByTestId('run-retry').click()
+    await expect(page.getByText('The call is repeated')).toBeVisible()
+    await expect(page.getByTestId('run-retry')).toHaveCount(0)
+    await expect(page.getByTestId('run-resolve')).toHaveCount(0)
+    await expect(page.getByTestId('run-cancel')).toHaveCount(0)
+    // The read comes back: the call is still blocked here, so the actions return.
+    await expect(page.getByTestId('run-retry')).toBeVisible({ timeout: 6000 })
+    expect(await page.evaluate(() => window.__fixture.ops.filter((o) => o.startsWith('retry')).length)).toBe(1)
+  })
+
   test('A1: the Runs tab with a run and its drawer has no serious violations', async ({ page }) => {
     await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview')
     await expect(page.getByTestId('run-node')).toBeVisible()

@@ -162,9 +162,10 @@ type runDetailOptions struct{ nodes []string }
 // MaxStepsOfNodes bounds the nodes StepsOf names.
 const MaxStepsOfNodes = 50
 
-// StepsOf adds the latest step of each node to the run's latest steps, wherever it is in the run: a
-// node test's example reads the step of its node and of the nodes before it even when more than the
-// detail's bound of steps came after them. The steps are projected for the viewer as the others.
+// StepsOf adds, for each node, its latest step the viewer may read (else its latest step, hidden) to the
+// run's latest steps, wherever it is in the run: a node test's example reads the step of its node and of
+// the nodes before it even when more than the detail's bound of steps came after them, and a later visit
+// the viewer may not read does not hide an earlier readable one. The steps are projected as the others.
 func StepsOf(nodes ...string) RunDetailOption {
 	return func(o *runDetailOptions) { o.nodes = append(o.nodes, nodes...) }
 }

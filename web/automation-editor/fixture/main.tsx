@@ -158,6 +158,8 @@ Object.assign(api, {
   },
   async run(id: string) {
     log.runCalls += 1
+    // slowread=1: once an operator acted, the run is read slowly (the state after the action is not there yet).
+    if (params.get('slowread') === '1' && log.ops.length > 0) await wait(2500)
     polls += id.endsWith('r1') ? 1 : 0
     await wait(latency)
     const found = runs.find((r) => r.run_id === id)

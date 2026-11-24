@@ -179,10 +179,28 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
         const list = await props.api.runs({ automation_id: props.automationId, node: props.node, limit: EXAMPLE_RUNS, ...(cursor ? { cursor } : {}) })
         // The run's latest steps may not reach back to this step (a long for each after it): the run is read
         // with the steps of this node and of the nodes before it named, wherever they are.
-        const nodes = [props.node, ...ancestors(props.graph, props.node)].slice(0, MAX_NODES)
+        // This node first; the nodes before it in batches the server takes (a long graph has more).
+        const all = [props.node, ...ancestors(props.graph, props.node)]
+        const batches: string[][] = []
+        for (let i = 0; i < all.length; i += MAX_NODES) batches.push(all.slice(i, i + MAX_NODES))
         for (const row of list.items) {
-          const run = await props.api.run(row.run_id, { nodes })
-          if (reached(run)) return run
+          const run = await props.api.run(row.run_id, { nodes: batches[0]! })
+          if (!reached(run)) continue
+          // The rest of the nodes before it: their steps join the run's (each step once).
+          const seen = new Set(run.steps.map((s) => `${s.token_id}/${s.attempt}/${s.node}/${s.started_at}`))
+          const steps = [...run.steps]
+          for (const nodes of batches.slice(1)) {
+            const more = await props.api.run(row.run_id, { nodes })
+            for (const s of more.steps) {
+              const key = `${s.token_id}/${s.attempt}/${s.node}/${s.started_at}`
+              if (!seen.has(key)) {
+                seen.add(key)
+                steps.push(s)
+              }
+            }
+          }
+          steps.sort((a, b) => a.started_at.localeCompare(b.started_at))
+          return { ...run, steps }
         }
         if (!list.next_cursor) return null
         cursor = list.next_cursor

@@ -60,4 +60,48 @@ describe('TestPanel «From the last run»', () => {
     expect(run).toHaveBeenCalledTimes(1)
     expect(run.mock.calls[0]![1]?.nodes).toEqual(expect.arrayContaining(['send_email', 'has_email']))
   })
+
+  it('a later visit the author may not read does not hide the run: its readable visit is the example', async () => {
+    // The newest run visited the node with readable data, then again after a field the author may not
+    // read: its read with the node gives both visits (the later one hidden). It wins over the older run.
+    const newer: RunData = { ...runOf('r20', true), steps: [...runOf('r20', true).steps, { ...runOf('r20', true).steps[0]!, attempt: 2, hidden: true, output: null, started_at: '2026-11-20T09:05:00Z' }] }
+    const older = runOf('r10', true)
+    const runs = vi.fn(async () => ({ items: [newer, older].map(({ tokens: _t, steps: _s, waits: _w, event: _e, ...rest }) => rest as RunSummary), next_cursor: null }))
+    const run = vi.fn(async (id: string) => (id === 'r20' ? newer : older))
+    const api: EditorApi = { validate: vi.fn(), dryRun: vi.fn(), testNode: vi.fn(async () => ({ outcome: 'sent' })), runs, run }
+    const { getByTestId, container } = render(() => (
+      <TestPanel graph={sample} catalog={catalog} api={api} locale="en" node="send_email" automationId="a-1" cache={new Map()} onOverlay={() => undefined} onClose={() => undefined} />
+    ))
+    fireEvent.click(getByTestId('test-example'))
+    await waitFor(() => expect(container.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('20'))
+  })
+
+  it('reads the outputs of steps far before the node in further batches', async () => {
+    // A chain of 60 sends before the tested one: the first read names 50 nodes, the rest come in a second.
+    const chain = Array.from({ length: 60 }, (_, i) => `s${i}`)
+    const graph = {
+      ...sample,
+      nodes: [...sample.nodes, ...chain.map((id) => ({ id, type: 'core.send_email', params: { to: 'a', subject: 'b', body: 'c' } }))],
+      edges: [
+        { from: { node: 'user_created', outcome: 'fired' }, to: 's0' },
+        ...chain.slice(1).map((id, i) => ({ from: { node: chain[i]!, outcome: 'sent' }, to: id })),
+        { from: { node: 's59', outcome: 'sent' }, to: 'send_email' },
+      ],
+    }
+    const step = (node: string, minute: number) => ({ node, token_id: 't', attempt: 1, input: {}, outcome: 'sent', output: { message_id: `m-${node}` }, logs: [], error: null, started_at: `2026-11-20T09:${String(minute).padStart(2, '0')}:00Z`, ended_at: at })
+    const full: RunData = { ...runOf('r1', true), steps: [...chain.map((id, i) => step(id, i % 60)), step('send_email', 59)] }
+    const run = vi.fn(async (_id: string, opts?: { nodes?: string[] }) => ({ ...full, steps: full.steps.filter((s) => opts?.nodes?.includes(s.node)) }))
+    const runs = vi.fn(async () => ({ items: [full].map(({ tokens: _t, steps: _s, waits: _w, event: _e, ...rest }) => rest as RunSummary), next_cursor: null }))
+    const api: EditorApi = { validate: vi.fn(), dryRun: vi.fn(), testNode: vi.fn(async () => ({ outcome: 'sent' })), runs, run }
+    const { getByTestId, container } = render(() => (
+      <TestPanel graph={graph} catalog={catalog} api={api} locale="en" node="send_email" automationId="a-1" cache={new Map()} onOverlay={() => undefined} onClose={() => undefined} />
+    ))
+    fireEvent.click(getByTestId('test-example'))
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(2))
+    expect(run.mock.calls[0]![1]!.nodes).toHaveLength(50)
+    expect(run.mock.calls[1]![1]!.nodes).toContain('s0')
+    const field = (path: string) => [...container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`[data-param="${path}"] input, [data-param="${path}"] textarea`)].map((i) => i.value)
+    await waitFor(() => expect(field('nodes.s0.output.message_id')).toContain('m-s0'))
+    expect(field('nodes.s59.output.message_id')).toContain('m-s59')
+  })
 })
