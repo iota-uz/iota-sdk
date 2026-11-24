@@ -95,13 +95,24 @@ type CallInput struct {
 	Attempt        int            // 1: the first attempt
 	IdempotencyKey string         // stable between attempts: run:node:token:seq
 	Params         map[string]any // templates and values are already evaluated
-	Subject        graph.Subject
-	RunAs          spi.Subject     // a node acting in the SDK checks rights itself
-	Connection     *ConnectionInfo // nil: the node needs no connector
-	Credentials    Credentials     // decrypted by the engine; the node neither keeps nor logs them
-	Deadline       time.Time
-	Usage          UsageRecorder
+	// Context is the step's expression context (event, nodes, the subject's variables, subject, run,
+	// tenant, now) for a node type that declares graph.NodeSpec.StepContext; nil otherwise.
+	Context     map[string]any
+	Subject     graph.Subject
+	RunAs       spi.Subject     // a node acting in the SDK checks rights itself
+	Connection  *ConnectionInfo // nil: the node needs no connector
+	Credentials Credentials     // decrypted by the engine; the node neither keeps nor logs them
+	Deadline    time.Time
+	Usage       UsageRecorder
 }
+
+// InvocationIDOf is the invocation ID (a UUID) a call node passes to SDK commands: derived from the
+// call's idempotency key, so every attempt of one call is the same invocation.
+func InvocationIDOf(idempotencyKey string) string {
+	return uuid.NewSHA1(invocationNamespace, []byte(idempotencyKey)).String()
+}
+
+var invocationNamespace = uuid.MustParse("6f1d1f0e-8a8b-4c39-9b0e-3c1b2a7a5d10")
 
 // Credentials are the decrypted fields of a connection. They never appear in a Connection, an error or
 // a log.

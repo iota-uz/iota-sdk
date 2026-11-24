@@ -140,6 +140,9 @@ type Arrival struct {
 type Effect struct {
 	Node   string         `json:"node"`
 	Params map[string]any `json:"params"`
+	// Context is the step's expression context as JSON (event, nodes, subject, run, the subject's
+	// variables, tenant, now) for a node type that declares StepContext; nil otherwise.
+	Context map[string]any `json:"context,omitempty"`
 }
 
 // WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
@@ -304,7 +307,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	params := s.Params(node)
 	rendered := params
 	vars := varsOf(s.Ctx)
-	for _, t := range spec.Templates {
+	for _, t := range expandPaths(params, spec.Templates) {
 		raw, ok := paramAt(params, t)
 		text, isStr := raw.(string)
 		if !ok || !isStr {
@@ -322,7 +325,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		}
 		rendered = setAt(rendered, t, out)
 	}
-	for _, path := range spec.Values {
+	for _, path := range expandPaths(params, spec.Values) {
 		raw, ok := paramAt(params, path)
 		src, isStr := raw.(string)
 		if !ok || !isStr {
@@ -339,7 +342,16 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		}
 		rendered = setAt(rendered, path, j)
 	}
-	return Effect{Node: node.Type, Params: rendered}, nil
+	e := Effect{Node: node.Type, Params: rendered}
+	if spec.StepContext {
+		c, err := jsonOut(map[string]any(vars))
+		if err != nil {
+			s := failed(FailExpression, "the step's context: %v", err)
+			return Effect{}, &s
+		}
+		e.Context, _ = c.(map[string]any)
+	}
+	return e, nil
 }
 
 // jsonOut is a CEL value as JSON: timestamps as RFC 3339 strings, durations as seconds.

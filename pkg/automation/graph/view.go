@@ -39,6 +39,7 @@ type NodeView struct {
 	Templates   []string        `json:"templates,omitempty"`
 	Output      json.RawMessage `json:"output,omitempty"`
 	OutputFrom  *ParamRef       `json:"output_from,omitempty"`
+	OutputKeys  *ParamRef       `json:"output_keys,omitempty"`
 	Requires    []string        `json:"requires,omitempty"`
 	// DryRun is what a dry run does with the node: execute, capture or forbid.
 	DryRun DryRunMode `json:"dry_run"`
@@ -79,7 +80,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		nv := NodeView{
 			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior,
 			Subjects: n.Subjects, Expressions: n.Expressions, Templates: n.Templates, OutputFrom: n.OutputFrom,
-			OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
+			OutputKeys: n.OutputKeys, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
 		}
 		if nv.Title == "" {
 			nv.Title = typ
@@ -90,7 +91,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		if impl, ok := b.impl(n.Behavior); ok {
 			nv.OutcomeRule = impl.OutcomeRule(n)
 		}
-		if len(n.Output) > 0 && n.OutputFrom == nil {
+		if len(n.Output) > 0 && n.OutputFrom == nil && n.OutputKeys == nil {
 			nv.Output = n.Output.JSONSchema()
 		}
 		v.Nodes = append(v.Nodes, nv)

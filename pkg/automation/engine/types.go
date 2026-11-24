@@ -452,6 +452,27 @@ type CodeNode interface {
 	Review(params map[string]any) CodeNodeReview
 }
 
+// NodeValidator is an optional interface of a catalog.NodeType: checks of a node's params beyond their
+// schema, run when a graph is saved (a Code node compiles its source). Paths are relative to the node
+// ("params.source"); the engine prefixes them with the node's path. Params are as the graph has them.
+type NodeValidator interface {
+	ValidateParams(ctx context.Context, params map[string]any) []graph.GraphError
+}
+
+// EffectWaitKeyer is an optional interface of a catalog.NodeType with behavior wait that emits its
+// effect: the subject the wait listens on, from the effect's output (the run the effect started). It
+// takes precedence over WaitKeyer.
+type EffectWaitKeyer interface {
+	EffectWaitSubject(params, output map[string]any) (SubjectRef, bool)
+}
+
+// WakeResolver is an optional interface of a catalog.NodeType with behavior wait: the outcome and
+// output of a wait woken by the event (a finished run: done or failed, and its output) instead of the
+// matched outcome with the event's payload. The outcome must be one of the node's outcomes.
+type WakeResolver interface {
+	ResolveWake(event graph.Event) (outcome string, output map[string]any)
+}
+
 // StepContext is what a node executor gets about the step it runs in.
 type StepContext struct {
 	TenantID, RunID, TokenID uuid.UUID
@@ -465,6 +486,9 @@ type StepContext struct {
 	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
 	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool
+	// Context is the step's expression context for a node type that declares graph.NodeSpec.StepContext
+	// (graph.Effect.Context); a call carries it to its child instance.
+	Context map[string]any
 }
 
 // WaitSpec is a wait a node executor registers.

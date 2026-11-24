@@ -70,6 +70,11 @@ func (waitBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 		return OutcomeRule{Fixed: []string{w.TimeoutOutcome}}
 	}
 	r := OutcomeRule{Fixed: []string{w.Matched}}
+	if len(spec.Outcomes) > 0 {
+		// A wait that resolves the event it woke on into one of several outcomes (a started run that
+		// finished done or failed) declares them; Matched is one of them.
+		r.Fixed = append([]string(nil), spec.Outcomes...)
+	}
 	if w.TimeoutParam != "" {
 		r.Optional = &OptionalOutcome{Param: w.TimeoutParam, Outcome: w.TimeoutOutcome}
 	}
@@ -139,6 +144,21 @@ func (effectBehavior) Validate(v *GraphView, node Node, spec NodeSpec) []GraphEr
 		return []GraphError{{Path: v.Path(node.ID) + ".type", Code: CodeInvalid, Message: node.Type + ": " + err}}
 	}
 	return nil
+}
+
+// waitOutcomesError checks the declared outcomes of a wait: they hold its matched and failed outcomes and
+// not its timeout outcome, which the timeout param adds.
+func waitOutcomesError(spec NodeSpec) string {
+	w := spec.Wait
+	switch {
+	case !contains(spec.Outcomes, w.Matched):
+		return "matched outcome " + w.Matched + " is not one of its outcomes"
+	case spec.FailedOutcome != "" && !contains(spec.Outcomes, spec.FailedOutcome):
+		return "failed_outcome " + spec.FailedOutcome + " is not one of its outcomes"
+	case w.TimeoutOutcome != "" && contains(spec.Outcomes, w.TimeoutOutcome):
+		return "timeout outcome " + w.TimeoutOutcome + " comes from the timeout param, not from outcomes"
+	}
+	return ""
 }
 
 func effectOutcomesError(spec NodeSpec) string {

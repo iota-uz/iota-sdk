@@ -101,6 +101,15 @@ type RunInput struct {
 	Fetcher Fetcher
 	// Logger receives env.log lines as they are written, already masked and truncated. It may be nil.
 	Logger LogSink
+	// Connections are the connections the node declared (^[a-z][a-z0-9_]{0,39}$), each with the methods
+	// of env.connections.<name> (^[a-z][A-Za-z0-9_]{0,39}$). Their calls go through ConnectionCaller, which
+	// adds the authorization: no credential reaches the code.
+	Connections map[string][]string
+	// ConnectionCaller serves env.connections. With nil every call fails with ConnectionMissing.
+	ConnectionCaller ConnectionCaller
+	// Masked are more values masked in everything that leaves the run, as secrets are, that the code never
+	// sees (the credentials of its connections).
+	Masked []string
 	// Tenant keys the per-tenant concurrency limit; runs with an empty Tenant share one key.
 	Tenant string
 }
@@ -178,6 +187,11 @@ const (
 	ReasonCompileFailed  FailureReason = "compile_failed"
 	ReasonSecretMissing  FailureReason = "secret_missing"
 	ReasonOutcomeUnknown FailureReason = "outcome_unknown" // the run ended without returning a result
+	// ReasonConnectionMissing: the code called a connection that is not declared, not connected or does
+	// not offer code access.
+	ReasonConnectionMissing FailureReason = "connection_missing"
+	// ReasonConnectionOriginMismatch: a call through a connection named a URL outside the connector's origin.
+	ReasonConnectionOriginMismatch FailureReason = "connection_origin_mismatch"
 )
 
 // RunError is a failure of the code.
@@ -249,6 +263,31 @@ func (e *NetworkBlockedError) Error() string {
 	}
 	return "network blocked: " + e.Reason + ": " + target
 }
+
+// ConnectionCaller performs the calls of env.connections.<name>.<method>(path, body).
+type ConnectionCaller interface {
+	// CallConnection performs one call. A call the connection refuses (not connected, a path outside its
+	// origin) fails with a *ConnectionRefusedError; one the network policy refuses with a
+	// *NetworkBlockedError.
+	CallConnection(ctx context.Context, req ConnectionRequest) (*FetchResponse, error)
+}
+
+// ConnectionRequest is one env.connections call: the connection's name, the method the connector
+// declares, a path (or an https URL on the connector's origin) and an optional body (JSON text, or the
+// string the code passed).
+type ConnectionRequest struct {
+	Connection, Method, Path string
+	Body                     []byte
+}
+
+// ConnectionRefusedError is a call through a connection that is refused before it reaches the network.
+// Code is ReasonConnectionMissing or ReasonConnectionOriginMismatch.
+type ConnectionRefusedError struct {
+	Code    FailureReason
+	Message string
+}
+
+func (e *ConnectionRefusedError) Error() string { return string(e.Code) + ": " + e.Message }
 
 // LogSink receives the lines a run logs.
 type LogSink interface{ Log(level, line string) }

@@ -55,6 +55,7 @@ type CallRequest struct {
 	Connection     string          `json:"connection,omitempty"`    // the connection ref: a UUID or "platform:<kind>"
 	ConnectorKind  string          `json:"connector,omitempty"`     // the connection's kind
 	Input          json.RawMessage `json:"input"`                   // rendered params, no secrets
+	Context        json.RawMessage `json:"context,omitempty"`       // the step's context (graph.NodeSpec.StepContext)
 	IdempotencyKey string          `json:"idempotency_key"`         // "run:node:token:seq"; stable across retries
 	Deadline       time.Time       `json:"deadline"`                // node timeout from params, ≤ CallLimits.MaxTimeout
 	TimeoutMS      int64           `json:"timeout_ms,omitempty"`    // the node's timeout: an operator's Retry gets a new deadline of it
@@ -363,6 +364,14 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	}
 	if run.Native != nil {
 		req.ParentInstance = run.Native.Instance().ID
+	}
+	if run.Context != nil {
+		if req.Context, err = json.Marshal(run.Context); err != nil {
+			return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "the context of " + node.ID + " is not JSON"}
+		}
+		if len(req.Context)+len(input) > c.r.cfg.Limits.PayloadBytes {
+			return WaitSpec{}, &StepError{Code: CodeLimitExceeded, Message: "the context of " + node.ID + " is too large"}
+		}
 	}
 	view, err := c.r.cfg.Catalog.ForTenant(ctx, run.TenantID)
 	if err != nil {
@@ -867,7 +876,14 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 		return callRecord{Kind: "failed", Code: CodeInvalidInput, Message: "the params are not an object"}, nil
 	}
 	masker := conn.masker
+	var callContext map[string]any
+	if len(req.Context) > 0 {
+		if callContext, err = decodeMap(req.Context); err != nil {
+			return callRecord{Kind: "failed", Code: CodeInvalidInput, Message: "the context is not an object"}, nil
+		}
+	}
 	in := catalog.CallInput{
+		Context:  callContext,
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID,
 		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
 		RunAs: req.RunAs, Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
@@ -939,11 +955,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 
 // InvocationIDOf is the invocation ID (a UUID) a call node passes to SDK commands (host.Request): derived
 // from the call's idempotency key, so every attempt of one call is the same invocation.
-func InvocationIDOf(idempotencyKey string) string {
-	return uuid.NewSHA1(invocationNamespace, []byte(idempotencyKey)).String()
-}
-
-var invocationNamespace = uuid.MustParse("6f1d1f0e-8a8b-4c39-9b0e-3c1b2a7a5d10")
+func InvocationIDOf(idempotencyKey string) string { return catalog.InvocationIDOf(idempotencyKey) }
 
 // unknown is a call whose outcome is unknown: the failed outcome when the graph connects it, else the
 // child blocks (ambiguous) until an operator resolves or retries it.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -248,6 +249,9 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 		return serrors.FromDB(opRun, err)
 	}
 	sc := m.stepContext(tok, seq)
+	if len(st.Effects) > 0 {
+		sc.Context = st.Effects[0].Context
+	}
 	if fo := m.in().FailedOutcome(node.ID); fo != "" {
 		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)
 		// would end the path silently on a call that may have been made, so such a call blocks instead.
@@ -319,14 +323,17 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	behavior := string(spec.Behavior)
 	var input any
 	params, _ := m.in().View().Params(node.ID)
+	var effectOut map[string]any
 	if len(st.Effects) > 0 {
 		input = effectInput(st.Effects)
 		params = st.Effects[0].Params
-		if _, serr, err := m.applyEffects(ctx, tok, node, st.Effects); err != nil {
+		out, serr, err := m.applyEffects(ctx, tok, node, st.Effects)
+		if err != nil {
 			return err
 		} else if serr != nil {
 			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
 		}
+		effectOut = out
 	}
 	wi := st.Wait
 	kind := waitEvent
@@ -356,6 +363,13 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			w.Filter = &f
 		}
 		w.Subject = m.waitSubject(node, ev, params)
+		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && effectOut != nil {
+			if ek, ok := nt.(EffectWaitKeyer); ok {
+				if s, ok := ek.EffectWaitSubject(params, effectOut); ok {
+					w.Subject = &s
+				}
+			}
+		}
 	}
 	if timeout > 0 {
 		at, err := m.deadline(ctx, timeout)
@@ -977,6 +991,19 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
 	outcome, output := m.in().Wake(w.NodeID, gev)
+	if node, _, ok := m.spec(w.NodeID); ok {
+		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok {
+			if wr, ok := nt.(WakeResolver); ok {
+				o, out := wr.ResolveWake(gev)
+				if !slices.Contains(m.in().View().Outcomes(w.NodeID), o) {
+					_, spec, _ := m.spec(w.NodeID)
+					return m.nodeFailed(ctx, tok, w.NodeID, string(spec.Behavior), w.Spec.Seq, nil,
+						StepError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s has no outcome %q", w.NodeID, o)})
+				}
+				outcome, output = o, out
+			}
+		}
+	}
 	return m.applyResult(ctx, tok, w, outcome, output, nil)
 }
 

@@ -104,13 +104,21 @@ type NodeSpec struct {
 	OutcomesFrom  *ParamRef
 	DoneOutcome   string
 	FailedOutcome string
-	Expressions   []ExprParam // CEL inside params (dotted path) and the type it must have
-	Templates     []string    // {{ }} templates inside params (dotted path)
-	Values        []string    // CEL inside params whose value, as JSON, replaces the source in the effect
+	// Expressions, Templates and Values name params by a dotted path; a "*" segment stands for every key
+	// of the object at that point (a map param: values.*, headers.*).
+	Expressions []ExprParam // CEL inside params (dotted path) and the type it must have
+	Templates   []string    // {{ }} templates inside params (dotted path)
+	Values      []string    // CEL inside params whose value, as JSON, replaces the source in the effect
 	Answer        *AnswerSpec // call: which output field gives the outcome, and a confidence floor
 	Wait          *WaitSpec
 	Output        expr.Fields // what the node puts in nodes.<id>.output
 	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
+	// values).
+	OutputKeys *ParamRef
+	// StepContext: the effect carries the step's expression context (Effect.Context): a node that runs
+	// code reads event, nodes, the subject's variables, tenant and now outside of the step.
+	StepContext bool
 	// DryRun is what a dry run does with the node: execute it for real (no external effect: a read, an
 	// HTTP GET, a decision of a model), capture it (an external effect: send, ask, a write; its rendered
 	// params are traced and its outcome comes from the context) or stop on it. Every node type declares
@@ -133,6 +141,9 @@ func (n NodeSpec) StructuredFailure() bool {
 	switch n.Behavior { //nolint:exhaustive // the pure built-in behaviors fall through
 	case BehaviorCall, BehaviorEffect:
 		return true
+	case BehaviorWait:
+		// A wait that emits its effect fails like an effect when the effect is refused.
+		return n.Wait != nil && n.Wait.Effect
 	}
 	return !isBuiltinBehavior(n.Behavior) && !isFlowBehavior(n.Behavior)
 }
@@ -378,6 +389,14 @@ func (c Catalog) Check(b *Behaviors) error {
 				return fmt.Errorf("node %s: %s", typ, err)
 			}
 		}
+		if n.Behavior == BehaviorWait && n.Wait != nil && len(n.Outcomes) > 0 {
+			if err := waitOutcomesError(n); err != "" {
+				return fmt.Errorf("node %s: %s", typ, err)
+			}
+		}
+		if n.OutputKeys != nil && (len(n.Output) > 0 || n.OutputFrom != nil) {
+			return fmt.Errorf("node %s: output_keys declares the whole output; output and output_from are left out", typ)
+		}
 		if a := n.Answer; a != nil {
 			if a.Choice == "" {
 				return fmt.Errorf("node %s: answer names its choice field", typ)
@@ -460,9 +479,11 @@ type nodeJSON struct {
 	Values     []string    `json:"values"`
 	Answer     *AnswerSpec `json:"answer"`
 	Wait       *waitJSON   `json:"wait"`
-	Output     expr.Fields `json:"output"`
-	OutputFrom *ParamRef   `json:"output_from"`
-	DryRun     DryRunMode  `json:"dry_run"`
+	Output      expr.Fields `json:"output"`
+	OutputFrom  *ParamRef   `json:"output_from"`
+	OutputKeys  *ParamRef   `json:"output_keys"`
+	StepContext bool        `json:"step_context"`
+	DryRun      DryRunMode  `json:"dry_run"`
 }
 
 type waitJSON struct {
@@ -554,7 +575,7 @@ func CatalogFromJSON(raw []byte, b *Behaviors) (Catalog, error) {
 			Type: typ, Title: n.Title, Description: n.Description, Behavior: n.Behavior, Subjects: on,
 			Outcomes: n.Outcomes, OutcomesFrom: n.OutcomesFrom, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome,
 			Templates: n.Templates, Values: n.Values, Answer: n.Answer, Output: n.Output, OutputFrom: n.OutputFrom,
-			DryRun: n.DryRun,
+			OutputKeys: n.OutputKeys, StepContext: n.StepContext, DryRun: n.DryRun,
 		}
 		if spec.Title == "" {
 			spec.Title = typ
@@ -635,6 +656,7 @@ type specDetail struct {
 	Wait          *waitDetail      `json:"wait,omitempty"`
 	MatchHook     string           `json:"match_hook,omitempty"`
 	Optional      *OptionalOutcome `json:"optional,omitempty"`
+	StepContext   bool             `json:"step_context,omitempty"`
 }
 
 type waitDetail struct {
@@ -650,7 +672,7 @@ type waitDetail struct {
 func contentHash(c Catalog, v CatalogView) string {
 	details := map[string]specDetail{}
 	for typ, n := range c.Nodes {
-		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional}
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext}
 		if w := n.Wait; w != nil {
 			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
 		}

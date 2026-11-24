@@ -40,6 +40,9 @@ type startRequest struct {
 	cause       *uuid.UUID
 	restarted   *uuid.UUID
 	predecessor *uuid.UUID
+	// parent is the instance the run's instance is a child of (a run a step started to wait for it):
+	// terminating the parent's tree terminates it.
+	parent *uuid.UUID
 	// startState and reason, when set, record a run that does not start.
 	startState string
 	reason     string
@@ -250,7 +253,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 			return RunRef{RunID: id, Status: RunQueued}, nil
 		}
 	}
-	if err := r.startInstance(ctx, tx, req.tenant, id, *req.runAs, req.predecessor); err != nil {
+	if err := r.startInstance(ctx, tx, req.tenant, id, *req.runAs, req.predecessor, req.parent); err != nil {
 		return RunRef{}, err
 	}
 	r.metrics.runStarted(ctx, req.kind)
@@ -258,7 +261,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 }
 
 // startInstance starts the automation.run instance of a recorded run.
-func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, runAs spi.Subject, predecessor *uuid.UUID) error {
+func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, runAs spi.Subject, predecessor, parent *uuid.UUID) error {
 	runAs.TenantID = tenant
 	in := spi.StartIntent{
 		Workflow: WorkflowID,
@@ -267,6 +270,9 @@ func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid
 	}
 	if predecessor != nil {
 		in.Predecessor = predecessor.String()
+	}
+	if parent != nil {
+		in.Producer = spi.Producer{InstanceID: parent.String()}
 	}
 	inst, err := r.cfg.Workflows.Start(ctx, tx, spi.Scope{Subject: runAs}, in)
 	if err != nil {
@@ -343,7 +349,7 @@ func (r *Runtime) dequeue(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, s Su
 		_, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'blocked', start_reason = 'no_owner' WHERE tenant_id = $1 AND id = $2`, tenant, run)
 		return serrors.FromDB(opStart, err)
 	}
-	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil)
+	return r.startInstance(ctx, tx, tenant, run, spi.Subject{TenantID: tenant, UserID: *user, Kind: spi.SubjectKind(*kind)}, nil, nil)
 }
 
 // queueScanBatch is how many free subjects one startQueued pass looks at.
