@@ -465,6 +465,41 @@ func (s *store) SetStatus(ctx context.Context, tenantID, id uuid.UUID, status Co
 	return nil
 }
 
+func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status ConnectionStatus, reason string, cond func(state json.RawMessage) bool) (bool, error) {
+	const op = serrors.Op("automation.connectors.Store.SetStatusIf")
+	if err := s.configured(); err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	if !status.valid() {
+		return false, serrors.Wrap(op, fmt.Errorf("%w: status %q", ErrInvalid, status))
+	}
+	if utf8.RuneCountInString(reason) > maxStatusReason {
+		return false, serrors.Wrap(op, fmt.Errorf("%w: status reason is longer than %d", ErrInvalid, maxStatusReason))
+	}
+	set := false
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		var state []byte
+		err := tx.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&state)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if !cond(json.RawMessage(state)) {
+			return nil
+		}
+		_, err = tx.Exec(ctx, `UPDATE automation.connections SET status = $3, status_reason = $4, version = version + 1, updated_at = now()
+			WHERE tenant_id = $1 AND id = $2`, tenantID, id, string(status), reason)
+		set = err == nil
+		return err
+	})
+	if err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	return set, nil
+}
+
 func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	const op = serrors.Op("automation.connectors.Store.Delete")
 	if err := s.configured(); err != nil {

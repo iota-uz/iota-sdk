@@ -105,8 +105,9 @@ type Runtime struct {
 	// quietCallObserver, set by tests, keeps the call observer from signalling the parent (the run's
 	// own reconciliation must give the wait its result).
 	quietCallObserver bool
-	// callResultHook, set by tests, runs in a call child after its result transaction commits.
-	callResultHook func(ctx context.Context, child uuid.UUID)
+	// callResultHook, set by tests, runs in a call child before ("before") and after ("after") its
+	// result transaction.
+	callResultHook func(ctx context.Context, child uuid.UUID, stage string)
 }
 
 type interpEntry struct {

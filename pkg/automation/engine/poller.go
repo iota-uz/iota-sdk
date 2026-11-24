@@ -284,9 +284,16 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	if err != nil {
 		p.r.metrics.pollError(ctx, string(t.kind))
 		if errors.Is(err, connectors.ErrNeedsReauth) || isUnauthorized(err) {
-			// Polling stops until the connection is authorized again.
-			if serr := p.cfg.Connections.SetStatus(ctx, t.tenant, t.id, connectors.StatusNeedsReauth, "the provider refused the credentials"); serr != nil {
+			// Polling stops until the connection is authorized again, only while this poll still owns the
+			// connection (checked and set under its row lock): a poll that outlived its claim with stale
+			// credentials does not stop a newer owner's polling.
+			set, serr := p.cfg.Connections.SetStatusIf(ctx, t.tenant, t.id, connectors.StatusNeedsReauth, "the provider refused the credentials",
+				func(raw json.RawMessage) bool { return pollOwner(raw) == owner })
+			if serr != nil {
 				return now.Add(interval), errors.Join(serrors.Wrap(opPoll, serr), release())
+			}
+			if !set {
+				return now.Add(interval), nil // the claim was lost: the newer owner decides
 			}
 			return now.Add(p.cfg.Rescan), release()
 		}
@@ -332,6 +339,19 @@ func isUnauthorized(err error) bool {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// pollOwner is the owner of the poll claim an inbound state holds.
+func pollOwner(raw json.RawMessage) string {
+	var all inboundState
+	if len(raw) == 0 || json.Unmarshal(raw, &all) != nil {
+		return ""
+	}
+	var st pollState
+	if b, ok := all[pollKey]; ok {
+		_ = json.Unmarshal(b, &st)
+	}
+	return st.Owner
+}
 
 // pollLease is how long a claim holds a connection beyond its interval: a poll (and its commit) that
 // outlives it loses the connection to the next claim, and its save is dropped.

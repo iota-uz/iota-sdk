@@ -172,11 +172,23 @@ func (c *CallRunner) endedResult(ctx context.Context, q querier, tenant, child u
 		}
 		return wr, err
 	}
-	var started bool
-	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences
-		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started')`, tenant, child).Scan(&started); err != nil {
+	// The last attempt decides: one that completed with an answer (its result transaction rolled back, a
+	// signal refused) gives that answer; one that started without a record may have reached the provider.
+	var (
+		lastStatus string
+		lastRaw    []byte
+	)
+	err := q.QueryRow(ctx, `SELECT status, result FROM extruntime.workflow_occurrences
+		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' ORDER BY n DESC LIMIT 1`, tenant, child).Scan(&lastStatus, &lastRaw)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return WaitResult{}, serrors.FromDB(opCall, err)
 	}
+	if lastStatus == workflow.OccCompleted {
+		if wr, ok := c.recordedAnswer(lastRaw, req); ok {
+			return wr, nil
+		}
+	}
+	started := lastStatus == workflow.OccStarted
 	code, msg := CodeEffectFailed, "the call ended without a result"
 	if status == workflow.StatusTerminated {
 		msg = "the call was terminated"
@@ -193,6 +205,30 @@ func (c *CallRunner) endedResult(ctx context.Context, q querier, tenant, child u
 		fo = nt.Spec().FailedOutcome
 	}
 	return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: code, Message: msg}}, nil
+}
+
+// recordedAnswer is the result of a completed attempt's journal value: its answer, or its failure; a
+// retry (the next attempt never started) has none.
+func (c *CallRunner) recordedAnswer(raw []byte, req CallRequest) (WaitResult, bool) {
+	var rec callRecord
+	if len(raw) == 0 || json.Unmarshal(raw, &rec) != nil {
+		return WaitResult{}, false
+	}
+	switch rec.Kind {
+	case "result":
+		return WaitResult{WaitID: req.WaitID, Outcome: rec.Outcome, Output: rec.Output, Await: rec.Await}, true
+	case "failed":
+		out, err := json.Marshal(graph.FailedOutput(rec.Code, rec.Message, rec.Retryable))
+		if err != nil {
+			return WaitResult{}, false
+		}
+		fo := ""
+		if nt, ok := c.r.cfg.Catalog.Node(req.NodeType); ok {
+			fo = nt.Spec().FailedOutcome
+		}
+		return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: rec.Code, Message: rec.Message, Retryable: rec.Retryable}}, true
+	}
+	return WaitResult{}, false
 }
 
 // committedResult is the result a call child's result transaction recorded in its receipt.
@@ -400,6 +436,9 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
+	if h := c.r.callResultHook; h != nil {
+		h(ctx, nr.Instance().ID, "before")
+	}
 	// The receipt of the result transaction keeps the result: a child ended (terminated) after it
 	// committed, before its completion, still gives its parent that result, never a synthesized one.
 	_, err = nr.Transaction(ctx, "result", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
@@ -425,7 +464,7 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 		return nil, infra(err)
 	}
 	if h := c.r.callResultHook; h != nil {
-		h(ctx, nr.Instance().ID)
+		h(ctx, nr.Instance().ID, "after")
 	}
 	return payload, nil
 }

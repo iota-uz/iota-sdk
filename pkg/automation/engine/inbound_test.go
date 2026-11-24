@@ -348,6 +348,33 @@ func TestPollerClaimsTheConnection(t *testing.T) {
 	assert.WithinDuration(t, bNow.Add(engine.MinPollInterval), st.Poll.NextAt, time.Second, "B's state stands, not A's")
 }
 
+// A poll that outlived its claim and then got 401 leaves the connection connected: the newer owner's
+// poll succeeded with the credentials, and only an owner sets needs_reauth.
+func TestStalePollDoesNotSetNeedsReauth(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	now := time.Now()
+	a := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return now }})
+	later := now.Add(engine.MinPollInterval + 10*time.Minute)
+	b := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return later }})
+	ae.acme.onPoll = func() {
+		// A's claim runs out: B takes the connection over and polls it; then A's provider refuses A.
+		_, err := b.PollOnce(ctx)
+		require.NoError(t, err)
+		ae.acme.mu.Lock()
+		ae.acme.pollErr = &catalog.CallError{Code: catalog.CallUnauthorized, Message: "stale token"}
+		ae.acme.mu.Unlock()
+	}
+	_, err := a.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), ae.acme.polls.Load())
+	c, _, err := ae.store.Get(ctx, ae.tenant, ae.conn.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, c.Status, "the stale poll did not stop polling")
+}
+
 // A poll whose claim waited for the connection's row lock past the interval is due an interval after
 // it got the lock, not after it began: the next poll does not follow it at once.
 func TestPollerIntervalCountsFromTheClaim(t *testing.T) {

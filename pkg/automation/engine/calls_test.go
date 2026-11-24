@@ -441,8 +441,10 @@ func TestCallTerminatedAfterItsResultKeepsTheResult(t *testing.T) {
 				p.rt.QuietCallObserver()
 			}
 			var once sync.Once
-			p.rt.SetCallResultHook(func(ctx context.Context, child uuid.UUID) {
-				once.Do(func() { require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child)) })
+			p.rt.SetCallResultHook(func(ctx context.Context, child uuid.UUID, stage string) {
+				if stage == "after" {
+					once.Do(func() { require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child)) })
+				}
 			})
 			ae.create(p, ae.human(), sendGraph("acme.send", "ok", "", true))
 			ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
@@ -455,6 +457,29 @@ func TestCallTerminatedAfterItsResultKeepsTheResult(t *testing.T) {
 			require.Len(t, ae.acme.callsOf("acme.send"), 1)
 		})
 	}
+}
+
+// A call child that ends after its provider answered, before its result transaction committed (it was
+// refused or rolled back), gives the run that answer: a completed attempt is never effect_failed.
+func TestCallEndedBeforeItsResultKeepsTheAnswer(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	var once sync.Once
+	p.rt.SetCallResultHook(func(ctx context.Context, child uuid.UUID, stage string) {
+		if stage == "before" {
+			once.Do(func() { require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child)) })
+		}
+	})
+	ae.create(p, ae.human(), sendGraph("acme.send", "ok", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return ae.status(p, runOf(t, ae.env, p).RunID) == engine.RunDone }, "the run ends")
+	run := runOf(t, ae.env, p)
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_occurrences o JOIN extruntime.workflow_instances i ON i.id = o.instance_id
+		WHERE i.workflow = $1 AND o.name = 'result' AND o.status = 'completed'`, engine.CallWorkflowID), "no result receipt")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1, effects)
+	assert.True(t, strings.HasPrefix(effects[0], "ok:sent "), effects)
+	require.Len(t, ae.acme.callsOf("acme.send"), 1)
 }
 
 // requireBadNote asserts the run took the call's failed edge: the bad note ran with the error's code.

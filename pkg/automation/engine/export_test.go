@@ -33,9 +33,9 @@ func (r *Runtime) SweepWindow(ctx context.Context, tenant, automation uuid.UUID,
 // SetOperationsHook runs fn in Operations.Retry between reading the blocked attempt and acting on it.
 func (r *Runtime) SetOperationsHook(fn func()) { r.opsHook = fn }
 
-// SetCallResultHook runs fn in a call child after its result (and the parent's signal) committed, before
-// the child's completion.
-func (r *Runtime) SetCallResultHook(fn func(ctx context.Context, child uuid.UUID)) {
+// SetCallResultHook runs fn in a call child before (stage "before") and after ("after") its result
+// transaction (with the parent's signal) commits, before the child's completion.
+func (r *Runtime) SetCallResultHook(fn func(ctx context.Context, child uuid.UUID, stage string)) {
 	r.callResultHook = fn
 }
 
