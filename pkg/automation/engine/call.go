@@ -287,9 +287,11 @@ type callExec struct {
 	c   *CallRunner
 	nr  workflow.NativeRun
 	req CallRequest
-	// answer and single are what an ask named before sending (AnswerEventer): its wait keeps them.
-	answer string
-	single bool
+	// answer and single are what an ask named when its token was issued (AnswerEventer), from the
+	// receipt of that transaction: its wait keeps them.
+	answer   string
+	single   bool
+	answerer AnswerEventer
 }
 
 func (x *callExec) run(ctx context.Context) (WaitResult, error) {
@@ -461,14 +463,13 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 	if !ok {
 		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " asks without naming its answer event"}
 	}
-	params, _ := decodeMap(req.Input)
-	event, single := ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
-		NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs})
-	if event == "" {
-		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " names no answer event"}
-	}
-	x.answer, x.single = event, single
+	// The answer is named once, in the journaled transaction that issues the token: its receipt keeps
+	// it, and a replay (after a sleep, a crash) takes it from there, whatever the node would name now.
 	raw, err := x.nr.Transaction(ctx, "correlation", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
+		event, single := x.answerOf(ae)
+		if event == "" {
+			return json.Marshal(map[string]any{"refused": req.NodeType + " names no answer event"})
+		}
 		mark, err := watermark(ctx, tx)
 		if err != nil {
 			return nil, err
@@ -483,7 +484,7 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 				return nil, serrors.FromDB(opCall, err)
 			}
 			if tag.RowsAffected() == 1 {
-				return json.Marshal(map[string]any{"token": token, "after_seq": mark})
+				return json.Marshal(map[string]any{"token": token, "after_seq": mark, "event": event, "single": single})
 			}
 		}
 		return nil, errors.New("no free correlation token")
@@ -494,11 +495,26 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 	var got struct {
 		Token    string `json:"token"`
 		AfterSeq int64  `json:"after_seq"`
+		Event    string `json:"event"`
+		Single   bool   `json:"single"`
+		Refused  string `json:"refused"`
 	}
 	if err := json.Unmarshal(raw, &got); err != nil {
 		return "", 0, err
 	}
+	if got.Refused != "" || got.Event == "" {
+		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " names no answer event"}
+	}
+	x.answer, x.single, x.answerer = got.Event, got.Single, ae
 	return got.Token, got.AfterSeq, nil
+}
+
+// answerOf is the answer the node names now, for the call's params and run-as.
+func (x *callExec) answerOf(ae AnswerEventer) (string, bool) {
+	req := x.req
+	params, _ := decodeMap(req.Input)
+	return ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
+		NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs})
 }
 
 // attempt is the k-th Effect of the call. The credentials are opened outside the Effect, so a failure
@@ -608,6 +624,13 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 	}
 	if !time.Now().Before(req.Deadline) {
 		return callRecord{Kind: "failed", Code: CodeTimeout, Message: req.NodeID + " ran out of time"}, nil
+	}
+	if x.answerer != nil {
+		// The token's answer is fixed: a node that would name another one now is not sent again.
+		if event, single := x.answerOf(x.answerer); event != x.answer || single != x.single {
+			return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer,
+				Message: fmt.Sprintf("%s names %s as its answer now; its token was issued for %s", req.NodeID, event, x.answer)}, nil
+		}
 	}
 	params, err := decodeMap(req.Input)
 	if err != nil {

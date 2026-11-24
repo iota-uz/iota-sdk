@@ -554,3 +554,21 @@ func TestEarlyAnswersAfterAnUnrelatedEvent(t *testing.T) {
 	assert.Equal(t, []string{"answer yes"}, noteTexts(t, ae.env))
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.correlations`), "the token is spent once the wait opens")
 }
+
+// The answer named when the token was issued holds across a replay: an ask that names another answer
+// after it resumed (here after a 429) is not sent again, and the token keeps its answer.
+func TestAnswerOfAResumedAskIsTheIssuedOne(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.acme.onAsk = func(string) { ae.acme.answerKey.Store(evReceipt) } // the selection changes after the first send
+	ae.create(p, ae.human(), strings.Replace(askGraph, `"params": {"text": "approve?"}`, `"params": {"text": "approve?", "mode": "429_once"}`, 1))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the run ends")
+	assert.Equal(t, []string{"bad"}, noteTexts(t, ae.env), "the ask fails on the changed answer")
+	calls := ae.acme.callsOf("acme.ask")
+	require.Len(t, calls, 1, "it is not sent again")
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.waits WHERE correlation IS NOT NULL`), "no wait for the other answer")
+	var issued string
+	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT result->>'event' FROM extruntime.workflow_occurrences WHERE name = 'correlation'`).Scan(&issued))
+	assert.Equal(t, evAnswer, issued, "the receipt keeps the issued answer")
+}

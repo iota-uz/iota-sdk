@@ -56,6 +56,15 @@ type acme struct {
 	pollQ    [][]engine.InboundEvent
 	pollErr  error
 	onAsk    func(token string) // runs inside the ask's Execute (answers that come before its wait opens)
+	// answerKey is the answer event the ask names (default acme.answer.v1).
+	answerKey atomic.Value
+}
+
+func (a *acme) answer() string {
+	if k, ok := a.answerKey.Load().(string); ok && k != "" {
+		return k
+	}
+	return evAnswer
 }
 
 func newAcme() *acme { return &acme{entered: make(chan string, 16)} }
@@ -248,16 +257,20 @@ func (n *acmeAsk) Requires() []catalog.ConnectorKind { return nil }
 func (n *acmeAsk) Idempotent() bool                  { return false }
 func (n *acmeAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
 	c, _ := engine.CorrelationFrom(ctx)
+	prior := len(n.a.callsOf("acme.ask"))
 	n.a.record(acmeCall{Node: "acme.ask", Key: in.IdempotencyKey, Attempt: in.Attempt, Token: c.Token})
 	if n.a.onAsk != nil {
 		n.a.onAsk(c.Token)
 	}
+	if mode, _ := in.Params["mode"].(string); mode == "429_once" && prior == 0 {
+		return catalog.CallResult{RetryAfter: 50 * time.Millisecond}, nil
+	}
 	return catalog.CallResult{Outcome: "yes", Output: map[string]any{"message_id": "q-1"}}, nil
 }
 func (n *acmeAsk) Await(catalog.CallInput, catalog.CallResult) (engine.Await, error) {
-	return engine.Await{Event: evAnswer, Timeout: time.Hour, Single: true}, nil
+	return engine.Await{Event: n.a.answer(), Timeout: time.Hour, Single: true}, nil
 }
-func (n *acmeAsk) AnswerEvent(catalog.CallInput) (string, bool) { return evAnswer, true }
+func (n *acmeAsk) AnswerEvent(catalog.CallInput) (string, bool) { return n.a.answer(), true }
 
 func (n *acmeAsk) Answer(payload json.RawMessage) (string, json.RawMessage, error) {
 	var p struct {
