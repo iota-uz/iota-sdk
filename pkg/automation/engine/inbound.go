@@ -88,8 +88,10 @@ func (in *inbound) validator(spec graph.EventSpec) (*graph.JSONValidator, error)
 	return p, nil
 }
 
-// Publish counts a published event when the transaction commits, when it runs under the engine's own
-// webhook handler or poller; a caller's own transaction counts it at once (the insert is staged).
+// Publish counts a published event when the transaction commits: under the engine's own webhook handler
+// and poller, and inside an outbox delivery (events.AfterCommit). In any other caller's transaction the
+// engine cannot see the commit, so it counts the staged insert at once; a caller that needs committed
+// counts publishes through InboundHandler or the poller.
 func (in *inbound) Publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (bool, error) {
 	published, err := in.publish(ctx, tx, ev)
 	switch {
@@ -100,7 +102,7 @@ func (in *inbound) Publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 		count := func(ctx context.Context) { in.r.metrics.inboundEvent(ctx, connector, "published") }
 		if hooks, ok := ctx.Value(commitHooksKey{}).(*commitHooks); ok {
 			hooks.fns = append(hooks.fns, count)
-		} else {
+		} else if !events.AfterCommit(ctx, count) {
 			count(ctx)
 		}
 	default:

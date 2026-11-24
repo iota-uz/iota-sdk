@@ -160,6 +160,33 @@ func (c *CallRunner) contract() workflow.NativeContract {
 	}
 }
 
+// endedResult is the result of a call child that ended (status) without one: outcome_unknown when an
+// attempt had started (its effect may have happened), effect_failed otherwise. Its parent gets it from
+// the observer, or reconciles it itself when that signal could not be delivered.
+func (c *CallRunner) endedResult(ctx context.Context, q querier, tenant, child uuid.UUID, req CallRequest, status string) (WaitResult, error) {
+	var started bool
+	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences
+		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started')`, tenant, child).Scan(&started); err != nil {
+		return WaitResult{}, serrors.FromDB(opCall, err)
+	}
+	code, msg := CodeEffectFailed, "the call ended without a result"
+	if status == workflow.StatusTerminated {
+		msg = "the call was terminated"
+	}
+	if started {
+		code, msg = CodeOutcomeUnknown, msg+"; an attempt may have reached the provider"
+	}
+	out, err := json.Marshal(graph.FailedOutput(code, msg, false))
+	if err != nil {
+		return WaitResult{}, err
+	}
+	fo := ""
+	if nt, ok := c.r.cfg.Catalog.Node(req.NodeType); ok {
+		fo = nt.Spec().FailedOutcome
+	}
+	return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: code, Message: msg}}, nil
+}
+
 // readCallRequest reads the input of a call instance.
 func readCallRequest(raw json.RawMessage) (CallRequest, bool) {
 	var req CallRequest
@@ -179,30 +206,17 @@ func (o callObserver) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst
 	if !ok || req.ParentInstance == uuid.Nil || req.TenantID != inst.TenantID {
 		return nil // not a call of a run of this tenant: nothing waits for it
 	}
-	var started bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences
-		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started')`, inst.TenantID, inst.ID).Scan(&started); err != nil {
-		return serrors.FromDB(opCall, err)
-	}
-	code, msg := CodeEffectFailed, "the call ended without a result"
-	if to == workflow.StatusTerminated {
-		msg = "the call was terminated"
-	}
-	if started {
-		code, msg = CodeOutcomeUnknown, msg+"; an attempt may have reached the provider"
-	}
 	if _, err := tx.Exec(ctx, `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`, inst.TenantID, inst.ID); err != nil {
 		return serrors.FromDB(opCall, err)
 	}
-	out, err := json.Marshal(graph.FailedOutput(code, msg, false))
+	if o.c.r.quietCallObserver {
+		return wakeParent(ctx, tx, inst.TenantID, req.ParentInstance)
+	}
+	wr, err := o.c.endedResult(ctx, tx, inst.TenantID, inst.ID, req, to)
 	if err != nil {
 		return err
 	}
-	fo := ""
-	if nt, ok := o.c.r.cfg.Catalog.Node(req.NodeType); ok {
-		fo = nt.Spec().FailedOutcome
-	}
-	payload, err := json.Marshal(inboxMessage{WaitResult: WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: code, Message: msg}}})
+	payload, err := json.Marshal(inboxMessage{WaitResult: wr})
 	if err != nil {
 		return err
 	}
@@ -216,12 +230,24 @@ func (o callObserver) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst
 	})
 	if err != nil {
 		_ = sp.Rollback(ctx)
-		if we, ok := pool.AsWireError(err); ok && (we.Code == workflow.CodeInstanceNotAccepting || we.Code == workflow.CodeInstanceNotFound || we.Code == workflow.CodeSignalDenied) {
+		if we, ok := pool.AsWireError(err); ok && (we.Code == workflow.CodeInstanceNotAccepting || we.Code == workflow.CodeInstanceNotFound) {
 			return nil // the run itself ended: nothing waits for the call
+		}
+		if we, ok := pool.AsWireError(err); ok && we.Code == workflow.CodeSignalDenied {
+			// The run-as is refused now: the run reconciles the ended call itself (endedCalls) when it
+			// runs again; it is woken for that (and blocks on its subject until the right is back).
+			return wakeParent(ctx, tx, inst.TenantID, req.ParentInstance)
 		}
 		return err
 	}
 	return serrors.FromDB(opCall, sp.Commit(ctx))
+}
+
+// wakeParent makes a waiting run due now, so its runner looks at its ended calls.
+func wakeParent(ctx context.Context, tx pgx.Tx, tenant, parent uuid.UUID) error {
+	_, err := tx.Exec(ctx, `UPDATE extruntime.workflow_instances SET wake_at = now(), updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND status = 'waiting'`, tenant, parent)
+	return serrors.FromDB(opCall, err)
 }
 
 // Begin starts the call's child instance in the step's transaction and registers it as the wait.
@@ -390,7 +416,6 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 			return WaitResult{}, err
 		}
 	}
-	limits := x.c.r.cfg.CallLimits
 	for k := 0; ; k++ {
 		rec, err := x.attempt(ctx, cn, k, token, afterSeq)
 		if err != nil {
@@ -406,9 +431,6 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 			return wr, nil
 		case "retry":
 			x.c.r.metrics.call(ctx, x.connector(nt), req.NodeType, "retried")
-			if k+1 >= limits.MaxAttempts {
-				return x.failed(nt, CodeRateLimited, "the call was repeated the most times it may be", true), nil
-			}
 			if err := x.nr.Sleep(ctx, "backoff", k, time.Duration(rec.AfterMS)*time.Millisecond); err != nil {
 				return WaitResult{}, err
 			}
@@ -622,6 +644,18 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 	if err != nil {
 		return callRecord{}, err
 	}
+	// Every attempt the call made counts toward MaxAttempts: the earlier occurrences' (with the ones a
+	// crash interrupted) and this one's.
+	prior := 0
+	for j := 0; j < k; j++ {
+		pj, ok, err := x.nr.Lookup(ctx, "call", j)
+		if err != nil {
+			return callRecord{}, err
+		}
+		if ok {
+			prior += pj.Attempts
+		}
+	}
 	var conn *openConnection
 	switch {
 	case done && o.Status == workflow.OccStarted && !cn.Idempotent():
@@ -651,7 +685,7 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 		}
 	}
 	raw, err := x.nr.Effect(ctx, "call", k, func(ctx context.Context, a workflow.EffectAttempt) (json.RawMessage, error) {
-		rec, err := x.execute(ctx, cn, k, a, conn, token, afterSeq)
+		rec, err := x.execute(ctx, cn, prior, a, conn, token, afterSeq)
 		if err != nil {
 			return nil, err
 		}
@@ -709,7 +743,8 @@ func (x *callExec) open(ctx context.Context, cn catalog.CallNode) (*openConnecti
 }
 
 // execute is one attempt: it decides whether the call may run and calls the node.
-func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a workflow.EffectAttempt, conn *openConnection, token string, afterSeq int64) (callRecord, error) {
+// prior is the attempts the earlier occurrences of the call made (interrupted ones included).
+func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, a workflow.EffectAttempt, conn *openConnection, token string, afterSeq int64) (callRecord, error) {
 	req := x.req
 	limits := x.c.r.cfg.CallLimits
 	idempotent := cn.Idempotent()
@@ -717,7 +752,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 		// An earlier attempt may have reached the provider: the call is not repeated blindly.
 		return x.unknown("an earlier attempt of the call may have run; its outcome is unknown")
 	}
-	if k+a.Attempt > limits.MaxAttempts {
+	if prior+a.Attempt > limits.MaxAttempts {
 		// Interrupted attempts count too: past the cap the last one's outcome is recorded as unknown.
 		return x.unknown(fmt.Sprintf("the call reached its %d attempts without a recorded result", limits.MaxAttempts))
 	}
@@ -741,7 +776,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 	masker := conn.masker
 	in := catalog.CallInput{
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID,
-		Attempt: k + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
+		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
 		RunAs: req.RunAs, Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
 	}
 	callCtx, cancel := context.WithDeadline(ctx, req.Deadline)
@@ -760,12 +795,12 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 			case ce.Code == catalog.CallOutcomeUnknown:
 				return x.unknown(msg)
 			case ce.Code == catalog.CallRateLimited:
-				return x.repeat(k, 0, limits, CodeRateLimited, msg)
+				return x.repeat(prior+a.Attempt, 0, limits, CodeRateLimited, msg)
 			case clientRefusal(ce.Code):
 				// A refusal of the request itself: repeating it gives the same answer.
 				return callRecord{Kind: "failed", Code: ce.Code, Message: msg}, nil
 			case ce.Retryable && idempotent:
-				return x.repeat(k, 0, limits, ce.Code, msg)
+				return x.repeat(prior+a.Attempt, 0, limits, ce.Code, msg)
 			}
 			return callRecord{Kind: "failed", Code: ce.Code, Message: msg, Retryable: ce.Retryable}, nil
 		}
@@ -777,13 +812,13 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 			msg = req.NodeID + " got no answer by its deadline"
 		}
 		if idempotent {
-			return x.repeat(k, 0, limits, catalog.CallUnavailable, msg)
+			return x.repeat(prior+a.Attempt, 0, limits, catalog.CallUnavailable, msg)
 		}
 		// The request may have reached the provider before the failure.
 		return x.unknown(msg)
 	}
 	if res.RetryAfter > 0 {
-		return x.repeat(k, res.RetryAfter, limits, CodeRateLimited, "the provider asked to repeat the call later")
+		return x.repeat(prior+a.Attempt, res.RetryAfter, limits, CodeRateLimited, "the provider asked to repeat the call later")
 	}
 	out, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {
@@ -827,10 +862,11 @@ func (x *callExec) unknown(msg string) (callRecord, error) {
 
 // repeat asks for the next attempt after max(retryAfter, backoff), when it fits in the deadline; else
 // the call fails with code.
-func (x *callExec) repeat(k int, retryAfter time.Duration, limits CallLimits, code, msg string) (callRecord, error) {
-	backoff := limits.BackoffBase << min(k, 16)
+// made is the attempts the call made so far, this one included.
+func (x *callExec) repeat(made int, retryAfter time.Duration, limits CallLimits, code, msg string) (callRecord, error) {
+	backoff := limits.BackoffBase << min(max(made-1, 0), 16)
 	d := max(retryAfter, backoff)
-	if k+1 >= limits.MaxAttempts || !time.Now().Add(d).Before(x.req.Deadline) {
+	if made >= limits.MaxAttempts || !time.Now().Add(d).Before(x.req.Deadline) {
 		return callRecord{Kind: "failed", Code: code, Message: msg, Retryable: true}, nil
 	}
 	return callRecord{Kind: "retry", AfterMS: d.Milliseconds()}, nil

@@ -230,6 +230,12 @@ func (n *acmeSend) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		}
 		time.Sleep(300 * time.Millisecond)
 		n.a.active.Add(-1)
+	case mode == "crash_then_unavail" && prior == 0:
+		n.a.entered <- n.typ
+		<-ctx.Done()
+		return catalog.CallResult{}, ctx.Err()
+	case mode == "crash_then_unavail" && prior == 1:
+		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "down", Retryable: true}
 	case mode == "hold_long":
 		time.Sleep(2500 * time.Millisecond)
 	case mode == "unauth":

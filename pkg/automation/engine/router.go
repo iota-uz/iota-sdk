@@ -359,7 +359,13 @@ func (r *Runtime) wake(ctx context.Context, tx pgx.Tx, ev events.Envelope, w fan
 	}
 	// An ask's answer wait (a correlation) matched by its token: Asker.Answer decides in the run.
 	if w.correlation == nil {
-		if ie, err := r.interpreter(ctx, ev.TenantID, w.automationID, w.version, w.graph); err == nil {
+		ie, err := r.interpreter(ctx, ev.TenantID, w.automationID, w.version, w.graph)
+		// A subject whose context overrides run or subject: the router does not have those values, so the
+		// filter is left to the run.
+		if err == nil && (ie.in.SubjectDeclares(w.subject.Entity, "run") || ie.in.SubjectDeclares(w.subject.Entity, "subject")) {
+			ie = nil
+		}
+		if err == nil && ie != nil {
 			gev := graph.Event{}
 			for k, v := range payload {
 				gev[k] = v

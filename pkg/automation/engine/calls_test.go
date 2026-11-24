@@ -343,39 +343,49 @@ func blockedCall(t *testing.T, ae *acmeEnv, timeout string) (*proc, engine.RunSu
 	return p2, run, waitID, child
 }
 
-// A Retry that stopped after it forgot the attempt and before it resumed the call is finished by
-// repeating it.
-func TestInterruptedRetryIsFinishedByARepeat(t *testing.T) {
+// A Retry that read an attempt which another Retry already acted on changes nothing: forgetting the
+// attempt, renewing its deadline and resuming the call are one transaction bound to the attempt read.
+func TestStaleRetryChangesNothing(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, waitID, child := blockedCall(t, ae, "1s")
-	ctx := context.Background()
-	time.Sleep(1200 * time.Millisecond) // the call's own deadline is gone
-	// What Retry wrote before the process stopped: a new deadline (gone too by the repeat) and the
-	// forgotten attempt.
-	_, err := ae.db.Exec(ctx, `INSERT INTO automation.call_deadlines (tenant_id, instance_id, deadline) VALUES ($1, $2, now() - interval '1 second')`, ae.tenant, child)
-	require.NoError(t, err)
-	require.NoError(t, p.wf.Retry(ctx, ae.tenant, child, "call", 0))
+	p, run, waitID, _ := blockedCall(t, ae, "")
 	ops := p.rt.Operations()
-	require.ErrorIs(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "sent", nil), engine.ErrInvalidInput, "the pending retry is not resolved")
-	require.NoError(t, ops.Retry(ctx, ae.human(), run.RunID, waitID))
-	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the repeated retry runs the call")
-	require.Len(t, ae.acme.callsOf("acme.send"), 2, "the repeat renews the deadline: the provider is called")
-	assert.True(t, strings.HasPrefix(ae.effects(run.RunID)[0], "ok:sent "), ae.effects(run.RunID))
+	ctx := context.Background()
+	var second error
+	p.rt.SetOperationsHook(func() {
+		p.rt.SetOperationsHook(nil)
+		second = ops.Retry(ctx, ae.human(), run.RunID, waitID) // the other operator, first to act
+	})
+	err := ops.Retry(ctx, ae.human(), run.RunID, waitID)
+	require.NoError(t, second)
+	require.ErrorIs(t, err, engine.ErrInvalidInput, "the stale retry finds its attempt gone")
+	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the retried call completes")
+	require.Len(t, ae.acme.callsOf("acme.send"), 2, "one retry, one repeat")
 }
 
-// A Resolve that stopped after it recorded the outcome and before it resumed the call is finished by
-// repeating it.
-func TestInterruptedResolveIsFinishedByARepeat(t *testing.T) {
+// The run reconciles a call child that ended without delivering its result (the observer could not
+// signal): the wait gets outcome_unknown and the run goes on.
+func TestEndedCallIsReconciledByTheRun(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, waitID, child := blockedCall(t, ae, "")
-	ctx := context.Background()
-	require.NoError(t, p.wf.Resolve(ctx, ae.tenant, child, "call", 0, json.RawMessage(`{"kind": "result", "outcome": "sent", "output": {"message_id": "by-hand"}}`)))
-	ops := p.rt.Operations()
-	require.ErrorIs(t, ops.Retry(ctx, ae.human(), run.RunID, waitID), engine.ErrInvalidInput, "a resolved call is not retried")
-	require.NoError(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "sent", nil))
-	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the repeated resolve continues the run")
-	assert.Equal(t, []string{"ok:sent by-hand"}, ae.effects(run.RunID))
-	require.Len(t, ae.acme.callsOf("acme.send"), 1)
+	p, run, _, child := blockedCall(t, ae, "")
+	p.rt.QuietCallObserver()
+	require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child))
+	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the run reconciles the ended call")
+	var code string
+	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT error->>'code' FROM automation.steps WHERE run_id = $1 AND node_id = 'send'`, run.RunID).Scan(&code))
+	assert.Equal(t, engine.CodeOutcomeUnknown, code)
+}
+
+// MaxAttempts counts attempts across occurrences: an interrupted attempt and a retryable answer are two,
+// so with MaxAttempts=2 there is no third call.
+func TestAttemptsCountAcrossOccurrences(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.fetch", "crash_then_unavail", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+	p2 := ae.proc(func(c *engine.Config) { c.CallLimits.MaxAttempts = 2 })
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunDone }, "the call fails")
+	assert.Len(t, ae.acme.callsOf("acme.fetch"), 2, "no third provider call")
 }
 
 // A call child terminated without a result gives the parent's wait one: outcome_unknown when an attempt

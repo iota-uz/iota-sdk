@@ -422,6 +422,9 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 
 // timers fires the first due timer of the run's open waits and opens the tasks waits asked for.
 func (x *execution) timers(ctx context.Context) (bool, error) {
+	if done, err := x.endedCalls(ctx); err != nil || done {
+		return done, err
+	}
 	waits, err := queryWaits(ctx, x.r.cfg.DB, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND status = 'open' ORDER BY created_at, wait_id`, x.tenant, x.run.ID)
 	if err != nil {
 		return false, err
@@ -496,6 +499,56 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// endedCalls gives a call wait whose child ended without a result (failed, terminated) that result,
+// when the child's own signal did not arrive (a run-as refused when it ended): the run never waits for
+// a call that cannot answer.
+func (x *execution) endedCalls(ctx context.Context) (bool, error) {
+	rows, err := x.r.cfg.DB.Query(ctx, `
+		SELECT w.wait_id, c.id, c.status, c.input FROM automation.waits w
+		JOIN extruntime.workflow_instances c ON c.id = (w.spec->'exec'->>'child')::uuid AND c.tenant_id = w.tenant_id
+		WHERE w.tenant_id = $1 AND w.run_id = $2 AND w.status = 'open' AND w.kind = 'call' AND c.status IN ('failed', 'terminated')
+		ORDER BY w.created_at LIMIT 1`, x.tenant, x.run.ID)
+	if err != nil {
+		return false, serrors.FromDB(opRun, err)
+	}
+	var (
+		waitID, status string
+		child          uuid.UUID
+		input          []byte
+		found          bool
+	)
+	for rows.Next() {
+		if err := rows.Scan(&waitID, &child, &status, &input); err != nil {
+			rows.Close()
+			return false, serrors.FromDB(opRun, err)
+		}
+		found = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || !found {
+		return false, serrors.FromDB(opRun, err)
+	}
+	req, _ := readCallRequest(input)
+	req.WaitID = waitID
+	wr, err := x.r.calls.endedResult(ctx, x.r.cfg.DB, x.tenant, child, req, status)
+	if err != nil {
+		return false, err
+	}
+	err = x.tx(ctx, "call-ended", func(ctx context.Context, tx pgx.Tx, s *stepState) error {
+		ws, err := queryWaits(ctx, tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3 FOR UPDATE`, x.tenant, x.run.ID, waitID)
+		if err != nil || len(ws) == 0 || ws[0].Status != waitOpen {
+			return err
+		}
+		tok, err := loadToken(ctx, tx, x.tenant, x.run.ID, ws[0].TokenID, true)
+		if err != nil || tok.Status != tokWaiting {
+			return err
+		}
+		m := &mover{x: x, tx: tx, s: s}
+		return m.result(ctx, &tok, ws[0], wr)
+	})
+	return err == nil, err
 }
 
 // release cancels what closed waits armed: timer and task occurrences, child instances.

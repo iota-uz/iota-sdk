@@ -271,21 +271,20 @@ func (b humanBridge) Begin(_ context.Context, _ pgx.Tx, run StepContext, _ graph
 	}
 	ws := WaitSpec{Kind: waitTask, Task: &spec}
 	rules := p.Rules()
-	if len(rules.CommentRequired) > 0 || len(rules.Form) > 0 {
-		if len(rules.Form) > 0 {
-			// The form is an object of fields: the node's output declares decisions[].fields as one.
-			var root struct {
-				Type any `json:"type"`
-			}
-			if err := json.Unmarshal(rules.Form, &root); err != nil || root.Type != "object" {
-				return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: `form: the form is a JSON Schema of "type": "object"`}
-			}
-			if _, err := graph.NewJSONValidator(rules.Form); err != nil {
-				return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "form: " + err.Error()}
-			}
+	// Every human task has rules: fields are an object even without a form.
+	if len(rules.Form) > 0 {
+		// The form is an object of fields: the node's output declares decisions[].fields as one.
+		var root struct {
+			Type any `json:"type"`
 		}
-		ws.Decision = &rules
+		if err := json.Unmarshal(rules.Form, &root); err != nil || root.Type != "object" {
+			return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: `form: the form is a JSON Schema of "type": "object"`}
+		}
+		if _, err := graph.NewJSONValidator(rules.Form); err != nil {
+			return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "form: " + err.Error()}
+		}
 	}
+	ws.Decision = &rules
 	return ws, nil
 }
 
@@ -312,6 +311,9 @@ func (r DecisionRules) Check(decision json.RawMessage) error {
 	}
 	if err := json.Unmarshal(decision, &d); err != nil {
 		return fmt.Errorf("%w: the decision is not an object", workflow.ErrInvalid)
+	}
+	if f := strings.TrimSpace(string(d.Fields)); f != "" && f != "null" && !strings.HasPrefix(f, "{") {
+		return fmt.Errorf("%w: fields are an object", workflow.ErrInvalid)
 	}
 	if slices.Contains(r.CommentRequired, d.Outcome) && strings.TrimSpace(d.Comment) == "" {
 		return fmt.Errorf("%w: %s needs a comment", workflow.ErrInvalid, d.Outcome)
@@ -533,47 +535,86 @@ func checkDecision(ctx context.Context, tx pgx.Tx, t workflow.Task, waitID strin
 // newUsers are the users the change added: its assignees expanded by the audience, without the users
 // the earlier assignees already cover; cut reports a list cut to MaxAssignedUsers.
 func (o *taskAssignedObserver) newUsers(ctx context.Context, tenant uuid.UUID, t workflow.Task, change workflow.TaskChange) ([]int64, bool, error) {
-	earlier := map[int64]bool{}
+	// The earlier assignees of an escalation, checked per candidate (IsMember) whatever their size; the
+	// users they were delegated to are covered too.
+	var earlier []workflow.TaskAssignee
+	delegated := map[int64]bool{}
 	if change.Kind == workflow.TaskChangeEscalated {
 		added := map[string]bool{}
 		for _, a := range change.Assignees {
 			added[a.String()] = true
 		}
 		for _, a := range t.Assignees {
-			if added[a.String()] {
-				continue
-			}
-			ids, err := o.expand(ctx, tenant, a, workflow.MaxTaskInbox*5)
-			if err != nil {
-				return nil, false, err
-			}
-			for _, id := range ids {
-				earlier[id] = true
+			if !added[a.String()] {
+				earlier = append(earlier, a)
 			}
 		}
 		for _, d := range t.Delegations {
-			earlier[d.To] = true
+			delegated[d.To] = true
 		}
+	}
+	covered := func(id int64) (bool, error) {
+		if delegated[id] {
+			return true, nil
+		}
+		for _, a := range earlier {
+			if a.Kind == workflow.TaskAssignUser {
+				if a.UserID != nil && *a.UserID == id {
+					return true, nil
+				}
+				continue
+			}
+			if o.audience == nil {
+				continue
+			}
+			ok, err := o.audience.IsMember(ctx, tenant, id, a)
+			if err != nil {
+				return false, serrors.Wrap(opHuman, err)
+			}
+			if ok {
+				return true, nil
+			}
+		}
+		return false, nil
 	}
 	seen := map[int64]bool{}
 	var out []int64
 	cut := false
 	for _, a := range change.Assignees {
-		// Enough to find MaxAssignedUsers+1 users not covered yet, whatever the covered ones are.
-		ids, err := o.expand(ctx, tenant, a, MaxAssignedUsers+1+len(earlier)+len(seen))
-		if err != nil {
-			return nil, false, err
-		}
-		for _, id := range ids {
-			if earlier[id] || seen[id] {
-				continue
+		// The lookup widens until it holds MaxAssignedUsers+1 users not covered yet, or the whole audience:
+		// covered users never crowd out new ones.
+		for limit := MaxAssignedUsers + 1; ; limit *= 4 {
+			ids, err := o.expand(ctx, tenant, a, limit)
+			if err != nil {
+				return nil, false, err
 			}
-			if len(out) == MaxAssignedUsers {
-				cut = true
+			fresh := 0
+			for _, id := range ids {
+				if seen[id] {
+					fresh++ // counted already, this pass or an earlier assignee's
+					continue
+				}
+				c, err := covered(id)
+				if err != nil {
+					return nil, false, err
+				}
+				if c {
+					continue
+				}
+				fresh++
+				if len(out) == MaxAssignedUsers {
+					cut = true
+					break
+				}
+				seen[id] = true
+				out = append(out, id)
+			}
+			if cut || len(ids) < limit || fresh > MaxAssignedUsers || limit >= 1<<20 {
 				break
 			}
-			seen[id] = true
-			out = append(out, id)
+		}
+		if cut {
+			break
 		}
 	}
 	slices.Sort(out)

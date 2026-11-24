@@ -83,6 +83,8 @@ func TestHumanQuorumOfAGroup(t *testing.T) {
 	decide := func(user int64, outcome string) error {
 		return p.wf.DecideTask(ctx, spiSubject(ae.tenant, user), task, json.RawMessage(`{"outcome": "`+outcome+`"}`))
 	}
+	require.ErrorIs(t, p.wf.DecideTask(ctx, spiSubject(ae.tenant, 1), task, json.RawMessage(`{"outcome": "approve", "fields": [1]}`)),
+		workflow.ErrInvalid, "fields are an object, also without a form")
 	require.NoError(t, decide(1, "approve"))
 	p.pass()
 	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`), "one decision is not the quorum")
@@ -179,4 +181,24 @@ func TestHumanDecisionKeepsTheRules(t *testing.T) {
 	require.NoError(t, decide(`{"outcome": "reject", "comment": "too much", "fields": {"amount": 3}}`))
 	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the valid decision moves the run")
 	assert.Equal(t, []string{"rejected"}, noteTexts(t, ae.env))
+}
+
+// An escalation's new users are found past any number of users the earlier assignees cover.
+func TestTaskAssignedNewUsersPastALargeEarlierAudience(t *testing.T) {
+	earlier, added := make([]int64, 0, 1201), make([]int64, 0, 202)
+	for u := int64(1); u <= 1201; u++ {
+		earlier = append(earlier, u)
+	}
+	for u := int64(1001); u <= 1202; u++ {
+		added = append(added, u)
+	}
+	g, r := "6f0c1c1e-0000-4000-8000-000000000009", "88"
+	aud := fakeAudience{members: map[string][]int64{"group:" + g: earlier, "role:" + r: added}}
+	groupA := workflow.TaskAssignee{Kind: workflow.TaskAssignGroup, Ref: g}
+	roleA := workflow.TaskAssignee{Kind: workflow.TaskAssignRole, Ref: r}
+	users, cut, err := engine.TaskAssignedNewUsers(context.Background(), engine.NewTaskAssignedObserver(aud, nil), uuid.New(),
+		workflow.Task{Assignees: []workflow.TaskAssignee{groupA, roleA}}, workflow.TaskChange{Kind: workflow.TaskChangeEscalated, Assignees: []workflow.TaskAssignee{roleA}})
+	require.NoError(t, err)
+	assert.False(t, cut)
+	assert.Equal(t, []int64{1202}, users)
 }

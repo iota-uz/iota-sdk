@@ -100,6 +100,11 @@ type Runtime struct {
 	testHook func(ctx context.Context, tx pgx.Tx, label string) error
 	// contextHook, set by tests, sees every context a live run's step is built with.
 	contextHook func(event string, gctx graph.Context)
+	// opsHook, set by tests, runs in Operations.Retry between reading the attempt and acting on it.
+	opsHook func()
+	// quietCallObserver, set by tests, keeps the call observer from signalling the parent (the run's
+	// own reconciliation must give the wait its result).
+	quietCallObserver bool
 }
 
 type interpEntry struct {

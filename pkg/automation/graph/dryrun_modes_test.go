@@ -241,3 +241,17 @@ func TestCatalogFromJSONKeepsBuiltinDryRun(t *testing.T) {
 		t.Fatal("an invalid mode is refused")
 	}
 }
+
+func TestSubjectDeclares(t *testing.T) {
+	c := testCatalog(t)
+	s := c.Subjects["order"]
+	s.Context = append(s.Context.Clone(), expr.Prop{Name: "run", Field: expr.ObjectOf(expr.Fields{{Name: "id", Field: expr.StringField}})})
+	c.Subjects["order"] = s
+	in, err := graph.NewInterpreter(c, mustDecode(t, orderGraph), graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !in.SubjectDeclares("order", "run") || in.SubjectDeclares("order", "subject") || in.SubjectDeclares("none", "run") {
+		t.Fatal("SubjectDeclares reads the subject's context")
+	}
+}

@@ -598,6 +598,13 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 	return "", nil
 }
 
+// SubjectDeclares reports whether the context of a subject declares a variable: one named subject or
+// run overrides the run's own.
+func (i *Interpreter) SubjectDeclares(entity, name string) bool {
+	_, ok := i.view.catalog.Subjects[entity].Context.Get(name)
+	return ok
+}
+
 // Trigger is a trigger of the graph by its id.
 func (i *Interpreter) Trigger(id string) (Trigger, bool) { return i.trigger(id) }
 

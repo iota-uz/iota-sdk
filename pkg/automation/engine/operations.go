@@ -40,16 +40,7 @@ type blockedCall struct {
 	// one, after a resume and a new block, is not touched).
 	callAt time.Time
 	nodeID string
-	// pending is an operation that changed the journal and stopped before Resume: "retry" (the
-	// occurrence is gone, its new deadline written) or "resolve" (the occurrence is resolved). Repeating
-	// the operation resumes the call.
-	pending string
 }
-
-const (
-	pendingRetry   = "retry"
-	pendingResolve = "resolve"
-)
 
 func (o *operations) blocked(ctx context.Context, a Actor, runID uuid.UUID, waitID string) (blockedCall, error) {
 	if err := o.r.service.authorize(a, PermOperate); err != nil {
@@ -89,24 +80,7 @@ func (o *operations) blocked(ctx context.Context, a Actor, runID uuid.UUID, wait
 		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started' ORDER BY n DESC LIMIT 1`, a.TenantID, child).Scan(&n, &at)
 	b := blockedCall{run: run, wait: w, child: child, callN: n, callAt: at, nodeID: w.NodeID}
 	if errors.Is(err, pgx.ErrNoRows) {
-		// No started attempt: an earlier Resolve or Retry that stopped before its Resume, or another reason.
-		var resolved, renewed bool
-		if err := o.r.cfg.DB.QueryRow(ctx, `
-			SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call'
-				AND status = 'completed' AND meta->>'resolved' = 'true'),
-			       EXISTS (SELECT 1 FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2)`,
-			a.TenantID, child).Scan(&resolved, &renewed); err != nil {
-			return blockedCall{}, serrors.FromDB(opOperate, err)
-		}
-		switch {
-		case resolved:
-			b.pending = pendingResolve
-		case renewed:
-			b.pending = pendingRetry
-		default:
-			return blockedCall{}, fmt.Errorf("%w: the call is blocked for another reason; resume it in the workflows", ErrInvalidInput)
-		}
-		return b, nil
+		return blockedCall{}, fmt.Errorf("%w: the call is blocked for another reason; resume it in the workflows", ErrInvalidInput)
 	}
 	if err != nil {
 		return blockedCall{}, serrors.FromDB(opOperate, err)
@@ -118,12 +92,6 @@ func (o *operations) Resolve(ctx context.Context, a Actor, runID uuid.UUID, wait
 	b, err := o.blocked(ctx, a, runID, waitID)
 	if err != nil {
 		return err
-	}
-	switch b.pending {
-	case pendingResolve:
-		return o.resume(ctx, a, b) // the outcome is recorded: the call goes on with it
-	case pendingRetry:
-		return fmt.Errorf("%w: a retry of the call is pending; repeat Retry to run it", ErrInvalidInput)
 	}
 	if len(output) == 0 {
 		output = json.RawMessage(`{}`)
@@ -138,13 +106,14 @@ func (o *operations) Resolve(ctx context.Context, a Actor, runID uuid.UUID, wait
 	if !slices.Contains(ie.in.View().Outcomes(b.nodeID), outcome) {
 		return fmt.Errorf("%w: %s has no outcome %q", ErrInvalidInput, b.nodeID, outcome)
 	}
-	if err := o.r.cfg.Workflows.ResolveIf(ctx, a.TenantID, b.child, "call", b.callN, b.callAt, resolvedCall(outcome, output)); err != nil {
-		if errors.Is(err, workflow.ErrConflict) {
-			return fmt.Errorf("%w: the call's attempt changed; look at it again", ErrInvalidInput)
+	// The outcome is recorded and the call resumed in one transaction, for the attempt read above only.
+	if err := o.r.cfg.Workflows.ResolveIf(ctx, a.TenantID, b.child, "call", b.callN, b.callAt, resolvedCall(outcome, output), nil); err != nil {
+		if errors.Is(err, workflow.ErrConflict) || errors.Is(err, workflow.ErrNotAccepting) {
+			return fmt.Errorf("%w: the call's attempt changed (or it is no longer blocked); look at it again", ErrInvalidInput)
 		}
 		return serrors.Wrap(opOperate, err)
 	}
-	return o.resume(ctx, a, b)
+	return nil
 }
 
 func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID string) error {
@@ -152,33 +121,25 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 	if err != nil {
 		return err
 	}
-	switch b.pending {
-	case pendingRetry:
-		// The repeat of a retry that stopped before its resume: its renewed deadline may be gone too.
-		if err := o.renew(ctx, a, b); err != nil {
-			return err
-		}
-		return o.resume(ctx, a, b)
-	case pendingResolve:
-		return fmt.Errorf("%w: the call is resolved already; repeat Resolve to continue it", ErrInvalidInput)
+	// The attempt is forgotten, its deadline (and an ask's token) renewed and the call resumed in one
+	// transaction, for the attempt read above only: a stale request changes nothing of a newer attempt.
+	if h := o.r.opsHook; h != nil {
+		h()
 	}
-	if err := o.renew(ctx, a, b); err != nil {
-		return err
+	err = o.r.cfg.Workflows.RetryIf(ctx, a.TenantID, b.child, "call", b.callN, b.callAt, func(ctx context.Context, tx pgx.Tx) error {
+		return o.renew(ctx, tx, a, b)
+	})
+	if errors.Is(err, workflow.ErrConflict) || errors.Is(err, workflow.ErrNotAccepting) {
+		return fmt.Errorf("%w: the call's attempt changed (or it is no longer blocked); look at it again", ErrInvalidInput)
 	}
-	if err := o.r.cfg.Workflows.RetryIf(ctx, a.TenantID, b.child, "call", b.callN, b.callAt); err != nil {
-		if errors.Is(err, workflow.ErrConflict) {
-			return fmt.Errorf("%w: the call's attempt changed; look at it again", ErrInvalidInput)
-		}
-		return serrors.Wrap(opOperate, err)
-	}
-	return o.resume(ctx, a, b)
+	return serrors.Wrap(opOperate, err)
 }
 
 // renew gives the retried attempt the node's timeout again from now: its deadline may be gone.
-func (o *operations) renew(ctx context.Context, a Actor, b blockedCall) error {
+func (o *operations) renew(ctx context.Context, tx pgx.Tx, a Actor, b blockedCall) error {
 	var req CallRequest
 	var raw []byte
-	if err := o.r.cfg.DB.QueryRow(ctx, `SELECT input FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`, a.TenantID, b.child).Scan(&raw); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT input FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`, a.TenantID, b.child).Scan(&raw); err != nil {
 		return serrors.FromDB(opOperate, err)
 	}
 	if err := json.Unmarshal(raw, &req); err != nil {
@@ -188,14 +149,14 @@ func (o *operations) renew(ctx context.Context, a Actor, b blockedCall) error {
 	if timeout <= 0 {
 		timeout = o.r.cfg.CallLimits.DefaultTimeout
 	}
-	if _, err := o.r.cfg.DB.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO automation.call_deadlines (tenant_id, instance_id, deadline) VALUES ($1, $2, now() + $3::interval)
 		ON CONFLICT (tenant_id, instance_id) DO UPDATE SET deadline = EXCLUDED.deadline`, a.TenantID, b.child, pgInterval(timeout.Seconds())); err != nil {
 		return serrors.FromDB(opOperate, err)
 	}
 	// An ask's token lives as long as its renewed attempt may still be answered.
 	if req.AnswerWaitID != "" {
-		if _, err := o.r.cfg.DB.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			UPDATE automation.correlations SET expires_at = greatest(expires_at, now() + $4::interval)
 			WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, a.TenantID, req.RunID, req.AnswerWaitID,
 			pgInterval((timeout + o.r.cfg.Limits.WaitMax).Seconds())); err != nil {
@@ -203,12 +164,6 @@ func (o *operations) renew(ctx context.Context, a Actor, b blockedCall) error {
 		}
 	}
 	return nil
-}
-
-// resume makes the blocked call runnable: the last step of Resolve and Retry, and what a repeat of an
-// interrupted one does.
-func (o *operations) resume(ctx context.Context, a Actor, b blockedCall) error {
-	return serrors.Wrap(opOperate, o.r.cfg.Workflows.Resume(ctx, a.TenantID, b.child))
 }
 
 func (o *operations) interp(ctx context.Context, run runRow) (*interpEntry, error) {
