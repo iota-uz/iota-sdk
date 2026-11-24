@@ -164,6 +164,14 @@ func (c *CallRunner) contract() workflow.NativeContract {
 // attempt had started (its effect may have happened), effect_failed otherwise. Its parent gets it from
 // the observer, or reconciles it itself when that signal could not be delivered.
 func (c *CallRunner) endedResult(ctx context.Context, q querier, tenant, child uuid.UUID, req CallRequest, status string) (WaitResult, error) {
+	// A child that committed its result before it ended gives that result (its signal may still be
+	// queued in the parent's inbox): the provider's answer is never replaced by a failure.
+	if wr, ok, err := committedResult(ctx, q, tenant, child); err != nil || ok {
+		if ok {
+			wr.WaitID = req.WaitID
+		}
+		return wr, err
+	}
 	var started bool
 	if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.workflow_occurrences
 		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'call' AND status = 'started')`, tenant, child).Scan(&started); err != nil {
@@ -185,6 +193,31 @@ func (c *CallRunner) endedResult(ctx context.Context, q querier, tenant, child u
 		fo = nt.Spec().FailedOutcome
 	}
 	return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: code, Message: msg}}, nil
+}
+
+// committedResult is the result a call child's result transaction recorded in its receipt.
+func committedResult(ctx context.Context, q querier, tenant, child uuid.UUID) (WaitResult, bool, error) {
+	var raw []byte
+	err := q.QueryRow(ctx, `SELECT result FROM extruntime.workflow_occurrences
+		WHERE tenant_id = $1 AND instance_id = $2 AND name = 'result' AND n = 0 AND status = $3 AND result IS NOT NULL`,
+		tenant, child, workflow.OccCompleted).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WaitResult{}, false, nil
+	}
+	if err != nil {
+		return WaitResult{}, false, serrors.FromDB(opCall, err)
+	}
+	wr, ok := decodeResult(raw) // a receipt without a result: the child's end decides
+	return wr, ok, nil
+}
+
+// decodeResult reads the call result a result receipt holds.
+func decodeResult(raw []byte) (WaitResult, bool) {
+	var msg inboxMessage
+	if json.Unmarshal(raw, &msg) != nil || msg.WaitID == "" {
+		return WaitResult{}, false
+	}
+	return msg.WaitResult, true
 }
 
 // readCallRequest reads the input of a call instance.
@@ -367,24 +400,32 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 	if err != nil {
 		return nil, err
 	}
+	// The receipt of the result transaction keeps the result: a child ended (terminated) after it
+	// committed, before its completion, still gives its parent that result, never a synthesized one.
 	_, err = nr.Transaction(ctx, "result", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		if _, err := tx.Exec(ctx, `DELETE FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2`, req.TenantID, nr.Instance().ID); err != nil {
 			return nil, serrors.FromDB(opCall, err)
 		}
 		if req.ParentInstance == uuid.Nil {
-			return nil, nil
+			return payload, nil
 		}
 		err := c.r.cfg.Workflows.SignalInTx(ctx, tx, spi.Scope{Subject: nr.Subject()}, host.SignalIntent{
 			Workflow: WorkflowID, Instance: req.ParentInstance.String(), Name: InboxSignal, Payload: payload,
 			Key: "call:" + req.RunID.String() + ":" + req.WaitID,
 		})
 		if we, ok := pool.AsWireError(err); ok && (we.Code == workflow.CodeInstanceNotAccepting || we.Code == workflow.CodeInstanceNotFound) {
-			return nil, nil // the run finished meanwhile: the effect stays as it is
+			return payload, nil // the run finished meanwhile: the effect stays as it is
 		}
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		return payload, nil
 	})
 	if err != nil {
 		return nil, infra(err)
+	}
+	if h := c.r.callResultHook; h != nil {
+		h(ctx, nr.Instance().ID)
 	}
 	return payload, nil
 }

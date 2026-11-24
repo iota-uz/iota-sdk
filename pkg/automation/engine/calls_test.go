@@ -3,7 +3,9 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -425,6 +427,34 @@ func interruptedCall(t *testing.T, ae *acmeEnv) (*proc, engine.RunSummary, uuid.
 	var child uuid.UUID
 	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT id FROM extruntime.workflow_instances WHERE workflow = $1`, engine.CallWorkflowID).Scan(&child))
 	return p2, run, child
+}
+
+// A call child terminated after its result committed (the parent's signal queued), before its own
+// completion, gives the run that result: the reconciliation of the ended child recovers it from the
+// receipt instead of synthesizing a failure, and the run takes the sent edge.
+func TestCallTerminatedAfterItsResultKeepsTheResult(t *testing.T) {
+	for _, quiet := range []bool{false, true} {
+		t.Run(fmt.Sprintf("quiet observer %v", quiet), func(t *testing.T) {
+			ae := newAcmeEnv(t)
+			p := ae.proc()
+			if quiet {
+				p.rt.QuietCallObserver()
+			}
+			var once sync.Once
+			p.rt.SetCallResultHook(func(ctx context.Context, child uuid.UUID) {
+				once.Do(func() { require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child)) })
+			})
+			ae.create(p, ae.human(), sendGraph("acme.send", "ok", "", true))
+			ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+			p.until(func() bool { return ae.status(p, runOf(t, ae.env, p).RunID) == engine.RunDone }, "the run ends")
+			run := runOf(t, ae.env, p)
+			assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = $1 AND status = 'terminated'`, engine.CallWorkflowID))
+			effects := ae.effects(run.RunID)
+			require.Len(t, effects, 1, effects)
+			assert.True(t, strings.HasPrefix(effects[0], "ok:sent "), effects)
+			require.Len(t, ae.acme.callsOf("acme.send"), 1)
+		})
+	}
 }
 
 // requireBadNote asserts the run took the call's failed edge: the bad note ran with the error's code.
