@@ -309,6 +309,22 @@ func TestLayoutRevisionsAreStringsAndGuardUpdates(t *testing.T) {
 	}
 	assert.Equal(t, graph.XY{X: 9, Y: 9}, after["note"])
 	assert.Equal(t, graph.XY{X: 1, Y: 1}, after["fin"], "an omitted node keeps its stored position")
+
+	// A node the new graph removes loses its position, as SaveVersion drops it.
+	var renamed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.ReplaceAll(string(mustJSON(noteGraph("L", "b"))), `"fin"`, `"stop"`)), &renamed))
+	preview = e.call(agentID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "update", "entity": "automation",
+		"id": created.ID, "expected_revision": "1", "fields": map[string]any{"graph": renamed, "layout": pos, "layout_revision": g.LayoutRevision}}}})
+	require.True(t, preview.OK, "%+v", preview.Error)
+	require.NoError(t, json.Unmarshal(preview.Data, &items))
+	after = nil
+	for _, d := range items.Items[0].Diff {
+		if d.Field == "layout" {
+			require.NoError(t, json.Unmarshal(d.After.Value, &after))
+		}
+	}
+	assert.Equal(t, graph.XY{X: 9, Y: 9}, after["note"])
+	assert.NotContains(t, after, "fin", "a removed node has no position after the save")
 	res := receiptResult(t, e.apply(agentID, update(map[string]any{"layout": pos, "layout_revision": g.LayoutRevision}), "l-3"))
 	assert.Equal(t, 2, res.Version)
 	assert.Equal(t, false, res.Enabled)

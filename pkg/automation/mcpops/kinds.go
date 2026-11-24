@@ -434,6 +434,10 @@ func (k updateKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 		for k, xy := range f.Layout {
 			merged[k] = xy
 		}
+		// As SaveVersion: only the steps of the new graph keep a position.
+		if g, errs := graph.Decode(f.Graph); len(errs) == 0 {
+			merged = graph.LayoutOf(g, merged)
+		}
 		p.Diff = append(p.Diff, fielddiff.Diff{Field: "layout", Before: fielddiff.Present(marshal(am.Layout)), After: fielddiff.Present(marshal(merged))})
 	}
 	if f.Note != "" {
