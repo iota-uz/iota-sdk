@@ -117,12 +117,18 @@ func (s *NotificationDispatchService) SendTx(ctx context.Context, tx pgx.Tx, req
 // Resolve expands the audience of req exactly as Send would, without writing.
 func (s *NotificationDispatchService) Resolve(ctx context.Context, req notifications.AudienceRequest) (notifications.ResolvedAudience, error) {
 	const op serrors.Op = "NotificationDispatchService.Resolve"
-	if _, err := s.envelope(ctx, req); err != nil {
+	prepared, err := s.envelope(ctx, req)
+	if err != nil {
 		return notifications.ResolvedAudience{}, serrors.Wrap(op, err)
 	}
 	resolved, err := s.resolve(ctx, req)
 	if err != nil {
 		return notifications.ResolvedAudience{}, serrors.Wrap(op, err)
+	}
+	if req.CheckContacts {
+		if resolved, err = s.reachable(ctx, prepared.channels, resolved); err != nil {
+			return notifications.ResolvedAudience{}, serrors.Wrap(op, err)
+		}
 	}
 	return resolved, nil
 }
@@ -213,11 +219,16 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 	if len(resolved.Addressees) > 0 && !slices.ContainsFunc(prepared.channels, notifications.Channel.External) {
 		return invalid("record and address recipients need an external channel")
 	}
+	if req.CheckContacts {
+		if resolved, err = s.reachable(ctx, prepared.channels, resolved); err != nil {
+			return notifications.AudienceReceipt{}, serrors.Wrap(op, err)
+		}
+	}
 	if resolved.Total() > MaxExplicitRecipients {
 		return invalid("too many notification recipients")
 	}
 	if resolved.Total() == 0 {
-		return notifications.AudienceReceipt{}, nil
+		return notifications.AudienceReceipt{Skipped: resolved.Skipped}, nil
 	}
 	rule := notifications.Rule{EventKey: event.Key, Configured: true, Enabled: true, Level: req.Level, Channels: prepared.channels, UserIDs: resolved.UserIDs}
 	notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)
@@ -239,7 +250,69 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 	if job.Mode != notifications.NoticeExplicit {
 		return conflict()
 	}
-	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total()}, nil
+	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total(), Skipped: resolved.Skipped}, nil
+}
+
+// contactCheckTimeout bounds the contact check of one record (a ContactChecker may take its own connection).
+const contactCheckTimeout = 10 * time.Second
+
+// reachable drops the record recipients whose contact has no address on the channels (CheckContacts),
+// recording why in Skipped. Only a TxSafeContactResolver is asked, with ctx, so a send reads in its own
+// transaction and a preview writes nothing; the record of any other is kept for the worker. A resolver
+// that fails is Unavailable: the caller may repeat.
+func (s *NotificationDispatchService) reachable(ctx context.Context, channels []notifications.Channel, resolved notifications.ResolvedAudience) (notifications.ResolvedAudience, error) {
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return notifications.ResolvedAudience{}, err
+	}
+	kept := make([]notifications.Addressee, 0, len(resolved.Addressees))
+	for _, a := range resolved.Addressees {
+		if a.Kind != notifications.RecipientRecord || a.Record == nil {
+			kept = append(kept, a)
+			continue
+		}
+		ref := a.Record.Entity + "/" + a.Record.Key
+		resolver, ok := s.router.platform.Contacts.Lookup(a.Record.Entity)
+		if !ok {
+			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoContactResolver})
+			continue
+		}
+		var contact notifications.Contact
+		var err error
+		switch r := resolver.(type) {
+		case notifications.ContactChecker:
+			// Read-only, but it may take its own connection: bound it, so a pool that cannot spare one fails
+			// the send as unavailable instead of waiting for ever.
+			checkCtx, cancel := context.WithTimeout(ctx, contactCheckTimeout)
+			contact, err = r.CheckContact(checkCtx, tenant, *a.Record)
+			cancel()
+		case notifications.TxSafeContactResolver:
+			contact, err = r.ResolveContact(ctx, tenant, *a.Record)
+		default:
+			kept = append(kept, a) // asked at delivery: it may take its own connection or record its calls
+			continue
+		}
+		if errors.Is(err, notifications.ErrContactUnverifiable) {
+			kept = append(kept, a)
+			continue
+		}
+		switch {
+		case errors.Is(err, notifications.ErrContactNotFound):
+			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoAddress})
+			continue
+		case err != nil:
+			return notifications.ResolvedAudience{}, serrors.New(serrors.Unavailable, "the contact of "+a.Record.Entity+" could not be read").WithCause(err)
+		}
+		if !slices.ContainsFunc(contact.Targets, func(t notifications.Target) bool {
+			return slices.Contains(channels, t.Channel) && strings.TrimSpace(t.Address) != ""
+		}) {
+			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoAddress})
+			continue
+		}
+		kept = append(kept, a)
+	}
+	resolved.Addressees = kept
+	return resolved, nil
 }
 
 type preparedAudience struct {
