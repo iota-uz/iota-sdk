@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -378,7 +377,7 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 		req.ParentInstance = run.Native.Instance().ID
 	}
 	if run.Context != nil {
-		if req.Context, err = json.Marshal(run.Context); err != nil {
+		if req.Context, err = json.Marshal(replaceNUL(run.Context)); err != nil {
 			return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "the context of " + node.ID + " is not JSON"}
 		}
 		if len(req.Context) > maxCallContextBytes {
@@ -823,7 +822,8 @@ func (x *callExec) attempt(ctx context.Context, cn catalog.CallNode, k int, toke
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(rec)
+		b, err := json.Marshal(rec)
+		return withoutNUL(b), err // the journal is jsonb: a provider's message with a NUL byte is kept
 	})
 	if err != nil {
 		var we *pool.WireError
@@ -1133,41 +1133,7 @@ const CommandErrorPrefix = "automation."
 // CommandErrorCode is the call's error code of a command's domain error code.
 func CommandErrorCode(code string) string { return strings.TrimPrefix(code, CommandErrorPrefix) }
 
-// withoutNUL is a JSON value with every U+0000 of its strings and keys replaced by U+FFFD: PostgreSQL's
-// jsonb (the journal, the steps, the run's context) refuses \u0000, so an output that carries one (a
-// response body with a NUL byte) would never be recorded and the call would be repeated as if it failed.
-func withoutNUL(raw json.RawMessage) json.RawMessage {
-	if !bytes.Contains(raw, []byte(`\u0000`)) {
-		return raw
-	}
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	var v any
-	if err := dec.Decode(&v); err != nil {
-		return raw
-	}
-	out, err := json.Marshal(replaceNUL(v))
-	if err != nil {
-		return raw
-	}
-	return out
-}
+// withoutNUL is catalog.WithoutNUL: jsonb refuses U+0000.
+func withoutNUL(raw json.RawMessage) json.RawMessage { return catalog.WithoutNUL(raw) }
 
-func replaceNUL(v any) any {
-	switch x := v.(type) {
-	case string:
-		return strings.ReplaceAll(x, "\x00", "\uFFFD")
-	case []any:
-		for i := range x {
-			x[i] = replaceNUL(x[i])
-		}
-		return x
-	case map[string]any:
-		out := make(map[string]any, len(x))
-		for k, e := range x {
-			out[strings.ReplaceAll(k, "\x00", "\uFFFD")] = replaceNUL(e)
-		}
-		return out
-	}
-	return v
-}
+func replaceNUL(v any) any { return catalog.ReplaceNUL(v) }

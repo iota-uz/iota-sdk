@@ -258,6 +258,7 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if err != nil {
 		return err
 	}
+	raw = withoutNUL(raw) // the call's request is a workflow input (jsonb)
 	if len(raw) > m.x.r.cfg.Limits.PayloadBytes {
 		return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, StepError{Code: CodeLimitExceeded, Message: "the request of " + node.ID + " is too large"})
 	}

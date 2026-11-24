@@ -188,7 +188,9 @@ func TestNativeIsTheOneRegistration(t *testing.T) {
 	}
 	plain := native.NewSet()
 	if err := plain.Add(native.Command("crm.client.reassign", native.Spec{Permission: "X"}, func(native.Deps) (native.CommandFunc[json.RawMessage, json.RawMessage], error) {
-		return func(context.Context, native.CommandContext, json.RawMessage) (json.RawMessage, error) { return nil, nil }, nil
+		return func(context.Context, native.CommandContext, json.RawMessage) (json.RawMessage, error) {
+			return nil, nil
+		}, nil
 	})); err != nil {
 		t.Fatal(err)
 	}

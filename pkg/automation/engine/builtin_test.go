@@ -57,6 +57,7 @@ const permBlock = "Users.Block"
 
 // blockAction records the users it blocked: its effect.
 type blockAction struct {
+	output  json.RawMessage // set: the output Run answers with
 	onRun   func(ctx context.Context)
 	inv     string
 	mu      sync.Mutex
@@ -99,6 +100,9 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 	a.mu.Lock()
 	a.blocked = append(a.blocked, in.UserID)
 	a.mu.Unlock()
+	if a.output != nil {
+		return "done", a.output, nil
+	}
 	out, err := json.Marshal(map[string]string{"blocked": in.UserID})
 	return "done", out, err
 }
@@ -797,6 +801,47 @@ func TestASetValueWithANulByteIsRecorded(t *testing.T) {
 		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"}`))
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
 	run := onlyRun(t, be.env, p, a)
-	p.until(func() bool { return be.status(p, run.RunID) != engine.RunRunning && be.status(p, run.RunID) != engine.RunWaiting }, "the run ends")
+	p.until(func() bool {
+		return be.status(p, run.RunID) != engine.RunRunning && be.status(p, run.RunID) != engine.RunWaiting
+	}, "the run ends")
 	assert.Equal(t, engine.RunDone, be.status(p, run.RunID))
+}
+
+// An action whose output carries a NUL byte takes its outcome: the command's output is recorded by the
+// host and the workflow (jsonb) with U+FFFD, the command runs once.
+func TestActionOutputWithANulByteTakesItsOutcome(t *testing.T) {
+	be := newBuiltinEnv(t)
+	withPerm := append(append([]string{}, allPerms...), permBlock)
+	be.subjects.Grant(1, withPerm...)
+	be.action.output = json.RawMessage(`{"blocked": "a\u0000b"}`)
+	p := be.proc()
+	a := be.actor(be.tenant, 1, engine.OriginHuman, withPerm...)
+	be.create(p, a, actionGraph())
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 9}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the action runs")
+	assert.Equal(t, []string{"ok:a\uFFFDb"}, be.effects(run.RunID))
+	assert.Equal(t, int32(1), be.action.calls.Load(), "the command ran once")
+	assert.Equal(t, "done", be.step(p, run.RunID, "block").Outcome)
+}
+
+// A call whose step context carries a NUL byte (a set value) starts, and the code reads the value.
+func TestACallWithANulByteInItsContextRuns(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	be.create(p, a, graphJSON("Nul", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "calc", "type": "set", "params": {"values": {"text": "'a\\x00b'"}}},
+		 {"id": "run", "type": "code", "params": {"lang": "js", "source": "export default async (ctx) => ({ outcome: 'done', output: { value: ctx.nodes.calc.output.text } })"}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.run.output.output.value }}"}},
+		 {"id": "bad", "type": "acme.note", "params": {"text": "{{ nodes.run.output.error.code }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "calc"}, {"from": {"node": "calc", "outcome": "done"}, "to": "run"},
+		 {"from": {"node": "run", "outcome": "done"}, "to": "ok"}, {"from": {"node": "run", "outcome": "failed"}, "to": "bad"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"},
+		 {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}`))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	assert.Equal(t, []string{"ok:a\uFFFDb"}, be.effects(run.RunID))
 }

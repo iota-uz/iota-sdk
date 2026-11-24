@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -186,13 +187,13 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 		case errors.Is(err, ErrInvalidArgs):
 			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: err.Error()}
 		case errors.As(err, &ae) && slices.Contains(spec.Errors, ae.Code):
-			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + ae.Code, Message: ae.Message}
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + ae.Code, Message: nulFree(ae.Message)}
 		case errors.As(err, &ae):
-			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: ae.Code + ": " + ae.Message}
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: nulFree(ae.Code + ": " + ae.Message)}
 		case ctx.Err() != nil, host.IsInfrastructure(err):
 			return nil, err
 		}
-		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: err.Error()}
+		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: nulFree(err.Error())}
 	}
 	if outcome == "" {
 		outcome = OutcomeDone
@@ -205,5 +206,14 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeInvalidOutput, Message: err.Error()}
 		}
 	}
-	return json.Marshal(commandOutput{Outcome: outcome, Output: out})
+	// The host and the workflow record the output in jsonb, which refuses U+0000: a NUL byte of the
+	// action's text becomes U+FFFD before anything records it.
+	raw, err := json.Marshal(commandOutput{Outcome: outcome, Output: catalog.WithoutNUL(out)})
+	if err != nil {
+		return nil, err
+	}
+	return catalog.WithoutNUL(raw), nil
 }
+
+// nulFree is text without U+0000, which the records of the host refuse.
+func nulFree(s string) string { return strings.ReplaceAll(s, "\x00", "\uFFFD") }
