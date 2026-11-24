@@ -617,9 +617,15 @@ function SourceField(props: {
 }) {
   const st = () => props.ctx.s()
   const [mode, setMode] = createSignal<SourceMode>(sourceModeOf(props.value))
-  // A value that arrives from outside (undo, redo, another edit) and no longer fits the mode on screen moves
-  // the mode to the one it reads as; a value the field itself wrote (typing an id by hand) keeps its mode.
+  // The value this field wrote last. A value that comes back equal to it is the field's own edit (a half-typed
+  // "-" or "@" reads as an expression, but it is still the id or username being typed); any other value is
+  // from outside (undo, redo, another edit), and when it no longer fits the mode on screen the mode moves to
+  // the one it reads as.
+  let wrote: { value: unknown } | undefined
+  const emit = (value: unknown) => { wrote = { value }; props.onChange(value) }
   createEffect(on(() => props.value, (value) => {
+    if (wrote && wrote.value === value) return
+    wrote = undefined
     const fits = mode() === 'expr' ? (value === undefined || typeof value === 'string')
       : mode() === 'manual' ? (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'manual')
         : (value === undefined || typeof value === 'number')
@@ -674,7 +680,7 @@ function SourceField(props: {
               loadOptions={(query) => load(query)}
               onValueChange={(v) => {
                 const chat = chatOfSelection(v)
-                if (chat !== null) props.onChange(chat)
+                if (chat !== null) emit(chat)
               }}
             />
           </Show>
@@ -682,12 +688,12 @@ function SourceField(props: {
         <Match when={mode() === 'manual'}>
           <input id={props.id} type="text" class="form-control form-control-input ae-form-input" readOnly={props.readOnly} autocomplete="off" spellcheck={false}
             placeholder={st().manualPlaceholder} aria-describedby={props.describedBy} aria-label={props.title}
-            value={manualText(props.value)} onInput={(e) => props.onChange(manualValue(e.currentTarget.value))} />
+            value={manualText(props.value)} onInput={(e) => emit(manualValue(e.currentTarget.value))} />
           <p class="ae-form-note">{st().manualHint}</p>
         </Match>
         <Match when={mode() === 'expr'}>
           <CodeField ctx={props.ctx} id={props.id} label={<span />} title={props.title} mode="cel"
-            value={typeof props.value === 'string' ? props.value : ''} onChange={(v) => props.onChange(v === '' ? undefined : v)}
+            value={typeof props.value === 'string' ? props.value : ''} onChange={(v) => emit(v === '' ? undefined : v)}
             readOnly={props.readOnly} describedBy={props.describedBy} />
         </Match>
       </Choose>

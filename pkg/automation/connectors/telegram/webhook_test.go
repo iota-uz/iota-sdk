@@ -397,7 +397,7 @@ func TestKeyboardCleanupSurvivesTransientFailures(t *testing.T) {
 	require.Len(t, evs, 1)
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 1})
-	r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds())
+	require.NoError(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()))
 	got, _ := r.bot.Message(700, m.ID)
 	assert.Empty(t, got.Markup, "the keyboard is gone")
 }
@@ -416,4 +416,70 @@ func TestTwoDocumentsWithOneNameAreTwoFiles(t *testing.T) {
 	assert.Equal(t, []byte("first"), r.up.files[idA].Data)
 	assert.Equal(t, []byte("second"), r.up.files[idB].Data)
 	assert.Equal(t, "report.pdf", r.up.files[idB].Name, "the name is kept")
+}
+
+// One-use link: the first delivery consumes the payload, so the redelivery no longer resolves to a tenant. It
+// is still recognised as handled, and answered with nothing, not with "unknown or used".
+type oneUseLink struct {
+	linkHandler
+	used bool
+}
+
+func (h *oneUseLink) TenantOf(ctx context.Context, payload string) (uuid.UUID, bool, error) {
+	if h.used {
+		return uuid.Nil, false, nil
+	}
+	return h.linkHandler.TenantOf(ctx, payload)
+}
+
+func (h *oneUseLink) Handle(ctx context.Context, u telegram.StartUpdate) (string, error) {
+	reply, err := h.linkHandler.Handle(ctx, u)
+	h.used = true // consumed by the handler
+	return reply, err
+}
+
+func TestARedeliveredConsumedStartIsNotAnsweredUnknown(t *testing.T) {
+	r := newRig(t)
+	h := &oneUseLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	u := r.platform.Update(800, alice, "/start u_abc")
+	r.platformUpdate(u)
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text)
+	r.platformUpdate(u)
+	assert.Len(t, h.got, 1, "the handler ran once")
+	assert.Len(t, r.platform.Sent(), 1, "no contradictory second reply")
+}
+
+// When the keyboard cannot be taken off even with retries, the update is answered 503 so that Telegram
+// redelivers the press; the redelivery (its answer being closed) takes the keyboard off.
+func TestAKeyboardThatStaysMakesTheUpdateBeRedelivered(t *testing.T) {
+	r := newRig(t)
+	m := r.asked()
+	r.in.open[askToken] = r.tenant
+	_, evs := r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	require.Len(t, evs, 1)
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
+	require.Error(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()), "the follow-up did not complete")
+
+	// The press comes again: its answer is closed now, and the keyboard goes once Telegram works again.
+	delete(r.in.open, askToken)
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
+	code, _ := r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	assert.Equal(t, http.StatusServiceUnavailable, code, "still failing: redelivered again")
+	code, _ = r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	assert.Equal(t, http.StatusOK, code)
+	got, _ := r.bot.Message(700, m.ID)
+	assert.Empty(t, got.Markup)
+}
+
+func TestAFileNameWithAPercentIsKeptWhole(t *testing.T) {
+	r := newRig(t)
+	_, evs := r.tenantUpdate(r.documentUpdate(700, "", "report%s%d.pdf", "application/pdf", []byte("x")))
+	require.Len(t, evs, 1)
+	f := payloadOf(t, evs[0])["files"].([]any)[0].(map[string]any)
+	assert.Equal(t, "report%s%d.pdf", f["name"])
+	assert.Equal(t, []byte("x"), r.up.files[f["upload_id"].(string)].Data)
 }

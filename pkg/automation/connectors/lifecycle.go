@@ -316,6 +316,8 @@ func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catal
 // and records the update once it has completed, so an update whose answer to the provider was lost is not
 // acted on twice.
 type InboundOnce interface {
-	InboundSeen(ctx context.Context, tenantID uuid.UUID, connection, event, key string) (bool, error)
+	// InboundSeen asks across tenants: a repeated delivery is recognised even when what it carried no longer
+	// names the tenant it was first handled for (a one-use link that was consumed).
+	InboundSeen(ctx context.Context, connection, event, key string) (bool, error)
 	InboundDone(ctx context.Context, tenantID uuid.UUID, connection, event, key string) error
 }

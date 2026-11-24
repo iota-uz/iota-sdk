@@ -276,24 +276,13 @@ func fromOf(u *gotgbot.User) map[string]any {
 // of another tenant, on a tenant's bot) reaches the handler with the nil tenant, which only replies. A
 // failure of the lookup or of the handler is redelivered by Telegram.
 func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbot.Message, payload string, conn connectors.Connection, updateKey string) error {
-	tenant, ok, err := h.TenantOf(ctx, payload)
-	if err != nil {
-		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
-	}
-	if !ok || (!isPlatform(conn) && tenant != conn.TenantID) {
-		tenant = uuid.Nil
-	}
 	// An update that was handled completely (the handler ran, its reply went out) is not handled again when
-	// Telegram redelivers it because the answer to it was lost. With no tenant (an unknown link) there is
-	// nowhere to record it; repeating the "unknown" reply is harmless.
-	account := conn.TenantID
-	if isPlatform(conn) {
-		account = tenant
-	}
+	// Telegram redelivers it because the answer to it was lost. It is looked up before the payload is
+	// resolved: a one-use link the first delivery consumed no longer names a tenant, and would otherwise be
+	// answered "unknown or used" after the successful reply.
 	once, hasOnce := c.cfg.Connections.(connectors.InboundOnce)
-	hasOnce = hasOnce && account != uuid.Nil
 	if hasOnce {
-		seen, err := once.InboundSeen(ctx, account, connKey(conn), startEvent, updateKey)
+		seen, err := once.InboundSeen(ctx, connKey(conn), startEvent, updateKey)
 		if err != nil {
 			return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
 		}
@@ -301,6 +290,20 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 			return nil
 		}
 	}
+	tenant, ok, err := h.TenantOf(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+	}
+	if !ok || (!isPlatform(conn) && tenant != conn.TenantID) {
+		tenant = uuid.Nil
+	}
+	// It is recorded under the tenant the link belongs to (the platform bot: the payload's); with none (an
+	// unknown link) there is nowhere to record it, and repeating the "unknown" reply is harmless.
+	account := conn.TenantID
+	if isPlatform(conn) {
+		account = tenant
+	}
+	hasOnce = hasOnce && account != uuid.Nil
 	up := StartUpdate{TenantID: tenant, ConnectionID: connKey(conn), ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload}
 	if m.From != nil {
 		up.UserID, up.Username, up.FirstName = m.From.Id, m.From.Username, m.From.FirstName
@@ -409,7 +412,9 @@ func (c *Connector) callback(ctx context.Context, b *bot, u gotgbot.Update, conn
 		open = false // a token of another tenant's question is nobody's here
 	}
 	if !open {
-		c.closed(ctx, b, cq.Id, chat, message)
+		if err := c.closed(ctx, b, cq.Id, chat, message); err != nil {
+			return nil, fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err) // redelivered until the keyboard is off
+		}
 		return nil, nil
 	}
 	label := ""
@@ -453,19 +458,19 @@ func (c *Connector) AnswerClosed(ctx context.Context, ev engine.InboundEvent, co
 	if !ok {
 		return
 	}
-	c.closed(ctx, c.bot(creds["token"]), pr.queryID, pr.chatID, pr.message)
+	_ = c.closed(ctx, c.bot(creds["token"]), pr.queryID, pr.chatID, pr.message) // logged: the answer was closed already
 }
 
 // AnswerPublished follows the first accepted press: the press is acknowledged, the keyboard is taken off and
 // the text carries the option that was chosen. It runs once the answer is committed, so only the press
 // that counts changes the message.
-func (c *Connector) AnswerPublished(ctx context.Context, ev engine.InboundEvent, conn connectors.Connection, creds connectors.Credentials) {
+func (c *Connector) AnswerPublished(ctx context.Context, ev engine.InboundEvent, conn connectors.Connection, creds connectors.Credentials) error {
 	if ev.Event != EventCallback {
-		return
+		return nil
 	}
 	pr, ok := c.presses.take(pressKey(connKey(conn), ev.DedupKey))
 	if !ok {
-		return
+		return nil
 	}
 	b := c.bot(creds["token"])
 	c.ack(ctx, b, pr.queryID, "")
@@ -475,15 +480,19 @@ func (c *Connector) AnswerPublished(ctx context.Context, ev engine.InboundEvent,
 			return b.editText(ctx, pr.chatID, pr.message, text+"\n\n→ "+pr.label, pr.entities)
 		})
 		if err == nil || notModified(err) {
-			return
+			return nil
 		}
 	}
-	// The answer is committed and Telegram will not redeliver the press: the keyboard is taken off here, with
-	// a few tries for what is transient, since a press of a keyboard that stays cannot add the choice again.
+	// The keyboard is taken off here, with a few tries for what is transient. When even that fails the update
+	// is answered 503: Telegram redelivers the press, which (its answer being closed by then) takes the
+	// keyboard off again, and goes on redelivering until that succeeds. The chosen option is then not added to
+	// the text, which only this first delivery has the text for.
 	err := retrying(ctx, func() error { return b.removeKeyboard(ctx, pr.chatID, pr.message) })
 	if err != nil && !notModified(err) {
 		c.log().Warn("telegram: the keyboard was not removed", "error", err.Error())
+		return err
 	}
+	return nil
 }
 
 // retrying runs fn up to three times, pausing between tries, while its failure is transient (a 5xx, a 429, a
@@ -520,11 +529,14 @@ func retrying(ctx context.Context, fn func() error) error {
 }
 
 // closed answers a press of a closed question and takes its keyboard off. It does not change the text.
-func (c *Connector) closed(ctx context.Context, b *bot, queryID string, chat, message int64) {
+func (c *Connector) closed(ctx context.Context, b *bot, queryID string, chat, message int64) error {
 	c.ack(ctx, b, queryID, AlreadyAnswered)
-	if err := b.removeKeyboard(ctx, chat, message); err != nil && !notModified(err) {
+	err := retrying(ctx, func() error { return b.removeKeyboard(ctx, chat, message) })
+	if err != nil && !notModified(err) {
 		c.log().Warn("telegram: the keyboard was not removed", "error", err.Error())
+		return err
 	}
+	return nil
 }
 
 // ack acknowledges a press; Telegram stops showing the spinner. A failure is logged only: the press is

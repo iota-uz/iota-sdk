@@ -197,6 +197,27 @@ describe('a field with an options source (a chat)', () => {
     expect(screen.getByRole('radio', { name: 'Id or @username' })).toHaveAttribute('aria-checked', 'true')
   })
 
+  it('keeps the manual mode while a negative id or a username is typed one character at a time', () => {
+    const [value, setValue] = createSignal<Record<string, unknown>>({})
+    const { container } = render(() => (
+      <SchemaForm
+        schema={schema} value={value()} onChange={setValue} readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph}
+        expressions={[]} templates={[]} completions={() => []} searchOptions={async () => []}
+      />
+    ))
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = () => container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    for (const text of ['-', '-1', '-10', '-1001']) fireEvent.input(input(), { target: { value: text } })
+    expect(value().chat_id).toBe(-1001)
+    expect(input().value).toBe('-1001')
+    for (const text of ['@', '@s', '@sa', '@sales', '@salesteam']) {
+      fireEvent.input(input(), { target: { value: text } })
+      expect(screen.getByRole('radio', { name: 'Id or @username' })).toHaveAttribute('aria-checked', 'true')
+      expect(input().value).toBe(text)
+    }
+    expect(value().chat_id).toBe('"@salesteam"')
+  })
+
   it('reads a selection of the chat picker: an id, nothing when it was removed', () => {
     expect(chatOfSelection('-1001')).toBe(-1001)
     expect(chatOfSelection(['700'])).toBe(700)

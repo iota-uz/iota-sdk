@@ -119,7 +119,7 @@ func (s *state) SetStatusIf(_ context.Context, _, _ uuid.UUID, st connectors.Con
 	return true, nil
 }
 
-func (s *state) InboundSeen(_ context.Context, _ uuid.UUID, connection, event, key string) (bool, error) {
+func (s *state) InboundSeen(_ context.Context, connection, event, key string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.done[connection+"/"+event+"/"+key], nil

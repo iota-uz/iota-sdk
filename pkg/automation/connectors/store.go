@@ -598,10 +598,10 @@ func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tena
 }
 
 // InboundSeen reports whether an update was recorded as handled (InboundOnce).
-func (s *store) InboundSeen(ctx context.Context, tenantID uuid.UUID, connection, event, key string) (bool, error) {
+func (s *store) InboundSeen(ctx context.Context, connection, event, key string) (bool, error) {
 	var seen bool
-	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.inbound_dedup WHERE tenant_id = $1 AND connection_id = $2 AND event = $3 AND dedup_key = $4)`,
-		tenantID, connection, event, key).Scan(&seen)
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.inbound_dedup WHERE connection_id = $1 AND event = $2 AND dedup_key = $3)`,
+		connection, event, key).Scan(&seen)
 	return seen, serrors.Wrap("automation.connectors.Store.InboundSeen", err)
 }
 

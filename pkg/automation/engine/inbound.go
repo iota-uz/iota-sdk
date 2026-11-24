@@ -278,7 +278,9 @@ type ClosedAnswerer interface {
 // first press of a button is acknowledged and its keyboard removed only now, when the answer is the one
 // that counts.
 type PublishedAnswerer interface {
-	AnswerPublished(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials)
+	// An error says the follow-up could not be completed: the provider is answered 503 and redelivers the
+	// update (the event itself is a duplicate then, and is published no more).
+	AnswerPublished(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
 }
 
 // Poller is an optional interface of connectors.Connector for providers without push.
@@ -433,10 +435,17 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			ca.AnswerClosed(ctx, ev, conn, creds)
 		}
 	}
+	redeliver := false
 	if pa, ok := recv.(PublishedAnswerer); ok {
 		for _, ev := range published {
-			pa.AnswerPublished(ctx, ev, conn, creds)
+			if err := pa.AnswerPublished(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
 		}
+	}
+	if redeliver {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
 	buf.flush(w)
 }

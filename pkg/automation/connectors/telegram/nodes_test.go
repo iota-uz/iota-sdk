@@ -387,7 +387,7 @@ func TestFirstAcceptedPressAcknowledgesRemovesTheKeyboardAndAddsTheChoice(t *tes
 	_, evs := r.tenantUpdate(u)
 	require.Len(t, evs, 1)
 	// The engine tells the connector the answer was committed.
-	r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds())
+	require.NoError(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()))
 	queryID := u["callback_query"].(map[string]any)["id"].(string)
 	text, answered := r.bot.Answered(queryID)
 	assert.True(t, answered, "every press is acknowledged")

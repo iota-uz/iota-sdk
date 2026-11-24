@@ -677,3 +677,32 @@ func TestTelegramReadThatCannotBeKeyedFailsInsteadOfFallingBack(t *testing.T) {
 	}, "the run fails")
 	assert.Zero(t, te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`), "no wait was left listening")
 }
+
+// A follow-up of an accepted press that cannot be completed (Telegram keeps failing) is answered 503: the run
+// moved on exactly once, and the redelivered press takes the keyboard off.
+func TestTelegramAKeyboardThatStaysIsRedelivered(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(700)
+	te.create(p, te.human(), tgAskGraph)
+	te.publish(te.tenant, orderCreated, "o-1", order{Note: "#7"}, 0)
+	p.until(func() bool {
+		return len(te.bot.Sent()) == 1 && te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the question is sent")
+	q := te.bot.Sent()[0]
+	te.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
+	te.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
+	update := te.bot.PressUpdate(q, tgAlice, q.Markup[0][0].CallbackData)
+	d, err := te.bot.Redeliver(update)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, d.Status, "Telegram is asked to deliver the press again")
+	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the answer moved the run")
+	d, err = te.bot.Redeliver(update)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, d.Status)
+	got, _ := te.bot.Message(700, q.ID)
+	assert.Empty(t, got.Markup, "the redelivery took the keyboard off")
+	p.pass()
+	assert.Len(t, noteTexts(t, te.env), 1, "and moved nothing twice")
+}

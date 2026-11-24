@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -279,7 +280,7 @@ func fail(code int, desc string) *apiError { return &apiError{code: code, desc: 
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
-	if rest, ok := strings.CutPrefix(path, "file/bot"); ok {
+	if rest, ok := strings.CutPrefix(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "file/bot"); ok {
 		s.serveFile(w, rest)
 		return
 	}
@@ -803,12 +804,12 @@ func (b *Bot) SendInTopic(chat int64, topic int64, from User, text string) (Deli
 // PhotoUpdate builds the update of a photo (with an optional caption) of a user, without posting it. The
 // file is held for getFile.
 func (b *Bot) PhotoUpdate(chat int64, from User, caption string, data []byte) map[string]any {
-	return b.fileUpdate(chat, from, caption, "photo", "photos/file_%d.jpg", "", data)
+	return b.fileUpdate(chat, from, caption, "photo", "", "", data)
 }
 
 // DocumentUpdate builds the update of a document of a user, without posting it.
 func (b *Bot) DocumentUpdate(chat int64, from User, caption, name, mime string, data []byte) map[string]any {
-	return b.fileUpdate(chat, from, caption, "document", "documents/%d/"+name, mime, data)
+	return b.fileUpdate(chat, from, caption, "document", name, mime, data)
 }
 
 // SendPhoto posts a photo (with an optional caption) of a user.
@@ -821,12 +822,16 @@ func (b *Bot) SendDocument(chat int64, from User, caption, name, mime string, da
 	return b.Redeliver(b.DocumentUpdate(chat, from, caption, name, mime, data))
 }
 
-func (b *Bot) fileUpdate(chat int64, from User, caption, kind, path, mime string, data []byte) map[string]any {
+func (b *Bot) fileUpdate(chat int64, from User, caption, kind, name, mime string, data []byte) map[string]any {
 	b.s.mu.Lock()
 	b.s.fileSeq++
-	id := fmt.Sprintf("file-%d", b.s.fileSeq)
-	if strings.Contains(path, "%d") {
-		path = fmt.Sprintf(path, b.s.fileSeq)
+	seq := b.s.fileSeq
+	id := fmt.Sprintf("file-%d", seq)
+	// The sequence is part of the download path, so two files of one name are two files; the name itself is
+	// kept apart from any formatting (it may hold a "%").
+	path := fmt.Sprintf("photos/file_%d.jpg", seq)
+	if kind != "photo" {
+		path = fmt.Sprintf("documents/%d/", seq) + url.PathEscape(name) // a file path is URL-safe, as Telegram's are
 	}
 	b.s.files[id] = storedFile{path: path, data: data}
 	b.s.mu.Unlock()
@@ -843,7 +848,6 @@ func (b *Bot) fileUpdate(chat int64, from User, caption, kind, path, mime string
 		b.s.files[id+"-s"] = storedFile{path: path + ".thumb", data: []byte("x")}
 		b.s.mu.Unlock()
 	} else {
-		name := path[strings.LastIndex(path, "/")+1:]
 		msg["document"] = map[string]any{"file_id": id, "file_unique_id": id, "file_name": name, "mime_type": mime, "file_size": len(data)}
 	}
 	return u
