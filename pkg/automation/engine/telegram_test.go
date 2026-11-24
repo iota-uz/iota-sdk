@@ -657,15 +657,16 @@ func TestTelegramReadOfARunWithoutAConversation(t *testing.T) {
 	assert.Equal(t, []string{"got hello order"}, noteTexts(t, te.env))
 }
 
-// A read that cannot name the conversation it waits in (a chat given by @username, which has no id to key
-// by) fails; it never falls back to the conversation of the run, where another chat's message could answer.
+// A read that cannot name the conversation it waits in (a chat that an expression gives as @username, which has no
+// id to key by; a literal @username is refused when the graph is checked) fails; it never falls back to the
+// conversation of the run, where another chat's message could answer.
 func TestTelegramReadThatCannotBeKeyedFailsInsteadOfFallingBack(t *testing.T) {
 	te := newTgEnv(t)
 	p := te.proc()
 	te.provision()
 	te.chat(700)
 	g := graphJSON("Dialog", `{"id": "m", "event": "telegram.message_received.v1"}`,
-		`{"id": "read", "type": "telegram.read", "params": {"chat_id": "\"@salesteam\"", "timeout": "1h"}},
+		`{"id": "read", "type": "telegram.read", "params": {"chat_id": "\"@sales\" + \"team\"", "timeout": "1h"}},
 		 {"id": "fin", "type": "end", "params": {}}`,
 		`{"from": {"node": "m", "outcome": "fired"}, "to": "read"},
 		 {"from": {"node": "read", "outcome": "received"}, "to": "fin"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "fin"}`)

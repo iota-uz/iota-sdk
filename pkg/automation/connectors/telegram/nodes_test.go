@@ -549,6 +549,18 @@ func TestReadFilterNeedsText(t *testing.T) {
 	assert.Equal(t, `event.text != ""`, parsed["filter"], "a chat id in another form cannot keep the right chat's message from waking the wait")
 }
 
+// A read waits in the chat by its numeric id; a chat by @username has no conversation key until it is resolved,
+// so it is refused where the graph is checked. A name in a string literal is no reference to the trigger event.
+func TestReadChatAndSenderChecks(t *testing.T) {
+	r := newRig(t)
+	_, issues := r.read().Spec().Params.Parse(map[string]any{"chat_id": `"@salesteam"`})
+	require.NotEmpty(t, issues, "a chat by @username cannot be waited in")
+	_, issues = r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": `"501" + ("event" == "event" ? "" : "0")`})
+	assert.Empty(t, issues, "the word inside a literal is not a reference to event")
+	_, issues = r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": `event.from.userId`})
+	assert.NotEmpty(t, issues, "event itself is the incoming message, not the trigger")
+}
+
 func (r *rig) read() interface{ Spec() graph.NodeSpec } {
 	for _, n := range r.c.Nodes() {
 		if n.Spec().Type == telegram.NodeRead {
@@ -557,6 +569,24 @@ func (r *rig) read() interface{ Spec() graph.NodeSpec } {
 	}
 	r.t.Fatal("no read node")
 	return nil
+}
+
+// The version fence on its own: the connection still holds the refused token when it is read, and a replacement
+// commits (a new version) before the status is written; the write is refused and the replacement stays connected.
+func TestA401IsFencedByTheRowVersionWhenAReplacementCommitsFirst(t *testing.T) {
+	r := newRig(t)
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 401, Description: "Unauthorized"})
+	r.st.beforeSetStatus = func() {
+		r.st.mu.Lock()
+		r.st.version++ // the row was saved again between the read and the write
+		r.st.mu.Unlock()
+	}
+	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
+	var ce *catalog.CallError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, catalog.CallUnauthorized, ce.Code)
+	assert.Empty(t, r.st.status, "the replacement is not marked")
 }
 
 // A 401 of a send that used a token the connection no longer holds marks nothing: the replacement works.

@@ -92,6 +92,9 @@ type state struct {
 	failWrites  int                                  // inbound writes that fail
 	token       string                               // the token the connection holds now ("" : the tenant bot's)
 	version     int
+	// beforeSetStatus runs at the start of SetStatusIf, before its condition is read: a replacement that
+	// commits after the connector read the row is made here.
+	beforeSetStatus func()
 }
 
 func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -111,6 +114,9 @@ func (s *state) Get(context.Context, uuid.UUID, uuid.UUID) (connectors.Connectio
 }
 
 func (s *state) SetStatusIf(_ context.Context, _, _ uuid.UUID, st connectors.ConnectionStatus, reason string, cond func(json.RawMessage, int) bool) (bool, error) {
+	if hook := s.beforeSetStatus; hook != nil {
+		hook()
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if cond != nil && !cond(s.inbound, s.version) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -135,7 +136,7 @@ func (c *Connector) store(ctx context.Context, b *bot, tenant uuid.UUID, dedup s
 		default:
 			// A replay of the update (Telegram did not get the answer) finds the file saved by the delivery before
 			// it, so the event the engine keeps references the one upload and no second copy is left behind.
-			memo := dedup + "/" + r.id
+			memo := tenant.String() + "/" + dedup + "/" + r.id
 			if saved, ok := c.uploaded.get(memo); ok {
 				f = saved
 			} else {
@@ -155,7 +156,7 @@ func (c *Connector) download(ctx context.Context, b *bot, tenant uuid.UUID, r fi
 	if err != nil {
 		f.Error = FileDownload
 		var api *apiError
-		if errors.As(err, &api) && api.Code == 400 && api.Description != "" && r.size == 0 {
+		if errors.As(err, &api) && api.Code == 400 && strings.Contains(strings.ToLower(api.Description), "file is too big") {
 			f.Error = FileTooLarge // getFile refuses files over 20 MB
 		}
 		return

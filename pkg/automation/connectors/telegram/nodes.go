@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -363,19 +364,45 @@ func newReadParams() graph.ParamsSpec { return readParams{inner: graph.MustSchem
 
 func (p readParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
 
-var mentionsEvent = regexp.MustCompile(`\bevent\b`)
+// refEnv reads which names an expression refers to; it checks nothing, so it needs no scope.
+var refEnv = sync.OnceValue(func() *expr.Env {
+	env, err := expr.NewEnv(expr.Scope{}, expr.DefaultLimits())
+	if err != nil {
+		return nil
+	}
+	return env
+})
+
+// readsEvent reports whether an expression refers to the name event (the run's trigger), as a name and not as a
+// word inside a string literal.
+func readsEvent(src string) bool {
+	env := refEnv()
+	if env == nil {
+		return true // cannot tell: the safe answer is the refusal
+	}
+	for _, chain := range env.References(src) {
+		if len(chain) > 0 && chain[0] == "event" {
+			return true
+		}
+	}
+	return false
+}
 
 func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	out, issues := p.inner.Parse(raw)
 	if len(issues) > 0 {
 		return nil, issues
 	}
+	// The wait is keyed by the numeric chat: a chat given by @username cannot name the conversation it waits in.
+	if lit, ok := out["chat_id"].(string); ok && usernameRe.MatchString(strings.Trim(strings.TrimSpace(lit), `"`)) {
+		return nil, []graph.Issue{{Path: []any{"chat_id"}, Message: "telegram.read waits in a chat given by its numeric id: a chat by @username has none until it is resolved, so give the id"}}
+	}
 	// A message without text (a photo without a caption) is an event for triggers, not an answer to a read.
 	// The chat is not part of the filter: the keyed subject of the wait names the connection and the chat in
 	// canonical form, which is all a comparison of the message's chat would add (and "00042" would not match).
 	terms := []string{`event.text != ""`}
 	if v, set := out["from_user_id"]; set {
-		if s, isExpr := v.(string); isExpr && mentionsEvent.MatchString(s) {
+		if s, isExpr := v.(string); isExpr && readsEvent(s) {
 			return nil, []graph.Issue{{Path: []any{"from_user_id"},
 				Message: "in the wait's filter, event is the incoming message: read the user from nodes.<id>.output (the question's from.user_id), or give an id"}}
 		}

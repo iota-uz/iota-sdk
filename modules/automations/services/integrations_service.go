@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -198,6 +199,7 @@ type IntegrationsService struct {
 	requests Requests
 	stateTTL time.Duration
 	now      func() time.Time
+	log      *slog.Logger
 }
 
 // IntegrationsDeps are the dependencies of the service; Usage, Platform, Grants and OAuth may be nil.
@@ -211,6 +213,9 @@ type IntegrationsDeps struct {
 	States    OAuthStates
 	Checks    ConnectionChecks
 	Requests  Requests
+	// Logger reports what the service does after a request has been answered (a provider cleanup that failed);
+	// default slog.Default().
+	Logger *slog.Logger
 	// StateTTL is how long an OAuth2 state is accepted (default 10 minutes).
 	StateTTL time.Duration
 	Now      func() time.Time
@@ -220,13 +225,16 @@ type IntegrationsDeps struct {
 func NewIntegrationsService(d IntegrationsDeps) *IntegrationsService {
 	s := &IntegrationsService{
 		dir: d.Directory, store: d.Store, usage: d.Usage, platform: d.Platform, grants: d.Grants,
-		oauth: d.OAuth, states: d.States, checks: d.Checks, requests: d.Requests, stateTTL: d.StateTTL, now: d.Now,
+		oauth: d.OAuth, states: d.States, checks: d.Checks, requests: d.Requests, stateTTL: d.StateTTL, now: d.Now, log: d.Logger,
 	}
 	if s.stateTTL <= 0 {
 		s.stateTTL = 10 * time.Minute
 	}
 	if s.now == nil {
 		s.now = time.Now
+	}
+	if s.log == nil {
+		s.log = slog.Default()
 	}
 	return s
 }
@@ -551,12 +559,17 @@ func (s *IntegrationsService) cleanup(ctx context.Context, conn connectors.Conne
 	}
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 	defer cancel()
-	_ = s.store.WithLatest(cctx, c.Kind, c.TenantID, c.ID, external, func(found bool, latest connectors.Connection, latestCreds connectors.Credentials) error {
+	err := s.store.WithLatest(cctx, c.Kind, c.TenantID, c.ID, external, func(found bool, latest connectors.Connection, latestCreds connectors.Credentials) error {
 		if stillServes(found, latest, latestCreds, creds) {
 			return nil
 		}
 		return p.Deprovision(cctx, c, creds)
 	})
+	if err != nil {
+		// The request has been answered, so the failure is not returned: it is reported, as a webhook that stays
+		// at the provider is only seen there (its updates then fail verification).
+		s.log.Warn("automations: the provider was not cleaned up", "kind", string(c.Kind), "connection", c.ID.String(), "error", err.Error())
+	}
 }
 
 // reconcile undoes the provider's side of a save that changed the provider and did not commit: the webhook

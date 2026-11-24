@@ -31,6 +31,11 @@ type StartUpdate struct {
 	Username       string
 	FirstName      string
 	Payload        string // with prefix
+	// UpdateKey names the update ("<bot id>:<update id>"): the same one on every delivery of it. A handler that
+	// consumes a one-use link keeps its result under this key in the transaction that consumes the link, and
+	// returns that result when it is asked again, so a redelivery after a lost result sends the reply of the
+	// first run instead of "unknown or used".
+	UpdateKey string
 }
 
 var prefixRe = regexp.MustCompile(`^[a-z]{1,4}_$`)

@@ -53,6 +53,9 @@ const (
 type Config struct {
 	// PlatformToken is APP_TELEGRAMBOTTOKEN; empty: no platform credential.
 	PlatformToken string
+	// ReplacePlatformWebhook lets the application's start replace a webhook of another service on the platform
+	// bot. By default the start leaves it and the platform bot only sends: it must be a bot of its own.
+	ReplacePlatformWebhook bool
 	// PublicOrigin is the https origin of the application the webhooks point to.
 	PublicOrigin string
 	Inbound      engine.Inbound
@@ -377,7 +380,22 @@ func (c *Connector) StartPlatform(ctx context.Context, creds connectors.Credenti
 	c.platformToken.Store(&token)
 	// The platform bot has no connection row to keep a secret in: its secret is derived (WebhookSecret).
 	conn := connectors.Connection{Kind: Kind, Name: "platform"}
-	return c.bot(token).setWebhook(ctx, c.hookURL(conn), WebhookSecret(token, connKey(conn)))
+	b := c.bot(token)
+	if !c.cfg.ReplacePlatformWebhook {
+		// Telegram has one webhook per bot: a bot another service already uses is not taken over by a start.
+		info, err := b.webhookInfo(ctx)
+		if err != nil {
+			return err
+		}
+		owner, err := c.ownerOf(ctx, info.Url, c.hookURL(conn), c.ExternalID(creds), true)
+		if err != nil {
+			return err
+		}
+		if owner == hookForeign || owner == hookTaken {
+			return errors.New("telegram: the platform bot has a webhook of another service or connection; the platform bot is used for sending only (give it a bot of its own, or set ReplacePlatformWebhook)")
+		}
+	}
+	return b.setWebhook(ctx, c.hookURL(conn), WebhookSecret(token, connKey(conn)))
 }
 
 // platformAccount is the bot that is the platform's now: the credential StartPlatform was given, else the

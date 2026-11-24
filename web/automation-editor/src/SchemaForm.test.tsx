@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { chatOfSelection, humanize, literalOfSelection, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
+import { chatOfSelection, humanize, literalOfSelection, manualText, manualValue, optionOf, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import { offeredParticipants } from './graph'
 import type { AutomationGraph, CatalogEvent, JsonSchema } from './types'
 
@@ -287,6 +287,11 @@ describe('a field with an options source (a chat)', () => {
     expect(chatOfSelection(undefined)).toBeUndefined()
     expect(chatOfSelection('group:private')).toBeNull()
     expect(literalOfSelection('sales')).toBe('"sales"')
+    expect(optionOf('"sales"')).toBe('sales')
+    expect(sourceModeOf('"sales"')).toBe('list')
+    expect(optionOf(700)).toBe('700')
+    expect(optionOf('"@salesteam"')).toBe('')
+    expect(optionOf('event.chatId')).toBe('')
     expect(literalOfSelection('group:private')).toBeUndefined()
     expect(literalOfSelection('')).toBeUndefined()
   })

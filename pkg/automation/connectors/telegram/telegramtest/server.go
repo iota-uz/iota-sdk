@@ -648,15 +648,18 @@ func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *api
 	if err := json.Unmarshal([]byte(p["media"]), &media); err != nil || len(media) < 2 || len(media) > 10 {
 		return nil, fail(400, "Bad Request: media group takes 2-10 items")
 	}
-	out := make([]any, 0, len(media))
+	// Every attachment is resolved before anything is recorded: a refused group leaves nothing sent.
+	items := make([]upload, len(media))
 	for i, it := range media {
-		key := strings.TrimPrefix(it.Media, "attach://")
-		f, ok := files[key]
+		f, ok := files[strings.TrimPrefix(it.Media, "attach://")]
 		if !ok {
 			return nil, fail(400, "Bad Request: file not attached")
 		}
-		m := b.record(c, p, &Message{Caption: it.Caption, Files: []string{f.name}})
-		_ = i
+		items[i] = f
+	}
+	out := make([]any, 0, len(media))
+	for i, it := range media {
+		m := b.record(c, p, &Message{Caption: it.Caption, Files: []string{items[i].name}})
 		out = append(out, b.messageJSON(m, c))
 	}
 	return out, nil

@@ -361,7 +361,8 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if isPlatform(conn) {
 		account = tenant
 	}
-	up := StartUpdate{TenantID: tenant, ConnectionID: key, ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload}
+	up := StartUpdate{TenantID: tenant, ConnectionID: key, ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload,
+		UpdateKey: strconv.FormatInt(botID(b.api.Token), 10) + ":" + updateKey}
 	if m.From != nil {
 		up.UserID, up.Username, up.FirstName = m.From.Id, m.From.Username, m.From.FirstName
 	}

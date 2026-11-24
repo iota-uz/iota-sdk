@@ -1577,15 +1577,29 @@ func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
 	e.tg.lmu.Lock()
 	e.tg.gate, e.tg.entered = gate, entered
 	e.tg.lmu.Unlock()
+	// The gate is released once, whatever the test does: a failed assertion must not leave the provider call held.
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			e.tg.lmu.Lock()
+			e.tg.gate = nil // later calls are not held
+			e.tg.lmu.Unlock()
+			close(gate)
+		})
+	}
+	t.Cleanup(release)
 	errs := make(chan error, 2)
 	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil); errs <- err }()
-	<-entered // the status is committed, and the cleanup is at the provider
+	select {
+	case <-entered: // the status is committed, and the cleanup is at the provider
+	case err := <-errs:
+		require.FailNow(t, "the disable ended before it reached the provider", "%v", err)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the disable did not reach the provider")
+	}
 	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil); errs <- err }()
 	e.waitForLockWaiter(t) // the enable is queued on the account's lock behind the held cleanup
-	e.tg.lmu.Lock()
-	e.tg.gate = nil // later calls are not held
-	e.tg.lmu.Unlock()
-	close(gate)
+	release()
 	for range 2 {
 		require.NoError(t, <-errs)
 	}

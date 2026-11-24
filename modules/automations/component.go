@@ -399,6 +399,12 @@ func (c *component) Build(b *composition.Builder) error {
 				if !isStarter {
 					continue
 				}
+				if exclusive && dbErr != nil {
+					// Without the reservation the webhook could replace one a tenant's connection holds: the
+					// platform credential keeps working for sending, and is set up at the next start.
+					warn("automations: the platform credential of %s was not set up: %v", dbErr)
+					continue
+				}
 				if err := starter.StartPlatform(ctx, creds); err != nil {
 					// The application starts without it: the platform credential works for sending.
 					warn("automations: the platform credential of %s was not set up: %v", err)

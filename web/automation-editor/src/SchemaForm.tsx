@@ -598,11 +598,23 @@ type SourceMode = 'list' | 'manual' | 'expr'
 
 const QUOTED_USERNAME = /^"(@[A-Za-z][A-Za-z0-9_]{4,31})"$/
 const CHAT_ID = /^-?[0-9]{1,18}$/
+/** A plain string literal, the form in which the option of a source that is not a chat is stored. */
+const OPTION_LITERAL = /^"([^"\\]*)"$/
 
 /** How a stored value reads: a number is an id (picked or typed), `"@name"` a typed username, any other text an expression. */
 export function sourceModeOf(value: unknown): SourceMode {
-  if (typeof value === 'string' && value !== '') return QUOTED_USERNAME.test(value) ? 'manual' : 'expr'
+  if (typeof value === 'string' && value !== '') {
+    if (QUOTED_USERNAME.test(value)) return 'manual'
+    return OPTION_LITERAL.test(value) ? 'list' : 'expr'
+  }
   return 'list'
+}
+
+/** The option a stored value stands for in the picker: a chat id, or the declared value of another source's option. */
+export function optionOf(value: unknown): string {
+  if (typeof value === 'number') return String(value)
+  const m = typeof value === 'string' && !QUOTED_USERNAME.test(value) ? OPTION_LITERAL.exec(value) : null
+  return m ? m[1]! : ''
 }
 
 /** The value a Combobox selection means: a chat id, undefined when the selection was removed, null when it is not a chat. */
@@ -654,7 +666,7 @@ function SourceField(props: {
     wrote = undefined
     const fits = mode() === 'expr' ? (value === undefined || typeof value === 'string')
       : mode() === 'manual' ? (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'manual')
-        : (value === undefined || typeof value === 'number')
+        : (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'list')
     if (!fits) setMode(sourceModeOf(value))
   }, { defer: true }))
   const modes = (): [SourceMode, string][] => [['list', st().sourceList], ['manual', st().sourceManual], ['expr', st().sourceExpression]]
@@ -671,7 +683,7 @@ function SourceField(props: {
     }
     return out
   }
-  const current = () => (typeof props.value === 'number' ? String(props.value) : '')
+  const current = () => optionOf(props.value)
   // The stored id is shown even before the list loads (or when the chat is not among the known ones).
   const seed = (): ComboboxOption[] => (current() ? [{ value: current(), label: current() }] : [])
   // The known chats are offered as the list opens; typing narrows them through the host.

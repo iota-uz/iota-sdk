@@ -783,3 +783,54 @@ func TestAFileCanBeReachedOnlyByTheBotThatGotIt(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code, "the owner downloads it")
 	assert.Equal(t, "%PDF", content)
 }
+
+// Only Telegram's refusal of a file by its size is "too large": a 400 about the file being unavailable for now is
+// a failed download, whatever the size says.
+func TestOnlyASizeRefusalMakesAFileTooLarge(t *testing.T) {
+	for name, tc := range map[string]struct{ description, want string }{
+		"unavailable for now": {"Bad Request: wrong file_id or the file is temporarily unavailable", telegram.FileDownload},
+		"too big":             {"Bad Request: file is too big", telegram.FileTooLarge},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := newRig(t)
+			u := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("x"))
+			u["message"].(map[string]any)["document"].(map[string]any)["file_size"] = 0 // the size is not given
+			r.bot.Fail(telegramtest.Failure{Method: "getFile", Code: 400, Description: tc.description})
+			_, evs := r.tenantUpdate(u)
+			require.Len(t, evs, 1)
+			f := payloadOf(t, evs[0])["files"].([]any)[0].(map[string]any)
+			assert.Equal(t, tc.want, f["error"])
+		})
+	}
+}
+
+// The memo of saved uploads is of one tenant: the same update reaching another tenant (the bot moved) saves its own.
+func TestTheUploadMemoIsOfOneTenant(t *testing.T) {
+	r := newRig(t)
+	u := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("x"))
+	body, err := json.Marshal(u)
+	require.NoError(t, err)
+	other := r.conn
+	other.TenantID = uuid.New()
+	for _, conn := range []connectors.Connection{r.conn, r.conn, other} {
+		_, err := r.c.Handle(context.Background(), httptest.NewRecorder(), body, conn, r.creds())
+		require.NoError(t, err)
+	}
+	assert.Len(t, r.up.files, 2, "one per tenant; the replay within a tenant reuses")
+}
+
+// A platform bot that another service already uses keeps its webhook through the application's start: the
+// platform bot then only sends. The start replaces it only when it is told to.
+func TestStartPlatformLeavesAForeignWebhook(t *testing.T) {
+	r := newRig(t)
+	r.platform.SetWebhook("https://other.example.org/hook", "s")
+	err := r.c.StartPlatform(context.Background(), r.platformCreds())
+	require.Error(t, err)
+	assert.Equal(t, "https://other.example.org/hook", r.platform.Webhook().URL, "the other service's webhook is not replaced")
+
+	takeover := telegram.New(telegram.Config{PlatformToken: platformToken, PublicOrigin: origin, APIURL: r.api.URL(), ReplacePlatformWebhook: true})
+	require.NoError(t, takeover.StartPlatform(context.Background(), r.platformCreds()))
+	assert.Equal(t, origin+"/automations/hooks/platform/telegram_bot", r.platform.Webhook().URL)
+	// The own webhook is set again at each start.
+	require.NoError(t, r.c.StartPlatform(context.Background(), r.platformCreds()))
+}
