@@ -29,9 +29,10 @@ type DryRunOptions struct {
 	// Execute answers a call of an execute node for real (Modes on); nil: such calls are captured.
 	Execute func(node Node, effects []Effect) ExecAnswer
 	// Preview answers a captured effect node (Modes on) with what the node would do, computed without
-	// doing it: its outcome and output, or its failure. ok false: the node has no preview and takes its
-	// done outcome. The step stays captured.
-	Preview func(node Node, effects []Effect) (answer ExecAnswer, ok bool)
+	// doing it: its outcome and output, or its failure. started is the event that started the run (the
+	// first one a trigger took), kept for every later step. ok false: the node has no preview and takes
+	// its done outcome. The step stays captured.
+	Preview func(node Node, effects []Effect, started Event) (answer ExecAnswer, ok bool)
 }
 
 // ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
@@ -155,6 +156,7 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 				d.tokens = append(d.tokens, main)
 				d.emit(nil, TraceStep{Node: t.ID, Outcome: TriggerOutcome})
 				started = true
+				d.started = input.Event
 				d.advance(main, t.ID, TriggerOutcome)
 				break
 			}
@@ -256,6 +258,9 @@ type dryRun struct {
 	timers []*dryTimer
 	clock  int64 // ms since the run started, moved by timeouts
 	seq    int
+	// started is the event that started the run: what a preview of a node reads, whatever event a later
+	// wait takes.
+	started Event
 }
 
 func copyContext(c Context) Context {
@@ -568,7 +573,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			}
 			status = StatusCaptured
 			if d.o.Preview != nil {
-				if a, previewed := d.o.Preview(node, step.Effects); previewed {
+				if a, previewed := d.o.Preview(node, step.Effects, d.started); previewed {
 					if a.Code != "" {
 						fo, took := d.takeFailedWith(t, node.ID, a.Message, failedHow{retryable: a.Retryable, status: StatusCaptured}, a.Code)
 						if !took {

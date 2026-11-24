@@ -330,7 +330,10 @@ optional interfaces of the node type widen that:
   events offer), checked when the graph is saved, dry run and enabled.
 
 `StepContext` carries the step's `NodeID` and `StepKey()` (run, node, token and sequence: the same when the step
-is applied again) and `Trigger`, the event that started the run (key, id and the payload the run-as could read).
+is applied again) and `Trigger`, the event that started the run (key, id, the payload the run-as could read and
+`ActorUserID`, the run's initiator, which is what the event's `actor` recipient resolves to). A dry run and a node
+test give the preview the event that started the dry run (the first one a trigger took, as the interpreter chose
+it) or the test's event, with the author as initiator.
 
 `pkg/automation/builtin/notify` holds two effect nodes and the notification definition `automations.notify.v1`.
 The `automations` module registers both with the composition (`notify.Register` over its catalog registry with
@@ -343,7 +346,7 @@ resolve no audience and check no access themselves.
 | Node | Params | Outcomes | Output |
 |---|---|---|---|
 | `notify` | `recipients {users (CEL list of user IDs), groups, roles, participants}`, `title`, `body`, `action_url` (templates), `channels` (empty: in-app), `level` info\|warning\|critical | `sent`, `no_recipients`, `failed` | `notice_id`, `recipients`, `skipped [{kind, ref, reason}]` |
-| `send_to_contact` | `record` (CEL `{entity, key}`; default the run's subject), `channel` (an external channel), `subject`, `body` | `sent`, `no_contact`, `failed` | `notice_id`, `channel` |
+| `send_to_contact` | `record` (CEL `{entity, key}`; default the run's subject), `channel` (an external channel), `subject`, `body` | `sent`, `no_contact`, `failed` | `notice_id`, `channel`, `skipped` |
 
 - The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
   returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
@@ -360,8 +363,15 @@ resolve no audience and check no access themselves.
   bytes and a text 10000 bytes, as the inbox counts them (a Cyrillic character is two).
 - A `FailedPrecondition` of the delivery layer (platform not configured, channel not available) is the failed
   outcome with code `unavailable`; any other error carries its code (`invalid`, `conflict`, ...).
-- A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace;
+- `skipped` comes with the receipt of the send (`AudienceReceipt.Skipped`): the resolution that queued the notice
+  names who it left out, so the step reads nothing more while it holds its transaction.
+- A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace
+  (for `send_to_contact` also the records and the skip reasons when the record has no address, never an address);
   nothing is queued.
+- The catalog view gives each event `participants` (the recipient keys of its notification definition, filled
+  through `catalog.WithParticipants`), and the notify params schema marks the field `x-event-participants`: the
+  editor shows `recipients.participants` only where every trigger event that reaches the node offers some (a
+  field that already holds a value stays visible so it can be cleared).
 
 ## 6. Triggers and the event catalog
 

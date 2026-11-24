@@ -80,9 +80,9 @@ type Config struct {
 	// Contacts looks up the resolvers send_to_contact asks whether a record can be reached. Nil: every
 	// record is taken as reachable and the delivery layer records a missing address when it delivers.
 	Contacts ContactLookup
-	// Pool is the database that reads outside the step's transaction use: a dry run's resolution, the
-	// explanation of who was left out, and a contact lookup. The engine's step context carries no pool, so
-	// Register requires it.
+	// Pool is the database that reads outside the step's transaction use: a dry run's resolution
+	// and a contact lookup (which needs a connection besides the one the step's transaction holds). The
+	// engine's step context carries no pool, so Register requires it.
 	Pool *pgxpool.Pool
 	// BaseURL is the address of the application (https://erp.example.com): a link of a notice may be an
 	// absolute path or a URL on this host. Empty: absolute paths only.

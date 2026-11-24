@@ -124,6 +124,9 @@ type AudienceReceipt struct {
 	NoticeID uuid.UUID
 	// Recipients is the number of recipients of the durable job.
 	Recipients int
+	// Skipped are the audience members the resolution that queued this send dropped (inactive users,
+	// unknown groups, ...). It is empty for a replay, which returns the first receipt without resolving.
+	Skipped []SkippedRecipient
 }
 
 // AudienceSender sends a notice to an audience. External senders depend on

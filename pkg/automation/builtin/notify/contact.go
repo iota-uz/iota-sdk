@@ -57,6 +57,11 @@ func (*contactNode) Spec() graph.NodeSpec {
 		Output: expr.Fields{
 			{Name: "notice_id", Field: expr.StringField},
 			{Name: "channel", Field: expr.StringField},
+			{Name: "skipped", Field: skippedField},
+			// Only a dry run fills it: the records the audience resolves to (never their addresses).
+			{Name: "resolved", Field: expr.OptionalOf(expr.ObjectOf(expr.Fields{
+				{Name: "records", Field: expr.ListOf(expr.StringField)},
+			}))},
 		},
 	}
 }
@@ -73,7 +78,7 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 	if err != nil {
 		return engine.EffectResult{}, err
 	}
-	out := map[string]any{"notice_id": "", "channel": string(channel)}
+	out := map[string]any{"notice_id": "", "channel": string(channel), "skipped": []any{}}
 	reachable, err := n.reachable(ctx, run, req.Audience.Records[0], channel)
 	if err != nil {
 		return engine.EffectResult{}, err
@@ -85,6 +90,7 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
+	out["skipped"] = skippedOf(receipt.Skipped)
 	if receipt.Recipients == 0 {
 		return result(OutcomeNoContact, out)
 	}
@@ -92,26 +98,32 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 	return result(OutcomeSent, out)
 }
 
-// PreviewEffect is what a dry run shows: whether the record can be reached, and the audience the delivery
-// layer resolves, without a send.
+// PreviewEffect is what a dry run shows: the audience the delivery layer resolves and whether the record can
+// be reached, without a send. The trace names the records and the reasons recipients were skipped, never
+// the addresses of a contact.
 func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext, node graph.Node, e graph.Effect) (engine.EffectResult, error) {
 	req, channel, err := n.request(run, node, e.Params)
 	if err != nil {
 		return engine.EffectResult{}, err
 	}
-	out := map[string]any{"notice_id": "", "channel": string(channel)}
-	reachable, err := n.reachable(ctx, run, req.Audience.Records[0], channel)
-	if err != nil {
-		return engine.EffectResult{}, err
-	}
-	if !reachable {
-		return result(OutcomeNoContact, out)
-	}
+	out := map[string]any{"notice_id": "", "channel": string(channel), "skipped": []any{}}
 	resolved, err := n.cfg.Sender.Resolve(n.readCtx(ctx, run), req)
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
-	if resolved.Total() == 0 {
+	records := make([]any, 0, len(resolved.Addressees))
+	for _, a := range resolved.Addressees {
+		if a.Record != nil {
+			records = append(records, a.Record.Entity+"/"+a.Record.Key)
+		}
+	}
+	out["skipped"] = skippedOf(resolved.Skipped)
+	out["resolved"] = map[string]any{"records": records}
+	reachable, err := n.reachable(ctx, run, req.Audience.Records[0], channel)
+	if err != nil {
+		return engine.EffectResult{}, err
+	}
+	if !reachable || resolved.Total() == 0 {
 		return result(OutcomeNoContact, out)
 	}
 	return result(OutcomeSent, out)

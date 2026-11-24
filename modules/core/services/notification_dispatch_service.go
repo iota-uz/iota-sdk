@@ -217,7 +217,7 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 		return invalid("too many notification recipients")
 	}
 	if resolved.Total() == 0 {
-		return notifications.AudienceReceipt{}, nil
+		return notifications.AudienceReceipt{Skipped: resolved.Skipped}, nil
 	}
 	rule := notifications.Rule{EventKey: event.Key, Configured: true, Enabled: true, Level: req.Level, Channels: prepared.channels, UserIDs: resolved.UserIDs}
 	notice, err := s.router.ensureNotice(ctx, event, notifications.NoticeExplicit)
@@ -239,7 +239,7 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 	if job.Mode != notifications.NoticeExplicit {
 		return conflict()
 	}
-	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total()}, nil
+	return notifications.AudienceReceipt{NoticeID: notice.ID, Recipients: job.Total(), Skipped: resolved.Skipped}, nil
 }
 
 type preparedAudience struct {

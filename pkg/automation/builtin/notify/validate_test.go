@@ -2,6 +2,7 @@ package notify_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -44,7 +45,17 @@ func newValidation(t *testing.T) *validation {
 		RecipientKeys: []notifications.RecipientDefinition{{Key: "owner", Name: map[string]string{"en": "Owner"},
 			Resolve: func(context.Context, notifications.Event) ([]uint, error) { return nil, nil }}}}))
 	require.NoError(t, cat.Register(notifications.Definition{Module: "acme", Key: "acme.order.deleted.v1", Name: map[string]string{"en": "Deleted"}}))
-	v := &validation{reg: catalog.NewRegistry(nil), cfg: notify.Config{Sender: &sender{}, Catalog: cat, Pool: new(pgxpool.Pool), BaseURL: "https://erp.example.com"}}
+	v := &validation{reg: catalog.NewRegistry(nil, catalog.WithParticipants(func(event string) []string {
+		def, ok := cat.Get(event)
+		if !ok {
+			return nil
+		}
+		var keys []string
+		for _, r := range def.RecipientKeys {
+			keys = append(keys, r.Key)
+		}
+		return keys
+	})), cfg: notify.Config{Sender: &sender{}, Catalog: cat, Pool: new(pgxpool.Pool), BaseURL: "https://erp.example.com"}}
 	require.NoError(t, v.reg.RegisterTriggers(engine.Triggers()))
 	require.NoError(t, v.reg.RegisterTriggers(orderEvents{}))
 	for _, spec := range graph.BuiltinNodes(nil, nil) {
@@ -256,4 +267,24 @@ func TestRegisterRefusesAConfigTheNodesCannotWorkWith(t *testing.T) {
 	r := reg()
 	require.NoError(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}))
 	assert.Error(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}), "the nodes are registered once")
+}
+
+// The editor learns which events offer participants from the catalog view.
+func TestTheCatalogViewNamesTheParticipantsOfAnEvent(t *testing.T) {
+	v := newValidation(t)
+	byKey := map[string][]string{}
+	for _, e := range v.view.JSON(graph.DefaultBehaviors()).Events {
+		byKey[e.Key] = e.Participants
+	}
+	assert.Equal(t, []string{"owner"}, byKey["acme.order.created.v1"])
+	assert.Empty(t, byKey["acme.order.deleted.v1"])
+	assert.Empty(t, byKey[engine.EventManual])
+	var schema map[string]any
+	for _, n := range v.view.JSON(graph.DefaultBehaviors()).Nodes {
+		if n.Type == notify.NodeNotify {
+			require.NoError(t, json.Unmarshal(n.Params, &schema))
+		}
+	}
+	participants := schema["properties"].(map[string]any)["recipients"].(map[string]any)["properties"].(map[string]any)["participants"].(map[string]any)
+	assert.Equal(t, true, participants["x-event-participants"], "the form shows the field only where the trigger events offer participants")
 }

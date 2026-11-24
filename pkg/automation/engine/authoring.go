@@ -222,8 +222,12 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			return graph.ExecAnswer{Outcome: res.outcome, Output: out}
 		}
 	}
-	trigger := dryRunTrigger(inputs)
-	opts.Preview = func(node graph.Node, effects []graph.Effect) (graph.ExecAnswer, bool) {
+	opts.Preview = func(node graph.Node, effects []graph.Effect, started graph.Event) (graph.ExecAnswer, bool) {
+		// The event that started the dry run, as the interpreter chose it, and the author as its initiator.
+		trigger := triggerOfEvent(started, "dry-run")
+		if trigger != nil {
+			trigger.ActorUserID = a.UserID
+		}
 		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects)
 	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
@@ -365,7 +369,7 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 			}
 		}
 		if len(st.Effects) > 0 {
-			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, triggerOfEvent(event, "test-node"), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
@@ -403,18 +407,13 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	return res, nil
 }
 
-// dryRunTrigger is the event a dry run starts on: the first event input that names its kind.
-func dryRunTrigger(inputs []graph.DryRunInput) *TriggerEvent {
-	for _, in := range inputs {
-		ev := in.Event
-		if len(in.Events) > 0 {
-			ev = in.Events[len(in.Events)-1]
-		}
-		if t := triggerOfEvent(ev, "dry-run"); t != nil {
-			return t
-		}
+// authorTrigger is the event a node test runs on, with the author as its initiator.
+func authorTrigger(event map[string]any, a Actor) *TriggerEvent {
+	t := triggerOfEvent(event, "test-node")
+	if t != nil {
+		t.ActorUserID = a.UserID
 	}
-	return nil
+	return t
 }
 
 // triggerOfEvent is the trigger event of an event as the context shows it (payload, and its kind); nil for

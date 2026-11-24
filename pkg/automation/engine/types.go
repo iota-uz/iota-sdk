@@ -483,6 +483,9 @@ type TriggerEvent struct {
 	Key     string
 	ID      string
 	Payload json.RawMessage
+	// ActorUserID is the user who initiated the event (the run's initiator); 0 for a system event. It is
+	// what the event's actor recipient resolves to.
+	ActorUserID int64
 }
 
 // CodeNode is an optional interface of a catalog.NodeType: its nodes run code a human reviews before a

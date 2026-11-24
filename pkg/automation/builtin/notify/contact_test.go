@@ -2,6 +2,7 @@ package notify_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -157,7 +158,16 @@ func TestSendToContactPreviewChecksTheContactWithoutSending(t *testing.T) {
 	assert.Empty(t, s.sends)
 	assert.Len(t, s.resolves, 1, "the audience is resolved as a send would")
 
+	assert.Equal(t, map[string]any{"records": []any{"crm.client/42"}}, res.Output["resolved"])
+
+	// Without an address the outcome is still no_contact, and the trace still names the audience.
+	s.resolved.Skipped = []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/7", Reason: notifications.SkipNoContactResolver}}
 	res, err = nt.(engine.EffectPreviewer).PreviewEffect(context.Background(), step(), graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("email")})
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
+	assert.Equal(t, map[string]any{"records": []any{"crm.client/42"}}, res.Output["resolved"])
+	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/7", "reason": "no_contact_resolver"}}, res.Output["skipped"])
+	assert.NotContains(t, res.Output, "address")
+	raw, _ := json.Marshal(res.Output)
+	assert.NotContains(t, string(raw), "+998901234567", "a contact's address stays out of the trace")
 }

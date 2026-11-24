@@ -6,8 +6,10 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
@@ -232,4 +234,66 @@ func TestAutomationNotify_CyrillicTextWithinTheLimitsIsDelivered(t *testing.T) {
 	var se *engine.StepError
 	require.ErrorAs(t, err, &se)
 	require.Equal(t, engine.CodeInvalidInput, se.Code)
+}
+
+// The actor of the trigger event is its initiator, which the run keeps and the node hands the delivery layer.
+func TestAutomationNotify_ActorParticipantIsTheInitiatorOfTheEvent(t *testing.T) {
+	c := setupAutomation(t)
+	const key = "acme.actor.created.v1"
+	d := notifications.TestDefinition()
+	d.Key = key
+	d.RecipientKeys = []notifications.RecipientDefinition{notifications.ActorRecipient()}
+	require.NoError(t, c.catalog.Register(d))
+	nt := c.node(t, notify.NodeNotify)
+	params := map[string]any{"recipients": map[string]any{"participants": []string{"actor"}}, "title": "Hi", "body": "Actor"}
+
+	run := c.run
+	run.Trigger = &engine.TriggerEvent{Key: key, ID: uuid.NewString(), Payload: json.RawMessage(`{}`), ActorUserID: int64(c.people[1])}
+	res, err := c.step(t, nt, run, params)
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeSent, res.Outcome)
+	c.drain(t)
+	require.Equal(t, 1, c.count(t, "SELECT COUNT(*) FROM core.notifications WHERE tenant_id=$1 AND title='Hi' AND user_id=$2", c.f.TenantID(), c.people[1]))
+
+	// An event without an initiator has no actor: nobody is left.
+	run.Seq++
+	run.Trigger = &engine.TriggerEvent{Key: key, ID: uuid.NewString(), Payload: json.RawMessage(`{}`)}
+	res, err = c.step(t, nt, run, params)
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeNoRecipients, res.Outcome)
+}
+
+// Who was left out comes from the resolution that queued the notice.
+func TestAutomationNotify_SkippedComeWithTheReceipt(t *testing.T) {
+	c := setupAutomation(t)
+	group := c.group(t, c.f.TenantID(), c.people...)
+	_, err := c.f.Pool.Exec(c.committed, "UPDATE users SET status='pending_onboarding' WHERE id=$1", c.people[2])
+	require.NoError(t, err)
+	res, err := c.step(t, c.node(t, notify.NodeNotify), c.run, map[string]any{"recipients": map[string]any{"groups": []string{group.String()}}, "title": "Hi", "body": "Skipped"})
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeSent, res.Outcome)
+	require.Equal(t, "2", res.Output["recipients"].(json.Number).String())
+	require.Equal(t, []any{map[string]any{"kind": "user", "ref": strconv.FormatUint(uint64(c.people[2]), 10), "reason": notifications.SkipInactive}}, res.Output["skipped"])
+}
+
+// The notify node needs no second connection while the step's transaction holds the only one.
+func TestAutomationNotify_NeedsNoSecondConnectionInTheStepTransaction(t *testing.T) {
+	c := setupAutomation(t)
+	cfg, err := pgxpool.ParseConfig(c.f.Pool.Config().ConnString())
+	require.NoError(t, err)
+	cfg.MaxConns = 1
+	single, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(single.Close)
+	nt := notify.NewNotify(notify.Config{Sender: c.sender, Catalog: c.catalog, Pool: single})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	tx, err := single.Begin(ctx) // the step's transaction holds the pool's only connection
+	require.NoError(t, err)
+	res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, c.run, graph.Node{ID: c.run.NodeID, Type: notify.NodeNotify}, graph.Effect{Params: map[string]any{
+		"recipients": map[string]any{"users": []any{json.Number(strconv.FormatUint(uint64(c.people[0]), 10))}}, "title": "One", "body": "Connection"}})
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeSent, res.Outcome)
+	require.NoError(t, tx.Commit(ctx))
 }

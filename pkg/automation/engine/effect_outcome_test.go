@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -114,7 +115,7 @@ func TestEffectNodeTakesTheOutcomeItPicks(t *testing.T) {
 			p := e.proc()
 			a := e.human()
 			e.create(p, a, pickGraph(tc.pick))
-			e.publish(e.tenant, orderCreated, "o-1", order{Amount: 7}, 0)
+			e.publish(e.tenant, orderCreated, "o-1", order{Amount: 7}, 2)
 			run := onlyRun(t, e, p, a)
 			p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
 			assert.Equal(t, []string{tc.effect}, e.effects(run.RunID))
@@ -127,6 +128,7 @@ func TestEffectNodeTakesTheOutcomeItPicks(t *testing.T) {
 			assert.Equal(t, evCreated, steps[0].trigger.Key)
 			assert.NotEmpty(t, steps[0].trigger.ID)
 			assert.JSONEq(t, `{"amount": 7, "note": "", "secret": ""}`, string(steps[0].trigger.Payload), "the engine's own fields are left out")
+			assert.EqualValues(t, 2, steps[0].trigger.ActorUserID, "the initiator of the event is the actor of the trigger")
 		})
 	}
 }
@@ -227,4 +229,26 @@ func TestANodeTypeChecksTheGraphThatUsesIt(t *testing.T) {
 	require.Len(t, verr.Errors, 1)
 	assert.Equal(t, "nodes[0].params.pick", verr.Errors[0].Path)
 	assert.Equal(t, graph.CodeParams, verr.Errors[0].Code)
+}
+
+// The preview reads the event that started the dry run — the first one the trigger took — and keeps it.
+func TestDryRunPreviewReadsTheEventThatStartedTheRun(t *testing.T) {
+	e, n := newPickEnv(t)
+	p := e.proc()
+	g := strings.Replace(pickGraph("sent"), `{"id": "created", "event": "acme.order.created.v1"}`, `{"id": "created", "event": "acme.order.created.v1", "filter": "event.amount > 5"}`, 1)
+	res, err := p.rt.Authoring().DryRun(context.Background(), e.human(), engine.DryRunInput{
+		Graph:   json.RawMessage(g),
+		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Events: []json.RawMessage{
+			json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 3, "note": "first", "secret": ""}`),
+			json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 9, "note": "second", "secret": ""}`),
+		},
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(res.Trace), 2)
+	steps := n.steps()
+	require.Len(t, steps, 1)
+	require.NotNil(t, steps[0].trigger)
+	assert.JSONEq(t, `{"amount": 9, "note": "second", "secret": ""}`, string(steps[0].trigger.Payload), "the first event failed the filter and started nothing")
+	assert.EqualValues(t, 1, steps[0].trigger.ActorUserID, "the author is the initiator of a dry run")
 }

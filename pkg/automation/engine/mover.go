@@ -258,7 +258,11 @@ func triggerEventOf(run runRow) *TriggerEvent {
 	if run.TriggerEventID != nil {
 		id = *run.TriggerEventID
 	}
-	return triggerOfEvent(input, id)
+	t := triggerOfEvent(input, id)
+	if t != nil && run.InitiatorID != nil {
+		t.ActorUserID = *run.InitiatorID
+	}
+	return t
 }
 
 // call registers a call or a human task as a wait: the executor starts it, its result comes later.

@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ const notifyParamsSchema = `{
         "users": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL: a list of user IDs"},
         "groups": {"type": "array", "maxItems": 50, "items": {"type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"}},
         "roles": {"type": "array", "maxItems": 50, "items": {"type": "string", "pattern": "^[1-9][0-9]{0,9}$"}},
-        "participants": {"type": "array", "maxItems": 20, "items": {"type": "string", "minLength": 1, "maxLength": 100}}
+        "participants": {"type": "array", "maxItems": 20, "items": {"type": "string", "minLength": 1, "maxLength": 100}, "x-event-participants": true, "description": "recipient keys of the trigger event's notification definition"}
       },
       "additionalProperties": false
     },
@@ -101,12 +102,8 @@ func (n *notifyNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engin
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
-	// Who was left out is told by the same resolution. It only explains the outcome, so it reads outside
-	// the step's transaction (a failed statement there would abort the step) and a resolution that fails
-	// now leaves the list empty rather than failing a notice that is queued.
-	if resolved, err := n.cfg.Sender.Resolve(n.readCtx(ctx, run), req); err == nil {
-		out["skipped"] = skippedOf(resolved.Skipped)
-	}
+	// Who was left out is told by the resolution that queued the notice.
+	out["skipped"] = skippedOf(receipt.Skipped)
 	if receipt.Recipients == 0 {
 		return result(OutcomeNoRecipients, out)
 	}
@@ -214,6 +211,9 @@ func (b base) source(run engine.StepContext) (*notifications.Event, error) {
 		return nil, &engine.StepError{Code: CodeNoTriggerEvent, Message: "participants are the recipients of the event that started the run, and this run has none"}
 	}
 	ev := notifications.Event{Key: t.Key, ID: t.ID, TenantID: run.TenantID, Payload: t.Payload, Subject: subjectRef(run)}
+	if t.ActorUserID > 0 && t.ActorUserID <= math.MaxUint32 {
+		ev.ActorUserID = uint(t.ActorUserID) // the actor participant is the initiator of the event
+	}
 	if ev.ID == "" {
 		ev.ID = run.RunID.String()
 	}

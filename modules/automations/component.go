@@ -189,7 +189,9 @@ func (c *component) Build(b *composition.Builder) error {
 	// The registry's availability is the store, which is built after the directory that registers into
 	// the registry: it is resolved on the first catalog read.
 	composition.ProvideDefault[catalog.Registry](b, func(container *composition.Container) (catalog.Registry, error) {
-		return catalog.NewRegistry(lazyAvailability{container: container}), nil
+		return catalog.NewRegistry(lazyAvailability{container: container}, catalog.WithParticipants(func(event string) []string {
+			return participantsOf(container, event)
+		})), nil
 	})
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
 		reg, err := composition.Resolve[catalog.Registry](container)
@@ -371,6 +373,24 @@ func loadManifest(path string) (clienthost.Manifest, error) {
 		return clienthost.Manifest{}, serrors.Wrap("automations.loadManifest", err)
 	}
 	return clienthost.ParseManifest(raw)
+}
+
+// participantsOf are the recipient keys of the notification definition of an event: the participants a notify
+// node may name when a graph is triggered by it.
+func participantsOf(container *composition.Container, event string) []string {
+	definitions, err := composition.Resolve[*notifications.Catalog](container)
+	if err != nil {
+		return nil
+	}
+	def, ok := definitions.Get(event)
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(def.RecipientKeys))
+	for _, r := range def.RecipientKeys {
+		keys = append(keys, r.Key)
+	}
+	return keys
 }
 
 // lazyAvailability resolves the connection store when the catalog is first read.

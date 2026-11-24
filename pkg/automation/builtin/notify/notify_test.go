@@ -131,12 +131,13 @@ func TestNotifyStepsHaveTheirOwnProducer(t *testing.T) {
 
 func TestNotifyWithNobodyLeftQueuesNothing(t *testing.T) {
 	skipped := []notifications.SkippedRecipient{{Kind: notifications.RecipientUser, Ref: "7", Reason: notifications.SkipInactive}}
-	s := &sender{resolved: notifications.ResolvedAudience{Skipped: skipped}}
+	s := &sender{receipt: notifications.AudienceReceipt{Skipped: skipped}}
 	nt := notify.NewNotify(notify.Config{Sender: s})
 	res, err := apply(t, nt, step(), notifyParams(map[string]any{"users": []any{7}}))
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeNoRecipients, res.Outcome)
 	assert.Len(t, s.sends, 1, "the delivery layer is asked, and queues nothing for an empty audience: its receipt names no notice")
+	assert.Empty(t, s.resolves, "who was left out comes with the receipt of the send, not from a second resolution")
 	assert.Equal(t, "", res.Output["notice_id"])
 	assert.Equal(t, "0", res.Output["recipients"].(json.Number).String())
 	assert.Equal(t, []any{map[string]any{"kind": "user", "ref": "7", "reason": "inactive"}}, res.Output["skipped"])
@@ -262,7 +263,7 @@ func TestNotifyParticipantsNeedTheTriggerEvent(t *testing.T) {
 	assert.Empty(t, s.sends)
 
 	run := step()
-	run.Trigger = &engine.TriggerEvent{Key: "acme.order.created.v1", ID: "ev-1", Payload: json.RawMessage(`{"amount": 5}`)}
+	run.Trigger = &engine.TriggerEvent{Key: "acme.order.created.v1", ID: "ev-1", Payload: json.RawMessage(`{"amount": 5}`), ActorUserID: 2}
 	res, err := apply(t, nt, run, p)
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeSent, res.Outcome)
@@ -273,6 +274,7 @@ func TestNotifyParticipantsNeedTheTriggerEvent(t *testing.T) {
 	assert.Equal(t, "ev-1", src.ID)
 	assert.Equal(t, tenant, src.TenantID)
 	assert.JSONEq(t, `{"amount": 5}`, string(src.Payload))
+	assert.Equal(t, uint(2), src.ActorUserID, "the actor participant is the initiator of the trigger event")
 	assert.Equal(t, "created:ev-1", src.DedupeKey, "the source carries the identity its definition gives the event")
 	assert.Equal(t, []string{"owner"}, s.sends[0].Audience.Participants)
 }
