@@ -31,10 +31,10 @@ const (
 	CodeInvalidParams            = "invalid_params"
 )
 
-// ErrSecretMissing: the tenant has no secret of the name.
+// ErrSecretMissing reports that the tenant has no secret of the name.
 var ErrSecretMissing = errors.New("automation builtin: secret is missing")
 
-// ErrConnectionMissing: the tenant has no connected connection of the name whose connector offers code
+// ErrConnectionMissing reports that the tenant has no connected connection of the name whose connector offers code
 // access (connectors.CodeAccessor), or several.
 var ErrConnectionMissing = errors.New("automation builtin: connection is missing")
 

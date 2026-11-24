@@ -344,7 +344,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	}
 	e := Effect{Node: node.Type, Params: rendered}
 	if spec.StepContext {
-		c, err := jsonOut(map[string]any(vars))
+		c, err := jsonOut(vars)
 		if err != nil {
 			s := failed(FailExpression, "the step's context: %v", err)
 			return Effect{}, &s

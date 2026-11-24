@@ -317,6 +317,65 @@ queued conversation runs, runs of disabled graphs, retention.
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
   rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.
 
+### Built-in nodes (#1337)
+
+`pkg/automation/builtin` registers the node types every tenant's catalog has without a connector; the
+`automations` module registers them in its `catalog.Registry` when it is composed (`builtin.Register` for
+an application that builds its own registry). Params are in the field language; a `"*"` segment of a
+`Values`/`Templates`/`Expressions` path stands for every key of a map param (`values.*`, `headers.*`), and
+each key's expression is checked at save time at its own path (`nodes[i].params.values.total`).
+
+| Type | Behavior | Params | Outcomes | Output |
+|---|---|---|---|---|
+| `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
+| `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
+| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel}`, `auth {secret, scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url}` |
+| `start_automation` | effect (in the step) | `automation_id`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
+| `run_automation` | wait with effect | as `start_automation`, `timeout` (1h, ≤ 30d) | `done`, `failed`, `timeout` | `{run_id, status, output}` |
+| `action.<key>` | call | `args: {<name>: tpl for a string type \| cel}` | the action's, `failed` | the action's |
+
+- **Code.** The source compiles at save time (`engine.NodeValidator`): a syntax error or an import is
+  `VALIDATION_FAILED` at `nodes[i].params.source` with line and column. The node declares
+  `NodeSpec.StepContext`, so its call carries the step's context (`event`, `nodes`, the subject's
+  variables, `subject`, `run`, `tenant`, `now`) as `ctx`. It runs in the call's child instance with a
+  fresh sandbox; only the declared secrets (from the tenant's `host.SecretResolver`) are in `env.secrets`;
+  `env.fetch` exists with `fetch: true`. A failure is `failed` with `output.error.code` the sandbox's
+  reason (`timeout`, `exception`, `network_blocked`, `unknown_outcome`, `secret_missing`,
+  `connection_missing`, `connection_origin_mismatch`, ...) and the masked logs; a run that ended without a
+  result is `outcome_unknown`. The node is not idempotent: it is never repeated after an unknown outcome.
+  `EnableReview` lists its source, secrets, fetch and connections.
+- **Connections in code.** A connector that implements `connectors.CodeAccessor` declares its API's
+  `BaseURL` and the methods of `env.connections.<name>` (`get(path)`, `list(path)`, each an HTTP method);
+  `Authorize` adds the credentials to a request in Go, so no token reaches the sandbox, and the token is
+  masked in output, logs and errors. A path or URL off the base URL's origin is
+  `connection_origin_mismatch`; a name that is not a connected connection with code access is
+  `connection_missing`. The same `auth: {connection}` authorizes an HTTP node's request to that origin.
+- **HTTP.** The request goes through `code.NewGuardedFetcher` (https on 443, every hop's DNS checked,
+  `Authorization`/`Cookie` and every non-safelisted header dropped once a redirect leaves the origin). A
+  refusal is `network_blocked` with the host only; a body over 10 MiB is `response_too_large`; a 429
+  with `Retry-After` is repeated by the engine's rule. Only `GET`/`HEAD` and a request with
+  `idempotency_header` (it carries the call's idempotency key) are idempotent
+  (`catalog.IdempotentCall`). A response the success expression rejects takes `failed` with the response
+  in the output and `output.error.code = http_status`.
+- **Another graph.** Both nodes start the target's enabled version through its manual trigger (the
+  first by id; `input` is `event.input`, validated by its `input_schema`) in the step's transaction
+  (`engine.RunStarter`, `Runtime.StartFromStep`). A graph of another tenant, a disabled one or one
+  without a manual trigger is `failed` with `not_enabled`; the started run's depth is the run's plus one,
+  so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. `run_automation`'s run is a child
+  instance of the step's run (cancelling the run terminates it); its wait listens for
+  `automation.run.finished.v1` about that run (`engine.EffectWaitKeyer`) and takes `done` or `failed`
+  by its status (`engine.WakeResolver`). A run started by `start_automation` lives on its own.
+- **Actions.** A module contributes `actions.Action`s at composition (`actions.Contribute`,
+  `actions.ContributeFunc`); the module registers them at start and a key contributed twice fails it.
+  Each is the node type `action.<key>`, with its `ActionSpec` (label, group, args and output as
+  `manifest.Type`, outcomes, `Permission`, `Idempotent`, `Subjects`). An author without the permission
+  does not see it; the run-as's permission is checked on every call (`forbidden`, nothing done); args are
+  validated before `Run` (`invalid_args`); an `*ActionError` is `failed` with its code. `Run` gets the
+  call's invocation ID (`actions.InvocationID(ctx)`, stable across attempts) and `servicectx.Context`
+  builds the services' context (tenant, pool, the run-as as the user, a business-history execution of an
+  automation). The SDK's actions: `core.user.block`, `core.user.unblock`, `core.group.add_user`,
+  `core.group.remove_user`, `crm.chat.send_message`.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).

@@ -107,7 +107,7 @@ func (n *Node) Spec() graph.NodeSpec {
 
 func (n *Node) Requires() []catalog.ConnectorKind { return nil }
 
-// Idempotent: a run whose outcome is unknown is not repeated.
+// Idempotent is false: a run whose outcome is unknown is not repeated.
 func (n *Node) Idempotent() bool { return false }
 
 func (n *Node) Localize(spec graph.NodeSpec, locale string) graph.NodeSpec {
@@ -239,7 +239,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	eng, err := n.engineFor(ctx)
 	if err != nil {
-		return n.failed(CodeUnavailable, "code cannot run in this process", nil), nil
+		return n.failed(CodeUnavailable, "code cannot run in this process", nil), nil //nolint:nilerr // the node's failed outcome
 	}
 	timeout := sandbox.DefaultTimeout
 	if ms, ok := graph.DurationMs(p.Timeout); ok {
@@ -250,7 +250,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	ctxJSON, err := json.Marshal(nonNil(in.Context))
 	if err != nil {
-		return n.failed(sandbox.ReasonOutputInvalid, "the step's context is not JSON", nil), nil
+		return n.failed(sandbox.ReasonOutputInvalid, "the step's context is not JSON", nil), nil //nolint:nilerr // the node's failed outcome
 	}
 	run := sandbox.RunInput{
 		Ctx: ctxJSON, Secrets: secrets, Outcomes: p.Outcomes, Limits: sandbox.Limits{Timeout: timeout},
@@ -289,7 +289,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	var output any
 	if len(res.Output) > 0 {
 		if err := json.Unmarshal(res.Output, &output); err != nil {
-			return n.failed(sandbox.ReasonOutputInvalid, "the output is not JSON", logs), nil
+			return n.failed(sandbox.ReasonOutputInvalid, "the output is not JSON", logs), nil //nolint:nilerr // the node's failed outcome
 		}
 	}
 	return catalog.CallResult{Outcome: res.Outcome, Output: map[string]any{"output": output, "logs": logs}}, nil

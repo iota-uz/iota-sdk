@@ -27,7 +27,10 @@ func (f *fakeConnections) CallConnection(_ context.Context, req ConnectionReques
 	if strings.Contains(req.Path, "://") && !strings.HasPrefix(req.Path, "https://api.example.com/") {
 		return nil, &ConnectionRefusedError{Code: ReasonConnectionOriginMismatch, Message: "the path leaves the connector's origin"}
 	}
-	body, _ := json.Marshal(map[string]any{"method": req.Method, "path": req.Path, "body": string(req.Body), "echo": "Bearer " + connToken})
+	body, err := json.Marshal(map[string]string{"method": req.Method, "path": req.Path, "body": string(req.Body), "echo": "Bearer " + connToken})
+	if err != nil {
+		return nil, err
+	}
 	return &FetchResponse{Status: 200, StatusText: "OK", Header: http.Header{"Content-Type": {"application/json"}}, Body: body, URL: "https://api.example.com" + req.Path}, nil
 }
 

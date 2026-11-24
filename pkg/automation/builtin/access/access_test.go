@@ -52,7 +52,7 @@ func TestGatewayAuthorizesTheDeclaredMethod(t *testing.T) {
 	if _, err := g.CallConnection(context.Background(), code.ConnectionRequest{Connection: "crm", Method: "list", Path: "/deals"}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.got.Method != "GET" || rec.got.URL != "https://api.example.com/deals" || rec.got.Header.Get("Authorization") != "Bearer tok" {
+	if rec.got.Method != http.MethodGet || rec.got.URL != "https://api.example.com/deals" || rec.got.Header.Get("Authorization") != "Bearer tok" {
 		t.Fatalf("request %+v", rec.got)
 	}
 	if _, err := g.CallConnection(context.Background(), code.ConnectionRequest{Connection: "crm", Method: "delete", Path: "/deals"}); err == nil {

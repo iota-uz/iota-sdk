@@ -31,7 +31,7 @@ type SendMessageCommand struct {
 	Attachments []*upload.Upload
 }
 
-// ErrNoChatProvider: the application has no provider for the transport a message is sent by.
+// ErrNoChatProvider reports that the application has no provider for the transport a message is sent by.
 var ErrNoChatProvider = errors.New("crm: no chat provider for the transport")
 
 type ChatService struct {

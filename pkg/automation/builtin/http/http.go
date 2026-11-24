@@ -114,7 +114,7 @@ func (n *Node) Requires() []catalog.ConnectorKind { return nil }
 // Idempotent is the default for a request whose params are unknown: not repeated.
 func (n *Node) Idempotent() bool { return false }
 
-// IdempotentWith: GET and HEAD, or a request that sends the call's idempotency key.
+// IdempotentWith reports GET and HEAD, and a request that sends the call's idempotency key.
 func (n *Node) IdempotentWith(params map[string]any) bool {
 	method, _ := params["method"].(string)
 	if method == "" {
@@ -389,7 +389,10 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 				form.Set(k, v)
 			case nil:
 			default:
-				j, _ := json.Marshal(v)
+				j, err := json.Marshal(v)
+				if err != nil {
+					return nil, fail(access.CodeInvalidParams, "form field %s is not JSON", k)
+				}
 				form.Set(k, strings.Trim(string(j), `"`))
 			}
 		}

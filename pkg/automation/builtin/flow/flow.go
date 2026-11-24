@@ -212,7 +212,7 @@ func (n *RunNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepCon
 	return n.st.start(ctx, tx, run, e, true)
 }
 
-// EffectWaitSubject: the wait listens for the finish of the run the effect started.
+// EffectWaitSubject makes the wait listen for the finish of the run the effect started.
 func (n *RunNode) EffectWaitSubject(_, output map[string]any) (engine.SubjectRef, bool) {
 	id, _ := output["run_id"].(string)
 	if id == "" {
@@ -221,7 +221,7 @@ func (n *RunNode) EffectWaitSubject(_, output map[string]any) (engine.SubjectRef
 	return engine.SubjectRef{Entity: engine.SubjectRun, Key: id}, true
 }
 
-// ResolveWake: done when the run finished done, failed otherwise (failed, cancelled), with its output.
+// ResolveWake takes done when the run finished done, failed otherwise (failed, cancelled), with its output.
 func (n *RunNode) ResolveWake(ev graph.Event) (string, map[string]any) {
 	status, _ := ev["status"].(string)
 	out := map[string]any{"run_id": ev["runId"], "status": status, "output": ev["output"]}

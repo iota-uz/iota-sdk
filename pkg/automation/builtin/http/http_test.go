@@ -116,7 +116,7 @@ func TestBearerSecretIsSentAndMasked(t *testing.T) {
 		t.Fatalf("outcome %s", res.Outcome)
 	}
 	req := ff.got[0]
-	if req.Method != "POST" || req.URL != "https://api.example.com/v1/items?q=a+b" || string(req.Body) != `{"name":"x"}` {
+	if req.Method != nethttp.MethodPost || req.URL != "https://api.example.com/v1/items?q=a+b" || string(req.Body) != `{"name":"x"}` {
 		t.Fatalf("request %+v", req)
 	}
 	if req.Header.Get("Authorization") != "Bearer sk-9z8y7x" || req.Header.Get("Idempotency-Key") != "run:node:tok:1" || req.Header.Get("Content-Type") != "application/json" {

@@ -2,7 +2,6 @@ package automations_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -73,7 +72,7 @@ func TestCoreAutomationActions(t *testing.T) {
 	// Without the right nothing happens.
 	_, err = block.Execute(context.Background(), in(plain, map[string]any{"user_id": int(target.ID()), "reason": "left the company"}))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "%v", err)
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, actions.CodeForbidden, ce.Code)
 	got, err := users.GetByID(ctx, target.ID())
 	require.NoError(t, err)
@@ -92,7 +91,7 @@ func TestCoreAutomationActions(t *testing.T) {
 
 	// A refusal of the service is the action's failure, not an unknown outcome.
 	_, err = block.Execute(context.Background(), in(admin, map[string]any{"user_id": int(target.ID()), "reason": "again"}))
-	require.True(t, errors.As(err, &ce), "%v", err)
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, actions.CodeActionFailed, ce.Code)
 
 	res, err = byType[actions.TypeOf(core.ActionUserUnblock)].Execute(context.Background(), in(admin, map[string]any{"user_id": int(target.ID())}))
@@ -104,8 +103,8 @@ func TestCoreAutomationActions(t *testing.T) {
 	require.NoError(t, err)
 	res, err = byType[actions.TypeOf(core.ActionGroupAddUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
 	require.NoError(t, err)
-	assert.Equal(t, float64(1), res.Output["members"])
+	assert.InDelta(t, 1, res.Output["members"], 0)
 	res, err = byType[actions.TypeOf(core.ActionGroupRemoveUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
 	require.NoError(t, err)
-	assert.Equal(t, float64(0), res.Output["members"])
+	assert.InDelta(t, 0, res.Output["members"], 0)
 }

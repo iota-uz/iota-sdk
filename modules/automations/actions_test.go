@@ -50,7 +50,9 @@ func (dupAction) Run(context.Context, spi.Subject, json.RawMessage) (string, jso
 
 type dupComponent struct{}
 
-func (dupComponent) Descriptor() composition.Descriptor { return composition.Descriptor{Name: "dup_actions"} }
+func (dupComponent) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "dup_actions"}
+}
 func (dupComponent) LocaleFS() []*embed.FS { return nil }
 func (dupComponent) Build(b *composition.Builder) error {
 	actions.Contribute(b, dupAction{})

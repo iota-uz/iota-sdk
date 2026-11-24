@@ -84,8 +84,8 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 	a.mu.Lock()
 	a.blocked = append(a.blocked, in.UserID)
 	a.mu.Unlock()
-	out, _ := json.Marshal(map[string]any{"blocked": in.UserID})
-	return "done", out, nil
+	out, err := json.Marshal(map[string]string{"blocked": in.UserID})
+	return "done", out, err
 }
 
 // builtinEnv is an env whose catalog has the built-in nodes.
@@ -144,7 +144,10 @@ func sandboxGraph(params string) string {
 }
 
 func codeParams(src string, extra string) string {
-	b, _ := json.Marshal(src)
+	b, err := json.Marshal(src)
+	if err != nil {
+		panic(err)
+	}
 	return `{"lang": "ts", "source": ` + string(b) + extra + `}`
 }
 
@@ -351,7 +354,10 @@ func TestRunAutomationReturnsTheChildOutput(t *testing.T) {
 	parent := be.create(p, a, parentGraph("run_automation", child.ID))
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 4}, 0)
 	var kids []engine.RunSummary
-	p.until(func() bool { kids = be.runsOf(p, child.ID); return len(kids) == 1 && kids[0].Status == engine.RunWaiting }, "the child runs")
+	p.until(func() bool {
+		kids = be.runsOf(p, child.ID)
+		return len(kids) == 1 && kids[0].Status == engine.RunWaiting
+	}, "the child runs")
 	pr := be.runsOf(p, parent.ID)
 	require.Len(t, pr, 1)
 	assert.Equal(t, engine.RunWaiting, pr[0].Status, "the parent waits for the child")
@@ -377,7 +383,10 @@ func TestCancellingTheParentCancelsTheChildOfRunAutomation(t *testing.T) {
 	parent := be.create(p, a, parentGraph("run_automation", child.ID))
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 2}, 0)
 	var kids []engine.RunSummary
-	p.until(func() bool { kids = be.runsOf(p, child.ID); return len(kids) == 1 && kids[0].Status == engine.RunWaiting }, "the child runs")
+	p.until(func() bool {
+		kids = be.runsOf(p, child.ID)
+		return len(kids) == 1 && kids[0].Status == engine.RunWaiting
+	}, "the child runs")
 	pr := be.runsOf(p, parent.ID)
 	require.NoError(t, p.rt.Service().Cancel(context.Background(), a, pr[0].RunID))
 	p.until(func() bool { return be.status(p, kids[0].RunID) == engine.RunCancelled }, "the child is cancelled with its parent")
@@ -392,7 +401,10 @@ func TestStartAutomationLeavesTheChildAlone(t *testing.T) {
 	parent := be.create(p, a, parentGraph("start_automation", child.ID))
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 3}, 0)
 	var kids []engine.RunSummary
-	p.until(func() bool { kids = be.runsOf(p, child.ID); return len(kids) == 1 && kids[0].Status == engine.RunWaiting }, "the child runs")
+	p.until(func() bool {
+		kids = be.runsOf(p, child.ID)
+		return len(kids) == 1 && kids[0].Status == engine.RunWaiting
+	}, "the child runs")
 	pr := be.runsOf(p, parent.ID)
 	p.until(func() bool { return len(be.effects(pr[0].RunID)) == 1 }, "the parent continues at once")
 	assert.Equal(t, []string{"ok:started"}, be.effects(pr[0].RunID))
