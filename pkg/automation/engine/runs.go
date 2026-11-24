@@ -30,6 +30,10 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 		args = append(args, *f.AutomationID)
 		where = append(where, fmt.Sprintf("r.automation_id = $%d", len(args)))
 	}
+	if f.Version > 0 {
+		args = append(args, f.Version)
+		where = append(where, fmt.Sprintf("r.version = $%d", len(args)))
+	}
 	if len(f.Status) > 0 {
 		st := make([]string, len(f.Status))
 		for i, x := range f.Status {
