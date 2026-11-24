@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 
@@ -29,6 +30,9 @@ type SendMessageCommand struct {
 	Message     string
 	Attachments []*upload.Upload
 }
+
+// ErrNoChatProvider reports that the application has no provider for the transport a message is sent by.
+var ErrNoChatProvider = errors.New("crm: no chat provider for the transport")
 
 type ChatService struct {
 	repo          chat.Repository
@@ -415,7 +419,10 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 		if err := publishChatMessagesAdded(txCtx, chatEntity, updatedChat); err != nil {
 			return err
 		}
-		provider := s.providers[cmd.Transport]
+		provider, ok := s.providers[cmd.Transport]
+		if !ok || provider == nil {
+			return fmt.Errorf("%w: %s", ErrNoChatProvider, cmd.Transport)
+		}
 
 		//		cpassproviders.SendMessageDTO{
 		//			From:    configuration.Use().Twilio.PhoneNumber,

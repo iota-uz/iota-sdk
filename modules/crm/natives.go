@@ -22,5 +22,12 @@ func Natives(s *native.Set) error {
 	if err := services.Natives(s); err != nil {
 		return err
 	}
+	chat, err := chatSendNative()
+	if err != nil {
+		return err
+	}
+	if err := s.Add(chat); err != nil {
+		return err
+	}
 	return s.Add(append([]native.Item{native.Route(ClientsRoute, ClientsPath)}, extension.Items(ClientsPath)...)...)
 }
