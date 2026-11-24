@@ -265,7 +265,7 @@ func setupApplicationWithSource(
 	// contribute to what the migrator applies) and before any start hook runs: a
 	// hook that reads its tables at start (the extension runtime's workflow
 	// engine, the automation engine's passes) must find them, as it does in a
-	// server that migrates before it serves.
+	// deployment, where the schema is migrated before the process starts.
 	if prepare != nil {
 		if err := prepare(context.Background(), app); err != nil {
 			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "prepare schema")
