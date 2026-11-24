@@ -1,0 +1,203 @@
+package engine_test
+
+// Effect nodes that pick their outcome (OutcomeEffectNode), preview themselves in a dry run
+// (EffectPreviewer) and check the graph that uses them (GraphChecker).
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"sync"
+	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+)
+
+// seen is what a pick node saw of the step it applied.
+type seen struct {
+	key     string
+	node    string
+	trigger *engine.TriggerEvent
+}
+
+// pickNode takes the outcome its "pick" param names, and fails when it names "boom".
+type pickNode struct {
+	specNode
+	mu   sync.Mutex
+	seen []seen
+}
+
+func (n *pickNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepContext, node graph.Node, e graph.Effect) (map[string]any, error) {
+	res, err := n.ApplyEffectResult(ctx, tx, run, node, e)
+	return res.Output, err
+}
+
+func (n *pickNode) ApplyEffectResult(_ context.Context, _ pgx.Tx, run engine.StepContext, node graph.Node, e graph.Effect) (engine.EffectResult, error) {
+	n.mu.Lock()
+	n.seen = append(n.seen, seen{key: run.StepKey(), node: run.NodeID, trigger: run.Trigger})
+	n.mu.Unlock()
+	pick, _ := e.Params["pick"].(string)
+	if pick == "boom" {
+		return engine.EffectResult{}, &engine.StepError{Code: "unavailable", Message: "the platform is down"}
+	}
+	return engine.EffectResult{Outcome: pick, Output: map[string]any{"picked": pick}}, nil
+}
+
+func (n *pickNode) PreviewEffect(_ context.Context, run engine.StepContext, _ graph.Node, e graph.Effect) (engine.EffectResult, error) {
+	n.mu.Lock()
+	n.seen = append(n.seen, seen{key: "preview", node: run.NodeID, trigger: run.Trigger})
+	n.mu.Unlock()
+	pick, _ := e.Params["pick"].(string)
+	switch pick {
+	case "boom":
+		return engine.EffectResult{}, errors.New("cannot preview")
+	case "none":
+		return engine.EffectResult{Outcome: "none", Output: map[string]any{"previewed": true}}, nil
+	}
+	return engine.EffectResult{Outcome: "sent", Output: map[string]any{"previewed": true}}, nil
+}
+
+func (n *pickNode) CheckNode(g graph.Graph, index int, _ catalog.View) []graph.GraphError {
+	if bad, _ := g.Nodes[index].Params["pick"].(string); bad == "refused" {
+		return []graph.GraphError{{Path: "nodes[0].params.pick", Code: graph.CodeParams, Message: "refused by the node's own rule"}}
+	}
+	return nil
+}
+
+func (n *pickNode) steps() []seen {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]seen(nil), n.seen...)
+}
+
+func newPickEnv(t *testing.T) (*env, *pickNode) {
+	t.Helper()
+	e := newEnv(t)
+	n := &pickNode{specNode: specNode{graph.NodeSpec{Type: "acme.pick_outcome", Title: "Pick", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
+		Outcomes: []string{"sent", "none", "failed"}, DoneOutcome: "sent", FailedOutcome: "failed",
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{"pick":{"type":"string"}},"required":["pick"],"additionalProperties":false}`),
+		Output: expr.Fields{{Name: "picked", Field: expr.OptionalOf(expr.StringField)}, {Name: "previewed", Field: expr.OptionalOf(expr.BoolField)}}}}}
+	require.NoError(t, e.reg.RegisterNode(n))
+	return e, n
+}
+
+func pickGraph(pick string) string {
+	return `{"name": "Pick", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+	 "nodes": [{"id": "pick", "type": "acme.pick_outcome", "params": {"pick": "` + pick + `"}},
+	  {"id": "sent", "type": "acme.note", "params": {"text": "sent"}},
+	  {"id": "none", "type": "acme.note", "params": {"text": "none {{ nodes.pick.output.picked }}"}},
+	  {"id": "failed", "type": "acme.note", "params": {"text": "failed {{ nodes.pick.output.error.code }}"}},
+	  {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "created", "outcome": "fired"}, "to": "pick"},
+	  {"from": {"node": "pick", "outcome": "sent"}, "to": "sent"}, {"from": {"node": "pick", "outcome": "none"}, "to": "none"},
+	  {"from": {"node": "pick", "outcome": "failed"}, "to": "failed"},
+	  {"from": {"node": "sent", "outcome": "done"}, "to": "fin"}, {"from": {"node": "sent", "outcome": "failed"}, "to": "fin"},
+	  {"from": {"node": "none", "outcome": "done"}, "to": "fin"}, {"from": {"node": "none", "outcome": "failed"}, "to": "fin"},
+	  {"from": {"node": "failed", "outcome": "done"}, "to": "fin"}, {"from": {"node": "failed", "outcome": "failed"}, "to": "fin"}]}`
+}
+
+func TestEffectNodeTakesTheOutcomeItPicks(t *testing.T) {
+	for _, tc := range []struct{ pick, effect string }{
+		{"sent", "sent:sent"},
+		{"none", "none:none none"},
+		{"boom", "failed:failed unavailable"},
+	} {
+		t.Run(tc.pick, func(t *testing.T) {
+			e, n := newPickEnv(t)
+			p := e.proc()
+			a := e.human()
+			e.create(p, a, pickGraph(tc.pick))
+			e.publish(e.tenant, orderCreated, "o-1", order{Amount: 7}, 0)
+			run := onlyRun(t, e, p, a)
+			p.until(func() bool { return e.status(p, run.RunID) == engine.RunDone }, "the run ends")
+			assert.Equal(t, []string{tc.effect}, e.effects(run.RunID))
+
+			steps := n.steps()
+			require.Len(t, steps, 1)
+			assert.Equal(t, "pick", steps[0].node)
+			assert.Contains(t, steps[0].key, run.RunID.String()+":pick:", "the key of the step names the run and the node")
+			require.NotNil(t, steps[0].trigger, "a run on an event knows it")
+			assert.Equal(t, evCreated, steps[0].trigger.Key)
+			assert.NotEmpty(t, steps[0].trigger.ID)
+			assert.JSONEq(t, `{"amount": 7, "note": "", "secret": ""}`, string(steps[0].trigger.Payload), "the engine's own fields are left out")
+		})
+	}
+}
+
+func TestEffectNodeCannotTakeAnOutcomeItDoesNotDeclare(t *testing.T) {
+	e, _ := newPickEnv(t)
+	p := e.proc()
+	a := e.human()
+	e.create(p, a, pickGraph("sent")) // a valid graph…
+	// … and a node that names an outcome outside its declaration fails like any effect error.
+	res, err := p.rt.Authoring().TestNode(context.Background(), a, engine.TestNodeInput{Graph: json.RawMessage(pickGraph("elsewhere")), NodeID: "pick"})
+	require.NoError(t, err)
+	require.NotNil(t, res.Error)
+	assert.Equal(t, engine.CodeEffectFailed, res.Error.Code)
+}
+
+func TestTestNodeShowsThePickedOutcome(t *testing.T) {
+	e, _ := newPickEnv(t)
+	p := e.proc()
+	res, err := p.rt.Authoring().TestNode(context.Background(), e.human(), engine.TestNodeInput{Graph: json.RawMessage(pickGraph("none")), NodeID: "pick"})
+	require.NoError(t, err)
+	require.Nil(t, res.Error)
+	assert.Equal(t, "none", res.Outcome)
+	assert.JSONEq(t, `{"picked": "none"}`, string(res.Output))
+}
+
+func TestDryRunShowsThePreviewOfAnEffectNode(t *testing.T) {
+	for _, tc := range []struct {
+		pick    string
+		outcome string
+		next    string
+	}{
+		{"sent", "sent", "sent"},
+		{"none", "none", "none"},
+		{"boom", "failed", "failed"},
+	} {
+		t.Run(tc.pick, func(t *testing.T) {
+			e, n := newPickEnv(t)
+			p := e.proc()
+			res, err := p.rt.Authoring().DryRun(context.Background(), e.human(), engine.DryRunInput{
+				Graph:   json.RawMessage(pickGraph(tc.pick)),
+				Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+				Events:  []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 3, "note": "", "secret": ""}`)},
+			})
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, len(res.Trace), 3)
+			step := res.Trace[1]
+			assert.Equal(t, "pick", step.Node)
+			assert.Equal(t, tc.outcome, step.Outcome)
+			assert.Equal(t, "captured", step.Status, "nothing was applied")
+			assert.Equal(t, tc.next, res.Trace[2].Node, "the preview's outcome is the one the trace follows")
+			if tc.pick != "boom" {
+				assert.JSONEq(t, `{"previewed": true}`, string(step.Output))
+			}
+			steps := n.steps()
+			require.Len(t, steps, 1)
+			assert.Equal(t, "preview", steps[0].key)
+			require.NotNil(t, steps[0].trigger, "the preview knows the event the dry run starts on")
+			assert.Equal(t, evCreated, steps[0].trigger.Key)
+			assert.Zero(t, e.count(`SELECT count(*) FROM automation.runs`))
+		})
+	}
+}
+
+func TestANodeTypeChecksTheGraphThatUsesIt(t *testing.T) {
+	e, _ := newPickEnv(t)
+	p := e.proc()
+	_, _, err := p.rt.Service().Create(context.Background(), e.human(), engine.CreateInput{Graph: json.RawMessage(pickGraph("refused"))})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr)
+	require.Len(t, verr.Errors, 1)
+	assert.Equal(t, "nodes[0].params.pick", verr.Errors[0].Path)
+	assert.Equal(t, graph.CodeParams, verr.Errors[0].Code)
+}

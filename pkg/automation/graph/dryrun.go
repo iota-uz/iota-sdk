@@ -28,6 +28,10 @@ type DryRunOptions struct {
 	Modes bool
 	// Execute answers a call of an execute node for real (Modes on); nil: such calls are captured.
 	Execute func(node Node, effects []Effect) ExecAnswer
+	// Preview answers a captured effect node (Modes on) with what the node would do, computed without
+	// doing it: its outcome and output, or its failure. ok false: the node has no preview and takes its
+	// done outcome. The step stays captured.
+	Preview func(node Node, effects []Effect) (answer ExecAnswer, ok bool)
 }
 
 // ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
@@ -556,19 +560,44 @@ func (d *dryRun) walk(t *dryToken, current string) {
 		case StepOutcome, StepMissingContext, StepFailed:
 		}
 		status := ""
+		outcome, output := step.Outcome, step.Output
 		if len(step.Effects) > 0 && d.o.Modes {
 			if d.mode(node) == DryRunForbid {
 				d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
 				return
 			}
 			status = StatusCaptured
+			if d.o.Preview != nil {
+				if a, previewed := d.o.Preview(node, step.Effects); previewed {
+					if a.Code != "" {
+						fo, took := d.takeFailedWith(t, node.ID, a.Message, failedHow{retryable: a.Retryable, status: StatusCaptured}, a.Code)
+						if !took {
+							d.fail(t, node.ID, failed(a.Code, "%s", a.Message))
+							return
+						}
+						t.from = node.ID
+						current, ok = i.Next(node.ID, fo)
+						continue
+					}
+					if a.Outcome != "" && !contains(i.view.Outcomes(node.ID), a.Outcome) {
+						d.fail(t, node.ID, failed(FailInvalidGraph, "%s previewed the outcome %q it does not declare", node.ID, a.Outcome))
+						return
+					}
+					if a.Outcome != "" {
+						outcome = a.Outcome
+					}
+					if a.Output != nil {
+						output = a.Output
+					}
+				}
+			}
 		}
-		d.emit(t, TraceStep{Node: node.ID, Outcome: step.Outcome, ContextPatch: dryPatch(step.Effects, step.Output), Status: status})
-		if step.Output != nil {
-			t.set(node.ID, NodeState{Output: step.Output})
+		d.emit(t, TraceStep{Node: node.ID, Outcome: outcome, ContextPatch: dryPatch(step.Effects, output), Status: status})
+		if output != nil {
+			t.set(node.ID, NodeState{Output: output})
 		}
 		t.from = node.ID
-		current, ok = i.Next(node.ID, step.Outcome)
+		current, ok = i.Next(node.ID, outcome)
 	}
 	if !ok && !d.ended {
 		d.noEdge(t)

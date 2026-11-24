@@ -317,6 +317,49 @@ queued conversation runs, runs of disabled graphs, retention.
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
   rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.
 
+### Effect nodes beyond a single outcome, and the notification nodes (#1338)
+
+An effect node normally takes its done outcome (or its failed outcome when `ApplyEffect` fails). Three
+optional interfaces of the node type widen that:
+
+- `engine.OutcomeEffectNode` (`ApplyEffectResult`) picks one of the outcomes the node type declares, with its
+  output; an outcome it does not declare is the node's failure (`effect_failed`). `TestNode` shows it.
+- `engine.EffectPreviewer` (`PreviewEffect`) is what a dry run shows for the node instead of the bare
+  captured effect: its outcome and output computed without writing or sending. The step stays `captured`.
+- `engine.GraphChecker` (`CheckNode`) adds rules over the whole graph that uses the node (what its trigger
+  events offer), checked when the graph is saved, dry run and enabled.
+
+`StepContext` carries the step's `NodeID` and `StepKey()` (run, node, token and sequence: the same when the step
+is applied again) and `Trigger`, the event that started the run (key, id and the payload the run-as could read).
+
+`pkg/automation/builtin/notify` registers two effect nodes with `notify.Register(registry, notify.Config{...})`
+and the notification definition `automations.notify.v1` with `notify.Contribute(builder)` (next to
+`ownernotice.Contribute`). Both queue the notice with `notifications.AudienceSender.SendTx` in the step's
+transaction, so it commits with the step; the delivery layer (channel preferences, retries, the subject access
+check per user) does the rest after the commit. The nodes resolve no audience and check no access themselves.
+
+| Node | Params | Outcomes | Output |
+|---|---|---|---|
+| `notify` | `recipients {users (CEL list of user IDs), groups, roles, participants}`, `title`, `body`, `action_url` (templates), `channels` (empty: in-app), `level` info\|warning\|critical | `sent`, `no_recipients`, `failed` | `notice_id`, `recipients`, `skipped [{kind, ref, reason}]` |
+| `send_to_contact` | `record` (CEL `{entity, key}`; default the run's subject), `channel` (an external channel), `subject`, `body` | `sent`, `no_contact`, `failed` | `notice_id`, `channel` |
+
+- The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
+  returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
+  run's trigger event, used only to resolve `participants`.
+- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` asks the entity's
+  `ContactResolver` (outside the step's transaction, as the delivery worker does) for an address on the
+  channel and takes `no_contact` when the record or the address is missing.
+- `participants` need every trigger event that can reach the node to have a notification definition with those
+  recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
+  an event (manual, schedule) fails with `no_trigger_event`.
+- `action_url` is a path of the application, or a URL on the application's host (`Config.BaseURL`), which is
+  stored as its path; anything else is refused when the graph is saved (a link that starts with a template is
+  checked when it is rendered, `invalid_input`). `critical` is the SDK's `error` level.
+- A `FailedPrecondition` of the delivery layer (platform not configured, channel not available) is the failed
+  outcome with code `unavailable`; any other error carries its code (`invalid`, `conflict`, ...).
+- A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace;
+  nothing is queued.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).

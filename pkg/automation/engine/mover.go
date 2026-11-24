@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -114,27 +116,31 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	case graph.StepOutcome:
 	}
 	output := st.Output
+	outcome := st.Outcome
 	var input any
 	if len(st.Effects) > 0 {
 		input = effectInput(st.Effects)
-		out, serr, err := m.applyEffects(ctx, tok, node, st.Effects)
+		res, serr, err := m.applyEffects(ctx, tok, node, spec, st.Effects)
 		if err != nil {
 			return behavior, err
 		}
 		if serr != nil {
 			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
 		}
-		if out != nil {
-			output = out
+		if res.Output != nil {
+			output = res.Output
+		}
+		if res.Outcome != "" {
+			outcome = res.Outcome
 		}
 	}
-	if _, err := m.record(ctx, tok, node.ID, behavior, input, st.Outcome, output, nil, true); err != nil {
+	if _, err := m.record(ctx, tok, node.ID, behavior, input, outcome, output, nil, true); err != nil {
 		return behavior, err
 	}
 	if output != nil {
 		tok.set(node.ID, graph.NodeState{Output: output})
 	}
-	return behavior, m.advance(ctx, tok, node.ID, st.Outcome)
+	return behavior, m.advance(ctx, tok, node.ID, outcome)
 }
 
 func effectInput(effects []graph.Effect) any {
@@ -149,52 +155,70 @@ func effectInput(effects []graph.Effect) any {
 // PayloadBytes) rolls every effect of the node back before the failed outcome is taken, so a handler on
 // that edge never sees a write of the failed node. A failure of the platform aborts the step (err); any
 // other is the node's.
-func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node, effects []graph.Effect) (map[string]any, *StepError, error) {
+func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
 	en, isEffect := nt.(EffectNode)
 	if !ok || !isEffect {
-		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
 	sp, err := m.tx.Begin(ctx)
 	if err != nil {
-		return nil, nil, serrors.FromDB(opRun, err)
+		return EffectResult{}, nil, serrors.FromDB(opRun, err)
 	}
-	out, serr, err := m.applyEach(ctx, sp, tok, node, en, effects)
-	if err == nil && serr == nil && out != nil {
-		serr = m.tooLarge(out, "the output of "+node.ID)
+	res, serr, err := applyEach(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, spec, en, effects)
+	if err == nil && serr == nil && res.Output != nil {
+		serr = m.tooLarge(res.Output, "the output of "+node.ID)
 	}
 	if err != nil || serr != nil {
 		if rerr := sp.Rollback(ctx); rerr != nil && err == nil {
-			return nil, nil, serrors.FromDB(opRun, rerr)
+			return EffectResult{}, nil, serrors.FromDB(opRun, rerr)
 		}
-		return nil, serr, err
+		return EffectResult{}, serr, err
 	}
 	if err := sp.Commit(ctx); err != nil {
-		return nil, nil, serrors.FromDB(opRun, err)
+		return EffectResult{}, nil, serrors.FromDB(opRun, err)
 	}
-	return out, nil, nil
+	return res, nil, nil
 }
 
-// applyEach applies the effects in order in the node's savepoint; the output is the last effect's.
-func (m *mover) applyEach(ctx context.Context, sp pgx.Tx, tok *tokenRow, node graph.Node, en EffectNode, effects []graph.Effect) (map[string]any, *StepError, error) {
-	var out map[string]any
+// applyEach applies the effects in order in the node's savepoint; the result is the last effect's. The
+// outcome is empty unless the node picks its own (OutcomeEffectNode).
+func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, effects []graph.Effect) (EffectResult, *StepError, error) {
+	var out EffectResult
 	for _, e := range effects {
-		o, err := en.ApplyEffect(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, e)
+		o, err := applyOne(ctx, sp, sc, node, spec, en, e)
 		if err != nil {
 			if host.IsInfrastructure(err) || ctx.Err() != nil {
-				return nil, nil, err
+				return EffectResult{}, nil, err
 			}
 			var se *StepError
 			if errors.As(err, &se) {
-				return nil, se, nil
+				return EffectResult{}, se, nil
 			}
-			return nil, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
+			return EffectResult{}, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
 		}
-		if o != nil {
+		if o.Outcome != "" || o.Output != nil {
 			out = o
 		}
 	}
 	return out, nil, nil
+}
+
+// applyOne applies one effect; a node that picks its outcome must pick one it declares.
+func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, spec graph.NodeSpec, en EffectNode, e graph.Effect) (EffectResult, error) {
+	pick, picks := en.(OutcomeEffectNode)
+	if !picks {
+		o, err := en.ApplyEffect(ctx, tx, sc, node, e)
+		return EffectResult{Output: o}, err
+	}
+	res, err := pick.ApplyEffectResult(ctx, tx, sc, node, e)
+	if err != nil {
+		return EffectResult{}, err
+	}
+	if res.Outcome != "" && !slices.Contains(spec.Outcomes, res.Outcome) {
+		return EffectResult{}, &StepError{Code: CodeEffectFailed, Message: fmt.Sprintf("%s took the outcome %q it does not declare", node.Type, res.Outcome)}
+	}
+	return res, nil
 }
 
 func (m *mover) tooLarge(v any, what string) *StepError {
@@ -213,7 +237,35 @@ func (m *mover) stepContext(tok *tokenRow, seq int) StepContext {
 		TenantID: m.x.tenant, RunID: m.x.run.ID, TokenID: tok.ID, Seq: seq,
 		AutomationID: m.x.run.AutomationID, Version: m.x.run.Version,
 		RunAs: m.x.subject, Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
+		NodeID: tok.NodeID, Trigger: triggerEventOf(m.x.run),
 	}
+}
+
+// triggerEventOf is the event a run started on: nil when the run has none (its input has no kind).
+func triggerEventOf(run runRow) *TriggerEvent {
+	input, err := decodeMap(run.Input)
+	if err != nil {
+		return nil
+	}
+	kind, _ := input["kind"].(string)
+	if kind == "" {
+		return nil
+	}
+	payload := make(map[string]any, len(input))
+	for k, v := range input {
+		if k != "kind" && k != catalog.BySelfField {
+			payload[k] = v
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	te := &TriggerEvent{Key: kind, Payload: raw}
+	if run.TriggerEventID != nil {
+		te.ID = *run.TriggerEventID
+	}
+	return te
 }
 
 // call registers a call or a human task as a wait: the executor starts it, its result comes later.
@@ -322,7 +374,7 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if len(st.Effects) > 0 {
 		input = effectInput(st.Effects)
 		params = st.Effects[0].Params
-		if _, serr, err := m.applyEffects(ctx, tok, node, st.Effects); err != nil {
+		if _, serr, err := m.applyEffects(ctx, tok, node, spec, st.Effects); err != nil {
 			return err
 		} else if serr != nil {
 			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)

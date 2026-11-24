@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -446,6 +447,44 @@ type EffectNode interface {
 	ApplyEffect(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (map[string]any, error)
 }
 
+// EffectResult is what an effect node that picks its outcome returns: the outcome (one of the node's
+// declared outcomes) and the node's output.
+type EffectResult struct {
+	Outcome string
+	Output  map[string]any
+}
+
+// OutcomeEffectNode is an optional interface of an EffectNode: it chooses among the outcomes the node type
+// declares, where a plain EffectNode always takes its done outcome (a failure still takes the failed
+// outcome through the returned error). ApplyEffectResult is used in place of ApplyEffect; an outcome the
+// node type does not declare is the node's failure (effect_failed).
+type OutcomeEffectNode interface {
+	EffectNode
+	ApplyEffectResult(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// EffectPreviewer is an optional interface of an EffectNode: what a dry run shows for the node instead of
+// the bare captured effect, computed without writing anything and without leaving the SDK (a resolved
+// audience, not a sent message). An error is the node's failure in the trace, as it would be in a run.
+type EffectPreviewer interface {
+	PreviewEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// GraphChecker is an optional interface of a catalog.NodeType: rules over a whole graph that uses the node
+// (what its trigger events offer, for example), checked when the graph is saved, dry run and enabled.
+// The paths of the returned errors are those of the graph (nodes[i].params...).
+type GraphChecker interface {
+	CheckNode(g graph.Graph, index int, view catalog.View) []graph.GraphError
+}
+
+// TriggerEvent is the event that started a run, as the run keeps it: the key and the id of the event and
+// its payload as the run's run-as could read it (the engine's own fields, kind and by_self, left out).
+type TriggerEvent struct {
+	Key     string
+	ID      string
+	Payload json.RawMessage
+}
+
 // CodeNode is an optional interface of a catalog.NodeType: its nodes run code a human reviews before a
 // version is enabled. Review is what the reviewer sees for a node's params.
 type CodeNode interface {
@@ -462,9 +501,21 @@ type StepContext struct {
 	Subject                  SubjectRef
 	Depth                    int
 	Native                   workflow.NativeRun // primitives of #1321
+	// NodeID, TokenID and Seq name the step: they are stable when the same step is applied again, so an
+	// effect derives its idempotency key from them (StepKey).
+	NodeID string
+	// Trigger is the event that started the run; nil for a run without an event (a manual or schedule
+	// run) and for a node test.
+	Trigger *TriggerEvent
 	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
 	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool
+}
+
+// StepKey is the idempotency key of the step: run, node, token and the step's sequence number. It is the
+// same whenever the step is applied again, and differs between two visits of one node.
+func (c StepContext) StepKey() string {
+	return fmt.Sprintf("%s:%s:%s:%d", c.RunID, c.NodeID, c.TokenID, c.Seq)
 }
 
 // WaitSpec is a wait a node executor registers.
