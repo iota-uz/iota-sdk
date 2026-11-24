@@ -22,6 +22,8 @@ var identityShapes = map[IdentityKind]*regexp.Regexp{
 	IdentityHandle: regexp.MustCompile(`^@[A-Za-z][A-Za-z0-9_]{1,63}$`),
 	IdentityEmail:  regexp.MustCompile(`^[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,24}$`),
 	IdentityPhone:  regexp.MustCompile(`^\+?[0-9][0-9 ()\-]{4,23}$`),
+	// "<name> <version> (<n> tools)": a server's software and what it offers (an MCP server).
+	IdentityServer: regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._+\-/]{0,150} \([0-9]{1,5} tools?\)$`),
 }
 
 // maxIdentityExternal bounds the provider identifier kept for matching (it is never shown).

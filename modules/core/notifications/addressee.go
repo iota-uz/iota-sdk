@@ -322,6 +322,41 @@ func (f ContactResolverFunc) ResolveContact(ctx context.Context, tenantID uuid.U
 	return f(ctx, tenantID, ref)
 }
 
+// TxSafeContactResolver is a ContactResolver that may also be asked inside a caller's transaction and in a
+// preview (AudienceRequest.CheckContacts): it reads only through the transaction of the context it is given
+// (composables.UseTx), takes no other database connection, calls no other service that does, and writes
+// nothing. A resolver that runs package code, takes its own connection or records its calls is not one: the
+// delivery worker asks it at delivery, as before, and CheckContacts leaves its records unchecked.
+type TxSafeContactResolver interface {
+	ContactResolver
+	TxSafeContacts()
+}
+
+// ErrContactUnverifiable is returned by ContactChecker.CheckContact when the contact cannot be told now
+// without delivering (a resolver with no owner yet, say): the record is kept unchecked and the worker
+// resolves it at delivery.
+var ErrContactUnverifiable = errors.New("notification contact cannot be checked before delivery")
+
+// ContactChecker is an optional ContactResolver extension for a resolver that is not transaction-safe but can
+// answer a read-only question: CheckContact tells what ResolveContact would, writes nothing (no invocation
+// record, no side effect) and may take its own connection, which is why a caller bounds it by a deadline. It
+// is what AudienceRequest.CheckContacts asks, in a send and in a preview, in place of ResolveContact.
+type ContactChecker interface {
+	ContactResolver
+	CheckContact(ctx context.Context, tenantID uuid.UUID, ref ObjectRef) (Contact, error)
+}
+
+// TxSafeContactResolverFunc adapts a function that keeps the TxSafeContactResolver rules.
+type TxSafeContactResolverFunc func(context.Context, uuid.UUID, ObjectRef) (Contact, error)
+
+// ResolveContact implements ContactResolver.
+func (f TxSafeContactResolverFunc) ResolveContact(ctx context.Context, tenantID uuid.UUID, ref ObjectRef) (Contact, error) {
+	return f(ctx, tenantID, ref)
+}
+
+// TxSafeContacts marks the resolver as transaction-safe.
+func (TxSafeContactResolverFunc) TxSafeContacts() {}
+
 // ContactResolvers registers one ContactResolver per entity ID. Registration is
 // safe at runtime, so an extension can publish a resolver for its own entity.
 type ContactResolvers struct {

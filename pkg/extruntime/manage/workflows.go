@@ -201,3 +201,38 @@ func (s *Service) ResumeWorkflow(ctx context.Context, actor spi.Subject, id uuid
 		return w.Resume(ctx, actor.TenantID, id)
 	})
 }
+
+// HumanOnlyWorkflows is an optional interface of Workflows (*workflow.Engine implements it): which
+// contracts, instances and tasks are human-only (workflow.NativeContract.HumanOnly).
+type HumanOnlyWorkflows interface {
+	HumanOnlyWorkflow(workflow string) (bool, error)
+	HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (string, bool, error)
+	// HumanOnlyTask returns the page, guarded and mayDecide.
+	HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, bool, error)
+}
+
+// HumanOnlyWorkflow reports whether a contract is human-only. Without an engine that knows
+// (HumanOnlyWorkflows) nothing is.
+func (s *Service) HumanOnlyWorkflow(workflow string) (bool, error) {
+	if h, ok := s.workflows.(HumanOnlyWorkflows); ok {
+		return h.HumanOnlyWorkflow(workflow)
+	}
+	return false, nil
+}
+
+// HumanOnlyInstance reports whether only a person may act on the instance, and the page where they do.
+func (s *Service) HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (string, bool, error) {
+	if h, ok := s.workflows.(HumanOnlyWorkflows); ok {
+		return h.HumanOnlyInstance(ctx, tenant, id)
+	}
+	return "", false, nil
+}
+
+// HumanOnlyTask reports whether a human task belongs to a human-only instance, whether the actor may
+// decide it now, and (then) the page where a person does (workflow.Engine.HumanOnlyTask).
+func (s *Service) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, bool, error) {
+	if h, ok := s.workflows.(HumanOnlyWorkflows); ok {
+		return h.HumanOnlyTask(ctx, actor, taskID)
+	}
+	return "", false, false, nil
+}

@@ -16,6 +16,9 @@ const (
 	EventSchedule = "automation.schedule.v1"
 	// EventManual starts a run on request (StartManual): trigger params {input_schema}.
 	EventManual = "automation.manual.v1"
+	// EventCalled starts a run when another automation's start_automation or run_automation calls the
+	// graph: trigger params {input_schema}. It is never published: StartFromStep starts the run.
+	EventCalled = "automation.called.v1"
 	// EventRunFinished is published when a run finishes; it only wakes waits (NoTrigger).
 	EventRunFinished = "automation.run.finished.v1"
 )
@@ -107,6 +110,17 @@ func (engineTriggers) Events() []graph.EventSpec {
 			TriggerParams: graph.MustSchemaParams(manualParamsSchema),
 		},
 		{
+			Key: EventCalled, Title: "Called by an automation", Group: "automation", Subject: graph.SubjectNone,
+			Description: "Starts the graph when another automation runs it (start_automation, run_automation).",
+			Payload: expr.Fields{
+				{Name: "input", Field: expr.DynField},
+				{Name: "caller_run_id", Field: expr.StringField},
+				{Name: "caller_automation_id", Field: expr.StringField},
+				{Name: "initiator_user_id", Field: expr.IntField},
+			},
+			TriggerParams: graph.MustSchemaParams(manualParamsSchema),
+		},
+		{
 			Key: EventRunFinished, Title: "Automation run finished", Group: "automation", Subject: SubjectRun, NoTrigger: true,
 			Description: "A run of a graph finished.",
 			Payload: expr.Fields{
@@ -148,7 +162,7 @@ func triggerKind(v catalog.View, event string) string {
 	switch event {
 	case EventSchedule:
 		return KindSchedule
-	case EventManual:
+	case EventManual, EventCalled:
 		return KindManual
 	}
 	if len(v.EventRequires[event]) > 0 {

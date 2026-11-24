@@ -130,6 +130,9 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 	}
 	out.ContractHash = hash
 	trig := e.trigger()
+	if e.root.unrecorded {
+		return e.runUnrecorded(ctx, out)
+	}
 	if err := e.h.rec.start(ctx, startRecord{
 		ID: e.id, ParentID: parentID, RootID: e.rootID,
 		TenantID: e.scope.Subject.TenantID.String(), UserID: e.scope.Subject.UserID, SubjectKind: subjectKind(e.scope.Subject),
@@ -181,6 +184,21 @@ func (e *execution) run(ctx context.Context, res spi.ResolvedResource) (Result, 
 		e.h.cfg.Logger.Error("extruntime: invocation record not finished", "invocation", e.id, "error", ferr)
 	}
 	return out, err
+}
+
+// runUnrecorded runs the invocation without an invocation record (RunRequest.Unrecorded).
+func (e *execution) runUnrecorded(ctx context.Context, out Result) (Result, error) {
+	output, err := e.dispatch(ctx)
+	e.closeOpenTx(ctx)
+	if err != nil {
+		out.Outcome = OutcomeError
+		if e.root.infra.get() != nil {
+			out.Outcome = OutcomeUnknown
+		}
+		return out, err
+	}
+	out.Outcome, out.Output = OutcomeOK, output
+	return out, nil
 }
 
 func subjectKind(s spi.Subject) string {

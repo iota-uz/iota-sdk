@@ -108,6 +108,7 @@ func (e *execution) nativeCtx(ctx context.Context, tx pgx.Tx, h *txHandle) conte
 	if ctx.Value(constants.PoolKey) == nil {
 		ctx = composables.WithPool(ctx, e.h.cfg.DB)
 	}
+	ctx = context.WithValue(ctx, invocationKey{}, e.id)
 	if fn := e.h.cfg.NativeContext; fn != nil {
 		ctx = fn(ctx, NativeInvocation{Subject: e.scope.Subject, Trigger: e.trigger(), InvocationID: e.id, RootID: e.rootID})
 	}
@@ -312,4 +313,13 @@ func writeIssue(err error, code, message string) *pool.WireError {
 		}
 	}
 	return &pool.WireError{Kind: pool.ErrKindValidation, Code: code, Message: message, Issues: []pool.Issue{is}}
+}
+
+type invocationKey struct{}
+
+// InvocationID is the ID of the native invocation whose handler ctx belongs to ("" outside of one): a
+// command called with a pre-allocated ID (a workflow call) sees that ID on every repeat.
+func InvocationID(ctx context.Context) string {
+	id, _ := ctx.Value(invocationKey{}).(string)
+	return id
 }

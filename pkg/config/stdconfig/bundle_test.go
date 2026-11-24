@@ -44,6 +44,7 @@ func TestRegisterAll_AllNonNil(t *testing.T) {
 		{"SMTP", b.SMTP},
 		{"Telemetry", b.Telemetry},
 		{"Twilio", b.Twilio},
+		{"Eskiz", b.Eskiz},
 		{"TwoFactor", b.TwoFactor},
 		{"Uploads", b.Uploads},
 		{"UploadStore", b.UploadStore},

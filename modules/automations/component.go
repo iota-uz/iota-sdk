@@ -12,7 +12,9 @@
 //
 // or registers connectors on the resolved connectors.Directory before serving requests.
 //
-// The component provides the connector Directory, the catalog Registry, the encrypted ConnectionStore
+// The component provides the connector Directory, the catalog Registry with the built-in node types
+// (set, code, http, start_automation, run_automation and the actions modules contribute through
+// pkg/automation/builtin/actions), the encrypted ConnectionStore
 // (keys from AUTOMATION_CONNECTIONS_KEYS, platform credentials from AUTOMATION_PLATFORM_CREDENTIALS),
 // the OAuth2 helper and the host.SecretResolver the extension runtime serves secrets.get with.
 package automations
@@ -24,6 +26,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -40,17 +43,23 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/automations/tasks"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -78,6 +87,12 @@ func WithUsageIndex(u connectors.UsageIndex) Option {
 // on the resolved connectors.Directory before the application serves requests.
 func WithConnectors(list ...connectors.Connector) Option {
 	return func(c *component) { c.connectors = append(c.connectors, list...) }
+}
+
+// WithoutMCP leaves out the MCP connector (mcp.New) the component registers when the application
+// registers no connector of kind mcp itself.
+func WithoutMCP() Option {
+	return func(c *component) { c.noMCP = true }
 }
 
 // WithHostManifest is the application's client host bundle manifest the integrations screen is served
@@ -112,6 +127,7 @@ type component struct {
 	engineTune      []func(*engine.Config)
 	noEngine        bool
 	noBackground    bool
+	noMCP           bool
 	subjectNames    tasks.SubjectResolver
 }
 
@@ -125,8 +141,10 @@ func (c *component) LocaleFS() []*embed.FS { return []*embed.FS{&localeFiles} }
 // host bundle and the OAuth2 redirect, the extension runtime's UI and the HTTP origin.
 type settingsCfg struct {
 	automation automationconfig.Config
-	hostPath   string
-	origin     string
+	// sms are the platform credentials of the SMS connectors the environment configures.
+	sms      map[catalog.ConnectorKind]connectors.PlatformCredential
+	hostPath string
+	origin   string
 }
 
 func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
@@ -141,6 +159,15 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
+	eskizCfg, err := config.Register[eskizconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	twilioCfg, err := config.Register[twilioconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.sms = sms.PlatformCredentials(eskizCfg, twilioCfg)
 	ext, err := config.Register[extruntimeconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -173,6 +200,11 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
+	for kind, cred := range cfg.sms {
+		if _, set := platformCreds[kind]; !set { // an explicit platform.credentials entry wins
+			platformCreds[kind] = cred
+		}
+	}
 	hostManifest := c.host
 	var assets http.Handler
 	if hostManifest == nil {
@@ -193,8 +225,12 @@ func (c *component) Build(b *composition.Builder) error {
 
 	// The registry's availability is the store, which is built after the directory that registers into
 	// the registry: it is resolved on the first catalog read.
+	// The built-in node types are in every tenant's catalog; an application that provides its own
+	// registry registers them with builtin.Register.
 	composition.ProvideDefault[catalog.Registry](b, func(container *composition.Container) (catalog.Registry, error) {
-		reg := catalog.NewRegistry(lazyAvailability{container: container})
+		reg := catalog.NewRegistry(lazyAvailability{container: container}, catalog.WithParticipants(func(event string) []string {
+			return participantsOf(container, event)
+		}))
 		if c.noEngine {
 			return reg, nil
 		}
@@ -207,6 +243,9 @@ func (c *component) Build(b *composition.Builder) error {
 		if err := registerEngineCatalog(reg, natives, slog.Default()); err != nil {
 			return nil, err
 		}
+		if err := registerBuiltins(reg, container); err != nil {
+			return nil, err
+		}
 		// The human node: its form annotation names a task form of the application.
 		forms, err := composition.Resolve[*tasks.Forms](container)
 		if err != nil {
@@ -217,6 +256,10 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return reg, nil
 	})
+	// The actions of the application's native set (actions.Native) join the catalog when it starts.
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		return []composition.Hook{actionsHook(container)}, nil
+	})
 	c.buildEngine(b)
 	c.buildTasks(b)
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
@@ -225,7 +268,23 @@ func (c *component) Build(b *composition.Builder) error {
 			return nil, err
 		}
 		dir := connectors.NewDirectory(reg)
+		registered := map[catalog.ConnectorKind]bool{}
 		for _, conn := range c.connectors {
+			if err := dir.Register(conn); err != nil {
+				return nil, err
+			}
+			registered[conn.Kind()] = true
+		}
+		// The SDK's own connectors, unless the application registered its own of the kind.
+		status := lazyStatus{container: container}
+		sdk := []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))}
+		if !c.noMCP {
+			sdk = append(sdk, mcp.New())
+		}
+		for _, conn := range sdk {
+			if registered[conn.Kind()] {
+				continue
+			}
 			if err := dir.Register(conn); err != nil {
 				return nil, err
 			}
@@ -263,7 +322,14 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return connectors.NewStore(db, keys, usage, platform, grants), nil
+		st := connectors.NewStore(db, keys, usage, platform, grants)
+		// A connector that refreshes its connections' tokens itself (MCP) gets the store.
+		dir, err := composition.Resolve[connectors.Directory](container)
+		if err != nil {
+			return nil, err
+		}
+		connectors.BindStore(dir, st)
+		return st, nil
 	})
 	composition.Provide[connectors.ConnectionStore](b, func(container *composition.Container) (connectors.ConnectionStore, error) {
 		return composition.Resolve[connectors.Store](container)
@@ -320,6 +386,8 @@ func (c *component) Build(b *composition.Builder) error {
 		}), nil
 	})
 
+	c.contributeNotifyNodes(b, cfg.origin)
+
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
 	}
@@ -346,6 +414,35 @@ func (c *component) Build(b *composition.Builder) error {
 	return nil
 }
 
+// contributeNotifyNodes registers the notification nodes of graphs (notify, send_to_contact) in the catalog
+// registry and their notification definition automations.notify.v1 in the core catalog. The nodes send
+// through core's AudienceSender, so the core notification stack must be part of the composition.
+func (c *component) contributeNotifyNodes(b *composition.Builder, origin string) {
+	if u, err := url.Parse(origin); err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		origin = "" // only paths of the application are links of a notice then
+	}
+	notify.Contribute(b)
+	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {
+		reg, err := composition.Resolve[catalog.Registry](container)
+		if err != nil {
+			return nil, err
+		}
+		sender, err := composition.Resolve[notifications.AudienceSender](container)
+		if err != nil {
+			return nil, err
+		}
+		definitions, err := composition.Resolve[*notifications.Catalog](container)
+		if err != nil {
+			return nil, err
+		}
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
+	})
+}
+
 // IntegrationsSettingsPage is the settings hub entry of the integrations page.
 func IntegrationsSettingsPage() types.SettingsPage {
 	return types.SettingsPage{
@@ -367,6 +464,24 @@ func loadManifest(path string) (clienthost.Manifest, error) {
 	return clienthost.ParseManifest(raw)
 }
 
+// participantsOf are the recipient keys of the notification definition of an event: the participants a notify
+// node may name when a graph is triggered by it.
+func participantsOf(container *composition.Container, event string) []string {
+	definitions, err := composition.Resolve[*notifications.Catalog](container)
+	if err != nil {
+		return nil
+	}
+	def, ok := definitions.Get(event)
+	if !ok {
+		return nil
+	}
+	keys := make([]string, 0, len(def.RecipientKeys))
+	for _, r := range def.RecipientKeys {
+		keys = append(keys, r.Key)
+	}
+	return keys
+}
+
 // lazyAvailability resolves the connection store when the catalog is first read.
 type lazyAvailability struct{ container *composition.Container }
 
@@ -376,6 +491,17 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 		return nil, err
 	}
 	return st.Connected(ctx, tenantID)
+}
+
+// lazyStatus marks connections needs_reauth through the store, which is built after the directory.
+type lazyStatus struct{ container *composition.Container }
+
+func (l lazyStatus) SetStatus(ctx context.Context, tenantID, id uuid.UUID, st connectors.ConnectionStatus, reason string) error {
+	store, err := composition.Resolve[connectors.ConnectionStore](l.container)
+	if err != nil {
+		return err
+	}
+	return store.SetStatus(ctx, tenantID, id, st, reason)
 }
 
 // messagePrefix is the namespace of the integrations screen's strings in the module's locale files.
@@ -496,10 +622,14 @@ func (c *component) buildPages(b *composition.Builder) {
 		if path == "" {
 			path = graphs.DefaultPath
 		}
+		var tools mcp.ToolLister
+		if conn, ok := dir.Get(mcp.Kind); ok {
+			tools, _ = conn.(mcp.ToolLister)
+		}
 		ctrl, err := graphs.NewController(graphs.Config{
 			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
-			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(),
+			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools,
 		})
 		if err != nil {
 			return nil, err

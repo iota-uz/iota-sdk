@@ -34,11 +34,22 @@ type AuditEntry struct {
 	Nested      bool
 	Outcome     Code
 	OperationID string
-	Duration    time.Duration
+	// Item is the index of the change of OperationID an entry is about (the audit of guarded changes):
+	// with OperationID it identifies the entry, which may be delivered more than once.
+	Item     *int
+	Duration time.Duration
 }
 
 type Auditor interface {
 	Record(ctx context.Context, e AuditEntry)
+}
+
+// ConfirmingAuditor is an optional interface of an Auditor that reports whether it stored an entry.
+// Deliveries that must not be lost (the audit of applied changes, pkg/mcp/changes) use it and keep an
+// entry for a later delivery when it returns an error; with Record alone, returning counts as stored.
+type ConfirmingAuditor interface {
+	Auditor
+	RecordConfirmed(ctx context.Context, e AuditEntry) error
 }
 
 type Engine struct {
@@ -149,6 +160,11 @@ func isNested(ctx context.Context) bool {
 func (e *Engine) Call(ctx context.Context, name string, input json.RawMessage) Result {
 	started := time.Now()
 	p, ok := PrincipalFrom(ctx)
+	// The scope is set on every call, also without an auditor: a scope inherited from an outer engine
+	// never leaks into this one.
+	ctx = context.WithValue(ctx, auditKey{}, &auditScope{audit: e.audit, base: AuditEntry{
+		RequestID: RequestIDFrom(ctx), Subject: p.Subject(), TenantID: p.TenantID.String(), ClientID: p.ClientID, Nested: isNested(ctx),
+	}})
 	res := e.call(ctx, p, ok, name, input)
 	if e.audit != nil {
 		entry := AuditEntry{
@@ -199,6 +215,37 @@ func (e *Engine) call(ctx context.Context, p Principal, authenticated bool, name
 		return Failed(Fail(CodeDependencyUnavailable, RecoveryRetryLater, "the tool returned an unserializable result"))
 	}
 	return res
+}
+
+type auditKey struct{}
+
+// auditScope is the call an Audit event belongs to.
+type auditScope struct {
+	audit Auditor
+	base  AuditEntry
+}
+
+// AuditorFrom is the auditor of the engine running the call of ctx, if it has one.
+func AuditorFrom(ctx context.Context) (Auditor, bool) {
+	s, ok := ctx.Value(auditKey{}).(*auditScope)
+	if !ok || s.audit == nil {
+		return nil, false
+	}
+	return s.audit, true
+}
+
+// Audit records an event of the running call in the engine's audit with the call's principal, client and
+// request: what a handler decided inside a successful result (a refusal it reports as a plan issue, each
+// change it applied). tool names the event, such as "changes:automation.update". Outside a call of an
+// engine with an auditor it does nothing.
+func Audit(ctx context.Context, tool string, outcome Code, operationID string) {
+	s, ok := ctx.Value(auditKey{}).(*auditScope)
+	if !ok || s.audit == nil {
+		return
+	}
+	entry := s.base
+	entry.Tool, entry.Outcome, entry.OperationID = tool, outcome, operationID
+	s.audit.Record(ctx, entry)
 }
 
 func operationIDOf(data json.RawMessage) string {

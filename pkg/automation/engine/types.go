@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -170,7 +171,10 @@ type SaveInput struct {
 	// layout since, the stored positions stay and only steps the layout does not place yet take
 	// Layout's.
 	LayoutBase *int
-	Note       string
+	// StrictLayout refuses a stale LayoutBase with *LayoutConflictError instead of keeping the stored
+	// positions: nothing is saved (a guarded change applies exactly its plan or nothing).
+	StrictLayout bool
+	Note         string
 }
 
 // ListFilter selects graphs of a list.
@@ -210,6 +214,9 @@ type Version struct {
 	SavedOrigin     Origin
 	Note            string
 	CreatedAt       time.Time
+	// Warnings are what the check of a save noted without refusing it (a pinned tool schema the server
+	// has changed since); only Create and SaveVersion fill them, nothing stores them.
+	Warnings []graph.GraphError
 }
 
 // VersionInfo is a version in the list of versions.
@@ -241,6 +248,8 @@ type CodeNodeReview struct {
 	Source  string   `json:"source"`
 	Secrets []string `json:"secrets"`
 	Fetch   bool     `json:"fetch"`
+	// Connections are the connections the code reaches through env.connections (the SDK authorizes them).
+	Connections []string `json:"connections,omitempty"`
 }
 
 // TriggerReview is a trigger of a version as the reviewer sees it.
@@ -503,10 +512,118 @@ type EffectNode interface {
 	ApplyEffect(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (map[string]any, error)
 }
 
+// EffectResult is what an effect node that picks its outcome returns: the outcome (one of the node's
+// declared outcomes) and the node's output.
+type EffectResult struct {
+	Outcome string
+	Output  map[string]any
+}
+
+// OutcomeEffectNode is an optional interface of an EffectNode: it chooses among the outcomes the node type
+// declares, where a plain EffectNode always takes its done outcome (a failure still takes the failed
+// outcome through the returned error). ApplyEffectResult is used in place of ApplyEffect; an outcome the
+// node type does not declare is the node's failure (effect_failed).
+type OutcomeEffectNode interface {
+	EffectNode
+	ApplyEffectResult(ctx context.Context, tx pgx.Tx, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// EffectPreviewer is an optional interface of an EffectNode: what a dry run shows for the node instead of
+// the bare captured effect, computed without writing anything and without leaving the SDK (a resolved
+// audience, not a sent message). An error is the node's failure in the trace, as it would be in a run.
+type EffectPreviewer interface {
+	PreviewEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
+}
+
+// OfflinePreviewer is an optional interface of an EffectPreviewer that honors StepContext.Offline: offline it
+// reads only through the engine's own data in the caller's rights and runs no package code (a contact
+// resolver of a package, say). An offline dry run previews only such nodes; any other is captured and
+// answered from the context, as without a preview.
+type OfflinePreviewer interface {
+	EffectPreviewer
+	PreviewsOffline()
+}
+
+// EffectPreparer is an optional interface of an EffectNode that has to read the database or call another
+// service before it can decide, and so must not do it while the step's transaction holds a connection (a pool
+// that cannot spare a second one would wait for ever). PrepareEffect runs outside any transaction, with the
+// effect's rendered params; its result reaches ApplyEffect/ApplyEffectResult as StepContext.Prepared, and the
+// effect is then applied in the step's transaction as usual, atomically with the step. The engine asks once
+// per step: a step that is applied again (a crash before the commit) prepares again. A node applied without
+// the engine's preparation (a test of the node) sees Prepared nil and decides for itself.
+type EffectPreparer interface {
+	PrepareEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (any, error)
+}
+
+// PreparedEffect is what an EffectPreparer returned for the step being applied: its value, or its error.
+type PreparedEffect struct {
+	Value any
+	Err   error
+	// Effects are the effects the preparation was made for. The step taken again applies exactly these, not
+	// the ones its fresh evaluation renders (an expression on `now` renders differently the second time), so
+	// what was prepared is what is applied.
+	Effects []graph.Effect
+	// Exhausted: what the step reads kept changing while it was prepared, so no preparation fits. The step is not
+	// applied (the engine retries it later) rather than applied without the check the node asked for.
+	Exhausted bool
+}
+
+// needsPrepareError is what a step's transaction returns when an effect node wants its preparation first: the step is
+// rolled back, the runner prepares outside the transaction and takes the step again.
+type needsPrepareError struct {
+	preparer EffectPreparer
+	sc       StepContext
+	node     graph.Node
+	effect   graph.Effect
+	effects  []graph.Effect // every effect of the node's step
+	varsHash string         // the subject's variables the step read (mover.varsHash)
+}
+
+func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }
+
+// GraphChecker is an optional interface of a catalog.NodeType: rules over a whole graph that uses the node
+// (what its trigger events offer, for example), checked when the graph is saved, dry run and enabled.
+// The paths of the returned errors are those of the graph (nodes[i].params...).
+type GraphChecker interface {
+	CheckNode(g graph.Graph, index int, view catalog.View) []graph.GraphError
+}
+
+// TriggerEvent is the event that started a run, as the run keeps it: the key and the id of the event and
+// its payload as the run's run-as could read it (the engine's own fields, kind and by_self, left out).
+type TriggerEvent struct {
+	Key     string
+	ID      string
+	Payload json.RawMessage
+	// ActorUserID is the user who initiated the event (the run's initiator); 0 for a system event. It is
+	// what the event's actor recipient resolves to.
+	ActorUserID int64
+}
+
 // CodeNode is an optional interface of a catalog.NodeType: its nodes run code a human reviews before a
 // version is enabled. Review is what the reviewer sees for a node's params.
 type CodeNode interface {
 	Review(params map[string]any) CodeNodeReview
+}
+
+// NodeValidator is an optional interface of a catalog.NodeType: checks of a node's params beyond their
+// schema, run when a graph is saved (a Code node compiles its source). Paths are relative to the node
+// ("params.source"); the engine prefixes them with the node's path. Params are as the graph has them.
+type NodeValidator interface {
+	ValidateParams(ctx context.Context, params map[string]any) []graph.GraphError
+}
+
+// EffectWaitKeyer is an optional interface of a catalog.NodeType with behavior wait that emits its
+// effect: the subject the wait listens on, from the effect's output (the run the effect started). It
+// takes precedence over WaitKeyer.
+type EffectWaitKeyer interface {
+	EffectWaitSubject(params, output map[string]any) (SubjectRef, bool)
+}
+
+// WakeResolver is an optional interface of a catalog.NodeType with behavior wait: the outcome and
+// output of a wait woken by the event (a finished run: done or failed, and its output) instead of the
+// matched outcome with the event's payload. The outcome must be one of the node's outcomes.
+type WakeResolver interface {
+	ResolveWake(event graph.Event) (outcome string, output map[string]any)
 }
 
 // StepContext is what a node executor gets about the step it runs in.
@@ -519,9 +636,30 @@ type StepContext struct {
 	Subject                  SubjectRef
 	Depth                    int
 	Native                   workflow.NativeRun // primitives of #1321
+	// NodeID, TokenID and Seq name the step: they are stable when the same step is applied again, so an
+	// effect derives its idempotency key from them (StepKey).
+	NodeID string
+	// Trigger is the event that started the run; nil for a run without an event (a manual or schedule
+	// run) and for a node test.
+	Trigger *TriggerEvent
+	// Prepared is the result of the node's PrepareEffect for this step (EffectPreparer); nil when the node
+	// has none or was applied without the engine's preparation.
+	Prepared *PreparedEffect
 	// FailedConnected: the node's failed outcome leads to a node (not to ignore): a call whose outcome is
 	// unknown takes it; otherwise the call blocks for an operator.
 	FailedConnected bool
+	// Context is the step's expression context for a node type that declares graph.NodeSpec.StepContext
+	// (graph.Effect.Context); a call carries it to its child instance.
+	Context map[string]any
+	// Offline is set for a preview of an agent's dry run (DryRunInput.RealCalls other than RealCallsAll): the
+	// previewer runs no package code and makes no call outside the engine (OfflinePreviewer).
+	Offline bool
+}
+
+// StepKey is the idempotency key of the step: run, node, token and the step's sequence number. It is the
+// same whenever the step is applied again, and differs between two visits of one node.
+func (c StepContext) StepKey() string {
+	return fmt.Sprintf("%s:%s:%s:%d", c.RunID, c.NodeID, c.TokenID, c.Seq)
 }
 
 // WaitSpec is a wait a node executor registers.

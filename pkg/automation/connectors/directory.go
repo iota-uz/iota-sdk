@@ -33,6 +33,11 @@ func (d *directory) Register(c Connector) error {
 	if err := checkDescriptor(c.Kind(), desc); err != nil {
 		return serrors.Wrap(op, err)
 	}
+	if ca, ok := c.(CodeAccessor); ok {
+		if err := ca.CodeAccess().Validate(); err != nil {
+			return serrors.Wrap(op, fmt.Errorf("connector %s: %w", desc.Kind, err))
+		}
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if _, dup := d.byID[desc.Kind]; dup {
@@ -187,12 +192,13 @@ func scalar(typ, v string) any {
 }
 
 // RedactedCredentials is what a client may see of credentials: the fields the credentials schema
-// declares without x-secret. A field the schema does not declare is withheld, so a connector without a
-// schema shows nothing.
+// declares without x-secret or x-internal. A field the schema does not declare is withheld, so a
+// connector without a schema shows nothing.
 func RedactedCredentials(d Descriptor, c Credentials) map[string]string {
 	var doc struct {
 		Properties map[string]struct {
-			Secret bool `json:"x-secret"`
+			Secret   bool `json:"x-secret"`
+			Internal bool `json:"x-internal"`
 		} `json:"properties"`
 	}
 	out := map[string]string{}
@@ -200,7 +206,7 @@ func RedactedCredentials(d Descriptor, c Credentials) map[string]string {
 		return out
 	}
 	for k, v := range c {
-		if p, declared := doc.Properties[k]; declared && !p.Secret {
+		if p, declared := doc.Properties[k]; declared && !p.Secret && !p.Internal {
 			out[k] = v
 		}
 	}

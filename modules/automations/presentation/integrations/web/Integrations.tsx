@@ -471,7 +471,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
           </Dropdown>
         </Show>
       </div>
-      <Show when={c().status === 'needs_reauth' && props.connector.auth === 'oauth2' && props.ctx.canManage()}>
+      <Show when={c().status === 'needs_reauth' && (props.connector.auth === 'oauth2' || c().sign_in) && props.ctx.canManage()}>
         <div><Button size="sm" onClick={() => void reauth()} class="min-h-11 sm:min-h-9" data-testid="reauth">{t('SignInAgain')}</Button></div>
       </Show>
       <div role="status" aria-live="polite" class="flex min-h-5 flex-col gap-1 text-sm" data-testid="check-status">
@@ -557,7 +557,17 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         : await props.ctx.call('automations.connections.create', {
           kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()), idempotency_key: idempotencyKey,
         })
-      if (result.ok && result.connection) { end(); props.onSaved(result.connection, !e); return }
+      if (result.ok && result.connection) {
+        const saved = result.connection
+        if (saved.sign_in && saved.status === 'needs_reauth') {
+          // The connection signs in with its own authorization server (an MCP server with OAuth): saved
+          // first, then the browser goes to the sign-in; the callback brings it back connected.
+          const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: saved.name, connection_id: saved.id })
+          window.location.assign(r.authorize_url)
+          return
+        }
+        end(); props.onSaved(saved, !e); return
+      }
       end()
       const { idempotency_key: changedRetry, ...fieldsLeft } = result.fields ?? {}
       setFieldErrors(fieldsLeft)

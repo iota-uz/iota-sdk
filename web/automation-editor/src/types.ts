@@ -52,6 +52,8 @@ export type CatalogEvent = {
   schedule?: boolean
   /** false → the palette marks the event "no connection" and does not offer it. */
   connected?: boolean
+  /** Recipient keys of the event's notification definition: what a notify node may name as participants. */
+  participants?: string[]
 }
 export type NodeBehavior =
   | 'branch' | 'switch' | 'wait' | 'call' | 'effect' | 'end' | 'parallel' | 'join' | 'foreach' | 'collect'
@@ -75,7 +77,11 @@ export type CatalogNode = {
   connected?: boolean
 }
 
-export type GraphError = { path: string; message: string; line?: number; column?: number; code?: string }
+export type GraphError = {
+  path: string; message: string; line?: number; column?: number; code?: string
+  /** An action that resolves the issue: remove the value at `remove` (a later save fills it anew). */
+  fix?: { remove: string; label: string }
+}
 export type Subject = { entity: string; key: string; label?: string }
 
 // Types of runs, dry run and test node; the editor ships only the types and the overlay prop.
@@ -89,7 +95,7 @@ export type TestNodeResult = {
 }
 export type SaveResult =
   /** Saved; with pending_review the enabled version stays until review. */
-  | { ok: true; graph: AutomationGraph; version: number; pending_review?: boolean }
+  | { ok: true; graph: AutomationGraph; version: number; pending_review?: boolean; warnings?: GraphError[] }
   | { errors: GraphError[]; warnings?: GraphError[] }
   | { conflict: { by: string; version: number } }
 
@@ -160,11 +166,13 @@ export type CanvasMenu = { x: number; y: number; flow: XY; item: string | null }
 export type CanvasItem = {
   id: string; kind: 'trigger' | 'node'; type: string
   outs: { outcome: string; to: string | null; ignore: boolean }[]
-  state?: ItemState; error?: string
+  state?: ItemState; error?: string; warning?: string
 }
 export interface CanvasProps {
   graph: AutomationGraph; catalog: EditorCatalog; layout: AutomationLayout
   errors?: GraphError[]; overlay?: Overlay | null
+  /** Warnings of the last check: a badge on their item, the card is not marked as an error. */
+  warnings?: GraphError[]
   selected: string | null; onSelect(id: string | null): void
   /** Absent → read-only. */
   onChange?(graph: AutomationGraph): void
