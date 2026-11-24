@@ -34,6 +34,7 @@ func TestConformance(t *testing.T) {
 	m, err := manager.New(manager.Config{
 		PythonPath:   python,
 		Policy:       lifecycle.WarmPool(time.Minute, 64),
+		Sandbox:      isolation.Profile{Mode: isolation.ModeRequired},
 		EnvAllowlist: []string{"PATH", "LANG"},
 		DisposeGrace: 2 * time.Second,
 		Limits: isolation.ResourceLimits{

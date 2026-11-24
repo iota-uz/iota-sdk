@@ -51,6 +51,9 @@ const shots: Shot[] = [
     await expect(page.locator('.ae-banner').filter({ hasText: 'Saved by another user' })).toBeVisible()
   } },
   { name: 'phone', query: 'overlay=1', width: 390, height: 844 },
+  // Tidy v2 (#1391): a column per trigger, a failure lane, orthogonal links; a parallel with its join and a for each.
+  { name: 'tidy-multi', query: 'graph=multi', width: 1440, height: 900 },
+  { name: 'tidy-foreach', query: 'graph=foreach', width: 1440, height: 900 },
 ]
 
 for (const theme of ['light', 'dark'] as const) {

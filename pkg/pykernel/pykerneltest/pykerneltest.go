@@ -41,5 +41,5 @@ func Sandbox(tb testing.TB) isolation.Profile {
 		tb.Logf("pykernel sandbox unavailable, running unconfined: %v", err)
 		return isolation.Profile{Mode: isolation.ModeInsecureDisabled}
 	}
-	return isolation.Profile{}
+	return isolation.Profile{Mode: isolation.ModeRequired}
 }

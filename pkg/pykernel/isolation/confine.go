@@ -72,15 +72,15 @@ func WriteFileAtomic(dir, name string, data []byte) (string, error) {
 type Mode int
 
 const (
-	// ModeRequired confines every kernel and refuses to run one that is
-	// missing any boundary in RequiredBoundaries (fail closed). It is the
-	// zero value, so a Manager is confined unless it opts out explicitly.
-	ModeRequired Mode = iota
 	// ModeInsecureDisabled runs kernels with only the environment scrub,
-	// rlimits and the process group. It exists for development on hosts
-	// without Landlock (macOS, old kernels) and for tests with fake
-	// launchers; never use it for code a model or a user wrote.
-	ModeInsecureDisabled
+	// rlimits and the process group. It is the zero value: the sandbox is
+	// opt-in, so hosts without Landlock ABI 6 (old kernels, macOS, Docker
+	// without CAP_SYS_PTRACE) keep starting. A host that runs code a model or
+	// a user wrote should set ModeRequired.
+	ModeInsecureDisabled Mode = iota
+	// ModeRequired confines every kernel and refuses to run one that is
+	// missing any boundary in RequiredBoundaries (fail closed).
+	ModeRequired
 )
 
 func (m Mode) String() string {
@@ -104,7 +104,8 @@ type Credential struct {
 
 // Profile is the host's sandbox configuration for every kernel of a Manager.
 type Profile struct {
-	// Mode is ModeRequired unless set otherwise.
+	// Mode is ModeInsecureDisabled unless set otherwise; set ModeRequired to
+	// confine kernels.
 	Mode Mode
 	// ReadPaths are extra read-only paths (fonts, reference data) on top of
 	// DefaultReadPaths and the interpreter's own stdlib and site-packages.
