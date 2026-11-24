@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/triggerowner"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -117,7 +119,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		return Version{}, err
 	}
 	digest := codeDigest(s.r.codeNodes(v.g))
-	var next int
+	var saved versionRow
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		am, err := loadAutomation(ctx, tx, a.TenantID, id, true)
 		if err != nil {
@@ -130,7 +132,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			}
 			return &ConflictError{Latest: am.LatestVersion, By: latest.SavedBy}
 		}
-		next = am.LatestVersion + 1
+		next := am.LatestVersion + 1
 		if err := insertVersion(ctx, tx, a, id, next, v, digest, in.Note); err != nil {
 			return err
 		}
@@ -149,6 +151,11 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			a.TenantID, id, v.g.Name, next, layout); err != nil {
 			return serrors.FromDB(opService, err)
 		}
+		// The response is read in the transaction: a failed read rolls the version back, so a retry
+		// with the same base never conflicts with a version this call saved.
+		if saved, err = loadVersion(ctx, tx, a.TenantID, id, next); err != nil {
+			return err
+		}
 		// A human who may enable switches a running graph to the new version when neither its code nor
 		// its run-as changed; an agent's version waits for a human's Enable.
 		if am.EnabledVersion == nil || a.Origin != OriginHuman || !a.Subject.Has(PermEnable) {
@@ -161,13 +168,18 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		if enabled.CodeDigest != digest || enabled.RunAs != string(v.g.RunAs) || !triggersReadable(v.view, v.g) {
 			return nil
 		}
-		return s.r.enableTx(ctx, tx, a, id, next, v.view, v.g)
+		err = s.r.enableTx(ctx, tx, a, id, next, v)
+		if errors.Is(err, errConnectionGone) {
+			// The connections the version uses changed since it was validated: the version is saved, the
+			// graph keeps running the version it runs until a human enables this one.
+			return nil
+		}
+		return err
 	})
 	if err != nil {
 		return Version{}, err
 	}
-	ver, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, next)
-	return ver.Version, err
+	return saved.Version, nil
 }
 
 // triggersReadable reports whether the author may read every event the graph's triggers are on.
@@ -180,9 +192,92 @@ func triggersReadable(view catalog.View, g graph.Graph) bool {
 	return true
 }
 
+// errConnectionGone: the connections the version was validated against changed (one it uses was
+// deleted, left the connected status, or another one changed what it resolves to).
+var errConnectionGone = errors.New("automation engine: the connections the version uses changed since it was validated")
+
+// lockConnections locks the tenant connections v's graph uses FOR SHARE until the enable commits and
+// checks that v's view still resolves them. A connection Delete locks its row FOR UPDATE from its
+// UsageIndex check to its delete, so it either sees this enable committed (the use blocks it) or commits
+// before the lock is granted, when the row is gone here. A status change of a used connection waits for
+// the lock as well. Each used connection must still be connected, and the tenant's connections must be
+// as they were when v was validated (connState): otherwise another connection may have become the one
+// an omitted parameter resolves to (or been deleted meanwhile), and the enable is refused with
+// errConnectionGone instead of publishing a version over a stale view.
+func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, v validated) error {
+	uses := connectionUses(v.view, v.g)
+	if len(uses) == 0 {
+		return nil
+	}
+	want := map[uuid.UUID]bool{}
+	platform := map[string]bool{}
+	for _, c := range uses {
+		if kind, ok := strings.CutPrefix(c, catalog.PlatformPrefix); ok {
+			platform[kind] = true // its availability may be an opt_in grant, locked below
+			continue
+		}
+		id, err := uuid.Parse(c)
+		if err != nil {
+			return errConnectionGone // validation accepts only IDs it resolved: this one is not a row
+		}
+		want[id] = true
+	}
+	if len(want) > 0 {
+		ids := make([]uuid.UUID, 0, len(want))
+		for id := range want {
+			ids = append(ids, id)
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+		rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = ANY($2) AND status = 'connected' ORDER BY id FOR SHARE`, tenant, ids)
+		if err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		found, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+		if err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		if len(found) != len(ids) {
+			return errConnectionGone
+		}
+	}
+	if len(platform) > 0 {
+		// The grants of the platform credentials the graph uses are held FOR SHARE as well: revoking one
+		// (PlatformGrants.SetEnabled) waits for this enable, or committed before and changed connState. A
+		// kind without a grant row is available by its policy (auto), which no tenant write changes.
+		kinds := make([]string, 0, len(platform))
+		for k := range platform {
+			kinds = append(kinds, k)
+		}
+		sort.Strings(kinds)
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.platform_grants WHERE tenant_id = $1 AND kind = ANY($2) ORDER BY kind FOR SHARE`, tenant, kinds); err != nil {
+			return serrors.FromDB(opService, err)
+		}
+	}
+	now, err := connectionsState(ctx, tx, tenant)
+	if err != nil {
+		return err
+	}
+	if now != v.connState {
+		return errConnectionGone
+	}
+	return nil
+}
+
 // enableTx pins a version: enabled_version, the owner (trigger_owners) and the version's triggers with
-// the current outbox watermark, so events published before do not start runs.
-func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID, version int, view catalog.View, g graph.Graph) error {
+// the current outbox watermark, so events published before do not start runs. The caller holds the
+// graph's row lock; the connections the version uses are locked first (lockConnections).
+func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID, version int, v validated) error {
+	view, g := v.view, v.g
+	if err := lockConnections(ctx, tx, a.TenantID, v); err != nil {
+		return err
+	}
+	// The triggers become active now, after the graph's lock was granted: the transaction's start
+	// (now(), the column's default) can lie before it, and a schedule slot between the two would
+	// count as one of this enable. One time for every trigger of the enable.
+	var activeFrom time.Time
+	if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&activeFrom); err != nil {
+		return serrors.FromDB(opService, err)
+	}
 	if _, err := tx.Exec(ctx, `UPDATE automation.automations SET enabled_version = $3, owner_user_id = $4, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
 		a.TenantID, id, version, a.UserID); err != nil {
 		return serrors.FromDB(opService, err)
@@ -213,8 +308,8 @@ func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID
 			schedule = b
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO automation.triggers (tenant_id, automation_id, version, trigger_id, kind, event_kind, filter_cel, schedule, after_seq)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, a.TenantID, id, version, t.ID, t.Kind, event, filter, schedule, after); err != nil {
+			INSERT INTO automation.triggers (tenant_id, automation_id, version, trigger_id, kind, event_kind, filter_cel, schedule, after_seq, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, a.TenantID, id, version, t.ID, t.Kind, event, filter, schedule, after, activeFrom); err != nil {
 			return serrors.FromDB(opService, err)
 		}
 	}
@@ -451,33 +546,54 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 	if !triggersReadable(view, g) {
 		return Automation{}, fmt.Errorf("%w: the triggers' events need a permission you do not have", ErrForbidden)
 	}
-	checked, err := s.r.validate(ctx, a, v.Graph)
-	if err != nil {
-		return Automation{}, err
-	}
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
-			return err
+	// Enable and Disable answer under their own authorization (the caller may lack Automations.Read),
+	// with the graph as their transaction committed it.
+	var am automationRow
+	for attempt := 0; ; attempt++ {
+		checked, err := s.r.validate(ctx, a, v.Graph)
+		if err != nil {
+			return Automation{}, err
 		}
-		return s.r.enableTx(ctx, tx, a, id, in.Version, checked.view, checked.g)
-	})
-	if err != nil {
-		return Automation{}, err
+		err = s.inTx(ctx, func(tx pgx.Tx) error {
+			if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
+				return err
+			}
+			if err := s.r.enableTx(ctx, tx, a, id, in.Version, checked); err != nil {
+				return err
+			}
+			am, err = loadAutomation(ctx, tx, a.TenantID, id, false)
+			return err
+		})
+		if errors.Is(err, errConnectionGone) && attempt == 0 {
+			continue // validated again against the catalog of now: a connection that is gone is a validation error
+		}
+		if errors.Is(err, errConnectionGone) {
+			return Automation{}, fmt.Errorf("%w: the connections the version uses changed meanwhile", ErrInvalidInput)
+		}
+		if err != nil {
+			return Automation{}, err
+		}
+		return am.Automation, nil
 	}
-	// Enable and Disable answer under their own authorization: the caller may lack Automations.Read.
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
-	return am.Automation, err
 }
 
 func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
 	if err := s.authorize(a, PermEnable); err != nil {
 		return Automation{}, err
 	}
+	// Enable and Disable answer under their own authorization (the caller may lack Automations.Read),
+	// with the graph as their transaction committed it: an Enable after it is not this call's answer.
+	var am automationRow
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
 			return err
 		}
-		return disableTx(ctx, tx, a.TenantID, id)
+		if err := disableTx(ctx, tx, a.TenantID, id); err != nil {
+			return err
+		}
+		var err error
+		am, err = loadAutomation(ctx, tx, a.TenantID, id, false)
+		return err
 	})
 	if err != nil {
 		return Automation{}, err
@@ -485,9 +601,7 @@ func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automatio
 	if err := s.r.cancelRunsOf(ctx, a.TenantID, id); err != nil {
 		return Automation{}, err
 	}
-	// Enable and Disable answer under their own authorization: the caller may lack Automations.Read.
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
-	return am.Automation, err
+	return am.Automation, nil
 }
 
 // disableTx stops a graph in the caller's transaction, which holds the graph's row lock: no trigger
@@ -580,6 +694,26 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 	if inst == nil {
 		var n int64
 		err := pgx.BeginFunc(ctx, r.cfg.DB, func(tx pgx.Tx) error {
+			// The subject's lock first, as a promotion (dequeue) holds it before it deletes the queue row
+			// and starts the run: both then change the queue row and the run row in one order, and
+			// neither aborts the other as a deadlock.
+			var s SubjectRef
+			if err := tx.QueryRow(ctx, `SELECT subject_entity, subject_key FROM automation.runs WHERE tenant_id = $1 AND id = $2`, tenant, id).Scan(&s.Entity, &s.Key); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrNotFound
+				}
+				return serrors.FromDB(opService, err)
+			}
+			if normSubject(s).Entity == graph.SubjectConversation {
+				if err := lockSubjects(ctx, tx, subjectLockKey(tenant, s, uuid.Nil)); err != nil {
+					return err
+				}
+			}
+			// The queue row before the run row, as promotion (dequeue) and Disable (disableTx) change them:
+			// no two of them wait for each other's row.
+			if _, err := tx.Exec(ctx, `DELETE FROM automation.subject_queue WHERE tenant_id = $1 AND run_id = $2`, tenant, id); err != nil {
+				return serrors.FromDB(opService, err)
+			}
 			// A queued run, or one recorded blocked without an instance (no owner, depth).
 			tag, err := tx.Exec(ctx, `UPDATE automation.runs SET start_state = 'cancelled', updated_at = now()
 				WHERE tenant_id = $1 AND id = $2 AND instance_id IS NULL AND start_state IN ('queued', 'blocked')`, tenant, id)
@@ -587,8 +721,7 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 				return serrors.FromDB(opService, err)
 			}
 			n = tag.RowsAffected()
-			_, err = tx.Exec(ctx, `DELETE FROM automation.subject_queue WHERE tenant_id = $1 AND run_id = $2`, tenant, id)
-			return serrors.FromDB(opService, err)
+			return nil
 		})
 		if err != nil || n > 0 {
 			return err
@@ -675,6 +808,18 @@ func (s *service) StartManual(ctx context.Context, a Actor, id uuid.UUID, in Man
 	}
 	var ref RunRef
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		// Locks in the order steps and the router take them: the subject, then the graph's row. The
+		// run-as is resolved under the graph's lock, so it is the owner of the enable that admits the
+		// run (eligible): an Enable that commits a new owner of the same version waits for this start or
+		// is seen whole by it.
+		if normSubject(subject).Entity != graph.SubjectNone {
+			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, subject, uuid.Nil)); err != nil {
+				return err
+			}
+		}
+		if err := lockGraphShared(ctx, tx, a.TenantID, id, v.Version.Version); err != nil {
+			return err
+		}
 		runAs, err := events.ResolveSubject(ctx, tx, s.r.cfg.Users, ev, ownerTrigger(id), mode)
 		switch {
 		case errors.Is(err, events.ErrNoSubject):
@@ -694,15 +839,27 @@ func (s *service) StartManual(ctx context.Context, a Actor, id uuid.UUID, in Man
 				return fmt.Errorf("%w: the trigger's %s rejects the input", ErrInvalidInput, mismatch)
 			}
 		}
-		if normSubject(subject).Entity != graph.SubjectNone {
-			if err := lockSubjects(ctx, tx, subjectLockKey(a.TenantID, subject, uuid.Nil)); err != nil {
-				return err
-			}
-		}
 		ref, err = s.r.startRun(ctx, tx, req)
 		return err
 	})
 	return ref, err
+}
+
+// lockGraphShared locks the graph's row FOR SHARE (the lock eligible takes; Enable and Disable hold it
+// FOR UPDATE) and requires version enabled on it.
+func lockGraphShared(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID, version int) error {
+	var enabled *int
+	err := tx.QueryRow(ctx, `SELECT enabled_version FROM automation.automations WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL FOR SHARE`,
+		tenant, id).Scan(&enabled)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrNotFound
+	case err != nil:
+		return serrors.FromDB(opService, err)
+	case enabled == nil || *enabled != version:
+		return fmt.Errorf("%w: version %d of %s is not enabled", ErrNotEnabled, version, id)
+	}
+	return nil
 }
 
 func (s *service) Cancel(ctx context.Context, a Actor, runID uuid.UUID) error {
@@ -784,6 +941,14 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 		if err := restartable(now); err != nil {
 			return err
 		}
+		// The owner is read under the graph's row lock (the lock eligible takes), as for a manual start.
+		var deleted bool
+		if err := tx.QueryRow(ctx, `SELECT deleted_at IS NOT NULL FROM automation.automations WHERE tenant_id = $1 AND id = $2 FOR SHARE`,
+			a.TenantID, old.AutomationID).Scan(&deleted); errors.Is(err, pgx.ErrNoRows) || (err == nil && deleted) {
+			return ErrNotFound
+		} else if err != nil {
+			return serrors.FromDB(opService, err)
+		}
 		// Run-as by the chosen version's policy: its owner now, or the original initiator.
 		ev := events.Envelope{ID: req.key, TenantID: a.TenantID, Event: kind, InitiatorUserID: old.InitiatorID}
 		mode := events.RunAsOwner
@@ -808,8 +973,27 @@ func (s *service) Restart(ctx context.Context, a Actor, runID uuid.UUID, version
 				payload[k] = val
 			}
 		}
+		// A value the original run recorded as sensitive whose access rule the catalog no longer has
+		// (the field lost it, or its event left) cannot be checked: history of the original run hides it,
+		// and the replay leaves it out instead of carrying it on unrestricted. Fields still classified
+		// keep their rule: the projection below and the new run's provenance (startRun) apply it.
+		// Only the input's own provenance counts: runs.sensitive also holds the fields of events the run's
+		// waits matched later, whose paths name fields of other events, not of this input.
+		proj := s.r.projector(a.TenantID)
+		for _, ref := range old.Sensitive {
+			if ref.Event != kind {
+				continue
+			}
+			ok, err := proj.resolvable(ctx, ref)
+			if err != nil {
+				return &host.InfraError{Err: err}
+			}
+			if !ok {
+				removePath(payload, strings.Split(ref.Path, "."))
+			}
+		}
 		if kind != "" {
-			if payload, err = s.r.projector(a.TenantID).project(ctx, kind, payload, as); err != nil {
+			if payload, err = proj.project(ctx, kind, payload, as); err != nil {
 				return err
 			}
 		}

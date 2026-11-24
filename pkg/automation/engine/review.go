@@ -19,6 +19,9 @@ type validated struct {
 	g    graph.Graph
 	raw  json.RawMessage // canonical JSON of g
 	view catalog.View
+	// connState is the tenant's connections (connectionsState) read before view: an enable compares it
+	// under its locks to tell whether view still resolves the graph's connections.
+	connState string
 }
 
 var nodePathRe = regexp.MustCompile(`^nodes\[(\d+)\]\.type$`)
@@ -30,6 +33,10 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	g, errs := graph.Decode(raw)
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
+	}
+	connState, err := connectionsState(ctx, r.cfg.DB, a.TenantID)
+	if err != nil {
+		return validated{}, err
 	}
 	view, err := r.cfg.Catalog.ForTenant(ctx, a.TenantID, catalog.AsAuthor(a.Subject))
 	if err != nil {
@@ -52,7 +59,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if err != nil {
 		return validated{}, err
 	}
-	return validated{g: g, raw: canon, view: view}, nil
+	return validated{g: g, raw: canon, view: view, connState: connState}, nil
 }
 
 // connectionErrors reports a node type or an event the tenant's catalog lacks for want of a connection

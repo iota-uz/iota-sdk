@@ -396,12 +396,34 @@ func TestUsageIndexAndConcurrency(t *testing.T) {
 }
 
 func TestStatusOf(t *testing.T) {
-	assert.Equal(t, engine.RunDone, engine.StatusOf("completed", ""))
-	assert.Equal(t, engine.RunCancelled, engine.StatusOf("terminated", ""))
-	assert.Equal(t, engine.RunQueued, engine.StatusOf("", "queued"))
-	assert.Equal(t, engine.RunFilterFailed, engine.StatusOf("", "filter_failed"))
-	assert.Equal(t, engine.RunBlocked, engine.StatusOf("", "blocked"))
-	require.ErrorIs(t, &engine.ConflictError{Latest: 2}, engine.ErrVersionConflict)
+	cases := []struct {
+		name, instance, start string
+		want                  engine.RunStatus
+	}{
+		{"completed instance is done", "completed", "", engine.RunDone},
+		{"terminated instance is cancelled", "terminated", "", engine.RunCancelled},
+		{"failed instance is failed", "failed", "", engine.RunFailed},
+		{"waiting instance is waiting", "waiting", "", engine.RunWaiting},
+		{"blocked instance is blocked", "blocked", "", engine.RunBlocked},
+		{"queued run without instance", "", "queued", engine.RunQueued},
+		{"filter_failed run without instance", "", "filter_failed", engine.RunFilterFailed},
+		{"blocked run without instance", "", "blocked", engine.RunBlocked},
+		{"cancelled run without instance", "", "cancelled", engine.RunCancelled},
+		{"the instance wins over a stored start state", "completed", "blocked", engine.RunDone},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, engine.StatusOf(c.instance, c.start))
+		})
+	}
+}
+
+func TestConflictErrorIsAVersionConflict(t *testing.T) {
+	err := &engine.ConflictError{Latest: 2}
+	require.ErrorIs(t, err, engine.ErrVersionConflict)
+}
+
+func TestValidationErrorNamesItsCode(t *testing.T) {
 	assert.True(t, strings.HasPrefix((&engine.ValidationError{}).Error(), "automation: VALIDATION_FAILED"))
 }
 

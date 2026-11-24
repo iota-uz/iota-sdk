@@ -95,8 +95,8 @@ type Runtime struct {
 	mu      sync.Mutex
 	interps map[string]*interpEntry
 
-	// testHook, set by tests, runs at the end of every fenced transaction of a run (label: step,
-	// consume, timeout, task, release, fail); its error rolls the transaction back.
+	// testHook, set by tests (SetTestHook), runs at the end of every fenced transaction of a run and,
+	// with tx == nil, at the labels SetTestHook names; its error rolls the transaction back.
 	testHook func(ctx context.Context, tx pgx.Tx, label string) error
 	// contextHook, set by tests, sees every context a live run's step is built with.
 	contextHook func(event string, gctx graph.Context)

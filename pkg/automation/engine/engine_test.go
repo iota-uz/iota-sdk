@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,11 +17,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 )
 
-// followUp notes the order, waits for its payment (timeout 1s) and notes a late order.
+// followUp notes the order, waits for its payment and notes a late order. Its wait lasts an hour: tests
+// that match the payment never race the timeout. Tests of the timeout use followUpTimeout.
 const followUp = `{"name": "Order follow-up", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
  "nodes": [
   {"id": "note", "type": "acme.note", "params": {"text": "order {{ event.amount }}"}},
-  {"id": "pay", "type": "wait", "params": {"event": "acme.order.paid.v1", "timeout": "1s"}},
+  {"id": "pay", "type": "wait", "params": {"event": "acme.order.paid.v1", "timeout": "1h"}},
   {"id": "late", "type": "acme.note", "params": {"text": "late"}},
   {"id": "paid", "type": "acme.note", "params": {"text": "paid {{ nodes.pay.output.event.amount }}"}},
   {"id": "fin", "type": "end", "params": {"reason": "finished"}}
@@ -37,6 +39,9 @@ const followUp = `{"name": "Order follow-up", "triggers": [{"id": "created", "ev
   {"from": {"node": "paid", "outcome": "failed"}, "to": "fin"}
  ]}`
 
+// followUpTimeout is followUp whose payment wait times out after 1s.
+var followUpTimeout = strings.Replace(followUp, `"timeout": "1h"`, `"timeout": "1s"`, 1)
+
 func onlyRun(t *testing.T, e *env, p *proc, a engine.Actor) engine.RunSummary {
 	t.Helper()
 	var runs []engine.RunSummary
@@ -49,7 +54,7 @@ func TestEventWaitTimeoutEndSurvivesRestart(t *testing.T) {
 	e := newEnv(t)
 	p1 := e.proc()
 	a := e.human()
-	e.create(p1, a, followUp)
+	e.create(p1, a, followUpTimeout)
 	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 42}, 0)
 
 	run := onlyRun(t, e, p1, a)

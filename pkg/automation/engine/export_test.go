@@ -11,8 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// SetTestHook runs fn at the end of every fenced transaction of a run, before the counters and the
-// receipt; its error rolls the transaction back.
+// SetTestHook sets fn, called with a label at points of the engine. Inside a fenced transaction of a
+// run (step, consume, timeout, task, release, fail, subject, catchup) it runs at the end, before the
+// counters and the receipt, with that transaction; its error rolls the transaction back.
+//
+// Two labels are called outside any transaction, with tx == nil: "timer-fired" between a timer's receipt
+// and the timeout's transaction (an error aborts the run's pass; the timer is already fired, so the
+// next pass applies the timeout), and "prune-runs" in Prune between the step and the run deletes (an
+// error ends Prune). A hook must not use tx for them.
 func (r *Runtime) SetTestHook(fn func(ctx context.Context, tx pgx.Tx, label string) error) {
 	r.testHook = fn
 }
@@ -45,4 +51,9 @@ func (r *Runtime) QuietCallObserver() { r.quietCallObserver = true }
 // TaskAssignedNewUsers is the new users of a task change as the TaskAssigned observer finds them.
 func TaskAssignedNewUsers(ctx context.Context, obs workflow.TaskObserver, tenant uuid.UUID, t workflow.Task, change workflow.TaskChange) ([]int64, bool, error) {
 	return obs.(*taskAssignedObserver).newUsers(ctx, tenant, t, change)
+}
+
+// SubjectLockKey is the advisory lock key steps, starts and the router take for a run's subject.
+func SubjectLockKey(tenant uuid.UUID, s SubjectRef, run uuid.UUID) string {
+	return subjectLockKey(tenant, s, run)
 }
