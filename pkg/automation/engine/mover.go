@@ -163,6 +163,26 @@ func (m *mover) preparedEffects(tok *tokenRow, node string, fresh []graph.Effect
 	return p.Effects
 }
 
+// maxPrepareAttempts bounds how many times a step is prepared again because what it reads changed in between.
+const maxPrepareAttempts = 3
+
+// preparedFor is the preparation the effect node of this step gets: the one made for it, while the subject's
+// variables the run-as may read are what they were when it was made. A preparation that no longer fits is not
+// handed over: the step asks for a new one, outside the transaction. After maxPrepareAttempts the node gets an
+// empty preparation, and decides without one (send_to_contact queues the record unchecked for the worker).
+func (m *mover) preparedFor(tok *tokenRow, seq int) *PreparedEffect {
+	p := m.x.preparedStepFor(tok.ID, seq, tok.NodeID)
+	switch {
+	case p == nil:
+		return nil
+	case p.varsHash == m.varsHash:
+		return &p.PreparedEffect
+	case p.attempts >= maxPrepareAttempts:
+		return &PreparedEffect{}
+	}
+	return nil
+}
+
 // hashVars fingerprints the subject's variables.
 func hashVars(vars map[string]any) string {
 	b, err := json.Marshal(vars)
@@ -288,7 +308,7 @@ func (m *mover) stepContext(tok *tokenRow, seq int) StepContext {
 		TenantID: m.x.tenant, RunID: m.x.run.ID, TokenID: tok.ID, Seq: seq,
 		AutomationID: m.x.run.AutomationID, Version: m.x.run.Version,
 		RunAs: m.x.subject, Subject: m.x.run.Subject, Depth: m.x.run.Depth, Native: m.x.nr,
-		NodeID: tok.NodeID, Trigger: triggerEventOf(m.x.run), Prepared: m.x.preparedFor(tok.ID, seq, tok.NodeID),
+		NodeID: tok.NodeID, Trigger: triggerEventOf(m.x.run), Prepared: m.preparedFor(tok, seq),
 	}
 }
 

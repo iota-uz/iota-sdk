@@ -365,7 +365,9 @@ resolve no audience and check no access themselves.
   on a pool without a spare connection. The step taken again applies the effects it was prepared for, so an
   expression that renders differently the second time (on `now`) cannot send what was not checked; it does so
   only while the subject's variables the run-as may read are unchanged, so a right lost in between is honored
-  by the fresh evaluation, and a step whose fresh evaluation fails takes that failure. A node applied without the runner's preparation (a test of the node)
+  by the fresh evaluation, and a step whose fresh evaluation fails takes that failure. A preparation that no
+  longer fits (the variables changed) is not handed to the node: the step is prepared again, at most three times,
+  and then the node decides without a preparation. A node applied without the runner's preparation (a test of the node)
   has the delivery layer check the contact in the transaction instead. A resolver that is neither a
   `ContactChecker` nor a `TxSafeContactResolver`, or one that cannot be asked yet (`ErrContactUnverifiable`),
   leaves its record unchecked: the worker records a missing address at delivery. A channel that is not

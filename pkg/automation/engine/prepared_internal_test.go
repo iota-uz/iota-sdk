@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
@@ -33,4 +34,29 @@ func TestPreparedEffectsAreUsedOnlyForTheSameStepAndTheSameVariables(t *testing.
 	assert.Equal(t, fresh, m.preparedEffects(&tokenRow{ID: uuid.New(), StepSeq: 2}, "n", fresh), "another token")
 	assert.Empty(t, m.preparedEffects(tok, "n", nil), "a fresh evaluation that rendered no effect (it failed) takes its failure")
 	assert.Equal(t, hashVars(vars), hashVars(map[string]any{"order": map[string]any{"owner": 7}}), "the hash is stable")
+}
+
+// A preparation that no longer fits what the step reads is not handed to the node: the step prepares again, a
+// few times at most, and then the node decides without one.
+func TestStalePreparationIsNotHandedToTheNode(t *testing.T) {
+	tok := &tokenRow{ID: uuid.New(), StepSeq: 2, NodeID: "n"}
+	vars := map[string]any{"order": map[string]any{"owner": 7}}
+	prep := &preparedStep{token: tok.ID, seq: 3, node: "n", varsHash: hashVars(vars), attempts: 1, PreparedEffect: PreparedEffect{Value: "checked"}}
+	x := &execution{prepared: prep}
+	m := &mover{x: x, varsHash: hashVars(vars)}
+
+	got := m.preparedFor(tok, 3)
+	require.NotNil(t, got)
+	assert.Equal(t, "checked", got.Value, "the variables are what they were: the preparation fits")
+
+	m.varsHash = hashVars(map[string]any{"order": map[string]any{"owner": 8}})
+	assert.Nil(t, m.preparedFor(tok, 3), "the variables changed: the old preparation is not handed over, a new one is asked for")
+
+	prep.attempts = maxPrepareAttempts
+	got = m.preparedFor(tok, 3)
+	require.NotNil(t, got)
+	assert.Nil(t, got.Value, "after the last attempt the node gets an empty preparation and decides without one")
+	assert.Empty(t, got.Effects)
+
+	assert.Nil(t, m.preparedFor(tok, 4), "another step")
 }

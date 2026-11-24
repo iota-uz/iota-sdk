@@ -93,6 +93,9 @@ type preparedStep struct {
 	node  string
 	// varsHash fingerprints the subject's variables the step read when it asked for the preparation.
 	varsHash string
+	// attempts counts the preparations made for this step: one that no longer fits what the step reads is made
+	// again, a few times at most.
+	attempts int
 	PreparedEffect
 }
 
@@ -447,7 +450,11 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 	if errors.As(err, &np) {
 		// The step was rolled back: nothing of it stands. Prepare outside any transaction, then take it again.
 		v, perr := np.preparer.PrepareEffect(ctx, np.sc, np.node, np.effect)
-		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, varsHash: np.varsHash, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
+		attempts := 1
+		if prev := x.preparedStepFor(np.sc.TokenID, np.sc.Seq, np.node.ID); prev != nil {
+			attempts = prev.attempts + 1
+		}
+		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, varsHash: np.varsHash, attempts: attempts, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
 		if host.IsInfrastructure(perr) || ctx.Err() != nil {
 			return true, perr
 		}
