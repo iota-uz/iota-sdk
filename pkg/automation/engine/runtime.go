@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -57,6 +58,11 @@ type Config struct {
 	// Credentials opens the connection a call runs with (connectors.Store); nil: only calls without a
 	// connector run.
 	Credentials connectors.CredentialSource
+	// Connectors, when set, tells which fields of a connection's credentials are secret (the x-secret
+	// fields of the connector's descriptor): only those are masked in the output and the errors of a call.
+	// A connection's public fields (a provider's name, an endpoint) then reach the output as they are.
+	// nil, or a connector that declares no secret field: every credential value is masked.
+	Connectors connectors.Directory
 	// CallLimits bound the calls of automation.call.
 	CallLimits CallLimits
 	// Usage records what calls spent (optional).
@@ -367,4 +373,27 @@ func (p permissiveParams) Parse(raw map[string]any) (map[string]any, []graph.Iss
 		out[catalog.ConnectionParam] = c
 	}
 	return out, issues
+}
+
+// credentialMasker is the masker of a call that runs with creds of a connector of kind: the secret
+// fields of its descriptor when the engine knows them, else every value.
+func (r *Runtime) credentialMasker(kind catalog.ConnectorKind, creds catalog.Credentials) Masker {
+	if r.cfg.Connectors == nil {
+		return code.NewMasker(map[string]string(creds))
+	}
+	c, ok := r.cfg.Connectors.Get(kind)
+	if !ok {
+		return code.NewMasker(map[string]string(creds))
+	}
+	secret := connectors.SecretFields(c.Descriptor())
+	if len(secret) == 0 {
+		return code.NewMasker(map[string]string(creds))
+	}
+	values := make(map[string]string, len(secret))
+	for field, v := range creds {
+		if secret[field] {
+			values[field] = v
+		}
+	}
+	return code.NewMasker(values)
 }

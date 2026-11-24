@@ -1,0 +1,669 @@
+package openai_test
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/internal/aichat"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/internal/aitest"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
+	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
+)
+
+const answerSchema = `{"type":"object","properties":{"summary":{"type":"string"},"score":{"type":"integer"},"tags":{"type":"array","items":{"type":"string"}},"note":{"type":"string"}},"required":["summary","score"]}`
+
+func schemaParam(t *testing.T) map[string]any {
+	t.Helper()
+	var m map[string]any
+	require.NoError(t, json.Unmarshal([]byte(answerSchema), &m))
+	return m
+}
+
+func newNode(t *testing.T, opts ...openai.Option) (catalog.CallNode, connectors.Connector) {
+	t.Helper()
+	c := openai.New(opts...)
+	require.Len(t, c.Nodes(), 1)
+	n, ok := c.Nodes()[0].(catalog.CallNode)
+	require.True(t, ok)
+	return n, c
+}
+
+// parsed is the params of a call as the engine passes them: parsed by the node's spec (defaults applied).
+func parsed(t *testing.T, n catalog.CallNode, raw map[string]any) map[string]any {
+	t.Helper()
+	p, issues := n.Spec().Params.Parse(raw)
+	require.Empty(t, issues)
+	return p
+}
+
+func callCode(t *testing.T, err error) *catalog.CallError {
+	t.Helper()
+	var ce *catalog.CallError
+	require.True(t, errors.As(err, &ce), "want a CallError, got %v", err)
+	return ce
+}
+
+func TestNodeSpecIsACatalogEntry(t *testing.T) {
+	n, c := newNode(t)
+	reg := catalog.NewRegistry(nil)
+	require.NoError(t, reg.RegisterConnector(c))
+	assert.Equal(t, catalog.KindOpenAI, c.Kind())
+	assert.Equal(t, []catalog.ConnectorKind{openai.Kind}, n.Requires())
+	assert.True(t, n.Idempotent())
+	spec := n.Spec()
+	assert.Equal(t, "ai.llm", spec.Type)
+	assert.Equal(t, graph.BehaviorCall, spec.Behavior)
+	assert.Equal(t, graph.DryRunExecute, spec.DryRun)
+	assert.Equal(t, []string{"done", "failed"}, spec.Outcomes)
+	assert.Equal(t, connectors.PlatformOptIn, c.Descriptor().Platform)
+	assert.Equal(t, connectors.CategoryAI, c.Descriptor().Category)
+	assert.True(t, connectors.SecretFields(c.Descriptor())["api_key"])
+	_, isDecision := n.(engine.DecisionNode)
+	assert.True(t, isDecision)
+}
+
+func TestParams(t *testing.T) {
+	n, _ := newNode(t)
+	parse := func(raw string) []graph.Issue {
+		var m map[string]any
+		require.NoError(t, json.Unmarshal([]byte(raw), &m))
+		_, issues := n.Spec().Params.Parse(m)
+		return issues
+	}
+	assert.Empty(t, parse(`{"prompt":"hi"}`))
+	assert.Empty(t, parse(`{"prompt":"hi","model":"gpt-4o-2024-08-06","temperature":0.2,"max_tokens":32000,"timeout":"2m"}`))
+	assert.Empty(t, parse(`{"prompt":"hi","timeout":1000}`))
+	assert.Empty(t, parse(`{"prompt":"hi","format":"json","schema":`+answerSchema+`}`))
+
+	for name, raw := range map[string]string{
+		"no prompt":            `{}`,
+		"empty prompt":         `{"prompt":""}`,
+		"alias":                `{"prompt":"hi","model":"gpt-4o-latest"}`,
+		"bare latest":          `{"prompt":"hi","model":"latest"}`,
+		"router":               `{"prompt":"hi","model":"openrouter/auto"}`,
+		"not an id":            `{"prompt":"hi","model":"gpt 4o"}`,
+		"json without schema":  `{"prompt":"hi","format":"json"}`,
+		"schema with text":     `{"prompt":"hi","schema":` + answerSchema + `}`,
+		"schema out of subset": `{"prompt":"hi","format":"json","schema":{"type":"object","properties":{"a":{"type":"string","pattern":"x"}}}}`,
+		"max tokens":           `{"prompt":"hi","max_tokens":32001}`,
+		"zero tokens":          `{"prompt":"hi","max_tokens":0}`,
+		"temperature":          `{"prompt":"hi","temperature":2.1}`,
+		"timeout too short":    `{"prompt":"hi","timeout":"0s"}`,
+		"timeout ms short":     `{"prompt":"hi","timeout":999}`,
+		"timeout too long":     `{"prompt":"hi","timeout":"6m"}`,
+		"format":               `{"prompt":"hi","format":"xml"}`,
+		"unknown param":        `{"prompt":"hi","tools":[]}`,
+	} {
+		assert.NotEmpty(t, parse(raw), name)
+	}
+}
+
+func TestModelAliasesAndVision(t *testing.T) {
+	for _, alias := range []string{"gpt-4o-latest", "chatgpt-4o-latest", "latest", "claude-latest", "gpt-5-latest", "openrouter/auto", "openai/gpt-4o:latest"} {
+		assert.Error(t, aichat.CheckModel(alias), alias)
+	}
+	for _, exact := range []string{"gpt-4o", "gpt-4o-mini-2024-07-18", "o3-2025-04-16", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct:free"} {
+		assert.NoError(t, aichat.CheckModel(exact), exact)
+	}
+	for model, want := range map[string]bool{
+		"gpt-4o": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1": true, "gpt-5": true, "o3": true, "o4-mini": true,
+		"openai/gpt-4o": true, "anthropic/claude-3.5-sonnet": true, "google/gemini-2.0-flash-001": true,
+		"gpt-3.5-turbo": false, "gpt-4": false, "o1-mini": false, "o3-mini": false, "text-embedding-3-small": false,
+		"meta-llama/llama-3-8b-instruct": false, "anthropic/claude-2.1": false,
+	} {
+		assert.Equal(t, want, aichat.VisionModel(model), model)
+	}
+}
+
+func TestImagesNeedAModelWithVision(t *testing.T) {
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo", "images": "event.upload_ids"})
+	require.Len(t, issues, 1)
+	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
+	assert.Equal(t, []any{"images"}, issues[0].Path)
+
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-4o", "images": "event.upload_ids"})
+	assert.Empty(t, issues)
+	// An empty images param is no images.
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo", "images": "[]"})
+	assert.Empty(t, issues)
+
+	// The default model is checked when the node names none.
+	n2, _ := newNode(t, openai.WithDefaultModel("gpt-3.5-turbo"))
+	_, issues = n2.Spec().Params.Parse(map[string]any{"prompt": "describe", "images": "event.upload_ids"})
+	require.Len(t, issues, 1)
+	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
+}
+
+func TestCompleteParamsPinsTheDefaultModel(t *testing.T) {
+	n, _ := newNode(t, openai.WithDefaultModel("gpt-4o-mini-2024-07-18"))
+	cn := n.(catalog.CompletedNode)
+
+	raw := map[string]any{"prompt": "hi"}
+	done := cn.CompleteParams(raw)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", done["model"])
+	assert.NotContains(t, raw, "model", "the argument is not changed")
+	assert.Equal(t, done, cn.CompleteParams(done), "idempotent")
+
+	assert.Equal(t, "gpt-4o", cn.CompleteParams(map[string]any{"prompt": "hi", "model": "gpt-4o"})["model"])
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParams(map[string]any{"prompt": "hi", "model": ""})["model"])
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParams(map[string]any{"prompt": "hi", "model": nil})["model"])
+	assert.Equal(t, 5, cn.CompleteParams(map[string]any{"model": 5})["model"], "a value of another type is left to the check")
+	assert.NotNil(t, cn.CompleteParams(nil))
+
+	// A default that is an alias does not pass the check of the node it was written into.
+	bad, _ := newNode(t, openai.WithDefaultModel("gpt-4o-latest"))
+	_, issues := bad.Spec().Params.Parse(bad.(catalog.CompletedNode).CompleteParams(map[string]any{"prompt": "hi"}))
+	assert.NotEmpty(t, issues)
+}
+
+func TestTextCall(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("Hello there", 12, 3)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithDefaultModel("gpt-4o-mini"))
+	usage := &aitest.Usage{}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "Say hello", "system": "Be brief", "temperature": 0.5}), usage)
+
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "done", res.Outcome)
+	assert.Equal(t, "Hello there", res.Output["text"])
+	assert.NotContains(t, res.Output, "json")
+	assert.Equal(t, "test-model-2025-01-01", res.Output["model"])
+	assert.Equal(t, map[string]any{"input_tokens": int64(12), "output_tokens": int64(3), "cost_usd": nil}, res.Output["usage"])
+	assert.IsType(t, int64(0), res.Output["latency_ms"])
+
+	reqs := srv.Requests()
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "/chat/completions", reqs[0].Path)
+	assert.Equal(t, "Bearer sk-test-key-123456", reqs[0].Header.Get("Authorization"))
+	body := reqs[0].JSON(t)
+	assert.Equal(t, "gpt-4o-mini", body["model"], "the default model of the connector")
+	assert.EqualValues(t, 2000, body["max_tokens"])
+	assert.EqualValues(t, 0.5, body["temperature"])
+	assert.NotContains(t, body, "response_format")
+	assert.Equal(t, []any{
+		map[string]any{"role": "system", "content": "Be brief"},
+		map[string]any{"role": "user", "content": "Say hello"},
+	}, body["messages"])
+
+	// Usage: two entries on the connection of the call, the tenant's own here.
+	assert.EqualValues(t, 12, usage.Total("token_in"))
+	assert.EqualValues(t, 3, usage.Total("token_out"))
+	for _, e := range usage.Entries {
+		assert.Equal(t, in.TenantID, e.TenantID)
+		assert.Equal(t, openai.Kind, e.Kind)
+		assert.Equal(t, in.Connection.ID, e.ConnectionID)
+		require.NotNil(t, e.RunID)
+		assert.Equal(t, in.RunID, *e.RunID)
+	}
+}
+
+func TestOpenAIsOwnEndpointTakesMaxCompletionTokens(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, map[string]string{"base_url": "https://api.openai.com/v1"}, parsed(t, n, map[string]any{"prompt": "x"}), nil)
+	_, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	body := srv.Requests()[0].JSON(t)
+	assert.EqualValues(t, 2000, body["max_completion_tokens"])
+	assert.NotContains(t, body, "max_tokens")
+}
+
+func TestPlatformKeyIsUsedAndAccounted(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 5, 2)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	usage := &aitest.Usage{}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), usage)
+	in.Connection = &catalog.ConnectionInfo{ID: catalog.PlatformConnectionID(openai.Kind), Kind: openai.Kind, Name: "platform", Platform: true}
+	_, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	require.Len(t, usage.Entries, 2)
+	for _, e := range usage.Entries {
+		assert.Equal(t, "platform:openai", e.ConnectionID)
+	}
+}
+
+func TestJSONCall(t *testing.T) {
+	answer := `{"summary":"fine","score":4,"tags":["a","b"],"note":null}`
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(answer, 20, 9)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), &aitest.Usage{})
+
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "done", res.Outcome)
+	assert.NotContains(t, res.Output, "text")
+	// note was optional and came back null: it is left out, as the declared output has it.
+	raw, err := json.Marshal(res.Output["json"])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"summary":"fine","score":4,"tags":["a","b"]}`, string(raw))
+
+	body := srv.Requests()[0].JSON(t)
+	rf := body["response_format"].(map[string]any)
+	assert.Equal(t, "json_schema", rf["type"])
+	js := rf["json_schema"].(map[string]any)
+	assert.Equal(t, true, js["strict"])
+	strict := js["schema"].(map[string]any)
+	assert.Equal(t, false, strict["additionalProperties"])
+	assert.ElementsMatch(t, []any{"note", "score", "summary", "tags"}, strict["required"], "strict mode requires every property")
+	note := strict["properties"].(map[string]any)["note"].(map[string]any)
+	assert.Equal(t, []any{"string", "null"}, note["type"], "an optional property is nullable")
+}
+
+func TestJSONCallOfAnArray(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(`{"value":["x","y"]}`, 1, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	schema := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schema}), nil)
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, []any{"x", "y"}, res.Output["json"])
+	js := srv.Requests()[0].JSON(t)["response_format"].(map[string]any)["json_schema"].(map[string]any)["schema"].(map[string]any)
+	assert.Equal(t, "object", js["type"], "strict mode wants an object at the root")
+}
+
+func TestAnswerOutsideTheSchemaIsOneInvalidRequest(t *testing.T) {
+	for name, answer := range map[string]string{
+		"missing field": `{"summary":"fine"}`,
+		"wrong type":    `{"summary":"fine","score":"high"}`,
+		"extra field":   `{"summary":"fine","score":1,"extra":true}`,
+		"not json":      `Sure! {"summary":"fine","score":1}`,
+		"trailing text": `{"summary":"fine","score":1} thanks`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(answer, 20, 9)})
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			usage := &aitest.Usage{}
+			in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), usage)
+			_, err := n.Execute(context.Background(), in)
+			ce := callCode(t, err)
+			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+			assert.False(t, ce.Retryable, "the engine does not repeat a client refusal")
+			assert.Len(t, srv.Requests(), 1, "exactly one request")
+			assert.EqualValues(t, 20, usage.Total("token_in"), "the tokens were spent")
+		})
+	}
+}
+
+func TestCutOffJSONIsInvalid(t *testing.T) {
+	body := `{"model":"m","choices":[{"finish_reason":"length","message":{"content":"{\"summary\":\"fi"}}],"usage":{"prompt_tokens":3,"completion_tokens":2000}}`
+	srv := aitest.New(t, aitest.Reply{Body: body})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), nil)
+	_, err := n.Execute(context.Background(), in)
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+}
+
+func TestProviderFailures(t *testing.T) {
+	cases := []struct {
+		name      string
+		reply     aitest.Reply
+		code      string
+		retryable bool
+		message   string
+	}{
+		{"unauthorized", aitest.Reply{Status: 401, Body: aitest.APIError("Incorrect API key provided: sk-test-key-123456", "invalid_request_error", "invalid_api_key")}, catalog.CallUnauthorized, false, ""},
+		{"forbidden", aitest.Reply{Status: 403, Body: `{}`}, catalog.CallUnauthorized, false, ""},
+		{"rate limited", aitest.Reply{Status: 429, Body: aitest.APIError("slow down", "rate_limit_exceeded", "rate_limit_exceeded")}, catalog.CallRateLimited, true, "slow down"},
+		{"quota", aitest.Reply{Status: 429, Body: aitest.APIError("You exceeded your current quota", "insufficient_quota", "insufficient_quota")}, catalog.CallUnavailable, false, "quota"},
+		{"server error", aitest.Reply{Status: 503, Body: `upstream down`}, catalog.CallUnavailable, true, ""},
+		{"bad gateway", aitest.Reply{Status: 502, Body: ``}, catalog.CallUnavailable, true, ""},
+		{"context", aitest.Reply{Status: 400, Body: aitest.APIError("maximum context length is 128000", "invalid_request_error", "context_length_exceeded")}, catalog.CallInvalidRequest, false, "context"},
+		{"no such model", aitest.Reply{Status: 404, Body: aitest.APIError("The model does not exist", "invalid_request_error", "model_not_found")}, catalog.CallInvalidRequest, false, "does not exist"},
+		{"moderation", aitest.Reply{Status: 400, Body: aitest.APIError("blocked", "invalid_request_error", "content_policy_violation")}, catalog.CallRejected, false, ""},
+		{"refusal", aitest.Reply{Body: `{"choices":[{"finish_reason":"stop","message":{"content":null,"refusal":"I can't help with that"}}],"usage":{"prompt_tokens":7,"completion_tokens":5}}`}, catalog.CallRejected, false, "can't help"},
+		{"content filter", aitest.Reply{Body: `{"choices":[{"finish_reason":"content_filter","message":{"content":""}}],"usage":{"prompt_tokens":7,"completion_tokens":0}}`}, catalog.CallRejected, false, ""},
+		{"no choices", aitest.Reply{Body: `{"choices":[]}`}, catalog.CallInvalidRequest, false, ""},
+		{"not json", aitest.Reply{Body: `<html>`}, catalog.CallUnavailable, true, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := aitest.New(t, tc.reply)
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), &aitest.Usage{})
+			res, err := n.Execute(context.Background(), in)
+			if tc.reply.Status == 429 && tc.reply.Header["Retry-After"] != "" {
+				require.NoError(t, err)
+				assert.Positive(t, res.RetryAfter)
+				return
+			}
+			ce := callCode(t, err)
+			assert.Equal(t, tc.code, ce.Code)
+			assert.Equal(t, tc.retryable, ce.Retryable)
+			assert.Contains(t, ce.Message, tc.message)
+			assert.NotContains(t, ce.Message, "sk-test-key-123456", "the key is never in a message")
+			assert.Len(t, srv.Requests(), 1)
+		})
+	}
+}
+
+func TestRetryAfterIsGivenToTheEngine(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Status: 429, Header: map[string]string{"Retry-After": "7"}, Body: aitest.APIError("slow", "rate_limit_exceeded", "")})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	usage := &aitest.Usage{}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), usage)
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, 7*time.Second, res.RetryAfter)
+	assert.Empty(t, res.Outcome)
+	assert.Empty(t, usage.Entries, "a 429 spent nothing")
+}
+
+func TestRefusalIsStillAccounted(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: `{"choices":[{"finish_reason":"stop","message":{"content":null,"refusal":"no"}}],"usage":{"prompt_tokens":7,"completion_tokens":5}}`})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	usage := &aitest.Usage{}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), usage)
+	_, err := n.Execute(context.Background(), in)
+	assert.Equal(t, catalog.CallRejected, callCode(t, err).Code)
+	assert.EqualValues(t, 7, usage.Total("token_in"))
+	assert.EqualValues(t, 5, usage.Total("token_out"))
+}
+
+func TestEveryRepeatIsAccounted(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 10, 4)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	usage := &aitest.Usage{}
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), usage)
+	for attempt := 1; attempt <= 2; attempt++ {
+		in.Attempt = attempt
+		_, err := n.Execute(context.Background(), in)
+		require.NoError(t, err)
+	}
+	assert.EqualValues(t, 20, usage.Total("token_in"))
+	assert.EqualValues(t, 8, usage.Total("token_out"))
+	assert.Equal(t, 2, usage.Count("token_in"))
+}
+
+func TestUsageFailureDoesNotFailTheCall(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 10, 4)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), &aitest.Usage{Err: errors.New("db is down")})
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "done", res.Outcome)
+}
+
+func TestCostIsReportedWhenTheProviderGivesIt(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: `{"model":"m","choices":[{"finish_reason":"stop","message":{"content":"ok"}}],"usage":{"prompt_tokens":3,"completion_tokens":1,"cost":0.00042}}`})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil)
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, 0.00042, res.Output["usage"].(map[string]any)["cost_usd"])
+}
+
+func TestBadCallsAreRefusedBeforeAnyRequest(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	good := parsed(t, n, map[string]any{"prompt": "x"})
+
+	blank := map[string]any{}
+	for k, v := range good {
+		blank[k] = v
+	}
+	blank["prompt"] = "  \n "
+	_, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, blank, nil))
+	ce := callCode(t, err)
+	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+	assert.Contains(t, ce.Message, "prompt")
+
+	in := aitest.Input(openai.Kind, srv, map[string]string{"api_key": ""}, good, nil)
+	_, err = n.Execute(context.Background(), in)
+	assert.Equal(t, catalog.CallUnauthorized, callCode(t, err).Code)
+
+	for _, base := range []string{"http://api.example.com/v1", "https://user:pw@api.example.com/v1", "https://api.example.com/v1?x=1"} {
+		in = aitest.Input(openai.Kind, srv, map[string]string{"base_url": base}, good, nil)
+		_, err = n.Execute(context.Background(), in)
+		assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code, base)
+	}
+	assert.Empty(t, srv.Requests())
+}
+
+func TestUnauthorizedMarksTheConnection(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Status: 401, Body: `{}`})
+	set := &statusLog{}
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithConnectionStatus(set))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil)
+	_, err := n.Execute(context.Background(), in)
+	assert.Equal(t, catalog.CallUnauthorized, callCode(t, err).Code)
+	require.Len(t, set.calls, 1)
+	assert.Equal(t, connectors.StatusNeedsReauth, set.calls[0].status)
+	assert.Equal(t, in.Connection.ID, set.calls[0].id.String())
+
+	// The platform key is not a connection of the tenant.
+	in.Connection = &catalog.ConnectionInfo{ID: "platform:openai", Kind: openai.Kind, Platform: true}
+	_, _ = n.Execute(context.Background(), in)
+	assert.Len(t, set.calls, 1)
+}
+
+type statusCall struct {
+	id     uuid.UUID
+	status connectors.ConnectionStatus
+}
+type statusLog struct{ calls []statusCall }
+
+func (s *statusLog) SetStatus(_ context.Context, _, id uuid.UUID, st connectors.ConnectionStatus, _ string) error {
+	s.calls = append(s.calls, statusCall{id, st})
+	return nil
+}
+
+func TestTenantEndpointIsGuarded(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	// No transport override: a tenant's base_url on a loopback address is not connected to.
+	n, _ := newNode(t)
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil)
+	_, err := n.Execute(context.Background(), in)
+	ce := callCode(t, err)
+	assert.Equal(t, catalog.CallUnavailable, ce.Code)
+	assert.Empty(t, srv.Requests())
+}
+
+func TestDeadlineEndsTheCall(t *testing.T) {
+	srv := aitest.New(t)
+	srv.Handler = func(aitest.Request) aitest.Reply {
+		time.Sleep(300 * time.Millisecond)
+		return aitest.Reply{Body: aitest.Chat("late", 1, 1)}
+	}
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := n.Execute(ctx, in)
+	ce := callCode(t, err)
+	assert.Equal(t, catalog.CallUnavailable, ce.Code)
+	assert.True(t, ce.Retryable)
+}
+
+// --- images ---
+
+type images map[string]openai.Image
+
+func (m images) Image(_ context.Context, _ uuid.UUID, id string, max int64) (openai.Image, error) {
+	img, ok := m[id]
+	if !ok {
+		return openai.Image{}, openai.ErrImageNotFound
+	}
+	if int64(len(img.Data)) > max {
+		return openai.Image{}, openai.ErrImageTooLarge
+	}
+	return img, nil
+}
+
+var png = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89")
+
+func TestImagesReachTheProvider(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("a cat", 100, 3)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{
+		"11": {Data: png}, "12": {MediaType: "image/jpeg; charset=binary", Data: []byte("jpegdata")},
+	}))
+	params := parsed(t, n, map[string]any{"prompt": "what is it?", "model": "gpt-4o", "images": "event.images"})
+	params["images"] = []any{"11", json.Number("12")} // the engine renders the expression to its value
+	in := aitest.Input(openai.Kind, srv, nil, params, nil)
+
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "a cat", res.Output["text"])
+
+	body := srv.Requests()[0].JSON(t)
+	msgs := body["messages"].([]any)
+	require.Len(t, msgs, 1)
+	parts := msgs[0].(map[string]any)["content"].([]any)
+	require.Len(t, parts, 3)
+	assert.Equal(t, map[string]any{"type": "text", "text": "what is it?"}, parts[0])
+	first := parts[1].(map[string]any)
+	assert.Equal(t, "image_url", first["type"])
+	assert.Equal(t, "data:image/png;base64,"+base64.StdEncoding.EncodeToString(png), first["image_url"].(map[string]any)["url"])
+	second := parts[2].(map[string]any)["image_url"].(map[string]any)["url"].(string)
+	assert.True(t, strings.HasPrefix(second, "data:image/jpeg;base64,"), second)
+}
+
+func TestImageFailures(t *testing.T) {
+	big := make([]byte, openai.MaxImageBytes+1)
+	copy(big, png)
+	n, _ := newNode(t, openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}}))
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	n, _ = newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}}))
+
+	run := func(model string, ids ...any) error {
+		params := parsed(t, n, map[string]any{"prompt": "x", "model": model})
+		params["images"] = ids
+		_, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
+		return err
+	}
+	assert.Contains(t, callCode(t, run("gpt-4o", "missing")).Message, "not found")
+	assert.Contains(t, callCode(t, run("gpt-4o", "big")).Message, "5 MB")
+	assert.Contains(t, callCode(t, run("gpt-4o", "text")).Message, "PNG, JPEG")
+	assert.Contains(t, callCode(t, run("gpt-4o", 1, 2, 3, 4, 5, 6, 7, 8, 9)).Message, "at most 8")
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-3.5-turbo", "1")).Code, "a model without vision, whatever was saved")
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-4o", true)).Code)
+	assert.Empty(t, srv.Requests())
+
+	// Without a source the node has no images to give.
+	n0, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	params := parsed(t, n0, map[string]any{"prompt": "x", "model": "gpt-4o"})
+	params["images"] = []any{"1"}
+	_, err := n0.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
+	assert.Contains(t, callCode(t, err).Message, "not available")
+
+	// A failing source is the engine's to repeat.
+	nf, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(failingImages{}))
+	params = parsed(t, nf, map[string]any{"prompt": "x", "model": "gpt-4o"})
+	params["images"] = []any{"1"}
+	_, err = nf.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
+	ce := callCode(t, err)
+	assert.Equal(t, catalog.CallUnavailable, ce.Code)
+	assert.True(t, ce.Retryable)
+}
+
+type failingImages struct{}
+
+func (failingImages) Image(context.Context, uuid.UUID, string, int64) (openai.Image, error) {
+	return openai.Image{}, errors.New("storage is down")
+}
+
+// --- decision keys ---
+
+func TestDecisionKeyFollowsPromptModelAndParams(t *testing.T) {
+	n, _ := newNode(t, openai.WithDefaultModel("gpt-4o-mini"))
+	dn := n.(engine.DecisionNode)
+	key := func(raw map[string]any, images ...string) string {
+		p := parsed(t, n, raw)
+		if len(images) > 0 {
+			list := make([]any, len(images))
+			for i, id := range images {
+				list[i] = id
+			}
+			p["images"] = list
+		}
+		k, ok := dn.DecisionKey(catalog.CallInput{Params: p})
+		require.True(t, ok)
+		return k
+	}
+	base := key(map[string]any{"prompt": "classify this"})
+	assert.Equal(t, base, key(map[string]any{"prompt": "classify this"}), "stable")
+	assert.Equal(t, base, key(map[string]any{"prompt": "classify this", "model": "gpt-4o-mini", "max_tokens": 2000}), "defaults are the same call")
+
+	for name, other := range map[string]string{
+		"prompt":      key(map[string]any{"prompt": "classify that"}),
+		"system":      key(map[string]any{"prompt": "classify this", "system": "be strict"}),
+		"model":       key(map[string]any{"prompt": "classify this", "model": "gpt-4o"}),
+		"max tokens":  key(map[string]any{"prompt": "classify this", "max_tokens": 100}),
+		"temperature": key(map[string]any{"prompt": "classify this", "temperature": 0.3}),
+		"format":      key(map[string]any{"prompt": "classify this", "format": "json", "schema": schemaParam(t)}),
+		"images":      key(map[string]any{"prompt": "classify this", "model": "gpt-4o"}, "7"),
+	} {
+		assert.NotEqual(t, base, other, name)
+	}
+	a := key(map[string]any{"prompt": "x", "model": "gpt-4o"}, "7")
+	b := key(map[string]any{"prompt": "x", "model": "gpt-4o"}, "8")
+	assert.NotEqual(t, a, b)
+
+	_, ok := dn.DecisionKey(catalog.CallInput{Params: map[string]any{"model": "gpt-4o-latest", "prompt": "x"}})
+	assert.False(t, ok, "a call that would be refused is not cached")
+}
+
+// --- the connector ---
+
+func TestConnectorTest(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Header: map[string]string{"openai-organization": "org-acme", "openai-project": "proj_support"}, Body: `{"object":"list","data":[{"id":"gpt-4o"}]}`})
+	c := openai.New(openai.WithTransport(srv.Transport()))
+	id, err := c.Test(context.Background(), connectors.Credentials{"api_key": "sk-test-key-123456", "base_url": srv.URL})
+	require.NoError(t, err)
+	assert.Equal(t, "proj_support", id.Display)
+	assert.Equal(t, "org-acme", id.External)
+	reqs := srv.Requests()
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "GET", reqs[0].Method)
+	assert.Equal(t, "/models", reqs[0].Path)
+	assert.Equal(t, "Bearer sk-test-key-123456", reqs[0].Header.Get("Authorization"))
+
+	bad := aitest.New(t, aitest.Reply{Status: 401, Body: aitest.APIError("Incorrect API key provided: sk-test-key-123456", "invalid_request_error", "invalid_api_key")})
+	c = openai.New(openai.WithTransport(bad.Transport()))
+	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": "sk-test-key-123456", "base_url": bad.URL})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "sk-test-key-123456")
+
+	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": ""})
+	assert.Error(t, err)
+	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": "k", "base_url": "http://insecure.example.com"})
+	assert.Error(t, err)
+
+	garbage := aitest.New(t, aitest.Reply{Body: `{"unexpected":true}`})
+	c = openai.New(openai.WithTransport(garbage.Transport()))
+	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": "k", "base_url": garbage.URL})
+	assert.Error(t, err)
+}
+
+func TestPlatformCredentials(t *testing.T) {
+	assert.Empty(t, openai.PlatformCredentials(nil))
+	assert.Empty(t, openai.PlatformCredentials(&openaiconfig.Config{DefaultModel: "gpt-4o"}))
+	got := openai.PlatformCredentials(&openaiconfig.Config{APIKey: "sk-platform", BaseURL: "https://llm.example.com/v1"})
+	require.Contains(t, got, catalog.ConnectorKind("openai"))
+	assert.Equal(t, connectors.Credentials{"api_key": "sk-platform", "base_url": "https://llm.example.com/v1"}, got["openai"].Credentials)
+	got = openai.PlatformCredentials(&openaiconfig.Config{APIKey: "sk-platform"})
+	assert.Equal(t, connectors.Credentials{"api_key": "sk-platform"}, got["openai"].Credentials)
+}
+
+func TestCredentialsSchemaValidates(t *testing.T) {
+	d := openai.New().Descriptor()
+	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1"}))
+	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
+	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "http://llm.example.com"}))
+	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"base_url": "https://x.example.com"}))
+	assert.Equal(t, map[string]string{"base_url": "https://llm.example.com/v1"},
+		connectors.RedactedCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
+}

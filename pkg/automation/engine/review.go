@@ -34,6 +34,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
 	}
+	g = r.completeParams(g)
 	connState, err := connectionsState(ctx, r.cfg.DB, a.TenantID)
 	if err != nil {
 		return validated{}, err
@@ -60,6 +61,33 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 		return validated{}, err
 	}
 	return validated{g: g, raw: canon, view: view, connState: connState}, nil
+}
+
+// completeParams lets each node type that implements catalog.CompletedNode pin the values it fixes at
+// save time (an AI node's default model); the graph it returns is a copy.
+func (r *Runtime) completeParams(g graph.Graph) graph.Graph {
+	var out graph.Graph
+	copied := false
+	for i, n := range g.Nodes {
+		nt, ok := r.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		cn, ok := nt.(catalog.CompletedNode)
+		if !ok {
+			continue
+		}
+		if !copied {
+			out = g
+			out.Nodes = append([]graph.Node(nil), g.Nodes...)
+			copied = true
+		}
+		out.Nodes[i].Params = cn.CompleteParams(n.Params)
+	}
+	if !copied {
+		return g
+	}
+	return out
 }
 
 // connectionErrors reports a node type or an event the tenant's catalog lacks for want of a connection

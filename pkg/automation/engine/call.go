@@ -37,6 +37,10 @@ const (
 	CodeInvalidInput   = "invalid_input"
 )
 
+// platformOffMessage is why a call that names the platform credential cannot run: its tenant's
+// administrator has not enabled it, or switched it off.
+const platformOffMessage = "the platform key is not enabled for the tenant (платформенный ключ не включён)"
+
 // Masker replaces secrets with "***" in text and JSON (code.NewMasker).
 type Masker = code.Masker
 
@@ -826,12 +830,16 @@ func (x *callExec) open(ctx context.Context, cn catalog.CallNode) (*openConnecti
 	}
 	ci, cr, err := src.Open(ctx, req.TenantID, req.Connection)
 	switch {
+	case errors.Is(err, connectors.ErrNotFound) && strings.HasPrefix(req.Connection, catalog.PlatformPrefix):
+		// The platform credential is no longer the tenant's: its administrator switched it off after the
+		// run started (or the application stopped offering it).
+		return nil, &callRecord{Kind: "failed", Code: catalog.CallUnavailable, Message: platformOffMessage}, nil
 	case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
 		return nil, &callRecord{Kind: "failed", Code: CodeConnectionUnavailable, Message: "the connection is not connected"}, nil
 	case err != nil:
 		return nil, nil, &host.InfraError{Err: fmt.Errorf("open the connection of %s: %w", req.NodeID, err)}
 	}
-	conn.info, conn.creds, conn.masker = &ci, cr, code.NewMasker(map[string]string(cr))
+	conn.info, conn.creds, conn.masker = &ci, cr, x.c.r.credentialMasker(ci.Kind, cr)
 	return conn, nil, nil
 }
 

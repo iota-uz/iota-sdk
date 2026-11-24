@@ -77,6 +77,17 @@ type LocalizedNode interface {
 	Localize(spec graph.NodeSpec, locale string) graph.NodeSpec
 }
 
+// CompletedNode is an optional interface of a NodeType: its params are completed when a graph is
+// validated for saving, before they are checked. A node pins here a value that must not follow the
+// configuration afterwards: an AI node writes its connector's default model into the version, so a later
+// change of the default does not change a saved graph.
+//
+// CompleteParams returns the params to save; it must not change its argument, must be idempotent and
+// must tolerate params of any shape (the check that follows reports them).
+type CompletedNode interface {
+	CompleteParams(params map[string]any) map[string]any
+}
+
 // CallNode is a node with an external effect (behavior call). The engine calls Execute outside of a
 // locked step.
 type CallNode interface {

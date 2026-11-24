@@ -110,7 +110,10 @@ type NodeSpec struct {
 	Answer        *AnswerSpec // call: which output field gives the outcome, and a confidence floor
 	Wait          *WaitSpec
 	Output        expr.Fields // what the node puts in nodes.<id>.output
-	OutputFrom    *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	// OutputFrom: the output is declared by a JSON Schema in this param (e.g. output_schema). With Field
+	// set, only that output field takes its type from the schema and the rest is Output (an LLM node's
+	// `json` from its `schema`).
+	OutputFrom *ParamRef
 	// DryRun is what a dry run does with the node: execute it for real (no external effect: a read, an
 	// HTTP GET, a decision of a model), capture it (an external effect: send, ask, a write; its rendered
 	// params are traced and its outcome comes from the context) or stop on it. Every node type declares

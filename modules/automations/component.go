@@ -38,9 +38,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/jev"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -48,6 +51,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/settings"
@@ -117,8 +122,12 @@ func (c *component) LocaleFS() []*embed.FS { return []*embed.FS{&localeFiles} }
 // host bundle and the OAuth2 redirect, the extension runtime's UI and the HTTP origin.
 type settingsCfg struct {
 	automation automationconfig.Config
-	hostPath   string
-	origin     string
+	// openai and jev are the platform keys of the AI connectors the environment configures
+	// (automation.openai.*, automation.jev.*).
+	openai   openaiconfig.Config
+	jev      jevconfig.Config
+	hostPath string
+	origin   string
 }
 
 func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
@@ -133,6 +142,16 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
+	openaiCfg, err := config.Register[openaiconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.openai = *openaiCfg
+	jevCfg, err := config.Register[jevconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.jev = *jevCfg
 	ext, err := config.Register[extruntimeconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -165,6 +184,17 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
+	// The platform keys of the AI connectors come from their own settings; an explicit
+	// platform.credentials entry of the kind wins.
+	for _, creds := range []map[catalog.ConnectorKind]connectors.PlatformCredential{
+		openai.PlatformCredentials(&cfg.openai), jev.PlatformCredentials(&cfg.jev),
+	} {
+		for kind, cred := range creds {
+			if _, set := platformCreds[kind]; !set {
+				platformCreds[kind] = cred
+			}
+		}
+	}
 	hostManifest := c.host
 	var assets http.Handler
 	if hostManifest == nil {
@@ -194,7 +224,25 @@ func (c *component) Build(b *composition.Builder) error {
 			return nil, err
 		}
 		dir := connectors.NewDirectory(reg)
+		registered := map[catalog.ConnectorKind]bool{}
 		for _, conn := range c.connectors {
+			if err := dir.Register(conn); err != nil {
+				return nil, err
+			}
+			registered[conn.Kind()] = true
+		}
+		// The SDK's own AI connectors, unless the application registered its own of the kind.
+		status := lazyConnectionStatus{container: container}
+		for _, conn := range []connectors.Connector{
+			openai.New(
+				openai.WithDefaultModel(cfg.openai.DefaultModel), openai.WithConnectionStatus(status),
+				openai.WithImages(services.UploadImages{Uploads: func() (services.UploadReader, error) { return resolveUploads(container) }}),
+			),
+			jev.New(jev.WithDefaultModel(jev.DefaultModel(&cfg.jev)), jev.WithConnectionStatus(status)),
+		} {
+			if registered[conn.Kind()] {
+				continue
+			}
 			if err := dir.Register(conn); err != nil {
 				return nil, err
 			}
@@ -344,6 +392,27 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 		return nil, err
 	}
 	return st.Connected(ctx, tenantID)
+}
+
+// lazyConnectionStatus marks a connection whose credentials a provider refused as needs_reauth; the
+// connection store is resolved when it is first needed.
+type lazyConnectionStatus struct{ container *composition.Container }
+
+func (l lazyConnectionStatus) SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error {
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return err
+	}
+	return st.SetStatus(ctx, tenantID, id, s, reason)
+}
+
+// resolveUploads is the uploads service of the core module, when the application has it: the files an
+// LLM node's images are read from.
+func resolveUploads(container *composition.Container) (services.UploadReader, error) {
+	if !composition.Has[*coreservices.UploadService](container) {
+		return nil, errors.New("automations: the uploads service is not available")
+	}
+	return composition.Resolve[*coreservices.UploadService](container)
 }
 
 // messagePrefix is the namespace of the screen's strings in the module's locale files.

@@ -495,7 +495,10 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		}
 		info, creds = &ci, cr
 	}
-	masker := code.NewMasker(map[string]string(creds))
+	masker := code.NewMasker(nil)
+	if info != nil {
+		masker = r.credentialMasker(info.Kind, creds)
+	}
 	timeout := r.cfg.CallLimits.DefaultTimeout
 	if ms, ok := graph.DurationMs(c.params["timeout"]); ok {
 		timeout = min(time.Duration(ms)*time.Millisecond, r.cfg.CallLimits.MaxTimeout)
@@ -550,7 +553,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	}
 	out = masker.MaskJSON(out)
 	if cacheKey != "" {
-		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": out}); err == nil {
+		// The output is stored as JSON: bytes would be written as a base64 string, and a cached decision
+		// would answer without its output.
+		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": json.RawMessage(out)}); err == nil {
 			if err := r.cfg.Decisions.Put(ctx, c.tenant, cacheKey, b); err != nil {
 				r.cfg.Logger.Warn("automation: a decision was not cached", "error", err)
 			}

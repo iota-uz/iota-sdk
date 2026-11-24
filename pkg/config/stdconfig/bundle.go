@@ -15,8 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
@@ -39,8 +41,10 @@ type Bundle struct {
 	Cookies     *cookies.Config
 	Session     *session.Config
 	Pagination  *pagination.Config
+	Jev         *jevconfig.Config
 	Meili       *meiliconfig.Config
 	OIDC        *oidcconfig.Config
+	OpenAI      *openaiconfig.Config
 	Payments    *paymentsconfig.Config
 	RateLimit   *ratelimitconfig.Config
 	Redis       *redisconfig.Config
@@ -95,10 +99,16 @@ func RegisterAll(r *config.Registry) (*Bundle, error) {
 	if b.Pagination, err = config.Register[pagination.Config](r); err != nil {
 		return nil, err
 	}
+	if b.Jev, err = config.Register[jevconfig.Config](r); err != nil {
+		return nil, err
+	}
 	if b.Meili, err = config.Register[meiliconfig.Config](r); err != nil {
 		return nil, err
 	}
 	if b.OIDC, err = config.Register[oidcconfig.Config](r); err != nil {
+		return nil, err
+	}
+	if b.OpenAI, err = config.Register[openaiconfig.Config](r); err != nil {
 		return nil, err
 	}
 	if b.Payments, err = config.Register[paymentsconfig.Config](r); err != nil {

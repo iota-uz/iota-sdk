@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -71,6 +72,11 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	}
 	behavior := string(spec.Behavior)
 	if m.x.ie.unavailable[node.Type] {
+		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) {
+			// The node names the platform credential, and the tenant's administrator switched it off after
+			// the run started.
+			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnavailable, Message: platformOffMessage})
+		}
 		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: CodeConnectionUnavailable,
 			Message: fmt.Sprintf("%s needs a connection the tenant does not have", node.Type)})
 	}

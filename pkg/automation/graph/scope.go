@@ -446,6 +446,9 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 		}
 		return expr.ObjectOf(expr.Fields{{Name: "event", Field: expr.ObjectOf(e.Payload)}}), true, nil
 	}
+	if spec.OutputFrom != nil && spec.OutputFrom.Field != "" {
+		return fieldOutput(spec, params)
+	}
 	if spec.OutputFrom != nil {
 		raw, ok := params[spec.OutputFrom.Param]
 		if !ok || raw == nil {
@@ -472,6 +475,38 @@ func declaredOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field
 		}
 	}
 	return expr.ObjectOf(props), true, nil
+}
+
+// fieldOutput is the output of a node whose OutputFrom names a Field: the node's declared Output, in
+// which that one field takes its type from the JSON Schema in the param (an LLM node's `json` from its
+// `schema`). The field is optional: the node leaves it out when it has nothing of that shape (text
+// mode). Without the param the field is dyn.
+func fieldOutput(spec NodeSpec, params map[string]any) (expr.Field, bool, error) {
+	props := spec.Output.Clone()
+	var typed expr.Field
+	var err error
+	raw, ok := params[spec.OutputFrom.Param]
+	switch {
+	case !ok || raw == nil:
+		typed = expr.DynField
+	default:
+		var f expr.Field
+		if f, err = expr.FieldFromSchemaValue(raw); err != nil {
+			typed = expr.DynField
+		} else {
+			typed = expr.OptionalOf(f)
+		}
+	}
+	found := false
+	for i, p := range props {
+		if p.Name == spec.OutputFrom.Field {
+			props[i].Field, found = typed, true
+		}
+	}
+	if !found {
+		props = append(props, expr.Prop{Name: spec.OutputFrom.Field, Field: typed})
+	}
+	return expr.ObjectOf(props), true, err
 }
 
 // paramAt reads a dotted path inside params.

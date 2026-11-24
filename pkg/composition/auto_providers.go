@@ -20,8 +20,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
@@ -204,6 +206,10 @@ func installStdconfigFromSource(container *Container, ctx *BuildContext) error {
 		func() error {
 			return registerAuto[extruntimeconfig.Config](reg, container, ctx, "auto:extruntimeconfig")
 		},
+		func() error {
+			return registerAuto[openaiconfig.Config](reg, container, ctx, "auto:openaiconfig")
+		},
+		func() error { return registerAuto[jevconfig.Config](reg, container, ctx, "auto:jevconfig") },
 	}
 
 	for _, register := range registrations {

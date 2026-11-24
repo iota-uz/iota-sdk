@@ -239,7 +239,11 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				if k == 10 {
 					break
 				}
-				errs.add(issuePath(at+".params", issue.Path), CodeParams, "%s", issue.Message)
+				code := issue.Code
+				if code == "" {
+					code = CodeParams
+				}
+				errs.add(issuePath(at+".params", issue.Path), code, "%s", issue.Message)
 			}
 			continue
 		}
