@@ -12,7 +12,7 @@ import (
 )
 
 // AssetsPath is where the module serves the screen's bundle: <AssetsPath>/<release>/assets/<file>.
-const AssetsPath = "/assets/automations-graphs"
+const AssetsPath = "/assets/automation-graphs"
 
 // AssetsDirEnv points the module at a freshly built dist directory (development).
 const AssetsDirEnv = "AUTOMATIONS_GRAPHS_ASSETS_DIR"

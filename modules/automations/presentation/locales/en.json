@@ -3,7 +3,8 @@
     "Automations": "Automations"
   },
   "NavigationLinks": {
-    "Integrations": "Integrations"
+    "Integrations": "Integrations",
+    "Automations": "Automations"
   },
   "Permissions": {
     "Automations.Read": "View automations",
@@ -224,6 +225,219 @@
           "Fix": "Check the values; if it repeats, open the service’s answer below."
         }
       }
+    },
+    "Graphs": {
+      "Title": "Automations",
+      "Actions": {
+        "Delete": "delete the automation",
+        "Disable": "turn the automation off",
+        "Enable": "turn the automation on",
+        "LoadGraph": "open the automation",
+        "LoadList": "load automations",
+        "LoadReview": "load the review",
+        "LoadRuns": "load runs",
+        "Run": "start the run"
+      },
+      "Columns": {
+        "Attention": "Needs attention",
+        "LastRun": "Last run",
+        "Name": "Name",
+        "Status": "Status",
+        "Triggers": "Triggers",
+        "Updated": "Changed"
+      },
+      "Common": {
+        "Cancel": "Cancel",
+        "Close": "Close",
+        "Loading": "Loading…",
+        "Retry": "Retry"
+      },
+      "Delete": {
+        "Cancels": "Deleting cancels {runs} and {waits}.",
+        "Confirm": "Delete",
+        "Done": "«{name}» is deleted",
+        "Nothing": "The automation and its versions are deleted; no run is pending.",
+        "Runs": {
+          "Singular": "{count} run",
+          "Paucal": "{count} runs",
+          "Multiple": "{count} runs",
+          "Plural": "{count} runs"
+        },
+        "Waits": {
+          "Singular": "{count} wait",
+          "Paucal": "{count} waits",
+          "Multiple": "{count} waits",
+          "Plural": "{count} waits"
+        },
+        "Title": "Delete «{name}»?"
+      },
+      "Disable": {
+        "Pending": {
+          "Singular": "Its pending run will be cancelled ({count}).",
+          "Paucal": "Its pending runs will be cancelled ({count}).",
+          "Multiple": "Its pending runs will be cancelled ({count}).",
+          "Plural": "Its pending runs will be cancelled ({count})."
+        },
+        "Cancelled": {
+          "Singular": "{count} pending run is cancelled",
+          "Paucal": "{count} pending runs are cancelled",
+          "Multiple": "{count} pending runs are cancelled",
+          "Plural": "{count} pending runs are cancelled"
+        },
+        "Confirm": "Turn off",
+        "Done": "The automation is turned off",
+        "NoPending": "New events will not start it. No run is pending.",
+        "Title": "Turn off «{name}»?"
+      },
+      "Editor": {
+        "BackToList": "Back to automations",
+        "ByAgent": "{name} (agent)",
+        "Connection": "Connection",
+        "CopyLink": "Copy link",
+        "Delete": "Delete the automation",
+        "DesktopOnly": "Editing is available on a computer",
+        "LayoutChanged": "The layout was changed in another tab",
+        "LayoutRefresh": "Refresh",
+        "LinkCopied": "Link copied",
+        "LoadFailed": "Could not load the editor.",
+        "NoConnection": "No working connection of this service.",
+        "OldVersion": "Version v{version} is open (read only)",
+        "OnlyConnection": "The only one: {name}",
+        "OpenIntegrations": "Open integrations",
+        "OpenLatest": "Open the current version v{version}",
+        "PendingVersion": "Version v{version} is saved and waits for a review.",
+        "PickConnection": "Choose a connection",
+        "ReviewAndEnable": "Review and enable v{version}",
+        "Run": "Run",
+        "SavedByAgent": "Version v{version} was saved by an agent and is not enabled"
+      },
+      "Errors": {
+        "Conflict": "The state changed meanwhile. Look at it again.",
+        "ConnectionUnavailable": "A connection the automation uses is unavailable. Check it on the integrations page.",
+        "Forbidden": "You do not have the right to do this.",
+        "Generic": "Could not {action}. Try again in a minute.",
+        "HumanRequired": "Only a person enables an automation, from their own session.",
+        "InvalidInput": "The data is not valid. Check the fields.",
+        "LimitExceeded": "A limit is exceeded. Make the request smaller.",
+        "NotEnabled": "The automation is not enabled.",
+        "NotFound": "The automation is not found: it was deleted or belongs to another organization.",
+        "Offline": "No connection. Check the network and retry.",
+        "RunFinished": "The run has already finished.",
+        "SignIn": "Your session ended. Sign in again."
+      },
+      "Filter": {
+        "All": "All",
+        "Attention": "Need attention",
+        "Disabled": "Off",
+        "Enabled": "On",
+        "Label": "Status"
+      },
+      "List": {
+        "AttentionCount": "{count}",
+        "Create": "Create",
+        "CreateFirst": "Create an automation",
+        "DisableNamed": "Turn off «{name}»",
+        "EmptyText": "An automation runs steps when an event happens, on a schedule or on request.",
+        "EmptyTextReader": "Automations of your organization will appear here.",
+        "EmptyTitle": "No automations yet",
+        "EnableNamed": "Turn on «{name}»",
+        "LoadMore": "Show more",
+        "NeverRan": "No runs yet",
+        "NoAttention": "Nothing needs attention",
+        "NoTriggers": "No triggers",
+        "NothingFiltered": "Nothing matches the filter",
+        "NothingFor": "Nothing found for «{query}»",
+        "ResetFilters": "Reset filters",
+        "SavedByAgent": "Saved by an agent",
+        "Search": "Search by name",
+        "Stale": "Could not refresh · data as of {time}",
+        "Untitled": "Untitled"
+      },
+      "Review": {
+        "Changed": "The code changed: review it again.",
+        "Code": "Code steps",
+        "Enable": "Enable v{version}",
+        "Enabled": "Enabled v{version}",
+        "Enabling": "Enabling…",
+        "FetchAllowed": "May call the internet",
+        "FetchDenied": "No internet access",
+        "Invalid": "The version does not pass the check now. Fix it in the editor.",
+        "NoCode": "This version has no code steps.",
+        "NoSecrets": "none",
+        "NoTriggers": "No triggers: the automation starts only from another automation.",
+        "RunAs": "Runs with the rights of",
+        "RunAsInitiator": "the person who caused the event (or you, when there is none)",
+        "RunAsOwner": "you: you become the owner of the automation",
+        "Secrets": "Secrets:",
+        "SourceOf": "Code of {node}",
+        "Title": "Review before enabling: {name} v{version}",
+        "Triggers": "Starts"
+      },
+      "Run": {
+        "Blocked": "Blocked",
+        "Cancelled": "Cancelled",
+        "Choose": "Choose…",
+        "Done": "Done",
+        "Failed": "Failed",
+        "Field": {
+          "Json": "Enter JSON",
+          "Number": "Enter a number",
+          "Required": "Fill this field"
+        },
+        "FilterFailed": "Filter failed",
+        "InvalidInput": "The input does not fit: {reason}",
+        "JsonHint": "JSON value",
+        "NoInput": "This start needs no input.",
+        "NoSubject": "No subject",
+        "Open": "Open the run",
+        "Queued": "Queued",
+        "Running": "Running",
+        "Start": "Run",
+        "Started": "The run started",
+        "Starting": "Starting…",
+        "Subject": "What the run is about",
+        "SubjectEntity": "Kind of object",
+        "SubjectPick": "Choose the object",
+        "SubjectSearch": "Find an object",
+        "Title": "Run the automation",
+        "Trigger": "Start",
+        "Waiting": "Waiting"
+      },
+      "Runs": {
+        "Empty": "No runs yet.",
+        "NoSteps": "No steps yet.",
+        "Steps": "Steps of the run"
+      },
+      "Status": {
+        "Disabled": "Off",
+        "Enabled": "On v{version}",
+        "Pending": "New version v{version}",
+        "PendingEnabled": "On v{enabled} · new version v{version}"
+      }
+    },
+    "Title": "Automations",
+    "Editor": {
+      "ReadOnly": {
+        "NoAuthor": "You may not change automations",
+        "OldVersion": "An old version is open (read only)"
+      }
+    },
+    "Triggers": {
+      "Manual": "Manual start",
+      "Schedule": "On a schedule"
+    },
+    "Groups": {
+      "logic": "Logic",
+      "human": "People",
+      "automation": "Automations",
+      "core": "Users and organization",
+      "crm": "CRM",
+      "hrm": "Employees",
+      "finance": "Finance",
+      "warehouse": "Warehouse",
+      "billing": "Billing",
+      "projects": "Projects",
+      "Misc": "Other"
     }
   }
 }

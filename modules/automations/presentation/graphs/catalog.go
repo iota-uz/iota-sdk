@@ -19,6 +19,8 @@ type EditorCatalog struct {
 	Events        []CatalogEvent `json:"events"`
 	Nodes         []CatalogNode  `json:"nodes"`
 	ContextSchema map[string]any `json:"context_schema"`
+	// Subjects are the entities a run may be about (a manual start picks one, or none).
+	Subjects []string `json:"subjects"`
 }
 
 // CatalogEvent is an event a trigger may start on.
@@ -32,6 +34,8 @@ type CatalogEvent struct {
 	Manual        bool            `json:"manual,omitempty"`
 	Schedule      bool            `json:"schedule,omitempty"`
 	Connected     bool            `json:"connected"`
+	// Requires are the connector kinds an inbound event comes from (its trigger picks a connection).
+	Requires []string `json:"requires,omitempty"`
 }
 
 // ParamRef names a param (and a field of its items).
@@ -168,6 +172,9 @@ func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors) E
 			Payload: schemaMap(e.Payload), TriggerParams: optionalSchema(e.TriggerParams), Connected: true,
 			Manual: e.Key == engine.EventManual, Schedule: e.Key == engine.EventSchedule,
 		}
+		for _, k := range view.EventRequires[e.Key] {
+			ev.Requires = append(ev.Requires, string(k))
+		}
 		if ev.Manual {
 			ev.Title = intl.TWithDefault(ctx, "Automations.Triggers.Manual", ev.Title)
 		}
@@ -199,6 +206,11 @@ func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors) E
 		out.Nodes = append(out.Nodes, node)
 	}
 	out.ContextSchema = contextSchema(cv.Subjects)
+	out.Subjects = make([]string, 0, len(cv.Subjects))
+	for entity := range cv.Subjects {
+		out.Subjects = append(out.Subjects, entity)
+	}
+	sort.Strings(out.Subjects)
 	return out
 }
 
