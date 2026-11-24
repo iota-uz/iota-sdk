@@ -30,6 +30,14 @@ type callTrace struct {
 	mu   sync.Mutex
 	last hop
 	any  bool
+	// refused401: a send was answered 401, whatever was requested after it.
+	refused401 bool
+}
+
+func (t *callTrace) sendRefused() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.refused401
 }
 
 func (t *callTrace) set(h hop) {
@@ -89,7 +97,12 @@ func (t *tracker) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := base.RoundTrip(req.WithContext(ctx))
 	if resp != nil {
 		after := parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
-		tr.update(func(h *hop) { h.status, h.retryAfter = resp.StatusCode, after })
+		tr.mu.Lock()
+		tr.last.status, tr.last.retryAfter = resp.StatusCode, after
+		if tr.last.send && resp.StatusCode == http.StatusUnauthorized {
+			tr.refused401 = true
+		}
+		tr.mu.Unlock()
 	}
 	return resp, err
 }

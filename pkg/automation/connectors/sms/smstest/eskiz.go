@@ -12,9 +12,10 @@ type Eskiz struct {
 	base
 	Email, Password string
 
-	lmu    sync.Mutex
-	logins int
-	tokens map[string]bool
+	lmu      sync.Mutex
+	logins   int
+	requests int
+	tokens   map[string]bool
 }
 
 // NewEskiz starts a fake that accepts the given account.
@@ -79,7 +80,17 @@ func (e *Eskiz) limit(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `{"data":{"balance":100},"status":"success"}`)
 }
 
+// SendRequests is every request the send endpoint got, refused ones included.
+func (e *Eskiz) SendRequests() int {
+	e.lmu.Lock()
+	defer e.lmu.Unlock()
+	return e.requests
+}
+
 func (e *Eskiz) send(w http.ResponseWriter, r *http.Request) {
+	e.lmu.Lock()
+	e.requests++
+	e.lmu.Unlock()
 	if !e.authorized(w, r) {
 		return
 	}

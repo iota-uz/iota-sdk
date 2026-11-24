@@ -59,11 +59,13 @@ func contractTargets(t *testing.T) []target {
 		var out []target
 		if email, pw, to := os.Getenv("ESKIZ_EMAIL"), os.Getenv("ESKIZ_PASSWORD"), os.Getenv("ESKIZ_TEST_TO"); email != "" && pw != "" && to != "" {
 			creds := catalog.Credentials{"email": email, "password": pw, "from": os.Getenv("ESKIZ_FROM")}
-			if u := os.Getenv("ESKIZ_URL"); u != "" {
-				creds["url"] = u
-			}
 			bad := catalog.Credentials{"email": email, "password": pw + "x"}
-			out = append(out, target{sms.KindEskiz, sms.NewEskiz(), creds, bad, to, eskizLiveText})
+			var opts []sms.Option
+			if u := os.Getenv("ESKIZ_URL"); u != "" {
+				creds["url"], bad["url"] = u, u
+				opts = append(opts, sms.WithTrustedEskizURLs(u)) // the operator's own endpoint
+			}
+			out = append(out, target{sms.KindEskiz, sms.NewEskiz(opts...), creds, bad, to, eskizLiveText})
 		}
 		if sid, tok, from, to := os.Getenv("TWILIO_ACCOUNTSID"), os.Getenv("TWILIO_AUTHTOKEN"), os.Getenv("TWILIO_PHONENUMBER"), os.Getenv("TWILIO_TEST_TO"); sid != "" && tok != "" && from != "" && to != "" {
 			creds := catalog.Credentials{"account_sid": sid, "auth_token": tok, "from": from}

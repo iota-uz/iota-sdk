@@ -101,7 +101,7 @@ func (b *eskizBackend) build(url string, c connectors.Credentials) eskiz.Service
 	logger := logrus.New()
 	logger.SetOutput(io.Discard) // the login request carries the password
 	rt := &tracker{base: b.o.transport, isSend: func(r *http.Request) bool { return strings.HasSuffix(r.URL.Path, eskizSendPath) }}
-	return eskiz.NewService(cfg, logger, nil, eskiz.WithRoundTripper(rt), eskiz.WithoutRedirects())
+	return eskiz.NewService(cfg, logger, nil, eskiz.WithRoundTripper(rt), eskiz.WithoutRedirects(), eskiz.WithoutAuthReplay())
 }
 
 // urlAllowed reports whether a tenant's Eskiz URL is the default API or a trusted origin. Anything else
@@ -149,7 +149,13 @@ func (b *eskizBackend) send(ctx context.Context, in catalog.CallInput, m message
 	}
 	res, err := svc.SendSMS(withTrace(ctx, trace), req)
 	if err != nil {
-		f := classify(trace.snapshot(), scrub(eskizDetail(err), in.Credentials["password"], in.Credentials["email"]))
+		hp := trace.snapshot()
+		if trace.sendRefused() && !hp.send && hp.status == http.StatusOK {
+			// The session token had expired: it was renewed (the credentials are good), the SMS was
+			// refused and is not sent again. The next send uses the new token.
+			return accepted{}, &failure{err: &catalog.CallError{Code: catalog.CallUnavailable, Message: "the session token had expired and was renewed; nothing was sent"}}
+		}
+		f := classify(hp, scrub(eskizDetail(err), in.Credentials["password"], in.Credentials["email"]))
 		return accepted{}, &f
 	}
 	if res.ID() == "" {

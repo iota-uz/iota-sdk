@@ -39,6 +39,13 @@ type ServiceOption func(*serviceOptions)
 type serviceOptions struct {
 	base        http.RoundTripper
 	noRedirects bool
+	noReplay    bool
+}
+
+// WithoutAuthReplay makes the service renew an expired token after a 401 but not send the refused
+// request again: its 401 is returned. A request that must not be sent twice (an SMS) uses it.
+func WithoutAuthReplay() ServiceOption {
+	return func(o *serviceOptions) { o.noReplay = true }
 }
 
 // WithoutRedirects makes the service treat a redirect as the answer (an error) instead of following it:
@@ -91,7 +98,7 @@ func NewService(
 	// Create authenticated client
 	authClient := &http.Client{
 		Timeout:   apiTimeout,
-		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher},
+		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher, NoReplay: o.noReplay},
 	}
 	if o.noRedirects {
 		authClient.CheckRedirect = noRedirect

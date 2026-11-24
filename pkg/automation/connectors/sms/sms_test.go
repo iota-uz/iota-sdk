@@ -265,12 +265,19 @@ func TestEskizSends(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, fake.Logins())
 
-	// A token the provider no longer takes is renewed, and the message is sent once.
+	// A token the provider no longer takes is renewed, but the refused SMS is not sent again.
 	fake.ExpireTokens()
+	before := fake.SendRequests()
+	_, err = f.exec()
+	require.Error(t, err)
+	assert.Equal(t, catalog.CallUnavailable, callErr(t, err).Code, "not unauthorized: the credentials are good")
+	assert.Equal(t, before+1, fake.SendRequests(), "the send endpoint got the SMS once")
+	assert.Equal(t, 2, fake.Logins(), "the token was renewed")
+	assert.Len(t, fake.Sends(), 2)
+
 	res, err = f.exec()
 	require.NoError(t, err)
 	assert.Equal(t, "sent", res.Outcome)
-	assert.Equal(t, 2, fake.Logins())
 	assert.Len(t, fake.Sends(), 3)
 }
 
