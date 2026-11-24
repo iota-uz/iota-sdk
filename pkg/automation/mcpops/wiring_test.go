@@ -100,6 +100,8 @@ func TestStandardWorkflowToolsRefuseAutomationInstances(t *testing.T) {
 		assert.True(t, isNull(s.Payload), "no signal payload: %s", s.Payload)
 	}
 	assert.NotContains(t, string(res.Data), "+998900000000", "the event payload is not shown")
+	assert.NotContains(t, string(res.Data), taskTitle, "the task title is not shown")
+	assert.Contains(t, string(res.Data), task.String(), "the task itself is listed")
 	res = call("ext_workflow_list", map[string]any{})
 	require.True(t, res.OK, "%+v", res.Error)
 	assert.NotContains(t, string(res.Data), "+998900000000")

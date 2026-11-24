@@ -48,28 +48,34 @@ func (e *Engine) HumanOnlyInstance(ctx context.Context, tenant, id uuid.UUID) (s
 	return url, true, nil
 }
 
-// HumanOnlyTask is HumanOnlyInstance of the instance a human task belongs to, for an actor who may
-// decide the task now (its assignee, a holder of its permission, a delegate). For anyone else the task
-// is not reported: deciding it is refused by DecideTask as for any task, and the page is not named.
-func (e *Engine) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (string, bool, error) {
+// HumanOnlyTask reports whether a human task belongs to a human-only instance, whatever the actor's
+// rights: a management tool never passes such a task on to DecideTask, so no later change of rights
+// can let it through. mayDecide tells whether the actor may decide the task now (assignee, holder of
+// its permission, delegate); url, the page where a person decides it, is named only then. An actor
+// whose rights cannot be read may not decide.
+func (e *Engine) HumanOnlyTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (url string, guarded, mayDecide bool, err error) {
 	const op serrors.Op = "workflow.Engine.HumanOnlyTask"
 	t, err := e.loadTask(ctx, e.cfg.DB, actor.TenantID, taskID, false)
 	if errors.Is(err, ErrNotFound) {
-		return "", false, nil
+		return "", false, false, nil
 	}
 	if err != nil {
-		return "", false, serrors.Wrap(op, err)
+		return "", false, false, serrors.Wrap(op, err)
+	}
+	page, guarded, err := e.HumanOnlyInstance(ctx, actor.TenantID, t.InstanceID)
+	if err != nil || !guarded {
+		return "", guarded, false, err
 	}
 	current, err := e.currentSubject(ctx, actor)
 	if err != nil {
-		return "", false, nil //nolint:nilerr // an actor without current rights may not decide: DecideTask refuses
+		return "", true, false, nil //nolint:nilerr // rights that cannot be read decide nothing
 	}
 	may, _, err := e.rightToDecide(ctx, current, t)
 	if err != nil {
-		return "", false, serrors.Wrap(op, err)
+		return "", true, false, serrors.Wrap(op, err)
 	}
 	if !may {
-		return "", false, nil
+		return "", true, false, nil
 	}
-	return e.HumanOnlyInstance(ctx, actor.TenantID, t.InstanceID)
+	return page, true, true, nil
 }

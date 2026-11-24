@@ -357,10 +357,12 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 		if err := s.cfg.Store.CompleteOperation(txCtx, operation.ID, receipt, effects); err != nil {
 			return errors.Join(errTransient, err)
 		}
+		// The audit names who applied the plan: the principal and the client of this call (a plan prepared
+		// by one client of a user may be applied by another).
 		audit := make([]AuditRecord, 0, len(plan.Changes))
 		for i, c := range plan.Changes {
-			audit = append(audit, AuditRecord{OperationID: operation.ID, Item: i, TenantID: plan.TenantID, Subject: plan.Subject,
-				ClientID: plan.ClientID, Tool: "changes:" + kindKey(c.Entity, c.Op)})
+			audit = append(audit, AuditRecord{OperationID: operation.ID, Item: i, TenantID: p.TenantID.String(), Subject: p.Subject(),
+				ClientID: p.ClientID, Tool: "changes:" + kindKey(c.Entity, c.Op)})
 		}
 		if err := s.cfg.Store.SaveAudit(txCtx, audit); err != nil {
 			return errors.Join(errTransient, err)

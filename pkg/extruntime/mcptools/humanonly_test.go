@@ -18,7 +18,8 @@ import (
 )
 
 // guarded marks one instance and one task as a person's to act on.
-type guarded struct{ instance, task uuid.UUID }
+// blocked is a guarded task the caller may not decide.
+type guarded struct{ instance, task, blocked uuid.UUID }
 
 func (g guarded) Instance(_ context.Context, _, id uuid.UUID) (string, bool, error) {
 	return "https://app.test/runs/" + id.String(), id == g.instance, nil
@@ -26,13 +27,19 @@ func (g guarded) Instance(_ context.Context, _, id uuid.UUID) (string, bool, err
 
 func (guarded) Contract(context.Context, string) (bool, error) { return false, nil }
 
-func (g guarded) Task(_ context.Context, _ spi.Subject, id uuid.UUID) (string, bool, error) {
-	return "https://app.test/runs/of-task", id == g.task, nil
+func (g guarded) Task(_ context.Context, _ spi.Subject, id uuid.UUID) (string, bool, bool, error) {
+	switch id {
+	case g.task:
+		return "https://app.test/runs/of-task", true, true, nil
+	case g.blocked:
+		return "", true, false, nil
+	}
+	return "", false, false, nil
 }
 
 func TestHumanOnlyInstancesRefuseActionsButNotReads(t *testing.T) {
 	e := newEnv(t)
-	g := guarded{instance: uuid.New(), task: uuid.New()}
+	g := guarded{instance: uuid.New(), task: uuid.New(), blocked: uuid.New()}
 	reg := mcp.NewRegistry()
 	require.NoError(t, mcptools.Register(reg, mcptools.Deps{Manage: e.svc, HumanOnly: g}))
 	authz := rbacauth.New(func(_ context.Context, tenant uuid.UUID, id uint) (user.User, error) {
@@ -76,6 +83,13 @@ func TestHumanOnlyInstancesRefuseActionsButNotReads(t *testing.T) {
 	res = call("ext_workflow_signal", map[string]any{"id": uuid.NewString(), "name": "inbox"})
 	require.False(t, res.OK)
 	assert.NotEqual(t, mcp.CodeApprovalRequired, res.Error.Code)
+
+	// A guarded task the caller may not decide is refused by the guard itself, without the page: it never
+	// reaches the service.
+	res = call("ext_workflow_decide_task", map[string]any{"task_id": g.blocked.String(), "decision": map[string]any{"outcome": "approve"}})
+	require.False(t, res.OK)
+	assert.Equal(t, mcp.CodeForbidden, res.Error.Code)
+	assert.NotContains(t, res.Error.Message, "https://")
 
 	// Who may not operate instances is refused for that, and learns nothing about the instance.
 	raw, err := json.Marshal(map[string]any{"id": id, "name": "inbox"})

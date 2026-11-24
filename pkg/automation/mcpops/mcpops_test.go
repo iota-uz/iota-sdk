@@ -32,6 +32,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/mcpops"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host/hosttest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -83,11 +84,16 @@ type approveNode struct{ specNode }
 
 func (approveNode) Human() bool { return true }
 
+// taskTitle is the title of the test tasks.
+const taskTitle = "Call +998900000001"
+
 type tasks struct{}
 
 func (tasks) Begin(_ context.Context, _ pgx.Tx, _ engine.StepContext, _ graph.Node, _ json.RawMessage) (engine.WaitSpec, error) {
 	owner := int64(ownerID)
-	return engine.WaitSpec{Kind: "task", Task: &workflow.TaskSpec{Assignees: []workflow.TaskAssignee{{Kind: workflow.TaskAssignUser, UserID: &owner}}}}, nil
+	// The title stands for one rendered from a sensitive field.
+	return engine.WaitSpec{Kind: "task", Task: &workflow.TaskSpec{Title: manifest.Label{"en": taskTitle},
+		Assignees: []workflow.TaskAssignee{{Kind: workflow.TaskAssignUser, UserID: &owner}}}}, nil
 }
 
 type urls struct{}

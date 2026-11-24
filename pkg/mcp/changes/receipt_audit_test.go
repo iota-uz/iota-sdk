@@ -61,9 +61,10 @@ func TestService_ChangeAuditSurvivesAStopBeforeDelivery(t *testing.T) {
 	w := newWorld(t)
 	// No auditor and no MCP call around Apply: the event is committed and not delivered.
 	svc, _ := w.service(t)
-	prepared, err := svc.Prepare(w.ctx, []changes.Change{{Op: "create", Entity: "note", Fields: []byte(`{"body":"a"}`)}}, "")
+	prepared, err := svc.Prepare(mcp.WithPrincipal(w.ctx, mcp.Principal{TenantID: w.tenant, UserID: 42, ClientID: "planner", Scopes: mcp.AllScopes()}), []changes.Change{{Op: "create", Entity: "note", Fields: []byte(`{"body":"a"}`)}}, "")
 	require.NoError(t, err)
-	op, err := svc.Apply(w.ctx, changes.ApplyInput{PlanID: prepared.PlanID, PlanHash: prepared.PlanHash, IdempotencyKey: "a-1"})
+	applier := mcp.WithPrincipal(w.ctx, mcp.Principal{TenantID: w.tenant, UserID: 42, ClientID: "applier", Scopes: mcp.AllScopes()})
+	op, err := svc.Apply(applier, changes.ApplyInput{PlanID: prepared.PlanID, PlanHash: prepared.PlanHash, IdempotencyKey: "a-1"})
 	require.NoError(t, err)
 	require.NotNil(t, op.Receipt)
 
@@ -79,6 +80,7 @@ func TestService_ChangeAuditSurvivesAStopBeforeDelivery(t *testing.T) {
 	assert.Equal(t, 0, *entries[0].Item)
 	assert.Equal(t, w.tenant.String(), entries[0].TenantID)
 	assert.Equal(t, "user:42", entries[0].Subject)
+	assert.Equal(t, "applier", entries[0].ClientID, "the client that applied the plan, not the one that prepared it")
 
 	_, err = restarted.DispatchEffects(context.Background(), 10)
 	require.NoError(t, err)
