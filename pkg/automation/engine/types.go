@@ -556,6 +556,7 @@ type needsPrepareError struct {
 	node     graph.Node
 	effect   graph.Effect
 	effects  []graph.Effect // every effect of the node's step
+	varsHash string         // the subject's variables the step read (mover.varsHash)
 }
 
 func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }

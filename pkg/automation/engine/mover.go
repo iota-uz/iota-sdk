@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +30,9 @@ type mover struct {
 	tx   pgx.Tx
 	s    *stepState
 	vars map[string]any
+	// varsHash is a hash of the subject's variables this step read with the run-as's rights now: a
+	// preparation made for the step is reused only while it is the same.
+	varsHash string
 }
 
 func (m *mover) in() *graph.Interpreter { return m.x.ie.in }
@@ -79,17 +84,13 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	if err != nil {
 		return behavior, err
 	}
+	m.varsHash = hashVars(gctx.Vars)
 	active, err := m.activeTokens(ctx)
 	if err != nil {
 		return behavior, err
 	}
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
-	if p := m.x.preparedFor(tok.ID, tok.StepSeq+1, node.ID); p != nil && len(st.Effects) > 0 && len(p.Effects) == len(st.Effects) {
-		// The step is taken again after its preparation: what was prepared is what is applied, whatever the
-		// fresh evaluation rendered (`now` moved on). The token, the step's number and the node still have to
-		// be the ones prepared, or the preparation is not used.
-		st.Effects = p.Effects
-	}
+	st.Effects = m.preparedEffects(tok, node.ID, st.Effects)
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
 		if stopsRun(st) {
@@ -148,6 +149,30 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	return behavior, m.advance(ctx, tok, node.ID, outcome)
 }
 
+// preparedEffects are the effects the step applies: those its preparation was made for, when the step is the
+// one prepared (the same token, step number and node) and what the run-as may read through the subject's
+// variables is unchanged since — so a right lost in between is honored by the fresh evaluation, never bypassed
+// by an effect rendered earlier — else the ones the fresh evaluation rendered. A step whose fresh evaluation
+// renders no effects (it failed) takes its failure, as it would without a preparation: the preparation read
+// and wrote nothing, so nothing is lost.
+func (m *mover) preparedEffects(tok *tokenRow, node string, fresh []graph.Effect) []graph.Effect {
+	p := m.x.preparedStepFor(tok.ID, tok.StepSeq+1, node)
+	if p == nil || len(fresh) == 0 || len(p.Effects) != len(fresh) || p.varsHash != m.varsHash {
+		return fresh
+	}
+	return p.Effects
+}
+
+// hashVars fingerprints the subject's variables.
+func hashVars(vars map[string]any) string {
+	b, err := json.Marshal(vars)
+	if err != nil {
+		return "unhashable"
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
 func effectInput(effects []graph.Effect) any {
 	if len(effects) == 1 {
 		return effects[0].Params
@@ -171,6 +196,10 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 		return EffectResult{}, nil, serrors.FromDB(opRun, err)
 	}
 	res, serr, err := applyEach(ctx, sp, m.stepContext(tok, tok.StepSeq+1), node, spec, en, effects, true)
+	var np *needsPrepareError
+	if errors.As(err, &np) {
+		np.varsHash = m.varsHash
+	}
 	if err == nil && serr == nil && res.Output != nil {
 		serr = m.tooLarge(res.Output, "the output of "+node.ID)
 	}

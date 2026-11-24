@@ -278,8 +278,8 @@ type preparingNode struct {
 	specNode
 	mu       sync.Mutex
 	prepares int
-	stamps   []string // params.stamp as PrepareEffect and then ApplyEffectResult saw it
-	idleInTx []int    // sessions idle in a transaction while PrepareEffect ran
+	stamps   map[string][]string // by step key: params.stamp as PrepareEffect and then ApplyEffectResult saw it
+	idleInTx []int               // sessions idle in a transaction while PrepareEffect ran
 	applied  []*engine.PreparedEffect
 	db       interface {
 		QueryRow(context.Context, string, ...any) pgx.Row
@@ -287,7 +287,7 @@ type preparingNode struct {
 	prepareTo error
 }
 
-func (n *preparingNode) PrepareEffect(ctx context.Context, _ engine.StepContext, _ graph.Node, e graph.Effect) (any, error) {
+func (n *preparingNode) PrepareEffect(ctx context.Context, run engine.StepContext, _ graph.Node, e graph.Effect) (any, error) {
 	var idle int
 	if err := n.db.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND state = 'idle in transaction' AND pid <> pg_backend_pid()`).Scan(&idle); err != nil {
 		return nil, err
@@ -296,7 +296,7 @@ func (n *preparingNode) PrepareEffect(ctx context.Context, _ engine.StepContext,
 	defer n.mu.Unlock()
 	n.prepares++
 	stamp, _ := e.Params["stamp"].(string)
-	n.stamps = append(n.stamps, "prepare:"+stamp)
+	n.stamps[run.StepKey()] = append(n.stamps[run.StepKey()], "prepare:"+stamp)
 	n.idleInTx = append(n.idleInTx, idle)
 	if n.prepareTo != nil {
 		return nil, n.prepareTo
@@ -314,7 +314,7 @@ func (n *preparingNode) ApplyEffectResult(_ context.Context, _ pgx.Tx, run engin
 	n.mu.Lock()
 	n.applied = append(n.applied, run.Prepared)
 	stamp, _ := e.Params["stamp"].(string)
-	n.stamps = append(n.stamps, "apply:"+stamp)
+	n.stamps[run.StepKey()] = append(n.stamps[run.StepKey()], "apply:"+stamp)
 	n.mu.Unlock()
 	if run.Prepared != nil && run.Prepared.Err != nil {
 		return engine.EffectResult{}, run.Prepared.Err
@@ -327,7 +327,7 @@ func (n *preparingNode) ApplyEffectResult(_ context.Context, _ pgx.Tx, run engin
 func newPreparingEnv(t *testing.T) (*env, *preparingNode) {
 	t.Helper()
 	e := newEnv(t)
-	n := &preparingNode{db: e.db, specNode: specNode{graph.NodeSpec{Type: "acme.pick_outcome", Title: "Pick", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
+	n := &preparingNode{db: e.db, stamps: map[string][]string{}, specNode: specNode{graph.NodeSpec{Type: "acme.pick_outcome", Title: "Pick", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Outcomes: []string{"sent", "none", "failed"}, DoneOutcome: "sent", FailedOutcome: "failed",
 		Params:    graph.MustSchemaParams(`{"type":"object","properties":{"pick":{"type":"string"},"stamp":{"type":"string"}},"required":["pick"],"additionalProperties":false}`),
 		Templates: []string{"stamp"},
@@ -407,17 +407,11 @@ func TestStepAppliesTheEffectItWasPreparedFor(t *testing.T) {
 
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	require.Len(t, n.stamps, 6)
-	prepared := map[string]bool{}
-	for _, s := range n.stamps {
-		if strings.HasPrefix(s, "prepare:") {
-			prepared[strings.TrimPrefix(s, "prepare:")] = true
-		}
-	}
-	require.Len(t, prepared, 3)
-	for _, s := range n.stamps {
-		if strings.HasPrefix(s, "apply:") {
-			assert.True(t, prepared[strings.TrimPrefix(s, "apply:")], "%s is the effect that was prepared", s)
-		}
+	require.Len(t, n.stamps, 3, "one step per run")
+	for key, seen := range n.stamps {
+		// What the step prepared is what it applied; two steps may render the same instant, which proves nothing.
+		require.Len(t, seen, 2, key)
+		assert.Equal(t, strings.TrimPrefix(seen[0], "prepare:"), strings.TrimPrefix(seen[1], "apply:"), "the step %s applies the effect it prepared", key)
+		assert.True(t, strings.HasPrefix(seen[0], "prepare:") && strings.HasPrefix(seen[1], "apply:"), key)
 	}
 }

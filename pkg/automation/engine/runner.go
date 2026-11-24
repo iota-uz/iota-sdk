@@ -91,13 +91,22 @@ type preparedStep struct {
 	token uuid.UUID
 	seq   int
 	node  string
+	// varsHash fingerprints the subject's variables the step read when it asked for the preparation.
+	varsHash string
 	PreparedEffect
 }
 
 // preparedFor is the preparation of this step, if the runner made one.
 func (x *execution) preparedFor(token uuid.UUID, seq int, node string) *PreparedEffect {
-	if p := x.prepared; p != nil && p.token == token && p.seq == seq && p.node == node {
+	if p := x.preparedStepFor(token, seq, node); p != nil {
 		return &p.PreparedEffect
+	}
+	return nil
+}
+
+func (x *execution) preparedStepFor(token uuid.UUID, seq int, node string) *preparedStep {
+	if p := x.prepared; p != nil && p.token == token && p.seq == seq && p.node == node {
+		return p
 	}
 	return nil
 }
@@ -438,7 +447,7 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 	if errors.As(err, &np) {
 		// The step was rolled back: nothing of it stands. Prepare outside any transaction, then take it again.
 		v, perr := np.preparer.PrepareEffect(ctx, np.sc, np.node, np.effect)
-		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
+		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, varsHash: np.varsHash, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
 		if host.IsInfrastructure(perr) || ctx.Err() != nil {
 			return true, perr
 		}
