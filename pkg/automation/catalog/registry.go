@@ -48,6 +48,12 @@ func WithMixedSubject(entity string) RegistryOption {
 	return func(r *registry) { r.mixed = entity }
 }
 
+// WithParticipants tells the registry which participants an event offers a notify node: the recipient keys of
+// its notification definition. It is called while a catalog is built, so it may resolve its source lazily.
+func WithParticipants(f func(eventKey string) []string) RegistryOption {
+	return func(r *registry) { r.participants = f }
+}
+
 // ViewOption configures ForTenant.
 type ViewOption func(*viewOptions)
 
@@ -138,14 +144,15 @@ type eventEntry struct {
 }
 
 type registry struct {
-	mu         sync.RWMutex
-	avail      Availability
-	behaviors  *graph.Behaviors
-	subjects   map[string]graph.SubjectSpec
-	mixed      string
-	nodes      map[string]nodeEntry
-	events     map[string]eventEntry
-	connectors map[ConnectorKind]bool
+	mu           sync.RWMutex
+	avail        Availability
+	behaviors    *graph.Behaviors
+	subjects     map[string]graph.SubjectSpec
+	mixed        string
+	participants func(eventKey string) []string
+	nodes        map[string]nodeEntry
+	events       map[string]eventEntry
+	connectors   map[ConnectorKind]bool
 }
 
 // NewRegistry returns an empty registry over the tenants' availability (nil: no connector is ever
@@ -414,6 +421,9 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			continue
 		}
 		spec := copyEvent(e.spec)
+		if r.participants != nil {
+			spec.Participants = r.participants(key)
+		}
 		if lt, ok := e.source.(LocalizedTriggers); ok && o.locale != "" {
 			spec = lt.Localize(spec, o.locale)
 			spec.Key = key
@@ -521,6 +531,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 
 func copyEvent(e graph.EventSpec) graph.EventSpec {
 	e.Payload = e.Payload.Clone()
+	e.Participants = append([]string(nil), e.Participants...)
 	if e.Match != nil {
 		m := make(map[string]graph.MatchField, len(e.Match))
 		for k, f := range e.Match {

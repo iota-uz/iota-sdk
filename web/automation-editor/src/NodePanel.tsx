@@ -128,6 +128,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                         nodeType={node().type}
                         nodeId={props.id}
                         graph={props.graph}
+                        events={props.catalog.events}
                         fieldSlot={props.fieldSlot}
                         searchOptions={props.searchOptions}
                         expressions={s().expressions}

@@ -72,3 +72,16 @@ export function bench(nodes = 200, edges = 500, seed = 0): { graph: AutomationGr
 }
 
 export const sampleLayout: AutomationLayout = {}
+
+/** A notify node after a policy event: with participants (created) or without a notification definition (deleted). */
+export function notifyGraph(event: 'acme.policy.created.v1' | 'acme.policy.deleted.v1'): AutomationGraph {
+  return {
+    name: 'Notify the owner', run_as: 'owner',
+    triggers: [{ id: 'policy', event }],
+    nodes: [{ id: 'ping', type: 'notify', params: { recipients: { roles: ['1'] }, title: 'Policy {{ event.kind }}', body: 'See the policy.' } }, { id: 'end', type: 'end', params: {} }],
+    edges: [
+      { from: { node: 'policy', outcome: 'fired' }, to: 'ping' },
+      { from: { node: 'ping', outcome: 'sent' }, to: 'end' }, { from: { node: 'ping', outcome: 'no_recipients' }, to: 'end' }, { from: { node: 'ping', outcome: 'failed' }, to: 'end' },
+    ],
+  }
+}

@@ -230,6 +230,38 @@ export function reachabilityOrder(graph: AutomationGraph): string[] {
   return order
 }
 
+/** The triggers from which an item can be reached, following the edges. */
+export function triggersReaching(graph: AutomationGraph, id: string): GraphTrigger[] {
+  const out: GraphTrigger[] = []
+  for (const trigger of graph.triggers) {
+    const seen = new Set([trigger.id])
+    const queue = [trigger.id]
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (current === id) { out.push(trigger); break }
+      for (const edge of graph.edges) {
+        if (edge.from.node === current && !seen.has(edge.to)) { seen.add(edge.to); queue.push(edge.to) }
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * The participants a node may name: the recipient keys every trigger event that reaches it offers. A node
+ * no trigger reaches, or one reached by an event without a notification definition, may name none.
+ */
+export function offeredParticipants(graph: AutomationGraph, catalog: Pick<EditorCatalog, 'events'>, id: string): string[] {
+  const reaching = triggersReaching(graph, id)
+  if (reaching.length === 0) return []
+  let keys: string[] | null = null
+  for (const trigger of reaching) {
+    const own = catalog.events.find((e) => e.key === trigger.event)?.participants ?? []
+    keys = keys === null ? [...own] : keys.filter((k) => own.includes(k))
+  }
+  return keys ?? []
+}
+
 /** Ancestors and descendants of an item (its path through the graph), for highlighting. */
 export function pathOf(graph: AutomationGraph, id: string): { items: Set<string>; edges: Set<string> } {
   const items = new Set<string>([id])

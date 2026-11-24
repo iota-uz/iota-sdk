@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -18,6 +19,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications/notificationstest"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	automationnotify "github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
+	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
@@ -186,7 +190,7 @@ func serverSource(tag, version string) string {
   push: ({ payload }) => ({ title: "Renewal", body: payload.number }),
   inApp: ({ payload }) => ({ title: "Renewal", body: payload.number }),
 } };
-export const customerContacts = async (q, record) => ({ sms: ["+99890" + record.key], email: [record.key + "@example.com"], push: [record.key + "-phone", record.key + "-tablet"] });
+export const customerContacts = async (q, record) => record.key === "c-nophone" ? ({ email: [record.key + "@example.com"] }) : ({ sms: ["+99890" + record.key], email: [record.key + "@example.com"], push: [record.key + "-phone", record.key + "-tablet"] });
 // The wire shape is part of the contract: anything else is denied with a code that names the mismatch.
 export const customerConsent = async (q, req) => {
   if (req.recipient.ref.key === "c-bad") return { allow: "yes" };
@@ -353,6 +357,188 @@ func TestRecordRecipientUsesThePackagesContactResolver(t *testing.T) {
 	sent := e.sms.SentTo("+99890c-77")
 	require.Len(t, sent, 1, "record -> contact targets resolved by the package's server code")
 	require.Contains(t, sent[0].Text, "Policy P-2")
+}
+
+// CheckContacts (the contact check of a graph's send_to_contact) asks a package's resolver through
+// CheckContact: the answer is known before the outcome is chosen, and nothing is recorded, in a preview or in a
+// send.
+func TestCheckContactsAsksAPackageResolverWithoutRecordingIt(t *testing.T) {
+	e := newNenv(t)
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(context.Background(), e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	resolver, ok := e.contacts.Lookup(customerID)
+	require.True(t, ok)
+	_, checker := resolver.(notifications.ContactChecker)
+	require.True(t, checker, "the package adapter answers a read-only check")
+
+	request := func(key string) notifications.AudienceRequest {
+		return notifications.AudienceRequest{
+			Event:    notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: e.f.TenantID()},
+			Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: customerID, Key: key}}}, Channels: []notifications.Channel{notifications.ChannelSMS},
+			CheckContacts: true,
+		}
+	}
+	invocations := func() int {
+		return e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID)
+	}
+	require.Zero(t, invocations())
+
+	// A preview: the client without a phone is left out, the one with a phone is kept, and nothing is written.
+	resolved, err := e.dispatch.Resolve(e.committed, request("c-nophone"))
+	require.NoError(t, err)
+	require.Empty(t, resolved.Addressees)
+	require.Equal(t, []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: customerID + "/c-nophone", Reason: notifications.SkipNoAddress}}, resolved.Skipped)
+	resolved, err = e.dispatch.Resolve(e.committed, request("c-77"))
+	require.NoError(t, err)
+	require.Len(t, resolved.Addressees, 1)
+	require.Zero(t, invocations(), "a preview records no invocation of the package")
+
+	// A send in a transaction: nothing is queued for the client without a phone, and the other is.
+	send := func(key string) notifications.AudienceReceipt {
+		tx, err := e.f.Pool.Begin(e.committed)
+		require.NoError(t, err)
+		receipt, err := e.dispatch.SendTx(e.committed, tx, request(key))
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit(e.committed))
+		return receipt
+	}
+	require.Zero(t, send("c-nophone").Recipients)
+	require.Zero(t, e.count("SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1", e.f.TenantID()), "nothing is queued for the client without a phone")
+	require.Equal(t, 1, send("c-77").Recipients)
+	require.Zero(t, invocations(), "the check recorded nothing")
+
+	// The worker resolves the contact at delivery, and that is recorded.
+	e.drain()
+	require.Len(t, e.sms.SentTo("+99890c-77"), 1)
+	require.Positive(t, invocations())
+}
+
+// A deactivated package leaves its resolver registered: a check cannot tell, so the record stays queued for the
+// worker instead of being dropped as having no address.
+func TestCheckContactsKeepsTheRecordOfADeactivatedPackage(t *testing.T) {
+	e := newNenv(t)
+	ctx := context.Background()
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(ctx, e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	require.NoError(t, e.svc.Deactivate(ctx, e.admin, ns))
+	require.NoError(t, e.adapter.Sync(ctx))
+	resolver, ok := e.contacts.Lookup(customerID)
+	require.True(t, ok, "the resolver stays registered")
+	_, err = resolver.(notifications.ContactChecker).CheckContact(e.committed, e.f.TenantID(), notifications.ObjectRef{Entity: customerID, Key: "c-77"})
+	require.ErrorIs(t, err, notifications.ErrContactUnverifiable)
+
+	resolved, err := e.dispatch.Resolve(e.committed, notifications.AudienceRequest{
+		Event:    notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: e.f.TenantID()},
+		Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: customerID, Key: "c-77"}}}, Channels: []notifications.Channel{notifications.ChannelSMS},
+		CheckContacts: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resolved.Addressees, 1)
+	require.Empty(t, resolved.Skipped)
+}
+
+// The engine prepares the send_to_contact effect before the step's transaction opens, so a package's resolver,
+// which takes its own connections, is asked while the pool is free. In the transaction the shared pool has no
+// connection to spare (one is the step's, the rest are taken): the send still completes and the outcome is the
+// one the contact check chose.
+func TestSendToContactWithAPackageResolverNeedsNoSpareConnectionInTheStep(t *testing.T) {
+	e := newNenv(t)
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(context.Background(), e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	nt := automationnotify.NewSendToContact(automationnotify.Config{Sender: e.dispatch, Catalog: e.notices, Pool: e.f.Pool})
+	node, effect := graph.Node{ID: "sms", Type: automationnotify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Your policy expires soon"}}
+
+	step := func(key string) engine.EffectResult {
+		run := engine.StepContext{TenantID: e.f.TenantID(), RunID: uuid.New(), TokenID: uuid.New(), Seq: 1, NodeID: "sms", Subject: engine.SubjectRef{Entity: customerID, Key: key}}
+		// As the runner does: prepare with the pool free ...
+		v, perr := nt.(engine.EffectPreparer).PrepareEffect(context.Background(), run, node, effect)
+		run.Prepared = &engine.PreparedEffect{Value: v, Err: perr}
+
+		// ... then take the step's transaction and leave the shared pool without a free connection.
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		tx, err := e.f.Pool.Begin(ctx)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback(context.Background()) }()
+		var held []*pgxpool.Conn
+		defer func() {
+			for _, c := range held {
+				c.Release()
+			}
+		}()
+		for {
+			acquire, stop := context.WithTimeout(ctx, 300*time.Millisecond)
+			c, err := e.f.Pool.Acquire(acquire)
+			stop()
+			if err != nil {
+				break
+			}
+			held = append(held, c)
+		}
+		require.Equal(t, e.f.Pool.Config().MaxConns, e.f.Pool.Stat().AcquiredConns(), "no connection is left to spare")
+
+		res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, run, node, effect)
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit(ctx))
+		return res
+	}
+
+	res := step("c-nophone")
+	require.Equal(t, automationnotify.OutcomeNoContact, res.Outcome)
+	require.Zero(t, e.count("SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1", e.f.TenantID()))
+	require.Zero(t, e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID), "the check recorded nothing")
+
+	res = step("c-77")
+	require.Equal(t, automationnotify.OutcomeSent, res.Outcome)
+	e.drain()
+	require.Len(t, e.sms.SentTo("+99890c-77"), 1)
+}
+
+// The acceptance of the send_to_contact node with the package's resolver: a client without a phone takes
+// no_contact, and its graph can handle it.
+func TestSendToContactNodeTakesNoContactForAPackageClientWithoutAPhone(t *testing.T) {
+	e := newNenv(t)
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(context.Background(), e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	nt := automationnotify.NewSendToContact(automationnotify.Config{Sender: e.dispatch, Catalog: e.notices, Pool: e.f.Pool})
+
+	step := func(key string) engine.EffectResult {
+		ctx := context.Background()
+		tx, err := e.f.Pool.Begin(ctx)
+		require.NoError(t, err)
+		res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, engine.StepContext{
+			TenantID: e.f.TenantID(), RunID: uuid.New(), TokenID: uuid.New(), Seq: 1, NodeID: "sms", Subject: engine.SubjectRef{Entity: customerID, Key: key},
+		}, graph.Node{ID: "sms", Type: automationnotify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Your policy expires soon"}})
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit(ctx))
+		return res
+	}
+	res := step("c-nophone")
+	require.Equal(t, automationnotify.OutcomeNoContact, res.Outcome)
+	require.Zero(t, e.count("SELECT COUNT(*) FROM core.notification_notices WHERE tenant_id=$1", e.f.TenantID()))
+	require.Zero(t, e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID))
+
+	res = step("c-77")
+	require.Equal(t, automationnotify.OutcomeSent, res.Outcome)
+	e.drain()
+	require.Len(t, e.sms.SentTo("+99890c-77"), 1)
+
+	// The dry run agrees and records nothing.
+	before := e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID)
+	preview, err := nt.(engine.EffectPreviewer).PreviewEffect(e.committed, engine.StepContext{
+		TenantID: e.f.TenantID(), NodeID: "sms", Subject: engine.SubjectRef{Entity: customerID, Key: "c-nophone"},
+	}, graph.Node{ID: "sms"}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "x"}})
+	require.NoError(t, err)
+	require.Equal(t, automationnotify.OutcomeNoContact, preview.Outcome)
+	require.Equal(t, before, e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID))
 }
 
 func TestPendingDeliveriesKeepResolvingTheirSnapshotAfterDeactivationAndNewVersions(t *testing.T) {

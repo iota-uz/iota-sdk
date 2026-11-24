@@ -5,7 +5,8 @@ import { Button, Combobox, Switch, ViewDrawer, type ComboboxOption } from '@iota
 import { createEffect, createMemo, createSignal, createUniqueId, For, Index, Match, on, Show, Switch as Choose, type JSX } from 'solid-js'
 import { completeAt, type CompletionPath } from './completion'
 import { pick } from './locale'
-import type { AutomationGraph, EditorApi, EditorLocale, ExpressionType, FieldSlot, JsonSchema } from './types'
+import { offeredParticipants } from './graph'
+import type { AutomationGraph, CatalogEvent, EditorApi, EditorLocale, ExpressionType, FieldSlot, JsonSchema } from './types'
 
 const STRINGS: Record<EditorLocale, {
   anyJson: string; invalidJson: string; clear: string; add: string; remove: string; up: string; down: string
@@ -61,6 +62,8 @@ export type SchemaFormProps = {
   nodeType: string
   nodeId: string
   graph: AutomationGraph
+  /** The catalog's events: a field marked `x-event-participants` is offered only where the trigger events that reach the node have participants. Left out, every field is shown. */
+  events?: CatalogEvent[]
   fieldSlot?: FieldSlot
   /** Choices of a field with `x-options-source` (the host's `EditorApi.searchOptions`). */
   searchOptions?: EditorApi['searchOptions']
@@ -157,6 +160,17 @@ function withKey(obj: Record<string, unknown>, key: string, value: unknown): Rec
   return next
 }
 
+/**
+ * A field the catalog marks `x-event-participants` (the participants of a notify node) is hidden while no
+ * trigger event that reaches the node offers any, unless it already holds a value: that one stays visible so
+ * the author can clear what the server would refuse.
+ */
+export function fieldHidden(props: Pick<SchemaFormProps, 'events' | 'graph' | 'nodeId'>, schema: JsonSchema, value: unknown): boolean {
+  if (schema['x-event-participants'] !== true || !props.events) return false
+  if (Array.isArray(value) && value.length > 0) return false
+  return offeredParticipants(props.graph, { events: props.events }, props.nodeId).length === 0
+}
+
 type Ctx = {
   props: SchemaFormProps
   s: () => (typeof STRINGS)['en']
@@ -196,8 +210,10 @@ export function SchemaForm(props: SchemaFormProps) {
             params: props.value, onParamsChange: props.onChange, readOnly: props.readOnly, graph: props.graph,
           }))
           return (
-            <Show when={slot() === undefined} fallback={<div class="ae-form-field" data-param={name}>{slot()}<FieldError ctx={ctx} path={name} /></div>}>
-              <FieldView ctx={ctx} name={name} path={name} schema={schema} required={required().has(name)} value={props.value[name]} onChange={onChange} />
+            <Show when={!fieldHidden(props, schema, props.value[name])}>
+              <Show when={slot() === undefined} fallback={<div class="ae-form-field" data-param={name}>{slot()}<FieldError ctx={ctx} path={name} /></div>}>
+                <FieldView ctx={ctx} name={name} path={name} schema={schema} required={required().has(name)} value={props.value[name]} onChange={onChange} />
+              </Show>
             </Show>
           )
         }}</For>
@@ -537,8 +553,10 @@ function ObjectField(props: { ctx: Ctx; label: JSX.Element; schema: JsonSchema; 
     <fieldset class="ae-form-group">
       <legend class="ae-form-legend">{props.label}</legend>
       <For each={entries()}>{([name, schema]) => (
-        <FieldView ctx={props.ctx} name={name} path={joinPath(props.path, name)} schema={schema} required={required().has(name)}
-          value={obj()[name]} onChange={(v) => props.onChange(withKey(obj(), name, v))} />
+        <Show when={!fieldHidden(props.ctx.props, schema, obj()[name])}>
+          <FieldView ctx={props.ctx} name={name} path={joinPath(props.path, name)} schema={schema} required={required().has(name)}
+            value={obj()[name]} onChange={(v) => props.onChange(withKey(obj(), name, v))} />
+        </Show>
       )}</For>
       <Show when={props.nullable && !props.readOnly && hasValue()}>
         <Button type="button" variant="ghost" size="sm" onClick={() => props.onChange(isNullable(props.schema) ? null : undefined)}>{props.ctx.s().clear}</Button>

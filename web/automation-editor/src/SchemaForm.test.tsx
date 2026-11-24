@@ -3,7 +3,8 @@ import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
 import { chatOfSelection, humanize, literalOfSelection, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
-import type { AutomationGraph, JsonSchema } from './types'
+import { offeredParticipants } from './graph'
+import type { AutomationGraph, CatalogEvent, JsonSchema } from './types'
 
 const graph: AutomationGraph = { name: 'g', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 't', params: {} }], edges: [] }
 
@@ -120,6 +121,67 @@ describe('SchemaForm', () => {
     expect(onChange).toHaveBeenLastCalledWith({ tags: ['a', ''] })
     fireEvent.click(screen.getByRole('button', { name: 'Remove: Item 1' }))
     expect(onChange).toHaveBeenLastCalledWith({ tags: [''] })
+  })
+})
+
+describe('participants of a notify node', () => {
+  const schema: JsonSchema = {
+    type: 'object',
+    properties: {
+      recipients: {
+        type: 'object',
+        properties: {
+          roles: { type: 'array', items: { type: 'string' } },
+          participants: { type: 'array', items: { type: 'string' }, 'x-event-participants': true },
+        },
+      },
+    },
+  }
+  const triggered = (event: string): AutomationGraph => ({
+    name: 'g', run_as: 'owner', triggers: [{ id: 't', event }], nodes: [{ id: 'n', type: 't', params: {} }],
+    edges: [{ from: { node: 't', outcome: 'fired' }, to: 'n' }],
+  })
+  const events = [
+    { key: 'acme.policy.created.v1', participants: ['created_user', 'actor'] },
+    { key: 'acme.policy.deleted.v1' },
+  ] as CatalogEvent[]
+  const shown = (container: HTMLElement) => container.querySelector('[data-param="recipients.participants"]') !== null
+
+  it('offers the field when the trigger event has participants', () => {
+    const { container } = mount(schema, {}, { graph: triggered('acme.policy.created.v1'), events })
+    expect(shown(container)).toBe(true)
+    expect(container.querySelector('[data-param="recipients.roles"]')).not.toBeNull()
+  })
+
+  it('hides it for a trigger event without a notification definition', () => {
+    const { container } = mount(schema, {}, { graph: triggered('acme.policy.deleted.v1'), events })
+    expect(shown(container)).toBe(false)
+    expect(container.querySelector('[data-param="recipients.roles"]')).not.toBeNull()
+  })
+
+  it('hides it for a node no trigger reaches', () => {
+    const lonely: AutomationGraph = { ...triggered('acme.policy.created.v1'), edges: [] }
+    expect(shown(mount(schema, {}, { graph: lonely, events }).container)).toBe(false)
+  })
+
+  it('offers only what every trigger that reaches the node offers', () => {
+    const both: AutomationGraph = {
+      ...triggered('acme.policy.created.v1'),
+      triggers: [{ id: 't', event: 'acme.policy.created.v1' }, { id: 'u', event: 'acme.policy.deleted.v1' }],
+      edges: [{ from: { node: 't', outcome: 'fired' }, to: 'n' }, { from: { node: 'u', outcome: 'fired' }, to: 'n' }],
+    }
+    expect(shown(mount(schema, {}, { graph: both, events }).container)).toBe(false)
+    expect(offeredParticipants(both, { events }, 'n')).toEqual([])
+    expect(offeredParticipants(triggered('acme.policy.created.v1'), { events }, 'n')).toEqual(['created_user', 'actor'])
+  })
+
+  it('keeps a field that already holds a value, so the author can clear it', () => {
+    const { container } = mount(schema, { recipients: { participants: ['actor'] } }, { graph: triggered('acme.policy.deleted.v1'), events })
+    expect(shown(container)).toBe(true)
+  })
+
+  it('shows everything when the host passes no events', () => {
+    expect(shown(mount(schema, {}, { graph: triggered('acme.policy.deleted.v1') }).container)).toBe(true)
   })
 })
 
