@@ -1,0 +1,155 @@
+package services_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strconv"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/iota-uz/iota-sdk/modules/automations/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/automations/services"
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email/emailtest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
+)
+
+const signInMailbox = "robot@example.com"
+
+type lateOAuth struct{ connectors.OAuth2 }
+
+// The tenant entry point of a sign-in with Google: the preset is offered when the application has the
+// provider's OAuth2 client, a start with it gives the provider's URL, and one callback saves the pair of
+// connections — a smtp to send and an imap to receive — together, the second taking its tokens from the
+// first.
+func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
+	h := itf.NewHarness(t, itf.HarnessConfig{
+		Name:      "automations_email_signin",
+		Database:  itf.DatabaseConfig{Provisioning: itf.ProvisioningPerTestDatabase},
+		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
+	})
+	scope := h.Scope(t)
+	ctx := context.Background()
+	var user int64
+	require.NoError(t, scope.Pool.QueryRow(ctx, `INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Ann', 'Admin', $2, 'en') RETURNING id`, scope.Tenant.ID, "admin-"+uuid.NewString()+"@example.com").Scan(&user))
+	actor := services.Actor{TenantID: scope.Tenant.ID, UserID: user}
+
+	mail := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: signInMailbox, Password: "pw"})
+	mail.AcceptToken(signInMailbox, "access-1")
+	claims, _ := json.Marshal(map[string]string{"email": signInMailbox})
+	idToken := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
+	token := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"access-1","refresh_token":"refresh-1","token_type":"Bearer","expires_in":3600,"id_token":"` + idToken + `"}`))
+	}))
+	t.Cleanup(token.Close)
+	_, smtpPort := emailtest.HostPort(mail.SMTPAddr)
+	_, imapPort := emailtest.HostPort(mail.IMAPAddr)
+	atoi := func(s string) int { n, _ := strconv.Atoi(s); return n }
+	late := &lateOAuth{}
+	cfg := email.Config{
+		OAuth: late, TLSConfig: mail.TLS,
+		Providers: map[string]email.Provider{email.PresetGmail: {
+			AuthURL: token.URL + "/auth", TokenURL: token.URL + "/token",
+			SMTPHost: "127.0.0.1", SMTPPort: atoi(smtpPort), IMAPHost: "127.0.0.1", IMAPPort: atoi(imapPort), Security: "tls",
+		}},
+	}
+
+	build := func(withClient bool) *services.IntegrationsService {
+		clients := map[catalog.ConnectorKind]connectors.PlatformCredential{}
+		if withClient {
+			clients[email.GoogleClient] = connectors.PlatformCredential{Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}}
+		}
+		keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
+		require.NoError(t, err)
+		dir := connectors.NewDirectory(nil)
+		for _, c := range email.New(cfg) {
+			require.NoError(t, dir.Register(c))
+		}
+		platform := connectors.NewPlatformCredentials(dir, clients)
+		store := connectors.NewStore(scope.Pool, keys, nil, platform, nil)
+		oauth, err := connectors.NewOAuth2(store, dir, platform, connectors.WithHTTPClient(token.Client()))
+		require.NoError(t, err)
+		late.OAuth2 = oauth
+		return services.NewIntegrationsService(services.IntegrationsDeps{
+			Directory: dir, Store: store, Platform: platform, OAuth: oauth,
+			States: persistence.NewOAuthStates(scope.Pool), Checks: persistence.NewConnectionChecks(scope.Pool), Requests: persistence.NewRequests(scope.Pool),
+		})
+	}
+	presets := func(svc *services.IntegrationsService) map[catalog.ConnectorKind][]string {
+		list, err := svc.List(ctx, actor, services.ListOptions{})
+		require.NoError(t, err)
+		out := map[catalog.ConnectorKind][]string{}
+		for _, e := range list {
+			out[e.Connector.Kind()] = e.OAuthPresets
+		}
+		return out
+	}
+
+	// Without the provider's OAuth2 client the preset is not offered and cannot be started.
+	svc := build(false)
+	assert.Empty(t, presets(svc)[email.KindSMTP])
+	_, err := svc.OAuthStartPreset(ctx, actor, email.KindSMTP, email.PresetGmail, "mail", "", uuid.Nil, "https://app.test/cb")
+	require.ErrorIs(t, err, services.ErrOAuthUnavailable)
+
+	svc = build(true)
+	assert.Equal(t, []string{email.PresetGmail}, presets(svc)[email.KindSMTP], "m365 has no client here")
+	assert.Equal(t, []string{email.PresetGmail}, presets(svc)[email.KindIMAP])
+
+	var invalid *services.InvalidInputError
+	_, err = svc.OAuthStartPreset(ctx, actor, email.KindSMTP, "yahoo", "mail", "", uuid.Nil, "https://app.test/cb")
+	require.ErrorAs(t, err, &invalid, "an unknown preset")
+	_, err = svc.OAuthStart(ctx, actor, email.KindSMTP, "mail", "", uuid.Nil, "https://app.test/cb")
+	require.ErrorAs(t, err, &invalid, "the form kind is not a sign-in without a preset")
+
+	authURL, err := svc.OAuthStartPreset(ctx, actor, email.KindSMTP, email.PresetGmail, "mail", "", uuid.Nil, "https://app.test/cb")
+	require.NoError(t, err)
+	u, err := url.Parse(authURL)
+	require.NoError(t, err)
+	assert.Equal(t, "consent", u.Query().Get("prompt"))
+	assert.Equal(t, "cid", u.Query().Get("client_id"))
+	state := u.Query().Get("state")
+	require.NotEmpty(t, state)
+
+	saved, pending, err := svc.OAuthComplete(ctx, actor, state, "code")
+	require.NoError(t, err)
+	assert.Equal(t, email.KindSMTP, pending.Kind)
+	assert.Equal(t, email.KindSMTP, saved.Kind)
+	assert.Equal(t, signInMailbox, saved.Identity.Display, "the mailbox is shown: it is not a secret")
+
+	keys, _ := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
+	store := connectors.NewStore(scope.Pool, keys, nil, nil, nil)
+	smtps, err := store.List(ctx, actor.TenantID, email.KindSMTP)
+	require.NoError(t, err)
+	imaps, err := store.List(ctx, actor.TenantID, email.KindIMAP)
+	require.NoError(t, err)
+	require.Len(t, smtps, 1)
+	require.Len(t, imaps, 1, "one callback made both connections")
+	assert.Equal(t, connectors.StatusConnected, imaps[0].Status)
+	_, sc, err := store.Get(ctx, actor.TenantID, smtps[0].ID)
+	require.NoError(t, err)
+	_, ic, err := store.Get(ctx, actor.TenantID, imaps[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, sc["login_id"], ic["login_id"])
+	assert.NotEmpty(t, sc["login_id"])
+	assert.Empty(t, sc[connectors.OAuth2TokenFrom], "the first holds the token set")
+	assert.Equal(t, smtps[0].ID.String(), ic[connectors.OAuth2TokenFrom], "the second takes its tokens from it")
+	assert.Equal(t, signInMailbox, ic["username"])
+
+	// The state is spent: a second callback with it is refused and saves nothing.
+	_, _, err = svc.OAuthComplete(ctx, actor, state, "code")
+	require.ErrorIs(t, err, services.ErrStateInvalid)
+	imaps, _ = store.List(ctx, actor.TenantID, email.KindIMAP)
+	assert.Len(t, imaps, 1)
+}

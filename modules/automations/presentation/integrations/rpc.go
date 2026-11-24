@@ -81,6 +81,7 @@ func connectorView(e services.ConnectorEntry, lang string, canManage bool) Conne
 		Nodes:            nodeTitles(e.Connector, lang),
 		Connections:      make([]ConnectionView, 0, len(e.Connections)),
 	}
+	v.OAuthPresets = e.OAuthPresets
 	if e.Platform != nil {
 		v.Platform = &PlatformView{Policy: PlatformPolicy(e.Platform.Policy), Available: e.Platform.Available, EnabledForTenant: e.Platform.EnabledForTenant}
 	}
@@ -337,7 +338,7 @@ func (c *Controller) oauthStart(ctx context.Context, req OAuthStartRequest) (OAu
 	if r != nil {
 		redirect = c.redirectURL(r)
 	}
-	authURL, err := c.cfg.Service.OAuthStart(ctx, actor(sub), kindOf(req.Kind), req.Name, req.DisplayName, connID, redirect)
+	authURL, err := c.cfg.Service.OAuthStartPreset(ctx, actor(sub), kindOf(req.Kind), req.Preset, req.Name, req.DisplayName, connID, redirect)
 	if err != nil {
 		return OAuthStartResponse{}, mapErr(err)
 	}

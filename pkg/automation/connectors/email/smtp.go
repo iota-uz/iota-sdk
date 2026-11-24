@@ -144,9 +144,9 @@ const (
 
 // deliver sends raw from `from` to rcpts and reports, per recipient, what the server said.
 //
-// A 4xx anywhere before the message is accepted is a refusal that delivered nothing (unavailable,
-// retryable). A 5xx for every recipient is rejected; for some of them, the others are sent and the
-// refused ones are listed. A connection that ends after the message was written and before the server's
+// A 4xx anywhere before the message is accepted — also for one recipient among several — is a refusal
+// that delivered nothing (unavailable, retryable). A 5xx for every recipient is rejected; for some of
+// them, the others are sent and the refused ones are listed. A connection that ends after the message was written and before the server's
 // answer to it leaves the outcome unknown: the message may have been taken.
 func (h *hub) deliver(ctx context.Context, a account, token, from string, rcpts []string, raw []byte) (sendResult, error) {
 	cl, err := h.dialSMTP(ctx, a, token)
@@ -174,10 +174,13 @@ func (h *hub) deliver(ctx context.Context, a account, token, from string, rcpts 
 			return sendResult{}, mapTransport(err, stageEnvelope)
 		}
 	}
+	if temporary != nil {
+		// A recipient the server may take later: nothing is sent, so the call can be made again whole; a
+		// message that went to the others would be sent twice to them.
+		_ = cl.Reset()
+		return sendResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: fmt.Sprintf("the server answered %d to a recipient", temporary.Code), Retryable: true}
+	}
 	if len(res.accepted) == 0 {
-		if temporary != nil {
-			return sendResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: fmt.Sprintf("the server answered %d to every recipient", temporary.Code), Retryable: true}
-		}
 		return res, &catalog.CallError{Code: catalog.CallRejected, Message: "the server refused every recipient"}
 	}
 	w, err := cl.Data()

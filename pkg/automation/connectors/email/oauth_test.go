@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -38,8 +39,10 @@ func idToken(email string) string {
 
 type tokenServer struct {
 	*httptest.Server
-	refuse atomic.Bool
-	n      atomic.Int32
+	refuse    atomic.Bool
+	n         atomic.Int32
+	refreshes atomic.Int32
+	current   atomic.Value // the one refresh token the provider honours: it rotates them
 }
 
 func newTokenServer(t *testing.T, email string) *tokenServer {
@@ -51,14 +54,19 @@ func newTokenServer(t *testing.T, email string) *tokenServer {
 		switch r.Form.Get("grant_type") {
 		case "authorization_code":
 			ts.n.Add(1)
+			ts.current.Store("refresh-1")
 			_, _ = w.Write([]byte(`{"access_token":"access-1","refresh_token":"refresh-1","token_type":"Bearer","expires_in":60,"id_token":"` + idToken(email) + `"}`))
 		case "refresh_token":
-			if ts.refuse.Load() {
+			// A provider that rotates refresh tokens: the old one dies with the refresh.
+			if cur, _ := ts.current.Load().(string); ts.refuse.Load() || r.Form.Get("refresh_token") != cur {
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 				return
 			}
-			_, _ = w.Write([]byte(`{"access_token":"access-2","token_type":"Bearer","expires_in":3600}`))
+			n := ts.refreshes.Add(1) + 1
+			next := fmt.Sprintf("refresh-%d", n)
+			ts.current.Store(next)
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"access_token":"access-%d","refresh_token":%q,"token_type":"Bearer","expires_in":3600}`, n, next)))
 		default:
 			w.WriteHeader(http.StatusBadRequest)
 		}
@@ -101,6 +109,7 @@ func TestOneSignInIsTwoConnectionsThatShareTheLogin(t *testing.T) {
 	mailSrv := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: mailbox, Password: password})
 	mailSrv.AcceptToken(mailbox, "access-1")
 	mailSrv.AcceptToken(mailbox, "access-2")
+	mailSrv.AcceptToken(mailbox, "access-3")
 	providers := map[string]Provider{PresetGmail: {
 		AuthURL: ts.URL + "/auth", TokenURL: ts.URL + "/token",
 		SMTPHost: "127.0.0.1", SMTPPort: atoi(port(mailSrv.SMTPAddr)), IMAPHost: "127.0.0.1", IMAPPort: atoi(port(mailSrv.IMAPAddr)), Security: "tls",
@@ -166,40 +175,75 @@ func TestOneSignInIsTwoConnectionsThatShareTheLogin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, smtps, 1)
 
-	// A refresh keeps the preset, the mailbox and the login.
+	// The last sign-in began from the receiving connection: it owns the token set, the sending one follows.
+	// The sending connection is used first and its set is stale: the refresh is the owner's, once; the
+	// provider rotates refresh tokens, and neither connection ever offers the dead one.
 	tok, err := o.Token(ctx, scope.Tenant.ID, smtpConn.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "access-2", tok)
+	assert.Equal(t, int32(1), ts.refreshes.Load())
+	tok, err = o.Token(ctx, scope.Tenant.ID, imapConn.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "access-2", tok, "the owner has the refreshed token too: one refresh served both")
+	assert.Equal(t, int32(1), ts.refreshes.Load())
 	_, sc, err = store.Get(ctx, scope.Tenant.ID, smtpConn.ID)
 	require.NoError(t, err)
-	assert.Equal(t, PresetGmail, sc["preset"])
-	assert.Equal(t, mailbox, sc["username"])
-	assert.NotEmpty(t, sc["login_id"])
-	assert.Empty(t, sc["id_token"], "the identity token of the sign-in is not kept")
+	_, ic, err = store.Get(ctx, scope.Tenant.ID, imapConn.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "refresh-2", ic["refresh_token"], "the rotated refresh token is the owner's")
+	assert.Equal(t, "refresh-2", sc["refresh_token"], "and the other's copy follows it")
+	assert.Equal(t, imapConn.ID.String(), sc[connectors.OAuth2TokenFrom])
+	assert.Empty(t, ic[connectors.OAuth2TokenFrom])
+	for _, c := range []connectors.Credentials{sc, ic} {
+		assert.Equal(t, PresetGmail, c["preset"])
+		assert.Equal(t, mailbox, c["username"])
+		assert.NotEmpty(t, c["login_id"])
+		assert.Empty(t, c["id_token"], "the identity token of the sign-in is not kept")
+	}
 	got0, _, err := store.Get(ctx, scope.Tenant.ID, smtpConn.ID)
 	require.NoError(t, err)
 	assert.Equal(t, mailbox, got0.Identity.Display, "a refresh keeps the mailbox shown: it is not a secret")
-	assert.Equal(t, "refresh-1", sc["refresh_token"])
 
 	// The access is revoked in the account: the refresh is refused, and both connections need a new sign-in.
+	ts.refuse.Store(true)
+	for _, id := range []uuid.UUID{smtpConn.ID, imapConn.ID} {
+		c, cr, err := store.Get(ctx, scope.Tenant.ID, id)
+		require.NoError(t, err)
+		cr["expires_at"] = "2000-01-01T00:00:00Z" // the access token has run out
+		_, err = store.Save(ctx, c, cr)
+		require.NoError(t, err)
+	}
 	_, ic, err = store.Get(ctx, scope.Tenant.ID, imapConn.ID)
 	require.NoError(t, err)
-	ts.refuse.Store(true)
-	hub := hubOf
-	hub.cfg.OAuth = o
-	_, err = o.Token(ctx, scope.Tenant.ID, smtpConn.ID) // fresh: no refresh yet
-	require.NoError(t, err)
-	// Age the token so the next call refreshes.
-	ic["expires_at"] = "2000-01-01T00:00:00Z"
-	got, _, err := store.Get(ctx, scope.Tenant.ID, imapConn.ID)
-	require.NoError(t, err)
-	_, err = store.Save(ctx, got, ic)
-	require.NoError(t, err)
-	_, err = hub.accessToken(ctx, scope.Tenant.ID, imapConn.ID.String(), ic)
+	_, err = hubOf.accessToken(ctx, scope.Tenant.ID, imapConn.ID.String(), ic)
 	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
 	for _, id := range []uuid.UUID{smtpConn.ID, imapConn.ID} {
 		c, _, err := store.Get(ctx, scope.Tenant.ID, id)
 		require.NoError(t, err)
 		assert.Equal(t, connectors.StatusNeedsReauth, c.Status, "both connections of the sign-in")
 	}
+}
+
+// The pair of connections of a sign-in is saved whole or not at all.
+func TestSignInPairIsSavedAtomically(t *testing.T) {
+	h := itf.NewHarness(t, itf.HarnessConfig{
+		Name:      "automation_email_group",
+		Database:  itf.DatabaseConfig{Provisioning: itf.ProvisioningPerTestDatabase},
+		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
+	})
+	scope := h.Scope(t)
+	ctx := context.Background()
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	store := connectors.NewStore(scope.Pool, keys, nil, nil, nil)
+	good := connectors.Connection{TenantID: scope.Tenant.ID, Kind: KindSMTP, Name: "smtp", Status: connectors.StatusConnected}
+	bad := connectors.Connection{TenantID: scope.Tenant.ID, Kind: KindIMAP, Name: "Not A Valid Name", Status: connectors.StatusConnected}
+	_, err = store.(connectors.GroupSaver).SaveGroup(ctx, []connectors.GroupItem{
+		{Connection: good, Credentials: connectors.Credentials{"access_token": "a"}},
+		{Connection: bad, Credentials: connectors.Credentials{"access_token": "a"}},
+	})
+	require.Error(t, err)
+	left, err := store.List(ctx, scope.Tenant.ID, "")
+	require.NoError(t, err)
+	assert.Empty(t, left, "the second write failed: the first did not stay")
 }

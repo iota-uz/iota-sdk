@@ -110,3 +110,27 @@ func (s *imapSession) selectMailbox(name string, readOnly bool) (*imap.SelectDat
 }
 
 var _ sasl.Client = (*xoauth2)(nil)
+
+// moveTo moves messages to another mailbox without ever losing one. With native MOVE (RFC 6851) it is one
+// atomic command. Without it the messages are copied first and the copy is checked: only then are the
+// originals flagged \Deleted, and expunged by UID when the server offers UIDPLUS, so no other message that
+// happens to be flagged is removed. (The client library's own fallback queues COPY, STORE and a plain
+// EXPUNGE without waiting for the COPY, and would delete the source when the copy fails.) Without
+// UIDPLUS the originals stay in their mailbox flagged \Deleted.
+func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
+	caps := s.c.Caps()
+	if caps.Has(imap.CapMove) {
+		_, err := s.c.Move(set, dest).Wait()
+		return err
+	}
+	if _, err := s.c.Copy(set, dest).Wait(); err != nil {
+		return err
+	}
+	if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}, nil).Close(); err != nil {
+		return err
+	}
+	if caps.Has(imap.CapUIDPlus) {
+		return s.c.UIDExpunge(set).Close()
+	}
+	return nil
+}

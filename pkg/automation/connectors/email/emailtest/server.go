@@ -78,6 +78,8 @@ type Server struct {
 	listeners []net.Listener
 	smtpSrv   *smtp.Server
 	imapSrv   *imapserver.Server
+	imapCaps  imap.CapSet
+	failFetch int
 }
 
 // New starts the servers; they stop with the test.
@@ -98,11 +100,12 @@ func New(t *testing.T, mode Mode, accounts ...Account) *Server {
 	s.smtpSrv.TLSConfig = serverTLS
 	s.smtpSrv.MaxRecipients = 200
 	s.smtpSrv.ReadTimeout, s.smtpSrv.WriteTimeout = 30*time.Second, 30*time.Second
+	s.imapCaps = imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapMove: {}, imap.CapUIDPlus: {}}
 	s.imapSrv = imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			return &imapSession{Session: s.imapMem.NewSession(), s: s}, nil, nil
 		},
-		Caps:      imap.CapSet{imap.CapIMAP4rev1: {}, imap.CapIMAP4rev2: {}, imap.CapMove: {}, imap.CapUIDPlus: {}},
+		Caps:      s.imapCaps,
 		TLSConfig: serverTLS,
 	})
 	s.SMTPAddr = s.listen(mode, serverTLS, func(l net.Listener) { _ = s.smtpSrv.Serve(l) })
@@ -131,6 +134,25 @@ func (s *Server) Close() {
 	for _, l := range s.listeners {
 		_ = l.Close()
 	}
+}
+
+// FailBodyFetch makes the n-th (1-based, counted from now) fetch of a message body fail once, as a server
+// that has a trouble in the middle of a batch does.
+func (s *Server) FailBodyFetch(n int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failFetch = n
+}
+
+// DisableMove and DisableUIDPlus make the IMAP server stop advertising the extension, as an older server
+// does: a client that uses it anyway is wrong.
+func (s *Server) DisableMove() {
+	delete(s.imapCaps, imap.CapMove)
+	delete(s.imapCaps, imap.CapIMAP4rev2) // which has MOVE and UIDPLUS in it
+}
+func (s *Server) DisableUIDPlus() {
+	delete(s.imapCaps, imap.CapUIDPlus)
+	delete(s.imapCaps, imap.CapIMAP4rev2)
 }
 
 // Security is the "security" credential that matches the servers' mode.
@@ -491,6 +513,20 @@ func (x *imapSession) Move(w *imapserver.MoveWriter, numSet imap.NumSet, dest st
 func (x *imapSession) Login(user, pass string) error {
 	x.s.seen("imap", "LOGIN")
 	return x.Session.Login(user, pass)
+}
+
+// Fetch fails the body fetch FailBodyFetch names.
+func (x *imapSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
+	if len(options.BodySection) > 0 {
+		x.s.mu.Lock()
+		x.s.failFetch--
+		fail := x.s.failFetch == 0
+		x.s.mu.Unlock()
+		if fail {
+			return &imap.Error{Type: imap.StatusResponseTypeNo, Text: "temporary failure"}
+		}
+	}
+	return x.Session.Fetch(w, numSet, options)
 }
 
 func (x *imapSession) AuthenticateMechanisms() []string { return []string{"PLAIN", "XOAUTH2"} }

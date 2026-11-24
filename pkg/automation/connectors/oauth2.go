@@ -28,6 +28,11 @@ const (
 	// credentials the connector's Test and OAuth2Finisher see, to read who the token is for (the mailbox
 	// address), and is never saved: it carries the account's claims, which are not the connection's secrets.
 	OAuth2IDToken = "id_token"
+	// OAuth2TokenFrom is the credential of a connection that shares the token set of another (the other
+	// connection of one email sign-in): the id of the connection that owns the tokens. Only the owner
+	// refreshes; the others copy the refreshed set from it, so a provider that rotates refresh tokens never
+	// sees two of them.
+	OAuth2TokenFrom = "token_from"
 	// OAuth2Preset is the credential that names the provider of a connector with OAuth2Presets.
 	OAuth2Preset = "preset"
 )
@@ -354,38 +359,42 @@ func (o *oauth) Complete(ctx context.Context, tenantID uuid.UUID, state, code st
 	if err != nil {
 		return Connection{}, serrors.Wrap(op, err)
 	}
-	saved, err := o.saveGrant(ctx, tenantID, g)
+	items := make([]GroupItem, 0, 1+len(g.Companions))
+	for _, x := range append([]OAuth2Grant{g}, g.Companions...) {
+		it, err := PlanGrant(ctx, o.s, o.secretOfKind(x.Kind), tenantID, x, 0)
+		if err != nil {
+			return Connection{}, serrors.Wrap(op, err)
+		}
+		items = append(items, it)
+	}
+	// One transaction: the pair of connections of a sign-in is saved whole or not at all.
+	saved, err := o.s.SaveGroup(ctx, items)
 	if err != nil {
 		return Connection{}, serrors.Wrap(op, err)
 	}
-	for _, c := range g.Companions {
-		if _, err := o.saveGrant(ctx, tenantID, c); err != nil {
-			return saved, serrors.Wrap(op, err)
-		}
-	}
-	return saved, nil
+	return saved[0], nil
 }
 
-// saveGrant saves a grant as a new connection, or into the connection of the same identity.
-func (o *oauth) saveGrant(ctx context.Context, tenantID uuid.UUID, g OAuth2Grant) (Connection, error) {
+// PlanGrant is what saves a grant: an update of the connection of the same identity (re-authorizing it,
+// connected again), else a new connection named after the kind. createdBy is the user of a new one.
+func PlanGrant(ctx context.Context, s ConnectionStore, secret func(string) bool, tenantID uuid.UUID, g OAuth2Grant, createdBy int64) (GroupItem, error) {
 	creds, identity := g.Credentials, g.Identity
-	// The same identity re-authorized: refresh that connection.
+	existing, err := s.List(ctx, tenantID, g.Kind)
+	if err != nil {
+		return GroupItem{}, err
+	}
 	if identity.External != "" {
-		existing, err := o.s.List(ctx, tenantID, g.Kind)
-		if err != nil {
-			return Connection{}, err
-		}
 		for _, c := range existing {
-			if c.Identity.External == identity.External {
-				_, old, err := o.s.load(ctx, o.s.db, tenantID, c.ID, false)
-				if err != nil {
-					return Connection{}, err
-				}
-				secret := o.secretOfKind(g.Kind)
-				c = scrubAcrossChange(c, secret, old, creds)
-				c.Identity, c.Status, c.StatusReason = SafeIdentity(identity, secret, creds, old), StatusConnected, ""
-				return o.s.Save(ctx, c, creds)
+			if c.Identity.External != identity.External {
+				continue
 			}
+			cur, old, err := s.Get(ctx, tenantID, c.ID)
+			if err != nil {
+				return GroupItem{}, err
+			}
+			cur = scrubAcrossChange(cur, secret, old, creds)
+			cur.Identity, cur.Status, cur.StatusReason = SafeIdentity(identity, secret, creds, old), StatusConnected, ""
+			return GroupItem{Connection: cur, Credentials: creds}, nil
 		}
 	}
 	base := nameFrom(string(g.Kind))
@@ -393,19 +402,21 @@ func (o *oauth) saveGrant(ctx context.Context, tenantID uuid.UUID, g OAuth2Grant
 	if display == "" {
 		display = base
 	}
+	taken := map[string]bool{}
+	for _, c := range existing {
+		taken[c.Name] = true
+	}
 	for i := 1; i <= 50; i++ {
 		name := base
 		if i > 1 {
 			suffix := fmt.Sprintf("_%d", i)
 			name = base[:min(len(base), 40-len(suffix))] + suffix
 		}
-		saved, err := o.s.Save(ctx, Connection{TenantID: tenantID, Kind: g.Kind, Name: name, DisplayName: display, Identity: identity, Status: StatusConnected}, creds)
-		if errors.Is(err, ErrNameTaken) {
-			continue
+		if !taken[name] {
+			return GroupItem{Connection: Connection{TenantID: tenantID, Kind: g.Kind, Name: name, DisplayName: display, Identity: identity, Status: StatusConnected, CreatedBy: createdBy}, Credentials: creds}, nil
 		}
-		return saved, err
 	}
-	return Connection{}, ErrNameTaken
+	return GroupItem{}, ErrNameTaken
 }
 
 // nameFrom is a connection name from a kind.
@@ -472,6 +483,9 @@ func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, che
 	}
 	if fresh(creds) {
 		return creds[OAuth2AccessToken], nil
+	}
+	if owner, err := uuid.Parse(creds[OAuth2TokenFrom]); err == nil {
+		return o.tokenOfOwner(ctx, tenantID, connectionID, owner, check)
 	}
 	var (
 		token  string
@@ -547,6 +561,57 @@ func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, che
 		return "", serrors.Wrap(op, ErrNeedsReauth)
 	}
 	return token, nil
+}
+
+// tokenOfOwner is the token of a connection that shares the token set of another: the owner refreshes it
+// (once, under its own lock), and this connection takes the refreshed set as its own. The owner's
+// re-authorization is this one's too.
+func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID, check bool) (string, error) {
+	const op = serrors.Op("automation.connectors.OAuth2.Token")
+	tok, err := o.token(ctx, tenantID, owner, false)
+	if errors.Is(err, ErrNotConnected) && check {
+		tok, err = o.token(ctx, tenantID, owner, true)
+	}
+	if errors.Is(err, ErrNeedsReauth) || errors.Is(err, ErrNotFound) {
+		if !check {
+			_ = pgx.BeginFunc(ctx, o.s.db, func(tx pgx.Tx) error {
+				var reauth bool
+				return o.markReauth(ctx, tx, Connection{TenantID: tenantID, ID: id}, "the provider refused the refresh token", &reauth)
+			})
+		}
+		return "", serrors.Wrap(op, ErrNeedsReauth)
+	}
+	if err != nil {
+		return "", err
+	}
+	err = pgx.BeginFunc(ctx, o.s.db, func(tx pgx.Tx) error {
+		c, creds, err := o.s.load(ctx, tx, tenantID, id, true)
+		if err != nil {
+			return err
+		}
+		_, theirs, err := o.s.load(ctx, tx, tenantID, owner, false)
+		if err != nil {
+			return err
+		}
+		if creds[OAuth2AccessToken] == theirs[OAuth2AccessToken] && creds[OAuth2RefreshToken] == theirs[OAuth2RefreshToken] {
+			return nil
+		}
+		next := Credentials{}
+		for _, k := range []string{OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt} {
+			if v := theirs[k]; v != "" {
+				next[k] = v
+			}
+		}
+		next = carryOver(next, creds)
+		c = scrubAcrossChange(c, o.secretOfKind(c.Kind), creds, next)
+		identity, _ := json.Marshal(c.Identity)
+		_, err = o.s.update(ctx, tx, c, identity, next)
+		return err
+	})
+	if err != nil {
+		return "", serrors.Wrap(op, err)
+	}
+	return tok, nil
 }
 
 func (o *oauth) markReauth(ctx context.Context, tx pgx.Tx, c Connection, reason string, reauth *bool) error {

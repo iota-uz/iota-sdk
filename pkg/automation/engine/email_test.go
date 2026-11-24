@@ -351,3 +351,104 @@ func TestEmailWaitListensOnTheConversationOfItsMessage(t *testing.T) {
 	ee.poll(t, p, poller)
 	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply woke the run")
 }
+
+const threadedGraph = `{"name": "Answer in a thread", "triggers": [{"id": "created", "event": "acme.order.created.v1"}],
+ "nodes": [
+  {"id": "send", "type": "email.send", "params": {"to": ["boss@example.org"], "subject": "Order {{ event.note }}", "text": "for {{ event.note }}", "in_reply_to": "'<parent@example.org>'"}},
+  {"id": "wait", "type": "email.wait_reply", "params": {"message_id": "nodes.send.output.message_id", "thread_id": "'<parent@example.org>'", "timeout": "1h"}},
+  {"id": "got", "type": "acme.note", "params": {"text": "reply {{ nodes.wait.output.event.text }}"}},
+  {"id": "fin", "type": "end", "params": {}}
+ ],
+ "edges": [
+  {"from": {"node": "created", "outcome": "fired"}, "to": "send"},
+  {"from": {"node": "send", "outcome": "sent"}, "to": "wait"}, {"from": {"node": "send", "outcome": "failed"}, "to": "fin"},
+  {"from": {"node": "wait", "outcome": "replied"}, "to": "got"}, {"from": {"node": "wait", "outcome": "timeout"}, "to": "fin"},
+  {"from": {"node": "got", "outcome": "done"}, "to": "fin"}, {"from": {"node": "got", "outcome": "failed"}, "to": "fin"}
+ ]}`
+
+// Two runs send in one conversation (both answer the same parent): a reply names the conversation's first
+// message, and wakes only the run whose message it answers.
+func TestEmailTwoRunsInOneConversationAreWokenByTheirOwnReply(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	ee.create(p, ee.human(), threadedGraph)
+	poller := ee.poller(p)
+	ee.poll(t, p, poller)
+	ee.publish(ee.tenant, orderCreated, "o-1", order{Note: "#1"}, 0)
+	ee.publish(ee.tenant, orderCreated, "o-2", order{Note: "#2"}, 0)
+	p.until(func() bool {
+		return len(ee.srv.Sent()) == 2 && ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 2
+	}, "two runs wait")
+	ids := map[string]string{}
+	for _, s := range ee.srv.Sent() {
+		m := messageIDHeader.FindStringSubmatch(string(s.Data))
+		require.NotNil(t, m)
+		subject := regexp.MustCompile(`(?m)^Subject: (.*)$`).FindStringSubmatch(string(s.Data))[1]
+		ids[strings.TrimSpace(subject)] = m[1]
+		assert.Contains(t, string(s.Data), "In-Reply-To: <parent@example.org>")
+	}
+	require.Len(t, ids, 2)
+
+	// A reply to the second message only: its References name the parent first, as a client's do.
+	ee.srv.Deliver(mailUser, "INBOX", reply("<r2@mail>", "boss@example.org", "Re: Order #2", "answer to two",
+		"In-Reply-To: "+ids["Order #2"], "References: <parent@example.org> "+ids["Order #2"]))
+	ee.poll(t, p, poller)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply woke a run")
+	for i := 0; i < 5; i++ {
+		p.pass()
+	}
+	assert.Equal(t, []string{"reply answer to two"}, noteTexts(t, ee.env), "one run, the one whose message was answered")
+	assert.Equal(t, 1, ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`), "the other still waits")
+
+	ee.srv.Deliver(mailUser, "INBOX", reply("<r1@mail>", "boss@example.org", "Re: Order #1", "answer to one",
+		"In-Reply-To: "+ids["Order #1"], "References: <parent@example.org> "+ids["Order #1"]))
+	ee.poll(t, p, poller)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 2 }, "the first run is woken by its own reply")
+}
+
+// A graph that is enabled after the mailbox was connected starts from a cursor that was kept at the end of
+// the mailbox: a reply that arrives before the graph's first poll is not skipped, and mail that was in the
+// mailbox before the graph is not published.
+func TestEmailCursorIsKeptWhileNoGraphUsesTheMailbox(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	poller := ee.poller(p)
+	ee.srv.Deliver(mailUser, "INBOX", reply("<before@x>", "ann@example.org", "Before the connection", "x"))
+	ee.poll(t, p, poller) // no graph yet: the poller only keeps the cursor at the end of the mailbox
+	ee.srv.Deliver(mailUser, "INBOX", reply("<idle@x>", "ann@example.org", "While no graph used it", "x"))
+	ee.poll(t, p, poller)
+
+	ee.create(p, ee.human(), sendWaitGraph)
+	ee.publish(ee.tenant, orderCreated, "o-1", order{Note: "#1"}, 0)
+	p.until(func() bool {
+		return len(ee.srv.Sent()) == 1 && ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 1
+	}, "the run sent and waits")
+	id := messageIDHeader.FindStringSubmatch(string(ee.srv.Sent()[0].Data))[1]
+	// The reply arrives before the first poll the graph's connection has had since the graph was enabled.
+	ee.srv.Deliver(mailUser, "INBOX", reply("<fast@x>", "boss@example.org", "Re: Order #1", "Done.", "In-Reply-To: "+id, "References: "+id))
+	ee.poll(t, p, poller)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply woke the run")
+	assert.Equal(t, 1, ee.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'email.received.v1'`), "only the reply was published: not the mail from before the graph")
+}
+
+// A failed read in the middle of a batch publishes nothing and keeps the cursor: the engine reads the batch
+// again at its next poll.
+func TestEmailFetchFailureInABatchIsRetriedFromTheSameCursor(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	ee.create(p, ee.human(), fmt.Sprintf(receivedGraph, ""))
+	poller := ee.poller(p)
+	ee.poll(t, p, poller)
+	for i := 1; i <= 3; i++ {
+		ee.srv.Deliver(mailUser, "INBOX", reply(fmt.Sprintf("<f%d@x>", i), "ann@example.org", fmt.Sprintf("Mail %d", i), "x"))
+	}
+	ee.srv.FailBodyFetch(2)
+	ee.poll(t, p, poller)
+	for i := 0; i < 5; i++ {
+		p.pass()
+	}
+	assert.Empty(t, noteTexts(t, ee.env), "the failed batch published nothing")
+	ee.poll(t, p, poller)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 3 }, "the next poll read all three from the old cursor")
+	assert.Equal(t, 3, ee.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'email.received.v1'`))
+}

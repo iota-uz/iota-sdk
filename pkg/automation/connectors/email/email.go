@@ -172,7 +172,8 @@ const oauthFields = `
  "refresh_token":{"type":"string","x-secret":true,"maxLength":8192},
  "token_type":{"type":"string","maxLength":40},
  "expires_at":{"type":"string","maxLength":40},
- "login_id":{"type":"string","maxLength":64}`
+ "login_id":{"type":"string","maxLength":64},
+ "token_from":{"type":"string","maxLength":64}`
 
 const presetField = `"preset":{"type":"string","enum":["custom","gmail","m365"],"default":"custom",
   "x-label":{"en":"Account","ru":"Аккаунт","uz":"Akkaunt"},

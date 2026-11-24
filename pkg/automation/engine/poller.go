@@ -56,6 +56,8 @@ type polled struct {
 	tenant uuid.UUID
 	id     uuid.UUID
 	kind   catalog.ConnectorKind
+	// baseline: no enabled graph uses the connection; its cursor is only kept at the end of the mailbox.
+	baseline bool
 }
 
 // InboundPoller polls the connected connections that an enabled graph's inbound trigger uses, each at its
@@ -286,8 +288,48 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 			add(w.tenant, view, kinds, n.Params[catalog.ConnectionParam])
 		}
 	}
+	idle, err := p.idleConnections(ctx, seen)
+	if err != nil {
+		return nil, nil, err
+	}
+	out = append(out, idle...)
 	sort.Slice(out, func(i, j int) bool { return out[i].id.String() < out[j].id.String() })
 	return out, failed, nil
+}
+
+// idleConnections are the connected connections of Baseliner connectors that no enabled graph uses (seen
+// are the ones that are used): their cursors are kept at the end of the mailbox (see Baseliner).
+func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool) ([]polled, error) {
+	var kinds []string
+	for _, c := range p.cfg.Connectors.List() {
+		if _, ok := c.(Baseliner); ok {
+			if _, ok := c.(Poller); ok {
+				kinds = append(kinds, string(c.Kind()))
+			}
+		}
+	}
+	if len(kinds) == 0 {
+		return nil, nil
+	}
+	rows, err := p.r.cfg.DB.Query(ctx, `SELECT tenant_id, id, kind FROM automation.connections WHERE status = 'connected' AND kind = ANY($1)`, kinds)
+	if err != nil {
+		return nil, serrors.FromDB(opPoll, err)
+	}
+	defer rows.Close()
+	var out []polled
+	for rows.Next() {
+		var t polled
+		var kind string
+		if err := rows.Scan(&t.tenant, &t.id, &kind); err != nil {
+			return nil, serrors.FromDB(opPoll, err)
+		}
+		if seen[t.id] {
+			continue
+		}
+		t.kind, t.baseline = catalog.ConnectorKind(kind), true
+		out = append(out, t)
+	}
+	return out, serrors.FromDB(opPoll, rows.Err())
 }
 
 // waitingGraph is the graph of an enabled version, whose waits may need a connection to be polled.
@@ -371,7 +413,19 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	release := func() error {
 		return p.saveState(ctx, t, owner, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
 	}
-	evs, next, err := poller.Poll(ctx, c, creds, state.Cursor)
+	var (
+		evs  []InboundEvent
+		next json.RawMessage
+	)
+	if t.baseline {
+		bl, ok := cn.(Baseliner)
+		if !ok {
+			return now.Add(p.cfg.Rescan), release()
+		}
+		next, err = bl.Baseline(ctx, c, creds)
+	} else {
+		evs, next, err = poller.Poll(ctx, c, creds, state.Cursor)
+	}
 	if err != nil {
 		p.r.metrics.pollError(ctx, string(t.kind))
 		if errors.Is(err, connectors.ErrNeedsReauth) || isUnauthorized(err) {

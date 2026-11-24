@@ -35,9 +35,11 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/automations/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
+	"github.com/iota-uz/iota-sdk/modules/automations/presentation/attachments"
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -206,7 +208,7 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return connectors.NewPlatformCredentials(dir, platformCreds), nil
+		return connectors.NewPlatformCredentials(dir, withConnectorCredentials(platformCreds, dir.List())), nil
 	})
 	composition.ProvideDefault[connectors.PlatformGrants](b, func(container *composition.Container) (connectors.PlatformGrants, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
@@ -306,6 +308,14 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return []application.Controller{ctrl}, nil
 	})
+	// The attachments of incoming email are served by a route of the module, to the users of their tenant.
+	composition.ContributeControllers(b, func(container *composition.Container) ([]application.Controller, error) {
+		uploads, err := composition.Resolve[*coreservices.UploadService](container)
+		if err != nil {
+			return nil, nil //nolint:nilerr // an application without the SDK's upload service has no attachments to serve
+		}
+		return []application.Controller{attachments.NewController(uploads)}, nil
+	})
 	if hostManifest != nil {
 		composition.AddSettings(b, settings.OrganizationSection(IntegrationsSettingsPage()))
 	} else if logger := b.Context().Logger(); logger != nil {
@@ -394,4 +404,32 @@ func (c *component) usageIndex(container *composition.Container) (connectors.Usa
 		return nil, nil //nolint:nilnil // no index is an outcome: usage is then empty
 	}
 	return composition.Resolve[connectors.UsageIndex](container)
+}
+
+// platformProvider is a connector that brings a platform credential of its own kind from the application's
+// configuration (the email connector: SMTP_*).
+type platformProvider interface {
+	PlatformCredential() (connectors.PlatformCredential, bool)
+}
+
+// withConnectorCredentials adds the platform credentials the connectors bring themselves, for a kind the
+// automation configuration (creds) does not name.
+func withConnectorCredentials(creds map[catalog.ConnectorKind]connectors.PlatformCredential, list []connectors.Connector) map[catalog.ConnectorKind]connectors.PlatformCredential {
+	out := make(map[catalog.ConnectorKind]connectors.PlatformCredential, len(creds)+len(list))
+	for k, v := range creds {
+		out[k] = v
+	}
+	for _, c := range list {
+		pp, ok := c.(platformProvider)
+		if !ok {
+			continue
+		}
+		if _, set := out[c.Kind()]; set {
+			continue
+		}
+		if pc, ok := pp.PlatformCredential(); ok && len(pc.Credentials) > 0 {
+			out[c.Kind()] = pc
+		}
+	}
+	return out
 }

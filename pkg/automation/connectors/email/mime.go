@@ -2,10 +2,13 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/emersion/go-imap/v2"
 	"io"
+	"mime"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -151,6 +154,8 @@ type part struct {
 	contentType string
 	size        int64
 	data        []byte
+	// reason is why the part was not read (an attachments[].error code), when it was not.
+	reason string
 }
 
 // received is an incoming message as the connector reads it.
@@ -386,4 +391,100 @@ func collapseBlank(s string) string {
 		lines[i] = strings.Join(strings.Fields(l), " ")
 	}
 	return strings.TrimSpace(blankRuns.ReplaceAllString(strings.Join(lines, "\n"), "\n\n"))
+}
+
+// oversized reads a message past the whole-message limit by its structure: the header block, the text of
+// its first text part (the first megabyte) and the name, type and size of every other part, none of whose
+// bodies is downloaded. Each such part is reported with the limit it is over: more than 25 MB is too_large;
+// a smaller one in a message whose attachments, with it, are past 50 MB is message_too_big.
+func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UID) (received, bool, error) {
+	head, err := s.fetchRaw(uid, true)
+	if err != nil {
+		return received{}, false, err
+	}
+	if head == nil {
+		return received{}, true, nil
+	}
+	m, err := headerOnly(head)
+	if err != nil {
+		return received{}, true, nil //nolint:nilerr // a message without a readable header is skipped, as a removed one
+	}
+	bufs, err := s.c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true}}).Collect()
+	if err != nil {
+		return received{}, false, err
+	}
+	var structure imap.BodyStructure
+	for _, b := range bufs {
+		if b.UID == uid {
+			structure = b.BodyStructure
+		}
+	}
+	if structure == nil {
+		return m, false, nil
+	}
+	var textPath []int
+	var textPart *imap.BodyStructureSinglePart
+	structure.Walk(func(path []int, bs imap.BodyStructure) bool {
+		sp, ok := bs.(*imap.BodyStructureSinglePart)
+		if !ok {
+			return true
+		}
+		name := sp.Filename()
+		kind := sp.MediaType()
+		if (kind == "text/plain" || kind == "text/html") && name == "" && (sp.Disposition() == nil || sp.Disposition().Value != "attachment") {
+			if textPart == nil || (kind == "text/plain" && textPart.MediaType() != "text/plain") {
+				textPath, textPart = append([]int(nil), path...), sp
+			}
+			if kind == "text/html" {
+				m.hasHTML = true
+			}
+			return true
+		}
+		size := int64(sp.Size)
+		if strings.EqualFold(sp.Encoding, "base64") {
+			size = size / 4 * 3
+		}
+		m.attachment = append(m.attachment, part{filename: name, contentType: kind, size: size, reason: AttachmentMessageTooBig})
+		if size > MaxAttachment {
+			m.attachment[len(m.attachment)-1].reason = AttachmentTooLarge
+		}
+		return true
+	})
+	if textPart != nil {
+		if text, err := s.fetchText(uid, textPath, textPart); err == nil {
+			m.text = clip(normalizeText(text), MaxText)
+		} else if !errors.Is(err, errNotMail) {
+			return received{}, false, err
+		}
+	}
+	return m, false, nil
+}
+
+// fetchText reads the first megabyte of a text part of a message and decodes it.
+func (s *imapSession) fetchText(uid imap.UID, path []int, sp *imap.BodyStructureSinglePart) (string, error) {
+	section := &imap.FetchItemBodySection{Peek: true, Part: path, Partial: &imap.SectionPartial{Offset: 0, Size: 1 << 20}}
+	bufs, err := s.c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}}).Collect()
+	if err != nil {
+		return "", err
+	}
+	var raw []byte
+	for _, b := range bufs {
+		if b.UID == uid && len(b.BodySection) > 0 {
+			raw = b.BodySection[0].Bytes
+		}
+	}
+	var h message.Header
+	h.Set("Content-Type", mime.FormatMediaType(sp.MediaType(), sp.Params))
+	if sp.Encoding != "" {
+		h.Set("Content-Transfer-Encoding", sp.Encoding)
+	}
+	e, err := message.New(h, bytes.NewReader(raw))
+	if err != nil && e == nil {
+		return "", errNotMail
+	}
+	body, _ := io.ReadAll(io.LimitReader(e.Body, 4<<20))
+	if sp.MediaType() == "text/html" {
+		return htmlToText(string(body)), nil
+	}
+	return string(body), nil
 }

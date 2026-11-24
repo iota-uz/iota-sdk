@@ -278,7 +278,7 @@ func (n *waitReplyNode) ApplyEffect(context.Context, pgx.Tx, engine.StepContext,
 }
 
 // waitParams are the params the author writes and the filter derived from them: the incoming message is in
-// the thread, and comes from the address when one is named.
+// the thread, answers the message, and comes from the address when one is named.
 type waitParams struct{ inner graph.ParamsSpec }
 
 func (p waitParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
@@ -301,7 +301,14 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 			return nil, []graph.Issue{{Path: []any{name}, Message: "in the wait's filter, event is the incoming message: read the id from nodes.<id>.output (the output of email.send), or from the trigger's event.threadId through an earlier node"}}
 		}
 	}
-	terms := []string{"event.threadId == string(" + thread + ")"}
+	// The thread routes the wait; the reply must also answer the message itself: its In-Reply-To names it,
+	// or its References list it. Two runs that send in one conversation (answers to the same parent) have
+	// the same thread and different messages, and a reply to one of them wakes that run only.
+	msg := "string(" + str(out["message_id"]) + ")"
+	terms := []string{
+		"event.threadId == string(" + thread + ")",
+		"(event.inReplyTo == " + msg + " || event.references.exists(r, r == " + msg + "))",
+	}
 	if from := str(out["from"]); from != "" {
 		cel, err := templateToCEL(from)
 		if err != nil {
@@ -413,7 +420,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 		}
 	}
 	if dest != "" && dest != a.mailbox {
-		if _, err := s.c.Move(set, dest).Wait(); err != nil {
+		if err := s.moveTo(set, dest); err != nil {
 			return catalog.CallResult{}, n.callError(ctx, in, a, err)
 		}
 	}

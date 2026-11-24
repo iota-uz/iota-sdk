@@ -20,10 +20,12 @@ const (
 	// PollInterval is how often a mailbox is polled; the engine polls no more often than 30 s.
 	PollInterval = 60 * time.Second
 	// maxBatch is how many messages one poll reads; the rest is read by the next one.
-	maxBatch = 50
-	// maxRaw is the largest message read whole; a larger one is read by its headers only.
-	maxRaw = 100 << 20
+	maxBatch      = 50
+	defaultMaxRaw = 100 << 20
 )
+
+// maxRaw is the largest message read whole; a larger one is read by its structure (a variable for tests).
+var maxRaw int64 = defaultMaxRaw
 
 // cursor is where the polling of a mailbox stands: the highest UID read, in the mailbox's UIDVALIDITY.
 type cursor struct {
@@ -89,21 +91,35 @@ func (c *imapConnector) Poll(ctx context.Context, conn connectors.Connection, cr
 		last = cur.LastUID
 	)
 	for _, uid := range uids {
-		msg, err := s.fetchRaw(uid, sizes[uid] > maxRaw)
-		if err != nil {
-			if len(evs) == 0 && last == cur.LastUID {
-				return nil, nil, err
+		// A failed read ends the poll with the error and no new cursor: the engine keeps the old one and the
+		// next poll reads the batch again (what was read is not published, nothing is skipped; the dedup
+		// key drops a message published twice).
+		var (
+			m       received
+			missing bool
+		)
+		if sizes[uid] > maxRaw {
+			m, missing, err = c.oversized(ctx, s, uid)
+		} else {
+			var raw []byte
+			if raw, err = s.fetchRaw(uid, false); err == nil && raw == nil {
+				missing = true
+			} else if err == nil {
+				m, err = parseMessage(raw)
+				if err != nil {
+					c.log().Warn("email: a message cannot be read", "connection_id", conn.ID.String(), "uid", uint32(uid))
+					err, missing = nil, true
+				}
 			}
-			break // what was read is published and the cursor is where it got to; the rest comes next time
+		}
+		if err != nil {
+			return nil, nil, err
 		}
 		last = uint32(uid)
-		if msg == nil {
-			continue // the message was removed meanwhile
+		if missing {
+			continue // the message was removed meanwhile, or cannot be read at all
 		}
-		ev, ok := c.event(ctx, conn, a, sel.UIDValidity, uid, msg, sizes[uid] > maxRaw)
-		if ok {
-			evs = append(evs, ev)
-		}
+		evs = append(evs, c.event(ctx, conn, a, sel.UIDValidity, uid, m))
 	}
 	next, err := json.Marshal(cursor{Mailbox: a.mailbox, UIDValidity: sel.UIDValidity, LastUID: last})
 	return evs, next, err
@@ -187,21 +203,8 @@ func (s *imapSession) fetchRaw(uid imap.UID, headersOnly bool) ([]byte, error) {
 	return nil, nil
 }
 
-// event is the inbound event of a message; false when it cannot be read at all.
-func (c *imapConnector) event(ctx context.Context, conn connectors.Connection, a account, uidValidity uint32, uid imap.UID, raw []byte, headersOnly bool) (engine.InboundEvent, bool) {
-	var (
-		m   received
-		err error
-	)
-	if headersOnly {
-		m, err = headerOnly(raw)
-	} else {
-		m, err = parseMessage(raw)
-	}
-	if err != nil {
-		c.log().Warn("email: a message cannot be read", "connection_id", conn.ID.String(), "uid", uint32(uid))
-		return engine.InboundEvent{}, false
-	}
+// event is the inbound event of a message.
+func (c *imapConnector) event(ctx context.Context, conn connectors.Connection, a account, uidValidity uint32, uid imap.UID, m received) engine.InboundEvent {
 	position := strconv.FormatUint(uint64(uidValidity), 10) + ":" + strconv.FormatUint(uint64(uid), 10)
 	at := m.date
 	if at.IsZero() {
@@ -218,8 +221,8 @@ func (c *imapConnector) event(ctx context.Context, conn connectors.Connection, a
 		p.ThreadID = position
 	}
 	body, err := json.Marshal(p)
-	if err != nil {
-		return engine.InboundEvent{}, false
+	if err != nil { // a payload of plain values: cannot fail
+		body = []byte("{}")
 	}
 	dedup := m.messageID
 	if dedup == "" {
@@ -228,7 +231,7 @@ func (c *imapConnector) event(ctx context.Context, conn connectors.Connection, a
 	return engine.InboundEvent{
 		Event: EventReceived, DedupKey: dedup, Subject: subjectOf(connID, m, position), Payload: body, OccurredAt: at,
 		BySelf: sameMailbox(m.from.Address, a.username, conn.Identity.External),
-	}, true
+	}
 }
 
 func sameMailbox(from string, own ...string) bool {
@@ -289,6 +292,8 @@ func (c *imapConnector) store(ctx context.Context, conn connectors.Connection, p
 		}
 		a := attachment{Filename: name, ContentType: p.contentType, Size: p.size}
 		switch {
+		case p.reason != "":
+			a.Error = p.reason
 		case p.size > MaxAttachment || p.data == nil:
 			a.Error = AttachmentTooLarge
 		case total+p.size > MaxAttachmentsPerMsg:
@@ -308,3 +313,30 @@ func (c *imapConnector) store(ctx context.Context, conn connectors.Connection, p
 	}
 	return out
 }
+
+// Baseline is where the cursor of the connection stands now: the end of the mailbox, nothing read.
+func (c *imapConnector) Baseline(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (json.RawMessage, error) {
+	a, err := c.parseIMAP(creds)
+	if err != nil {
+		return nil, &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "the connection's credentials are not usable: " + err.Error()}
+	}
+	token := ""
+	if a.oauth() {
+		if token, err = c.accessToken(ctx, conn.TenantID, conn.ID.String(), creds); err != nil {
+			return nil, err
+		}
+	}
+	s, err := c.openIMAP(ctx, a, token)
+	if err != nil {
+		c.noteRefusal(ctx, conn, creds, a, err)
+		return nil, err
+	}
+	defer s.close()
+	sel, err := s.selectMailbox(a.mailbox, true)
+	if err != nil {
+		return nil, err
+	}
+	return c.initialCursor(s, a.mailbox, sel)
+}
+
+var _ engine.Baseliner = (*imapConnector)(nil)

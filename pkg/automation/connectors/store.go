@@ -342,6 +342,55 @@ func (s *store) SaveWith(ctx context.Context, c Connection, creds Credentials, w
 	return saved, nil
 }
 
+var _ GroupSaver = (*store)(nil)
+
+func (s *store) SaveGroup(ctx context.Context, items []GroupItem) ([]Connection, error) {
+	const op = serrors.Op("automation.connectors.Store.SaveGroup")
+	if err := s.configured(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	out := make([]Connection, 0, len(items))
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		out = out[:0]
+		for i, it := range items {
+			c, err := checkConnection(it.Connection)
+			if err != nil {
+				return err
+			}
+			identity, err := json.Marshal(c.Identity)
+			if err != nil {
+				return err
+			}
+			creds := make(Credentials, len(it.Credentials)+1)
+			for k, v := range it.Credentials {
+				creds[k] = v
+			}
+			delete(creds, OAuth2TokenFrom)
+			if i > 0 {
+				creds[OAuth2TokenFrom] = out[0].ID.String()
+			}
+			var saved Connection
+			if c.Version == 0 {
+				saved, err = s.create(ctx, tx, c, identity, creds)
+			} else {
+				saved, err = s.update(ctx, tx, c, identity, creds)
+			}
+			if err != nil {
+				return err
+			}
+			out = append(out, saved)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return out, nil
+}
+
 func (s *store) Fingerprint(data []byte) (string, error) {
 	if err := s.configured(); err != nil {
 		return "", serrors.Wrap("automation.connectors.Store.Fingerprint", err)

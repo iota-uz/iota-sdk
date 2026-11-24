@@ -291,6 +291,19 @@ type OAuth2Finisher interface {
 	FinishGrant(g OAuth2Grant) (OAuth2Grant, error)
 }
 
+// GroupItem is one connection of a sign-in that makes several.
+type GroupItem struct {
+	Connection  Connection
+	Credentials Credentials
+}
+
+// GroupSaver is an optional interface of a Store: it saves the connections of one sign-in in one
+// transaction (all or none). The first item holds the token set; each later one gets OAuth2TokenFrom set
+// to the first's id, so one refresh serves them all. The built-in store implements it.
+type GroupSaver interface {
+	SaveGroup(ctx context.Context, items []GroupItem) ([]Connection, error)
+}
+
 // PresetOAuth2 is an optional interface of OAuth2: Begin for a preset of a connector's OAuth2Presets.
 // The built-in OAuth2 implements it; the state it returns carries the preset, so Exchange and Complete
 // use the provider's config and put "preset" into the credentials.
