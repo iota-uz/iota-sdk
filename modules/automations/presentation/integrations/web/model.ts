@@ -145,6 +145,15 @@ export function oauthErrorText(t: Translator, code: string): string {
   return t(`OAuth.${(OAUTH_ERRORS as readonly string[]).includes(code) ? code : 'exchange'}`)
 }
 
+/**
+ * The phrase of a warning the server asks to confirm. Its token is the code bound to the bot it was raised for
+ * ("foreign_webhook@222222"): the account is for the server's check, the phrase is the code's.
+ */
+export function warningText(t: Translator, token: string): string {
+  const at = token.indexOf('@')
+  return t(`Form.Warnings.${at < 0 ? token : token.slice(0, at)}`)
+}
+
 /** The phrase of a failed save; never a raw code or the provider's text. */
 export function saveErrorText(t: Translator, r: SaveResult): string {
   switch (r.error) {

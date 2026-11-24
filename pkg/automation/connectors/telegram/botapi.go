@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,7 +75,7 @@ func (c *client) RequestWithContext(ctx context.Context, token, method string, p
 		return raw, nil
 	}
 	var tg *gotgbot.TelegramError
-	if errors.As(err, &tg) {
+	if errors.As(err, &tg) && tg.Code != 0 {
 		out := &apiError{Method: method, Code: tg.Code, Description: tg.Description}
 		if p := tg.ResponseParams; p != nil {
 			out.RetryAfter = time.Duration(p.RetryAfter) * time.Second
@@ -122,8 +123,13 @@ func (b *bot) call(ctx context.Context, method string, params map[string]string,
 	if err != nil {
 		return err
 	}
-	if out == nil || len(raw) == 0 {
+	if out == nil {
 		return nil
+	}
+	// A caller that wants a result is not told "done" by an answer without one (a proxy's empty reply): the
+	// outcome of the request is unknown.
+	if len(raw) == 0 || string(bytes.TrimSpace(raw)) == "null" {
+		return &transportError{Method: method, kind: "the answer has no result"}
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
 		return &transportError{Method: method, kind: "the answer is not readable"}

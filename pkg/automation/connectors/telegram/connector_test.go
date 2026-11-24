@@ -3,10 +3,10 @@ package telegram_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +64,6 @@ func TestTriggerParamsMatching(t *testing.T) {
 	require.NoError(t, connectors.NewDirectory(reg).Register(r.c))
 	v, err := reg.ForTenant(context.Background(), r.tenant)
 	require.NoError(t, err)
-	spec := v.Catalog.Events[telegram.EventMessage]
 	msg := func(command string, extra map[string]any) map[string]any {
 		e := map[string]any{"isCommand": command != "", "command": command, "route": "text", "chatType": "private", "chatId": "1"}
 		if command != "" {
@@ -94,30 +93,24 @@ func TestTriggerParamsMatching(t *testing.T) {
 		"ignore: names narrow nothing":  {map[string]any{"commands": "ignore", "command_names": []any{"start"}}, msg("", nil), true},
 		"ignore: a command stays out":   {map[string]any{"commands": "ignore", "command_names": []any{"start"}}, msg("start", nil), false},
 		"chat id":                       {map[string]any{"chat_ids": []any{"7"}}, msg("", map[string]any{"chatId": "8"}), false},
+		"chat id, as it is written":     {map[string]any{"chat_ids": []any{"00007"}}, msg("", map[string]any{"chatId": "7"}), true},
+		"chat id, a supergroup":         {map[string]any{"chat_ids": []any{"-1001234567890"}}, msg("", map[string]any{"chatId": "-1001234567890"}), true},
 		"private only, a group":         {map[string]any{"private_only": true}, msg("", map[string]any{"chatType": "group"}), false},
 		"private only, private":         {map[string]any{"private_only": true}, msg("", nil), true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			parsed, issues := spec.TriggerParams.Parse(tc.params)
-			require.Empty(t, issues)
-			got := true
-			for key, f := range spec.Match {
-				wants, _ := parsed[key].([]any)
-				if len(wants) == 0 {
-					continue
-				}
-				value := tc.event[f.Payload]
-				hit := false
-				for _, w := range wants {
-					a, b := fmt.Sprint(w), fmt.Sprint(value)
-					if f.Fold == graph.FoldLower {
-						a, b = strings.ToLower(a), strings.ToLower(b)
-					}
-					hit = hit || a == b
-				}
-				got = got && hit
+			// The trigger is decoded, its params parsed and the event matched by the production interpreter.
+			g := graph.Graph{Name: "tg", Triggers: []graph.Trigger{{ID: "msg", Event: telegram.EventMessage, Params: tc.params}},
+				Edges: []graph.Edge{{From: graph.EdgeFrom{Node: "msg", Outcome: "fired"}, To: "ignore"}}}
+			in, err := graph.NewInterpreter(v.Catalog, g, graph.Options{})
+			require.NoError(t, err)
+			ev := graph.Event{"kind": telegram.EventMessage}
+			for k, val := range tc.event {
+				ev[k] = val
 			}
-			assert.Equal(t, tc.want, got)
+			mismatch, step := in.TriggerMismatch("msg", ev, graph.Context{Now: time.Now()})
+			require.Nil(t, step)
+			assert.Equal(t, tc.want, mismatch == "", "mismatch: %q", mismatch)
 		})
 	}
 }
@@ -204,19 +197,19 @@ func TestAdviseWarnsAboutAForeignWebhookOrAnUnknownReader(t *testing.T) {
 	r.bot.SetPolling(true)
 	w, err := r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
-	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingUnknown}}, w)
+	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingUnknown, Account: "111111"}}, w)
 	assert.Empty(t, r.bot.CallsOf("getUpdates"), "a read of the bot's updates would interrupt a poller")
 	w, err = r.c.Advise(ctx, &r.conn, r.creds())
 	require.NoError(t, err)
-	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingUnknown}}, w, "nor is a bot a connection had: it may be polled since")
+	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnPollingUnknown, Account: "111111"}}, w, "nor is a bot a connection had: it may be polled since")
 
 	r.bot.SetWebhook("https://other.example.org/hook", "s")
 	w, err = r.c.Advise(ctx, nil, r.creds())
 	require.NoError(t, err)
-	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnForeignWebhook}}, w)
+	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnForeignWebhook, Account: "111111"}}, w)
 	w, err = r.c.Advise(ctx, &r.conn, r.creds())
 	require.NoError(t, err)
-	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnForeignWebhook}}, w, "re-enabling asks about a webhook taken meanwhile")
+	assert.Equal(t, []connectors.Warning{{Code: telegram.WarnForeignWebhook, Account: "111111"}}, w, "re-enabling asks about a webhook taken meanwhile")
 
 	// A webhook of this application for a connection that is gone is nobody's: no warning.
 	r.bot.SetWebhook(origin+"/automations/hooks/"+uuid.NewString(), "s")
@@ -238,7 +231,12 @@ func TestProvisionChecksConsentAgainstTheCurrentWebhook(t *testing.T) {
 	assert.Equal(t, "https://other.example.org/hook", r.bot.Webhook().URL, "nothing was changed")
 	_, err = r.prov(ctx, r.conn, r.creds(), []string{"something_else"})
 	require.ErrorAs(t, err, &need)
-	_, err = r.prov(ctx, r.conn, r.creds(), []string{telegram.WarnForeignWebhook})
+	// A confirmation is for the bot it was asked for: the code of another bot's warning (the credentials changed
+	// while the question was open) asks again.
+	_, err = r.prov(ctx, r.conn, r.creds(), []string{telegram.WarnForeignWebhook + "@999999", telegram.WarnForeignWebhook})
+	require.ErrorAs(t, err, &need)
+	assert.Equal(t, "https://other.example.org/hook", r.bot.Webhook().URL, "still nothing changed")
+	_, err = r.prov(ctx, r.conn, r.creds(), []string{telegram.WarnForeignWebhook + "@111111"})
 	require.NoError(t, err)
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL)
 }
@@ -263,7 +261,7 @@ func TestProvisionKeepsTheStoredSecret(t *testing.T) {
 	_, err = r.prov(context.Background(), fresh, r.creds(), nil)
 	var need *connectors.ConfirmationRequiredError
 	require.ErrorAs(t, err, &need, "a bot with no webhook is taken over only with the person's word")
-	state, err = r.prov(context.Background(), fresh, r.creds(), []string{telegram.WarnPollingUnknown})
+	state, err = r.prov(context.Background(), fresh, r.creds(), []string{telegram.WarnPollingUnknown + "@111111"})
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(state["telegram_webhook"], &held))
 	assert.NotEqual(t, first, held.Secret)
@@ -426,7 +424,7 @@ func TestTheSecretIsBoundToTheBot(t *testing.T) {
 	ctx := context.Background()
 	first := r.bot.Webhook().Secret
 	other := r.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "other_bot")
-	state, err := r.prov(ctx, r.conn, connectors.Credentials{"token": "444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"}, []string{telegram.WarnPollingUnknown})
+	state, err := r.prov(ctx, r.conn, connectors.Credentials{"token": "444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"}, []string{telegram.WarnPollingUnknown + "@444444"})
 	require.NoError(t, err)
 	var held struct {
 		Secret  string `json:"secret"`

@@ -3,6 +3,7 @@ package telegram
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -108,6 +109,18 @@ func (p triggerParams) Parse(raw map[string]any) (map[string]any, []graph.Issue)
 	out, issues := p.inner.Parse(raw)
 	if len(issues) > 0 {
 		return nil, issues
+	}
+	// A chat id is matched as the webhook writes it: in canonical decimal form ("00042" is "42").
+	if ids, _ := out["chat_ids"].([]any); len(ids) > 0 {
+		canon := make([]any, 0, len(ids))
+		for i, v := range ids {
+			n, err := strconv.ParseInt(fmt.Sprint(v), 10, 64)
+			if err != nil || n == 0 {
+				return nil, []graph.Issue{{Path: []any{"chat_ids", i}, Message: "a chat id is a non-zero integer"}}
+			}
+			canon = append(canon, strconv.FormatInt(n, 10))
+		}
+		out["chat_ids"] = canon
 	}
 	var routes []any
 	if names, _ := out["command_names"].([]any); len(names) > 0 {

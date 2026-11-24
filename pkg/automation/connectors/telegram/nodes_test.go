@@ -544,9 +544,9 @@ func TestReadFilterNeedsText(t *testing.T) {
 	r := newRig(t)
 	parsed, issues := r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": num(501)})
 	require.Empty(t, issues)
-	assert.Equal(t, `event.text != "" && event.chatId == "700" && event.from.userId == "501"`, parsed["filter"])
-	parsed, _ = r.read().Spec().Params.Parse(map[string]any{"chat_id": "event.chatId"})
-	assert.Equal(t, `event.text != ""`, parsed["filter"], "the chat of an expression is the conversation's")
+	assert.Equal(t, `event.text != "" && event.from.userId == "501"`, parsed["filter"], "the chat is the conversation's, not a term of the filter")
+	parsed, _ = r.read().Spec().Params.Parse(map[string]any{"chat_id": "00042"})
+	assert.Equal(t, `event.text != ""`, parsed["filter"], "a chat id in another form cannot keep the right chat's message from waking the wait")
 }
 
 func (r *rig) read() interface{ Spec() graph.NodeSpec } {

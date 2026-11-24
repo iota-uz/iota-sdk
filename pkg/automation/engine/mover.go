@@ -340,7 +340,11 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	var keyed *SubjectRef
 	if kind == waitEvent {
 		var serr *StepError
-		if keyed, serr = m.keyedSubject(ctx, node, params); serr != nil {
+		var err error
+		if keyed, serr, err = m.keyedSubject(ctx, node, params); err != nil {
+			return err // the catalog could not be read: the step is tried again, the run is not failed for it
+		}
+		if serr != nil {
 			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
 		}
 	}
@@ -389,20 +393,21 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 // keyedSubject is the conversation a wait of a WaitKeyer node listens on, nil for a node type that does not
 // name one. The connection it is keyed by is the one in the params, or, when they leave it out, the one the
 // node resolves to as a call does (the tenant's own one for a node that takes no platform credential). It
-// is an error when that connection or the conversation cannot be named.
-func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[string]any) (*SubjectRef, *StepError) {
+// is a step error when that connection or the conversation cannot be named; a failure to read the tenant's
+// connections is an ordinary error (storage), which retries the step rather than failing the node.
+func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[string]any) (*SubjectRef, *StepError, error) {
 	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	wk, keyed := nt.(WaitKeyer)
 	if !keyed {
-		return nil, nil
+		return nil, nil, nil
 	}
 	unnamed := &StepError{Code: CodeConnectionUnavailable, Message: node.ID + " cannot name the conversation it waits in: its connection or its chat is not usable"}
 	view, err := m.x.r.cfg.Catalog.ForTenant(ctx, m.x.tenant)
 	if err != nil {
-		return nil, &StepError{Code: CodeConnectionUnavailable, Message: "the connections of the tenant could not be read for " + node.ID}
+		return nil, nil, fmt.Errorf("the connections of the tenant could not be read for %s: %w", node.ID, err)
 	}
 	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
 		connections := view.Connections
@@ -411,7 +416,7 @@ func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[st
 		}
 		ref, _, err := catalog.ResolveConnection(connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
-			return nil, unnamed
+			return nil, unnamed, nil
 		}
 		out := make(map[string]any, len(params)+1)
 		for k, v := range params {
@@ -422,9 +427,9 @@ func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[st
 	}
 	s, ok := wk.WaitSubject(params)
 	if !ok {
-		return nil, unnamed
+		return nil, unnamed, nil
 	}
-	return &s, nil
+	return &s, nil, nil
 }
 
 // waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the

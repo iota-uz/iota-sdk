@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/google/uuid"
@@ -121,7 +123,7 @@ func refsOf(m *gotgbot.Message) []fileRef {
 
 // store downloads the files of a message and saves them in the uploads storage, as the message arrives. A
 // file that cannot be stored is still in the list, with the reason: the event is never lost for it.
-func (c *Connector) store(ctx context.Context, b *bot, tenant uuid.UUID, refs []fileRef) []incomingFile {
+func (c *Connector) store(ctx context.Context, b *bot, tenant uuid.UUID, dedup string, refs []fileRef) []incomingFile {
 	out := make([]incomingFile, 0, len(refs))
 	for _, r := range refs {
 		f := incomingFile{Name: r.name, Mime: r.mime, Size: r.size}
@@ -131,7 +133,17 @@ func (c *Connector) store(ctx context.Context, b *bot, tenant uuid.UUID, refs []
 		case r.size > maxDownload:
 			f.Error = FileTooLarge
 		default:
-			c.download(ctx, b, tenant, r, &f)
+			// A replay of the update (Telegram did not get the answer) finds the file saved by the delivery before
+			// it, so the event the engine keeps references the one upload and no second copy is left behind.
+			memo := dedup + "/" + r.id
+			if saved, ok := c.uploaded.get(memo); ok {
+				f = saved
+			} else {
+				c.download(ctx, b, tenant, r, &f)
+				if f.UploadID != "" {
+					c.uploaded.put(memo, f)
+				}
+			}
 		}
 		out = append(out, f)
 	}
@@ -163,4 +175,52 @@ func (c *Connector) download(ctx context.Context, b *bot, tenant uuid.UUID, r fi
 		return
 	}
 	f.UploadID, f.URL, f.Size = saved.ID, saved.URL, int64(len(data))
+}
+
+// savedUploads remembers the uploads of the updates handled lately (this process only): a replay of an update
+// reuses them instead of saving the files again. An entry lives for uploadMemoTTL; a replay after that, or by
+// another replica, saves a copy, which nothing references.
+type savedUploads struct {
+	mu sync.Mutex
+	m  map[string]memoFile
+}
+
+type memoFile struct {
+	file    incomingFile
+	expires time.Time
+}
+
+const (
+	uploadMemoTTL = 15 * time.Minute
+	uploadMemoMax = 1000
+)
+
+func (s *savedUploads) get(key string) (incomingFile, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[key]
+	if !ok || time.Now().After(e.expires) {
+		return incomingFile{}, false
+	}
+	return e.file, true
+}
+
+func (s *savedUploads) put(key string, f incomingFile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	if s.m == nil || len(s.m) >= uploadMemoMax {
+		for k, e := range s.m {
+			if now.After(e.expires) {
+				delete(s.m, k)
+			}
+		}
+		if len(s.m) >= uploadMemoMax {
+			s.m = map[string]memoFile{}
+		}
+		if s.m == nil {
+			s.m = map[string]memoFile{}
+		}
+	}
+	s.m[key] = memoFile{file: f, expires: now.Add(uploadMemoTTL)}
 }

@@ -371,16 +371,15 @@ func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 		return nil, issues
 	}
 	// A message without text (a photo without a caption) is an event for triggers, not an answer to a read.
+	// The chat is not part of the filter: the keyed subject of the wait names the connection and the chat in
+	// canonical form, which is all a comparison of the message's chat would add (and "00042" would not match).
 	terms := []string{`event.text != ""`}
-	if t, ok := filterTerm("event.chatId", out["chat_id"], true); ok {
-		terms = append(terms, t)
-	}
 	if v, set := out["from_user_id"]; set {
 		if s, isExpr := v.(string); isExpr && mentionsEvent.MatchString(s) {
 			return nil, []graph.Issue{{Path: []any{"from_user_id"},
 				Message: "in the wait's filter, event is the incoming message: read the user from nodes.<id>.output (the question's from.user_id), or give an id"}}
 		}
-		if t, ok := filterTerm("event.from.userId", v, false); ok {
+		if t, ok := filterTerm("event.from.userId", v); ok {
 			terms = append(terms, t)
 		}
 	}
@@ -388,15 +387,10 @@ func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 	return out, nil
 }
 
-// filterTerm is `field == "<id>"` for an id, `field == string(<expression>)` for an expression. An
-// expression that reads event is the run's trigger, not the message being matched: for the chat it is
-// left out (the wait's conversation narrows it), since it would compare the message with itself.
-func filterTerm(field string, v any, chat bool) (string, bool) {
+// filterTerm is `field == "<id>"` for an id, `field == string(<expression>)` for an expression.
+func filterTerm(field string, v any) (string, bool) {
 	switch x := v.(type) {
 	case string:
-		if chat && mentionsEvent.MatchString(x) {
-			return "", false
-		}
 		return field + " == string(" + x + ")", true
 	case nil:
 		return "", false

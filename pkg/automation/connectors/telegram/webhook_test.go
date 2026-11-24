@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram/telegramtest"
@@ -459,18 +461,20 @@ func TestAKeyboardThatStaysMakesTheUpdateBeRedelivered(t *testing.T) {
 	r := newRig(t)
 	m := r.asked()
 	r.in.open[askToken] = r.tenant
-	_, evs := r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	press := r.pressUpdate(m, alice, 0) // one update: Telegram delivers the same one again
+	_, evs := r.tenantUpdate(press)
 	require.Len(t, evs, 1)
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
 	require.Error(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()), "the follow-up did not complete")
 
-	// The press comes again: its answer is closed now, and the keyboard goes once Telegram works again.
+	// The same press comes again: its answer is closed now, and the keyboard goes once Telegram works again.
+	// (The engine answers 503 for a connector's error; here the connector's own replay is checked.)
 	delete(r.in.open, askToken)
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
-	code, _ := r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	code, _ := r.tenantUpdate(press)
 	assert.Equal(t, http.StatusServiceUnavailable, code, "still failing: redelivered again")
-	code, _ = r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	code, _ = r.tenantUpdate(press)
 	assert.Equal(t, http.StatusOK, code)
 	got, _ := r.bot.Message(700, m.ID)
 	assert.Empty(t, got.Markup)
@@ -483,6 +487,19 @@ func TestAFileNameWithAPercentIsKeptWhole(t *testing.T) {
 	f := payloadOf(t, evs[0])["files"].([]any)[0].(map[string]any)
 	assert.Equal(t, "report%s%d.pdf", f["name"])
 	assert.Equal(t, []byte("x"), r.up.files[f["upload_id"].(string)].Data)
+}
+
+// A replay of an update with a file (Telegram did not get the answer) finds the file saved by the delivery
+// before it: one upload, referenced by the event the engine keeps.
+func TestAReplayedDocumentIsSavedOnce(t *testing.T) {
+	r := newRig(t)
+	u := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("x"))
+	_, first := r.tenantUpdate(u)
+	_, second := r.tenantUpdate(u)
+	require.Len(t, first, 1)
+	require.Len(t, second, 1)
+	assert.Len(t, r.up.files, 1, "saved once")
+	assert.Equal(t, payloadOf(t, first[0])["files"], payloadOf(t, second[0])["files"])
 }
 
 // When the bot's own name cannot be had, a command that names a bot is not dropped: the update is redelivered.
@@ -506,10 +523,10 @@ func TestAnAddressedCommandIsRedeliveredWhenTheBotCannotBeNamed(t *testing.T) {
 // link, so the redelivery (once the claim is abandoned) is the only way on, and nothing was sent meanwhile.
 func TestAStartWhoseResultCannotBeKeptIsRedelivered(t *testing.T) {
 	r := newRig(t)
-	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	h := &oneUseLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
 	require.NoError(t, r.c.RegisterStart(h))
 	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
-	r.st.failHandled = 1
+	r.st.failHandled = 3 // the write is tried three times
 	u := r.platform.Update(800, alice, "/start u_abc")
 	code, _ := r.platformUpdate(u)
 	assert.Equal(t, http.StatusServiceUnavailable, code, "Telegram is asked to deliver it again")
@@ -519,7 +536,24 @@ func TestAStartWhoseResultCannotBeKeptIsRedelivered(t *testing.T) {
 	r.st.abandon()
 	code, _ = r.platformUpdate(u)
 	assert.Equal(t, http.StatusOK, code)
-	assert.Len(t, r.platform.Sent(), 1)
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Len(t, h.got, 2, "the handler was asked again: its first result was never kept")
+	assert.Equal(t, "The link is unknown or used.", r.platform.Sent()[0].Text, "its link was consumed by the first run: the reply is the one the second gives")
+}
+
+// A failure to keep the result that passes is tried again at once: the link is spent, and the reply that goes out is
+// the handler's own.
+func TestAStartResultThatIsKeptOnASecondTryIsSentOnce(t *testing.T) {
+	r := newRig(t)
+	h := &oneUseLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.st.failHandled = 1
+	code, _ := r.platformUpdate(r.platform.Update(800, alice, "/start u_abc"))
+	assert.Equal(t, http.StatusOK, code)
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text)
+	assert.Len(t, h.got, 1, "the handler ran once")
 }
 
 // A reply that Telegram refused for now (429) is sent again by the redelivery, from the result that was kept: the
@@ -639,4 +673,72 @@ func TestAStartHandlerThatLostItsClaimDoesNotOverwriteItsSuccessor(t *testing.T)
 	code, _ = r.platformUpdate(u)
 	assert.Equal(t, http.StatusOK, code)
 	assert.Len(t, r.platform.Sent(), 1)
+}
+
+// handle runs Handle without the secret check: the update of a bot as the engine hands it over.
+func (r *rig) handle(creds connectors.Credentials, update map[string]any) []engine.InboundEvent {
+	r.t.Helper()
+	body, err := json.Marshal(update)
+	require.NoError(r.t, err)
+	evs, err := r.c.Handle(context.Background(), httptest.NewRecorder(), body, r.conn, creds)
+	require.NoError(r.t, err)
+	return evs
+}
+
+// Telegram numbers the updates of each bot: the bot that replaces another behind the same connection starts at
+// 1 again, and its message is not the old bot's replay. A new token of the same bot is.
+func TestInboundDedupKeysBelongToTheBot(t *testing.T) {
+	r := newRig(t)
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	next := "444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+	r.api.Bot(next, "next_tenant_bot")
+	u := r.bot.Update(700, alice, "hello")
+	old := r.handle(r.creds(), u)
+	replaced := r.handle(connectors.Credentials{"token": next}, u)
+	require.Len(t, old, 1)
+	require.Len(t, replaced, 1)
+	assert.NotEqual(t, old[0].DedupKey, replaced[0].DedupKey, "the same number of another bot is another update")
+	refreshed := r.handle(connectors.Credentials{"token": "111111:ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"}, u)
+	require.Len(t, refreshed, 1)
+	assert.Equal(t, old[0].DedupKey, refreshed[0].DedupKey, "a new token of the same bot is the same bot: a replay is recognised")
+}
+
+// A press's acknowledgement that failed for a moment is tried again: Telegram does not leave the spinner.
+func TestAPressAcknowledgementIsRetried(t *testing.T) {
+	r := newRig(t)
+	m := r.asked()
+	r.in.open[askToken] = r.tenant
+	u := r.pressUpdate(m, alice, 0)
+	_, evs := r.tenantUpdate(u)
+	require.Len(t, evs, 1)
+	r.bot.Fail(telegramtest.Failure{Method: "answerCallbackQuery", Code: 502, Description: "Bad Gateway"})
+	require.NoError(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()))
+	queryID := u["callback_query"].(map[string]any)["id"].(string)
+	_, answered := r.bot.Answered(queryID)
+	assert.True(t, answered, "acknowledged by the second try")
+}
+
+// An answer that is not a Bot API answer with a message is not a sent message: the outcome is unknown, not
+// "sent" with ids of zero.
+func TestAnAnswerWithoutAMessageIsNotASend(t *testing.T) {
+	for name, body := range map[string]string{
+		"no result":   `{"ok":true}`,
+		"null result": `{"ok":true,"result":null}`,
+		"no code":     `{}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if name == "no code" {
+					w.WriteHeader(http.StatusBadGateway)
+				}
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+			c := telegram.New(telegram.Config{APIURL: srv.URL})
+			_, err := c.Send(context.Background(), catalog.ConnectionInfo{}, connectors.Credentials{"token": tenantToken}, telegram.Message{ChatID: 700, Text: "hi"})
+			require.Error(t, err)
+			var refused *catalog.CallError
+			assert.NotErrorAs(t, err, &refused, "not a refusal: the message may have been sent")
+		})
+	}
 }

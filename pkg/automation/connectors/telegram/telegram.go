@@ -86,7 +86,10 @@ type Connector struct {
 	starts  starts
 	chats   chatMemory
 	presses presses
-	// usernames caches the username of a bot by its token (the addressee of a command).
+	// uploaded remembers the files saved for the updates handled lately, for a replay of an update.
+	uploaded savedUploads
+	// usernames caches the username of a bot (the addressee of a command) by a fingerprint of its token, with
+	// the time it was read: the raw token is not kept, and an entry is read again after usernameTTL.
 	usernames sync.Map
 	// platformToken is the platform credential StartPlatform was given (the effective one).
 	platformToken atomic.Pointer[string]
@@ -228,21 +231,22 @@ func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, ex
 	if existing != nil {
 		own = c.hookURL(*existing)
 	}
-	owner, err := c.ownerOf(ctx, info.Url, own, c.ExternalID(creds), lookup)
+	account := c.ExternalID(creds)
+	owner, err := c.ownerOf(ctx, info.Url, own, account, lookup)
 	if err != nil {
 		return nil, err
 	}
 	switch {
 	case owner == hookTaken:
-		return []connectors.Warning{{Code: WarnBotInUse, Blocking: true, Field: "token"}}, nil
+		return []connectors.Warning{{Code: WarnBotInUse, Blocking: true, Field: "token", Account: account}}, nil
 	case owner == hookForeign:
-		return []connectors.Warning{{Code: WarnForeignWebhook}}, nil
+		return []connectors.Warning{{Code: WarnForeignWebhook, Account: account}}, nil
 	case owner == hookOwn || info.Url != "":
 		return nil, nil // this connection's own, or a stale one of a connection that is gone
 	}
 	// No webhook: whatever the connection had before (a disable removes it, a new token is a new bot), the
 	// bot may have been taken up by a poller since, so taking it over is asked for every time.
-	return []connectors.Warning{{Code: WarnPollingUnknown}}, nil
+	return []connectors.Warning{{Code: WarnPollingUnknown, Account: account}}, nil
 }
 
 // Advise warns before a bot is connected (see assess). It changes nothing at Telegram.

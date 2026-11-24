@@ -932,7 +932,7 @@ func TestInboundActionsClaimOnce(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, int32(1), claims.Load(), "one delivery runs the handler")
+	require.Equal(t, int32(1), claims.Load(), "one delivery runs the handler")
 	owner := <-owners
 	require.NotEqual(t, uuid.Nil, owner)
 
@@ -964,7 +964,7 @@ func TestInboundActionsClaimOnce(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, int32(1), claims.Load(), "one delivery sends the reply")
+	require.Equal(t, int32(1), claims.Load(), "one delivery sends the reply")
 	d := <-deliveries
 	assert.Equal(t, "Linked", d.Reply)
 	assert.Equal(t, tenant, d.Tenant)

@@ -47,8 +47,9 @@ type Chat struct {
 }
 
 type storedFile struct {
-	path string
-	data []byte
+	owner string // the token of the bot the file belongs to: only that bot can get and download it
+	path  string
+	data  []byte
 }
 
 // New starts the fake; Close stops it.
@@ -439,7 +440,7 @@ func readParams(r *http.Request) (map[string]string, map[string]upload, error) {
 }
 
 func (s *Server) serveFile(w http.ResponseWriter, rest string) {
-	_, path, ok := strings.Cut(rest, "/")
+	token, path, ok := strings.Cut(rest, "/")
 	if !ok {
 		http.NotFound(w, nil)
 		return
@@ -447,7 +448,7 @@ func (s *Server) serveFile(w http.ResponseWriter, rest string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, f := range s.files {
-		if f.path == path {
+		if f.path == path && f.owner == token {
 			_, _ = w.Write(f.data)
 			return
 		}
@@ -517,7 +518,7 @@ func (b *Bot) handle(method string, p map[string]string, files map[string]upload
 		b.s.mu.Lock()
 		defer b.s.mu.Unlock()
 		f, ok := b.s.files[p["file_id"]]
-		if !ok {
+		if !ok || f.owner != b.Token {
 			return nil, fail(400, "Bad Request: invalid file_id")
 		}
 		if len(f.data) > 20<<20 {
@@ -587,7 +588,8 @@ func (b *Bot) record(c *Chat, p map[string]string, m *Message) *Message {
 	m.Silent = p["disable_notification"] == "true"
 	m.Parse = p["parse_mode"]
 	b.messages = append(b.messages, m)
-	return m
+	snap := *m // the response is built from a copy: an edit changes the stored message under the lock
+	return &snap
 }
 
 func (b *Bot) messageJSON(m *Message, c *Chat) map[string]any {
@@ -631,8 +633,7 @@ func (b *Bot) send(method string, p map[string]string, files map[string]upload) 
 		}
 		m.Caption, m.Files = p["caption"], []string{f.name}
 	}
-	b.record(c, p, m)
-	return b.messageJSON(m, c), nil
+	return b.messageJSON(b.record(c, p, m), c), nil
 }
 
 func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *apiError) {
@@ -848,7 +849,7 @@ func (b *Bot) fileUpdate(chat int64, from User, caption, kind, name, mime string
 	if kind != "photo" {
 		path = fmt.Sprintf("documents/%d/", seq) + url.PathEscape(name) // a file path is URL-safe, as Telegram's are
 	}
-	b.s.files[id] = storedFile{path: path, data: data}
+	b.s.files[id] = storedFile{owner: b.Token, path: path, data: data}
 	b.s.mu.Unlock()
 	u := b.Update(chat, from, "")
 	msg := u["message"].(map[string]any)
@@ -860,7 +861,7 @@ func (b *Bot) fileUpdate(chat int64, from User, caption, kind, name, mime string
 		msg["photo"] = []map[string]any{{"file_id": id + "-s", "file_unique_id": id, "width": 90, "height": 90, "file_size": 10},
 			{"file_id": id, "file_unique_id": id, "width": 800, "height": 800, "file_size": len(data)}}
 		b.s.mu.Lock()
-		b.s.files[id+"-s"] = storedFile{path: path + ".thumb", data: []byte("x")}
+		b.s.files[id+"-s"] = storedFile{owner: b.Token, path: path + ".thumb", data: []byte("x")}
 		b.s.mu.Unlock()
 	} else {
 		msg["document"] = map[string]any{"file_id": id, "file_unique_id": id, "file_name": name, "mime_type": mime, "file_size": len(data)}

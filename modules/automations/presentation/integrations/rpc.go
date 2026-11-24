@@ -220,7 +220,7 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 	case errors.As(err, &confirm):
 		codes := make([]string, 0, len(confirm.Warnings))
 		for _, w := range confirm.Warnings {
-			codes = append(codes, w.Code)
+			codes = append(codes, w.Token())
 		}
 		return SaveResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
 	case errors.As(err, &invalid):
@@ -296,7 +296,7 @@ func (c *Controller) setDisabled(ctx context.Context, req SetDisabledRequest) (C
 	if errors.As(err, &confirm) {
 		codes := make([]string, 0, len(confirm.Warnings))
 		for _, w := range confirm.Warnings {
-			codes = append(codes, w.Code)
+			codes = append(codes, w.Token())
 		}
 		return ConnectionResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
 	}

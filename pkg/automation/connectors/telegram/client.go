@@ -165,6 +165,9 @@ func (c *Connector) send(ctx context.Context, token, chat string, m outgoing) (M
 	if err != nil {
 		return MessageRef{}, 0, err
 	}
+	if sent.Chat.Id == 0 || sent.MessageId == 0 {
+		return MessageRef{}, 0, &transportError{Method: "send", kind: "the answer names no message"}
+	}
 	return MessageRef{ChatID: sent.Chat.Id, MessageID: sent.MessageId}, delivered, nil
 }
 

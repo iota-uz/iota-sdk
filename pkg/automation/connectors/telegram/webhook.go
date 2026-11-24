@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -111,8 +112,15 @@ func (c *Connector) Handle(ctx context.Context, w http.ResponseWriter, body []by
 	return nil, nil
 }
 
-// updateID is the dedup key of an update.
+// updateID is the number of an update, which is the bot's own: Telegram numbers the updates of each bot.
 func updateID(u gotgbot.Update) string { return strconv.FormatInt(u.UpdateId, 10) }
+
+// dedupKey is the dedup key of an update of the bot with the token: the bot's account and the update's number,
+// so that the bot that replaces another behind the same connection (its numbers start again) is not taken for a
+// replay. A new token of the same bot keeps the key.
+func dedupKey(token string, u gotgbot.Update) string {
+	return strconv.FormatInt(botID(token), 10) + ":" + updateID(u)
+}
 
 // ---------------------------------------------------------------------------------------------
 // messages
@@ -141,21 +149,32 @@ func command(m *gotgbot.Message) (string, string, string, bool) {
 	return "", "", "", false
 }
 
+// usernameTTL is how long the username of a bot is kept before it is read again.
+const usernameTTL = time.Hour
+
+type cachedName struct {
+	name string
+	at   time.Time
+}
+
 // addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
 // of a group is that bot's, never this connector's.
 func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) (bool, error) {
 	if to == "" {
 		return true, nil
 	}
-	if name, ok := c.usernames.Load(b.api.Token); ok {
-		return name == to, nil
+	fp := sha256.Sum256([]byte(b.api.Token))
+	if v, ok := c.usernames.Load(fp); ok {
+		if e := v.(cachedName); time.Since(e.at) < usernameTTL {
+			return e.name == to, nil
+		}
 	}
 	me, err := b.getMe(ctx)
 	if err != nil {
 		return false, err // who the bot is cannot be told now: the update is redelivered, not dropped
 	}
 	name := strings.ToLower(me.Username)
-	c.usernames.Store(b.api.Token, name)
+	c.usernames.Store(fp, cachedName{name: name, at: time.Now()})
 	return name == to, nil
 }
 
@@ -226,14 +245,14 @@ func (c *Connector) message(ctx context.Context, b *bot, u gotgbot.Update, conn 
 		}
 	}
 	if refs := refsOf(m); len(refs) > 0 {
-		payload["files"] = c.store(ctx, b, conn.TenantID, refs)
+		payload["files"] = c.store(ctx, b, conn.TenantID, dedupKey(b.api.Token, u), refs)
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 	return []engine.InboundEvent{{
-		Event: EventMessage, DedupKey: updateID(u), Payload: raw, OccurredAt: time.Unix(m.Date, 0).UTC(),
+		Event: EventMessage, DedupKey: dedupKey(b.api.Token, u), Payload: raw, OccurredAt: time.Unix(m.Date, 0).UTC(),
 		Subject: engine.SubjectRef{Entity: graph.SubjectConversation, Key: key + ":" + chat},
 		// A message from the bot itself starts no graph that did not ask for it (loop protection).
 		BySelf: m.From != nil && m.From.Id == botID(creds["token"]),
@@ -345,8 +364,20 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	}
 	// The handler completed (it may have consumed the link): its result is kept before anything else. A claim
 	// that was taken over meanwhile (the handler outlasted it) leaves the update to the new claimant.
-	if err := acts.InboundHandled(ctx, scope.conn, scope.event, scope.key, claim.Owner, account, reply); err != nil {
-		return retry(err)
+	// The write is tried again a few times: the link is spent, and a result that is lost cannot be asked for
+	// again. A claim that was taken over is final.
+	var kept error
+	for attempt := 0; attempt < 3; attempt++ {
+		if kept = acts.InboundHandled(ctx, scope.conn, scope.event, scope.key, claim.Owner, account, reply); kept == nil || errors.Is(kept, connectors.ErrInboundLost) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Duration(attempt+1) * 100 * time.Millisecond):
+		}
+	}
+	if kept != nil {
+		return retry(kept)
 	}
 	return c.deliverStartReply(ctx, b, m, conn, scope)
 }
@@ -531,7 +562,7 @@ func (c *Connector) callback(ctx context.Context, b *bot, u gotgbot.Update, conn
 	}
 	pr.label = label
 	key := connKey(conn)
-	c.presses.put(pressKey(key, updateID(u)), pr)
+	c.presses.put(pressKey(key, dedupKey(b.api.Token, u)), pr)
 	chatID := strconv.FormatInt(chat, 10)
 	raw, err := json.Marshal(map[string]any{
 		"chatId": chatID, "messageId": strconv.FormatInt(message, 10), "choice": strconv.Itoa(idx), "label": label,
@@ -541,7 +572,7 @@ func (c *Connector) callback(ctx context.Context, b *bot, u gotgbot.Update, conn
 		return nil, err
 	}
 	return []engine.InboundEvent{{
-		TenantID: tenant, Event: EventCallback, DedupKey: updateID(u), Correlation: token, Payload: raw,
+		TenantID: tenant, Event: EventCallback, DedupKey: dedupKey(b.api.Token, u), Correlation: token, Payload: raw,
 		Subject: engine.SubjectRef{Entity: graph.SubjectConversation, Key: key + ":" + chatID},
 	}}, nil
 }
@@ -642,7 +673,8 @@ func (c *Connector) closed(ctx context.Context, b *bot, queryID string, chat, me
 // ack acknowledges a press; Telegram stops showing the spinner. A failure is logged only: the press is
 // handled either way.
 func (c *Connector) ack(ctx context.Context, b *bot, queryID, text string) {
-	if err := b.answerCallback(ctx, queryID, text); err != nil {
+	// A transient failure is tried again a few times; a refusal (the query is too old) is final.
+	if err := retrying(ctx, func() error { return b.answerCallback(ctx, queryID, text) }); err != nil {
 		c.log().Warn("telegram: a press was not acknowledged", "error", err.Error())
 	}
 }

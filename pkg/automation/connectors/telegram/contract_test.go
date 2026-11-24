@@ -18,7 +18,7 @@ import (
 // (CONTRACT_TARGET=fake, the default) and, by hand, against Telegram:
 //
 //	CONTRACT_TARGET=live TELEGRAM_CONTRACT_TOKEN=<bot token> TELEGRAM_CONTRACT_CHAT=<chat id the bot may write to> \
-//	  go test ./pkg/automation/connectors/telegram -run TestBotAPIContract -v
+//	  go test ./pkg/automation/connectors/telegram -run TestBotAPIContract -count=1 -v
 //
 // The live run sends a few messages to that chat and reads the bot's webhook; it changes no webhook. It is
 // not part of CI.

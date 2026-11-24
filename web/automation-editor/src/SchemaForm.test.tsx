@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { chatOfSelection, humanize, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
+import { chatOfSelection, humanize, literalOfSelection, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import type { AutomationGraph, JsonSchema } from './types'
 
 const graph: AutomationGraph = { name: 'g', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 't', params: {} }], edges: [] }
@@ -224,6 +224,9 @@ describe('a field with an options source (a chat)', () => {
     expect(chatOfSelection('')).toBeUndefined()
     expect(chatOfSelection(undefined)).toBeUndefined()
     expect(chatOfSelection('group:private')).toBeNull()
+    expect(literalOfSelection('sales')).toBe('"sales"')
+    expect(literalOfSelection('group:private')).toBeUndefined()
+    expect(literalOfSelection('')).toBeUndefined()
   })
 
   it('asks again when the connection of the step changes', async () => {

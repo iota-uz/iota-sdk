@@ -53,6 +53,13 @@ func (m *chatMemory) due(conn string, ci ChatInfo) bool {
 	return !ok || prev.Title != ci.Title || prev.Username != ci.Username || ci.LastSeen.Sub(prev.LastSeen) >= chatRewriteGap
 }
 
+// forget drops the throttle entry of a chat that is no longer among the known ones.
+func (m *chatMemory) forget(conn string, id int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.seen, conn+"/"+strconv.FormatInt(id, 10))
+}
+
 // mark records that a chat was written.
 func (m *chatMemory) mark(conn string, ci ChatInfo) {
 	m.mu.Lock()
@@ -72,7 +79,9 @@ func (c *Connector) rememberChat(ctx context.Context, tenantID, connectionID uui
 	if !c.chats.due(connectionID.String(), ci) {
 		return
 	}
+	var evicted []int64
 	err := c.cfg.Connections.UpdateInbound(ctx, tenantID, connectionID, func(state json.RawMessage) (json.RawMessage, error) {
+		evicted = evicted[:0] // the function may run again on a conflict
 		doc := map[string]json.RawMessage{}
 		if len(state) > 0 {
 			if err := json.Unmarshal(state, &doc); err != nil {
@@ -94,6 +103,9 @@ func (c *Connector) rememberChat(ctx context.Context, tenantID, connectionID uui
 		}
 		sort.SliceStable(known.Chats, func(i, j int) bool { return known.Chats[i].LastSeen.After(known.Chats[j].LastSeen) })
 		if len(known.Chats) > maxKnownChats {
+			for _, gone := range known.Chats[maxKnownChats:] {
+				evicted = append(evicted, gone.ID)
+			}
 			known.Chats = known.Chats[:maxKnownChats]
 		}
 		raw, err := json.Marshal(known)
@@ -106,6 +118,10 @@ func (c *Connector) rememberChat(ctx context.Context, tenantID, connectionID uui
 	if err != nil {
 		c.log().Warn("telegram: a known chat was not recorded", "error", err.Error())
 		return
+	}
+	// A chat that left the list is written again when it speaks: its throttle entry goes with it.
+	for _, id := range evicted {
+		c.chats.forget(connectionID.String(), id)
 	}
 	c.chats.mark(connectionID.String(), ci)
 }

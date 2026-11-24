@@ -76,7 +76,10 @@ type telegram struct {
 	consents         [][]string
 	needConsent      []connectors.Warning // what Provision itself asks the person to confirm
 	adviseErr        error
-	live             bool // the webhook is set at the provider
+	live             bool            // the webhook is set at the provider
+	liveBy           map[string]bool // the same, by the token (the account) it is set for
+	gate             chan struct{}   // when set, Deprovision waits here after announcing itself on entered
+	entered          chan struct{}
 	provisionApplied bool // a failed Provision changed the provider all the same
 }
 
@@ -103,15 +106,39 @@ func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds c
 	}
 	c.provisioned = append(c.provisioned, creds["token"])
 	c.live = true
+	c.setLive(creds["token"], true)
 	return map[string]json.RawMessage{"fake_secret": json.RawMessage(`{"n":` + fmt.Sprint(len(c.provisioned)) + `}`)}, nil
 }
 
 func (c *telegram) Deprovision(_ context.Context, _ connectors.Connection, creds connectors.Credentials) error {
 	c.lmu.Lock()
+	gate, entered := c.gate, c.entered
+	c.lmu.Unlock()
+	if gate != nil {
+		entered <- struct{}{}
+		<-gate
+	}
+	c.lmu.Lock()
 	defer c.lmu.Unlock()
 	c.live = false
+	c.setLive(creds["token"], false)
 	c.deprovisioned = append(c.deprovisioned, creds["token"])
 	return nil
+}
+
+// setLive records whether the webhook of the account (the token) is set; the caller holds lmu.
+func (c *telegram) setLive(token string, on bool) {
+	if c.liveBy == nil {
+		c.liveBy = map[string]bool{}
+	}
+	c.liveBy[token] = on
+}
+
+// webhookOf reports whether the webhook of the account is set at the provider.
+func (c *telegram) webhookOf(token string) bool {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	return c.liveBy[token]
 }
 
 func (c *telegram) Advise(_ context.Context, existing *connectors.Connection, _ connectors.Credentials) ([]connectors.Warning, error) {
@@ -1275,6 +1302,8 @@ func TestSavingProvisionsAndDeletingDeprovisions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{goodToken, "777:other-token"}, e.tg.provisioned)
 	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned, "the old credentials' webhook is removed")
+	assert.False(t, e.tg.webhookOf(goodToken), "the old account has no webhook")
+	assert.True(t, e.tg.webhookOf("777:other-token"), "and the new one has")
 
 	// Disabling removes the webhook, enabling sets it again; deleting removes it.
 	_, err = e.svc.SetDisabled(e.ctx, e.actor(), cur.Connection.ID, true, nil)
@@ -1533,6 +1562,46 @@ func TestADelayedDisableNeverRemovesTheWebhookOfAnEnable(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// A disable's cleanup that is still running (the provider is slow) when an enable arrives: the enable waits for the
+// account, sets the webhook after the cleanup, and the connection ends connected with its webhook.
+func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	gate, entered := make(chan struct{}), make(chan struct{}, 1)
+	e.tg.lmu.Lock()
+	e.tg.gate, e.tg.entered = gate, entered
+	e.tg.lmu.Unlock()
+	errs := make(chan error, 2)
+	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil); errs <- err }()
+	<-entered // the status is committed, and the cleanup is at the provider
+	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil); errs <- err }()
+	time.Sleep(200 * time.Millisecond) // the enable has reached the account's lock
+	e.tg.lmu.Lock()
+	e.tg.gate = nil // later calls are not held
+	e.tg.lmu.Unlock()
+	close(gate)
+	for range 2 {
+		require.NoError(t, <-errs)
+	}
+	list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, list[0].Status)
+	assert.True(t, e.tg.webhookOf(goodToken), "the enable's webhook is not removed by the cleanup that was held")
+}
+
+// A delete that overlaps a disable (the status committed, the credentials not read yet) still tells the provider: the
+// disabled row is cleaned up for too.
+func TestDeletingADisabledConnectionStillTearsTheProviderDown(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	// The disable's status is committed but its cleanup has not run: the row is disabled, the webhook is set.
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, c.Connection.ID, connectors.StatusDisabled, ""))
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), c.Connection.ID))
+	assert.False(t, e.tg.webhookOf(goodToken), "the webhook of the deleted connection is removed")
 }
 
 // A pool of one connection saves, updates and enables a bot: the provider is set up on the save's own

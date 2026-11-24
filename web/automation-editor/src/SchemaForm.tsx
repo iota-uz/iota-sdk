@@ -594,6 +594,14 @@ export function chatOfSelection(v: string | readonly string[] | undefined): numb
   return typeof raw === 'string' && CHAT_ID.test(raw) ? Number(raw) : null
 }
 
+/** The value of a Combobox selection that is not a chat id: the option's own value as a CEL string literal (the
+ *  way a typed username is stored), undefined for a group header, which is no choice. */
+export function literalOfSelection(v: string | readonly string[] | undefined): string | undefined {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (typeof raw !== 'string' || raw === '' || raw.startsWith('group:')) return undefined
+  return JSON.stringify(raw)
+}
+
 /** What the "id or @username" input stores: a number for an id, a CEL string literal for a username. */
 export function manualValue(text: string): number | string | undefined {
   const t = text.trim()
@@ -680,7 +688,10 @@ function SourceField(props: {
               loadOptions={(query) => load(query)}
               onValueChange={(v) => {
                 const chat = chatOfSelection(v)
-                if (chat !== null) emit(chat)
+                if (chat !== null) { emit(chat); return }
+                // A source whose options are not chats keeps the value it declared.
+                const literal = literalOfSelection(v)
+                if (literal !== undefined) emit(literal)
               }}
             />
           </Show>

@@ -136,8 +136,8 @@
           "polling_unknown": "Não conseguimos saber se outro serviço lê as mensagens deste bot (por polling). Se ler, ele deixará de recebê-las depois que você conectar."
         },
         "ConfirmWarning": "Conectar mesmo assim",
-        "ConfirmRequired": "Confirme para conectar este bot: o outro serviço deixará de receber as mensagens dele.",
-        "BotInUse": "Este bot já está conectado aqui como outra conexão. Exclua essa conexão primeiro (desativá-la mantém o bot reservado)."
+        "ConfirmRequired": "Confirme que deseja conectar este bot apesar dos avisos acima.",
+        "BotInUse": "Este bot já está reservado: ele está conectado aqui como outra conexão, ou pertence a outra conta ou à plataforma. Use outro bot ou peça a um administrador. Se você gerencia a conexão existente, exclua-a primeiro (desativá-la mantém o bot reservado)."
       },
       "Test": {
         "Running": "Verificando…",

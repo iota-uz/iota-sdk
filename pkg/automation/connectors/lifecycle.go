@@ -45,6 +45,18 @@ type Warning struct {
 	// confirmation lifts it. Field is the credentials field the screen shows it at.
 	Blocking bool   `json:"blocking,omitempty"`
 	Field    string `json:"field,omitempty"`
+	// Account is the provider account the warning was raised for (the bot's id). A confirmation is for that
+	// account only: the same code raised for another account, after the credentials changed, is asked again.
+	Account string `json:"account,omitempty"`
+}
+
+// Token is what a client sends back to confirm the warning: its code, bound to the account when it has one
+// ("foreign_webhook@222222").
+func (w Warning) Token() string {
+	if w.Account == "" {
+		return w.Code
+	}
+	return w.Code + "@" + w.Account
 }
 
 // Advisor is an optional interface of a Connector: it looks at credentials the provider accepts and
@@ -74,13 +86,13 @@ var ErrConfirmationRequired = errors.New("automation connections: confirmation r
 
 func (e *ConfirmationRequiredError) Is(target error) bool { return target == ErrConfirmationRequired }
 
-// Unconfirmed is the warnings whose codes are not among confirmed.
+// Unconfirmed is the warnings whose tokens (Warning.Token) are not among confirmed.
 func Unconfirmed(warnings []Warning, confirmed []string) []Warning {
 	var out []Warning
 	for _, w := range warnings {
 		ok := false
 		for _, c := range confirmed {
-			ok = ok || c == w.Code
+			ok = ok || c == w.Token()
 		}
 		if !ok {
 			out = append(out, w)

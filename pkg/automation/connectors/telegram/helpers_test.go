@@ -276,7 +276,7 @@ func newRig(t *testing.T) *rig {
 // provision sets the tenant connection's webhook and keeps the secret it generated in the inbound state.
 func (r *rig) provision() {
 	r.t.Helper()
-	state, err := r.prov(context.Background(), r.conn, r.creds(), []string{telegram.WarnPollingUnknown})
+	state, err := r.prov(context.Background(), r.conn, r.creds(), []string{telegram.WarnPollingUnknown + "@111111"})
 	require.NoError(r.t, err)
 	r.st.mu.Lock()
 	defer r.st.mu.Unlock()

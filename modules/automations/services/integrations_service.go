@@ -911,7 +911,11 @@ func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID)
 	if err != nil {
 		return mapStoreError("automations.IntegrationsService.Delete", err)
 	}
-	if creds != nil && deleted.Status != connectors.StatusDisabled {
+	if creds != nil {
+		// Also for a disabled row: a disable that committed its status may not have read the credentials before
+		// this delete removed the row, and then neither would clean up. The teardown removes only the webhook
+		// that is this connection's own (a disabled one's is gone already: nothing is done), and a provider that
+		// refuses it does not fail the delete.
 		if conn, ok := s.dir.Get(deleted.Kind); ok {
 			s.cleanup(ctx, conn, deleted, creds) // the row is gone: under the account's lock, so a replacement's setup is never raced
 		}

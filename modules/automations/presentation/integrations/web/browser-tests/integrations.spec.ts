@@ -67,7 +67,7 @@ test('a bot another service uses is connected only after the person confirms it'
 
   // Without the confirmation the save does not go again.
   await form.getByTestId('form-save').click()
-  await expect(form.getByTestId('form-error')).toContainText('Confirm to connect this bot')
+  await expect(form.getByTestId('form-error')).toContainText('Confirm that you want to connect this bot')
   expect(await callsOf(page, 'connections.create')).toHaveLength(1)
 
   await form.getByText('Connect anyway').click()
