@@ -85,6 +85,14 @@ type AudienceRequest struct {
 	// Producer identifies the run, node or occurrence behind the send and
 	// derives a DedupeKey when Event has none.
 	Producer Producer
+	// CheckContacts keeps a record recipient only when its entity's
+	// ContactResolver finds an address for it on one of Channels now; the
+	// others are skipped with SkipNoAddress, so a send to nobody reachable
+	// queues nothing. Without it a record is queued whenever its entity has a
+	// resolver, and the worker records a missing address at delivery. The
+	// resolver is called with the context of the send or the resolution, so
+	// inside SendTx it reads in the caller's transaction (composables.UseTx).
+	CheckContacts bool
 }
 
 // Skip reasons of recipients dropped while an audience is resolved.
@@ -93,6 +101,8 @@ const (
 	SkipNotFound           = "not_found"
 	SkipNoContactResolver  = "no_contact_resolver"
 	SkipUnknownParticipant = "unknown_participant"
+	// SkipNoAddress: the record has no address on the request's channels (CheckContacts).
+	SkipNoAddress = "no_address"
 )
 
 // SkippedRecipient is a recipient dropped while an audience was resolved.

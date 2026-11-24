@@ -334,7 +334,10 @@ resolution, and a larger audience rejects the whole send. `Resolve` runs the sam
 resolution without writing and lists dropped members in `Skipped` (`not_found` for a
 missing or foreign user, group or role, `inactive` for a blocked or inactive user,
 `no_contact_resolver`, `unknown_participant`; `Kind` is `user`, `group`, `role`,
-`participant` or `record`). Participant callbacks may name anyone, so their users
+`participant` or `record`); the receipt of `SendTx` carries the same list (`AudienceReceipt.Skipped`).
+With `AudienceRequest.CheckContacts` a record is kept only when its `ContactResolver` finds an address
+on one of the request's channels, in the context of the call (inside `SendTx` that is the caller's
+transaction); the others are skipped with `no_address`. Participant callbacks may name anyone, so their users
 are filtered to the tenant like named users. A `Source` must be registered and
 belong to the context's tenant even without participants. `SendTx` drops `not_found` and
 `inactive` members and returns `Invalid` for the other two, for participants without

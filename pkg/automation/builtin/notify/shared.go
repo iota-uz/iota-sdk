@@ -49,10 +49,6 @@ const (
 	CodeInvalidInput = engine.CodeInvalidInput
 	// CodeNoTriggerEvent: participants need the event that started the run, and the run has none.
 	CodeNoTriggerEvent = "no_trigger_event"
-	// CodeNoContactResolver: no ContactResolver is registered for the entity of the record.
-	CodeNoContactResolver = "no_contact_resolver"
-	// CodeContactLookup: the contact of the record could not be read now.
-	CodeContactLookup = "contact_lookup_failed"
 )
 
 // Limits of what a notice carries, those of an in-app notification: the notification counts bytes, not
@@ -64,11 +60,6 @@ const (
 	maxMessage   = 500
 )
 
-// ContactLookup finds the resolver of the contacts of an entity; *notifications.ContactResolvers is one.
-type ContactLookup interface {
-	Lookup(entity string) (notifications.ContactResolver, bool)
-}
-
 // Config is what the nodes depend on.
 type Config struct {
 	// Sender is the delivery layer's AudienceSender (SendTx queues in the step's transaction, Resolve
@@ -77,12 +68,8 @@ type Config struct {
 	// Catalog holds the notification definitions of the events that trigger graphs: the recipient keys of
 	// a definition are the participants a notify node may name. Nil: no participants.
 	Catalog *notifications.Catalog
-	// Contacts looks up the resolvers send_to_contact asks whether a record can be reached. Nil: every
-	// record is taken as reachable and the delivery layer records a missing address when it delivers.
-	Contacts ContactLookup
-	// Pool is the database that reads outside the step's transaction use: a dry run's resolution
-	// and a contact lookup (which needs a connection besides the one the step's transaction holds). The
-	// engine's step context carries no pool, so Register requires it.
+	// Pool is the database that reads outside the step's transaction use: a dry run's resolution.
+	// The engine's step context carries no pool, so Register requires it.
 	Pool *pgxpool.Pool
 	// BaseURL is the address of the application (https://erp.example.com): a link of a notice may be an
 	// absolute path or a URL on this host. Empty: absolute paths only.

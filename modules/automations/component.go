@@ -342,15 +342,11 @@ func (c *component) contributeNotifyNodes(b *composition.Builder, origin string)
 		if err != nil {
 			return nil, err
 		}
-		contacts, err := composition.Resolve[*notifications.ContactResolvers](container)
-		if err != nil {
-			return nil, err
-		}
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
 			return nil, err
 		}
-		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Contacts: contacts, Pool: db, BaseURL: origin})
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
 	})
 }
 

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,27 +19,15 @@ func contactParams(channel string) map[string]any {
 	return map[string]any{"channel": channel, "subject": "Reminder", "body": "Your order is ready"}
 }
 
-func contacts(t *testing.T, ref notifications.ObjectRef, contact *notifications.Contact) *notifications.ContactResolvers {
-	t.Helper()
-	reg := notifications.NewContactResolvers()
-	require.NoError(t, reg.Register(ref.Entity, notifications.ContactResolverFunc(func(_ context.Context, tenantID uuid.UUID, got notifications.ObjectRef) (notifications.Contact, error) {
-		assert.Equal(t, tenant, tenantID)
-		assert.Equal(t, ref, got)
-		if contact == nil {
-			return notifications.Contact{}, notifications.ErrContactNotFound
-		}
-		return *contact, nil
-	})))
-	return reg
-}
-
 var client = notifications.ObjectRef{Entity: "crm.client", Key: "42"}
 
+func clientAudience() notifications.ResolvedAudience {
+	return notifications.ResolvedAudience{Addressees: []notifications.Addressee{notifications.RecordAddressee(client.Entity, client.Key)}}
+}
+
 func TestSendToContactQueuesTheMessageForTheRecordOfTheRun(t *testing.T) {
-	s := &sender{resolved: notifications.ResolvedAudience{Addressees: []notifications.Addressee{notifications.RecordAddressee(client.Entity, client.Key)}},
-		receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
-	book := contacts(t, client, &notifications.Contact{Targets: []notifications.Target{{Channel: notifications.ChannelSMS, Address: "+998901234567"}}})
-	nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: book})
+	s := &sender{receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
+	nt := notify.NewSendToContact(notify.Config{Sender: s})
 
 	res, err := apply(t, nt, step(), contactParams("sms"))
 	require.NoError(t, err)
@@ -51,17 +38,18 @@ func TestSendToContactQueuesTheMessageForTheRecordOfTheRun(t *testing.T) {
 	req := s.sends[0]
 	assert.Equal(t, []notifications.ObjectRef{client}, req.Audience.Records, "the record defaults to the subject of the run")
 	assert.Equal(t, []notifications.Channel{notifications.ChannelSMS}, req.Channels, "one channel")
+	assert.True(t, req.CheckContacts, "the delivery layer checks the record's contact in the step's transaction")
 	assert.Equal(t, notify.EventKey, req.Event.Key)
 	assert.Equal(t, "Reminder", req.Event.Data["title"])
 	assert.Equal(t, "Your order is ready", req.Event.Data["body"])
 	assert.Equal(t, notifications.Producer{InstanceID: runID.String(), Occurrence: "ping:" + token.String() + ":3"}, req.Producer)
+	assert.Empty(t, s.resolves, "the node resolves nothing itself")
 }
 
 func TestSendToContactTakesTheRecordTheNodeNames(t *testing.T) {
 	other := notifications.ObjectRef{Entity: "hrm.employee", Key: "9"}
 	s := &sender{receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
-	book := contacts(t, other, &notifications.Contact{Targets: []notifications.Target{{Channel: notifications.ChannelEmail, Address: "a@b.c"}}})
-	nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: book})
+	nt := notify.NewSendToContact(notify.Config{Sender: s})
 	p := contactParams("email")
 	p["record"] = map[string]any{"entity": other.Entity, "key": other.Key}
 	res, err := apply(t, nt, step(), p)
@@ -76,55 +64,38 @@ func TestSendToContactTakesTheRecordTheNodeNames(t *testing.T) {
 	assert.Equal(t, engine.CodeInvalidInput, se.Code)
 }
 
+// The delivery layer keeps the record only when it has an address on the channel; with nobody left the
+// receipt names no notice and the node takes no_contact.
 func TestSendToContactWithoutAnAddressOnTheChannelHasNoContact(t *testing.T) {
-	for name, contact := range map[string]*notifications.Contact{
-		"the record is unknown":      nil,
-		"the record has no phone":    {Targets: []notifications.Target{{Channel: notifications.ChannelEmail, Address: "a@b.c"}}},
-		"the phone is blank":         {Targets: []notifications.Target{{Channel: notifications.ChannelSMS, Address: "  "}}},
-		"the record has no contacts": {},
-	} {
-		t.Run(name, func(t *testing.T) {
-			s := &sender{receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
-			nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: contacts(t, client, contact)})
-			res, err := apply(t, nt, step(), contactParams("sms"))
-			require.NoError(t, err)
-			assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
-			assert.Equal(t, "", res.Output["notice_id"])
-			assert.Equal(t, "sms", res.Output["channel"])
-			assert.Empty(t, s.sends, "nothing is queued for a record that cannot be reached")
-		})
-	}
-}
-
-func TestSendToContactReportsABrokenContactLookup(t *testing.T) {
-	s := &sender{}
-	nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: notifications.NewContactResolvers()})
-	_, err := apply(t, nt, step(), contactParams("sms"))
-	var se *engine.StepError
-	require.ErrorAs(t, err, &se)
-	assert.Equal(t, notify.CodeNoContactResolver, se.Code)
-
-	reg := notifications.NewContactResolvers()
-	require.NoError(t, reg.Register(client.Entity, notifications.ContactResolverFunc(func(context.Context, uuid.UUID, notifications.ObjectRef) (notifications.Contact, error) {
-		return notifications.Contact{}, serrors.New(serrors.Unavailable, "crm is down")
-	})))
-	nt = notify.NewSendToContact(notify.Config{Sender: s, Contacts: reg})
-	_, err = apply(t, nt, step(), contactParams("sms"))
-	require.ErrorAs(t, err, &se)
-	assert.Equal(t, notify.CodeContactLookup, se.Code)
-	assert.True(t, se.Retryable)
-	assert.NotContains(t, se.Message, "crm is down", "what the resolver said stays out of the run")
-	assert.Empty(t, s.sends)
+	skipped := []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/42", Reason: notifications.SkipNoAddress}}
+	s := &sender{receipt: notifications.AudienceReceipt{Skipped: skipped}}
+	nt := notify.NewSendToContact(notify.Config{Sender: s})
+	res, err := apply(t, nt, step(), contactParams("sms"))
+	require.NoError(t, err)
+	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
+	assert.Equal(t, "", res.Output["notice_id"])
+	assert.Equal(t, "sms", res.Output["channel"])
+	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/42", "reason": "no_address"}}, res.Output["skipped"])
 }
 
 func TestSendToContactFailsWhenTheDeliveryLayerRefuses(t *testing.T) {
-	s := &sender{sendErr: serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")}
-	book := contacts(t, client, &notifications.Contact{Targets: []notifications.Target{{Channel: notifications.ChannelSMS, Address: "+998901234567"}}})
-	nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: book})
-	_, err := apply(t, nt, step(), contactParams("sms"))
 	var se *engine.StepError
+	// A channel that is not available fails the node whether or not the record has an address: the delivery
+	// layer checks the channel before it reads the contact.
+	s := &sender{sendErr: serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")}
+	_, err := apply(t, notify.NewSendToContact(notify.Config{Sender: s}), step(), contactParams("sms"))
 	require.ErrorAs(t, err, &se)
 	assert.Equal(t, "unavailable", se.Code)
+
+	s = &sender{sendErr: serrors.New(serrors.Invalid, "no contact resolver is registered for the recipient entity")}
+	_, err = apply(t, notify.NewSendToContact(notify.Config{Sender: s}), step(), contactParams("sms"))
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, "invalid", se.Code)
+
+	s = &sender{sendErr: serrors.New(serrors.Unavailable, "the contact of crm.client could not be read")}
+	_, err = apply(t, notify.NewSendToContact(notify.Config{Sender: s}), step(), contactParams("sms"))
+	require.ErrorAs(t, err, &se)
+	assert.True(t, se.Retryable)
 }
 
 func TestSendToContactNeedsARecordAndAnExternalChannel(t *testing.T) {
@@ -148,26 +119,41 @@ func TestSendToContactNeedsARecordAndAnExternalChannel(t *testing.T) {
 	}
 }
 
-func TestSendToContactPreviewChecksTheContactWithoutSending(t *testing.T) {
-	s := &sender{resolved: notifications.ResolvedAudience{Addressees: []notifications.Addressee{notifications.RecordAddressee(client.Entity, client.Key)}}}
-	book := contacts(t, client, &notifications.Contact{Targets: []notifications.Target{{Channel: notifications.ChannelSMS, Address: "+998901234567"}}})
-	nt := notify.NewSendToContact(notify.Config{Sender: s, Contacts: book})
-	res, err := nt.(engine.EffectPreviewer).PreviewEffect(context.Background(), step(), graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("sms")})
+func TestSendToContactPreviewResolvesLikeASend(t *testing.T) {
+	s := &sender{resolved: clientAudience()}
+	nt := notify.NewSendToContact(notify.Config{Sender: s})
+	preview := func() (engine.EffectResult, error) {
+		return nt.(engine.EffectPreviewer).PreviewEffect(context.Background(), step(), graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("sms")})
+	}
+	res, err := preview()
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeSent, res.Outcome)
 	assert.Empty(t, s.sends)
-	assert.Len(t, s.resolves, 1, "the audience is resolved as a send would")
-
+	require.Len(t, s.resolves, 1)
+	assert.True(t, s.resolves[0].CheckContacts, "the preview checks the contact as a send does")
 	assert.Equal(t, map[string]any{"records": []any{"crm.client/42"}}, res.Output["resolved"])
 
-	// Without an address the outcome is still no_contact, and the trace still names the audience.
-	s.resolved.Skipped = []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/7", Reason: notifications.SkipNoContactResolver}}
-	res, err = nt.(engine.EffectPreviewer).PreviewEffect(context.Background(), step(), graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("email")})
+	// Without an address the delivery layer leaves the record out: no_contact, with the reason in the trace.
+	s.resolved = notifications.ResolvedAudience{Skipped: []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/42", Reason: notifications.SkipNoAddress}}}
+	res, err = preview()
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
-	assert.Equal(t, map[string]any{"records": []any{"crm.client/42"}}, res.Output["resolved"])
-	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/7", "reason": "no_contact_resolver"}}, res.Output["skipped"])
-	assert.NotContains(t, res.Output, "address")
+	assert.Equal(t, map[string]any{"records": []any{}}, res.Output["resolved"])
+	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/42", "reason": "no_address"}}, res.Output["skipped"])
 	raw, _ := json.Marshal(res.Output)
-	assert.NotContains(t, string(raw), "+998901234567", "a contact's address stays out of the trace")
+	assert.NotContains(t, string(raw), "+998", "a contact's address stays out of the trace")
+
+	// A channel that is not available is a failure, as in a run, address or not.
+	s.resolveErr = serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")
+	_, err = preview()
+	var se *engine.StepError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, "unavailable", se.Code)
+
+	// An entity without a resolver is refused by a send as invalid input, so the preview refuses it too.
+	s.resolveErr = nil
+	s.resolved = notifications.ResolvedAudience{Skipped: []notifications.SkippedRecipient{{Kind: notifications.RecipientRecord, Ref: "crm.client/42", Reason: notifications.SkipNoContactResolver}}}
+	_, err = preview()
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, "invalid", se.Code)
 }

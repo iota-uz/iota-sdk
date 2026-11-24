@@ -2,9 +2,7 @@ package notify
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -72,20 +70,16 @@ func (n *contactNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.Ste
 	return res.Output, err
 }
 
-// ApplyEffectResult queues the message in the step's transaction when the record can be reached.
+// ApplyEffectResult queues the message in the step's transaction when the record can be reached. The
+// delivery layer judges the request in one order (the channel, then the audience, then the record's contact in
+// this transaction, CheckContacts), so a channel that is not available fails the node whether or not the record
+// has an address, and the dry run agrees.
 func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engine.StepContext, node graph.Node, e graph.Effect) (engine.EffectResult, error) {
 	req, channel, err := n.request(run, node, e.Params)
 	if err != nil {
 		return engine.EffectResult{}, err
 	}
 	out := map[string]any{"notice_id": "", "channel": string(channel), "skipped": []any{}}
-	reachable, err := n.reachable(ctx, run, req.Audience.Records[0], channel)
-	if err != nil {
-		return engine.EffectResult{}, err
-	}
-	if !reachable {
-		return result(OutcomeNoContact, out)
-	}
 	receipt, err := n.cfg.Sender.SendTx(tenantCtx(ctx, run), tx, req)
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
@@ -98,9 +92,9 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 	return result(OutcomeSent, out)
 }
 
-// PreviewEffect is what a dry run shows: the audience the delivery layer resolves and whether the record can
-// be reached, without a send. The trace names the records and the reasons recipients were skipped, never
-// the addresses of a contact.
+// PreviewEffect is what a dry run shows: the audience the delivery layer resolves, with the record's contact
+// checked as a send would, without a send. The trace names the records and the reasons recipients were
+// skipped, never the addresses of a contact.
 func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext, node graph.Node, e graph.Effect) (engine.EffectResult, error) {
 	req, channel, err := n.request(run, node, e.Params)
 	if err != nil {
@@ -111,6 +105,12 @@ func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext,
 	if err != nil {
 		return engine.EffectResult{}, failure(err)
 	}
+	for _, s := range resolved.Skipped {
+		if s.Reason == notifications.SkipNoContactResolver {
+			// A send refuses it as invalid input, so the preview does too.
+			return engine.EffectResult{}, &engine.StepError{Code: "invalid", Message: "no contact resolver is registered for " + s.Ref}
+		}
+	}
 	records := make([]any, 0, len(resolved.Addressees))
 	for _, a := range resolved.Addressees {
 		if a.Record != nil {
@@ -119,40 +119,10 @@ func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext,
 	}
 	out["skipped"] = skippedOf(resolved.Skipped)
 	out["resolved"] = map[string]any{"records": records}
-	reachable, err := n.reachable(ctx, run, req.Audience.Records[0], channel)
-	if err != nil {
-		return engine.EffectResult{}, err
-	}
-	if !reachable || resolved.Total() == 0 {
+	if resolved.Total() == 0 {
 		return result(OutcomeNoContact, out)
 	}
 	return result(OutcomeSent, out)
-}
-
-// reachable asks the contact resolver of the record's entity whether the record has an address on the
-// channel, outside the step's transaction as the delivery worker does. A record the resolver does not know,
-// or one without an address on the channel, is not reachable; a resolver that fails is the node's failure.
-func (n *contactNode) reachable(ctx context.Context, run engine.StepContext, ref notifications.ObjectRef, channel notifications.Channel) (bool, error) {
-	if n.cfg.Contacts == nil {
-		return true, nil // the delivery layer records a missing address when it delivers
-	}
-	resolver, ok := n.cfg.Contacts.Lookup(ref.Entity)
-	if !ok {
-		return false, &engine.StepError{Code: CodeNoContactResolver, Message: "no contact resolver is registered for " + ref.Entity}
-	}
-	contact, err := resolver.ResolveContact(n.readCtx(ctx, run), run.TenantID, ref)
-	switch {
-	case errors.Is(err, notifications.ErrContactNotFound):
-		return false, nil
-	case err != nil:
-		return false, &engine.StepError{Code: CodeContactLookup, Message: "the contact of " + ref.Entity + " could not be read", Retryable: true}
-	}
-	for _, t := range contact.Targets {
-		if t.Channel == channel && strings.TrimSpace(t.Address) != "" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // request is the audience request of a rendered effect and its channel.
@@ -179,6 +149,8 @@ func (n *contactNode) request(run engine.StepContext, node graph.Node, params ma
 		Audience: notifications.Audience{Records: []notifications.ObjectRef{ref}},
 		Channels: []notifications.Channel{channel},
 		Producer: producer(run, node),
+		// The record is queued only when its contact has an address on the channel: no_contact otherwise.
+		CheckContacts: true,
 	}, channel, nil
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
@@ -26,12 +27,14 @@ import (
 // notice is queued in the transaction of the step, delivered by the workers after it commits.
 type automationFixture struct {
 	*audienceFixture
-	run engine.StepContext
+	run             engine.StepContext
+	contactRegistry *notifications.ContactResolvers
 }
 
 func setupAutomation(t *testing.T) *automationFixture {
 	t.Helper()
 	c := &automationFixture{audienceFixture: setupAudience(t, 3)}
+	c.contactRegistry = itf.GetService[notifications.ContactResolvers](c.f)
 	// The automations module of the composition has registered automations.notify.v1.
 	_, ok := c.catalog.Get(notify.EventKey)
 	require.True(t, ok)
@@ -44,7 +47,7 @@ func setupAutomation(t *testing.T) *automationFixture {
 
 func (c *automationFixture) node(t *testing.T, typ string) catalog.NodeType {
 	t.Helper()
-	cfg := notify.Config{Sender: c.sender, Catalog: c.catalog, Contacts: itf.GetService[notifications.ContactResolvers](c.f), Pool: c.f.Pool, BaseURL: "https://erp.example.com"}
+	cfg := notify.Config{Sender: c.sender, Catalog: c.catalog, Pool: c.f.Pool, BaseURL: "https://erp.example.com"}
 	switch typ {
 	case notify.NodeNotify:
 		return notify.NewNotify(cfg)
@@ -296,4 +299,64 @@ func TestAutomationNotify_NeedsNoSecondConnectionInTheStepTransaction(t *testing
 	require.NoError(t, err)
 	require.Equal(t, notify.OutcomeSent, res.Outcome)
 	require.NoError(t, tx.Commit(ctx))
+}
+
+// A contact resolver that reads the database reads in the step's transaction: send_to_contact needs no second
+// connection while the transaction holds the only one.
+func TestAutomationSendToContact_SQLResolverUsesTheStepTransaction(t *testing.T) {
+	c := setupAutomation(t)
+	const entity = "acme.sqlcustomer"
+	require.NoError(t, c.contactRegistry.Register(entity, notifications.ContactResolverFunc(func(ctx context.Context, _ uuid.UUID, _ notifications.ObjectRef) (notifications.Contact, error) {
+		db, err := composables.UseTx(ctx)
+		if err != nil {
+			return notifications.Contact{}, err
+		}
+		var phone string
+		if err := db.QueryRow(ctx, "SELECT '+998901112233'").Scan(&phone); err != nil {
+			return notifications.Contact{}, err
+		}
+		return notifications.Contact{Targets: []notifications.Target{{Channel: notifications.ChannelSMS, Address: phone}}}, nil
+	})))
+	cfg, err := pgxpool.ParseConfig(c.f.Pool.Config().ConnString())
+	require.NoError(t, err)
+	cfg.MaxConns = 1
+	single, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(single.Close)
+	nt := notify.NewSendToContact(notify.Config{Sender: c.sender, Catalog: c.catalog, Pool: single})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	tx, err := single.Begin(ctx)
+	require.NoError(t, err)
+	run := c.run
+	run.Subject = engine.SubjectRef{Entity: entity, Key: "7"}
+	res, err := nt.(engine.OutcomeEffectNode).ApplyEffectResult(ctx, tx, run, graph.Node{ID: run.NodeID, Type: notify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Hi"}})
+	require.NoError(t, err)
+	require.Equal(t, notify.OutcomeSent, res.Outcome)
+	require.NoError(t, tx.Commit(ctx))
+}
+
+// A channel that is not available fails the node in a run and in a dry run alike, even for a record
+// without an address.
+func TestAutomationSendToContact_UnavailableChannelFailsBeforeTheContactIsRead(t *testing.T) {
+	f := setupNotificationTest(t) // no channel adapters: only the inbox
+	sender, err := composition.Resolve[notifications.AudienceSender](f.Container)
+	require.NoError(t, err)
+	contacts, err := composition.Resolve[*notifications.ContactResolvers](f.Container)
+	require.NoError(t, err)
+	require.NoError(t, contacts.Register("acme.nophone", notifications.ContactResolverFunc(func(context.Context, uuid.UUID, notifications.ObjectRef) (notifications.Contact, error) {
+		return notifications.Contact{}, notifications.ErrContactNotFound
+	})))
+	nt := notify.NewSendToContact(notify.Config{Sender: sender})
+	run := engine.StepContext{TenantID: f.TenantID(), RunID: uuid.New(), TokenID: uuid.New(), Seq: 1, NodeID: "ping", Subject: engine.SubjectRef{Entity: "acme.nophone", Key: "1"}}
+	node, effect := graph.Node{ID: "ping", Type: notify.NodeSendToContact}, graph.Effect{Params: map[string]any{"channel": "sms", "body": "Hi"}}
+
+	var se *engine.StepError
+	_, err = nt.(engine.OutcomeEffectNode).ApplyEffectResult(context.Background(), f.Tx, run, node, effect)
+	require.ErrorAs(t, err, &se)
+	require.Equal(t, notify.CodeUnavailable, se.Code, "a run fails")
+	_, err = nt.(engine.EffectPreviewer).PreviewEffect(f.Ctx, run, node, effect)
+	require.ErrorAs(t, err, &se)
+	require.Equal(t, notify.CodeUnavailable, se.Code, "and so does a dry run")
 }

@@ -351,9 +351,12 @@ resolve no audience and check no access themselves.
 - The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
   returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
   run's trigger event, used only to resolve `participants`.
-- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` asks the entity's
-  `ContactResolver` (outside the step's transaction, as the delivery worker does) for an address on the
-  channel and takes `no_contact` when the record or the address is missing.
+- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` sets
+  `AudienceRequest.CheckContacts`: the delivery layer checks the channel first, then asks the entity's
+  `ContactResolver` for an address on it, in the step's transaction (the resolver reads with
+  `composables.UseTx(ctx)`, so no second connection is needed), and leaves a record without one out with the
+  reason `no_address`; the node then takes `no_contact` and a dry run agrees. A channel that is not available is
+  `failed` / `unavailable` whether or not the record has an address.
 - `participants` need every trigger event that can reach the node to have a notification definition with those
   recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
   an event (manual, schedule) fails with `no_trigger_event`.
