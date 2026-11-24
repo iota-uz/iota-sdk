@@ -273,6 +273,8 @@ func (c *Connector) Test(ctx context.Context, creds connectors.Credentials) (con
 	if err != nil {
 		return connectors.Identity{}, testError(err)
 	}
+	sc := newScrubber(cf.creds)
+	info.Name, info.Version = sc.text(info.Name), sc.text(info.Version)
 	return identityOf(info, len(tools)), nil
 }
 
@@ -298,14 +300,43 @@ func testError(err error) error {
 	return errors.New("mcp: the server is unavailable")
 }
 
-// identityOf is the non-secret facts of a connection: the server's name and version and how many tools
-// it has. It is not a typed identity, so the page keeps it out of responses but the connection stores it.
+// identityOf is the non-secret facts of a connection: the server's name and version and how many of
+// its tools it lists, as a typed identity (connectors.IdentityServer) the page shows. Characters outside
+// the identity's shape are replaced; the store still refuses one that carries a secret.
 func identityOf(info serverInfo, tools int) connectors.Identity {
-	name := info.Name
-	if info.Version != "" {
-		name += " " + info.Version
+	name := safeLabel(info.Name, 100)
+	if name == "" {
+		name = "MCP"
 	}
-	return connectors.Identity{Display: strings.TrimSpace(fmt.Sprintf("%s (%d tools)", name, tools)), External: info.Name}
+	if v := safeLabel(info.Version, 40); v != "" {
+		name += " " + v
+	}
+	unit := "tools"
+	if tools == 1 {
+		unit = "tool"
+	}
+	return connectors.Identity{Display: fmt.Sprintf("%s (%d %s)", name, tools, unit), External: safeLabel(info.Name, 100), Kind: connectors.IdentityServer}
+}
+
+// safeLabel keeps letters, digits and . _ + - / of s, other runs as one "-", at most n bytes.
+func safeLabel(s string, n int) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range s {
+		ok := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || strings.ContainsRune("._+-/", r)
+		switch {
+		case ok:
+			b.WriteRune(r)
+			dash = false
+		case !dash && b.Len() > 0:
+			b.WriteByte('-')
+			dash = true
+		}
+		if b.Len() >= n {
+			break
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func accessKey(auth string) string {

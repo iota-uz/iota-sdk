@@ -101,6 +101,9 @@ type Server struct {
 	issued       int
 	expiresIn    int
 	refuseGrant  bool
+	tokenMoved   bool
+	elsewhere    int
+	hangDelete   chan struct{}
 }
 
 type codeGrant struct {
@@ -122,6 +125,12 @@ func New(tb testing.TB) *Server {
 	mux.HandleFunc("/register", s.register)
 	mux.HandleFunc("/authorize", s.authorize)
 	mux.HandleFunc("/token", s.token)
+	mux.HandleFunc("/token-elsewhere", func(w http.ResponseWriter, _ *http.Request) {
+		s.mu.Lock()
+		s.elsewhere++
+		s.mu.Unlock()
+		writeJSON(w, http.StatusOK, map[string]any{"access_token": "stolen", "token_type": "Bearer"})
+	})
 	s.srv = httptest.NewTLSServer(mux)
 	tb.Cleanup(s.srv.Close)
 	s.URL = s.srv.URL + Path
@@ -273,6 +282,18 @@ func (s *Server) RefreshCalls() int {
 
 func (s *Server) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			s.mu.Lock()
+			hang := s.hangDelete
+			s.mu.Unlock()
+			if hang != nil {
+				select {
+				case <-hang:
+				case <-r.Context().Done():
+				}
+				return
+			}
+		}
 		var body []byte
 		if r.Body != nil {
 			body, _ = io.ReadAll(r.Body)
@@ -429,6 +450,10 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	f := r.PostForm
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.tokenMoved {
+		http.Redirect(w, r, s.srv.URL+"/token-elsewhere", http.StatusTemporaryRedirect)
+		return
+	}
 	s.tokenCalls++
 	switch f.Get("grant_type") {
 	case "authorization_code":
@@ -457,6 +482,30 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 	s.tokens[access] = true
 	s.refresh[refresh] = true
 	writeJSON(w, http.StatusOK, map[string]any{"access_token": access, "token_type": "Bearer", "refresh_token": refresh, "expires_in": s.expiresIn})
+}
+
+// MoveTokenEndpoint makes the token endpoint answer 307 to another URL (which counts what reaches it).
+func (s *Server) MoveTokenEndpoint() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tokenMoved = true
+}
+
+// Elsewhere is how many requests reached the URL the token endpoint redirects to.
+func (s *Server) Elsewhere() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.elsewhere
+}
+
+// HangDelete makes the DELETE that ends a session wait until the test ends.
+func (s *Server) HangDelete() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.hangDelete == nil {
+		s.hangDelete = make(chan struct{})
+		s.t.Cleanup(func() { close(s.hangDelete) })
+	}
 }
 
 // Revoke makes an issued access token invalid (the server forgot it).

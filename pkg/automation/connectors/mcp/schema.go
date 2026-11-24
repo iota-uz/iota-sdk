@@ -218,63 +218,265 @@ const (
 	CodeSchemaInvalid    = "tool_schema_invalid"
 )
 
-// checkArguments checks the arguments of a node against the pinned input schema: every required
-// property is given, no key names a property a closed object lacks, and the type of each value,
-// template and CEL expression is compatible. typeOf is the CEL type of an expression (nil: CEL is not
-// checked).
+// checkArguments checks the arguments of a node against the pinned input schema, as the object a run
+// assembles from them: every required property is given at every level, no key names a property a
+// closed object lacks, a literal value is validated by the schema of the property it lands in (nested
+// constraints, enums and $ref included) and a template or CEL expression must give a type the property
+// takes. typeOf is the CEL type of an expression (nil: CEL is not checked).
 func checkArguments(input json.RawMessage, args map[string]Argument, typeOf func(string) (string, error)) []argIssue {
-	var out []argIssue
-	root := readSchema(input)
-	for _, r := range root.Required {
-		found := false
-		for k := range args {
-			if k == r || strings.HasPrefix(k, r+".") {
-				found = true
-				break
-			}
-		}
-		if !found {
-			out = append(out, argIssue{path: "arguments", code: CodeArgumentMissing, message: fmt.Sprintf("the tool needs argument %s", r)})
-		}
-	}
+	root, conflicts := argTree(args)
+	out := append([]argIssue(nil), conflicts...)
+	v := &argValidator{input: input, typeOf: typeOf}
+	out = append(out, v.check(root, "", input, "")...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].path < out[j].path })
+	return out
+}
+
+// argNode is the assembled arguments: an object of children, a literal (from a value) or a placeholder
+// (a template or an expression, known by its type only).
+type argNode struct {
+	children map[string]*argNode
+	literal  any
+	isLit    bool
+	tmpl     *string
+	cel      *string
+	key      string // the argument key that set it
+}
+
+// argTree assembles the arguments by their dotted keys, shorter keys first.
+func argTree(args map[string]Argument) (*argNode, []argIssue) {
 	keys := make([]string, 0, len(args))
 	for k := range args {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.Slice(keys, func(i, j int) bool {
+		di, dj := strings.Count(keys[i], "."), strings.Count(keys[j], ".")
+		if di != dj {
+			return di < dj
+		}
+		return keys[i] < keys[j]
+	})
+	root := &argNode{children: map[string]*argNode{}}
+	var issues []argIssue
 	for _, k := range keys {
 		a := args[k]
-		path := "arguments." + k
-		node, ok, known := at(input, k)
+		cur := root
+		parts := strings.Split(k, ".")
+		ok := true
+		for _, part := range parts[:len(parts)-1] {
+			if !explode(cur) {
+				issues = append(issues, argIssue{path: "arguments." + k, code: CodeArgumentType, message: fmt.Sprintf("%s goes into %s, which is not an object", k, cur.key)})
+				ok = false
+				break
+			}
+			next := cur.children[part]
+			if next == nil {
+				next = &argNode{children: map[string]*argNode{}, key: k}
+				cur.children[part] = next
+			}
+			cur = next
+		}
 		if !ok {
-			out = append(out, argIssue{path: path, code: CodeArgumentUnknown, message: fmt.Sprintf("the tool has no argument %s", k)})
 			continue
 		}
-		if !known {
+		if !explode(cur) {
+			issues = append(issues, argIssue{path: "arguments." + k, code: CodeArgumentType, message: fmt.Sprintf("%s goes into %s, which is not an object", k, cur.key)})
 			continue
 		}
-		switch {
-		case a.Value != nil:
-			if msg := valueFits(node, a.Value); msg != "" {
-				out = append(out, argIssue{path: path + ".value", code: CodeArgumentType, message: msg})
-			}
-		case a.Template != nil:
-			if !node.allows("string") && !node.allows("number") && !node.allows("boolean") {
-				out = append(out, argIssue{path: path + ".template", code: CodeArgumentType,
-					message: fmt.Sprintf("a template gives text; %s is %s", k, strings.Join(node.Types, " or "))})
-			}
-		case a.CEL != nil && typeOf != nil:
-			t, err := typeOf(*a.CEL)
+		leaf := &argNode{key: k, tmpl: a.Template, cel: a.CEL}
+		if a.Value != nil {
+			v, err := decodeJSON(a.Value)
 			if err != nil {
-				continue // the graph's own check of the expression reports it
+				issues = append(issues, argIssue{path: "arguments." + k + ".value", code: CodeArgumentType, message: "the value is not JSON"})
+				continue
 			}
-			if js := jsonTypeOfCEL(t); js != "" && !node.allows(js) {
-				out = append(out, argIssue{path: path + ".cel", code: CodeArgumentType,
-					message: fmt.Sprintf("the expression is %s; %s is %s", t, k, strings.Join(node.Types, " or "))})
+			leaf.literal, leaf.isLit = v, true
+		}
+		last := parts[len(parts)-1]
+		if prev := cur.children[last]; prev != nil && len(prev.children) > 0 && leaf.isLit {
+			// A whole object under a key a deeper one already set: the deeper one wins, as a run merges.
+			if m, isMap := leaf.literal.(map[string]any); isMap {
+				for ck, cv := range m {
+					if _, set := prev.children[ck]; !set {
+						prev.children[ck] = &argNode{literal: cv, isLit: true, key: k}
+					}
+				}
+				continue
 			}
+		}
+		cur.children[last] = leaf
+	}
+	return root, issues
+}
+
+// explode makes n an object node: a literal object becomes children; false when n is not an object.
+func explode(n *argNode) bool {
+	if n.children != nil {
+		return true
+	}
+	if n.tmpl != nil || n.cel != nil {
+		return false
+	}
+	m, ok := n.literal.(map[string]any)
+	if !n.isLit || !ok {
+		return false
+	}
+	n.children = map[string]*argNode{}
+	for k, v := range m {
+		n.children[k] = &argNode{literal: v, isLit: true, key: n.key}
+	}
+	n.isLit, n.literal = false, nil
+	return true
+}
+
+type argValidator struct {
+	input  json.RawMessage
+	typeOf func(string) (string, error)
+	failed bool
+}
+
+// at compiles the input schema once and returns the schema at a JSON pointer inside it.
+func (v *argValidator) at(ptr string) *jsonschema.Schema {
+	if v.failed {
+		return nil
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(v.input))
+	if err != nil {
+		v.failed = true
+		return nil
+	}
+	c := jsonschema.NewCompiler()
+	c.UseLoader(noLoader{})
+	if err := c.AddResource("mcp-input.json", doc); err != nil {
+		v.failed = true
+		return nil
+	}
+	s, err := c.Compile("mcp-input.json#" + ptr)
+	if err != nil {
+		return nil
+	}
+	return s
+}
+
+func pointerEscape(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "~", "~0"), "/", "~1")
+}
+
+// check validates node, which lands at dotted (its path in the arguments) with the schema raw at ptr.
+func (v *argValidator) check(n *argNode, dotted string, raw json.RawMessage, ptr string) []argIssue {
+	sn := readSchema(raw)
+	switch {
+	case n.isLit:
+		s := v.at(ptr)
+		if s == nil {
+			if msg := valueFits(sn, mustJSON(n.literal)); msg != "" {
+				return []argIssue{{path: "arguments." + n.key + ".value", code: CodeArgumentType, message: msg}}
+			}
+			return nil
+		}
+		val, err := jsonschema.UnmarshalJSON(bytes.NewReader(mustJSON(n.literal)))
+		if err != nil {
+			return nil
+		}
+		if err := s.Validate(val); err != nil {
+			where := dotted
+			if where == "" {
+				where = "the arguments"
+			}
+			return []argIssue{{path: "arguments." + n.key + ".value", code: CodeArgumentType,
+				message: fmt.Sprintf("%s does not fit the tool's schema: %s", where, firstLine(err.Error()))}}
+		}
+		return nil
+	case n.tmpl != nil:
+		if !sn.allows("string") && !sn.allows("number") && !sn.allows("boolean") {
+			return []argIssue{{path: "arguments." + n.key + ".template", code: CodeArgumentType,
+				message: fmt.Sprintf("a template gives text; %s is %s", dotted, strings.Join(sn.Types, " or "))}}
+		}
+		return nil
+	case n.cel != nil:
+		if v.typeOf == nil {
+			return nil
+		}
+		t, err := v.typeOf(*n.cel)
+		if err != nil {
+			return nil // the graph's own check of the expression reports it
+		}
+		if js := jsonTypeOfCEL(t); js != "" && !sn.allows(js) {
+			return []argIssue{{path: "arguments." + n.key + ".cel", code: CodeArgumentType,
+				message: fmt.Sprintf("the expression is %s; %s is %s", t, dotted, strings.Join(sn.Types, " or "))}}
+		}
+		return nil
+	}
+	// An object assembled from several arguments.
+	var out []argIssue
+	if len(sn.Types) > 0 && !sn.allows("object") {
+		return []argIssue{{path: "arguments." + firstKey(n), code: CodeArgumentType, message: fmt.Sprintf("%s is %s, not an object", orArguments(dotted), strings.Join(sn.Types, " or "))}}
+	}
+	for _, r := range sn.Required {
+		if _, ok := n.children[r]; !ok {
+			out = append(out, argIssue{path: "arguments", code: CodeArgumentMissing, message: fmt.Sprintf("the tool needs argument %s", join(dotted, r))})
 		}
 	}
+	names := make([]string, 0, len(n.children))
+	for k := range n.children {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, k := range names {
+		child := n.children[k]
+		sub, declared := sn.Properties[k]
+		if !declared {
+			if sn.Closed {
+				out = append(out, argIssue{path: "arguments." + child.key, code: CodeArgumentUnknown, message: fmt.Sprintf("the tool has no argument %s", join(dotted, k))})
+			}
+			continue // an open object: the server's own check decides
+		}
+		out = append(out, v.check(child, join(dotted, k), sub, ptr+"/properties/"+pointerEscape(k))...)
+	}
 	return out
+}
+
+func join(prefix, k string) string {
+	if prefix == "" {
+		return k
+	}
+	return prefix + "." + k
+}
+
+func orArguments(dotted string) string {
+	if dotted == "" {
+		return "the arguments"
+	}
+	return dotted
+}
+
+// firstKey is an argument key that built an object node, for the path of its issue.
+func firstKey(n *argNode) string {
+	keys := make([]string, 0, len(n.children))
+	for _, c := range n.children {
+		keys = append(keys, c.key)
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		return n.key
+	}
+	return keys[0]
+}
+
+func mustJSON(v any) json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return json.RawMessage(`null`)
+	}
+	return b
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.LastIndex(s, "\n"); i >= 0 {
+		s = strings.TrimSpace(s[i+1:])
+	}
+	return clip(s, 300)
 }
 
 // jsonTypeOfCEL is the JSON type a CEL type renders to ("" when any may come: dyn, a type parameter).

@@ -101,6 +101,7 @@ func (c *Connector) Tools(ctx context.Context, tenantID, connectionID uuid.UUID)
 	if err != nil {
 		return nil, err
 	}
+	tools = newScrubber(creds, token).tools(tools)
 	// A refresh made now changed the version: the list is kept under the version it was listed with.
 	if now, _, gerr := st.Get(ctx, tenantID, connectionID); gerr == nil {
 		c.cache.put(key, now.Version, c.now(), tools)

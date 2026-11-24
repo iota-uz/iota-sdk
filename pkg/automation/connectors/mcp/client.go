@@ -72,7 +72,13 @@ func newObserver(origin, token string) *observer {
 
 var errTooLarge = errors.New("mcp: the response is larger than 1 MiB")
 
+// closeTimeout bounds the DELETE that ends a session: the SDK sends it without a deadline.
+const closeTimeout = 5 * time.Second
+
 func (o *observer) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodDelete {
+		return o.endSession(req)
+	}
 	method := ""
 	if req.Body != nil && req.Method == http.MethodPost {
 		body, err := io.ReadAll(io.LimitReader(req.Body, 8<<20))
@@ -122,7 +128,32 @@ func (o *observer) RoundTrip(req *http.Request) (*http.Response, error) {
 		o.retryAfter = retryAfter(res.Header.Get("Retry-After"))
 	}
 	o.mu.Unlock()
-	res.Body = &cappedBody{r: res.Body, left: MaxResponseBytes, o: o, method: method}
+	// Only a served answer can hold the server's JSON-RPC response: a redirect or a refusal is not one.
+	answered := method
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		answered = ""
+	}
+	res.Body = &cappedBody{r: res.Body, left: MaxResponseBytes, o: o, method: answered}
+	return res, nil
+}
+
+// endSession sends the DELETE of a session within closeTimeout and reads and closes its answer itself
+// (the SDK leaves the body open).
+func (o *observer) endSession(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithTimeout(req.Context(), closeTimeout)
+	defer cancel()
+	req = req.Clone(ctx)
+	req.Header.Del("Authorization")
+	if o.token != "" && req.URL.Scheme+"://"+req.URL.Host == o.origin {
+		req.Header.Set("Authorization", "Bearer "+o.token)
+	}
+	res, err := o.next.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
+	_ = res.Body.Close()
+	res.Body = http.NoBody
 	return res, nil
 }
 
@@ -223,9 +254,12 @@ type session struct {
 	info serverInfo
 }
 
+// close ends the session in the background: the answer is already in hand, and the DELETE (bounded by
+// closeTimeout) must not hold it back from the engine.
 func (s *session) close() {
 	if s != nil && s.cs != nil {
-		_ = s.cs.Close()
+		cs := s.cs
+		go func() { _ = cs.Close() }()
 	}
 }
 
@@ -340,6 +374,9 @@ func classify(obs *observer, method string, err error, effect bool) error {
 		return &catalog.CallError{Code: catalog.CallUnavailable, Message: "the server's address is not allowed (private, loopback, link-local or metadata address, or not https on an allowed port)"}
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the server refused the credentials (HTTP " + strconv.Itoa(status) + ")"}
+	case status == http.StatusTooManyRequests && effect && obs.wasWritten(method):
+		// The call reached the server: a repeat may run the tool twice, so it is not asked for.
+		return &catalog.CallError{Code: catalog.CallRejected, Message: "the server refused " + method + " with HTTP 429 after it was sent; the call is not repeated"}
 	case status == http.StatusTooManyRequests:
 		return &rateLimitedError{after: obs.retryAfter}
 	case obs.overflowed():

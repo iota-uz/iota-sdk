@@ -192,6 +192,29 @@ func (x *execution) interp(ctx context.Context) (*interpEntry, error) {
 	return ie, nil
 }
 
+// reauthNeeded reports whether a node of the run's version needs a connection that waits for a new
+// sign-in (needsReauth).
+func (x *execution) reauthNeeded(ctx context.Context) bool {
+	v, err := loadVersion(ctx, x.r.cfg.DB, x.tenant, x.run.AutomationID, x.run.Version)
+	if err != nil {
+		return false
+	}
+	g, errs := graph.Decode(v.Graph)
+	if len(errs) > 0 {
+		return false
+	}
+	for _, n := range g.Nodes {
+		nt, ok := x.r.cfg.Catalog.Node(n.Type)
+		if !ok || len(nt.Requires()) == 0 {
+			continue
+		}
+		if needsReauth(ctx, x.r.cfg.DB, x.tenant, n.Params[catalog.ConnectionParam], nt.Requires()) {
+			return true
+		}
+	}
+	return false
+}
+
 // failure is the error a failed run returns to the workflow engine.
 func failure(e StepError) error {
 	return &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation." + e.Code, Message: e.Message}
@@ -222,6 +245,10 @@ func (x *execution) loop(ctx context.Context) (json.RawMessage, error) {
 				return nil, err
 			}
 			// The version cannot run against the tenant's catalog (an event it uses left it): the run fails.
+			// A node whose connection waits for a new sign-in left it for that reason: unauthorized.
+			if x.reauthNeeded(ctx) {
+				return nil, x.failRun(ctx, StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth})
+			}
 			return nil, x.failRun(ctx, StepError{Code: CodeConnectionUnavailable, Message: err.Error()})
 		}
 		wait, err := x.acquireSubject(ctx)

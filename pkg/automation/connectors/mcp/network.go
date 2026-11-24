@@ -3,8 +3,10 @@ package mcp
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -140,20 +142,59 @@ func (n *network) dial(ctx context.Context, network, address string) (net.Conn, 
 	return nil, last
 }
 
+// errRedirectRefused is a redirect of a request that must not be sent twice (a tools/call: the redirect
+// would replay it) or that carries a secret in its body (a token or registration request).
+var errRedirectRefused = errors.New("mcp: the redirect of the request is refused")
+
 // client is an HTTP client over the guarded transport; blocked (may be nil) hears of every request or
-// redirect the policy refused.
+// redirect the policy refused. A redirect of a tools/call is never followed: net/http would replay the
+// request, and the tool may already have run.
 func (n *network) client(wrap func(http.RoundTripper) http.RoundTripper, blocked func()) *http.Client {
 	var rt http.RoundTripper = guardedRT{n: n}
 	if wrap != nil {
 		rt = wrap(rt)
 	}
 	return &http.Client{Transport: rt, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if req.Method != http.MethodGet && req.Method != http.MethodHead && jsonRPCMethod(via[0]) == methodToolsCall {
+			return errRedirectRefused
+		}
 		err := n.redirect(req, via)
 		if err != nil && blocked != nil {
 			blocked()
 		}
 		return err
 	}}
+}
+
+// secretClient is the client of requests whose body carries a secret (a code with its verifier, a
+// refresh token, a registration): no redirect is followed, so the body never reaches another URL.
+func (n *network) secretClient() *http.Client {
+	return &http.Client{Transport: guardedRT{n: n}, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return errRedirectRefused
+	}}
+}
+
+// jsonRPCMethod is the method of a JSON-RPC request's body ("" when it has none or cannot be read again).
+func jsonRPCMethod(req *http.Request) string {
+	if req == nil || req.GetBody == nil {
+		return ""
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = body.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(body, 8<<20))
+	if err != nil {
+		return ""
+	}
+	var msg struct {
+		Method string `json:"method"`
+	}
+	if json.Unmarshal(raw, &msg) != nil {
+		return ""
+	}
+	return msg.Method
 }
 
 // guardedRT checks the URL of every request (the first one and each redirect) before the transport.

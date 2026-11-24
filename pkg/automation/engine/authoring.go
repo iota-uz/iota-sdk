@@ -497,12 +497,17 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	var creds catalog.Credentials
 	if kinds := c.view.NodeRequires[c.node.Type]; len(kinds) > 0 {
 		ref, _, err := catalog.ResolveConnection(c.view.Connections, kinds, c.params[catalog.ConnectionParam])
+		if err != nil && needsReauth(ctx, r.cfg.DB, c.tenant, c.params[catalog.ConnectionParam], kinds) {
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		}
 		if err != nil || r.cfg.Credentials == nil {
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + c.node.ID + " is not available"}}
 		}
 		ci, cr, err := r.cfg.Credentials.Open(ctx, c.tenant, ref.ID)
 		switch {
-		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
+		case errors.Is(err, connectors.ErrNeedsReauth):
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection could not be opened"}}

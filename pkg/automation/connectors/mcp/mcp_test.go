@@ -23,7 +23,11 @@ var weatherInput = map[string]any{
 	"properties": map[string]any{
 		"city": map[string]any{"type": "string"},
 		"days": map[string]any{"type": "integer"},
-		"opts": map[string]any{"type": "object", "properties": map[string]any{"units": map[string]any{"type": "string", "enum": []any{"metric", "imperial"}}}},
+		"opts": map[string]any{"type": "object", "required": []any{"units"}, "properties": map[string]any{
+			"units": map[string]any{"type": "string", "enum": []any{"metric", "imperial"}},
+			"lang":  map[string]any{"type": "string"},
+			"limit": map[string]any{"type": "object", "properties": map[string]any{"max": map[string]any{"type": "integer"}}},
+		}},
 	},
 	"additionalProperties": false,
 }
@@ -62,7 +66,9 @@ func TestTestReportsServerIdentityAndChecksTheToken(t *testing.T) {
 
 	id, err := c.Test(context.Background(), connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: "tok-1"})
 	require.NoError(t, err)
-	require.Equal(t, "fake-mcp 1.2.3 (1 tools)", id.Display)
+	require.Equal(t, "fake-mcp 1.2.3 (1 tool)", id.Display)
+	require.Equal(t, connectors.IdentityServer, id.Kind)
+	require.Equal(t, id, connectors.SafeIdentity(id, func(string) bool { return true }, connectors.Credentials{KeyToken: "tok-1"}), "the page keeps it")
 	require.Equal(t, 1, srv.Requests("tools/list"))
 
 	_, err = c.Test(context.Background(), connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: "wrong"})
@@ -118,11 +124,18 @@ func TestExecuteRejectsToolErrorsAndOutputOutsideThePin(t *testing.T) {
 	_, err = c.Node().Execute(context.Background(), callInput(id, creds, params))
 	require.Equal(t, catalog.CallRejected, callCode(err))
 	require.Contains(t, err.Error(), "pinned output schema")
+
+	answer = mcptest.Result{Text: "ok, but no structure"}
+	_, err = c.Node().Execute(context.Background(), callInput(id, creds, params))
+	require.Equal(t, catalog.CallRejected, callCode(err))
+	require.Contains(t, err.Error(), "structuredContent")
 }
 
 func TestDroppedAnswerAfterToolsCallIsOutcomeUnknownWithoutASecondCall(t *testing.T) {
 	srv := mcptest.New(t)
-	tool := weatherTool(func(map[string]any) mcptest.Result { return mcptest.Result{Text: "done"} })
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "done", Structured: map[string]any{"temp": 1}}
+	})
 	srv.SetTool(tool)
 	srv.Fail("tools/call", mcptest.FaultDrop)
 	st := newMemStore()
@@ -150,8 +163,9 @@ func TestRateLimitsAndOversizedAnswers(t *testing.T) {
 	c := testConnector(t, srv, st, nil)
 	params := map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool), "arguments": map[string]any{"city": map[string]any{"value": "x"}}}
 
+	// 429 before the tool was sent: the engine may repeat the call after Retry-After.
 	srv.SetRetryAfter(7)
-	srv.Fail("tools/call", mcptest.FaultRateLimited)
+	srv.Fail("initialize", mcptest.FaultRateLimited)
 	res, err := c.Node().Execute(context.Background(), callInput(id, creds, params))
 	require.NoError(t, err)
 	require.Equal(t, 7*time.Second, res.RetryAfter)
@@ -162,9 +176,36 @@ func TestRateLimitsAndOversizedAnswers(t *testing.T) {
 	_, err = c.Node().Execute(context.Background(), callInput(id, creds, params))
 	require.Equal(t, catalog.CallRateLimited, callCode(err))
 
+	// 429 to the tools/call itself: the request was sent, so nothing asks for a repeat.
+	srv.SetRetryAfter(7)
+	srv.Fail("tools/call", mcptest.FaultRateLimited)
+	res, err = c.Node().Execute(context.Background(), callInput(id, creds, params))
+	require.Equal(t, catalog.CallRejected, callCode(err), "%v", err)
+	require.Zero(t, res.RetryAfter)
+	require.Equal(t, 1, srv.Requests("tools/call"))
+
 	srv.Fail("tools/call", mcptest.FaultOversized)
 	_, err = c.Node().Execute(context.Background(), callInput(id, creds, params))
 	require.Equal(t, catalog.CallInvalidRequest, callCode(err), "%v", err)
+}
+
+func TestARedirectOfASentToolsCallIsNotFollowed(t *testing.T) {
+	srv := mcptest.New(t)
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "done", Structured: map[string]any{"temp": 1}}
+	})
+	srv.SetTool(tool)
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	srv.SetRedirect(srv.URL) // a 307 would make net/http send the same tools/call again
+	srv.Fail("tools/call", mcptest.FaultRedirect)
+	_, err := c.Node().Execute(context.Background(), callInput(id, creds, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.Equal(t, catalog.CallOutcomeUnknown, callCode(err), "%v", err)
+	require.Equal(t, 1, srv.Requests("tools/call"), "no second tools/call")
+	require.Empty(t, srv.Calls())
 }
 
 func TestPrivateAddressesAreRefused(t *testing.T) {
@@ -232,7 +273,9 @@ func TestAuthorizationIsDroppedOnCrossOriginRedirect(t *testing.T) {
 
 func TestOAuthSignInRegistersOnceAndRefreshesUnderTheLock(t *testing.T) {
 	srv := mcptest.New(t)
-	tool := weatherTool(func(map[string]any) mcptest.Result { return mcptest.Result{Text: "ok"} })
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "ok", Structured: map[string]any{"temp": 1}}
+	})
 	srv.SetTool(tool)
 	srv.EnableOAuth()
 	st := newMemStore()
@@ -395,6 +438,28 @@ func TestPreparePinsWarnsAndChecksArguments(t *testing.T) {
 		"arguments.days.cel": CodeArgumentType, "arguments.opts.units.value": CodeArgumentType,
 	}, codes)
 
+	// Nested: an object literal is validated whole; a dotted key into an object needs its siblings
+	// the schema requires; a nested literal of the wrong type is refused.
+	res = prepare(map[string]any{"tool": "weather", "tool_schema": pinned, "arguments": map[string]any{
+		"city": map[string]any{"value": "x"}, "opts": map[string]any{"value": map[string]any{"lang": "en"}},
+	}})
+	require.Len(t, res.Errors, 1)
+	require.Equal(t, "arguments.opts.value", res.Errors[0].Path)
+	require.Contains(t, res.Errors[0].Message, "units")
+	res = prepare(map[string]any{"tool": "weather", "tool_schema": pinned, "arguments": map[string]any{
+		"city": map[string]any{"value": "x"}, "opts.lang": map[string]any{"value": "en"}, "opts.limit": map[string]any{"value": map[string]any{"max": "ten"}},
+	}})
+	codes = map[string]string{}
+	for _, e := range res.Errors {
+		codes[e.Path] = e.Code
+	}
+	require.Equal(t, map[string]string{"arguments": CodeArgumentMissing, "arguments.opts.limit.value": CodeArgumentType}, codes)
+	res = prepare(map[string]any{"tool": "weather", "tool_schema": pinned, "arguments": map[string]any{
+		"city": map[string]any{"value": "x"}, "opts.units": map[string]any{"template": "metric"}, "opts.limit.max": map[string]any{"cel": "'a'"},
+	}})
+	require.Len(t, res.Errors, 1)
+	require.Equal(t, "arguments.opts.limit.max.cel", res.Errors[0].Path)
+
 	// The server changes the input schema: a warning, the pin stays.
 	changed := tool
 	changed.InputSchema = map[string]any{"type": "object", "required": []any{"city", "country"}, "properties": map[string]any{"city": map[string]any{"type": "string"}, "country": map[string]any{"type": "string"}}}
@@ -402,10 +467,25 @@ func TestPreparePinsWarnsAndChecksArguments(t *testing.T) {
 	c.cache.drop(tenant, id)
 	res = prepare(map[string]any{"tool": "weather", "tool_schema": pinned, "arguments": map[string]any{"city": map[string]any{"value": "Tashkent"}}})
 	require.Empty(t, res.Errors)
-	require.Nil(t, res.Params, "the pin is not replaced")
+	require.Equal(t, pinned["hash"], res.Params["tool_schema"].(map[string]any)["hash"], "the pinned schema stays")
+	require.NotEqual(t, true, res.Params["tool_schema"].(map[string]any)["read_only"], "a changed tool is no longer run in a dry run")
 	require.Len(t, res.Warnings, 1)
 	require.Equal(t, CodeSchemaChanged, res.Warnings[0].Code)
 	require.Equal(t, "tool_schema", res.Warnings[0].Path)
+
+	// read_only comes from the server, never from the graph: a forged true on a tool that is not
+	// read-only (or a pin whose schema the server changed) is set back to false.
+	srv.SetTool(mcptest.Tool{Name: "write", InputSchema: map[string]any{"type": "object"}})
+	c.cache.drop(tenant, id)
+	res = prepare(map[string]any{"tool": "write"})
+	writePin := res.Params["tool_schema"].(map[string]any)
+	require.NotEqual(t, true, writePin["read_only"])
+	writePin["read_only"] = true
+	res = prepare(map[string]any{"tool": "write", "tool_schema": writePin})
+	require.NotEqual(t, true, res.Params["tool_schema"].(map[string]any)["read_only"], "a forged read_only is set back")
+	res, err := c.Node().Prepare(ctx, catalog.PrepareInput{TenantID: tenant, NodeID: "n1", Params: map[string]any{"tool": "write", "tool_schema": writePin}, Connection: conn})
+	require.NoError(t, err)
+	require.Nil(t, res.Params, "a stored version being enabled keeps its params")
 
 	// A pin edited by hand is refused.
 	forged := map[string]any{"input_schema": map[string]any{"type": "object"}, "hash": pinned["hash"]}
@@ -448,4 +528,93 @@ func TestCredentialsSchemaOnlyShowsTheFormFields(t *testing.T) {
 	require.Equal(t, map[string]string{KeyServerURL: "https://x", KeyAuth: AuthOAuth2}, shown)
 	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{KeyServerURL: "https://x/mcp", KeyAuth: AuthNone}))
 	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{KeyServerURL: "http://x/mcp", KeyAuth: AuthNone}))
+}
+
+func TestServerEchoesOfSecretsAreScrubbed(t *testing.T) {
+	srv := mcptest.New(t)
+	const token = "tok-SECRET-123"
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "your token is " + token, Structured: map[string]any{"temp": 1, "echo": token}}
+	})
+	tool.Title = "Weather for " + token
+	srv.SetTool(tool)
+	srv.SetTool(mcptest.Tool{Name: "leak_" + token, InputSchema: map[string]any{"type": "object"}})
+	srv.RequireToken(token)
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthBearer, KeyToken: token}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	ctx := context.Background()
+
+	tools, err := c.Tools(ctx, tenant, id)
+	require.NoError(t, err)
+	raw, err := json.Marshal(tools)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), token)
+	require.Len(t, tools, 1, "a tool whose name carries the token is left out")
+
+	res, err := c.Node().Execute(ctx, callInput(id, creds, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.NoError(t, err)
+	out, err := json.Marshal(res.Output)
+	require.NoError(t, err)
+	require.NotContains(t, string(out), token)
+	require.Contains(t, string(out), "***")
+}
+
+func TestTokenRequestsDoNotFollowRedirects(t *testing.T) {
+	srv := mcptest.New(t)
+	srv.SetTool(weatherTool(nil))
+	srv.EnableOAuth()
+	st := newMemStore()
+	id := st.add(tenant, connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthOAuth2})
+	c := testConnector(t, srv, st, nil)
+	ctx := context.Background()
+	authURL, state, err := c.BeginAuthorization(ctx, connectors.AuthorizationStart{TenantID: tenant, ConnectionID: id, RedirectURL: "https://erp.example.com/cb"})
+	require.NoError(t, err)
+	code := approve(t, srv, authURL)
+	srv.MoveTokenEndpoint()
+	_, err = c.CompleteAuthorization(ctx, connectors.AuthorizationReturn{TenantID: tenant, ConnectionID: id, State: state, Code: code})
+	require.ErrorIs(t, err, ErrExchange)
+	require.Zero(t, srv.Elsewhere(), "the code and its verifier are not sent to the redirect")
+}
+
+func TestRefreshDoesNotLendATokenOfNewSettingsToTheOldServer(t *testing.T) {
+	srv := mcptest.New(t)
+	tool := weatherTool(nil)
+	srv.SetTool(tool)
+	st := newMemStore()
+	read := connectors.Credentials{KeyServerURL: srv.URL, KeyAuth: AuthOAuth2, KeyAccessToken: "old-access", KeyRefreshToken: "r",
+		KeyResource: srv.URL, KeyIssuer: srv.Origin(), KeyTokenEndpoint: srv.Origin() + "/token", KeyClientID: "c1",
+		KeyExpiresAt: time.Now().Add(time.Minute).UTC().Format(time.RFC3339)}
+	id := st.add(tenant, read)
+	// The administrator points the connection at another server and signs in there before the lock.
+	st.setCreds(id, func(c connectors.Credentials) {
+		c[KeyServerURL], c[KeyResource], c[KeyAccessToken] = "https://other.example.com/mcp", "https://other.example.com/mcp", "new-access"
+		c[KeyExpiresAt] = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	})
+	c := testConnector(t, srv, st, nil)
+	_, err := c.Node().Execute(context.Background(), callInput(id, read, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.Equal(t, catalog.CallUnavailable, callCode(err), "%v", err)
+	require.Zero(t, srv.Requests("initialize"), "nothing is sent to the old server")
+}
+
+func TestAHangingSessionEndDoesNotHoldTheAnswer(t *testing.T) {
+	srv := mcptest.New(t)
+	tool := weatherTool(func(map[string]any) mcptest.Result {
+		return mcptest.Result{Text: "ok", Structured: map[string]any{"temp": 1}}
+	})
+	srv.SetTool(tool)
+	srv.HangDelete()
+	st := newMemStore()
+	creds := connectors.Credentials{KeyServerURL: srv.URL}
+	id := st.add(tenant, creds)
+	c := testConnector(t, srv, st, nil)
+	started := time.Now()
+	res, err := c.Node().Execute(context.Background(), callInput(id, creds, map[string]any{"tool": "weather", "tool_schema": pinOf(t, tool),
+		"arguments": map[string]any{"city": map[string]any{"value": "x"}}}))
+	require.NoError(t, err)
+	require.Equal(t, OutcomeDone, res.Outcome)
+	require.Less(t, time.Since(started), 3*time.Second)
 }

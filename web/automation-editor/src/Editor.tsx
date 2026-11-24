@@ -336,6 +336,11 @@ function EditorBody(props: EditorProps): JSX.Element {
           setPendingReview(Boolean(result.pending_review))
           // The server may normalise the graph (defaults); adopt it when the draft did not move meanwhile.
           if (graphsEqual(draft(), graph) && !graphsEqual(graph, result.graph)) setHistory((h) => amend(h, { graph: result.graph, layout: h.present.layout }))
+          // A save that passed may still warn (a pinned tool schema the server changed).
+          if (result.warnings?.length) {
+            validateSeq += 1
+            setValidation({ status: 'done', errors: [], warnings: result.warnings, graph: result.graph })
+          }
         })
         toast.notify({ variant: 'success', title: t().save.saved(result.version) })
         return
@@ -502,12 +507,6 @@ function EditorBody(props: EditorProps): JSX.Element {
   const openPanelFocus = (id: string) => {
     setSelected(id)
     queueMicrotask(() => panelRef?.querySelector<HTMLElement>('input, textarea, button[role="combobox"], [role="combobox"], select, button')?.focus())
-  }
-
-  // An issue's fix (a pinned tool schema the server changed: dropped, the next save pins the new one).
-  const fixIssue = (next: AutomationGraph) => {
-    commitGraph(next)
-    void validate(next)
   }
 
   const pickIssue = (target: { id: string | null; field: string | null }) => {
@@ -848,6 +847,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                 catalog={props.catalog}
                 layout={layout()}
                 errors={errorsShown()}
+                warnings={checked().warnings}
                 overlay={props.overlay}
                 selected={selected()}
                 onSelect={(id) => {
@@ -906,7 +906,8 @@ function EditorBody(props: EditorProps): JSX.Element {
                 catalog={props.catalog}
                 locale={props.locale}
                 onPick={pickIssue}
-                {...(readOnly() ? {} : { onFix: fixIssue })}
+                // An issue's fix (a pinned tool schema the server changed: dropped, the next save pins it anew).
+                onFix={readOnly() ? undefined : (next) => { commitGraph(next); void validate(next) }}
                 onRetry={() => void validate()}
                 onClose={() => setValidationOpen(false)}
               />

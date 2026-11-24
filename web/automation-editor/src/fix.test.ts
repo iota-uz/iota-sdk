@@ -20,3 +20,22 @@ describe('issue fixes', () => {
     expect(applyFix(graph, 'nodes[0].params.missing')).toBeNull()
   })
 })
+
+describe('a fix follows its node', () => {
+  it('names the same node after a node before it is removed', async () => {
+    const { rebaseErrors } = await import('./validation')
+    const two = {
+      name: 'g', triggers: [], edges: [],
+      nodes: [{ id: 'first', type: 'mcp_tool', params: { tool_schema: {} } }, { id: 'second', type: 'mcp_tool', params: { tool_schema: {} } }],
+    } as unknown as AutomationGraph
+    const warning = { path: 'nodes[1].params.tool_schema', message: 'changed', code: 'tool_schema_changed', fix: { remove: 'nodes[1].params.tool_schema', label: 'Update' } }
+    const without = { ...two, nodes: [two.nodes[1]!] } as AutomationGraph
+    const [moved] = rebaseErrors([warning], two, without)
+    expect(moved?.path).toBe('nodes[0].params.tool_schema')
+    expect(moved?.fix?.remove).toBe('nodes[0].params.tool_schema')
+    const fixed = applyFix(without, moved!.fix!.remove)
+    expect((fixed?.nodes[0]?.params as Record<string, unknown>).tool_schema).toBeUndefined()
+    // The flagged node gone: its fix is gone too.
+    expect(rebaseErrors([warning], two, { ...two, nodes: [two.nodes[0]!] } as AutomationGraph)).toEqual([])
+  })
+})

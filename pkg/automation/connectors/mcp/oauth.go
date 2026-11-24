@@ -273,7 +273,7 @@ func (c *Connector) register(ctx context.Context, as authServer, redirect, scope
 	if scopes != "" {
 		meta["scope"] = scopes
 	}
-	res, err := registerClient(ctx, c.net.client(nil, nil), as.Registration, meta)
+	res, err := registerClient(ctx, c.net.secretClient(), as.Registration, meta)
 	if err != nil {
 		return nil, ErrRegistration // the server's text stays out
 	}
@@ -363,7 +363,7 @@ func (c *Connector) tokenRequest(ctx context.Context, creds connectors.Credentia
 	if secret != "" {
 		req.SetBasicAuth(url.QueryEscape(creds[KeyClientID]), url.QueryEscape(secret))
 	}
-	res, err := c.net.client(nil, nil).Do(req)
+	res, err := c.net.secretClient().Do(req)
 	if err != nil {
 		return tokenResponse{}, fmt.Errorf("mcp: the token request failed")
 	}
@@ -434,13 +434,29 @@ func (c *Connector) FreshCredentials(ctx context.Context, tenantID, connectionID
 	if !expiresWithin(creds, connectors.RefreshBefore, c.now()) {
 		return creds, nil
 	}
-	return c.refresh(ctx, tenantID, connectionID, creds[KeyAccessToken], false, check)
+	return c.refresh(ctx, tenantID, connectionID, creds, false, check)
 }
 
 // refresh refreshes the access token under the row lock. A token another call refreshed since seen was
 // read is taken as it is; force refreshes a token the server refused (401) even when it is not expiring.
 // A refused refresh sets needs_reauth (unless check) and is ErrNeedsReauth.
-func (c *Connector) refresh(ctx context.Context, tenantID, connectionID uuid.UUID, seen string, force, check bool) (connectors.Credentials, error) {
+// errSettingsChanged: the connection's server or OAuth client changed between the read of the call's
+// credentials and the row lock. A token of the row then belongs to other settings and is not used with
+// the call's server.
+var errSettingsChanged = errors.New("mcp: the connection's settings changed")
+
+// sameSettings reports whether two credential sets name the same server and OAuth client.
+func sameSettings(a, b connectors.Credentials) bool {
+	for _, k := range []string{KeyServerURL, KeyAuth, KeyClientID, KeyIssuer, KeyTokenEndpoint} {
+		if a[k] != b[k] {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Connector) refresh(ctx context.Context, tenantID, connectionID uuid.UUID, read connectors.Credentials, force, check bool) (connectors.Credentials, error) {
+	seen := read[KeyAccessToken]
 	st, err := c.boundStore()
 	if err != nil {
 		return nil, err
@@ -455,6 +471,10 @@ func (c *Connector) refresh(ctx context.Context, tenantID, connectionID uuid.UUI
 			return nil, nil //nolint:nilnil // no change: the caller reports ErrNeedsReauth
 		default:
 			return nil, connectors.ErrNotConnected
+		}
+		// The token is used with the server the call read: settings changed meanwhile give no token.
+		if !sameSettings(cur, read) || cur[KeyResource] != read[KeyResource] {
+			return nil, errSettingsChanged
 		}
 		if cur[KeyAccessToken] != seen && cur[KeyAccessToken] != "" && !expiresWithin(cur, 0, c.now()) {
 			return nil, nil //nolint:nilnil // another call refreshed while this one waited for the lock
@@ -514,8 +534,11 @@ func (c *Connector) tokenFor(ctx context.Context, tenantID, connectionID uuid.UU
 	if connectionID == uuid.Nil {
 		return cf.creds[KeyAccessToken], false, nil
 	}
-	creds, err := c.refresh(ctx, tenantID, connectionID, cf.creds[KeyAccessToken], force, false)
+	creds, err := c.refresh(ctx, tenantID, connectionID, cf.creds, force, false)
 	switch {
+	case errors.Is(err, errSettingsChanged):
+		// Nothing was sent: the call may be made again with the connection as it is now.
+		return "", true, &catalog.CallError{Code: catalog.CallUnavailable, Message: "the connection's settings changed during the call; it is made again with the new ones", Retryable: true}
 	case errors.Is(err, connectors.ErrNeedsReauth):
 		return "", true, &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the authorization server refused the refresh: the connection needs a new sign-in"}
 	case err != nil:

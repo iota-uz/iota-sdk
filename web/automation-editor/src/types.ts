@@ -93,7 +93,7 @@ export type TestNodeResult = {
 }
 export type SaveResult =
   /** Saved; with pending_review the enabled version stays until review. */
-  | { ok: true; graph: AutomationGraph; version: number; pending_review?: boolean }
+  | { ok: true; graph: AutomationGraph; version: number; pending_review?: boolean; warnings?: GraphError[] }
   | { errors: GraphError[]; warnings?: GraphError[] }
   | { conflict: { by: string; version: number } }
 
@@ -164,11 +164,13 @@ export type CanvasMenu = { x: number; y: number; flow: XY; item: string | null }
 export type CanvasItem = {
   id: string; kind: 'trigger' | 'node'; type: string
   outs: { outcome: string; to: string | null; ignore: boolean }[]
-  state?: ItemState; error?: string
+  state?: ItemState; error?: string; warning?: string
 }
 export interface CanvasProps {
   graph: AutomationGraph; catalog: EditorCatalog; layout: AutomationLayout
   errors?: GraphError[]; overlay?: Overlay | null
+  /** Warnings of the last check: a badge on their item, the card is not marked as an error. */
+  warnings?: GraphError[]
   selected: string | null; onSelect(id: string | null): void
   /** Absent → read-only. */
   onChange?(graph: AutomationGraph): void

@@ -212,10 +212,16 @@ func (n *ToolNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 	if in.Usage != nil && in.Connection != nil {
 		_ = in.Usage.Record(ctx, catalog.UsageEntry{TenantID: in.TenantID, Kind: Kind, ConnectionID: in.Connection.ID, Unit: "request", Quantity: 1, RunID: &in.RunID, At: time.Now()})
 	}
+	sc := newScrubber(in.Credentials, token)
 	out, err := toolOutput(*p.ToolSchema, res.res)
 	if err != nil {
+		var ce *catalog.CallError
+		if errors.As(err, &ce) {
+			return catalog.CallResult{}, &catalog.CallError{Code: ce.Code, Message: sc.text(ce.Message), Retryable: ce.Retryable}
+		}
 		return catalog.CallResult{}, err
 	}
+	out.Text, out.Structured = sc.text(out.Text), sc.raw(out.Structured)
 	output := map[string]any{"text": out.Text}
 	if len(out.Structured) > 0 {
 		var v any
@@ -253,6 +259,9 @@ func toolOutput(pin ToolPin, res *mcpsdk.CallToolResult) (ToolOutput, error) {
 		return ToolOutput{}, callErr(catalog.CallRejected, clip(msg, maxErrorText))
 	}
 	out := ToolOutput{Text: joined}
+	if res.StructuredContent == nil && len(pin.OutputSchema) > 0 {
+		return ToolOutput{}, callErr(catalog.CallRejected, "the tool declares an output schema and gave no structuredContent")
+	}
 	if res.StructuredContent != nil {
 		raw, err := json.Marshal(res.StructuredContent)
 		if err != nil {
@@ -301,6 +310,9 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 	}
 	tools, listErr := n.c.Tools(ctx, in.TenantID, connID)
 	pin := p.ToolSchema
+	// readOnly is what the server says now: only a tool it lists as read-only, with the pinned schema,
+	// runs for real in a dry run; anything uncertain is captured.
+	readOnly := false
 	switch {
 	case listErr != nil && pin == nil:
 		res.Errors = append(res.Errors, catalog.PrepareIssue{Path: ParamTool, Code: CodeToolsUnavailable,
@@ -328,6 +340,9 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 				Message: "the server's schema of the tool is not JSON"})
 			return res, nil //nolint:nilerr // the refusal is the result
 		}
+		if pin == nil || pin.Hash == current.Hash {
+			readOnly = current.ReadOnly
+		}
 		if pin == nil {
 			pin = &current
 			pinned, err := pinValue(current)
@@ -344,6 +359,23 @@ func (n *ToolNode) Prepare(ctx context.Context, in catalog.PrepareInput) (catalo
 				Message:   "the server changed the schema of " + p.Tool + " since it was pinned: runs keep the pinned one; update the pin to use the new schema",
 				FixRemove: ParamToolSchema, FixLabel: "Update the pinned schema"})
 		}
+	}
+	// The author's read_only is never trusted: a save or a try sets it from the server (a stored version
+	// being enabled keeps its params; the dry run that would read them checks again).
+	if in.Fill && pin.ReadOnly != readOnly {
+		fixed := *pin
+		fixed.ReadOnly = readOnly
+		pinned, err := pinValue(fixed)
+		if err != nil {
+			return res, err
+		}
+		if res.Params == nil {
+			res.Params = make(map[string]any, len(in.Params))
+			for k, v := range in.Params {
+				res.Params[k] = v
+			}
+		}
+		res.Params[ParamToolSchema] = pinned
 	}
 	for _, i := range checkArguments(pin.InputSchema, p.Arguments, in.TypeOf) {
 		res.Errors = append(res.Errors, catalog.PrepareIssue{Path: i.path, Code: i.code, Message: i.message})

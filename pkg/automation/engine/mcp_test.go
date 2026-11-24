@@ -110,4 +110,29 @@ func TestMCPToolSchemaIsPinnedInTheVersion(t *testing.T) {
 	require.Equal(t, map[string]any{"city": "Tashkent", "days": float64(3)}, srv.Calls()[1].Arguments, "runs keep the pinned arguments")
 	effects := e.count(`SELECT count(*) FROM test_effects WHERE text LIKE 'sunny%'`)
 	require.Equal(t, 2, effects)
+
+	// A connection whose sign-in was refused: its calls fail as unauthorized, not as a missing connection.
+	require.NoError(t, store.SetStatus(ctx, e.tenant, saved0.ID, connectors.StatusNeedsReauth, "refused"))
+	e.publish(e.tenant, orderCreated, "o-3", order{Amount: 2}, 0)
+	var code string
+	p.until(func() bool {
+		for _, r := range e.runs(p, e.human(), engine.RunFilter{}) {
+			if r.Subject.Key != "o-3" || (r.Status != engine.RunDone && r.Status != engine.RunFailed) {
+				continue
+			}
+			d := e.run(p, e.human(), r.RunID)
+			if d.Error != nil {
+				code = d.Error.Code
+			}
+			for _, st := range d.Steps {
+				if st.NodeID == "call" && st.Error != nil {
+					code = st.Error.Code
+				}
+			}
+			return true
+		}
+		return false
+	}, "the run ends")
+	require.Equal(t, catalog.CallUnauthorized, code)
+	require.Len(t, srv.Calls(), 2, "nothing reached the server")
 }
