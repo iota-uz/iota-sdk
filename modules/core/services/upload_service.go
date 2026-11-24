@@ -135,11 +135,25 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
 	if data.UploadsPath != "" || s.uploadsPath == "" {
-		return s.create(ctx, data, true, true)
+		return s.create(ctx, data, true, true, false)
 	}
 	configured := *data
 	configured.UploadsPath = s.uploadsPath
-	return s.create(ctx, &configured, true, true)
+	return s.create(ctx, &configured, true, true, false)
+}
+
+// CreateKeeping stores an upload in the public root, or returns the tenant's existing upload of the same content
+// exactly as it is: its record, its name and its path are not changed, and it is not moved out of a private namespace
+// into the public root. For content that comes from outside (a file a chat sends), where a match with a file that
+// was stored for another purpose, perhaps under an HTML name or privately, must neither publish it nor rename it.
+// A slug that another content holds is a conflict, not a replacement.
+func (s *UploadService) CreateKeeping(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	if data.UploadsPath != "" || s.uploadsPath == "" {
+		return s.create(ctx, data, true, false, true)
+	}
+	configured := *data
+	configured.UploadsPath = s.uploadsPath
+	return s.create(ctx, &configured, true, false, true)
 }
 
 // CreatePrivate stores an upload in a caller-provided non-public namespace.
@@ -152,7 +166,7 @@ func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDT
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
-	return s.create(ctx, &privateData, false, false, privatePath)
+	return s.create(ctx, &privateData, false, false, false, privatePath)
 }
 
 // pathWithin compares filesystem layouts, so S3 keys match the same roots as local paths.
@@ -165,7 +179,7 @@ func pathWithin(root, candidate string) bool {
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
+func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug, keepExisting bool, requiredPath ...string) (upload.Upload, error) {
 	const op serrors.Op = "UploadService.create"
 	if location := s.storageLocation(); location != "" && data.StorageLocation == "" {
 		located := *data
@@ -220,7 +234,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				up = entity
 			}
 		}
-		if data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
+		if !keepExisting && data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
 			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), upload.LocatePath(data.StorageLocation, filepath.Join(data.UploadsPath, filepath.Base(upload.LayoutPath(up.Path())))), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
 			rooted.SetGeoPoint(up.GeoPoint())
 			if err := s.storage.Save(ctx, rooted.Path(), bytes); err != nil {

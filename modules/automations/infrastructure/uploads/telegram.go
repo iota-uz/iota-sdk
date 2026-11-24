@@ -20,7 +20,7 @@ import (
 
 // CoreUploads is the part of the SDK's upload service (modules/core) the Telegram connector uses.
 type CoreUploads interface {
-	Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error)
+	CreateKeeping(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error)
 	GetByID(ctx context.Context, id uint) (upload.Upload, error)
 	OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error)
 }
@@ -61,7 +61,7 @@ func (u telegramUploads) scope(ctx context.Context, tenantID uuid.UUID) context.
 
 func (u telegramUploads) Save(ctx context.Context, tenantID uuid.UUID, f telegram.UploadFile) (telegram.Stored, error) {
 	ctx = u.scope(ctx, tenantID)
-	created, err := u.svc.Create(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name + storedSuffix, Size: len(f.Data)})
+	created, err := u.svc.CreateKeeping(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name + storedSuffix, Size: len(f.Data)})
 	if err != nil {
 		return telegram.Stored{}, err
 	}
