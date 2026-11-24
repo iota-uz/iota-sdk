@@ -42,14 +42,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -123,8 +126,10 @@ func (c *component) LocaleFS() []*embed.FS { return []*embed.FS{&localeFiles} }
 // host bundle and the OAuth2 redirect, the extension runtime's UI and the HTTP origin.
 type settingsCfg struct {
 	automation automationconfig.Config
-	hostPath   string
-	origin     string
+	// sms are the platform credentials of the SMS connectors the environment configures.
+	sms      map[catalog.ConnectorKind]connectors.PlatformCredential
+	hostPath string
+	origin   string
 }
 
 func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
@@ -139,6 +144,15 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
+	eskizCfg, err := config.Register[eskizconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	twilioCfg, err := config.Register[twilioconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.sms = sms.PlatformCredentials(eskizCfg, twilioCfg)
 	ext, err := config.Register[extruntimeconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -170,6 +184,11 @@ func (c *component) Build(b *composition.Builder) error {
 	platformCreds, err := cfg.automation.PlatformCredentials()
 	if err != nil {
 		return serrors.Wrap(op, err)
+	}
+	for kind, cred := range cfg.sms {
+		if _, set := platformCreds[kind]; !set { // an explicit platform.credentials entry wins
+			platformCreds[kind] = cred
+		}
 	}
 	hostManifest := c.host
 	var assets http.Handler
@@ -214,7 +233,19 @@ func (c *component) Build(b *composition.Builder) error {
 			return nil, err
 		}
 		dir := connectors.NewDirectory(reg)
+		registered := map[catalog.ConnectorKind]bool{}
 		for _, conn := range c.connectors {
+			if err := dir.Register(conn); err != nil {
+				return nil, err
+			}
+			registered[conn.Kind()] = true
+		}
+		// The SDK's own connectors, unless the application registered its own of the kind.
+		status := lazyStatus{container: container}
+		for _, conn := range []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))} {
+			if registered[conn.Kind()] {
+				continue
+			}
 			if err := dir.Register(conn); err != nil {
 				return nil, err
 			}
@@ -365,6 +396,17 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 		return nil, err
 	}
 	return st.Connected(ctx, tenantID)
+}
+
+// lazyStatus marks connections needs_reauth through the store, which is built after the directory.
+type lazyStatus struct{ container *composition.Container }
+
+func (l lazyStatus) SetStatus(ctx context.Context, tenantID, id uuid.UUID, st connectors.ConnectionStatus, reason string) error {
+	store, err := composition.Resolve[connectors.ConnectionStore](l.container)
+	if err != nil {
+		return err
+	}
+	return store.SetStatus(ctx, tenantID, id, st, reason)
 }
 
 // messagePrefix is the namespace of the integrations screen's strings in the module's locale files.

@@ -61,6 +61,15 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 	return h.rt, nil
 }
 
+// defaultEngineConfig is the engine's configuration before the application's tuning: it records what
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage.
+func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource) engine.Config {
+	return engine.Config{
+		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Logger: slog.Default(),
+		Usage: connectors.NewUsageRecorder(db),
+	}
+}
+
 // buildEngine provides the engine over the extension core's workflow engine and registers what it
 // contributes to the core: the native contracts automation.run and automation.call, the outbox
 // consumer, the schedules, and the maintenance loop and inbound poller as hooks.
@@ -89,7 +98,7 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		// The store's usage index is the engine's: the credentials are resolved when a call first opens one.
-		cfg := engine.Config{DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: lazyCredentials{container: container}, Logger: slog.Default()}
+		cfg := defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container})
 		for _, tune := range c.engineTune {
 			tune(&cfg)
 		}
