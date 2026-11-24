@@ -50,7 +50,7 @@ test.describe('canvas', () => {
   test('picking a step from the palette after a release connects it to that outcome', async ({ page }) => {
     await open(page)
     const from = await center(handle(page, 'delay', 'done'))
-    await drag(page, from, { x: from.x + 120, y: from.y + 200 })
+    await drag(page, from, { x: from.x + 320, y: from.y - 40 })
     await page.locator('.ae-palette input').fill('end')
     await page.keyboard.press('Enter')
     await expect(edge(page, 'delay', 'done')).toHaveAttribute('data-to', 'end_2')
@@ -106,6 +106,70 @@ test.describe('canvas', () => {
     await page.keyboard.up('Alt')
     const moves = await page.evaluate(() => window.__fixture.moves)
     expect(moves).toHaveLength(1)
+  })
+})
+
+test.describe('tidy', () => {
+  const place = (page: import('@playwright/test').Page, id: string) => card(page, id).evaluate((el) => (el as HTMLElement).style.transform)
+  // A freshly opened graph is already tidy, so a Tidy would move nothing: move a card by hand first.
+  const moveByHand = async (page: import('@playwright/test').Page, id: string) => {
+    const start = await center(card(page, id).locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 96, y: start.y + 64 })
+    await page.waitForTimeout(100)
+  }
+
+  test('the button sits next to Fit with a tooltip naming ⇧⌘L, and takes focus', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const buttons = page.locator('.ae-controls button')
+    await expect(buttons.nth(3)).toHaveAttribute('aria-label', 'Tidy up')
+    await expect(buttons.nth(2)).toHaveAttribute('aria-label', 'Fit to screen')
+    await expect(buttons.nth(3)).toHaveAttribute('title', /Tidy up \((Ctrl\+Shift\+L|⇧⌘L)\)/)
+    await buttons.nth(3).focus()
+    await expect(buttons.nth(3)).toBeFocused()
+  })
+
+  test('one Tidy is one undo step; the moved card glides back with a 200 ms transform transition', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const tidy = await place(page, 'a_check')
+    await moveByHand(page, 'a_check')
+    const moved = await place(page, 'a_check')
+    expect(moved).not.toBe(tidy)
+    // Record the transitions the browser starts: a declared duration alone would not show a card gliding.
+    await page.evaluate(() => {
+      const seen: { id: string | undefined; property: string; duration: string }[] = []
+      ;(window as unknown as { __glides: typeof seen }).__glides = seen
+      document.querySelector('.ae-canvas')!.addEventListener('transitionrun', (event) => {
+        const e = event as TransitionEvent
+        const el = e.target as HTMLElement
+        seen.push({ id: el.dataset.id, property: e.propertyName, duration: getComputedStyle(el).transitionDuration })
+      }, true)
+    })
+    await page.locator('.ae-controls .ae-tidy').click()
+    await expect.poll(() => place(page, 'a_check')).toBe(tidy)
+    // The browser starts the transition on the next style recalculation, a frame after the style changed.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __glides: { id: string; property: string; duration: string }[] }).__glides
+      .find((g) => g.id === 'a_check' && g.property === 'transform')?.duration)).toBe('0.2s')
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    await page.getByLabel('Undo').click()
+    expect(await place(page, 'a_check')).toBe(moved)
+  })
+
+  test('⇧⌘L tidies, and prefers-reduced-motion skips the glide', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await open(page, 'graph=multi')
+    const tidy = await place(page, 'a_check')
+    await moveByHand(page, 'a_check')
+    expect(await place(page, 'a_check')).not.toBe(tidy)
+    await page.keyboard.press(`${mod}+Shift+L`)
+    await expect.poll(() => place(page, 'a_check')).toBe(tidy)
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    expect(await card(page, 'a_check').evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s')
+  })
+
+  test('the canvas menu has Tidy too', async ({ page }) => {
+    await open(page, 'graph=multi')
+    await page.locator('.ae-pane').click({ button: 'right', position: { x: 900, y: 700 } })
+    await expect(page.getByRole('menuitem', { name: /Tidy up/ })).toBeVisible()
   })
 })
 
@@ -234,7 +298,11 @@ test.describe('editor', () => {
     await card(page, 'has_email').click()
     await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('user.email != "" && true')
     await page.locator('.ae-save').click()
-    const start = await center(card(page, 'user_created').locator('.ae-card__title'))
+    // The step panel's drawer slides out for a moment after it opens and covers the right of the canvas;
+    // hovering waits until nothing is over the title, so the drag starts on the card.
+    const title = card(page, 'user_created').locator('.ae-card__title')
+    await title.hover()
+    const start = await center(title)
     await drag(page, start, { x: start.x + 64, y: start.y + 48 })
     const onScreen = await page.evaluate(() => window.__fixture.initialLayout.user_created!)
     await expect.poll(() => page.evaluate(() => window.__fixture.saves.length), { timeout: 10000 }).toBe(1)

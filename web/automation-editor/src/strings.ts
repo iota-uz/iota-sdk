@@ -22,6 +22,7 @@ export type Strings = {
     zoomIn: string
     zoomOut: string
     fit: string
+    tidy: string
     zoomReset: string
     minimap: string
     trigger: string
@@ -195,6 +196,7 @@ const en: Strings = {
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     fit: 'Fit to screen',
+    tidy: 'Tidy up',
     zoomReset: 'Zoom to 100%',
     minimap: 'Minimap',
     trigger: 'Trigger',
@@ -349,6 +351,7 @@ const en: Strings = {
       ['⌘S', 'Save'],
       ['⌘Enter', 'Validate'],
       ['⇧1 · ⇧0', 'Fit · zoom to 100%'],
+      ['⇧⌘L', 'Tidy up the layout'],
       ['?', 'This list'],
     ],
     gestureRows: [
@@ -388,6 +391,7 @@ const ru: Strings = {
     zoomIn: 'Приблизить',
     zoomOut: 'Отдалить',
     fit: 'Вместить',
+    tidy: 'Упорядочить',
     zoomReset: 'Масштаб 100 %',
     minimap: 'Мини-карта',
     trigger: 'Триггер',
@@ -542,6 +546,7 @@ const ru: Strings = {
       ['⌘S', 'Сохранить'],
       ['⌘Enter', 'Проверить'],
       ['⇧1 · ⇧0', 'Вместить · 100 %'],
+      ['⇧⌘L', 'Упорядочить раскладку'],
       ['?', 'Этот список'],
     ],
     gestureRows: [
@@ -581,6 +586,7 @@ const uz: Strings = {
     zoomIn: 'Yaqinlashtirish',
     zoomOut: 'Uzoqlashtirish',
     fit: 'Sigʻdirish',
+    tidy: 'Tartiblash',
     zoomReset: 'Masshtab 100 %',
     minimap: 'Mini xarita',
     trigger: 'Trigger',
@@ -735,6 +741,7 @@ const uz: Strings = {
       ['⌘S', 'Saqlash'],
       ['⌘Enter', 'Tekshirish'],
       ['⇧1 · ⇧0', 'Sigʻdirish · 100 %'],
+      ['⇧⌘L', 'Joylashuvni tartiblash'],
       ['?', 'Ushbu roʻyxat'],
     ],
     gestureRows: [
@@ -774,6 +781,7 @@ const uzCyrl: Strings = {
     zoomIn: 'Яқинлаштириш',
     zoomOut: 'Узоқлаштириш',
     fit: 'Сиғдириш',
+    tidy: 'Тартиблаш',
     zoomReset: 'Масштаб 100 %',
     minimap: 'Мини харита',
     trigger: 'Триггер',
@@ -928,6 +936,7 @@ const uzCyrl: Strings = {
       ['⌘S', 'Сақлаш'],
       ['⌘Enter', 'Текшириш'],
       ['⇧1 · ⇧0', 'Сиғдириш · 100 %'],
+      ['⇧⌘L', 'Жойлашувни тартиблаш'],
       ['?', 'Ушбу рўйхат'],
     ],
     gestureRows: [
