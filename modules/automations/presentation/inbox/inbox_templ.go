@@ -1522,7 +1522,7 @@ func TaskScreen(p *TaskProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.Instructions != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "<div class=\"prose prose-sm mt-4 max-w-none break-words text-100 dark:prose-invert\" data-testid=\"automations-task-instructions\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 112, "<div class=\"mt-4 max-w-none break-words text-100 [&amp;_ol]:list-decimal [&amp;_ol]:pl-5 [&amp;_p]:mb-2 [&amp;_ul]:list-disc [&amp;_ul]:pl-5 [&amp;_a]:text-primary [&amp;_a]:underline\" data-testid=\"automations-task-instructions\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

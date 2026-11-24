@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -520,8 +521,12 @@ func (c *Controller) badge(w http.ResponseWriter, r *http.Request) {
 	c.render(w, r, BadgeCount(counts))
 }
 
+// renderBadge renders the counter with the page; a slow count never holds the page: it renders
+// empty and the next refresh fills it.
 func (c *Controller) renderBadge(ctx context.Context, w io.Writer) error {
-	counts, err := c.cfg.Inbox.Counts(ctx)
+	cctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+	counts, err := c.cfg.Inbox.Counts(cctx)
 	if err != nil {
 		counts = tasks.TaskCounts{}
 	}

@@ -294,7 +294,7 @@ templ TaskScreen(p *TaskProps) {
 		<h1 class="break-words text-2xl font-semibold text-100">{ p.Task.Title }</h1>
 		@meta(p.Task, false)
 		if p.Instructions != "" {
-			<div class="prose prose-sm mt-4 max-w-none break-words text-100 dark:prose-invert" data-testid="automations-task-instructions">
+			<div class="mt-4 max-w-none break-words text-100 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_a]:text-primary [&_a]:underline" data-testid="automations-task-instructions">
 				@templ.Raw(string(p.Instructions))
 			</div>
 		}
