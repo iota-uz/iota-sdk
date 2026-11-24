@@ -106,6 +106,7 @@ func issuePath(prefix string, path []any) string {
 // reachability, cycles and every CEL expression and template, then Options.Rules. Empty: the graph is
 // valid. Errors are capped at 100.
 func Validate(c Catalog, g Graph, o Options) []GraphError {
+	g = Resolve(c, g)
 	// The structure, also for a graph built in Go rather than decoded.
 	var doc any
 	shape := g

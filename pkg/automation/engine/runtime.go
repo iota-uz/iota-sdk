@@ -187,6 +187,8 @@ func (r *Runtime) Natives() map[string]workflow.NativeContract {
 			Concurrency:    r.cfg.Limits.Concurrency,
 			Completion:     workflow.CancelPending,
 			StatusObserver: &observer{r: r},
+			// A run's data is shown by GetRun, which hides the fields a viewer may not read.
+			Private: true,
 		},
 		CallWorkflowID: r.calls.contract(),
 	}

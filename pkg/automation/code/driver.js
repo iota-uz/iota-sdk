@@ -89,6 +89,14 @@
     }
   }
 
+  class ConnectionError extends ErrorCtor {
+    constructor(message, code) {
+      super(message);
+      this.name = "ConnectionError";
+      this.code = code;
+    }
+  }
+
   // The stack of a fetch error is the stack of the call: after the await only the driver is on it.
   const fail = (err, site) => {
     try {
@@ -116,9 +124,55 @@
     });
   };
 
-  const makeEnv = (secrets, limits) => {
+  const makeEnv = (secrets, limits, conns) => {
     let fetches = 0;
     let logLines = 0;
+
+    // env.connections.<name>.<method>(path, body?): the host adds the connection's authorization; the
+    // request is staged as a fetch is, and counts as one.
+    const connectionCall = (name, method) => async (path, body) => {
+      const site = new ErrorCtor();
+      if (++fetches > limits.maxFetches) {
+        throw fail(new TypeErrorCtor("connection call failed: at most " + limits.maxFetches + " fetches per run"), site);
+      }
+      const req = create(null);
+      req.connection = name;
+      req.method = method;
+      req.path = Str(path);
+      if (body !== undefined && body !== null) {
+        if (typeof body === "string") {
+          req.body = body;
+        } else {
+          let text;
+          try {
+            text = stringify(body);
+          } catch (e) {
+            throw fail(new TypeErrorCtor("connection call failed: the body is not JSON"), site);
+          }
+          if (text !== undefined) req.body = Str(text);
+        }
+      }
+      let ticket;
+      try {
+        ticket = rpcSync("fetchStage", stringify(req));
+      } catch (e) {
+        throw fail(new TypeErrorCtor("connection call failed: " + Str(e && e.message)), site);
+      }
+      const r = await rpc("connection", ticket);
+      if (r.refused) throw fail(new ConnectionError(Str(r.refused), Str(r.code)), site);
+      if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
+      if (r.error) throw fail(new TypeErrorCtor("connection call failed: " + Str(r.error)), site);
+      return response(r);
+    };
+    const connections = create(null);
+    const connNames = keys(conns);
+    for (let i = 0; i < connNames.length; i++) {
+      const name = connNames[i];
+      const methods = conns[name];
+      const c = create(null);
+      for (let j = 0; j < methods.length; j++) c[methods[j]] = connectionCall(name, methods[j]);
+      connections[name] = freeze(c);
+    }
 
     const fetch = async (url, init) => {
       const site = new ErrorCtor();
@@ -154,6 +208,7 @@
 
     return freeze({
       fetch,
+      connections: freeze(connections),
       secrets: freeze(secrets),
       log: (...args) => {
         if (logLines > limits.maxLogLines) return;
@@ -174,7 +229,7 @@
     rpcSync("__result", bare(r));
   };
 
-  const run = async (mod, ctxJSON, secretsJSON, limitsJSON) => {
+  const run = async (mod, ctxJSON, secretsJSON, limitsJSON, connsJSON) => {
     const limits = parse(limitsJSON);
     let res;
     try {
@@ -182,7 +237,7 @@
       if (typeof fn !== "function") {
         throw new TypeErrorCtor("the code must export default async function run(ctx, env)");
       }
-      res = await fn(deepFreeze(parse(ctxJSON)), makeEnv(parse(secretsJSON), limits));
+      res = await fn(deepFreeze(parse(ctxJSON)), makeEnv(parse(secretsJSON), limits, parse(connsJSON)));
     } catch (e) {
       report({ error: errorInfo(e) });
       return;
